@@ -7,7 +7,7 @@
 # sheet's "save there"; #28: the delete confirm, the location sheet, a category change and
 # turning automatic management on (#65) ask), and board 44's skipped files that still hold space
 # (#118): the On disk column and band, free the space on a v1-only torrent (with its recheck)
-# and on a hybrid (left, then added again). After each step it checks what qBittorrent says and
+# and on a hybrid (left, then added again); and a big tick that waits with Undo (#119). After each step it checks what qBittorrent says and
 # what is on disk, and stops at the first mismatch. OMASEED_ACTIONS_WALK_FROM=disk runs board
 # 44's steps alone.
 # Run it again after any change to an action, a sheet, a palette or the selection bar.
@@ -93,6 +93,9 @@ print(next(t["hash"] for t in json.load(sys.stdin) if t["name"].startswith(sys.a
 in_box() { omabox run -b "$BOX" -- "$@" >/dev/null 2>&1; }
 
 keys() { omabox keys -b "$BOX" --window omaseed --wait "$@" >/dev/null 2>&1 || true; }
+# keys_now KEY...: the same without waiting for the screen to settle, for while something on it
+# keeps moving (the hold band's countdown, #119) and the 3 s matter.
+keys_now() { omabox keys -b "$BOX" --window omaseed "$@" >/dev/null 2>&1 || true; }
 # bar_fit: move BAR_* from the BAR_W x BAR_H window they were measured on to omaseed's own.
 bar_fit() {
     local w h dx dy
@@ -320,11 +323,16 @@ import json, sys
 print(" ".join(str(f["priority"]) for f in json.load(sys.stdin)))'
 }
 
-# expect_priorities "WHAT" HASH "P P P P": the torrent's file priorities are those.
+# expect_priorities "WHAT" HASH "P P P P" [SECONDS]: wait until the torrent's file priorities
+# are those.
 expect_priorities() {
-    local got
-    got="$(priorities "$2")"
-    if [ "$got" = "$3" ]; then pass "$1: $3"; else fail "$1 (the priorities are $got, not $3)"; fi
+    local got="" limit="${4:-10}"
+    for _ in $(seq 1 $((limit * 4))); do
+        got="$(priorities "$2")"
+        [ "$got" = "$3" ] && { pass "$1: $3"; return 0; }
+        sleep 0.25
+    done
+    fail "$1 (after ${limit}s the priorities are $got, not $3)"
 }
 
 disk_walk() {
@@ -385,6 +393,36 @@ disk_walk() {
     expect_priorities "the same files are wanted" "$D_HY" "1 1 0 0"
     expect_no_text "the band is gone" "skipped files hold" 30
     shot "b44-hybrid is back; the footer: added again."
+
+    step "A big tick waits, and undo sends nothing" "b44-v1 (c.bin and d.bin skipped, gone from disk): ctrl+a, + raises every file, the whole torrent, so the change waits 3 s with Undo and Send now (#119). u: the rows go back, nothing reaches qBittorrent, and no file is created."
+    table_on "b44-v1"
+    keys l 2
+    keys ctrl+a
+    keys_now -t "+"
+    expect_text "the band says what waits" "Wanting 2 more files" 3
+    shot "Wanting 2 more files · 16.8 MB, Undo u, Send now ⏎, its line running down; the rows already read high." hold
+    keys_now u
+    expect_no_text "the band is gone" "Wanting 2 more files" 5
+    sleep 4
+    expect_priorities "qBittorrent never heard of it" "$D_V1" "1 1 0 0"
+    expect_disk "c.bin was never created" ! "$TORRENTS_DIR/b44-v1/c.bin"
+
+    step "Send now" "The same tick again, then enter: it goes at once."
+    keys_now -t "+"
+    expect_text "the band is back" "Wanting 2 more files" 3
+    keys_now Return
+    expect_priorities "qBittorrent has every file at high" "$D_V1" "6 6 6 6"
+
+    step "Leaving sends what waits" "Back to 1 1 0 0 through the API; the same tick, then the jump palette onto b44-hybrid before the 3 s are up: the change goes as the torrent is left."
+    api torrents/filePrio -d "hash=$D_V1" -d "id=0|1" -d priority=1 >/dev/null
+    api torrents/filePrio -d "hash=$D_V1" -d "id=2|3" -d priority=0 >/dev/null
+    expect_priorities "back to 1 1 0 0" "$D_V1" "1 1 0 0"
+    sleep 3
+    keys_now -t "+"
+    keys_now ctrl+k -t "b44-hybrid" Tab
+    keys_now Escape
+    expect_priorities "sent on leaving" "$D_V1" "6 6 6 6" 5
+    keys Escape
 }
 
 # finish: the walk's last lines.

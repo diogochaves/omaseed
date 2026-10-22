@@ -113,6 +113,8 @@ qt_add_library(omaseed-core STATIC
     SeedLedger.hpp
     SpeedSets.cpp
     SpeedSets.hpp
+    SelectionHold.cpp
+    SelectionHold.hpp
     SharedData.cpp
     SharedData.hpp
     SkippedJobs.cpp

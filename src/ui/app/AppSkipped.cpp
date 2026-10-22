@@ -8,6 +8,7 @@
 #include "core/ProblemLog.hpp"
 #include "core/TorrentFilesModel.hpp"
 
+#include <QCoreApplication>
 #include <QJsonArray>
 #include <QSet>
 
@@ -56,6 +57,15 @@ QString verdictName(FreeItem::Verdict verdict)
 
 void App::setUpSkipped()
 {
+    // #119 (C17 D5–D7): the hold's window ran out; or another torrent: what waits goes.
+    connect(m_hold, &SelectionHold::due, this, &App::sendHeldSelection);
+    connect(m_hold, &SelectionHold::changed, this, [this]() {
+        if (m_hold->hash() == m_details->hash() || !m_hold->waiting())
+            m_details->files()->setHeldPriorities(m_hold->targets());
+        Q_EMIT heldSelectionChanged();
+    });
+    connect(m_details, &TorrentDetails::hashChanged, this, &App::sendHeldSelection);
+    connect(qApp, &QCoreApplication::aboutToQuit, this, &App::sendHeldSelection);
     m_skipped = new SkippedOnDisk(SkippedOnDisk::readAllocated, this);
     connect(m_skipped, &SkippedOnDisk::readingChanged, this, [this]() {
         const SkippedReading &reading = m_skipped->reading();
@@ -316,6 +326,57 @@ void App::addTorrentAgain(const QString &hash, bool freeLeftovers)
     m_skippedStep = QStringLiteral("reading");
     Q_EMIT skippedOnDiskChanged();
     job->start(input);
+}
+
+// ---- #119: a big selection waits (C17 D5–D7) -------------------------------------------------
+
+QVariantMap App::heldSelectionMap() const
+{
+    int changed = 0;
+    const QMap<int, QList<int>> net = m_hold->net();
+    for (const QList<int> &ids : net)
+        changed += int(ids.size());
+    return {{QStringLiteral("waiting"), m_hold->waiting()},
+            {QStringLiteral("hash"), m_hold->hash()},
+            {QStringLiteral("files"), m_hold->addedFiles()},
+            {QStringLiteral("bytes"), m_hold->addedBytes()},
+            {QStringLiteral("bytesText"), Format::size(m_hold->addedBytes())},
+            {QStringLiteral("changed"), changed},
+            {QStringLiteral("deadlineMs"),
+             m_hold->waiting() ? m_hold->deadline().toMSecsSinceEpoch() : qint64(0)},
+            {QStringLiteral("windowMs"), m_hold->windowMs()}};
+}
+
+void App::undoHeldSelection()
+{
+    if (!m_hold->waiting())
+        return;
+    const QString hash = m_hold->hash();
+    const QMap<int, QList<int>> back = m_hold->originals();
+    m_hold->clear();
+    if (m_details->hash() != hash)
+        return;
+    m_details->files()->setHeldPriorities({});
+    for (auto it = back.cbegin(); it != back.cend(); ++it) {
+        QVariantList ids;
+        for (const int id : it.value())
+            ids.append(id);
+        m_details->files()->setLocalPriority(ids, it.key());
+    }
+}
+
+void App::sendHeldSelection()
+{
+    if (!m_hold->waiting())
+        return;
+    const QString hash = m_hold->hash();
+    const QMap<int, QList<int>> net = m_hold->take();
+    // Sent: the polls say what the server has from now on.
+    m_details->files()->setHeldPriorities({});
+    if (m_demoMode || !m_hasServer)
+        return;
+    for (auto it = net.cbegin(); it != net.cend(); ++it)
+        sendFilePriority(hash, it.value(), it.key());
 }
 
 } // namespace omaseed::app

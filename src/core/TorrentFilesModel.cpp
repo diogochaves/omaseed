@@ -246,6 +246,7 @@ void TorrentFilesModel::clear()
     m_fileCount = 0;
     m_matchCount = 0;
     m_onDisk.clear();
+    m_held.clear();
     // A filter belongs to the torrent it was typed for; the sort is a preference and stays.
     const bool hadFilter = !m_filterText.isEmpty();
     m_filterText.clear();
@@ -255,6 +256,21 @@ void TorrentFilesModel::clear()
     if (hadFilter)
         Q_EMIT filterTextChanged();
     updateSummary();
+}
+
+QHash<int, qint64> TorrentFilesModel::sizeByFileIndex() const
+{
+    QHash<int, qint64> sizes;
+    for (const Node &node : m_nodes) {
+        if (!node.isFolder)
+            sizes.insert(node.fileIndex, node.size);
+    }
+    return sizes;
+}
+
+void TorrentFilesModel::setHeldPriorities(const QHash<int, int> &held)
+{
+    m_held = held;
 }
 
 void TorrentFilesModel::setOnDisk(const QHash<int, qint64> &allocatedByIndex)
@@ -371,8 +387,18 @@ void TorrentFilesModel::updateInPlace(const QJsonArray &files)
 
     m_files = files;
     const int matchesBefore = m_matchCount;
-    for (int at = 0; at < files.size(); ++at)
-        readFile(m_nodes[leaves.at(at)], files.at(at).toObject());
+    for (int at = 0; at < files.size(); ++at) {
+        Node &leaf = m_nodes[leaves.at(at)];
+        readFile(leaf, files.at(at).toObject());
+        // C17 D5: a change still held back keeps its rows; the server hasn't heard of it.
+        const auto held = m_held.constFind(leaf.fileIndex);
+        if (held != m_held.constEnd()) {
+            leaf.priority = held.value();
+            leaf.remaining = leaf.priority == int(FilePriority::Skip)
+                                 ? 0
+                                 : qint64(double(leaf.size) * (1.0 - leaf.progress));
+        }
+    }
     for (int root : std::as_const(m_roots))
         aggregate(root);
     applyFilter();

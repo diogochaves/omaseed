@@ -24,6 +24,10 @@ import Omaseed.Kit
 // with "Free the space…" (shift+f) and "Why?"; and on a server whose disks can't be seen, the
 // accent "at least" hint from skipped files already written to, pointing to path maps.
 //
+// Board 44 §3 (DECISIONS C17 D5–D7, #119): a widening of more than 1 GiB, or of the whole
+// torrent, waits 3 s before it is sent; its band says what waits, with Undo (`u`) and Send now
+// (`enter`), its line running down the window.
+//
 // The columns fit the room (docs/11 J1). Docked on the right the pane shows the figure's
 // four — Name, Size, Done (a progress line and its percent), Priority — and at the bottom,
 // or dragged wider, it adds Remaining, Availability and the piece range, in that order.
@@ -45,6 +49,10 @@ Item {
     property var skipped: ({})
     /// The server's name, for D4's hint.
     property string serverName: ""
+    /// App.heldSelection for this torrent (C17 D5), or `{}`.
+    property var held: ({})
+    /// The clock the hold's countdown reads; ticks only while a change waits.
+    property real _now: Date.now()
 
     /// `modifiers`: ctrl and shift select (the pane's click rules). A plain click on a folder
     /// moves the cursor, as on a file; its arrow, or a double click, folds it (#51 D5).
@@ -75,6 +83,9 @@ Item {
     signal freeSpaceRequested
     /// C17 D4: the hint's "Path maps…".
     signal pathMapsRequested
+    /// C17 D5: the hold band's Undo and Send now.
+    signal undoHeldRequested
+    signal sendHeldRequested
     /// A click on a column's caption: the pane sorts by `key` (TorrentFilesModel::cycleSort:
     /// one way, the other, then torrent order), and takes the keyboard as a click on a row
     /// does.
@@ -131,6 +142,9 @@ Item {
     readonly property bool showOnDisk: root.model !== null && root.model.showOnDisk
     /// C17 D2: the yellow band, over the threshold.
     readonly property bool bandShown: root.skipped.band === true
+    /// C17 D5: a change waits before it is sent.
+    readonly property bool holdShown: root.held.waiting === true
+    readonly property real holdLeftMs: root.holdShown ? Math.max(0, root.held.deadlineMs - root._now) : 0
     /// C17 D4: no view of the disks, and some skipped file already written to.
     readonly property bool hintShown: root.skipped.hash !== undefined && root.skipped.seen === false
                                       && (root.skipped.partlyWritten || 0) > 0
@@ -507,6 +521,37 @@ Item {
         anchors.right: parent.right
         anchors.top: filterBar.bottom
 
+        // U1: what waits, Undo and Send now, the line running down the window.
+        Notice {
+            animated: false
+            body: qsTr("Sends in %n s.", "", Math.ceil(root.holdLeftMs / 1000))
+            edge: "bottom"
+            kind: "info"
+            objectName: "filesHoldBand"
+            progress: root.holdShown ? root.holdLeftMs / Math.max(1, root.held.windowMs) : -1
+            shown: root.holdShown
+            title: (root.held.files || 0) > 0 ? qsTr("Wanting %n more files · %1", "", root.held.files).arg(root.held.bytesText)
+                                              : qsTr("Changing %n files", "", root.held.changed || 0)
+            width: parent.width
+            actions: [
+                {
+                    "label": qsTr("Undo  u"),
+                    "key": "undo"
+                },
+                {
+                    "label": qsTr("Send now  ⏎"),
+                    "key": "send"
+                }
+            ]
+
+            onActionTriggered: key => {
+                if (key === "undo")
+                    root.undoHeldRequested();
+                else
+                    root.sendHeldRequested();
+            }
+        }
+
         Notice {
             id: heldBand
 
@@ -574,6 +619,15 @@ Item {
 
             onActionTriggered: root.pathMapsRequested()
         }
+    }
+
+    Timer {
+        interval: 100
+        repeat: true
+        running: root.holdShown && root.visible
+        triggeredOnStart: true
+
+        onTriggered: root._now = Date.now()
     }
 
     /// The free's step, for the band's line while it runs.

@@ -484,3 +484,8 @@ omaseed_add_test(tst_skipped_ntfs3_live LIVE
     SOURCES tst_skipped_ntfs3_live.cpp
     LIBRARIES omaseed::core
 )
+
+omaseed_add_test(tst_selectionhold
+    SOURCES tst_selectionhold.cpp
+    LIBRARIES omaseed::core
+)

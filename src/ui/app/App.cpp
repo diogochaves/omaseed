@@ -829,6 +829,9 @@ void App::selectTorrent(const QString &hash)
 
 void App::setDetailsVisible(bool visible)
 {
+    // C17 D5: closing the pane sends what waits.
+    if (!visible)
+        sendHeldSelection();
     m_details->setVisible(visible);
 }
 
@@ -861,13 +864,6 @@ void App::setFilePriority(const QString &hash, const QVariantList &fileIndexes, 
                 before.insert(value.toInt(), was);
         }
     }
-    // N1: the rows change at once, before the server answers (and instead of it in demo
-    // mode, where there is none); the next poll confirms or corrects them.
-    if (m_details->hash() == hash)
-        m_details->files()->setLocalPriority(fileIndexes, priority);
-    if (m_demoMode || !m_hasServer)
-        return;
-
     QList<int> ids;
     ids.reserve(fileIndexes.size());
     for (const QVariant &value : fileIndexes) {
@@ -876,9 +872,34 @@ void App::setFilePriority(const QString &hash, const QVariantList &fileIndexes, 
         if (ok)
             ids.append(id);
     }
-    if (ids.isEmpty())
+    // C17 D5: another torrent's held change goes before this one's.
+    if (m_hold->waiting() && m_hold->hash() != hash)
+        sendHeldSelection();
+    const bool onShow = m_details->hash() == hash;
+    const QHash<int, int> before =
+        onShow ? m_details->files()->priorityByFileIndex() : QHash<int, int>();
+    const QHash<int, qint64> sizes =
+        onShow ? m_details->files()->sizeByFileIndex() : QHash<int, qint64>();
+    // D5–D7: a widening of more than 1 GiB, or of the whole torrent, waits 3 s (the tick
+    // itself makes libtorrent create the files, #116); a change made while one waits joins it.
+    const bool hold = onShow && !m_demoMode && m_hasServer && !ids.isEmpty() &&
+                      (m_hold->waiting() || SelectionHold::mustWait(before, sizes, ids, priority));
+    // N1: the rows change at once, before the server answers (and instead of it in demo
+    // mode, where there is none); the next poll confirms or corrects them.
+    if (onShow)
+        m_details->files()->setLocalPriority(fileIndexes, priority);
+    if (m_demoMode || !m_hasServer || ids.isEmpty())
         return;
+    if (hold) {
+        m_hold->add(hash, ids, priority, before, sizes);
+        return;
+    }
+    sendFilePriority(hash, ids, priority);
+}
 
+void App::sendFilePriority(const QString &hash, const QList<int> &ids, int priority)
+{
+    Q_EMIT filePrioritySent(hash, ids, priority);
     m_client->torrentsSetFilePrio(hash, ids, priority)
         ->then(this, [this](const QbtResult<QByteArray> &result) {
             if (result.isError()) {

@@ -151,6 +151,11 @@ public:
     /// The allocated bytes of the skipped files by API id (SkippedReading::allocatedByIndex);
     /// kept across polls, read again only when asked (docs/44 §7), cleared with the torrent.
     void setOnDisk(const QHash<int, qint64> &allocatedByIndex);
+    /// Every file's size by API id.
+    QHash<int, qint64> sizeByFileIndex() const;
+    /// C17 D5: priorities held back from the server (SelectionHold::targets()): the rows keep
+    /// them over the polls until they are sent or undone.
+    void setHeldPriorities(const QHash<int, int> &held);
     /// The last torrents/files array, as the server sent it.
     QJsonArray files() const { return m_files; }
     /// The API file ids the head tick covers: every file the typed filter matches (all of
@@ -368,6 +373,7 @@ private:
     int m_headWanted = 2;
     int m_headFileCount = 0;
     QHash<int, qint64> m_onDisk;
+    QHash<int, int> m_held;
     qint64 m_heldOnDisk = 0;
     int m_holdingOnDisk = 0;
     qint64 m_totalSize = 0;

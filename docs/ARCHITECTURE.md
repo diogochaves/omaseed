@@ -44,6 +44,10 @@ Three static libraries and the executable. Each layer only depends on the ones a
   `TorrentsExport` and `TorrentsImport` (its torrents as a file, and back), `LibraryMatch`,
   `FreeSpace` and `SharedData` (what the add and delete sheets know about files already on
   disk), `RenamePlan` and `RenameDisk` (what a rename would land on).
+- Skipped files and the disk ([DECISIONS.md](DECISIONS.md) C17): `SkippedOnDisk` (what a
+  torrent's skipped files hold on this machine's disk, and the plan to free it),
+  `FreeSkippedJob` and `AddAgainJob` (`SkippedJobs`: the free, and a hybrid added again), and
+  `SelectionHold` (a big widening of a selection waits 3 s before it is sent).
 - Moving a folder or a selection ([DECISIONS.md](DECISIONS.md) C15, C16: every move is a job):
   `FolderTree` (the library's save paths as the rail's folders), `MovePlan` (the preflight:
   targets by rule (a folder's structure, one folder, each its own for move back), room per

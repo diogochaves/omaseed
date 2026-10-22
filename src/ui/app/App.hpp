@@ -41,6 +41,7 @@
 #include "core/SecretStore.hpp"
 #include "core/SeedConsole.hpp"
 #include "core/SeedLedger.hpp"
+#include "core/SelectionHold.hpp"
 #include "core/Server.hpp"
 #include "core/ServerDetector.hpp"
 #include "core/ServerListModel.hpp"
@@ -2048,6 +2049,33 @@ private:
     core::FreePlan m_lastFreePlan;
     QString m_lastFreePlanHash;
     // --- end #118 -----------------------------------------------------------------------------
+
+    // --- #119: a big selection waits ----------------------------------------------------------
+    // Board 44 §3 (DECISIONS C17 D5–D7, which change N1): setFilePriority() holds back a change
+    // that wants more than 1 GiB, or the whole torrent, for 3 s with Undo and Send now; the
+    // rows change at once. Leaving the torrent, closing the pane or quitting sends it.
+public:
+    /// `{waiting, hash, files, bytesText, changed, deadlineMs, windowMs}`: `files` newly wanted
+    /// (their `bytesText`), `changed` every file the net change touches, `deadlineMs` when it
+    /// is sent (ms since the epoch).
+    Q_PROPERTY(QVariantMap heldSelection READ heldSelectionMap NOTIFY heldSelectionChanged)
+    QVariantMap heldSelectionMap() const;
+    /// `u`: the rows go back to what the server has, and nothing is sent.
+    Q_INVOKABLE void undoHeldSelection();
+    /// `enter`, and every way of leaving: the net change goes now.
+    Q_INVOKABLE void sendHeldSelection();
+    /// The window's length; only the tests shorten it.
+    void setSelectionHoldWindow(int ms) { m_hold->setWindowMs(ms); }
+
+Q_SIGNALS:
+    void heldSelectionChanged();
+    /// Every torrents/filePrio as sent, after the hold (for the tests).
+    void filePrioritySent(QString hash, QList<int> ids, int priority);
+
+private:
+    void sendFilePriority(const QString &hash, const QList<int> &ids, int priority);
+    core::SelectionHold *m_hold = new core::SelectionHold(this);
+    // --- end #119 -----------------------------------------------------------------------------
 };
 
 } // namespace omaseed::app

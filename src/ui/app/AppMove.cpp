@@ -106,6 +106,8 @@ void App::updateMoveServer()
 
 bool App::quitAllowed()
 {
+    // C17 D5: a quit sends what waits; you asked for it, so it isn't dropped.
+    sendHeldSelection();
     if (!m_move->active())
         return true;
     Q_EMIT raiseRequested();
@@ -122,6 +124,7 @@ void App::pauseMoveAndQuit()
 void App::quitFromOutside(const QString &why)
 {
     qInfo().noquote() << QStringLiteral("quit: %1").arg(why);
+    sendHeldSelection();
     if (m_move->active())
         m_move->pauseForQuit();
     Q_EMIT quitRequested();

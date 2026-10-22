@@ -738,7 +738,17 @@ Item {
             return true;
         case Qt.Key_Return:
         case Qt.Key_Enter:
-            root.openFileMenu(-1, -1);
+            // C17 D5: while a change waits, `enter` sends it now.
+            if (filesTab.holdShown)
+                App.sendHeldSelection();
+            else
+                root.openFileMenu(-1, -1);
+            return true;
+        case Qt.Key_U:
+            // C17 D5: `u` undoes the change that waits.
+            if (shift || !filesTab.holdShown)
+                return false;
+            App.undoHeldSelection();
             return true;
         case Qt.Key_Space:
             root.toggleFileSelection();
@@ -1309,10 +1319,14 @@ Item {
             serverName: App.serverName
             // C17 D1–D4: the reading, while it is this torrent's.
             skipped: App.skippedOnDisk.hash === root.details.hash ? App.skippedOnDisk : ({})
+            // C17 D5: what waits, while it is this torrent's.
+            held: App.heldSelection.hash === root.details.hash ? App.heldSelection : ({})
             visible: root.currentTab === 1
 
             onFreeSpaceRequested: root.freeSpaceRequested()
             onPathMapsRequested: root.pathMapsRequested()
+            onSendHeldRequested: App.sendHeldSelection()
+            onUndoHeldRequested: App.undoHeldSelection()
 
             onFilterDone: root.forceActiveFocus()
             onHeaderClicked: key => {
