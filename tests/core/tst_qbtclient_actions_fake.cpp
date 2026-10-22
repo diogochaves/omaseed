@@ -556,6 +556,9 @@ void TestQbtClientActionsFake::shareLimitsSendsAllFiveFields()
     // 5.2.3 answers 400 without this field, so the default argument is Default, not "omit".
     QCOMPARE(body.queryItemValue(QStringLiteral("shareLimitAction"), QUrl::FullyDecoded),
              QStringLiteral("Default"));
+    // qBittorrent 5.3 answers 400 without the mode.
+    QCOMPARE(body.queryItemValue(QStringLiteral("shareLimitsMode"), QUrl::FullyDecoded),
+             QStringLiteral("Default"));
 }
 
 void TestQbtClientActionsFake::shareLimitsKeepRatioPrecision()
@@ -638,6 +641,7 @@ void TestQbtClientActionsFake::shareLimitActionIsOmittedForAnOldApi()
     QVERIFY2(!result.isError(), qPrintable(result.error().toString()));
     const QUrlQuery body(QString::fromUtf8(server.requests.at(0).body));
     QVERIFY(!body.hasQueryItem(QStringLiteral("shareLimitAction")));
+    QVERIFY(!body.hasQueryItem(QStringLiteral("shareLimitsMode")));
     QCOMPARE(body.queryItemValue(QStringLiteral("hashes"), QUrl::FullyDecoded),
              QStringLiteral("h1"));
     QCOMPARE(body.queryItemValue(QStringLiteral("inactiveSeedingTimeLimit"), QUrl::FullyDecoded),

@@ -314,7 +314,8 @@ public:
     /// ratioLimit/seedingTimeLimit/inactiveSeedingTimeLimit: -2 = global default, -1 = none,
     /// >=0 the limit itself. `shareLimitAction` engaged sends the field (5.2.3 answers 400
     /// without it, `Default` included, so a >= 2.15.1 caller always passes one); nullopt
-    /// leaves it off for the pre-2.15.1 servers that do not know it.
+    /// leaves it off for the pre-2.15.1 servers that do not know it. With the action goes
+    /// `shareLimitsMode=Default`, which 5.3 (2.15.3) requires and 5.2 accepts.
     QbtReply<QByteArray> *torrentsSetShareLimits(
         const QStringList &hashes,
         double ratioLimit,

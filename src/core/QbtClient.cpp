@@ -1303,8 +1303,12 @@ QbtClient::torrentsSetShareLimits(const QStringList &hashes,
     addItem(form,
             QStringLiteral("inactiveSeedingTimeLimit"),
             QString::number(inactiveSeedingTimeLimit));
-    if (shareLimitAction)
+    if (shareLimitAction) {
         addItem(form, QStringLiteral("shareLimitAction"), shareLimitActionName(*shareLimitAction));
+        // qBittorrent 5.3 (Web API 2.15.3) answers 400 without the mode; 5.2 takes it and
+        // ignores it. Default leaves the torrent on the global rule, as before the field.
+        addItem(form, QStringLiteral("shareLimitsMode"), QStringLiteral("Default"));
+    }
     return post(QStringLiteral("torrents/setShareLimits"), form);
 }
 

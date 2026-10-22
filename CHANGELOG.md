@@ -17,6 +17,8 @@ before it will tag a release.
   an error that only adding it again clears. The sheet lists it as not rechecked, says why, and
   offers "move again" and "move back" to bring its files together; the others are rechecked as
   before. When every failed torrent is hybrid, the sheet says there is nothing to recheck.
+- **Share limits work with qBittorrent 5.3.** 5.3 refuses a limits change without a new field,
+  so every ratio or seeding-time limit set from omaseed failed there; omaseed now sends it.
 
 ## v0.3.0 — 2026-10-22
 
