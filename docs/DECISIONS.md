@@ -1240,6 +1240,31 @@ C15 M10's band and C16 L6–L8 (CR13), and §7's rows to C12's ErrorWords (CR17)
   qBittorrent's text under details. Transmission: no create entry; Deluge: no source row and no
   %, said once (C25). Built in 46's frame, in the sheets step.
 
+## C28 — What the v0.4.0 builds asked (ruled 2026-10-22)
+
+Diogo's answers, all as recommended, to the questions the v0.4.0 builders recorded as assumed.
+
+- **The row's □ (#157, C18 D6):** the 16 u space at every row's start stays as built; shift+click
+  on the □ adds the range and keeps the rest; the selection bar's hint is dim, not faint (Q19).
+- **A stuck move's retry (#158, C17 D13):** qBittorrent ignores a move to the save path a torrent
+  already has, so the stuck-move block offers `c recheck`, which moves it once there is room;
+  "set location…" opens the Move sheet with no preset.
+- **A small tick that doesn't fit (#159, C17 D8):** on `ntfs3`, `exfat` and `vfat`, a tick that
+  doesn't fit always waits in D5's band, whatever its size, so it can be undone before anything
+  is written.
+- **Extras in the add sheet (#63):** the issue's wording as written: a dim line under the file
+  tree ("2 extras: an NFO and a sample (12 MB). Ticked, so the torrent seeds whole.") and a dim
+  "extra" meta on each; nothing is unticked.
+- **An empty file in a move's way (#161 b):** when the file at the destination is empty and no
+  torrent owns it, the Move sheet offers "replace it": delete it, then move, said in the log.
+  v0.4.0 (v0.3.3 ships #161 a only).
+- **Fills and contrast (#90):** ruled in v0.5.0's frame step (#167), on every fill at once
+  (selected, cursor, hover, pressed, idle controls, tinted bands).
+- **Theme bindings (#156):** a QML Theme wrapper so spacing follows the shell's base size live;
+  built first, before v0.5.0's frame.
+- **The view behind a sheet (#155):** left as it is: Qt can't hide a subtree from screen readers;
+  revisit when Qt can.
+
 ## M8 — A click leaves the keyboard focus where it was
 
 Buttons and toggles do not take the focus when clicked. Otherwise an overlay gives the focus
