@@ -18,6 +18,12 @@ before it will tag a release.
   what to check), with the technical text under "details", where it used to be one line of
   Qt's words.
 
+- **A finished torrent that never left its incomplete folder says so.** When qBittorrent
+  can't move a finished torrent out of its incomplete folder (the destination full), it keeps
+  seeding from there in no error state. omaseed now marks the row "move failed", in red, and
+  General says where the files never arrived, why (from qBittorrent's log), where it is seeding
+  from and what partial copies were left, with "show both folders" and "set location…".
+
 ### Fixed
 
 - **`omaseed --help`, `--version` and `--theme-roles` work with no display.** Over SSH, in a

@@ -829,7 +829,18 @@ shows that space and frees it where it can see the disk.
   torrent uses while downloading and adds a move step (#117).
 - **Stuck move (D13):** a finished torrent whose `content_path` is still under its
   `download_path` gets a red problem with the log's reason, Show both folders and Set
-  location…. #121.
+  location…. #121. Built: `ProblemMatch::isStuckMove` (progress 1, not moving, a download path
+  other than the save path, the content under it and not under the save path) and
+  `describeStuckMove`; `ProblemLog` publishes it as the torrent's `problem` (an error, when
+  there is one, wins), reads the log once when one turns up, and drops that move's yellow
+  failure. The row's status cell reads "move failed" with ✕ in the error colour
+  (`TorrentModel::StuckMoveRole`). The partial copies are named (`PartialCopies`, "N files,
+  SIZE") where `FreeSpaceProbe::localPathFor` sees the destination, "No partial copies are
+  left" when there are none, otherwise "may be left". *Not as the board drew it:* "Set
+  location…" opens board 43's sheet as for any move, not aimed at the destination it never
+  reached: qBittorrent ignores a move to the save path it already has, and a recheck is what
+  moves it once room is made (`scripts/dev/research/121-stuck-move`). Whether the block should
+  offer that recheck is #158.
 - **Words (D11):** a timeout reads "home isn't answering" (yellow, waiting); refused or no route
   "home is unreachable" (red). #122. Built: `ErrorWords` gives a timeout the kind `waiting`
   (W1's line, the seconds since the server last replied, `GlobalState::silentSeconds`, and

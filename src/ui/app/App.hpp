@@ -762,6 +762,14 @@ public:
     /// `o`: the cursor torrent's `contentPath`, mapped through the server's `PathMap` and
     /// handed to `Xdg::showInFileManager`.
     Q_INVOKABLE void openFolder(const QString &hash);
+    /// docs/44 D13 (#121), "Show both folders": a stuck move's incomplete folder (its content
+    /// there) and the destination it never reached, each mapped and shown in the file manager.
+    Q_INVOKABLE void showBothFolders(const QString &hash);
+    /// docs/44 D13: what a stuck move left in its destination, read on this machine when
+    /// omaseed can see it (FreeSpaceProbe::localPathFor): "Partial copies are left in
+    /// /mnt/media/Downloads/Album: 699 files, 22 MB." or "No partial copies are left in the
+    /// destination."; "" when it can't see the destination (the block keeps "may be left").
+    Q_INVOKABLE QString stuckMoveCopies(const QString &hash) const;
     /// `browse` / `ctrl+o` in the location sheet and Save to's `browse` in the add sheet (#41):
     /// the portal's folder picker, starting at
     /// `startDir`. An empty result means the picker was cancelled or no portal answered; the

@@ -119,6 +119,9 @@ public:
         FailureRole, ///< TorrentFailure::toMap(), or an empty map
         // DECISIONS C20 (#142): in error and stopped (setErrorStops()).
         ErrorStoppedRole,
+        /// docs/44 D13: its problem is a stuck move (a working torrent whose status cell
+        /// reads "move failed" in the error colour).
+        StuckMoveRole,
     };
     Q_ENUM(Role)
 

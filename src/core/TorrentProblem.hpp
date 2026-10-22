@@ -97,8 +97,15 @@ struct TorrentProblem
     QString line;           ///< the newest matching line, whole, for "copy the line"
     bool ambiguous = false; ///< S5: another torrent of the same name may own the line
     /// In order: "location", "start", "recheck", "rename", and "checkDisk" (#108: advice with
-    /// no key, nothing the app can do itself); "addAgain" for a hybrid's recheck error (C17).
+    /// no key, nothing the app can do itself); "addAgain" for a hybrid's recheck error (C17);
+    /// a stuck move's "bothFolders" and "location".
     QStringList actions;
+    /// docs/44 D13: a finished torrent whose files never left its incomplete folder (causeKey
+    /// "stuckMove"): `destination` is its save path, the place they never reached, `source`
+    /// the incomplete folder it seeds from.
+    bool stuckMove = false;
+    QString destination;
+    QString source;
 
     QVariantMap toMap() const;
     bool operator==(const TorrentProblem &other) const = default;
@@ -163,6 +170,19 @@ TorrentProblem notLogged(bool missingFiles);
 /// after a check, with nothing logged: libtorrent 2.1.2's torrent_inconsistent_hashes. Starting
 /// it or restarting qBittorrent brings it back; only adding it again ("addAgain") clears it.
 TorrentProblem hybridRecheck();
+
+/// docs/44 D13 (DECISIONS C17, #121): finished (progress 1), not moving, with a download path
+/// (qBittorrent's incomplete folder) and its content path still under it. qBittorrent's move
+/// into the save path failed and it kept seeding from the incomplete folder, in no error state.
+/// All from torrents/info, so it works on any server.
+bool isStuckMove(const Torrent &torrent);
+
+/// The red problem for a stuck move (board 44 M1): "Finished, but its files never reached
+/// DESTINATION", the reason from `line` (the newest "Failed to move torrent" line about it;
+/// null when the log has none: no reason guessed) and where it seeds from (`detail`), and that
+/// partial copies may be left in the destination (`advice`). Actions: "bothFolders",
+/// "location".
+TorrentProblem describeStuckMove(const Torrent &torrent, const ProblemLine *line);
 
 /// #108: the first part of `path` that a common target filesystem (NTFS, exFAT, FAT, the ones
 /// a Linux disk shares with Windows) would refuse as a name: one with `< > : " \ | ? *` or a

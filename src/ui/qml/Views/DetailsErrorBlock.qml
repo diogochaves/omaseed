@@ -8,6 +8,9 @@ import Omaseed.Kit
 // foreground, qBittorrent's own words under it, the folder, when the log said so, and the
 // actions that fit the cause as clickable key hints. `problem` is TorrentProblem::toMap().
 //
+// docs/44 D13 (#121): a stuck move (`problem.stuckMove`) is red in the same place, with
+// "show both folders" and "set location…", and its partial copies named when they are seen.
+//
 // docs/32 F1–F3 (#55): the same block for a move, rename or part file that failed while the
 // torrent kept working (`problem` is then TorrentFailure::toMap(), which has a `kind`): always
 // yellow with "!", since nothing is broken, its own actions, and `x dismiss` last.
@@ -15,6 +18,9 @@ Rectangle {
     id: root
 
     property var problem: ({})
+    /// docs/44 D13: a stuck move's partial copies, named where omaseed can see the destination
+    /// (`App.stuckMoveCopies`); "" keeps the problem's own "may be left".
+    property string partialText: ""
     /// "1.2 GB free" under the folder when the disk is full; empty leaves it out.
     property string freeText: ""
 
@@ -27,10 +33,15 @@ Rectangle {
     /// docs/32: a failure rather than an error.
     readonly property bool failure: (root.problem.kind || "").length > 0
     readonly property bool missingFiles: root.problem.missingFiles === true
+    /// docs/44 D13 (#121): finished, but its files never left the incomplete folder. Red, in
+    /// board 28's place, on a torrent that still seeds.
+    readonly property bool stuckMove: root.problem.stuckMove === true
     readonly property color kindColor: root.missingFiles || root.failure ? Theme.yellow : Theme.red
     readonly property var hints: {
         const keys = {
-            "location": ["m", qsTr("move…")],
+            // docs/44 M1: board 43's sheet.
+            "location": ["m", root.stuckMove ? qsTr("set location…") : qsTr("move…")],
+            "bothFolders": ["", qsTr("show both folders")],
             // DECISIONS C20 (#107): `p` stops an errored torrent; "retry" has a key of its own.
             "start": ["e", qsTr("retry")],
             "recheck": ["c", qsTr("recheck")],
@@ -79,6 +90,9 @@ Rectangle {
         return list;
     }
     readonly property string metaText: {
+        // docs/44 D13: no line, no guess why; the log's limits are not the point here.
+        if (!root.found && root.stuckMove)
+            return "";
         if (!root.found)
             return qsTr(
                         "Its log starts at its last restart and keeps 20 000 lines. Trying again usually logs the reason again.");
@@ -168,7 +182,7 @@ Rectangle {
             font.family: Theme.fontFamily
             font.pixelSize: Theme.font.small
             objectName: "errorAdvice"
-            text: root.problem.advice || ""
+            text: root.partialText.length > 0 ? root.partialText : root.problem.advice || ""
             textFormat: Text.PlainText
             visible: text.length > 0
             width: parent.width
@@ -198,6 +212,7 @@ Rectangle {
             objectName: "errorMeta"
             text: root.metaText
             textFormat: Text.PlainText
+            visible: text.length > 0
             width: parent.width
             wrapMode: Text.Wrap
         }

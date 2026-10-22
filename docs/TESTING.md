@@ -31,6 +31,7 @@ follows. The commands themselves are listed in `CLAUDE.md`; `README.md` says how
    | `backup-walk.sh` | a qBittorrent's torrents exported and imported through the app |
    | `error-walk.sh` | a torrent going into error, and the app saying why |
    | `menu-walk.sh` | the one menu shown by the tray and the bar widget |
+   | `stuck-walk.sh` | a finished torrent whose move into a full disk failed (a loop image), and a recheck once room is made |
    | `move-walk.sh` | moving folders and selections: queue, places, partial packs, move back, recheck |
 
    `OMASEED_ACTIONS_WALK_FROM=disk` runs only the actions walk's board 44 steps. Their ntfs3 side

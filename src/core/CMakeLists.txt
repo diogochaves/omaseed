@@ -59,6 +59,8 @@ qt_add_library(omaseed-core STATIC
     MetadataLookup.hpp
     OmaseedBackup.cpp
     OmaseedBackup.hpp
+    PartialCopies.cpp
+    PartialCopies.hpp
     PathMap.cpp
     PathMap.hpp
     PeerInput.cpp

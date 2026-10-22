@@ -6,6 +6,7 @@
 #include "core/LibraryMatch.hpp"
 #include "core/MagnetLink.hpp"
 #include "core/MetadataLookup.hpp"
+#include "core/PartialCopies.hpp"
 #include "core/PathMap.hpp"
 #include "core/PeerInput.hpp"
 #include "core/PrivateTrackers.hpp"
@@ -13,6 +14,7 @@
 #include "core/QbtSettingsImport.hpp"
 #include "core/RenamePlan.hpp"
 #include "core/ServerLog.hpp"
+#include "core/SharedData.hpp"
 #include "core/StateFile.hpp"
 #include "core/TorrentFile.hpp"
 #include "core/TorrentFolderScan.hpp"
@@ -3770,6 +3772,44 @@ void App::openFolder(const QString &hash)
     }
     qInfo().noquote() << QStringLiteral("open folder: %1").arg(local);
     m_xdg->showInFileManager(local);
+}
+
+void App::showBothFolders(const QString &hash)
+{
+    if (hash.isEmpty() || m_xdg.isNull() || m_engine->torrents()->indexOfHash(hash) < 0)
+        return;
+    const Torrent torrent = m_engine->torrents()->torrent(hash);
+    const QString from = mapContentPathToLocal(torrent.contentPath);
+    const QString to = mapContentPathToLocal(torrent.savePath);
+    qInfo().noquote() << QStringLiteral("show both folders: %1 · %2").arg(from, to);
+    if (!from.isEmpty())
+        m_xdg->showInFileManager(from);
+    if (!to.isEmpty())
+        m_xdg->showInFileManager(to);
+}
+
+QString App::stuckMoveCopies(const QString &hash) const
+{
+    if (hash.isEmpty() || m_engine->torrents()->indexOfHash(hash) < 0)
+        return {};
+    const Torrent torrent = m_engine->torrents()->torrent(hash);
+    if (!ProblemMatch::isStuckMove(torrent))
+        return {};
+    // The content as it would be in the destination: its path under the incomplete folder,
+    // put under the save path.
+    const QString from = SharedData::normalize(torrent.downloadPath);
+    const QString content = SharedData::normalize(torrent.contentPath);
+    const QString relative = content.mid(from.size() + 1);
+    const QString there = SharedData::normalize(torrent.savePath) + QLatin1Char('/') + relative;
+    const PartialCopies copies = PartialCopies::read(m_freeSpace.localPathFor(there));
+    if (!copies.seen)
+        return {};
+    if (copies.files == 0)
+        return tr("No partial copies are left in the destination.");
+    return tr("Partial copies are left in %1: %2, %3.")
+        .arg(there,
+             copies.files == 1 ? tr("1 file") : tr("%1 files").arg(copies.files),
+             Format::size(copies.bytes));
 }
 
 QString App::pickDirectory(const QString &startDir) const

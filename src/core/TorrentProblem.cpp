@@ -314,6 +314,9 @@ QVariantMap TorrentProblem::toMap() const
         {QStringLiteral("line"), line},
         {QStringLiteral("ambiguous"), ambiguous},
         {QStringLiteral("actions"), actions},
+        {QStringLiteral("stuckMove"), stuckMove},
+        {QStringLiteral("destination"), destination},
+        {QStringLiteral("source"), source},
     };
 }
 
@@ -520,6 +523,41 @@ QString nameTheDiskRejects(const QString &path)
             return part;
     }
     return QString();
+}
+
+bool isStuckMove(const Torrent &torrent)
+{
+    if (torrent.progress < 1.0 || torrent.state == TorrentState::Moving)
+        return false;
+    if (torrent.downloadPath.isEmpty() || torrent.contentPath.isEmpty())
+        return false;
+    // A torrent saved into its own incomplete folder never had anywhere to go.
+    if (SharedData::normalize(torrent.downloadPath) == SharedData::normalize(torrent.savePath))
+        return false;
+    return isUnder(torrent.contentPath, torrent.downloadPath) &&
+           !isUnder(torrent.contentPath, torrent.savePath);
+}
+
+TorrentProblem describeStuckMove(const Torrent &torrent, const ProblemLine *line)
+{
+    TorrentProblem problem;
+    problem.stuckMove = true;
+    problem.found = line != nullptr;
+    problem.causeKey = QStringLiteral("stuckMove");
+    problem.cause = tr("move failed");
+    problem.destination = SharedData::normalize(torrent.savePath);
+    problem.source = SharedData::normalize(torrent.downloadPath);
+    problem.headline = tr("Finished, but its files never reached %1").arg(problem.destination);
+    // The reason names the source file, not the full destination (#117): the system's words
+    // alone say it.
+    // Board 44 M1's order: why, where it seeds from, then the partial copies (`advice`).
+    const QString why = line && !line->systemMessage.isEmpty()
+                            ? tr("qBittorrent couldn't move them: %1.").arg(line->systemMessage)
+                            : tr("Its files are still in its incomplete folder.");
+    problem.detail = why + QLatin1Char(' ') + tr("It's seeding from %1.").arg(problem.source);
+    problem.advice = tr("Partial copies may be left in the destination.");
+    problem.actions = {QStringLiteral("bothFolders"), QStringLiteral("location")};
+    return problem;
 }
 
 TorrentProblem describe(const ProblemLine &line)

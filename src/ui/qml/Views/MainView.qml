@@ -2291,8 +2291,13 @@ Item {
                     return;
                 if (action === "log")
                     root.showTorrentLog(hashes[0]);
+                // docs/44 D13: a stuck move's sheet is not aimed at the destination it never
+                // reached: qBittorrent ignores a move to the save path it already has
+                // (scripts/dev/research/121-stuck-move), so the sheet starts as for any move.
                 else if (action === "location")
                     moveSheet.openSelection(hashes, "");
+                else if (action === "bothFolders")
+                    App.showBothFolders(hashes[0]);
                 else if (action === "start") // DECISIONS C20: "retry", a start that forgets the stop
                     App.retryTorrents(hashes);
                 else if (action === "recheck")

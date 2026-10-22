@@ -165,6 +165,7 @@ private slots:
     void aWatchReadsOnEveryPoll();
     void aFullUpdateReadsFromTheTopAgain();
     void standingRenamesAskForTheFiles();
+    void aStuckMoveIsARedProblemNotTheYellowBlock();
 
 private:
     void sync(bool full = false) { m_log->onSynced(full); }
@@ -188,6 +189,62 @@ void TestProblemLogFailures::init()
          {kDeleteHash,
           torrent(QStringLiteral("log55-delete.bin"), kRoot + QStringLiteral("/rodel"))}});
     sync(true);
+}
+
+// docs/44 D13 (#121): a finished torrent still in its incomplete folder gets a red problem in
+// board 28's place, with the failed move's reason, and the status cell's "move failed"; the
+// yellow block of that move doesn't show. Moved after all, both go.
+void TestProblemLogFailures::aStuckMoveIsARedProblemNotTheYellowBlock()
+{
+    const QString hash = QStringLiteral("5e1d0c0000000000000000000000000000000000");
+    const QString incomplete = QStringLiteral("/mnt/fast/incomplete");
+    const QString destination = QStringLiteral("/mnt/media/Downloads");
+    QJsonObject stuck{{QStringLiteral("name"), QStringLiteral("stuck.bin")},
+                      {QStringLiteral("state"), QStringLiteral("stalledUP")},
+                      {QStringLiteral("progress"), 1.0},
+                      {QStringLiteral("save_path"), destination},
+                      {QStringLiteral("download_path"), incomplete},
+                      {QStringLiteral("content_path"), incomplete + QStringLiteral("/stuck.bin")},
+                      {QStringLiteral("added_on"), kAddedAt}};
+    m_model->applyPartial({{hash, stuck}}, {});
+    sync();
+
+    // Before the log says why: the problem already, no reason guessed.
+    QVariantMap problem =
+        m_model->data(m_model->index(m_model->indexOfHash(hash)), TorrentModel::ProblemRole)
+            .toMap();
+    QCOMPARE(problem.value(QStringLiteral("causeKey")).toString(), QStringLiteral("stuckMove"));
+    QCOMPARE(problem.value(QStringLiteral("found")).toBool(), false);
+    QCOMPARE(
+        m_model->data(m_model->index(m_model->indexOfHash(hash)), TorrentModel::StatusCauseRole)
+            .toString(),
+        QStringLiteral("move failed"));
+
+    m_log->applyEntries({entry(
+        1,
+        QStringLiteral("Failed to move torrent. Torrent: \"stuck.bin\". Source: \"%1\". "
+                       "Destination: \"%2\". Reason: \"5e1d0c storage move failed. file_truncate "
+                       "(%1/stuck.bin): No space left on device\"")
+            .arg(incomplete, destination))});
+    problem = m_model->data(m_model->index(m_model->indexOfHash(hash)), TorrentModel::ProblemRole)
+                  .toMap();
+    QCOMPARE(problem.value(QStringLiteral("found")).toBool(), true);
+    QVERIFY(problem.value(QStringLiteral("detail"))
+                .toString()
+                .startsWith(
+                    QStringLiteral("qBittorrent couldn't move them: No space left on device.")));
+    QCOMPARE(problem.value(QStringLiteral("headline")).toString(),
+             QStringLiteral("Finished, but its files never reached /mnt/media/Downloads"));
+    QVERIFY(failureOf(*m_model, hash).isEmpty());
+
+    // Room was made and it moved: no problem, no failure.
+    stuck.insert(QStringLiteral("content_path"), destination + QStringLiteral("/stuck.bin"));
+    m_model->applyPartial({{hash, stuck}}, {});
+    sync();
+    problem = m_model->data(m_model->index(m_model->indexOfHash(hash)), TorrentModel::ProblemRole)
+                  .toMap();
+    QVERIFY(problem.isEmpty());
+    QVERIFY(failureOf(*m_model, hash).isEmpty());
 }
 
 void TestProblemLogFailures::cleanup()

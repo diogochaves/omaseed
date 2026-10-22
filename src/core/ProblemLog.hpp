@@ -30,6 +30,10 @@ class TorrentModel;
 /// to its torrent (TorrentProblem), and what it says goes into the torrent model: `problem` and
 /// `statusCause` for an error, `failure` for a move, rename or part file that didn't happen (D1).
 /// An errored torrent with no line gets "didn't log a reason" once the log has been read.
+/// docs/44 D13 (#121): a finished torrent whose files never left its incomplete folder
+/// (ProblemMatch::isStuckMove) gets a red `problem` of its own, with the newest failed move's
+/// reason when the log has one, in place of the yellow failure that move would show; the log
+/// is read once when one turns up.
 ///
 /// A failure stays until it is fixed (the save path, or the file's name, changed), dismissed
 /// (dismiss(), kept by the caller in state.json per server through dismissed() and
@@ -178,6 +182,8 @@ private:
     void applyRead(const QJsonArray &entries, quint64 serial, bool fromStart);
     void rematch();
     void publish(const QString &hash, const TorrentProblem &problem);
+    /// docs/44 D13: the stuck moves' problems, from the lines read so far.
+    void publishStuck();
 
     /// The library by name and by the hash prefix libtorrent prints, as rows.
     struct Index
@@ -217,6 +223,8 @@ private:
     /// to recheck (noteRechecked), and the errored ones that went into error soon after.
     QHash<QString, QDateTime> m_checkedAt;
     QSet<QString> m_erroredAfterCheck;
+    /// docs/44 D13: finished torrents still in their incomplete folder, not errored.
+    QSet<QString> m_stuck;
     QSet<QString> m_newlyErrored; ///< went into error while watched, notice not sent yet
     bool m_seenFirstSync = false;
     QHash<QString, TorrentProblem> m_problems;

@@ -1457,6 +1457,9 @@ Item {
             /// DECISIONS C20 (#142): in error and stopped; its word ("stopped") takes the
             /// error colour, beside the ! glyph.
             required property bool errorStopped
+            /// docs/44 D13: finished, but its files never left the incomplete folder: "move
+            /// failed" and its glyph in the error colour, on a row that still seeds.
+            required property bool stuckMove
             required property string upspeedText
             /// #24 T5: bytes per second, for the pulse.
             required property real upspeed
@@ -1760,11 +1763,11 @@ Item {
                         anchors.left: parent.left
                         anchors.leftMargin: Theme.spaceAt(8, Theme.spaceScale)
                         anchors.verticalCenter: parent.verticalCenter
-                        color: row.stateColor
+                        color: row.stuckMove ? Theme.stateError : row.stateColor
                         height: Theme.font.body
                         objectName: "statusGlyph_" + row.index
                         pixelSize: Theme.font.body
-                        text: row.statusGlyph
+                        text: row.stuckMove ? Glyphs.close : row.statusGlyph
                         width: Theme.spaceAt(12, Theme.spaceScale)
                     }
 
@@ -1776,7 +1779,7 @@ Item {
                         anchors.right: parent.right
                         anchors.rightMargin: Theme.spaceAt(8, Theme.spaceScale)
                         anchors.verticalCenter: parent.verticalCenter
-                        color: row.errorStopped ? row.stateColor : band.textColor
+                        color: row.stuckMove ? Theme.stateError : row.errorStopped ? row.stateColor : band.textColor
                         elide: Text.ElideRight
                         font.family: Theme.fontFamily
                         font.pixelSize: Theme.font.body

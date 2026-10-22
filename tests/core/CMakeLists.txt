@@ -368,6 +368,12 @@ omaseed_add_test(tst_torrentproblem
     LIBRARIES omaseed::core
 )
 
+# docs/44 D13 (#121): what a failed move left in the destination.
+omaseed_add_test(tst_partialcopies
+    SOURCES tst_partialcopies.cpp
+    LIBRARIES omaseed::core
+)
+
 omaseed_add_test(tst_problemlog
     SOURCES tst_problemlog.cpp
     LIBRARIES omaseed::core

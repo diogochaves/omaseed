@@ -1244,6 +1244,15 @@ Item {
                 return room.source === "unknown" ? "" : qsTr("%1 free").arg(App.sizeText(room.bytesFree));
             }
 
+            // docs/44 D13: a stuck move's partial copies, read on this machine when it can
+            // see the destination; again when the free space is read again.
+            partialText: {
+                const problem = root.torrent && root.torrent.problem ? root.torrent.problem : ({});
+                if (problem.stuckMove !== true || App.freeSpaceRevision < 0)
+                    return "";
+                return App.stuckMoveCopies(root.torrent.hash);
+            }
+
             // Board 45 B1: read again when the history or the torrent's place changes.
             lastMove: {
                 const revision = App.move.historyRevision;
