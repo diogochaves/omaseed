@@ -92,6 +92,7 @@ private Q_SLOTS:
         first.hadAutoTmm = {QStringLiteral("h2")};
         first.carried = 3;
         first.carriedTo = QStringLiteral("/fast/games");
+        first.replaced = {QStringLiteral("/fast/games/h1.iso")}; // C28 (#176)
         history.add(first, kNow);
         history.add(record(QStringLiteral("one"), {QStringLiteral("h3")}, "/x", "/y"), kNow);
 
@@ -107,6 +108,7 @@ private Q_SLOTS:
         QCOMPARE(games->hadAutoTmm, QStringList{QStringLiteral("h2")});
         QCOMPARE(games->carried, 3);
         QCOMPARE(games->carriedTo, QStringLiteral("/fast/games"));
+        QCOMPARE(games->replaced, QStringList{QStringLiteral("/fast/games/h1.iso")});
         QCOMPARE(games->finishedAt, first.finishedAt);
     }
 

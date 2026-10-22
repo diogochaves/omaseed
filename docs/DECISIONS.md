@@ -1025,7 +1025,10 @@ about moves has none of these bugs; main keeps them for v0.4.0.
 - **What is in the way (#161 a):** the Move sheet's "left out" line says what is at the
   destination and whose it is: "(an empty file no torrent owns)", "(a file of SIZE that NAME
   owns)"; on a server omaseed can't see, only whose. *Adds to C15 M8.* Offering to replace an
-  empty file no torrent owns (#161 b) waits for its own ruling.
+  empty file no torrent owns (#161 b) waits for its own ruling. *C28 rules it for v0.4.0
+  (#176):* the line's "replace it" (only for an empty regular file no torrent owns, seen
+  here) deletes it as the move starts, checked again then, and the move's line in the log
+  ends "after deleting the empty file no torrent owned at PATH".
 
 Two more from the same day's big folder move, added to the patch:
 

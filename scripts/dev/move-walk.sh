@@ -10,7 +10,7 @@
 # places, one queued behind a folder's move and the folder moved back from its summary, a name
 # already at the destination; one big torrent whose file qBittorrent makes at full length before
 # it copies (#162), the summary's count of torrents added during it (#164), and what a file
-# already at the destination is and whose (#161); and a second box whose omaseed is on the playground, whose disks
+# already at the destination is and whose (#161), an empty one replaced (#176); and a second box whose omaseed is on the playground, whose disks
 # it can't see (L13). After each step it checks what qBittorrent says and what is on disk, and
 # stops at the first mismatch.
 # Run it again after any change to the move sheet, the job, the carry or their words.
@@ -1113,6 +1113,7 @@ keys Escape
 no_text "the sheet is closed" "Move Big Neighbour 1.bin"
 hash_at "Big Neighbour 1.bin stayed" "${H[nb1]}" "$BIG" 1
 if [ "$(omabox run -b "$BOX" -- stat -c %s "/tmp/fast/big/Big Neighbour 1.bin")" = 0 ]; then pass "the empty file is untouched"; else fail "the empty file changed"; fi
+
 table_on "Big Neighbour 3.bin"
 keys m
 expect_text "the Move… sheet is open" "Move Big Neighbour 3.bin" 10
@@ -1132,6 +1133,36 @@ keys Escape
 keys Escape
 no_text "the sheet is closed" "Move Twin of Neighbour 3"
 hash_at "the twin stayed below" "${H[twin]}" "$BIG/twin" 1
+
+step "Replace the leftover" "The same sheet again: the line's replace it (DECISIONS C28, #176) deletes the empty file, then moves Big Neighbour 1.bin there; its whole 16 KB lands, and the log's line for the move says it deleted the empty file no torrent owned."
+table_on "Big Neighbour 1.bin"
+keys m
+expect_text "the Move… sheet is open" "Move Big Neighbour 1.bin" 10
+keys ctrl+a -t /tmp/fast/big
+expect_text "one is left out" "1 left out" 20
+expect_tree "the line offers replace it" 'link "replace it"' 10
+# Typing opened the places list: esc closes it, so the line's link is in reach.
+keys Escape
+shot "The Move… sheet: 1 left out, (an empty file no torrent owns), replace it at the line's end and its note under it." replace
+press "replace it"
+hash_at "Big Neighbour 1.bin lands at /tmp/fast/big" "${H[nb1]}" /tmp/fast/big 30
+no_text "the sheet is closed" "Move Big Neighbour 1.bin"
+for _ in $(seq 1 30); do
+    [ "$(omabox run -b "$BOX" -- stat -c %s "/tmp/fast/big/Big Neighbour 1.bin")" = 16384 ] && break
+    sleep 1
+done
+if [ "$(omabox run -b "$BOX" -- stat -c %s "/tmp/fast/big/Big Neighbour 1.bin")" = 16384 ]; then pass "its whole file is there, not the empty one"; else fail "/tmp/fast/big/Big Neighbour 1.bin is not its 16384 bytes"; fi
+keys Escape
+keys asciitilde
+# qBittorrent's own lines bury it: the log's filter finds it.
+keys slash -t "after deleting" Return
+# The line itself is in the tree only while it has the cursor; its "move back…" link always
+# is, named after it and cut at 80 characters: its start is enough, the shot has the rest.
+expect_text "the log's line says what was deleted" "move back: omaseed moved \"Big Neighbour 1.bin\" to /tmp/fast/big after deleting" 20
+shot "The log, filtered: omaseed moved \"Big Neighbour 1.bin\" to /tmp/fast/big after deleting the empty file no torrent owned at /tmp/fast/big/Big Neighbour 1.bin." log
+keys Escape
+keys asciitilde
+
 rm -f "$OUT_READ"
 # Gone again, files and all, so the rail's folders are as the later steps expect (a click on
 # fast/games needs it on screen) and the tmpfs has its 2 GiB back.

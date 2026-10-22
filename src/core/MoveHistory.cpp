@@ -49,6 +49,8 @@ QJsonObject MoveRecord::toJson() const
         out.insert(QStringLiteral("carried"), carried);
         out.insert(QStringLiteral("carriedTo"), carriedTo);
     }
+    if (!replaced.isEmpty())
+        out.insert(QStringLiteral("replaced"), QJsonArray::fromStringList(replaced));
     return out;
 }
 
@@ -69,6 +71,7 @@ MoveRecord MoveRecord::fromJson(const QJsonObject &object)
     record.hadAutoTmm = object.value(QStringLiteral("hadAutoTmm")).toVariant().toStringList();
     record.carried = object.value(QStringLiteral("carried")).toInt();
     record.carriedTo = object.value(QStringLiteral("carriedTo")).toString();
+    record.replaced = object.value(QStringLiteral("replaced")).toVariant().toStringList();
     return record;
 }
 

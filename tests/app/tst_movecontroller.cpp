@@ -1089,6 +1089,106 @@ private slots:
         m_probe = nullptr;
     }
 
+    void anEmptyFileInTheWayIsReplaced()
+    {
+        // DECISIONS C28 (#176): the left-out line offers "replace it" for an empty file no
+        // torrent owns; the next start deletes it, then moves, and the log's line says so.
+        QTemporaryDir disks;
+        const QString archive = disks.filePath(QStringLiteral("archive"));
+        const QString fast = disks.filePath(QStringLiteral("fast"));
+        QDir().mkpath(archive + QStringLiteral("/games"));
+        QDir().mkpath(fast + QStringLiteral("/library"));
+        omaseed::core::FreeSpaceProbe probe([&](const QString &path) {
+            omaseed::core::StorageReading reading;
+            reading.valid = true;
+            reading.exists = QFileInfo::exists(path);
+            reading.rootPath = path.startsWith(fast) ? fast : archive;
+            reading.bytesFree = 400LL * 1024 * 1024 * 1024;
+            reading.bytesTotal = 1000LL * 1024 * 1024 * 1024;
+            return reading;
+        });
+        probe.setServer(archive, 400LL * 1024 * 1024 * 1024, omaseed::core::PathMap(), false);
+        QVERIFY(probe.seesServerDisks());
+        m_probe = &probe;
+        m_engine->torrents()->applyFullUpdate(QJsonObject{
+            {QStringLiteral("e5"),
+             torrent(QStringLiteral("Open Arena"), archive + QStringLiteral("/games"), 1000)},
+            {QStringLiteral("f6"),
+             torrent(QStringLiteral("Demo"), archive + QStringLiteral("/games"), 10)}});
+        make();
+        m_move->setServer(QStringLiteral("home"));
+        const QString to = fast + QStringLiteral("/library");
+        const QString empty = to + QStringLiteral("/Open Arena");
+        const QString full = to + QStringLiteral("/Demo");
+        {
+            QFile file(empty);
+            QVERIFY(file.open(QIODevice::WriteOnly));
+            QFile other(full);
+            QVERIFY(other.open(QIODevice::WriteOnly));
+            other.write("x");
+        }
+        const auto leftOutLine = [](const QVariantMap &plan) {
+            for (const QVariant &line : plan.value(QStringLiteral("checks")).toList()) {
+                if (line.toMap()
+                        .value(QStringLiteral("text"))
+                        .toString()
+                        .contains(QStringLiteral("left out")))
+                    return line.toMap();
+            }
+            return QVariantMap();
+        };
+
+        // A file of a byte is someone's: no offer.
+        QVariantMap sheet =
+            m_move->planSelection({QStringLiteral("f6")}, to, QStringLiteral("oneFolder"));
+        QVERIFY(!leftOutLine(sheet).isEmpty());
+        QVERIFY(!leftOutLine(sheet).contains(QStringLiteral("replace")));
+
+        sheet = m_move->planSelection({QStringLiteral("e5")}, to, QStringLiteral("oneFolder"));
+        QVERIFY(!sheet.value(QStringLiteral("canMove")).toBool());
+        const QVariantMap line = leftOutLine(sheet);
+        QVERIFY(line.value(QStringLiteral("text"))
+                    .toString()
+                    .contains(QStringLiteral("(an empty file no torrent owns)")));
+        QCOMPARE(line.value(QStringLiteral("link")).toString(), QStringLiteral("replace it"));
+        QCOMPARE(line.value(QStringLiteral("replace")).toStringList(), QStringList{empty});
+        QCOMPARE(line.value(QStringLiteral("note")).toString(),
+                 QStringLiteral("replace it: the empty file is deleted, then the move goes"));
+
+        // Asked for a path the plan doesn't offer (the byte-long file): kept, and no move.
+        m_move->replaceNext({full});
+        QVERIFY(!m_move->startSelection({QStringLiteral("f6")}, to, QStringLiteral("oneFolder")));
+        QVERIFY(QFileInfo::exists(full));
+
+        // The file filled in since the sheet showed it: not deleted, nothing moves.
+        {
+            QFile file(empty);
+            QVERIFY(file.open(QIODevice::WriteOnly));
+            file.write("late");
+        }
+        m_move->replaceNext({empty});
+        QVERIFY(!m_move->startSelection({QStringLiteral("e5")}, to, QStringLiteral("oneFolder")));
+        QCOMPARE(QFileInfo(empty).size(), qint64(4));
+        QVERIFY(QFile::resize(empty, 0));
+
+        // Replace it: deleted, then moved; the record and the log's line say so.
+        m_move->replaceNext({empty});
+        QVERIFY(m_move->startSelection({QStringLiteral("e5")}, to, QStringLiteral("oneFolder")));
+        QVERIFY(!QFileInfo::exists(empty));
+        QVERIFY(QFileInfo::exists(full));
+        QCOMPARE(m_move->job()->spec().value(QStringLiteral("replaced")).toVariant().toStringList(),
+                 QStringList{empty});
+        landSent();
+        QTRY_COMPARE(m_move->stateName(), QStringLiteral("idle"));
+        const QVariantList lines = m_move->moveLines();
+        QCOMPARE(lines.size(), 1);
+        QCOMPARE(lines.constFirst().toMap().value(QStringLiteral("message")).toString(),
+                 QStringLiteral("omaseed moved \"Open Arena\" to %1 after deleting the empty file "
+                                "no torrent owned at %2")
+                     .arg(to, empty));
+        m_probe = nullptr;
+    }
+
     void pauseEndAndTheRest()
     {
         m_move->setServer(QStringLiteral("home"));

@@ -87,6 +87,24 @@ Sheet {
         return root.asking && sharedChoice.choice === 0 ? root.hashes.concat(root._shared.outside) : root.hashes;
     }
 
+    /// Starts the move as the sheet has it; enter, or a line's "replace it" (DECISIONS C28,
+    /// #176), which has App.move delete the empty files in the way first.
+    function _start(): void {
+        let started = false;
+        if (root.mode === "back")
+            started = root.backId.length > 0 ? App.move.startBackOf(root.backId, root.backOnly)
+                                             : App.move.startBack();
+        else if (root.selection)
+            started = App.move.startSelection(root.moveHashes(), pathField.text.trim(), root.rule);
+        else
+            started = App.move.start(root.folder, pathField.text.trim(),
+                                     root.carry && root.plan.carryOffered === true);
+        if (started)
+            root.close();
+        else
+            root._readPlan(); // a replaced file is gone even when the move can't go
+    }
+
     function _readPlan(): void {
         if (root.mode === "back") {
             root.plan = root.backId.length > 0 ? App.move.planBackOf(root.backId, root.backOnly)
@@ -305,17 +323,7 @@ Sheet {
     onAccepted: {
         if (root.plan.canMove !== true)
             return;
-        let started = false;
-        if (root.mode === "back")
-            started = root.backId.length > 0 ? App.move.startBackOf(root.backId, root.backOnly)
-                                             : App.move.startBack();
-        else if (root.selection)
-            started = App.move.startSelection(root.moveHashes(), pathField.text.trim(), root.rule);
-        else
-            started = App.move.start(root.folder, pathField.text.trim(),
-                                     root.carry && root.plan.carryOffered === true);
-        if (started)
-            root.close();
+        root._start();
     }
     onActionTriggered: text => {
         if (text === qsTr("show the %1").arg(root.plan.moveCount ?? 0)) {
@@ -634,7 +642,15 @@ Sheet {
             linkText: modelData.link ?? ""
             tone: root._kindColor(modelData.kind)
 
-            onLinkActivated: root.openBack(modelData.backFirst ?? "", "")
+            onLinkActivated: {
+                // C28 (#176): an empty file no torrent owns in the way: deleted, then the move.
+                if ((modelData.replace ?? []).length > 0) {
+                    App.move.replaceNext(modelData.replace);
+                    root._start();
+                } else {
+                    root.openBack(modelData.backFirst ?? "", "");
+                }
+            }
             onShowRequested: hashes => {
                 root.close();
                 root.showRequested(hashes);

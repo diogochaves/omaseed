@@ -12,6 +12,7 @@
 #include "core/TorrentModel.hpp"
 
 #include <QCoreApplication>
+#include <QDebug>
 #include <QDir>
 #include <QElapsedTimer>
 #include <QFile>
@@ -24,6 +25,7 @@
 #include <QUuid>
 
 #include <algorithm>
+#include <utility>
 
 namespace omaseed::app {
 
@@ -352,7 +354,11 @@ bool MoveController::start(const QString &rootIn, const QString &newPathIn, bool
         return false;
     const QString root = SharedData::normalize(rootIn);
     const QString newPath = SharedData::normalize(newPathIn.trimmed());
-    const MovePlan plan = makePlan(root, newPath, carry);
+    MovePlan plan = makePlan(root, newPath, carry);
+    // C28 (#176): "replace it": the empty files in the way go first, then the plan again.
+    const QStringList replaced = removeReplaced(plan, std::exchange(m_replace, {}));
+    if (!replaced.isEmpty())
+        plan = makePlan(root, newPath, carry);
     if (!plan.canMove() || plan.namesCheck() == MovePlan::NamesCheck::Pending)
         return false;
     // J3's "move the rest…": the summary of the last job gives way to the new one.
@@ -368,11 +374,13 @@ bool MoveController::start(const QString &rootIn, const QString &newPathIn, bool
         m_job->setLowDiskThreshold(m_hooks.lowDiskBytes());
     m_restoredAt = QDateTime();
     rememberDestination(newPath);
-    const QJsonObject spec{{QStringLiteral("kind"), QStringLiteral("folder")},
-                           {QStringLiteral("title"), FolderTree::baseName(root)},
-                           {QStringLiteral("root"), root},
-                           {QStringLiteral("newPath"), newPath},
-                           {QStringLiteral("carry"), carry}};
+    QJsonObject spec{{QStringLiteral("kind"), QStringLiteral("folder")},
+                     {QStringLiteral("title"), FolderTree::baseName(root)},
+                     {QStringLiteral("root"), root},
+                     {QStringLiteral("newPath"), newPath},
+                     {QStringLiteral("carry"), carry}};
+    if (!replaced.isEmpty())
+        spec.insert(QStringLiteral("replaced"), QJsonArray::fromStringList(replaced));
     const bool started = m_job->start(plan, m_serverId, carry, looseBytes, spec);
     if (started) {
         // M9/M17: the dry run shown in the sheet is what gets carried, so it is kept with the
@@ -446,17 +454,30 @@ bool MoveController::startBack()
     return !spec.isEmpty() && startSpec(spec);
 }
 
-bool MoveController::startSpec(const QJsonObject &spec)
+bool MoveController::startSpec(const QJsonObject &specIn)
 {
+    const QStringList asked = std::exchange(m_replace, {});
     if (m_job == nullptr)
         return false;
-    const MovePlan plan = planFor(spec);
+    QJsonObject spec = specIn;
+    if (!asked.isEmpty())
+        spec.insert(QStringLiteral("replace"), QJsonArray::fromStringList(asked));
+    MovePlan plan = planFor(spec);
     // The file lists and the server's listings first (M8, #102): it starts once they are in.
     if (fetchFor(plan)) {
         m_pending = spec;
         return true;
     }
     m_pending = QJsonObject();
+    // C28 (#176): "replace it": the empty files in the way go first, then the plan again.
+    const QStringList replace = spec.take(QStringLiteral("replace")).toVariant().toStringList();
+    const QStringList replaced = removeReplaced(plan, replace);
+    if (!replaced.isEmpty()) {
+        const QStringList before =
+            spec.value(QStringLiteral("replaced")).toVariant().toStringList();
+        spec.insert(QStringLiteral("replaced"), QJsonArray::fromStringList(before + replaced));
+        plan = planFor(spec);
+    }
     if (!plan.canMove()) {
         const QVariantMap words = selectionWords(plan, spec);
         QString why = words.value(QStringLiteral("blocker")).toString();
@@ -496,6 +517,28 @@ bool MoveController::startSpec(const QJsonObject &spec)
     m_job->start(plan, m_serverId, false, 0, spec);
     bump();
     return true;
+}
+
+QStringList MoveController::removeReplaced(const MovePlan &plan, const QStringList &paths) const
+{
+    QStringList gone;
+    if (paths.isEmpty() || m_hooks.probe == nullptr)
+        return gone;
+    // Only what this plan, made now, still finds an empty file no torrent owns.
+    const QStringList replaceable = plan.replaceable();
+    const core::MoveDisk disk = core::MoveDisk::real();
+    for (const QString &asked : paths) {
+        const QString path = SharedData::normalize(asked);
+        if (!replaceable.contains(path) || gone.contains(path))
+            continue;
+        const QString local = m_hooks.probe->localPathFor(path);
+        if (local.isEmpty() || !disk.removeEmpty(local))
+            continue;
+        qInfo().noquote()
+            << QStringLiteral("move: deleted the empty file no torrent owned at %1").arg(path);
+        gone << path;
+    }
+    return gone;
 }
 
 void MoveController::tryPending()
@@ -561,6 +604,7 @@ void MoveController::recordFinished()
             record.names.insert(entry.hash, entry.name);
     }
     record.hadAutoTmm = m_job->hadAutoTmm();
+    record.replaced = m_job->spec().value(QStringLiteral("replaced")).toVariant().toStringList();
     if (m_carryDone && m_carryResult.carried > 0) {
         record.carried = m_carryResult.carried;
         record.carriedTo = m_job->newPath();

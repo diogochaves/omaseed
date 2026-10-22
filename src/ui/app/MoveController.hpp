@@ -175,6 +175,11 @@ public:
     /// Starts the move (or queues it behind the running one, M18). False when the plan
     /// can't move.
     Q_INVOKABLE bool start(const QString &root, const QString &newPath, bool carry);
+    /// DECISIONS C28 (#176): the next start (any kind) first deletes these left-out targets,
+    /// each only while the plan still finds it an empty file no torrent owns
+    /// (MovePlan::replaceable()), then plans again and moves; the move's record keeps what
+    /// went (`replaced`), for its line in the log. A start that follows forgets them either way.
+    Q_INVOKABLE void replaceNext(const QStringList &paths) { m_replace = paths; }
 
     // ---- a selection (board 43, C16) ----------------------------------------------------------
 
@@ -329,6 +334,8 @@ private:
     void recordFinished();
     void saveHistory();
     bool startSpec(const QJsonObject &spec);
+    /// C28 (#176): deletes those of `paths` that `plan` finds replaceable; what went.
+    QStringList removeReplaced(const core::MovePlan &plan, const QStringList &paths) const;
     void tryPending();
     QJsonObject replan(const QJsonObject &spec) const;
     void rememberDestination(const QString &path);
@@ -360,6 +367,7 @@ private:
     core::MoveHistory m_history; ///< C18 D7–D8, the server's
     int m_historyRevision = 0;
     QJsonObject m_pending;  ///< a start waiting for file lists or listings
+    QStringList m_replace;  ///< C28 (#176): replaceNext()'s, for the next start
     QDateTime m_restoredAt; ///< J4's line shows for a while after a restore
 
     // A shown job's summary, as it read at its end, kept while the move after it runs unseen

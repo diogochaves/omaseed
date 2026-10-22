@@ -44,6 +44,9 @@ struct MoveRecord
     QStringList hadAutoTmm;        ///< automatic management was on before the move
     int carried = 0;               ///< loose files carried after the torrents (a folder's)
     QString carriedTo;             ///< where they went
+    /// DECISIONS C28 (#176): the empty files no torrent owned that "replace it" deleted from
+    /// the torrents' way before the move, as the server writes them.
+    QStringList replaced;
 
     QJsonObject toJson() const;
     static MoveRecord fromJson(const QJsonObject &object);

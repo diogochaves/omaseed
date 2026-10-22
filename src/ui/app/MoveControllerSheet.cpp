@@ -530,10 +530,25 @@ MoveController::checkLines(const MovePlan &plan, const QString &newPath, const Q
             }
             const core::ErrorWords::Text words =
                 core::ErrorWords::forLeftOut(int(plan.leftOut().size()), where, about);
-            checks << check(QStringLiteral("bad"),
-                            words.headline + QStringLiteral(": ") + words.line,
-                            QString(),
-                            plan.leftOut());
+            // DECISIONS C28 (#176): an empty file no torrent owns, seen here, is a leftover:
+            // "replace it" deletes it, then moves, and the move's line in the log says so.
+            const QStringList replace = plan.replaceable();
+            QString note;
+            if (replace.size() == 1)
+                note = tr("replace it: the empty file is deleted, then the move goes");
+            else if (replace.size() > 1)
+                note = tr("replace them: the %1 empty files are deleted, then the move goes")
+                           .arg(replace.size());
+            QVariantMap line = check(QStringLiteral("bad"),
+                                     words.headline + QStringLiteral(": ") + words.line,
+                                     note,
+                                     plan.leftOut());
+            if (!replace.isEmpty()) {
+                line.insert(QStringLiteral("link"),
+                            replace.size() == 1 ? tr("replace it") : tr("replace them"));
+                line.insert(QStringLiteral("replace"), replace);
+            }
+            checks << line;
         }
         switch (plan.namesCheck()) {
         case MovePlan::NamesCheck::Here:
@@ -1157,6 +1172,14 @@ QVariantList MoveController::moveLines() const
         if (record.carried > 0)
             text += QLatin1Char(' ') +
                     counted(record.carried, tr("and %1 loose file"), tr("and %1 loose files"));
+        // DECISIONS C28 (#176): what "replace it" deleted before the move.
+        if (record.replaced.size() == 1)
+            text += QLatin1Char(' ') + tr("after deleting the empty file no torrent owned at %1")
+                                           .arg(record.replaced.constFirst());
+        else if (record.replaced.size() > 1)
+            text +=
+                QLatin1Char(' ') + tr("after deleting %1 empty files no torrent owned in its way")
+                                       .arg(record.replaced.size());
         out << QVariantMap{{QStringLiteral("at"), record.finishedAt.toSecsSinceEpoch()},
                            {QStringLiteral("message"), text},
                            {QStringLiteral("id"), record.id}};
