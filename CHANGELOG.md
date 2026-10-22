@@ -214,6 +214,9 @@ before it will tag a release.
 
 ### Fixed
 
+- First run finds the Web UI's port, and whether it is on, in a qBittorrent 5.3 profile: 5.3
+  moves those settings to a section of their own, and first run read only the old place, so it
+  offered port 8080 whatever the profile said (#140).
 - The log keeps omaseed's own lines ("omaseed moved …") in time order: the log read whole (on
   opening it, or after qBittorrent's log started over) put them after qBittorrent's newer
   lines until some later change re-sorted them (#137).

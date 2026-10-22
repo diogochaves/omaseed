@@ -345,6 +345,30 @@ void TestServerDetector::aDesktopClientsConfigGivesItsPortAndSwitch()
     found = detect();
     QCOMPARE(found.url, QStringLiteral("http://127.0.0.1:8080"));
     QVERIFY2(found.detail.contains(QStringLiteral("Web UI is off")), qPrintable(found.detail));
+
+    // qBittorrent 5.3 (#140): its first start moves the Web UI keys to a [WebUI] section of
+    // their own, and the [Preferences] ones are gone.
+    writeConf("[Preferences]\nGeneral\\Locale=en\n\n[WebUI]\nEnabled=true\nPort=9191\n");
+    found = detect();
+    QCOMPARE(found.url, QStringLiteral("http://127.0.0.1:9191"));
+    QCOMPARE(found.detail, QStringLiteral("127.0.0.1:9191 · qbittorrent running"));
+
+    writeConf("[Meta]\nMigrationVersion=12\n\n[WebUI]\nEnabled=false\nPort=9191\n");
+    found = detect();
+    QVERIFY2(found.detail.contains(QStringLiteral("Web UI is off")), qPrintable(found.detail));
+
+    // Only [WebUI], with no Port: 5.3 leaves the default out, as 5.2 did.
+    writeConf("[WebUI]\nEnabled=true\n");
+    found = detect();
+    QCOMPARE(found.url, QStringLiteral("http://127.0.0.1:8080"));
+    QVERIFY2(!found.detail.contains(QStringLiteral("Web UI is off")), qPrintable(found.detail));
+
+    // Both, as no qBittorrent leaves it but a hand edit could: 5.3 reads [WebUI], so do we.
+    writeConf("[Preferences]\nWebUI\\Enabled=false\nWebUI\\Port=9090\n\n"
+              "[WebUI]\nEnabled=true\nPort=9191\n");
+    found = detect();
+    QCOMPARE(found.url, QStringLiteral("http://127.0.0.1:9191"));
+    QVERIFY2(!found.detail.contains(QStringLiteral("Web UI is off")), qPrintable(found.detail));
 }
 
 // Q26: two instances (the second with its own --profile) give one candidate, but the count

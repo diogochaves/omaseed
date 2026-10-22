@@ -30,10 +30,17 @@ WebUiConfig readWebUiConfig(const QStringList &paths)
     for (const QString &path : paths) {
         if (!QFile::exists(path))
             continue;
-        // qBittorrent writes Qt's own INI: `[Preferences]` `WebUI\Port=8080`.
+        // qBittorrent writes Qt's own INI. Up to 5.2: `[Preferences]` `WebUI\Port=8080`. 5.3
+        // moves every Web UI key to a `[WebUI]` section (`Port=8080`) on its first start and
+        // never reads the old ones again, so the new key wins and the old is the fallback.
         const QSettings settings(path, QSettings::IniFormat);
-        config.port = settings.value(QStringLiteral("Preferences/WebUI/Port"), 0).toInt();
-        config.enabled = settings.value(QStringLiteral("Preferences/WebUI/Enabled"), true).toBool();
+        const auto value = [&settings](const QString &key, const QVariant &fallback) {
+            return settings.value(
+                QStringLiteral("WebUI/") + key,
+                settings.value(QStringLiteral("Preferences/WebUI/") + key, fallback));
+        };
+        config.port = value(QStringLiteral("Port"), 0).toInt();
+        config.enabled = value(QStringLiteral("Enabled"), true).toBool();
         break;
     }
     return config;
