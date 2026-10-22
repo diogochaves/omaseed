@@ -142,6 +142,19 @@ MagnetLink MagnetLink::parse(const QString &uri)
     return result;
 }
 
+MagnetLink MagnetLink::fromInfoHash(const QString &text)
+{
+    MagnetLink result;
+    const QString hash = text.trimmed();
+    if (hash.size() == 64 && isHex(hash)) {
+        result.infoHashV2 = hash.toLower();
+    } else if (hash.size() == 40 || (hash.size() == 32 && hash == hash.toUpper())) {
+        result.infoHashV1 = normalizeInfoHashV1(hash);
+    }
+    result.m_valid = !result.infoHashV1.isEmpty() || !result.infoHashV2.isEmpty();
+    return result;
+}
+
 QString MagnetLink::toString() const
 {
     if (!isValid())
