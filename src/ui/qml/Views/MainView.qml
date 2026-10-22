@@ -647,7 +647,12 @@ Item {
 
     /// `esc`, in the order Fig. 26 promises: clear, then filter, then close.
     function handleEscape(): void {
-        // DECISIONS C18 D3: esc closes the outcome strip first, as its × does.
+        // DECISIONS C18 D3: esc closes the outcome strip first, as its × does; its band
+        // before it (docs/35 N8).
+        if (root.footerNoticeOpen) {
+            root.footerNoticeOpen = false;
+            return;
+        }
         if (outcomeStrip.visible) {
             App.outcomes.dismiss();
             return;

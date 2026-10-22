@@ -414,6 +414,9 @@ Rectangle {
             Label {
                 id: hintLabel
 
+                // #77: read out with the bar, as the count is.
+                Accessible.name: hintLabel.text
+                Accessible.role: Accessible.StaticText
                 anchors.right: parent.right
                 anchors.rightMargin: Theme.space(4)
                 anchors.verticalCenter: parent.verticalCenter
