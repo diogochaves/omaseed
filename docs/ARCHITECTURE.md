@@ -53,6 +53,18 @@ Three static libraries and the executable. Each layer only depends on the ones a
   server's read aside), `TorrentsExport` and `TorrentsImport` (C9's file holds qBittorrent's
   rows). The log face and the problem log read the engine's log through `EngineClient::log`
   (`engineLog`), and the add sheet's metadata lookup through `fetchMetadata`.
+  `AddAgainJob` (board 28's add again, C17 D3) is one too (`addAgain`); `FreeSkippedJob`
+  goes through `EngineClient`.
+- Which engine a server runs (#84, [DECISIONS.md](DECISIONS.md) C25 K1–K12): `Server` stores
+  its `EngineKind` and the version from the last contact (servers.json v2; a v1 entry is a
+  qBittorrent). `EngineRecognizer` answers a server's test before it signs in: the address
+  picks the engine asked first, each is asked once without credentials, through its own
+  reader beside its engine (`QbtFingerprint`, `TransmissionFingerprint`,
+  `DelugeFingerprint`), and the first that answers as itself wins. `engineSupport()` says
+  whether this build drives it and refuses a version too old, in words. `ServerDetector`
+  (first run) only connects to each engine's usual port and reads processes and config
+  files, never HTTP. App's `testServer` then runs QbtEngine's signed-in probe for a
+  qBittorrent, as before, and names and refuses the others until their engines land.
 - `SyncEngine` polls the engine's `sync(cursor)` (qBittorrent's `sync/maindata` with `rid`) and
   applies each answer, a `SyncDelta`, to `TorrentModel`, `CategoryModel`, `TagModel`,
   `TrackerModel` and `GlobalState`. It polls every
