@@ -906,6 +906,20 @@ C15 M1's "the row's menu" as the rail's folder row (T3).**
   row appears in its sorted place on the next sync, never at the end first; a refusal shows in
   the footer as other actions' do.
 
+## C21 — No recheck for a hybrid after a failed move (ruled 2026-10-22)
+
+A move that fails partway can leave a torrent's files split between the old place and the new.
+On a hybrid (v1+v2) torrent that it downloaded, libtorrent 2.1.2 answers a recheck with
+`torrent_inconsistent_hashes` when a file with downloaded pieces is missing, and only removing
+and adding the torrent again clears it (#115). C17 D3 keeps hybrids out of a recheck when freeing
+space; this does the same for moves.
+
+**This entry changes C15 M16's recheck:** the summary's "recheck the N…" sheet leaves every
+hybrid out. Each is listed as "not rechecked" with one line saying why, and offered "move
+again" (to the move's target) and "move back", which bring its files together; the others are
+rechecked as before. A torrent is hybrid when qBittorrent gives it both a v1 and a v2 hash.
+v0.3.1. #144.
+
 ## M8 — A click leaves the keyboard focus where it was
 
 Buttons and toggles do not take the focus when clicked. Otherwise an overlay gives the focus
