@@ -1834,6 +1834,13 @@ public:
     /// D23: what the read-only guard says when it stops `key`: "private is unreachable: p
     /// waits until it answers".
     Q_INVOKABLE QString guardNote(const QString &key) const;
+    /// docs/33 N5, docs/35 N7: a server sheet's failed test in ErrorWords' words, from what
+    /// `serverTested()` said (`error`, and `errorDetail`, the raw error under a refused
+    /// sign-in): `{headline, line, details, kind}`. `fields` are the sheet's (`url`, `name`,
+    /// `authMode`), for the address and the name.
+    Q_INVOKABLE QVariantMap serverTestProblem(const QVariantMap &fields,
+                                              const QString &error,
+                                              const QString &errorDetail) const;
     /// S1, the server palette: one row per server in Settings' order, the current one first
     /// with "on it now" and its live figures, the others with what was seen last (D5):
     /// `[{key: id, title, meta, detail, current, state}]`.

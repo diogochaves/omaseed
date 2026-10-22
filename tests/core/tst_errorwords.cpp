@@ -89,6 +89,41 @@ private slots:
         QVERIFY(ErrorWords::forServer(error, subject).line.contains(QStringLiteral("for 8 s.")));
     }
 
+    // docs/33 N5, docs/35 N7: a server sheet's failed test. No retry; what to check.
+    void aFailedTest()
+    {
+        ErrorWords::Subject subject = server(AuthMode::Cookie, 7);
+        subject.address = QStringLiteral("127.0.0.1:8095");
+        const ApiError refused(ApiError::Kind::Network,
+                               QStringLiteral("GET app/version: Connection refused"));
+        ErrorWords::Text text = ErrorWords::forTest(refused, subject);
+        QCOMPARE(text.headline, QStringLiteral("Nothing answered at 127.0.0.1:8095"));
+        QCOMPARE(text.line,
+                 QStringLiteral("Check the address and port, and that qBittorrent's Web UI is on "
+                                "(Tools › Options › Web UI)."));
+        QCOMPARE(text.kind, QStringLiteral("unreachable"));
+        QCOMPARE(text.details,
+                 QStringLiteral("network error · GET app/version · Connection refused · "
+                                "127.0.0.1:8095"));
+
+        const ApiError slow(ApiError::Kind::Timeout,
+                            QStringLiteral("GET app/version: no reply within 8000 ms"));
+        text = ErrorWords::forTest(slow, subject);
+        QCOMPARE(text.headline, QStringLiteral("private isn't answering"));
+        QCOMPARE(text.line,
+                 QStringLiteral("It took the connection but didn't reply in 8 s. Test again in a "
+                                "moment."));
+        QCOMPARE(text.kind, QStringLiteral("waiting"));
+
+        const ApiError login =
+            ApiError::fromHttpStatus(401, QStringLiteral("auth/login: Unauthorized"));
+        text = ErrorWords::forTest(login, subject, QStringLiteral("wrong username or password"));
+        QCOMPARE(text.headline, QStringLiteral("private refused the sign-in"));
+        QCOMPARE(text.line, QStringLiteral("Wrong username or password."));
+        QCOMPARE(text.kind, QStringLiteral("refused"));
+        QVERIFY(!text.line.contains(QStringLiteral("tries again")));
+    }
+
     void certificate()
     {
         const ApiError error = ApiError::certificate(

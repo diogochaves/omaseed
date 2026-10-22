@@ -27,6 +27,8 @@
 // A move made by a job (board 42 §8) has its own rows: a failure from the log (forMoveFailure),
 // a drive nearly full (forNearlyFull), a stuck queue (forStuck), torrents left out (forLeftOut).
 //
+// A server sheet's test has its own rows (forTest, docs/33 N5): no retry, what to check.
+//
 // A server's problem adds the retry (`retryLine`): one figure, the engine's countdown, read
 // by the window's notice and the desktop notice alike (Q16). The look of the notice that
 // carries these words is board 35's; the words are this table's.
@@ -95,6 +97,15 @@ public:
     /// An action that failed (a request about a torrent, an add): per request where it is
     /// known, else per kind.
     static Text forRequest(const ApiError &error, const Subject &subject);
+    /// A server sheet's test that failed (docs/33 N5, docs/35 N7): a test is asked once, so
+    /// nothing is retried and the line says what to check. Nothing answering at the address:
+    /// "Nothing answered at ADDRESS" / "Check the address and port, and that qBittorrent's Web
+    /// UI is on (Tools › Options › Web UI)."; a timeout: "NAME isn't answering" / "It took the
+    /// connection but didn't reply in N s. Test again in a moment."; the rest as forServer()
+    /// words them, without a retry. A refused sign-in or certificate keeps `refusedText`
+    /// (credentialRefusedText, certificateRefusedText) as its line.
+    static Text
+    forTest(const ApiError &error, const Subject &subject, const QString &refusedText = QString());
 
     /// "omaseed tries again in 7 s." / "omaseed tries again now."; empty for < 0.
     static QString retryLine(int seconds);

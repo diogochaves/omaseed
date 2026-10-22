@@ -336,6 +336,35 @@ ErrorWords::Text ErrorWords::forServer(const ApiError &error, const Subject &sub
     return text;
 }
 
+ErrorWords::Text
+ErrorWords::forTest(const ApiError &error, const Subject &subject, const QString &refusedText)
+{
+    if (!error.isError() || error.kind() == ApiError::Kind::Cancelled)
+        return {};
+    Subject once = subject;
+    once.retrySeconds = -1;
+    Text text = forServer(error, once);
+    if (error.kind() == ApiError::Kind::Network && !hostNotFound(error)) {
+        // docs/33 N5, as board 35 draws it in the sheet.
+        text.headline = tr("Nothing answered at %1").arg(addressOf(subject));
+        text.line = tr("Check the address and port, and that qBittorrent's Web UI is on (Tools "
+                       "› Options › Web UI).");
+    } else if (error.kind() == ApiError::Kind::Timeout) {
+        const int seconds = timeoutSeconds(error);
+        text.line = seconds > 0 ? tr("It took the connection but didn't reply in %1 s. Test "
+                                     "again in a moment.")
+                                      .arg(seconds)
+                                : tr("It took the connection but didn't reply in time. Test "
+                                     "again in a moment.");
+    } else if (!refusedText.isEmpty() &&
+               (text.kind == QLatin1String("refused") || text.kind == QLatin1String("banned") ||
+                text.kind == QLatin1String("certificate"))) {
+        // The sheet's own words for what it can fix there.
+        text.line = refusedText.at(0).toUpper() + refusedText.mid(1) + QLatin1Char('.');
+    }
+    return text;
+}
+
 ErrorWords::Text ErrorWords::forRequest(const ApiError &error, const Subject &subject)
 {
     if (!error.isError() || error.kind() == ApiError::Kind::Cancelled)

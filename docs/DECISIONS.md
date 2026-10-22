@@ -591,8 +591,12 @@ more a way to the others is always on screen; with one, nothing offers to switch
   unknown, and `add when back` holds the add (as stopped or not) and sends it, built from the
   fields as they are then, when the server answers or the app is on another one that does. A
   refused add is the red band in ErrorWords' words.
-- **Not built:** the server sheet's failed test as a notice (board 33's N5) keeps today's line;
-  it is first run's and Settings' wording, not a state this board changed.
+- **The server sheet's failed test (board 33's N5, #126):** docs/35 N7's band under the sheet's
+  head, edge to edge, red, or yellow for a timeout (C17 D11), in `ErrorWords::forTest`'s words
+  ("Nothing answered at 127.0.0.1:8095" / "Check the address and port, and that qBittorrent's
+  Web UI is on (Tools › Options › Web UI)."), with no actions of its own ("test" and "save
+  anyway" stay the sheet's buttons, C10) and the technical text under "details" with copy. The
+  line under the fields now says only "testing…" and a pass. First run keeps its own line.
 
 ## C13 — The tray and the widget share one menu, and one setting (board 33 §11, ruled 2026-10-16)
 

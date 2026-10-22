@@ -13,6 +13,10 @@ before it will tag a release.
   but doesn't reply in time (busy writing to its disk, say), omaseed says it "isn't answering",
   in yellow, with how long it has waited, and "answered again" when it does. A refused
   connection or no route says "unreachable", now in red, with "Is qBittorrent running?".
+- **A server's failed test says what to check.** In Settings › Servers, a test that fails is a
+  notice under the sheet's title, in plain words ("Nothing answered at 127.0.0.1:8095", then
+  what to check), with the technical text under "details", where it used to be one line of
+  Qt's words.
 
 ### Fixed
 

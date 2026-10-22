@@ -241,6 +241,35 @@ App::serverProblem(const QString &lastError, int retryInSeconds, int silentSecon
     return words;
 }
 
+QVariantMap App::serverTestProblem(const QVariantMap &fields,
+                                   const QString &error,
+                                   const QString &errorDetail) const
+{
+    if (error.isEmpty() && errorDetail.isEmpty())
+        return {};
+    const Server server = ServerListModel::serverFromMap(fields);
+    ErrorWords::Subject subject;
+    const QUrl &url = server.url;
+    if (url.isValid() && !url.host().isEmpty())
+        subject.address =
+            url.port() > 0 ? QStringLiteral("%1:%2").arg(url.host()).arg(url.port()) : url.host();
+    subject.server = server.name.isEmpty() ? subject.address : server.name;
+    subject.authMode = server.authMode;
+    subject.pinnedCertificate = server.certificateSha256;
+    // runServerTest: the raw error alone, or the sheet's words with the raw one under them.
+    const QString raw = errorDetail.isEmpty() ? error : errorDetail;
+    const QString refusedText = errorDetail.isEmpty() ? QString() : error;
+    const ApiError parsed = ApiError::fromString(raw);
+    if (parsed.kind() == ApiError::Kind::Unknown) {
+        // Not a request that failed ("not a URL"): the words are the sheet's own.
+        return {{QStringLiteral("headline"), raw},
+                {QStringLiteral("line"), QString()},
+                {QStringLiteral("details"), QString()},
+                {QStringLiteral("kind"), QStringLiteral("request")}};
+    }
+    return ErrorWords::forTest(parsed, subject, refusedText).toMap();
+}
+
 QString App::guardNote(const QString &key) const
 {
     return ErrorWords::guard(m_server.name, key, m_serverRefused, serverWaiting());
