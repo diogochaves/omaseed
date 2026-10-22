@@ -115,16 +115,27 @@ print(base64.b64encode(salt).decode() + ":" + base64.b64encode(key).decode())'
 # set_conf_credentials: WEBUI_USER and WEBUI_PASS into an existing profile's conf; every
 # other line, the API key included, is kept. Only while the server is stopped: it rewrites
 # the conf when it exits.
+#
+# Where they go depends on the qBittorrent that last ran the profile. Up to 5.2 the login is
+# `[Preferences]` `WebUI\Username` / `WebUI\Password_PBKDF2`. 5.3 moves every WebUI key to a
+# `[WebUI]` section of its own (`Username`, `Password_PBKDF2`), once, on its first start
+# (migration 11, Meta/MigrationVersion), and never reads the old keys again. So a profile with
+# a `[WebUI]` section takes the new keys there and loses any stale old ones; any other profile
+# takes the old keys, which a 5.3 then migrates. A fresh profile (write_conf) is always in the
+# old layout, which every version reads.
 set_conf_credentials() {
   local hash
   hash="$(pbkdf2_hash)"
   WEBUI_USER="$WEBUI_USER" HASH="$hash" python3 - "$CONF" <<'PY'
 import os, sys
 path = sys.argv[1]
-wanted = {
-    "WebUI\\Username": os.environ["WEBUI_USER"],
-    "WebUI\\Password_PBKDF2": '"@ByteArray(%s)"' % os.environ["HASH"],
-}
+lines = open(path, encoding="utf-8").read().splitlines()
+user, password = os.environ["WEBUI_USER"], '"@ByteArray(%s)"' % os.environ["HASH"]
+old = {"WebUI\\Username": user, "WebUI\\Password_PBKDF2": password}
+if "[WebUI]" in (line.strip() for line in lines):
+    target, wanted, stale = "WebUI", {"Username": user, "Password_PBKDF2": password}, set(old)
+else:
+    target, wanted, stale = "Preferences", old, set()
 out, section, done = [], None, set()
 
 def add_missing():
@@ -138,21 +149,23 @@ def add_missing():
             done.add(key)
     out.extend(reversed(trailing))
 
-for line in open(path, encoding="utf-8").read().splitlines():
+for line in lines:
     stripped = line.strip()
+    key = line.split("=", 1)[0]
     if stripped.startswith("[") and stripped.endswith("]"):
-        if section == "Preferences":
+        if section == target:
             add_missing()
         section = stripped[1:-1]
-    elif section == "Preferences" and line.split("=", 1)[0] in wanted:
-        key = line.split("=", 1)[0]
+    elif section == target and key in wanted:
         line = f"{key}={wanted[key]}"
         done.add(key)
+    elif section == "Preferences" and key in stale:
+        continue
     out.append(line)
-if section == "Preferences":
+if section == target:
     add_missing()
 elif len(done) < len(wanted):
-    out += ["", "[Preferences]"]
+    out += ["", f"[{target}]"]
     add_missing()
 tmp = path + ".omaseed-tmp"
 with open(tmp, "w", encoding="utf-8") as f:
