@@ -187,6 +187,7 @@ private slots:
     void aMagnetHandedOverBeforeTheFirstSyncWaitsForTheLibrary();
     void anOldServerKeepsTodaysSheet();
     void aReplacedSessionIsAskedAgain();
+    void aBareInfoHashIsReadAsItsMagnet(); // #147
 
 private:
     bool startOn(App &app, MagnetServer &server);
@@ -462,6 +463,45 @@ void TestAppMagnet::aReplacedSessionIsAskedAgain()
                  .form.queryItemValue(QStringLiteral("filePriorities"), QUrl::FullyDecoded),
              QStringLiteral("1,0,1"));
     app.engine()->stop();
+}
+
+// #147: a bare info hash is the magnet it stands for, and the map says it was a bare hash.
+void TestAppMagnet::aBareInfoHashIsReadAsItsMagnet()
+{
+    App app;
+    const QString v1 = QStringLiteral("9a4f6c1e2b3d4f50617283940a1b2c3d4e5f6071");
+    QVariantMap map = app.parseAddable(v1.toUpper());
+    QCOMPARE(map.value(QStringLiteral("kind")).toString(), QStringLiteral("magnet"));
+    QVERIFY(map.value(QStringLiteral("valid")).toBool());
+    QVERIFY(map.value(QStringLiteral("bareHash")).toBool());
+    QCOMPARE(map.value(QStringLiteral("value")).toString(),
+             QStringLiteral("magnet:?xt=urn:btih:") + v1);
+    QCOMPARE(map.value(QStringLiteral("infoHashV1")).toString(), v1);
+    QCOMPARE(map.value(QStringLiteral("name")).toString(), v1);
+    QVERIFY(map.value(QStringLiteral("trackers")).toStringList().isEmpty());
+
+    const QString v2 = v1 + v1.left(24);
+    map = app.parseAddable(v2);
+    QVERIFY(map.value(QStringLiteral("bareHash")).toBool());
+    QCOMPARE(map.value(QStringLiteral("value")).toString(),
+             QStringLiteral("magnet:?xt=urn:btmh:1220") + v2);
+    QCOMPARE(map.value(QStringLiteral("infoHashV2")).toString(), v2);
+    QVERIFY(map.value(QStringLiteral("infoHashV1")).toString().isEmpty());
+    QCOMPARE(map.value(QStringLiteral("name")).toString(), v2);
+
+    // A magnet is not a bare hash; neither is a hash one character short.
+    map = app.parseAddable(QStringLiteral("magnet:?xt=urn:btih:") + v1);
+    QVERIFY(!map.value(QStringLiteral("bareHash")).toBool());
+    QCOMPARE(app.parseAddable(v1.left(39)).value(QStringLiteral("kind")).toString(),
+             QStringLiteral("none"));
+
+    // Pasted several at once, mixed with a magnet: each as it was given.
+    const QString magnet =
+        QStringLiteral("magnet:?xt=urn:btih:%1&dn=a").arg(QString(40, QLatin1Char('a')));
+    QCOMPARE(app.splitAddables(v1 + QLatin1Char('\n') + magnet + QLatin1Char('\n') + v2),
+             (QStringList{v1, magnet, v2}));
+    QCOMPARE(app.splitAddables(v1 + magnet), (QStringList{v1, magnet}));
+    QVERIFY(app.splitAddables(QStringLiteral("see %1 for the fix").arg(v1)).isEmpty());
 }
 
 QTEST_MAIN(TestAppMagnet)

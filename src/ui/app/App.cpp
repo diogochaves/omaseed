@@ -1657,10 +1657,15 @@ QVariantMap App::parseAddable(const QString &textIn)
 
     const integration::Addable addable = integration::Xdg::parseAddable(text);
     switch (addable.kind) {
-    case integration::Addable::Kind::Magnet: {
-        const MagnetLink link = MagnetLink::parse(addable.value);
+    case integration::Addable::Kind::Magnet:
+    case integration::Addable::Kind::InfoHash: {
+        // #147: a bare info hash is added as the magnet it stands for, and says so.
+        const bool bareHash = addable.kind == integration::Addable::Kind::InfoHash;
+        const MagnetLink link =
+            bareHash ? MagnetLink::fromInfoHash(addable.value) : MagnetLink::parse(addable.value);
         map[QStringLiteral("kind")] = QStringLiteral("magnet");
-        map[QStringLiteral("value")] = addable.value;
+        map[QStringLiteral("value")] = bareHash ? link.toString() : addable.value;
+        map[QStringLiteral("bareHash")] = bareHash;
         if (!link.isValid()) {
             map[QStringLiteral("error")] = tr("this magnet link carries no info hash");
             return map;
@@ -1668,8 +1673,10 @@ QVariantMap App::parseAddable(const QString &textIn)
         map[QStringLiteral("valid")] = true;
         map[QStringLiteral("infoHashV1")] = link.infoHashV1;
         map[QStringLiteral("infoHashV2")] = link.infoHashV2;
-        map[QStringLiteral("name")] =
-            link.displayName.isEmpty() ? link.infoHashV1 : link.displayName;
+        // Nothing but a v2 hash names it with that hash.
+        map[QStringLiteral("name")] = !link.displayName.isEmpty()  ? link.displayName
+                                      : !link.infoHashV1.isEmpty() ? link.infoHashV1
+                                                                   : link.infoHashV2;
         if (link.exactLength > 0) {
             map[QStringLiteral("sizeText")] = Format::size(link.exactLength);
             map[QStringLiteral("totalSize")] = link.exactLength;

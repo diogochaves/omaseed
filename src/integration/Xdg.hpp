@@ -26,6 +26,9 @@ public:
         Magnet,
         HttpUrl,
         TorrentFile,
+        /// #147: a bare info hash (40 hex or 32 base32 for v1, 64 hex for v2), `value` as
+        /// it was given. `core::MagnetLink::fromInfoHash(value)` is the magnet it stands for.
+        InfoHash,
     };
     Q_ENUM(Kind)
 
@@ -61,12 +64,14 @@ public:
     static Xdg *createForEngine(QQmlEngine *engine);
 
     /// Pure parser: what does this one line of text look like? No I/O except `QFile::exists`
-    /// for a bare local path ending in `.torrent`.
+    /// for a bare local path ending in `.torrent`. A bare info hash counts only as the whole
+    /// of `text` (#147).
     static Addable parseAddable(const QString &text);
     /// Splits `text` into lines and parses each one, dropping what parses to `Kind::None`. A
     /// line with whitespace in it that is not an existing `.torrent` path (which may contain
     /// spaces) is split on the whitespace and each token parsed: two magnets pasted side by
-    /// side are two addables.
+    /// side are two addables. A bare info hash among the tokens counts only when every token
+    /// of its line is addable: hashes side by side are a list, a hash in a sentence is prose.
     static QList<Addable> parseAddableList(const QString &text);
 
     /// Reveals `path` in the file manager: a file is highlighted (`ShowItems`), a directory is
@@ -93,7 +98,8 @@ public:
     /// Records that the prompt was shown (accepted or declined), so it is not shown again.
     Q_INVOKABLE void setFirstRunPromptAsked();
 
-    /// The magnet/URL/`.torrent` addable found in the current clipboard text, or `Kind::None`.
+    /// The magnet/URL/`.torrent`/info hash addable found in the current clipboard text, or
+    /// `Kind::None`.
     Q_INVOKABLE Addable detectClipboardMagnet() const;
 
 signals:

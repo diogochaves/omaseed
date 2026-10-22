@@ -980,8 +980,11 @@ public:
     /// this machine reads the server's disks (#29), as the library's renames (#64).
     Q_INVOKABLE void setAddFilesWhere(const QVariantMap &where);
 
-    /// What one line of "magnet / http(s) URL / .torrent path" is, as the sheet draws it:
+    /// What one line of "magnet / http(s) URL / .torrent path / info hash" is, as the sheet
+    /// draws it:
     ///   kind         "magnet" | "url" | "file" | "none"
+    ///   bareHash     a magnet that was typed as a bare info hash (#147); `value` is the
+    ///                magnet it stands for
     ///   valid        bool, false when nothing recognisable was in `text`
     ///   pending      bool, true while a .torrent is still being read and hashed
     ///   name         the parsed name, or a URL's last path segment

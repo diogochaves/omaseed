@@ -110,9 +110,15 @@ StatusService::Source StatusService::parseSource(const QString &text)
     source.value = addable.value;
 
     switch (addable.kind) {
-    case integration::Addable::Kind::Magnet: {
+    case integration::Addable::Kind::Magnet:
+    case integration::Addable::Kind::InfoHash: {
         source.kind = QStringLiteral("magnet");
-        const MagnetLink link = MagnetLink::parse(addable.value);
+        // #147: a bare info hash goes to the server as the magnet it stands for.
+        const bool bareHash = addable.kind == integration::Addable::Kind::InfoHash;
+        const MagnetLink link =
+            bareHash ? MagnetLink::fromInfoHash(addable.value) : MagnetLink::parse(addable.value);
+        if (bareHash)
+            source.value = link.toString();
         if (!link.isValid()) {
             source.error = tr("this magnet link carries no info hash");
             return source;
@@ -120,7 +126,9 @@ StatusService::Source StatusService::parseSource(const QString &text)
         source.valid = true;
         source.infoHashV1 = link.infoHashV1;
         source.infoHashV2 = link.infoHashV2;
-        source.name = link.displayName.isEmpty() ? link.infoHashV1 : link.displayName;
+        source.name = !link.displayName.isEmpty()  ? link.displayName
+                      : !link.infoHashV1.isEmpty() ? link.infoHashV1
+                                                   : link.infoHashV2;
         source.size = qMax<qint64>(0, link.exactLength);
         break;
     }

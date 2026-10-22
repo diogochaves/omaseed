@@ -1,13 +1,16 @@
 #include "integration/AppIdentity.hpp"
 #include "integration/Xdg.hpp"
 
+#include <QClipboard>
 #include <QDBusConnection>
 #include <QDBusMessage>
 #include <QDir>
 #include <QFile>
+#include <QGuiApplication>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QProcess>
+#include <QScopeGuard>
 #include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QTest>
@@ -78,6 +81,13 @@ private slots:
     void parseAddableListKeepsOrderAndDropsJunk();
     void parseAddableListSplitsLinksOnOneLine(); // INT-14
     void magnetXtMustBeItsOwnParameter();        // INT-14
+    void parseAddableRecognisesABareInfoHash_data();
+    void parseAddableRecognisesABareInfoHash(); // #147
+    void parseAddableFindsNoHashInOtherText_data();
+    void parseAddableFindsNoHashInOtherText();       // #147
+    void parseAddableListTakesHashesAsWholeTokens(); // #147
+    void dropTakesABareInfoHash();                   // #147
+    void clipboardOffersABareInfoHash();             // #147
     void dropListsAFileOnceWhenItsTextNamesItToo();
 
     void stateFileRoundTrips();
@@ -374,6 +384,127 @@ void TestXdg::showInFileManagerCallsShowItemsOverDBus()
 
     daemon.terminate();
     daemon.waitForFinished(2000);
+}
+
+namespace {
+
+const QString kHashV1 = QStringLiteral("c12fe1c06bba254a9dc9f519b335aa7c1367a88a");
+const QString kHashV2 = kHashV1 + kHashV1.left(24); // 64 hex: a v2 (sha-256) hash
+// RFC 4648 base32 of aabbccddeeff00112233445566778899aabbccdd.
+const QString kHashBase32 = QStringLiteral("VK54ZXPO74ABCIRTIRKWM54ITGVLXTG5");
+
+} // namespace
+
+void TestXdg::parseAddableRecognisesABareInfoHash_data()
+{
+    QTest::addColumn<QString>("text");
+    QTest::addColumn<QString>("value");
+
+    QTest::newRow("40 hex") << kHashV1 << kHashV1;
+    QTest::newRow("40 hex, upper case") << kHashV1.toUpper() << kHashV1.toUpper();
+    QTest::newRow("32 base32") << kHashBase32 << kHashBase32;
+    QTest::newRow("64 hex") << kHashV2 << kHashV2;
+    QTest::newRow("a whole line") << QStringLiteral("\t%1 \n").arg(kHashV1) << kHashV1;
+}
+
+void TestXdg::parseAddableRecognisesABareInfoHash()
+{
+    QFETCH(QString, text);
+    QFETCH(QString, value);
+    const Addable addable = Xdg::parseAddable(text);
+    QCOMPARE(addable.kind, Addable::Kind::InfoHash);
+    // As it was given: the sheet's field shows what was pasted, App makes the magnet.
+    QCOMPARE(addable.value, value);
+}
+
+void TestXdg::parseAddableFindsNoHashInOtherText_data()
+{
+    QTest::addColumn<QString>("text");
+    QTest::addColumn<Addable::Kind>("kind");
+
+    QTest::newRow("39 hex") << kHashV1.left(39) << Addable::Kind::None;
+    QTest::newRow("41 hex") << kHashV1 + QLatin1Char('0') << Addable::Kind::None;
+    QTest::newRow("hex inside a word") << QStringLiteral("commit") + kHashV1 << Addable::Kind::None;
+    QTest::newRow("hex in a sentence")
+        << QStringLiteral("the hash is %1 I think").arg(kHashV1) << Addable::Kind::None;
+    QTest::newRow("base32, lower case") << kHashBase32.toLower() << Addable::Kind::None;
+    QTest::newRow("a URL ending in hex")
+        << QStringLiteral("https://example.org/t/%1").arg(kHashV1) << Addable::Kind::HttpUrl;
+    QTest::newRow("a magnet stays a magnet")
+        << QStringLiteral("magnet:?xt=urn:btih:%1").arg(kHashV1) << Addable::Kind::Magnet;
+}
+
+void TestXdg::parseAddableFindsNoHashInOtherText()
+{
+    QFETCH(QString, text);
+    QFETCH(Addable::Kind, kind);
+    QCOMPARE(Xdg::parseAddable(text).kind, kind);
+}
+
+void TestXdg::parseAddableListTakesHashesAsWholeTokens()
+{
+    const QString magnet = QStringLiteral("magnet:?xt=urn:btih:%1").arg(kHashV1);
+
+    // One per line, mixed with a magnet.
+    const QList<Addable> lines =
+        Xdg::parseAddableList(QStringLiteral("%1\n%2\r\n%3\n").arg(kHashV2, magnet, kHashBase32));
+    QCOMPARE(lines.size(), 3);
+    QCOMPARE(lines.at(0).kind, Addable::Kind::InfoHash);
+    QCOMPARE(lines.at(0).value, kHashV2);
+    QCOMPARE(lines.at(1).kind, Addable::Kind::Magnet);
+    QCOMPARE(lines.at(2).kind, Addable::Kind::InfoHash);
+    QCOMPARE(lines.at(2).value, kHashBase32);
+
+    // Side by side, nothing else on the line: a list.
+    const QList<Addable> sideBySide =
+        Xdg::parseAddableList(QStringLiteral("%1 %2\t%3").arg(kHashV1, kHashV2, magnet));
+    QCOMPARE(sideBySide.size(), 3);
+    QCOMPARE(sideBySide.at(0).kind, Addable::Kind::InfoHash);
+    QCOMPARE(sideBySide.at(1).kind, Addable::Kind::InfoHash);
+    QCOMPARE(sideBySide.at(2).kind, Addable::Kind::Magnet);
+
+    // In a sentence the hash is prose; a magnet in the same sentence is still one.
+    const QList<Addable> prose = Xdg::parseAddableList(
+        QStringLiteral("fixed in %1, see %2\nchecksum %3").arg(kHashV1, magnet, kHashV2));
+    QCOMPARE(prose.size(), 1);
+    QCOMPARE(prose.at(0).kind, Addable::Kind::Magnet);
+    QCOMPARE(prose.at(0).value, magnet);
+}
+
+void TestXdg::dropTakesABareInfoHash()
+{
+    Xdg xdg;
+    const QList<Addable> addables = xdg.addablesFromDrop({}, kHashV1 + QStringLiteral("\n"));
+    QCOMPARE(addables.size(), 1);
+    QCOMPARE(addables.at(0).kind, Addable::Kind::InfoHash);
+    QCOMPARE(addables.at(0).value, kHashV1);
+}
+
+void TestXdg::clipboardOffersABareInfoHash()
+{
+    QClipboard *clipboard = QGuiApplication::clipboard();
+    QVERIFY(clipboard);
+    const QString before = clipboard->text();
+    const auto restore = qScopeGuard([&]() { clipboard->setText(before); });
+
+    Xdg xdg;
+    clipboard->setText(QStringLiteral("  %1\n").arg(kHashV2));
+    if (clipboard->text().isEmpty())
+        QSKIP("this platform keeps no clipboard text");
+    Addable found = xdg.detectClipboardMagnet();
+    QCOMPARE(found.kind, Addable::Kind::InfoHash);
+    QCOMPARE(found.value, kHashV2);
+
+    clipboard->setText(kHashBase32);
+    found = xdg.detectClipboardMagnet();
+    QCOMPARE(found.kind, Addable::Kind::InfoHash);
+    QCOMPARE(found.value, kHashBase32);
+
+    // A sentence that happens to hold one is not offered.
+    clipboard->setText(QStringLiteral("merged as %1 yesterday").arg(kHashV1));
+    QCOMPARE(xdg.detectClipboardMagnet().kind, Addable::Kind::None);
+    clipboard->setText(kHashV1.left(39));
+    QCOMPARE(xdg.detectClipboardMagnet().kind, Addable::Kind::None);
 }
 
 QTEST_MAIN(TestXdg)

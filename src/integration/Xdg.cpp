@@ -1,5 +1,6 @@
 #include "integration/Xdg.hpp"
 
+#include "core/MagnetLink.hpp"
 #include "core/StateFile.hpp"
 #include "integration/AppIdentity.hpp"
 
@@ -84,6 +85,10 @@ Addable Xdg::parseAddable(const QString &textIn)
     if (looksLikeMagnet(text))
         return Addable{Addable::Kind::Magnet, text};
 
+    // #147: the whole text, never a hash found inside it.
+    if (core::MagnetLink::fromInfoHash(text).isValid())
+        return Addable{Addable::Kind::InfoHash, text};
+
     if (text.startsWith(QStringLiteral("http://"), Qt::CaseInsensitive) ||
         text.startsWith(QStringLiteral("https://"), Qt::CaseInsensitive)) {
         return Addable{Addable::Kind::HttpUrl, text};
@@ -120,11 +125,19 @@ QList<Addable> Xdg::parseAddableList(const QString &text)
             continue;
         }
         QList<Addable> tokens;
+        bool prose = false;
         for (const QString &token : line.split(whitespace, Qt::SkipEmptyParts)) {
             const Addable addable = parseAddable(token);
             if (addable.kind != Addable::Kind::None)
                 tokens.append(addable);
+            else
+                prose = true;
         }
+        // #147: a magnet or a link says what it is wherever it stands; a run of hex in a
+        // sentence may be anything (a commit, a checksum), so it is left to the sentence.
+        if (prose)
+            tokens.removeIf(
+                [](const Addable &addable) { return addable.kind == Addable::Kind::InfoHash; });
         if (!tokens.isEmpty())
             result.append(tokens);
         else if (whole.kind != Addable::Kind::None)
