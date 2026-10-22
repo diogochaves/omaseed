@@ -153,6 +153,9 @@ before it will tag a release.
 
 ### Changed
 
+- The bar widget's popup shortens its server line instead of cutting it off: where the whole
+  line does not fit beside the head's four buttons, the qBittorrent version goes first, then
+  the word "qBittorrent"; the server's name, its dot and ▾ stay (DECISIONS C20, #127).
 - "Move folder…" moved from a torrent's menu to the folder: a right-click on a folder row in
   the rail (or the menu key / `shift+F10` on the rail's cursor row) opens a menu with "move
   this folder…", which moves that row's folder. The scope line's link, `shift+m` and the

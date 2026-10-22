@@ -402,6 +402,27 @@ function serverWords(status) {
   return parts.join(" · ")
 }
 
+// The server line's shorter forms, longest first, in capitals (DECISIONS C20, #127). Since
+// the head has four buttons the whole line rarely fits: the engine's version gives way
+// first, then the word "qBittorrent"; the name stays, and the popup keeps the state dot
+// and ▾ beside it.
+function serverLineForms(status) {
+  var server = obj(status && status.server)
+  var name = String(server.name || "omaseed").toUpperCase()
+  if (!server.version) return [name]
+  return [serverLine(status), name + " · QBITTORRENT", name]
+}
+
+// The first of `forms` whose drawn width (`widths`, the same order) fits in `room`; the
+// last, the name alone, when none does: the popup elides that one.
+function fittingForm(forms, widths, room) {
+  var all = list(forms)
+  if (all.length === 0) return ""
+  for (var i = 0; i < all.length; i++)
+    if (Number(list(widths)[i]) <= room) return all[i]
+  return all[all.length - 1]
+}
+
 // ------------------------------------------------------------------ the shared menu
 
 // docs/33 §11 (D24, DECISIONS C13): the app writes its servers and the menu the tray shows

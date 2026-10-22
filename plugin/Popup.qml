@@ -793,12 +793,19 @@ Panel {
                   color: !root.running ? root.dim : (root.reachable ? root.accent : root.urgent)
                 }
 
+                // DECISIONS C20 (#127): the longest form that fits beside the dot and ▾: the
+                // engine's version goes first, then "qBittorrent"; the name alone elides.
+                readonly property var forms: root.page === "settings" ? ["OMASEED IN THE BAR"]
+                  : (root.running ? Status.serverLineForms(root.status) : ["NOT RUNNING"])
+                readonly property real room: width - Style.space(12) - (chevron.visible ? chevron.width + spacing : 0)
+
                 Text {
                   id: serverText
-                  width: Math.min(implicitWidth, parent.width - Style.space(12) - (chevron.visible ? chevron.width + parent.spacing : 0))
+                  width: Math.min(implicitWidth, serverLine.room)
                   textFormat: Text.PlainText
-                  text: root.page === "settings" ? "OMASEED IN THE BAR"
-                        : (root.running ? Status.serverLine(root.status) : "NOT RUNNING")
+                  text: Status.fittingForm(serverLine.forms,
+                                           [formFull.implicitWidth, formNoVersion.implicitWidth, formName.implicitWidth],
+                                           serverLine.room)
                   color: root.menuPart === "servers" ? root.foreground : root.dim
                   font.family: root.fontFamily
                   font.pixelSize: Style.font.caption
@@ -820,6 +827,12 @@ Panel {
                 }
               }
             }
+
+            // The server line's forms measured as drawn (its font, its letter spacing), so the
+            // line picks the longest that fits (#127). Never shown.
+            Text { id: formFull; visible: false; textFormat: Text.PlainText; font: serverText.font; text: serverLine.forms[0] || "" }
+            Text { id: formNoVersion; visible: false; textFormat: Text.PlainText; font: serverText.font; text: serverLine.forms[1] || "" }
+            Text { id: formName; visible: false; textFormat: Text.PlainText; font: serverText.font; text: serverLine.forms[2] || "" }
 
             // Not a dismiss area: the title's and the server line's click. A screen reader has
             // both without it: the open button opens omaseed, the server line is a button itself.
