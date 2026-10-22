@@ -1024,6 +1024,60 @@ about moves has none of these bugs; main keeps them for v0.4.0.
   owns)"; on a server omaseed can't see, only whose. *Adds to C15 M8.* Offering to replace an
   empty file no torrent owns (#161 b) waits for its own ruling.
 
+## C24 — The whole app on v0.3 (board 46, ruled 2026-10-22)
+
+Board [46](46-the-whole-app-on-v03.html) H1–H18, all as recommended. Board 41's thesis (the
+window answers the five questions people bring to a torrent client, in words before numbers,
+inside one fixed frame) and its five laws, law 2 as tightened in 46 §2 for v0.3's bands, drawn
+over what v0.3 shipped. Triage the same day (#152) ruled one style, several displays for the
+list (rows, table, overview), two skins (Omarchy and the console) and building board by board.
+Boards 39 (D1–D8) and 40 (F1–F10) close as stashed ideas: 46 §9 lists what survives. v0.5.0.
+
+**This entry supersedes** v2's status group and hero buttons, S1's keys 0–8 (H2), C15 M1's scope
+line (H5), docs/12's tab names and docs/28's and C18 D7's "in General" (H6), docs/17's floating
+selection bar and C18 D1's place (H8), v2's footer hints and C11 D4's footer line (H10), Q1 and
+ARCHITECTURE rule 4's default (H13), docs/35 N1, C12's "the window's width", C15 M10's and C18
+D4's "under the top bar" (H14), and C12 D2–D4's hero ▾ (H15). Their looks and words stay where
+the call says so.
+
+- **The rail (H2):** the five questions (needs you, arriving, landed today, giving back,
+  resting) under the views (library, seed, log, search); keys 1–5. Every state stays in the
+  filter (`is:stalled`) and the palette.
+- **The library (H3–H4):** grouped under the questions in the rows display; the table stays one
+  sorted list. Rows is the default for new installs; an existing install keeps the table until
+  it picks another. The display is remembered per scope, folders included.
+- **A folder picked (H5):** the title becomes the folder, its sentence takes the scope line's
+  facts, "move this folder…" is a title-bar button; shift+m, the row's menu and `:` keep it.
+- **Details (H6):** 41's story: one fact, a sentence, then story · files · swarm · trackers ·
+  facts. The error block and the last move open the story; C17's on-disk column and band sit in
+  files. N1 unchanged.
+- **The add sheet (H7):** today's sheet in the new skins. 39's additions (type bar, guessed
+  category, ready time, program check) wait for the add sheet's own board.
+- **Acting on a selection (H8):** the status line becomes the action bar; C18's outcome strip
+  floats bottom middle of the rows, just above the bar while a selection is on. C18 D2–D3
+  unchanged; D6's first-times hint moves to the bar.
+- **Menus (H9):** right-click and enter: verbs grouped, keys right, delete last. The omaseed mark
+  (ctrl+.) opens C13's rows in the same order, plus a block for the window (seed console, log,
+  commands, help, hide). C13 gains the window as a third place.
+- **Keys (H10):** taught on demand (menus, tooltips, the palette, `?`), badges while alt is held.
+- **Skins (H11–H12):** Settings › Appearance › skin: Omarchy (the default), Console, Follow the
+  desktop (the console when omarchy-console's skin is on). Clean glow only. How the console skin
+  is built is decided at its build step.
+- **The ground (H13, #113):** opaque by default in both skins; super+backspace works as for any
+  app; Appearance keeps "translucent" (the launcher's alpha).
+- **Bands (H14):** a server's notice, a job, a creation: under the title, across the content
+  only, the rail beside them usable, stacked when there are two.
+- **Servers (H15):** the rail's foot (C12's block) and the status line, whose server name opens
+  the palette (ctrl+s); one server is named, with no ▾.
+- **Search (H16, #145):** a rail view after log (ctrl+f), results in the rows display, add… into
+  today's add sheet; plugins in Settings › qBittorrent; also `:` and the add sheet's empty
+  state. Board 48.
+- **Create a torrent (H17, #146):** "+ add ▾" gets "create a torrent from a folder…" (ctrl+n),
+  also `:` and a folder row's menu; while it hashes, the move's band. Board 49.
+- **Build order (H18):** frame (rail, title, status line, bands, ground) → library (questions,
+  displays) → details → sheets and menus (move, add, the app menu, the action bar) → the console
+  skin. Boards 47, 48 and 49 are drawn in this frame meanwhile.
+
 ## M8 — A click leaves the keyboard focus where it was
 
 Buttons and toggles do not take the focus when clicked. Otherwise an overlay gives the focus
