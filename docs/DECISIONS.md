@@ -1273,6 +1273,14 @@ Diogo's answers, all as recommended, to the questions the v0.4.0 builders record
   built first, before v0.5.0's frame.
 - **The view behind a sheet (#155):** left as it is: Qt can't hide a subtree from screen readers;
   revisit when Qt can.
+- **servers.json from an engines build (#178, #84):** servers.json written by an engines build
+  (v2) is read and kept by v0.4.0; a non-qBittorrent server is listed but not used. A file v0.4
+  starts is version 1; one it read is written back at its version, with the keys it doesn't
+  know as they were (`Server::extra`); 3 and up are still moved aside. A server whose `engine` is
+  anything but absent or `"qbittorrent"` is never asked anything (no sync, test, probe or copy)
+  and shows in the refused state's places in ErrorWords' words: "seedbox is a Transmission
+  server" / "This omaseed only talks to qBittorrent. A newer omaseed can.", with only "switch
+  server" to offer.
 
 ## M8 — A click leaves the keyboard focus where it was
 
