@@ -1,27 +1,35 @@
 #pragma once
 
-// ServerDetector — first-run detection of a local qBittorrent (T4.6, spec v2 §5 Fig. 15).
+// ServerDetector — first-run detection of a torrent server on this machine (T4.6, spec v2 §5
+// Fig. 15; DECISIONS C14 E8, C25 K1 and K2).
 //
-// Three probes run in parallel, purely to answer "is there something on this machine the
-// user probably means to talk to": a TCP connect-and-close against 127.0.0.1:8080 (CLAUDE.md
-// is explicit that this is the only permitted contact with the real library port — never an
-// HTTP request, never a login), `docker ps` for a container that looks like qBittorrent, and
-// a running qbittorrent-nox/qbittorrent process. None of this ever probes the dev servers on
-// :8081/:8082 in production; the port is only injectable so the test does not have to bind
-// the real 8080.
+// Three kinds of probe run in parallel, purely to answer "is there something on this machine
+// the user probably means to talk to", for each engine omaseed knows:
+//   * a TCP connect-and-close against 127.0.0.1 on each engine's usual port: qBittorrent's
+//     8080, Transmission's 9091, deluge-web's 8112. Never an HTTP request, never a login
+//     (CLAUDE.md: the connect is the only permitted contact with the real library's port,
+//     and C14 E8 keeps every engine to it until the row is picked);
+//   * `docker ps` for a container whose name or image names an engine;
+//   * the running processes (pgrep): qbittorrent-nox/qbittorrent, transmission-daemon/-gtk/
+//     -qt, deluged/deluge-web/deluge-gtk.
+// Each engine's own config file (read, never written) gives a running process its port:
+// qBittorrent's Web UI port and switch, Transmission's `rpc-port` and `rpc-enabled`,
+// deluge-web's `port`. None of this ever probes the dev servers on :8081/:8082 in production;
+// the ports are only injectable so the tests do not have to bind the real ones.
 //
 // finished() fires once, after every probe has answered (or timed out: the commands too,
-// after setCommandTimeoutMs), with at most one candidate: the docker container, else the
-// open port, else the running process.
+// after setCommandTimeoutMs), with at most one candidate per engine (K2), in the order
+// qBittorrent, Transmission, Deluge: for each, the docker container, else the open port,
+// else the running process.
 //
 // `runningProcesses()` counts every qbittorrent/qbittorrent-nox process pgrep matched, so
 // first run can say when there is more than the one it offers (Q26: a second instance with
-// its own `--profile` is never a candidate; the user adds it in Settings › Servers).
-//
-// A running process gets its Web UI port from qBittorrent's own config file (read, never
-// written): a desktop qBittorrent often has its Web UI on another port, and ships with it
-// off, which the candidate's detail then says, with where to turn it on.
+// its own `--profile` is never a candidate; the user adds it in Settings › Servers). Q26
+// holds within each engine (`runningProcesses(engine)`).
 
+#include "core/engines/EngineKind.hpp"
+
+#include <QHash>
 #include <QList>
 #include <QObject>
 #include <QString>
@@ -36,17 +44,17 @@ QT_END_NAMESPACE
 
 namespace omaseed::core {
 
-/// One thing ServerDetector found. `kind` is "port", "docker" or "process"; `url` is filled
-/// only when a usable one is known (the port probe and a docker port mapping); `label`/
-/// `detail` are the exact strings Fig. 15 prints for the "use the server on this machine"
-/// row (the detail grows a `qBittorrent 5.2.3` clause only after a caller's own test, which
-/// is App's job, not the detector's).
+/// One thing ServerDetector found. `kind` is "port", "docker" or "process"; `engine` the
+/// engine it points to ("qbittorrent", "transmission", "deluge"); `url` is filled only when a
+/// usable one is known; `label`/`detail` are the strings the first-run row prints (the detail
+/// grows a version only after a caller's own test, which is App's job, not the detector's).
 struct DetectedServer
 {
     QString kind;
     QString url;
     QString label;
     QString detail;
+    QString engine = QStringLiteral("qbittorrent");
 
     bool operator==(const DetectedServer &other) const = default;
 };
@@ -59,17 +67,25 @@ public:
     explicit ServerDetector(QObject *parent = nullptr);
     ~ServerDetector() override;
 
-    /// Starts all three probes. Safe to call again once `finished` has fired.
+    /// Starts every probe. Safe to call again once `finished` has fired.
     void start();
 
     /// How many qbittorrent/qbittorrent-nox processes the process probe saw; read it once
     /// `finished` has fired (0 before, and when pgrep found none or could not run).
-    int runningProcesses() const { return m_processCount; }
+    int runningProcesses() const { return runningProcesses(EngineKind::Qbittorrent); }
+    /// The same for `engine`'s processes (a daemon and its web front count apart).
+    int runningProcesses(EngineKind engine) const;
 
-    /// Test-only: the TCP port to probe instead of 8080, so the test can point this at a
-    /// fake `QTcpServer` on a random port rather than the real library.
+    /// The usual port of `engine`: 8080, 9091, 8112.
+    static quint16 usualPort(EngineKind engine);
+
+    /// Test-only: the TCP port to probe for qBittorrent instead of 8080 (setProbePort(port)),
+    /// or for `engine` instead of its usual one, so a test points it at a fake `QTcpServer`
+    /// on a random port rather than the real library.
     void setProbePort(quint16 port);
-    quint16 probePort() const { return m_probePort; }
+    void setProbePort(EngineKind engine, quint16 port);
+    quint16 probePort() const { return probePort(EngineKind::Qbittorrent); }
+    quint16 probePort(EngineKind engine) const;
 
     /// Test-only: the command names used for the docker and pgrep probes, so the test can
     /// point them at a fake script rather than relying on `docker`/`pgrep` being installed
@@ -77,10 +93,13 @@ public:
     void setDockerCommand(const QString &command);
     void setPgrepCommand(const QString &command);
 
-    /// Test-only: the qBittorrent config files to read for a running process's Web UI, first
-    /// existing one wins. Defaults to `~/.config/qBittorrent/qBittorrent.conf` and the
-    /// Flatpak's copy; a test points it at its own file (or none).
+    /// Test-only: the config files to read for a running process's port, first existing one
+    /// wins. qBittorrent's (setConfigPaths(paths)) default to `~/.config/qBittorrent/
+    /// qBittorrent.conf` and the Flatpak's copy; Transmission's to its daemon's and its
+    /// desktop clients' `settings.json`; Deluge's to `~/.config/deluge/web.conf`. A test
+    /// points them at its own files (or none).
     void setConfigPaths(const QStringList &paths);
+    void setConfigPaths(EngineKind engine, const QStringList &paths);
 
     /// Test-only: the connect timeout, default 1000 ms.
     void setProbeTimeoutMs(int ms);
@@ -92,7 +111,21 @@ Q_SIGNALS:
     void finished(QList<omaseed::core::DetectedServer> candidates);
 
 private:
-    void startPortProbe();
+    /// One engine's findings.
+    struct Found
+    {
+        quint16 port = 0;
+        QTcpSocket *socket = nullptr;
+        bool portDone = false;
+        bool portFound = false;
+        QString dockerName;
+        QString dockerHostPort;
+        int processCount = 0;
+        QString processName;
+        QStringList configPaths;
+    };
+
+    void startPortProbe(EngineKind engine);
     void startDockerProbe();
     void startProcessProbe();
     /// Starts `process` and marks `*done` exactly once, on finish, error or timeout;
@@ -103,30 +136,21 @@ private:
                     std::function<void(QProcess *)> onFinished,
                     bool *done);
     void maybeFinish();
+    /// The candidate for `engine`, if anything pointed to it.
+    bool candidateFor(EngineKind engine, DetectedServer *candidate) const;
 
-    QTcpSocket *m_socket = nullptr;
+    QHash<EngineKind, Found> m_found;
     QProcess *m_dockerProcess = nullptr;
     QProcess *m_pgrepProcess = nullptr;
 
-    quint16 m_probePort = 8080;
     QString m_dockerCommand = QStringLiteral("docker");
     QString m_pgrepCommand = QStringLiteral("pgrep");
-    QStringList m_configPaths;
     int m_probeTimeoutMs = 1000;
     int m_commandTimeoutMs = 3000;
 
-    bool m_portDone = false;
     bool m_dockerDone = false;
     bool m_processDone = false;
     bool m_finished = false;
-
-    bool m_portFound = false;
-    QString m_dockerName;
-    QString m_dockerImage;
-    QString m_dockerHostPort;
-    bool m_processFound = false;
-    int m_processCount = 0;
-    QString m_processName;
 };
 
 } // namespace omaseed::core

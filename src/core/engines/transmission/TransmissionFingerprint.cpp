@@ -16,7 +16,10 @@ QUrl rpcUrl(const QUrl &address)
         path.chop(1);
     const QString marker = QStringLiteral("/transmission");
     const qsizetype at = path.lastIndexOf(marker);
-    if (at >= 0 && (at + marker.size() == path.size() || path.at(at + marker.size()) == '/')) {
+    if (path.endsWith(QLatin1String("/rpc"))) {
+        // The RPC's own address, under whatever `rpc-url` or a proxy made of it.
+    } else if (at >= 0 &&
+               (at + marker.size() == path.size() || path.at(at + marker.size()) == '/')) {
         // …/transmission, …/transmission/web, …/transmission/rpc: the RPC sits beside the web
         // UI, under whatever a proxy put in front.
         path = path.left(at + marker.size()) + QStringLiteral("/rpc");

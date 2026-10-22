@@ -4563,6 +4563,10 @@ void App::detectServers()
                     map.insert(QStringLiteral("url"), candidate.url);
                     map.insert(QStringLiteral("label"), candidate.label);
                     map.insert(QStringLiteral("detail"), candidate.detail);
+                    // C25 K2: one row per engine; its name for the row and its test.
+                    map.insert(QStringLiteral("engine"), candidate.engine);
+                    map.insert(QStringLiteral("engineName"),
+                               engineDisplayName(engineKindFromString(candidate.engine)));
                     list.append(map);
                 }
                 Q_EMIT serversDetected(list, m_serverDetector->runningProcesses() > 1);

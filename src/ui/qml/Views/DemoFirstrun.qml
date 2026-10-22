@@ -38,7 +38,7 @@ Window {
             {
                 "kind": "docker",
                 "url": "http://127.0.0.1:8080",
-                "label": qsTr("Use the server on this machine"),
+                "label": qsTr("Use qBittorrent on this machine"),
                 "detail": "127.0.0.1:8080 · Docker container qbittorrent"
             }
         ]

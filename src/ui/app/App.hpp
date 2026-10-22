@@ -1334,8 +1334,8 @@ public:
     Q_PROPERTY(QString plainSecretsPath READ plainSecretsPath NOTIFY plainSecretsPathChanged)
     QString plainSecretsPath() const;
 
-    /// Starts `ServerDetector` (a TCP probe of 127.0.0.1:8080 — connect-and-close only, never
-    /// an HTTP request — plus a `docker ps` and a `pgrep` check). Answers with
+    /// Starts `ServerDetector` (TCP probes of 127.0.0.1:8080, 9091 and 8112 — connect-and-close
+    /// only, never an HTTP request — plus a `docker ps` and a `pgrep` check, C25 K1). Answers with
     /// `serversDetected()`, always exactly once. Safe to call again while a previous run is
     /// still in flight; only the last one's answer is emitted.
     Q_INVOKABLE void detectServers();
@@ -1356,7 +1356,8 @@ public:
 
 Q_SIGNALS:
     /// One `detectServers()` answer: each candidate is `{kind: "port"|"docker"|"process",
-    /// url, label, detail}` per `ServerDetector::DetectedServer`. `anotherRunning` is true
+    /// url, label, detail, engine, engineName}` per `ServerDetector::DetectedServer`, one per
+    /// engine found (C25 K2), qBittorrent, Transmission, Deluge. `anotherRunning` is true
     /// when more than one qBittorrent process runs here, though at most one is a candidate
     /// (Q26: the done screen says the other can be added in Settings › Servers).
     void serversDetected(QVariantList candidates, bool anotherRunning);

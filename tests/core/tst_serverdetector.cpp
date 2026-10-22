@@ -1,4 +1,5 @@
-// T4.6 — ServerDetector: first-run detection of a local qBittorrent. CLAUDE.md is explicit
+// T4.6 — ServerDetector: first-run detection of a local qBittorrent, and since #84 of a
+// Transmission and a deluge-web too (C25 K1, K2). CLAUDE.md is explicit
 // that the real library's port, 127.0.0.1:8080, is only ever probed with a bare TCP
 // connect-and-close, never an HTTP request or a login — so every test here points the
 // detector at a fake `QTcpServer` of its own on a random port (`setProbePort`), never at
@@ -12,6 +13,7 @@
 #include <QFile>
 #include <QSignalSpy>
 #include <QTcpServer>
+#include <QTcpSocket>
 #include <QTemporaryDir>
 #include <QTest>
 
@@ -40,6 +42,25 @@ writeFakeCommand(QTemporaryDir &dir, const QString &name, int exitCode, const QS
     return path;
 }
 
+/// A port nothing listens on.
+quint16 closedPortNow()
+{
+    QTcpServer probe;
+    [[maybe_unused]] const bool listening = probe.listen(QHostAddress::LocalHost);
+    return probe.serverPort();
+}
+
+/// Transmission's and Deluge's probes away from this machine's real ports and config files:
+/// the tests below are about one engine at a time unless they say otherwise.
+void isolateOthers(ServerDetector &detector)
+{
+    static const quint16 closed = closedPortNow();
+    for (const EngineKind engine : {EngineKind::Transmission, EngineKind::Deluge}) {
+        detector.setProbePort(engine, closed);
+        detector.setConfigPaths(engine, {});
+    }
+}
+
 } // namespace
 
 class TestServerDetector : public QObject
@@ -57,6 +78,9 @@ private slots:
     void pgrepNamesTheMatchedProcess();
     void aDesktopClientsConfigGivesItsPortAndSwitch();
     void everyRunningProcessIsCounted();
+    void oneRowPerEngineInOrder(); // C25 K1, K2
+    void eachEnginesProcessAndConfigGiveItsAddress();
+    void aDockerContainerNamesItsEngine();
 };
 
 void TestServerDetector::openPortIsFound()
@@ -70,6 +94,7 @@ void TestServerDetector::openPortIsFound()
 
     ServerDetector detector;
     detector.setConfigPaths({}); // never this machine's own qBittorrent config
+    isolateOthers(detector);
     detector.setProbePort(fake.serverPort());
     detector.setDockerCommand(noCmd);
     detector.setPgrepCommand(noCmd);
@@ -99,6 +124,7 @@ void TestServerDetector::closedPortIsNotFound()
 
     ServerDetector detector;
     detector.setConfigPaths({}); // never this machine's own qBittorrent config
+    isolateOthers(detector);
     detector.setProbePort(freePort);
     detector.setProbeTimeoutMs(500);
     detector.setDockerCommand(noCmd);
@@ -133,6 +159,7 @@ void TestServerDetector::dockerFoundGivesCandidate()
 
     ServerDetector detector;
     detector.setConfigPaths({}); // never this machine's own qBittorrent config
+    isolateOthers(detector);
     detector.setProbePort(closedPort);
     detector.setProbeTimeoutMs(500);
     detector.setDockerCommand(dockerCmd);
@@ -160,6 +187,7 @@ void TestServerDetector::dockerMissingBinaryIsNotFound()
 
     ServerDetector detector;
     detector.setConfigPaths({}); // never this machine's own qBittorrent config
+    isolateOthers(detector);
     detector.setProbePort(closedPort);
     detector.setProbeTimeoutMs(500);
     // No such binary: QProcess::errorOccurred must still resolve the probe as "not found".
@@ -190,6 +218,7 @@ void TestServerDetector::pgrepFoundGivesCandidate()
 
     ServerDetector detector;
     detector.setConfigPaths({}); // never this machine's own qBittorrent config
+    isolateOthers(detector);
     detector.setProbePort(closedPort);
     detector.setProbeTimeoutMs(500);
     detector.setDockerCommand(noCmd);
@@ -218,6 +247,7 @@ void TestServerDetector::noneFoundGivesNoCandidates()
 
     ServerDetector detector;
     detector.setConfigPaths({}); // never this machine's own qBittorrent config
+    isolateOthers(detector);
     detector.setProbePort(closedPort);
     detector.setProbeTimeoutMs(500);
     detector.setDockerCommand(noCmd);
@@ -255,6 +285,7 @@ void TestServerDetector::aHangingCommandTimesOut()
 
     ServerDetector detector;
     detector.setConfigPaths({}); // never this machine's own qBittorrent config
+    isolateOthers(detector);
     detector.setProbePort(closedPort);
     detector.setProbeTimeoutMs(300);
     detector.setCommandTimeoutMs(400);
@@ -287,6 +318,7 @@ void TestServerDetector::pgrepNamesTheMatchedProcess()
 
     ServerDetector detector;
     detector.setConfigPaths({}); // never this machine's own qBittorrent config
+    isolateOthers(detector);
     detector.setProbePort(closedPort);
     detector.setProbeTimeoutMs(300);
     detector.setDockerCommand(noCmd);
@@ -324,6 +356,7 @@ void TestServerDetector::aDesktopClientsConfigGivesItsPortAndSwitch()
     const auto detect = [&]() {
         ServerDetector detector;
         detector.setConfigPaths({dir.filePath(QStringLiteral("missing.conf")), conf});
+        isolateOthers(detector);
         detector.setProbePort(closedPort);
         detector.setProbeTimeoutMs(300);
         detector.setDockerCommand(noCmd);
@@ -394,6 +427,7 @@ void TestServerDetector::everyRunningProcessIsCounted()
 
     ServerDetector detector;
     detector.setConfigPaths({});
+    isolateOthers(detector);
     detector.setProbePort(closedPort);
     detector.setProbeTimeoutMs(300);
     detector.setDockerCommand(noCmd);
@@ -409,6 +443,153 @@ void TestServerDetector::everyRunningProcessIsCounted()
         const auto candidates = spy.first().first().value<QList<DetectedServer>>();
         QCOMPARE(candidates.size(), expected > 0 ? 1 : 0);
     }
+}
+
+// C25 K1–K2: each engine's usual port, one row each, qBittorrent, Transmission, Deluge.
+void TestServerDetector::oneRowPerEngineInOrder()
+{
+    QTcpServer qbt;
+    QTcpServer transmission;
+    QTcpServer deluge;
+    QVERIFY(qbt.listen(QHostAddress::LocalHost));
+    QVERIFY(transmission.listen(QHostAddress::LocalHost));
+    QVERIFY(deluge.listen(QHostAddress::LocalHost));
+    QTemporaryDir dir;
+    const QString noCmd = writeFakeCommand(dir, QStringLiteral("nocmd.sh"), 1, QString());
+
+    ServerDetector detector;
+    for (const EngineKind engine :
+         {EngineKind::Qbittorrent, EngineKind::Transmission, EngineKind::Deluge})
+        detector.setConfigPaths(engine, {});
+    // Deluge's listens, but its probe is the last to be set: the order is the engines', not the
+    // answers'.
+    detector.setProbePort(EngineKind::Deluge, deluge.serverPort());
+    detector.setProbePort(EngineKind::Transmission, transmission.serverPort());
+    detector.setProbePort(qbt.serverPort());
+    detector.setDockerCommand(noCmd);
+    detector.setPgrepCommand(noCmd);
+    QCOMPARE(ServerDetector::usualPort(EngineKind::Qbittorrent), quint16(8080));
+    QCOMPARE(ServerDetector::usualPort(EngineKind::Transmission), quint16(9091));
+    QCOMPARE(ServerDetector::usualPort(EngineKind::Deluge), quint16(8112));
+
+    QSignalSpy spy(&detector, &ServerDetector::finished);
+    detector.start();
+    QVERIFY(spy.wait(3000));
+    const auto candidates = spy.first().first().value<QList<DetectedServer>>();
+    QCOMPARE(candidates.size(), 3);
+    QCOMPARE(candidates.at(0).engine, QStringLiteral("qbittorrent"));
+    QCOMPARE(candidates.at(1).engine, QStringLiteral("transmission"));
+    QCOMPARE(candidates.at(2).engine, QStringLiteral("deluge"));
+    QCOMPARE(candidates.at(0).label, QStringLiteral("Use qBittorrent on this machine"));
+    QCOMPARE(candidates.at(1).label, QStringLiteral("Use Transmission on this machine"));
+    QCOMPARE(candidates.at(2).label, QStringLiteral("Use Deluge on this machine"));
+    QCOMPARE(candidates.at(1).url,
+             QStringLiteral("http://127.0.0.1:%1").arg(transmission.serverPort()));
+    // C14 E8: a connect and nothing else; nothing was read or written on any of them.
+    for (QTcpServer *server : {&qbt, &transmission, &deluge}) {
+        QTRY_VERIFY(server->hasPendingConnections());
+        QTcpSocket *socket = server->nextPendingConnection();
+        QVERIFY(!socket->waitForReadyRead(200));
+        QCOMPARE(socket->bytesAvailable(), qint64(0));
+    }
+}
+
+void TestServerDetector::eachEnginesProcessAndConfigGiveItsAddress()
+{
+    QTemporaryDir dir;
+    const quint16 closed = closedPortNow();
+    const QString noCmd = writeFakeCommand(dir, QStringLiteral("nocmd.sh"), 1, QString());
+    const auto write = [&dir](const QString &name, const QByteArray &body) {
+        QFile file(dir.filePath(name));
+        [[maybe_unused]] const bool opened = file.open(QIODevice::WriteOnly | QIODevice::Truncate);
+        file.write(body);
+        return file.fileName();
+    };
+    // transmission-daemon's settings.json with its RPC moved; deluge-web's two-object web.conf.
+    const QString settings = write(
+        QStringLiteral("settings.json"),
+        R"({"rpc-enabled": true, "rpc-port": 9191, "rpc-url": "/tr/", "rpc-whitelist": "127.0.0.1"})");
+    const QString webConf = write(QStringLiteral("web.conf"),
+                                  "{\n  \"file\": 2,\n  \"format\": 1\n}{\n  \"base\": \"/\",\n"
+                                  "  \"port\": 8113,\n  \"https\": false\n}");
+
+    const auto detect = [&](const QString &processes) {
+        const QString pgrep = writeFakeCommand(dir, QStringLiteral("pgrep.sh"), 0, processes);
+        ServerDetector detector;
+        for (const EngineKind engine :
+             {EngineKind::Qbittorrent, EngineKind::Transmission, EngineKind::Deluge})
+            detector.setProbePort(engine, closed);
+        detector.setConfigPaths({});
+        detector.setConfigPaths(EngineKind::Transmission, {settings});
+        detector.setConfigPaths(EngineKind::Deluge, {webConf});
+        detector.setProbeTimeoutMs(300);
+        detector.setDockerCommand(noCmd);
+        detector.setPgrepCommand(pgrep);
+        QSignalSpy spy(&detector, &ServerDetector::finished);
+        detector.start();
+        [&spy]() { QVERIFY(spy.wait(3000)); }();
+        return std::pair{spy.first().first().value<QList<DetectedServer>>(),
+                         detector.runningProcesses(EngineKind::Deluge)};
+    };
+
+    // The kernel keeps 15 characters: "transmission-da" is the daemon.
+    auto [found, delugeCount] =
+        detect(QStringLiteral("100 transmission-da\n200 deluged\n201 deluge-web"));
+    QCOMPARE(found.size(), 2);
+    QCOMPARE(found.at(0).engine, QStringLiteral("transmission"));
+    QCOMPARE(found.at(0).kind, QStringLiteral("process"));
+    QCOMPARE(found.at(0).url, QStringLiteral("http://127.0.0.1:9191/tr/rpc"));
+    QCOMPARE(found.at(0).detail, QStringLiteral("127.0.0.1:9191 · transmission-daemon running"));
+    QCOMPARE(found.at(1).engine, QStringLiteral("deluge"));
+    QCOMPARE(found.at(1).url, QStringLiteral("http://127.0.0.1:8113"));
+    QCOMPARE(found.at(1).detail, QStringLiteral("127.0.0.1:8113 · deluge-web running"));
+    QCOMPARE(delugeCount, 2);
+
+    // The daemon without its web front: omaseed would have nothing to talk to.
+    std::tie(found, delugeCount) = detect(QStringLiteral("200 deluged"));
+    QCOMPARE(found.size(), 1);
+    QVERIFY2(found.first().detail.contains(QStringLiteral("deluge-web isn't")),
+             qPrintable(found.first().detail));
+
+    // Remote access off in Transmission's settings: say so.
+    write(QStringLiteral("settings.json"), R"({"rpc-enabled": false})");
+    std::tie(found, delugeCount) = detect(QStringLiteral("100 transmission-gt"));
+    QCOMPARE(found.size(), 1);
+    QCOMPARE(found.first().url, QStringLiteral("http://127.0.0.1:9091"));
+    QVERIFY2(found.first().detail.contains(
+                 QStringLiteral("transmission-gtk running, its remote access is off")),
+             qPrintable(found.first().detail));
+}
+
+void TestServerDetector::aDockerContainerNamesItsEngine()
+{
+    QTemporaryDir dir;
+    const quint16 closed = closedPortNow();
+    const QString docker = writeFakeCommand(
+        dir,
+        QStringLiteral("docker.sh"),
+        0,
+        QStringLiteral("seedbox lscr.io/linuxserver/transmission 0.0.0.0:9095->9091/tcp, "
+                       "0.0.0.0:51413->51413/tcp"));
+    const QString noCmd = writeFakeCommand(dir, QStringLiteral("nocmd.sh"), 1, QString());
+    ServerDetector detector;
+    for (const EngineKind engine :
+         {EngineKind::Qbittorrent, EngineKind::Transmission, EngineKind::Deluge}) {
+        detector.setProbePort(engine, closed);
+        detector.setConfigPaths(engine, {});
+    }
+    detector.setProbeTimeoutMs(300);
+    detector.setDockerCommand(docker);
+    detector.setPgrepCommand(noCmd);
+    QSignalSpy spy(&detector, &ServerDetector::finished);
+    detector.start();
+    QVERIFY(spy.wait(3000));
+    const auto candidates = spy.first().first().value<QList<DetectedServer>>();
+    QCOMPARE(candidates.size(), 1);
+    QCOMPARE(candidates.first().engine, QStringLiteral("transmission"));
+    QCOMPARE(candidates.first().url, QStringLiteral("http://127.0.0.1:9095"));
+    QCOMPARE(candidates.first().detail,
+             QStringLiteral("127.0.0.1:9095 · Docker container seedbox"));
 }
 
 QTEST_GUILESS_MAIN(TestServerDetector)
