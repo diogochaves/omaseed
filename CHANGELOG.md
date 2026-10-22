@@ -222,6 +222,12 @@ before it will tag a release.
 - First run finds the Web UI's port, and whether it is on, in a qBittorrent 5.3 profile: 5.3
   moves those settings to a section of their own, and first run read only the old place, so it
   offered port 8080 whatever the profile said (#140).
+- An "Invalid argument" opening a file no longer always reads "A file name isn't allowed on
+  this disk" (#108). That is said only when the path has something NTFS, exFAT or FAT refuse
+  (`< > : " \ | ? *`, a control character, a trailing dot or space, a reserved name such as
+  CON or NUL, a part over 255 bytes). Otherwise the block reads "The disk refused to open a
+  file", says the file or the disk may be damaged, and offers "check the disk first" before
+  retry: renaming can't help there, and each retry writes to a disk that may be failing.
 - The log keeps omaseed's own lines ("omaseed moved …") in time order: the log read whole (on
   opening it, or after qBittorrent's log started over) put them after qBittorrent's newer
   lines until some later change re-sorted them (#137).

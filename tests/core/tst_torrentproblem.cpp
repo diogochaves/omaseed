@@ -62,6 +62,9 @@ private slots:
     void aLineForAGoneTorrentMatchesNothing();
     void wordsEachCause_data();
     void wordsEachCause();
+    void anInvalidArgumentIsABadNameOnlyWhenTheNameIs();
+    void namesTheDiskRejects_data();
+    void namesTheDiskRejects();
     void wordsAMissingFilesLine();
     void unknownMessagesKeepQbittorrentsWords();
     void notLoggedSaysSo();
@@ -257,9 +260,10 @@ void TestTorrentProblem::wordsEachCause_data()
     QTest::newRow("long name") << "file_open" << "File name too long"
                                << "A file name is too long for this disk" << "name too long"
                                << QStringList{QStringLiteral("rename"), QStringLiteral("start")};
-    QTest::newRow("bad name") << "file_open" << "Invalid argument"
-                              << "A file name isn't allowed on this disk" << "bad name"
-                              << QStringList{QStringLiteral("rename"), QStringLiteral("start")};
+    // #108: f.bin is a name every disk takes, so this EINVAL is not about the name.
+    QTest::newRow("refused") << "file_open" << "Invalid argument"
+                             << "The disk refused to open a file" << "can't open"
+                             << QStringList{QStringLiteral("checkDisk"), QStringLiteral("start")};
 }
 
 void TestTorrentProblem::wordsEachCause()
@@ -282,6 +286,81 @@ void TestTorrentProblem::wordsEachCause()
     QCOMPARE(problem.folder, QStringLiteral("/d/t"));
     QVERIFY2(problem.detail.startsWith(message + QStringLiteral(", ")), qPrintable(problem.detail));
     QVERIFY(problem.detail.endsWith(QStringLiteral(" f.bin")));
+}
+
+// #108: qBittorrent's line for an EINVAL on file_open, the shape it logs, for a file whose name
+// every disk takes (the volume's records were damaged) and for one whose name an NTFS or exFAT
+// disk refuses. Only the second is a bad name.
+void TestTorrentProblem::anInvalidArgumentIsABadNameOnlyWhenTheNameIs()
+{
+    const auto lineFor = [](const QString &folder, const QString &file) {
+        const QString path = folder + QLatin1Char('/') + file;
+        return QStringLiteral("File error alert. Torrent: \"%1\". File: \"%2\". Reason: \"3f9a1c "
+                              "file_open (%2) error: Invalid argument\"")
+            .arg(folder.mid(folder.lastIndexOf(QLatin1Char('/')) + 1), path);
+    };
+
+    const TorrentProblem valid = ProblemMatch::describe(ProblemLine::parse(
+        lineFor(QStringLiteral("/media/disk/Some.Film.2017.2160p.BluRay.x265-GROUP"),
+                QStringLiteral("Some.Film.2017.2160p.BluRay.x265-GROUP.mkv"))));
+    QCOMPARE(valid.causeKey, QStringLiteral("openRefused"));
+    QCOMPARE(valid.headline, QStringLiteral("The disk refused to open a file"));
+    QCOMPARE(valid.cause, QStringLiteral("can't open"));
+    QCOMPARE(
+        valid.detail,
+        QStringLiteral("Invalid argument, opening Some.Film.2017.2160p.BluRay.x265-GROUP.mkv"));
+    QCOMPARE(valid.advice, QStringLiteral("The file or the disk may be damaged."));
+    // Check the disk first; trying again second; renaming would not help.
+    QCOMPARE(valid.actions, (QStringList{QStringLiteral("checkDisk"), QStringLiteral("start")}));
+    QCOMPARE(valid.toMap().value(QStringLiteral("advice")).toString(), valid.advice);
+
+    const TorrentProblem badName = ProblemMatch::describe(
+        ProblemLine::parse(lineFor(QStringLiteral("/media/disk/Some Show: The Return (2017)"),
+                                   QStringLiteral("Episode 1? Pilot.mkv"))));
+    QCOMPARE(badName.causeKey, QStringLiteral("badName"));
+    QCOMPARE(badName.headline, QStringLiteral("A file name isn't allowed on this disk"));
+    QCOMPARE(badName.cause, QStringLiteral("bad name"));
+    QVERIFY(badName.advice.isEmpty());
+    QCOMPARE(badName.actions, (QStringList{QStringLiteral("rename"), QStringLiteral("start")}));
+}
+
+void TestTorrentProblem::namesTheDiskRejects_data()
+{
+    QTest::addColumn<QString>("path");
+    QTest::addColumn<QString>("rejected");
+
+    const QString ok;
+    QTest::newRow("letters, digits, dots, dashes")
+        << "/media/disk/Some.Film.2017.2160p/Some.Film-2017.mkv" << ok;
+    QTest::newRow("spaces and brackets inside") << "/media/disk/A Film (2017) [x]/a b.mkv" << ok;
+    QTest::newRow("accents") << "/media/disk/Ünïcødé/é.flac" << ok;
+    QTest::newRow("a Windows drive") << "C:\\Downloads\\film.mkv" << ok;
+    QTest::newRow("CONTACT is no device") << "/media/disk/CONTACT/console.txt" << ok;
+    QTest::newRow("colon") << "/media/disk/Show: Part 1/e.mkv" << "Show: Part 1";
+    QTest::newRow("question mark") << "/media/disk/s/What?.mkv" << "What?.mkv";
+    QTest::newRow("star") << "/media/disk/s/a*b" << "a*b";
+    QTest::newRow("angle brackets") << "/media/disk/s/<a>" << "<a>";
+    QTest::newRow("quote") << "/media/disk/s/say \"hi\".txt" << "say \"hi\".txt";
+    QTest::newRow("pipe") << "/media/disk/s/a|b" << "a|b";
+    QTest::newRow("control character") << QStringLiteral("/media/disk/s/a\tb") << "a\tb";
+    QTest::newRow("trailing dot") << "/media/disk/Dir./f.mkv" << "Dir.";
+    QTest::newRow("trailing space") << "/media/disk/Dir /f.mkv" << "Dir ";
+    QTest::newRow("reserved") << "/media/disk/s/NUL" << "NUL";
+    QTest::newRow("reserved, any case, extension") << "/media/disk/s/con.txt" << "con.txt";
+    QTest::newRow("reserved port") << "/media/disk/s/COM3.log" << "COM3.log";
+    const QString longName = QString(256, QLatin1Char('a'));
+    QTest::newRow("256 bytes") << "/media/disk/s/" + longName << longName;
+    // 128 two-byte characters: 128 characters, 256 bytes.
+    const QString wide = QString(128, QChar(0x00e9));
+    QTest::newRow("256 bytes in UTF-8") << "/media/disk/s/" + wide << wide;
+    QTest::newRow("255 bytes") << "/media/disk/s/" + QString(255, QLatin1Char('a')) << ok;
+}
+
+void TestTorrentProblem::namesTheDiskRejects()
+{
+    QFETCH(QString, path);
+    QFETCH(QString, rejected);
+    QCOMPARE(ProblemMatch::nameTheDiskRejects(path), rejected);
 }
 
 void TestTorrentProblem::wordsAMissingFilesLine()
