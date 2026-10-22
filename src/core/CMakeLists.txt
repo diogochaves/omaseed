@@ -30,6 +30,11 @@ qt_add_library(omaseed-core STATIC
     engines/EngineClient.hpp
     engines/EngineKind.cpp
     engines/EngineKind.hpp
+    engines/EngineFingerprint.hpp
+    engines/EngineRecognizer.cpp
+    engines/EngineRecognizer.hpp
+    engines/deluge/DelugeFingerprint.cpp
+    engines/deluge/DelugeFingerprint.hpp
     engines/EngineFeatures.hpp
     engines/LogEntry.hpp
     engines/ServerInfo.hpp
@@ -41,6 +46,8 @@ qt_add_library(omaseed-core STATIC
     engines/TorrentStatus.hpp
     engines/qbt/AddAgainJob.cpp
     engines/qbt/AddAgainJob.hpp
+    engines/qbt/QbtFingerprint.cpp
+    engines/qbt/QbtFingerprint.hpp
     engines/qbt/QbtClient.cpp
     engines/qbt/QbtClient.hpp
     engines/qbt/QbtEngine.cpp
@@ -59,6 +66,8 @@ qt_add_library(omaseed-core STATIC
     engines/qbt/TorrentsExport.hpp
     engines/qbt/TorrentsImport.cpp
     engines/qbt/TorrentsImport.hpp
+    engines/transmission/TransmissionFingerprint.cpp
+    engines/transmission/TransmissionFingerprint.hpp
     ErrorWords.cpp
     ErrorWords.hpp
     FilesViewState.cpp

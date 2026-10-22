@@ -135,6 +135,11 @@ omaseed_add_test(tst_enginekind
     LIBRARIES omaseed::core
 )
 
+omaseed_add_test(tst_enginerecognizer
+    SOURCES tst_enginerecognizer.cpp
+    LIBRARIES omaseed::core Qt6::Network
+)
+
 omaseed_add_test(tst_serverdetector
     SOURCES tst_serverdetector.cpp
     LIBRARIES omaseed::core Qt6::Network
