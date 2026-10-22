@@ -895,7 +895,11 @@ C15 M1's "the row's menu" as the rail's folder row (T3).**
 - **An errored torrent (#107; amends docs/28):** `p`, the actions menu and the selection bar
   all stop it, so the keyboard and the bar agree. "retry" stays first on the error block and is
   its own row in the actions menu. Once omaseed has stopped it, the row reads "error · stopped"
-  (qBittorrent reports only `error`).
+  (qBittorrent reports only `error`). Ruled after the build: the row reads "stopped" in the
+  error colour with the ! glyph, since "error · stopped" doesn't fit the column; General keeps
+  "error · stopped · CAUSE". Whether it is stopped comes from qBittorrent (its `stopped`
+  filter lists an errored torrent only while it is stopped), so it survives a restart and
+  counts a stop sent from elsewhere (#142).
 - **The widget's server line (#127):** at the popup's width, the engine's version gives way
   first, then the word "qBittorrent"; the server's name, the state dot and ▾ always stay.
 - **Adding in a row (#124):** the add sheet closes as soon as qBittorrent accepts the add; the
