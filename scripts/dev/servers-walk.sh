@@ -289,10 +289,11 @@ keys Escape -s 800
 check "the failed test saved nothing" servers_are "public" public
 
 # ---- add the second server ----------------------------------------------------------------
-# `a` a new server: name, URL, the chips, username, password, then path map remote, local,
+# `a` a new server: name, URL, the engine's four chips (#84, recognise kept), the auth chips,
+# username, password, then path map remote, local,
 # cancel, and the keyboard on test.
 clip private
-keys a -s 800 -t private Tab -t http://127.0.0.1:8091 Tab Tab space Tab Tab \
+keys a -s 800 -t private Tab -t http://127.0.0.1:8091 Tab Tab Tab Tab Tab Tab space Tab Tab \
     -t admin Tab ctrl+v Tab Tab Tab Tab -s 800
 unclip
 step "Save waits for a test" "#68, as first run: the New server sheet filled in (private, cookie login as admin), the keyboard on test, which is the primary; save dimmed beside it and \"test first\" at the right of the footer, which says enter test."

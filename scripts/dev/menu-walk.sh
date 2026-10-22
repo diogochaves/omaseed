@@ -409,7 +409,7 @@ keys ctrl+period -s 400 Escape -s 600
 
 # ---- the second server ---------------------------------------------------------------------
 clip private
-keys --window "$APP_ID" comma -s 600 2 -s 300 a -s 800 -t private Tab -t http://127.0.0.1:8091 Tab Tab space Tab Tab \
+keys --window "$APP_ID" comma -s 600 2 -s 300 a -s 800 -t private Tab -t http://127.0.0.1:8091 Tab Tab Tab Tab Tab Tab space Tab Tab \
     -t admin Tab ctrl+v Tab Tab Tab Tab -s 800 Tab Return -s 2500 Return -s 1200
 unclip
 keys Escape -s 1500
