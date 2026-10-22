@@ -243,10 +243,25 @@ App::serverProblem(const QString &lastError, int retryInSeconds, int silentSecon
 
 QVariantMap App::serverTestProblem(const QVariantMap &fields,
                                    const QString &error,
-                                   const QString &errorDetail) const
+                                   const QString &errorDetail,
+                                   const QVariantMap &info) const
 {
     if (error.isEmpty() && errorDetail.isEmpty())
         return {};
+    // C25 K8, K9: refused for its version or its engine, in the test's words and what to do;
+    // no "save anyway" (the sheet reads `refused`). An answer from no engine says so (K8).
+    if (info.value(QStringLiteral("refused")).toBool())
+        return {{QStringLiteral("headline"), error},
+                {QStringLiteral("line"), errorDetail},
+                {QStringLiteral("details"), QString()},
+                {QStringLiteral("kind"), QStringLiteral("refused")}};
+    if (info.value(QStringLiteral("unrecognised")).toBool())
+        return {{QStringLiteral("headline"), error},
+                {QStringLiteral("line"),
+                 tr("Check the address, or pick its engine and test again. Saved anyway, it is "
+                    "tested again when used.")},
+                {QStringLiteral("details"), errorDetail},
+                {QStringLiteral("kind"), QStringLiteral("unrecognised")}};
     const Server server = ServerListModel::serverFromMap(fields);
     ErrorWords::Subject subject;
     const QUrl &url = server.url;

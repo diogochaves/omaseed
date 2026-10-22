@@ -67,6 +67,7 @@
 
 #include <QDate>
 #include <QDateTime>
+#include <QElapsedTimer>
 #include <QHash>
 #include <QJsonObject>
 #include <QObject>
@@ -638,6 +639,12 @@ Q_SIGNALS:
     /// When the server turned the credential down, `error` says so in words
     /// (`credentialRefusedText`) and `errorDetail` carries the raw error, for a dim second
     /// line; otherwise `error` is the raw error and `errorDetail` is empty.
+    ///
+    /// `info` (#84, C25 K4–K9) says which engine answered: `engine` ("qbittorrent", …, ""
+    /// when none did), `engineName`, `endpoint` (K6: where it answered), `refused` (K8, K9: a
+    /// version omaseed refuses or an engine it can't drive yet; no "save anyway"),
+    /// `versionRefused`, `unrecognised` (K8: something answered as no engine; "save anyway"
+    /// stays), `wantsSignIn`, and Deluge's `daemons` and `daemonConnected` (K10).
     void serverTested(const QString &id,
                       bool ok,
                       const QString &version,
@@ -645,7 +652,8 @@ Q_SIGNALS:
                       int torrentCount,
                       int latencyMs,
                       const QString &error,
-                      const QString &errorDetail);
+                      const QString &errorDetail,
+                      const QVariantMap &info = QVariantMap());
 
 private:
     void loadSettings();
@@ -659,8 +667,18 @@ private:
     QJsonObject m_demoState;
     /// The shared tail of `testServer()`: run the probe with the secret already resolved.
     /// `announce` false (probeOtherServers) only updates the server list: no `serverTested`.
-    void
-    runServerTest(const omaseed::core::Server &server, const QString &secret, bool announce = true);
+    /// `only` is the engine to ask (K4's chip, or a saved server's own); Unknown recognises it
+    /// first (EngineRecognizer, K5). A qBittorrent then gets its signed-in probe (runQbtTest).
+    void runServerTest(const omaseed::core::Server &server,
+                       const QString &secret,
+                       bool announce,
+                       omaseed::core::EngineKind only);
+    void runQbtTest(const omaseed::core::Server &server,
+                    const QString &secret,
+                    bool announce,
+                    const QElapsedTimer &elapsed);
+    /// serverTested's `info` for `engine` answering at `endpoint`.
+    QVariantMap testInfo(omaseed::core::EngineKind engine, const QUrl &endpoint) const;
     /// Servers probeOtherServers() is waiting on.
     QSet<QString> m_probing;
 
@@ -1887,9 +1905,12 @@ public:
     /// `serverTested()` said (`error`, and `errorDetail`, the raw error under a refused
     /// sign-in): `{headline, line, details, kind}`. `fields` are the sheet's (`url`, `name`,
     /// `authMode`), for the address and the name.
+    /// `info` is serverTested's: a refused version or engine (K8, K9) and an unrecognised
+    /// answer are said in the test's own words, red, with what to do.
     Q_INVOKABLE QVariantMap serverTestProblem(const QVariantMap &fields,
                                               const QString &error,
-                                              const QString &errorDetail) const;
+                                              const QString &errorDetail,
+                                              const QVariantMap &info = QVariantMap()) const;
     /// S1, the server palette: one row per server in Settings' order, the current one first
     /// with "on it now" and its live figures, the others with what was seen last (D5):
     /// `[{key: id, title, meta, detail, current, state}]`.

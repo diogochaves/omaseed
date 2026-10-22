@@ -48,6 +48,12 @@ omaseed_add_test(tst_app_errored
     LIBRARIES omaseed::app omaseed::core omaseed::integration Qt6::Network
 )
 
+# #84 (C25 K4–K9): a server's test recognises its engine, against FakeEngines.
+omaseed_add_test(tst_app_engines
+    SOURCES tst_app_engines.cpp
+    LIBRARIES omaseed::app omaseed::core omaseed::integration Qt6::Network
+)
+
 # DECISIONS C18 D1–D3 (board 45 §2): a table action's outcome is the strip, against a small
 # fake server.
 omaseed_add_test(tst_app_outcomes

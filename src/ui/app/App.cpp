@@ -20,6 +20,7 @@
 #include "core/TrackerMerge.hpp"
 #include "core/Version.hpp"
 #include "core/WeeklyRecap.hpp"
+#include "core/engines/EngineRecognizer.hpp"
 #include "core/engines/qbt/QbtEngine.hpp"
 #include "core/engines/qbt/QbtSettingsImport.hpp"
 #include "core/engines/qbt/QbtTranslate.hpp"
@@ -4010,6 +4011,17 @@ bool App::setDefaultServer(const QString &id)
 void App::testServer(const QVariantMap &fields, const QString &secret)
 {
     const Server server = ServerListModel::serverFromMap(fields);
+    // C25 K4: the engine row's chip. "recognise" (or none, on a server not saved yet) asks
+    // each engine in K5's order; a picked engine is the only one asked; a saved server tested
+    // as it is asks the engine it is stored with.
+    const QString choice = fields.value(QStringLiteral("engineChoice")).toString();
+    EngineKind only = EngineKind::Unknown;
+    if (choice.isEmpty())
+        only = server.id.isEmpty() || !fields.contains(QStringLiteral("engine"))
+                   ? EngineKind::Unknown
+                   : server.engine;
+    else if (choice != QLatin1String("recognise"))
+        only = engineKindFromString(choice);
 
     if (m_demoMode) {
         // There is no network behind a demo run, and the sheet still has to show something.
@@ -4021,7 +4033,8 @@ void App::testServer(const QVariantMap &fields, const QString &secret)
                                 142,
                                 3,
                                 QString(),
-                                QString());
+                                QString(),
+                                testInfo(EngineKind::Qbittorrent, server.url));
         });
         return;
     }
@@ -4035,7 +4048,7 @@ void App::testServer(const QVariantMap &fields, const QString &secret)
     }
 
     if (!secret.isEmpty() || server.authMode == AuthMode::None || server.id.isEmpty()) {
-        runServerTest(server, secret);
+        runServerTest(server, secret, true, only);
         return;
     }
 
@@ -4046,15 +4059,113 @@ void App::testServer(const QVariantMap &fields, const QString &secret)
     connect(job,
             &SecretStoreJob::finished,
             this,
-            [this, server](bool ok, const QString &value, const QString &) {
-                runServerTest(server, ok ? value : QString());
+            [this, server, only](bool ok, const QString &value, const QString &) {
+                runServerTest(server, ok ? value : QString(), true, only);
             });
 }
 
-void App::runServerTest(const Server &server, const QString &secret, bool announce)
+QVariantMap App::testInfo(EngineKind engine, const QUrl &endpoint) const
 {
-    // E3 (docs/36 §6) picks the engine from the server; until then every server is a
-    // qBittorrent.
+    return {{QStringLiteral("engine"), engineKindToString(engine)},
+            {QStringLiteral("engineName"), engineDisplayName(engine)},
+            {QStringLiteral("endpoint"), endpoint.toString(QUrl::RemoveUserInfo)},
+            {QStringLiteral("refused"), false},
+            {QStringLiteral("unrecognised"), false}};
+}
+
+void App::runServerTest(const Server &server, const QString &secret, bool announce, EngineKind only)
+{
+    if (only == EngineKind::Qbittorrent) {
+        // A qBittorrent asked for by name: its signed-in probe straight away, as before E3.
+        QElapsedTimer elapsed;
+        elapsed.start();
+        runQbtTest(server, secret, announce, elapsed);
+        return;
+    }
+
+    // C25 K5: which engine answers, asked once each without the login.
+    auto *recognizer = new EngineRecognizer(this);
+    recognizer->setTimeout(std::chrono::seconds(8));
+    recognizer->setPinnedCertificate(server.certificateSha256);
+    if (server.authMode == AuthMode::Cookie || server.authMode == AuthMode::Password)
+        recognizer->setCredentials(server.username, secret);
+    QElapsedTimer elapsed;
+    elapsed.start();
+    const QString id = server.id;
+    connect(recognizer,
+            &EngineRecognizer::finished,
+            this,
+            [this, recognizer, server, secret, announce, elapsed, id](const Recognition &found) {
+                recognizer->deleteLater();
+                if (found.recognised() && found.engine == EngineKind::Qbittorrent) {
+                    runQbtTest(server, secret, announce, elapsed);
+                    return;
+                }
+                const int latency = int(elapsed.elapsed());
+                QVariantMap info = testInfo(found.engine, found.endpoint);
+                QString error;
+                QString detail;
+                QString version = found.version;
+                QString apiVersion = found.apiVersion;
+                if (found.outcome == Recognition::Outcome::Failed) {
+                    // As the engine's own probe would have said it.
+                    const QString pinned = server.certificateSha256;
+                    error = found.error.toString();
+                    if (found.error.kind() == ApiError::Kind::Certificate) {
+                        detail = error;
+                        error = certificateRefusedText(pinned);
+                        if (announce)
+                            Q_EMIT serverCertificateRefused(
+                                id, found.error.certificateSha256(), pinned);
+                    }
+                } else if (found.outcome == Recognition::Outcome::Unrecognised) {
+                    // K8: says so, and "save anyway" stays.
+                    info.insert(QStringLiteral("unrecognised"), true);
+                    const QList<EngineKind> asked = found.asked;
+                    error = asked.size() == 1
+                                ? tr("%1 didn't answer as %2")
+                                      .arg(server.url.toString(QUrl::RemoveUserInfo),
+                                           engineDisplayName(asked.first()))
+                                : tr("%1 answered, but not as qBittorrent, Transmission or Deluge")
+                                      .arg(server.url.toString(QUrl::RemoveUserInfo));
+                    detail = found.error.toString();
+                } else if (found.signInRefused) {
+                    error = credentialRefusedText(ApiError(ApiError::Kind::Unauthorized, {}),
+                                                  server.authMode);
+                    detail = tr("%1 turned the login down").arg(engineDisplayName(found.engine));
+                } else {
+                    // K8, K9: a version omaseed refuses, or an engine it can't drive yet.
+                    const EngineSupport support =
+                        engineSupport(found.engine, found.version, found.apiVersion);
+                    info.insert(QStringLiteral("refused"), !support.usable());
+                    info.insert(QStringLiteral("versionRefused"), support.versionRefused);
+                    error = support.refusal;
+                    detail = support.advice;
+                }
+                info.insert(QStringLiteral("wantsSignIn"), found.wantsSignIn);
+                info.insert(QStringLiteral("daemons"), found.daemons);
+                info.insert(QStringLiteral("daemonConnected"), found.daemonConnected);
+                m_probing.remove(id);
+                m_serverList->setProbeResult(id,
+                                             false,
+                                             QString(),
+                                             QString(),
+                                             -1,
+                                             latency,
+                                             error,
+                                             info.value("engine").toString());
+                if (announce)
+                    Q_EMIT serverTested(
+                        id, false, version, apiVersion, -1, latency, error, detail, info);
+            });
+    recognizer->start(server.url, only);
+}
+
+void App::runQbtTest(const Server &server,
+                     const QString &secret,
+                     bool announce,
+                     const QElapsedTimer &elapsed)
+{
     auto *client = new QbtEngine(this);
     client->setPinnedCertificate(server.certificateSha256);
     client->setBaseUrl(server.url);
@@ -4072,15 +4183,15 @@ void App::runServerTest(const Server &server, const QString &secret, bool announ
         break;
     }
 
-    QElapsedTimer elapsed;
-    elapsed.start();
     const QString id = server.id;
+    const QVariantMap info = testInfo(EngineKind::Qbittorrent, server.url);
 
     const AuthMode mode = server.authMode;
     const QString pinned = server.certificateSha256;
     client->probe()->then(
         this,
-        [this, client, elapsed, id, mode, pinned, announce](const Result<ServerInfo> &result) {
+        [this, client, elapsed, id, mode, pinned, announce, info](
+            const Result<ServerInfo> &result) {
             const int latency = int(elapsed.elapsed());
             if (result.isError()) {
                 const QString raw = result.error().toString();
@@ -4098,27 +4209,40 @@ void App::runServerTest(const Server &server, const QString &secret, bool announ
                 m_serverList->setProbeResult(id, false, QString(), QString(), -1, latency, error);
                 if (announce)
                     Q_EMIT serverTested(
-                        id, false, QString(), QString(), -1, latency, error, detail);
+                        id, false, QString(), QString(), -1, latency, error, detail, info);
                 return;
             }
 
-            const ServerInfo info = result.value();
+            const ServerInfo serverInfo = result.value();
             // A sync would do this too, but it also allocates a cursor on the server; a plain
             // list is the cheaper way to count what is there.
             client->torrents()->then(
                 this,
-                [this, client, id, info, latency, announce](
+                [this, client, id, serverInfo, latency, announce, info](
                     const Result<QList<TorrentPatch>> &listResult) {
                     const int count = listResult.isError() ? -1 : int(listResult.value().size());
-                    const QString version = info.version;
-                    const QString apiVersion = info.apiVersion;
+                    const QString version = serverInfo.version;
+                    const QString apiVersion = serverInfo.apiVersion;
                     client->deleteLater();
                     m_probing.remove(id);
-                    m_serverList->setProbeResult(
-                        id, true, version, apiVersion, count, latency, QString());
+                    m_serverList->setProbeResult(id,
+                                                 true,
+                                                 version,
+                                                 apiVersion,
+                                                 count,
+                                                 latency,
+                                                 QString(),
+                                                 QStringLiteral("qbittorrent"));
                     if (announce)
-                        Q_EMIT serverTested(
-                            id, true, version, apiVersion, count, latency, QString(), QString());
+                        Q_EMIT serverTested(id,
+                                            true,
+                                            version,
+                                            apiVersion,
+                                            count,
+                                            latency,
+                                            QString(),
+                                            QString(),
+                                            info);
                 });
         });
 }
@@ -6021,7 +6145,7 @@ void App::probeOtherServers()
             continue;
         m_probing.insert(server.id);
         withStoredSecret(server, [this, server](const QString &secret) {
-            runServerTest(server, secret, false);
+            runServerTest(server, secret, false, server.engine);
         });
     }
 }
