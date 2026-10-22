@@ -18,8 +18,8 @@ import "Status.js" as Status
 // horizontal bar, stacked under it in a vertical one. Every slot is measured once in the
 // bar's font, so the widget never changes width.
 //
-// Left click opens the popup (Popup.qml), middle and right are options, scroll does
-// nothing. Everything comes from omaseed's status file through Service.qml; the widget
+// Left click opens the popup (Popup.qml, built on its first open), middle and right are
+// options, scroll does nothing. Everything comes from omaseed's status file through Service.qml; the widget
 // never talks to qBittorrent.
 BarWidget {
   id: root
@@ -79,28 +79,42 @@ BarWidget {
     if ("host" in target) target.host = root
   }
 
+  // The popup is built on its first open (#114), as Omarchy 4.5's own popups build theirs
+  // (bar/indicators/Dnd.qml): a bar per monitor no longer carries 1,700 lines of QML it may
+  // never show. Everything that runs without it stays here: the Service (the status file,
+  // the heartbeat, the theme's colours) and the IPC handler below, whose open, toggle and
+  // settings build it, while close and the shell's popout switch leave an unbuilt one be.
+  function ensurePanel() {
+    if (!panelLoader.item) {
+      panelLoader.setSource(Qt.resolvedUrl("Popup.qml"))
+      injectPanel()
+    }
+    return panelLoader.item
+  }
+
   // The shape the shell's summon/hide/toggle routing expects on a bar widget's root.
   readonly property bool opened: panelLoader.item ? panelLoader.item.opened === true : false
   readonly property bool popoutSwitchClosing: panelLoader.item ? panelLoader.item.popoutSwitchClosing === true : false
 
-  function open() { if (panelLoader.item) panelLoader.item.openPanel() }
+  function open() { var p = ensurePanel(); if (p) p.openPanel() }
   // The popup straight on its settings page (omaseed's Settings › Appearance › customize).
   function openSettings() {
-    if (!panelLoader.item) return
-    if (!panelLoader.item.opened) panelLoader.item.openPanel()
-    panelLoader.item.openSettingsPage()
+    var p = ensurePanel()
+    if (!p) return
+    if (!p.opened) p.openPanel()
+    p.openSettingsPage()
   }
   function close() { if (panelLoader.item) panelLoader.item.close() }
-  function toggle() { if (panelLoader.item) panelLoader.item.toggle() }
+  function toggle() { var p = ensurePanel(); if (p) p.toggle() }
   function closeForPopoutSwitch() { if (panelLoader.item) panelLoader.item.closeForPopoutSwitch() }
 
   onBarChanged: injectPanel()
   onSettingsChanged: injectPanel()
 
+  // Empty until ensurePanel() gives it Popup.qml; synchronous, so the popup opens on the click
+  // that built it.
   Loader {
     id: panelLoader
-    active: true
-    source: Qt.resolvedUrl("Popup.qml")
     visible: false
     onLoaded: {
       root.injectPanel()
