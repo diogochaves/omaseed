@@ -45,6 +45,33 @@ before it will tag a release.
 - **`omaseed --help`, `--version` and `--theme-roles` work with no display.** Over SSH, in a
   container or in a package check they print and exit, instead of aborting before a word.
 
+## v0.3.3 — 2026-10-22
+
+### Fixed
+
+- **A big torrent's move no longer reads 100 % from its first second.** qBittorrent makes a
+  torrent's file at its new place at full length before it copies into it, so the band
+  measured the whole size there at once and its bar sat at 100 % for the whole move. It now
+  says how long the torrent has been moving, and that qBittorrent doesn't report a single
+  move's progress, until it lands.
+- **"Added during the move" counts only torrents added during the move.** After moving one
+  torrent, the summary could say that dozens were "added during the move" and still at the
+  old place: every other torrent saved in the same folder. It now counts only those added
+  after the move started.
+- **A file already at the destination says what it is.** When a torrent is left out because a
+  file with its name is already where it would go, the Move sheet now says what that file is
+  and whose: "an empty file no torrent owns" (often what an earlier failed copy left), or "a
+  file of 4.2 GB that NAME owns". On a server whose disks omaseed can't see, it says only
+  whose it is.
+- **A big move's details stay inside its band.** "details" on the summary of a move of many
+  torrents listed every one of them down to the bottom of the window, with the details pane
+  and the footer drawn over the list. Long details now take at most a third of the window and
+  scroll inside it (with the arrow keys, j/k, page up/down, home and end once Tab reaches
+  them); the library moves down under them. This holds for every notice with long details.
+- **A moved torrent's later trouble is said in plain words.** The move's record said
+  "later: missingFiles"; it now says "later: missing files · set location… or recheck it", as
+  the table does, and starts where the band's own words end instead of repeating them.
+
 ## v0.3.2 — 2026-10-22
 
 ### Added
