@@ -127,10 +127,6 @@ App::App(QObject *parent)
     // torrent added from the bar widget while the sheet is up is marked at the next sync.
     // `updated` comes after the model's own bookkeeping (rowsRemoved comes before it).
     connect(m_engine->torrents(), &TorrentModel::updated, this, &App::refreshDownloadsInLibrary);
-    // DECISIONS C20 (#107): the stops omaseed sent to errored torrents, per server, follow
-    // the library (one out of error is forgotten) and the server the app is on.
-    connect(m_engine->torrents(), &TorrentModel::updated, this, &App::pushErrorStops);
-    connect(this, &App::serverChanged, this, &App::pushErrorStops);
 
     // Here rather than in start(): demo and QML-test Apps never call start(), and their
     // `serverCount`/`firstRunNeeded` bindings must follow the store all the same.
@@ -702,7 +698,7 @@ void App::stopAll()
                 qWarning().noquote()
                     << QStringLiteral("stop all failed: %1").arg(result.error().toString());
             else
-                noteErrorStops({QStringLiteral("all")}, true);
+                m_engine->readErrorStops();
         });
 }
 
@@ -716,7 +712,7 @@ void App::startAll()
                 qWarning().noquote()
                     << QStringLiteral("start all failed: %1").arg(result.error().toString());
             else
-                noteErrorStops({QStringLiteral("all")}, false);
+                m_engine->readErrorStops();
         });
 }
 
@@ -939,7 +935,7 @@ QVariantMap App::torrentRow(const QString &hash) const
     // T4.3: exactly the check `stopStart()` makes, so the actions menu's "start"/"stop" row
     // and the delete sheet agree with what a bulk stop/start would actually do.
     row.insert(QStringLiteral("stopped"), startsOnToggle(torrent));
-    // DECISIONS C20 (#107): in error, and stopped by omaseed ("error · stopped").
+    // DECISIONS C20 (#142): in error and stopped, as qBittorrent's `stopped` filter says.
     row.insert(QStringLiteral("errorStopped"), errorStopped(hash));
     // docs/12 G4: General's Options group and the actions menu's four option rows.
     row.insert(QStringLiteral("seqDl"), torrent.seqDl);
@@ -2919,8 +2915,8 @@ bool App::startsOnToggle(const Torrent &torrent) const
 {
     // DECISIONS C20 (#107, amending docs/28): an errored torrent is stopped, so `p`, the
     // actions menu and the selection bar agree, and a retry that would only fail again (a
-    // full or damaged disk) can be ended. Once omaseed has stopped it, `p` starts it: the
-    // retry, as the error block's own "retry" does.
+    // full or damaged disk) can be ended. Once it is stopped (qBittorrent's `stopped` filter
+    // says so, #142), `p` starts it: the retry, as the error block's own "retry" does.
     return isStoppedState(torrent.state) ||
            (torrent.state == TorrentState::Error && errorStopped(torrent.hash));
 }
@@ -2928,50 +2924,6 @@ bool App::startsOnToggle(const Torrent &torrent) const
 bool App::errorStopped(const QString &hash) const
 {
     return m_engine->torrents()->isErrorStopped(hash);
-}
-
-void App::noteErrorStops(const QStringList &hashes, bool stopped)
-{
-    const QString key = m_server.id.isEmpty() ? m_server.url.toString() : m_server.id;
-    QSet<QString> &kept = m_errorStops[key];
-    const TorrentModel *torrents = m_engine->torrents();
-    const bool all = hashes.size() == 1 && hashes.constFirst() == QLatin1String("all");
-    if (!stopped) {
-        if (all)
-            kept.clear();
-        for (const QString &hash : hashes)
-            kept.remove(hash);
-    } else {
-        // qBittorrent reports nothing of the stop on an errored torrent (its state stays
-        // `error`), so the ones in error now are the ones to remember.
-        const QStringList targets = all ? torrents->hashes() : hashes;
-        for (const QString &hash : targets)
-            if (torrents->torrent(hash).state == TorrentState::Error)
-                kept.insert(hash);
-    }
-    pushErrorStops();
-}
-
-void App::pushErrorStops()
-{
-    const QString key = m_server.id.isEmpty() ? m_server.url.toString() : m_server.id;
-    auto it = m_errorStops.find(key);
-    QSet<QString> kept = it == m_errorStops.end() ? QSet<QString>() : it.value();
-    // One that left the error (a retry from elsewhere that worked, a recheck) or was removed
-    // is forgotten; one not listed yet (the first poll after a switch) is kept.
-    const TorrentModel *torrents = m_engine->torrents();
-    const QStringList &removed = torrents->lastChange().removed;
-    for (auto hash = kept.begin(); hash != kept.end();) {
-        const int index = torrents->indexOfHash(*hash);
-        if (removed.contains(*hash) ||
-            (index >= 0 && torrents->torrentAt(index).state != TorrentState::Error))
-            hash = kept.erase(hash);
-        else
-            ++hash;
-    }
-    if (it != m_errorStops.end())
-        it.value() = kept;
-    m_engine->torrents()->setErrorStops(kept);
 }
 
 bool App::demoGuard(const QString &action, int count)
@@ -3010,10 +2962,10 @@ void App::stopStart(const QStringList &hashes)
         index >= 0 && startsOnToggle(m_engine->torrents()->torrent(hashes.constFirst()));
 
     auto *reply = stopped ? m_client->torrentsStart(hashes) : m_client->torrentsStop(hashes);
-    reply->then(this, [this, hashes, stopped](const QbtResult<QByteArray> &result) {
+    reply->then(this, [this](const QbtResult<QByteArray> &result) {
         reportActionResult(QStringLiteral("stopStart"), result);
         if (!result.isError())
-            noteErrorStops(hashes, !stopped);
+            m_engine->readErrorStops(); // C20 (#142): an errored row says so before the next poll
     });
 }
 
@@ -3021,22 +2973,21 @@ void App::startTorrents(const QStringList &hashes)
 {
     if (hashes.isEmpty() || demoGuard(QStringLiteral("start"), hashes.size()) || !m_hasServer)
         return;
-    m_client->torrentsStart(hashes)->then(this,
-                                          [this, hashes](const QbtResult<QByteArray> &result) {
-                                              reportActionResult(QStringLiteral("start"), result);
-                                              if (!result.isError())
-                                                  noteErrorStops(hashes, false);
-                                          });
+    m_client->torrentsStart(hashes)->then(this, [this](const QbtResult<QByteArray> &result) {
+        reportActionResult(QStringLiteral("start"), result);
+        if (!result.isError())
+            m_engine->readErrorStops();
+    });
 }
 
 void App::stopTorrents(const QStringList &hashes)
 {
     if (hashes.isEmpty() || demoGuard(QStringLiteral("stop"), hashes.size()) || !m_hasServer)
         return;
-    m_client->torrentsStop(hashes)->then(this, [this, hashes](const QbtResult<QByteArray> &result) {
+    m_client->torrentsStop(hashes)->then(this, [this](const QbtResult<QByteArray> &result) {
         reportActionResult(QStringLiteral("stop"), result);
         if (!result.isError())
-            noteErrorStops(hashes, true);
+            m_engine->readErrorStops();
     });
 }
 
@@ -3044,10 +2995,10 @@ void App::retryTorrents(const QStringList &hashes)
 {
     if (hashes.isEmpty() || demoGuard(QStringLiteral("retry"), hashes.size()) || !m_hasServer)
         return;
-    // C20: forgotten at once, so the row stops reading "stopped" as the retry goes out.
-    noteErrorStops(hashes, false);
     m_client->torrentsStart(hashes)->then(this, [this](const QbtResult<QByteArray> &result) {
         reportActionResult(QStringLiteral("retry"), result);
+        if (!result.isError())
+            m_engine->readErrorStops();
     });
 }
 
@@ -3056,10 +3007,10 @@ void App::forceStart(const QStringList &hashes)
     if (hashes.isEmpty() || demoGuard(QStringLiteral("forceStart"), hashes.size()) || !m_hasServer)
         return;
     m_client->torrentsSetForceStart(hashes, true)
-        ->then(this, [this, hashes](const QbtResult<QByteArray> &result) {
+        ->then(this, [this](const QbtResult<QByteArray> &result) {
             reportActionResult(QStringLiteral("forceStart"), result);
             if (!result.isError())
-                noteErrorStops(hashes, false); // a forced start starts a stopped torrent
+                m_engine->readErrorStops(); // a forced start starts a stopped torrent
         });
 }
 

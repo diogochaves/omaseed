@@ -103,7 +103,50 @@ private slots:
     void etaTextFollowsTheState_data();
     void etaTextFollowsTheState();
     void stateChangeRefreshesTheEtaText();
+    void anErroredTorrentThatIsStoppedReadsStopped();
 };
+
+// DECISIONS C20 (#142): "stopped" in the Status column, and the flag that colours it, only
+// while the torrent is in error; a full update keeps the set, which maindata never carries.
+void TestTorrentModel::anErroredTorrentThatIsStoppedReadsStopped()
+{
+    TorrentModel model;
+    const auto torrent = [](const QString &state) {
+        return QJsonObject{{QStringLiteral("name"), QStringLiteral("x")},
+                           {QStringLiteral("state"), state}};
+    };
+    model.applyFullUpdate(
+        QJsonObject{{QStringLiteral("eeee"), torrent(QStringLiteral("error"))},
+                    {QStringLiteral("ssss"), torrent(QStringLiteral("stoppedDL"))}});
+    const QModelIndex errored = model.index(model.indexOfHash(QStringLiteral("eeee")));
+    const QModelIndex stopped = model.index(model.indexOfHash(QStringLiteral("ssss")));
+    QSignalSpy changed(&model, &QAbstractItemModel::dataChanged);
+
+    model.setErrorStops({QStringLiteral("eeee"), QStringLiteral("ssss")});
+    QCOMPARE(changed.count(), 2);
+    QCOMPARE(model.data(errored, TorrentModel::StatusCauseRole).toString(),
+             QStringLiteral("stopped"));
+    QCOMPARE(model.data(errored, TorrentModel::ErrorStoppedRole).toBool(), true);
+    QVERIFY(model.isErrorStopped(QStringLiteral("eeee")));
+    // A plain stopped torrent says it with its own state, not as an error.
+    QCOMPARE(model.data(stopped, TorrentModel::StatusCauseRole).toString(), QString());
+    QCOMPARE(model.data(stopped, TorrentModel::ErrorStoppedRole).toBool(), false);
+
+    model.applyFullUpdate(
+        QJsonObject{{QStringLiteral("eeee"), torrent(QStringLiteral("error"))},
+                    {QStringLiteral("ssss"), torrent(QStringLiteral("stoppedDL"))}});
+    QVERIFY(model.isErrorStopped(QStringLiteral("eeee")));
+
+    changed.clear();
+    model.setErrorStops({});
+    QCOMPARE(changed.count(), 2);
+    QVERIFY(!model.isErrorStopped(QStringLiteral("eeee")));
+    QCOMPARE(model
+                 .data(model.index(model.indexOfHash(QStringLiteral("eeee"))),
+                       TorrentModel::StatusCauseRole)
+                 .toString(),
+             QString());
+}
 
 void TestTorrentModel::fullUpdateFillsRowsAndIndex()
 {
@@ -185,13 +228,16 @@ void TestTorrentModel::rolesCoverTheTableAndTheDetails()
     QVERIFY(model.data(first, TorrentModel::LastActivityRole).toDateTime().isValid());
     QVERIFY(!model.data(first, TorrentModel::LastActivityTextRole).toString().isEmpty());
 
-    QCOMPARE(model.roleNames().size(), 78);
+    QCOMPARE(model.roleNames().size(), 79);
     QCOMPARE(roleOf(model, "problem"), int(TorrentModel::ProblemRole));
     QCOMPARE(roleOf(model, "statusCause"), int(TorrentModel::StatusCauseRole));
     QCOMPARE(roleOf(model, "failure"), int(TorrentModel::FailureRole));
-    // Nothing in maindata sets them: ProblemLog does (docs/28, docs/32).
+    QCOMPARE(roleOf(model, "errorStopped"), int(TorrentModel::ErrorStoppedRole));
+    // Nothing in maindata sets them: ProblemLog does (docs/28, docs/32), and SyncEngine's
+    // read of the stopped filter (DECISIONS C20, #142).
     QVERIFY(model.data(first, TorrentModel::ProblemRole).toMap().isEmpty());
     QVERIFY(model.data(first, TorrentModel::FailureRole).toMap().isEmpty());
+    QCOMPARE(model.data(first, TorrentModel::ErrorStoppedRole).toBool(), false);
     QCOMPARE(roleOf(model, "stateText"), int(TorrentModel::StateTextRole));
     QCOMPARE(roleOf(model, "stateRole"), int(TorrentModel::StateColorRoleRole));
     QCOMPARE(roleOf(model, "seedsPeersText"), int(TorrentModel::SeedsPeersTextRole));

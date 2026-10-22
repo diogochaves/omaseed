@@ -1454,6 +1454,9 @@ Item {
             required property string stateText
             /// docs/28 R1: the short cause of an error from the server's log, or "".
             required property string statusCause
+            /// DECISIONS C20 (#142): in error and stopped; its word ("stopped") takes the
+            /// error colour, beside the ! glyph.
+            required property bool errorStopped
             required property string upspeedText
             /// #24 T5: bytes per second, for the pulse.
             required property real upspeed
@@ -1768,7 +1771,7 @@ Item {
                         anchors.right: parent.right
                         anchors.rightMargin: Theme.space(8)
                         anchors.verticalCenter: parent.verticalCenter
-                        color: band.textColor
+                        color: row.errorStopped ? row.stateColor : band.textColor
                         elide: Text.ElideRight
                         font.family: Theme.fontFamily
                         font.pixelSize: Theme.font.body

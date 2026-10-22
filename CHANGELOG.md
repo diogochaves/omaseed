@@ -161,8 +161,10 @@ before it will tag a release.
 - An errored torrent can be stopped (DECISIONS C20, #107): `p`, the actions menu and the
   selection bar all stop it, so a retry that only fails again (a full or damaged disk) ends.
   "retry" has a key of its own, `e`: first on the error block as before, and a row of the
-  actions menu under "stop". Once omaseed has stopped it the row reads "error · stopped"
-  (qBittorrent still reports only "error"); `p` again, or retry, starts it.
+  actions menu under "stop". A stopped errored torrent's row reads "stopped" in the error
+  colour, and General "error · stopped · <cause>"; `p` again, or retry, starts it. qBittorrent
+  reports only "error", so omaseed asks its `stopped` filter while a torrent is in error: a
+  stop sent from qBittorrent's Web UI, or before omaseed started, reads the same (#142).
 - After a move, "recheck the N…" starts again only the torrents that were running when the
   move sent them; one that was stopped before stays stopped after a clean recheck, and its row
   in the sheet says so. The move remembers which were running through a pause and quit

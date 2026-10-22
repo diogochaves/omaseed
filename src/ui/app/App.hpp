@@ -683,10 +683,11 @@ public:
     Q_INVOKABLE void stopTorrents(const QStringList &hashes);
     /// DECISIONS C20 (#107): "retry" on errored torrents, the error block's first action and
     /// the actions menu's own row. A start, which clears the error in qBittorrent and makes it
-    /// try again; the stop omaseed remembered for them is forgotten.
+    /// try again.
     Q_INVOKABLE void retryTorrents(const QStringList &hashes);
-    /// C20: whether omaseed stopped `hash` while it was in error and it still is; what the
-    /// row's "error · stopped" and `torrentRow()`'s `errorStopped` say.
+    /// C20 (#142): whether `hash` is in error and stopped, as qBittorrent's `stopped` filter
+    /// last said (SyncEngine::readErrorStops); what the row's "stopped" and `torrentRow()`'s
+    /// `errorStopped` say.
     bool errorStopped(const QString &hash) const;
     Q_INVOKABLE void forceStart(const QStringList &hashes);
     Q_INVOKABLE void recheck(const QStringList &hashes);
@@ -865,19 +866,9 @@ private:
     /// `torrentRow()`'s `stopped` field both call "stopped".
     static bool isStoppedState(omaseed::core::TorrentState state);
     /// What `p` (stopStart) does to `torrent`: start it when stopped, stop it otherwise. An
-    /// errored torrent is stopped (DECISIONS C20, amending docs/28's "try again"), unless
-    /// omaseed already stopped it: then `p` starts it, which is the retry.
+    /// errored torrent is stopped (DECISIONS C20, amending docs/28's "try again"), unless it
+    /// already is: then `p` starts it, which is the retry.
     bool startsOnToggle(const omaseed::core::Torrent &torrent) const;
-    /// C20: the stop just sent to `hashes` went through; the errored ones among them are
-    /// remembered (or, `stopped` false, a start went out and they are forgotten).
-    void noteErrorStops(const QStringList &hashes, bool stopped);
-    /// C20: the current server's remembered stops, pruned of torrents no longer in error, into
-    /// the model (TorrentModel::setErrorStops).
-    void pushErrorStops();
-
-    /// C20: per server id, the hashes of the errored torrents omaseed stopped. In memory: a
-    /// restart forgets them and the rows read "error" again until the next stop.
-    QHash<QString, QSet<QString>> m_errorStops;
 
     bool m_deleteFilesDefault = false;
     bool m_deleteFilesDefaultLoaded = false;

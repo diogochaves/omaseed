@@ -15,10 +15,11 @@ in `torrents/info` or `torrents/properties` say it is stopped, so omaseed can sh
   while it is not: the filters test `isStopped()` itself, not `state`. (`paused` and `resumed`,
   the 4.x names, list it both ways: 5.x no longer knows them and reads them as "all".)
 
-So omaseed could ask `torrents/info?filter=stopped&hashes=<the errored ones>` beside its
-`sync/maindata` polls and see a stop sent from anywhere, across restarts. As built for v0.3.0,
-the app remembers the stop it sent (per server, by hash, in memory), as C20 says; the filter is
-what `scripts/dev/error-walk.sh` checks the stop with.
+So omaseed asks `torrents/info?filter=stopped&hashes=<the errored ones>` after each
+`sync/maindata` poll while a torrent is in error (`SyncEngine::readErrorStops`, #142), and
+sees a stop sent from anywhere, across restarts. (The first build, #107, remembered the stops
+it sent instead; Diogo ruled for the filter, DECISIONS C20.) `scripts/dev/error-walk.sh`
+checks the stop with it too.
 
 ## The script
 

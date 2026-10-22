@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # omaseed — the error walkthrough (docs/28, #54): a torrent goes into error while the app
 # runs, and the app says why, from qBittorrent's log. Its row shows the short cause, General
-# opens with the error block, and one notice carries the reason. `p` stops it (DECISIONS C20:
-# the row reads "error · stopped"); then it is moved to a writable folder and `e` (retry)
-# brings it back. Then (docs/32, #55) a move out of a
+# opens with the error block, and one notice carries the reason. Stopped, from the API and
+# then with `p`, the row reads "stopped" in red (DECISIONS C20, #142); then it is moved to a
+# writable folder and `e` (retry) brings it back. Then (docs/32, #55) a move out of a
 # folder that can't be written fails: General's yellow block, the footer's note when the app
 # asked for it, and the block gone once the move lands. Last, a torrent whose files are gone
 # after a restart shows the missing-files block.
@@ -150,6 +150,16 @@ broken_stopped() {
     done
     return 1
 }
+# broken_running: until the `stopped` filter no longer lists it (started again, still in error).
+broken_running() {
+    local hash
+    hash="$(hash_of "$BROKEN")"
+    for _ in $(seq 1 20); do
+        curl -fs "$PLAY/torrents/info?filter=stopped&hashes=$hash" | grep -q "\"$hash\"" || return 0
+        sleep 0.5
+    done
+    return 1
+}
 # failed_moves: how many failed moves of the fixture the playground's log holds.
 failed_moves() {
     curl -fs "$PLAY/log/main?normal=false&info=false&warning=true&critical=true" | python3 -c '
@@ -264,13 +274,26 @@ step "Error block" "The row's status reads \"! no access\" (not \"error\"). Gene
 
 check "one errored notice, with the reason in its body" one_notice_with_reason
 
-# DECISIONS C20 (#107): `p` stops an errored torrent. qBittorrent still says `error`; only its
-# `stopped` filter lists it, and the app says so on the row from the stop it sent.
-omabox keys -b "$BOX" --window "$APP_ID" p >/dev/null
-check "p on the errored row stopped it (the server's stopped filter lists it)" broken_stopped
-sleep 2
-step "Stopped" "The row's status reads \"error · stopped\"; General's Status row \"error · stopped · no access\", the block unchanged (m move… · e retry)."
+# DECISIONS C20 (#107, #142): an errored torrent that is stopped reads "stopped". qBittorrent
+# still says `error`; only its `stopped` filter tells, and the app reads that filter, so a stop
+# sent from elsewhere (here the API, as qBittorrent's Web UI would) shows the same.
+curl -fs -X POST "$PLAY/torrents/stop" -d "hashes=$(hash_of "$BROKEN")" >/dev/null
+check "a stop sent from the API: the server's stopped filter lists it" broken_stopped
+# The app reads the filter after its next poll (1.5 s); the screen is the only place it
+# shows, and `p` below is the check: it starts only a torrent the app knows is stopped.
+sleep 4
+step "Stopped elsewhere" "Stopped through the API, not omaseed. The row's status reads \"! stopped\", the word and the glyph in the error colour, whole at the column's default width; General's Status row \"error · stopped · no access\", the block unchanged (m move… · e retry)."
 check "the stopped errored torrent is still in error" wait_state "$BROKEN" "^error" 5
+
+# `p` on a stopped errored torrent starts it (the retry); on one that runs, it stops it. Had
+# the app missed the stop sent from the API, this `p` would have stopped it again.
+omabox keys -b "$BOX" --window "$APP_ID" p >/dev/null
+check "p on the row stopped elsewhere started it: the app knew it was stopped" broken_running
+sleep 4 # the app reads the filter again once the start is answered, and at its next poll
+omabox keys -b "$BOX" --window "$APP_ID" p >/dev/null
+check "p on it running stopped it" broken_stopped
+sleep 4
+step "Stopped from omaseed" "After p, p: stopped again, from omaseed this time; the row reads \"! stopped\" in the error colour."
 
 # The fix: somewhere it can write (as the location sheet would), then `e` on its row: retry.
 mkdir -p "$WRITABLE"

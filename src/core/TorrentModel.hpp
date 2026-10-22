@@ -117,6 +117,8 @@ public:
         // docs/32 (#55): a move, rename or part file that failed while the torrent kept
         // working. ProblemLog sets it with setFailure().
         FailureRole, ///< TorrentFailure::toMap(), or an empty map
+        // DECISIONS C20 (#142): in error and stopped (setErrorStops()).
+        ErrorStoppedRole,
     };
     Q_ENUM(Role)
 
@@ -153,11 +155,13 @@ public:
     void setFailure(const QString &hash, const QVariantMap &failure);
     QVariantMap failure(const QString &hash) const { return m_failures.value(hash); }
 
-    /// docs/DECISIONS.md C20 (#107): the errored torrents omaseed stopped. qBittorrent ranks
-    /// the error above the stop and reports `state: error` either way, so App remembers the
-    /// stop it sent and hands the set over here; a full update keeps it, since it is not the
-    /// server's. While one of them is in error its Status column reads "error · stopped"
-    /// (StatusCauseRole). Emits dataChanged() on the rows that changed, then problemsChanged().
+    /// docs/DECISIONS.md C20 (#107, #142): the errored torrents that are stopped. qBittorrent
+    /// ranks the error above the stop and reports `state: error` either way; its `stopped`
+    /// filter is what tells, and SyncEngine reads it after each sync while a torrent is in
+    /// error. maindata never carries it, so a full update keeps it. While one of them is in
+    /// error, its Status column reads "stopped" (StatusCauseRole) in the error colour
+    /// (ErrorStoppedRole). Emits dataChanged() on the rows that changed, then
+    /// problemsChanged().
     void setErrorStops(const QSet<QString> &hashes);
     /// Whether `hash` is in error and in the set setErrorStops() was given.
     bool isErrorStopped(const QString &hash) const;
@@ -219,7 +223,7 @@ private:
     QHash<QString, int> m_indexByHash;
     QHash<QString, QVariantMap> m_problems; ///< docs/28: by hash, only errored torrents
     QHash<QString, QVariantMap> m_failures; ///< docs/32: by hash, only those with a failure
-    QSet<QString> m_errorStops;             ///< C20: the errored torrents omaseed stopped
+    QSet<QString> m_errorStops;             ///< C20: the errored torrents that are stopped
     Change m_lastChange;
     quint64 m_revision = 0;
     QTimer *m_midnight = nullptr; ///< fires once a day, just after local midnight
