@@ -920,6 +920,25 @@ again" (to the move's target) and "move back", which bring its files together; t
 rechecked as before. A torrent is hybrid when qBittorrent gives it both a v1 and a v2 hash.
 v0.3.1. #144.
 
+## C23 — Three move fixes before the post (v0.3.3, ruled 2026-10-22)
+
+From Diogo's own moves on qBittorrent 5.3, each issue's recommended option. They ship in a
+patch, v0.3.3, cut from v0.3.2 on `release/0.3`, so the version people install for the post
+about moves has none of these bugs; main keeps them for v0.4.0.
+
+- **One torrent's progress (#162 a):** qBittorrent makes a torrent's file at its new place at
+  full length before it copies (`scripts/dev/research/162-preallocated-move`), so a first
+  reading of the destination already at the torrent's size measures nothing: the band says
+  board 43 B2's "moving for … · qBittorrent doesn't report a single move's progress" until it
+  lands. *Amends C16 L10.*
+- **Added during the move (#164 a):** the summary counts only torrents qBittorrent added after
+  the job started (`added_on`), for every kind of move. A torrent's or a selection's root is a
+  save path other torrents share.
+- **What is in the way (#161 a):** the Move sheet's "left out" line says what is at the
+  destination and whose it is: "(an empty file no torrent owns)", "(a file of SIZE that NAME
+  owns)"; on a server omaseed can't see, only whose. *Adds to C15 M8.* Offering to replace an
+  empty file no torrent owns (#161 b) waits for its own ruling.
+
 ## M8 — A click leaves the keyboard focus where it was
 
 Buttons and toggles do not take the focus when clicked. Otherwise an overlay gives the focus
