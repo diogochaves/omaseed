@@ -626,6 +626,50 @@ private slots:
         QCOMPARE(m_job->bytesMoved(), 1000 * kMiB);
     }
 
+    void aFirstReadingOfTheWholeSizeMeasuresNothing()
+    {
+        // #162 (a): qBittorrent makes the file at its target at full length before it
+        // copies; a first reading already at the torrent's size is no progress, so the band
+        // has no bytes for it (board 43 B2) until it lands, whatever later readings say.
+        m_library.add(1, 1000 * kMiB);
+        m_library.add(2, 2000 * kMiB);
+        poll();
+        QHash<QString, qint64> there;
+        m_job->setGrowthProbe(
+            [&there](const QString &hash, const QString &) { return there.value(hash, -1); });
+        QVERIFY(m_job->start(selection({hashOf(1), hashOf(2)}, kTo),
+                             QStringLiteral("home"),
+                             false,
+                             0,
+                             spec(QStringLiteral("2 torrents"))));
+        m_library.moving(1);
+        poll();
+        QCOMPARE(m_job->current(), hashOf(1));
+
+        there.insert(hashOf(1), 1000 * kMiB);
+        m_job->sampleLive();
+        QCOMPARE(m_job->liveBytes(hashOf(1)), -1);
+        QCOMPARE(m_job->bytesMoved(), 0);
+        QCOMPARE(m_job->percent(), 0);
+        QCOMPARE(m_job->speed(), 0);
+        wait(10);
+        m_job->sampleLive();
+        QCOMPARE(m_job->liveBytes(hashOf(1)), -1);
+        QCOMPARE(m_job->bytesMoved(), 0);
+
+        // The next one measures again: its first reading is part of it.
+        m_library.land(1);
+        poll();
+        m_library.moving(2);
+        poll();
+        QCOMPARE(m_job->current(), hashOf(2));
+        QCOMPARE(m_job->bytesMoved(), 1000 * kMiB);
+        there.insert(hashOf(2), 500 * kMiB);
+        m_job->sampleLive();
+        QCOMPARE(m_job->liveBytes(hashOf(2)), 500 * kMiB);
+        QCOMPARE(m_job->bytesMoved(), 1500 * kMiB);
+    }
+
     void itKeepsWhereEachWasForMoveBack()
     {
         m_library.add(1, kMiB, kRoot);

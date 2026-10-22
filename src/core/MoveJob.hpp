@@ -372,6 +372,8 @@ private:
     qint64 m_liveBytes = -1;
     qint64 m_liveFirstBytes = -1;
     QDateTime m_liveFirstAt;
+    /// #162: its first reading was already its whole size, so its readings mean nothing.
+    bool m_liveBlind = false;
     QString m_nearlyFullHash;
     qint64 m_nearlyFullFreeAfter = 0;
     int m_landedWhileAway = 0;

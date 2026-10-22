@@ -264,6 +264,7 @@ void MoveJob::startPlan(const QJsonObject &plan)
     m_liveBytes = -1;
     m_liveFirstBytes = -1;
     m_liveFirstAt = QDateTime();
+    m_liveBlind = false;
     m_shown = !isQuiet();
     if (!m_shown)
         m_showTimer.start();
@@ -391,6 +392,10 @@ void MoveJob::sampleLive()
     }
     const qint64 bytes = m_growthProbe(moving->hash, moving->to);
     const QDateTime at = now();
+    if (m_liveHash != moving->hash)
+        m_liveBlind = false;
+    else if (m_liveBlind)
+        return; // #162: this torrent's size at its target tells nothing; B2's words
     if (bytes < 0) {
         const bool was = m_liveBytes >= 0 || m_liveHash != moving->hash;
         m_liveHash = moving->hash;
@@ -401,8 +406,14 @@ void MoveJob::sampleLive()
     }
     if (m_liveHash != moving->hash || m_liveBytes < 0) {
         m_liveHash = moving->hash;
-        m_liveBytes = bytes;
-        m_liveFirstBytes = bytes;
+        // #162 (a): qBittorrent creates a file at its target at full length before it copies
+        // (seen on ntfs3; libtorrent keeps a sparse file sparse), so a first reading already
+        // at the torrent's size measures nothing. The band falls back to board 43 B2's
+        // "moving for …" until this torrent lands, rather than read 100 % from its first
+        // second.
+        m_liveBlind = moving->bytes > 0 && bytes >= moving->bytes;
+        m_liveBytes = m_liveBlind ? -1 : bytes;
+        m_liveFirstBytes = m_liveBytes;
         m_liveFirstAt = at;
         Q_EMIT changed();
     } else if (bytes != m_liveBytes) {
@@ -528,6 +539,7 @@ void MoveJob::reset()
     m_shown = false;
     m_liveHash.clear();
     m_liveBytes = -1;
+    m_liveBlind = false;
     m_entries.clear();
     m_root.clear();
     m_newPath.clear();
