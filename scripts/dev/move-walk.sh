@@ -493,6 +493,26 @@ expect_disk "a torrent's file is at the new place" -f "/tmp/fast/games/Arcade Se
 expect_disk "no temporary copy is left" ! /tmp/fast/games/.manual.pdf.omaseed-carry
 if [ -z "$(bad_states)" ]; then pass "no torrent in error or missing files"; else fail "in error: $(bad_states)"; fi
 shot "The green summary: torrents and files at /tmp/fast/games, what stayed and why, the empty folder removed; show what stayed." summary
+# #173: the record of $GAMES torrents unfolds inside the band, a third of the window at most,
+# and scrolls there; the table moves down under it and nothing draws over it.
+band_height() {
+    omabox tree -b "$BOX" --window omaseed --find "games moved" 2>/dev/null |
+        sed -nE 's/^alert "[^"]*"[^@>]*@-?[0-9]+,-?[0-9]+ [0-9]+x([0-9]+)$/\1/p' | head -n1
+}
+folded="$(band_height)"
+press details top
+expect_tree "the summary's details unfold, scrollable" 'started ' 10
+unfolded="$(band_height)"
+# The box's screen is 1080 px tall: a third for the block, the band's own lines above it.
+if [ -n "$unfolded" ] && [ -n "$folded" ] && [ "$unfolded" -gt "$folded" ] && [ "$unfolded" -le 540 ]; then
+    pass "unfolded, the band is $unfolded px tall (folded $folded; at most half the screen)"
+else
+    fail "the unfolded band is ${unfolded:-?} px tall (folded ${folded:-?}; wanted more, and at most 540)"
+fi
+expect_text "the table is still there under it" "Progress" 5
+shot "The summary's details unfolded: $GAMES torrents' lines in a block a third of the window tall, scrolling inside it, the table moved down under the band (#173)." details
+press details top
+no_text "folded again" "started "
 press "show what stayed"
 expect_text "the record opens: Loose files of games" "Loose files of games" 10
 shot "What stayed: the recent capture, with its reason." stayed
