@@ -1740,6 +1740,11 @@ Item {
 
                 // Status (`.tbl .st`): the glyph in the state colour, the word in the row's
                 // own text colour.
+                // #74: its glyph and word are placed by spacing alone, and a binding that only
+                // calls Theme.space() never runs again (a call is nothing it can follow). A row
+                // built before the theme had read the shell's base size kept the default's
+                // 8 / 12 / 6 px: the glyph 2 px and the word 4 px left, until a restart. They
+                // read Theme.spaceScale, so they follow the theme whenever it settles.
                 Item {
                     id: statusCell
 
@@ -1753,23 +1758,23 @@ Item {
                         id: statusGlyphText
 
                         anchors.left: parent.left
-                        anchors.leftMargin: Theme.space(8)
+                        anchors.leftMargin: Theme.spaceAt(8, Theme.spaceScale)
                         anchors.verticalCenter: parent.verticalCenter
                         color: row.stateColor
                         height: Theme.font.body
                         objectName: "statusGlyph_" + row.index
                         pixelSize: Theme.font.body
                         text: row.statusGlyph
-                        width: Theme.space(12)
+                        width: Theme.spaceAt(12, Theme.spaceScale)
                     }
 
                     Text {
                         id: statusWord
 
                         anchors.left: statusGlyphText.right
-                        anchors.leftMargin: Theme.space(6)
+                        anchors.leftMargin: Theme.spaceAt(6, Theme.spaceScale)
                         anchors.right: parent.right
-                        anchors.rightMargin: Theme.space(8)
+                        anchors.rightMargin: Theme.spaceAt(8, Theme.spaceScale)
                         anchors.verticalCenter: parent.verticalCenter
                         color: row.errorStopped ? row.stateColor : band.textColor
                         elide: Text.ElideRight
