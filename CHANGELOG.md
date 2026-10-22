@@ -25,6 +25,14 @@ before it will tag a release.
   and whose: "an empty file no torrent owns" (often what an earlier failed copy left), or "a
   file of 4.2 GB that NAME owns". On a server whose disks omaseed can't see, it says only
   whose it is.
+- **A big move's details stay inside its band.** "details" on the summary of a move of many
+  torrents listed every one of them down to the bottom of the window, with the details pane
+  and the footer drawn over the list. Long details now take at most a third of the window and
+  scroll inside it (with the arrow keys, j/k, page up/down, home and end once Tab reaches
+  them); the library moves down under them. This holds for every notice with long details.
+- **A moved torrent's later trouble is said in plain words.** The move's record said
+  "later: missingFiles"; it now says "later: missing files · set location… or recheck it", as
+  the table does, and starts where the band's own words end instead of repeating them.
 
 ## v0.3.2 — 2026-10-22
 
