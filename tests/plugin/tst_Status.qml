@@ -386,6 +386,53 @@ TestCase {
         compare(Status.sourceName("magnet:?xt=urn:btih:0123456789ABCDEF"), "magnet 0123456789ab");
     }
 
+    // #148: a bare info hash from a paste is the magnet it stands for; the clipboard probe
+    // (no second argument, or false) leaves it, as a commit id looks the same.
+    function test_addable_takes_a_bare_info_hash_from_a_paste_only() {
+        var v1 = "aabbccddeeff00112233445566778899aabbccdd"
+        var v2 = "0703e91a4e92560200a851c3f8e8283077f2333510bd3723bbaa367577fff0af"
+        var text = v1.toUpperCase() + "\n  VK54ZXPO74ABCIRTIRKWM54ITGVLXTG5 \n" + v2
+                + "\nmagnet:?xt=urn:btih:ABC&dn=Big+Buck"
+        var pasted = Status.addable(text, true)
+        compare(pasted.length, 4)
+        compare(pasted[0], "magnet:?xt=urn:btih:" + v1)
+        // The same hash in base32 (RFC 4648).
+        compare(pasted[1], "magnet:?xt=urn:btih:" + v1)
+        compare(pasted[2], "magnet:?xt=urn:btmh:1220" + v2)
+        compare(pasted[3], "magnet:?xt=urn:btih:ABC&dn=Big+Buck")
+
+        compare(Status.addable(text, false), ["magnet:?xt=urn:btih:ABC&dn=Big+Buck"])
+        compare(Status.addable(text), ["magnet:?xt=urn:btih:ABC&dn=Big+Buck"])
+
+        // Standing alone, in the forms the app reads, and nothing else.
+        var none = [v1.slice(1), v1 + "a", v2.slice(1), v2 + "a", "commit " + v1, v1 + " " + v1,
+                    "https://x.org/" + v1, "vk54zxpo74abcirtirkwm54itgvlxtg5",
+                    "Vk54ZXPO74ABCIRTIRKWM54ITGVLXTG5", "VK54ZXPO74ABCIRTIRKWM54ITGVLXTG1",
+                    v1.slice(1) + "g"]
+        for (var i = 0; i < none.length; i++) {
+            compare(Status.infoHashMagnet(none[i]), "", none[i])
+            verify(Status.addable(none[i], true).every(function(s) { return Status.bareHashOf(s) === "" }), none[i])
+        }
+    }
+
+    function test_a_bare_info_hash_row_is_named_as_one() {
+        var v1 = "aabbccddeeff00112233445566778899aabbccdd"
+        var v2 = "0703e91a4e92560200a851c3f8e8283077f2333510bd3723bbaa367577fff0af"
+        var a = Status.infoHashMagnet(v1)
+        var b = Status.infoHashMagnet(v2)
+        compare(Status.sourceName(a), "info hash aabbccddeeff")
+        compare(Status.sourceName(b), "info hash 0703e91a4e92")
+        compare(Status.sourceKind(a), "magnet")
+        // The app names it by the whole hash until its metadata arrives: the row keeps its name.
+        compare(Status.describedName(a, v1, "info hash aabbccddeeff"), "info hash aabbccddeeff")
+        // Any other source takes the app's name, or keeps its own when there is none.
+        var magnet = "magnet:?xt=urn:btih:" + v1 + "&dn=Big+Buck"
+        compare(Status.sourceName(magnet), "Big Buck")
+        compare(Status.describedName(magnet, "Big Buck Bunny", "Big Buck"), "Big Buck Bunny")
+        compare(Status.describedName(magnet, "", "Big Buck"), "Big Buck")
+        compare(Status.bareHashOf(magnet), "")
+    }
+
     function test_target_folder_follows_automatic_management() {
         var s = sample();
         compare(Status.targetFolder(s, "linux"), "/data/torrents/linux");

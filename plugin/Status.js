@@ -635,18 +635,59 @@ function peak(hour) {
 
 // The sources in a piece of text, one per line: magnet links, http(s) links
 // and .torrent files (a path or a file:// URI). Everything else is dropped.
-function addable(text) {
+// With `takeBareHash` (a paste, never the clipboard probe: a commit id looks
+// the same), a line that is a bare info hash is the magnet it stands for (#148).
+function addable(text, takeBareHash) {
   var out = []
   var lines = String(text || "").split(/[\r\n]+/)
   for (var i = 0; i < lines.length; i++) {
     var line = lines[i].trim()
     if (line === "") continue
-    if (/^magnet:\?/i.test(line) || /^https?:\/\/\S+$/i.test(line)) out.push(line)
+    var hashMagnet = takeBareHash === true ? infoHashMagnet(line) : ""
+    if (hashMagnet !== "") out.push(hashMagnet)
+    else if (/^magnet:\?/i.test(line) || /^https?:\/\/\S+$/i.test(line)) out.push(line)
     else if (/^file:\/\/\S+\.torrent$/i.test(line)) out.push(decodeURIComponent(line.replace(/^file:\/\//i, "")))
     else if (/^\/.+\.torrent$/i.test(line)) out.push(line)
     if (out.length >= 20) break
   }
   return out
+}
+
+// #148: a bare info hash, the whole of `text`, as the magnet it stands for: 40
+// hex or upper-case 32 base32 (v1), 64 hex (v2), the forms the app reads too.
+// Base32 is upper case only, as clients print it. "" for anything else.
+function infoHashMagnet(text) {
+  var hash = String(text || "").trim()
+  if (/^[0-9a-f]{64}$/i.test(hash)) return "magnet:?xt=urn:btmh:1220" + hash.toLowerCase()
+  if (/^[0-9a-f]{40}$/i.test(hash)) return "magnet:?xt=urn:btih:" + hash.toLowerCase()
+  if (/^[A-Z2-7]{32}$/.test(hash)) return "magnet:?xt=urn:btih:" + base32Hex(hash)
+  return ""
+}
+
+// RFC 4648 base32 (upper case, no padding) as lowercase hex: 32 characters are
+// exactly 20 bytes.
+function base32Hex(text) {
+  var alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567"
+  var hex = ""
+  var buffer = 0
+  var bits = 0
+  for (var i = 0; i < text.length; i++) {
+    buffer = ((buffer << 5) | alphabet.indexOf(text.charAt(i))) & 0xfff
+    bits += 5
+    if (bits >= 8) {
+      bits -= 8
+      var byte = (buffer >> bits) & 0xff
+      hex += (byte < 16 ? "0" : "") + byte.toString(16)
+    }
+  }
+  return hex
+}
+
+// The digest of a magnet that is nothing but its hash (the form infoHashMagnet
+// makes), or "".
+function bareHashOf(source) {
+  var m = String(source || "").match(/^magnet:\?xt=urn:bt(?:ih:([0-9a-f]{40})|mh:1220([0-9a-f]{64}))$/i)
+  return m ? (m[1] || m[2]).toLowerCase() : ""
 }
 
 // The kind of a source before the app has described it.
@@ -657,9 +698,11 @@ function sourceKind(source) {
 }
 
 // A name to show before the app has described a source: a magnet's dn, a
-// link's or file's last path segment.
+// link's or file's last path segment, "info hash …" for a bare hash.
 function sourceName(source) {
   var text = String(source || "")
+  var bare = bareHashOf(text)
+  if (bare !== "") return "info hash " + bare.slice(0, 12)
   if (/^magnet:/i.test(text)) {
     var dn = text.match(/[?&]dn=([^&]+)/i)
     if (dn) {
@@ -671,6 +714,14 @@ function sourceName(source) {
   var path = text.replace(/[?#].*$/, "").replace(/\/+$/, "")
   var last = path.slice(path.lastIndexOf("/") + 1)
   try { return decodeURIComponent(last) || text } catch (e) { return last || text }
+}
+
+// The name a row shows once the app has described it (`appName`, "" when it
+// gave none). A bare hash keeps "info hash …": until its metadata arrives, the
+// app knows it by nothing but the hash.
+function describedName(source, appName, current) {
+  if (bareHashOf(source) !== "" || !appName) return current
+  return String(appName)
 }
 
 // What an AddSources answer handed over, added to `previous`: each source that was

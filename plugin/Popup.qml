@@ -342,9 +342,10 @@ Panel {
   }
 
   // Text from ctrl+v (`origin` "pasted") or the clipboard probe ("clipboard"): every
-  // magnet, link or .torrent path in it becomes a row, described by the app.
+  // magnet, link or .torrent path in it becomes a row, described by the app. A bare info
+  // hash only from a paste (#148): on the clipboard it is as likely a commit id.
   function addText(text, origin, unfold) {
-    var sources = Status.addable(text)
+    var sources = Status.addable(text, origin === "pasted")
     if (sources.length === 0) {
       if (origin === "pasted") { addNote = "Nothing to add on the clipboard"; addNoteUrgent = false }
       return
@@ -390,7 +391,7 @@ Panel {
       for (var j = 0; j < next.length; j++) {
         if (next[j].source !== sources[i]) continue
         var row = Object.assign({}, next[j])
-        if (a.name) row.name = String(a.name)
+        row.name = Status.describedName(row.source, a.name, row.name)
         if (a.kind) row.kind = String(a.kind)
         if (typeof a.size === "number" && a.size > 0) row.size = a.size
         row.duplicateOn = a.duplicate ? String(a.duplicateOn || serverName) : ""
