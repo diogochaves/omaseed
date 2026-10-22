@@ -5,9 +5,10 @@
 # copies in the destination and keeps the torrent stalledUP, seeding from the incomplete folder,
 # with no error. omaseed says so: the row's status reads "move failed", General opens with a
 # red block naming the destination, the log's reason, where it is seeding from and the partial
-# copies when it can see them, "show both folders" and "set location…". Then room is made and
-# a recheck moves it (scripts/dev/research/121-stuck-move: a move to the save path it already
-# has does nothing), and the block goes.
+# copies when it can see them, "show both folders", "c recheck" and "set location…". Then room
+# is made and the block's `c recheck` moves it (DECISIONS C28, #158;
+# scripts/dev/research/121-stuck-move: a move to the save path it already has does nothing),
+# and the block goes.
 #
 #   scripts/dev/stuck-walk.sh [OUT_DIR]        # agents: a headless box, a screenshot per step,
 #                                              # OUT_DIR/index.md says what to look for in each
@@ -246,8 +247,9 @@ check "the app shows the torrent" wait_for "the torrent in the table" 30 in_tree
 omabox keys -b "$BOX" --window "$APP_ID" --wait ctrl+k -t "$NAME" Return >/dev/null || true
 check "General opens with the stuck move's block" \
     wait_for "the block's headline" 20 in_tree "Finished, but its files never reached $MOUNT"
-step "Finished, never arrived" "docs/44 M1: the row's status reads ✕ move failed, both in red; General's Status row seeding · move failed. General opens with the red-ruled block: ✕ Finished, but its files never reached $MOUNT; qBittorrent couldn't move them: No space left on device. It's seeding from $INCOMPLETE.; Partial copies may be left in the destination. (the box can't see it); qBittorrent's log · today HH:MM; then show both folders · m set location… · copy the line · its lines in the log. No yellow \"move didn't happen\" block under it."
+step "Finished, never arrived" "docs/44 M1: the row's status reads ✕ move failed, both in red; General's Status row seeding · move failed. General opens with the red-ruled block: ✕ Finished, but its files never reached $MOUNT; qBittorrent couldn't move them: No space left on device. It's seeding from $INCOMPLETE. Once there is room, a recheck moves it there.; Partial copies may be left in the destination. (the box can't see it); qBittorrent's log · today HH:MM; then show both folders · c recheck · m set location… · copy the line · its lines in the log. No yellow \"move didn't happen\" block under it."
 check "unseen, the partial copies may be left: nothing guessed" in_tree "Partial copies may be left in the destination."
+check "the block offers c recheck (C28)" in_tree "recheck"
 
 if click_text "show both folders"; then
     check "Show both folders asked for both" wait_for "two open folder lines" 10 app_logged "show both folders: $INCOMPLETE/$NAME"
@@ -259,12 +261,12 @@ omabox keys -b "$BOX" --window "$APP_ID" --wait m >/dev/null || true
 step "Set location…" "Board 43's sheet for the stuck torrent, as for any move: another place to put it (a move to $MOUNT, where qBittorrent thinks it is, would do nothing). esc closes it; nothing is sent."
 omabox keys -b "$BOX" --window "$APP_ID" --wait Escape >/dev/null || true
 
-# Room made (the filler and the partial copies go), then a recheck: once it checks complete,
-# qBittorrent moves it to its save path. The block goes with it.
+# Room made (the filler and the partial copies go), then the block's `c recheck` (C28, #158):
+# once it checks complete, qBittorrent moves it to its save path. The block goes with it.
 rm -rf -- "${MOUNT:?}/filler.bin" "${MOUNT:?}/$NAME"
-curl -fs "$API/torrents/recheck" -d "hashes=$(torrent_info hash)" >/dev/null
+omabox keys -b "$BOX" --window "$APP_ID" --wait c >/dev/null || true
 arrived() { [[ "$(torrent_info content_path)" == "$MOUNT"/* ]]; }
-check "after a recheck with room made, it moved into the destination" wait_for "the move" 60 arrived
+check "after c recheck with room made, it moved into the destination" wait_for "the move" 60 arrived
 block_gone() { ! in_tree "Finished, but its files never reached"; }
 check "the block went with it" wait_for "the block to go" 20 block_gone
 step "Arrived" "The row reads seeding again (no move failed), General has no red block, its save path $MOUNT."

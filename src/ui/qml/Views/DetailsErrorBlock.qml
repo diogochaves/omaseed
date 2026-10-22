@@ -9,7 +9,8 @@ import Omaseed.Kit
 // actions that fit the cause as clickable key hints. `problem` is TorrentProblem::toMap().
 //
 // docs/44 D13 (#121): a stuck move (`problem.stuckMove`) is red in the same place, with
-// "show both folders" and "set location…", and its partial copies named when they are seen.
+// "show both folders", "c recheck" (DECISIONS C28, #158: once there is room, a recheck moves
+// it) and "set location…", and its partial copies named when they are seen.
 //
 // docs/32 F1–F3 (#55): the same block for a move, rename or part file that failed while the
 // torrent kept working (`problem` is then TorrentFailure::toMap(), which has a `kind`): always

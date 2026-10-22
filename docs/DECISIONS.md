@@ -847,8 +847,9 @@ shows that space and frees it where it can see the disk.
   left" when there are none, otherwise "may be left". *Not as the board drew it:* "Set
   location…" opens board 43's sheet as for any move, not aimed at the destination it never
   reached: qBittorrent ignores a move to the save path it already has, and a recheck is what
-  moves it once room is made (`scripts/dev/research/121-stuck-move`). Whether the block should
-  offer that recheck is #158.
+  moves it once room is made (`scripts/dev/research/121-stuck-move`). The block offers that
+  recheck, `c recheck`, between the two, and says "Once there is room, a recheck moves it
+  there." (C28, #158).
 - **Words (D11):** a timeout reads "home isn't answering" (yellow, waiting); refused or no route
   "home is unreachable" (red). #122. Built: `ErrorWords` gives a timeout the kind `waiting`
   (W1's line, the seconds since the server last replied, `GlobalState::silentSeconds`, and

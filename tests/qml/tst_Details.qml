@@ -57,8 +57,9 @@ TestCase {
         compare(block.hints[1].clickable, true);
     }
 
-    // docs/44 D13 (#121): a stuck move is red in board 28's place: show both folders and set
-    // location…, then the log's links; its partial copies named when they are seen.
+    // docs/44 D13 (#121): a stuck move is red in board 28's place: show both folders, c recheck
+    // (DECISIONS C28, #158) and set location…, then the log's links; its partial copies named
+    // when they are seen.
     function test_a_stuck_move_is_a_red_block() {
         const problem = {
             "found": true,
@@ -69,14 +70,15 @@ TestCase {
             "folder": "It's seeding from /mnt/fast/incomplete.",
             "advice": "Partial copies may be left in the destination.",
             "destination": "/mnt/media/Downloads",
-            "actions": ["bothFolders", "location"]
+            "actions": ["bothFolders", "recheck", "location"]
         };
         const block = createTemporaryObject(errorBlockComponent, testCase, {
                                                 "problem": problem
                                             });
         compare(block.kindColor, Theme.red);
         compare(block.hints.map(hint => (hint.key + " " + hint.label).trim()),
-                ["show both folders", "m set location…", "copy the line", "its lines in the log"]);
+                ["show both folders", "c recheck", "m set location…", "copy the line",
+                 "its lines in the log"]);
         verify(block.hints[0].clickable);
         compare(findChild(block, "errorAdvice").text, "Partial copies may be left in the destination.");
         block.partialText = "Partial copies are left in /mnt/media/Downloads/Album: 699 files, 22 MB.";
@@ -91,7 +93,7 @@ TestCase {
         compare(block.metaText, "");
         verify(!findChild(block, "errorMeta").visible);
         compare(block.hints.map(hint => (hint.key + " " + hint.label).trim()),
-                ["show both folders", "m set location…"]);
+                ["show both folders", "c recheck", "m set location…"]);
     }
 
     function hashOf(name) {

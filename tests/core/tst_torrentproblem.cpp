@@ -470,11 +470,15 @@ void TestTorrentProblem::aStuckMoveSaysWhereAndWhy()
              QStringLiteral("Finished, but its files never reached /mnt/media/Downloads"));
     QCOMPARE(problem.detail,
              QStringLiteral("qBittorrent couldn't move them: No space left on device. It's "
-                            "seeding from /mnt/fast/incomplete."));
+                            "seeding from /mnt/fast/incomplete. Once there is room, a recheck "
+                            "moves it there."));
     QVERIFY(problem.folder.isEmpty());
     QCOMPARE(problem.advice, QStringLiteral("Partial copies may be left in the destination."));
+    // DECISIONS C28 (#158): a recheck is the retry, since a move to the same folder does nothing.
     QCOMPARE(problem.actions,
-             QStringList({QStringLiteral("bothFolders"), QStringLiteral("location")}));
+             QStringList({QStringLiteral("bothFolders"),
+                          QStringLiteral("recheck"),
+                          QStringLiteral("location")}));
     QCOMPARE(problem.destination, QStringLiteral("/mnt/media/Downloads"));
     QCOMPARE(problem.source, QStringLiteral("/mnt/fast/incomplete"));
     QCOMPARE(problem.toMap().value(QStringLiteral("stuckMove")).toBool(), true);
@@ -484,7 +488,8 @@ void TestTorrentProblem::aStuckMoveSaysWhereAndWhy()
     QVERIFY(!unlogged.found);
     QCOMPARE(unlogged.detail,
              QStringLiteral("Its files are still in its incomplete folder. It's seeding from "
-                            "/mnt/fast/incomplete."));
+                            "/mnt/fast/incomplete. Once there is room, a recheck moves it "
+                            "there."));
     QCOMPARE(unlogged.headline, problem.headline);
 }
 
