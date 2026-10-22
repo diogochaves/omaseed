@@ -307,11 +307,14 @@ snapshot source_api "$work/source"
 
 # ---- the walk -----------------------------------------------------------------------------
 
-step "Export from the source" "Settings › qBittorrent (ctrl+shift+,), 0 for Backup, tab, j j to Export torrents, enter: the portal's save dialog proposes ~/torrents-box-<date>.omaseed-torrents; enter saves it."
+# qBittorrent › Backup's rows, top to bottom: Export settings, Import settings, Copy settings
+# from another server (docs/34 D6 a, always there, dim with one server), Export torrents,
+# Import torrents. Tab puts the cursor on the first; each j moves it one row (#94).
+step "Export from the source" "Settings › qBittorrent (ctrl+shift+,), 0 for Backup, tab, j j j past the settings rows and Copy settings to Export torrents, enter: the portal's save dialog proposes ~/torrents-box-<date>.omaseed-torrents; enter saves it."
 keys ctrl+shift+comma
 keys 0
 keys Tab
-keys j j
+keys j j j
 shot "Backup, the torrents group: Export torrents (cursor) says 5 torrents with their save paths…, the files stay where they are, 1 magnet goes in as a link."
 keys Return
 omabox wait -b "$BOX" --timeout 10s window "Export qBittorrent's torrents" >/dev/null 2>&1 || fail "no save dialog"
@@ -355,11 +358,11 @@ count="$(target_api torrents/info | python3 -c 'import json, sys; print(len(json
 if [ "$count" = 0 ]; then pass "the target is empty"; else fail "the target has $count torrents"; fi
 shot "The library on target: empty."
 
-step "Import into the target" "Settings › qBittorrent, 0, tab, j j j to Import torrents, enter; the path typed into the portal's open dialog; the sheet: 4 new, 1 link, the save path row from ~/Torrents; tab to its \"to\", ~/Moved typed."
+step "Import into the target" "Settings › qBittorrent, 0, tab, j j j j to Import torrents, enter; the path typed into the portal's open dialog; the sheet: 4 new, 1 link, the save path row from ~/Torrents; tab to its \"to\", ~/Moved typed."
 keys ctrl+shift+comma
 keys 0
 keys Tab
-keys j j j
+keys j j j j
 keys Return
 omabox wait -b "$BOX" --timeout 10s window "Import qBittorrent's torrents" >/dev/null 2>&1 || fail "no open dialog"
 dialog_keys -t "$EXPORT"
