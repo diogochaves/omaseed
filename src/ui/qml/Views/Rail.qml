@@ -60,6 +60,10 @@ Item {
     readonly property int serversShownMax: 5
 
     property int cursorIndex: 0
+    /// DECISIONS C19 T2 (#135): the cursor's fill shows only while the rail has the keys. A
+    /// click still moves `cursorIndex`, so `j`/`k` start from the row clicked, but until the
+    /// rail gets the keys only the selection is painted.
+    readonly property int shownCursor: root.activeFocus ? root.cursorIndex : -1
     /// The folded groups: any of "status", "categories", "folders", "tags", "trackers",
     /// "servers".
     property var collapsedGroups: []
@@ -339,7 +343,8 @@ Item {
     }
 
     /// A click on a row: the cursor goes there too, so the old cursor row loses its fill and
-    /// the next `j`/`k` starts from the row clicked.
+    /// the next `j`/`k` starts from the row clicked (its fill shows once the rail has the
+    /// keys, C19 T2).
     function clickRow(index: int): void {
         if (index < 0)
             return;
@@ -493,7 +498,7 @@ Item {
 
                 collapsed: root.statusFolded
                 count: root.counts.total
-                hasCursor: root.cursorIndex === statusGroup.globalIndex
+                hasCursor: root.shownCursor === statusGroup.globalIndex
                 label: qsTr("status")
                 width: content.width
 
@@ -517,7 +522,7 @@ Item {
 
                         count: statusDelegate.modelData.count
                         glyph: statusDelegate.modelData.glyph
-                        hasCursor: root.cursorIndex === statusDelegate.globalIndex
+                        hasCursor: root.shownCursor === statusDelegate.globalIndex
                         // Every group always shows its answer: with no status filter, "all"
                         // is the selected row (docs/08 §5; the spec's RAIL array never
                         // selected it, REVIEW §9).
@@ -544,7 +549,7 @@ Item {
 
                 collapsed: root.categoriesFolded
                 count: root.categoriesNamedCount
-                hasCursor: root.cursorIndex === categoriesGroup.globalIndex
+                hasCursor: root.shownCursor === categoriesGroup.globalIndex
                 label: qsTr("categories")
                 width: content.width
 
@@ -561,7 +566,7 @@ Item {
                                                                                root.categoriesBase
 
                     count: root.counts.total
-                    hasCursor: root.cursorIndex === categoriesAll.globalIndex
+                    hasCursor: root.shownCursor === categoriesAll.globalIndex
                     // Selected while the group has no filter, like the status "all" row.
                     selected: root.filtered.category === undefined
                     text: qsTr("all")
@@ -591,7 +596,7 @@ Item {
 
                         count: root._categoryCount(categoryDelegate.name, root.counts.revision)
                         glyph: Glyphs.category
-                        hasCursor: root.cursorIndex === categoryDelegate.globalIndex
+                        hasCursor: root.shownCursor === categoryDelegate.globalIndex
                         selected: root.filtered.category === categoryDelegate.name
                         text: categoryDelegate.name
                         visible: !root.categoriesFolded
@@ -620,7 +625,7 @@ Item {
 
                     count: root.counts.uncategorised
                     glyph: "·"
-                    hasCursor: root.cursorIndex === categoriesNone.globalIndex
+                    hasCursor: root.shownCursor === categoriesNone.globalIndex
                     selected: root.filtered.category === ""
                     text: qsTr("none")
                     visible: root.categoriesNoneVisible && !root.categoriesFolded
@@ -643,7 +648,7 @@ Item {
 
                 collapsed: root.foldersFolded
                 count: root.foldersRowCount
-                hasCursor: root.cursorIndex === foldersGroup.globalIndex
+                hasCursor: root.shownCursor === foldersGroup.globalIndex
                 label: qsTr("folders")
                 visible: root.foldersRowCount > 0
                 width: content.width
@@ -684,7 +689,7 @@ Item {
                                                                                    : Glyphs.chevronDown)
                                                           : Glyphs.middot
                         glyphClickable: folderDelegate.hasChildren
-                        hasCursor: root.cursorIndex === folderDelegate.globalIndex
+                        hasCursor: root.shownCursor === folderDelegate.globalIndex
                         indent: folderDelegate.depth
                         objectName: "folderRow-" + folderDelegate.path
                         selected: root.filtered.folder === folderDelegate.path
@@ -718,7 +723,7 @@ Item {
 
                 collapsed: root.tagsFolded
                 count: root.tagsNamedCount
-                hasCursor: root.cursorIndex === tagsGroup.globalIndex
+                hasCursor: root.shownCursor === tagsGroup.globalIndex
                 label: qsTr("tags")
                 width: content.width
 
@@ -733,7 +738,7 @@ Item {
                     readonly property int globalIndex: root.tagsFolded ? -1 : root.tagsBase
 
                     count: root.counts.total
-                    hasCursor: root.cursorIndex === tagsAll.globalIndex
+                    hasCursor: root.shownCursor === tagsAll.globalIndex
                     selected: root.filtered.tag === undefined
                     text: qsTr("all")
                     visible: !root.tagsFolded
@@ -759,7 +764,7 @@ Item {
 
                         count: root._tagCount(tagDelegate.name, root.counts.revision)
                         glyph: Glyphs.tag
-                        hasCursor: root.cursorIndex === tagDelegate.globalIndex
+                        hasCursor: root.shownCursor === tagDelegate.globalIndex
                         selected: root.filtered.tag === tagDelegate.name
                         text: tagDelegate.name
                         visible: !root.tagsFolded
@@ -785,7 +790,7 @@ Item {
 
                     count: root.counts.untagged
                     glyph: "·"
-                    hasCursor: root.cursorIndex === tagsUntagged.globalIndex
+                    hasCursor: root.shownCursor === tagsUntagged.globalIndex
                     selected: root.filtered.tag === ""
                     text: qsTr("untagged")
                     visible: root.tagsUntaggedVisible && !root.tagsFolded
@@ -808,7 +813,7 @@ Item {
 
                 collapsed: root.trackersFolded
                 count: root.trackersNamedCount
-                hasCursor: root.cursorIndex === trackersGroup.globalIndex
+                hasCursor: root.shownCursor === trackersGroup.globalIndex
                 label: qsTr("trackers")
                 width: content.width
 
@@ -824,7 +829,7 @@ Item {
                     readonly property int globalIndex: root.trackersFolded ? -1 : root.trackersBase
 
                     count: root.counts.total
-                    hasCursor: root.cursorIndex === trackersAll.globalIndex
+                    hasCursor: root.shownCursor === trackersAll.globalIndex
                     selected: root.filtered.tracker === undefined
                     text: qsTr("all")
                     visible: !root.trackersFolded
@@ -857,7 +862,7 @@ Item {
                         Accessible.name: trackerDelegate.host
                         count: trackerDelegate.torrentCount
                         glyph: trackerDelegate.isTrackerless ? "·" : Glyphs.tracker
-                        hasCursor: root.cursorIndex === trackerDelegate.globalIndex
+                        hasCursor: root.shownCursor === trackerDelegate.globalIndex
                         elideLeft: root.trackerHostStyle === "left"
                         selected: root.filtered.tracker === trackerDelegate.host
                         text: trackerDelegate.isTrackerless ? trackerDelegate.host :
@@ -1053,7 +1058,7 @@ Item {
                 countText: qsTr("%n servers", "", root.serversRowCount)
                 glyph: Glyphs.dot
                 glyphColor: root._serverDotColor(root._currentServer.serverState || "")
-                hasCursor: root.cursorIndex === serversFoldedLine.globalIndex
+                hasCursor: root.shownCursor === serversFoldedLine.globalIndex
                 objectName: "serversFoldedLine"
                 text: (root._currentServer.name || "") + " " + Glyphs.chevronUp
                 visible: root.serversShownFolded
@@ -1089,7 +1094,7 @@ Item {
                     countText: serverDelegate.countLabel
                     glyph: Glyphs.dot
                     glyphColor: root._serverDotColor(serverDelegate.serverState)
-                    hasCursor: root.cursorIndex === serverDelegate.globalIndex
+                    hasCursor: root.shownCursor === serverDelegate.globalIndex
                     objectName: "serverRow-" + serverDelegate.name
                     selected: serverDelegate.isDefault
                     text: serverDelegate.name
@@ -1120,7 +1125,7 @@ Item {
                                             root.serversRowCount - root.serversListed).arg("ctrl+s")
                 Accessible.name: qsTr("more servers")
                 glyph: "…"
-                hasCursor: root.cursorIndex === serversMoreRow.globalIndex
+                hasCursor: root.shownCursor === serversMoreRow.globalIndex
                 objectName: "serversMoreRow"
                 text: qsTr("%1 more · ctrl+s").arg(root.serversRowCount - root.serversListed)
                 visible: !root.serversShownFolded && root.serversMore

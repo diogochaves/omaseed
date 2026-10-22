@@ -763,6 +763,15 @@ TestCase {
         mouseClick(row); // picked again: the filter goes
         compare(App.filtered.folder, "");
         verify(!view.moveScope.visible);
+        // C19 T2 (#135): the keys stayed in the table, so the row keeps no cursor fill; they
+        // come to the rail and the cursor shows on the row clicked.
+        verify(!view.rail.activeFocus);
+        compare(row.selected, false);
+        compare(row.hasCursor, false);
+        view.rail.forceActiveFocus();
+        compare(row.hasCursor, true);
+        view.table.forceActiveFocus();
+        compare(row.hasCursor, false);
     }
 
     // Board 42 S1 (M4–M9): shift+m opens the sheet on the folder; the field is its new path,

@@ -205,6 +205,9 @@ before it will tag a release.
 
 ### Fixed
 
+- The rail's keyboard cursor is painted only while the rail has the keys: a row clicked (a
+  folder picked and cleared, say) no longer keeps a fill that reads as picked. The click still
+  moves the cursor, so `j`/`k` start there (DECISIONS C19 T2, #135).
 - The Move sheet's writing check names the folder the torrents go to, as boards 42 and 43
   draw it, not the drive it is on: "the owner of these files can't write to
   /tmp/locked/dest", not "… to /tmp". A folder that doesn't exist yet is named with the one
