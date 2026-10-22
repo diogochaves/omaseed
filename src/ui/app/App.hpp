@@ -23,6 +23,7 @@
 //
 // App owns no view state (cursor, selection, open sheets): that belongs to the QML side.
 
+#include "core/ActionOutcome.hpp"
 #include "core/AddFilesModel.hpp"
 #include "core/AltSpeed.hpp"
 #include "core/AutoBackup.hpp"
@@ -1878,6 +1879,11 @@ public:
     /// sentence is its `sentence`, and its "details" open the band with the rest.
     Q_PROPERTY(QVariantMap actionFailure READ actionFailure NOTIFY actionFailureChanged)
     QVariantMap actionFailure() const { return m_actionFailure; }
+    /// DECISIONS C18 D1–D3 (board 45 §2): what a quick action on torrents came to, for the
+    /// strip in the selection bar's place and the rows' marks. Every action on torrents from
+    /// the table says it there (D2), not in the footer.
+    Q_PROPERTY(omaseed::core::ActionOutcomes *outcomes READ outcomes CONSTANT)
+    omaseed::core::ActionOutcomes *outcomes() const { return m_outcomes; }
 
 Q_SIGNALS:
     void serverStateChanged();
@@ -1922,6 +1928,16 @@ private:
                               const QString &torrent = QString(),
                               const QString &folder = QString());
     QVariantMap m_actionFailure;
+    omaseed::core::ActionOutcomes *m_outcomes = new omaseed::core::ActionOutcomes(this);
+    /// C18 D2: the answer to a table action on `hashes`, for `QbtReply::then`. Once `calls`
+    /// answers are in (limits takes up to three requests), the strip says how it went, in
+    /// ErrorWords' words when one failed. The torrent's name is read now, while it is still
+    /// in the list (a delete).
+    std::function<void(const omaseed::core::QbtResult<QByteArray> &)>
+    tableAnswer(const QString &action,
+                const QStringList &hashes,
+                const QString &target = QString(),
+                int calls = 1);
 
     bool m_serverRefused = false;
     /// What `serverLost` last said, so it notifies only when it moves.

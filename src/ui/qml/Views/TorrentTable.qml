@@ -494,6 +494,12 @@ Item {
     /// `hash => {text, glyph, kind}`; called again when `moveRevision` moves.
     property var moveStepFor: null
     property int moveRevision: 0
+    /// DECISIONS C18 D1: a quick action's mark in the row's status cell, `hash => {text,
+    /// kind ("done" or "failed")}` ({} for none); called again when `rowMarkRevision` moves.
+    property var rowMarkFor: null
+    property int rowMarkRevision: 0
+    /// C18 D3: `esc` goes to the host first (the outcome strip's), even with a selection on.
+    property bool escapeTaken: false
     readonly property var _moveColumnSpec: ({
                                                 "key": "move",
                                                 "title": qsTr("Move"),
@@ -888,6 +894,19 @@ Item {
         internal.refreshSelection();
     }
 
+    /// C18 (board 45 O3): the outcome strip's "show" selects the torrents it is about, those
+    /// the filter shows.
+    function selectHashes(hashes: var): void {
+        root.selection.clearSelection();
+        for (const hash of hashes) {
+            const row = root.filtered.rowOfHash(hash);
+            if (row >= 0)
+                internal.selectRow(row, ItemSelectionModel.Select);
+        }
+        internal.anchorHash = hashes.length > 0 ? hashes[0] : "";
+        internal.refreshSelection();
+    }
+
     function toggleSelection(index: int): void {
         internal.selectRow(index, ItemSelectionModel.Toggle);
         internal.anchorHash = root.filtered.hashAt(index);
@@ -1027,7 +1046,7 @@ Item {
             root.selectAll();
             break;
         case Qt.Key_Escape:
-            if (root.selectedCount > 0)
+            if (root.selectedCount > 0 && !root.escapeTaken)
                 root.clearSelection();
             else
                 root.escapePressed();
@@ -1472,6 +1491,23 @@ Item {
                 const glyph = root.statusGlyphs[row.stateText];
                 return glyph !== undefined ? glyph : Glyphs.dot;
             }
+            /// DECISIONS C18 D1 (board 45 O1, O2): a quick action's mark, `{text, kind}`, for
+            /// its 6 s or while its failure stands; else a move the log says didn't happen,
+            /// for as long as its error block does. null for none.
+            readonly property var mark: {
+                const own = root.rowMarkFor !== null && root.rowMarkRevision >= 0
+                          ? root.rowMarkFor(row.hash) : ({});
+                if (own.text !== undefined)
+                    return own;
+                const failure = row.model.failure;
+                return failure !== undefined && failure !== null && failure.kind === "move"
+                       ? {
+                             "text": qsTr("didn't move"),
+                             "kind": "failed"
+                         } : null;
+            }
+            readonly property color markColor: row.mark !== null && row.mark.kind === "failed" ? Theme.red
+                                                                                              : Theme.green
 
             /// A left click on the row with `modifiers`: the pointer's, and a screen reader's
             /// press (#77), which is a plain one.
@@ -1763,11 +1799,13 @@ Item {
                         anchors.left: parent.left
                         anchors.leftMargin: Theme.spaceAt(8, Theme.spaceScale)
                         anchors.verticalCenter: parent.verticalCenter
-                        color: row.stuckMove ? Theme.stateError : row.stateColor
+                        color: row.mark !== null ? row.markColor : row.stuckMove ? Theme.stateError
+                                                                                 : row.stateColor
                         height: Theme.font.body
                         objectName: "statusGlyph_" + row.index
                         pixelSize: Theme.font.body
-                        text: row.stuckMove ? Glyphs.close : row.statusGlyph
+                        text: row.mark !== null ? (row.mark.kind === "failed" ? "✕" : "✓")
+                                                : row.stuckMove ? Glyphs.close : row.statusGlyph
                         width: Theme.spaceAt(12, Theme.spaceScale)
                     }
 
@@ -1779,12 +1817,15 @@ Item {
                         anchors.right: parent.right
                         anchors.rightMargin: Theme.spaceAt(8, Theme.spaceScale)
                         anchors.verticalCenter: parent.verticalCenter
-                        color: row.stuckMove ? Theme.stateError : row.errorStopped ? row.stateColor : band.textColor
+                        color: row.mark !== null ? row.markColor : row.stuckMove ? Theme.stateError
+                                                                                 : row.errorStopped ? row.stateColor
+                                                                                                    : band.textColor
                         elide: Text.ElideRight
                         font.family: Theme.fontFamily
                         font.pixelSize: Theme.font.body
                         objectName: "status_" + row.index
-                        text: root.statusWord(row.statusCause.length > 0 ? row.statusCause : row.stateText)
+                        text: row.mark !== null ? row.mark.text
+                                                : root.statusWord(row.statusCause.length > 0 ? row.statusCause : row.stateText)
                     }
                 }
 

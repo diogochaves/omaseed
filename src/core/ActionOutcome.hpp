@@ -91,6 +91,8 @@ public:
     /// The strip with this `serial` went (its time ran out): dismiss() unless another took
     /// its place meanwhile.
     Q_INVOKABLE void expire(int serial);
+    /// The strip and every mark go at once: another server's torrents, or a fresh start.
+    Q_INVOKABLE void clear();
     /// A row's mark: `{text, kind ("done" or "failed")}`, empty for none.
     Q_INVOKABLE QVariantMap rowMark(const QString &hash) const;
 

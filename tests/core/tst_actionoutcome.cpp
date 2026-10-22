@@ -235,6 +235,15 @@ private Q_SLOTS:
                  QStringLiteral("done"));
     }
 
+    void clearTakesEverything()
+    {
+        ActionOutcomes outcomes;
+        outcomes.report(outcome(QStringLiteral("stop"), {QStringLiteral("a")}));
+        outcomes.clear();
+        QVERIFY(outcomes.current().isEmpty());
+        QVERIFY(outcomes.rowMark(QStringLiteral("a")).isEmpty());
+    }
+
     void fromAMap()
     {
         ActionOutcomes outcomes;

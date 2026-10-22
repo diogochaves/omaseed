@@ -76,6 +76,7 @@ qt_add_qml_module(omaseed-views
         MoveRecheckSheet.qml
         FreeSpaceSheet.qml
         MoveSheet.qml
+        OutcomeStrip.qml
         QbtImportSheet.qml
         QbtListSheet.qml
         QbtSettingRow.qml

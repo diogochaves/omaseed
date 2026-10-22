@@ -254,6 +254,19 @@ void ActionOutcomes::expire(int serial)
         dismiss();
 }
 
+void ActionOutcomes::clear()
+{
+    ++m_serial; // a done strip's time running out names an older serial now
+    const bool hadMarks = !m_marks.isEmpty();
+    m_marks.clear();
+    if (!m_current.isEmpty()) {
+        m_current.clear();
+        Q_EMIT currentChanged();
+    }
+    if (hadMarks)
+        bumpRevision();
+}
+
 QVariantMap ActionOutcomes::rowMark(const QString &hash) const
 {
     const auto it = m_marks.constFind(hash);

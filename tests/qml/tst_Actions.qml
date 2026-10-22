@@ -49,6 +49,7 @@ TestCase {
         view.table.forceActiveFocus();
         view.deleteConfirmPanel.close();
         view.moveSheet.close();
+        App.outcomes.clear();
         view.leaveMoveShow();
         view.moveSheet.close();
         App.filtered.folder = "";
@@ -561,12 +562,117 @@ TestCase {
         compare(sheet.opened, false);
     }
 
-    // C16 L7: a move that landed before its band showed is said in the footer, with a ✓.
-    function test_a_landed_move_says_so_in_the_footer() {
-        App.move.note("2 moved to /mnt/fast/films", [], false);
-        compare(view.footerNote, "2 moved to /mnt/fast/films");
-        compare(findChild(view, "footerNoteMark").text, "✓");
-        compare(findChild(view, "footerNoteMark").color, Theme.green);
+    /// The strip's rows place their words on the next polish: before it, a click lands on
+    /// the wrong word.
+    function stripLaidOut(strip) {
+        waitForItemPolished(findChild(strip, "outcomeContent"));
+        waitForItemPolished(findChild(strip, "outcomeActions"));
+    }
+
+    // DECISIONS C18 D1 (changes C16 L7): a move that landed before its band showed is said in
+    // the strip in the selection bar's place, and on its row; the footer keeps quiet.
+    function test_a_landed_move_says_so_in_the_strip() {
+        const hash = App.filtered.hashAt(0);
+        const name = App.torrentRow(hash).name;
+        view.footerNote = "";
+        App.move.outcome({
+                             "action": "move",
+                             "hashes": [hash],
+                             "name": name,
+                             "target": "/mnt/fast/films"
+                         });
+        const strip = view.outcomeStrip;
+        verify(strip.visible);
+        compare(findChild(strip, "outcomeHeadline").text, name + " moved to /mnt/fast/films");
+        compare(findChild(strip, "outcomeMark").text, "✓");
+        compare(findChild(strip, "outcomeMark").color, Theme.green);
+        verify(findChild(strip, "outcomeShow").visible);
+        compare(view.footerNote, "");
+        // The row says it in its status cell, in green.
+        compare(findChild(view.table, "status_0").text, "moved · films");
+        compare(findChild(view.table, "statusGlyph_0").text, "✓");
+        // esc closes it, before anything else.
+        view.table.forceActiveFocus();
+        keyClick(Qt.Key_Escape);
+        verify(!strip.visible);
+    }
+
+    // C18 D1, D3 (O2): a failure is red, names the torrent and why, offers move… again, and
+    // stays until × or the next action.
+    function test_a_failed_move_stays_in_the_strip() {
+        const hash = App.filtered.hashAt(1);
+        const name = App.torrentRow(hash).name;
+        App.move.outcome({
+                             "action": "move",
+                             "hashes": [hash],
+                             "failedHashes": [hash],
+                             "name": name,
+                             "failedName": name,
+                             "target": "/locked/dest",
+                             "cause": "qBittorrent can't write to /locked/dest",
+                             "details": "File error alert"
+                         });
+        const strip = view.outcomeStrip;
+        verify(strip.visible);
+        compare(findChild(strip, "outcomeHeadline").text, name + " didn't move");
+        compare(findChild(strip, "outcomeLine").text, "qBittorrent can't write to /locked/dest");
+        compare(findChild(strip, "outcomeMark").color, Theme.red);
+        verify(findChild(strip, "outcomeMove").visible);
+        verify(!findChild(strip, "outcomeShow").visible);
+        compare(findChild(view.table, "status_1").text, "didn't move");
+        // The run-down line belongs to a done strip only.
+        verify(!findChild(strip, "outcomeTimeLine").visible);
+        // "details" opens the band above the strip, the same band as the footer's.
+        stripLaidOut(strip);
+        mouseClick(findChild(strip, "outcomeDetails"));
+        verify(view.footerNoticeOpen);
+        const band = findChild(view, "footerNotice");
+        verify(band.mapToItem(view, 0, band.height).y <= strip.mapToItem(view, 0, 0).y + 1,
+               "the band sits above the strip");
+        // The next action takes its place; ×, the strip goes.
+        App.outcomes.reportMap({
+                                   "action": "stop",
+                                   "hashes": [hash],
+                                   "name": name
+                               });
+        verify(!view.footerNoticeOpen, "the band went with its strip");
+        compare(findChild(strip, "outcomeHeadline").text, name + " stopped");
+        compare(findChild(view.table, "status_1").text, "stopped");
+        stripLaidOut(strip);
+        mouseClick(findChild(strip, "outcomeClose"));
+        verify(!strip.visible);
+    }
+
+    // C18 D3 (O3): several at once are counts, yellow when some failed; "show" selects them.
+    function test_several_are_counts_and_show_selects_them() {
+        const hashes = [App.filtered.hashAt(0), App.filtered.hashAt(1), App.filtered.hashAt(2)];
+        App.outcomes.reportMap({
+                                   "action": "move",
+                                   "hashes": hashes,
+                                   "failedHashes": [hashes[2]],
+                                   "failedName": App.torrentRow(hashes[2]).name,
+                                   "target": "/mnt/fast/keep",
+                                   "cause": "no room on /mnt/fast"
+                               });
+        const strip = view.outcomeStrip;
+        compare(findChild(strip, "outcomeHeadline").text, "2 moved to /mnt/fast/keep, 1 didn't");
+        compare(findChild(strip, "outcomeMark").text, "!");
+        compare(findChild(strip, "outcomeMark").color, Theme.yellow);
+        stripLaidOut(strip);
+        mouseClick(findChild(strip, "outcomeShow"));
+        compare(view.table.selectedCount, 2);
+        compare(view.table.selectedHashes().sort(), [hashes[0], hashes[1]].sort());
+        // With a selection on, the strip sits just above the selection bar.
+        verify(view.selectionBar.visible);
+        verify(strip.mapToItem(view, 0, strip.height).y <= view.selectionBar.mapToItem(view, 0, 0).y,
+               "the strip sits above the bar");
+        // esc closes the strip first; the selection stays.
+        view.table.forceActiveFocus();
+        keyClick(Qt.Key_Escape);
+        verify(!strip.visible);
+        compare(view.table.selectedCount, 2);
+        keyClick(Qt.Key_Escape);
+        compare(view.table.selectedCount, 0);
     }
 
     function test_a_category_change_that_moves_shared_files_asks_first() {

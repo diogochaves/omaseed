@@ -154,6 +154,10 @@ void MoveController::attachJob()
     m_job->setReplan([this](const QJsonObject &spec) { return replan(spec); });
     connect(m_job.get(), &MoveJob::queuedDropped, this, [this](const QString &title) {
         Q_EMIT note(tr("%1 wasn't moved: nothing in it can move any more").arg(title), {}, true);
+        Q_EMIT outcome({{QStringLiteral("action"), QStringLiteral("move")},
+                        {QStringLiteral("name"), title},
+                        {QStringLiteral("failedName"), title},
+                        {QStringLiteral("cause"), tr("nothing in it can move any more")}});
     });
     if (m_hooks.engine != nullptr) {
         m_feed = std::make_unique<core::QbtMoveFeed>(m_hooks.engine, m_job.get());
@@ -458,10 +462,18 @@ bool MoveController::startSpec(const QJsonObject &spec)
         QString why = words.value(QStringLiteral("blocker")).toString();
         if (why.isEmpty())
             why = tr("nothing to move");
-        Q_EMIT note(
-            tr("%1 wasn't moved: %2").arg(spec.value(QStringLiteral("title")).toString(), why),
-            plan.leftOut() + plan.intoItself() + plan.movedSince(),
-            true);
+        const QString title = spec.value(QStringLiteral("title")).toString();
+        const QStringList about = plan.leftOut() + plan.intoItself() + plan.movedSince();
+        Q_EMIT note(tr("%1 wasn't moved: %2").arg(title, why), about, true);
+        // C18 D1: the strip names it by its title ("games", "3 torrents"), never a list.
+        Q_EMIT outcome(
+            {{QStringLiteral("action"), QStringLiteral("move")},
+             {QStringLiteral("hashes"), about},
+             {QStringLiteral("failedHashes"), about},
+             {QStringLiteral("name"), title},
+             {QStringLiteral("failedName"), title},
+             {QStringLiteral("target"), spec.value(QStringLiteral("newPath")).toString()},
+             {QStringLiteral("cause"), why}});
         return false;
     }
     // The last job's summary: move back and retry are its own actions and take its place
@@ -1375,6 +1387,38 @@ QString MoveController::detailsText() const
     return lines.join(QLatin1Char('\n'));
 }
 
+QVariantMap MoveController::quietOutcome(const MoveJob::Summary &summary,
+                                         const QString &cause,
+                                         const QString &details) const
+{
+    // C18 D1, D3: the torrents it sent, the ones that didn't land, and the first of those
+    // by name for the line. Left-out ones were never sent: the plan said so before.
+    QStringList hashes;
+    QString name;
+    QString failedName;
+    for (const MoveJob::Entry &entry : m_job->entries()) {
+        const bool failed = summary.failedHashes.contains(entry.hash);
+        if (entry.step != MoveJob::Step::Moved && !failed)
+            continue;
+        hashes << entry.hash;
+        name = entry.name;
+    }
+    if (!summary.failedHashes.isEmpty()) {
+        if (const MoveJob::Entry *first = m_job->entry(summary.failedHashes.constFirst()))
+            failedName = first->name;
+    }
+    return {{QStringLiteral("action"),
+             m_job->kind() == QLatin1String("back") ? QStringLiteral("moveBack")
+                                                    : QStringLiteral("move")},
+            {QStringLiteral("hashes"), hashes},
+            {QStringLiteral("failedHashes"), summary.failedHashes},
+            {QStringLiteral("name"), hashes.size() == 1 ? name : QString()},
+            {QStringLiteral("failedName"), failedName},
+            {QStringLiteral("target"), m_job->newPath()},
+            {QStringLiteral("cause"), cause},
+            {QStringLiteral("details"), details}};
+}
+
 void MoveController::onFinished()
 {
     bump();
@@ -1399,6 +1443,7 @@ void MoveController::onFinished()
                                            : tr("%1 %2").arg(summary.moved).arg(where),
                         m_job->hashes(),
                         false);
+            Q_EMIT outcome(quietOutcome(summary, QString(), QString()));
         } else {
             const MoveJob::Entry *first = m_job->entry(summary.failedHashes.constFirst());
             QString why = first == nullptr ? QString() : first->reason;
@@ -1416,6 +1461,7 @@ void MoveController::onFinished()
                                   .arg(why),
                         summary.failedHashes,
                         true);
+            Q_EMIT outcome(quietOutcome(summary, why, first == nullptr ? QString() : first->line));
         }
         closeQuietSummary();
         return;

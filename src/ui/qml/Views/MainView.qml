@@ -48,6 +48,7 @@ Item {
     /// C19 T3: the rail folder row's menu.
     readonly property alias folderMenuPanel: folderMenuPanel
     readonly property alias selectionBar: selectionBar
+    readonly property alias outcomeStrip: outcomeStrip
     readonly property alias deleteConfirmPanel: deleteConfirmPanel
     readonly property alias moveSheet: moveSheet
     readonly property alias moveBand: moveBand
@@ -646,6 +647,11 @@ Item {
 
     /// `esc`, in the order Fig. 26 promises: clear, then filter, then close.
     function handleEscape(): void {
+        // DECISIONS C18 D3: esc closes the outcome strip first, as its × does.
+        if (outcomeStrip.visible) {
+            App.outcomes.dismiss();
+            return;
+        }
         if (root.moveShowing && table.selectedCount === 0) {
             root.leaveMoveShow();
             return;
@@ -2130,8 +2136,15 @@ Item {
                 showMoveColumn: root.moveShowingJob
                 moveRevision: App.move.revision
                 moveStepFor: hash => App.move.stepFor(hash)
-                // docs/17 M9.6: the last row can always scroll clear of the selection bar.
-                bottomRoom: selectionBar.visible ? selectionBar.height + Theme.space(12) : 0
+                // DECISIONS C18 D1: a quick action's mark in its rows' status cells.
+                rowMarkRevision: App.outcomes.revision
+                rowMarkFor: hash => App.outcomes.rowMark(hash)
+                escapeTaken: outcomeStrip.visible
+                // docs/17 M9.6: the last row can always scroll clear of the selection bar, and
+                // of the outcome strip over it (C18 D1).
+                bottomRoom: (selectionBar.visible ? selectionBar.height + Theme.space(12) : 0)
+                            + (outcomeStrip.visible ? outcomeStrip.height + Theme.space(selectionBar.visible ? 6 : 12)
+                                                    : 0)
                 filtered: App.filtered
                 // #51 D9: rows hold still under the open actions menu, for D17's right-click.
                 holdOrder: actionsMenuPanel.opened
@@ -2218,12 +2231,36 @@ Item {
                 onTriggered: action => root.selectionBarAction(action)
             }
 
+            // DECISIONS C18 D1–D3 (board 45 §2): what a quick action on torrents came to, in
+            // the selection bar's place. While a selection is on it sits just above the bar,
+            // so both read together and nothing moves under the pointer (O3).
+            OutcomeStrip {
+                id: outcomeStrip
+
+                anchors.bottom: selectionBar.visible ? selectionBar.top : table.bottom
+                anchors.bottomMargin: Theme.space(selectionBar.visible ? 6 : 12)
+                anchors.horizontalCenter: table.horizontalCenter
+                availableWidth: table.width - Theme.space(16)
+                height: implicitHeight
+                outcome: App.outcomes.current
+                reducedMotion: App.reducedMotion
+                visible: outcomeStrip.shown && table.visible && !root.serverLost
+                width: implicitWidth
+
+                onCloseRequested: App.outcomes.dismiss()
+                onDetailsRequested: root.openOutcomeDetails()
+                onExpired: serial => App.outcomes.expire(serial)
+                onMoveRequested: (hashes, target) => moveSheet.openSelection(hashes, target)
+                onShowRequested: hashes => root.showOutcome(hashes)
+            }
+
             // #24 T7: seeding moments in the bar's spot, while nothing is selected.
             // a11y-ignore A1: it names itself by the moment it shows, pushed at run time (#77)
             SeedToast {
                 id: seedToast
 
                 allowed: table.selectedCount === 0 && table.visible && !root.serverLost && root.view === "library"
+                         && !outcomeStrip.visible
                 anchors.bottom: table.bottom
                 anchors.bottomMargin: Theme.space(12)
                 anchors.horizontalCenter: table.horizontalCenter
@@ -2398,6 +2435,10 @@ Item {
         id: footerNotice
 
         anchors.bottom: footer.top
+        // DECISIONS C18 D2 (changes docs/35 N8): a table action's details open above the
+        // strip, the same band one line higher.
+        anchors.bottomMargin: root.footerFailure.fromStrip === true && outcomeStrip.visible
+                              ? root._outcomeBandLift : 0
         anchors.left: parent.left
         anchors.right: parent.right
         animated: !App.reducedMotion
@@ -2712,8 +2753,6 @@ Item {
     property bool footerNoteWarn: false
     property bool footerNoteHint: false
     readonly property int _footerNoteSeconds: 5
-    /// C16 L7: a landed move's note stays 6 s.
-    property bool _footerNoteLong: false
 
     /// docs/31 F1: the note after A stays until the next key, not for a few seconds.
     property bool footerNoteSticky: false
@@ -2733,17 +2772,66 @@ Item {
         root.footerNoteHint = false;
         root.footerNoteSticky = false;
         root.footerNoteMark = "";
-        root._footerNoteLong = false;
         root.footerNote = text;
         footerNoteTimer.restart();
     }
 
-    /// C16 L7: a quick move landed: its note, with a green ✓, for 6 s.
-    function flashMoveNote(text: string): void {
-        root.flashFooterNote(text);
-        root.footerNoteMark = "✓";
-        root._footerNoteLong = true;
-        footerNoteTimer.restart();
+    // --- DECISIONS C18 D1–D3 (board 45 §2): the outcome strip ---
+    // A quick action on torrents says how it went in the strip in the selection bar's place,
+    // and on its rows (App.outcomes), no longer in the footer's note (C16 L7, L9; C2 D1's
+    // footer sentence; C12 D22 and docs/35 N8 for every table action).
+
+    /// How far the band of the strip's "details" sits above the footer: just over the strip.
+    property real _outcomeBandLift: 0
+
+    /// The strip's "details": the band with the failure's words, above the strip.
+    function openOutcomeDetails(): void {
+        const outcome = App.outcomes.current;
+        if (root.footerNoticeOpen && root.footerFailure.fromStrip === true) {
+            root.footerNoticeOpen = false;
+            return;
+        }
+        root.footerFailure = {
+            "headline": outcome.headline || "",
+            "line": outcome.line || "",
+            "details": outcome.details || "",
+            "fromStrip": true
+        };
+        const top = outcomeStrip.mapToItem(footer.parent, 0, 0).y;
+        root._outcomeBandLift = Math.max(0, footer.y - top + Theme.space(6));
+        root.footerNoticeOpen = true;
+    }
+
+    /// The strip's "show" (O1, O3): the cursor on the one torrent, or the several selected.
+    /// A move that took them out of the rail's folder switches the folder to their new
+    /// place, as the jump palette's pick shows a torrent wherever it is.
+    function showOutcome(hashes: var): void {
+        const present = hashes.filter(hash => App.torrentRow(hash).name !== undefined);
+        if (present.length === 0)
+            return;
+        root.setView("library");
+        root.leaveMoveShow();
+        const first = present[0];
+        if (App.filtered.rowOfHash(first) < 0 && App.filtered.folder.length > 0)
+            App.filtered.folder = App.torrentRow(first).savePath || "";
+        if (present.length === 1) {
+            root.showTorrent(first);
+            return;
+        }
+        if (table.revealHash(first))
+            table.selectHashes(present);
+        root.focusHome();
+    }
+
+    Connections {
+        // The strip went or another took its place (×, esc, its time, the next action): its
+        // band goes with it.
+        function onCurrentChanged(): void {
+            if (root.footerFailure.fromStrip === true)
+                root.footerNoticeOpen = false;
+        }
+
+        target: App.outcomes
     }
 
     // --- docs/31 D7: A, and the footer's note after it ---
@@ -2825,7 +2913,7 @@ Item {
     Timer {
         id: footerNoteTimer
 
-        interval: (root._footerNoteLong ? 6 : root._footerNoteSeconds) * 1000
+        interval: root._footerNoteSeconds * 1000
 
         onTriggered: root.footerNote = ""
     }
@@ -2937,17 +3025,6 @@ Item {
         z: 10
 
         onCopyRequested: text => root.copyText(text, qsTr("copied the list"))
-    }
-
-    // C16 L7: a move that landed before its band showed says so in the footer's note, "2
-    // moved to …", for 6 s. A failed one is App.loggedFailure's (docs/32 N1).
-    Connections {
-        function onNote(text: string, hashes: var, failed: bool): void {
-            if (!failed)
-                root.flashMoveNote(text);
-        }
-
-        target: App.move
     }
 
     FreeSpaceSheet {

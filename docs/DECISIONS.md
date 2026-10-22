@@ -119,7 +119,9 @@ own) are #56, ruled as C3.
   destination), open folder, rename in Files (the cursor on that file), copy the line, dismiss.
 - **D2** After a move, a rename or a delete with files that omaseed asked for, the log is read
   on every poll for 30 s; a failure shows at once in the footer's note line, yellow, one note
-  per action ("3 of 12 didn't move"), then stays as the block.
+  per action ("3 of 12 didn't move"), then stays as the block. *Changed by C18 D1 (v0.4.0):
+  a move's failure is said in the outcome strip, not the footer; a rename's or a delete's
+  files still get this note.*
 - **D3** The block stays until it is fixed (the save path changes; the file is no longer among
   the torrent's files), dismissed with `x`, or qBittorrent restarts (its log is in memory).
 - **D4** Dismissals are kept in `state.json` (`"failures"`), per server, as line keys (id,
@@ -129,7 +131,8 @@ own) are #56, ruled as C3.
   own words and when, or "no errors logged" (never "working"). No block, no notice.
 - **D6** An export failure is a note under "Copy .torrent files to" in Settings › qBittorrent ›
   Downloads, while either export folder is the one the copy tried.
-- **D7** The table does not change.
+- **D7** The table does not change. *Changed by C18 D1 (v0.4.0): a torrent whose move
+  failed reads "✕ didn't move" in its status cell while its block stands.*
 - **D8** None of them is a desktop notice.
 
 The log is read every 15 s while the window shows (failures nobody watched, such as a category
@@ -580,6 +583,9 @@ more a way to the others is always on screen; with one, nothing offers to switch
   until the next key, with "details" opening the band above the footer. The next key (`esc`
   included) closes it and clears the sentence — *confirmed 2026-10-22 (C20)* (the board names esc, a
   click outside and "details" again).
+  *Changed by C18 D2 (v0.4.0): an action on torrents from the table says it in the outcome
+  strip, its "details" opening the same band above the strip. Other actions (the details
+  tabs, settings, an add) keep this sentence.*
 - **The add sheet (#72, D13 a–D15 a, D20 a):** with two servers its title is "Add torrent to" and
   a chip (the server's dot, its name, ▾) that opens the palette, as `ctrl+s` does; the foot never
   says "server: NAME" (one server: "Add torrent", nothing). A switch from the sheet keeps it open
@@ -775,12 +781,14 @@ D2's 30 s watch stays for renames and deletes.
   ROOT is their deepest common folder).
 - **The band (L6):** it appears once a move has run 3 s; a move that lands sooner shows none.
 - **A quick move (L7):** the footer's note line (D2's) says it landed, "2 moved to …", for
-  6 s; no band, no notice.
+  6 s; no band, no notice. *Changed by C18 D1 (v0.4.0): the outcome strip says it, and the
+  row's status cell.*
 - **The notice (L8):** for a selection, one desktop notice only when the band showed and the
   move ran past a minute or the window was hidden at the end. A folder move keeps M16 (always
   one).
 - **Failures (L9):** the log is read for every move's whole life (M15); a failure gets C2 D1's
-  block and the summary's recheck smallest first / retry.
+  block and the summary's recheck smallest first / retry. *Changed by C18 D1 (v0.4.0): a
+  quick move's failure is the red strip, no longer the footer's note.*
 - **Live bytes (L10):** for a torrent moving, MoveJob's growth probe reads the target's file
   sizes every 2 s through the path map and feeds the band's bytes, %, time left and the row;
   without a local view the band says it can't tell.
@@ -892,6 +900,29 @@ closing a move's summary lost "move back". #130.
     where the move put it, so it stays and is listed. v0.3.0.
 - **How long (D8):** the last 20 moves or 30 days, whichever ends first. v0.3.0.
 - **When (D9):** D5, D7 and D8 with v0.3.0; D1–D4 and D6 in v0.4.0.
+
+**Built for v0.4.0 (D1–D4, #130).** `core/ActionOutcome` words the strip and holds the rows'
+marks; `App.outcomes` is it, and every table action reports there once its answer is in (one
+strip for an action of several requests, such as limits). What the board left open, taken as
+its mocks show:
+
+- **The words.** "NAME stopped", "3 stopped", "NAME didn't move", "2 moved to PATH, 1 didn't";
+  the line is ErrorWords' headline for a refusal, the log's reason for a move; "details" (when
+  there is technical text) opens docs/35's band above the strip. A done strip offers "show"
+  (the cursor on the one torrent, or the several selected; a move that took them out of the
+  rail's folder switches the folder to their new place); a failed move offers "move…" again.
+- **The row's mark** is "✓ moved · FOLDER" (the folder's last part), "✓ stopped" and so on in
+  green for 6 s, "✕ didn't …" in red while the strip lasts; a move the log says failed keeps
+  "✕ didn't move" while its error block stands (board 45 O2; this amends C2 D7).
+- **Its time.** The pointer resting on a done strip holds its 6 s, as the seed toast's; esc
+  closes the strip before it clears a selection. The seed toast waits while the strip shows.
+- **Which actions:** start, stop, retry, force start, recheck, reannounce, category, tags,
+  limits, rename, queue, delete, the four options (sequential, first and last, super seeding,
+  automatic management) and quick moves. The details tabs' own actions (trackers, peers, HTTP
+  sources, files) keep the footer, as does a failure the log tells only after the answer (a
+  delete's files, C2 D2).
+- **D4:** the band and summary of a move that ran past 3 s were already under the top bar
+  (C15 M10); nothing moved.
 
 ## C19 — From the second manual pass of the moves (ruled 2026-10-21)
 

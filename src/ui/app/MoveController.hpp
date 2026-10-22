@@ -265,6 +265,10 @@ Q_SIGNALS:
     /// L7: a quiet move landed ("2 moved to /srv/media/games"), or didn't (`failed`: the
     /// torrents it is about); also a move that couldn't start, and a queued one dropped.
     void note(const QString &text, const QStringList &hashes, bool failed);
+    /// DECISIONS C18 D1–D3 (board 45 §2): the same quiet move for the strip, as
+    /// core::ActionOutcome's fields by name (`action` "move" or "moveBack", `hashes`,
+    /// `failedHashes`, `name`, `failedName`, `target`, `cause`, `details`).
+    void outcome(const QVariantMap &outcome);
     void historyChanged();
 
 private:
@@ -275,6 +279,10 @@ private:
     void updateMarks();
     void onJobChanged();
     void onFinished();
+    /// C18 D1: a quiet move's outcome for the strip (see outcome()).
+    QVariantMap quietOutcome(const core::MoveJob::Summary &summary,
+                             const QString &cause,
+                             const QString &details) const;
     void onPausedItself(core::MoveJob::PauseReason reason);
     void onCarryWanted();
     void onCarryRan(const QString &serverId,

@@ -33,6 +33,9 @@ Three static libraries and the executable. Each layer only depends on the ones a
 - `ErrorWords` is the one table of plain words for what went wrong: an `ApiError` and what it
   was about become a headline naming the server or torrent, a line on what happens next, and
   the technical text for "details" ([DECISIONS.md](DECISIONS.md) C12).
+- `ActionOutcome` words what a quick action on torrents came to ("3 stopped", "NAME didn't
+  move", "2 moved to PATH, 1 didn't"), and `ActionOutcomes` holds the one strip on show and
+  each row's mark, for the strip in the selection bar's place (C18 D1–D3).
 - Servers and settings: `Server`, `ServerStore` (`servers.json`), `SecretStore` (the keyring
   through qtkeychain, a 0600 file under `secrets/` when there is none), `StateFile`,
   `ServerPreferences` (qBittorrent's own settings), `CertificatePin` (trust on first use).

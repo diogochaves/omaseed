@@ -73,15 +73,11 @@ void App::setUpMove()
         m_engine->serverLog()->setMoveLines(std::move(lines));
     };
     connect(m_move, &MoveController::historyChanged, this, feedLog);
-    // C16 L7: a quick move that didn't happen is said in the footer, as a failure the log told
-    // (docs/32 N1) was; one that landed is #104's footer note.
-    connect(m_move,
-            &MoveController::note,
-            this,
-            [this](const QString &text, const QStringList &hashes, bool failed) {
-                if (failed)
-                    Q_EMIT loggedFailure(text, hashes);
-            });
+    // DECISIONS C18 D1 (changes C16 L7, L9): a quick move that landed, or didn't, is said in
+    // the strip in the selection bar's place, and on its rows; no longer in the footer.
+    connect(m_move, &MoveController::outcome, m_outcomes, &core::ActionOutcomes::reportMap);
+    // Another server's torrents: what the last one's strip and marks said means nothing there.
+    connect(this, &App::serverChanged, m_outcomes, &core::ActionOutcomes::clear);
     connect(this, &App::serverChanged, this, &App::updateMoveServer);
     // J6 (M20): the tray's tooltip carries the job's line.
     connect(m_move, &MoveController::changed, this, [this]() {
