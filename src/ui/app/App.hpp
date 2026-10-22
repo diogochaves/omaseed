@@ -1949,6 +1949,10 @@ public:
     Q_INVOKABLE bool quitAllowed();
     /// J5's "pause and quit": the job is saved paused-for-quit, then the app quits.
     Q_INVOKABLE void pauseMoveAndQuit();
+    /// #128: a quit nobody can be asked about (SIGTERM, SIGINT, SIGHUP, `omaseed --quit`):
+    /// the tray's quit, with a running move paused as J5's "pause and quit" would (it starts
+    /// again at the next launch). `why` goes to the log.
+    void quitFromOutside(const QString &why);
 
 Q_SIGNALS:
     /// A quit came while a folder moves: the window shows J5's confirm.

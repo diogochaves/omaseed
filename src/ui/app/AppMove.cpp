@@ -119,4 +119,12 @@ void App::pauseMoveAndQuit()
     Q_EMIT quitRequested();
 }
 
+void App::quitFromOutside(const QString &why)
+{
+    qInfo().noquote() << QStringLiteral("quit: %1").arg(why);
+    if (m_move->active())
+        m_move->pauseForQuit();
+    Q_EMIT quitRequested();
+}
+
 } // namespace omaseed::app

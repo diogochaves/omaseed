@@ -12,6 +12,7 @@
 #include "integration/BarWidgetInstaller.hpp"
 #include "integration/MotionPreference.hpp"
 #include "integration/Notifier.hpp"
+#include "integration/QuitSignals.hpp"
 #include "integration/SingleInstance.hpp"
 #include "integration/StatusBus.hpp"
 #include "integration/StatusWriter.hpp"
@@ -364,6 +365,31 @@ int runInstallBarWidget(int argc, char *argv[])
     return code;
 }
 
+/// `--quit` (#128): asks the running omaseed to quit, as the tray's "quit" does, and waits until
+/// it has (its single-instance name or socket gone, so what it keeps is written). Runs on a
+/// QCoreApplication: no display, and it never becomes the instance itself. 0 when it quit or
+/// was not running, 1 when it is still there after the wait.
+int runQuit(int argc, char *argv[])
+{
+    QCoreApplication app(argc, argv);
+    constexpr int timeoutMs = 15000;
+    omaseed::integration::SingleInstance instance;
+    using Result = omaseed::integration::SingleInstance::QuitResult;
+    switch (instance.askToQuit(timeoutMs)) {
+    case Result::NotRunning:
+        QTextStream(stderr) << QStringLiteral("omaseed: not running") << Qt::endl;
+        return 0;
+    case Result::Quit:
+        return 0;
+    case Result::TimedOut:
+        break;
+    }
+    QTextStream(stderr)
+        << QStringLiteral("omaseed: asked to quit, still running after %1 s").arg(timeoutMs / 1000)
+        << Qt::endl;
+    return 1;
+}
+
 } // namespace
 
 int main(int argc, char *argv[])
@@ -371,6 +397,8 @@ int main(int argc, char *argv[])
     for (int i = 1; i < argc; ++i) {
         if (qstrcmp(argv[i], "--install-bar-widget") == 0)
             return runInstallBarWidget(argc, argv);
+        if (qstrcmp(argv[i], "--quit") == 0)
+            return runQuit(argc, argv);
     }
 
     // File pickers go through the FileChooser portal, so the chooser is the portal backend's
@@ -438,6 +466,13 @@ int main(int argc, char *argv[])
                        "~/.config/omarchy/plugins/%1 to the installed widget and enable it.")
             .arg(omaseed::integration::BarWidgetInstaller::pluginId()));
     parser.addOption(installBarWidgetOption);
+
+    // Handled before the application starts (runQuit); listed for --help.
+    QCommandLineOption quitOption(
+        QStringList{QStringLiteral("quit")},
+        QStringLiteral("Quit the running omaseed as the tray's quit does (a running move is "
+                       "paused), and wait until it has. SIGTERM, SIGINT and SIGHUP do the same."));
+    parser.addOption(quitOption);
 
     parser.addPositionalArgument(QStringLiteral("uris"),
                                  QStringLiteral("magnet: links or .torrent files to add."),
@@ -642,6 +677,16 @@ int main(int argc, char *argv[])
                      &app,
                      &QCoreApplication::quit,
                      Qt::QueuedConnection);
+    // #128: SIGTERM (a logout, a shutdown, `kill`), SIGINT (ctrl+c) and SIGHUP end omaseed
+    // through that same quit, so what it writes on quit is written.
+    omaseed::integration::QuitSignals quitSignals;
+    QObject::connect(&quitSignals,
+                     &omaseed::integration::QuitSignals::received,
+                     &omaseedApp,
+                     [&omaseedApp](int signal) {
+                         omaseedApp.quitFromOutside(
+                             omaseed::integration::QuitSignals::nameOf(signal));
+                     });
     QObject::connect(&omaseedApp, &omaseed::app::App::raiseRequested, &app, showWindow);
     // MainView answers both signals (the cursor moves, the settings modal opens); this only
     // brings the window up for them.
@@ -741,6 +786,8 @@ int main(int argc, char *argv[])
                              Q_EMIT omaseedApp.openSettings();
                          else if (name == QLatin1String("retry"))
                              omaseedApp.retryNow();
+                         else if (name == QLatin1String("quit")) // #128: `omaseed --quit`
+                             omaseedApp.quitFromOutside(QStringLiteral("omaseed --quit"));
                      });
     // A widget add remembered its category: the next status write carries it at once.
     QObject::connect(&statusService,

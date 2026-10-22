@@ -16,6 +16,8 @@ qt_add_library(omaseed-integration STATIC
     MotionPreference.hpp
     Notifier.cpp
     Notifier.hpp
+    QuitSignals.cpp
+    QuitSignals.hpp
     SingleInstance.cpp
     SingleInstance.hpp
     StatusWriter.cpp

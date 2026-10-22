@@ -100,7 +100,10 @@ box_kind() {
 launch() {
     local binary="$1" out log
     if omabox run -b "$BOX" -- pgrep -x omaseed >/dev/null 2>&1; then
-        omabox run -b "$BOX" -- pkill -x omaseed >/dev/null 2>&1 || true
+        # #128: the app's own quit, so what it writes on quit is written; pkill only when it
+        # does not go (an older build ignores --quit and is still there after its 15 s).
+        omabox run -b "$BOX" -- "$binary" --quit >/dev/null 2>&1 ||
+            omabox run -b "$BOX" -- pkill -x omaseed >/dev/null 2>&1 || true
         omabox wait -b "$BOX" --timeout 10s window omaseed --gone >/dev/null ||
             die "omaseed did not quit in the box"
     fi

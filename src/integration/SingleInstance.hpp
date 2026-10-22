@@ -49,6 +49,20 @@ public:
 
     bool isPrimary() const { return m_isPrimary; }
 
+    /// What `askToQuit()` found.
+    enum class QuitResult {
+        NotRunning, ///< no omaseed owns the name or the socket
+        Quit,       ///< it was asked and is gone
+        TimedOut,   ///< it was asked and is still there after the timeout, or didn't answer
+    };
+
+    /// #128, `omaseed --quit`: asks the running omaseed to quit, through the same channel a
+    /// second launch hands its links over (`ActivateAction("quit")` on the bus, or the local
+    /// socket), and waits up to `timeoutMs` for it to be gone: its name released, or its socket
+    /// closed, which happens once its quit has written what it keeps. Call it instead of
+    /// start(), on a process that never becomes the primary.
+    QuitResult askToQuit(int timeoutMs);
+
     /// The D-Bus connection that owns the well-known name, once start() made this process
     /// primary on the bus; a disconnected connection otherwise (secondary, or the local-socket
     /// fallback). Anything else the app exports for callers addressing the name (the theme's
@@ -76,7 +90,7 @@ signals:
     void openRequested(const QStringList &uris);
     /// `org.freedesktop.Application.ActivateAction` with a known action, from the bar widget:
     /// "settings" (the popup's gear) raises the window on omaseed's settings, "retry" polls an
-    /// unreachable server now, with no window.
+    /// unreachable server now, with no window; and from `omaseed --quit` (#128), "quit".
     void actionRequested(const QString &name);
 
 private:

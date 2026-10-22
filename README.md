@@ -52,7 +52,10 @@ That downloads the latest release, already built, and installs it; pacman pulls 
 rest of what omaseed needs from the Arch repos. (A bare `sudo pacman -U <url>` stops at
 "failed retrieving file ….sig": pacman wants a signature for a package it downloads itself,
 not for a file already on disk.) omaseed is not in a repo yet, so `pacman -Syu` does not
-update it: for a new release, run the same line again. An AI agent installing omaseed for
+update it: for a new release, run the same line again. A running omaseed keeps the old
+version until it starts again: `omaseed --quit` quits it as the tray's quit does (writing
+what it keeps, pausing a running move) and returns once it has, so the new one can start.
+A logout, a shutdown or `kill` (SIGTERM, SIGINT, SIGHUP) quit it the same way. An AI agent installing omaseed for
 you cannot type your password, so it should hand you the line.
 
 **You need** qBittorrent 5.2 or newer with its Web UI turned on (`Tools → Options → Web UI`

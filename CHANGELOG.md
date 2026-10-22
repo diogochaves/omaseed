@@ -222,6 +222,10 @@ before it will tag a release.
 - First run finds the Web UI's port, and whether it is on, in a qBittorrent 5.3 profile: 5.3
   moves those settings to a section of their own, and first run read only the old place, so it
   offered port 8080 whatever the profile said (#140).
+- omaseed quits cleanly from outside (#128): SIGTERM (a logout, a shutdown, `kill`), SIGINT
+  and SIGHUP go through the tray's quit, so what it writes on quit (the seed ledger's latest
+  figures, a move's progress) is written. `omaseed --quit` asks the running omaseed to quit
+  the same way and returns once it has, for a restart after an update.
 - An "Invalid argument" opening a file no longer always reads "A file name isn't allowed on
   this disk" (#108). That is said only when the path has something NTFS, exFAT or FAT refuse
   (`< > : " \ | ? *`, a control character, a trailing dot or space, a reserved name such as

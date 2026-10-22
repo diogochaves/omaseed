@@ -64,7 +64,9 @@ Three static libraries and the executable. Each layer only depends on the ones a
   (the bundled Tokyo Night when Omarchy is absent), watch them, and repaint live. A theme hook
   can also ask for a reload over D-Bus.
 - `SingleInstance`: `org.freedesktop.Application` on `io.github.diogochaves.omaseed`; a second
-  launch hands its magnets and `.torrent` files to the first one and raises it.
+  launch hands its magnets and `.torrent` files to the first one and raises it, and
+  `omaseed --quit` asks it to quit. `QuitSignals` turns SIGTERM, SIGINT and SIGHUP into the
+  same quit as the tray's, so what the app writes on quit is written.
 - `Tray` (StatusNotifierItem), `Notifier` (`org.freedesktop.Notifications` with actions), `Xdg`
   (file manager, MIME handlers, clipboard), `Autostart`, `HyprlandEvents`.
 - The companion bar widget's side: `StatusWriter` writes the status file it reads, `StatusBus`
