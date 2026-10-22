@@ -73,6 +73,8 @@ public:
         /// The current one: "live", "syncing", "waiting" (a timeout), "down" (unreachable),
         /// "refused", "certificate" (docs/44 D11). Another:
         /// "seen" (fine last time), "failed" (its last try failed), "unknown" (never seen).
+        /// A server of another engine (C28) is "refused" either way, its reason and detail
+        /// ErrorWords::engineReason and forEngine's line, its count text "!".
         StateRole,
         LastCountRole,  ///< the count last seen on it, -1 when never
         LastSeenRole,   ///< when it was last seen or tried: "today 23:26", "" when never

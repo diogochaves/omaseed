@@ -15,6 +15,7 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QJsonArray>
+#include <QJsonDocument>
 #include <QJsonObject>
 #include <QSignalSpy>
 #include <QStandardPaths>
@@ -78,6 +79,9 @@ private slots:
     // Review rulings Q9, Q10
     void anUnreadableServersFileIsNamedWhereItWasKept();
     void secretsInAPlainFileAreNamed();
+
+    // DECISIONS C28 (#84)
+    void aServerOfAnotherEngineIsNeverAsked();
 
     // Manual box M7
     void theDownloadsListMarksWhatTheLibraryHolds();
@@ -602,6 +606,117 @@ void TestAppGlue::anUnreadableServersFileIsNamedWhereItWasKept()
     QFile file(kept);
     QVERIFY(file.open(QIODevice::ReadOnly));
     QCOMPARE(file.readAll(), corrupt);
+}
+
+void TestAppGlue::aServerOfAnotherEngineIsNeverAsked()
+{
+    // DECISIONS C28: servers.json from an engines build (v2, #84) with a Transmission server
+    // as the default. v0.4 lists it, says why it can't use it, and sends it nothing: not at
+    // start, not on "retry now", not for a test from its sheet, not when the others are probed.
+    QTcpServer transmission;
+    QVERIFY(transmission.listen(QHostAddress::LocalHost));
+    int connections = 0;
+    connect(&transmission, &QTcpServer::newConnection, this, [&]() {
+        while (QTcpSocket *socket = transmission.nextPendingConnection()) {
+            ++connections;
+            socket->abort();
+            socket->deleteLater();
+        }
+    });
+
+    QTemporaryDir home;
+    qputenv("XDG_CONFIG_HOME", home.path().toUtf8());
+    qunsetenv("OMASEED_SERVER_URL");
+    const QString configDir = home.path() + QStringLiteral("/omaseed");
+    QVERIFY(QDir().mkpath(configDir));
+    const QString filePath = configDir + QStringLiteral("/servers.json");
+    const QJsonObject seedbox{
+        {QStringLiteral("id"), QStringLiteral("t-1")},
+        {QStringLiteral("name"), QStringLiteral("seedbox")},
+        {QStringLiteral("url"),
+         QStringLiteral("http://127.0.0.1:%1").arg(transmission.serverPort())},
+        {QStringLiteral("authMode"), QStringLiteral("none")},
+        {QStringLiteral("engine"), QStringLiteral("transmission")},
+        {QStringLiteral("engineVersion"), QStringLiteral("4.1.0")},
+    };
+    const QJsonObject other{
+        {QStringLiteral("id"), QStringLiteral("q-1")},
+        {QStringLiteral("name"), QStringLiteral("public")},
+        {QStringLiteral("url"), QStringLiteral("http://127.0.0.1:9")}, // nobody listens
+        {QStringLiteral("authMode"), QStringLiteral("none")},
+        {QStringLiteral("engine"), QStringLiteral("qbittorrent")},
+    };
+    {
+        QFile file(filePath);
+        QVERIFY(file.open(QIODevice::WriteOnly));
+        file.write(
+            QJsonDocument(QJsonObject{{QStringLiteral("version"), 2},
+                                      {QStringLiteral("servers"), QJsonArray{seedbox, other}},
+                                      {QStringLiteral("defaultId"), QStringLiteral("t-1")}})
+                .toJson());
+    }
+
+    App app;
+    QSignalSpy tested(&app, &App::serverTested);
+    app.start();
+    QVERIFY(!app.firstRunNeeded());
+    QCOMPARE(app.serverList()->count(), 2);
+    QCOMPARE(app.serverName(), QStringLiteral("seedbox"));
+    QVERIFY(app.serverOtherEngine());
+    QVERIFY(app.serverRefused());
+    QVERIFY(app.isServerLost());
+    QVERIFY(!app.engine()->isRunning());
+
+    const QVariantMap problem = app.serverProblem(QString(), -1);
+    QCOMPARE(problem.value(QStringLiteral("kind")).toString(), QStringLiteral("engine"));
+    QCOMPARE(problem.value(QStringLiteral("headline")).toString(),
+             QStringLiteral("seedbox is a Transmission server"));
+    QCOMPARE(problem.value(QStringLiteral("retry")).toString(), QString());
+    QCOMPARE(app.guardNote(QStringLiteral("p")),
+             QStringLiteral("seedbox is a Transmission server: p does nothing here"));
+
+    app.retryNow();
+    QVERIFY(!app.engine()->isRunning());
+    app.testServer(app.serverList()->serverMap(QStringLiteral("t-1")), QString());
+    QVERIFY(tested.wait(2000));
+    QCOMPARE(tested.constFirst().at(1).toBool(), false);
+    QCOMPARE(tested.constFirst().at(6).toString(),
+             QStringLiteral("seedbox is a Transmission server: this omaseed only talks to "
+                            "qBittorrent. A newer omaseed can."));
+
+    // The rows say it too, and the server is never rewritten as a qBittorrent.
+    const QVariantList rows = app.serverRows();
+    QCOMPARE(rows.constFirst().toMap().value(QStringLiteral("state")).toString(),
+             QStringLiteral("refused"));
+    QVERIFY(rows.constFirst()
+                .toMap()
+                .value(QStringLiteral("detail"))
+                .toString()
+                .contains(QStringLiteral("Transmission server")));
+
+    // On the other server, the Transmission one is still listed and still not asked.
+    QVERIFY(app.switchServer(QStringLiteral("q-1")));
+    QVERIFY(!app.serverOtherEngine());
+    QVERIFY(!app.serverRefused());
+    const QVariantMap seedboxRow = app.serverRows().at(1).toMap();
+    QCOMPARE(seedboxRow.value(QStringLiteral("key")).toString(), QStringLiteral("t-1"));
+    QCOMPARE(seedboxRow.value(QStringLiteral("state")).toString(), QStringLiteral("refused"));
+    QCOMPARE(seedboxRow.value(QStringLiteral("meta")).toString(),
+             QStringLiteral("Transmission server"));
+    QVERIFY(app.switchServer(QStringLiteral("t-1")));
+    QVERIFY(app.serverOtherEngine());
+    QVERIFY(!app.engine()->isRunning());
+
+    QTest::qWait(300); // anything sent would have connected by now
+    QCOMPARE(connections, 0);
+
+    QFile file(filePath);
+    QVERIFY(file.open(QIODevice::ReadOnly));
+    const QJsonObject root = QJsonDocument::fromJson(file.readAll()).object();
+    QCOMPARE(root.value(QStringLiteral("version")).toInt(), 2);
+    const QJsonObject saved = root.value(QStringLiteral("servers")).toArray().at(0).toObject();
+    QCOMPARE(saved.value(QStringLiteral("engine")).toString(), QStringLiteral("transmission"));
+    QCOMPARE(saved.value(QStringLiteral("engineVersion")).toString(), QStringLiteral("4.1.0"));
 }
 
 void TestAppGlue::secretsInAPlainFileAreNamed()

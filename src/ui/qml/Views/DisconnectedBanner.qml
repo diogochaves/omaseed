@@ -51,10 +51,14 @@ Notice {
                                                                                                                                      "label": qsTr("retry now"),
                                                                                                                                      "key": "retry"
                                                                                                                                  };
-        return root.multiServer ? [first, {
-                                       "label": qsTr("switch server"),
-                                       "key": "switch"
-                                   }] : [first];
+        const others = {
+            "label": qsTr("switch server"),
+            "key": "switch"
+        };
+        // DECISIONS C28: another engine's server has nothing to retry or sign in to.
+        if (root.problemKind === "engine")
+            return root.multiServer ? [others] : [];
+        return root.multiServer ? [first, others] : [first];
     }
 
     onActionTriggered: key => {

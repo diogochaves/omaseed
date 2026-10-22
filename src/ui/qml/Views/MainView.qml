@@ -1793,6 +1793,9 @@ Item {
         serverLine: {
             if (!App.hasServer)
                 return qsTr("no server");
+            // DECISIONS C28: another engine's server, never asked ("seedbox · Transmission server").
+            if (root.serverLost && root.serverProblem.kind === "engine")
+                return qsTr("%1 · %2").arg(App.serverName).arg(root.serverProblem.reason);
             // docs/33 D9: a server that answered and said no is not "unreachable".
             if (root.serverLost && App.serverRefused)
                 return qsTr("%1 · sign-in refused").arg(App.serverName);
@@ -2415,8 +2418,10 @@ Item {
             otherCount: emptyState.other.count !== undefined ? emptyState.other.count : -1
             otherName: emptyState.other.name || ""
             serverName: App.serverName
-            // docs/33 D7: the same place for a server lost (or refused) before it gave a list.
-            variant: !root.noList ? "empty" : App.serverRefused ? "refused" : "noList"
+            // docs/33 D7: the same place for a server lost (or refused) before it gave a list;
+            // C28: another engine's server says so in its problem's words.
+            problem: root.serverProblem
+            variant: !root.noList ? "empty" : root.serverProblem.kind === "engine" ? "engine" : App.serverRefused ? "refused" : "noList"
             visible: (root.libraryEmpty || root.noList) && !root.firstRun && !root.logShown // T4.6: first run replaces this state
             width: Math.min(parent.width, Theme.space(520))
 

@@ -1837,9 +1837,13 @@ public:
     /// itself (D8). True when it moved, or was already there.
     Q_INVOKABLE bool switchServer(const QString &id);
     /// D9: the server refused the sign-in. No automatic retry until the login changes or
-    /// someone asks for one; the hero says "sign-in refused", not "unreachable".
+    /// someone asks for one; the hero says "sign-in refused", not "unreachable". Also true on
+    /// a server of another engine (C28), which is never asked anything.
     Q_PROPERTY(bool serverRefused READ serverRefused NOTIFY serverStateChanged)
-    bool serverRefused() const { return m_serverRefused; }
+    bool serverRefused() const { return m_serverRefused || serverOtherEngine(); }
+    /// DECISIONS C28: the current server is one an engines build (#84) recorded with another
+    /// engine: listed, never connected to, its problem ErrorWords::forEngine's.
+    bool serverOtherEngine() const { return m_hasServer && !m_server.isQbittorrent(); }
     /// docs/35 N6: the engine declared the server lost (or refused), and it hasn't answered
     /// since. Not while a switch waits for the keychain: the window shows no loss for that.
     Q_PROPERTY(bool serverLost READ isServerLost NOTIFY serverStateChanged)

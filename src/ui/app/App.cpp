@@ -465,9 +465,21 @@ void App::applyServer(const Server &server)
     // backing off for the previous server (QbtClient::cancelAll).
     m_client->clearAuth();
     m_client->setPinnedCertificate(server.certificateSha256);
-    m_client->setBaseUrl(server.url);
     m_prefs->reset();
     m_engine->globalState()->setServerName(server.name);
+
+    // DECISIONS C28: a server an engines build recorded with another engine (#84) is listed,
+    // never asked anything: the client points nowhere, the engine stays stopped, and the
+    // window says why in ErrorWords::forEngine's words (serverProblem).
+    if (!server.isQbittorrent()) {
+        qInfo().noquote() << QStringLiteral("server: %1 is a %2 server; not connecting")
+                                 .arg(server.name, server.engine());
+        m_client->setBaseUrl(QUrl());
+        m_serverLost = true;
+        Q_EMIT serverStateChanged();
+        return;
+    }
+    m_client->setBaseUrl(server.url);
 
     // The secret is a keychain round trip, so the engine starts in the callback: polling
     // before the key is set would spend one request on a guaranteed 403.
@@ -515,7 +527,7 @@ void App::applyServer(const Server &server)
 
 void App::startEngine()
 {
-    if (m_demoMode || !m_hasServer)
+    if (m_demoMode || !m_hasServer || serverOtherEngine())
         return;
     openLedger();
     loadDismissedFailures();
@@ -669,7 +681,8 @@ void App::applyDemoData(const QJsonObject &maindata)
 
 void App::retryNow()
 {
-    if (m_demoMode || !m_hasServer)
+    // C28: nothing to retry on a server of another engine.
+    if (m_demoMode || !m_hasServer || serverOtherEngine())
         return;
     // A retry the user asked for is one deliberate attempt: after a refused login (the ban
     // expired, the password was fixed on the server) it may log in again (review REG-2).
@@ -4062,6 +4075,21 @@ void App::testServer(const QVariantMap &fields, const QString &secret)
         return;
     }
 
+    // C28: a saved server of another engine is never asked; the sheet says why instead.
+    if (const std::optional<Server> stored =
+            server.id.isEmpty() ? std::nullopt : m_servers->byId(server.id);
+        stored && !stored->isQbittorrent()) {
+        const ErrorWords::Text words = ErrorWords::forEngine(*stored);
+        QString line = words.line;
+        if (!line.isEmpty())
+            line.replace(0, 1, line.at(0).toLower());
+        const QString error = words.headline + QStringLiteral(": ") + line;
+        QTimer::singleShot(0, this, [this, id = server.id, error]() {
+            Q_EMIT serverTested(id, false, QString(), QString(), -1, -1, error, QString());
+        });
+        return;
+    }
+
     if (!server.url.isValid() || server.url.host().isEmpty()) {
         QTimer::singleShot(0, this, [this, server]() {
             Q_EMIT serverTested(
@@ -5901,6 +5929,8 @@ QString App::copyQbtSettingsFrom(const QString &id)
     const std::optional<Server> source = m_servers->byId(id);
     if (!source)
         return tr("That server is no longer in the list.");
+    if (!source->isQbittorrent()) // C28
+        return ErrorWords::forEngine(*source).sentence();
     if (source->id == m_server.id)
         return tr("omaseed is on %1: copy from another server.").arg(source->name);
     m_importFile.reset();
@@ -5989,7 +6019,8 @@ void App::probeOtherServers()
     if (m_demoMode)
         return;
     for (const Server &server : m_servers->servers()) {
-        if (server.id == m_server.id || m_probing.contains(server.id))
+        // C28: a server of another engine is never asked.
+        if (server.id == m_server.id || m_probing.contains(server.id) || !server.isQbittorrent())
             continue;
         m_probing.insert(server.id);
         withStoredSecret(server, [this, server](const QString &secret) {

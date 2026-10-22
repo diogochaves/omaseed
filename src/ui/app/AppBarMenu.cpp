@@ -97,7 +97,8 @@ void App::updateBarMenu()
         if (server.current) {
             // The current server: how it is doing now, and its live count.
             if (listState == QLatin1String("refused"))
-                reason = tr("sign-in refused");
+                // C28: another engine's server keeps the list's reason ("Transmission server").
+                reason = serverOtherEngine() ? reason : tr("sign-in refused");
             else if (listState == QLatin1String("certificate"))
                 reason = tr("certificate refused");
             else if (listState == QLatin1String("down") || listState == QLatin1String("waiting")) {
@@ -113,7 +114,8 @@ void App::updateBarMenu()
                 server.count = m_engine->torrents()->count();
         } else {
             server.count = role(ServerListModel::LastCountRole).toInt();
-            if (listState != QLatin1String("failed"))
+            // "refused" for another server is C28's another engine, with its reason.
+            if (listState != QLatin1String("failed") && listState != QLatin1String("refused"))
                 reason.clear();
         }
         server.state = contractState(listState, reason);

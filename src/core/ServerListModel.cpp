@@ -1,6 +1,7 @@
 #include "core/ServerListModel.hpp"
 
 #include "core/CertificatePin.hpp"
+#include "core/ErrorWords.hpp"
 #include "core/SecretStore.hpp"
 #include "core/ServerStore.hpp"
 
@@ -93,6 +94,9 @@ QVariant ServerListModel::data(const QModelIndex &index, int role) const
     case StateRole: {
         if (!server.id.isEmpty() && server.id == m_currentId)
             return m_currentState.isEmpty() ? QStringLiteral("live") : m_currentState;
+        // DECISIONS C28: a server of another engine is never asked; it stays refused.
+        if (!server.isQbittorrent())
+            return QStringLiteral("refused");
         const Seen seen = m_seen.value(server.id);
         if (!seen.error.isEmpty())
             return QStringLiteral("failed");
@@ -107,10 +111,16 @@ QVariant ServerListModel::data(const QModelIndex &index, int role) const
     case LastFailedRole:
         return !m_seen.value(server.id).error.isEmpty();
     case LastReasonRole:
+        if (!server.isQbittorrent())
+            return ErrorWords::engineReason(server); // C28
         return m_seen.value(server.id).error;
     case LastDetailRole:
+        if (!server.isQbittorrent())
+            return ErrorWords::forEngine(server).line; // C28
         return m_seen.value(server.id).detail;
     case CountTextRole: {
+        if (!server.isQbittorrent())
+            return QStringLiteral("!"); // C28: listed, never asked
         if (!server.id.isEmpty() && server.id == m_currentId) {
             if (m_currentState == QLatin1String("down"))
                 return QCoreApplication::translate("ServerListModel", "down");
@@ -390,6 +400,8 @@ bool ServerListModel::update(const QVariantMap &fields, const QString &secretIn)
     server.isDefault = existing->isDefault;
     if (!fields.contains(QStringLiteral("certificateSha256")))
         server.certificateSha256 = existing->certificateSha256;
+    // A newer build's keys (its engine, C28) are not the sheet's to drop.
+    server.extra = existing->extra;
     const QString secret = secretIn.isEmpty() ? urlPassword : secretIn;
 
     if (!m_store->update(server))

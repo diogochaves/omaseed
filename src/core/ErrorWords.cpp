@@ -223,6 +223,53 @@ QString ErrorWords::shortReason(const ApiError &error)
     return tr("error");
 }
 
+namespace {
+
+/// A server's name for C28's rows: its name, else its host, else "the server".
+QString engineServerName(const Server &server)
+{
+    if (!server.name.isEmpty())
+        return server.name;
+    if (!server.url.host().isEmpty())
+        return server.url.host();
+    return tr("the server");
+}
+
+/// "seedbox is a Transmission server" / "seedbox isn't a qBittorrent server".
+QString engineHeadline(const Server &server)
+{
+    const QString name = engineServerName(server);
+    const QString engine = server.engineName();
+    return engine.isEmpty() ? tr("%1 isn't a qBittorrent server").arg(name)
+                            : tr("%1 is a %2 server").arg(name, engine);
+}
+
+} // namespace
+
+ErrorWords::Text ErrorWords::forEngine(const Server &server)
+{
+    Text text;
+    text.kind = QStringLiteral("engine");
+    text.headline = engineHeadline(server);
+    text.line = tr("This omaseed only talks to qBittorrent. A newer omaseed can.");
+    const QJsonValue stored = server.extra.value(QStringLiteral("engine"));
+    text.details =
+        tr("servers.json records engine %1 for this server; this build drives qBittorrent only")
+            .arg(stored.isString() ? stored.toString() : QStringLiteral("(unreadable)"));
+    return text;
+}
+
+QString ErrorWords::engineReason(const Server &server)
+{
+    const QString engine = server.engineName();
+    return engine.isEmpty() ? tr("not qBittorrent") : tr("%1 server").arg(engine);
+}
+
+QString ErrorWords::guardEngine(const Server &server, const QString &key)
+{
+    return tr("%1: %2 does nothing here").arg(engineHeadline(server), key);
+}
+
 QString ErrorWords::guard(const QString &server, const QString &key, bool refused, bool waiting)
 {
     const QString name = server.isEmpty() ? tr("the server") : server;
