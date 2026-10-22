@@ -292,20 +292,22 @@ TestCase {
     readonly property string freshHash: "1f3e5d7c9b0a2f4e6d8c0b1a3f5e7d9c2b4a6f8e"
     readonly property string freshHashV2: "2e4c6a8f0d1b3e5c7a9f2d4b6e8c0a1f3d5b7e9c4a6f8d0b2e1c3a5f7d9b0e2c"
 
-    function test_a_clipboard_hash_is_added_as_its_magnet() {
+    function test_a_clipboard_hash_is_not_offered_but_a_paste_takes_it() {
         const sheet = createTemporaryObject(addSheetComponent, testCase);
+        // A commit id copied for something else looks the same: opening never offers one.
         sheet.clipboardAddable = testCase.freshHash.toUpperCase();
         sheet.openBlank();
+        compare(sheet.sourceField.text, "");
+        compare(sheet.addable, null);
 
-        // The field shows what was copied; the add sends the magnet it stands for.
-        compare(sheet.sourceField.text, testCase.freshHash.toUpperCase());
-        compare(sheet.source, "clipboard");
+        // Pasted into the field (it arrives whole), the same text is taken.
+        sheet.sourceField.text = testCase.freshHash.toUpperCase();
         verify(sheet.addable !== null);
         compare(sheet.addable.kind, "magnet");
         compare(sheet.addable.bareHash, true);
         compare(sheet.addable.value, "magnet:?xt=urn:btih:" + testCase.freshHash);
         compare(sheet.request(false).value, "magnet:?xt=urn:btih:" + testCase.freshHash);
-        // The head names it as one, not as the clipboard.
+        // The head names it as one: that is what tells it from a magnet.
         compare(sheet.sourceText, "from an info hash");
         compare(sheet.subtitle, testCase.freshHash + " · from an info hash");
     }
@@ -328,6 +330,14 @@ TestCase {
     }
 
     function test_hashes_and_magnets_pasted_together_are_a_batch() {
+        const pasted = createTemporaryObject(addSheetComponent, testCase);
+        pasted.open();
+        pasted.sourceField.text = testCase.freshHash + " " + testCase.freshMagnet;
+        compare(pasted.batchMode, true);
+        compare(pasted.batchCount, 2);
+        compare(pasted.batch[0].map.bareHash, true);
+
+        // Dropped (or handed over) one per line.
         const sheet = createTemporaryObject(addSheetComponent, testCase);
         sheet.openList(App.splitAddables(testCase.freshHash + "\n" + testCase.freshMagnet + "\n"
                                          + testCase.freshHashV2), "drop");
@@ -342,8 +352,9 @@ TestCase {
         const sheet = createTemporaryObject(addSheetComponent, testCase);
         const line = findChild(sheet, "addNoDhtLine");
         compare(App.serverPrefs.values.dht, true);
-        sheet.clipboardAddable = testCase.freshHash;
-        sheet.openBlank();
+        sheet.open();
+        sheet.sourceField.text = testCase.freshHash;
+        verify(sheet.addable.bareHash);
         verify(!line.visible);
 
         App.serverPrefs.apply({
@@ -353,9 +364,9 @@ TestCase {
             verify(line.visible);
             verify(line.text.indexOf("DHT is off") === 0, line.text);
             // A magnet has its own trackers to say where its peers are.
-            sheet.loadText(testCase.freshMagnet, "clipboard");
+            sheet.loadText(testCase.freshMagnet, "");
             verify(!line.visible);
-            sheet.loadText(testCase.freshHash, "clipboard");
+            sheet.loadText(testCase.freshHash, "");
             verify(line.visible);
         } finally {
             App.serverPrefs.apply({

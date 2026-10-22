@@ -76,7 +76,7 @@ Xdg *Xdg::createForEngine(QQmlEngine *engine)
     return new Xdg(QDBusConnection::sessionBus(), engine);
 }
 
-Addable Xdg::parseAddable(const QString &textIn)
+Addable Xdg::parseAddable(const QString &textIn, BareHash bareHash)
 {
     const QString text = textIn.trimmed();
     if (text.isEmpty())
@@ -85,8 +85,8 @@ Addable Xdg::parseAddable(const QString &textIn)
     if (looksLikeMagnet(text))
         return Addable{Addable::Kind::Magnet, text};
 
-    // #147: the whole text, never a hash found inside it.
-    if (core::MagnetLink::fromInfoHash(text).isValid())
+    // #147: the whole text, never a hash found inside it, and only when given on purpose.
+    if (bareHash == BareHash::Take && core::MagnetLink::fromInfoHash(text).isValid())
         return Addable{Addable::Kind::InfoHash, text};
 
     if (text.startsWith(QStringLiteral("http://"), Qt::CaseInsensitive) ||
@@ -109,14 +109,14 @@ Addable Xdg::parseAddable(const QString &textIn)
     return Addable{};
 }
 
-QList<Addable> Xdg::parseAddableList(const QString &text)
+QList<Addable> Xdg::parseAddableList(const QString &text, BareHash bareHash)
 {
     static const QRegularExpression whitespace(QStringLiteral("\\s+"));
     QList<Addable> result;
     const QStringList lines = text.split(QLatin1Char('\n'), Qt::SkipEmptyParts);
     for (const QString &rawLine : lines) {
         const QString line = rawLine.trimmed();
-        const Addable whole = parseAddable(line);
+        const Addable whole = parseAddable(line, bareHash);
         // A path with spaces in it is one file; any other line holding whitespace may be
         // several links pasted side by side, each parsed on its own.
         if (whole.kind == Addable::Kind::TorrentFile || !line.contains(whitespace)) {
@@ -127,7 +127,7 @@ QList<Addable> Xdg::parseAddableList(const QString &text)
         QList<Addable> tokens;
         bool prose = false;
         for (const QString &token : line.split(whitespace, Qt::SkipEmptyParts)) {
-            const Addable addable = parseAddable(token);
+            const Addable addable = parseAddable(token, bareHash);
             if (addable.kind != Addable::Kind::None)
                 tokens.append(addable);
             else
@@ -189,7 +189,7 @@ QList<Addable> Xdg::addablesFromDrop(const QList<QUrl> &urls, const QString &tex
     }
     // File managers put the same file:// URLs in the drop's text too (Nautilus does): one
     // file dropped was listed twice. The text adds only what the URLs did not.
-    for (const Addable &addable : parseAddableList(text)) {
+    for (const Addable &addable : parseAddableList(text, BareHash::Take)) {
         const bool known = std::any_of(result.cbegin(), result.cend(), [&](const Addable &seen) {
             return seen.kind == addable.kind && seen.value == addable.value;
         });
@@ -286,15 +286,19 @@ Addable Xdg::detectClipboardMagnet() const
     if (!clipboard)
         return Addable{};
 
-    const QString text = clipboard->text();
+    return probeClipboardText(clipboard->text());
+}
+
+Addable Xdg::probeClipboardText(const QString &text) const
+{
     if (text.isEmpty())
         return Addable{};
 
-    const QList<Addable> found = parseAddableList(text);
+    const QList<Addable> found = parseAddableList(text, BareHash::Ignore);
     if (!found.isEmpty())
         return found.first();
 
-    return parseAddable(text);
+    return parseAddable(text, BareHash::Ignore);
 }
 
 } // namespace omaseed::integration

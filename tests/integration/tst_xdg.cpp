@@ -21,6 +21,21 @@ using omaseed::integration::Xdg;
 
 namespace {
 
+/// Text the user gave on purpose (a paste, a drop, a hand-off): a bare info hash counts.
+Addable pasted(const QString &text)
+{
+    return Xdg::parseAddable(text, Xdg::BareHash::Take);
+}
+
+QList<Addable> pastedList(const QString &text)
+{
+    return Xdg::parseAddableList(text, Xdg::BareHash::Take);
+}
+
+} // namespace
+
+namespace {
+
 QString writeExecutableScript(const QString &dir, const QString &name, const QString &body)
 {
     const QString path = dir + QLatin1Char('/') + name;
@@ -87,7 +102,8 @@ private slots:
     void parseAddableFindsNoHashInOtherText();       // #147
     void parseAddableListTakesHashesAsWholeTokens(); // #147
     void dropTakesABareInfoHash();                   // #147
-    void clipboardOffersABareInfoHash();             // #147
+    void theClipboardProbeIgnoresABareInfoHash_data();
+    void theClipboardProbeIgnoresABareInfoHash(); // #147
     void dropListsAFileOnceWhenItsTextNamesItToo();
 
     void stateFileRoundTrips();
@@ -126,7 +142,7 @@ void TestXdg::parseAddableRecognisesMagnetWithDnAndTrackers()
     const QString magnet =
         QStringLiteral("magnet:?xt=urn:btih:c12fe1c06bba254a9dc9f519b335aa7c1367a88a&dn=Some+Name"
                        "&tr=udp%3A%2F%2Ftracker.example%3A80");
-    const Addable addable = Xdg::parseAddable(magnet);
+    const Addable addable = pasted(magnet);
     QCOMPARE(addable.kind, Addable::Kind::Magnet);
     QCOMPARE(addable.value, magnet);
 }
@@ -135,14 +151,14 @@ void TestXdg::parseAddableRecognisesUppercaseHex()
 {
     const QString magnet =
         QStringLiteral("magnet:?xt=urn:btih:C12FE1C06BBA254A9DC9F519B335AA7C1367A88A");
-    const Addable addable = Xdg::parseAddable(magnet);
+    const Addable addable = pasted(magnet);
     QCOMPARE(addable.kind, Addable::Kind::Magnet);
 }
 
 void TestXdg::parseAddableRecognisesBase32Hash()
 {
     const QString magnet = QStringLiteral("magnet:?xt=urn:btih:ABCDEFGHIJKLMNOPQRSTUVWXYZ234567");
-    const Addable addable = Xdg::parseAddable(magnet);
+    const Addable addable = pasted(magnet);
     QCOMPARE(addable.kind, Addable::Kind::Magnet);
 }
 
@@ -150,14 +166,14 @@ void TestXdg::parseAddableRecognisesBtmh()
 {
     const QString magnet = QStringLiteral(
         "magnet:?xt=urn:btmh:1220caf1e1c06bba254a9dc9f519b335aa7c1367a88ac12fe1c06bba254a9dc9f5");
-    const Addable addable = Xdg::parseAddable(magnet);
+    const Addable addable = pasted(magnet);
     QCOMPARE(addable.kind, Addable::Kind::Magnet);
 }
 
 void TestXdg::parseAddableRecognisesHttpTorrentUrl()
 {
     const QString url = QStringLiteral("https://example.com/foo/bar.torrent");
-    const Addable addable = Xdg::parseAddable(url);
+    const Addable addable = pasted(url);
     QCOMPARE(addable.kind, Addable::Kind::HttpUrl);
     QCOMPARE(addable.value, url);
 }
@@ -165,7 +181,7 @@ void TestXdg::parseAddableRecognisesHttpTorrentUrl()
 void TestXdg::parseAddableRecognisesPlainHttpsUrl()
 {
     const QString url = QStringLiteral("https://example.com/some/page");
-    const Addable addable = Xdg::parseAddable(url);
+    const Addable addable = pasted(url);
     QCOMPARE(addable.kind, Addable::Kind::HttpUrl);
 }
 
@@ -180,25 +196,24 @@ void TestXdg::parseAddableRecognisesFileUrlToTorrent()
     file.close();
 
     const QString url = QUrl::fromLocalFile(path).toString();
-    const Addable addable = Xdg::parseAddable(url);
+    const Addable addable = pasted(url);
     QCOMPARE(addable.kind, Addable::Kind::TorrentFile);
     QCOMPARE(addable.value, path);
 }
 
 void TestXdg::parseAddableRejectsGarbage()
 {
-    QCOMPARE(Xdg::parseAddable(QStringLiteral("not a magnet or url")).kind, Addable::Kind::None);
-    QCOMPARE(Xdg::parseAddable(QStringLiteral("magnet:?dn=NoHashHere")).kind, Addable::Kind::None);
-    QCOMPARE(Xdg::parseAddable(QStringLiteral("ftp://example.com/file.torrent")).kind,
-             Addable::Kind::None);
-    QCOMPARE(Xdg::parseAddable(QStringLiteral("/no/such/file.torrent")).kind, Addable::Kind::None);
-    QCOMPARE(Xdg::parseAddable(QString()).kind, Addable::Kind::None);
+    QCOMPARE(pasted(QStringLiteral("not a magnet or url")).kind, Addable::Kind::None);
+    QCOMPARE(pasted(QStringLiteral("magnet:?dn=NoHashHere")).kind, Addable::Kind::None);
+    QCOMPARE(pasted(QStringLiteral("ftp://example.com/file.torrent")).kind, Addable::Kind::None);
+    QCOMPARE(pasted(QStringLiteral("/no/such/file.torrent")).kind, Addable::Kind::None);
+    QCOMPARE(pasted(QString()).kind, Addable::Kind::None);
 }
 
 void TestXdg::parseAddableTrimsWhitespace()
 {
     const QString url = QStringLiteral("  https://example.com/page  \t");
-    const Addable addable = Xdg::parseAddable(url);
+    const Addable addable = pasted(url);
     QCOMPARE(addable.kind, Addable::Kind::HttpUrl);
     QCOMPARE(addable.value, QStringLiteral("https://example.com/page"));
 }
@@ -210,7 +225,7 @@ void TestXdg::parseAddableListKeepsOrderAndDropsJunk()
     const QString url = QStringLiteral("https://example.com/a.torrent");
     const QString text = QStringLiteral("%1\njust some junk\n%2\n\n").arg(magnet, url);
 
-    const QList<Addable> addables = Xdg::parseAddableList(text);
+    const QList<Addable> addables = pastedList(text);
     QCOMPARE(addables.size(), 2);
     QCOMPARE(addables.at(0).kind, Addable::Kind::Magnet);
     QCOMPARE(addables.at(0).value, magnet);
@@ -248,7 +263,7 @@ void TestXdg::parseAddableListSplitsLinksOnOneLine()
     const QString b =
         QStringLiteral("magnet:?xt=urn:btih:d12fe1c06bba254a9dc9f519b335aa7c1367a88b");
     const QList<Addable> addables =
-        Xdg::parseAddableList(QStringLiteral("%1 %2\thttps://example.com/c.torrent").arg(a, b));
+        pastedList(QStringLiteral("%1 %2\thttps://example.com/c.torrent").arg(a, b));
     QCOMPARE(addables.size(), 3);
     QCOMPARE(addables.at(0).value, a);
     QCOMPARE(addables.at(1).value, b);
@@ -260,7 +275,7 @@ void TestXdg::parseAddableListSplitsLinksOnOneLine()
     QFile file(path);
     QVERIFY(file.open(QIODevice::WriteOnly));
     file.close();
-    const QList<Addable> one = Xdg::parseAddableList(path);
+    const QList<Addable> one = pastedList(path);
     QCOMPARE(one.size(), 1);
     QCOMPARE(one.at(0).kind, Addable::Kind::TorrentFile);
     QCOMPARE(one.at(0).value, path);
@@ -269,9 +284,9 @@ void TestXdg::parseAddableListSplitsLinksOnOneLine()
 void TestXdg::magnetXtMustBeItsOwnParameter()
 {
     const QString hash = QStringLiteral("c12fe1c06bba254a9dc9f519b335aa7c1367a88a");
-    QCOMPARE(Xdg::parseAddable(QStringLiteral("magnet:?foo_xt=urn:btih:%1").arg(hash)).kind,
+    QCOMPARE(pasted(QStringLiteral("magnet:?foo_xt=urn:btih:%1").arg(hash)).kind,
              Addable::Kind::None);
-    QCOMPARE(Xdg::parseAddable(QStringLiteral("magnet:?dn=x&xt=urn:btih:%1").arg(hash)).kind,
+    QCOMPARE(pasted(QStringLiteral("magnet:?dn=x&xt=urn:btih:%1").arg(hash)).kind,
              Addable::Kind::Magnet);
 }
 
@@ -411,7 +426,7 @@ void TestXdg::parseAddableRecognisesABareInfoHash()
 {
     QFETCH(QString, text);
     QFETCH(QString, value);
-    const Addable addable = Xdg::parseAddable(text);
+    const Addable addable = pasted(text);
     QCOMPARE(addable.kind, Addable::Kind::InfoHash);
     // As it was given: the sheet's field shows what was pasted, App makes the magnet.
     QCOMPARE(addable.value, value);
@@ -438,7 +453,7 @@ void TestXdg::parseAddableFindsNoHashInOtherText()
 {
     QFETCH(QString, text);
     QFETCH(Addable::Kind, kind);
-    QCOMPARE(Xdg::parseAddable(text).kind, kind);
+    QCOMPARE(pasted(text).kind, kind);
 }
 
 void TestXdg::parseAddableListTakesHashesAsWholeTokens()
@@ -447,7 +462,7 @@ void TestXdg::parseAddableListTakesHashesAsWholeTokens()
 
     // One per line, mixed with a magnet.
     const QList<Addable> lines =
-        Xdg::parseAddableList(QStringLiteral("%1\n%2\r\n%3\n").arg(kHashV2, magnet, kHashBase32));
+        pastedList(QStringLiteral("%1\n%2\r\n%3\n").arg(kHashV2, magnet, kHashBase32));
     QCOMPARE(lines.size(), 3);
     QCOMPARE(lines.at(0).kind, Addable::Kind::InfoHash);
     QCOMPARE(lines.at(0).value, kHashV2);
@@ -457,14 +472,14 @@ void TestXdg::parseAddableListTakesHashesAsWholeTokens()
 
     // Side by side, nothing else on the line: a list.
     const QList<Addable> sideBySide =
-        Xdg::parseAddableList(QStringLiteral("%1 %2\t%3").arg(kHashV1, kHashV2, magnet));
+        pastedList(QStringLiteral("%1 %2\t%3").arg(kHashV1, kHashV2, magnet));
     QCOMPARE(sideBySide.size(), 3);
     QCOMPARE(sideBySide.at(0).kind, Addable::Kind::InfoHash);
     QCOMPARE(sideBySide.at(1).kind, Addable::Kind::InfoHash);
     QCOMPARE(sideBySide.at(2).kind, Addable::Kind::Magnet);
 
     // In a sentence the hash is prose; a magnet in the same sentence is still one.
-    const QList<Addable> prose = Xdg::parseAddableList(
+    const QList<Addable> prose = pastedList(
         QStringLiteral("fixed in %1, see %2\nchecksum %3").arg(kHashV1, magnet, kHashV2));
     QCOMPARE(prose.size(), 1);
     QCOMPARE(prose.at(0).kind, Addable::Kind::Magnet);
@@ -480,31 +495,46 @@ void TestXdg::dropTakesABareInfoHash()
     QCOMPARE(addables.at(0).value, kHashV1);
 }
 
-void TestXdg::clipboardOffersABareInfoHash()
+void TestXdg::theClipboardProbeIgnoresABareInfoHash_data()
 {
+    QTest::addColumn<QString>("text");
+
+    QTest::newRow("40 hex") << kHashV1;
+    QTest::newRow("32 base32") << kHashBase32;
+    QTest::newRow("64 hex, a line") << QStringLiteral("  %1\n").arg(kHashV2);
+    QTest::newRow("hashes side by side") << QStringLiteral("%1 %2").arg(kHashV1, kHashV2);
+}
+
+// #147: the probe that fills the sheet as it opens never offers a bare hash (a commit id
+// copied for something else looks the same); a paste of the very same text takes it.
+void TestXdg::theClipboardProbeIgnoresABareInfoHash()
+{
+    QFETCH(QString, text);
+
+    Xdg xdg;
+    QCOMPARE(xdg.probeClipboardText(text).kind, Addable::Kind::None);
+    QVERIFY(!pastedList(text).isEmpty());
+    QCOMPARE(pastedList(text).first().kind, Addable::Kind::InfoHash);
+    QCOMPARE(Xdg::parseAddable(text, Xdg::BareHash::Ignore).kind, Addable::Kind::None);
+    QVERIFY(Xdg::parseAddableList(text, Xdg::BareHash::Ignore).isEmpty());
+
+    // A magnet after the hash is still what the probe offers.
+    const QString magnet = QStringLiteral("magnet:?xt=urn:btih:%1").arg(kHashV1);
+    const Addable mixed = xdg.probeClipboardText(text + QLatin1Char('\n') + magnet);
+    QCOMPARE(mixed.kind, Addable::Kind::Magnet);
+    QCOMPARE(mixed.value, magnet);
+
+    // And the real clipboard goes through the same probe.
     QClipboard *clipboard = QGuiApplication::clipboard();
     QVERIFY(clipboard);
     const QString before = clipboard->text();
     const auto restore = qScopeGuard([&]() { clipboard->setText(before); });
-
-    Xdg xdg;
-    clipboard->setText(QStringLiteral("  %1\n").arg(kHashV2));
+    clipboard->setText(text);
     if (clipboard->text().isEmpty())
         QSKIP("this platform keeps no clipboard text");
-    Addable found = xdg.detectClipboardMagnet();
-    QCOMPARE(found.kind, Addable::Kind::InfoHash);
-    QCOMPARE(found.value, kHashV2);
-
-    clipboard->setText(kHashBase32);
-    found = xdg.detectClipboardMagnet();
-    QCOMPARE(found.kind, Addable::Kind::InfoHash);
-    QCOMPARE(found.value, kHashBase32);
-
-    // A sentence that happens to hold one is not offered.
-    clipboard->setText(QStringLiteral("merged as %1 yesterday").arg(kHashV1));
     QCOMPARE(xdg.detectClipboardMagnet().kind, Addable::Kind::None);
-    clipboard->setText(kHashV1.left(39));
-    QCOMPARE(xdg.detectClipboardMagnet().kind, Addable::Kind::None);
+    clipboard->setText(magnet);
+    QCOMPARE(xdg.detectClipboardMagnet().kind, Addable::Kind::Magnet);
 }
 
 QTEST_MAIN(TestXdg)

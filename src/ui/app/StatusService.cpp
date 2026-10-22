@@ -106,7 +106,8 @@ StatusService::Source StatusService::parseSource(const QString &text)
 {
     Source source;
     source.source = text;
-    const integration::Addable addable = integration::Xdg::parseAddable(text);
+    const integration::Addable addable =
+        integration::Xdg::parseAddable(text, integration::Xdg::BareHash::Take);
     source.value = addable.value;
 
     switch (addable.kind) {

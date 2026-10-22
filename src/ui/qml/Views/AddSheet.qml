@@ -81,8 +81,9 @@ Sheet {
     property var _batchMatches: ({})
     /// Test seam: the chooser for several `.torrent` files (App.pickTorrentFiles).
     property var pickTorrents: () => App.pickTorrentFiles()
-    /// Test seam: what `Xdg.detectClipboardMagnet()` would answer. Non-empty wins over the
-    /// real clipboard, which an offscreen test run has no control over.
+    /// Test seam: the clipboard's text, as `Xdg.detectClipboardMagnet()` would read it. Non-empty
+    /// wins over the real clipboard, which an offscreen test run has no control over; it goes
+    /// through the same probe, so a bare info hash here is not offered either (#147).
     property string clipboardAddable: ""
     /// What the sheet could not do, drawn in the band under the head (docs/35 N7); "" hides it.
     property string errorText: ""
@@ -510,11 +511,11 @@ Sheet {
 
     on_FilesWhereChanged: App.setAddFilesWhere(sheet._filesWhere)
 
-    /// What the clipboard offers, or "" — the fake first, so a test can drive it.
+    /// What the clipboard offers, or "" — the fake first, so a test can drive it. The fake
+    /// goes through the same probe as the real clipboard: never a bare info hash (#147).
     function clipboardText(): string {
-        if (sheet.clipboardAddable.length > 0)
-            return sheet.clipboardAddable;
-        const found = Xdg.detectClipboardMagnet();
+        const found = sheet.clipboardAddable.length > 0 ? Xdg.probeClipboardText(sheet.clipboardAddable)
+                                                        : Xdg.detectClipboardMagnet();
         return found ? found.value : "";
     }
 

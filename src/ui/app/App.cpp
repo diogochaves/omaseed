@@ -1655,7 +1655,8 @@ QVariantMap App::parseAddable(const QString &textIn)
     if (text.isEmpty())
         return map;
 
-    const integration::Addable addable = integration::Xdg::parseAddable(text);
+    const integration::Addable addable =
+        integration::Xdg::parseAddable(text, integration::Xdg::BareHash::Take);
     switch (addable.kind) {
     case integration::Addable::Kind::Magnet:
     case integration::Addable::Kind::InfoHash: {
@@ -1872,7 +1873,8 @@ QStringList App::splitAddables(const QString &text) const
     QString spaced = text;
     spaced.replace(glued, QStringLiteral(" "));
     QStringList sources;
-    for (const integration::Addable &addable : integration::Xdg::parseAddableList(spaced))
+    for (const integration::Addable &addable :
+         integration::Xdg::parseAddableList(spaced, integration::Xdg::BareHash::Take))
         sources.append(addable.value);
     return sources;
 }
