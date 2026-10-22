@@ -317,7 +317,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline:2px 
       </tbody>
     </table></div>
     <div class="cols">
-      <div class="note warn"><b>Filed in <code>diogochaves/upstream#84</code></b> for you to triage. Nothing goes to qBittorrent from here. It matters to this board twice. omaseed must reproduce the rule exactly, quirk included, to print "until" and to know a hand toggle from the schedule. And "weekdays" past midnight happens to be "nights and weekends" (D8 b). If qBittorrent ever fixes this, that turns into weeknights only.</div>
+      <div class="note warn"><b>A qBittorrent quirk, noted for you to triage.</b> Nothing goes to qBittorrent from here. It matters to this board twice. omaseed must reproduce the rule exactly, quirk included, to print "until" and to know a hand toggle from the schedule. And "weekdays" past midnight happens to be "nights and weekends" (D8 b). If qBittorrent ever fixes this, that turns into weeknights only.</div>
       <div class="note">From and to the same (07:00 → 07:00) is never on: the window is a single instant. The Settings line says "never" rather than leaving it to guess.</div>
     </div>
 
@@ -677,7 +677,7 @@ const DEC = [
     ["c","Also offer to turn the schedule off from the note"]]},
   { id:"D8", q:"A preset beside From, to", opts:[
     ["a","\"nights\": 23:00 to 07:00 every day, one key (P1)", true],
-    ["b","\"nights and weekends\": 23:00 to 07:00, weekdays, using qBittorrent's backwards days (upstream#84)"],
+    ["b","\"nights and weekends\": 23:00 to 07:00, weekdays, using qBittorrent's backwards days"],
     ["c","No preset: the rows are enough"]]},
   { id:"D9", q:"The plain summary under Days, and the warning when the days run backwards", opts:[
     ["a","Yes, both (P1, P2)", true],

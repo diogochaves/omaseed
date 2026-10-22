@@ -10,7 +10,7 @@
 //   * From before to: on inside the window, on the picked days.
 //   * From after to (past midnight): qBittorrent swaps the two, starts from "on", and turns it
 //     off only in the daytime between them on a picked day. So on a day that is not picked it
-//     is on all day: the days read backwards (diogochaves/upstream#84). Reproduced as is.
+//     is on all day: the days read backwards (qBittorrent's own rule). Reproduced as is.
 //   * From and to the same: never on (the window is a single instant).
 //   * Every 30 s it works the state out and acts only when that changed since its last look.
 //     A hand toggle is left alone until then; if that change goes the same way as the hand

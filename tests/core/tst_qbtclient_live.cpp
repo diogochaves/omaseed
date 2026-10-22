@@ -304,7 +304,7 @@ void TestQbtClientLive::probeReportsServerInfo()
 
 // #44 (docs/29 §2): a torrent the library already holds answers 200 at once, with its whole
 // metadata; the paths carry the torrent's own folder. Only library torrents are asked, so no
-// lookup is left running on either server (there is no way to cancel one, upstream#87).
+// lookup is left running on either server (there is no way to cancel one).
 void TestQbtClientLive::fetchMetadataOnBothServers()
 {
     // `asked`: whether `client`'s library had a torrent to ask about.
@@ -353,7 +353,7 @@ void TestQbtClientLive::fetchMetadataOnBothServers()
     if (m_apiKey.isEmpty())
         QSKIP("QBT_STRICT_API_KEY is unset: the strict half needs dev.env loaded");
     // The API key's session is keyed by the key and never ends, so a lookup's result stays
-    // with it between polls (upstream#86).
+    // with it between polls.
     QbtClient strict;
     strict.setBaseUrl(m_strict);
     strict.setApiKey(m_apiKey);

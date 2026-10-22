@@ -1,6 +1,6 @@
 // RenameDisk (#64): which rename targets would land on a file the torrent does not own, read
-// from a real folder. The torrent here is upstream#85's: album/a.txt and album/b.txt, with a
-// stray album/d.txt beside them that qBittorrent would let a rename replace.
+// from a real folder. The torrent here is the case found on the playground: album/a.txt and
+// album/b.txt, with a stray album/d.txt beside them that qBittorrent would let a rename replace.
 
 #include "core/RenameDisk.hpp"
 #include "core/RenamePlan.hpp"

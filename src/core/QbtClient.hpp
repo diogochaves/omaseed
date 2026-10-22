@@ -396,7 +396,7 @@ public:
     /// metadata of `source` (a magnet, a v1 or v2 hash, an http(s) link to a .torrent) without
     /// adding it. It answers 202 while it looks and 200 once it has it; the caller asks again
     /// (docs/29 §3). The result is kept in the Web UI session, so every poll and the add that
-    /// follows must go through this one client (diogochaves/upstream#86). A 404 is a server
+    /// follows must go through this one client. A 404 is a server
     /// without the endpoint.
     QbtReply<FetchedMetadata> *torrentsFetchMetadata(const QString &source);
     /// True when a server with this app/webapiVersion has torrents/fetchMetadata and takes

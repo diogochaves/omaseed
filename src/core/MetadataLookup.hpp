@@ -20,9 +20,9 @@
 //
 // The clock starts once the server is ready (F7). The polls go at 0, 0.25, 0.5 and 1 s, then
 // every second, and every 5 s after a minute, one at a time; a lost poll is just asked again.
-// Nothing here stops the lookup on the server: qBittorrent has no way to (D6,
-// diogochaves/upstream#87). Every poll must go through the same QbtClient, whose session keeps
-// the result (diogochaves/upstream#86): `setFetch` is that client's torrentsFetchMetadata.
+// Nothing here stops the lookup on the server: qBittorrent has no way to (D6).
+// Every poll must go through the same QbtClient, whose session keeps
+// the result: `setFetch` is that client's torrentsFetchMetadata.
 
 #include "core/QbtClient.hpp"
 #include "core/TorrentFile.hpp"

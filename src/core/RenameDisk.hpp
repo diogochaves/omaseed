@@ -9,7 +9,7 @@ namespace omaseed::core {
 /// What a rename would land on, on disk (#64). qBittorrent checks a new name only against the
 /// torrent's own files (`409 The file already exists`); libtorrent's rename is a plain
 /// rename(), so a file of that name that the torrent does not own is replaced without a word,
-/// and a folder renamed onto an existing one takes over the files in it (upstream#85).
+/// and a folder renamed onto an existing one takes over the files in it.
 ///
 /// So a target that is on disk and is not one of the torrent's own files is taken. This can
 /// only be read where this machine sees the server's disks (App asks FreeSpaceProbe, #29);

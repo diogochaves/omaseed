@@ -257,7 +257,7 @@ wait_for "the target answers on :$TARGET_PORT" 20 target_api app/version
 # The source: four swarm torrents (from the box's ~/Downloads, app-box.sh put them there),
 # downloaded for real, and a magnet nobody seeds. The Nested Library Sampler is a hybrid whose
 # files share content (one "pieces root" for several files): qBittorrent's torrents/export
-# repeats its piece layers, and qBittorrent then refuses that .torrent (415, #71, upstream#97).
+# repeats its piece layers, and qBittorrent then refuses that .torrent (415, #71).
 add_args=()
 for name in "tiny-notes.txt" "Field Recordings" "Ünïcødé" "Nested Library Sampler"; do
     for file in "$home"/Downloads/*.torrent; do
@@ -333,7 +333,7 @@ else
 fi
 # The hybrid's .torrent as the file holds it, and as qBittorrent's own export gives it: every
 # piece layer as long as its files are (#71). qBittorrent's is only said, not checked: it is
-# upstream's to fix (upstream#97).
+# qBittorrent's to fix.
 omabox run -b "$BOX" -- tar -xOf "$EXPORT" "torrents/$NESTED.torrent" >"$work/nested.torrent"
 source_api "torrents/export?hash=$NESTED" >"$work/nested-qbt.torrent"
 if layers_sound "$work/nested.torrent"; then
@@ -342,7 +342,7 @@ else
     fail "the Nested Library Sampler's .torrent: $(layers_sound "$work/nested.torrent" 2>&1)"
 fi
 layers_sound "$work/nested-qbt.torrent" >/dev/null 2>&1 ||
-    echo "  (qBittorrent's own torrents/export of it still repeats its piece layers: upstream#97)"
+    echo "  (qBittorrent's own torrents/export of it still repeats its piece layers)"
 shot "The note under the rows: Exported 5 torrents to ~/torrents-box-<date>.omaseed-torrents. 1 magnet went in as a link." note
 
 step "Copy the files elsewhere" "In the box, ~/Torrents is copied to ~/Moved: the files as a new machine would have them, under another folder."

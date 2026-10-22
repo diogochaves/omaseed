@@ -291,11 +291,11 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline:2px 
       <tr><th>what</th><th>answer</th><th>what it means here</th></tr>
       <tr><td>an empty <code>location</code></td><td class="nw">400</td><td>As documented.</td></tr>
       <tr><td>a folder it can't create (<code>/proc/nope/x</code>)</td><td class="nw">409</td><td>As documented: "can't create FOLDER".</td></tr>
-      <tr><td>a folder that exists but it can't write (<code>/usr/share</code>)</td><td class="nw m">200</td><td>The wiki says 403. The move is queued and then fails, and only the log says so: <code>Failed to move torrent … storage move failed. mkdir (…)</code>. <b>omaseed has to check writability itself and follow the log.</b> Filed in diogochaves/upstream#120.</td></tr>
+      <tr><td>a folder that exists but it can't write (<code>/usr/share</code>)</td><td class="nw m">200</td><td>The wiki says 403. The move is queued and then fails, and only the log says so: <code>Failed to move torrent … storage move failed. mkdir (…)</code>. <b>omaseed has to check writability itself and follow the log.</b></td></tr>
       <tr><td>a torrent with automatic management on</td><td class="nw">200</td><td>Moving turns automatic management off. Turning it back on moves the torrent back to its category's folder.</td></tr>
       <tr><td>six torrents in one request</td><td class="nw">200</td><td>All six read <code>moving</code> at once. qBittorrent moves them <b>one at a time</b>, in the order sent, so a torrent waiting in its queue looks the same as the one being moved.</td></tr>
       <tr><td>the log, for each torrent</td><td class="nw">—</td><td><code>Enqueued torrent move</code> → <code>Start moving torrent</code> → <code>Moved torrent successfully</code> or <code>Failed to move torrent … Reason</code>. The torrent's name is in quotes. The words are translated with qBittorrent's language; libtorrent's reason is not.</td></tr>
-      <tr><td>a destination that already holds a <b>different</b> file with the torrent's file name</td><td class="nw n">200</td><td>qBittorrent keeps the other file, leaves the torrent's own file at the source, and logs "Moved torrent successfully". The torrent reads 100 % and seeds bytes that aren't its own. After moving it back, the other file had grown to the torrent's size (30 → 4096 bytes). <b>The preflight has to find these before anything is sent.</b> Filed in diogochaves/upstream#123.</td></tr>
+      <tr><td>a destination that already holds a <b>different</b> file with the torrent's file name</td><td class="nw n">200</td><td>qBittorrent keeps the other file, leaves the torrent's own file at the source, and logs "Moved torrent successfully". The torrent reads 100 % and seeds bytes that aren't its own. After moving it back, the other file had grown to the torrent's size (30 → 4096 bytes). <b>The preflight has to find these before anything is sent.</b></td></tr>
       <tr><td>the same filesystem</td><td class="nw">200</td><td>A rename: it lands at once.</td></tr>
     </table>
     </div>
@@ -716,7 +716,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline:2px 
       <tr><td>destination is the folder itself</td><td>Off: "games is already there."</td></tr>
       <tr><td>a torrent already at its target</td><td>Skipped and counted ("3 already there").</td></tr>
       <tr><td>destination on the same drive</td><td>A rename for each torrent; no room needed; the band says "renaming" and gives no time left.</td></tr>
-      <tr><td>a different file at a torrent's target</td><td>That torrent is left out and listed (§1, upstream#123). The rest go.</td></tr>
+      <tr><td>a different file at a torrent's target</td><td>That torrent is left out and listed (§1). The rest go.</td></tr>
       <tr><td>a torrent outside the folder whose files are all inside it (added without a subfolder one level up)</td><td>Pulled in and named in the preflight; it moves to the matching place, the parent of the new path.</td></tr>
       <tr><td>a torrent outside with only some files inside (spanning the folder)</td><td>Not pulled in. Listed: "spans games: its files inside would be left without it". Moving the folder's other torrents is still allowed.</td></tr>
       <tr><td>torrents still downloading, or with an incomplete folder</td><td>Included. qBittorrent moves what is there and goes on downloading at the new place. With "keep incomplete in", the data in the incomplete folder stays put and goes to the new save path when complete. <i>Assumed: check on the playground before the build.</i></td></tr>
@@ -826,13 +826,13 @@ const DEC = [
   { id:"M5", q:"Room at the destination", why:"§3 S1, S3. Bytes on disk, not torrent size (partial packs).", opts:[
     ["a","Bytes present (qBittorrent's completed) plus the loose files when carried, against free space read on this machine (or qBittorrent's figure for its default drive) less the low-disk threshold (Q16): short turns the move off with the figures; can't tell is a yellow line and the move is allowed; the same drive needs no room", true],
     ["b","A warning only, never blocking"]]},
-  { id:"M6", q:"Can qBittorrent write there", flag:"qBittorrent 5.2.3 answers 200 for a folder it can't write (upstream#120).", why:"§1, §3's note, §5 T2.", opts:[
+  { id:"M6", q:"Can qBittorrent write there", flag:"qBittorrent 5.2.3 answers 200 for a folder it can't write.", why:"§1, §3's note, §5 T2.", opts:[
     ["a","A local check against the owner of the folder's files when omaseed sees the disks, and always the smallest torrent sent alone first: if it fails, the job stops with its reason before anything else moves", true],
     ["b","The local check only; everything sent in waves from the start"]]},
   { id:"M7", q:"Automatic management", why:"§3 S1. setLocation turns it off; turning it back on moves the torrent back.", opts:[
     ["a","A yellow line with the count and the category's folder; nothing changed. Editing the category's save path is later (§12)", true],
     ["b","A tick \"point category games at the new folder too\", in this build"]]},
-  { id:"M8", q:"A different file already at a torrent's target", flag:"qBittorrent keeps the other file and reports the move done (upstream#123).", why:"§1, §3 S1, §9.", opts:[
+  { id:"M8", q:"A different file already at a torrent's target", flag:"qBittorrent keeps the other file and reports the move done.", why:"§1, §3 S1, §9.", opts:[
     ["a","Those torrents are left out of the job and listed in red; the rest go", true],
     ["b","Block the whole move until they are dealt with"]]},
   { id:"M9", q:"Loose files: which ones", why:"§3 S1–S3, §7. The brief's point 7 safety rules.", opts:[

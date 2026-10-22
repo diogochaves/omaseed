@@ -74,7 +74,7 @@ public:
     QStringList trackers() const;
 
     /// `data` with its BEP-52 "piece layers" put right where qBittorrent's `torrents/export`
-    /// (libtorrent's writer, upstream#97) breaks them: files of identical content share one
+    /// (libtorrent's writer) breaks them: files of identical content share one
     /// "pieces root", and the exported layer under that root is the file's layer once per
     /// file that shares it, which libtorrent then refuses to load ("a piece layer is
     /// invalid"; torrents/add answers 415, #71). A layer that is exactly whole copies of its

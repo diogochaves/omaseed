@@ -2,7 +2,7 @@
 // folder with a subfolder save path is moved to another drive (/dev/shm when it is there) and
 // every torrent keeps its place below the folder; then a move to a folder qBittorrent can't
 // write stops after its first torrent, which qBittorrent answers 200 for and fails in its log
-// (diogochaves/upstream#120). Before those, a plan made without a view of the disks asks the
+// (docs/42 §1). Before those, a plan made without a view of the disks asks the
 // server what is already where the torrents would go (#102, C16 L13). Everything it adds is
 // removed with its files at the end.
 
@@ -383,7 +383,7 @@ void TestMoveJobLive::anUnwritableFolderStopsAfterTheFirst()
         job.end();
     }
     {
-        // A folder that is there but can't be written: 200, then the log (upstream#120).
+        // A folder that is there but can't be written: 200, then the log.
         const QString there = readonly + QStringLiteral("/there");
         QFile::setPermissions(
             readonly, QFileDevice::ReadOwner | QFileDevice::WriteOwner | QFileDevice::ExeOwner);

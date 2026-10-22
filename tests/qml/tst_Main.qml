@@ -268,7 +268,7 @@ TestCase {
         for (const key of keys)
             before[key] = prefs.value(key);
         // 23:00 to 07:00 on tomorrow's day only: qBittorrent's backwards days put today all
-        // on (diogochaves/upstream#84), so the demo's "off" is a hand toggle, whatever the time.
+        // on, so the demo's "off" is a hand toggle, whatever the time.
         const tomorrow = (new Date().getDay() + 1) % 7; // 0 is Sunday
         prefs.apply({
                         "scheduler_enabled": true,

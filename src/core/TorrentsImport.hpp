@@ -24,7 +24,7 @@
 //      it is complete and was started at export, and stays stopped otherwise ("files
 //      missing", not downloading from zero). "leave them stopped" skips the check.
 //
-// Renames never replace a file on the target's disk (#64, #67, upstream#85): where this
+// Renames never replace a file on the target's disk (#64, #67): where this
 // machine sees the server's folders (`localPathFor`), a rename whose old and new names are both
 // files there is not sent, and its torrent is never started. Elsewhere the renames are sent,
 // as the rename sheets do (#64: where the disk can't be seen, nothing new is said).

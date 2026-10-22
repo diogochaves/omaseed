@@ -21,7 +21,7 @@
 //   the server's disks;
 // - automatic management (M7): which torrents use it; setLocation turns it off for them;
 // - a file already at a torrent's target (M8): qBittorrent would keep it and report the move
-//   done (diogochaves/upstream#123), so that torrent is left out. Checked on this machine when
+//   done, so that torrent is left out. Checked on this machine when
 //   it sees the server's disks, else on the server through the folders qBittorrent listed
 //   (ServerFolder, DECISIONS C16 L13, #102);
 // - torrents already at the new path (counted, skipped) and what blocks the move as a whole
