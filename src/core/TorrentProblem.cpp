@@ -611,6 +611,21 @@ TorrentProblem describe(const ProblemLine &line)
     return problem;
 }
 
+TorrentProblem hybridRecheck()
+{
+    TorrentProblem problem;
+    problem.headline = tr("libtorrent can't check this hybrid torrent");
+    problem.causeKey = QStringLiteral("hybridRecheck");
+    problem.cause = tr("hybrid error");
+    problem.detail = tr("torrent_inconsistent_hashes: its v1 and v2 hashes don't describe the "
+                        "same data once a downloaded file is missing");
+    problem.advice = tr("qBittorrent logs nothing for it, and starting it or restarting "
+                        "qBittorrent brings it back. Adding it again clears it, at the cost of "
+                        "its ratio, seeding time and added date.");
+    problem.actions = {QStringLiteral("addAgain")};
+    return problem;
+}
+
 TorrentProblem notLogged(bool missingFiles)
 {
     TorrentProblem problem;

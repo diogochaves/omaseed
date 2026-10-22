@@ -17,6 +17,9 @@ struct StorageReading
     qint64 bytesFree = 0;
     qint64 bytesTotal = 0;
     QString rootPath; ///< the drive's mount point, e.g. "/mnt/media"
+    /// QStorageInfo::fileSystemType(): the driver, not the format ("ntfs3", "ntfs", "exfat",
+    /// "vfat", "ext4", "btrfs"), as #116 read it. DECISIONS C17 D8 decides by it.
+    QString fileSystem;
 };
 
 /// Measures a local folder. Replaceable so tests never depend on this machine's disks.
@@ -47,6 +50,10 @@ public:
         qint64 bytesFree = 0;
         qint64 bytesTotal = 0; ///< 0 when only the free figure is known (Default)
         QString where;         ///< the mount point for Local, empty otherwise
+        /// The drive's filesystem (StorageReading::fileSystem) wherever this machine reads
+        /// it: Local, and Default while it sees the server's disks. Empty otherwise: the API
+        /// doesn't say, and omaseed won't guess (DECISIONS C17 D8).
+        QString fileSystem;
     };
 
     explicit FreeSpaceProbe(StorageReader reader = readLocal);

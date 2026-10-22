@@ -62,6 +62,7 @@ StorageReading FreeSpaceProbe::readLocal(const QString &localPath)
     reading.bytesFree = storage.bytesAvailable();
     reading.bytesTotal = storage.bytesTotal();
     reading.rootPath = storage.rootPath();
+    reading.fileSystem = QString::fromUtf8(storage.fileSystemType());
     return reading;
 }
 
@@ -115,8 +116,17 @@ FreeSpaceProbe::Answer FreeSpaceProbe::answer(const QString &savePath) const
     server.source = Source::Default;
     server.bytesFree = m_serverBytesFree;
 
-    if (isDefault)
-        return m_serverBytesFree > 0 ? server : Answer();
+    if (isDefault) {
+        if (m_serverBytesFree <= 0)
+            return Answer();
+        // The server's own figure, and the drive's type when this machine sees it (C17 D8).
+        if (m_seesServerDisks) {
+            const QString local = localFor(m_defaultSavePath);
+            if (!local.isEmpty())
+                server.fileSystem = m_reader(local).fileSystem;
+        }
+        return server;
+    }
 
     if (m_seesServerDisks) {
         const QString local = localFor(path);
@@ -128,6 +138,7 @@ FreeSpaceProbe::Answer FreeSpaceProbe::answer(const QString &savePath) const
                 answer.bytesFree = reading.bytesFree;
                 answer.bytesTotal = reading.bytesTotal;
                 answer.where = reading.rootPath;
+                answer.fileSystem = reading.fileSystem;
                 return answer;
             }
         }

@@ -72,6 +72,7 @@ private Q_SLOTS:
     void rename_targets_are_the_selected_files_else_every_shown_one();
     void the_tick_reads_wanted_over_each_subtree();
     void the_head_tick_covers_what_the_filter_shows();
+    void on_disk_shows_what_skipped_files_hold();
 };
 
 void TestTorrentFilesModel::builds_the_tree_from_slash_separated_names()
@@ -1044,6 +1045,51 @@ void TestTorrentFilesModel::the_head_tick_covers_what_the_filter_shows()
     model.setFilterText(QString());
     QCOMPARE(model.headFileCount(), 5);
     QCOMPARE(model.headWanted(), 1);
+}
+
+void TestTorrentFilesModel::on_disk_shows_what_skipped_files_hold()
+{
+    // DECISIONS C17 D1: a skipped file's allocated bytes, "—" for a wanted one, a folder the
+    // sum of its skipped files'; the column shows only while some skipped file holds any.
+    const auto file = [](int index, const QString &name, int priority) {
+        return QJsonObject{{QStringLiteral("index"), index},
+                           {QStringLiteral("name"), name},
+                           {QStringLiteral("size"), 1000.0},
+                           {QStringLiteral("priority"), priority},
+                           {QStringLiteral("progress"), 0.0}};
+    };
+    const QJsonArray files{file(0, QStringLiteral("A/wanted.bin"), 1),
+                           file(1, QStringLiteral("A/b.bin"), 0),
+                           file(2, QStringLiteral("A/c.bin"), 0)};
+    TorrentFilesModel model;
+    QAbstractItemModelTester tester(&model);
+    model.applyFiles(files);
+    QSignalSpy changed(&model, &TorrentFilesModel::onDiskChanged);
+    QVERIFY(!model.showOnDisk());
+    QCOMPARE(at(model, 2, TorrentFilesModel::OnDiskTextRole).toString(), QString());
+
+    model.setOnDisk({{1, 4096 * 1024}, {2, 0}});
+    QCOMPARE(changed.count(), 1);
+    QVERIFY(model.showOnDisk());
+    QCOMPARE(model.heldOnDisk(), qint64(4096 * 1024));
+    QCOMPARE(model.holdingOnDisk(), 1);
+    QCOMPARE(at(model, 0, TorrentFilesModel::OnDiskRole).toLongLong(), qint64(4096 * 1024));
+    QCOMPARE(at(model, 1, TorrentFilesModel::OnDiskTextRole).toString(), QStringLiteral("—"));
+    QVERIFY(at(model, 2, TorrentFilesModel::OnDiskTextRole).toString().contains(QStringLiteral("MB")));
+    // Read, and holding nothing (sparse): a size, not the wanted file's "—".
+    const QString none = at(model, 3, TorrentFilesModel::OnDiskTextRole).toString();
+    QVERIFY(!none.isEmpty() && none != QStringLiteral("—"));
+
+    // A poll keeps the reading; a tick makes the file's space expected, so it leaves the sum.
+    model.applyFiles(files);
+    QCOMPARE(model.heldOnDisk(), qint64(4096 * 1024));
+    model.setLocalPriority({1}, int(FilePriority::Normal));
+    QVERIFY(!model.showOnDisk());
+    QCOMPARE(at(model, 2, TorrentFilesModel::OnDiskTextRole).toString(), QStringLiteral("—"));
+
+    model.clear();
+    model.applyFiles(files);
+    QVERIFY(!model.showOnDisk());
 }
 
 QTEST_MAIN(TestTorrentFilesModel)

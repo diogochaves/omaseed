@@ -80,6 +80,9 @@ public:
     TorrentFailure failure(const QString &hash) const { return m_failures.value(hash); }
     /// D3: hides the failure shown for `hash`, every line behind it, for good.
     void dismiss(const QString &hash);
+    /// omaseed asked qBittorrent to recheck `hashes` (C17 D3): a hybrid that goes into error
+    /// after it, with nothing logged, is libtorrent's torrent_inconsistent_hashes.
+    void noteRechecked(const QStringList &hashes);
     /// D4: the dismissed lines, as lineKey()s, for the caller to keep per server.
     QStringList dismissed() const;
     /// What dismissed() said last time, for this server. Applies at once.
@@ -210,6 +213,10 @@ private:
     quint64 m_generation = 0; ///< reset() count: a read from before one is dropped
 
     QSet<QString> m_errored;      ///< hashes in error or missingFiles
+    /// C17 D3 (board 28's hybrid error): when each torrent was last seen checking, or asked
+    /// to recheck (noteRechecked), and the errored ones that went into error soon after.
+    QHash<QString, QDateTime> m_checkedAt;
+    QSet<QString> m_erroredAfterCheck;
     QSet<QString> m_newlyErrored; ///< went into error while watched, notice not sent yet
     bool m_seenFirstSync = false;
     QHash<QString, TorrentProblem> m_problems;

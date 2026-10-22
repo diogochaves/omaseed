@@ -467,3 +467,8 @@ omaseed_add_test(tst_movejob_live LIVE
     SOURCES tst_movejob_live.cpp
     LIBRARIES omaseed::core
 )
+
+omaseed_add_test(tst_skippedondisk
+    SOURCES tst_skippedondisk.cpp
+    LIBRARIES omaseed::core
+)

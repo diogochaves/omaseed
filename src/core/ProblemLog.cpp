@@ -23,6 +23,16 @@ bool isErroredState(TorrentState state)
     return state == TorrentState::Error || state == TorrentState::MissingFiles;
 }
 
+bool isCheckingState(TorrentState state)
+{
+    return state == TorrentState::CheckingDownload || state == TorrentState::CheckingUpload ||
+           state == TorrentState::CheckingResumeData;
+}
+
+/// How soon after a check an error counts as the check's (C17 D3): a big torrent's check runs
+/// long, and the polls may not see it at all.
+constexpr qint64 kAfterCheckSeconds = 600;
+
 /// The hash libtorrent prints the prefix of: v2 when there is one, otherwise v1.
 QString printedHash(const Torrent &torrent)
 {
@@ -158,9 +168,15 @@ void ProblemLog::updateErrored(bool fullUpdate)
         const bool known = m_torrents->indexOfHash(hash) >= 0;
         const TorrentState state = known ? m_torrents->torrent(hash).state : TorrentState::Unknown;
         const bool errored = known && isErroredState(state);
+        if (known && isCheckingState(state))
+            m_checkedAt.insert(hash, QDateTime::currentDateTimeUtc());
         if (errored && !m_errored.contains(hash)) {
             m_errored.insert(hash);
             changed = true;
+            const QDateTime checked = m_checkedAt.value(hash);
+            if (checked.isValid() &&
+                checked.secsTo(QDateTime::currentDateTimeUtc()) <= kAfterCheckSeconds)
+                m_erroredAfterCheck.insert(hash);
             // A notice only for an error that happened while watching (D4 a), never for the
             // library as the first sync finds it, and not for missing files, which the start
             // of a server finds by the dozen.
@@ -168,6 +184,7 @@ void ProblemLog::updateErrored(bool fullUpdate)
                 m_newlyErrored.insert(hash);
         } else if (!errored && m_errored.remove(hash)) {
             changed = true;
+            m_erroredAfterCheck.remove(hash);
             m_newlyErrored.remove(hash);
             m_problems.remove(hash);
             if (known)
@@ -296,8 +313,14 @@ void ProblemLog::rematch()
 
     for (const Torrent &torrent : std::as_const(candidates)) {
         TorrentProblem problem = found.value(torrent.hash);
-        if (!problem.found)
-            problem = ProblemMatch::notLogged(torrent.state == TorrentState::MissingFiles);
+        if (!problem.found) {
+            // Board 44 §2: libtorrent's hybrid error is never logged; a hybrid that errored
+            // right after a check is that, and only adding it again clears it.
+            problem = torrent.state == TorrentState::Error && torrent.isHybrid() &&
+                              m_erroredAfterCheck.contains(torrent.hash)
+                          ? ProblemMatch::hybridRecheck()
+                          : ProblemMatch::notLogged(torrent.state == TorrentState::MissingFiles);
+        }
         publish(torrent.hash, problem);
     }
 
@@ -559,6 +582,13 @@ void ProblemLog::updateLogLines()
     m_webSeedLines = webSeeds;
     m_exportFailure = exported;
     Q_EMIT logLinesChanged();
+}
+
+void ProblemLog::noteRechecked(const QStringList &hashes)
+{
+    const QDateTime now = QDateTime::currentDateTimeUtc();
+    for (const QString &hash : hashes)
+        m_checkedAt.insert(hash, now);
 }
 
 void ProblemLog::dismiss(const QString &hash)

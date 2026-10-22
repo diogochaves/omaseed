@@ -97,7 +97,7 @@ struct TorrentProblem
     QString line;           ///< the newest matching line, whole, for "copy the line"
     bool ambiguous = false; ///< S5: another torrent of the same name may own the line
     /// In order: "location", "start", "recheck", "rename", and "checkDisk" (#108: advice with
-    /// no key, nothing the app can do itself).
+    /// no key, nothing the app can do itself); "addAgain" for a hybrid's recheck error (C17).
     QStringList actions;
 
     QVariantMap toMap() const;
@@ -158,6 +158,11 @@ TorrentProblem describe(const ProblemLine &line);
 
 /// What an errored torrent with no line shows (S4).
 TorrentProblem notLogged(bool missingFiles);
+
+/// Board 44 §2 (DECISIONS C17 D3, #115): a hybrid (v1+v2) torrent that went into error just
+/// after a check, with nothing logged: libtorrent 2.1.2's torrent_inconsistent_hashes. Starting
+/// it or restarting qBittorrent brings it back; only adding it again ("addAgain") clears it.
+TorrentProblem hybridRecheck();
 
 /// #108: the first part of `path` that a common target filesystem (NTFS, exFAT, FAT, the ones
 /// a Linux disk shares with Windows) would refuse as a name: one with `< > : " \ | ? *` or a

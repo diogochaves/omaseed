@@ -113,6 +113,10 @@ qt_add_library(omaseed-core STATIC
     SpeedSets.hpp
     SharedData.cpp
     SharedData.hpp
+    SkippedJobs.cpp
+    SkippedJobs.hpp
+    SkippedOnDisk.cpp
+    SkippedOnDisk.hpp
     StateFile.cpp
     StateFile.hpp
     StatusDigest.cpp

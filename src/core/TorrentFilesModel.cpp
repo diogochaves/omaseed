@@ -109,6 +109,8 @@ QHash<int, QByteArray> TorrentFilesModel::roleNames() const
         {PiecesTextRole, "piecesText"},
         {SelectedRole, "rowSelected"},
         {WantedRole, "wanted"},
+        {OnDiskRole, "onDisk"},
+        {OnDiskTextRole, "onDiskText"},
     };
 }
 
@@ -163,6 +165,14 @@ QVariant TorrentFilesModel::data(const QModelIndex &index, int role) const
         return QStringLiteral("%1–%2").arg(node.pieceFirst).arg(node.pieceLast);
     case SelectedRole:
         return m_selected.contains(node.path);
+    case OnDiskRole:
+        return node.onDisk;
+    case OnDiskTextRole:
+        if (node.isFolder)
+            return node.onDisk > 0 ? Format::size(node.onDisk) : QStringLiteral("—");
+        if (node.priority != int(FilePriority::Skip))
+            return QStringLiteral("—");
+        return node.onDisk >= 0 ? Format::size(node.onDisk) : QString();
     case WantedRole:
         if (!node.isFolder)
             return node.priority == int(FilePriority::Skip) ? 0 : 2;
@@ -235,6 +245,7 @@ void TorrentFilesModel::clear()
     m_selected.clear();
     m_fileCount = 0;
     m_matchCount = 0;
+    m_onDisk.clear();
     // A filter belongs to the torrent it was typed for; the sort is a preference and stays.
     const bool hadFilter = !m_filterText.isEmpty();
     m_filterText.clear();
@@ -244,6 +255,17 @@ void TorrentFilesModel::clear()
     if (hadFilter)
         Q_EMIT filterTextChanged();
     updateSummary();
+}
+
+void TorrentFilesModel::setOnDisk(const QHash<int, qint64> &allocatedByIndex)
+{
+    if (allocatedByIndex == m_onDisk)
+        return;
+    m_onDisk = allocatedByIndex;
+    for (int root : std::as_const(m_roots))
+        aggregate(root);
+    updateSummary();
+    emitAllChanged({OnDiskRole, OnDiskTextRole});
 }
 
 void TorrentFilesModel::rebuild(const QJsonArray &files)
@@ -377,13 +399,22 @@ void TorrentFilesModel::updateInPlace(const QJsonArray &files)
                     PieceFirstRole,
                     PieceLastRole,
                     PiecesTextRole,
-                    WantedRole});
+                    WantedRole,
+                    OnDiskRole,
+                    OnDiskTextRole});
 }
 
 void TorrentFilesModel::aggregate(int at)
 {
-    if (!m_nodes.at(at).isFolder)
+    if (!m_nodes.at(at).isFolder) {
+        // DECISIONS C17 D1: what a skipped file holds on disk; a wanted one's space is
+        // expected, so it shows none.
+        Node &leaf = m_nodes[at];
+        leaf.onDisk = leaf.priority == int(FilePriority::Skip)
+                          ? m_onDisk.value(leaf.fileIndex, -1)
+                          : -1;
         return;
+    }
 
     qint64 size = 0;
     qint64 remaining = 0;
@@ -400,12 +431,15 @@ void TorrentFilesModel::aggregate(int at)
     QList<int> ids;
     int files = 0;
     int skippedFiles = 0;
+    qint64 onDisk = -1;
 
     const QList<int> children = m_nodes.at(at).children;
     for (int child : children) {
         aggregate(child);
         const Node &kid = m_nodes.at(child);
         size += kid.size;
+        if (kid.onDisk >= 0)
+            onDisk = std::max<qint64>(onDisk, 0) + kid.onDisk;
         remaining += kid.remaining;
         done += double(kid.size) * kid.progress;
         // Progress counts the wanted files only, as qBittorrent's content view does: a
@@ -457,6 +491,7 @@ void TorrentFilesModel::aggregate(int at)
     node.order = std::max(order, 0);
     node.files = files;
     node.skippedFiles = skippedFiles;
+    node.onDisk = onDisk;
 }
 
 // --- filter and sort ---------------------------------------------------------------------
@@ -826,6 +861,19 @@ void TorrentFilesModel::updateSummary()
         if (node.priority == int(FilePriority::Skip))
             ++skipped;
     }
+    qint64 held = 0;
+    int holding = 0;
+    for (const Node &node : std::as_const(m_nodes)) {
+        if (!node.isFolder && node.onDisk > 0) {
+            held += node.onDisk;
+            ++holding;
+        }
+    }
+    if (held != m_heldOnDisk || holding != m_holdingOnDisk) {
+        m_heldOnDisk = held;
+        m_holdingOnDisk = holding;
+        Q_EMIT onDiskChanged();
+    }
     if (folders == m_folderCount && skipped == m_skippedCount && size == m_totalSize)
         return;
     m_folderCount = folders;
@@ -1131,7 +1179,9 @@ void TorrentFilesModel::setLocalPriority(const QVariantList &fileIndexes, int pr
                     RemainingTextRole,
                     AvailabilityRole,
                     AvailabilityTextRole,
-                    WantedRole});
+                    WantedRole,
+                    OnDiskRole,
+                    OnDiskTextRole});
 }
 
 QString TorrentFilesModel::pathAt(int row) const
