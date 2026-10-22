@@ -34,6 +34,7 @@ struct Library
         QString state = QStringLiteral("stalledUP");
         qint64 bytes = 0;
         bool autoTmm = false;
+        qint64 addedOn = 1792075500; ///< three days before the tests' clock
     };
     QMap<QString, Row> rows;
 
@@ -41,6 +42,12 @@ struct Library
     {
         rows.insert(hashOf(i),
                     {QStringLiteral("t%1").arg(i), savePath, QStringLiteral("stalledUP"), bytes});
+    }
+    /// Added to qBittorrent at `at`.
+    void addAt(int i, qint64 bytes, const QDateTime &at, const QString &savePath = kRoot)
+    {
+        add(i, bytes, savePath);
+        rows[hashOf(i)].addedOn = at.toSecsSinceEpoch();
     }
     void moving(int i) { rows[hashOf(i)].state = QStringLiteral("moving"); }
     void land(int i, const QString &at = kTo)
@@ -62,7 +69,7 @@ struct Library
                                    {QStringLiteral("completed"), it->bytes},
                                    {QStringLiteral("size"), it->bytes},
                                    {QStringLiteral("auto_tmm"), it->autoTmm},
-                                   {QStringLiteral("added_on"), 1792075500}});
+                                   {QStringLiteral("added_on"), it->addedOn}});
         }
         return out;
     }
@@ -791,9 +798,49 @@ private slots:
         m_library.add(1, kMiB);
         poll();
         m_job->start(plan(), QStringLiteral("home"));
-        m_library.add(9, kMiB);
+        wait(30);
+        m_library.addAt(9, kMiB, m_now);
         poll();
         QCOMPARE(m_job->addedDuring(), QStringList({hashOf(9)}));
+    }
+
+    void addedDuringIsOnlyWhatCameAfterTheStart()
+    {
+        // #164 (a): a torrent's move has its save path for root, which others share. Those
+        // were there before the job, so they are not "added during the move".
+        for (int i = 1; i <= 4; ++i)
+            m_library.add(i, i * kMiB);
+        poll();
+        QVERIFY(m_job->start(selection({hashOf(1)}, kTo),
+                             QStringLiteral("home"),
+                             false,
+                             0,
+                             spec(QStringLiteral("t1"))));
+        QCOMPARE(m_job->root(), kRoot);
+        // The second it started counts (added_on is in whole seconds), the one before doesn't.
+        m_library.addAt(8, kMiB, m_now.addSecs(-1));
+        m_library.addAt(9, kMiB, m_now);
+        wait(40);
+        m_library.addAt(10, kMiB, m_now, kRoot + "/handheld");
+        m_library.addAt(11, kMiB, m_now, QStringLiteral("/mnt/elsewhere"));
+        m_library.land(1);
+        poll();
+        QCOMPARE(m_job->state(), MoveJob::State::Done);
+        QCOMPARE(m_job->addedDuring(), QStringList({hashOf(9), hashOf(10)}));
+
+        // A folder's move: the root is the folder; an old torrent saved into it since is not
+        // new either, and only the one added after the start counts.
+        m_library = Library();
+        m_library.add(1, kMiB);
+        m_library.add(2, 2 * kMiB, kRoot + "/handheld");
+        poll();
+        newJob();
+        QVERIFY(m_job->start(plan(), QStringLiteral("home")));
+        m_library.addAt(3, kMiB, m_now.addSecs(-3600));
+        wait(5);
+        m_library.addAt(4, kMiB, m_now, kRoot + "/handheld");
+        poll();
+        QCOMPARE(m_job->addedDuring(), QStringList({hashOf(4)}));
     }
 };
 
