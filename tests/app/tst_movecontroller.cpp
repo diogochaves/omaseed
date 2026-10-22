@@ -1117,6 +1117,31 @@ private slots:
                               QStringLiteral("close")}));
     }
 
+    // #174: the record "details" unfolds starts where the band's own words end, and says
+    // what became of a torrent later in the table's words, with what fixes it.
+    void theRecordSaysLaterInTheTablesWords()
+    {
+        m_move->setServer(QStringLiteral("home"));
+        QTRY_COMPARE(m_move->folders()->total(), 5);
+        QVERIFY(m_move->start(
+            QStringLiteral("/mnt/archive/games"), QStringLiteral("/mnt/fast/games"), false));
+        for (int poll = 0; poll < 6 && m_move->stateName() != QStringLiteral("done"); ++poll)
+            landSent();
+        QCOMPARE(m_move->stateName(), QStringLiteral("done"));
+        m_engine->torrents()->applyPartial(
+            QJsonObject{{QStringLiteral("a1"),
+                         QJsonObject{{QStringLiteral("state"), QStringLiteral("missingFiles")}}}},
+            {});
+        Q_EMIT m_engine->synced(false);
+        const QString record = m_move->detailsText();
+        QVERIFY2(record.startsWith(QStringLiteral("started ")), qPrintable(record));
+        QVERIFY(!record.contains(m_move->band().value(QStringLiteral("headline")).toString()));
+        QVERIFY2(record.contains(
+                     QStringLiteral("    later: missing files · set location… or recheck it")),
+                 qPrintable(record));
+        QVERIFY(!record.contains(QStringLiteral("missingFiles")));
+    }
+
     // DECISIONS C20 (#138): the job notes which torrents were running when it sent them,
     // keeps it through a pause and quit, and its recheck starts only those once complete.
     void aRecheckStartsOnlyWhatWasRunning()
