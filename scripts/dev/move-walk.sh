@@ -1089,6 +1089,12 @@ keys Escape
 no_text "the sheet is closed" "Move Twin of Neighbour 3"
 hash_at "the twin stayed below" "${H[twin]}" "$BIG/twin" 1
 rm -f "$OUT_READ"
+# Gone again, files and all, so the rail's folders are as the later steps expect (a click on
+# fast/games needs it on screen) and the tmpfs has its 2 GiB back.
+api torrents/delete -d "hashes=$(IFS='|'; echo "${H[*]}")" -d deleteFiles=true >/dev/null
+in_box rm -rf /tmp/fast/big "$BIG"
+expect_count "the big step's torrents are gone" count_under "$BIG" -eq 0 30
+expect_count "and none is left at /tmp/fast/big" count_at /tmp/fast/big -eq 0 5
 fi
 
 # ---- music: a folder qBittorrent can't write, then a full one ------------------------------
