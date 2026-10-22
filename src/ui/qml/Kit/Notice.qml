@@ -184,6 +184,8 @@ Item {
         spacing: Theme.space(3)
 
         RowLayout {
+            id: headRow
+
             Layout.fillWidth: true
             spacing: Theme.space(8)
 
@@ -378,12 +380,17 @@ Item {
         }
     }
 
-    // The actions: beside the headline, or under the line when the band is narrow (N5).
+    // The actions: beside the headline, or under the line when the band is narrow (N5). They
+    // sit where the two placeholders are but stay the band's own child, declared after the
+    // line: a screen reader reads children in declaration order, so the headline and its line
+    // come first, then what to do about them (#91).
     Row {
         id: actionLinks
 
-        parent: root.stacked ? actionsUnder : actionsBeside
+        objectName: "noticeActions"
         spacing: Theme.space(14)
+        x: content.x + (root.stacked ? actionsUnder.x : headRow.x + actionsBeside.x)
+        y: content.y + (root.stacked ? actionsUnder.y : headRow.y + actionsBeside.y)
 
         Repeater {
             model: root.actions
