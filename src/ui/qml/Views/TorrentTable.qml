@@ -466,6 +466,9 @@ Item {
     signal focusRail
     signal focusDetails
     signal escapePressed
+    /// DECISIONS C18 D6: a plain left click put the selection on one row; `hadSelection`
+    /// says whether one was on before it (the host's hint on the selection bar).
+    signal plainClicked(bool hadSelection)
     /// A right-click on a header cell (#51 D6): the host opens the columns palette.
     signal columnsRequested
 
@@ -513,6 +516,10 @@ Item {
     /// The active columns that are plain text, drawn by one generic cell each.
     readonly property var textColumns: root.activeColumns.filter(column => column.text !== undefined)
 
+    /// DECISIONS C18 D6 (board 45 M1): the row's start, before the first column: a □ under the
+    /// pointer (a click adds the row, shift+click the range), ■ on the selected rows.
+    readonly property int tickWidth: Theme.space(16)
+
     /// How wide the rows are: the view's width, or more when the chosen columns need it.
     readonly property int rowWidth: {
         let fixed = 0;
@@ -523,7 +530,7 @@ Item {
             else
                 least = Theme.space(root.widthOf(column.key));
         }
-        return Math.max(root.width, fixed + least);
+        return Math.max(root.width, root.tickWidth + fixed + least);
     }
 
     /// `{key: {"x": px, "w": px}}` for every key in `columns`; a hidden column has `w` 0.
@@ -540,8 +547,8 @@ Item {
             if (column.width > 0)
                 fixed += Theme.space(root.widthOf(column.key));
         }
-        const flexible = root.rowWidth - fixed;
-        let x = 0;
+        const flexible = root.rowWidth - root.tickWidth - fixed;
+        let x = root.tickWidth;
         for (const column of shown) {
             const w = column.width > 0 ? Theme.space(root.widthOf(column.key)) : flexible;
             layout[column.key] = {
@@ -1522,8 +1529,22 @@ Item {
                     root.toggleSelection(row.index);
                     return;
                 }
+                const had = root.selectedCount > 0;
                 root.cursorIndex = row.index;
                 root.selectOnly(row.index);
+                root.plainClicked(had);
+            }
+
+            /// C18 D6: a click on the row's □ adds or removes it and leaves the others;
+            /// shift+click adds the range from the anchor.
+            function tickClick(modifiers: int): void {
+                root.forceActiveFocus();
+                if (modifiers & Qt.ShiftModifier) {
+                    root.selectRangeTo(row.index, true);
+                    return;
+                }
+                root.cursorIndex = row.index;
+                root.toggleSelection(row.index);
             }
 
             /// The whole text of the cell at `x` when the cell had to elide it, else "": what
@@ -1643,6 +1664,27 @@ Item {
                     width: Math.max(1, Math.round(Theme.space(2)))
                     x: 0
                     y: Math.round(Theme.space(5))
+                }
+
+                // C18 D6 (board 45 M1): □ under the pointer, ■ on a selected row, in the row's
+                // start; the pointer's own MouseArea below takes its click.
+                // a11y-ignore A2: the row is selectable already; this only draws its state
+                Text {
+                    id: tick
+
+                    readonly property bool onTick: pointer.containsMouse && pointer.mouseX < root.tickWidth
+
+                    color: row.isSelected || tick.onTick ? Theme.accent : Theme.foreground
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.font.small
+                    height: parent.height
+                    horizontalAlignment: Text.AlignHCenter
+                    objectName: "tick_" + row.index
+                    text: row.isSelected ? "■" : "□"
+                    verticalAlignment: Text.AlignVCenter
+                    visible: (row.isSelected || pointer.containsMouse) && !row.editing
+                    width: root.tickWidth
+                    x: 0
                 }
 
                 // Name + dimmed category (`.tbl > div.nm`): the name elides, the category
@@ -2054,10 +2096,18 @@ Item {
                         root.toggleSelection(row.index);
                         return;
                     }
-                    row.click(mouse.modifiers);
+                    if (mouse.button === Qt.LeftButton && mouse.x < root.tickWidth)
+                        row.tickClick(mouse.modifiers);
+                    else
+                        row.click(mouse.modifiers);
                 }
                 // The press before it already put the cursor and the selection on the row.
                 onDoubleClicked: mouse => {
+                    // Two quick ticks are two ticks, not an open.
+                    if (mouse.button === Qt.LeftButton && mouse.x < root.tickWidth) {
+                        row.tickClick(mouse.modifiers);
+                        return;
+                    }
                     if (mouse.button === Qt.LeftButton && !(mouse.modifiers & (Qt.ShiftModifier
                                                                               | Qt.ControlModifier)))
                         root.activated(row.hash);

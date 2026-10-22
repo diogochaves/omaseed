@@ -44,6 +44,21 @@ TestCase {
         return sheet;
     }
 
+    // DECISIONS C18 D6 (board 45 M2): a mouse block right after the select keys.
+    function test_the_mouse_has_its_own_block_after_select() {
+        const sheet = init();
+        const keys = sheet.sections.map(section => section.key);
+        compare(keys.indexOf("mouse"), keys.indexOf("select") + 1);
+        const mouse = sheet.sections[keys.indexOf("mouse")];
+        compare(mouse.title, "select with the mouse");
+        compare(mouse.rows.map(row => row.helpKeys), ["click □", "ctrl+click", "shift+click", "middle click",
+                                                      "right click"]);
+        verify(sheet.totalRows >= mouse.rows.length + 4);
+        // A search finds them too.
+        sheet.filterField.text = "middle";
+        compare(sheet.matchedRows.map(row => row.action), ["mouse:middle"]);
+    }
+
     function test_scrollbarShowsWhenRowsOverflow() {
         const sheet = init();
         const bar = childNamed(sheet, "helpScrollBar");

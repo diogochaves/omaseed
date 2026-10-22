@@ -901,10 +901,10 @@ closing a move's summary lost "move back". #130.
 - **How long (D8):** the last 20 moves or 30 days, whichever ends first. v0.3.0.
 - **When (D9):** D5, D7 and D8 with v0.3.0; D1–D4 and D6 in v0.4.0.
 
-**Built for v0.4.0 (D1–D4, #130).** `core/ActionOutcome` words the strip and holds the rows'
-marks; `App.outcomes` is it, and every table action reports there once its answer is in (one
-strip for an action of several requests, such as limits). What the board left open, taken as
-its mocks show:
+**Built for v0.4.0 (D1–D4 and D6, #130).** `core/ActionOutcome` words the strip and holds the
+rows' marks; `App.outcomes` is it, and every table action reports there once its answer is in
+(one strip for an action of several requests, such as limits). What the board left open,
+taken as its mocks show:
 
 - **The words.** "NAME stopped", "3 stopped", "NAME didn't move", "2 moved to PATH, 1 didn't";
   the line is ErrorWords' headline for a refusal, the log's reason for a move; "details" (when
@@ -923,6 +923,16 @@ its mocks show:
   delete's files, C2 D2).
 - **D4:** the band and summary of a move that ran past 3 s were already under the top bar
   (C15 M10); nothing moved.
+- **D6, the row's start.** The board's mocks drew a first column the table didn't have: the
+  rows now start with a 16 u space before the first column, empty but for □ on the row under
+  the pointer and ■ on selected rows. A click on □ adds or removes that row; shift+click on it
+  adds the range from the anchor and keeps the rest, since the □ never takes a row away from
+  others; two quick clicks on it are two ticks. The cursor's ▸ of the mocks is not drawn (the
+  cursor has its band). The `?` sheet's block, "select with the mouse", follows the select
+  keys. The hint, "ctrl+click add · shift+click range", is dim at caption size rather than
+  faint (Q19 keeps faint for what is disabled); it shows when a plain click opens the bar,
+  the first 3 times (state.json's `hints.selectionMouse`), goes with the bar, and is the
+  first thing the bar drops when narrow.
 
 ## C19 — From the second manual pass of the moves (ruled 2026-10-21)
 

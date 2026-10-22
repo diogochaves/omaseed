@@ -72,6 +72,42 @@ QtObject {
                                             "view": qsTr("What the window shows."),
                                             "app": ""
                                         })
+    /// DECISIONS C18 D6 (board 45 M2): the `?` sheet's mouse block, after the select keys. Not
+    /// keys, so not entries: nothing routes them and the palette doesn't list them.
+    readonly property string mouseTitle: qsTr("select with the mouse")
+    readonly property string mouseAbout: qsTr("In the table. The keys above do the same.")
+    readonly property var mouseRows: [
+        {
+            "action": "mouse:tick",
+            "helpKeys": qsTr("click □"),
+            "help": qsTr("add or remove"),
+            "about": qsTr("The □ at a row's start, under the pointer: add or remove the row, the others stay")
+        },
+        {
+            "action": "mouse:ctrl",
+            "helpKeys": qsTr("ctrl+click"),
+            "help": qsTr("add or remove"),
+            "about": qsTr("Add or remove the row")
+        },
+        {
+            "action": "mouse:shift",
+            "helpKeys": qsTr("shift+click"),
+            "help": qsTr("range"),
+            "about": qsTr("Select the range from the last row you clicked")
+        },
+        {
+            "action": "mouse:middle",
+            "helpKeys": qsTr("middle click"),
+            "help": qsTr("add or remove"),
+            "about": qsTr("Add or remove the row, as ctrl+click")
+        },
+        {
+            "action": "mouse:right",
+            "helpKeys": qsTr("right click"),
+            "help": qsTr("actions"),
+            "about": qsTr("The row's actions, on the selection when the row is in it")
+        }
+    ]
 
     readonly property var entries: [
         // global: routed by MainView wherever the focus is -------------------------

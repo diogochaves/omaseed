@@ -37,8 +37,9 @@ Type full paths (`~` is not expanded). To narrow the table use the filter at the
 Each: what to do, then what you should see. Note OK, or what you saw instead.
 
 1. **A quick move (one torrent, same disk).** Cursor on Arcade Set 01, **m**. The checks fold to
-   one green line. Type `/home/sbx/library/archive`, enter. No band; the footer says
-   "Arcade Set 01 moved to …" with a ✓ for about 6 s.
+   one green line. Type `/home/sbx/library/archive`, enter. No band; a strip in the selection
+   bar's place says "✓ Arcade Set 01 moved to …" with "show", its line running down over
+   about 6 s, and the row's status reads "✓ moved · archive" as long (DECISIONS C18).
 2. **The places list.** Another torrent, **m**. "places ▾" sits in the field, before browse.
    Click it, or press **↓**: a "recent" group (archive), then the library's folders with counts.
    ↓ moves, enter (or a click) fills the field and moves nothing; esc closes only the list, a

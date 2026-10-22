@@ -2167,6 +2167,18 @@ Item {
                 onActivated: root.openDetails()
                 onColumnsRequested: columnsPalette.open()
                 onEscapePressed: root.handleEscape()
+                // C18 D6: the selection bar's mouse hint, the first 3 times it opens after a
+                // plain click; it goes with the bar.
+                onPlainClicked: hadSelection => {
+                    if (hadSelection || App.selectionHintsShown >= 3)
+                        return;
+                    root.selectionHint = qsTr("ctrl+click add · shift+click range");
+                    App.selectionHintsShown = App.selectionHintsShown + 1;
+                }
+                onSelectedCountChanged: {
+                    if (table.selectedCount === 0)
+                        root.selectionHint = "";
+                }
                 onFocusDetails: {
                     if (!details.collapsed)
                         details.forceActiveFocus();
@@ -2216,6 +2228,7 @@ Item {
                 anchors.horizontalCenter: table.horizontalCenter
                 availableWidth: table.width - Theme.space(16)
                 count: table.selectedCount
+                hint: root.selectionHint
                 // #24 T1: re-read when the selection or the library moves.
                 summary: {
                     App.torrents.count; // the dependency: a sync that adds or drops a row
@@ -2780,6 +2793,9 @@ Item {
     // A quick action on torrents says how it went in the strip in the selection bar's place,
     // and on its rows (App.outcomes), no longer in the footer's note (C16 L7, L9; C2 D1's
     // footer sentence; C12 D22 and docs/35 N8 for every table action).
+
+    /// C18 D6: the selection bar's mouse hint while it shows; "" for none.
+    property string selectionHint: ""
 
     /// How far the band of the strip's "details" sits above the footer: just over the strip.
     property real _outcomeBandLift: 0

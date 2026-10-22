@@ -677,6 +677,14 @@ public:
     bool deleteFilesDefault() const;
     void setDeleteFilesDefault(bool value);
 
+    /// DECISIONS C18 D6: how many times the selection bar has shown its mouse hint ("ctrl+click
+    /// add · shift+click range") after a plain click; it stops at 3. Kept in state.json's
+    /// `"hints"` section.
+    Q_PROPERTY(int selectionHintsShown READ selectionHintsShown WRITE setSelectionHintsShown NOTIFY
+                   selectionHintsShownChanged)
+    int selectionHintsShown() const;
+    void setSelectionHintsShown(int count);
+
     /// `p`/`P`: stop/start decided from the cursor torrent's own state (the first hash of
     /// `hashes`), applied to every hash in the selection; `forceStart` always starts with the
     /// force flag set.
@@ -822,6 +830,7 @@ private:
 public:
 Q_SIGNALS:
     void deleteFilesDefaultChanged();
+    void selectionHintsShownChanged();
     /// A server action from this block came back with an error. MainView shows it in the
     /// footer facts for a few seconds.
     void actionFailed(const QString &action, const QString &message);
@@ -874,6 +883,7 @@ private:
                             const QStringList &hashes = {},
                             const QString &folder = {});
     void loadDeleteFilesDefault();
+    int m_selectionHintsShown = -1; ///< -1 until read from state.json
     /// StoppedDownload/StoppedUpload/PausedDownload/PausedUpload: what `stopStart()` and
     /// `torrentRow()`'s `stopped` field both call "stopped".
     static bool isStoppedState(omaseed::core::TorrentState state);

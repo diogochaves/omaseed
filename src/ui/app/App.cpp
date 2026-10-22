@@ -2934,6 +2934,28 @@ void App::openUris(const QStringList &uris)
 
 // --- T4.3: torrent actions ----------------------------------------------------------------
 
+int App::selectionHintsShown() const
+{
+    if (m_selectionHintsShown < 0) {
+        const QJsonObject section = stateSection(QStringLiteral("hints"));
+        const_cast<App *>(this)->m_selectionHintsShown =
+            section.value(QStringLiteral("selectionMouse")).toInt(0);
+    }
+    return m_selectionHintsShown;
+}
+
+void App::setSelectionHintsShown(int count)
+{
+    count = std::max(0, count);
+    if (count == selectionHintsShown())
+        return;
+    m_selectionHintsShown = count;
+    QJsonObject section = stateSection(QStringLiteral("hints"));
+    section.insert(QStringLiteral("selectionMouse"), count);
+    writeStateSection(QStringLiteral("hints"), section);
+    Q_EMIT selectionHintsShownChanged();
+}
+
 bool App::deleteFilesDefault() const
 {
     const_cast<App *>(this)->loadDeleteFilesDefault();

@@ -677,6 +677,31 @@ TestCase {
         compare(view.table.selectedCount, 2);
     }
 
+    // DECISIONS C18 D6 (board 45 M1): the bar's mouse hint, the first 3 times it opens after a
+    // plain click; then never again.
+    function test_the_selection_bar_hints_the_mouse_three_times() {
+        const hint = "ctrl+click add · shift+click range";
+        const click = index => {
+            const row = findChild(view.table, "row_" + index);
+            mouseClick(row, Theme.space(80), row.height / 2);
+        };
+        App.selectionHintsShown = 0;
+        view.table.clearSelection();
+        for (let i = 0; i < 3; ++i) {
+            click(i);
+            compare(view.selectionBar.hint, hint, "time " + (i + 1));
+            // A plain click with the bar already open is no new opening.
+            click(i + 1);
+            compare(App.selectionHintsShown, i + 1);
+            view.table.clearSelection();
+            compare(view.selectionBar.hint, "", "the hint outlived the bar");
+        }
+        click(0);
+        compare(view.selectionBar.hint, "");
+        compare(App.selectionHintsShown, 3);
+        view.table.clearSelection();
+    }
+
     function test_the_selection_bar_shows_with_a_selection_only() {
         verify(!view.selectionBar.visible, "no selection, no bar");
         compare(view.table.bottomRoom, 0);

@@ -32,6 +32,13 @@ TestCase {
     when: windowShown
     width: 1200
 
+    SignalSpy {
+        id: plainSpy
+
+        signalName: "plainClicked"
+        target: table
+    }
+
     TorrentTable {
         id: table
 
@@ -181,7 +188,7 @@ TestCase {
         // The Name column takes the rest. Each column is rounded on its own, so the sum is
         // of the rounded widths, not `Theme.space()` of the sum.
         const fixed = testCase.fixedWidth([72, 118, 116, 62, 84, 84, 62]);
-        compare(header("name").width, table.width - fixed);
+        compare(header("name").width, table.width - table.tickWidth - fixed);
     }
 
     // #78: a screen reader hears a header in words, never the arrow it prints; a header with
@@ -203,7 +210,8 @@ TestCase {
         table.anchors.fill = undefined;
         table.width = 600;
         table.height = 400;
-        compare(table.rowWidth, fixed + Theme.space(table.minimumNameWidth));
+        // C18 D6: the row's start (the □) comes before the first column.
+        compare(table.rowWidth, table.tickWidth + fixed + Theme.space(table.minimumNameWidth));
         compare(header("name").width, Theme.space(table.minimumNameWidth));
         compare(header("eta").width, Theme.space(62));
         const bar = findChild(table, "sideways");
@@ -529,7 +537,7 @@ TestCase {
         compare(testCase.cellProbe.visible, false);
         // The Name column grows by the hidden column's width.
         const fixed = testCase.fixedWidth([72, 118, 116, 62, 84, 84]);
-        compare(header("name").width, table.width - fixed);
+        compare(header("name").width, table.width - table.tickWidth - fixed);
     }
 
     // ---- column order (N2) ------------------------------------------------------------
@@ -895,6 +903,55 @@ TestCase {
         clickRow(3, Qt.ShiftModifier);
         compare(selectedRows(), [3, 4, 5]);
         compare(table.cursorIndex, 3);
+    }
+
+    // DECISIONS C18 D6 (board 45 M1): the row's □. A click on it adds the row and leaves the
+    // others, again removes it; shift+click on it adds the range. ■ marks the selected rows.
+    function clickTick(index: int, modifiers: int): void {
+        const row = findChild(table, "row_" + index);
+        verify(row, "no row " + index);
+        mouseClick(row, table.tickWidth / 2, row.height / 2, Qt.LeftButton, modifiers);
+    }
+
+    function test_the_tick_adds_a_row_and_keeps_the_others() {
+        clickRow(1, Qt.NoModifier);
+        clickTick(4, Qt.NoModifier);
+        compare(selectedRows(), [1, 4]);
+        compare(table.cursorIndex, 4);
+        compare(findChild(table, "tick_4").text, "■");
+        verify(findChild(table, "tick_1").visible, "a selected row shows its ■");
+        verify(!findChild(table, "tick_2").visible, "an unselected row away from the pointer shows a □");
+        wait(400); // not a double-click
+        clickTick(4, Qt.NoModifier);
+        compare(selectedRows(), [1]);
+        clickTick(6, Qt.ShiftModifier);
+        compare(selectedRows(), [1, 4, 5, 6], "shift+click on the □ added the range");
+    }
+
+    function test_two_quick_ticks_are_two_ticks() {
+        clickRow(0, Qt.NoModifier);
+        const row = findChild(table, "row_3");
+        mouseDoubleClickSequence(row, table.tickWidth / 2, row.height / 2);
+        compare(selectedRows(), [0], "a double-click on the □ opened the row or kept it");
+    }
+
+    function test_the_name_starts_after_the_tick() {
+        verify(table.columnLayout.name.x >= table.tickWidth);
+        const header = findChild(table, "header_name");
+        if (header)
+            verify(header.mapToItem(table, 0, 0).x >= table.tickWidth);
+    }
+
+    function test_a_plain_click_says_whether_a_selection_was_on() {
+        plainSpy.clear();
+        table.clearSelection();
+        clickRow(2, Qt.NoModifier);
+        compare(plainSpy.count, 1);
+        compare(plainSpy.signalArguments[0][0], false);
+        clickRow(3, Qt.NoModifier);
+        compare(plainSpy.signalArguments[1][0], true);
+        clickRow(5, Qt.ControlModifier);
+        compare(plainSpy.count, 2, "ctrl+click is no plain click");
     }
 
     function test_a_ctrl_shift_click_adds_the_range() {
