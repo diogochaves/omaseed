@@ -248,7 +248,7 @@ check "both qBittorrents answer: public has no torrent, private 4" \
 "$APP_BOX" restart -b "$BOX" >/dev/null
 check "first run floats" window_is floating
 keys Return -s 800
-step "First run, two clients" "Step 1 with both qBittorrents running: one row, \"Use the server on this machine · 127.0.0.1:8090 · qbittorrent-nox running\" (the detector reads ~/.config/qBittorrent only; the --profile one on :8091 is not offered), then remote and install."
+step "First run, two clients" "Step 1 with both qBittorrents running: one row, \"Use qBittorrent on this machine · 127.0.0.1:8090 · qbittorrent-nox running\" (the detector reads ~/.config/qBittorrent only; the --profile one on :8091 is not offered), then remote and install."
 
 # Step 2: URL (filled), name, the three auth chips (cookie is the second), username, password,
 # then test.

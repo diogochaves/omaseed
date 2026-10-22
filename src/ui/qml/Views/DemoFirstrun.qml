@@ -45,11 +45,11 @@ Window {
 
         Component.onCompleted: {
             if (root._step === "2") {
-                page.openRow("remote", "");
+                page.openRow("remote", "", "");
                 page.editUrl = "http://127.0.0.1:8081";
                 page.editName = "playground";
             } else if (root._step === "3") {
-                page.openRow("remote", "http://127.0.0.1:8081");
+                page.openRow("remote", "http://127.0.0.1:8081", "");
                 page.testOk = true;
                 page.tested = true;
                 page.testResultText = qsTr("qBittorrent 5.2.3 · API 2.15.1 · 142 torrents");

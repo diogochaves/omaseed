@@ -250,11 +250,22 @@ QVariantMap App::serverTestProblem(const QVariantMap &fields,
         return {};
     // C25 K8, K9: refused for its version or its engine, in the test's words and what to do;
     // no "save anyway" (the sheet reads `refused`). An answer from no engine says so (K8).
-    if (info.value(QStringLiteral("refused")).toBool())
+    if (info.value(QStringLiteral("refused")).toBool()) {
+        // K6: where it answered, when that isn't the address typed (Transmission's RPC).
+        QString line = errorDetail;
+        const QUrl endpoint(info.value(QStringLiteral("endpoint")).toString());
+        const Server typed = ServerListModel::serverFromMap(fields);
+        if (endpoint.isValid() && !endpoint.path().isEmpty() &&
+            endpoint.adjusted(QUrl::StripTrailingSlash) !=
+                typed.url.adjusted(QUrl::StripTrailingSlash))
+            line = tr("%1 It answered at %2.")
+                       .arg(line, endpoint.toString(QUrl::RemoveUserInfo))
+                       .trimmed();
         return {{QStringLiteral("headline"), error},
-                {QStringLiteral("line"), errorDetail},
+                {QStringLiteral("line"), line},
                 {QStringLiteral("details"), QString()},
                 {QStringLiteral("kind"), QStringLiteral("refused")}};
+    }
     if (info.value(QStringLiteral("unrecognised")).toBool())
         return {{QStringLiteral("headline"), error},
                 {QStringLiteral("line"),
