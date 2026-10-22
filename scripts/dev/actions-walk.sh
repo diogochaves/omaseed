@@ -2,7 +2,9 @@
 # omaseed — the risky actions, walked through the app's own UI: renames, categories, tags,
 # automatic torrent management, set location through the Move… sheet (board 43: also onto
 # another filesystem, a 2 GiB torrent, and onto a folder that already has its name),
-# recheck, the selection bar on two torrents, the command palette (docs/30), delete with and
+# recheck, the selection bar on two torrents, what each action came to in the strip in the
+# selection bar's place (board 45, DECISIONS C18: done, a refusal, two at once), picking rows
+# with the mouse's □ (C18 D6), the command palette (docs/30), delete with and
 # without files, and two torrents that share one file (#27: the twin goes in through the add
 # sheet's "save there"; #28: the delete confirm, the location sheet, a category change and
 # turning automatic management on (#65) ask), and board 44's skipped files that still hold space
@@ -92,7 +94,12 @@ print(next(t["hash"] for t in json.load(sys.stdin) if t["name"].startswith(sys.a
 # in_box CMD...: run CMD in the box (its /tmp and paths are not this machine's).
 in_box() { omabox run -b "$BOX" -- "$@" >/dev/null 2>&1; }
 
-keys() { omabox keys -b "$BOX" --window omaseed --wait "$@" >/dev/null 2>&1 || true; }
+# The outcome strip's line runs down for 6 s at the table's bottom (DECISIONS C18 D3): a wait
+# for the window to be still would wait it out, and the strip with it. Its band of the screen
+# (the selection bar's too) is left out of every wait; it is wide and tall enough to hold
+# whether omabox reads it in the screen's or the window's coordinates.
+STRIP_IGNORE="0,920 1920,110"
+keys() { omabox keys -b "$BOX" --window omaseed --wait --ignore "$STRIP_IGNORE" "$@" >/dev/null 2>&1 || true; }
 # keys_now KEY...: the same without waiting for the screen to settle, for while something on it
 # keeps moving (the hold band's countdown, #119) and the 3 s matter.
 keys_now() { omabox keys -b "$BOX" --window omaseed "$@" >/dev/null 2>&1 || true; }
@@ -113,7 +120,24 @@ print(*next(x["size"] for x in json.load(sys.stdin) if "omaseed" in x["class"]))
     BAR_W=$w
     BAR_H=$h
 }
-click() { omabox click -b "$BOX" --window omaseed --wait "$1" "$2" >/dev/null 2>&1 || true; }
+click() { omabox click -b "$BOX" --window omaseed --wait --ignore "$STRIP_IGNORE" "$1" "$2" >/dev/null 2>&1 || true; }
+
+# row_tick NAME: click the □ at the start of the row whose torrent is NAME (C18 D6), where the
+# window's tree places the row.
+row_tick() {
+    local where
+    where="$(omabox tree -b "$BOX" --window omaseed --find "$1" 2>/dev/null | python3 -c '
+import re, sys
+for line in sys.stdin:
+    m = re.search(r"list item \"" + re.escape(sys.argv[1]) + r"\"[^@]* @(-?\d+),(-?\d+) (\d+)x(\d+)", line)
+    if m:
+        x, y, w, h = map(int, m.groups())
+        print(x + 8, y + h // 2)
+        break' "$1")"
+    [ -n "$where" ] || fail "no row \"$1\" on screen"
+    # shellcheck disable=SC2086 # two numbers
+    omabox click -b "$BOX" --window omaseed --wait --ignore "$STRIP_IGNORE" $where >/dev/null 2>&1 || true
+}
 
 # menu_on QUERY: the jump palette's tab: the cursor on the torrent QUERY finds, its actions
 # menu open. table_on QUERY: the same, the menu closed again, the keyboard on the table.
@@ -618,7 +642,7 @@ api torrents/tags | python3 -c 'import json, sys; sys.exit(0 if "walk-tag" in js
     fail "the tag walk-tag itself was deleted (the app never deletes tags)"
 pass "the tag itself stays on the server"
 
-step "Set location, same disk" "Nested Library Sampler, the menu's move… (m), ~/Moved, enter. 113 files in 26 folders move; it lands within 3 s, so no band, and the footer says so (board 43 L7)."
+step "Set location, same disk" "Nested Library Sampler, the menu's move… (m), ~/Moved, enter. 113 files in 26 folders move; it lands within 3 s, so no band, and the strip in the selection bar's place says so, its row's status \"✓ moved · Moved\" (C18 D1)."
 menu_on "Nested Library"
 keys m
 expect_text "the Move… sheet is open" "new path on" 10
@@ -627,7 +651,8 @@ expect_text "one green line" "access are fine" 20
 shot "The Move… sheet: ~/Moved, one green line (L3)." sheet
 keys Return
 expect "the save path is ~/Moved" "$NESTED" "t['save_path'] == '$BOX_HOME/Moved'" 30
-expect_text "the footer says it moved" "Nested Library Sampler (2026) moved to $BOX_HOME/Moved" 20
+expect_text "the strip says it moved" "Nested Library Sampler (2026) moved to $BOX_HOME/Moved" 20
+shot "The green strip at the table's bottom middle: ✓ Nested Library Sampler (2026) moved to ~/Moved, show, ×; the row reads ✓ moved · Moved." strip
 expect_disk "the files are in ~/Moved" -f "$BOX_HOME/Moved/Nested Library Sampler (2026)/Docs/README.md" 30
 expect_disk "…and gone from ~/Torrents" ! "$TORRENTS_DIR/Nested Library Sampler (2026)"
 expect "it still seeds, complete" "$NESTED" "t['state'] in $SEEDING and t['progress'] == 1" 30
@@ -640,8 +665,8 @@ keys ctrl+a -t /tmp/elsewhere
 expect_text "the sheet reads the room on /tmp" "Room and access are fine on /tmp" 20
 keys Return
 shot "Straight after enter. A tmpfs takes 2 GiB in about a second, so the row seldom still reads moving, and the band (after 3 s) seldom shows."
+expect_text "the strip says it moved, or the band does" "$BIG moved to /tmp/elsewhere" 120
 expect "the save path is /tmp/elsewhere" "$BIGH" "t['save_path'] == '/tmp/elsewhere' and t['state'] != 'moving'" 120
-expect_text "the footer says it moved, or the band does" "$BIG moved to /tmp/elsewhere" 30
 expect_size "the 2 GiB file is in /tmp/elsewhere, whole" "/tmp/elsewhere/$BIG" "$BIG_SIZE"
 expect_disk "…and gone from ~/Torrents" ! "$TORRENTS_DIR/$BIG"
 expect "it still seeds, complete" "$BIGH" "t['state'] in $SEEDING and t['progress'] == 1" 30
@@ -692,7 +717,8 @@ click "$BAR_STOP" "$BAR_Y"
 expect "Field Recordings is stopped" "$FIELD" 't["state"] == "stoppedUP"'
 expect "Nested Library Sampler is stopped" "$NESTED" 't["state"] == "stoppedUP"'
 expect "no other torrent is" "$FIELD" 'all(not x["state"].startswith("stopped") for x in every if x["hash"] not in ("'"$FIELD"'", "'"$NESTED"'"))'
-shot "Both rows read stopped; the others still seed."
+expect_text "the strip counts them: 2 stopped" "2 stopped" 10
+shot "Both rows read stopped; the others still seed. The strip, \"✓ 2 stopped\", sits just above the selection bar (C18 D1, O3)."
 
 step "Category from the bar" "The bar's category button, \"walk\", enter. Field Recordings is managed, so it moves to ~/Torrents/walk; Nested Library is not (set location turned management off), so it stays in ~/Moved."
 click "$BAR_CATEGORY" "$BAR_Y"
@@ -716,7 +742,49 @@ step "Start them from the bar" "The bar's start button."
 click "$BAR_START" "$BAR_Y"
 expect "both seed again" "$FIELD" 'all(x["state"] in '"$SEEDING"' for x in every if x["hash"] in ("'"$FIELD"'", "'"$NESTED"'"))' 30
 shot "Both rows seeding, still selected, walk and bulk on them."
+keys Escape # closes the strip
 keys Escape # clears the selection
+
+step "Pick rows with the mouse" "A plain click on Field Recordings' row: one selected, and the bar's quiet hint \"ctrl+click add · shift+click range\" (C18 D6, the first of 3 times). The □ at Nested Library Sampler's row start adds it, the first staying; a second click on its □ takes it out. Then the ? sheet has a \"select with the mouse\" block."
+keys Escape
+# A plain click on the row, past its □:
+where="$(omabox tree -b "$BOX" --window omaseed --find "Field Recordings Vol. 3 [FLAC]" 2>/dev/null | python3 -c '
+import re, sys
+for line in sys.stdin:
+    m = re.search(r"list item \"[^\"]*\"[^@]* @(-?\d+),(-?\d+) (\d+)x(\d+)", line)
+    if m:
+        x, y, w, h = map(int, m.groups())
+        print(x + 200, y + h // 2)
+        break')"
+# shellcheck disable=SC2086 # two numbers
+omabox click -b "$BOX" --window omaseed --wait --ignore "$STRIP_IGNORE" $where >/dev/null 2>&1 || true
+expect_text "one selected" "1 selected" 10
+expect_text "the bar hints the mouse" "ctrl+click add · shift+click range" 10
+row_tick "Nested Library Sampler (2026)"
+expect_text "the □ added the second, the first stays" "2 selected" 10
+shot "Two rows selected, each with ■ at its start; the bar reads 2 selected and ends with the dim hint." mouse
+row_tick "Nested Library Sampler (2026)"
+expect_text "a second click on its □ took it out" "1 selected" 10
+keys Escape
+keys -t "?"
+shot "The ? sheet: SELECT WITH THE MOUSE after the select keys (click □, ctrl+click, shift+click, middle click, right click, below the fold)." help
+keys -t "middle"
+expect_text "the ? sheet finds the mouse's middle click" "Add or remove the row, as ctrl+click" 10
+keys Escape Escape
+
+step "A refusal says so in the strip" "Queueing switched off on the server; Public Domain Sampler, [ (up the queue): qBittorrent refuses (409). The strip is red and stays: \"Sampler (renamed) didn't move in the queue\", why, details, ×; esc closes it (C18 D1, D3). Queueing back on."
+api app/setPreferences --data-urlencode 'json={"queueing_enabled": false}' >/dev/null
+table_on "Public Domain"
+keys -t "["
+expect_text "the strip says it was refused" "didn't move in the queue" 15
+sleep 7
+find_text_aw() { omabox tree -b "$BOX" --window omaseed --find "$1" >/dev/null 2>&1; }
+find_text_aw "didn't move in the queue" || fail "the refusal went by itself (D3: it stays until closed)"
+pass "it is still there after 7 s"
+shot "The red strip: ✕ … didn't move in the queue, refused: Torrent queueing must be enabled, details, ×; the row reads ✕ didn't move in the queue." refused
+keys Escape
+if find_text_aw "didn't move in the queue"; then fail "esc left the strip"; else pass "esc closed it"; fi
+api app/setPreferences --data-urlencode 'json={"queueing_enabled": true}' >/dev/null
 
 # docs/30 §7: the command palette runs a command as its key would, menu-only ones included.
 step "Force start from the command palette" "Field Recordings, p (stopped); then : \"force\", enter: force start, on the server. Then : \"seq\", enter: sequential download, the actions menu's s, which has no window key."
@@ -737,6 +805,9 @@ keys Return
 expect "…and off again" "$FIELD" 'not t["seq_dl"]'
 keys p
 expect "p stops it" "$FIELD" 't["state"] == "stoppedUP"'
+# p goes by the row's state as the app last synced it, and the row's "✓ stopped" mark (C18 D1)
+# shows before that sync: let one poll (1.5 s) bring the stop in first.
+sleep 2
 keys p
 expect "it seeds again, not forced" "$FIELD" "t['state'] in $SEEDING and not t['force_start']" 30
 
@@ -837,6 +908,7 @@ api torrents/setCategory -d "hashes=$TWIN" -d category=pair >/dev/null
 api torrents/setAutoManagement -d "hashes=$TWIN" -d enable=true >/dev/null
 expect "the twin is in pair, managed, still in /tmp/pair" "$TWIN" "t['category'] == 'pair' and t['auto_tmm'] and t['save_path'] == '/tmp/pair'"
 expect "$BIG has no category and is not managed" "$BIGH" "t['category'] == '' and not t['auto_tmm']"
+sleep 2 # the app's next poll brings in what the API just changed
 menu_on "twin"
 keys C
 keys -t shelf
@@ -858,6 +930,9 @@ api torrents/setAutoManagement -d "hashes=$TWIN|$BIGH" -d enable=false >/dev/nul
 api torrents/setCategory -d "hashes=$TWIN" -d category=pair >/dev/null
 expect "the twin is in pair, manual, still in /tmp/shelf" "$TWIN" "t['category'] == 'pair' and not t['auto_tmm'] and t['save_path'] == '/tmp/shelf'"
 expect "$BIG is in shelf, manual, in /tmp/shelf" "$BIGH" "t['category'] == 'shelf' and not t['auto_tmm'] and t['save_path'] == '/tmp/shelf'"
+# What the API just changed reaches the app on its next poll (1.5 s): before it, the app still
+# sees the twin in shelf, where management would move nothing, and asks nothing.
+sleep 2
 menu_on "twin"
 keys a
 sleep 1

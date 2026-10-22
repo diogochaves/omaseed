@@ -530,7 +530,7 @@ fi
 if [ "$FROM" = games ] || [ "$FROM" = selection ]; then
 SEL="$BOX_HOME/sel"
 
-step "One torrent, a quick move" "The cursor on Handheld Pack 040, m: the Move… sheet on that torrent. ~/sel/one typed over the field: one green line (L3). enter: it lands within 3 s, so no band; the footer says it moved (L7)."
+step "One torrent, a quick move" "The cursor on Handheld Pack 040, m: the Move… sheet on that torrent. ~/sel/one typed over the field: one green line (L3). enter: it lands within 3 s, so no band; the strip in the selection bar's place says it moved, and the row's status reads ✓ moved · one (C18 D1). esc closes the strip."
 table_on "Handheld Pack 040"
 keys m
 expect_text "the Move… sheet is open" "Move Handheld Pack 040" 10
@@ -540,9 +540,32 @@ shot "The Move… sheet for one torrent: the field, one green line, move." sheet
 keys Return
 expect_at "Handheld Pack 040 saves at ~/sel/one" "Handheld Pack 040" "$SEL/one"
 expect_disk "its file is there" -f "$SEL/one/Handheld Pack 040/data.bin"
-expect_text "the footer says it moved" "Handheld Pack 040 moved to $SEL/one" 20
+expect_text "the strip says it moved" "Handheld Pack 040 moved to $SEL/one" 20
 no_text "no band for it" "Moving Handheld Pack 040"
-shot "The footer note: Handheld Pack 040 moved to ~/sel/one, a green ✓." note
+shot "The strip at the table's bottom middle: ✓ Handheld Pack 040 moved to ~/sel/one, show, ×, its green line running down; the row's status reads ✓ moved · one in green; the footer has only its counts and keys." strip
+keys Escape
+no_text "esc closed the strip" "Handheld Pack 040 moved to $SEL/one"
+
+step "A quick move qBittorrent can't do" "The box's ~/locked/quick exists, read-only. Handheld Pack 039, m, that folder, enter: qBittorrent answers OK and logs that it can't write there. The strip turns red and stays: Handheld Pack 039 didn't move, why, details and move…; the row reads ✕ didn't move (C18 D1, D3). details opens the band above the strip; esc closes the band, esc again the strip."
+mkdir -p "$home/locked/quick"
+chmod 0555 "$home/locked/quick"
+table_on "Handheld Pack 039"
+keys m
+expect_text "the Move… sheet is open" "Move Handheld Pack 039" 10
+keys ctrl+a -t "$BOX_HOME/locked/quick"
+expect_text "the sheet has checked it" "on $BOX_HOME" 20
+keys Return
+expect_text "the strip says it didn't move" "Handheld Pack 039 didn't move" 60
+sleep 7
+find_text "Handheld Pack 039 didn't move" || fail "the failure went by itself (D3: it stays until closed)"
+pass "it is still there after 7 s"
+shot "The red strip: ✕ Handheld Pack 039 didn't move, why, details, move…, ×; the row reads ✕ didn't move in red." strip
+press details
+shot "The band above the strip with the failure's words; the strip under it." band
+keys Escape
+keys Escape
+no_text "esc, esc: the band and the strip are gone" "Handheld Pack 039 didn't move"
+chmod 0755 "$home/locked/quick"
 
 step "Three from three folders, keeping their places" "space on Arcade Set 002 (games), Handheld Pack 002 (games/handheld) and Short Film 002 (films); m, ~/sel/keep. The sheet offers into one folder or keeping their places below the folder they share; keep their places: each folder's row and where it goes. move 3 torrents: each lands in the same place below ~/sel/keep."
 read -r common < <(api torrents/info | python3 -c '
@@ -569,10 +592,11 @@ expect_checked "keep their places is picked" "keep their places below $common"
 expect_text "a row for handheld" "to $SEL/keep$handheld_rel" 10
 shot "Keep their places: three rows, each folder and where it goes; room; move 3 torrents." sheet
 press "move 3 torrents"
-# C16 L6/L7: a move that lands within 3 s says so in the footer ("3 moved to …"); a slower
+# C16 L6, C18 D1: a move that lands within 3 s says so in the strip ("3 moved to …"); a slower
 # one (a busy machine) gets the band and its summary ("3 torrents moved to …"). Either is right.
 # Looked for first: the note lasts 6 s, and the server checks below take seconds.
-expect_text "the footer or the band says 3 moved" "moved to $SEL/keep" 30
+expect_text "the strip or the band says 3 moved" "moved to $SEL/keep" 30
+shot "With the three still selected, the strip (3 moved to ~/sel/keep, or the band's summary when it ran past 3 s) sits just above the selection bar (C18 D1, O3)." strip
 expect_at "Arcade Set 002 is at ~/sel/keep$arcade_rel" "Arcade Set 002" "$SEL/keep$arcade_rel"
 expect_at "Handheld Pack 002 at ~/sel/keep$handheld_rel" "Handheld Pack 002" "$SEL/keep$handheld_rel"
 expect_at "Short Film 002 at ~/sel/keep$film_rel" "Short Film 002" "$SEL/keep$film_rel"
@@ -597,7 +621,7 @@ shot "The band: films moving, next: Arcade Set 003 to ~/sel/after." band
 press details
 expect_text "details list it, waiting (J3)" "waiting: Arcade Set 003" 10
 shot "The band's details: waiting: Arcade Set 003, with cancel." details
-# Its footer note, or its band's summary when it ran past 3 s (C16 L6/L7). Looked for first,
+# Its strip, or its band's summary when it ran past 3 s (C16 L6, C18 D1). Looked for first,
 # with the details still open: the note lasts 6 s, while closing them waits out the films'
 # desktop notice (press) and the server checks below take seconds on a busy machine.
 expect_text "it says Arcade Set 003 moved" "Arcade Set 003 moved to $SEL/after" 400
@@ -605,7 +629,7 @@ press details
 expect_count "all films land on ~/sel/films" count_at "$SEL/films" -eq "$nfilms" 400
 expect_at "Arcade Set 003 moved after them" "Arcade Set 003" "$SEL/after" 60
 expect_text "the films' summary is still there" "films moved" 5
-shot "The films summary, still there after the queued move landed under it; the footer note." summary
+shot "The films summary, still there under the top bar after the queued move landed under it (C18 D4)." summary
 
 step "Move back" "The films summary's move back…: the sheet sends each of the $nfilms back to $films; move $nfilms back. Arcade Set 003, moved after it, stays."
 # The band's, not the details pane's: that one is the cursor torrent's own last move (C18 D7).
@@ -1108,8 +1132,8 @@ no_text "nothing claims a local write check" "is writable by the owner"
 shot "The Move… sheet on a server omaseed can't see: the remote line, room and writing can't tell, 1 left out from the server's listing." sheet
 press "move 1 torrent"
 # The note stays 6 s: read it first.
-expect_text "the footer says it moved" "Public Domain Sampler moved to" 20
-shot "The footer note on the playground: Public Domain Sampler moved to …/remote-walk." note
+expect_text "the strip says it moved" "Public Domain Sampler moved to" 20
+shot "The strip on the playground: Public Domain Sampler moved to …/remote-walk." note
 expect_at "Public Domain Sampler is in remote-walk" "Public Domain Sampler" "$REMOTE_DEST"
 expect_at "photo-archive-2019-2025 stayed" "photo-archive-2019-2025" "$photo_from" 1
 if [ -d "$REMOTE_DEST/Public Domain Sampler" ]; then pass "its files are there, on the playground's disk"; else fail "no $REMOTE_DEST/Public Domain Sampler"; fi
