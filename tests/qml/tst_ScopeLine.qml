@@ -45,15 +45,27 @@ TestCase {
         verify(line.implicitHeight > text.implicitHeight);
         verify(text.text.indexOf("<a href='scope'>") > 0, text.text);
         verify(text.text.indexOf("qBittorrent › Backup ›") > 0);
-        // #79: a screen reader hears the plain words, not the markup.
-        compare(text.Accessible.role, Accessible.StaticText);
-        compare(text.Accessible.name, line.text);
+        // #79: a screen reader hears the plain words, not the markup; #91: through stand-ins,
+        // the label itself out of the tree, and the link one it can press.
+        verify(text.Accessible.ignored);
+        const words = findChild(line, "scopeTextName");
+        compare(words.Accessible.role, Accessible.StaticText);
+        compare(words.Accessible.name, line.text);
+        const link = findChild(line, "scopeLinkName");
+        verify(link.visible);
+        compare(link.Accessible.role, Accessible.Link);
+        compare(link.Accessible.name, "qBittorrent › Backup ›");
+        compare(link.Accessible.description, "shortcut t");
         const spy = createTemporaryObject(spyComponent, testCase, {
                                               "target": line,
                                               "signalName": "linkActivated"
                                           });
         text.linkActivated("scope");
         compare(spy.count, 1);
+        link.Accessible.pressAction();
+        compare(spy.count, 2);
+        line.linkText = "";
+        verify(!link.visible, "a link with no words");
     }
 
     // #98: a folder's line stays one line; the text is elided, the key and link show whole.
