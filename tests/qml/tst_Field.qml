@@ -419,7 +419,10 @@ TestCase {
         compare(button.Accessible.name, "clear the filter");
         compare(button.Accessible.description, "2 of 5 files · shortcut esc");
 
+        // #91: not clickable, the count is no "clear the filter": it reads as the count.
         field.trailingClickable = false;
+        compare(button.Accessible.name, "2 of 5 files");
+        compare(button.Accessible.description, "shortcut esc");
         field.trailingName = "";
         field.trailingKey = "";
         compare(button.Accessible.name, "2 of 5 files");
@@ -444,6 +447,10 @@ TestCase {
         field.accessibleName = "download limit";
         compare(input.Accessible.name, "download limit");
         compare(input.Accessible.description, "∞");
+        // #91: Qt withholds a password field's name, so it is the description too.
+        field.accessibleName = "Password";
+        field.echoMode = TextInput.Password;
+        compare(input.Accessible.description, "Password");
     }
 
     // C18 D5 (board 45): no opener unless asked; with one, "places ▾" before the trailing, in
@@ -490,9 +497,10 @@ TestCase {
         compare(clicked.count, 2, "a disabled field's opener ran");
     }
 
-    // For a screen reader: with an opener the field is a combobox, collapsed or expanded, and
-    // the opener a button with its description; without one, an editable text as before.
-    function test_with_an_opener_the_field_reads_as_a_combobox() {
+    // For a screen reader: with an opener the field stays an editable text, whose text a
+    // screen reader can read (#91: a combobox lost it), and the opener is a button with its
+    // description, collapsed or expanded.
+    function test_with_an_opener_the_field_stays_a_text_and_the_opener_a_button() {
         const plain = createTemporaryObject(fieldComponent, testCase);
         compare(findChild(plain, "fieldInput").Accessible.role, Accessible.EditableText);
         verify(findChild(plain, "fieldOpenerButton").Accessible.ignored);
@@ -503,13 +511,31 @@ TestCase {
                                             });
         const input = findChild(field, "fieldInput");
         const button = findChild(field, "fieldOpenerButton");
-        compare(input.Accessible.role, Accessible.ComboBox);
+        compare(input.Accessible.role, Accessible.EditableText);
         compare(button.Accessible.role, Accessible.Button);
         compare(button.Accessible.name, "places");
         compare(button.Accessible.description, "9 places");
         verify(!button.Accessible.expanded);
         field.openerExpanded = true;
         verify(button.Accessible.expanded);
-        verify(input.Accessible.expanded);
+    }
+
+    // #91: Qt publishes children in declaration order: the text before the parts after it.
+    function test_the_input_comes_before_the_opener_and_the_trailing() {
+        const field = createTemporaryObject(fieldComponent, testCase, {
+                                                "width": 360,
+                                                "opener": "places",
+                                                "trailing": "browse"
+                                            });
+        const order = name => {
+            for (let i = 0; i < field.children.length; ++i) {
+                if (field.children[i].objectName === name)
+                    return i;
+            }
+            return -1;
+        };
+        verify(order("fieldInput") >= 0);
+        verify(order("fieldInput") < order("fieldOpenerButton"));
+        verify(order("fieldOpenerButton") < order("fieldTrailingButton"));
     }
 }

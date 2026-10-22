@@ -963,6 +963,7 @@ Flickable {
                 id: commandsField
 
                 Layout.fillWidth: true
+                accessibleName: qsTr("install commands")
                 objectName: "commandsField"
                 text: App.installCommandsText()
             }
@@ -1093,6 +1094,7 @@ Flickable {
                             required property var modelData
 
                             focusable: true
+                            checkable: true
                             selected: root.editAuthMode === authChip.modelData.mode
                             text: authChip.modelData.text
 

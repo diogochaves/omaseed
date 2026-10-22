@@ -18,14 +18,25 @@ ColumnLayout {
     property string label: ""
     /// False when the control's own accessible name is the caption (#78's limit fields).
     property bool spokenCaption: true
+    /// #91: a Field straight in the row that has no `accessibleName` of its own takes the
+    /// caption as its name (a placeholder is an example, not a name). The caption is then
+    /// said once, as the field's name, and the label stays out of the tree.
+    readonly property bool captionNamesField: {
+        for (const child of root.children) {
+            if ((child as Field)?.namedByRow)
+                return true;
+        }
+        return false;
+    }
 
     spacing: Theme.space(4)
 
     // #79: the caption is text, just before its control in reading order, so a field that
     // names itself by its value still has its row's words before it. A control that already
-    // carries the caption as its own name sets `spokenCaption: false`, so it is said once.
+    // carries the caption as its own name sets `spokenCaption: false`, so it is said once;
+    // a Field named by the row (#91) does the same by itself.
     Label {
-        Accessible.ignored: !root.spokenCaption
+        Accessible.ignored: !root.spokenCaption || root.captionNamesField
         Accessible.name: text
         Accessible.role: Accessible.StaticText
         Layout.fillWidth: true

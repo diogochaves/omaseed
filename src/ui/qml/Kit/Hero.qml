@@ -840,6 +840,8 @@ Item {
             Layout.fillWidth: root.level >= 3
             Layout.preferredWidth: Theme.space([220, 180, 140, 140, 140][root.level])
             visible: !root.searchFolded
+            // #91: the same name at every width; the placeholder shortens.
+            accessibleName: qsTr("filter torrents")
             hint: Glyphs.search
             placeholder: root.level >= 2 ? qsTr("filter") : qsTr("filter torrents")
             text: root.searchText
