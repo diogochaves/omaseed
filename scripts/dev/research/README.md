@@ -13,9 +13,11 @@ issue, with a README saying what it reproduces, how to run it and what it printe
 | [107-errored-stopped](107-errored-stopped/) | Does the Web API tell a stopped errored torrent from a running one? | #107 |
 | [146-torrent-creator](146-torrent-creator/) | What does qBittorrent's torrent creator do through the API, and does a tracker's copy seed from the original folder? | #146 |
 | [162-preallocated-move](162-preallocated-move/) | How big is a torrent's file at its new place while qBittorrent moves it? | #162 |
+| [153-engines-board47](153-engines-board47/) | Board 47 §3: Transmission's RPC during a move and its move over a file; Deluge's prefetch through deluge-web and its shared daemon | #153 |
 
 They talk only to throwaway qBittorrents (the playground on `:8081`, or a profile made with
-`scripts/dev/test-server.sh`) and the offline swarm (`scripts/dev/swarm.sh`), never to a real
+`scripts/dev/test-server.sh`), the other engines' test servers (`--transmission` on `:8085`,
+`--deluge` on `:8086`) and the offline swarm (`scripts/dev/swarm.sh`), never to a real
 library. A general tool that came out of this work lives one level up:
 `scripts/dev/fastresume.py`, which reads what qBittorrent saved about a torrent.
 

@@ -1170,6 +1170,15 @@ C17 D13 on Transmission and Deluge (K24), C5 D11 for Transmission (K26), and M16
   export stay qBittorrent's, its Backup scope line naming servers that have none (#88 later).
 - **Seed console on Deluge (K34):** all time counts from when omaseed began watching, said once.
 
+*Engines note (2026-10-22, on `engines`):* board 47 §3's checks ran on the E11 test servers
+(Transmission 4.1.3, Deluge 2.2.0; `scripts/dev/research/153-engines-board47/`). **K22 holds**:
+Transmission answers nothing, set_location included, until a move's copy ends, so the "busy
+moving" band and its timeouts-as-moving apply. K23: Transmission's move replaces a file already
+at the destination, on one filesystem and across, so its M8 line is the "would replace" one.
+K26: Deluge's prefetch works through deluge-web by repeated calls, and a long call holds no
+other session's answers. K10: deluge-web keeps one daemon for all its sessions, so connecting
+it switches everyone, and the daemon step says so before it connects.
+
 ## M8 — A click leaves the keyboard focus where it was
 
 Buttons and toggles do not take the focus when clicked. Otherwise an overlay gives the focus
