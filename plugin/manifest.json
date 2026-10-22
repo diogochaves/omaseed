@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "chaves.omaseed",
   "name": "Omaseed",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "author": "Diogo Chaves",
   "license": "MIT",
   "description": "Torrent activity, alternative speed limits, adding and seeding stats from the Omaseed app, in the bar.",
