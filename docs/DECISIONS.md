@@ -1179,6 +1179,56 @@ no-match row to C1 D8's palette (SR14).
   `c` copy magnet, `o` open its page, `/` filter the rows; esc back out step by step; `:` "search…"
   and "search plugins for '…'".
 
+## C27 — Create a torrent from a folder (board 49, ruled 2026-10-22)
+
+Board [49](49-create-a-torrent.html) CR1–CR19, all as recommended, in board 46's frame (C24 H17,
+H14). qBittorrent 5.x hashes on the server (`torrentcreator/addTask`, `status`, `torrentFile`,
+`deleteTask`); left to its defaults it makes a hybrid and seeds it at once, and if that start
+fails the `.torrent` is lost (409), so omaseed sends every field itself. #146, v0.5.0, in H18's
+sheets step (#170).
+
+**This entry adds** a dropped folder to the window's drop handling (CR1), the made-here record as
+a candidate for board 25's files match (CR8, superseding §3's "library torrents only"), one
+exception to board 25's "no merging for private torrents" that you ask for (CR9), a creation to
+C15 M10's band and C16 L6–L8 (CR13), and §7's rows to C12's ErrorWords (CR17). It supersedes
+#146's "short default list" of trackers (CR4).
+
+- **Starting (CR1–CR3):** + add ▾ "create a torrent from a folder…" (ctrl+n), `:` "create
+  torrent…" (offering the folder picked in the rail), a folder row's menu, a folder dropped on the
+  window. One sheet; "for": anyone / a private tracker, remembered per server. The folder through
+  the Move sheet's field, places and browse (the server's own folder list when omaseed can't see
+  its disks); a single file allowed.
+- **Public (CR4):** no tracker list shipped; the library's most used public trackers (top 2–3) and
+  last time's, editable; none is fine (DHT and peer exchange).
+- **Private (CR5–CR7):** the library's private trackers by host; the announce URL from the newest
+  torrent from that tracker (`torrents/trackers`). **The passkey is never stored by omaseed,
+  never shown (the host, then dots, no reveal), never logged:** creator `status` replies, which
+  echo it, are not logged at all, and one masking function cleans any text that could hold an
+  announce URL. A pasted URL for another tracker is used for that creation only. Two passkeys for
+  one host (a reset, or two accounts): the newest torrent's wins, the line names which torrent and
+  when. Private flag on (locked), v1, the source tag of the newest torrent from that tracker (or
+  the last typed for it) as facts with a change link. The private torrent is **not added**: the
+  `.torrent` is saved and the folder remembered in a made-here record (both hashes, the files, the
+  host, no passkey) until the site's copy is added, 30 days, or you forget it.
+- **The round trip (CR8–CR9):** in the add sheet, the site's copy with the same hash is added at
+  the folder in seed mode; another hash is matched file by file and added there with a check.
+  Something made here already in the library: another hash, offer to replace it (files kept);
+  same hash, offer to put the site's announce on it; the made `.torrent` itself added by mistake,
+  a warning.
+- **Format and pieces (CR10–CR12):** v1 by default on both paths (C21 is one reason), hybrid and
+  v2 offered with a line each; piece size automatic and shown before creating, overridable 16 KiB
+  to 64 MiB; web seeds, comment and hidden files (left out) under more ▾. Always `startSeeding`
+  off and no `torrentFilePath`: omaseed fetches the file, then adds a public one itself with
+  `seedMode` at the folder's parent.
+- **While and after (CR13–CR15):** a job in the move's band (none under 3 s), followed by task id
+  while hidden, one notice when long or hidden, one creation per server at a time. Public
+  summary: seeding, magnet copied. Private summary: the `.torrent` saved as "NAME [HOST].torrent"
+  in this machine's Downloads (XDG), a file chip to drag into the site's upload form.
+- **The rest (CR16–CR19):** the seeding coach (#25) stays parked; the sheet's own lines explain
+  the private flag and the source tag. Errors checked through the server first, in §7's words,
+  qBittorrent's text under details. Transmission: no create entry; Deluge: no source row and no
+  %, said once (C25). Built in 46's frame, in the sheets step.
+
 ## M8 — A click leaves the keyboard focus where it was
 
 Buttons and toggles do not take the focus when clicked. Otherwise an overlay gives the focus
