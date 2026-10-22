@@ -142,6 +142,10 @@ struct Torrent
     QString infohashV2;
     QString magnetUri;
 
+    /// A hybrid torrent (BEP 52 v1+v2): qBittorrent gives it both hashes. libtorrent 2.1.2
+    /// errors on a recheck of one that it downloaded when a file is missing (DECISIONS C21).
+    bool isHybrid() const { return !infohashV1.isEmpty() && !infohashV2.isEmpty(); }
+
     /// Merges the keys present in `json` and returns the JSON keys whose value changed.
     /// A full object and a partial diff go through the same path.
     QStringList applyJson(const QJsonObject &json);

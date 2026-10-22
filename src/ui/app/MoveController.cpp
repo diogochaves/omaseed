@@ -1710,25 +1710,52 @@ QVariantList MoveController::recheckRows(const QStringList &hashes) const
         return a.completed < b.completed;
     });
     // DECISIONS C20 (#138): only one running when the job sent it starts again.
-    for (const core::Torrent &torrent : list)
+    for (const core::Torrent &torrent : list) {
+        // C21 (#144): a failed move may have split a hybrid's files between the two places,
+        // and libtorrent 2.1.2 answers its recheck with an error only adding it again clears.
+        const bool hybrid = torrent.isHybrid();
+        const bool starts = !hybrid && wasRunning(torrent.hash);
+        QString then = tr("stays stopped");
+        if (hybrid)
+            then = tr("not rechecked");
+        else if (starts)
+            then = tr("starts if complete");
         rows << QVariantMap{
             {QStringLiteral("hash"), torrent.hash},
             {QStringLiteral("name"), torrent.name},
             {QStringLiteral("bytes"), core::Format::size(torrent.completed)},
-            {QStringLiteral("starts"), wasRunning(torrent.hash)},
-            {QStringLiteral("then"),
-             wasRunning(torrent.hash) ? tr("starts if complete") : tr("stays stopped")}};
+            {QStringLiteral("starts"), starts},
+            {QStringLiteral("hybrid"), hybrid},
+            {QStringLiteral("then"), then},
+            {QStringLiteral("why"),
+             hybrid ? tr("Its files may be split between the two places, and on a hybrid torrent "
+                         "(v1 and v2) a recheck would put it in an error that only adding it "
+                         "again clears.")
+                    : QString()}};
+    }
     return rows;
 }
 
 void MoveController::recheckSmallestFirst(const QStringList &hashes)
 {
+    recheckListed(recheckRows(hashes));
+}
+
+void MoveController::recheckListed(const QVariantList &rows)
+{
     m_rechecks.clear();
     // Decided now: the job or its summary may be gone by the time a recheck ends.
     m_recheckStarts.clear();
-    for (const QVariant &value : recheckRows(hashes)) {
+    const core::TorrentModel *torrents =
+        m_hooks.engine == nullptr ? nullptr : m_hooks.engine->torrents();
+    for (const QVariant &value : rows) {
         const QVariantMap row = value.toMap();
         const QString hash = row.value(QStringLiteral("hash")).toString();
+        // C21: never a hybrid, whatever the row says.
+        if (hash.isEmpty() || row.value(QStringLiteral("hybrid")).toBool() ||
+            (torrents != nullptr && torrents->indexOfHash(hash) >= 0 &&
+             torrents->torrent(hash).isHybrid()))
+            continue;
         m_rechecks << hash;
         if (row.value(QStringLiteral("starts")).toBool())
             m_recheckStarts.insert(hash);
@@ -1775,6 +1802,50 @@ void MoveController::retryFailed()
     const QJsonObject spec = holding() ? m_held->retry : retrySpec();
     if (!spec.isEmpty())
         startSpec(spec);
+}
+
+bool MoveController::moveAgain(const QString &hash)
+{
+    const QJsonObject spec = failedSpec(hash, false);
+    return !spec.isEmpty() && startSpec(spec);
+}
+
+bool MoveController::moveFailedBack(const QString &hash)
+{
+    const QJsonObject spec = failedSpec(hash, true);
+    return !spec.isEmpty() && startSpec(spec);
+}
+
+QJsonObject MoveController::failedSpec(const QString &hash, bool back) const
+{
+    // C21 (#144): one failed torrent, read from the retry the summary offers (its targets are
+    // where the job meant each to go, its expectedAt where each was): again to that target,
+    // as retry, or back to where it was, as move back.
+    const QJsonObject retry = holding() ? m_held->retry : retrySpec();
+    const QString to = retry.value(QStringLiteral("targets")).toObject().value(hash).toString();
+    const QString from =
+        retry.value(QStringLiteral("expectedAt")).toObject().value(hash).toString();
+    if (to.isEmpty() || from.isEmpty())
+        return {};
+    QString title = tr("1 torrent");
+    if (m_hooks.engine != nullptr && m_hooks.engine->torrents()->indexOfHash(hash) >= 0)
+        title = m_hooks.engine->torrents()->torrent(hash).name;
+    if (!back)
+        return {{QStringLiteral("kind"), QStringLiteral("retry")},
+                {QStringLiteral("title"), title},
+                {QStringLiteral("hashes"), QJsonArray{hash}},
+                {QStringLiteral("rule"), QStringLiteral("eachOwn")},
+                {QStringLiteral("targets"), QJsonObject{{hash, to}}},
+                {QStringLiteral("expectedAt"), QJsonObject{{hash, from}}}};
+    // Back from wherever qBittorrent has it now: no expectedAt, so it isn't left out as moved
+    // since.
+    return {{QStringLiteral("kind"), QStringLiteral("back")},
+            {QStringLiteral("title"), title},
+            {QStringLiteral("hashes"), QJsonArray{hash}},
+            {QStringLiteral("rule"), QStringLiteral("eachOwn")},
+            {QStringLiteral("targets"), QJsonObject{{hash, from}}},
+            {QStringLiteral("backOf"), this->title()},
+            {QStringLiteral("backFrom"), newPath()}};
 }
 
 QJsonObject MoveController::retrySpec() const

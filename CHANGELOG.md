@@ -7,6 +7,17 @@ before it will tag a release.
 
 ## Unreleased
 
+## v0.3.1 — 2026-10-22
+
+### Fixed
+
+- **A failed move no longer offers to break a hybrid torrent.** After a move where some
+  torrents fail, "recheck" leaves out every hybrid torrent (one made for both BitTorrent v1 and
+  v2). Its files may be split between the old place and the new, and a recheck would put it in
+  an error that only adding it again clears. The sheet lists it as not rechecked, says why, and
+  offers "move again" and "move back" to bring its files together; the others are rechecked as
+  before. When every failed torrent is hybrid, the sheet says there is nothing to recheck.
+
 ## v0.3.0 — 2026-10-22
 
 Moving torrents and whole folders, with a way back. Backups of a qBittorrent's torrents and

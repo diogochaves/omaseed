@@ -232,15 +232,26 @@ public:
     /// "details": the record as text (old and new path of each, the failures with their log
     /// lines), for the sheet and for c.
     Q_INVOKABLE QString detailsText() const;
-    /// E3: the rows of "recheck these": [{hash, name, bytes, starts, then}]; `starts` when it
-    /// was running when the job sent it (DECISIONS C20, #138).
+    /// E3: the rows of "recheck these", smallest first: [{hash, name, bytes, starts, then,
+    /// hybrid, why}]; `starts` when it was running when the job sent it (DECISIONS C20, #138).
+    /// A hybrid is not rechecked (C21): `hybrid`, its `then` "not rechecked" and `why` the
+    /// line that says why.
     Q_INVOKABLE QVariantList recheckRows(const QStringList &hashes) const;
     /// E3: recheck `hashes` one at a time, smallest first; each that comes out complete
-    /// starts, if it was running when the job sent it (C20); the others stay stopped.
+    /// starts, if it was running when the job sent it (C20); the others stay stopped. Hybrids
+    /// are left out (C21).
     Q_INVOKABLE void recheckSmallestFirst(const QStringList &hashes);
+    /// The same on rows recheckRows() gave earlier, as they said: the sheet's, read when it
+    /// opened, so a move again started from it since (which replaces the job) changes nothing.
+    Q_INVOKABLE void recheckListed(const QVariantList &rows);
     /// M16 "retry": the failed ones again to the place the job meant for them, as a job of
     /// their own (C16 L9).
     Q_INVOKABLE void retryFailed();
+    /// C21: one failed torrent (a hybrid the recheck leaves out) again to the job's target
+    /// for it, as retry does. False when it can't start (the reason goes out through note()).
+    Q_INVOKABLE bool moveAgain(const QString &hash);
+    /// C21: one failed torrent back to where it was before the job, as move back does.
+    Q_INVOKABLE bool moveFailedBack(const QString &hash);
 
     /// J5's "pause and quit" (and any quit): saved now, started again at the next launch.
     Q_INVOKABLE void pauseForQuit();
@@ -322,6 +333,8 @@ private:
     /// The job's record (or its held summary's): `hash` was running when the job sent it.
     bool wasRunning(const QString &hash) const;
     QJsonObject retrySpec() const;
+    /// C21: retrySpec() for `hash` alone, or (`back`) that torrent to where it was.
+    QJsonObject failedSpec(const QString &hash, bool back) const;
     bool noticeWanted() const;
     QDateTime now() const;
     QString serverName() const;

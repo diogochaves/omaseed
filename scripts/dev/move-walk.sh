@@ -2,8 +2,9 @@
 # omaseed — moving a folder (board 42, DECISIONS C15), walked through the app's own UI on a
 # library of a few hundred small torrents: a folder with a nested save path and loose files
 # moved to another filesystem, omaseed killed mid-move and started again, the loose files
-# carried after the torrents; pause, end and "move the rest…"; two that fail and the
-# summary's recheck, which starts only the one that was running (#138); a destination
+# carried after the torrents; pause, end and "move the rest…"; three that fail and the
+# summary's recheck, which starts only the one that was running (#138) and leaves out the
+# hybrid, moved again instead (DECISIONS C21); a destination
 # qBittorrent can't write; a destination that fills up. Then a selection moved through the Move… sheet
 # (board 43, DECISIONS C16): one torrent's quick move, three from three folders keeping their
 # places, one queued behind a folder's move and the folder moved back from its summary, a name
@@ -20,7 +21,7 @@
 #   OMASEED_MOVE_WALK_FROM=selection …        # from the selections on (no folder moves first)
 #   OMASEED_MOVE_WALK_FROM=sheet …            # from the places, names and partial pack on
 #   OMASEED_MOVE_WALK_FROM=history …          # from move back after the summary (C18) on
-#   OMASEED_MOVE_WALK_FROM=music …            # from the unwritable and full steps on
+#   OMASEED_MOVE_WALK_FROM=music …            # from the recheck, unwritable and full steps on
 #   OMASEED_MOVE_WALK_FROM=remote …           # only the server omaseed can't see
 #   OMASEED_MOVE_WALK_KEEP=1 …                # a failed run leaves its box up
 #
@@ -358,7 +359,7 @@ def bencode(x):
         return b"l" + b"".join(map(bencode, x)) + b"e"
     return b"d" + b"".join(bencode(k) + bencode(x[k]) for k in sorted(x)) + b"e"
 
-def make(root, name, size, seed):
+def make(root, name, size, seed, hybrid=False):
     folder = os.path.join(home, "Torrents/library", root, name)
     os.makedirs(folder, exist_ok=True)
     data = hashlib.sha256(seed.encode()).digest() * (size // 32 + 1)
@@ -368,10 +369,18 @@ def make(root, name, size, seed):
     pieces = b"".join(hashlib.sha1(data[i:i + PIECE]).digest() for i in range(0, len(data), PIECE))
     info = {"name": name, "piece length": PIECE, "pieces": pieces, "private": 1,
             "files": [{"length": size, "path": ["data.bin"]}]}
+    top = {"created by": "move-walk"}
+    if hybrid:
+        # BEP 52's v2 half beside the v1 one, as libtorrent's create_torrent writes it: a file
+        # of one 16 KiB block has the block's SHA-256 as its root and no piece layer.
+        assert size <= PIECE
+        info["meta version"] = 2
+        info["file tree"] = {"data.bin": {"": {"length": size, "pieces root": hashlib.sha256(data).digest()}}}
+        top["piece layers"] = {}
     out = os.path.join(home, "walk-torrents", root.replace("/", "-"))
     os.makedirs(out, exist_ok=True)
     with open(os.path.join(out, name + ".torrent"), "wb") as f:
-        f.write(bencode({"info": info, "created by": "move-walk"}))
+        f.write(bencode(dict(top, info=info)))
 
 for i in range(1, games - handheld + 1):
     make("games", "Arcade Set %03d" % i, 8192 + 997 * i, "g%d" % i)
@@ -381,11 +390,12 @@ for i in range(1, films + 1):
     make("films", "Short Film %03d" % i, 8192 + 983 * i, "f%d" % i)
 for i in range(1, music + 1):
     make("music", "Album %02d" % i, 600 * 1024 + i, "m%d" % i)
-# The recheck after a move (#138): one that moves (the smallest, sent alone first) and two
-# below it that can't.
+# The recheck after a move (#138): one that moves (the smallest, sent alone first) and three
+# below it that can't, the last a hybrid (v1+v2) that the recheck leaves out (DECISIONS C21).
 make("recheck", "Recheck One", 8192, "r1")
 make("recheck/locked", "Recheck Two", 9000, "r2")
 make("recheck/locked", "Recheck Three", 9500, "r3")
+make("recheck/locked", "Recheck Four", 9700, "r4", hybrid=True)
 
 def loose(path, size, old=True):
     full = os.path.join(home, "Torrents/library", path)
@@ -424,7 +434,7 @@ add_root music "$LIB/music"
 add_root recheck "$LIB/recheck"
 add_root recheck-locked "$LIB/recheck/locked"
 
-step "The library" "$((GAMES + FILMS + MUSIC)) torrents added as complete: games ($GAMES, $HANDHELD of them in games/handheld), films ($FILMS), music ($MUSIC), and three in recheck; six files no torrent owns beside them."
+step "The library" "$((GAMES + FILMS + MUSIC)) torrents added as complete: games ($GAMES, $HANDHELD of them in games/handheld), films ($FILMS), music ($MUSIC), and four in recheck (one a hybrid); six files no torrent owns beside them."
 expect_count "games holds $GAMES torrents" count_under "$LIB/games" -eq "$GAMES" 60
 expect_count "games/handheld holds $HANDHELD" count_at "$LIB/games/handheld" -eq "$HANDHELD"
 expect_count "films holds $FILMS" count_under "$LIB/films" -eq "$FILMS"
@@ -920,42 +930,98 @@ expect_state() {
 }
 RUNNING="uploading|stalledUP|queuedUP|forcedUP"
 
-step "Recheck after a move: only what was running starts" "The recheck folder: Recheck One, and below it in locked Recheck Two (seeding) and Recheck Three (stopped first). shift+m, ~/rk, where ~/rk/locked exists read-only: One, the smallest, moves; Two and Three can't. The summary's recheck the 2…: Two's row says starts if complete, Three's stays stopped (DECISIONS C20, #138). recheck 2: both come out complete; Two starts, Three stays stopped."
+step "Recheck after a move: only what was running starts, never a hybrid" "The recheck folder: Recheck One, and below it in locked Recheck Two (seeding), Recheck Three (stopped first) and Recheck Four (a hybrid, v1+v2). shift+m, ~/rk, where ~/rk/locked exists read-only: One, the smallest, moves; the other three can't. The summary's recheck the 3…: Two's row says starts if complete, Three's stays stopped (DECISIONS C20, #138); Four is listed apart, not rechecked, with why, and offers move again and move back (C21, #144). ~/rk/locked made writable, move again: Four lands whole in ~/rk/locked. recheck 2: both come out complete; Two starts, Three stays stopped, Four is never rechecked."
+# A walk started here (OMASEED_MOVE_WALK_FROM=music) comes straight after the adds, while
+# qBittorrent may still be checking them (one at a time, a few minutes for the 284): a torrent
+# stopped mid-check would stay incomplete.
+checked=""
+for _ in $(seq 1 600); do
+    checked="$(api torrents/info | python3 -c '
+import json, sys
+rk = [t for t in json.load(sys.stdin) if t["name"].startswith("Recheck ")]
+print(len(rk) == 4 and all(t["progress"] == 1 and not t["state"].startswith("checking") for t in rk))' 2>/dev/null || true)"
+    [ "$checked" = True ] && break
+    sleep 1
+done
+if [ "$checked" = True ]; then
+    pass "the four Recheck torrents are complete"
+else
+    fail "the Recheck torrents are not complete after their adds"
+fi
 three="$(api torrents/info | python3 -c '
 import json, sys
 print(next(t["hash"] for t in json.load(sys.stdin) if t["name"] == "Recheck Three"))')"
 api -X POST torrents/stop -d "hashes=$three" >/dev/null
 expect_state "Recheck Three is stopped before the move" "Recheck Three" "stoppedUP" 20
 expect_state "Recheck Two is seeding" "Recheck Two" "$RUNNING" 20
+if [ "$(api torrents/info | python3 -c '
+import json, sys
+t = next(t for t in json.load(sys.stdin) if t["name"] == "Recheck Four")
+print(bool(t.get("infohash_v1")) and bool(t.get("infohash_v2")))')" = True ]; then
+    pass "qBittorrent gives Recheck Four both a v1 and a v2 hash: a hybrid"
+else
+    fail "Recheck Four is not a hybrid in qBittorrent"
+fi
 mkdir -p "$home/rk/locked"
 chmod 0555 "$home/rk/locked"
-open_move "Recheck One" "$BOX_HOME/rk" 3
+open_move "Recheck One" "$BOX_HOME/rk" 4
 keys Return
 expect_at "Recheck One, sent first, moved" "Recheck One" "$BOX_HOME/rk" 60
-expect_text "the summary offers to recheck the two that failed" "recheck the 2…" 120
-shot "The summary: 1 moved · 2 failed, with recheck the 2… and retry the 2." summary
-press "recheck the 2…" top
+expect_text "the summary offers to recheck the three that failed" "recheck the 3…" 120
+shot "The summary: 1 moved · 3 failed, with recheck the 3… and retry the 3." summary
+press "recheck the 3…" top
 expect_text "Recheck Two's row: it starts if complete" "Recheck Two, 9 KB, starts if complete" 10
 expect_text "Recheck Three's row: it stays stopped" "Recheck Three, 9 KB, stays stopped" 5
-shot "The recheck sheet: Recheck Two, starts if complete; Recheck Three, stays stopped." sheet
+expect_text "Recheck Four's row: not rechecked, and why" "Recheck Four, 9 KB, not rechecked: Its files may be split" 5
+expect_text "the sheet rechecks two" "Recheck 2 torrents" 5
+expect_tree "Recheck Four offers move again" 'button "move Recheck Four again"' 5
+expect_tree "Recheck Four offers move back" 'button "move Recheck Four back"' 5
+shot "The recheck sheet: Recheck Two, starts if complete; Recheck Three, stays stopped; apart, Recheck Four, not rechecked, why, move again and move back." sheet
+chmod 0755 "$home/rk/locked"
+press "move Recheck Four again"
+expect_at "Recheck Four, moved again, saves in ~/rk/locked" "Recheck Four" "$BOX_HOME/rk/locked" 60
+four_size="$(stat -c %s "$home/rk/locked/Recheck Four/data.bin" 2>/dev/null || echo 0)"
+if [ "$four_size" = 9700 ] && [ ! -e "$home/Torrents/library/recheck/locked/Recheck Four" ]; then
+    pass "Recheck Four is whole in ~/rk/locked, nothing left behind"
+else
+    fail "Recheck Four's data.bin in ~/rk/locked is $four_size bytes, or its folder is still in recheck/locked"
+fi
+expect_text "its row says it was sent" "Recheck Four, 9 KB, moving again" 10
+shot "The recheck sheet after move again: Recheck Four, moving again; recheck 2 still offered." again
 press "recheck 2"
-expect_state "Recheck Two, rechecked complete, runs again" "Recheck Two" "$RUNNING" 90
+# Recheck Four is never checked: watched while the two are rechecked.
+four_checked=""
+watch_four() {
+    local got
+    got="$(state_of "Recheck Four" 2>/dev/null || true)"
+    case "$got" in checking* | error | missingFiles) four_checked="$got" ;; esac
+}
+for _ in $(seq 1 90); do
+    watch_four
+    [[ "$(state_of "Recheck Two" 2>/dev/null || true)" =~ ^($RUNNING)$ ]] && break
+    sleep 1
+done
+expect_state "Recheck Two, rechecked complete, runs again" "Recheck Two" "$RUNNING" 5
 # Three is rechecked after Two (smallest first), and the app waits a few polls on each.
 for _ in $(seq 1 20); do
+    watch_four
     got="$(state_of "Recheck Three" 2>/dev/null || true)"
     [[ "$got" =~ ^($RUNNING)$ ]] && fail "Recheck Three started after its recheck ($got)"
     sleep 1
 done
 pass "Recheck Three stayed stopped through its recheck ($(state_of "Recheck Three"))"
+[ -z "$four_checked" ] || fail "Recheck Four was $four_checked during the recheck"
+expect_state "Recheck Four was never rechecked, and seeds" "Recheck Four" "$RUNNING" 5
 if [ "$(api torrents/info | python3 -c '
 import json, sys
 print(all(t["progress"] == 1 for t in json.load(sys.stdin) if t["name"].startswith("Recheck ")))')" = True ]; then
-    pass "both came out complete"
+    pass "all four complete"
 else
     fail "a Recheck torrent is not complete after its recheck"
 fi
-shot "After the recheck: Recheck Two seeding, Recheck Three stopped." after
-press close top
+shot "After the recheck: Recheck Two seeding, Recheck Three stopped, Recheck Four seeding in ~/rk/locked." after
+# Move again took the summary's place, as retry does: a band it left is closed.
+if omabox tree -b "$BOX" --window omaseed 2>/dev/null | grep -qF 'link "close"'; then press close top; fi
 
 step "A folder qBittorrent can't write" "The box's ~/locked/music exists, read-only. The sheet warns (yellow, not a block); enter sends the smallest alone; qBittorrent answers 200 and logs \"Permission denied\"; the job stops there: \"qBittorrent can't write to …\"."
 mkdir -p "$home/locked/music"

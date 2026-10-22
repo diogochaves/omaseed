@@ -1233,10 +1233,21 @@ QVariantMap MoveController::selectionWords(const MovePlan &plan, const QJsonObje
     case MovePlan::Blocker::NoPath:
         blocker = tr("Type the new path.");
         break;
-    case MovePlan::Blocker::AllThere:
-        blocker = count == 1 ? tr("It is already at %1.").arg(newPath)
-                             : tr("All %1 are already at %2.").arg(count).arg(newPath);
+    case MovePlan::Blocker::AllThere: {
+        // Each to its own place (a retry, a move back) has no one path: the torrent's own.
+        QString at = newPath;
+        for (const MovePlan::Item &item : plan.items()) {
+            if (at.isEmpty() && item.kind == MovePlan::Item::Kind::AlreadyThere)
+                at = item.to;
+        }
+        if (count == 1)
+            blocker = tr("It is already at %1.").arg(at);
+        else if (newPath.isEmpty())
+            blocker = tr("All %1 are already where they would go.").arg(count);
+        else
+            blocker = tr("All %1 are already at %2.").arg(count).arg(newPath);
         break;
+    }
     case MovePlan::Blocker::NothingToMove:
         blocker = tr("Nothing to move: every torrent is already there or left out.");
         break;
