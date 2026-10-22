@@ -1011,14 +1011,20 @@ MoveJob::Summary MoveJob::summary() const
 QStringList MoveJob::addedDuring() const
 {
     QStringList out;
-    if (m_torrents.isNull() || m_root.isEmpty())
+    if (m_torrents.isNull() || m_root.isEmpty() || !m_startedAt.isValid())
         return out;
     QSet<QString> known;
     for (const Entry &entry : m_entries)
         known.insert(entry.hash);
+    // #164 (a): only those qBittorrent added after the job started. A torrent's or a
+    // selection's root is a save path other torrents share, and those were there before;
+    // qBittorrent's added_on is in whole seconds, so the job's own second counts.
+    const qint64 since = m_startedAt.toSecsSinceEpoch();
     for (int row = 0; row < m_torrents->count(); ++row) {
         const Torrent &torrent = m_torrents->torrentAt(row);
-        if (!known.contains(torrent.hash) && SharedData::isUnder(torrent.savePath, m_root))
+        if (!known.contains(torrent.hash) && torrent.addedOn.isValid() &&
+            torrent.addedOn.toSecsSinceEpoch() >= since &&
+            SharedData::isUnder(torrent.savePath, m_root))
             out << torrent.hash;
     }
     return out;
