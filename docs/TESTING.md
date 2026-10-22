@@ -33,8 +33,10 @@ follows. The commands themselves are listed in `CLAUDE.md`; `README.md` says how
    | `menu-walk.sh` | the one menu shown by the tray and the bar widget |
    | `move-walk.sh` | moving folders and selections: queue, places, partial packs, move back, recheck |
 
-   `move-walk.sh` takes about 11 minutes; `OMASEED_MOVE_WALK_FROM` set to `selection`, `sheet`,
-   `history`, `music` or `remote` starts it later.
+   `move-walk.sh` takes about 12 minutes; `OMASEED_MOVE_WALK_FROM` set to `selection`, `sheet`,
+   `history`, `big`, `music` or `remote` starts it later. Its `big` step reads a sheet's line
+   with `tesseract` where the accessibility tree cuts it at 80 characters (without it, only the
+   line's start is checked).
 
 4. **Visual check** (`omabox check run … -- scripts/dev/visual-check.sh`). The screens the walks
    reach (library, details, menus, palette, help, the add sheet, every Settings page, the bar

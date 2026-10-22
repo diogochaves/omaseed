@@ -8,7 +8,9 @@
 # qBittorrent can't write; a destination that fills up. Then a selection moved through the Move… sheet
 # (board 43, DECISIONS C16): one torrent's quick move, three from three folders keeping their
 # places, one queued behind a folder's move and the folder moved back from its summary, a name
-# already at the destination; and a second box whose omaseed is on the playground, whose disks
+# already at the destination; one big torrent whose file qBittorrent makes at full length before
+# it copies (#162), the summary's count of torrents added during it (#164), and what a file
+# already at the destination is and whose (#161); and a second box whose omaseed is on the playground, whose disks
 # it can't see (L13). After each step it checks what qBittorrent says and what is on disk, and
 # stops at the first mismatch.
 # Run it again after any change to the move sheet, the job, the carry or their words.
@@ -21,6 +23,7 @@
 #   OMASEED_MOVE_WALK_FROM=selection …        # from the selections on (no folder moves first)
 #   OMASEED_MOVE_WALK_FROM=sheet …            # from the places, names and partial pack on
 #   OMASEED_MOVE_WALK_FROM=history …          # from move back after the summary (C18) on
+#   OMASEED_MOVE_WALK_FROM=big …              # from one big torrent's move and a leftover on
 #   OMASEED_MOVE_WALK_FROM=music …            # from the recheck, unwritable and full steps on
 #   OMASEED_MOVE_WALK_FROM=remote …           # only the server omaseed can't see
 #   OMASEED_MOVE_WALK_KEEP=1 …                # a failed run leaves its box up
@@ -442,7 +445,8 @@ expect_count "music holds $MUSIC" count_under "$LIB/music" -eq "$MUSIC"
 expect_text "the rail lists the folders" "handheld" 30
 shot "The library: the rail's folders group lists library, games with handheld under it, films and music."
 
-# OMASEED_MOVE_WALK_FROM skips what comes before: selection, sheet, history, music or remote.
+# OMASEED_MOVE_WALK_FROM skips what comes before: selection, sheet, history, big, music or
+# remote.
 FROM="${OMASEED_MOVE_WALK_FROM:-games}"
 if [ "$FROM" = games ]; then
 
@@ -906,6 +910,185 @@ done
 expect_count "none left on ~/sel/hist" count_at "$SEL/hist" -eq 0 5
 table_on "Short Film 023"
 keys Escape
+fi
+
+# ---- one big torrent, its neighbours, a leftover (#162, #164, #161) -------------------------
+
+if [ "$FROM" = games ] || [ "$FROM" = selection ] || [ "$FROM" = sheet ] || [ "$FROM" = history ] ||
+    [ "$FROM" = big ]; then
+BIG="$LIB/big"
+FULL=$((2048 * 1024 * 1024))
+
+# throttle on|off: stop and continue the box's qBittorrent (SIGSTOP 0.8 s, SIGCONT 0.02 s),
+# so a 2 GiB copy to the tmpfs lasts about 15 s instead of a fraction of one. Its file at the
+# destination is at full length from the start meanwhile, as on any drive
+# (scripts/dev/research/162-preallocated-move).
+throttle() {
+    if [ "$1" = on ]; then
+        local pid
+        pid="$(omabox run -b "$BOX" -- pgrep -x qbittorrent-nox)"
+        omabox run -b "$BOX" -d -- sh -c \
+            "while kill -STOP $pid; do sleep 0.8; kill -CONT $pid; sleep 0.02; done" >/dev/null 2>&1
+    else
+        in_box pkill -f "while kill -STOP" || true
+        in_box pkill -CONT -x qbittorrent-nox || true
+    fi
+}
+
+# hash_at "WHAT" HASH PATH [SECONDS]: wait until HASH saves at PATH, moved.
+hash_at() {
+    local what="$1" hash="$2" path="$3" limit="${4:-30}" got=""
+    for _ in $(seq 1 "$limit"); do
+        got="$(api "torrents/info?hashes=$hash" | python3 -c '
+import json, sys
+t = json.load(sys.stdin)[0]
+print(t["save_path"].rstrip("/") + ("" if t["state"] != "moving" else " (moving)"))' 2>/dev/null || true)"
+        [ "$got" = "$path" ] && { pass "$what"; return 0; }
+        sleep 1
+    done
+    fail "$what (after ${limit}s it saves at ${got:-nothing}, not $path)"
+}
+
+# expect_read "WHAT" PREFIX TEXT [SECONDS]: wait until the window's node whose name holds PREFIX
+# reads TEXT on screen. The tree cuts names at 80 characters, so the node's region is shot and
+# read with tesseract (whitespace folded, case aside); without tesseract only PREFIX is checked.
+expect_read() {
+    local what="$1" prefix="$2" text="$3" limit="${4:-10}" where="" read=""
+    if ! command -v tesseract >/dev/null; then
+        expect_text "$what (tesseract missing: only \"$prefix\" checked)" "$prefix" "$limit"
+        return 0
+    fi
+    for _ in $(seq 1 "$limit"); do
+        where="$(omabox tree -b "$BOX" --window omaseed --find "$prefix" 2>/dev/null |
+            sed -nE 's/.*@(-?[0-9]+),(-?[0-9]+) ([0-9]+)x([0-9]+).*/\1,\2 \3x\4/p' | tail -n1)"
+        if [ -n "$where" ]; then
+            omabox shot -b "$BOX" --window omaseed -g "$where" --zoom 2 -o "$OUT_READ" >/dev/null 2>&1 || true
+            read="$(tesseract "$OUT_READ" - 2>/dev/null | tr -s '[:space:]' ' ')"
+            grep -qiF -- "$text" <<<"$read" && { pass "$what"; return 0; }
+        fi
+        sleep 1
+    done
+    fail "$what (after ${limit}s the line reads: ${read:-nothing})"
+}
+OUT_READ="$(mktemp --suffix=.png)"
+
+# The big one (2 GiB, one file), three small neighbours in its save path, one more to add
+# while it moves, and a twin saved below them whose one file has Big Neighbour 3's name. Each
+# torrent's info hash comes back as SEED=HASH, into H.
+declare -A H=()
+while IFS='=' read -r seed hash; do H[$seed]=$hash; done < <(python3 - "$home" <<'PY'
+import hashlib, os, sys
+home = sys.argv[1]
+lib = os.path.join(home, "Torrents/library/big")
+def bencode(x):
+    if isinstance(x, int):
+        return b"i%de" % x
+    if isinstance(x, bytes):
+        return b"%d:%s" % (len(x), x)
+    if isinstance(x, str):
+        return bencode(x.encode())
+    return b"d" + b"".join(bencode(k) + bencode(x[k]) for k in sorted(x)) + b"e"
+def single(name, folder, blocks, piece, seed):
+    os.makedirs(folder, exist_ok=True)
+    block = hashlib.sha256(seed.encode()).digest() * (piece // 32)
+    with open(os.path.join(folder, name), "wb") as f:
+        for _ in range(blocks):
+            f.write(block)
+    info = {"name": name, "length": blocks * piece, "piece length": piece,
+            "pieces": hashlib.sha1(block).digest() * blocks, "private": 1}
+    out = os.path.join(home, "walk-torrents/big")
+    os.makedirs(out, exist_ok=True)
+    with open(os.path.join(out, seed + ".torrent"), "wb") as f:
+        f.write(bencode({"created by": "move-walk", "info": info}))
+    print("%s=%s" % (seed, hashlib.sha1(bencode(info)).hexdigest()))
+single("Big Feature.bin", lib, 2048, 1 << 20, "big")
+for i in (1, 2, 3):
+    single("Big Neighbour %d.bin" % i, lib, i, 16384, "nb%d" % i)
+single("Big Late.bin", lib, 1, 16384, "late")
+single("Big Neighbour 3.bin", os.path.join(lib, "twin"), 5, 16384, "twin")
+PY
+)
+add_big() { # add_big SEED SAVE_PATH
+    api torrents/add -F "torrents=@$BOX_HOME/walk-torrents/big/$1.torrent" -F "savepath=$2" \
+        -F skip_checking=true -F seedMode=true >/dev/null
+}
+for seed in big nb1 nb2 nb3; do add_big "$seed" "$BIG"; done
+add_big twin "$BIG/twin"
+expect_count "the big folder holds its 4" count_at "$BIG" -eq 4 60
+expect_count "the twin is below it" count_at "$BIG/twin" -eq 1 30
+# Its own name in the table; its file keeps Big Neighbour 3's.
+api torrents/rename -d "hash=${H[twin]}" --data-urlencode "name=Twin of Neighbour 3" >/dev/null
+for _ in $(seq 1 30); do
+    [ "$(save_of "Twin of Neighbour 3" 2>/dev/null)" = "$BIG/twin" ] && break
+    sleep 1
+done
+if [ "$(save_of "Twin of Neighbour 3" 2>/dev/null)" = "$BIG/twin" ]; then pass "the twin has its name"; else fail "the twin was not renamed"; fi
+
+step "One big torrent's move" "Big Feature.bin (2 GiB, one file) shares its save path with three neighbours. The cursor on it, m, /tmp/fast/big, enter; the box's qBittorrent is slowed so the copy lasts. Its file at /tmp/fast/big is at full length from the first second, so the band says how long it has been moving and that qBittorrent doesn't report a single move's progress, never 100 % measured at the destination (#162). Big Late.bin is added to the same folder meanwhile. The summary counts that one, not the three that were there before (#164)."
+table_on "Big Feature.bin"
+keys m
+expect_text "the Move… sheet is open" "Move Big Feature.bin" 10
+keys ctrl+a -t /tmp/fast/big
+expect_text "one green line" "access are fine" 20
+throttle on
+keys Return
+expect_text "the band shows the move" "Moving Big Feature.bin" 30
+size="$(omabox run -b "$BOX" -- stat -c %s "/tmp/fast/big/Big Feature.bin" 2>/dev/null || true)"
+if [ "$size" = "$FULL" ]; then
+    pass "its file at /tmp/fast/big is at full length while it moves ($size)"
+else
+    fail "its file at /tmp/fast/big is ${size:-missing}, not $FULL: this qBittorrent no longer makes it at full length first (scripts/dev/research/162-preallocated-move)"
+fi
+expect_text "the band says how long it has moved" "moving for" 15
+expect_text "the band says qBittorrent tells no progress" "doesn't report a single move's progress" 5
+no_text "no figure measured at the destination" "measured at"
+shot "The band of one big torrent: its size, moving for …, qBittorrent doesn't report a single move's progress; no bar stuck at 100 %." band
+add_big late "$BIG"
+hash_at "Big Late.bin is added to the big folder" "${H[late]}" "$BIG" 60
+hash_at "Big Feature.bin lands at /tmp/fast/big" "${H[big]}" /tmp/fast/big 180
+throttle off
+expect_disk "its file is there" -f "/tmp/fast/big/Big Feature.bin"
+# The tree cuts long names short: the folder is in the shot.
+expect_text "the summary counts the one added" "1 added during the move is still at" 30
+no_text "not the neighbours that were there before" "4 added during the move"
+shot "The summary: 1 of 1, and 1 added during the move is still at the big folder (the three neighbours were there before)." summary
+press close
+
+step "A leftover at the destination" "An empty Big Neighbour 1.bin is at /tmp/fast/big, as an earlier failed copy leaves one. Big Neighbour 1.bin, m, /tmp/fast/big: 1 left out, and the line says it is an empty file no torrent owns (#161). esc. Then Big Neighbour 3.bin moves there, and Twin of Neighbour 3 (saved below, its file has the same name) can't: the line says the file there is Big Neighbour 3.bin's."
+in_box sh -c ': >"/tmp/fast/big/Big Neighbour 1.bin"'
+table_on "Big Neighbour 1.bin"
+keys m
+expect_text "the Move… sheet is open" "Move Big Neighbour 1.bin" 10
+keys ctrl+a -t /tmp/fast/big
+expect_text "one is left out" "1 left out" 20
+expect_read "it is an empty file no torrent owns" "1 left out" "(an empty file no torrent owns)" 10
+shot "The Move… sheet: 1 left out, (an empty file no torrent owns)." empty
+# Typing opened the places list: esc closes it, esc again the sheet.
+keys Escape
+keys Escape
+no_text "the sheet is closed" "Move Big Neighbour 1.bin"
+hash_at "Big Neighbour 1.bin stayed" "${H[nb1]}" "$BIG" 1
+if [ "$(omabox run -b "$BOX" -- stat -c %s "/tmp/fast/big/Big Neighbour 1.bin")" = 0 ]; then pass "the empty file is untouched"; else fail "the empty file changed"; fi
+table_on "Big Neighbour 3.bin"
+keys m
+expect_text "the Move… sheet is open" "Move Big Neighbour 3.bin" 10
+keys ctrl+a -t /tmp/fast/big
+expect_text "one green line" "access are fine" 20
+keys Return
+hash_at "Big Neighbour 3.bin lands at /tmp/fast/big" "${H[nb3]}" /tmp/fast/big 30
+keys Escape
+table_on "Twin of Neighbour 3"
+keys m
+expect_text "the Move… sheet is open" "Move Twin of Neighbour 3" 10
+keys ctrl+a -t /tmp/fast/big
+expect_text "the twin is left out" "1 left out" 20
+expect_read "the file there is Big Neighbour 3.bin's" "1 left out" "that Big Neighbour 3.bin owns)" 10
+shot "The Move… sheet for the twin: 1 left out, (a file of 80 KB that Big Neighbour 3.bin owns)." owned
+keys Escape
+keys Escape
+no_text "the sheet is closed" "Move Twin of Neighbour 3"
+hash_at "the twin stayed below" "${H[twin]}" "$BIG/twin" 1
+rm -f "$OUT_READ"
 fi
 
 # ---- music: a folder qBittorrent can't write, then a full one ------------------------------
