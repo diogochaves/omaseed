@@ -1802,6 +1802,9 @@ public:
     /// torrent's check "fetches", answered on a later turn of the event loop as a server's
     /// reply would be. An empty list takes a hash's away.
     Q_INVOKABLE void patchDemoFiles(const QVariantMap &files);
+    /// Demo mode only (the QML tests): the demo server's preferences with `values` set and
+    /// the keys in `removed` gone, as another qBittorrent version reports them.
+    Q_INVOKABLE void patchDemoPrefs(const QVariantMap &values, const QStringList &removed);
 
 Q_SIGNALS:
     void sharedFilesLoaded();

@@ -15,6 +15,8 @@
 # The box comes from `scripts/dev/app-box.sh up --qbt`: qbittorrent-nox inside the box on its
 # 127.0.0.1:8090, no login from there, omaseed pointed at it. The steps:
 #   - the nine sections, one shot each;
+#   - Downloads › Send an email on: the encryption type's chips on a 5.3 server (enter picks
+#     the next, and back), Use SSL on 5.2; then off again;
 #   - Seeding › Share ratio on: qBittorrent takes it only with a ratio, and gets 1;
 #   - Connection › random port on, then off: off sends a port with it;
 #   - Web UI › HTTPS with no certificate: refused in the pane, nothing sent;
@@ -164,8 +166,36 @@ keys ctrl+shift+comma
 names=("Speed" "Discovery and privacy" "Connection" "Proxy" "Seeding" "Queue" "Downloads" "Web UI" "Advanced")
 for i in $(seq 1 9); do
     section "$i"
-    step "Section $i ${names[$((i - 1))]}" "qBittorrent › ${names[$((i - 1))]}: every row filled from the box's qBittorrent (5.2.3 defaults), none empty or reading undefined; the nav's qBittorrent group has the section lit."
+    step "Section $i ${names[$((i - 1))]}" "qBittorrent › ${names[$((i - 1))]}: every row filled from the box's qBittorrent (its defaults), none empty or reading undefined; the nav's qBittorrent group has the section lit."
 done
+
+# ---- Downloads › email (#150) ---------------------------------------------------------------
+# The mail rows close the section: from row 0, k wraps to the last one, and six up is "Send an
+# email". qBittorrent 5.3 reports `mail_notification_encryption_type` (three chips) where 5.2
+# had `mail_notification_ssl_enabled` (a switch), and has no `export_dir` any more.
+encryption="$(pref mail_notification_encryption_type)"
+section 7
+keys k k k k k k space
+wait_pref mail_notification_enabled true
+check "send an email on" "$(pref mail_notification_enabled)" true
+keys j j j
+if [ "$encryption" != null ] && [ -n "$encryption" ]; then
+    check "5.3: no .torrent copy folders" "$(pref export_dir)" null
+    check "5.3: no SSL switch" "$(pref mail_notification_ssl_enabled)" null
+    step "Email on a 5.3 server" "Downloads, scrolled to the end: Send an email on, its rows lit; the cursor on Encryption, SMTPS · STARTTLS · none with $encryption lit; no Use SSL row; and no Copy .torrent files to row higher up."
+    keys Return
+    wait_pref mail_notification_encryption_type '"STARTTLS"'
+    check "encryption: enter picks the next" "$(pref mail_notification_encryption_type)" '"STARTTLS"'
+    step "Encryption STARTTLS" "The cursor on Encryption, STARTTLS lit; the head says saved."
+    keys Return Return # STARTTLS → none → SMTPS: back where it was
+    wait_pref mail_notification_encryption_type "$encryption"
+    check "encryption back" "$(pref mail_notification_encryption_type)" "$encryption"
+else
+    step "Email on a 5.2 server" "Downloads, scrolled to the end: Send an email on, its rows lit; the cursor on Use SSL, a switch; no Encryption row."
+fi
+keys k k k space
+wait_pref mail_notification_enabled false
+check "send an email off again" "$(pref mail_notification_enabled)" false
 
 # ---- Seeding › Share ratio ------------------------------------------------------------------
 section 5

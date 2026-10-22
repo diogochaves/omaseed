@@ -956,11 +956,23 @@ QtObject {
                     "dep": "mail_notification_enabled",
                     "fields": [root.text("mail_notification_smtp", 200, "")]
                 },
+                // qBittorrent 5.2 has the switch; 5.3 (Web API 2.16.0) replaced it with the
+                // encryption type. A server shows the one it has (QbtSettingsPane's `rows`).
                 {
                     "title": qsTr("Use SSL"),
                     "sub": true,
                     "dep": "mail_notification_enabled",
                     "toggle": "mail_notification_ssl_enabled"
+                },
+                {
+                    "title": qsTr("Encryption"),
+                    "desc": qsTr("SSL from the start (SMTPS, often port 465), or after a plain hello (STARTTLS, often 587)."),
+                    "sub": true,
+                    "dep": "mail_notification_enabled",
+                    "choice": {
+                        "key": "mail_notification_encryption_type",
+                        "options": [["SMTPS", "SMTPS"], ["STARTTLS", "STARTTLS"], ["None", qsTr("none")]]
+                    }
                 },
                 {
                     "title": qsTr("Sign in"),

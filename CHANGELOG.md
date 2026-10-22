@@ -32,6 +32,10 @@ before it will tag a release.
   silently ignored the old one, so a torrent added with it for files already on disk came in
   at 0 % and had to be checked or downloaded again. omaseed now sends the name the server's
   version reads (both, when it can't tell the version yet).
+- **Email encryption can be set on qBittorrent 5.3.** 5.3 replaced the email's "Use SSL"
+  switch with a choice of SMTPS, STARTTLS or none; the email rows in the qBittorrent settings
+  now offer that choice on a 5.3 server, and keep the switch on 5.2. As before, a setting the
+  server doesn't have (such as 5.3's dropped folders for copies of .torrent files) is left out.
 - **`omaseed --help`, `--version` and `--theme-roles` work with no display.** Over SSH, in a
   container or in a package check they print and exit, instead of aborting before a word.
 
