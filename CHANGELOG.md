@@ -7,6 +7,11 @@ before it will tag a release.
 
 ## Unreleased
 
+### Fixed
+
+- **`omaseed --help`, `--version` and `--theme-roles` work with no display.** Over SSH, in a
+  container or in a package check they print and exit, instead of aborting before a word.
+
 ## v0.3.2 — 2026-10-22
 
 ### Added

@@ -35,6 +35,13 @@ omaseed_add_test(tst_quit
 )
 add_dependencies(tst_quit omaseed)
 
+# #143: --help, --version and --theme-roles print with no display at all.
+omaseed_add_test(tst_printonly
+    SOURCES tst_printonly.cpp
+    DEFINES OMASEED_BINARY="$<TARGET_FILE:omaseed>"
+)
+add_dependencies(tst_printonly omaseed)
+
 # docs/DECISIONS.md C20 (#107): `p` stops an errored torrent and omaseed remembers the stop.
 omaseed_add_test(tst_app_errored
     SOURCES tst_app_errored.cpp
