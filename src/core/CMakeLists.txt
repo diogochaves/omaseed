@@ -2,6 +2,8 @@
 configure_file(BuildConfig.hpp.in "${CMAKE_CURRENT_BINARY_DIR}/omaseed/core/BuildConfig.hpp" @ONLY)
 
 qt_add_library(omaseed-core STATIC
+    ActionOutcome.cpp
+    ActionOutcome.hpp
     AddFilesModel.cpp
     AddFilesModel.hpp
     AltSchedule.cpp

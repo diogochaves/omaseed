@@ -459,6 +459,11 @@ omaseed_add_test(tst_moveplan
     LIBRARIES omaseed::core
 )
 
+omaseed_add_test(tst_actionoutcome
+    SOURCES tst_actionoutcome.cpp
+    LIBRARIES omaseed::core
+)
+
 omaseed_add_test(tst_movehistory
     SOURCES tst_movehistory.cpp
     LIBRARIES omaseed::core
