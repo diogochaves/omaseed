@@ -214,18 +214,33 @@ void ServerLog::applyRead(const QJsonArray &entries)
         endRemoveRows();
     }
     if (!fresh.isEmpty()) {
-        // Before omaseed's lines that are newer than the first of them (a move's line is
-        // written when it ends, qBittorrent's about it may come at the next read).
-        qsizetype first = m_lines.size();
-        while (first > 0 && !m_lines.at(first - 1).moveId.isEmpty() &&
-               m_lines.at(first - 1).at > fresh.constFirst().at)
-            --first;
-        beginInsertRows({}, int(first), int(first + fresh.size()) - 1);
-        for (Line &line : fresh) {
-            ++m_counts[levelIndex(line.level)];
-            m_lines.insert(first++, std::move(line));
+        // #137: in time order, among omaseed's lines (a move's line is written when it ends,
+        // qBittorrent's about it may come at the next read; after a start over, the whole log
+        // comes in one read behind omaseed's). Every row after `at` is one of omaseed's, none
+        // older than the first fresh line; each fresh line goes before those newer than it, as
+        // mergeMoveLines() puts them (omaseed's after qBittorrent's of the same second), in
+        // runs, one insert per run.
+        qsizetype at = m_lines.size();
+        while (at > 0 && !m_lines.at(at - 1).moveId.isEmpty() &&
+               m_lines.at(at - 1).at >= fresh.constFirst().at)
+            --at;
+        qsizetype next = 0;
+        while (next < fresh.size()) {
+            while (at < m_lines.size() && m_lines.at(at).at < fresh.at(next).at)
+                ++at;
+            qsizetype end = next + 1;
+            if (at == m_lines.size())
+                end = fresh.size();
+            else
+                while (end < fresh.size() && fresh.at(end).at <= m_lines.at(at).at)
+                    ++end;
+            beginInsertRows({}, int(at), int(at + end - next) - 1);
+            for (; next < end; ++next) {
+                ++m_counts[levelIndex(fresh.at(next).level)];
+                m_lines.insert(at++, std::move(fresh[next]));
+            }
+            endInsertRows();
         }
-        endInsertRows();
     }
     if (over > 0 || !fresh.isEmpty())
         Q_EMIT countsChanged();

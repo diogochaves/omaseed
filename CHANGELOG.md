@@ -209,6 +209,9 @@ before it will tag a release.
 
 ### Fixed
 
+- The log keeps omaseed's own lines ("omaseed moved …") in time order: the log read whole (on
+  opening it, or after qBittorrent's log started over) put them after qBittorrent's newer
+  lines until some later change re-sorted them (#137).
 - The rail's keyboard cursor is painted only while the rail has the keys: a row clicked (a
   folder picked and cleared, say) no longer keeps a fill that reads as picked. The click still
   moves the cursor, so `j`/`k` start there (DECISIONS C19 T2, #135).
