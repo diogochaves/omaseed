@@ -130,6 +130,24 @@ MoveJob::Entry *MoveJob::find(const QString &hash)
     return nullptr;
 }
 
+bool MoveJob::isRunningNow(const QString &hash) const
+{
+    if (m_torrents.isNull() || m_torrents->indexOfHash(hash) < 0)
+        return false;
+    switch (m_torrents->torrent(hash).state) {
+    case TorrentState::StoppedDownload:
+    case TorrentState::StoppedUpload:
+    case TorrentState::PausedDownload:
+    case TorrentState::PausedUpload:
+    case TorrentState::Error:
+    case TorrentState::MissingFiles:
+    case TorrentState::Unknown:
+        return false;
+    default:
+        return true;
+    }
+}
+
 const MoveJob::Entry *MoveJob::entry(const QString &hash) const
 {
     for (const Entry &one : m_entries) {
@@ -559,6 +577,10 @@ void MoveJob::pump()
                 return;
             }
         }
+        // C20 (#138): whether it was running, as the job first sends it; a later send (after a
+        // restart or a stuck move) finds it in whatever state the move left it.
+        if (entry.sends == 0)
+            entry.wasRunning = isRunningNow(entry.hash);
         entry.step = Step::Queued;
         entry.sentAt = now();
         entry.unsure = false;
@@ -1034,6 +1056,8 @@ QJsonObject MoveJob::toJson() const
                          {QStringLiteral("sends"), entry.sends}};
         if (entry.autoTmm)
             json.insert(QStringLiteral("autoTmm"), true);
+        if (entry.wasRunning)
+            json.insert(QStringLiteral("wasRunning"), true);
         const auto put = [&json](const char *key, const QString &value) {
             if (!value.isEmpty())
                 json.insert(QLatin1String(key), value);
@@ -1116,6 +1140,7 @@ bool MoveJob::fromJson(const QJsonObject &json)
         entry.why = item.value(QStringLiteral("why")).toString();
         entry.later = item.value(QStringLiteral("later")).toString();
         entry.autoTmm = item.value(QStringLiteral("autoTmm")).toBool();
+        entry.wasRunning = item.value(QStringLiteral("wasRunning")).toBool();
         entry.sentAt = dateOf(item.value(QStringLiteral("sentAt")));
         entry.movingSince = dateOf(item.value(QStringLiteral("movingSince")));
         entry.landedAt = dateOf(item.value(QStringLiteral("landedAt")));

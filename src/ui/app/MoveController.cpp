@@ -116,6 +116,7 @@ void MoveController::setServer(const QString &serverId)
     m_serverLists = true;
     m_loose.clear();
     m_rechecks.clear();
+    m_recheckStarts.clear();
     m_recheckHash.clear();
     m_pending = QJsonObject();
     m_recents =
@@ -605,6 +606,10 @@ void MoveController::holdSummary()
     held.details = detailsText();
     held.hashes = jobHashes();
     held.failed = failedHashes();
+    for (const QString &hash : std::as_const(held.hashes)) {
+        if (wasRunning(hash))
+            held.running.insert(hash);
+    }
     held.carryRows = carryRows();
     for (const QString &hash : std::as_const(held.hashes))
         held.steps.insert(hash, stepFor(hash));
@@ -1680,6 +1685,16 @@ QString MoveController::carryText() const
 
 // ---- E3: recheck smallest first, then start the complete ones ------------------------------
 
+bool MoveController::wasRunning(const QString &hash) const
+{
+    if (holding())
+        return m_held->running.contains(hash);
+    if (m_job == nullptr)
+        return false;
+    const MoveJob::Entry *entry = m_job->entry(hash);
+    return entry != nullptr && entry->wasRunning;
+}
+
 QVariantList MoveController::recheckRows(const QStringList &hashes) const
 {
     QVariantList rows;
@@ -1694,19 +1709,30 @@ QVariantList MoveController::recheckRows(const QStringList &hashes) const
     std::stable_sort(list.begin(), list.end(), [](const core::Torrent &a, const core::Torrent &b) {
         return a.completed < b.completed;
     });
+    // DECISIONS C20 (#138): only one running when the job sent it starts again.
     for (const core::Torrent &torrent : list)
-        rows << QVariantMap{{QStringLiteral("hash"), torrent.hash},
-                            {QStringLiteral("name"), torrent.name},
-                            {QStringLiteral("bytes"), core::Format::size(torrent.completed)},
-                            {QStringLiteral("then"), tr("start if it comes out complete")}};
+        rows << QVariantMap{
+            {QStringLiteral("hash"), torrent.hash},
+            {QStringLiteral("name"), torrent.name},
+            {QStringLiteral("bytes"), core::Format::size(torrent.completed)},
+            {QStringLiteral("starts"), wasRunning(torrent.hash)},
+            {QStringLiteral("then"),
+             wasRunning(torrent.hash) ? tr("starts if complete") : tr("stays stopped")}};
     return rows;
 }
 
 void MoveController::recheckSmallestFirst(const QStringList &hashes)
 {
     m_rechecks.clear();
-    for (const QVariant &row : recheckRows(hashes))
-        m_rechecks << row.toMap().value(QStringLiteral("hash")).toString();
+    // Decided now: the job or its summary may be gone by the time a recheck ends.
+    m_recheckStarts.clear();
+    for (const QVariant &value : recheckRows(hashes)) {
+        const QVariantMap row = value.toMap();
+        const QString hash = row.value(QStringLiteral("hash")).toString();
+        m_rechecks << hash;
+        if (row.value(QStringLiteral("starts")).toBool())
+            m_recheckStarts.insert(hash);
+    }
     m_recheckHash.clear();
     recheckNext();
     Q_EMIT rechecksChanged();
@@ -1728,7 +1754,7 @@ void MoveController::recheckNext()
             }
             if (!m_recheckSeenChecking && ++m_recheckPolls < kRecheckQuietPolls)
                 return;
-            if (torrent.progress >= 1.0)
+            if (torrent.progress >= 1.0 && m_recheckStarts.contains(m_recheckHash))
                 m_hooks.engine->client()->torrentsStart({m_recheckHash});
             m_recheckHash.clear();
         }

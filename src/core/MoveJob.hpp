@@ -118,6 +118,10 @@ public:
         int quietPolls = 0;   ///< polls in a row it read neither moving nor landed
         bool unsure = false;  ///< a send that got no answer: the next polls tell
         bool autoTmm = false; ///< it used automatic management before the move (L11)
+        /// It was running (not stopped, errored or missing its files) when the job first sent
+        /// it: a recheck after the move starts only these (DECISIONS C20, #138). Saved with
+        /// the job, so a pause and quit keeps it.
+        bool wasRunning = false;
         QString later;        ///< after the end: "error" or "missingFiles" within 24 h
     };
 
@@ -316,6 +320,8 @@ Q_SIGNALS:
 private:
     QDateTime now() const;
     Entry *find(const QString &hash);
+    /// Whether the library has `hash` running now (Entry::wasRunning).
+    bool isRunningNow(const QString &hash) const;
     void setState(State state);
     void pump();
     void settle();

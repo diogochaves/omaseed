@@ -2,8 +2,9 @@
 # omaseed — moving a folder (board 42, DECISIONS C15), walked through the app's own UI on a
 # library of a few hundred small torrents: a folder with a nested save path and loose files
 # moved to another filesystem, omaseed killed mid-move and started again, the loose files
-# carried after the torrents; pause, end and "move the rest…"; a destination qBittorrent
-# can't write; a destination that fills up. Then a selection moved through the Move… sheet
+# carried after the torrents; pause, end and "move the rest…"; two that fail and the
+# summary's recheck, which starts only the one that was running (#138); a destination
+# qBittorrent can't write; a destination that fills up. Then a selection moved through the Move… sheet
 # (board 43, DECISIONS C16): one torrent's quick move, three from three folders keeping their
 # places, one queued behind a folder's move and the folder moved back from its summary, a name
 # already at the destination; and a second box whose omaseed is on the playground, whose disks
@@ -289,7 +290,7 @@ cleanup() {
     elif [ "$status" != 0 ] && [ -n "${OMASEED_MOVE_WALK_KEEP:-}" ]; then
         echo "kept the box for a look: scripts/dev/app-box.sh down -b $BOX"
     else
-        chmod -R u+w "$home/locked" 2>/dev/null || true
+        chmod -R u+w "$home/locked" "$home/rk" 2>/dev/null || true
         "$APP_BOX" down -b "$MAIN_BOX" >/dev/null 2>&1 || true
         [ -z "$REMOTE_BOX" ] || "$APP_BOX" down -b "$REMOTE_BOX" >/dev/null 2>&1 || true
     fi
@@ -325,7 +326,7 @@ trap cleanup EXIT
 # ---- setup --------------------------------------------------------------------------------
 
 # A read-only folder left by an earlier run would stop app-box.sh from clearing the box.
-chmod -R u+w "$HOME/.cache/omabox/$BOX/home/locked" 2>/dev/null || true
+chmod -R u+w "$HOME/.cache/omabox/$BOX/home/locked" "$HOME/.cache/omabox/$BOX/home/rk" 2>/dev/null || true
 
 if [ "$INTERACTIVE" = 1 ]; then
     "$APP_BOX" up --qbt --interactive -b "$BOX" >/dev/null
@@ -380,6 +381,11 @@ for i in range(1, films + 1):
     make("films", "Short Film %03d" % i, 8192 + 983 * i, "f%d" % i)
 for i in range(1, music + 1):
     make("music", "Album %02d" % i, 600 * 1024 + i, "m%d" % i)
+# The recheck after a move (#138): one that moves (the smallest, sent alone first) and two
+# below it that can't.
+make("recheck", "Recheck One", 8192, "r1")
+make("recheck/locked", "Recheck Two", 9000, "r2")
+make("recheck/locked", "Recheck Three", 9500, "r3")
 
 def loose(path, size, old=True):
     full = os.path.join(home, "Torrents/library", path)
@@ -415,8 +421,10 @@ add_root games "$LIB/games"
 add_root games-handheld "$LIB/games/handheld"
 add_root films "$LIB/films"
 add_root music "$LIB/music"
+add_root recheck "$LIB/recheck"
+add_root recheck-locked "$LIB/recheck/locked"
 
-step "The library" "$((GAMES + FILMS + MUSIC)) torrents added as complete: games ($GAMES, $HANDHELD of them in games/handheld), films ($FILMS), music ($MUSIC); six files no torrent owns beside them."
+step "The library" "$((GAMES + FILMS + MUSIC)) torrents added as complete: games ($GAMES, $HANDHELD of them in games/handheld), films ($FILMS), music ($MUSIC), and three in recheck; six files no torrent owns beside them."
 expect_count "games holds $GAMES torrents" count_under "$LIB/games" -eq "$GAMES" 60
 expect_count "games/handheld holds $HANDHELD" count_at "$LIB/games/handheld" -eq "$HANDHELD"
 expect_count "films holds $FILMS" count_under "$LIB/films" -eq "$FILMS"
@@ -893,6 +901,61 @@ fi
 # ---- music: a folder qBittorrent can't write, then a full one ------------------------------
 
 if [ "$FROM" != remote ]; then
+
+# state_of PREFIX: qBittorrent's state for the torrent whose name starts with PREFIX.
+state_of() {
+    api torrents/info | python3 -c '
+import json, sys
+print(next(t["state"] for t in json.load(sys.stdin) if t["name"].startswith(sys.argv[1])))' "$1"
+}
+# expect_state "WHAT" PREFIX REGEX [SECONDS]: wait until PREFIX's state matches REGEX.
+expect_state() {
+    local what="$1" prefix="$2" want="$3" limit="${4:-30}" got=""
+    for _ in $(seq 1 "$limit"); do
+        got="$(state_of "$prefix" 2>/dev/null || true)"
+        [[ "$got" =~ ^($want)$ ]] && { pass "$what ($got)"; return 0; }
+        sleep 1
+    done
+    fail "$what (after ${limit}s its state is ${got:-nothing}, wanted $want)"
+}
+RUNNING="uploading|stalledUP|queuedUP|forcedUP"
+
+step "Recheck after a move: only what was running starts" "The recheck folder: Recheck One, and below it in locked Recheck Two (seeding) and Recheck Three (stopped first). shift+m, ~/rk, where ~/rk/locked exists read-only: One, the smallest, moves; Two and Three can't. The summary's recheck the 2…: Two's row says starts if complete, Three's stays stopped (DECISIONS C20, #138). recheck 2: both come out complete; Two starts, Three stays stopped."
+three="$(api torrents/info | python3 -c '
+import json, sys
+print(next(t["hash"] for t in json.load(sys.stdin) if t["name"] == "Recheck Three"))')"
+api -X POST torrents/stop -d "hashes=$three" >/dev/null
+expect_state "Recheck Three is stopped before the move" "Recheck Three" "stoppedUP" 20
+expect_state "Recheck Two is seeding" "Recheck Two" "$RUNNING" 20
+mkdir -p "$home/rk/locked"
+chmod 0555 "$home/rk/locked"
+open_move "Recheck One" "$BOX_HOME/rk" 3
+keys Return
+expect_at "Recheck One, sent first, moved" "Recheck One" "$BOX_HOME/rk" 60
+expect_text "the summary offers to recheck the two that failed" "recheck the 2…" 120
+shot "The summary: 1 moved · 2 failed, with recheck the 2… and retry the 2." summary
+press "recheck the 2…" top
+expect_text "Recheck Two's row: it starts if complete" "Recheck Two, 9 KB, starts if complete" 10
+expect_text "Recheck Three's row: it stays stopped" "Recheck Three, 9 KB, stays stopped" 5
+shot "The recheck sheet: Recheck Two, starts if complete; Recheck Three, stays stopped." sheet
+press "recheck 2"
+expect_state "Recheck Two, rechecked complete, runs again" "Recheck Two" "$RUNNING" 90
+# Three is rechecked after Two (smallest first), and the app waits a few polls on each.
+for _ in $(seq 1 20); do
+    got="$(state_of "Recheck Three" 2>/dev/null || true)"
+    [[ "$got" =~ ^($RUNNING)$ ]] && fail "Recheck Three started after its recheck ($got)"
+    sleep 1
+done
+pass "Recheck Three stayed stopped through its recheck ($(state_of "Recheck Three"))"
+if [ "$(api torrents/info | python3 -c '
+import json, sys
+print(all(t["progress"] == 1 for t in json.load(sys.stdin) if t["name"].startswith("Recheck ")))')" = True ]; then
+    pass "both came out complete"
+else
+    fail "a Recheck torrent is not complete after its recheck"
+fi
+shot "After the recheck: Recheck Two seeding, Recheck Three stopped." after
+press close top
 
 step "A folder qBittorrent can't write" "The box's ~/locked/music exists, read-only. The sheet warns (yellow, not a block); enter sends the smallest alone; qBittorrent answers 200 and logs \"Permission denied\"; the job stops there: \"qBittorrent can't write to …\"."
 mkdir -p "$home/locked/music"

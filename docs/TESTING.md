@@ -31,7 +31,7 @@ follows. The commands themselves are listed in `CLAUDE.md`; `README.md` says how
    | `backup-walk.sh` | a qBittorrent's torrents exported and imported through the app |
    | `error-walk.sh` | a torrent going into error, and the app saying why |
    | `menu-walk.sh` | the one menu shown by the tray and the bar widget |
-   | `move-walk.sh` | moving folders and selections: queue, places, partial packs, move back |
+   | `move-walk.sh` | moving folders and selections: queue, places, partial packs, move back, recheck |
 
    `move-walk.sh` takes about 11 minutes; `OMASEED_MOVE_WALK_FROM` set to `selection`, `sheet`,
    `history`, `music` or `remote` starts it later.

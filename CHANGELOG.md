@@ -163,6 +163,10 @@ before it will tag a release.
   "retry" has a key of its own, `e`: first on the error block as before, and a row of the
   actions menu under "stop". Once omaseed has stopped it the row reads "error · stopped"
   (qBittorrent still reports only "error"); `p` again, or retry, starts it.
+- After a move, "recheck the N…" starts again only the torrents that were running when the
+  move sent them; one that was stopped before stays stopped after a clean recheck, and its row
+  in the sheet says so. The move remembers which were running through a pause and quit
+  (DECISIONS C20, #138).
 - "Move folder…" moved from a torrent's menu to the folder: a right-click on a folder row in
   the rail (or the menu key / `shift+F10` on the rail's cursor row) opens a menu with "move
   this folder…", which moves that row's folder. The scope line's link, `shift+m` and the

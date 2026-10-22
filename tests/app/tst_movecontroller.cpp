@@ -25,6 +25,8 @@
 #include <QUrl>
 #include <QUrlQuery>
 
+#include <memory>
+
 using omaseed::app::MoveController;
 using omaseed::core::MoveJob;
 using omaseed::core::SyncEngine;
@@ -97,6 +99,49 @@ public:
                     socket->write(
                         "HTTP/1.1 " + status + "\r\nContent-Type: text/plain\r\nContent-Length: " +
                         QByteArray::number(body.size()) + "\r\nConnection: close\r\n\r\n" + body);
+                    socket->disconnectFromHost();
+                });
+                connect(socket, &QTcpSocket::disconnected, socket, &QObject::deleteLater);
+            }
+        });
+    }
+
+    QUrl url() const { return QUrl(QStringLiteral("http://127.0.0.1:%1").arg(serverPort())); }
+};
+
+/// A qBittorrent that answers every POST "Ok." and notes it as "path hashes" in `calls`
+/// (the recheck's `torrents/recheck` and `torrents/start`).
+class ActionServer : public QTcpServer
+{
+public:
+    QStringList calls;
+
+    ActionServer()
+    {
+        listen(QHostAddress::LocalHost);
+        connect(this, &QTcpServer::newConnection, this, [this]() {
+            while (QTcpSocket *socket = nextPendingConnection()) {
+                auto buffer = std::make_shared<QByteArray>();
+                connect(socket, &QTcpSocket::readyRead, socket, [this, socket, buffer]() {
+                    buffer->append(socket->readAll());
+                    const qsizetype end = buffer->indexOf("\r\n\r\n");
+                    if (end < 0)
+                        return;
+                    const QByteArray head = buffer->left(end);
+                    qsizetype length = 0;
+                    for (const QByteArray &line : head.split('\n')) {
+                        if (line.toLower().startsWith("content-length:"))
+                            length = line.mid(15).trimmed().toLongLong();
+                    }
+                    if (buffer->size() < end + 4 + length)
+                        return;
+                    const QByteArray body = buffer->mid(end + 4, length);
+                    const QString path = QUrl(QString::fromUtf8(head.split(' ').value(1))).path();
+                    const QString hashes =
+                        QUrlQuery(QString::fromUtf8(body)).queryItemValue(QStringLiteral("hashes"));
+                    calls << path.section(QLatin1Char('/'), -1) + QLatin1Char(' ') + hashes;
+                    socket->write("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n"
+                                  "Content-Length: 3\r\nConnection: close\r\n\r\nOk.");
                     socket->disconnectFromHost();
                 });
                 connect(socket, &QTcpSocket::disconnected, socket, &QObject::deleteLater);
@@ -1037,6 +1082,94 @@ private slots:
                               QStringLiteral("moveBack"),
                               QStringLiteral("show"),
                               QStringLiteral("close")}));
+    }
+
+    // DECISIONS C20 (#138): the job notes which torrents were running when it sent them,
+    // keeps it through a pause and quit, and its recheck starts only those once complete.
+    void aRecheckStartsOnlyWhatWasRunning()
+    {
+        // Demo Disc (b2) was stopped before the move; Open Arena (a1) was seeding.
+        m_engine->torrents()->applyPartial(
+            QJsonObject{{QStringLiteral("b2"),
+                         QJsonObject{{QStringLiteral("state"), QStringLiteral("stoppedUP")}}}},
+            {});
+        m_move->setServer(QStringLiteral("home"));
+        QTRY_COMPARE(m_move->folders()->total(), 5);
+        QVERIFY(m_move->start(
+            QStringLiteral("/mnt/archive/games"), QStringLiteral("/mnt/fast/games"), false));
+        landSent(); // the first (c3) lands; b2 and a1 go
+        const auto wasRunning = [this](const char *hash) {
+            const MoveJob::Entry *entry = m_move->job()->entry(QString::fromLatin1(hash));
+            return entry != nullptr && entry->wasRunning;
+        };
+        QVERIFY(wasRunning("a1"));
+        QVERIFY(!wasRunning("b2"));
+        QVERIFY(wasRunning("c3"));
+
+        // Pause and quit: saved with the job, read back at the next start.
+        m_move->pauseForQuit();
+        make();
+        m_move->setServer(QStringLiteral("home"));
+        QCOMPARE(m_move->stateName(), QStringLiteral("running"));
+        QVERIFY(wasRunning("a1"));
+        QVERIFY(!wasRunning("b2"));
+        for (int poll = 0; poll < 6 && m_move->stateName() != QStringLiteral("done"); ++poll)
+            landSent();
+        QCOMPARE(m_move->stateName(), QStringLiteral("done"));
+
+        // A qBittorrent for the recheck's calls (a client clears the rows: the library again,
+        // where the job put it, both stopped by now).
+        ActionServer server;
+        QVERIFY(server.isListening());
+        omaseed::core::QbtClient client;
+        client.setBaseUrl(server.url());
+        m_engine->setClient(&client);
+        QJsonObject moved = library();
+        for (const char *hash : {"a1", "b2"}) {
+            QJsonObject row = moved.value(QLatin1String(hash)).toObject();
+            row.insert(QStringLiteral("save_path"), QStringLiteral("/mnt/fast/games"));
+            row.insert(QStringLiteral("state"), QStringLiteral("stoppedUP"));
+            moved.insert(QLatin1String(hash), row);
+        }
+        m_engine->torrents()->applyFullUpdate(moved);
+
+        // The sheet says which start: smallest first, b2 (200) then a1 (300).
+        const QStringList both{QStringLiteral("a1"), QStringLiteral("b2")};
+        const QVariantList rows = m_move->recheckRows(both);
+        QCOMPARE(rows.size(), 2);
+        QCOMPARE(rows.at(0).toMap().value(QStringLiteral("hash")).toString(), QStringLiteral("b2"));
+        QCOMPARE(rows.at(0).toMap().value(QStringLiteral("starts")).toBool(), false);
+        QCOMPARE(rows.at(0).toMap().value(QStringLiteral("then")).toString(),
+                 QStringLiteral("stays stopped"));
+        QCOMPARE(rows.at(1).toMap().value(QStringLiteral("starts")).toBool(), true);
+        QCOMPARE(rows.at(1).toMap().value(QStringLiteral("then")).toString(),
+                 QStringLiteral("starts if complete"));
+
+        // Both come out complete; only a1 starts.
+        m_move->recheckSmallestFirst(both);
+        const auto checkOne = [this](const char *hash, const char *after) {
+            const QString id = QString::fromLatin1(hash);
+            m_engine->torrents()->applyPartial(
+                QJsonObject{
+                    {id, QJsonObject{{QStringLiteral("state"), QStringLiteral("checkingUP")}}}},
+                {});
+            Q_EMIT m_engine->synced(false);
+            m_engine->torrents()->applyPartial(
+                QJsonObject{{id,
+                             QJsonObject{{QStringLiteral("state"), QString::fromLatin1(after)},
+                                         {QStringLiteral("progress"), 1.0}}}},
+                {});
+            Q_EMIT m_engine->synced(false);
+        };
+        QTRY_VERIFY(server.calls.contains(QStringLiteral("recheck b2")));
+        checkOne("b2", "stoppedUP");
+        QTRY_VERIFY(server.calls.contains(QStringLiteral("recheck a1")));
+        checkOne("a1", "stoppedUP");
+        QTRY_VERIFY(server.calls.contains(QStringLiteral("start a1")));
+        QCOMPARE(m_move->rechecksLeft(), 0);
+        QVERIFY2(!server.calls.contains(QStringLiteral("start b2")),
+                 qPrintable(server.calls.join(QStringLiteral(", "))));
+        m_engine->setClient(nullptr);
     }
 
     void quitPausesAndTheNextStartRunsAgain()

@@ -5,8 +5,9 @@ import Omaseed
 import Omaseed.Kit
 
 // "Recheck the 2…" after a move (board 42 E3, DECISIONS C15 M16): the failed or stuck ones,
-// rechecked one at a time, smallest first; each that comes out complete starts. "set
-// location…" is today's sheet with those torrents.
+// rechecked one at a time, smallest first; each that comes out complete starts, if it was
+// running when the move sent it (C20, #138: a stopped one stays stopped, and its row says so).
+// "set location…" is today's sheet with those torrents.
 Sheet {
     id: root
 
@@ -62,6 +63,10 @@ Sheet {
 
             Layout.fillWidth: true
             spacing: Theme.space(10)
+            // One line for a screen reader: the name, its size and what follows (C20, #138).
+            Accessible.name: qsTr("%1, %2, %3").arg(recheckRow.modelData.name).arg(
+                                 recheckRow.modelData.bytes).arg(recheckRow.modelData.then)
+            Accessible.role: Accessible.StaticText
 
             Label {
                 Layout.fillWidth: true
@@ -92,7 +97,7 @@ Sheet {
         dim: true
         size: "caption"
         text: qsTr(
-                  "The ones that come out complete start again. The others stay stopped and are listed.")
+                  "The ones running before the move start again once they come out complete. The others stay stopped and are listed.")
         wrapMode: Text.Wrap
     }
 }

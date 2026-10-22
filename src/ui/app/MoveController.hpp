@@ -232,10 +232,11 @@ public:
     /// "details": the record as text (old and new path of each, the failures with their log
     /// lines), for the sheet and for c.
     Q_INVOKABLE QString detailsText() const;
-    /// E3: the rows of "recheck these": [{hash, name, bytes, then}].
+    /// E3: the rows of "recheck these": [{hash, name, bytes, starts, then}]; `starts` when it
+    /// was running when the job sent it (DECISIONS C20, #138).
     Q_INVOKABLE QVariantList recheckRows(const QStringList &hashes) const;
     /// E3: recheck `hashes` one at a time, smallest first; each that comes out complete
-    /// starts.
+    /// starts, if it was running when the job sent it (C20); the others stay stopped.
     Q_INVOKABLE void recheckSmallestFirst(const QStringList &hashes);
     /// M16 "retry": the failed ones again to the place the job meant for them, as a job of
     /// their own (C16 L9).
@@ -318,6 +319,8 @@ private:
     /// A shown job's summary is kept while the next move runs under it, unseen (#105).
     void holdSummary();
     bool holding() const;
+    /// The job's record (or its held summary's): `hash` was running when the job sent it.
+    bool wasRunning(const QString &hash) const;
     QJsonObject retrySpec() const;
     bool noticeWanted() const;
     QDateTime now() const;
@@ -352,6 +355,7 @@ private:
         QString details;
         QStringList hashes;
         QStringList failed;
+        QSet<QString> running; ///< MoveJob::Entry::wasRunning, for the recheck (C20)
         QVariantList carryRows;
         QHash<QString, QVariantMap> steps;
         QJsonObject back;
@@ -395,6 +399,7 @@ private:
 
     // E3: the recheck run.
     QStringList m_rechecks;
+    QSet<QString> m_recheckStarts; ///< the ones that start once complete (C20)
     QString m_recheckHash;
     bool m_recheckSeenChecking = false;
     int m_recheckPolls = 0;
