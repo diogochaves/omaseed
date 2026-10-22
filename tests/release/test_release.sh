@@ -108,7 +108,7 @@ printf '%s\n' "\$*" >>"$WORK/gh.log"
 case "\$1 \$2" in
 # GitHub: the tag's archive, as served at /archive/refs/tags/<tag>.tar.gz, and the assets.
 "release create")
-    git -C "$ORIGIN" archive --format=tar --prefix="omaseed-$VERSION/" "\$3" | gzip -n >"$WORK/github-archive.tar.gz"
+    git -C "$ORIGIN" archive --format=tar --prefix="omaseed-\${3#v}/" "\$3" | gzip -n >"$WORK/github-archive.tar.gz"
     for a in "\${@:4}"; do [[ -f "\$a" ]] && cp "\$a" "$WORK/assets/"; done
     ;;
 "release view") ls "$WORK/assets" ;;
@@ -216,6 +216,56 @@ grep -qxF "release upload $TAG --repo diogochaves/omaseed --clobber dist/SHA256S
     fail "SHA256SUMS was not replaced: $(cat "$WORK/gh.log")"
 grep -q "release upload .*--clobber.*pkg\.tar\.zst" "$WORK/gh.log" && fail "--add-package overwrote a package"
 git checkout --quiet -- packaging/arch/PKGBUILD
+git checkout --quiet main
+
+# ---- a maintenance release ------------------------------------------------------------------
+# A patch to the 99.0 line from release/99.0, cut from its tag, while main moves on.
+MAINT=99.0.1
+MAINT_TAG="v$MAINT"
+MAIN_ON_ORIGIN="$(git -C "$ORIGIN" rev-parse main)"
+git checkout --quiet -b release/99.0 "$TAG"
+# shellcheck disable=SC2016 # backticks are a Markdown code fence, not command substitution
+printf '\n## %s — test\n\nA synthetic patch.\n' "$MAINT_TAG" >>CHANGELOG.md
+git commit --quiet -am "Add a synthetic $MAINT_TAG changelog section"
+
+echo "==> A maintenance branch releases only its own line"
+if bash scripts/release.sh 99.1.0 --bump --dry-run >/dev/null 2>&1; then
+    fail "release/99.0 accepted 99.1.0"
+fi
+git checkout --quiet -b feature/elsewhere
+if bash scripts/release.sh "$MAINT" --bump --dry-run >/dev/null 2>&1; then
+    fail "a branch that is neither main nor release/X.Y was accepted"
+fi
+git checkout --quiet release/99.0
+git branch --quiet -D feature/elsewhere
+
+echo "==> scripts/release.sh $MAINT --bump --dry-run on release/99.0"
+bash scripts/release.sh "$MAINT" --bump --dry-run >/dev/null
+[[ -z "$(git status --porcelain)" ]] || fail "the maintenance dry run dirtied the tree"
+
+echo "==> scripts/release.sh $MAINT --bump --publish on release/99.0, a newer v100.0.0 tagged"
+git tag v100.0.0 main
+: >"$WORK/gh.log"
+PATH="$WORK/bin:$PATH" OMASEED_RELEASE_ARCHIVE_URL="file://$WORK/github-archive.tar.gz" \
+    OMASEED_RELEASE_MAKEPKG="$WORK/bin/makepkg" bash scripts/release.sh "$MAINT" --bump --publish
+git tag -d v100.0.0 >/dev/null
+
+echo "==> The tag and the branch are on origin; the checksum commit is on the branch, main untouched"
+git -C "$ORIGIN" rev-parse -q --verify "refs/tags/$MAINT_TAG" >/dev/null || fail "$MAINT_TAG was not pushed"
+[[ "$(git -C "$ORIGIN" rev-parse main)" == "$MAIN_ON_ORIGIN" ]] || fail "the maintenance release moved origin's main"
+MAINT_SHA="$(sha256sum "$WORK/github-archive.tar.gz" | cut -d' ' -f1)"
+git -C "$ORIGIN" show "release/99.0:packaging/arch/PKGBUILD" | grep -qx "sha256sums=('$MAINT_SHA')" ||
+    fail "origin's release/99.0 PKGBUILD does not carry the archive checksum"
+[[ "$(git -C "$ORIGIN" rev-parse "release/99.0^")" == "$(git -C "$ORIGIN" rev-parse "$MAINT_TAG^{commit}")" ]] ||
+    fail "the checksum commit is not the one right after $MAINT_TAG"
+git -C "$ORIGIN" show "$MAINT_TAG:CMakeLists.txt" | grep -qE "^[[:space:]]*VERSION[[:space:]]+$MAINT\$" ||
+    fail "the tagged CMakeLists.txt is not at $MAINT"
+[[ "$(git -C "$ORIGIN" log -1 --format=%s "release/99.0")" == "Set the $MAINT_TAG checksum in PKGBUILD" ]] ||
+    fail "the branch's last commit is not the checksum's"
+
+echo "==> Not GitHub's latest, since v100.0.0 is newer"
+grep -q "^release create $MAINT_TAG .* --latest=false\$" "$WORK/gh.log" ||
+    fail "gh release create was not told --latest=false: $(cat "$WORK/gh.log")"
 git checkout --quiet main
 
 echo "==> This checkout is untouched"
