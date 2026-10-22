@@ -9,6 +9,15 @@ before it will tag a release.
 
 ### Changed
 
+- **What an action came to shows where you look.** A quick move, a stop, a category, a
+  delete… now says how it went in a strip in the selection bar's place, and on the row's own
+  status for a moment ("✓ moved · archive"). Done is green for 6 s; a failure is red and stays
+  until × or esc, with "details"; several at once are counts ("2 moved, 1 didn't"). The footer
+  keeps its counts and keys.
+- **Picking several rows with the mouse shows how.** A □ at a row's start under the pointer
+  adds that row (shift+click adds the range), ■ marks the selected ones, the `?` sheet has a
+  "select with the mouse" block, and the selection bar says "ctrl+click add · shift+click
+  range" the first three times.
 - **A server that is slow is no longer "unreachable".** When qBittorrent takes the connection
   but doesn't reply in time (busy writing to its disk, say), omaseed says it "isn't answering",
   in yellow, with how long it has waited, and "answered again" when it does. A refused
