@@ -119,6 +119,10 @@ class Theme : public QObject
     /// `focusExtent` is how far the ring reaches past the edge; a parent that clips leaves
     /// that much room around its focusable children.
     Q_PROPERTY(int focusGap READ focusGap NOTIFY changed FINAL)
+    /// What `space()` multiplies by (#74): a binding that calls `space()` alone never
+    /// re-evaluates, since a call is not a property it can follow. One that must follow a
+    /// base size read late, or changed, reads this: `Theme.spaceAt(8, Theme.spaceScale)`.
+    Q_PROPERTY(qreal spaceScale READ spaceScale NOTIFY changed FINAL)
     Q_PROPERTY(int focusExtent READ focusExtent NOTIFY changed FINAL)
     Q_PROPERTY(qreal fillIdle READ fillIdle NOTIFY changed FINAL)
     Q_PROPERTY(qreal fillHover READ fillHover NOTIFY changed FINAL)
@@ -223,6 +227,10 @@ public:
 
     /// Spacing in spec pixels, scaled by `[spacing] scale` and the base size.
     Q_INVOKABLE int space(qreal px) const;
+    qreal spaceScale() const;
+    /// `px` at `scale`, rounded as `space()` rounds: `spaceAt(px, spaceScale)` is `space(px)`,
+    /// in a form a binding follows.
+    Q_INVOKABLE static int spaceAt(qreal px, qreal scale);
     /// The foreground at an alpha: 0.04 idle, 0.08 hover, 0.18 selected, 0.22 pressed.
     Q_INVOKABLE QColor fill(qreal alpha) const;
 

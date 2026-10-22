@@ -165,7 +165,8 @@ void TestThemeRoles::everyColourAndAlphaRoleIsThere()
             QVERIFY2(colors.contains(name), qPrintable(name));
             QCOMPARE(colors.value(name).toString(),
                      Theme::hexColor(property.read(&theme).value<QColor>()));
-        } else if (property.metaType().id() == QMetaType::Double) {
+        } else if (property.metaType().id() == QMetaType::Double &&
+                   name != QLatin1String("spaceScale")) { // a size factor (#74)
             ++alphaRoles;
             QVERIFY2(alphas.contains(name), qPrintable(name));
         }
