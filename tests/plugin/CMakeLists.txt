@@ -1,6 +1,6 @@
-# The companion bar widget's Format.js, Status.js (#16) and IpcOwner.js, and its rows on a
-# stand-in for the shell's kit (kit/, #80). The rest of its QML needs the Omarchy shell and is
-# checked in an omabox instead.
+# The companion bar widget's Format.js, Status.js (#16), IpcOwner.js and SpeedField (#111),
+# and its rows on a stand-in for the shell's kit (kit/, #80). The rest of its QML needs the
+# Omarchy shell and is checked in an omabox instead.
 omaseed_add_test(tst_plugin
     SOURCES tst_plugin.cpp
     LIBRARIES Qt6::Qml Qt6::Quick Qt6::QuickTest
@@ -23,4 +23,13 @@ if(NOT WIN32)
         COMMAND bash "${CMAKE_CURRENT_SOURCE_DIR}/validate.sh" "${PROJECT_SOURCE_DIR}/plugin"
     )
     set_tests_properties(plugin_validate PROPERTIES LABELS "lint" TIMEOUT 60 SKIP_RETURN_CODE 77)
+endif()
+
+# No bare `Color.` in the widget: Qt 6.12 hides the shell's palette behind its own type (#109).
+if(NOT WIN32)
+    add_test(
+        NAME plugin_palette
+        COMMAND bash "${CMAKE_CURRENT_SOURCE_DIR}/palette.sh" "${PROJECT_SOURCE_DIR}/plugin"
+    )
+    set_tests_properties(plugin_palette PROPERTIES LABELS "lint" TIMEOUT 30)
 endif()

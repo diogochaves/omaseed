@@ -75,6 +75,7 @@ public:
     }
 
     OMASEED_FAKE(QList<TorrentPatch>, torrents(const QStringList &))
+    OMASEED_FAKE(QStringList, stoppedAmong(const QStringList &))
     OMASEED_FAKE(QList<CategoryPatch>, categories())
     OMASEED_FAKE(QStringList, tags())
     OMASEED_FAKE(TorrentProperties, properties(const QString &))
@@ -180,6 +181,10 @@ void TestEngineClient::theOptionalCallsAreNotSupportedByDefault()
     const Result<FetchedMetadata> metadata = await(engine.fetchMetadata(QStringLiteral("magnet:")));
     QVERIFY(metadata.isError());
     QCOMPARE(metadata.error().kind(), ApiError::Kind::NotFound);
+    // A folder listing answers all the same: this engine can't list folders (C16 L13).
+    const Result<ServerFolder> folder = await(engine.folderContent(QStringLiteral("/srv")));
+    QVERIFY(!folder.isError());
+    QCOMPARE(folder.value().state, ServerFolder::State::Unsupported);
 }
 
 // SyncEngine probes, takes the full delta, then asks with the cursor the delta carried.

@@ -474,18 +474,30 @@ Item {
                         spacing: Theme.space(6)
 
                         Label {
+                            id: titleLabel
+
                             // #79: the sheet's title is its heading; a plain Text publishes
                             // nothing to a screen reader otherwise.
                             Accessible.name: text
                             Accessible.role: Accessible.Heading
                             Layout.fillWidth: root.titleTrailer === null
-                            Layout.maximumWidth: implicitWidth
-                            Layout.minimumWidth: Math.min(implicitWidth, Theme.space(80))
+                            // The title's whole width, measured apart: an elided Text's own
+                            // implicitWidth can follow its elision, and a title that grew
+                            // (a move sheet's, read again as its plan changes) stayed cut.
+                            Layout.maximumWidth: Math.ceil(titleMetrics.advanceWidth) + 1
+                            Layout.minimumWidth: Math.min(Layout.maximumWidth, Theme.space(80))
                             bright: true
                             elide: Text.ElideRight
                             font.weight: Font.DemiBold
                             objectName: "sheetTitle"
                             text: root.title
+
+                            TextMetrics {
+                                id: titleMetrics
+
+                                font: titleLabel.font
+                                text: titleLabel.text
+                            }
                         }
 
                         Loader {

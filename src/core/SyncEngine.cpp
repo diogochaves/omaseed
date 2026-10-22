@@ -10,10 +10,12 @@
 #include "core/TrackerModel.hpp"
 #include "core/engines/EngineClient.hpp"
 
+#include <QSet>
 #include <QTimer>
 
 #include <algorithm>
 #include <iterator>
+#include <utility>
 
 namespace omaseed::core {
 
@@ -67,6 +69,7 @@ void SyncEngine::setClient(EngineClient *client)
     m_lowDiskReported = false;
     m_pending.clear();
     m_torrents->clear();
+    m_torrents->setErrorStops({});
     m_categories->clear();
     m_tags->clear();
     m_trackers->clear();
@@ -407,7 +410,47 @@ void SyncEngine::applyData(const SyncDelta &data)
 
     m_problemLog->onSynced(fullUpdate, m_running);
     m_serverLog->onSynced(fullUpdate, m_running);
+    readErrorStops();
     Q_EMIT synced(fullUpdate);
+}
+
+void SyncEngine::readErrorStops()
+{
+    if (m_client == nullptr || !m_running)
+        return;
+    QStringList errored;
+    if (m_counts->errored() > 0) {
+        for (int row = 0; row < m_torrents->count(); ++row) {
+            const Torrent &torrent = m_torrents->torrentAt(row);
+            if (torrent.status.phase == TorrentPhase::Errored)
+                errored.append(torrent.hash);
+        }
+    }
+    if (errored.isEmpty()) {
+        m_torrents->setErrorStops({});
+        return;
+    }
+    if (m_errorStopsReply) {
+        m_errorStopsAgain = true;
+        return;
+    }
+    const quint64 generation = m_generation;
+    m_errorStopsReply = m_client->stoppedAmong(errored)->then(
+        this, [this, generation, errored](const Result<QStringList> &result) {
+            m_errorStopsReply.clear();
+            if (generation != m_generation)
+                return; // stopped or switched meanwhile: not ours to apply
+            if (!result.isError()) {
+                QSet<QString> stopped;
+                for (const QString &hash : result.value()) {
+                    if (errored.contains(hash))
+                        stopped.insert(hash);
+                }
+                m_torrents->setErrorStops(stopped);
+            }
+            if (std::exchange(m_errorStopsAgain, false))
+                readErrorStops();
+        });
 }
 
 // ---- pending torrent values (M12) ------------------------------------------------------------

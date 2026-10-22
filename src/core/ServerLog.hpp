@@ -55,6 +55,7 @@ public:
         TimestampRole, ///< seconds since the epoch
         TimeTextRole,  ///< "09:41:36" today, "13 Oct 19:52:44" another day
         MessageRole,
+        MoveIdRole, ///< a move omaseed made (board 45 D7): its MoveHistory id, "" for qBittorrent's
     };
 
     struct Line
@@ -63,6 +64,7 @@ public:
         qint64 at = 0; ///< seconds since the epoch
         int level = Normal;
         QString message;
+        QString moveId; ///< set on omaseed's own lines: a move it made (setMoveLines())
     };
 
     explicit ServerLog(QObject *parent = nullptr);
@@ -75,6 +77,10 @@ public:
     bool isActive() const { return m_active; }
     void setActive(bool active);
     bool isLoaded() const { return m_loaded; }
+
+    /// Board 45 D7 (#133): omaseed's moves, one line each, among qBittorrent's by their time.
+    /// Replaces the ones given before; they stay through a start-over.
+    void setMoveLines(QList<Line> lines);
 
     /// At most this many lines, the oldest dropped first: qBittorrent's own 20 000.
     void setCapacity(int lines);
@@ -139,7 +145,10 @@ private:
 
     QPointer<EngineClient> m_client;
     QPointer<TorrentModel> m_torrents;
+    void mergeMoveLines();
+
     QList<Line> m_lines;
+    QList<Line> m_moveLines; ///< omaseed's, oldest first
     std::array<int, 4> m_counts{};
     int m_capacity = 20000;
     int m_lastId = -1;

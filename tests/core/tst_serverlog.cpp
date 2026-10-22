@@ -17,6 +17,7 @@
 #include <QTest>
 #include <QUrlQuery>
 
+#include <algorithm>
 #include <functional>
 #include <memory>
 
@@ -162,6 +163,12 @@ private slots:
     void activeReadsAtOnceThenAfterEachPoll();
     void aRestartReadsFromTheTop();
     void releaseDropsTheLines();
+
+    // omaseed's own lines (board 45 D7, #133)
+    void moveLinesSitAmongQBittorrentsByTime();
+    void moveLinesStayThroughAStartOver();
+    void aLaterReadGoesBeforeANewerMoveLine();
+    void moveLinesKeepTheirTimeThroughReads();
 
     // LogFilterModel
     void levelsHideAndShow();
@@ -426,6 +433,145 @@ void TestServerLog::releaseDropsTheLines()
     m_log->setActive(true);
     QTRY_COMPARE(m_log->rowCount(), 6);
     QCOMPARE(server.asked.constLast(), -1);
+}
+
+namespace {
+
+ServerLog::Line moveLine(qint64 at, const QString &id)
+{
+    ServerLog::Line line;
+    line.at = at;
+    line.level = ServerLog::Info;
+    line.message = QStringLiteral("omaseed moved \"log55-move.bin\" to /d/archive");
+    line.moveId = id;
+    return line;
+}
+
+} // namespace
+
+void TestServerLog::moveLinesSitAmongQBittorrentsByTime()
+{
+    QJsonArray entries = l1();
+    // Ids 0-2 a minute earlier than 3-5.
+    for (int i = 0; i < 3; ++i) {
+        QJsonObject e = entries.at(i).toObject();
+        e.insert(QStringLiteral("timestamp"), 1791928415);
+        entries.replace(i, e);
+    }
+    m_log->applyEntries(entries);
+    m_log->setMoveLines({moveLine(1791928445, QStringLiteral("m1"))});
+    QCOMPARE(m_log->rowCount(), 7);
+    QCOMPARE(m_log->data(m_log->index(3, 0), ServerLog::MoveIdRole).toString(),
+             QStringLiteral("m1"));
+    QCOMPARE(m_log->data(m_log->index(2, 0), ServerLog::MoveIdRole).toString(), QString());
+    QCOMPARE(m_log->roleNames().value(ServerLog::MoveIdRole), QByteArray("moveId"));
+    // An info line more; replacing them doesn't add them twice.
+    QCOMPARE(m_log->levelCounts(), QList<int>({2, 2, 2, 1}));
+    m_log->setMoveLines({moveLine(1791928445, QStringLiteral("m1"))});
+    QCOMPARE(m_log->rowCount(), 7);
+    m_log->setMoveLines({});
+    QCOMPARE(m_log->rowCount(), 6);
+    QCOMPARE(m_log->levelCounts(), QList<int>({2, 1, 2, 1}));
+}
+
+void TestServerLog::moveLinesStayThroughAStartOver()
+{
+    m_log->setMoveLines({moveLine(1791928400, QStringLiteral("m1"))});
+    QCOMPARE(m_log->rowCount(), 1);
+    m_log->applyEntries(l1());
+    QCOMPARE(m_log->rowCount(), 7);
+    m_log->release();
+    // qBittorrent's go; omaseed's are its own and stay.
+    QCOMPARE(m_log->rowCount(), 1);
+    QCOMPARE(m_log->lastId(), -1);
+}
+
+void TestServerLog::aLaterReadGoesBeforeANewerMoveLine()
+{
+    m_log->applyEntries(l1());
+    // The move ended after qBittorrent's next line was written, but before it was read.
+    m_log->setMoveLines({moveLine(1791928500, QStringLiteral("m1"))});
+    m_log->applyEntries({entry(6, 1, kRenamed, 1791928490)});
+    QCOMPARE(m_log->rowCount(), 8);
+    QCOMPARE(m_log->data(m_log->index(6, 0), ServerLog::MessageRole).toString(), kRenamed);
+    QCOMPARE(m_log->data(m_log->index(7, 0), ServerLog::MoveIdRole).toString(),
+             QStringLiteral("m1"));
+}
+
+// #137: omaseed's lines stay in time order whatever qBittorrent sends around them: the whole
+// log read in one go after a start over (omaseed's lines are already there), and an incremental
+// read whose lines are older and newer than one of omaseed's.
+void TestServerLog::moveLinesKeepTheirTimeThroughReads()
+{
+    const auto order = [this]() {
+        QStringList out;
+        for (int row = 0; row < m_log->rowCount(); ++row) {
+            const QString move =
+                m_log->data(m_log->index(row, 0), ServerLog::MoveIdRole).toString();
+            out << (move.isEmpty()
+                        ? m_log->data(m_log->index(row, 0), ServerLog::MessageRole).toString()
+                        : move);
+        }
+        return out;
+    };
+    const auto times = [this]() {
+        QList<qint64> out;
+        for (int row = 0; row < m_log->rowCount(); ++row)
+            out << m_log->data(m_log->index(row, 0), ServerLog::TimestampRole).toLongLong();
+        return out;
+    };
+    const auto sorted = [&times]() {
+        const QList<qint64> at = times();
+        return std::is_sorted(at.cbegin(), at.cend());
+    };
+
+    // Two moves known before qBittorrent's log is read (a start over keeps them).
+    m_log->setMoveLines(
+        {moveLine(1000, QStringLiteral("m1")), moveLine(3000, QStringLiteral("m2"))});
+    m_log->applyEntries({entry(0, 1, QStringLiteral("a"), 500),
+                         entry(1, 1, QStringLiteral("b"), 1000),
+                         entry(2, 1, QStringLiteral("c"), 2000),
+                         entry(3, 1, QStringLiteral("d"), 4000)});
+    QCOMPARE(order(),
+             QStringList({QStringLiteral("a"),
+                          QStringLiteral("b"),
+                          QStringLiteral("m1"),
+                          QStringLiteral("c"),
+                          QStringLiteral("m2"),
+                          QStringLiteral("d")}));
+    QVERIFY(sorted());
+
+    // A move that ends now, then a read with lines from before it and after it.
+    m_log->setMoveLines({moveLine(1000, QStringLiteral("m1")),
+                         moveLine(3000, QStringLiteral("m2")),
+                         moveLine(5000, QStringLiteral("m3"))});
+    QSignalSpy inserted(m_log, &QAbstractItemModel::rowsInserted);
+    m_log->applyEntries({entry(4, 1, QStringLiteral("e"), 4500),
+                         entry(5, 1, QStringLiteral("f"), 5000),
+                         entry(6, 1, QStringLiteral("g"), 6000),
+                         entry(7, 1, QStringLiteral("h"), 7000)});
+    QCOMPARE(order(),
+             QStringList({QStringLiteral("a"),
+                          QStringLiteral("b"),
+                          QStringLiteral("m1"),
+                          QStringLiteral("c"),
+                          QStringLiteral("m2"),
+                          QStringLiteral("d"),
+                          QStringLiteral("e"),
+                          QStringLiteral("f"),
+                          QStringLiteral("m3"),
+                          QStringLiteral("g"),
+                          QStringLiteral("h")}));
+    QVERIFY(sorted());
+    // Two runs: e and f before m3, g and h after it.
+    QCOMPARE(inserted.count(), 2);
+    QCOMPARE(m_log->levelCounts(), QList<int>({8, 3, 0, 0}));
+
+    // A read with nothing of omaseed's newer goes at the end, in one run.
+    m_log->applyEntries({entry(8, 1, QStringLiteral("i"), 8000)});
+    QCOMPARE(order().constLast(), QStringLiteral("i"));
+    QCOMPARE(inserted.count(), 3);
+    QVERIFY(sorted());
 }
 
 void TestServerLog::levelsHideAndShow()

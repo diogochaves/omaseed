@@ -327,6 +327,9 @@ TestCase {
         compare(App.filtered.category, "movies");
         compare(rail.cursorIndex, rail.categoriesBase + 2);
         compare(rail._rowMap[0].item.hasCursor, false);
+        // C19 T2: the click left the keys where they were, so no cursor fill shows yet.
+        compare(movies.hasCursor, false);
+        rail.forceActiveFocus();
         compare(movies.hasCursor, true);
 
         rail.moveCursor(1);
@@ -336,6 +339,50 @@ TestCase {
         mouseClick(seeding, seeding.width / 2, seeding.height / 2);
         compare(App.filtered.statusFilter, TorrentFilterModel.Seeding);
         compare(rail.cursorIndex, rail.statusBase + 2);
+    }
+
+    // DECISIONS C19 T2 (#135): the cursor's fill shows only while the rail has the keys. A
+    // row clicked keeps only its selection's fill; the keys coming back to the rail show the
+    // cursor on the row clicked.
+    function test_the_cursor_fill_shows_only_while_the_rail_has_the_keys() {
+        const elsewhere = createTemporaryObject(focusTaker, testCase);
+        const rail = createTemporaryObject(railComponent, testCase, {
+                                               "height": 800
+                                           });
+        waitForRendering(rail, 250);
+        elsewhere.forceActiveFocus();
+        verify(!rail.activeFocus);
+        compare(rail.shownCursor, -1);
+        compare(rail._rowMap[0].item.hasCursor, false);
+
+        const movies = rail._rowMap[rail.categoriesBase + 2].item;
+        mouseClick(movies, movies.width / 2, movies.height / 2);
+        compare(App.filtered.category, "movies");
+        compare(rail.cursorIndex, rail.categoriesBase + 2);
+        compare(movies.selected, true);
+        compare(movies.hasCursor, false);
+
+        rail.forceActiveFocus();
+        compare(rail.shownCursor, rail.categoriesBase + 2);
+        compare(movies.hasCursor, true);
+        // `j` moves the painted cursor; the keys leaving take the fill with them.
+        keyClick(Qt.Key_J);
+        const music = rail._rowMap[rail.categoriesBase + 3].item;
+        compare(movies.hasCursor, false);
+        compare(music.hasCursor, true);
+        elsewhere.forceActiveFocus();
+        compare(music.hasCursor, false);
+        compare(rail.cursorIndex, rail.categoriesBase + 3);
+    }
+
+    Component {
+        id: focusTaker
+
+        Item {
+            activeFocusOnTab: true
+            height: 10
+            width: 10
+        }
     }
 
     // Category and tag rows name themselves in full on hover when the rail elides them, as

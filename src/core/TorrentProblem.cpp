@@ -6,6 +6,8 @@
 #include <QCoreApplication>
 #include <QRegularExpression>
 
+#include <algorithm>
+
 namespace omaseed::core {
 
 namespace {
@@ -304,6 +306,7 @@ QVariantMap TorrentProblem::toMap() const
         {QStringLiteral("cause"), cause},
         {QStringLiteral("causeKey"), causeKey},
         {QStringLiteral("detail"), detail},
+        {QStringLiteral("advice"), advice},
         {QStringLiteral("file"), file},
         {QStringLiteral("folder"), folder},
         {QStringLiteral("loggedAtText"), Format::relativeTime(loggedAt)},
@@ -494,6 +497,31 @@ QStringList match(const ProblemLine &line, const QList<Torrent> &candidates, boo
     return hashes;
 }
 
+QString nameTheDiskRejects(const QString &path)
+{
+    static const QString forbidden = QStringLiteral("<>:\"\\|?*");
+    static const QRegularExpression reserved(
+        QStringLiteral("^(con|prn|aux|nul|com[1-9]|lpt[1-9])$"),
+        QRegularExpression::CaseInsensitiveOption);
+    static const QRegularExpression drive(QStringLiteral("^[A-Za-z]:$"));
+    const QStringList parts = SharedData::normalize(path).split(QLatin1Char('/'));
+    for (qsizetype i = 0; i < parts.size(); ++i) {
+        const QString &part = parts.at(i);
+        // A Windows server's "C:" is a drive, not a name.
+        if (part.isEmpty() || part == QLatin1String(".") || part == QLatin1String("..") ||
+            (i == 0 && drive.match(part).hasMatch()))
+            continue;
+        const bool badChar = std::any_of(part.cbegin(), part.cend(), [](QChar c) {
+            return c.unicode() < 0x20 || forbidden.contains(c);
+        });
+        const QString stem = part.left(part.indexOf(QLatin1Char('.'))).trimmed();
+        if (badChar || part.endsWith(QLatin1Char('.')) || part.endsWith(QLatin1Char(' ')) ||
+            reserved.match(stem).hasMatch() || part.toUtf8().size() > 255)
+            return part;
+    }
+    return QString();
+}
+
 TorrentProblem describe(const ProblemLine &line)
 {
     TorrentProblem problem;
@@ -557,11 +585,23 @@ TorrentProblem describe(const ProblemLine &line)
         problem.cause = tr("name too long");
         problem.actions = {rename, start};
     } else if (lower.contains(QLatin1String("invalid argument")) &&
-               line.operation == QLatin1String("file_open")) {
+               line.operation == QLatin1String("file_open") &&
+               !nameTheDiskRejects(line.file).isEmpty()) {
         problem.headline = tr("A file name isn't allowed on this disk");
         problem.causeKey = QStringLiteral("badName");
         problem.cause = tr("bad name");
         problem.actions = {rename, start};
+    } else if (lower.contains(QLatin1String("invalid argument")) &&
+               line.operation == QLatin1String("file_open")) {
+        // #108: a name every common disk takes, refused all the same. Seen with damaged NTFS
+        // records on a full volume: renaming can't help, and each retry writes to a disk that
+        // may be failing, so the disk is checked first. Nothing here knows the filesystem, so
+        // the advice names no tool.
+        problem.headline = tr("The disk refused to open a file");
+        problem.causeKey = QStringLiteral("openRefused");
+        problem.cause = tr("can't open");
+        problem.advice = tr("The file or the disk may be damaged.");
+        problem.actions = {QStringLiteral("checkDisk"), start};
     } else {
         problem.headline = capitalised(message);
         problem.causeKey = QStringLiteral("other");

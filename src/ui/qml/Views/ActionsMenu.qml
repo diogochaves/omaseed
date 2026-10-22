@@ -70,13 +70,23 @@ Menu {
                                                        }], rest);
     }
 
+    /// DECISIONS C20 (#107): an errored cursor torrent gets "retry" under its stop, since `p`
+    /// stops it; nothing for the rest.
+    function _retry(): var {
+        return root.cursorRow.stateText === "error" ? [{
+                                                           "text": qsTr("retry"),
+                                                           "key": "e",
+                                                           "action": "retry"
+                                                       }] : [];
+    }
+
     menuWidth: Theme.space(280)
     items: root._arrange(root._offered([
         {
             "text": root.cursorStopped ? qsTr("start") : qsTr("stop"),
             "key": "p",
             "action": "stopStart"
-        },
+        }].concat(root._retry(), [
         {
             "text": qsTr("force start"),
             "key": "P",
@@ -109,7 +119,7 @@ Menu {
             "action": "tags"
         },
         {
-            "text": qsTr("set location"),
+            "text": qsTr("move…"),
             "key": "m",
             "action": "location"
         },
@@ -174,5 +184,5 @@ Menu {
             "action": "delete",
             "danger": true
         }
-    ], App.features))
+    ]), App.features))
 }

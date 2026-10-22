@@ -84,6 +84,19 @@ Three static libraries and the executable. Each layer only depends on the ones a
   `LibraryMatch`,
   `FreeSpace` and `SharedData` (what the add and delete sheets know about files already on
   disk), `RenamePlan` and `RenameDisk` (what a rename would land on).
+- Moving a folder or a selection ([DECISIONS.md](DECISIONS.md) C15, C16: every move is a job):
+  `FolderTree` (the library's save paths as the rail's folders), `MovePlan` (the preflight:
+  targets by rule (a folder's structure, one folder, each its own for move back), room per
+  drive, writability, shared data, files already at a target), `LooseFiles` (the files no torrent owns, failing closed),
+  `ServerFolder` (what the server lists of a folder through `EngineClient::folderContent`,
+  for a server whose disks this machine can't see: C16 L13), and
+  `MoveJob`, which sends the plan in waves and follows it for hours, saved under
+  `~/.config/omaseed/moves/`. `MoveJob` hears and asks in neutral terms; `QbtMoveFeed` ties
+  it to the server (`EngineClient::setLocation`, the polls, the log's move failures through
+  `ProblemLog`, and the bytes at a target for live progress). `MoveHistory` keeps the moves that landed (the
+  last 20 or 30 days, per server, in `state.json`), and says what each one's move back would do
+  per torrent (C18). In the app, `MoveController` puts them together for the window (its
+  sheet's half in `MoveControllerSheet.cpp`); `App::setLocation` starts a job.
 
 **`omaseed-integration`** (`src/integration/`): the desktop, through Qt DBus and Gui.
 
@@ -91,7 +104,9 @@ Three static libraries and the executable. Each layer only depends on the ones a
   (the bundled Tokyo Night when Omarchy is absent), watch them, and repaint live. A theme hook
   can also ask for a reload over D-Bus.
 - `SingleInstance`: `org.freedesktop.Application` on `io.github.diogochaves.omaseed`; a second
-  launch hands its magnets and `.torrent` files to the first one and raises it.
+  launch hands its magnets and `.torrent` files to the first one and raises it, and
+  `omaseed --quit` asks it to quit. `QuitSignals` turns SIGTERM, SIGINT and SIGHUP into the
+  same quit as the tray's, so what the app writes on quit is written.
 - `Tray` (StatusNotifierItem), `Notifier` (`org.freedesktop.Notifications` with actions), `Xdg`
   (file manager, MIME handlers, clipboard), `Autostart`, `HyprlandEvents`.
 - The companion bar widget's side: `StatusWriter` writes the status file it reads, `StatusBus`

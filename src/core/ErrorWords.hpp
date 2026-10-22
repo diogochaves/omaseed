@@ -6,18 +6,23 @@
 // what to change, and the technical text for "details". The API's and Qt's own words only
 // ever reach the details.
 //
-// Per request where it is known (setLocation's 409, add's 415), per kind otherwise:
+// Per request where it is known (setLocation's 400/403/409, add's 415), per kind otherwise:
 //
-//   connection refused   "NAME didn't answer"            "Nothing is listening at ADDRESS."
-//   host not found       "NAME couldn't be found"        "ADDRESS doesn't resolve on this
-//   computer." timeout              "NAME is taking too long"       "No answer in N s." certificate
-//   Q27's words                     review it in Settings › Servers 401, sign-in         "NAME
-//   refused the sign-in"      credentialRefusedText, in a sentence 403                  "NAME
-//   refused omaseed"          banned, or too many failed sign-ins 409 on setLocation   "TORRENT
-//   wasn't moved"          "qBittorrent can't create or write FOLDER." 415 on add "qBittorrent
-//   couldn't read the .torrent of TORRENT" 5xx                  "NAME had an internal error"
-//   "qBittorrent answered N; its log may say why." can't parse          "NAME answered something
-//   omaseed can't read" anything else        "NAME refused: <qBittorrent's own text>"
+// - connection refused: "NAME didn't answer" / "Nothing is listening at ADDRESS."
+// - host not found: "NAME couldn't be found" / "ADDRESS doesn't resolve on this computer."
+// - timeout: "NAME is taking too long" / "No answer in N s."
+// - certificate: Q27's words / review it in Settings › Servers
+// - 401, a sign-in: "NAME refused the sign-in" / credentialRefusedText, in a sentence
+// - 403: "NAME refused omaseed" / banned, or too many failed sign-ins
+// - setLocation (C15 M19): 400 "No folder given"; 409 "qBittorrent can't create FOLDER";
+//   403 about the folder "qBittorrent can't write to FOLDER", never a sign-in word
+// - 415 on add: "qBittorrent couldn't read the .torrent of TORRENT"
+// - 5xx: "NAME had an internal error" / "qBittorrent answered N; its log may say why."
+// - can't parse: "NAME answered something omaseed can't read"
+// - anything else: "NAME refused: <qBittorrent's own text>"
+//
+// A move made by a job (board 42 §8) has its own rows: a failure from the log (forMoveFailure),
+// a drive nearly full (forNearlyFull), a stuck queue (forStuck), torrents left out (forLeftOut).
 //
 // A server's problem adds the retry (`retryLine`): one figure, the engine's countdown, read
 // by the window's notice and the desktop notice alike (Q16). The look of the notice that
@@ -28,8 +33,11 @@
 #include "core/ApiError.hpp"
 #include "core/Server.hpp"
 
+#include <QDateTime>
 #include <QString>
 #include <QVariantMap>
+
+#include <chrono>
 
 namespace omaseed::core {
 
@@ -95,6 +103,30 @@ public:
     static QString guard(const QString &server, const QString &key, bool refused);
     /// True when the error is a refused sign-in (401, or 403 to a key or to no credential).
     static bool isRefusedSignIn(const ApiError &error, AuthMode mode);
+
+    // ---- a move made by a job (C15, board 42 §8) ---------------------------------------
+
+    /// A torrent of the job that qBittorrent logged as not moved (it answered 200 first).
+    /// `causeKey` is TorrentProblem's (noAccess, readOnly, diskFull…), `reason` libtorrent's
+    /// own text, `drive` the destination's mount point when known (for "is full").
+    static Text forMoveFailure(const QString &torrent,
+                               const QString &folder,
+                               const QString &drive,
+                               const QString &causeKey,
+                               const QString &reason);
+    /// The job paused itself before a send: `torrent` would leave `drive` under the low-disk
+    /// threshold.
+    static Text forNearlyFull(const QString &torrent, const QString &drive, qint64 freeAfter);
+    /// M14: nothing landed for too long. `moving` is how long `torrent` has been moving,
+    /// `lastLanded` when the last torrent landed (invalid: none yet), `expected` the time it
+    /// should have taken.
+    static Text forStuck(const QString &torrent,
+                         std::chrono::seconds moving,
+                         const QDateTime &lastLanded,
+                         std::chrono::seconds expected);
+    /// M8: `count` torrents left out because `folder` already has a file with their file's
+    /// name.
+    static Text forLeftOut(int count, const QString &folder);
 };
 
 } // namespace omaseed::core

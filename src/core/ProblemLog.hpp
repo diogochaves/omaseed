@@ -25,11 +25,11 @@ class TorrentModel;
 /// It reads `log/main` (warnings and critical lines, only those after the last id it saw)
 /// after an applied poll: at most every few seconds while a torrent is errored, and at once
 /// when one goes into error; every 15 s while the window shows; and on every poll for 30 s
-/// after a move, a rename or a delete omaseed asked for (watchMove(), watchRename(),
-/// watchDelete()). Each line is taken apart and tied to its torrent (TorrentProblem), and
-/// what it says goes into the torrent model: `problem` and `statusCause` for an error,
-/// `failure` for a move, rename or part file that didn't happen (D1). An errored torrent with
-/// no line gets "didn't log a reason" once the log has been read.
+/// after a rename or a delete omaseed asked for (watchRename(), watchDelete()); a move is a
+/// job (DECISIONS C16 L9), read for its whole life (watchJob()). Each line is taken apart and tied
+/// to its torrent (TorrentProblem), and what it says goes into the torrent model: `problem` and
+/// `statusCause` for an error, `failure` for a move, rename or part file that didn't happen (D1).
+/// An errored torrent with no line gets "didn't log a reason" once the log has been read.
 ///
 /// A failure stays until it is fixed (the save path, or the file's name, changed), dismissed
 /// (dismiss(), kept by the caller in state.json per server through dismissed() and
@@ -97,15 +97,20 @@ public:
     /// copy failed: …"), `line`. Empty when there is none.
     QVariantMap exportFailure() const { return m_exportFailure; }
 
-    /// D2: omaseed asked qBittorrent to move `hashes` to `destination`.
-    void watchMove(const QStringList &hashes, const QString &destination);
     /// D2: omaseed asked qBittorrent to rename `files` files of `hash`.
     void watchRename(const QString &hash, int files);
     /// D2: omaseed asked qBittorrent to delete `hashes` with their files. Call it before the
     /// request: the torrents' names are taken from the model now, while they are still there.
     void watchDelete(const QStringList &hashes);
     /// Whether a watch is on: the log is read on every poll.
-    bool isWatching() const { return !m_watches.isEmpty(); }
+    bool isWatching() const { return !m_watches.isEmpty() || !m_jobHashes.isEmpty(); }
+
+    /// C15 M15 (board 42 §5), C16 L9: a move is running with these torrents. The log is
+    /// read on every poll for as long as it lasts, not D2's 30 s, and every "Failed to move
+    /// torrent" line written since `since` about one of them is told once, through
+    /// jobMoveFailed(). The failure still shows as D1's block. No footer note: the job tells.
+    /// Called again with the job's torrents as they change; an empty list ends it.
+    void watchJob(const QStringList &hashes, const QDateTime &since);
 
     /// The paths of `hash`'s files, as torrents/files lists them: a rename failure whose file
     /// is no longer among them was fixed. The tests feed it; with a server, it asks itself.
@@ -124,10 +129,18 @@ Q_SIGNALS:
     void torrentErrored(const QString &hash,
                         const QString &name,
                         const omaseed::core::TorrentProblem &problem);
-    /// docs/32 N1: a move, rename or delete omaseed asked for failed: the footer's note
-    /// ("log55-move.bin didn't move: Permission denied"). `hashes` are the torrents it is
+    /// docs/32 N1: a rename or delete omaseed asked for failed: the footer's note
+    /// ("b.txt kept its old name: Permission denied"). `hashes` are the torrents it is
     /// about that are still in the list (none after a delete).
     void watchedFailure(const QString &text, const QStringList &hashes);
+    /// C15 M15: qBittorrent logged that `hash`, one of watchJob()'s, didn't move. `reason`
+    /// is libtorrent's text ("Permission denied"), `causeKey` TorrentProblem's (noAccess,
+    /// readOnly, diskFull…), `line` the whole line.
+    void jobMoveFailed(const QString &hash,
+                       const QDateTime &at,
+                       const QString &reason,
+                       const QString &causeKey,
+                       const QString &line);
     /// webSeedLines() or exportFailure() changed.
     void logLinesChanged();
     /// dismissed() changed: a dismissal, or a read from the top that let old ones go.
@@ -144,14 +157,13 @@ private:
         ProblemLine parsed;
     };
 
-    enum class Action { Move, Rename, Delete };
+    enum class Action { Rename, Delete };
     struct Watch
     {
-        Action action = Action::Move;
+        Action action = Action::Rename;
         QStringList hashes;
         QStringList names; ///< the torrents' names when the watch began
-        QString destination;
-        int total = 0; ///< torrents (move, delete) or files (rename) asked for
+        int total = 0;     ///< torrents (delete) or files (rename) asked for
         quint64 fromRead = 0;
         QElapsedTimer age;
         QSet<QString> counted; ///< lineKey()s already told
@@ -177,6 +189,7 @@ private:
     void updateFailures();
     void updateLogLines();
     void tellWatches(quint64 serial);
+    void tellJob(quint64 serial);
     void endWatches();
     void checkFiles();
     bool failureTouched() const;
@@ -213,6 +226,9 @@ private:
     QHash<QString, QList<WebSeedLogLine>> m_webSeedLines;
     QVariantMap m_exportFailure;
     QList<Watch> m_watches;
+    QSet<QString> m_jobHashes;
+    QDateTime m_jobSince;
+    QSet<QString> m_jobTold; ///< lineKey()s already told to the job
 };
 
 } // namespace omaseed::core

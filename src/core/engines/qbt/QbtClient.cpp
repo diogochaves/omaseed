@@ -513,6 +513,24 @@ void QbtClient::onJobReplyFinished(const JobPtr &job)
     ++job->attempt;
 
     ApiError error = mapError(job, status, reason);
+    if (job->spec.forbiddenMayNameRequest && status == 403) {
+        const QByteArray own = body.trimmed();
+        if (!own.isEmpty() && own != QByteArrayLiteral("Forbidden")) {
+            error = ApiError(
+                ApiError::Kind::Forbidden,
+                QStringLiteral("%1 %2: %3").arg(job->spec.verb, job->spec.path, firstLine(own)),
+                status);
+            finishJob(job, body, error);
+            pump();
+            return;
+        }
+    }
+    if (job->spec.errorKeepsBody && status >= 400 && status < 500 && status != 401 &&
+        status != 403 && !body.trimmed().isEmpty()) {
+        error = ApiError::fromHttpStatus(
+            status,
+            QStringLiteral("%1 %2: %3").arg(job->spec.verb, job->spec.path, firstLine(body)));
+    }
     if (job->spec.isLogin) {
         if (!error.isError()) {
             // 5.x answers 204; older builds answer 200 with "Ok." or "Fails.".
@@ -756,6 +774,18 @@ Reply<QString> *QbtClient::appVersion()
     RequestSpec spec;
     spec.path = QStringLiteral("app/version");
     return submit<QString>(std::move(spec), parseText);
+}
+
+Reply<QJsonArray> *QbtClient::appDirectoryContent(const QString &dirPath)
+{
+    RequestSpec spec;
+    spec.path = QStringLiteral("app/getDirectoryContent");
+    addItem(spec.query, QStringLiteral("dirPath"), dirPath);
+    addItem(spec.query, QStringLiteral("mode"), QStringLiteral("all"));
+    spec.errorKeepsBody = true;
+    const QString path = spec.path;
+    return submit<QJsonArray>(std::move(spec),
+                              [path](const QByteArray &body) { return parseArray(body, path); });
 }
 
 Reply<QString> *QbtClient::webApiVersion()
@@ -1190,7 +1220,14 @@ Reply<QByteArray> *QbtClient::torrentsSetLocation(const QStringList &hashes,
 {
     QUrlQuery form = hashesForm(hashes);
     addItem(form, QStringLiteral("location"), location);
-    return post(QStringLiteral("torrents/setLocation"), form);
+    RequestSpec spec;
+    spec.verb = QStringLiteral("POST");
+    spec.path = QStringLiteral("torrents/setLocation");
+    spec.form = form;
+    spec.retryOnTransient = false;
+    spec.forbiddenMayNameRequest = true;
+    return submit<QByteArray>(std::move(spec),
+                              [](const QByteArray &body) { return Result<QByteArray>(body); });
 }
 
 Reply<QByteArray> *QbtClient::torrentsSetDownloadLimit(const QStringList &hashes,

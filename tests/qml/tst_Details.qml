@@ -28,6 +28,35 @@ TestCase {
         }
     }
 
+    Component {
+        id: errorBlockComponent
+
+        DetailsErrorBlock {
+            width: 340
+        }
+    }
+
+    // #108: an EINVAL on a name every disk takes. The block says the file or the disk may be
+    // damaged, its first hint is advice with no key and no click, and retry comes second.
+    function test_a_refused_open_says_check_the_disk_first() {
+        const block = createTemporaryObject(errorBlockComponent, testCase, {
+                                                "problem": {
+                                                    "found": true,
+                                                    "headline": "The disk refused to open a file",
+                                                    "detail": "Invalid argument, opening file.mkv",
+                                                    "advice": "The file or the disk may be damaged.",
+                                                    "folder": "/media/disk/Some.Film.2017.2160p",
+                                                    "actions": ["checkDisk", "start"]
+                                                }
+                                            });
+        verify(findChild(block, "errorAdvice").visible);
+        compare(findChild(block, "errorAdvice").text, "The file or the disk may be damaged.");
+        compare(block.hints.map(hint => (hint.key + " " + hint.label).trim()),
+                ["check the disk first", "e retry", "copy the line", "its lines in the log"]);
+        compare(block.hints[0].clickable, false);
+        compare(block.hints[1].clickable, true);
+    }
+
     function hashOf(name) {
         for (let row = 0; row < App.filtered.count; ++row) {
             const hash = App.filtered.hashAt(row);
@@ -114,8 +143,12 @@ TestCase {
         compare(findChild(view, "errorHeadline").text, "The disk is full");
         verify(findChild(view, "errorDetail").text.startsWith("No space left on device, writing "));
         verify(findChild(view, "errorMeta").text.startsWith("qBittorrent's log · "));
+        verify(!findChild(view, "errorAdvice").visible, "a full disk needs no advice line");
         // docs/32 D13: and its lines in the log, last.
         compare(block.hints.map(hint => hint.action), ["location", "start", "copy", "log"]);
+        // DECISIONS C20 (#107): `p` stops an errored torrent; the block's retry is `e`.
+        compare(block.hints.map(hint => (hint.key + " " + hint.label).trim()),
+                ["m move…", "e retry", "copy the line", "its lines in the log"]);
         compare(findChild(view, "generalTail").text, "· disk full");
 
         const healthy = testCase.select(testCase.archName);
@@ -143,7 +176,7 @@ TestCase {
         compare(findChild(block, "errorFolder").text, "Its files are still in /data/torrents/movies");
         verify(findChild(block, "errorMeta").text.startsWith("qBittorrent's log · "));
         compare(block.hints.map(hint => (hint.key + " " + hint.label).trim()),
-                ["m set location", "o open folder", "copy the line", "its lines in the log", "x dismiss"]);
+                ["m move…", "o open folder", "copy the line", "its lines in the log", "x dismiss"]);
 
         // `x` on General asks for the dismissal; on Files it would skip a file instead.
         failureSpy.target = view;

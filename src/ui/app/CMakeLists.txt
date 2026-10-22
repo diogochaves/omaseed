@@ -4,11 +4,16 @@ qt_add_library(omaseed-app STATIC
     App.cpp
     App.hpp
     AppBarMenu.cpp
+    AppMove.cpp
     AppServers.cpp
     AppSharedData.cpp
     AppTorrentsBackup.cpp
     DemoData.cpp
     DemoData.hpp
+    MoveController.cpp
+    MoveControllerSheet.cpp
+    MoveWords.hpp
+    MoveController.hpp
     StatusService.cpp
     StatusService.hpp
 )

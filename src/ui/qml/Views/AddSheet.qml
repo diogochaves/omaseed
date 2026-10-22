@@ -30,7 +30,11 @@ import Omaseed.Kit
 //
 // The sheet never talks to the server itself: it emits `addRequested(request)` with the map
 // `App.addTorrent` takes, and listens for `App.addFinished` to close, to move on to the next
-// queued source, or to show the server's refusal and stay open. An infohash the library
+// queued source, or to show the server's refusal and stay open. `App.addFinished` comes with
+// qBittorrent's own OK to the add (DECISIONS C20, #124); what follows it (file names, file
+// choices, the start) reports in the footer. One add at a time: while it is out, another
+// press does nothing, a hand-off waits in the queue, and after a moment the button says
+// "adding…". An infohash the library
 // already holds never leaves as an add at all — `duplicateFound(row)` is emitted instead and
 // the host opens Fig. 10's duplicate sheet.
 //
@@ -408,7 +412,8 @@ Sheet {
                                                                       t => t.inLibrary
                                                                       && downloadsList.ticked.indexOf(t.path) >= 0).length
                                                                 : 0
-    readonly property string _addText: sheet.serverDown ? qsTr("add when back")
+    readonly property string _addText: sheet._addingShown ? qsTr("adding…")
+                                                          : sheet.serverDown ? qsTr("add when back")
                                                         : sheet._addCount > 1 ? qsTr("add %1").arg(sheet._addCount)
                                                                               : qsTr("add")
     readonly property string _addStoppedText: sheet._addCount > 1 ? qsTr("add %1 stopped").arg(sheet._addCount)
@@ -479,6 +484,12 @@ Sheet {
     /// `add` asked for while a `.torrent` was still being read: `stopped`, kept until the
     /// read comes back and `submit` runs again; null when nothing waits.
     property var _submitWhenRead: null
+    /// #124: an add is out and `App.addFinished` has not answered it yet. A second press
+    /// would send the same torrent again (qBittorrent refuses it, 409, and the refusal would
+    /// land on the next queued torrent's form), so `_send` waits for the answer.
+    property bool _adding: false
+    /// The add has been out long enough to say so: the primary button reads "adding…".
+    property bool _addingShown: false
     property bool _savePathEdited: false
     /// The parse whose files the picker holds, so a re-emit of the same map keeps the choices.
     property string _filesToken: ""
@@ -556,6 +567,12 @@ Sheet {
     /// batch with several; a batch takes them all; a source still as it arrived turns into a
     /// batch with them; one the user has chosen files for, renamed or named waits in the queue.
     function _takeMany(list: var, from: string): void {
+    // #124: the field's torrent is on its way; what arrives now is the next one, not part of
+    // it (a batch made now would close with the add's answer and lose it).
+    if (sheet._adding) {
+        sheet.queue = sheet.queue.concat(list);
+        return;
+    }
     if (sheet.batchMode) {
         sheet.addToBatch(list, from);
         return;
@@ -800,6 +817,8 @@ Sheet {
 
         /// `enter` / `shift+enter` and the two buttons. A duplicate never leaves as an add.
         function submit(stopped: bool): void {
+        if (sheet._adding)
+            return;
         sheet._submitWhenRead = null;
         // Ticks in In Downloads: they become the field's source, or a batch, as a click on a
         // row would make them, and this add goes on with them.
@@ -860,6 +879,8 @@ Sheet {
 
             /// D15: the add now, or held until the server answers (`add when back`).
             function _send(stopped: bool): void {
+            if (sheet._adding)
+                return;
             sheet.failure = {};
             if (sheet.serverDown) {
                 sheet._held = {
@@ -868,6 +889,8 @@ Sheet {
                 return;
             }
             sheet._held = null;
+            sheet._adding = true;
+            addingTimer.restart();
             sheet.addRequested(sheet.batchMode ? sheet.batchRequest(stopped) : sheet.request(stopped));
         }
 
@@ -941,6 +964,9 @@ Sheet {
 
             /// `App.addFinished`: move to the next queued source, close, or stay open in red.
             function finish(ok: bool, message: string): void {
+            sheet._adding = false;
+            sheet._addingShown = false;
+            addingTimer.stop();
             if (!ok) {
                 // docs/33 N3: a refusal the API gave comes in ErrorWords' words; anything else
                 // (nothing to add, a name already on disk) is the message itself.
@@ -1001,6 +1027,8 @@ Sheet {
                 sheet._pendingToken = "";
                 sheet._awaitingPick = false;
                 sheet._submitWhenRead = null;
+                sheet._adding = false;
+                sheet._addingShown = false;
                 sheet.extraCategories = [];
                 sheet.extraTags = [];
                 sheet.filesMatches = [];
@@ -1269,10 +1297,23 @@ Sheet {
                         sheet.submit(true);
                 }
 
+                // #124: the add has been out this long: the button says it is still going.
+                Timer {
+                    id: addingTimer
+
+                    interval: 400
+                    onTriggered: sheet._addingShown = sheet._adding
+                }
+
                 Connections {
                     function onAddFinished(ok: bool, message: string, hash: string): void {
-                    if (sheet.opened)
-                    sheet.finish(ok, message);
+                    if (sheet.opened) {
+                        sheet.finish(ok, message);
+                    } else {
+                        // Cancelled while it was out: MainView says how it went, in the footer.
+                        sheet._adding = false;
+                        sheet._addingShown = false;
+                    }
                 }
 
                     // docs/25 §3: the files match for the `.torrent` in the field.

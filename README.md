@@ -52,7 +52,10 @@ That downloads the latest release, already built, and installs it; pacman pulls 
 rest of what omaseed needs from the Arch repos. (A bare `sudo pacman -U <url>` stops at
 "failed retrieving file ….sig": pacman wants a signature for a package it downloads itself,
 not for a file already on disk.) omaseed is not in a repo yet, so `pacman -Syu` does not
-update it: for a new release, run the same line again. An AI agent installing omaseed for
+update it: for a new release, run the same line again. A running omaseed keeps the old
+version until it starts again: `omaseed --quit` quits it as the tray's quit does (writing
+what it keeps, pausing a running move) and returns once it has, so the new one can start.
+A logout, a shutdown or `kill` (SIGTERM, SIGINT, SIGHUP) quit it the same way. An AI agent installing omaseed for
 you cannot type your password, so it should hand you the line.
 
 **You need** qBittorrent 5.2 or newer with its Web UI turned on (`Tools → Options → Web UI`
@@ -239,7 +242,12 @@ it. A capital letter is the stronger variant of its lower-case neighbour (`p` st
 | `?` `F1` | every key |
 
 Keys cannot be rebound yet. omaseed binds no global shortcut; to summon it with, say,
-`super+t`, bind that in Hyprland to launch `omaseed`: a second launch raises the running one.
+`super+shift+t` (free in Omarchy's default bindings, 4.0 and 4.5 alike), add a line to
+`~/.config/hypr/bindings.lua` that launches `omaseed`: a second launch raises the running one.
+
+```lua
+o.bind("SUPER + SHIFT + T", "omaseed", { launch = "omaseed" })
+```
 
 ## Theme
 
@@ -309,7 +317,8 @@ scripts/dev/lint.sh build                             # qmllint and clang-format
 ```
 
 `-DOMASEED_WERROR=ON` turns warnings into errors (CI uses it); `-DBUILD_TESTING=OFF` skips
-the tests.
+the tests. [docs/TESTING.md](docs/TESTING.md) covers the rest: live tests, the walks in an
+omabox, the visual check and the manual test plans.
 
 The live tests (`ctest -L live`) talk to two throwaway qBittorrent servers that
 `scripts/dev/test-server.sh` runs: `start` (port 8081, no login from localhost) and `start

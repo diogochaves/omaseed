@@ -56,6 +56,31 @@ TestCase {
         compare(spy.count, 1);
     }
 
+    // #98: a folder's line stays one line; the text is elided, the key and link show whole.
+    function test_one_line_elides_the_text_not_the_link() {
+        const line = createTemporaryObject(lineComponent, testCase, {
+                                               "text": "games · /home/sbx/Torrents/library/games · 5 torrents · 268 MB on disk · 2 save paths · 3 files no torrent owns",
+                                               "linkKey": "shift+m",
+                                               "linkText": "move this folder…",
+                                               "oneLine": true
+                                           });
+        const text = findChild(line, "scopeText");
+        const link = findChild(line, "scopeLink");
+        compare(text.lineCount, 1);
+        verify(text.truncated, "the text gives way");
+        verify(link.visible);
+        verify(link.text.indexOf("move this folder…") > 0, link.text);
+        verify(link.width >= link.implicitWidth - 1, "the link is whole");
+        compare(link.Accessible.role, Accessible.Link);
+        compare(link.Accessible.name, "move this folder…");
+        const spy = createTemporaryObject(spyComponent, testCase, {
+                                              "target": line,
+                                              "signalName": "linkActivated"
+                                          });
+        link.linkActivated("scope");
+        compare(spy.count, 1);
+    }
+
     function test_no_link_is_plain_and_escaped() {
         const line = createTemporaryObject(lineComponent, testCase, {
                                                "text": "a<b's own & more"

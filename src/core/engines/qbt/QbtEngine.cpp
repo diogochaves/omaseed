@@ -5,6 +5,7 @@
 #include "core/engines/qbt/QbtTranslate.hpp"
 
 #include <QJsonDocument>
+#include <QPointer>
 #include <QUrlQuery>
 
 namespace omaseed::core {
@@ -279,6 +280,22 @@ Reply<QList<TorrentPatch>> *QbtEngine::torrents(const QStringList &hashes)
         });
 }
 
+Reply<QStringList> *QbtEngine::stoppedAmong(const QStringList &hashes)
+{
+    // qBittorrent ranks an error above a stop, so `state` says only `error`; its `stopped`
+    // filter tests the stop itself (scripts/dev/research/107-errored-stopped).
+    TorrentsInfoQuery query;
+    query.filter = QStringLiteral("stopped");
+    query.hashes = hashes;
+    return mapReply<QStringList>(m_client->torrentsInfo(query), this, [](const QJsonArray &array) {
+        QStringList stopped;
+        stopped.reserve(array.size());
+        for (const QJsonValue &value : array)
+            stopped.append(value.toObject().value(QStringLiteral("hash")).toString());
+        return stopped;
+    });
+}
+
 Reply<QList<CategoryPatch>> *QbtEngine::categories()
 {
     return mapReply<QList<CategoryPatch>>(
@@ -348,6 +365,21 @@ Reply<FetchedMetadata> *QbtEngine::fetchMetadata(const QString &source)
                                              fetched.metadata = QbtTranslate::metadata(answer.body);
                                          return fetched;
                                      });
+}
+
+Reply<ServerFolder> *QbtEngine::folderContent(const QString &path)
+{
+    // A refusal is an answer here too: it says the folder is missing, or the endpoint is.
+    auto *listed = new Reply<ServerFolder>(this);
+    QPointer<Reply<QJsonArray>> source = m_client->appDirectoryContent(path);
+    connect(listed, &ReplyBase::abortRequested, listed, [source]() {
+        if (!source.isNull())
+            source->abort();
+    });
+    source->then(listed, [listed](const Result<QJsonArray> &result) {
+        listed->complete(Result<ServerFolder>(QbtTranslate::serverFolder(result)));
+    });
+    return listed;
 }
 
 // --- actions -------------------------------------------------------------------------------

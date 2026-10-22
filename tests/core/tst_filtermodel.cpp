@@ -176,6 +176,8 @@ private slots:
     void statusFilters();
     void categoryFilterIsThreeValued();
     void tagFilterIsThreeValued();
+    void folderFilterTakesTheFoldersBelow();
+    void onlyHashesKeepsThoseTorrents();
     void trackerFilterGroupsByHostAndTrackerless();
     void trackerFilterListsWhatTheRailCounts();
     void textMatchesNameHashCategoryAndTags();
@@ -193,6 +195,7 @@ private slots:
     void tiesFollowRenamesAndNewRows();
     void heldOrderKeepsRowsWhileValuesMove();
     void heldOrderStillFiltersAndTakesNewRows();
+    void heldOrderPlacesAddsAtOnce();
     void explicitChangesApplyWhileHeld();
     void heldOrderOutlastsAPollBracket();
 
@@ -210,6 +213,8 @@ void TestFilterModel::init()
     m_proxy.clearTag();
     m_proxy.clearTracker();
     m_proxy.setText(QString());
+    m_proxy.setFolder(QString());
+    m_proxy.setOnlyHashes({});
     m_proxy.setSortRole(TorrentModel::NameRole);
     m_proxy.setSortOrder(Qt::AscendingOrder);
 }
@@ -272,6 +277,61 @@ void TestFilterModel::categoryFilterIsThreeValued()
     m_proxy.clearCategory();
     QCOMPARE(m_proxy.rowCount(), 6);
     QVERIFY(!m_proxy.category().isValid());
+}
+
+void TestFilterModel::folderFilterTakesTheFoldersBelow()
+{
+    // Board 42 F1: a picked folder lists its torrents and those of the save paths below it,
+    // and only at a path-component boundary ("games-old" is not under "games").
+    QJsonObject partial;
+    const auto at = [&partial](const char *hash, const char *path) {
+        partial.insert(QLatin1String(hash),
+                       QJsonObject{{QStringLiteral("save_path"), QLatin1String(path)}});
+    };
+    at("1111", "/mnt/archive/games");
+    at("2222", "/mnt/archive/games/handheld/");
+    at("3333", "/mnt/archive/games-old");
+    at("4444", "/mnt/archive");
+    at("5555", "/srv/media/films");
+    at("6666", "/mnt/archive/games");
+    qbtfeed::partial(m_source, partial, {});
+
+    QSignalSpy changed(&m_proxy, &TorrentFilterModel::folderChanged);
+    m_proxy.setFolder(QStringLiteral("/mnt/archive/games/"));
+    QCOMPARE(changed.count(), 1);
+    QCOMPARE(m_proxy.folder(), QStringLiteral("/mnt/archive/games"));
+    QStringList hashes = visibleHashes(m_proxy);
+    hashes.sort();
+    QCOMPARE(hashes,
+             QStringList({QStringLiteral("1111"), QStringLiteral("2222"), QStringLiteral("6666")}));
+
+    m_proxy.setFolder(QStringLiteral("/mnt/archive"));
+    QCOMPARE(m_proxy.rowCount(), 5);
+
+    // It ANDs with the others, like every rail filter.
+    m_proxy.setCategory(QStringLiteral("linux"));
+    hashes = visibleHashes(m_proxy);
+    hashes.sort();
+    QCOMPARE(hashes,
+             QStringList({QStringLiteral("1111"), QStringLiteral("3333"), QStringLiteral("6666")}));
+
+    m_proxy.setFolder(QString());
+    m_proxy.clearCategory();
+    QCOMPARE(m_proxy.rowCount(), 6);
+}
+
+void TestFilterModel::onlyHashesKeepsThoseTorrents()
+{
+    // Board 42 J1: a move's "show" lists the job's torrents and no others.
+    m_proxy.setOnlyHashes({QStringLiteral("2222"), QStringLiteral("5555"), QStringLiteral("9999")});
+    QStringList hashes = visibleHashes(m_proxy);
+    hashes.sort();
+    QCOMPARE(hashes, QStringList({QStringLiteral("2222"), QStringLiteral("5555")}));
+    m_proxy.setStatusFilter(TorrentFilterModel::Errored);
+    QCOMPARE(visibleHashes(m_proxy), QStringList({QStringLiteral("5555")}));
+    m_proxy.setStatusFilter(TorrentFilterModel::All);
+    m_proxy.setOnlyHashes({});
+    QCOMPARE(m_proxy.rowCount(), 6);
 }
 
 void TestFilterModel::tagFilterIsThreeValued()
@@ -729,7 +789,8 @@ void TestFilterModel::heldOrderKeepsRowsWhileValuesMove()
 void TestFilterModel::heldOrderStillFiltersAndTakesNewRows()
 {
     // Held under "active": a torrent that stops leaves, one that starts comes in below the
-    // held rows (nothing above it moves), and a new torrent appears; on release all sort.
+    // held rows (nothing above it moves), and a new torrent takes its sorted place at once
+    // (DECISIONS C20); on release all sort.
     TorrentModel source;
     qbtfeed::full(source, seedLibrary(40, 10)); // torrent-000 idle, the rest busy
     TorrentFilterModel proxy;
@@ -763,15 +824,85 @@ void TestFilterModel::heldOrderStillFiltersAndTakesNewRows()
     before.removeOne(stopping);
     const QStringList held = visibleHashes(proxy);
     QCOMPARE(held.size(), 40);
-    QCOMPARE(held.mid(0, 38), before);
-    QCOMPARE(QSet<QString>(held.cbegin() + 38, held.cend()),
-             (QSet<QString>{starting, QStringLiteral("fresh")}));
+    // The fastest of all, so above every held row; the starting one below them.
+    QCOMPARE(held.first(), QStringLiteral("fresh"));
+    QCOMPARE(held.mid(1, 38), before);
+    QCOMPARE(held.last(), starting);
 
     proxy.setHoldOrder(false);
     QVERIFY(sortedBySpeedDescending(proxy));
     QCOMPARE(proxy.hashAt(0), starting);
     QCOMPARE(proxy.hashAt(1), QStringLiteral("fresh"));
     QCOMPARE(proxy.rowOfHash(stopping), -1);
+}
+
+void TestFilterModel::heldOrderPlacesAddsAtOnce()
+{
+    // #124 (DECISIONS C20): sorted by date added, newest first, with the pointer over the
+    // rows. Adds one after another each land where the sort puts them on the poll that brings
+    // them, never at the end first; the held rows keep their order around them.
+    const auto torrent = [](const QString &name, qint64 added, qint64 upspeed = 0) {
+        return QJsonObject{{QStringLiteral("name"), name},
+                           {QStringLiteral("state"), QStringLiteral("stalledUP")},
+                           {QStringLiteral("progress"), 1.0},
+                           {QStringLiteral("added_on"), added},
+                           {QStringLiteral("upspeed"), upspeed}};
+    };
+    TorrentModel source;
+    QJsonObject library;
+    for (int i = 0; i < 20; ++i)
+        library.insert(QStringLiteral("h%1").arg(i, 2, 10, QLatin1Char('0')),
+                       torrent(QStringLiteral("old-%1").arg(i), 1000 + 10 * i));
+    qbtfeed::full(source, library);
+    TorrentFilterModel proxy;
+    proxy.setSourceModel(&source);
+    proxy.setSortRole(TorrentModel::AddedOnRole);
+    proxy.setSortOrder(Qt::DescendingOrder);
+    const QStringList before = visibleHashes(proxy);
+    QCOMPARE(before.first(), QStringLiteral("h19"));
+    proxy.setHoldOrder(true);
+
+    // Three adds, one poll each: every one is the newest, so each goes to the top.
+    for (int n = 1; n <= 3; ++n) {
+        const QString hash = QStringLiteral("new%1").arg(n);
+        qbtfeed::partial(source, QJsonObject{{hash, torrent(hash, 2000 + n)}}, QJsonArray());
+        QCOMPARE(proxy.hashAt(0), hash);
+        QCOMPARE(proxy.rowCount(), 20 + n);
+    }
+    QCOMPARE(visibleHashes(proxy).mid(3), before);
+
+    // One added between two held rows (an older date) goes between them.
+    qbtfeed::partial(source,
+                     QJsonObject{{QStringLiteral("mid"), torrent(QStringLiteral("mid"), 1055)}},
+                     QJsonArray());
+    const int at = proxy.rowOfHash(QStringLiteral("mid"));
+    QCOMPARE(proxy.hashAt(at - 1), QStringLiteral("h06"));
+    QCOMPARE(proxy.hashAt(at + 1), QStringLiteral("h05"));
+    // Two in one poll, the same slot: by their own order.
+    qbtfeed::partial(source,
+                     QJsonObject{{QStringLiteral("a"), torrent(QStringLiteral("a"), 3001)},
+                                 {QStringLiteral("b"), torrent(QStringLiteral("b"), 3002)}},
+                     QJsonArray());
+    QCOMPARE(proxy.hashAt(0), QStringLiteral("b"));
+    QCOMPARE(proxy.hashAt(1), QStringLiteral("a"));
+
+    // The held rows still hold while their values move (sorted by speed now, ascending).
+    proxy.setSortRole(TorrentModel::UpspeedRole);
+    proxy.setSortOrder(Qt::AscendingOrder);
+    const QStringList bySpeed = visibleHashes(proxy);
+    QJsonObject faster;
+    for (int i = 0; i < 20; ++i)
+        faster.insert(QStringLiteral("h%1").arg(i, 2, 10, QLatin1Char('0')),
+                      QJsonObject{{QStringLiteral("upspeed"), 100 - i}});
+    faster.insert(QStringLiteral("quick"), torrent(QStringLiteral("quick"), 4000, 1000000));
+    qbtfeed::partial(source, faster, QJsonArray());
+    QStringList held = visibleHashes(proxy);
+    QCOMPARE(held.last(), QStringLiteral("quick")); // the fastest: last, ascending
+    held.removeLast();
+    QCOMPARE(held, bySpeed);
+
+    proxy.setHoldOrder(false);
+    QCOMPARE(proxy.hashAt(proxy.rowCount() - 1), QStringLiteral("quick"));
 }
 
 void TestFilterModel::explicitChangesApplyWhileHeld()

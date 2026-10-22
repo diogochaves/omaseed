@@ -69,7 +69,7 @@ private Q_SLOTS:
             << 23 * H << 7 * H << 0 << at(15, 9, 40) << false;
         QTest::newRow("23-07 at 23:00") << 23 * H << 7 * H << 0 << at(15, 23, 0) << true;
         QTest::newRow("23-07 at 07:00") << 23 * H << 7 * H << 0 << at(15, 7, 0) << false;
-        // The days read backwards past midnight (diogochaves/upstream#84).
+        // The days read backwards past midnight (qBittorrent's own rule).
         QTest::newRow("T4d: weekdays, Thursday 09:40 is off")
             << 23 * H << 7 * H << 1 << at(15, 9, 40) << false;
         QTest::newRow("weekdays: Saturday all day")

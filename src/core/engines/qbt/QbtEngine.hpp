@@ -53,6 +53,7 @@ public:
 
     Reply<SyncDelta> *sync(int cursor) override;
     Reply<QList<TorrentPatch>> *torrents(const QStringList &hashes = {}) override;
+    Reply<QStringList> *stoppedAmong(const QStringList &hashes) override;
     Reply<QList<CategoryPatch>> *categories() override;
     Reply<QStringList> *tags() override;
     Reply<TorrentProperties> *properties(const QString &hash) override;
@@ -63,6 +64,7 @@ public:
     Reply<QByteArray> *pieceStates(const QString &hash) override;
     Reply<QList<LogEntry>> *log(int afterId, bool problemsOnly) override;
     Reply<FetchedMetadata> *fetchMetadata(const QString &source) override;
+    Reply<ServerFolder> *folderContent(const QString &path) override;
 
     Reply<Done> *start(const QStringList &hashes) override;
     Reply<Done> *stop(const QStringList &hashes) override;

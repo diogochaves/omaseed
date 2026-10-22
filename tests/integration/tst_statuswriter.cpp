@@ -16,6 +16,7 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QScopeGuard>
 #include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QTest>
@@ -360,9 +361,15 @@ void TestStatusWriter::readerNeverSeesAPartialFile()
     qbtfeed::demo(engine, data);
 
     StatusWriter writer;
-    writer.setIntervals(0, 10000);
+    // No heartbeat during the test: every write is one this test asked for.
+    writer.setIntervals(0, 3600000);
     startWriter(writer, engine);
+    const int writesBefore = writer.writeCount();
 
+    // A reader thread reads the file nonstop while the writer replaces it a fixed number of
+    // times. Counts, not a time budget (#99): each write waits for its `written`, and the next
+    // starts only once the reader has read the file again, so on any machine, however slow,
+    // every write lands between two of the reader's reads.
     std::atomic<bool> stop{false};
     std::atomic<int> reads{0};
     std::atomic<int> torn{0};
@@ -374,23 +381,45 @@ void TestStatusWriter::readerNeverSeesAPartialFile()
             if (!ok)
                 ++torn;
             ++reads;
-            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            std::this_thread::yield();
         }
     });
+    // A failed check returns early: the reader still stops and is joined.
+    const auto joinReader = qScopeGuard([&]() {
+        stop = true;
+        reader.join();
+    });
 
-    QElapsedTimer clock;
-    clock.start();
+    constexpr int kWrites = 100;
+    QSignalSpy written(&writer, &StatusWriter::written);
     bool shown = true;
-    while (clock.elapsed() < 1500) {
+    for (int i = 0; i < kWrites; ++i) {
+        // The mechanism, checked without racing anything: a reader that opened the file
+        // before a write still reads the whole previous document after it. Only a file
+        // written aside and renamed into place does that; one rewritten in place would hand
+        // the held reader the new bytes, or a truncated file.
+        QFile before(path);
+        QVERIFY(before.open(QIODevice::ReadOnly));
+        const QByteArray previous = before.readAll();
+        QFile held(path);
+        QVERIFY(held.open(QIODevice::ReadOnly));
+
+        const int readsAtWrite = reads.load();
         shown = !shown;
         writer.setWindowShown(shown);
-        QTest::qWait(2);
-    }
-    stop = true;
-    reader.join();
+        QVERIFY(written.count() > i || written.wait(5000));
+        QCOMPARE(written.count(), i + 1);
 
-    QVERIFY2(writer.writeCount() > 50, qPrintable(QString::number(writer.writeCount())));
-    QVERIFY2(reads.load() > 200, qPrintable(QString::number(reads.load())));
+        QCOMPARE(held.readAll(), previous);
+        bool ok = false;
+        const QJsonObject now = readStatus(path, &ok);
+        QVERIFY(ok);
+        QCOMPARE(now.value(QStringLiteral("app")).toObject().value(QStringLiteral("window")),
+                 QJsonValue(shown ? QStringLiteral("shown") : QStringLiteral("hidden")));
+        QTRY_VERIFY_WITH_TIMEOUT(reads.load() > readsAtWrite, 5000);
+    }
+    QCOMPARE(writer.writeCount() - writesBefore, kWrites);
+    QVERIFY2(reads.load() >= kWrites, qPrintable(QString::number(reads.load())));
     QCOMPARE(torn.load(), 0);
 }
 

@@ -16,7 +16,11 @@ import Omaseed.Kit
 //   details the technical text in a further 4 % block, `copy` at its bottom right (N4)
 //
 // Kinds (N3): "warning" is the yellow "!" while omaseed retries on its own, "error" the red
-// "✕" when it has stopped and needs you or an action failed, "info" the accent "·".
+// "✕" when it has stopped and needs you or an action failed, "info" the accent "·". Board 42
+// (DECISIONS C15 M10, M16) adds "success", the green "✓" of a move's summary; `glyph` puts
+// another sign in the kind's place ("↻" while a folder moves), `progress` draws a 2 px line
+// along the bottom edge in the kind's colour, and `bodyAlert` runs on after the line in red
+// ("2 failed").
 //
 // Narrow (N5): under `stackWidth` the actions drop to a row under the line. `bodyTail` (the
 // retry's countdown) is padded to `bodyTailChars` characters in the monospace font, so the
@@ -30,8 +34,14 @@ import Omaseed.Kit
 Item {
     id: root
 
-    /// "error" | "warning" | "info".
+    /// "error" | "warning" | "info" | "success".
     property string kind: "error"
+    /// The sign at the left; "" draws the kind's own.
+    property string glyph: ""
+    /// 0–1 draws the progress line on the bottom edge; below 0 draws none.
+    property real progress: -1
+    /// Red, after the line and its tail: "2 failed".
+    property string bodyAlert: ""
     property string title: ""
     property string body: ""
     /// Run on after `body` in a slot of `bodyTailChars` characters: "omaseed tries again in 7 s."
@@ -42,6 +52,9 @@ Item {
     /// The technical text; "" leaves out "details".
     property string details: ""
     property bool detailsOpen: false
+    /// Rows above the details' text, each with its own link: `[{text, link}]` (board 43 J3:
+    /// the moves waiting behind this one, each with "cancel"). A link says `detailRowTriggered`.
+    property var detailRows: []
     /// Where the hairline goes: "bottom", "top" or "both".
     property string edge: "bottom"
     /// N6: false folds the band away.
@@ -55,9 +68,15 @@ Item {
 
     readonly property bool stacked: root.width < root.stackWidth
     readonly property color kindColor: root.kind === "error" ? Theme.red : root.kind === "warning"
-                                                                ? Theme.yellow : Theme.accent
-    readonly property string kindGlyph: root.kind === "error" ? Glyphs.close : root.kind
-                                                                === "warning" ? "!" : Glyphs.middot
+                                                               ? Theme.yellow : root.kind
+                                                                 === "success" ? Theme.green :
+                                                                                 Theme.accent
+    readonly property string kindGlyph: root.glyph.length > 0 ? root.glyph : root.kind === "error"
+                                                                ? Glyphs.close : root.kind
+                                                                  === "warning" ? "!" : root.kind
+                                                                                  === "success"
+                                                                                  ? Glyphs.check :
+                                                                                    Glyphs.middot
     /// The line as drawn: `body`, then the tail in its fixed slot.
     readonly property string lineText: {
         if (root.bodyTail.length === 0)
@@ -73,10 +92,16 @@ Item {
 
     signal actionTriggered(string key)
     signal copyRequested(string text)
+    signal detailRowTriggered(int index)
+
+    /// Plain text made safe for StyledText.
+    function _escaped(text: string): string {
+        return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    }
 
     function toggleDetails(): void {
-        root.detailsOpen = !root.detailsOpen;
-    }
+    root.detailsOpen = !root.detailsOpen;
+}
 
     Accessible.name: root.title
     Accessible.role: Accessible.AlertMessage
@@ -128,6 +153,16 @@ Item {
         anchors.left: parent.left
         anchors.right: parent.right
         visible: root.edge !== "top"
+    }
+
+    Rectangle {
+        anchors.bottom: parent.bottom
+        anchors.left: parent.left
+        color: root.kindColor
+        height: Theme.space(2)
+        objectName: "noticeProgress"
+        visible: root.progress >= 0
+        width: parent.width * Math.max(0, Math.min(1, root.progress))
     }
 
     Hairline {
@@ -202,8 +237,11 @@ Item {
             font.family: Theme.fontFamily
             font.pixelSize: Theme.font.small
             objectName: "noticeLine"
-            text: root.lineText
-            textFormat: Text.PlainText
+            text: root.bodyAlert.length === 0 ? root.lineText : root._escaped(root.lineText) + (
+                                                    root.lineText.length > 0 ? " · " : "")
+                                                + "<font color='%1'>%2</font>".arg(Theme.red).arg(
+                                                    root._escaped(root.bodyAlert))
+            textFormat: root.bodyAlert.length === 0 ? Text.PlainText : Text.StyledText
             visible: text.length > 0
             wrapMode: Text.Wrap
         }
@@ -229,7 +267,7 @@ Item {
             color: Theme.fill(Theme.fillIdle)
             implicitHeight: detailsColumn.implicitHeight + 2 * Theme.space(6)
             objectName: "noticeDetails"
-            visible: root.detailsOpen && root.details.length > 0
+            visible: root.detailsOpen && (root.details.length > 0 || root.detailRows.length > 0)
 
             ColumnLayout {
                 id: detailsColumn
@@ -240,6 +278,59 @@ Item {
                 anchors.rightMargin: Theme.space(8)
                 anchors.verticalCenter: parent.verticalCenter
                 spacing: Theme.space(2)
+
+                Repeater {
+                    model: root.detailRows
+
+                    RowLayout {
+                        id: detailRow
+
+                        required property int index
+                        required property var modelData
+
+                        Layout.fillWidth: true
+                        objectName: "noticeDetailRow"
+                        spacing: Theme.space(10)
+
+                        Text {
+                            Accessible.name: text
+                            Accessible.role: Accessible.StaticText
+                            Layout.fillWidth: true
+                            color: Theme.foreground
+                            elide: Text.ElideRight
+                            font.family: Theme.fontFamily
+                            font.pixelSize: Theme.font.caption
+                            text: detailRow.modelData.text
+                            textFormat: Text.PlainText
+                        }
+
+                        Text {
+                            id: rowLink
+
+                            Accessible.name: rowLink.text
+                            Accessible.role: Accessible.Link
+                            Accessible.onPressAction: root.detailRowTriggered(detailRow.index)
+                            color: rowLinkMouse.containsMouse ? Theme.brightForeground :
+                                                                Theme.accent
+                            font.family: Theme.fontFamily
+                            font.pixelSize: Theme.font.caption
+                            objectName: "noticeDetailRowLink"
+                            text: detailRow.modelData.link ?? ""
+                            visible: text.length > 0
+
+                            MouseArea {
+                                id: rowLinkMouse
+
+                                anchors.fill: parent
+                                anchors.margins: -Theme.space(4)
+                                cursorShape: Qt.PointingHandCursor
+                                hoverEnabled: true
+
+                                onClicked: root.detailRowTriggered(detailRow.index)
+                            }
+                        }
+                    }
+                }
 
                 Text {
                     // #79: the technical text, once "details" unfolds it.
@@ -252,6 +343,7 @@ Item {
                     objectName: "noticeDetailsText"
                     text: root.details
                     textFormat: Text.PlainText
+                    visible: root.details.length > 0
                     wrapMode: Text.WrapAnywhere
                 }
 
@@ -269,6 +361,7 @@ Item {
                     font.pixelSize: Theme.font.caption
                     objectName: "noticeCopy"
                     text: qsTr("copy")
+                    visible: root.details.length > 0
 
                     MouseArea {
                         id: copyMouse
@@ -340,8 +433,9 @@ Item {
             font.family: Theme.fontFamily
             font.pixelSize: Theme.font.small
             objectName: "noticeDetailsToggle"
-            text: qsTr("details") + " " + (root.detailsOpen ? Glyphs.chevronDown : Glyphs.chevronRight)
-            visible: root.details.length > 0
+            text: qsTr("details") + " " + (root.detailsOpen ? Glyphs.chevronDown :
+                                                              Glyphs.chevronRight)
+            visible: root.details.length > 0 || root.detailRows.length > 0
 
             MouseArea {
                 id: detailsMouse

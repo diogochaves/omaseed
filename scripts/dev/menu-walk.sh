@@ -13,9 +13,9 @@
 #                                             # script still does the typing, then waits for enter
 #
 # The box is a manual box with Omarchy's stock bar (scripts/dev/app-box.sh up --manual
-# --stock-bar: the tray lives in it, at the top right of a 1920x1080 screen): omaseed from
-# build-box/ installed in it, "public" on the box's 127.0.0.1:8090 and "private" on :8091. The
-# logins stay in the box, as in servers-walk.sh.
+# --stock-bar: the tray lives in it, found from the bar itself, wherever that Omarchy puts it):
+# omaseed from build-box/ installed in it, "public" on the box's 127.0.0.1:8090 and "private" on
+# :8091. The logins stay in the box, as in servers-walk.sh.
 set -euo pipefail
 
 repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -30,11 +30,6 @@ case "${1:-}" in
 -h | --help) sed -n '2,/^set -e/p' "$0" | sed '$d'; exit 0 ;;
 *) OUT="${1:-$(mktemp -d "${TMPDIR:-/tmp}/omaseed-menu-walk-$(date +%Y%m%d-%H%M%S)-XXXX")}" ;;
 esac
-
-# Where the stock bar puts the tray at 1920x1080: its drawer's "<", and the omaseed icon once
-# the drawer is open (the icon takes the place the "<" had).
-TRAY_X=1783
-TRAY_Y=13
 
 keys() { omabox keys -b "$BOX" "$@" >/dev/null; }
 
@@ -105,6 +100,234 @@ tray_click() {
 tray_checked() { tray_rows | awk -F '\t' -v l="$1" '$3 == l && $2 == 1 { found = 1 } END { exit !found }'; }
 tray_ends_with_quit() { [ "$(tray_rows | tail -1 | cut -f3)" = quit ]; }
 
+# ---- the stock bar's tray, found from the bar itself (#139) --------------------------------
+# The stock bar publishes no accessibility tree and its tray takes no keys, and where the tray
+# sits depends on what else is in the bar (Omarchy 4.5 put an indicator beside it). So the walk
+# finds it by what changes when omaseed's icon moves: pinned (the tray's own Pin, as its card
+# writes it in shell.json), the icon takes the place the drawer's "<" had and the "<" moves one
+# slot over, and nothing else in the bar moves. That place is where the icon shows when the
+# drawer opens. The menu is then what changed under the bar when it opened, and its rows the
+# lines of text in it, in the order omaseed exports them.
+
+# png CMD ARGS…: what the walk reads from its own shots, with python's standard library only
+# (8-bit RGB or RGBA, not interlaced, as omabox writes them).
+#   png runs A B          the runs of columns where A and B differ, "START END" a line
+#   png box A B           the smallest rectangle holding every pixel that differs, "X Y W H"
+#   png bands A X Y W H   the lines of text in that rectangle of A, "TOP BOTTOM" each: rows
+#                         unlike its commonest colour, 3 px thin or less left out (rules, marks)
+png() {
+    python3 -I - "$@" <<'PY'
+import collections, struct, sys, zlib
+
+
+def read(path):
+    data = open(path, "rb").read()
+    pos, idat = 8, b""
+    while pos < len(data):
+        length, kind = struct.unpack(">I4s", data[pos:pos + 8])
+        body = data[pos + 8:pos + 8 + length]
+        if kind == b"IHDR":
+            width, height, depth, colour, _, _, interlace = struct.unpack(">IIBBBBB", body)
+            if depth != 8 or colour not in (2, 6) or interlace:
+                sys.exit("%s: not an 8-bit RGB(A) PNG" % path)
+            bpp = 3 if colour == 2 else 4
+        elif kind == b"IDAT":
+            idat += body
+        pos += 12 + length
+    raw, stride = zlib.decompress(idat), width * bpp
+    rows, prev = [], bytearray(stride)
+    for y in range(height):
+        kind = raw[y * (stride + 1)]
+        line = bytearray(raw[y * (stride + 1) + 1:(y + 1) * (stride + 1)])
+        for i in range(stride):
+            a = line[i - bpp] if i >= bpp else 0
+            b, c = prev[i], prev[i - bpp] if i >= bpp else 0
+            if kind == 1:
+                line[i] = (line[i] + a) & 255
+            elif kind == 2:
+                line[i] = (line[i] + b) & 255
+            elif kind == 3:
+                line[i] = (line[i] + (a + b) // 2) & 255
+            elif kind == 4:
+                p = a + b - c
+                pa, pb, pc = abs(p - a), abs(p - b), abs(p - c)
+                line[i] = (line[i] + (a if pa <= pb and pa <= pc else b if pb <= pc else c)) & 255
+        rows.append([tuple(line[x * bpp:x * bpp + 3]) for x in range(width)])
+        prev = line
+    return rows
+
+
+def spans(flags):
+    out, start = [], None
+    for i, flag in enumerate(flags + [False]):
+        if flag and start is None:
+            start = i
+        elif not flag and start is not None:
+            out.append((start, i - 1))
+            start = None
+    return out
+
+
+command, args = sys.argv[1], sys.argv[2:]
+if command in ("runs", "box"):
+    a, b = read(args[0]), read(args[1])
+    if len(a) != len(b) or len(a[0]) != len(b[0]):
+        sys.exit("the two shots differ in size")
+    diff = [[pa != pb for pa, pb in zip(ra, rb)] for ra, rb in zip(a, b)]
+    if command == "runs":
+        for start, end in spans([any(row[x] for row in diff) for x in range(len(a[0]))]):
+            print(start, end)
+    else:
+        xs = [x for row in diff for x, d in enumerate(row) if d]
+        ys = [y for y, row in enumerate(diff) if any(row)]
+        if not xs:
+            sys.exit(1)
+        print(min(xs), min(ys), max(xs) - min(xs) + 1, max(ys) - min(ys) + 1)
+elif command == "bands":
+    rows = read(args[0])
+    x, y, w, h = map(int, args[1:5])
+    cut = [row[x:x + w] for row in rows[y:y + h]]
+    ground = collections.Counter(p for row in cut for p in row).most_common(1)[0][0]
+    ink = [sum(sum(abs(c - g) for c, g in zip(p, ground)) > 48 for p in row) >= 2 for row in cut]
+    for top, bottom in spans(ink):
+        if bottom - top + 1 > 3:
+            print(y + top, y + bottom)
+PY
+}
+
+# bar_rect: "X Y W H" of the stock bar (its layer surface, omarchy-bar).
+bar_rect() {
+    omabox hyprctl -b "$BOX" layers -j | python3 -I -c '
+import json, sys
+for monitor in json.load(sys.stdin).values():
+    for layers in monitor["levels"].values():
+        for layer in layers:
+            if layer["namespace"] == "omarchy-bar":
+                print(layer["x"], layer["y"], layer["w"], layer["h"])
+                sys.exit(0)
+sys.exit(1)'
+}
+
+# tray_id: omaseed's tray item's Id, the name the tray pins it by.
+tray_id() {
+    local item
+    item="$(omabox run -b "$BOX" -- busctl --user --json=short get-property org.kde.StatusNotifierWatcher \
+        /StatusNotifierWatcher org.kde.StatusNotifierWatcher RegisteredStatusNotifierItems |
+        python3 -c 'import json, sys; print(json.load(sys.stdin)["data"][0])')"
+    omabox run -b "$BOX" -- busctl --user --json=short get-property "${item%%/*}" "/${item#*/}" \
+        org.kde.StatusNotifierItem Id | python3 -I -c 'import json, sys; print(json.load(sys.stdin)["data"])'
+}
+
+# tray_pinned JSON: the tray's pinned ids ("null": the key left out) into the box's shell.json,
+# as the tray's Pin card writes them; prints what it held before. The shell reads it at once.
+tray_pinned() {
+    python3 -I - "$home/.config/omarchy/shell.json" "$1" <<'PY'
+import json, os, sys
+path, pinned = sys.argv[1], json.loads(sys.argv[2])
+config = json.load(open(path, encoding="utf-8"))
+for section in config.get("bar", {}).get("layout", {}).values():
+    for i, entry in enumerate(section):
+        if entry == "omarchy.tray":
+            entry = section[i] = {"id": entry}
+        if isinstance(entry, dict) and entry.get("id") == "omarchy.tray":
+            print(json.dumps(entry.get("pinned")))
+            if pinned is None:
+                entry.pop("pinned", None)
+            else:
+                entry["pinned"] = pinned
+            tmp = path + ".walk-tmp"
+            with open(tmp, "w", encoding="utf-8") as f:
+                json.dump(config, f, indent=2)
+            os.replace(tmp, path)
+            sys.exit(0)
+sys.exit("no omarchy.tray in the bar's layout")
+PY
+}
+
+# park: the pointer on the bar's far end from the tray, so nothing near the tray is hovered (no
+# tooltip over the menu) and the shots see the same thing each time.
+park() { omabox pointer -b "$BOX" -- move "$((BAR_X + 2))" "$((BAR_Y + BAR_H / 2))" >/dev/null 2>&1 || true; }
+bar_shot() { omabox shot -b "$BOX" --no-pointer -g "$BAR_X,$BAR_Y ${BAR_W}x$BAR_H" -o "$1" >/dev/null 2>&1; }
+under_shot() { omabox shot -b "$BOX" --no-pointer -g "$UNDER" -o "$1" >/dev/null 2>&1; }
+bar_changed() { omabox wait -b "$BOX" --timeout 5s change -g "$BAR_X,$BAR_Y ${BAR_W}x$BAR_H" >/dev/null 2>&1 || true; }
+# bar_until as|unlike SHOT: until the bar looks as SHOT shows it, or not (10 s at most), then
+# until it is still. The shell may redraw before a `wait change` could start, so it is polled.
+bar_until() {
+    local _ runs
+    for _ in $(seq 1 20); do
+        bar_shot "$OUT_ROWS.bar-now.png"
+        runs="$(png runs "$2" "$OUT_ROWS.bar-now.png")"
+        if { [ "$1" = as ] && [ -z "$runs" ]; } || { [ "$1" = unlike ] && [ -n "$runs" ]; }; then
+            settle
+            return 0
+        fi
+    done
+    return 1
+}
+
+# tray_find: TRAY_X / TRAY_Y, the middle of omaseed's place in the tray (the drawer's "<" while
+# it is closed, omaseed's icon while it is open), and UNDER, the part of the screen under the
+# bar where its menu opens. The place is the last run of columns that changes when the icon is
+# pinned for a moment: the tray grows from the bar's end inwards, so whatever else moves (the
+# "<", or what sits before the tray) is further in.
+tray_find() {
+    local pinned run
+    read -r BAR_X BAR_Y BAR_W BAR_H < <(bar_rect) || return 1
+    park
+    settle
+    bar_shot "$OUT_ROWS.bar-drawer.png"
+    pinned="$(tray_pinned "[\"$(tray_id)\"]")" || return 1
+    bar_until unlike "$OUT_ROWS.bar-drawer.png"
+    bar_shot "$OUT_ROWS.bar-pinned.png"
+    tray_pinned "$pinned" >/dev/null
+    bar_until as "$OUT_ROWS.bar-drawer.png" || echo "  (the bar did not come back as it was after the pin was undone)" >&2
+    TRAY_RUNS="$(png runs "$OUT_ROWS.bar-drawer.png" "$OUT_ROWS.bar-pinned.png" | tr '\n' ' ')"
+    run="$(png runs "$OUT_ROWS.bar-drawer.png" "$OUT_ROWS.bar-pinned.png" | tail -1)"
+    [ -n "$run" ] || return 1
+    TRAY_X=$((BAR_X + (${run% *} + ${run#* }) / 2))
+    TRAY_Y=$((BAR_Y + BAR_H / 2))
+    local left=$((TRAY_X - 400)) right=$((TRAY_X + 400))
+    [ "$left" -ge "$BAR_X" ] || left=$BAR_X
+    [ "$right" -le $((BAR_X + BAR_W)) ] || right=$((BAR_X + BAR_W))
+    UNDER="$left,$((BAR_Y + BAR_H)) $((right - left))x600"
+    TRAY_MENU="$left,$BAR_Y $((right - left))x$((BAR_H + 600))"
+}
+
+# tray_menu_open: the drawer opened by hovering omaseed's place, the icon right-clicked, the
+# pointer parked; TRAY_CARD is the menu's rectangle in $OUT_ROWS.under-open.png.
+tray_menu_open() {
+    park
+    settle
+    under_shot "$OUT_ROWS.under-closed.png"
+    omabox pointer -b "$BOX" -- move "$TRAY_X" "$TRAY_Y" >/dev/null 2>&1
+    bar_changed
+    settle
+    omabox click -b "$BOX" "$TRAY_X" "$TRAY_Y" right >/dev/null
+    omabox wait -b "$BOX" --timeout 3s change >/dev/null 2>&1 || true
+    park
+    settle
+    under_shot "$OUT_ROWS.under-open.png"
+    TRAY_CARD="$(png box "$OUT_ROWS.under-closed.png" "$OUT_ROWS.under-open.png")"
+}
+
+# tray_menu_row LABEL: TRAY_ROW_X / TRAY_ROW_Y, the middle of the open menu's row LABEL: the
+# menu's lines of text (inside its border) are its rows, in the order tray_rows lists them.
+tray_menu_row() {
+    local cx cy cw ch index count top bottom
+    [ -n "${TRAY_CARD:-}" ] || return 1
+    read -r cx cy cw ch <<<"$TRAY_CARD"
+    png bands "$OUT_ROWS.under-open.png" $((cx + 8)) $((cy + 6)) $((cw - 16)) $((ch - 12)) >"$OUT_ROWS.bands"
+    tray_rows | cut -f3 >"$OUT_ROWS.labels"
+    count="$(wc -l <"$OUT_ROWS.bands")"
+    TRAY_LINES="$count lines of text for $(wc -l <"$OUT_ROWS.labels") rows"
+    [ "$count" = "$(wc -l <"$OUT_ROWS.labels")" ] || return 1
+    index="$(grep -nxF -- "$1" "$OUT_ROWS.labels" | head -1 | cut -d: -f1)"
+    [ -n "$index" ] || return 1
+    read -r top bottom < <(sed -n "${index}p" "$OUT_ROWS.bands")
+    TRAY_ROW_X=$((${UNDER%%,*} + cx + cw / 2))
+    TRAY_ROW_Y=$((BAR_Y + BAR_H + (top + bottom) / 2))
+}
+
 running() { omabox run -b "$BOX" -- pgrep -x omaseed >/dev/null 2>&1; }
 not_running() { ! running; }
 
@@ -149,7 +372,6 @@ cleanup() {
 trap cleanup EXIT
 
 POPUP="1530,0 390x620"
-TRAY_MENU="1600,0 320x500"
 
 # ---- the box --------------------------------------------------------------------------------
 if [ "$INTERACTIVE" = 1 ]; then
@@ -227,19 +449,29 @@ step "In the bar: both" "D25 (W3): Settings › Appearance, \"In the bar\" with 
 keys Escape -s 800
 
 # ---- the tray ------------------------------------------------------------------------------
-omabox click -b "$BOX" "$TRAY_X" "$TRAY_Y" >/dev/null # the drawer: the icon is in it
-settle
-omabox click -b "$BOX" "$TRAY_X" "$TRAY_Y" right >/dev/null
-omabox wait -b "$BOX" --timeout 3s change >/dev/null 2>&1 || true
-step "The tray's menu" "D10 (T1): show omaseed, the figures, servers with ✓ public · 0 torrents and private · 4 torrents, then the alternative limits, stop all, start all, add torrent…, settings…, and quit last after a separator." "$TRAY_MENU"
-omabox click -b "$BOX" 1727 216 >/dev/null
-settle
+# Found from the bar, its menu's rows from the menu: no coordinates of one Omarchy's bar (#139).
+if tray_find; then
+    echo "  omaseed's place in the tray: $TRAY_X,$TRAY_Y (bar ${BAR_W}x$BAR_H; changed when pinned: $TRAY_RUNS)"
+else
+    echo "  omaseed's place in the tray was not found (changed when pinned: ${TRAY_RUNS:-nothing})" >&2
+fi
+if [ -n "${TRAY_X:-}" ]; then
+    tray_menu_open
+    step "The tray's menu" "D10 (T1): show omaseed, the figures, servers with ✓ public · 0 torrents and private · 4 torrents, then the alternative limits, stop all, start all, add torrent…, settings…, and quit last after a separator." "$TRAY_MENU"
+    if tray_menu_row "private · 4 torrents"; then
+        omabox click -b "$BOX" "$TRAY_ROW_X" "$TRAY_ROW_Y" >/dev/null
+        settle
+    else
+        echo "  the menu's row \"private · 4 torrents\" was not found: ${TRAY_LINES:-no menu under the bar}" >&2
+    fi
+fi
 check "the tray switched to private" default_is private
 keys Escape -s 400
-omabox click -b "$BOX" "$TRAY_X" "$TRAY_Y" right >/dev/null
-omabox wait -b "$BOX" --timeout 3s change >/dev/null 2>&1 || true
-step "The tray on private" "✓ private · 4 torrents now; public · 0 torrents (last seen). (The stock bar sometimes answers this second right click with its drawer's Pin/Hide card instead; the checks below read the exported menu either way.)" "$TRAY_MENU"
-keys Escape -s 400
+if [ -n "${TRAY_X:-}" ]; then
+    tray_menu_open
+    step "The tray on private" "✓ private · 4 torrents now; public · 0 torrents (last seen)." "$TRAY_MENU"
+    keys Escape -s 400
+fi
 check "the tray's exported menu has private checked" tray_checked "private · 4 torrents"
 check "the tray's exported menu ends with quit" tray_ends_with_quit
 tray_click quit

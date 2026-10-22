@@ -832,7 +832,7 @@ private Q_SLOTS:
         // Only the old one: a plain rename, nothing replaced.
         QVERIFY(!TorrentsImport::renameWouldReplace(
             dir.path(), QStringLiteral("Album/real.flac"), QStringLiteral("Album/new.flac")));
-        // Both: libtorrent would move the stray file over the real one (upstream#85).
+        // Both: libtorrent would move the stray file over the real one.
         QVERIFY(touch(QStringLiteral("Album/old.flac")));
         QVERIFY(TorrentsImport::renameWouldReplace(
             dir.path(), QStringLiteral("Album/old.flac"), QStringLiteral("Album/real.flac")));

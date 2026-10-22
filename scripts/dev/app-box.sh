@@ -100,7 +100,10 @@ box_kind() {
 launch() {
     local binary="$1" out log
     if omabox run -b "$BOX" -- pgrep -x omaseed >/dev/null 2>&1; then
-        omabox run -b "$BOX" -- pkill -x omaseed >/dev/null 2>&1 || true
+        # #128: the app's own quit, so what it writes on quit is written; pkill only when it
+        # does not go (an older build ignores --quit and is still there after its 15 s).
+        omabox run -b "$BOX" -- "$binary" --quit >/dev/null 2>&1 ||
+            omabox run -b "$BOX" -- pkill -x omaseed >/dev/null 2>&1 || true
         omabox wait -b "$BOX" --timeout 10s window omaseed --gone >/dev/null ||
             die "omaseed did not quit in the box"
     fi
@@ -468,6 +471,13 @@ while [ $# -gt 0 ]; do
     esac
     shift
 done
+
+# --build is used as $repo/$build, and the box sees only this checkout: an absolute path inside it
+# becomes relative, one outside it can't run there.
+case "$build" in
+"$repo"/*) build="${build#"$repo"/}" ;;
+/*) die "--build $build is outside this checkout ($repo), which is all the box sees: build inside it" ;;
+esac
 
 # The BitTorrent ports of the box's qBittorrents ("public", and the manual box's "private"),
 # from the box's name. From the host every box is 127.0.0.1, so two boxes on the same port are

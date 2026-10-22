@@ -113,9 +113,9 @@ TestCase {
 
         const act = Keymap.helpRows("act");
         // Then the Files tab's two (N1) and the details pane's copy (docs/12 G5).
-        compare(act.map(row => row.helpKeys), ["a", "enter", "p P", "d D", "c R", "C t m L r", "[ ]",
+        compare(act.map(row => row.helpKeys), ["a", "enter", "p P e", "d D", "c R", "C t m L r", "[ ]",
                                                "o", "y Y n", "p + - x", "O o r", "y enter"]);
-        compare(act.map(row => row.help), ["add", "actions", "stop/start · force",
+        compare(act.map(row => row.help), ["add", "actions", "stop/start · force · retry",
                                            "delete · with files", "recheck · reannounce",
                                            "category · tags · location · limits · rename", "queue",
                                            "open folder", "copy magnet · hash · name",
@@ -229,31 +229,31 @@ TestCase {
         compare(row.helpKeys, ": ctrl+shift+p");
     }
 
-    // §5: 44 rows from the table (docs/32 added `~`), plus the focused area's own: Files 15,
+    // §5: 45 rows from the table (docs/32 added `~`, board 42 "move folder…"), plus the focused area's own: Files 15,
     // Trackers 4, Peers 3, HTTP sources 3, the seed console 3, the log 14.
     function test_the_rows_from_each_area() {
-        compare(Keymap.commandRows(testCase._context({})).length, 44);
+        compare(Keymap.commandRows(testCase._context({})).length, 45);
         compare(Keymap.commandRows(testCase._context({
                                                          "area": "rail"
-                                                     })).length, 44);
+                                                     })).length, 45);
         compare(Keymap.commandRows(testCase._context({
                                                          "area": "files"
-                                                     })).length, 59);
+                                                     })).length, 60);
         compare(Keymap.commandRows(testCase._context({
                                                          "area": "trackers"
-                                                     })).length, 48);
+                                                     })).length, 49);
         compare(Keymap.commandRows(testCase._context({
                                                          "area": "peers"
-                                                     })).length, 47);
+                                                     })).length, 48);
         compare(Keymap.commandRows(testCase._context({
                                                          "area": "webseeds"
-                                                     })).length, 47);
+                                                     })).length, 48);
         compare(Keymap.commandRows(testCase._context({
                                                          "area": "console"
-                                                     })).length, 47);
+                                                     })).length, 48);
         compare(Keymap.commandRows(testCase._context({
                                                          "area": "log"
-                                                     })).length, 58);
+                                                     })).length, 59);
         // Every action id is listed once, and movements never.
         const actions = Keymap.commandRows(testCase._context({})).map(row => row.action);
         for (const action of actions)
@@ -270,7 +270,7 @@ TestCase {
         const rows = Keymap.commandRows(testCase._context({
                                                               "recent": ["stop", "location", "copyMagnet"]
                                                           }));
-        compare(rows.slice(0, 8).map(row => row.title), ["stop", "set location", "copy magnet",
+        compare(rows.slice(0, 8).map(row => row.title), ["stop", "move…", "copy magnet",
                                                          "force start", "recheck", "reannounce",
                                                          "delete", "delete with files"]);
         const stop = rows[0];
@@ -286,6 +286,23 @@ TestCase {
         compare(testCase._row(rows, "add").detail, "library");
         compare(testCase._row(rows, "cycleDetailsPlacement").detail, "view · now right");
         compare(testCase._row(rows, "clearSelection").disabled, false);
+    }
+
+    // DECISIONS C20 (#107): `p` stops an errored torrent, so "retry" is a command of its own,
+    // `e`, listed only while a target is in error.
+    function test_retry_only_while_a_target_is_in_error() {
+        compare(Keymap.find("table", "e").action, "retry");
+        verify(testCase._row(Keymap.commandRows(testCase._context({})), "retry") === null,
+               "retry listed with nothing in error");
+        const rows = Keymap.commandRows(testCase._context({
+                                                              "errored": 1
+                                                          }));
+        const retry = testCase._row(rows, "retry");
+        compare(retry.title, "retry");
+        compare(retry.meta, "e");
+        compare(retry.disabled, false);
+        compare(retry.detail, "torrents · 2 selected");
+        compare(rows.length, Keymap.commandRows(testCase._context({})).length + 1);
     }
 
     function test_one_stopped_one_running_runs_both_and_p_starts() {
@@ -324,9 +341,14 @@ TestCase {
                                                           }));
         for (const action of Keymap.commandGroups[0].actions) {
             const row = testCase._row(rows, action);
+            if (action === "retry") { // C20: listed only while a target is in error
+                compare(row, null);
+                continue;
+            }
             compare(row.disabled, true, action + " can run with nothing to act on");
             verify(row.detail.endsWith("nothing selected, no torrent under the cursor")
-                   || row.detail.endsWith("no torrent under the cursor"), row.detail);
+                   || row.detail.endsWith("no torrent under the cursor")
+                   || row.detail.endsWith("pick a folder in the rail"), row.detail);
         }
         compare(testCase._row(rows, "add").disabled, false);
         compare(rows[0].action, "selectAll", "a row that can run did not come first");
@@ -473,6 +495,35 @@ TestCase {
         compare(toggle.meta, "~");
     }
 
+    // Board 45 B3 (C18 D7): "undo last move" while the history keeps a move, the newest only.
+    function test_undo_last_move_follows_the_history() {
+        const none = Keymap.commandRows(testCase._context({}));
+        verify(none.find(row => row.action === "undoLastMove") === undefined,
+               "listed with no move to undo");
+        const move = {
+            "id": "m1",
+            "title": "games",
+            "when": "16:24",
+            "where": "/tmp/fast/games",
+            "count": 48,
+            "canBack": true
+        };
+        const rows = Keymap.commandRows(testCase._context({
+                                                             "lastMove": move
+                                                         }));
+        const row = testCase._row(rows, "undoLastMove");
+        compare(row.disabled, false);
+        compare(row.title, "undo last move");
+        compare(row.detail, "library · games · 16:24 · /tmp/fast/games");
+        // Everything moved again since: listed, dim, with why.
+        move.canBack = false;
+        const dim = testCase._row(Keymap.commandRows(testCase._context({
+                                                                          "lastMove": move
+                                                                      })), "undoLastMove");
+        compare(dim.disabled, true);
+        verify(dim.detail.endsWith("moved again since: nothing to move back"), dim.detail);
+    }
+
     function test_the_groups_and_the_entries_agree() {
         for (const group of Keymap.commandGroups) {
             for (const action of group.actions)
@@ -481,8 +532,8 @@ TestCase {
         for (const entry of Keymap.entries) {
             if (entry.title === undefined && entry.titles === undefined)
                 continue;
-            verify(["", "torrents", "cursor", "stopped", "running", "selection", "details", "marked",
-                    "row", "rows", "file", "servers"].indexOf(entry.needs) >= 0, "unknown needs: " + entry.needs);
+            verify(["", "torrents", "cursor", "stopped", "running", "errored", "selection", "details", "marked",
+                    "row", "rows", "file", "servers", "folder", "lastMove"].indexOf(entry.needs) >= 0, "unknown needs: " + entry.needs);
             const listed = Keymap.commandGroups.some(group => group.actions.indexOf(entry.action) >= 0
                                                      && Keymap.commandEntry(group.group, entry.action) === entry);
             verify(listed, "a titled entry in no group: " + entry.area + " " + entry.action);

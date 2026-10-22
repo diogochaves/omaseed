@@ -284,9 +284,11 @@ What the board left open:
   crossed 1.0 this week, from what the ledger saw each one give; the best day is the weekday
   that gave most. A part with nothing to say (no streak of two days or more, nothing rare,
   nothing paid back) is left out.
-- **Words.** Title "Your week", the board's two lines, the button "open the console" (also the
-  click, for Omarchy's toasts, which draw no buttons). The ratio prints as the console prints
-  it ("2.40", where the board's mock says "2.4").
+- **Words.** Title "Your week", the board's two lines, the button "Open the console" (also the
+  click). The ratio prints as the console prints it ("2.40", where the board's mock says
+  "2.4"). The button was "open the console" while Omarchy's toasts drew no buttons; Omarchy 4.5
+  draws a notice's actions in sentence case, so every omaseed notice button is sentence case
+  now (ruled 2026-10-21, #111, 3148dc9).
 - **The setting** is a fifth switch under Settings › Notifications, "Weekly recap", off.
 
 The pure part is `core/WeeklyRecap`.
@@ -420,15 +422,15 @@ board left open, or what the API decided:
   last time, not finished" and finishes them instead of skipping them.
 - **Which server**, as C8: the one the app is on, connected; one export or import at a time,
   its row saying how far it got, its button "stop". Not in the demo.
-- **A .torrent the server can't read** (#71). qBittorrent 5.2.3's `torrents/export` repeats a
-  v2 or hybrid torrent's piece layer once per file sharing its "pieces root" (files of the same
+- **A .torrent the server can't read** (#71). qBittorrent 5.2.3's `torrents/export` repeats a v2
+  or hybrid torrent's piece layer once per file sharing its "pieces root" (files of the same
   content), and libtorrent then refuses that .torrent: `torrents/add` answers 415 for the whole
-  request (upstream#97). `TorrentFile::repairPieceLayers` cuts such a layer back to one copy
-  (only whole copies of it; the info bytes, so the hashes, untouched), on export and again on
-  import, for files exported before. A 415 that is left is about one torrent, not the server:
-  the batch goes again one torrent at a time (a 409 then means the batch had added it), the
-  one refused is named ("qBittorrent couldn't read the .torrent of …") and the import goes on.
-  Board 24 §7's stop is for a server gone or a disk full, so this keeps to it (assumed, confirm).
+  request (upstream#97). `TorrentFile::repairPieceLayers` cuts such a layer back to one copy (only
+  whole copies of it; the info bytes, so the hashes, untouched), on export and again on import,
+  for files exported before. A 415 that is left is about one torrent, not the server: the batch
+  goes again one torrent at a time (a 409 then means the batch had added it), the one refused is
+  named ("qBittorrent couldn't read the .torrent of …") and the import goes on. Board 24 §7's stop
+  is for a server gone or a disk full, so this keeps to it (confirmed 2026-10-22, C20).
 
 ## C10 — A server is tested before it is saved (#68, ruled 2026-10-15)
 
@@ -443,8 +445,8 @@ test has said something about it.
 - **A test answers for the address and login it ran with** (URL, auth mode, username,
   secret). Changing any of them clears the answer and `save` waits again; the name and the
   path map are not part of it. An answer that comes back after the fields changed is dropped.
-- **Editing an existing server** — *assumed, confirm:* it needs a new test only when its URL,
-  auth mode or credentials (username, a newly typed key or password) changed. A rename, or a
+- **Editing an existing server** — *confirmed 2026-10-22 (C20):* it needs a new test only when its
+  URL, auth mode or credentials (username, a newly typed key or password) changed. A rename, or a
   new path map, saves straight away; putting the old address back saves straight away too.
 - **Q23 still holds:** the test that let the server be saved, passed or failed, is carried
   onto the new row; one for other fields is not.
@@ -463,7 +465,7 @@ left open, or what building it decided:
   when there are more, and has no link with one server.
 - **`t`** (D1 a) works in omaseed's Backup only, from the nav or the pane, and lands on
   qBittorrent › Backup with the keyboard on Export torrents. The help sheet has no Settings
-  section, so the footer is where `t` is listed — *assumed, confirm.*
+  section, so the footer is where `t` is listed — *confirmed 2026-10-22 (C20).*
 - **omaseed's Backup** names whose qBittorrent settings a backup holds ("with public's and
   private's qBittorrent settings") and reads the connected server's settings when it opens, so
   a backup made by hand carries them as they are (before, only after an export or a weekly
@@ -487,7 +489,7 @@ left open, or what building it decided:
   stays as it was, and `enter`, `space` or `l` open the list. `s` works from every qBittorrent
   pane and from the select; every one of their footers, Backup's too, says "s next server".
   Below 700 px the nav folds into tabs and there is no select; `s` still switches —
-  *assumed, confirm.*
+  *confirmed 2026-10-22 (C20).*
 - **After a switch** (D5 a) from the select or `s`, the footer's right end says "omaseed is on
   private now · the library too" for 8 s; Settings › Servers' `d` doesn't add it.
 - **Copy from another server** (D6 a) is a row of its own between Import settings and the
@@ -497,7 +499,7 @@ left open, or what building it decided:
   login. What it read is kept as that server's newest settings for omaseed's next backup.
   **The fallback** is the newest of what this run read of that server and what the newest
   automatic copy holding it has, by the settings' own date, so a server read earlier in the
-  session needn't wait for a weekly copy — *assumed, confirm* (the board says "the newest
+  session needn't wait for a weekly copy — *confirmed 2026-10-22 (C20)* (the board says "the newest
   omaseed copy"). The sheet's line says why it couldn't read ("no answer in time",
   "connection refused", "wrong username or password") and the date of what it shows. With no
   other server the row is dimmed and says to add one. A demo's "other server" is the demo
@@ -571,24 +573,24 @@ more a way to the others is always on screen; with one, nothing offers to switch
   with reduced motion) once the server is declared lost. The line keeps the retry countdown in
   a slot of fixed width; under about 600 px the actions go under the line. The lost server's
   line adds "The list below is from HH:MM." before the retry, where board 33 put it after —
-  *assumed, confirm.* Actions: "retry now", "edit login" (the server sheet, editing, the
+  *confirmed 2026-10-22 (C20).* Actions: "retry now", "edit login" (the server sheet, editing, the
   keyboard on the password) or "review certificate", then "switch server" with two servers.
 - **The footer's failure (docs/35 N8):** a refused action is one sentence with a red ✕
   ("Field Recordings wasn't moved: qBittorrent can't create or write /proc/omaseed") that stays
   until the next key, with "details" opening the band above the footer. The next key (`esc`
-  included) closes it and clears the sentence — *assumed, confirm* (the board names esc, a
+  included) closes it and clears the sentence — *confirmed 2026-10-22 (C20)* (the board names esc, a
   click outside and "details" again).
-- **The add sheet (#72, D13 a–D15 a, D20 a):** with two servers its title is "Add torrent to"
-  and a chip (the server's dot, its name, ▾) that opens the palette, as `ctrl+s` does; the foot
-  never says "server: NAME" (one server: "Add torrent", nothing). A switch from the sheet keeps
-  it open with what was typed, category and tags kept by name; once the new server's first
-  sync is in, the default save path (unless one was typed), free space, the library check and
-  the files match are read again and one yellow line says what moved, a category or tag the
-  new server lacks named "new there and will be created" — *assumed, confirm* (the board marks
-  the chip "new"). While the server is down the band is yellow ("NAME isn't answering"), free
-  space says it is unknown, and `add when back` holds the add (as stopped or not) and sends it,
-  built from the fields as they are then, when the server answers or the app is on another one
-  that does. A refused add is the red band in ErrorWords' words.
+- **The add sheet (#72, D13 a–D15 a, D20 a):** with two servers its title is "Add torrent to" and
+  a chip (the server's dot, its name, ▾) that opens the palette, as `ctrl+s` does; the foot never
+  says "server: NAME" (one server: "Add torrent", nothing). A switch from the sheet keeps it open
+  with what was typed, category and tags kept by name; once the new server's first sync is in, the
+  default save path (unless one was typed), free space, the library check and the files match are
+  read again and one yellow line says what moved, a category or tag the new server lacks named
+  "new there and will be created" — *confirmed 2026-10-22 (C20)* (the board marks the chip "new").
+  While the server is down the band is yellow ("NAME isn't answering"), free space says it is
+  unknown, and `add when back` holds the add (as stopped or not) and sends it, built from the
+  fields as they are then, when the server answers or the app is on another one that does. A
+  refused add is the red band in ErrorWords' words.
 - **Not built:** the server sheet's failed test as a notice (board 33's N5) keeps today's line;
   it is first run's and Settings' wording, not a state this board changed.
 
@@ -616,12 +618,12 @@ status file's contract as built.
   settings on Settings, quit is a real quit (queued, so a D-Bus caller still gets its answer).
 - **The order is one for both**, the order the issue gives and W1 draws (servers, limits, stop
   all, start all, add, settings, quit). Board 33's T0 kept the tray's "add torrent…" second,
-  under "show omaseed"; it now sits with settings, after start all — *assumed, confirm.*
+  under "show omaseed"; it now sits with settings, after start all — *confirmed 2026-10-22 (C20).*
 - **The tray (D10 a):** "show omaseed", the two figure rows (Fig. 18), then the shared rows. A
   server row is a radio (the shell draws ✓); DBusMenu has no column on the right, so its figure
-  follows the name: "private · 4 torrents" — *assumed, confirm* (T1 puts the count at the right).
-  The row's check follows the app, not the click: a refused switch leaves it where the app is.
-  A middle click is the menu's alt-speed.
+  follows the name: "private · 4 torrents" — *confirmed 2026-10-22 (C20)* (T1 puts the count at
+  the right). The row's check follows the app, not the click: a refused switch leaves it where the
+  app is. A middle click is the menu's alt-speed.
 - **The widget (§11 changes 3 and 4, W1, W2):** a fourth head button, ⋯ (`ctrl+.`), draws the
   status file's `menu` under the head, in the card style (Title Case labels from the app,
   UPPERCASE caption), with the popup's own key at the right of alt-speed (A) and add (m). With
@@ -630,7 +632,7 @@ status file's contract as built.
   sections' cursor is hidden meanwhile. A server pick switches and the popup stays to refill;
   alternative limits, stop all and start all close the menu; add, settings and quit close the
   popup. A server row's right-hand words are "N torrents" in ⋯ as in ▾, where W1 printed the
-  bare count — *assumed, confirm.* With four buttons the server line elides sooner
+  bare count — *confirmed 2026-10-22 (C20).* With four buttons the server line elides sooner
   ("PRIVATE · QBITTORRENT 5.…"); it was not shortened.
 - **Round 4 and docs/07 §1 (§11 changes 1, 2):** still no start or stop buttons and no
   per-torrent start or stop (`p`/`P` unbound); stop all and start all are menu rows. Quit is
@@ -638,8 +640,8 @@ status file's contract as built.
 - **The status file (§11 change 5):** within v2 (board 31 D12's rule; `v` stays 2), `servers`
   `[{id, name, current, state, count, seen, reason}]` (state ok · down · refused · first-sync ·
   unknown; a certificate refusal is "refused") and `menu` `[{id, label, kind, checked, enabled,
-  detail, urgent}]`. `detail` and `urgent` are added to §11's row fields so a row says its
-  figure without the widget joining it to `servers` — *assumed, confirm.* `label` is the card
+  detail, urgent}]`. `detail` and `urgent` are added to §11's row fields so a row says its figure
+  without the widget joining it to `servers` — *confirmed 2026-10-22 (C20).* `label` is the card
   style; the tray keeps its lower-case words. Captions and separators have ids of their own
   (`servers`, `separator:…`) that do nothing. A widget that does not know them, or an app that
   does not write them, shows the popup as before (no ⋯, no ▾).
@@ -695,6 +697,264 @@ on Omarchy for any engine it can drive well; qBittorrent stays the reference and
 The rulings board 36 §7 lists (Q16, Q27, C2–C5, C8, C9, C11, C12, M12, M18, N1) are unchanged
 for qBittorrent; each gains its line about other engines when the step that touches it lands.
 
+## C15 — Move a folder (board 42, ruled 2026-10-18)
+
+Board [42](42-move-a-folder.html) M1–M20, all as recommended (#95). A folder of the library,
+not a selection, moves to another drive as one job that can run for hours: every torrent keeps
+its place below the folder, a preflight checks before anything is sent, the job runs in waves
+it can pause, survives a hidden window and a restart, and ends with one summary. (C14 is the
+engines ruling, kept on the `engines` branch until that work lands; the board's M numbers are
+its own, not the manual pass's M8–M18 below.)
+
+**This entry changes C2 D2 for moves made by a job:** the log is read on every poll for the
+job's whole life, not 30 s. Set location keeps D2.
+
+- **Picking (M1, M2, M3):** a folders group in the rail, after categories: each save path is a
+  row, a save path under another sits under it, a drive's top with no torrents of its own is a
+  dim foldable heading (one that is itself a save path is a row, "4 here"). Picking one filters
+  the table to it and everything below, as a category does. The row shows the name and the
+  torrent count (the job's % while it moves); bytes on disk (qBittorrent's `completed`), save
+  paths and loose files go in the scope line and the row's tooltip. The scope line offers
+  "move this folder…"; so do `shift+m`, the row's menu and `:` "move folder…" (`m` stays set
+  location). The Save path column cuts from the left.
+- **The field (M4):** the folder's new path, prefilled with its current one; browse picks a
+  parent and the sheet adds the folder's name. Each torrent's new save path is the new path
+  plus its save path below the folder.
+- **Room (M5):** bytes on disk plus the loose files when carried, against free space read on
+  this machine (or qBittorrent's figure for its default drive) less the low-disk threshold
+  (Q16). Short turns the move off with the figures; can't tell is a yellow line and the move is
+  allowed; the same drive needs no room. Read again before every send.
+- **Writable (M6):** qBittorrent 5.2.3 answers 200 for a folder it can't write
+  (diogochaves/upstream#120). A local check against the owner of the folder's files when
+  omaseed sees the disks, and always the smallest torrent alone first: if it fails, the job
+  stops with its reason before anything else moves.
+- **Automatic management (M7):** a yellow line with the count and the category's folder;
+  nothing changed (setLocation turns it off; turning it back on would move the torrent back).
+- **A file already at a torrent's target (M8):** qBittorrent keeps it and reports the move done
+  (upstream#123). Those torrents are left out and listed in red; the rest go.
+- **Loose files, which (M9):** under no torrent's content path and none of a no-subfolder
+  torrent's files; never loose: `.parts`, `*.!qB`, `Thumbs.db`, `desktop.ini`, `.DS_Store`
+  (the list is shown); changed in the last 15 min stays; unreadable is unknown and stays; the
+  preflight's list is the dry run; with no local view nothing is shown or carried, and the sheet
+  says so.
+- **The running job (M10):** a band under the hero in board 35's box (C12), accent kind, with a
+  2 px progress line; pause / show / details. "show" lists the job's torrents in the order sent,
+  with a Move column (moved, failed, moving now, queued, waiting, left out).
+- **Pause and end (M11):** pause stops sending; the ones already with qBittorrent (3 at most)
+  finish. End the move = pause, then the summary; nothing moves back; "move the rest…" reopens
+  the sheet and skips what is already there.
+- **Order (M12):** smallest first, keeping 3 in qBittorrent's queue (one moving, two behind).
+- **Hidden, quit, restart (M13):** hidden to the tray the job goes on, the tray tooltip carrying
+  its line (M20). Quit asks (keep running / pause and quit). After a crash, a logout or a reboot
+  the job resumes by itself at the next start. It is saved in
+  `~/.config/omaseed/moves/<server id>.json`.
+- **Stuck (M14):** nothing landed for 4 × the current torrent's expected time and at least
+  10 min (a file growing at the destination counts as progress): stop sending, a yellow band
+  that says a qBittorrent restart usually frees it, one notice; after the restart the job sends
+  again what hadn't landed.
+- **Failures (M15):** a failure marks the torrent and gets C2 D1's block; the job goes on. No
+  space, the first torrent failing, or stuck pause it. Errors and missing files in the next 24 h
+  are tied to the job's record.
+- **The end (M16):** a green summary band until closed, its record in details; one desktop
+  notice (a job that pauses itself gives one too); recheck the failed ones smallest first and
+  start those that come out complete; retry them to the job's target; set location….
+- **Carrying loose files (M17):** automatically after the last torrent lands, when the
+  preflight's tick is on (on by default when omaseed sees the disks): copy to a temporary name
+  hashing as it reads, read back and compare, rename into place, remove the source; the same
+  drive is a rename; the same file at the target counts as carried, a different one leaves
+  both; folders left empty at the source are removed. Nothing is ever deleted otherwise.
+  (#98) The sheet's dry run is what is carried, kept beside the job so a restart carries the
+  same list; a file changed since (size or time) or in the last 15 min stays. A full
+  destination drops the partial copy and stops the carry; pause does the same and waits.
+- **More than one move (M18):** one job per server at a time; a second is queued after it.
+- **Words (M19):** core/ErrorWords, board 42 §8: 409 "qBittorrent can't create FOLDER", 403
+  and a 200 followed by "Permission denied" in the log "qBittorrent can't write to FOLDER",
+  never a sign-in word. (#98) On 5.2.3 every unwritable destination tried (an existing 0555 or
+  0000 folder, a root-owned one) logged "Permission denied", from file_rename, file_open or
+  mkdir, naming the source file; "No such file or directory" reads "qBittorrent can't reach
+  FOLDER … Check that both drives are mounted."
+- **A torrent still downloading into the incomplete folder (#98, checked on the playground):**
+  setLocation changes its save path at once and moves nothing; its data stays in the
+  incomplete folder and qBittorrent moves it to the new place when the download finishes (the
+  move's log lines come then). The job counts it moved at once: none of its data is in the
+  folder being moved.
+- **Outside the window (M20):** the tray tooltip carries the job's line; the bar widget is
+  unchanged (a docs/20 change, later).
+
+## C16 — A better set location (board 43, ruled 2026-10-18)
+
+Board [43](43-better-set-location.html) L1–L12, all as recommended, and L13 (#101). Every move
+is a job: a folder (C15) and a selection are two ways to start one, on the same checks, waves,
+saving and summary. (C14 is the engines ruling, kept on the `engines` branch until that work
+lands.)
+
+**This entry changes C2 D2 for every move:** the log is read for the move's whole life (M15).
+D2's 30 s watch stays for renames and deletes.
+
+- **One move for both (L1):** set location runs on board 42's job. The folder move's sheet, in
+  a selection mode, replaces LocationSheet: every move gets the checks, the waves (smallest
+  first, the first alone, 3 queued), saving and resuming, and the log for its whole life.
+- **The name (L2):** "Move…" in the menus, the palette and the sheet ("Move 4 torrents",
+  "Move NAME…"); `m` kept; `:` still finds "set location".
+- **Which checks show (L3):** board 42's lines (M5–M8) and the shared-data guard (#28/#35),
+  each only when it says something; room only across drives; when all pass, one green line.
+- **Places (L4):** a list under the field on ↓ or typing: recent destinations (the last 8 per
+  server, in state.json), the library's folders with counts, the categories' folders; then
+  browse.
+- **Several save paths (L5):** when the selection's save paths differ, a choice: "into one
+  folder" (the default, today's behaviour) or "keep their places below ROOT" (board 42's rule;
+  ROOT is their deepest common folder).
+- **The band (L6):** it appears once a move has run 3 s; a move that lands sooner shows none.
+- **A quick move (L7):** the footer's note line (D2's) says it landed, "2 moved to …", for
+  6 s; no band, no notice.
+- **The notice (L8):** for a selection, one desktop notice only when the band showed and the
+  move ran past a minute or the window was hidden at the end. A folder move keeps M16 (always
+  one).
+- **Failures (L9):** the log is read for every move's whole life (M15); a failure gets C2 D1's
+  block and the summary's recheck smallest first / retry.
+- **Live bytes (L10):** for a torrent moving, MoveJob's growth probe reads the target's file
+  sizes every 2 s through the path map and feeds the band's bytes, %, time left and the row;
+  without a local view the band says it can't tell.
+- **Move back (L11):** on the summary of every job, folder or selection: the sheet with each
+  torrent to its own old place, checked as any move; it says automatic management stays off.
+- **A move while another runs (L12):** checked now, queued behind it ("move after games"); the
+  band names what is next; details lists the queue, each with cancel. M18 for every move.
+- **A server whose disks omaseed can't see (L13):** a NAS or a remote server without a path map.
+  The sheet says once which checks ran on the server (through qBittorrent's API) and which
+  can't run here, so a remote move never reads as checked as a local one. What runs on the
+  server: the destination's existing names, through `app/getDirectoryContent` (M8's guard,
+  #102), and the probe torrent sent alone (M6). What can't run here: room (unless qBittorrent's
+  figure for its default drive applies), the local writability check, the loose files' age,
+  size and carry (their names are listed as staying behind), live bytes (L10).
+
+## C17 — Skipped files and the disk (board 44, ruled 2026-10-21)
+
+Board [44](44-skipped-files-and-the-disk.html) D1–D13, all as recommended; D10 ruled "drop"
+earlier the same day. A file a torrent starts writing is created at its full length at the tick,
+even on a stopped torrent; on `ntfs3`, `exfat` and `vfat` that allocates it in full and skipping
+it later keeps it (#116). qBittorrent never deletes a skipped file and its API can't, so omaseed
+shows that space and frees it where it can see the disk.
+
+**This entry changes N1:** a big widening of a torrent's selection waits before it is sent (D5).
+
+- **On disk (D1):** a column in the Files tab with each skipped file's allocated size, and a
+  footer count; only when some skipped file holds space, only when omaseed can see the folder
+  (board 25's FreeSpaceProbe check). #118.
+- **The band (D2):** yellow, when skipped files hold more than 1 GiB or 5 % of the torrent. #118.
+- **Free the space (D3):** stop, delete the skipped files with no downloaded piece (inside the
+  content path, not shared, not open), start, no recheck. Files with pieces: on v1-only and
+  v2-only torrents included with a recheck after the start; on a hybrid left, with "add it
+  again" and its cost named, because a recheck there hits libtorrent 2.1.2's
+  `torrent_inconsistent_hashes` (#115). Board 28 names that error on a hybrid. #118.
+- **Disks omaseed can't see (D4):** an "at least" hint from skipped files with progress above 0 %,
+  pointing to path maps, no action. A NAS share mounted here and mapped counts as seen. #118.
+- **Hold back a big selection (D5–D7):** a widening that adds more than 1 GiB, or the whole
+  torrent, waits 3 s (restarting with each change), running or stopped, with Undo and Send now;
+  rows change at once, skips go at once, leaving sends, a net-zero change sends nothing. #119.
+- **Name the driver (D8):** for `ntfs3`, `exfat` and `vfat` only, Save to, the Move sheet and a
+  Files tab tick name the driver and count the full size of every newly ticked file at the
+  tick. The newer `ntfs` driver, Linux filesystems and unmeasured types get no line. #120.
+- **FAT32 (D9):** files of 4 GiB or more on `vfat`: a red line naming them, with "Skip these";
+  the add stays possible. #120.
+- **No incomplete-folder hint (D10):** omaseed never suggests one: it doubles the space a
+  torrent uses while downloading and adds a move step (#117).
+- **Stuck move (D13):** a finished torrent whose `content_path` is still under its
+  `download_path` gets a red problem with the log's reason, Show both folders and Set
+  location…. #121.
+- **Words (D11):** a timeout reads "home isn't answering" (yellow, waiting); refused or no route
+  "home is unreachable" (red). #122.
+- **Busy disk (D12):** later, its own issue: say "busy writing to its disk" only when the local
+  disk's activity shows it. #123.
+
+## C18 — After a move (board 45, ruled 2026-10-21)
+
+Board [45](45-after-a-move.html) D1–D9, all as recommended, with D7 made precise in the ruling
+(below). From Diogo's manual pass of the moves: their outcome showed far from the torrent, the
+places list had no way in for the mouse, selecting several rows with the mouse was invisible, and
+closing a move's summary lost "move back". #130.
+
+**This entry changes C16 L7 and L9 and C2 D1's footer sentence (D1), C12 D22 and board 35 N8
+(D2), and adds to C16 L11 and C15 M16 (D7–D8):** a finished move's record outlives its summary.
+
+- **Where a quick action's outcome shows (D1):** a strip in the selection bar's place (bottom
+  middle of the table), plus the row's own mark in its status cell while the row is on screen.
+  The details' error block stays. v0.4.0.
+- **Which actions (D2):** every action on torrents from the table (move, start/stop, delete,
+  rename, category, tags…). v0.4.0.
+- **How long (D3):** done for 6 s, its line running down; a failure until × / esc or the next
+  action; several at once as counts, yellow when some failed. v0.4.0.
+- **A long move (D4):** its band and summary stay where they are, under the top bar.
+- **The places list's opener (D5):** "places ▾" in the Move sheet's field, before browse; a
+  combobox for screen readers. v0.3.0.
+- **Mouse selection (D6):** a □ at a row's start on hover (click adds, shift+click ranges), ■ on
+  selected rows, a mouse block in the `?` sheet, a faint hint on the selection bar the first 3
+  times. v0.4.0.
+- **Move back after the summary closes (D7):** in the torrent's details (its last move), the log
+  (one line per move) and the palette. Ruled with these rules for moves that overlap:
+  - Each torrent goes back only if it is still where that move put it. A later move of other
+    torrents never blocks it; only an overlap matters.
+  - The sheet names what is in the way: "3 were moved again since, by *move to PATH (14:02)*",
+    with "move that one back first". Undoing the later move puts them where this one left them,
+    and this one is whole again: undo in reverse order, only where moves overlap.
+  - Never a silent partial: the button says what will happen ("move 46 back · 3 stay") and
+    nothing is sent until it is pressed.
+  - The palette's "undo last move" offers only the newest move. Older moves come from details
+    or the log, through the sheet above.
+  - A torrent moved outside omaseed (qBittorrent's Web UI, another tool) counts the same: not
+    where the move put it, so it stays and is listed. v0.3.0.
+- **How long (D8):** the last 20 moves or 30 days, whichever ends first. v0.3.0.
+- **When (D9):** D5, D7 and D8 with v0.3.0; D1–D4 and D6 in v0.4.0.
+
+## C19 — From the second manual pass of the moves (ruled 2026-10-21)
+
+Three calls from Diogo's pass of `docs/manual-tests/moves.md`. All v0.3.0.
+
+**This entry changes docs/27 D3's head tick (T1), spec v2's rail `.row.cur` (T2) and reads
+C15 M1's "the row's menu" as the rail's folder row (T3).**
+
+- **A half tick (T1):** a click on a half-ticked folder, or the half-ticked head, unticks it;
+  the next click brings back what was wanted before (#129). A click never widens a half
+  selection to every file: the folder row's priority menu does that. #134.
+- **The rail's cursor (T2):** its fill shows only while the rail has the keys. A click still
+  moves the cursor, so `j`/`k` start from the row clicked. #135.
+- **Move a folder (T3):** from the folder: the rail's folder rows get a menu with "move this
+  folder…"; the scope line, `shift+m` and `:` keep it. A torrent's menu no longer offers it.
+  #136.
+
+## C20 — What v0.3.0 needed from Diogo (ruled 2026-10-22)
+
+- **The assumed calls:** every "assumed, confirm" in C9–C13 (marked confirmed where it stands),
+  in #100 (board 42's build) and #106 (board 43's), and the extras the board 45 builds named,
+  are confirmed as built, with one change: a move job's recheck starts only the torrents that
+  were running when the job sent them (#138).
+- **An errored torrent (#107; amends docs/28):** `p`, the actions menu and the selection bar
+  all stop it, so the keyboard and the bar agree. "retry" stays first on the error block and is
+  its own row in the actions menu. Once omaseed has stopped it, the row reads "error · stopped"
+  (qBittorrent reports only `error`). Ruled after the build: the row reads "stopped" in the
+  error colour with the ! glyph, since "error · stopped" doesn't fit the column; General keeps
+  "error · stopped · CAUSE". Whether it is stopped comes from qBittorrent (its `stopped`
+  filter lists an errored torrent only while it is stopped), so it survives a restart and
+  counts a stop sent from elsewhere (#142).
+- **The widget's server line (#127):** at the popup's width, the engine's version gives way
+  first, then the word "qBittorrent"; the server's name, the state dot and ▾ always stay.
+- **Adding in a row (#124):** the add sheet closes as soon as qBittorrent accepts the add; the
+  row appears in its sorted place on the next sync, never at the end first; a refusal shows in
+  the footer as other actions' do.
+
+## C21 — No recheck for a hybrid after a failed move (ruled 2026-10-22)
+
+A move that fails partway can leave a torrent's files split between the old place and the new.
+On a hybrid (v1+v2) torrent that it downloaded, libtorrent 2.1.2 answers a recheck with
+`torrent_inconsistent_hashes` when a file with downloaded pieces is missing, and only removing
+and adding the torrent again clears it (#115). C17 D3 keeps hybrids out of a recheck when freeing
+space; this does the same for moves.
+
+**This entry changes C15 M16's recheck:** the summary's "recheck the N…" sheet leaves every
+hybrid out. Each is listed as "not rechecked" with one line saying why, and offered "move
+again" (to the move's target) and "move back", which bring its files together; the others are
+rechecked as before. A torrent is hybrid when qBittorrent gives it both a v1 and a v2 hash.
+v0.3.1. #144.
+
 ## M8 — A click leaves the keyboard focus where it was
 
 Buttons and toggles do not take the focus when clicked. Otherwise an overlay gives the focus
@@ -731,6 +991,9 @@ The details pane's Files tab does what qBittorrent's Web UI allows on a torrent'
 filter by name, sort by any column the API gives (name, size, progress, priority, remaining,
 availability, pieces), progress on every row, priority changes, copy path, rename files and
 folders.
+
+Changed by C17 D5: a priority change that adds more than 1 GiB (or the whole torrent) still
+changes the rows at once, but waits 3 s before it is sent, with Undo.
 
 ## S1 — The status keys are `0`–`8`
 

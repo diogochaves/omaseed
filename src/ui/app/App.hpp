@@ -59,6 +59,7 @@
 #include "integration/BarMenu.hpp"
 #include "integration/BarWidget.hpp"
 #include "integration/Tray.hpp"
+#include "ui/app/MoveController.hpp"
 
 #include <QDate>
 #include <QDateTime>
@@ -285,14 +286,23 @@ public:
     /// POST torrents/filePrio. `fileIndexes` is a list of ints (the `fileIndexes` role of a
     /// TorrentFilesModel row); a no-op in demo mode, where there is no server to tell.
     /// Skipping (priority 0) a file of the torrent on show remembers the priority it had,
-    /// for setFilesWanted() to bring back (docs/27 D3).
+    /// for setFilesWanted() to bring back (DECISIONS C19 T1).
     Q_INVOKABLE void
     setFilePriority(const QString &hash, const QVariantList &fileIndexes, int priority);
     /// The Files tab's tick column, its head and `x` (#42): `wanted` false skips the files;
     /// true brings each skipped one back at the priority it had before it was skipped while
-    /// omaseed has been running (normal when there is none), and leaves the others alone.
+    /// omaseed has been running, and leaves the others alone. When none of them was skipped
+    /// here, every one comes back at normal; when some were, only those do (#129: untick then
+    /// tick gives back what was there, never-wanted files included). An untick forgets what
+    /// the files it finds skipped already were, so the next tick gives back exactly what it
+    /// took (DECISIONS C19 T1).
     Q_INVOKABLE void
     setFilesWanted(const QString &hash, const QVariantList &fileIndexes, bool wanted);
+    /// A click on a tick, the head's or a folder's, and `x` (DECISIONS C19 T1): when any of
+    /// the files is wanted, all of them are skipped, so a half tick unticks; when none is,
+    /// setFilesWanted(true) brings back what was wanted before. A click never widens a half
+    /// selection to every file: the priority menu does that.
+    Q_INVOKABLE void toggleFilesWanted(const QString &hash, const QVariantList &fileIndexes);
 
     /// The fields `Details.qml`'s `torrent` property expects, for one hash: name, category,
     /// tagsText, addedOnText, sizeText, progressText, ratioText, etaLongText, stateText,
@@ -694,6 +704,14 @@ public:
     /// running torrents, so each one says which way it goes instead of following the first.
     Q_INVOKABLE void startTorrents(const QStringList &hashes);
     Q_INVOKABLE void stopTorrents(const QStringList &hashes);
+    /// DECISIONS C20 (#107): "retry" on errored torrents, the error block's first action and
+    /// the actions menu's own row. A start, which clears the error in qBittorrent and makes it
+    /// try again.
+    Q_INVOKABLE void retryTorrents(const QStringList &hashes);
+    /// C20 (#142): whether `hash` is in error and stopped, as qBittorrent's `stopped` filter
+    /// last said (SyncEngine::readErrorStops); what the row's "stopped" and `torrentRow()`'s
+    /// `errorStopped` say.
+    bool errorStopped(const QString &hash) const;
     Q_INVOKABLE void forceStart(const QStringList &hashes);
     Q_INVOKABLE void recheck(const QStringList &hashes);
     Q_INVOKABLE void reannounce(const QStringList &hashes);
@@ -871,10 +889,11 @@ private:
                             const QStringList &hashes = {},
                             const QString &folder = {});
     void loadDeleteFilesDefault();
-    /// What `p` (stopStart) does to a torrent in `status`: start it when stopped, or in
-    /// error ("try again", docs/28), stop it otherwise. `torrentRow()`'s `stopped` field says
-    /// the same.
-    static bool startsOnToggle(const omaseed::core::TorrentStatus &status);
+    /// What `p` (stopStart) does to `torrent`: start it when stopped, stop it otherwise. An
+    /// errored torrent is stopped (DECISIONS C20, amending docs/28's "try again"), unless it
+    /// already is: then `p` starts it, which is the retry. `torrentRow()`'s `stopped` field
+    /// says the same.
+    bool startsOnToggle(const omaseed::core::Torrent &torrent) const;
 
     bool m_deleteFilesDefault = false;
     bool m_deleteFilesDefaultLoaded = false;
@@ -1864,6 +1883,18 @@ Q_SIGNALS:
 private:
     /// An add the API refused: `addFailure` in words, then `addFinished(false, sentence)`.
     void failAdd(const omaseed::core::ApiError &error, const QString &torrent);
+    /// What a step after the add was doing (DECISIONS C20, #124).
+    enum class AddStep { Names, Choices, Start };
+    /// A step after qBittorrent took the add (its file names, file choices or start) failed.
+    /// The sheet closed on the add's OK, so the footer says it, as other actions' failures:
+    /// `actionFailure` in words naming the torrent, then `actionFailed`. `line` overrides the
+    /// line ErrorWords gives `error`.
+    void failAfterAdd(const QString &id,
+                      AddStep step,
+                      const QString &line,
+                      const omaseed::core::ApiError &error = {});
+    /// The adds whose names, file choices or start are still being sent: their names, by id.
+    QHash<QString, QString> m_addsInFollowUp;
     QVariantMap m_addFailure;
     /// Reads state.json's `servers` section into the list (D5).
     void loadLastSeen();
@@ -1933,6 +1964,35 @@ private:
     /// While the widget goes in or out of the bar: the choice that asked for it.
     QString m_inTheBarWanted;
     // --- end #73 ------------------------------------------------------------------------------
+
+    // --- #97: moving a folder -----------------------------------------------------------------
+    // Board 42 (DECISIONS C15). MoveController has the rail's folders, the move sheet and the
+    // job for the server the window is on; App gives it the engine, the free-space probe, the
+    // low-disk threshold and the notice, and asks it before a quit (M13, J5).
+public:
+    Q_PROPERTY(omaseed::app::MoveController *move READ move CONSTANT)
+    MoveController *move() const { return m_move; }
+    /// The window's quit (ctrl+q, the palette): false when a move is running and the window
+    /// must ask first (J5); then moveQuitAsked() has gone out.
+    Q_INVOKABLE bool quitAllowed();
+    /// J5's "pause and quit": the job is saved paused-for-quit, then the app quits.
+    Q_INVOKABLE void pauseMoveAndQuit();
+    /// #128: a quit nobody can be asked about (SIGTERM, SIGINT, SIGHUP, `omaseed --quit`):
+    /// the tray's quit, with a running move paused as J5's "pause and quit" would (it starts
+    /// again at the next launch). `why` goes to the log.
+    void quitFromOutside(const QString &why);
+
+Q_SIGNALS:
+    /// A quit came while a folder moves: the window shows J5's confirm.
+    void moveQuitAsked();
+    /// The move's notice was clicked: the window shows the job (its band, "show").
+    void moveShowRequested();
+
+private:
+    void setUpMove();
+    void updateMoveServer();
+    MoveController *m_move = nullptr;
+    // --- end #97 ------------------------------------------------------------------------------
 };
 
 } // namespace omaseed::app

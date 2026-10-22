@@ -308,9 +308,15 @@ QVariant TorrentModel::data(const QModelIndex &index, int role) const
     case ProblemRole:
         return m_problems.value(t.hash);
     case StatusCauseRole:
+        // C20 (#142): stopped, it says so ("error · stopped" didn't fit the column); the
+        // cause stays in General's block and Status row.
+        if (t.status.phase == TorrentPhase::Errored && m_errorStops.contains(t.hash))
+            return tr("stopped");
         return m_problems.value(t.hash).value(QStringLiteral("cause")).toString();
     case FailureRole:
         return m_failures.value(t.hash);
+    case ErrorStoppedRole:
+        return t.status.phase == TorrentPhase::Errored && m_errorStops.contains(t.hash);
     default:
         return {};
     }
@@ -397,6 +403,7 @@ QHash<int, QByteArray> TorrentModel::roleNames() const
         {ProblemRole, "problem"},
         {StatusCauseRole, "statusCause"},
         {FailureRole, "failure"},
+        {ErrorStoppedRole, "errorStopped"},
     };
     return names;
 }
@@ -640,6 +647,28 @@ void TorrentModel::setFailure(const QString &hash, const QVariantMap &failure)
     }
     Q_EMIT dataChanged(index(row), index(row), {FailureRole});
     Q_EMIT problemsChanged();
+}
+
+void TorrentModel::setErrorStops(const QSet<QString> &hashes)
+{
+    if (hashes == m_errorStops)
+        return;
+    // The rows whose Status may read differently: in one set and not the other.
+    QSet<QString> touched = hashes;
+    touched.unite(m_errorStops);
+    touched.subtract(QSet<QString>(hashes).intersect(m_errorStops));
+    m_errorStops = hashes;
+    for (const QString &hash : std::as_const(touched)) {
+        const int row = indexOfHash(hash);
+        if (row >= 0)
+            Q_EMIT dataChanged(index(row), index(row), {StatusCauseRole, ErrorStoppedRole});
+    }
+    Q_EMIT problemsChanged();
+}
+
+bool TorrentModel::isErrorStopped(const QString &hash) const
+{
+    return m_errorStops.contains(hash) && torrent(hash).status.phase == TorrentPhase::Errored;
 }
 
 void TorrentModel::clear()

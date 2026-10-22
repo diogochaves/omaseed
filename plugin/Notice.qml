@@ -1,5 +1,6 @@
 import QtQuick
 import qs.Commons
+import qs.Commons as Commons
 import qs.Ui
 
 // A notice with a 2 px rule on its left (the app's banner, v2 Fig. 23): a line that says
@@ -13,8 +14,8 @@ Item {
   property string spokenTitle: title
   property string detail: ""
   property string action: ""
-  property color rule: Color.urgent
-  property color foreground: Color.foreground
+  property color rule: Commons.Color.urgent
+  property color foreground: Commons.Color.foreground
   property string fontFamily: Style.font.family
 
   signal actionClicked()

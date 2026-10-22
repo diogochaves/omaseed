@@ -1,5 +1,6 @@
 import QtQuick
 import qs.Commons
+import qs.Commons as Commons
 import qs.Ui
 import "Status.js" as Status
 
@@ -17,10 +18,10 @@ Column {
   property var rows: []
   property int cursorIndex: -1
   property bool readOnly: false
-  property color foreground: Color.foreground
+  property color foreground: Commons.Color.foreground
   property color dim: Qt.darker(foreground, 1.55)
-  property color urgent: Color.urgent
-  property color accent: Color.accent
+  property color urgent: Commons.Color.urgent
+  property color accent: Commons.Color.accent
   property string fontFamily: Style.font.family
 
   signal picked(var row)

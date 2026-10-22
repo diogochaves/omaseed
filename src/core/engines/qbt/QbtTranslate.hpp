@@ -10,6 +10,8 @@
 // 0/1/6/7 and piece states 0/1/2 become named values, and the `** [DHT] **` rows of the
 // Trackers tab become peer sources. A key qBittorrent did not send stays absent.
 
+#include "core/Reply.hpp"
+#include "core/ServerFolder.hpp"
 #include "core/engines/DetailsData.hpp"
 #include "core/engines/EngineFeatures.hpp"
 #include "core/engines/LogEntry.hpp"
@@ -65,6 +67,13 @@ TorrentDetailsData details(const QJsonObject &json);
 /// torrents/fetchMetadata's 200: the metadata as the add sheet needs it; nothing when it
 /// holds no usable `info`.
 std::optional<TorrentMetadata> metadata(const QJsonObject &body);
+
+/// app/getDirectoryContent's answer, or its refusal, as a ServerFolder (DECISIONS C16 L13).
+/// On 5.2.3: a folder's entries come as full paths; a folder that isn't there (or a file's
+/// path) answers 404 "Directory does not exist"; a relative or empty path 400 "Invalid
+/// directory path"; a qBittorrent without the endpoint 404 "Endpoint does not exist". A
+/// folder qBittorrent can't read lists empty, the same as an empty one.
+ServerFolder serverFolder(const Result<QJsonArray> &answer);
 
 /// What a qBittorrent with this Web API version ("2.15.1") can do.
 EngineFeatures features(const QString &apiVersion);

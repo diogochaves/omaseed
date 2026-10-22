@@ -7,210 +7,122 @@ before it will tag a release.
 
 ## Unreleased
 
+## v0.3.0 — 2026-10-22
+
+Moving torrents and whole folders, with a way back. Backups of a qBittorrent's torrents and
+settings. Several servers within reach. qBittorrent's log in the window, a command palette, and
+a screen reader that can use all of it.
+
 ### Added
 
-- The bar widget speaks to screen readers: the bar button ("omaseed", with its state in words),
-  the popup's buttons, sections, rows, menu and settings, and the figures it shows. It works on
-  today's Omarchy and on the shell kit with accessibility (omacom/omarchy#13212), once the shell
-  runs on Quickshell 0.3.2 or later, which is the first to publish the shell to a screen reader.
-- The bar widget's popup has a ⋯ (`ctrl+.`) with omaseed's own menu, the one its tray icon
-  shows: the servers (with two or more), alternative limits, stop all, start all, add, settings
-  and quit. With two servers or more the popup's server line ends in ▾ (`ctrl+s`) and switches
-  omaseed from the bar; the popup stays open with the new server's figures.
-- The tray's menu lists the servers, with two or more, each with what omaseed saw on it last,
-  and switches between them without opening the window.
-- With two servers or more, the other ones are always one step away: the rail keeps them in a
-  block pinned to its bottom, with what omaseed saw last on each (its torrents, or why it
-  didn't answer), even while the library is empty or the server is down; `ctrl+s`, a click on
-  the hero's server name and `:` "switch server…" open a server palette, and `:` has a "switch
-  to NAME" row for each. The block folds to one line with `z`. With one server none of this
-  shows.
-- The add sheet says which server a torrent goes to ("Add torrent to private") and can change
-  it: the server chip or `ctrl+s` switches omaseed there and the sheet stays open with what you
-  typed, its save path, free space and library check read from the new server. While the
-  server is down the sheet still opens, and "add when back" sends the torrent as soon as it
-  answers.
-
-- Copy settings from another server (Settings › qBittorrent › Backup): omaseed reads the
-  other qBittorrent just now, without leaving the one it is on, and shows what would change
-  as an import, so you pick what to take. Nothing changes on the other server. When it can't
-  be reached, its settings as omaseed last kept them stand in, and the sheet says so.
-- The file manager names omaseed's backups "omaseed backup" and "omaseed torrents", with
-  omaseed's icon, instead of "Tar archive". They are still plain tars that archive tools open.
-- Export and import a qBittorrent's torrents (Settings › qBittorrent › Backup): every
-  `.torrent` with its save path, category, tags, limits, started or stopped, queue position,
-  renamed files and file priorities, in one plain tar file that stays private (announce URLs
-  can carry a tracker's passkey); magnets that never got their metadata go in as links. Large
-  libraries are fine: a few thousand torrents export in seconds, with a progress line and a
-  stop button. Importing shows what is new, what is already there (skipped) and the links;
-  "from → to" rows, started from the path maps omaseed knows, move the save paths to where the
-  files are now. Categories and tags come first, every torrent is added stopped and checked
-  against the files on disk, and the complete ones start; the rest stay stopped instead of
-  downloading from zero. A rename that would replace a file on disk is not made. An import that
-  fails or is stopped keeps what it added, and importing the same file again finishes it.
-- Export and import a qBittorrent's settings (Settings › qBittorrent › Backup): its
-  preferences, categories, tags, RSS feeds and rules in one readable JSON file, with no
-  password or API key in it. Importing shows only what differs, in the settings' own words, and
-  changes nothing until you apply: folders, ports, the network interface and the Web UI's
-  address and login stay as they are unless you tick them, settings the other qBittorrent
-  version lacks are counted and left out, and categories, tags, feeds and rules are only
-  added. A category's or RSS rule's folder under the old default save path moves under the new
-  one. "export current first" saves what the server has before you apply. The weekly automatic
-  copies of omaseed now carry each server's qBittorrent settings too, and an import can read
-  them from a copy.
-- Rows that are uploading can pulse: a thin green tick at the left of each one, breathing
-  faster the more it sends (Settings › Appearance › Pulse sending rows, off by default). It
-  moves only while omaseed's window is the one in use and holds still when the desktop asks
-  for less motion, which also stills the seed console's halo.
-- A weekly recap: one notice on Sunday evening with what the week gave, the ratio, your
-  streak, the rare torrents you kept alive, what paid back and the best day; it opens the seed
-  console on the week (Settings › Notifications › Weekly recap, off by default).
-- The table's columns resize: drag the right edge of a header cell (the pointer turns into a
-  resize arrow), or double-click it to fit the widest cell on screen. Widths are kept per
-  server with the rest of the table's layout and grow with the base size; the columns
-  palette's "default order" puts them back. Name still takes whatever room is left, and its
-  edge sets the least it gets.
-
-- A magnet in the add sheet shows its files before anything downloads. omaseed asks
-  qBittorrent for the magnet's file list as soon as it's in the sheet; usually it's there in a
-  second, as the same tree a `.torrent` gets, so you untick what you don't want and add it with
-  those choices in one go (a skipped file is never created). Renames, the free-space line and
-  "files already on disk" work as for a `.torrent`. While the list is on its way, the Files row
-  says so, then that it's still looking, then that it may never come and that qBittorrent goes
-  on looking after you close the sheet. `add` never waits: before the list it adds every file,
-  and "add stopped" stops the torrent as soon as its list arrives, so you choose in the Files
-  tab before a byte is downloaded. A magnet from a tracker your library knows as private isn't
-  asked about (qBittorrent can't get a private torrent's list from a magnet): the sheet says to
-  use the site's `.torrent`. A link to a `.torrent` gets the same. Needs qBittorrent 5.2.
-- A command palette: `:` (or `ctrl+shift+p`, which works from a field too) lists every command
-  that makes sense now, with its key and what it acts on; type a few letters and enter runs it
-  as its key would. Commands that can't run say why, the last five run come first, and a name
-  that is no command goes to the jump palette. The footer, the ⋯ menu and the `?` sheet point
-  to it.
-- A move or a file rename that qBittorrent accepted and then couldn't do no longer goes
-  unnoticed. qBittorrent says "OK" and writes the reason only to its log, so omaseed reads it:
-  General opens with a yellow block saying what didn't happen, why, and where the files still
-  are, with set location (already holding the destination), open folder or rename in Files,
-  and `x` to dismiss it. It goes by itself once the move or rename happens, and a dismissal is
-  remembered. When omaseed asked for the move, rename or delete itself, the footer says so at
-  once ("x.bin didn't move: Permission denied").
-- The HTTP sources tab says under each URL what qBittorrent's log says about it ("404 File not
-  found · today 09:40", "host not found · 10 times"), or that nothing was logged.
-- Settings › qBittorrent › Downloads says under "Copy .torrent files to" when the last copy
-  into that folder failed, and why.
-- qBittorrent's log, as the window's third face beside library and seed: `~` opens it from
-  anywhere and goes back. Its lines read like a terminal, newest at the bottom, followed while
-  you're there; scroll up and it pauses and counts what's new, `G` catches up. `1`–`4` turn the
-  normal, info, warning and critical lines on and off (remembered per server), `/` keeps the
-  lines with every word you type, `w` jumps to the next warning, `y` copies the marked lines
-  or the cursor's. `enter` shows a line's torrent in the library and `t` keeps only that
-  torrent's lines; a torrent's error or failure block has "its lines in the log". The face says
-  where qBittorrent's memory of its log begins and where its log file is. It is read from the
-  server only while it is on screen.
-- Burst: alternative speed limits that are faster than your normal ones are called **burst**,
-  in green, with the gauge's needle up; slower ones are **turtle**, in today's yellow, and a
-  set that is faster one way and slower the other keeps "alt-speed". Nothing to set: omaseed
-  reads it from the two sets, and `A` works as before. With qBittorrent's schedule on, the
-  hero's chip says until when ("burst ↓∞ ↑∞ · until 07:00"), its tooltip says whether the
-  schedule or a hand toggle did it, and after `A` the footer says how long a hand toggle really
-  lasts (until the schedule next flips the other way, often later than you'd think). The tray,
-  the `?` sheet, the command palette, the ⋯ menu and the limits sheet use the same word, and
-  the bar widget draws burst in green with its end.
-- Settings › qBittorrent › Speed says which way your alternative set goes, has a "nights"
-  preset (`n`, 23:00 to 07:00 every day), and says under Days what the schedule will really
-  do, warning when a time past midnight makes qBittorrent read the days the other way round.
-  omaseed reads the sets and the schedule again whenever the alternative limits switch, so a
-  change made in qBittorrent's Web UI shows the next time they flip.
-- `omaseed --theme-roles` prints the current theme's colours and alphas as omaseed resolves
-  them, as JSON (the theme, its mode and `colors.toml`, every colour role, the dim foreground
-  lifted to 3:1 among them, every alpha and the window's), and exits without a window. It is
-  for tools that check a theme's contrast the way omaseed will draw it.
+- **Move a folder.** The rail lists the library's folders. Right-click one (or press the menu
+  key on it), or pick it and use the line over the table, to move everything in it: its
+  torrents, then the files no torrent owns. Before anything is sent, omaseed checks for room on
+  each drive, permission to write, files already at the destination and automatic management.
+  It sends the smallest torrents first and follows the move until the last one lands, even on
+  a server whose disks it can't see. A band under the top shows how far the move has got, with
+  pause and resume. Quitting while a move runs asks first, and a paused move picks up at the
+  next start. A summary ends it, with "recheck" and "move back…".
+- **Move…** (`m`, which was "Set location"; `:` still finds "set location") moves a selection
+  the same way. Its field lists places with "places ▾", ↓ or as you type: where you moved
+  things lately, the library's folders and the categories' folders. Torrents from several
+  folders go into one folder, or keep their places under a new one. A move that takes a few
+  seconds says so in the footer. A longer one gets the band. A move started while another
+  runs waits its turn.
+- **Move back, later.** The last 20 moves, or 30 days of them, can be undone from a
+  torrent's details, the log or the palette ("undo last move"). A torrent goes back only if it
+  is still where that move put it. The button says what will happen ("move 46 back · 3 stay").
+- **Several servers within reach.** With two or more, the rail keeps the others at its bottom,
+  with what omaseed last saw on each. `ctrl+s`, a click on the server's name, the palette, the
+  tray's menu and the bar widget all switch between them. The add sheet says which server a
+  torrent goes to and can change it. While that server is down, "add when back" sends the
+  torrent as soon as it answers.
+- **Back up a qBittorrent** (Settings › qBittorrent › Backup). Export its torrents to one
+  private file, each with its save path, category, tags, limits, state, renamed files and file
+  priorities. On import, omaseed moves save paths to where the files are now, checks every
+  torrent against the disk and starts only the complete ones. Export its settings, categories,
+  tags and RSS rules to a readable file with no password in it. An import shows only what
+  differs and changes nothing until you apply. You can also copy settings straight from
+  another server. omaseed's weekly copies now carry each server's qBittorrent settings, and
+  the file manager shows both kinds of backup with omaseed's icon.
+- **qBittorrent's log**, as a third face beside the library and the seed console (`~`). It is
+  followed live. `1`–`4` pick the levels, `/` filters by words, `w` jumps to the next warning
+  and `y` copies. `enter` goes to a line's torrent, and `t` shows that torrent's lines alone.
+- **Failures qBittorrent only logs are shown.** When qBittorrent accepts a move or rename and
+  then can't do it, General opens with a yellow block: what didn't happen, why, where the files
+  are and how to fix it. The HTTP sources tab shows what the log says about each URL. Settings ›
+  Downloads says when the last copy of a `.torrent` file failed.
+- **A command palette**: `:` or `ctrl+shift+p` runs any command by name and shows its key. A
+  command that can't run says why. The last five you ran come first.
+- **A magnet's files before it downloads** (qBittorrent 5.2). The add sheet asks for the
+  magnet's file list, so you can untick and rename files as for a `.torrent`. For a magnet from
+  a private tracker your library knows, the sheet tells you to use the site's `.torrent`
+  instead.
+- **Burst and turtle.** Alternative limits that are faster than your normal ones are called
+  burst, in green. Slower ones are called turtle. With qBittorrent's schedule on, the chip says
+  until when, and after `A` the footer says how long the toggle really lasts. Settings › Speed
+  has a "nights" preset and says what the schedule will really do.
+- **Resizable columns**: drag a header's edge, or double-click it to fit. Widths are kept per
+  server.
+- **Screen readers can use omaseed**: the window and the bar widget. Every row, control and
+  piece of text can be found. Controls are named by what they do, not by a glyph or a key, and
+  pressing one does what a click does. The bar widget reaches a screen reader once the shell
+  runs on Quickshell 0.3.2 or later.
+- The bar widget's popup has omaseed's menu behind ⋯ (`ctrl+.`), the one the tray shows. Its
+  server line switches servers.
+- Optional, both off by default: rows that are uploading can pulse (Settings › Appearance), and
+  a weekly recap can arrive on Sunday evening (Settings › Notifications).
+- `omaseed --quit` quits the running omaseed cleanly. `omaseed --theme-roles` prints the theme's
+  colours as omaseed draws them, for contrast checkers.
 
 ### Changed
 
-- Captions, links, state words and coloured glyphs read at 4.5:1 against the window in every
-  theme (WCAG AA for text; captions were held at 3:1 and other colours not at all). A theme
-  colour that falls short is moved towards the theme's text colour just far enough; one that
-  reads already is kept exactly: captions move a little in most themes, the other colours
-  mostly in the light themes and miasma. The command palette's "via" before a path reads in
-  the caption colour; faint text is left for what can't be used.
-- Settings › Appearance has one row for omaseed in the bar, "In the bar: widget · tray icon ·
-  both · none", in place of the separate Tray icon and Bar widget rows; your current settings
-  read as one of the four. The widget's own settings stay a row of their own (customize).
-- The tray's menu puts "add torrent…" with settings, after start all, and quit after a line of
-  its own, as in the widget's menu.
-- When the server stops answering, a band across the window says so in plain words, naming it
-  ("private didn't answer", "seedbox refused the sign-in") with what omaseed does next, "retry
-  now" or "edit login", "switch server", and the technical text under "details". Yellow while
-  omaseed retries by itself, red when it needs you. A refused sign-in is no longer called
-  "unreachable" and no longer retried by itself, and the footer says "not synced yet" before a
-  first sync. The desktop notice says the same words.
-- A failed action says what didn't happen in one sentence that stays in the footer until the
-  next key ("Field Recordings wasn't moved: qBittorrent can't create or write /proc/omaseed"),
-  with the request and qBittorrent's own text under "details"; a key the read-only state stops
-  says why.
-- Settings › Servers says "in use" and "switch to it" instead of "default" and "make default",
-  and keeps what was last seen on the servers omaseed isn't on.
-- Settings says whose settings each part is. omaseed's Backup starts by saying what it holds
-  (its settings, the servers without their passwords, the seed history, each server's
-  qBittorrent settings) and that torrents are in qBittorrent › Backup, one `t` away.
-  qBittorrent › Backup names its server in every row ("Export public's settings", "Import
-  torrents into public"), and the import sheet says which server and day the file came from.
-- The qBittorrent group's server name is now a select: a click (or `enter` on it in the nav)
-  lists your servers with their state, and picking one moves omaseed there. `s` still goes
-  straight to the next server, from every qBittorrent pane, Backup included, and the footer
-  says so; after a switch it says the library moved too.
-- Import settings opens on qBittorrent exports and omaseed backups together, and a file is
-  read by what is inside it, so a renamed one still imports.
+- An errored torrent can be stopped: `p`, the actions menu and the selection bar stop it, so a
+  retry that only fails again comes to an end. `e` retries. A stopped errored torrent reads
+  "stopped" in red, even when it was stopped from qBittorrent's Web UI.
+- Text reads at 4.5:1 against the window in every theme (WCAG AA): captions, links, state
+  words and coloured glyphs. A colour that falls short is shifted just enough, and the rest are
+  kept exactly.
+- When a server stops answering, a band names it in plain words ("private didn't answer"),
+  says what omaseed does next and offers "retry now", "edit login" or "switch server". A
+  refused sign-in is no longer called "unreachable" or retried by itself.
+- A failed action says what didn't happen in one sentence in the footer, with qBittorrent's own
+  text under "details".
+- Settings says whose settings each part is. The qBittorrent group's server name is a select.
+  Servers says "in use" instead of "default". A new server is tested before it is saved.
+  Appearance has one row for "In the bar: widget · tray icon · both · none".
+- After a move, "recheck" starts again only the torrents that were running before it.
+- In the Files tab, a click on a half-ticked folder unticks it, and the next click brings back
+  exactly what was wanted before. Files that were never wanted stay skipped.
+- On Omarchy 4.5, notices show sentence-case buttons, and reduced motion also follows
+  Hyprland's animations. The bar widget matches the bar's icons and labels, can sit in any of
+  the bar's sections and answers `omarchy-shell` commands faster. Omarchy 4.0.x behaves as
+  before.
+- The bar widget's popup is built the first time it opens, not at shell start-up. Its server
+  line drops the qBittorrent version before it would cut the server's name.
 
 ### Fixed
 
-- A screen reader can now use the controls it finds: pressing a button, a tab, a menu or
-  palette row, a rail row, a link or a key hint does what a click does, and a switch's toggle
-  flips it and saves the setting, as a click would. Before, the press did nothing, and a
-  toggle moved the switch without changing the setting behind it. Disabled controls still
-  ignore it.
-- A screen reader can now find the rows and the other places you click: the library's
-  torrents, the details tabs' trackers, peers, HTTP sources and files, the add sheet's lists,
-  the console's and the log's rows, the rail's group headings, the empty states' ways in and
-  the settings' rows are named by what they are (a torrent's name, a peer's address), say
-  whether they are selected, ticked or folded, and pressing one does what a click does.
-  Before, these 72 places were not in its tree at all.
-- A screen reader now hears what a control does, not its key or its glyph: "add torrent",
-  "settings", "more", "help", "filter", "delete", "clear selection", with the shortcut said
-  after it ("shortcut a"), not "add · a". Icon-only buttons are named instead of reading out a
-  Nerd Font glyph, the table's ↓ and ↑ are "Download speed" and "Upload speed", every switch
-  in Settings is named by its row, and the alt-speed chip is named by its set instead of
-  re-reading its limits each time they change. First run's `enter set up` and `esc quit`
-  are no longer found twice beside the buttons that do the same.
-- A screen reader now reads what a sighted user reads first, not only the controls: first
-  run's "Torrents for Omarchy, powered by qBittorrent." and "no qBittorrent on this machine
-  yet", each step's question and a test's answer; "No torrents yet" and the other empty
-  states; the server line, the footer's "16 torrents, 7 downloading, 1.80 TB free" and its
-  notes; the details pane's torrent name, figures and headings; a row's status and progress;
-  the seed console's figures and sections; the log's state; and the sheets' titles, captions,
-  results and warnings. Titles are headings, and a failure or warning that comes on its own
-  is an alert. A figure that changes every second is said by what it is ("download", "eta"),
-  with the value after it, so it is not read out again each time it ticks.
-- A server added in Settings › Servers is tested before it is saved, as in the first-run
-  setup: `save` waits, dimmed with "test first", until a test has run; a failed test offers
-  "save anyway" for a server that is down on purpose. Editing a server asks for a new test only
-  when its address or login changed; a rename saves at once.
-- Importing exported torrents no longer stops at once with "unknown (415)". qBittorrent's own
-  export breaks the `.torrent` of a v2 or hybrid torrent whose files share content (it repeats
-  their piece layers), and then refuses to add it, with the rest of its batch. omaseed now puts
-  those piece layers right when it exports and again when it imports (so files exported before
-  this fix import too), and a torrent the server still can't read is named ("qBittorrent
-  couldn't read the .torrent of …") while the others go in.
-- Turning automatic management on for a torrent whose files another torrent also seeds asks
-  first, as a category change does: "move both" gives the other one the same category and
-  management so the two move together. Before, the other torrent lost its files without a word.
-- Renaming a file or folder no longer replaces a file of that name the torrent doesn't own.
-  qBittorrent only checks the torrent's own files and lets the rename overwrite anything else,
-  so where omaseed can see the server's disk (a local server, or a mapped path) it refuses such
-  a name first: the rename sheet marks the row, `r` says the name already exists on disk.
-  The add sheet checks its file renames the same way against where the torrent will be saved,
-  and refuses the add if something took the name since.
+- First run reads the Web UI's port from a qBittorrent 5.3 profile instead of offering 8080.
+- omaseed quits cleanly on a logout, a shutdown or `kill`, and saves what it writes on quit.
+- "A file name isn't allowed on this disk" is shown only when the name really is one, and not
+  for a disk that refused to open a file.
+- Adding torrents one after another: each one shows in its sorted place at once. The sheet
+  closes on qBittorrent's OK, and a second press no longer sends the torrent twice.
+- Move and set location refusals name the folder that couldn't be written. They no longer look
+  like a refused sign-in.
+- Turning on automatic management, or changing the category, for a torrent that shares files
+  with another one asks first instead of moving the files out from under the other torrent.
+- A rename no longer overwrites a file on disk that belongs to no torrent.
+- Restoring a backup puts each server's table layout back on the right server and shows it at
+  once.
+- Importing exported v2 or hybrid torrents whose files share content no longer fails with
+  "unknown (415)": omaseed repairs what qBittorrent's own export breaks.
+- The log keeps omaseed's own lines in time order. The rail's cursor is drawn only while the
+  rail has the keys.
+
+For contributors: walks for every flow in an omabox, a visual baseline check, and
+`scripts/dev/move-library.sh` (see `docs/TESTING.md`).
 
 ## v0.2.0 — 2026-10-13
 

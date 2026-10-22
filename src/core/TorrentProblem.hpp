@@ -85,17 +85,20 @@ struct TorrentProblem
     bool missingFiles = false;
     QString headline; ///< "Can't write to its save folder"
     /// The cause, untranslated: noAccess, readOnly, diskFull, missing, diskError,
-    /// nameTooLong, badName, missingFiles, other, notLogged.
+    /// nameTooLong, badName, openRefused, missingFiles, other, notLogged.
     QString causeKey;
     QString cause;          ///< the table's short word: "no access", "disk full"…
     QString detail;         ///< "Permission denied, opening x.bin", in libtorrent's words
+    QString advice;         ///< a line on what it may mean ("may be damaged"), or empty
     QString file;           ///< the full path, or empty
     QString folder;         ///< the file's folder, or empty
     QDateTime loggedAt;     ///< the newest matching line
     int count = 0;          ///< matching lines with the same file and message
     QString line;           ///< the newest matching line, whole, for "copy the line"
     bool ambiguous = false; ///< S5: another torrent of the same name may own the line
-    QStringList actions;    ///< in order: "location", "start", "recheck", "rename"
+    /// In order: "location", "start", "recheck", "rename", and "checkDisk" (#108: advice with
+    /// no key, nothing the app can do itself).
+    QStringList actions;
 
     QVariantMap toMap() const;
     bool operator==(const TorrentProblem &other) const = default;
@@ -155,6 +158,13 @@ TorrentProblem describe(const ProblemLine &line);
 
 /// What an errored torrent with no line shows (S4).
 TorrentProblem notLogged(bool missingFiles);
+
+/// #108: the first part of `path` that a common target filesystem (NTFS, exFAT, FAT, the ones
+/// a Linux disk shares with Windows) would refuse as a name: one with `< > : " \ | ? *` or a
+/// control character, one ending in a dot or a space, a reserved device name (CON, PRN, AUX,
+/// NUL, COM1–9, LPT1–9, with or without an extension), or one over 255 bytes. Empty when every
+/// part is a name those disks take, so an EINVAL on it is not about the name.
+QString nameTheDiskRejects(const QString &path);
 
 /// Whether `path` is `root` or lies under it, as the server writes paths.
 bool isUnder(const QString &path, const QString &root);

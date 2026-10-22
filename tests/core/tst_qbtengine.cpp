@@ -23,6 +23,7 @@ using omaseed::core::GlobalLimits;
 using omaseed::core::MinutesLimit;
 using omaseed::core::QbtEngine;
 using omaseed::core::RatioLimit;
+using omaseed::core::ServerFolder;
 using omaseed::core::ServerInfo;
 using omaseed::core::StopCondition;
 using omaseed::core::TorrentField;
@@ -56,6 +57,8 @@ private slots:
     void syncIsADelta();
     void filesTorrentsAndTagsComeBackTyped();
     void fetchMetadataLooksThenHasIt();
+    void stoppedAmongAsksTheStoppedFilter();
+    void folderContentAnswersEvenARefusal();
     void logAsksForProblemsOrEverything();
     void globalLimitsReadAndSetOnlyWhatIsGiven();
     void errorsPassThrough();
@@ -320,6 +323,46 @@ void TestQbtEngine::filesTorrentsAndTagsComeBackTyped()
     const auto tags = await(this, engine.tags());
     QVERIFY(!tags.isError());
     QCOMPARE(tags.value(), QStringList({QStringLiteral("x"), QStringLiteral("y")}));
+}
+
+// DECISIONS C20 (#142): an errored torrent's `state` hides a stop; the `stopped` filter doesn't.
+void TestQbtEngine::stoppedAmongAsksTheStoppedFilter()
+{
+    FakeServer server;
+    server.setHandler([](const Recorded &, int) {
+        return httpResponse(200, "OK", R"([{"hash":"aa","state":"error"}])");
+    });
+    QbtEngine engine;
+    engine.setBaseUrl(server.url());
+    const auto stopped =
+        await(this, engine.stoppedAmong({QStringLiteral("aa"), QStringLiteral("bb")}));
+    QVERIFY(!stopped.isError());
+    QCOMPARE(stopped.value(), QStringList{QStringLiteral("aa")});
+    const QUrlQuery query(QUrl(QString::fromLatin1(server.requests.at(0).target)).query());
+    QCOMPARE(query.queryItemValue(QStringLiteral("filter")), QStringLiteral("stopped"));
+    QCOMPARE(query.queryItemValue(QStringLiteral("hashes"), QUrl::FullyDecoded),
+             QStringLiteral("aa|bb"));
+}
+
+// DECISIONS C16 L13: a listing, and qBittorrent's refusals read as what they mean.
+void TestQbtEngine::folderContentAnswersEvenARefusal()
+{
+    FakeServer server;
+    server.setHandler([](const Recorded &request, int) {
+        if (request.target.contains("films"))
+            return httpResponse(200, "OK", R"(["/srv/films/a.mkv","/srv/films/Short Film 01/"])");
+        return httpResponse(404, "Not Found", "Directory does not exist");
+    });
+    QbtEngine engine;
+    engine.setBaseUrl(server.url());
+    const auto listed = await(this, engine.folderContent(QStringLiteral("/srv/films")));
+    QVERIFY(!listed.isError());
+    QCOMPARE(listed.value().state, ServerFolder::State::Listed);
+    QVERIFY(listed.value().has(QStringLiteral("a.mkv")));
+    QVERIFY(listed.value().has(QStringLiteral("Short Film 01")));
+    const auto missing = await(this, engine.folderContent(QStringLiteral("/srv/nope")));
+    QVERIFY(!missing.isError());
+    QCOMPARE(missing.value().state, ServerFolder::State::Missing);
 }
 
 void TestQbtEngine::fetchMetadataLooksThenHasIt()

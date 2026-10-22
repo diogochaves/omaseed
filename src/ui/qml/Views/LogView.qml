@@ -54,6 +54,8 @@ FocusScope {
     signal copyRequested(string text, string note)
     /// A short word for the footer: "this line names no torrent".
     signal noteRequested(string text)
+    /// Board 45 B2 (C18 D7): "move back…" on one of omaseed's move lines.
+    signal moveBackRequested(string id)
 
     readonly property real timeWidth: Theme.space(118)
     readonly property real levelWidth: Theme.space(84)
@@ -498,6 +500,7 @@ FocusScope {
             width: list.width
 
             onClicked: (row, modifiers) => root.clickRow(row, modifiers)
+            onMoveBackRequested: id => root.moveBackRequested(id)
         }
         // #79: where the log starts, said before its lines.
         header: Text {

@@ -115,6 +115,11 @@ Item {
     /// "folder", "dismiss" (MainView runs them); "rename" and "copy" are handled here. `x` on
     /// General sends "dismiss" too.
     signal failureActionRequested(string action)
+    /// Board 45 B1 (C18 D7): General's last-move block wants a move back of finished move `id`,
+    /// `only` this torrent when given (MainView opens the Move sheet).
+    signal moveBackRequested(string id, string only)
+    /// Board 45 B1: "show the move", its torrents in the table.
+    signal moveShowRequested(var hashes)
     /// A few words for the window's footer note ("one file, nothing to filter").
     signal noteRequested(string text)
 
@@ -230,16 +235,15 @@ Item {
         root.applyPriority(wanted);
     }
 
-    /// `x` (#42, docs/27 D2): skips the selection, or the cursor row when nothing is
-    /// selected; when none of those files is wanted, ticks them back at the priority they
-    /// had (App.setFilesWanted).
+    /// `x` (#42, DECISIONS C19 T1): skips the selection, or the cursor row when nothing is
+    /// selected, mixed ones included; when none of those files is wanted, ticks back what was
+    /// wanted before (App.toggleFilesWanted).
     function toggleSkip() {
         if (root.currentTab !== 1 || root.details.files.count === 0)
             return;
-        const files = root.details.files;
-        const ids = files.targetFileIndexes(root.filesCursor);
+        const ids = root.details.files.targetFileIndexes(root.filesCursor);
         if (ids.length > 0)
-            App.setFilesWanted(root.details.hash, ids, files.targetPriority(root.filesCursor) === 0);
+            App.toggleFilesWanted(root.details.hash, ids);
     }
 
     /// The priority menu's rows: one API priority (0 skip, 1 normal, 6 high, 7 maximal) on the
@@ -1232,6 +1236,21 @@ Item {
                 return room.source === "unknown" ? "" : qsTr("%1 free").arg(App.sizeText(room.bytesFree));
             }
 
+            // Board 45 B1: read again when the history or the torrent's place changes.
+            lastMove: {
+                const revision = App.move.historyRevision;
+                const savePath = root.torrent ? root.torrent.savePath : "";
+                return root.torrent && revision >= 0 && savePath !== undefined
+                       ? App.move.lastMoveOf(root.torrent.hash) : ({});
+            }
+
+            onMoveAction: action => {
+                const move = generalTab.lastMove;
+                if (action === "show")
+                    root.moveShowRequested(move.hashes ?? []);
+                else
+                    root.moveBackRequested(move.id ?? "", action === "backThis" ? root.torrent.hash : "");
+            }
             onProblemAction: action => {
                 if (action === "rename") {
                     root.currentTab = 1;
@@ -1279,8 +1298,8 @@ Item {
             }
             onHeadTickClicked: {
                 root.takeKeys();
-                App.setFilesWanted(root.details.hash, root.details.files.headFileIndexes(),
-                                   root.details.files.headWanted !== 2);
+                // DECISIONS C19 T1: a half tick unticks; the next click brings it back.
+                App.toggleFilesWanted(root.details.hash, root.details.files.headFileIndexes());
             }
             onHideSkippedRequested: root.toggleHideSkipped()
             onRenameCancelled: root.cancelRename()
@@ -1304,11 +1323,10 @@ Item {
                 const at = filesTab.mapToItem(root, x, y);
                 root.fileMenuAt(root._takeKeysAt(row), at.x, at.y);
             }
-            onTickClicked: (row, wanted) => {
+            onTickClicked: row => {
                 row = root._takeKeysAt(row);
                 root.filesCursor = row;
-                App.setFilesWanted(root.details.hash, root.details.files.fileIndexes(row),
-                                   wanted !== 2);
+                App.toggleFilesWanted(root.details.hash, root.details.files.fileIndexes(row));
             }
         }
 

@@ -268,6 +268,7 @@ App::App(QObject *parent)
     setUpServers();
     // docs/33 §11 (#73): the one menu of the tray and the bar widget.
     setUpBarMenu();
+    setUpMove();
 }
 
 App::~App()
@@ -693,10 +694,12 @@ void App::stopAll()
 {
     if (m_demoMode || !m_hasServer)
         return;
-    m_client->stop({QStringLiteral("all")})->then(this, [](const Result<Done> &result) {
+    m_client->stop({QStringLiteral("all")})->then(this, [this](const Result<Done> &result) {
         if (result.isError())
             qWarning().noquote()
                 << QStringLiteral("stop all failed: %1").arg(result.error().toString());
+        else
+            m_engine->readErrorStops();
     });
 }
 
@@ -704,10 +707,12 @@ void App::startAll()
 {
     if (m_demoMode || !m_hasServer)
         return;
-    m_client->start({QStringLiteral("all")})->then(this, [](const Result<Done> &result) {
+    m_client->start({QStringLiteral("all")})->then(this, [this](const Result<Done> &result) {
         if (result.isError())
             qWarning().noquote()
                 << QStringLiteral("start all failed: %1").arg(result.error().toString());
+        else
+            m_engine->readErrorStops();
     });
 }
 
@@ -741,6 +746,7 @@ void App::attachTray(Tray *tray)
     // docs/33 §11 (D10): the tray's rows under "show omaseed" and the figures are the shared
     // menu's, which App answers (AppBarMenu.cpp).
     tray->setMenuModel(m_barMenu);
+    tray->setJobLine(m_move->trayLine());
 
     // The Tray shows its icon when it is built; a saved "never" has to be applied here, not
     // only when the setting changes.
@@ -839,7 +845,7 @@ void App::setFilePriority(const QString &hash, const QVariantList &fileIndexes, 
 {
     if (hash.isEmpty() || fileIndexes.isEmpty())
         return;
-    // docs/27 D3: what a skipped file was, so ticking it again brings that back.
+    // DECISIONS C19 T1: what a skipped file was, so ticking it again brings that back.
     if (priority == int(FilePriority::Skip) && m_details->hash() == hash) {
         const QHash<int, int> current = m_details->files()->priorityByFileIndex();
         QHash<int, int> &before = m_beforeSkip[hash];
@@ -929,7 +935,9 @@ QVariantMap App::torrentRow(const QString &hash) const
     row.insert(QStringLiteral("failure"), m_engine->torrents()->failure(hash));
     // T4.3: exactly the check `stopStart()` makes, so the actions menu's "start"/"stop" row
     // and the delete sheet agree with what a bulk stop/start would actually do.
-    row.insert(QStringLiteral("stopped"), startsOnToggle(torrent.status));
+    row.insert(QStringLiteral("stopped"), startsOnToggle(torrent));
+    // DECISIONS C20 (#142): in error and stopped, as qBittorrent's `stopped` filter says.
+    row.insert(QStringLiteral("errorStopped"), errorStopped(hash));
     // docs/12 G4: General's Options group and the actions menu's four option rows.
     row.insert(QStringLiteral("seqDl"), torrent.seqDl);
     row.insert(QStringLiteral("firstLastPiecePrio"), torrent.firstLastPiecePrio);
@@ -1282,6 +1290,13 @@ void App::onNotifierActionInvoked(const QString &eventClass,
     if (eventClass == QStringLiteral("server") || eventClass == QStringLiteral("disk")) {
         if (actionKey == QStringLiteral("settings"))
             Q_EMIT openSettings();
+        return;
+    }
+
+    // Board 42 E2: the move's notice shows the window on the job.
+    if (eventClass == QStringLiteral("move")) {
+        Q_EMIT raiseRequested();
+        Q_EMIT moveShowRequested();
         return;
     }
 
@@ -2049,14 +2064,16 @@ void App::addTorrent(const QVariantMap &request)
         if (!token.isEmpty())
             forgetTorrentFile(token);
         watchForAddedHash(torrentId);
-        if (!withPriorities && !withRenames) {
-            Q_EMIT addFinished(true, QString(), torrentId);
-            return;
-        }
         // 5.x answers with the ids it added; an older server does not, and the metainfo's own
         // id stands in.
         const QStringList &added = result.value().addedIds;
         const QString id = added.isEmpty() ? torrentId : added.first();
+        // DECISIONS C20 (#124): qBittorrent took it, so the sheet closes now; the names, file
+        // choices and start below go on without it, and say in the footer if one fails.
+        Q_EMIT addFinished(true, QString(), id);
+        if (!withPriorities && !withRenames)
+            return;
+        m_addsInFollowUp.insert(id, request.value(QStringLiteral("name")).toString());
         if (withRenames)
             applyAddRenames(id, renames, renameAnchor, filePriorities, keepStopped);
         else
@@ -2143,7 +2160,7 @@ void App::applyAddRenames(const QString &id,
                           int attempt)
 {
     if (id.isEmpty()) {
-        Q_EMIT addFinished(false, tr("added stopped, but the new names were not applied"), id);
+        failAfterAdd(id, AddStep::Names, tr("The server did not say which torrent it added."));
         return;
     }
     const auto retry = [=, this]() {
@@ -2159,10 +2176,7 @@ void App::applyAddRenames(const QString &id,
                 retry();
                 return;
             }
-            Q_EMIT addFinished(false,
-                               tr("added stopped, but the new names were not applied: %1")
-                                   .arg(result.error().message()),
-                               id);
+            failAfterAdd(id, AddStep::Names, QString(), result.error());
             return;
         }
         // No files yet: the server has not loaded the metadata. Same wait as a 409.
@@ -2186,11 +2200,8 @@ void App::applyAddRenames(const QString &id,
             !(root.isEmpty() || root.endsWith(QLatin1Char('/')))) {
             qWarning().noquote()
                 << QStringLiteral("add: renames: file %1 is %2 on the server").arg(path, served);
-            Q_EMIT addFinished(
-                false,
-                tr("added stopped, but the new names were not applied: the server's file list "
-                   "did not match the .torrent"),
-                id);
+            failAfterAdd(
+                id, AddStep::Names, tr("The server's file list did not match the .torrent."));
             return;
         }
         sendAddRename(id, renames, 0, root, priorities, keepStopped);
@@ -2218,10 +2229,7 @@ void App::sendAddRename(const QString &id,
         if (result.isError()) {
             qWarning().noquote() << QStringLiteral("add: rename %1 -> %2 failed: %3")
                                         .arg(from, to, result.error().toString());
-            Q_EMIT addFinished(false,
-                               tr("added stopped, but the new names were not applied: %1")
-                                   .arg(result.error().message()),
-                               id);
+            failAfterAdd(id, AddStep::Names, QString(), result.error());
             return;
         }
         sendAddRename(id, renames, at + 1, root, priorities, keepStopped);
@@ -2234,7 +2242,7 @@ void App::applyAddFilePriorities(const QString &id,
                                  int attempt)
 {
     if (id.isEmpty()) {
-        Q_EMIT addFinished(false, tr("added stopped, but the file choices were not applied"), id);
+        failAfterAdd(id, AddStep::Choices, tr("The server did not say which torrent it added."));
         return;
     }
 
@@ -2242,18 +2250,15 @@ void App::applyAddFilePriorities(const QString &id,
     if (groups.isEmpty()) {
         // Every choice is on the server: start it, unless the user asked for it stopped.
         if (keepStopped) {
-            Q_EMIT addFinished(true, QString(), id);
+            m_addsInFollowUp.remove(id);
             return;
         }
         m_client->start(QStringList{id})->then(this, [this, id](const Result<Done> &started) {
             if (started.isError()) {
-                Q_EMIT addFinished(false,
-                                   tr("added with your file choices, but it did not start: %1")
-                                       .arg(started.error().message()),
-                                   id);
+                failAfterAdd(id, AddStep::Start, QString(), started.error());
                 return;
             }
-            Q_EMIT addFinished(true, QString(), id);
+            m_addsInFollowUp.remove(id);
         });
         return;
     }
@@ -2283,11 +2288,43 @@ void App::applyAddFilePriorities(const QString &id,
             }
             qWarning().noquote()
                 << QStringLiteral("add: file priorities failed: %1").arg(result.error().toString());
-            Q_EMIT addFinished(false,
-                               tr("added stopped, but the file choices were not applied: %1")
-                                   .arg(result.error().message()),
-                               id);
+            failAfterAdd(id, AddStep::Choices, QString(), result.error());
         });
+}
+
+void App::failAfterAdd(const QString &id, AddStep step, const QString &line, const ApiError &error)
+{
+    // The torrent's name as the sheet had it, else as the library has it by now.
+    QString name = m_addsInFollowUp.take(id);
+    if (name.isEmpty() && !id.isEmpty() && torrents()->indexOfHash(id) >= 0)
+        name = torrents()->torrent(id).name;
+    if (name.isEmpty())
+        name = tr("The torrent");
+    ErrorWords::Text words;
+    if (error.isError()) {
+        ErrorWords::Subject subject = errorSubject();
+        subject.torrent = name;
+        words = ErrorWords::forRequest(error, subject);
+    }
+    switch (step) {
+    case AddStep::Names:
+        words.headline = tr("%1 was added stopped, but the new names were not applied").arg(name);
+        break;
+    case AddStep::Choices:
+        words.headline =
+            tr("%1 was added stopped, but the file choices were not applied").arg(name);
+        break;
+    case AddStep::Start:
+        words.headline = tr("%1 was added with your file choices, but did not start").arg(name);
+        break;
+    }
+    if (!line.isEmpty())
+        words.line = line;
+    if (words.kind.isEmpty())
+        words.kind = QStringLiteral("request");
+    m_actionFailure = words.toMap();
+    Q_EMIT actionFailureChanged();
+    Q_EMIT actionFailed(QString(), words.sentence());
 }
 
 void App::loadAddFiles(const QString &token)
@@ -2630,6 +2667,11 @@ void App::afterUrlAdd(const AddResult &added,
     const bool keepStopped = request.value(QStringLiteral("stopped")).toBool();
     const QVariantList renames =
         token.isEmpty() ? QVariantList() : request.value(QStringLiteral("fileRenames")).toList();
+    // DECISIONS C20 (#124): taken, so the sheet closes; what follows says in the footer if it
+    // fails.
+    Q_EMIT addFinished(true, QString(), id);
+    if (!renames.isEmpty() || !AddFilesModel::priorityGroups(laterPriorities).isEmpty())
+        m_addsInFollowUp.insert(id, request.value(QStringLiteral("name")).toString());
     if (!renames.isEmpty()) {
         applyAddRenames(id,
                         renames,
@@ -2638,11 +2680,8 @@ void App::afterUrlAdd(const AddResult &added,
                         keepStopped);
         return;
     }
-    if (!AddFilesModel::priorityGroups(laterPriorities).isEmpty()) {
+    if (!AddFilesModel::priorityGroups(laterPriorities).isEmpty())
         applyAddFilePriorities(id, laterPriorities, keepStopped);
-        return;
-    }
-    Q_EMIT addFinished(true, QString(), id);
 }
 
 void App::retryUrlAdd(const QVariantMap &request,
@@ -2850,12 +2889,19 @@ void App::loadDeleteFilesDefault()
     m_deleteFilesDefault = section.value(QStringLiteral("value")).toBool(false);
 }
 
-bool App::startsOnToggle(const TorrentStatus &status)
+bool App::startsOnToggle(const Torrent &torrent) const
 {
-    // docs/28: starting an errored torrent clears the error in qBittorrent and makes it try
-    // again (TorrentImpl::start), which is what `p` offers on the error block; stopping it
-    // would only hide the error.
-    return status.isStopped() || status.phase == TorrentPhase::Errored;
+    // DECISIONS C20 (#107, amending docs/28): an errored torrent is stopped, so `p`, the
+    // actions menu and the selection bar agree, and a retry that would only fail again (a
+    // full or damaged disk) can be ended. Once it is stopped (the engine says so, #142), `p`
+    // starts it: the retry, as the error block's own "retry" does.
+    return torrent.status.isStopped() ||
+           (torrent.status.phase == TorrentPhase::Errored && errorStopped(torrent.hash));
+}
+
+bool App::errorStopped(const QString &hash) const
+{
+    return m_engine->torrents()->isErrorStopped(hash);
 }
 
 bool App::demoGuard(const QString &action, int count)
@@ -2891,11 +2937,13 @@ void App::stopStart(const QStringList &hashes)
 
     const int index = m_engine->torrents()->indexOfHash(hashes.constFirst());
     const bool stopped =
-        index >= 0 && startsOnToggle(m_engine->torrents()->torrent(hashes.constFirst()).status);
+        index >= 0 && startsOnToggle(m_engine->torrents()->torrent(hashes.constFirst()));
 
     auto *reply = stopped ? m_client->start(hashes) : m_client->stop(hashes);
     reply->then(this, [this](const Result<Done> &result) {
         reportActionResult(QStringLiteral("stopStart"), result);
+        if (!result.isError())
+            m_engine->readErrorStops(); // C20 (#142): an errored row says so before the next poll
     });
 }
 
@@ -2905,6 +2953,8 @@ void App::startTorrents(const QStringList &hashes)
         return;
     m_client->start(hashes)->then(this, [this](const Result<Done> &result) {
         reportActionResult(QStringLiteral("start"), result);
+        if (!result.isError())
+            m_engine->readErrorStops();
     });
 }
 
@@ -2914,6 +2964,19 @@ void App::stopTorrents(const QStringList &hashes)
         return;
     m_client->stop(hashes)->then(this, [this](const Result<Done> &result) {
         reportActionResult(QStringLiteral("stop"), result);
+        if (!result.isError())
+            m_engine->readErrorStops();
+    });
+}
+
+void App::retryTorrents(const QStringList &hashes)
+{
+    if (hashes.isEmpty() || demoGuard(QStringLiteral("retry"), hashes.size()) || !m_hasServer)
+        return;
+    m_client->start(hashes)->then(this, [this](const Result<Done> &result) {
+        reportActionResult(QStringLiteral("retry"), result);
+        if (!result.isError())
+            m_engine->readErrorStops();
     });
 }
 
@@ -2923,6 +2986,8 @@ void App::forceStart(const QStringList &hashes)
         return;
     m_client->setForceStart(hashes, true)->then(this, [this](const Result<Done> &result) {
         reportActionResult(QStringLiteral("forceStart"), result);
+        if (!result.isError())
+            m_engine->readErrorStops(); // a forced start starts a stopped torrent
     });
 }
 
@@ -3226,13 +3291,10 @@ void App::setLocation(const QStringList &hashes, const QString &path)
     if (hashes.isEmpty() || path.isEmpty() ||
         demoGuard(QStringLiteral("location"), hashes.size()) || !m_hasServer)
         return;
-    // docs/32 D2: "OK" only means the move was queued; a failure is in the log. Watched from
-    // before the request, so a read on its way meanwhile can't take the line first.
-    m_engine->problems()->watchMove(hashes, path);
-    m_client->setLocation(hashes, path)
-        ->then(this, [this, hashes, path](const Result<Done> &result) {
-            reportActionResult(QStringLiteral("location"), result, hashes, path);
-        });
+    // DECISIONS C16 L1, L9: every move is a job (board 43): checked first, sent in waves, its
+    // log read for its whole life. The torrents go into the one folder, as set location
+    // always did.
+    m_move->startSelection(hashes, path, QStringLiteral("oneFolder"));
 }
 
 void App::requestGlobalLimits()
@@ -4558,23 +4620,57 @@ void App::setFilesWanted(const QString &hash, const QVariantList &fileIndexes, b
 {
     if (hash.isEmpty() || fileIndexes.isEmpty())
         return;
-    if (!wanted) {
-        setFilePriority(hash, fileIndexes, int(FilePriority::Skip));
-        return;
-    }
     const QHash<int, int> current =
         m_details->hash() == hash ? m_details->files()->priorityByFileIndex() : QHash<int, int>();
     QHash<int, int> &before = m_beforeSkip[hash];
-    QMap<int, QVariantList> groups;
+    if (!wanted) {
+        // DECISIONS C19 T1: the next tick brings back what this untick took, so a file that was
+        // skipped already (by the menu, earlier) forgets what it was and stays skipped.
+        if (m_details->hash() == hash) {
+            for (const QVariant &value : fileIndexes) {
+                if (current.value(value.toInt(), int(FilePriority::Skip)) ==
+                    int(FilePriority::Skip))
+                    before.remove(value.toInt());
+            }
+        }
+        setFilePriority(hash, fileIndexes, int(FilePriority::Skip));
+        return;
+    }
+    QList<int> skipped;
+    bool remembered = false;
     for (const QVariant &value : fileIndexes) {
         const int id = value.toInt();
         if (current.value(id, int(FilePriority::Skip)) != int(FilePriority::Skip))
             continue;
-        const int was = before.contains(id) ? before.take(id) : int(FilePriority::Normal);
-        groups[was].append(id);
+        skipped.append(id);
+        remembered = remembered || before.contains(id);
+    }
+    // #129: untick then tick gives back what was there. When some of these files were skipped
+    // here, only those come back, and files that were skipped already (a pack's never-wanted
+    // ones) stay skipped; a tick on files none of which omaseed skipped wants them all.
+    QMap<int, QVariantList> groups;
+    for (const int id : std::as_const(skipped)) {
+        if (before.contains(id))
+            groups[before.take(id)].append(id);
+        else if (!remembered)
+            groups[int(FilePriority::Normal)].append(id);
     }
     for (auto group = groups.cbegin(); group != groups.cend(); ++group)
         setFilePriority(hash, group.value(), group.key());
+}
+
+void App::toggleFilesWanted(const QString &hash, const QVariantList &fileIndexes)
+{
+    if (hash.isEmpty() || fileIndexes.isEmpty())
+        return;
+    const QHash<int, int> current =
+        m_details->hash() == hash ? m_details->files()->priorityByFileIndex() : QHash<int, int>();
+    // DECISIONS C19 T1: a half tick unticks; only a tick with nothing wanted brings files back.
+    const bool anyWanted =
+        std::any_of(fileIndexes.cbegin(), fileIndexes.cend(), [&](const QVariant &id) {
+            return current.value(id.toInt(), int(FilePriority::Skip)) != int(FilePriority::Skip);
+        });
+    setFilesWanted(hash, fileIndexes, !anyWanted);
 }
 
 void App::setFilePriorityGroups(const QString &hash, const QVariantList &groups)

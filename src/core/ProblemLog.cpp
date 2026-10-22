@@ -82,6 +82,8 @@ void ProblemLog::setClient(EngineClient *client)
     m_filesAsked.clear();
     m_renamed.clear();
     m_watches.clear();
+    m_jobHashes.clear();
+    m_jobTold.clear();
     const bool hadLogLines = !m_webSeedLines.isEmpty() || !m_exportFailure.isEmpty();
     m_webSeedLines.clear();
     m_exportFailure.clear();
@@ -129,7 +131,8 @@ void ProblemLog::onSynced(bool fullUpdate, bool mayRead)
         return;
     const auto since =
         m_sinceRead.isValid() ? m_sinceRead.durationElapsed() : std::chrono::nanoseconds::max();
-    bool due = !m_watches.isEmpty(); // D2: every poll while omaseed waits for an answer
+    // D2: every poll while omaseed waits for an answer; C15 M15: and while a move job runs.
+    bool due = !m_watches.isEmpty() || !m_jobHashes.isEmpty();
     if (!m_errored.isEmpty() && (!m_readOnce || since >= m_interval))
         due = true;
     if (m_visible && since >= m_idleInterval)
@@ -254,6 +257,7 @@ void ProblemLog::applyRead(const QList<LogEntry> &entries, quint64 serial, bool 
         updateLogLines();
     }
     tellWatches(serial);
+    tellJob(serial);
 }
 
 void ProblemLog::rematch()
@@ -610,20 +614,40 @@ void ProblemLog::checkFiles()
 
 // ---- docs/32 D2 (N1): what omaseed just asked for ---------------------------------------------
 
-void ProblemLog::watchMove(const QStringList &hashes, const QString &destination)
+void ProblemLog::watchJob(const QStringList &hashes, const QDateTime &since)
 {
-    if (hashes.isEmpty() || m_torrents.isNull())
+    m_jobHashes = QSet<QString>(hashes.cbegin(), hashes.cend());
+    if (m_jobHashes.isEmpty()) {
+        m_jobTold.clear();
         return;
-    Watch watch;
-    watch.action = Action::Move;
-    watch.hashes = hashes;
-    for (const QString &hash : hashes)
-        watch.names << m_torrents->torrent(hash).name;
-    watch.destination = destination;
-    watch.total = int(hashes.size());
-    watch.fromRead = m_issued + 1;
-    watch.age.start();
-    m_watches.append(watch);
+    }
+    m_jobSince = since;
+}
+
+void ProblemLog::tellJob(quint64 serial)
+{
+    if (m_jobHashes.isEmpty() || m_torrents.isNull())
+        return;
+    QList<Torrent> torrents;
+    for (const QString &hash : std::as_const(m_jobHashes)) {
+        if (m_torrents->indexOfHash(hash) >= 0)
+            torrents << m_torrents->torrent(hash);
+    }
+    // qBittorrent's log counts whole seconds: a line from the second the job began counts.
+    const QDateTime since = m_jobSince.isValid() ? m_jobSince.addSecs(-1) : QDateTime();
+    for (const Line &line : std::as_const(m_lines)) {
+        if (line.read != serial || line.parsed.kind != ProblemLine::Kind::MoveFailed ||
+            m_jobTold.contains(line.key) || (since.isValid() && line.at < since))
+            continue;
+        const QStringList hashes = ProblemMatch::match(line.parsed, torrents, nullptr);
+        if (hashes.isEmpty())
+            continue;
+        m_jobTold.insert(line.key);
+        const TorrentProblem words = ProblemMatch::describe(line.parsed);
+        for (const QString &hash : hashes)
+            Q_EMIT jobMoveFailed(
+                hash, line.at, line.parsed.systemMessage, words.causeKey, line.message);
+    }
 }
 
 void ProblemLog::watchRename(const QString &hash, int files)
@@ -659,18 +683,8 @@ void ProblemLog::watchDelete(const QStringList &hashes)
 
 void ProblemLog::endWatches()
 {
-    m_watches.removeIf([this](const Watch &watch) {
-        if (watch.age.durationElapsed() >= m_watchDuration)
-            return true;
-        if (watch.action != Action::Move || m_torrents.isNull())
-            return false;
-        // Every torrent landed (or failed, which tellWatches() already said): nothing more to
-        // wait for.
-        return std::all_of(watch.hashes.cbegin(), watch.hashes.cend(), [&](const QString &hash) {
-            return watch.failed.contains(hash) || m_torrents->indexOfHash(hash) < 0 ||
-                   samePath(m_torrents->torrent(hash).savePath, watch.destination);
-        });
-    });
+    m_watches.removeIf(
+        [this](const Watch &watch) { return watch.age.durationElapsed() >= m_watchDuration; });
 }
 
 void ProblemLog::tellWatches(quint64 serial)
@@ -693,9 +707,7 @@ void ProblemLog::tellWatches(quint64 serial)
                 continue;
             const ProblemLine::Kind kind = line.parsed.kind;
             QStringList failed;
-            if (watch.action == Action::Move && kind == ProblemLine::Kind::MoveFailed) {
-                failed = ProblemMatch::match(line.parsed, torrents, nullptr);
-            } else if (watch.action == Action::Rename && kind == ProblemLine::Kind::RenameFailed) {
+            if (watch.action == Action::Rename && kind == ProblemLine::Kind::RenameFailed) {
                 if (!ProblemMatch::match(line.parsed, torrents, nullptr).isEmpty()) {
                     failed = {line.parsed.torrentFile};
                     file = line.parsed.torrentFile;
@@ -720,14 +732,6 @@ void ProblemLog::tellWatches(quint64 serial)
         QString text;
         QStringList stillHere;
         switch (watch.action) {
-        case Action::Move:
-            text = watch.total == 1 ? tr("%1 didn't move: %2").arg(watch.names.value(0), reason)
-                                    : tr("%1 of %2 didn't move").arg(count).arg(watch.total);
-            for (const QString &hash : std::as_const(watch.failed)) {
-                if (m_torrents->indexOfHash(hash) >= 0)
-                    stillHere << hash;
-            }
-            break;
         case Action::Rename:
             text = count == 1 ? tr("%1 kept its old name: %2").arg(baseName(file), reason)
                               : tr("%1 files kept their old names: %2").arg(count).arg(reason);
@@ -747,7 +751,7 @@ void ProblemLog::tellWatches(quint64 serial)
         stillHere.sort();
         Q_EMIT watchedFailure(text, stillHere);
     }
-    // A move or delete whose every torrent failed has nothing more to say.
+    // A delete whose every torrent failed has nothing more to say.
     m_watches.removeIf([](const Watch &watch) {
         return watch.action != Action::Rename && watch.failed.size() >= watch.total;
     });

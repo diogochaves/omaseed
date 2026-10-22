@@ -183,7 +183,7 @@ private slots:
     void lowDiskThresholdDefaultsToTwoGiBInTheEngine();
     void lowDiskThresholdPersistsReachesTheEngineAndClamps();
     void anOldStateFileWithTheTrackerKeyStillLoads();
-    void aFailureIsNeverANoticeButTheFooterHearsIt();
+    void aMoveFailureIsNeverANotice();
     void aDismissedFailureStaysDismissedAfterARestart();
     void theLogFaceKeepsItsLevelsPerServer();
     void theDemoHasAWholeLog();
@@ -267,11 +267,9 @@ void TestAppNotifications::completedNoticeMatchesSpecBodyAndOffersOpenFolderWhen
     QCOMPARE(call.body, expectedBody);
     QCOMPARE(call.actions,
              QStringList({QStringLiteral("open-folder"),
-                          QStringLiteral("open folder"),
-                          QStringLiteral("show"),
-                          QStringLiteral("show"),
+                          QStringLiteral("Open folder"),
                           QStringLiteral("default"),
-                          QStringLiteral("show")}));
+                          QStringLiteral("Show")}));
 }
 
 void TestAppNotifications::completedNoticeOmitsOpenFolderWhenTheFolderIsUnknown()
@@ -299,10 +297,7 @@ void TestAppNotifications::completedNoticeOmitsOpenFolderWhenTheFolderIsUnknown(
 
     QCOMPARE(m_bus.server()->calls.size(), 1);
     QCOMPARE(m_bus.server()->calls.first().actions,
-             QStringList({QStringLiteral("show"),
-                          QStringLiteral("show"),
-                          QStringLiteral("default"),
-                          QStringLiteral("show")}));
+             QStringList({QStringLiteral("default"), QStringLiteral("Show")}));
 }
 
 // Q16: tracker health is the Trackers tab badge and the rail filter, never a desktop notice.
@@ -345,11 +340,7 @@ void TestAppNotifications::diskAlmostFullMatchesQ2Wording()
     const auto &call = m_bus.server()->calls.first();
     QCOMPARE(call.summary, QStringLiteral("Disk almost full"));
     QCOMPARE(call.body, QStringLiteral("%1 free").arg(omaseed::core::Format::size(kGiB)));
-    QCOMPARE(call.actions,
-             QStringList({QStringLiteral("settings"),
-                          QStringLiteral("settings"),
-                          QStringLiteral("default"),
-                          QStringLiteral("settings")}));
+    QCOMPARE(call.actions, QStringList({QStringLiteral("default"), QStringLiteral("Settings")}));
 }
 
 // docs/28 N1: a torrent that goes into error while watched gets one notice, once the log has
@@ -392,11 +383,7 @@ void TestAppNotifications::anErrorSendsOneNoticeWithItsReason()
     QCOMPARE(
         call.body,
         QStringLiteral("Can't write to its save folder: Permission denied, opening fixture-one"));
-    QCOMPARE(call.actions,
-             QStringList({QStringLiteral("show"),
-                          QStringLiteral("show"),
-                          QStringLiteral("default"),
-                          QStringLiteral("show")}));
+    QCOMPARE(call.actions, QStringList({QStringLiteral("default"), QStringLiteral("Show")}));
 
     // Another read is not another notice.
     qbtfeed::entries(*app.engine()->problems(), log);
@@ -700,9 +687,10 @@ QJsonArray moveFailedLog()
 
 } // namespace
 
-// docs/32 D8 (#55): a move that failed is never a desktop notice. The one omaseed asked for
-// reaches the footer through loggedFailure (D2); the block stays on the torrent.
-void TestAppNotifications::aFailureIsNeverANoticeButTheFooterHearsIt()
+// docs/32 D8 (#55): a move that failed is never a desktop notice; the block stays on the
+// torrent. DECISIONS C16 L9: the job tells of it (its band, or its footer line), not the log's
+// own D2 note.
+void TestAppNotifications::aMoveFailureIsNeverANotice()
 {
     App app;
     Notifier notifier(m_bus.connection());
@@ -710,11 +698,9 @@ void TestAppNotifications::aFailureIsNeverANoticeButTheFooterHearsIt()
     app.applyDemoData(QJsonDocument::fromJson(movedMaindata()).object());
     QSignalSpy told(&app, &App::loggedFailure);
 
-    app.engine()->problems()->watchMove({kMovedHash}, QStringLiteral("/d/dest"));
+    app.engine()->problems()->watchJob({kMovedHash}, QDateTime());
     qbtfeed::entries(*app.engine()->problems(), moveFailedLog());
-    QCOMPARE(told.size(), 1);
-    QCOMPARE(told.at(0).at(0).toString(),
-             QStringLiteral("log55-move.bin didn't move: Permission denied"));
+    QCOMPARE(told.size(), 0);
     QCOMPARE(app.torrentRow(kMovedHash)
                  .value(QStringLiteral("failure"))
                  .toMap()
@@ -862,10 +848,7 @@ void TestAppNotifications::theWeeklyRecapComesOnceASundayEveningAndOpensTheConso
              QStringLiteral("%1 given this week\nbest day Thursday")
                  .arg(omaseed::core::Format::size(5 * kGiB)));
     QCOMPARE(call.actions,
-             QStringList({QStringLiteral("console"),
-                          QStringLiteral("open the console"),
-                          QStringLiteral("default"),
-                          QStringLiteral("open the console")}));
+             QStringList({QStringLiteral("default"), QStringLiteral("Open the console")}));
 
     // Once a Sunday, and the day it went is kept.
     now = now.addSecs(3600);

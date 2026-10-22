@@ -1,0 +1,20 @@
+# Research reproductions
+
+Scripts that answered a question once and can answer it again: when qBittorrent, libtorrent or
+a filesystem changes, run them and compare with what they printed then. Each folder is one
+issue, with a README saying what it reproduces, how to run it and what it printed.
+
+| Folder | Question | Issue |
+|---|---|---|
+| [115-hybrid-recheck](115-hybrid-recheck/) | Why does a recheck after deleting skipped files put a torrent in error? | #115 |
+| [116-fs-allocation](116-fs-allocation/) | What does each filesystem do with the files a torrent starts writing? | #116 |
+| [117-open-file-move](117-open-file-move/) | Does qBittorrent's move of a finished file fail while someone has it open? | #117 |
+| [107-errored-stopped](107-errored-stopped/) | Does the Web API tell a stopped errored torrent from a running one? | #107 |
+
+They talk only to throwaway qBittorrents (the playground on `:8081`, or a profile made with
+`scripts/dev/test-server.sh`) and the offline swarm (`scripts/dev/swarm.sh`), never to a real
+library. A general tool that came out of this work lives one level up:
+`scripts/dev/fastresume.py`, which reads what qBittorrent saved about a torrent.
+
+A new one: a folder named `<issue>-<topic>`, the scripts with their usage at the top, and a
+README with the question, the commands, and what they printed (versions included).

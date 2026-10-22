@@ -22,10 +22,12 @@
 #include <QLoggingCategory>
 #include <QProcessEnvironment>
 #include <QTextStream>
+#include <QThread>
 #include <QTimer>
 #include <QUrl>
 
 #include <algorithm>
+#include <functional>
 #include <utility>
 
 namespace omaseed::integration {
@@ -98,8 +100,9 @@ public slots:
                         const QVariantMap &platform_data)
     {
         // The bar widget's two actions (docs/20 §3): "settings" (the popup's gear) and "retry"
-        // (`r` while the server is unreachable). Any other name is accepted and ignored, as
-        // the spec allows. The tray and the notices talk to the running process directly.
+        // (`r` while the server is unreachable); and `omaseed --quit`'s "quit" (#128). Any
+        // other name is accepted and ignored, as the spec allows. The tray and the notices
+        // talk to the running process directly.
         Q_UNUSED(parameter);
         m_owner->handleActivateAction(action_name, platform_data);
     }
@@ -346,6 +349,75 @@ bool SingleInstance::startOnLocalSocket(const QStringList &uris)
     return true;
 }
 
+SingleInstance::QuitResult SingleInstance::askToQuit(int timeoutMs)
+{
+    QElapsedTimer timer;
+    timer.start();
+    // Until `gone()` says so, or the time is up; events keep flowing meanwhile.
+    const auto waitUntil = [&](const std::function<bool()> &gone) {
+        while (timer.elapsed() < timeoutMs) {
+            if (gone())
+                return true;
+            QCoreApplication::processEvents(QEventLoop::AllEvents, 50);
+            QThread::msleep(50);
+        }
+        return gone();
+    };
+
+    const QString busAddress =
+        QProcessEnvironment::systemEnvironment().value(QStringLiteral("DBUS_SESSION_BUS_ADDRESS"));
+    if (!busAddress.isEmpty()) {
+        const QString connectionName =
+            QStringLiteral("omaseed-quit-%1").arg(QCoreApplication::applicationPid());
+        QDBusConnection connection = QDBusConnection::connectToBus(busAddress, connectionName);
+        const QString service = AppIdentity::dbusServiceName();
+        const auto owned = [&connection, &service]() {
+            const QDBusReply<bool> reply = connection.interface()->isServiceRegistered(service);
+            return reply.isValid() && reply.value();
+        };
+        if (connection.isConnected() && connection.interface() && owned()) {
+            QDBusMessage message =
+                QDBusMessage::createMethodCall(service,
+                                               AppIdentity::dbusObjectPath(),
+                                               QString::fromLatin1(kApplicationInterface),
+                                               QStringLiteral("ActivateAction"));
+            message << QStringLiteral("quit") << QVariant::fromValue(QVariantList())
+                    << QVariant(QVariantMap());
+            QDBusPendingCall pending = connection.asyncCall(message, timeoutMs);
+            waitUntil([&pending]() { return pending.isFinished(); });
+            const bool asked = pending.isFinished() && !pending.isError();
+            const bool gone = asked && waitUntil([&owned]() { return !owned(); });
+            if (pending.isFinished() && pending.isError())
+                qCWarning(lcInstance).noquote()
+                    << QStringLiteral("quit: %1").arg(pending.error().message());
+            QDBusConnection::disconnectFromBus(connectionName);
+            return gone ? QuitResult::Quit : QuitResult::TimedOut;
+        }
+        QDBusConnection::disconnectFromBus(connectionName);
+    }
+
+    // The local socket: a primary that runs without the bus listens there.
+    const QString name = localSocketName();
+    const auto listening = [&name]() {
+        QLocalSocket probe;
+        probe.connectToServer(name);
+        const bool up = probe.waitForConnected(200);
+        probe.abort();
+        return up;
+    };
+    QLocalSocket socket;
+    socket.connectToServer(name);
+    if (!socket.waitForConnected(200))
+        return QuitResult::NotRunning;
+    socket.write(QByteArrayLiteral("{\"command\":\"quit\"}\n"));
+    socket.waitForBytesWritten(500);
+    socket.disconnectFromServer();
+    if (socket.state() != QLocalSocket::UnconnectedState)
+        socket.waitForDisconnected(500);
+    return waitUntil([&listening]() { return !listening(); }) ? QuitResult::Quit
+                                                              : QuitResult::TimedOut;
+}
+
 void SingleInstance::acceptLocalConnection()
 {
     while (m_localServer && m_localServer->hasPendingConnections()) {
@@ -361,6 +433,8 @@ void SingleInstance::acceptLocalConnection()
                 for (const QJsonValue &value : payload.value(QStringLiteral("uris")).toArray())
                     uris.append(value.toString());
                 handleOpen(uris, {});
+            } else if (command == QLatin1String("quit")) {
+                handleActivateAction(command, {});
             } else {
                 handleActivate({});
             }
@@ -378,7 +452,8 @@ void SingleInstance::handleActivate(const QVariantMap &platformData)
 
 void SingleInstance::handleActivateAction(const QString &name, const QVariantMap &platformData)
 {
-    if (name != QLatin1String("settings") && name != QLatin1String("retry")) {
+    if (name != QLatin1String("settings") && name != QLatin1String("retry") &&
+        name != QLatin1String("quit")) {
         qCInfo(lcInstance).noquote() << QStringLiteral("unknown action %1 ignored").arg(name);
         return;
     }

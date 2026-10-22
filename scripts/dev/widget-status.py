@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """Write a made-up omaseed status file (plugin/STATUS.md, schema v2) for the bar widget.
 
-    scripts/dev/widget-status.py STATE [OUT] [--keep]
+    scripts/dev/widget-status.py STATE [OUT] [--keep] [--name=NAME] [--servers]
 
 STATE is one of: moving, seeding, idle, alt, error, unreachable, firewalled.
+--name=NAME names the current server ("home" by default). --servers adds a second server
+and the app's shared menu (docs/33 §11): the popup's head gets ⋯ and its server line ▾.
 OUT is the file to write, $XDG_RUNTIME_DIR/omaseed/status.json by default (run it
 inside an omabox: `omabox run -d -- scripts/dev/widget-status.py moving --keep`); the parent
 directory is made 0700 and the file 0600, written atomically like the app does.
@@ -106,6 +108,30 @@ def status(state, now):
     return copy.deepcopy(s)
 
 
+def with_servers(s, now):
+    name = s["server"]["name"]
+    s["servers"] = [{"id": "{s-1}", "name": name, "current": True, "state": "ok",
+                     "count": s["counts"]["all"], "seen": now, "reason": ""},
+                    {"id": "{s-2}", "name": "private", "current": False, "state": "ok",
+                     "count": 4, "seen": now - 3600, "reason": ""}]
+
+    def row(id, label, kind="action", checked=False, enabled=True, detail=""):
+        return {"id": id, "label": label, "kind": kind, "checked": checked, "enabled": enabled,
+                "detail": detail, "urgent": False}
+
+    s["menu"] = [row("servers", "Servers", "caption"),
+                 row("server:{s-1}", name, "radio", True, detail=f"{s['counts']['all']} torrents"),
+                 row("server:{s-2}", "private", "radio", detail="4 torrents"),
+                 row("separator:servers", "", "separator"),
+                 row("alt-speed", "Alternative Speed Limits", "check", s["alt"]["on"]),
+                 row("stop-all", "Stop All"), row("start-all", "Start All"),
+                 row("separator:actions", "", "separator"),
+                 row("add", "Add Torrent…"), row("settings", "Settings…"),
+                 row("separator:quit", "", "separator"),
+                 row("quit", "Quit omaseed")]
+    return s
+
+
 def write(path, data):
     os.makedirs(os.path.dirname(path), mode=0o700, exist_ok=True)
     tmp = path + ".tmp"
@@ -122,8 +148,16 @@ def main():
     state = args[0]
     out = args[1] if len(args) == 2 else os.path.join(os.environ["XDG_RUNTIME_DIR"], "omaseed", "status.json")
     keep = "--keep" in sys.argv
+    name = next((a.split("=", 1)[1] for a in sys.argv[1:] if a.startswith("--name=")), "")
+    servers = "--servers" in sys.argv
     while True:
-        write(out, status(state, int(time.time())))
+        now = int(time.time())
+        s = status(state, now)
+        if name:
+            s["server"]["name"] = name
+        if servers:
+            s = with_servers(s, now)
+        write(out, s)
         if not keep:
             return
         time.sleep(5)

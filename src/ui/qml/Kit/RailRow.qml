@@ -28,8 +28,22 @@ Rectangle {
     property string countText: ""
     property color countColor: Theme.dimForeground
     property color glyphColor: root.selected ? Theme.accent : Theme.dimForeground
+    /// Board 42 F1 (DECISIONS C15 M2): a folder below another sits `indent` steps in.
+    property int indent: 0
+    /// A drive's top in the folders group (M2): the name dim, as a heading.
+    property bool dimText: false
+    /// The glyph is a fold switch of its own (a folder's ▾ / ▸): a click on it sends
+    /// `glyphClicked`, not `clicked`.
+    property bool glyphClickable: false
+    /// The row has a menu (DECISIONS C19 T3: a folder row's "move this folder…"): a
+    /// right-click sends `menuRequested` instead of selecting it.
+    property bool hasMenu: false
 
     signal clicked
+    /// A right-click on the row, while `hasMenu`, at `x`, `y` in the row's coordinates.
+    signal menuRequested(real x, real y)
+    /// The glyph was clicked, while `glyphClickable`.
+    signal glyphClicked
     /// The pointer came onto the row (true) or left it (false).
     signal hoverChanged(bool hovering)
 
@@ -43,8 +57,9 @@ Rectangle {
     readonly property real countRight: countText.x + countText.width
 
     // #79: the count at the row's right ("8") is its description.
-    Accessible.description: root.countText.length > 0 ? root.countText : root.count >= 0 ? String(root.count)
-                                                                                           : ""
+    Accessible.description: root.countText.length > 0 ? root.countText : root.count >= 0 ? String(
+                                                                                               root.count) :
+                                                                                           ""
     Accessible.name: root.text
     Accessible.role: Accessible.ListItem
 
@@ -66,8 +81,9 @@ Rectangle {
     Row {
         id: label
 
+        objectName: "railRowLabel"
         anchors.left: parent.left
-        anchors.leftMargin: Theme.space(16)
+        anchors.leftMargin: Theme.space(16) + root.indent * Theme.space(12)
         anchors.right: countText.visible ? countText.left : parent.right
         anchors.rightMargin: Theme.space(16)
         anchors.verticalCenter: parent.verticalCenter
@@ -88,7 +104,9 @@ Rectangle {
             id: nameText
 
             anchors.verticalCenter: parent.verticalCenter
-            color: root.selected ? Theme.brightForeground : Theme.foreground
+            color: root.selected ? Theme.brightForeground : root.dimText ? Theme.dimForeground :
+                                                                           Theme.foreground
+
             elide: root.elideLeft ? Text.ElideLeft : Text.ElideRight
             font.family: Theme.fontFamily
             font.pixelSize: Theme.font.body
@@ -114,11 +132,30 @@ Rectangle {
     MouseArea {
         id: mouseArea
 
+        acceptedButtons: root.hasMenu ? Qt.LeftButton | Qt.RightButton : Qt.LeftButton
         anchors.fill: parent
         cursorShape: Qt.PointingHandCursor
         hoverEnabled: true
 
-        onClicked: root.clicked()
+        onClicked: mouse => {
+            if (mouse.button === Qt.RightButton)
+                root.menuRequested(mouse.x, mouse.y);
+            else
+                root.clicked();
+        }
         onContainsMouseChanged: root.hoverChanged(mouseArea.containsMouse)
+    }
+
+    MouseArea {
+        anchors.bottom: parent.bottom
+        anchors.top: parent.top
+        cursorShape: Qt.PointingHandCursor
+        enabled: root.glyphClickable
+        objectName: "railRowGlyphArea"
+        visible: root.glyphClickable
+        width: Theme.space(8) + glyphText.width + Theme.space(4)
+        x: label.x - Theme.space(8)
+
+        onClicked: root.glyphClicked()
     }
 }

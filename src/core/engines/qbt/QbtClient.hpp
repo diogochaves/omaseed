@@ -35,6 +35,7 @@
 //   GET  app/webapiVersion           webApiVersion()
 //   GET  app/preferences             appPreferences()
 //   POST app/setPreferences          appSetPreferences(changes)  -- only the keys given
+//   GET  app/getDirectoryContent     appDirectoryContent(dirPath)
 //   GET  app/buildInfo               appBuildInfo()
 //   POST auth/login                  login()
 //   GET  sync/maindata               syncMainData(rid)
@@ -212,6 +213,10 @@ public:
     Reply<QString> *appVersion();         ///< GET app/version
     Reply<QString> *webApiVersion();      ///< GET app/webapiVersion
     Reply<QJsonObject> *appPreferences(); ///< GET app/preferences
+    /// GET app/getDirectoryContent (mode=all): a folder on the server's own disks, as full
+    /// paths (DECISIONS C16 L13). Its 4xx carry qBittorrent's text ("Directory does not
+    /// exist", "Endpoint does not exist"): ServerFolder::fromReply reads them.
+    Reply<QJsonArray> *appDirectoryContent(const QString &dirPath);
     /// POST app/setPreferences with `json=<changes>`; the server leaves every other key alone.
     Reply<QByteArray> *appSetPreferences(const QJsonObject &changes);
     Reply<QJsonObject> *appBuildInfo();        ///< GET app/buildInfo
@@ -385,7 +390,7 @@ public:
     /// metadata of `source` (a magnet, a v1 or v2 hash, an http(s) link to a .torrent) without
     /// adding it. It answers 202 while it looks and 200 once it has it; the caller asks again
     /// (docs/29 §3). The result is kept in the Web UI session, so every poll and the add that
-    /// follows must go through this one client (diogochaves/upstream#86). A 404 is a server
+    /// follows must go through this one client. A 404 is a server
     /// without the endpoint.
     Reply<FetchedMetadata> *torrentsFetchMetadata(const QString &source);
 
@@ -444,6 +449,14 @@ private:
         bool retryOnTransient = true;
         bool isLogin = false;
         bool allowReloginRetry = true;
+        /// A 403 whose body is qBittorrent's own text (not its bare "Forbidden" for a session
+        /// it doesn't know) refuses the request, not the sign-in: setLocation's "can't write
+        /// to directory" (C15 M19). No re-login, no auth state; the body becomes the message.
+        bool forbiddenMayNameRequest = false;
+        /// A 4xx other than 401/403 keeps the first line of qBittorrent's own text in the
+        /// message, where the status alone doesn't say what went wrong (getDirectoryContent's
+        /// 404 is a missing folder or a missing endpoint).
+        bool errorKeepsBody = false;
         /// Set instead of `form` for a multipart POST: called once per attempt, see
         /// postMultipart().
         std::function<QHttpMultiPart *()> buildMultiPart;

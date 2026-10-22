@@ -40,6 +40,7 @@ qt_add_qml_module(omaseed-views
         DetailsAddSheet.qml
         DetailsCell.qml
         DetailsErrorBlock.qml
+        DetailsMoveBlock.qml
         DetailsFilesTab.qml
         DetailsGeneralRow.qml
         DetailsGeneralTab.qml
@@ -62,11 +63,16 @@ qt_add_qml_module(omaseed-views
         JumpPalette.qml
         LimitsSheet.qml
         LoadingState.qml
-        LocationSheet.qml
         LogRow.qml
         LogView.qml
         MainView.qml
         MoreMenu.qml
+        MoveBand.qml
+        MoveCheckLine.qml
+        MoveLooseList.qml
+        MoveQuitConfirm.qml
+        MoveRecheckSheet.qml
+        MoveSheet.qml
         QbtImportSheet.qml
         QbtListSheet.qml
         QbtSettingRow.qml

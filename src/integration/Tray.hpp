@@ -68,6 +68,9 @@ public:
                     int downloading,
                     int seeding);
     QString tooltip() const { return m_tooltip; }
+    /// Board 42 J6 (DECISIONS C15 M20): a running move's line under the tooltip ("Moving
+    /// games: 52 %, about 50 min left"); "" for none.
+    void setJobLine(const QString &line);
 
     /// The menu's two disabled info lines: "↓ 4.21 MB/s · ↑ 812 KB/s" and
     /// "6 downloading · 118 seeding · 1.8 TB free".
@@ -147,6 +150,8 @@ private:
     int m_downloadingCount = 0;
     QString m_altKind = QStringLiteral("alt");
     QString m_tooltip;
+    QString m_tooltipBase; ///< the tooltip without the job's line
+    QString m_jobLine;
     QHash<QString, QColor> m_palette;
     bool m_loggedUnavailable = false;
     bool m_iconWanted = true;

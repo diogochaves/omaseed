@@ -1,5 +1,6 @@
 import QtQuick
 import qs.Commons
+import qs.Commons as Commons
 import qs.Ui
 import "Status.js" as Status
 
@@ -13,9 +14,9 @@ Column {
   // Index into Status.settingRows(); rows.length is the foot row (omaseed settings).
   property int cursorIndex: 0
   property string note: ""
-  property color foreground: Color.foreground
+  property color foreground: Commons.Color.foreground
   property color dim: Qt.darker(foreground, 1.55)
-  property color warn: Color.foreground
+  property color warn: Commons.Color.foreground
   property string fontFamily: Style.font.family
 
   readonly property var rows: Status.settingRows()

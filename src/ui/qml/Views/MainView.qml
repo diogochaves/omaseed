@@ -45,9 +45,14 @@ Item {
     readonly property alias helpSheetPanel: helpSheetPanel
     // T4.3
     readonly property alias actionsMenuPanel: actionsMenuPanel
+    /// C19 T3: the rail folder row's menu.
+    readonly property alias folderMenuPanel: folderMenuPanel
     readonly property alias selectionBar: selectionBar
     readonly property alias deleteConfirmPanel: deleteConfirmPanel
-    readonly property alias locationSheetPanel: locationSheetPanel
+    readonly property alias moveSheet: moveSheet
+    readonly property alias moveBand: moveBand
+    readonly property alias moveScope: moveScope
+    readonly property alias moveQuitConfirm: moveQuitConfirm
     readonly property alias sharedMoveConfirm: sharedMoveConfirm
     readonly property alias limitsSheetPanel: limitsSheetPanel
     readonly property alias moreMenu: moreMenu
@@ -118,12 +123,20 @@ Item {
             return limitsSheetPanel;
         if (globalLimitsSheet.opened)
             return globalLimitsSheet;
-        if (locationSheetPanel.opened)
-            return locationSheetPanel;
+        if (moveQuitConfirm.opened)
+            return moveQuitConfirm;
+        if (moveLooseList.opened)
+            return moveLooseList;
+        if (moveRecheckSheet.opened)
+            return moveRecheckSheet;
+        if (moveSheet.opened)
+            return moveSheet;
         if (deleteConfirmPanel.opened)
             return deleteConfirmPanel;
         if (actionsMenuPanel.opened)
             return actionsMenuPanel;
+        if (folderMenuPanel.opened)
+            return folderMenuPanel;
         if (moreMenu.opened)
             return moreMenu;
         if (filterMenu.opened)
@@ -133,6 +146,130 @@ Item {
 
     /// The rail groups folded on this server (docs/08 §5), saved with the table's state.
     property var railFolded: []
+
+    // ---- board 42: moving a folder (DECISIONS C15, #97) ---------------------------------
+    /// "show" (J1, S1): the table lists these torrents, with the Move column while they are
+    /// the job's. Empty: the library as the rail filters it.
+    property var moveShowHashes: []
+    /// The "show" came from the move sheet: esc brings the sheet back.
+    property bool moveSheetWaiting: false
+    readonly property bool moveShowing: root.moveShowHashes.length > 0
+    /// The job's torrents are on show (J1), not a preflight line's.
+    readonly property bool moveShowingJob: root.moveShowing && !root.moveSheetWaiting
+
+    /// The folder a move starts from: the one picked in the rail, else the cursor's save path.
+    function moveFolderTarget(): string {
+        if (App.filtered.folder.length > 0)
+            return App.filtered.folder;
+        return root.cursorHash.length > 0 ? App.move.folderOf(root.cursorHash) : "";
+    }
+
+    /// `shift+m`, the palette's "move folder…", the scope line's link (M1); `newPath` for
+    /// J3's "move the rest…" and T2's "change the folder…".
+    function openMoveFolder(folder: var, newPath: var): void {
+        const from = typeof folder === "string" && folder.length > 0 ? folder : root.moveFolderTarget();
+        if (from.length === 0) {
+            root.flashFooterNote(qsTr("pick a folder in the rail"));
+            return;
+        }
+        root.leaveMoveShow();
+        moveSheet.openFor(from, newPath);
+    }
+
+    /// "show": the table lists `hashes`. From the sheet, esc brings it back.
+    function showMoveHashes(hashes: var, fromSheet: bool): void {
+        if (hashes.length === 0)
+            return;
+        root.setView("library");
+        root.moveSheetWaiting = fromSheet;
+        root.moveShowHashes = hashes;
+        App.filtered.onlyHashes = hashes;
+        table.forceActiveFocus();
+    }
+
+    /// J1's "esc all torrents".
+    function leaveMoveShow(): void {
+        if (!root.moveShowing)
+            return;
+        root.moveShowHashes = [];
+        App.filtered.onlyHashes = [];
+        if (root.moveSheetWaiting) {
+            root.moveSheetWaiting = false;
+            moveSheet.reopen();
+        }
+    }
+
+    /// ctrl+q, the palette's quit, the read-only guard's: a running move asks first (J5).
+    function requestQuit(): void {
+        if (App.quitAllowed())
+            root.quitRequested();
+    }
+
+    /// The job's torrents that haven't moved (yet): what "move the rest…" and "change the
+    /// folder…" open a selection's sheet on.
+    function moveRestHashes(): var {
+        return App.move.jobHashes.filter(hash => (App.move.stepFor(hash).kind ?? "") !== "ok");
+    }
+
+    /// An action of the move's band.
+    function moveBandAction(key: string): void {
+        switch (key) {
+        case "pause":
+            App.move.pause();
+            break;
+        case "resume":
+            App.move.resume();
+            break;
+        case "end":
+            App.move.end();
+            break;
+        case "keepWaiting":
+            App.move.keepWaiting();
+            break;
+        case "show":
+            root.showMoveHashes(App.move.state === "running" || App.move.state === "pausing"
+                                || App.move.state === "paused" || App.move.state === "ending"
+                                ? App.move.jobHashes : App.move.failedHashes().concat(App.move.jobHashes.filter(
+                                                                                          hash => App.move.failedHashes(
+                                                                                              ).indexOf(hash) < 0)),
+                                false);
+            break;
+        case "changeFolder": {
+            // C16 L1: a selection's job opens the selection's sheet on what didn't move.
+            const rest = root.moveRestHashes();
+            const folder = App.move.kind === "folder";
+            App.move.end();
+            if (folder)
+                root.openMoveFolder(App.move.root, App.move.newPath);
+            else
+                moveSheet.openSelection(rest, App.move.newPath);
+            break;
+        }
+        case "moveRest":
+            if (App.move.kind === "folder")
+                root.openMoveFolder(App.move.root, App.move.newPath);
+            else
+                moveSheet.openSelection(root.moveRestHashes(), App.move.newPath);
+            break;
+        case "moveBack":
+            // C16 L11: each torrent back to where it was, checked as any move.
+            moveSheet.openBack("", "");
+            break;
+        case "recheck":
+            moveRecheckSheet.openFor(App.move.failedHashes());
+            break;
+        case "retry":
+            App.move.retryFailed();
+            break;
+        case "stayed":
+            moveLooseList.openStayed(App.move.root);
+            break;
+        case "close":
+            root.leaveMoveShow();
+            App.move.closeSummary();
+            break;
+        }
+    }
 
     /// True while anything is over the window.
     readonly property bool overlayOpen: root.activeOverlay !== null
@@ -499,6 +636,10 @@ Item {
 
     /// `esc`, in the order Fig. 26 promises: clear, then filter, then close.
     function handleEscape(): void {
+        if (root.moveShowing && table.selectedCount === 0) {
+            root.leaveMoveShow();
+            return;
+        }
         if (table.selectedCount > 0) {
             table.clearSelection();
             return;
@@ -605,6 +746,13 @@ Item {
         case "stop":
             App.stopTorrents(hashes);
             break;
+        // DECISIONS C20 (#107): the errored ones of the targets, tried again.
+        case "retry": {
+            const errored = hashes.filter(hash => App.torrentRow(hash).stateText === "error");
+            if (errored.length > 0)
+                App.retryTorrents(errored);
+            break;
+        }
         case "forceStart":
             App.forceStart(hashes);
             break;
@@ -623,7 +771,7 @@ Item {
         case "location": {
             // docs/32 F1: `m` on the one torrent whose move didn't happen tries it again.
             const failure = hashes.length === 1 ? (App.torrentRow(hashes[0]).failure || {}) : {};
-            locationSheetPanel.openFor(hashes, failure.destination || "");
+            moveSheet.openSelection(hashes, failure.destination || "");
             break;
         }
         case "limits":
@@ -768,7 +916,7 @@ Item {
 
         if (root.overlayOpen || root.firstRun) {
             if (ctrl && event.key === Qt.Key_Q) // quitting is never modal
-                root.quitRequested();
+                root.requestQuit();
             return;
         }
         // docs/35 N8: esc closes the failure's band first.
@@ -781,7 +929,7 @@ Item {
         if (ctrl) {
             switch (event.key) {
             case Qt.Key_Q:
-                root.quitRequested();
+                root.requestQuit();
                 break;
             case Qt.Key_K:
                 // The jump palette moves the library's cursor: from the log, the library first.
@@ -1007,6 +1155,7 @@ Item {
         "start": () => root._runOnTorrents("start"),
         "stop": () => root._runOnTorrents("stop"),
         "stopStart": () => root._runOnTorrents("stopStart"),
+        "retry": () => root._runOnTorrents("retry"),
         "forceStart": () => root._runOnTorrents("forceStart"),
         "recheck": () => root._runOnTorrents("recheck"),
         "reannounce": () => root._runOnTorrents("reannounce"),
@@ -1015,6 +1164,9 @@ Item {
         "category": () => root._runOnTorrents("category"),
         "tags": () => root._runOnTorrents("tags"),
         "location": () => root._runOnTorrents("location"),
+        "moveFolder": () => root.openMoveFolder("", ""),
+        // Board 45 B3 (C18 D7): the newest finished move only.
+        "undoLastMove": () => moveSheet.openBack(App.move.newestMove().id ?? "", ""),
         "limits": () => root._runOnTorrents("limits"),
         "rename": () => root._runOnTorrents("rename"),
         "openFolder": () => root._runOnTorrents("openFolder"),
@@ -1072,7 +1224,7 @@ Item {
         "commands": () => root.openCommandPalette(),
         "more": () => root.openMoreMenu(),
         "hide": () => root.hideRequested(),
-        "quit": () => root.quitRequested(),
+        "quit": () => root.requestQuit(),
         // the Files tab
         "priorityMenu": () => root._runInFiles(() => details.openPriorityMenu()),
         "raisePriority": () => root._runInFiles(() => details.setPriority("raise")),
@@ -1167,8 +1319,14 @@ Item {
             "area": area,
             "selected": table.selectedCount,
             "cursor": cursor.name || "",
+            // Board 42 (M1): the folder "move folder…" would move.
+            "folder": root.moveFolderTarget(),
+            // Board 45 B3 (C18 D7): what "undo last move" would move back.
+            "lastMove": App.move.newestMove(),
             "stopped": stopped,
             "running": targets.length - stopped,
+            // DECISIONS C20: what "retry" would try again.
+            "errored": targets.filter(row => row.stateText === "error").length,
             // App.stopStart follows the first hash: `p` starts when that one is stopped.
             "firstStopped": targets.length > 0 && targets[0].stopped === true,
             "marked": marked,
@@ -1256,6 +1414,13 @@ Item {
                            "glyph": Glyphs.tracker,
                            "text": rail.trackerText(tracker)
                        });
+        const folder = App.filtered.folder;
+        if (folder.length > 0)
+            chips.push({
+                           "key": "folder",
+                           "glyph": Glyphs.folder,
+                           "text": folder.substring(folder.lastIndexOf("/") + 1)
+                       });
         return chips;
     }
 
@@ -1272,6 +1437,9 @@ Item {
             break;
         case "tracker":
             App.filtered.clearTracker();
+            break;
+        case "folder":
+            App.filtered.folder = "";
             break;
         }
     }
@@ -1322,6 +1490,11 @@ Item {
         case Qt.Key_P:
             root.torrentAction(shift ? "forceStart" : "stopStart");
             return true;
+        case Qt.Key_E:
+            if (shift)
+                return false;
+            root.torrentAction("retry"); // DECISIONS C20: `p` stops an errored torrent
+            return true;
         case Qt.Key_D:
             root.torrentAction(shift ? "deleteWithFiles" : "delete");
             return true;
@@ -1335,7 +1508,11 @@ Item {
             root.torrentAction("tags");
             return true;
         case Qt.Key_M:
-            root.torrentAction("location");
+            // Board 42 (M1): shift+m moves the picked folder; m moves the selection (C16 L2).
+            if (shift)
+                root.openMoveFolder("", "");
+            else
+                root.torrentAction("location");
             return true;
         case Qt.Key_L:
             root.torrentAction("limits"); // plain `l` focuses the details, and the table took it
@@ -1453,6 +1630,21 @@ Item {
         function onCertificateRefused(id: string): void {
             if (settingsModal.opened)
                 settingsModal.reviewServer(id);
+        }
+
+        /// #124 (DECISIONS C20): an add the sheet no longer waits for (cancelled while it was
+        /// out) and the server refused: the footer says so, as an action's refusal.
+        function onAddFinished(ok: bool, message: string, hash: string): void {
+            if (ok || addSheet.opened)
+                return;
+            root.flashFooterNote(message);
+            const failure = App.addFailure;
+            if (failure.sentence === message) {
+                root.footerFailure = failure;
+                root.footerNoteMark = "✕";
+                footerNoteTimer.stop();
+                root.footerNoteSticky = true;
+            }
         }
 
         /// T4.3's seam: an action the server refused, on the footer for a few seconds.
@@ -1675,6 +1867,27 @@ Item {
         onSwitchRequested: root.openServerPalette()
     }
 
+    // Board 42 §4–§6 (DECISIONS C15 M10): a folder's move, under the lost server's notice,
+    // through every view, until its summary is closed.
+    MoveBand {
+        id: moveBand
+
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.top: banner.bottom
+        animated: !App.reducedMotion
+        band: App.move.band
+        // Read again whenever the job moves (`revision`).
+        record: App.move.revision >= 0 && App.move.shown ? App.move.detailsText() : ""
+        queued: App.move.queued
+        shown: App.move.shown && !root.firstRun
+        z: 1
+
+        onActionTriggered: key => root.moveBandAction(key)
+        onDropRequested: index => App.move.dropQueued(index)
+        onCopyRequested: text => root.copyText(text, qsTr("copied"))
+    }
+
     // body: rail | table | details
     Item {
         id: body
@@ -1684,7 +1897,7 @@ Item {
         anchors.bottom: footer.top
         anchors.left: parent.left
         anchors.right: parent.right
-        anchors.top: banner.bottom
+        anchors.top: moveBand.bottom
 
         Rail {
             id: rail
@@ -1695,6 +1908,8 @@ Item {
             categories: App.categories
             counts: App.counts
             filtered: App.filtered
+            // Board 42 F1 (M1, M2): the library's folders, after the categories.
+            folders: App.move.folders
             servers: App.servers
             // T4.5: the SERVERS group is off unless the General pane asks for it.
             serverCount: App.showServersGroup ? App.serverCount : 0
@@ -1744,6 +1959,12 @@ Item {
                 App.switchServer(id);
             }
             onMoreServersRequested: root.openServerPalette()
+            onFolderFoldToggled: root.saveTableState()
+            onFolderMenuRequested: (path, x, y) => {
+                const point = rail.mapToItem(root, x, y);
+                folderMenuPanel.folder = path;
+                folderMenuPanel.openAt(Math.round(point.x), Math.round(point.y));
+            }
         }
 
         SplitLayout {
@@ -1826,6 +2047,8 @@ Item {
 
             onCopyRequested: (text, note) => root.copyText(text, note)
             onLeaveRequested: root.toggleLog()
+            // Board 45 B2 (C18 D7): a move's line moves it back, through the Move sheet.
+            onMoveBackRequested: id => moveSheet.openBack(id, "")
             onNoteRequested: text => root.flashFooterNote(text)
             onShowTorrent: hash => root.showLogTorrent(hash)
         }
@@ -1844,14 +2067,59 @@ Item {
         Item {
             id: tableHost
 
+            // Board 42 F1, J1 (M1, M10): what the table is narrowed to, a folder picked in the
+            // rail or a move's torrents, and the way on: move it, or back to all.
+            ScopeLine {
+                id: moveScope
+
+                anchors.left: parent.left
+                anchors.leftMargin: Theme.space(16)
+                anchors.right: parent.right
+                anchors.rightMargin: Theme.space(16)
+                anchors.top: parent.top
+                anchors.topMargin: Theme.space(12)
+                linkKey: root.moveShowing ? "esc" : "shift+m"
+                oneLine: true
+                linkText: root.moveShowingJob ? qsTr("all torrents") : root.moveShowing ? qsTr("back to the sheet")
+                                                                                         : qsTr("move this folder…")
+                objectName: "moveScope"
+                text: {
+                    if (root.moveShowingJob)
+                        return qsTr("the move of %1 · %2 · %3 with qBittorrent").arg(App.move.root.substring(
+                                                                                         App.move.root.lastIndexOf("/") + 1)).arg(
+                                    App.move.jobHashes.length === 1 ? qsTr("1 torrent") : qsTr("%1 torrents").arg(
+                                                                          App.move.jobHashes.length)).arg(
+                                    App.move.revision >= 0 ? App.move.band.withServer ?? 0 : 0);
+                    if (root.moveShowing)
+                        return root.moveShowHashes.length === 1 ? qsTr("1 torrent from the move sheet") : qsTr(
+                                                                      "%1 torrents from the move sheet").arg(root.moveShowHashes.length);
+                    return App.move.folders.revision >= 0 ? App.move.folderLine(App.filtered.folder) : "";
+                }
+                visible: root.view === "library" && (root.moveShowing || App.filtered.folder.length > 0) && text.length > 0
+
+                onLinkActivated: {
+                    if (root.moveShowing)
+                        root.leaveMoveShow();
+                    else
+                        root.openMoveFolder(App.filtered.folder, "");
+                }
+            }
+
             TorrentTable {
                 id: table
 
+                anchors.bottom: parent.bottom
                 anchors.bottomMargin: Theme.space(12)
-                anchors.fill: parent
+                anchors.left: parent.left
                 anchors.leftMargin: Theme.space(16)
+                anchors.right: parent.right
                 anchors.rightMargin: Theme.space(16)
+                anchors.top: moveScope.visible ? moveScope.bottom : parent.top
                 anchors.topMargin: Theme.space(12)
+                // Board 42 J1: the job's step for each of its torrents.
+                showMoveColumn: root.moveShowingJob
+                moveRevision: App.move.revision
+                moveStepFor: hash => App.move.stepFor(hash)
                 // docs/17 M9.6: the last row can always scroll clear of the selection bar.
                 bottomRoom: selectionBar.visible ? selectionBar.height + Theme.space(12) : 0
                 filtered: App.filtered
@@ -1973,7 +2241,7 @@ Item {
                 onCommandsRequested: root.openCommandPalette()
                 onHelpRequested: root.helpOpen = true
                 onHideRequested: root.hideRequested()
-                onQuitRequested: root.quitRequested()
+                onQuitRequested: root.requestQuit()
                 onRetryRequested: App.retryNow()
                 onSettingsRequested: App.openSettings()
                 onServersRequested: root.openServerPalette()
@@ -2014,9 +2282,9 @@ Item {
                 if (action === "log")
                     root.showTorrentLog(hashes[0]);
                 else if (action === "location")
-                    locationSheetPanel.openFor(hashes, "");
-                else if (action === "start")
-                    App.startTorrents(hashes);
+                    moveSheet.openSelection(hashes, "");
+                else if (action === "start") // DECISIONS C20: "retry", a start that forgets the stop
+                    App.retryTorrents(hashes);
                 else if (action === "recheck")
                     App.recheck(hashes);
             }
@@ -2029,12 +2297,15 @@ Item {
                 if (action === "log")
                     root.showTorrentLog(hash);
                 else if (action === "location")
-                    locationSheetPanel.openFor([hash], (App.torrentRow(hash).failure || {}).destination || "");
+                    moveSheet.openSelection([hash], (App.torrentRow(hash).failure || {}).destination || "");
                 else if (action === "folder")
                     App.openFolder(hash);
                 else if (action === "dismiss")
                     App.dismissFailure(hash);
             }
+            // Board 45 B1 (C18 D7): the last move's block.
+            onMoveBackRequested: (id, only) => moveSheet.openBack(id, only)
+            onMoveShowRequested: hashes => root.showMoveHashes(hashes, false)
 
             Rectangle {
                 anchors.fill: parent
@@ -2226,8 +2497,9 @@ Item {
             // ▼ for turtle in yellow, and reads in the foreground.
             Label {
                 Layout.alignment: Qt.AlignVCenter
-                color: root.footerNoteMark === "▲" ? Theme.green : root.footerNoteMark === "✕" ? Theme.red
-                                                                                              : Theme.yellow
+                color: root.footerNoteMark === "▲" || root.footerNoteMark === "✓" ? Theme.green
+                                                                                   : root.footerNoteMark === "✕"
+                                                                                     ? Theme.red : Theme.yellow
                 objectName: "footerNoteMark"
                 size: "caption"
                 text: root.footerNoteMark
@@ -2419,6 +2691,8 @@ Item {
     property bool footerNoteWarn: false
     property bool footerNoteHint: false
     readonly property int _footerNoteSeconds: 5
+    /// C16 L7: a landed move's note stays 6 s.
+    property bool _footerNoteLong: false
 
     /// docs/31 F1: the note after A stays until the next key, not for a few seconds.
     property bool footerNoteSticky: false
@@ -2438,7 +2712,16 @@ Item {
         root.footerNoteHint = false;
         root.footerNoteSticky = false;
         root.footerNoteMark = "";
+        root._footerNoteLong = false;
         root.footerNote = text;
+        footerNoteTimer.restart();
+    }
+
+    /// C16 L7: a quick move landed: its note, with a green ✓, for 6 s.
+    function flashMoveNote(text: string): void {
+        root.flashFooterNote(text);
+        root.footerNoteMark = "✓";
+        root._footerNoteLong = true;
         footerNoteTimer.restart();
     }
 
@@ -2521,7 +2804,7 @@ Item {
     Timer {
         id: footerNoteTimer
 
-        interval: root._footerNoteSeconds * 1000
+        interval: (root._footerNoteLong ? 6 : root._footerNoteSeconds) * 1000
 
         onTriggered: root.footerNote = ""
     }
@@ -2579,6 +2862,34 @@ Item {
         }
     }
 
+    // DECISIONS C19 T3 (C15 M1's "the row's menu"): a rail folder row's menu. It moves that
+    // row's folder, picked or not; a torrent's menu no longer offers it.
+    Menu {
+        id: folderMenuPanel
+
+        /// The save path the menu was opened on.
+        property string folder: ""
+
+        anchors.fill: parent
+        // The folder's own name: a whole path would be cut at its end, the part that tells.
+        heading: folderMenuPanel.folder.substring(folderMenuPanel.folder.lastIndexOf("/") + 1)
+        items: [
+            {
+                "text": qsTr("move this folder…"),
+                "key": "M",
+                "action": "moveFolder"
+            }
+        ]
+        menuWidth: Theme.space(240)
+        objectName: "folderMenu"
+        z: 9
+
+        onActivated: action => {
+            if (action === "moveFolder")
+                root.openMoveFolder(folderMenuPanel.folder, "");
+        }
+    }
+
     DeleteConfirm {
         id: deleteConfirmPanel
 
@@ -2586,11 +2897,81 @@ Item {
         z: 9
     }
 
-    LocationSheet {
-        id: locationSheetPanel
+    // Board 42 §3 (M4–M9): the move sheet, its loose files' list, the failures' recheck, and
+    // quit's question while a move runs (J5).
+    MoveSheet {
+        id: moveSheet
 
         anchors.fill: parent
         z: 9
+
+        onLooseListRequested: folder => moveLooseList.openFor(folder)
+        onShowRequested: hashes => root.showMoveHashes(hashes, true)
+    }
+
+    MoveLooseList {
+        id: moveLooseList
+
+        anchors.fill: parent
+        z: 10
+
+        onCopyRequested: text => root.copyText(text, qsTr("copied the list"))
+    }
+
+    // C16 L7: a move that landed before its band showed says so in the footer's note, "2
+    // moved to …", for 6 s. A failed one is App.loggedFailure's (docs/32 N1).
+    Connections {
+        function onNote(text: string, hashes: var, failed: bool): void {
+            if (!failed)
+                root.flashMoveNote(text);
+        }
+
+        target: App.move
+    }
+
+    MoveRecheckSheet {
+        id: moveRecheckSheet
+
+        anchors.fill: parent
+        z: 9
+
+        onSetLocationRequested: hashes => moveSheet.openSelection(hashes, "")
+    }
+
+    MoveQuitConfirm {
+        id: moveQuitConfirm
+
+        anchors.fill: parent
+        z: 15
+
+        onHideRequested: root.hideRequested()
+    }
+
+    // A picked folder that the move emptied: the pick follows it to its new place (F3), or
+    // goes when the folder is gone for another reason.
+    Connections {
+        function onRevisionChanged(): void {
+            const folder = App.filtered.folder;
+            if (folder.length === 0 || Object.keys(App.move.folders.figures(folder)).length > 0)
+                return;
+            const moved = App.move.root === folder && App.move.newPath.length > 0
+                    && Object.keys(App.move.folders.figures(App.move.newPath)).length > 0;
+            App.filtered.folder = moved ? App.move.newPath : "";
+        }
+
+        target: App.move.folders
+    }
+
+    Connections {
+        function onMoveQuitAsked(): void {
+            moveQuitConfirm.open();
+        }
+
+        function onMoveShowRequested(): void {
+            root.moveBandAction("show");
+        }
+
+        target: App
     }
 
     LimitsSheet {
@@ -2789,6 +3170,8 @@ Item {
                                "sortRole": App.filtered.sortRoleName,
                                "sortOrder": App.filtered.sortOrder,
                                "railFolded": root.railFolded,
+                               // Board 42 F2: the folders group's folds.
+                               "foldedFolders": App.move.folders.folded,
                                // In base-12 units, so a base size change keeps the proportion.
                                // 0 while it is the default, so a later default reaches it.
                                "detailsWidth": split.sideWidth === split.defaultSideWidth ? 0
@@ -2829,6 +3212,7 @@ Item {
 
     function _applyTableState(state: var): void {
         root.railFolded = state.railFolded !== undefined ? state.railFolded : [];
+        App.move.folders.folded = state.foldedFolders !== undefined ? state.foldedFolders : [];
         // 340 was the default before docs/11 J1, saved by every earlier version whether or
         // not anybody dragged it; it reads as "the default" so the wider one arrives.
         split.sideWidth = state.detailsWidth > 0 && state.detailsWidth !== 340

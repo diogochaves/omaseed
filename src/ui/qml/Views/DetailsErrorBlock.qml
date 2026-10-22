@@ -30,11 +30,14 @@ Rectangle {
     readonly property color kindColor: root.missingFiles || root.failure ? Theme.yellow : Theme.red
     readonly property var hints: {
         const keys = {
-            "location": ["m", qsTr("set location")],
-            "start": ["p", qsTr("try again")],
+            "location": ["m", qsTr("move…")],
+            // DECISIONS C20 (#107): `p` stops an errored torrent; "retry" has a key of its own.
+            "start": ["e", qsTr("retry")],
             "recheck": ["c", qsTr("recheck")],
             "rename": ["2", qsTr("rename in Files")],
-            "folder": ["o", qsTr("open folder")]
+            "folder": ["o", qsTr("open folder")],
+            // #108: advice, not an action: the app can't check a disk, so no key, no click.
+            "checkDisk": ["", qsTr("check the disk first")]
         };
         const list = [];
         for (const action of root.problem.actions || []) {
@@ -44,7 +47,7 @@ Rectangle {
                               "key": entry[0],
                               "label": entry[1],
                               "action": action,
-                              "clickable": true
+                              "clickable": action !== "checkDisk"
                           });
         }
         if (root.found)
@@ -153,6 +156,21 @@ Rectangle {
             visible: text.length > 0
             width: parent.width
             wrapMode: Text.WrapAnywhere
+        }
+
+        // #108: what the cause may mean, when the words alone don't say ("may be damaged").
+        Text {
+            Accessible.name: text
+            Accessible.role: Accessible.StaticText
+            color: Theme.foreground
+            font.family: Theme.fontFamily
+            font.pixelSize: Theme.font.small
+            objectName: "errorAdvice"
+            text: root.problem.advice || ""
+            textFormat: Text.PlainText
+            visible: text.length > 0
+            width: parent.width
+            wrapMode: Text.Wrap
         }
 
         Text {

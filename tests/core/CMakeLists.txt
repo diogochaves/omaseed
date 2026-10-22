@@ -444,3 +444,51 @@ omaseed_add_test(tst_qbtengine
     SOURCES tst_qbtengine.cpp
     LIBRARIES omaseed::core Qt6::Network
 )
+
+omaseed_add_test(tst_foldertree
+    SOURCES tst_foldertree.cpp
+    LIBRARIES omaseed::core
+)
+
+omaseed_add_test(tst_foldermodel
+    SOURCES tst_foldermodel.cpp
+    LIBRARIES omaseed::core
+)
+
+omaseed_add_test(tst_loosefiles
+    SOURCES tst_loosefiles.cpp
+    LIBRARIES omaseed::core
+)
+
+omaseed_add_test(tst_loosecarry
+    SOURCES tst_loosecarry.cpp
+    LIBRARIES omaseed::core
+)
+# The same test's full-disk case, on a 1 MiB tmpfs in a user namespace (no root); skipped
+# where user namespaces aren't allowed.
+add_test(NAME tst_loosecarry_full
+    COMMAND sh "${CMAKE_CURRENT_SOURCE_DIR}/run-small-fs.sh" $<TARGET_FILE:tst_loosecarry> fullDestination)
+set_tests_properties(tst_loosecarry_full PROPERTIES
+    SKIP_RETURN_CODE 77
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen;XDG_DATA_HOME=${CMAKE_BINARY_DIR}/tests/data-home"
+)
+
+omaseed_add_test(tst_moveplan
+    SOURCES tst_moveplan.cpp
+    LIBRARIES omaseed::core
+)
+
+omaseed_add_test(tst_movehistory
+    SOURCES tst_movehistory.cpp
+    LIBRARIES omaseed::core
+)
+
+omaseed_add_test(tst_movejob
+    SOURCES tst_movejob.cpp
+    LIBRARIES omaseed::core
+)
+
+omaseed_add_test(tst_movejob_live LIVE
+    SOURCES tst_movejob_live.cpp
+    LIBRARIES omaseed::core
+)

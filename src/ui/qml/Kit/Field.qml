@@ -23,6 +23,11 @@ import Omaseed.Kit
 // around the field: scrolling past a value never changes it. An empty field steps from
 // `emptyValue`, else from its placeholder when that is a number; with neither (`∞`), the
 // first notch up gives `minimum` + `step` and a notch down leaves it empty.
+//
+// An `opener` (board 45 D5, DECISIONS C18: the Move sheet's "places ▾") is a control in the
+// field, before `trailing`, in the accent: a click emits `openerClicked`, and its arrow follows
+// `openerExpanded` (▾ closed, ▴ open). With one, a screen reader reads the field as a combobox
+// and the opener as its button, collapsed or expanded.
 Rectangle {
     id: root
 
@@ -43,6 +48,12 @@ Rectangle {
     /// count that clears the filter: "clear the filter"); the text then goes in its
     /// description. "" names it by `trailing` (#78).
     property string trailingName: ""
+    /// The opener's word, drawn with ▾ or ▴ after it; "" none.
+    property string opener: ""
+    /// The list the opener shows is open: ▴, and "expanded" to a screen reader.
+    property bool openerExpanded: false
+    /// What a screen reader adds to the opener's name ("9 places"); "" nothing.
+    property string openerDescription: ""
     /// What a screen reader calls the field when the placeholder is no name for it (a syntax
     /// lesson, a glyph like `∞`); the placeholder then goes in its description. "" names it
     /// by `placeholder` (#78).
@@ -73,6 +84,8 @@ Rectangle {
     signal cleared
     /// A click on the trailing text or cap, when `trailingClickable`.
     signal trailingClicked
+    /// A click on the opener (or a screen reader's press of it).
+    signal openerClicked
     /// One of `shortcuts` was pressed while typing here.
     signal shortcutPressed(int key, int modifiers)
 
@@ -206,6 +219,48 @@ Rectangle {
         visible: root.trailing.length > 0
     }
 
+    Text {
+        id: openerText
+
+        anchors.right: trailingText.visible ? trailingText.left : trailingCap.visible
+                                                                  ? trailingCap.left : parent.right
+        anchors.rightMargin: trailingText.visible || trailingCap.visible ? Theme.space(12)
+                                                                        : Theme.space(10)
+        anchors.verticalCenter: parent.verticalCenter
+        color: openerButton.containsMouse ? Theme.brightForeground : Theme.accent
+        font.family: Theme.fontFamily
+        font.pixelSize: Theme.font.caption
+        objectName: "fieldOpenerText"
+        text: root.opener + " " + (root.openerExpanded ? Glyphs.chevronUp : Glyphs.chevronDown)
+        visible: root.opener.length > 0
+    }
+
+    // Over the opener's text, a little wider so it is easy to hit.
+    MouseArea {
+        id: openerButton
+
+        Accessible.description: root.openerDescription
+        Accessible.expandable: true
+        Accessible.expanded: root.openerExpanded
+        Accessible.ignored: !openerText.visible
+        Accessible.name: root.opener
+        Accessible.role: Accessible.Button
+        Accessible.onPressAction: if (root.enabled && openerButton.enabled)
+                                      root.openerClicked()
+        anchors.bottom: parent.bottom
+        anchors.left: openerText.left
+        anchors.leftMargin: -Theme.space(4)
+        anchors.right: openerText.right
+        anchors.rightMargin: -Theme.space(4)
+        anchors.top: parent.top
+        cursorShape: Qt.PointingHandCursor
+        enabled: openerText.visible
+        hoverEnabled: true
+        objectName: "fieldOpenerButton"
+
+        onClicked: root.openerClicked()
+    }
+
     // Over the trailing text and cap, from the text's left edge to the field's right one.
     MouseArea {
         id: trailingButton
@@ -246,14 +301,19 @@ Rectangle {
 
         Accessible.description: root.accessibleName.length > 0 ? root.placeholder : ""
         Accessible.name: root.accessibleName.length > 0 ? root.accessibleName : root.placeholder
-        Accessible.role: Accessible.EditableText
+        Accessible.editable: true
+        Accessible.expandable: openerText.visible
+        Accessible.expanded: openerText.visible && root.openerExpanded
+        Accessible.role: openerText.visible ? Accessible.ComboBox : Accessible.EditableText
         objectName: "fieldInput"
         anchors.left: hintText.visible ? hintText.right : parent.left
         anchors.leftMargin: hintText.visible ? Theme.space(6) : Theme.space(10)
-        anchors.right: trailingText.visible ? trailingText.left : trailingCap.visible
-                                                                  ? trailingCap.left : parent.right
-        anchors.rightMargin: trailingText.visible || trailingCap.visible ? Theme.space(6)
-                                                                        : Theme.space(10)
+        anchors.right: openerText.visible ? openerText.left : trailingText.visible
+                                                             ? trailingText.left
+                                                             : trailingCap.visible
+                                                               ? trailingCap.left : parent.right
+        anchors.rightMargin: openerText.visible || trailingText.visible || trailingCap.visible
+                             ? Theme.space(6) : Theme.space(10)
         anchors.verticalCenter: parent.verticalCenter
         clip: true
         color: Theme.brightForeground

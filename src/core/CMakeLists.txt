@@ -59,6 +59,10 @@ qt_add_library(omaseed-core STATIC
     FilesViewState.hpp
     FilterCounts.cpp
     FilterCounts.hpp
+    FolderModel.cpp
+    FolderModel.hpp
+    FolderTree.cpp
+    FolderTree.hpp
     Format.cpp
     Format.hpp
     FreeSpace.cpp
@@ -68,6 +72,16 @@ qt_add_library(omaseed-core STATIC
     HomeGuard.hpp
     LibraryMatch.cpp
     LibraryMatch.hpp
+    LooseCarry.cpp
+    LooseCarry.hpp
+    LooseFiles.cpp
+    LooseFiles.hpp
+    MoveHistory.cpp
+    MoveHistory.hpp
+    MoveJob.cpp
+    MoveJob.hpp
+    MovePlan.cpp
+    MovePlan.hpp
     LogFilterModel.cpp
     LogFilterModel.hpp
     MagnetLink.cpp
@@ -88,6 +102,8 @@ qt_add_library(omaseed-core STATIC
     PrivateTrackers.hpp
     ProblemLog.cpp
     ProblemLog.hpp
+    QbtMoveFeed.cpp
+    QbtMoveFeed.hpp
     Reply.cpp
     Reply.hpp
     RenameDisk.cpp
@@ -104,6 +120,7 @@ qt_add_library(omaseed-core STATIC
     ServerLog.hpp
     ServerListModel.cpp
     ServerListModel.hpp
+    ServerFolder.hpp
     ServerStore.cpp
     ServerStore.hpp
     SeedConsole.cpp

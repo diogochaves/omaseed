@@ -803,6 +803,71 @@ TestCase {
         compare(sheet.renameField.text, "half typed", "`a` while open wiped the form");
     }
 
+    // #124 (DECISIONS C20): one add at a time. A second press while the first is out sends
+    // nothing; qBittorrent's OK closes the sheet.
+    function test_a_second_press_while_adding_sends_nothing() {
+        const sheet = createTemporaryObject(addSheetComponent, testCase);
+        const added = createTemporaryObject(addSpy, testCase, {
+                                                "target": sheet
+                                            });
+        sheet.openWith(testCase.freshMagnet, "handoff");
+        keyClick(Qt.Key_Return);
+        keyClick(Qt.Key_Return);
+        sheet.submit(true);
+        sheet.triggerPrimary();
+        compare(added.count, 1, "a second press sent the torrent again");
+        compare(sheet.opened, true, "the sheet waits for the answer");
+
+        sheet.finish(true, "");
+        compare(sheet.opened, false, "qBittorrent's OK closes it");
+    }
+
+    // #124: a wait the eye can see says so on the button; the answer gives `add` back.
+    function test_the_button_says_adding_while_the_add_is_out() {
+        const sheet = createTemporaryObject(addSheetComponent, testCase);
+        sheet.openWith(testCase.freshMagnet, "handoff");
+        sheet.oneByOne();
+        compare(sheet._addText, "add");
+        sheet.submit(false);
+        compare(sheet._addText, "add", "no flash for an answer that comes at once");
+        tryCompare(sheet, "_addText", "adding…", 2000);
+        sheet.finish(false, "the server refused this torrent");
+        compare(sheet._addText, "add");
+        compare(sheet.opened, true);
+        // Refused: the form is still there to send again.
+        const added = createTemporaryObject(addSpy, testCase, {
+                                                "target": sheet
+                                            });
+        sheet.submit(false);
+        compare(added.count, 1);
+    }
+
+    // #124: a hand-off while the add is out is the next torrent, in the queue, not part of the
+    // one leaving (a batch made then would close with its answer, and be lost).
+    function test_a_hand_off_while_adding_waits_for_the_answer() {
+        const sheet = createTemporaryObject(addSheetComponent, testCase);
+        const added = createTemporaryObject(addSpy, testCase, {
+                                                "target": sheet
+                                            });
+        sheet.openWith(testCase.freshMagnet, "handoff");
+        sheet.submit(false);
+        compare(added.count, 1);
+        sheet.openList(["magnet:?xt=urn:btih:0102030405060708090a0b0c0d0e0f1011121314&dn=second"],
+                       "handoff");
+        compare(sheet.batchMode, false);
+        compare(sheet.queue.length, 1);
+        compare(sheet.sourceField.text, testCase.freshMagnet);
+
+        sheet.finish(true, "");
+        compare(sheet.opened, true, "the next one is up");
+        compare(sheet.addable.name, "second");
+        sheet.submit(false);
+        compare(added.count, 2);
+        compare(added.signalArguments[1][0].name, "second");
+        sheet.finish(true, "");
+        compare(sheet.opened, false);
+    }
+
     function test_a_refused_add_stays_open_in_red() {
         const sheet = createTemporaryObject(addSheetComponent, testCase);
         sheet.openWith(testCase.freshMagnet, "clipboard");
@@ -957,6 +1022,7 @@ TestCase {
         compare(request.stopped, true);
         compare(request.untilMetadata, true);
         compare(request.filePriorities, []);
+        sheet.finish(false, "refused"); // #124: one add at a time; a refusal frees the button
         sheet.submit(false);
         request = added.signalArguments[1][0];
         compare(request.stopped, false);

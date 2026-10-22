@@ -45,6 +45,8 @@ set -euo pipefail
 repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 # shellcheck source=scripts/dev/home-guard.sh
 . "$repo/scripts/dev/home-guard.sh"
+# shellcheck source=scripts/dev/detach.sh
+. "$repo/scripts/dev/detach.sh"
 SWARM="${OMASEED_SWARM_PROFILE:-$HOME/.local/share/omaseed-swarm}"
 SEEDER_PORT=8083
 SEEDER_BT_PORT=26997
@@ -81,8 +83,7 @@ tracker_running() { [ -f "$TRACKER_PID" ] && kill -0 "$(cat "$TRACKER_PID")" 2>/
 leech_running() { [ -f "$LEECH_PID" ] && kill -0 "$(cat "$LEECH_PID")" 2>/dev/null; }
 
 start_tracker() {
-    nohup python3 "$repo/scripts/dev/swarm-tracker.py" $TRACKER_PORT "$CONTROL" \
-        >"$SWARM/tracker.log" 2>&1 &
+    detach "$SWARM/tracker.log" python3 "$repo/scripts/dev/swarm-tracker.py" $TRACKER_PORT "$CONTROL"
     echo $! >"$TRACKER_PID"
     sleep 0.5
 }
@@ -524,8 +525,8 @@ cmd_leech_start() {
         return 0
     fi
     rm -f "$LEECH_PID"
-    setsid nohup python3 "$repo/scripts/dev/swarm-leech.py" "$LEECH_PID" "$TORRENTS" "$CATEGORY" \
-        "$LEECHER" "$PLAY" "$SEEDER" >>"$SWARM/leech.log" 2>&1 </dev/null &
+    detach -a "$SWARM/leech.log" python3 "$repo/scripts/dev/swarm-leech.py" "$LEECH_PID" \
+        "$TORRENTS" "$CATEGORY" "$LEECHER" "$PLAY" "$SEEDER"
     for _ in $(seq 1 20); do leech_running && break; sleep 0.25; done
     leech_running || { echo "the churn loop did not start; see $SWARM/leech.log" >&2; exit 1; }
     echo "churn loop: pid $(cat "$LEECH_PID"), download cap $rate KiB/s (log $SWARM/leech.log)"

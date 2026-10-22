@@ -15,6 +15,9 @@ Item {
     required property string levelName
     required property string timeText
     required property string message
+    /// Board 45 B2 (C18 D7): one of omaseed's own lines, a move it made: "move back…" at the
+    /// end. "" on qBittorrent's.
+    required property string moveId
     required property bool marked
     /// The view's cursor is on this line.
     property bool current: false
@@ -23,6 +26,8 @@ Item {
     property real levelWidth: Theme.space(84)
 
     signal clicked(int index, int modifiers)
+    /// Board 45 B2: "move back…" on a move's line.
+    signal moveBackRequested(string id)
 
     // #77: a list item named by its message, its level and time the description, selected
     // while marked; its press is a plain click, and does nothing while disabled.
@@ -101,7 +106,7 @@ Item {
         objectName: "logMessage"
         text: root.styled(root.message, Theme.brightForeground)
         textFormat: Text.StyledText
-        width: root.width - x - Theme.space(16)
+        width: root.width - x - Theme.space(16) - (moveBack.visible ? moveBack.width + Theme.space(12) : 0)
         wrapMode: Text.WrapAnywhere
         x: timeLabel.x + root.timeWidth + root.levelWidth + 2 * Theme.space(14)
         y: Theme.space(3)
@@ -115,5 +120,34 @@ Item {
         hoverEnabled: true
 
         onClicked: event => root.clicked(root.index, event.modifiers)
+    }
+
+    // Board 45 B2: over the row's own click area, so a click on it opens the sheet only. A list
+    // item with a control inside is read as the control alone, so the link carries the line.
+    Text {
+        id: moveBack
+
+        Accessible.name: qsTr("move back: %1").arg(root.message)
+        Accessible.role: Accessible.Link
+        Accessible.onPressAction: root.moveBackRequested(root.moveId)
+        anchors.right: parent.right
+        anchors.rightMargin: Theme.space(16)
+        color: moveBackMouse.containsMouse ? Theme.brightForeground : Theme.accent
+        font.family: Theme.fontFamily
+        font.pixelSize: Theme.font.small
+        objectName: "logMoveBack"
+        text: qsTr("move back…")
+        visible: root.moveId.length > 0
+        y: Theme.space(3)
+
+        MouseArea {
+            id: moveBackMouse
+
+            anchors.fill: parent
+            cursorShape: Qt.PointingHandCursor
+            hoverEnabled: true
+
+            onClicked: root.moveBackRequested(root.moveId)
+        }
     }
 }

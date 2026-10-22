@@ -89,16 +89,21 @@ quint32 Notifier::sendNotice(const QString &key,
 
     const quint32 replacesId = m_liveIdByKey.value(key, 0);
 
-    // Omarchy's own notifications draw no buttons: a click on the toast invokes the action
-    // named "default" and nothing else, so the main button is offered under that name too.
-    // Servers that draw buttons (mako, dunst, GNOME, KDE) do not draw "default" as one.
-    QStringList allActions = actions;
-    if (!defaultAction.isEmpty()) {
-        const qsizetype at = actions.indexOf(defaultAction);
-        const QString label =
-            at >= 0 && at + 1 < actions.size() ? actions.at(at + 1) : defaultAction;
-        allActions << QStringLiteral("default") << label;
+    // The main button is also the click on the notice: it goes under the name "default",
+    // which every server invokes for a click on the toast and none draws as a button of its
+    // own (Omarchy 4.0.x draws no buttons at all and invokes only "default"; 4.5 draws the
+    // others as buttons, mako, dunst, GNOME and KDE list them). So it is not listed again
+    // under its own key: on 4.5 that made a second button doing what the click does (#111).
+    QStringList allActions;
+    QString defaultLabel = defaultAction;
+    for (qsizetype i = 0; i + 1 < actions.size(); i += 2) {
+        if (!defaultAction.isEmpty() && actions.at(i) == defaultAction)
+            defaultLabel = actions.at(i + 1);
+        else
+            allActions << actions.at(i) << actions.at(i + 1);
     }
+    if (!defaultAction.isEmpty())
+        allActions << QStringLiteral("default") << defaultLabel;
 
     QVariantMap hints;
     hints.insert(QStringLiteral("desktop-entry"), AppIdentity::applicationId());
@@ -142,8 +147,8 @@ quint32 Notifier::notifyCompleted(const QString &hash,
 
     QStringList actions;
     if (hasFolder)
-        actions << QStringLiteral("open-folder") << QStringLiteral("open folder");
-    actions << QStringLiteral("show") << QStringLiteral("show");
+        actions << QStringLiteral("open-folder") << QStringLiteral("Open folder");
+    actions << QStringLiteral("show") << QStringLiteral("Show");
 
     return sendNotice(key,
                       QStringLiteral("completed"),
@@ -165,7 +170,7 @@ quint32 Notifier::notifyErrored(const QString &hash,
     const QString summary = QStringLiteral("%1 stopped with an error").arg(name);
     const QString body =
         detail.isEmpty() ? headline : QStringLiteral("%1: %2").arg(headline, detail);
-    const QStringList actions{QStringLiteral("show"), QStringLiteral("show")};
+    const QStringList actions{QStringLiteral("show"), QStringLiteral("Show")};
 
     return sendNotice(key,
                       QStringLiteral("errored"),
@@ -184,7 +189,7 @@ Notifier::notifyServerLost(const QString &serverId, const QString &headline, con
     const QString key = QStringLiteral("server|%1").arg(serverId);
     const QString summary = headline;
 
-    const QStringList actions{QStringLiteral("settings"), QStringLiteral("settings")};
+    const QStringList actions{QStringLiteral("settings"), QStringLiteral("Settings")};
 
     return sendNotice(key,
                       QStringLiteral("server"),
@@ -218,7 +223,7 @@ quint32 Notifier::notifyDiskAlmostFull(const QString &serverId, const QString &f
     const QString key = QStringLiteral("disk|%1").arg(serverId);
     const QString body = QStringLiteral("%1 free").arg(freeText);
 
-    const QStringList actions{QStringLiteral("settings"), QStringLiteral("settings")};
+    const QStringList actions{QStringLiteral("settings"), QStringLiteral("Settings")};
 
     return sendNotice(key,
                       QStringLiteral("disk"),
@@ -257,7 +262,7 @@ void Notifier::onNotificationClosed(uint id, uint /*reason*/)
 quint32
 Notifier::notifyWeeklyRecap(const QString &serverId, const QString &summary, const QString &body)
 {
-    const QStringList actions{QStringLiteral("console"), QStringLiteral("open the console")};
+    const QStringList actions{QStringLiteral("console"), QStringLiteral("Open the console")};
     return sendNotice(QStringLiteral("recap|%1").arg(serverId),
                       QStringLiteral("recap"),
                       serverId,
@@ -267,6 +272,20 @@ Notifier::notifyWeeklyRecap(const QString &serverId, const QString &summary, con
                       kUrgencyLow,
                       QString(),
                       QStringLiteral("console"));
+}
+
+quint32 Notifier::notifyMove(const QString &serverId, const QString &summary, const QString &body)
+{
+    const QStringList actions{QStringLiteral("show"), QStringLiteral("Show")};
+    return sendNotice(QStringLiteral("move|%1").arg(serverId),
+                      QStringLiteral("move"),
+                      serverId,
+                      summary,
+                      body,
+                      actions,
+                      kUrgencyNormal,
+                      QStringLiteral("transfer"),
+                      QStringLiteral("show"));
 }
 
 } // namespace omaseed::integration

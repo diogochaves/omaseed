@@ -40,6 +40,9 @@ Item {
     required property CategoryModel categories
     required property TagModel tags
     required property TrackerModel trackers
+    /// Board 42 F1 (DECISIONS C15 M1, M2): the library's save paths as a tree, after the
+    /// categories. Null or empty draws no group.
+    property FolderModel folders: null
     property int serverCount: 1
     property ServerStore servers: null
     /// The rows of the servers block (roles `name`, `isDefault`, `serverState`, `countLabel`). The
@@ -57,7 +60,12 @@ Item {
     readonly property int serversShownMax: 5
 
     property int cursorIndex: 0
-    /// The folded groups: any of "status", "categories", "tags", "trackers", "servers".
+    /// DECISIONS C19 T2 (#135): the cursor's fill shows only while the rail has the keys. A
+    /// click still moves `cursorIndex`, so `j`/`k` start from the row clicked, but until the
+    /// rail gets the keys only the selection is painted.
+    readonly property int shownCursor: root.activeFocus ? root.cursorIndex : -1
+    /// The folded groups: any of "status", "categories", "folders", "tags", "trackers",
+    /// "servers".
     property var collapsedGroups: []
     /// How the rail says it scrolls (Settings -> Appearance, docs/08 §5): "chevrons" (a
     /// counted line at each end), "fade" or "scrollbar".
@@ -116,6 +124,12 @@ Item {
     signal serverActivated(string id)
     /// docs/33 D18: "… N more · ctrl+s": the host opens the server palette.
     signal moreServersRequested
+    /// A folder row was folded or unfolded (F2): the host keeps `folders.folded`.
+    signal folderFoldToggled
+    /// DECISIONS C19 T3 (C15 M1's "the row's menu"): a right-click on a folder row, or the
+    /// menu key / `shift+F10` on the cursor's: the host opens its menu ("move this folder…")
+    /// for `path` at `x`, `y` (this item's coordinates).
+    signal folderMenuRequested(string path, real x, real y)
 
     // ---- row bookkeeping -----------------------------------------------------------
     // Every row (and every group heading) registers itself with a function that selects it;
@@ -153,6 +167,7 @@ Item {
     // ---- folding -------------------------------------------------------------------
     readonly property bool statusFolded: root.collapsedGroups.indexOf("status") >= 0
     readonly property bool categoriesFolded: root.collapsedGroups.indexOf("categories") >= 0
+    readonly property bool foldersFolded: root.collapsedGroups.indexOf("folders") >= 0
     readonly property bool tagsFolded: root.collapsedGroups.indexOf("tags") >= 0
     readonly property bool trackersFolded: root.collapsedGroups.indexOf("trackers") >= 0
     /// D18: folded by itself while open would leave the filters fewer than 5 rows; `_serversForced`
@@ -174,6 +189,8 @@ Item {
             return "trackers";
         if (index >= root.tagsBase)
             return "tags";
+        if (index >= root.foldersBase && root.foldersSpan > 0)
+            return "folders";
         if (index >= root.categoriesBase)
             return "categories";
         return "status";
@@ -183,6 +200,8 @@ Item {
         switch (group) {
         case "categories":
             return root.categoriesBase;
+        case "folders":
+            return root.foldersBase;
         case "tags":
             return root.tagsBase;
         case "trackers":
@@ -274,6 +293,7 @@ Item {
                                                   && root.counts.uncategorised > 0
     readonly property int categoriesRowCount: 1 + root.categoriesNamedCount + (
                                                   root.categoriesNoneVisible ? 1 : 0)
+    readonly property int foldersRowCount: root.folders ? root.folders.count : 0
     readonly property int tagsNamedCount: root.tags ? root.tags.count : 0
     readonly property bool tagsUntaggedVisible: root.tagsNamedCount > 0 && root.counts.untagged > 0
     readonly property int tagsRowCount: 1 + root.tagsNamedCount + (root.tagsUntaggedVisible ? 1 : 0)
@@ -290,6 +310,8 @@ Item {
     readonly property int statusSpan: root.serversOnly ? 0 : root.statusFolded ? 1 : root.statusRowCount
     readonly property int categoriesSpan: root.serversOnly ? 0 : root.categoriesFolded ? 1 :
                                                                                          root.categoriesRowCount
+    readonly property int foldersSpan: root.serversOnly || root.foldersRowCount === 0 ? 0 : root.foldersFolded
+                                                                                         ? 1 : root.foldersRowCount
     readonly property int tagsSpan: root.serversOnly ? 0 : root.tagsFolded ? 1 : root.tagsRowCount
     readonly property int trackersSpan: root.serversOnly ? 0 : root.trackersFolded ? 1 :
                                                                                      root.trackersRowCount
@@ -300,7 +322,8 @@ Item {
 
     readonly property int statusBase: 0
     readonly property int categoriesBase: root.statusBase + root.statusSpan
-    readonly property int tagsBase: root.categoriesBase + root.categoriesSpan
+    readonly property int foldersBase: root.categoriesBase + root.categoriesSpan
+    readonly property int tagsBase: root.foldersBase + root.foldersSpan
     readonly property int trackersBase: root.tagsBase + root.tagsSpan
     readonly property int serversBase: root.trackersBase + root.trackersSpan
     readonly property int totalRowCount: root.serversBase + root.serversSpan
@@ -324,7 +347,8 @@ Item {
     }
 
     /// A click on a row: the cursor goes there too, so the old cursor row loses its fill and
-    /// the next `j`/`k` starts from the row clicked.
+    /// the next `j`/`k` starts from the row clicked (its fill shows once the rail has the
+    /// keys, C19 T2).
     function clickRow(index: int): void {
         if (index < 0)
             return;
@@ -341,6 +365,41 @@ Item {
         } else {
             hostTip.hide();
         }
+    }
+
+    /// F2's hover: "4 here, 405 with the folders below" on a save path with others under it.
+    function _folderTip(row: RailRow, hovering: bool, here: int, all: int, full: string): void {
+        if (hovering && here !== all) {
+            const point = row.mapToItem(root, Theme.space(16), row.height);
+            hostTip.showAt(point.x, point.y, qsTr("%1: %2 here, %3 with the folders below").arg(full).arg(here).arg(
+                               all));
+        } else {
+            root._nameTip(row, hovering, full);
+        }
+    }
+
+    /// A folder row picked (M1): the table shows it and everything below it; picked again, the
+    /// filter goes. A drive's top folds instead (F2).
+    function _pickFolder(path: string, heading: bool): void {
+        if (heading) {
+            root.folders.toggleFold(path);
+            root.folderFoldToggled();
+            return;
+        }
+        root.filtered.folder = root.filtered.folder === path ? "" : path;
+    }
+
+    /// The menu key / `shift+F10` (C19 T3): the cursor row's menu, under its start, when it
+    /// has one (a folder's save path; a drive's top heading has none).
+    function openCursorMenu(): bool {
+        const entry = root._rowMap[root.cursorIndex];
+        const path = entry && entry.item ? entry.item.menuFolder : undefined;
+        if (typeof path !== "string" || path.length === 0)
+            return false;
+        root._scrollCursorIntoView();
+        const point = entry.item.mapToItem(root, Theme.space(24), entry.item.height);
+        root.folderMenuRequested(path, point.x, point.y);
+        return true;
     }
 
     function selectStatus(index) {
@@ -407,6 +466,14 @@ Item {
             if (root.foldServersOverlay())
                 event.accepted = true;
             break;
+        case Qt.Key_Menu:
+            if (root.openCursorMenu())
+                event.accepted = true;
+            break;
+        case Qt.Key_F10:
+            if ((event.modifiers & Qt.ShiftModifier) && root.openCursorMenu())
+                event.accepted = true;
+            break;
         case Qt.Key_0:
         case Qt.Key_1:
         case Qt.Key_2:
@@ -456,7 +523,7 @@ Item {
 
                 collapsed: root.statusFolded
                 count: root.counts.total
-                hasCursor: root.cursorIndex === statusGroup.globalIndex
+                hasCursor: root.shownCursor === statusGroup.globalIndex
                 label: qsTr("status")
                 width: content.width
 
@@ -480,7 +547,7 @@ Item {
 
                         count: statusDelegate.modelData.count
                         glyph: statusDelegate.modelData.glyph
-                        hasCursor: root.cursorIndex === statusDelegate.globalIndex
+                        hasCursor: root.shownCursor === statusDelegate.globalIndex
                         // Every group always shows its answer: with no status filter, "all"
                         // is the selected row (docs/08 §5; the spec's RAIL array never
                         // selected it, REVIEW §9).
@@ -507,7 +574,7 @@ Item {
 
                 collapsed: root.categoriesFolded
                 count: root.categoriesNamedCount
-                hasCursor: root.cursorIndex === categoriesGroup.globalIndex
+                hasCursor: root.shownCursor === categoriesGroup.globalIndex
                 label: qsTr("categories")
                 width: content.width
 
@@ -524,7 +591,7 @@ Item {
                                                                                root.categoriesBase
 
                     count: root.counts.total
-                    hasCursor: root.cursorIndex === categoriesAll.globalIndex
+                    hasCursor: root.shownCursor === categoriesAll.globalIndex
                     // Selected while the group has no filter, like the status "all" row.
                     selected: root.filtered.category === undefined
                     text: qsTr("all")
@@ -554,7 +621,7 @@ Item {
 
                         count: root._categoryCount(categoryDelegate.name, root.counts.revision)
                         glyph: Glyphs.category
-                        hasCursor: root.cursorIndex === categoryDelegate.globalIndex
+                        hasCursor: root.shownCursor === categoryDelegate.globalIndex
                         selected: root.filtered.category === categoryDelegate.name
                         text: categoryDelegate.name
                         visible: !root.categoriesFolded
@@ -583,7 +650,7 @@ Item {
 
                     count: root.counts.uncategorised
                     glyph: "·"
-                    hasCursor: root.cursorIndex === categoriesNone.globalIndex
+                    hasCursor: root.shownCursor === categoriesNone.globalIndex
                     selected: root.filtered.category === ""
                     text: qsTr("none")
                     visible: root.categoriesNoneVisible && !root.categoriesFolded
@@ -598,6 +665,91 @@ Item {
                 }
             }
 
+            // ---- folders (board 42 F1–F3) -----------------------------------------------
+            RailGroup {
+                id: foldersGroup
+
+                readonly property int globalIndex: root.foldersFolded ? root.foldersBase : -1
+
+                collapsed: root.foldersFolded
+                count: root.foldersRowCount
+                hasCursor: root.shownCursor === foldersGroup.globalIndex
+                label: qsTr("folders")
+                visible: root.foldersRowCount > 0
+                width: content.width
+
+                onToggled: root.toggleGroup("folders")
+
+                Component.onCompleted: root._registerRow(foldersGroup, () => root.toggleGroup("folders"))
+                Component.onDestruction: root._unregisterRow(foldersGroup)
+
+                Repeater {
+                    model: root.folders
+
+                    RailRow {
+                        id: folderDelegate
+
+                        required property int index
+                        required property string path
+                        required property string name
+                        required property int depth
+                        required property bool heading
+                        required property bool hasChildren
+                        required property bool folded
+                        required property int folderCount
+                        required property int folderCountHere
+                        required property string mark
+
+                        readonly property int globalIndex: root.foldersFolded ? -1 : root.foldersBase
+                                                                                   + folderDelegate.index
+                        /// C19 T3: what the row's menu moves; a drive's top heading has none.
+                        readonly property string menuFolder: folderDelegate.heading ? "" : folderDelegate.path
+
+                        // F1: a drive's top holds no torrents itself; a save path counts them and
+                        // all below it. F3: a move's mark takes the count's place.
+                        count: folderDelegate.heading ? -1 : folderDelegate.folderCount
+                        countText: folderDelegate.mark
+                        dimText: folderDelegate.heading
+                        // A path below its parent row: the end tells two apart (M3).
+                        elideLeft: true
+                        glyph: folderDelegate.hasChildren ? (folderDelegate.folded ? Glyphs.chevronRight
+                                                                                   : Glyphs.chevronDown)
+                                                          : Glyphs.middot
+                        glyphClickable: folderDelegate.hasChildren
+                        hasCursor: root.shownCursor === folderDelegate.globalIndex
+                        hasMenu: folderDelegate.menuFolder.length > 0
+                        indent: folderDelegate.depth
+                        objectName: "folderRow-" + folderDelegate.path
+                        selected: root.filtered.folder === folderDelegate.path
+                        text: folderDelegate.name
+                        visible: !root.foldersFolded
+                        width: content.width
+
+                        onClicked: root.clickRow(folderDelegate.globalIndex)
+                        // C19 T3: the menu acts on this row's folder; the cursor goes there,
+                        // as a right-click on a table row moves the table's.
+                        onMenuRequested: (x, y) => {
+                            root.cursorIndex = folderDelegate.globalIndex;
+                            const point = folderDelegate.mapToItem(root, x, y);
+                            root.folderMenuRequested(folderDelegate.path, point.x, point.y);
+                        }
+                        onGlyphClicked: {
+                            root.folders.toggleFold(folderDelegate.path);
+                            root.folderFoldToggled();
+                        }
+                        onHoverChanged: hovering => root._folderTip(folderDelegate, hovering,
+                                                                    folderDelegate.folderCountHere,
+                                                                    folderDelegate.folderCount,
+                                                                    folderDelegate.path)
+
+                        Component.onCompleted: root._registerRow(folderDelegate, () => root._pickFolder(
+                                                                     folderDelegate.path,
+                                                                     folderDelegate.heading))
+                        Component.onDestruction: root._unregisterRow(folderDelegate)
+                    }
+                }
+            }
+
             // ---- tags ------------------------------------------------------------------
             RailGroup {
                 id: tagsGroup
@@ -606,7 +758,7 @@ Item {
 
                 collapsed: root.tagsFolded
                 count: root.tagsNamedCount
-                hasCursor: root.cursorIndex === tagsGroup.globalIndex
+                hasCursor: root.shownCursor === tagsGroup.globalIndex
                 label: qsTr("tags")
                 width: content.width
 
@@ -621,7 +773,7 @@ Item {
                     readonly property int globalIndex: root.tagsFolded ? -1 : root.tagsBase
 
                     count: root.counts.total
-                    hasCursor: root.cursorIndex === tagsAll.globalIndex
+                    hasCursor: root.shownCursor === tagsAll.globalIndex
                     selected: root.filtered.tag === undefined
                     text: qsTr("all")
                     visible: !root.tagsFolded
@@ -647,7 +799,7 @@ Item {
 
                         count: root._tagCount(tagDelegate.name, root.counts.revision)
                         glyph: Glyphs.tag
-                        hasCursor: root.cursorIndex === tagDelegate.globalIndex
+                        hasCursor: root.shownCursor === tagDelegate.globalIndex
                         selected: root.filtered.tag === tagDelegate.name
                         text: tagDelegate.name
                         visible: !root.tagsFolded
@@ -673,7 +825,7 @@ Item {
 
                     count: root.counts.untagged
                     glyph: "·"
-                    hasCursor: root.cursorIndex === tagsUntagged.globalIndex
+                    hasCursor: root.shownCursor === tagsUntagged.globalIndex
                     selected: root.filtered.tag === ""
                     text: qsTr("untagged")
                     visible: root.tagsUntaggedVisible && !root.tagsFolded
@@ -696,7 +848,7 @@ Item {
 
                 collapsed: root.trackersFolded
                 count: root.trackersNamedCount
-                hasCursor: root.cursorIndex === trackersGroup.globalIndex
+                hasCursor: root.shownCursor === trackersGroup.globalIndex
                 label: qsTr("trackers")
                 width: content.width
 
@@ -712,7 +864,7 @@ Item {
                     readonly property int globalIndex: root.trackersFolded ? -1 : root.trackersBase
 
                     count: root.counts.total
-                    hasCursor: root.cursorIndex === trackersAll.globalIndex
+                    hasCursor: root.shownCursor === trackersAll.globalIndex
                     selected: root.filtered.tracker === undefined
                     text: qsTr("all")
                     visible: !root.trackersFolded
@@ -745,7 +897,7 @@ Item {
                         Accessible.name: trackerDelegate.host
                         count: trackerDelegate.torrentCount
                         glyph: trackerDelegate.isTrackerless ? "·" : Glyphs.tracker
-                        hasCursor: root.cursorIndex === trackerDelegate.globalIndex
+                        hasCursor: root.shownCursor === trackerDelegate.globalIndex
                         elideLeft: root.trackerHostStyle === "left"
                         selected: root.filtered.tracker === trackerDelegate.host
                         text: trackerDelegate.isTrackerless ? trackerDelegate.host :
@@ -941,7 +1093,7 @@ Item {
                 countText: qsTr("%n servers", "", root.serversRowCount)
                 glyph: Glyphs.dot
                 glyphColor: root._serverDotColor(root._currentServer.serverState || "")
-                hasCursor: root.cursorIndex === serversFoldedLine.globalIndex
+                hasCursor: root.shownCursor === serversFoldedLine.globalIndex
                 objectName: "serversFoldedLine"
                 text: (root._currentServer.name || "") + " " + Glyphs.chevronUp
                 visible: root.serversShownFolded
@@ -977,7 +1129,7 @@ Item {
                     countText: serverDelegate.countLabel
                     glyph: Glyphs.dot
                     glyphColor: root._serverDotColor(serverDelegate.serverState)
-                    hasCursor: root.cursorIndex === serverDelegate.globalIndex
+                    hasCursor: root.shownCursor === serverDelegate.globalIndex
                     objectName: "serverRow-" + serverDelegate.name
                     selected: serverDelegate.isDefault
                     text: serverDelegate.name
@@ -1008,7 +1160,7 @@ Item {
                                             root.serversRowCount - root.serversListed).arg("ctrl+s")
                 Accessible.name: qsTr("more servers")
                 glyph: "…"
-                hasCursor: root.cursorIndex === serversMoreRow.globalIndex
+                hasCursor: root.shownCursor === serversMoreRow.globalIndex
                 objectName: "serversMoreRow"
                 text: qsTr("%1 more · ctrl+s").arg(root.serversRowCount - root.serversListed)
                 visible: !root.serversShownFolded && root.serversMore

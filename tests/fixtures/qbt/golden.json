@@ -2789,6 +2789,7 @@
                 "levelName": "normal",
                 "lineId": 0,
                 "message": "qBittorrent v5.2.3 started. Process ID: 832573",
+                "moveId": "",
                 "timestamp": 1792078579
             },
             {
@@ -2796,6 +2797,7 @@
                 "levelName": "normal",
                 "lineId": 1,
                 "message": "Using config directory: /home/user/.local/share/omaseed-test/qBittorrent/config",
+                "moveId": "",
                 "timestamp": 1792078579
             },
             {
@@ -2803,6 +2805,7 @@
                 "levelName": "normal",
                 "lineId": 2,
                 "message": "Trying to listen on the following list of IP addresses: \"127.0.0.1:26999\"",
+                "moveId": "",
                 "timestamp": 1792078579
             },
             {
@@ -2810,6 +2813,7 @@
                 "levelName": "info",
                 "lineId": 3,
                 "message": "Peer ID: \"-qB5230-\"",
+                "moveId": "",
                 "timestamp": 1792078579
             },
             {
@@ -2817,6 +2821,7 @@
                 "levelName": "info",
                 "lineId": 4,
                 "message": "HTTP User-Agent: \"qBittorrent/5.2.3\"",
+                "moveId": "",
                 "timestamp": 1792078579
             },
             {
@@ -2824,6 +2829,7 @@
                 "levelName": "info",
                 "lineId": 5,
                 "message": "Distributed Hash Table (DHT) support: OFF",
+                "moveId": "",
                 "timestamp": 1792078579
             },
             {
@@ -2831,6 +2837,7 @@
                 "levelName": "info",
                 "lineId": 6,
                 "message": "Local Peer Discovery support: OFF",
+                "moveId": "",
                 "timestamp": 1792078579
             },
             {
@@ -2838,6 +2845,7 @@
                 "levelName": "info",
                 "lineId": 7,
                 "message": "Peer Exchange (PeX) support: OFF",
+                "moveId": "",
                 "timestamp": 1792078579
             },
             {
@@ -2845,6 +2853,7 @@
                 "levelName": "info",
                 "lineId": 8,
                 "message": "Anonymous mode: OFF",
+                "moveId": "",
                 "timestamp": 1792078579
             },
             {
@@ -2852,6 +2861,7 @@
                 "levelName": "info",
                 "lineId": 9,
                 "message": "Encryption support: ON",
+                "moveId": "",
                 "timestamp": 1792078579
             },
             {
@@ -2859,6 +2869,7 @@
                 "levelName": "info",
                 "lineId": 10,
                 "message": "Successfully listening on IP. IP: \"127.0.0.1\". Port: \"TCP/26999\"",
+                "moveId": "",
                 "timestamp": 1792078579
             },
             {
@@ -2866,6 +2877,7 @@
                 "levelName": "info",
                 "lineId": 11,
                 "message": "Successfully listening on IP. IP: \"127.0.0.1\". Port: \"UTP/26999\"",
+                "moveId": "",
                 "timestamp": 1792078579
             },
             {
@@ -2873,6 +2885,7 @@
                 "levelName": "normal",
                 "lineId": 12,
                 "message": "Restored torrent. Torrent: \"fixture-one\"",
+                "moveId": "",
                 "timestamp": 1792078579
             },
             {
@@ -2880,6 +2893,7 @@
                 "levelName": "normal",
                 "lineId": 13,
                 "message": "Restored torrent. Torrent: \"fixture-two\"",
+                "moveId": "",
                 "timestamp": 1792078579
             },
             {
@@ -2887,6 +2901,7 @@
                 "levelName": "normal",
                 "lineId": 14,
                 "message": "Restored torrent. Torrent: \"fixture-three\"",
+                "moveId": "",
                 "timestamp": 1792078579
             },
             {
@@ -2894,6 +2909,7 @@
                 "levelName": "warning",
                 "lineId": 18,
                 "message": "Failed to restore torrent. Files were probably moved or storage isn't accessible. Torrent: \"tiny-notes.txt\". Reason: \"81f2da fast resume rejected. file_stat(/home/user/.local/share/omaseed-test/downloads/swarm/tiny-notes.txt): mismatching file size\"",
+                "moveId": "",
                 "timestamp": 1792078579
             },
             {
@@ -2901,6 +2917,7 @@
                 "levelName": "info",
                 "lineId": 24,
                 "message": "IP geolocation database loaded. Type: DBIP-Country-Lite. Build time: Wed Sep 30 22:36:12 2026.",
+                "moveId": "",
                 "timestamp": 1792078579
             },
             {
@@ -2908,6 +2925,7 @@
                 "levelName": "normal",
                 "lineId": 25,
                 "message": "Using built-in WebUI.",
+                "moveId": "",
                 "timestamp": 1792078579
             },
             {
@@ -2915,6 +2933,7 @@
                 "levelName": "normal",
                 "lineId": 26,
                 "message": "WebUI translation for selected locale (en) has been successfully loaded.",
+                "moveId": "",
                 "timestamp": 1792078579
             },
             {
@@ -2922,6 +2941,7 @@
                 "levelName": "normal",
                 "lineId": 27,
                 "message": "WebUI: Now listening on IP: 127.0.0.1, port: 8081",
+                "moveId": "",
                 "timestamp": 1792078579
             },
             {
@@ -2929,6 +2949,7 @@
                 "levelName": "normal",
                 "lineId": 28,
                 "message": "Torrent download finished. Torrent: \"tiny-notes.txt\"",
+                "moveId": "",
                 "timestamp": 1792078596
             },
             {
@@ -2936,6 +2957,7 @@
                 "levelName": "normal",
                 "lineId": 29,
                 "message": "Added new torrent. Torrent: \"Single.bin\"",
+                "moveId": "",
                 "timestamp": 1792078753
             },
             {
@@ -2943,6 +2965,7 @@
                 "levelName": "normal",
                 "lineId": 30,
                 "message": "Torrent removed. Torrent: \"Single.bin\"",
+                "moveId": "",
                 "timestamp": 1792078755
             },
             {
@@ -2950,6 +2973,7 @@
                 "levelName": "normal",
                 "lineId": 31,
                 "message": "Torrent content removed. Torrent: \"Single.bin\"",
+                "moveId": "",
                 "timestamp": 1792078755
             },
             {
@@ -2957,6 +2981,7 @@
                 "levelName": "normal",
                 "lineId": 32,
                 "message": "Added new torrent. Torrent: \"omaseed-t42-magnet\"",
+                "moveId": "",
                 "timestamp": 1792078755
             },
             {
@@ -2964,6 +2989,7 @@
                 "levelName": "normal",
                 "lineId": 33,
                 "message": "Torrent removed. Torrent: \"omaseed-t42-magnet\"",
+                "moveId": "",
                 "timestamp": 1792078755
             },
             {
@@ -2971,6 +2997,7 @@
                 "levelName": "normal",
                 "lineId": 34,
                 "message": "Added new torrent. Torrent: \"omaseed-d1 renamed\"",
+                "moveId": "",
                 "timestamp": 1792078755
             },
             {
@@ -2978,6 +3005,7 @@
                 "levelName": "normal",
                 "lineId": 35,
                 "message": "Torrent resumed. Torrent: \"omaseed-d1 renamed\"",
+                "moveId": "",
                 "timestamp": 1792078755
             },
             {
@@ -2985,6 +3013,7 @@
                 "levelName": "normal",
                 "lineId": 36,
                 "message": "Torrent removed. Torrent: \"omaseed-d1 renamed\"",
+                "moveId": "",
                 "timestamp": 1792078755
             },
             {
@@ -2992,6 +3021,7 @@
                 "levelName": "normal",
                 "lineId": 37,
                 "message": "Torrent content removed. Torrent: \"omaseed-d1 renamed\"",
+                "moveId": "",
                 "timestamp": 1792078755
             },
             {
@@ -2999,6 +3029,7 @@
                 "levelName": "normal",
                 "lineId": 42,
                 "message": "Torrent content removed. Torrent: \"Single.bin\"",
+                "moveId": "",
                 "timestamp": 1792078756
             },
             {
@@ -3006,6 +3037,7 @@
                 "levelName": "normal",
                 "lineId": 43,
                 "message": "Torrent resumed. Torrent: \"fixture-one\"",
+                "moveId": "",
                 "timestamp": 1792078756
             },
             {
@@ -3013,6 +3045,7 @@
                 "levelName": "normal",
                 "lineId": 44,
                 "message": "Torrent stopped. Torrent: \"fixture-one\"",
+                "moveId": "",
                 "timestamp": 1792078758
             },
             {
@@ -3020,6 +3053,7 @@
                 "levelName": "normal",
                 "lineId": 45,
                 "message": "Torrent resumed. Torrent: \"fixture-one\"",
+                "moveId": "",
                 "timestamp": 1792078761
             },
             {
@@ -3027,6 +3061,7 @@
                 "levelName": "normal",
                 "lineId": 46,
                 "message": "Torrent stopped. Torrent: \"fixture-one\"",
+                "moveId": "",
                 "timestamp": 1792078764
             },
             {
@@ -3034,6 +3069,7 @@
                 "levelName": "normal",
                 "lineId": 47,
                 "message": "WebUI Set location: moving \"fixture-one\", from \"/home/user/.local/share/omaseed-test/downloads\" to \"/home/user/.local/share/omaseed-test/downloads\"",
+                "moveId": "",
                 "timestamp": 1792078766
             },
             {
@@ -3041,6 +3077,7 @@
                 "levelName": "normal",
                 "lineId": 50,
                 "message": "Download first and last piece first: On, torrent: 'fixture-two'",
+                "moveId": "",
                 "timestamp": 1792078768
             },
             {
@@ -3048,6 +3085,7 @@
                 "levelName": "normal",
                 "lineId": 51,
                 "message": "Download first and last piece first: Off, torrent: 'fixture-two'",
+                "moveId": "",
                 "timestamp": 1792078768
             },
             {
@@ -3055,6 +3093,7 @@
                 "levelName": "normal",
                 "lineId": 52,
                 "message": "Added tracker to torrent. Torrent: \"fixture-one\". Tracker: \"udp://q4-tracker.invalid:1337/announce\"",
+                "moveId": "",
                 "timestamp": 1792078770
             },
             {
@@ -3062,6 +3101,7 @@
                 "levelName": "normal",
                 "lineId": 53,
                 "message": "Removed tracker from torrent. Torrent: \"fixture-one\". Tracker: \"udp://q4-tracker.invalid:1337/announce\"",
+                "moveId": "",
                 "timestamp": 1792078770
             },
             {
@@ -3069,6 +3109,7 @@
                 "levelName": "normal",
                 "lineId": 54,
                 "message": "Peer \"192.0.2.77:6881\" is added to torrent \"fixture-one\"",
+                "moveId": "",
                 "timestamp": 1792078770
             },
             {
@@ -3076,6 +3117,7 @@
                 "levelName": "normal",
                 "lineId": 55,
                 "message": "WebUI Set location: moving \"fixture-one\", from \"/home/user/.local/share/omaseed-test/downloads\" to \"/home/user/.local/share/omaseed-test/downloads/fixtures\"",
+                "moveId": "",
                 "timestamp": 1792078770
             },
             {
@@ -3083,6 +3125,7 @@
                 "levelName": "normal",
                 "lineId": 61,
                 "message": "Detected an attempt to add a duplicate torrent. Existing torrent: \"Single.bin\". Torrent infohash: 857ddb9df19f876e5a5e3f5b9c4f3991cbce1b04. Result: Merging of trackers is disabled",
+                "moveId": "",
                 "timestamp": 1792078816
             },
             {
@@ -3090,6 +3133,7 @@
                 "levelName": "normal",
                 "lineId": 70,
                 "message": "Torrent stopped. Torrent: \"t25-probe\"",
+                "moveId": "",
                 "timestamp": 1792078822
             },
             {
@@ -3097,6 +3141,7 @@
                 "levelName": "normal",
                 "lineId": 73,
                 "message": "WebUI Set location: moving \"t25-probe\", from \"/home/user/.local/share/omaseed-test/downloads/t25\" to \"/home/user/.local/share/omaseed-test/downloads/t25-moved\"",
+                "moveId": "",
                 "timestamp": 1792078824
             },
             {
@@ -3104,6 +3149,7 @@
                 "levelName": "normal",
                 "lineId": 74,
                 "message": "Download first and last piece first: On, torrent: 't25-renamed'",
+                "moveId": "",
                 "timestamp": 1792078824
             },
             {
@@ -3111,6 +3157,7 @@
                 "levelName": "warning",
                 "lineId": 97,
                 "message": "URL seed connection failed. Torrent: \"omaseed-webseed-live.txt\". URL: \"https://mirror.invalid/omaseed-webseed-live/\". Error: \"a67c70 url seed (https://mirror.invalid/omaseed-webseed-live/) failed: Host not found (authoritative)\"",
+                "moveId": "",
                 "timestamp": 1792078829
             },
             {
@@ -3118,6 +3165,7 @@
                 "levelName": "normal",
                 "lineId": 98,
                 "message": "Added URL seed to torrent. Torrent: \"omaseed-webseed-live.txt\". URL: \"https://other.invalid/pub/\"",
+                "moveId": "",
                 "timestamp": 1792078829
             },
             {
@@ -3125,6 +3173,7 @@
                 "levelName": "normal",
                 "lineId": 99,
                 "message": "Removed URL seed from torrent. Torrent: \"omaseed-webseed-live.txt\". URL: \"https://other.invalid/pub/\"",
+                "moveId": "",
                 "timestamp": 1792078829
             },
             {
@@ -3132,6 +3181,7 @@
                 "levelName": "normal",
                 "lineId": 100,
                 "message": "Added URL seed to torrent. Torrent: \"omaseed-webseed-live.txt\". URL: \"https://edited.invalid/pub/\"",
+                "moveId": "",
                 "timestamp": 1792078829
             },
             {
@@ -3139,6 +3189,7 @@
                 "levelName": "normal",
                 "lineId": 101,
                 "message": "Removed URL seed from torrent. Torrent: \"omaseed-webseed-live.txt\". URL: \"https://edited.invalid/pub/\"",
+                "moveId": "",
                 "timestamp": 1792078829
             },
             {
@@ -3146,6 +3197,7 @@
                 "levelName": "normal",
                 "lineId": 127,
                 "message": "Download first and last piece first: On, torrent: 'fixture-two'",
+                "moveId": "",
                 "timestamp": 1792081295
             },
             {
@@ -3153,6 +3205,7 @@
                 "levelName": "normal",
                 "lineId": 128,
                 "message": "Download first and last piece first: Off, torrent: 'fixture-two'",
+                "moveId": "",
                 "timestamp": 1792081295
             },
             {
@@ -3160,6 +3213,7 @@
                 "levelName": "normal",
                 "lineId": 129,
                 "message": "Added tracker to torrent. Torrent: \"fixture-one\". Tracker: \"udp://q4-tracker.invalid:1337/announce\"",
+                "moveId": "",
                 "timestamp": 1792081299
             },
             {
@@ -3167,6 +3221,7 @@
                 "levelName": "normal",
                 "lineId": 130,
                 "message": "Removed tracker from torrent. Torrent: \"fixture-one\". Tracker: \"udp://q4-tracker.invalid:1337/announce\"",
+                "moveId": "",
                 "timestamp": 1792081299
             },
             {
@@ -3174,6 +3229,7 @@
                 "levelName": "normal",
                 "lineId": 131,
                 "message": "Peer \"192.0.2.77:6881\" is added to torrent \"fixture-one\"",
+                "moveId": "",
                 "timestamp": 1792081299
             },
             {
@@ -3181,6 +3237,7 @@
                 "levelName": "normal",
                 "lineId": 138,
                 "message": "Detected an attempt to add a duplicate torrent. Existing torrent: \"Single.bin\". Torrent infohash: 857ddb9df19f876e5a5e3f5b9c4f3991cbce1b04. Result: Merging of trackers is disabled",
+                "moveId": "",
                 "timestamp": 1792081338
             },
             {
@@ -3188,6 +3245,7 @@
                 "levelName": "normal",
                 "lineId": 174,
                 "message": "Added URL seed to torrent. Torrent: \"omaseed-webseed-live.txt\". URL: \"https://other.invalid/pub/\"",
+                "moveId": "",
                 "timestamp": 1792081349
             },
             {
@@ -3195,6 +3253,7 @@
                 "levelName": "normal",
                 "lineId": 175,
                 "message": "Removed URL seed from torrent. Torrent: \"omaseed-webseed-live.txt\". URL: \"https://other.invalid/pub/\"",
+                "moveId": "",
                 "timestamp": 1792081349
             },
             {
@@ -3202,6 +3261,7 @@
                 "levelName": "normal",
                 "lineId": 202,
                 "message": "Download first and last piece first: Off, torrent: 'fixture-two'",
+                "moveId": "",
                 "timestamp": 1792083988
             },
             {
@@ -3209,6 +3269,7 @@
                 "levelName": "normal",
                 "lineId": 203,
                 "message": "Added tracker to torrent. Torrent: \"fixture-one\". Tracker: \"udp://q4-tracker.invalid:1337/announce\"",
+                "moveId": "",
                 "timestamp": 1792083991
             },
             {
@@ -3216,6 +3277,7 @@
                 "levelName": "normal",
                 "lineId": 204,
                 "message": "Removed tracker from torrent. Torrent: \"fixture-one\". Tracker: \"udp://q4-tracker.invalid:1337/announce\"",
+                "moveId": "",
                 "timestamp": 1792083991
             },
             {
@@ -3223,6 +3285,7 @@
                 "levelName": "normal",
                 "lineId": 205,
                 "message": "Peer \"192.0.2.77:6881\" is added to torrent \"fixture-one\"",
+                "moveId": "",
                 "timestamp": 1792083991
             },
             {
@@ -3230,6 +3293,7 @@
                 "levelName": "normal",
                 "lineId": 212,
                 "message": "Detected an attempt to add a duplicate torrent. Existing torrent: \"Single.bin\". Torrent infohash: 857ddb9df19f876e5a5e3f5b9c4f3991cbce1b04. Result: Merging of trackers is disabled",
+                "moveId": "",
                 "timestamp": 1792084041
             },
             {
@@ -3237,6 +3301,7 @@
                 "levelName": "warning",
                 "lineId": 248,
                 "message": "URL seed connection failed. Torrent: \"omaseed-webseed-live.txt\". URL: \"https://mirror.invalid/omaseed-webseed-live/\". Error: \"a67c70 url seed (https://mirror.invalid/omaseed-webseed-live/) failed: Host not found (authoritative)\"",
+                "moveId": "",
                 "timestamp": 1792084052
             },
             {
@@ -3244,6 +3309,7 @@
                 "levelName": "normal",
                 "lineId": 276,
                 "message": "Torrent download finished. Torrent: \"Ünïcødé ✓ Spaces & Symbols (100%) [v2] {test} — a deliberately long torrent name to test eliding everywhere\"",
+                "moveId": "",
                 "timestamp": 1792086117
             },
             {
@@ -3251,6 +3317,7 @@
                 "levelName": "normal",
                 "lineId": 284,
                 "message": "Enqueued torrent move. Torrent: \"Ünïcødé ✓ Spaces & Symbols (100%) [v2] {test} — a deliberately long torrent name to test eliding everywhere\". Source: \"/home/user/.local/share/omaseed-test/downloads\". Destination: \"/home/user/.local/share/omaseed-test/downloads/swarm\"",
+                "moveId": "",
                 "timestamp": 1792086169
             },
             {
@@ -3258,6 +3325,7 @@
                 "levelName": "normal",
                 "lineId": 285,
                 "message": "Start moving torrent. Torrent: \"Ünïcødé ✓ Spaces & Symbols (100%) [v2] {test} — a deliberately long torrent name to test eliding everywhere\". Destination: \"/home/user/.local/share/omaseed-test/downloads/swarm\"",
+                "moveId": "",
                 "timestamp": 1792086169
             },
             {
@@ -3265,6 +3333,7 @@
                 "levelName": "normal",
                 "lineId": 286,
                 "message": "Moved torrent successfully. Torrent: \"Ünïcødé ✓ Spaces & Symbols (100%) [v2] {test} — a deliberately long torrent name to test eliding everywhere\". Destination: \"/home/user/.local/share/omaseed-test/downloads/swarm\"",
+                "moveId": "",
                 "timestamp": 1792086169
             },
             {
@@ -3272,6 +3341,7 @@
                 "levelName": "normal",
                 "lineId": 294,
                 "message": "Torrent download finished. Torrent: \"tiny-notes.txt\"",
+                "moveId": "",
                 "timestamp": 1792086193
             },
             {
@@ -3279,6 +3349,7 @@
                 "levelName": "normal",
                 "lineId": 310,
                 "message": "Enqueued torrent move. Torrent: \"Ünïcødé ✓ Spaces & Symbols (100%) [v2] {test} — a deliberately long torrent name to test eliding everywhere\". Source: \"/home/user/.local/share/omaseed-test/downloads\". Destination: \"/home/user/.local/share/omaseed-test/downloads/swarm\"",
+                "moveId": "",
                 "timestamp": 1792086335
             },
             {
@@ -3286,6 +3357,7 @@
                 "levelName": "normal",
                 "lineId": 311,
                 "message": "Start moving torrent. Torrent: \"Ünïcødé ✓ Spaces & Symbols (100%) [v2] {test} — a deliberately long torrent name to test eliding everywhere\". Destination: \"/home/user/.local/share/omaseed-test/downloads/swarm\"",
+                "moveId": "",
                 "timestamp": 1792086335
             },
             {
@@ -3293,6 +3365,7 @@
                 "levelName": "normal",
                 "lineId": 312,
                 "message": "Moved torrent successfully. Torrent: \"Ünïcødé ✓ Spaces & Symbols (100%) [v2] {test} — a deliberately long torrent name to test eliding everywhere\". Destination: \"/home/user/.local/share/omaseed-test/downloads/swarm\"",
+                "moveId": "",
                 "timestamp": 1792086335
             },
             {
@@ -3300,6 +3373,7 @@
                 "levelName": "warning",
                 "lineId": 388,
                 "message": "URL seed connection failed. Torrent: \"omaseed-webseed-live.txt\". URL: \"https://mirror.invalid/omaseed-webseed-live/\". Error: \"a67c70 url seed (https://mirror.invalid/omaseed-webseed-live/) failed: Host not found (authoritative)\"",
+                "moveId": "",
                 "timestamp": 1792086601
             },
             {
@@ -3307,6 +3381,7 @@
                 "levelName": "warning",
                 "lineId": 934,
                 "message": "File error alert. Torrent: \"unwritable-fixture.bin\". File: \"/home/user/.local/share/omaseed-test/downloads/swarm-readonly/unwritable-fixture.bin\". Reason: \"ad91d5 file_open (/home/user/.local/share/omaseed-test/downloads/swarm-readonly/unwritable-fixture.bin) error: Permission denied\"",
+                "moveId": "",
                 "timestamp": 1792191520
             },
             {
@@ -3314,6 +3389,7 @@
                 "levelName": "warning",
                 "lineId": 944,
                 "message": "File error alert. Torrent: \"unwritable-fixture.bin\". File: \"/home/user/.local/share/omaseed-test/downloads/swarm-readonly/unwritable-fixture.bin\". Reason: \"ad91d5 file_open (/home/user/.local/share/omaseed-test/downloads/swarm-readonly/unwritable-fixture.bin) error: Permission denied\"",
+                "moveId": "",
                 "timestamp": 1792191626
             }
         ],
@@ -3551,6 +3627,7 @@
                     "dlspeedText": "0",
                     "downloaded": 0,
                     "downloadedText": "0",
+                    "errorStopped": false,
                     "eta": "none",
                     "etaLongText": "—",
                     "etaText": "—",
@@ -3629,6 +3706,7 @@
                     "dlspeedText": "0",
                     "downloaded": 0,
                     "downloadedText": "0",
+                    "errorStopped": false,
                     "eta": "none",
                     "etaLongText": "—",
                     "etaText": "—",
@@ -3707,6 +3785,7 @@
                     "dlspeedText": "0",
                     "downloaded": 129859584,
                     "downloadedText": "124 MB",
+                    "errorStopped": false,
                     "eta": "none",
                     "etaLongText": "—",
                     "etaText": "—",
@@ -3785,6 +3864,7 @@
                     "dlspeedText": "4 KB/s",
                     "downloaded": 48247489,
                     "downloadedText": "46.0 MB",
+                    "errorStopped": false,
                     "eta": "none",
                     "etaLongText": "—",
                     "etaText": "—",
@@ -3863,6 +3943,7 @@
                     "dlspeedText": "0",
                     "downloaded": 4096,
                     "downloadedText": "4 KB",
+                    "errorStopped": false,
                     "eta": "none",
                     "etaLongText": "—",
                     "etaText": "—",
@@ -3941,6 +4022,7 @@
                     "dlspeedText": "0",
                     "downloaded": 503324777,
                     "downloadedText": "480 MB",
+                    "errorStopped": false,
                     "eta": "none",
                     "etaLongText": "—",
                     "etaText": "—",
@@ -4019,6 +4101,7 @@
                     "dlspeedText": "0",
                     "downloaded": 0,
                     "downloadedText": "0",
+                    "errorStopped": false,
                     "eta": "none",
                     "etaLongText": "—",
                     "etaText": "—",
@@ -4097,6 +4180,7 @@
                     "dlspeedText": "0",
                     "downloaded": 5245880,
                     "downloadedText": "5.00 MB",
+                    "errorStopped": false,
                     "eta": "none",
                     "etaLongText": "—",
                     "etaText": "—",
@@ -4175,6 +4259,7 @@
                     "dlspeedText": "0",
                     "downloaded": 0,
                     "downloadedText": "0",
+                    "errorStopped": false,
                     "eta": "none",
                     "etaLongText": "—",
                     "etaText": "—",
@@ -4253,6 +4338,7 @@
                     "dlspeedText": "0",
                     "downloaded": 107784198,
                     "downloadedText": "103 MB",
+                    "errorStopped": false,
                     "eta": "none",
                     "etaLongText": "—",
                     "etaText": "—",
@@ -4331,6 +4417,7 @@
                     "dlspeedText": "0",
                     "downloaded": 751499752,
                     "downloadedText": "717 MB",
+                    "errorStopped": false,
                     "eta": "none",
                     "etaLongText": "—",
                     "etaText": "—",
@@ -4643,6 +4730,7 @@
                     "dlspeedText": "0",
                     "downloaded": 0,
                     "downloadedText": "0",
+                    "errorStopped": false,
                     "eta": "none",
                     "etaLongText": "—",
                     "etaText": "—",
@@ -8416,6 +8504,7 @@
                     "dlspeedText": "0",
                     "downloaded": 0,
                     "downloadedText": "0",
+                    "errorStopped": false,
                     "eta": "none",
                     "etaLongText": "—",
                     "etaText": "—",
@@ -8443,6 +8532,7 @@
                             "location",
                             "start"
                         ],
+                        "advice": "",
                         "ambiguous": false,
                         "cause": "no access",
                         "causeKey": "noAccess",

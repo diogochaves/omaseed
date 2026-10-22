@@ -257,7 +257,7 @@ wait_for "the target answers on :$TARGET_PORT" 20 target_api app/version
 # The source: four swarm torrents (from the box's ~/Downloads, app-box.sh put them there),
 # downloaded for real, and a magnet nobody seeds. The Nested Library Sampler is a hybrid whose
 # files share content (one "pieces root" for several files): qBittorrent's torrents/export
-# repeats its piece layers, and qBittorrent then refuses that .torrent (415, #71, upstream#97).
+# repeats its piece layers, and qBittorrent then refuses that .torrent (415, #71).
 add_args=()
 for name in "tiny-notes.txt" "Field Recordings" "Ünïcødé" "Nested Library Sampler"; do
     for file in "$home"/Downloads/*.torrent; do
@@ -307,11 +307,14 @@ snapshot source_api "$work/source"
 
 # ---- the walk -----------------------------------------------------------------------------
 
-step "Export from the source" "Settings › qBittorrent (ctrl+shift+,), 0 for Backup, tab, j j to Export torrents, enter: the portal's save dialog proposes ~/torrents-box-<date>.omaseed-torrents; enter saves it."
+# qBittorrent › Backup's rows, top to bottom: Export settings, Import settings, Copy settings
+# from another server (docs/34 D6 a, always there, dim with one server), Export torrents,
+# Import torrents. Tab puts the cursor on the first; each j moves it one row (#94).
+step "Export from the source" "Settings › qBittorrent (ctrl+shift+,), 0 for Backup, tab, j j j past the settings rows and Copy settings to Export torrents, enter: the portal's save dialog proposes ~/torrents-box-<date>.omaseed-torrents; enter saves it."
 keys ctrl+shift+comma
 keys 0
 keys Tab
-keys j j
+keys j j j
 shot "Backup, the torrents group: Export torrents (cursor) says 5 torrents with their save paths…, the files stay where they are, 1 magnet goes in as a link."
 keys Return
 omabox wait -b "$BOX" --timeout 10s window "Export qBittorrent's torrents" >/dev/null 2>&1 || fail "no save dialog"
@@ -330,7 +333,7 @@ else
 fi
 # The hybrid's .torrent as the file holds it, and as qBittorrent's own export gives it: every
 # piece layer as long as its files are (#71). qBittorrent's is only said, not checked: it is
-# upstream's to fix (upstream#97).
+# qBittorrent's to fix.
 omabox run -b "$BOX" -- tar -xOf "$EXPORT" "torrents/$NESTED.torrent" >"$work/nested.torrent"
 source_api "torrents/export?hash=$NESTED" >"$work/nested-qbt.torrent"
 if layers_sound "$work/nested.torrent"; then
@@ -339,7 +342,7 @@ else
     fail "the Nested Library Sampler's .torrent: $(layers_sound "$work/nested.torrent" 2>&1)"
 fi
 layers_sound "$work/nested-qbt.torrent" >/dev/null 2>&1 ||
-    echo "  (qBittorrent's own torrents/export of it still repeats its piece layers: upstream#97)"
+    echo "  (qBittorrent's own torrents/export of it still repeats its piece layers)"
 shot "The note under the rows: Exported 5 torrents to ~/torrents-box-<date>.omaseed-torrents. 1 magnet went in as a link." note
 
 step "Copy the files elsewhere" "In the box, ~/Torrents is copied to ~/Moved: the files as a new machine would have them, under another folder."
@@ -355,11 +358,11 @@ count="$(target_api torrents/info | python3 -c 'import json, sys; print(len(json
 if [ "$count" = 0 ]; then pass "the target is empty"; else fail "the target has $count torrents"; fi
 shot "The library on target: empty."
 
-step "Import into the target" "Settings › qBittorrent, 0, tab, j j j to Import torrents, enter; the path typed into the portal's open dialog; the sheet: 4 new, 1 link, the save path row from ~/Torrents; tab to its \"to\", ~/Moved typed."
+step "Import into the target" "Settings › qBittorrent, 0, tab, j j j j to Import torrents, enter; the path typed into the portal's open dialog; the sheet: 4 new, 1 link, the save path row from ~/Torrents; tab to its \"to\", ~/Moved typed."
 keys ctrl+shift+comma
 keys 0
 keys Tab
-keys j j j
+keys j j j j
 keys Return
 omabox wait -b "$BOX" --timeout 10s window "Import qBittorrent's torrents" >/dev/null 2>&1 || fail "no open dialog"
 dialog_keys -t "$EXPORT"

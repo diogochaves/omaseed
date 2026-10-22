@@ -38,6 +38,9 @@ Flickable {
     /// "dismiss").
     signal failureAction(string action)
 
+    /// Board 45 B1: an action of the last move's block ("back", "backThis", "show").
+    signal moveAction(string action)
+
     /// docs/28: why the torrent is in error (TorrentProblem::toMap()), or an empty map.
     readonly property var problem: root.torrent && root.torrent.problem ? root.torrent.problem : ({})
     readonly property bool _hasProblem: (root.problem.headline || "").length > 0
@@ -45,6 +48,9 @@ Flickable {
     /// empty map. It comes under the error, in yellow, when there is both.
     readonly property var failure: root.torrent && root.torrent.failure ? root.torrent.failure : ({})
     readonly property bool _hasFailure: (root.failure.headline || "").length > 0
+    /// Board 45 B1 (C18 D7): App.move.lastMoveOf() for this torrent, {} for none.
+    property var lastMove: ({})
+    readonly property bool _hasMove: (root.lastMove.id || "").length > 0
 
     /// Every row in reading order (Transfer, Information, Options), each carrying its
     /// `index` there: the list the cursor walks.
@@ -102,8 +108,9 @@ Flickable {
         const transfer = make();
         // docs/28: the short cause after the state, dim, when the log says why.
         const cause = row && row.problem ? (row.problem.cause || "") : "";
+        // DECISIONS C20 (#107): stopped by omaseed while in error.
         if (row)
-            add(transfer, qsTr("Status"), row.stateText, {
+            add(transfer, qsTr("Status"), row.errorStopped === true ? qsTr("error · stopped") : row.stateText, {
                     "color": row.stateRole ? Theme[row.stateRole] : Theme.foreground,
                     "tail": cause.length > 0 && cause !== row.stateText ? cause : ""
                 });
@@ -233,6 +240,27 @@ Flickable {
                 problem: root.failure
 
                 onActionTriggered: action => root.failureAction(action)
+            }
+        }
+
+        // Board 45 B1 (C18 D7): the torrent's last move, while the history keeps it.
+        Item {
+            height: root._hasMove ? moveBlock.implicitHeight + Theme.space(12) : 0
+            visible: root._hasMove
+            width: parent.width
+
+            DetailsMoveBlock {
+                id: moveBlock
+
+                anchors.left: parent.left
+                anchors.leftMargin: Theme.space(16)
+                anchors.right: parent.right
+                anchors.rightMargin: Theme.space(16)
+                anchors.top: parent.top
+                anchors.topMargin: Theme.space(12)
+                move: root.lastMove
+
+                onActionTriggered: action => root.moveAction(action)
             }
         }
 

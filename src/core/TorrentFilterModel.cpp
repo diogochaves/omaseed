@@ -1,9 +1,11 @@
 #include "core/TorrentFilterModel.hpp"
 
+#include "core/SharedData.hpp"
 #include "core/TorrentModel.hpp"
 #include "core/TrackerModel.hpp"
 
 #include <algorithm>
+#include <limits>
 #include <numeric>
 
 namespace omaseed::core {
@@ -108,6 +110,28 @@ void TorrentFilterModel::setTag(const QVariant &tag)
     m_tag = next;
     applyFilterChange();
     Q_EMIT tagChanged();
+    Q_EMIT countChanged();
+}
+
+void TorrentFilterModel::setFolder(const QString &folder)
+{
+    const QString next = folder.isEmpty() ? QString() : SharedData::normalize(folder);
+    if (next == m_folder)
+        return;
+    m_folder = next;
+    applyFilterChange();
+    Q_EMIT folderChanged();
+    Q_EMIT countChanged();
+}
+
+void TorrentFilterModel::setOnlyHashes(const QStringList &hashes)
+{
+    if (hashes == m_onlyHashes)
+        return;
+    m_onlyHashes = hashes;
+    m_onlyHashSet = QSet<QString>(hashes.cbegin(), hashes.cend());
+    applyFilterChange();
+    Q_EMIT onlyHashesChanged();
     Q_EMIT countChanged();
 }
 
@@ -251,7 +275,7 @@ void TorrentFilterModel::setHoldOrder(bool hold)
     if (hold) {
         freezeOrder();
     } else {
-        m_heldPlaces.clear();
+        dropHeldOrder();
         // Mid-bracket (never from the table, which sets this between polls), the bracket's
         // own release sorts.
         if (!m_sortHeld)
@@ -262,11 +286,53 @@ void TorrentFilterModel::setHoldOrder(bool hold)
 
 void TorrentFilterModel::freezeOrder()
 {
-    m_heldPlaces.clear();
+    dropHeldOrder();
     const int count = rowCount();
     m_heldPlaces.reserve(count);
     for (int row = 0; row < count; ++row)
         m_heldPlaces.insert(hashAt(row), row);
+    if (const auto *source = qobject_cast<const TorrentModel *>(sourceModel())) {
+        m_heldLibrary.reserve(source->rowCount());
+        for (int row = 0; row < source->rowCount(); ++row)
+            m_heldLibrary.insert(source->torrentAt(row).hash);
+    }
+}
+
+void TorrentFilterModel::dropHeldOrder()
+{
+    m_heldPlaces.clear();
+    m_heldLibrary.clear();
+    m_heldSlots.clear();
+}
+
+double TorrentFilterModel::heldPlace(int sourceRow) const
+{
+    const auto *source = qobject_cast<const TorrentModel *>(sourceModel());
+    const QString &hash = source->torrentAt(sourceRow).hash;
+    if (const auto held = m_heldPlaces.constFind(hash); held != m_heldPlaces.cend())
+        return *held;
+    if (const auto slot = m_heldSlots.constFind(hash); slot != m_heldSlots.cend())
+        return *slot;
+    // #51 D9: a torrent already in the library that only now matches the filter waits below.
+    if (m_heldLibrary.contains(hash))
+        return std::numeric_limits<double>::max();
+    // DECISIONS C20 (#124): an add takes its sorted place at once. Its slot is half a row
+    // after the last held row the live order puts before it (or above the first), so the held
+    // rows keep their order around it; two new ones in one slot follow the live order.
+    const QModelIndex fresh = source->index(sourceRow, 0);
+    const auto viewBefore = [&](const QModelIndex &a, const QModelIndex &b) {
+        return sortOrder() == Qt::DescendingOrder ? liveLessThan(b, a) : liveLessThan(a, b);
+    };
+    double place = -0.5;
+    for (auto held = m_heldPlaces.cbegin(); held != m_heldPlaces.cend(); ++held) {
+        if (held.value() + 0.5 <= place)
+            continue;
+        const int row = source->indexOfHash(held.key());
+        if (row >= 0 && viewBefore(source->index(row, 0), fresh))
+            place = held.value() + 0.5;
+    }
+    m_heldSlots.insert(hash, place);
+    return place;
 }
 
 void TorrentFilterModel::applyFilterChange()
@@ -276,7 +342,7 @@ void TorrentFilterModel::applyFilterChange()
         return;
     }
     // Sorted first, so the rows the new filter lets in are placed among sorted ones.
-    m_heldPlaces.clear();
+    dropHeldOrder();
     sortNow();
     refilter();
     freezeOrder();
@@ -359,7 +425,7 @@ void TorrentFilterModel::setSortRole(int role)
     // With a dynamic sort, the base class re-sorts on a new role by itself (lessThan reads
     // m_sortRole, set above); a second sort, or an invalidate(), would be two more passes.
     // A held order lets go for it, and holds again from the new order.
-    m_heldPlaces.clear();
+    dropHeldOrder();
     QSortFilterProxyModel::setSortRole(role);
     if (m_holdOrder)
         freezeOrder();
@@ -406,7 +472,7 @@ void TorrentFilterModel::setSortOrder(Qt::SortOrder order)
     if (m_sortOrder == order)
         return;
     m_sortOrder = order;
-    m_heldPlaces.clear();
+    dropHeldOrder();
     resort();
     if (m_holdOrder)
         freezeOrder();
@@ -457,6 +523,15 @@ bool TorrentFilterModel::filterAcceptsRow(int sourceRow, const QModelIndex &sour
     if (m_statusFilter != All && !t.statusGroups().testFlag(groupFor(m_statusFilter)))
         return false;
 
+    if (!m_onlyHashSet.isEmpty() && !m_onlyHashSet.contains(t.hash))
+        return false;
+
+    if (!m_folder.isEmpty()) {
+        const QString save = SharedData::normalize(t.savePath);
+        if (!SharedData::isUnder(save, m_folder))
+            return false;
+    }
+
     if (m_category && t.category != *m_category)
         return false;
 
@@ -505,22 +580,21 @@ bool TorrentFilterModel::lessThan(const QModelIndex &left, const QModelIndex &ri
         return false;
 
     if (!m_heldPlaces.isEmpty()) {
-        // The held order: the places the rows had, and below them, rows new to the view in
-        // the live order. `before` is the view's order, which a descending sort reads from
-        // lessThan() the other way round.
-        const auto l = m_heldPlaces.constFind(source->torrentAt(left.row()).hash);
-        const auto r = m_heldPlaces.constFind(source->torrentAt(right.row()).hash);
-        const bool leftHeld = l != m_heldPlaces.cend();
-        const bool rightHeld = r != m_heldPlaces.cend();
-        if (leftHeld || rightHeld) {
-            const auto before = [&](bool aHeld, auto a, bool bHeld, auto b) {
-                return aHeld && bHeld ? *a < *b : aHeld;
-            };
-            return sortOrder() == Qt::DescendingOrder ? before(rightHeld, r, leftHeld, l)
-                                                      : before(leftHeld, l, rightHeld, r);
-        }
+        // The held order: the places the rows had, new torrents in their slots among them,
+        // and below them, rows new to the view (heldPlace()). Places are the view's order,
+        // which a descending sort reads from lessThan() the other way round. Two rows in one
+        // slot follow the live order.
+        const double l = heldPlace(left.row());
+        const double r = heldPlace(right.row());
+        if (l != r)
+            return sortOrder() == Qt::DescendingOrder ? r < l : l < r;
     }
+    return liveLessThan(left, right);
+}
 
+bool TorrentFilterModel::liveLessThan(const QModelIndex &left, const QModelIndex &right) const
+{
+    const auto *source = qobject_cast<const TorrentModel *>(sourceModel());
     int compared = 0;
     if (!m_heldKeys.isEmpty()) {
         const double l = m_heldKeys.at(left.row());

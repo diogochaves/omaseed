@@ -26,6 +26,21 @@ omaseed_add_test(tst_app_barmenu
     LIBRARIES omaseed::app omaseed::core omaseed::integration Qt6::Widgets
 )
 
+# #128: SIGTERM, SIGINT, SIGHUP and `omaseed --quit` quit through the tray's quit; the real
+# binary, offscreen, on a private bus or none, against a fake qBittorrent.
+omaseed_add_test(tst_quit
+    SOURCES tst_quit.cpp
+    LIBRARIES Qt6::Network Qt6::Sql
+    DEFINES OMASEED_BINARY="$<TARGET_FILE:omaseed>"
+)
+add_dependencies(tst_quit omaseed)
+
+# docs/DECISIONS.md C20 (#107): `p` stops an errored torrent and omaseed remembers the stop.
+omaseed_add_test(tst_app_errored
+    SOURCES tst_app_errored.cpp
+    LIBRARIES omaseed::app omaseed::core omaseed::integration Qt6::Network
+)
+
 # docs/DECISIONS.md M12: a torrent option shows at once, against a small fake server.
 omaseed_add_test(tst_app_options
     SOURCES tst_app_options.cpp
@@ -122,4 +137,10 @@ omaseed_add_test(tst_app_qbtbackup
 omaseed_add_test(tst_app_torrentsbackup_live LIVE
     SOURCES tst_app_torrentsbackup_live.cpp
     LIBRARIES omaseed::app omaseed::core omaseed::integration Qt6::Network
+)
+
+# #97 (board 42): moving a folder, as the window sees it, with no server.
+omaseed_add_test(tst_movecontroller
+    SOURCES tst_movecontroller.cpp
+    LIBRARIES omaseed::app omaseed::core
 )

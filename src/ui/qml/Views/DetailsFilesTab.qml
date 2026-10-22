@@ -56,7 +56,8 @@ Item {
     /// A click on the summary line's "N skipped" (#9): the pane turns hideSkipped over, as `X`.
     signal hideSkippedRequested
     /// A click on a row's tick (#42, docs/27): `wanted` is what the tick showed (2 ticked,
-    /// 1 mixed, 0 skipped); the pane skips a full one and ticks the others.
+    /// 1 mixed, 0 skipped); the pane skips a full or a mixed one and ticks back an empty one
+    /// (DECISIONS C19 T1).
     signal tickClicked(int row, int wanted)
     /// A click on the header's tick, for every file the filter shows (docs/27 D1/D4).
     signal headTickClicked

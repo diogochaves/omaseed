@@ -1,12 +1,17 @@
 // #24 T5 (docs/22 §6): "off under reduced motion". MotionPreference reads the desktop's
 // reduced-motion setting from the settings portal and follows it when it changes; a portal
-// that is missing or does not know the key reads as no preference.
+// that is missing or does not know the key reads as no preference. #111: Hyprland's
+// animations turned off (Omarchy's "no animations" toggle) reduce motion too, and a
+// `configreloaded` asks again.
 
 #include "integration/MotionPreference.hpp"
 
 #include <QDBusConnection>
 #include <QDBusVariant>
+#include <QDeadlineTimer>
 #include <QFile>
+#include <QLocalServer>
+#include <QLocalSocket>
 #include <QProcess>
 #include <QSignalSpy>
 #include <QTemporaryDir>
@@ -43,6 +48,51 @@ public slots:
 signals:
     void SettingChanged(const QString &ns, const QString &key, const QDBusVariant &value);
 };
+
+/// A stand-in for Hyprland: a `hyprctl` that prints `<dir>/<option>` (as `hyprctl -j getoption
+/// <option>` would), and the event socket, a local server.
+class FakeHyprland
+{
+public:
+    FakeHyprland()
+    {
+        QFile file(hyprctl());
+        if (file.open(QIODevice::WriteOnly)) {
+            file.write(
+                "#!/bin/sh\ncat \"$(dirname \"$0\")/$3\" 2>/dev/null || echo 'no such option'\n");
+            file.close();
+            file.setPermissions(QFile::ReadOwner | QFile::WriteOwner | QFile::ExeOwner);
+        }
+        m_server.listen(socketPath());
+    }
+
+    QString hyprctl() const { return m_dir.filePath(QStringLiteral("hyprctl")); }
+    QString socketPath() const { return m_dir.filePath(QStringLiteral("socket2.sock")); }
+
+    /// As Hyprland 0.56 prints it.
+    void setAnimations(bool enabled)
+    {
+        QFile file(m_dir.filePath(QStringLiteral("animations:enabled")));
+        if (file.open(QIODevice::WriteOnly | QIODevice::Truncate))
+            file.write(QByteArray("{\"option\": \"animations:enabled\", \"bool\": ") +
+                       (enabled ? "true" : "false") + ", \"set\": true }");
+    }
+
+    QLocalSocket *accept(int timeoutMs = 5000)
+    {
+        QDeadlineTimer deadline(timeoutMs);
+        while (!m_server.hasPendingConnections() && !deadline.hasExpired())
+            QTest::qWait(20);
+        return m_server.nextPendingConnection();
+    }
+
+private:
+    QTemporaryDir m_dir;
+    QLocalServer m_server;
+};
+
+/// No Hyprland: the portal alone.
+const MotionPreference::Hyprland kNoHyprland{QString(), QString()};
 
 class PrivateBus
 {
@@ -143,7 +193,7 @@ private Q_SLOTS:
 
     void noPortalIsNoPreference()
     {
-        MotionPreference motion(m_bus.connection());
+        MotionPreference motion(m_bus.connection(), kNoHyprland);
         QTest::qWait(100);
         QCOMPARE(motion.reduced(), false);
     }
@@ -155,7 +205,7 @@ private Q_SLOTS:
                              QVariant(1u));
         QVERIFY(m_bus.serve(&portal));
 
-        MotionPreference motion(m_bus.connection());
+        MotionPreference motion(m_bus.connection(), kNoHyprland);
         QSignalSpy changed(&motion, &MotionPreference::reducedChanged);
         QTRY_COMPARE(motion.reduced(), true);
 
@@ -173,6 +223,84 @@ private Q_SLOTS:
 
         m_bus.connection().unregisterService(kService);
         m_bus.connection().unregisterObject(kPath);
+    }
+
+    void hyprlandsAnswer_data()
+    {
+        QTest::addColumn<QByteArray>("answer");
+        QTest::addColumn<bool>("off");
+        QTest::newRow("off")
+            << QByteArray("{\"option\": \"animations:enabled\", \"bool\": false, \"set\": true }")
+            << true;
+        QTest::newRow("on")
+            << QByteArray("{\"option\": \"animations:enabled\", \"bool\": true, \"set\": true }")
+            << false;
+        QTest::newRow("int 0") << QByteArray("{\"option\": \"animations:enabled\", \"int\": 0}")
+                               << true;
+        QTest::newRow("int 1") << QByteArray("{\"option\": \"animations:enabled\", \"int\": 1}")
+                               << false;
+        QTest::newRow("no such option") << QByteArray("no such option") << false;
+        QTest::newRow("nothing") << QByteArray() << false;
+    }
+
+    void hyprlandsAnswer()
+    {
+        QFETCH(QByteArray, answer);
+        QFETCH(bool, off);
+        QCOMPARE(MotionPreference::animationsOff(answer), off);
+    }
+
+    // #111: no portal preference, but Hyprland's animations off (Omarchy's "no animations",
+    // on by itself in a VM); a reload that turns them on again, and the portal still counts.
+    void hyprlandsAnimationsOffReduceMotion()
+    {
+        FakeHyprland hypr;
+        hypr.setAnimations(false);
+        MotionPreference motion(m_bus.connection(),
+                                MotionPreference::Hyprland{hypr.hyprctl(), hypr.socketPath()});
+        QSignalSpy changed(&motion, &MotionPreference::reducedChanged);
+        QTRY_COMPARE(motion.reduced(), true);
+        QLocalSocket *events = hypr.accept();
+        QVERIFY(events);
+
+        // The toggle turns them back on: Hyprland reloads its config.
+        hypr.setAnimations(true);
+        events->write("configreloaded>>\n");
+        events->flush();
+        QTRY_COMPARE(motion.reduced(), false);
+        QCOMPARE(changed.size(), 2);
+
+        // Other events never ask.
+        hypr.setAnimations(false);
+        events->write("workspace>>2\n");
+        events->flush();
+        QTest::qWait(300);
+        QCOMPARE(motion.reduced(), false);
+
+        // The portal asks for less motion while Hyprland animates: reduced.
+        FakePortal portal;
+        QVERIFY(m_bus.serve(&portal));
+        hypr.setAnimations(true);
+        portal.change(
+            QStringLiteral("org.freedesktop.appearance"), QStringLiteral("reduced-motion"), 1u);
+        QTRY_COMPARE(motion.reduced(), true);
+        // Hyprland's answer on a reload does not undo the portal's.
+        events->write("configreloaded>>\n");
+        events->flush();
+        QTest::qWait(300);
+        QCOMPARE(motion.reduced(), true);
+
+        m_bus.connection().unregisterService(kService);
+        m_bus.connection().unregisterObject(kPath);
+    }
+
+    void noHyprctlIsNoPreference()
+    {
+        MotionPreference motion(
+            m_bus.connection(),
+            MotionPreference::Hyprland{QStringLiteral("/nonexistent/hyprctl"), QString()});
+        QTest::qWait(200);
+        QCOMPARE(motion.reduced(), false);
     }
 
 private:

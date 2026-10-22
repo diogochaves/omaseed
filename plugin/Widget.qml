@@ -2,6 +2,7 @@ import QtQuick
 import Quickshell
 import Quickshell.Io
 import qs.Commons
+import qs.Commons as Commons
 import qs.Ui
 import "Format.js" as Format
 import "IpcOwner.js" as IpcOwner
@@ -17,8 +18,8 @@ import "Status.js" as Status
 // horizontal bar, stacked under it in a vertical one. Every slot is measured once in the
 // bar's font, so the widget never changes width.
 //
-// Left click opens the popup (Popup.qml), middle and right are options, scroll does
-// nothing. Everything comes from omaseed's status file through Service.qml; the widget
+// Left click opens the popup (Popup.qml, built on its first open), middle and right are
+// options, scroll does nothing. Everything comes from omaseed's status file through Service.qml; the widget
 // never talks to qBittorrent.
 BarWidget {
   id: root
@@ -41,14 +42,14 @@ BarWidget {
   readonly property string consoleValue: consoleReading.value
   readonly property bool running: service.running
 
-  readonly property color foreground: bar ? bar.barForeground : Color.foreground
-  readonly property color urgent: bar ? bar.urgent : Color.urgent
+  readonly property color foreground: bar ? bar.barForeground : Commons.Color.foreground
+  readonly property color urgent: bar ? bar.urgent : Commons.Color.urgent
   readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
   readonly property color offInk: Qt.rgba(foreground.r, foreground.g, foreground.b, 0.3)
 
   // A lit arrow: the theme's blue in and green out, or the accent for both.
-  readonly property color downInk: cfg.markColor === "single" ? Color.accent : service.blue
-  readonly property color upInk: cfg.markColor === "single" ? Color.accent : service.green
+  readonly property color downInk: cfg.markColor === "single" ? Commons.Color.accent : service.blue
+  readonly property color upInk: cfg.markColor === "single" ? Commons.Color.accent : service.green
   // docs/31 W2: a burst holds nothing back, so the speeds keep their usual ink.
   readonly property color speedInk: service.altSlows ? service.yellow : foreground
 
@@ -78,28 +79,42 @@ BarWidget {
     if ("host" in target) target.host = root
   }
 
+  // The popup is built on its first open (#114), as Omarchy 4.5's own popups build theirs
+  // (bar/indicators/Dnd.qml): a bar per monitor no longer carries 1,700 lines of QML it may
+  // never show. Everything that runs without it stays here: the Service (the status file,
+  // the heartbeat, the theme's colours) and the IPC handler below, whose open, toggle and
+  // settings build it, while close and the shell's popout switch leave an unbuilt one be.
+  function ensurePanel() {
+    if (!panelLoader.item) {
+      panelLoader.setSource(Qt.resolvedUrl("Popup.qml"))
+      injectPanel()
+    }
+    return panelLoader.item
+  }
+
   // The shape the shell's summon/hide/toggle routing expects on a bar widget's root.
   readonly property bool opened: panelLoader.item ? panelLoader.item.opened === true : false
   readonly property bool popoutSwitchClosing: panelLoader.item ? panelLoader.item.popoutSwitchClosing === true : false
 
-  function open() { if (panelLoader.item) panelLoader.item.openPanel() }
+  function open() { var p = ensurePanel(); if (p) p.openPanel() }
   // The popup straight on its settings page (omaseed's Settings › Appearance › customize).
   function openSettings() {
-    if (!panelLoader.item) return
-    if (!panelLoader.item.opened) panelLoader.item.openPanel()
-    panelLoader.item.openSettingsPage()
+    var p = ensurePanel()
+    if (!p) return
+    if (!p.opened) p.openPanel()
+    p.openSettingsPage()
   }
   function close() { if (panelLoader.item) panelLoader.item.close() }
-  function toggle() { if (panelLoader.item) panelLoader.item.toggle() }
+  function toggle() { var p = ensurePanel(); if (p) p.toggle() }
   function closeForPopoutSwitch() { if (panelLoader.item) panelLoader.item.closeForPopoutSwitch() }
 
   onBarChanged: injectPanel()
   onSettingsChanged: injectPanel()
 
+  // Empty until ensurePanel() gives it Popup.qml; synchronous, so the popup opens on the click
+  // that built it.
   Loader {
     id: panelLoader
-    active: true
-    source: Qt.resolvedUrl("Popup.qml")
     visible: false
     onLoaded: {
       root.injectPanel()
@@ -128,10 +143,16 @@ BarWidget {
     IpcOwner.leave(root)
   }
 
+  // Omarchy 4.5 answers `omarchy-shell` over its own socket (~5 ms, not a qs ipc client's
+  // ~45 ms) for the handlers in its IpcRegistry, which answers only an enabled one: every
+  // instance registers, the owner is the one that answers (#111). 4.0.x has no registry, and
+  // the ReferenceError is caught, so there it is qs ipc as before.
   IpcHandler {
     id: ipc
     target: root.moduleName
     enabled: root.ipcOwner
+    Component.onCompleted: { try { IpcRegistry.register(ipc) } catch (e) {} }
+    Component.onDestruction: { try { IpcRegistry.unregister(ipc) } catch (e) {} }
     function open(): void { root.open() }
     function close(): void { root.close() }
     function toggle(): void { root.toggle() }
@@ -174,10 +195,19 @@ BarWidget {
     return Math.ceil(w)
   }
   readonly property int arrowSlot: Math.ceil(Math.max(arrowMetrics.advanceWidth("↓"), arrowMetrics.advanceWidth("↑")))
-  // The shell's own bar icon canvas (16 at the default size), with an icon font's margin: a
-  // glyph inks about 20 of its 24 units, the mark all of them, so the mark takes 20/24 of the
-  // canvas and inks as wide as the glyphs beside it (13-14 px where the canvas is 17).
-  readonly property int markSize: Math.round(Style.bar.iconCanvas * 20 / 24)
+  // As big as the glyphs beside it. Omarchy 4.5 paints every bar icon at Style.bar.iconSize
+  // (12 at the default size) inside its canvas, and the mark inks all of its box, so it takes
+  // that (#111). 4.0.x has no such token: there it is the shell's icon canvas (16 at the
+  // default size) less an icon font's margin, as a glyph inks about 20 of its 24 units (13-14
+  // px where the canvas is 17).
+  readonly property int markSize: Style.bar.iconSize !== undefined ? Style.bar.iconSize
+    : Math.round(Style.bar.iconCanvas * 20 / 24)
+  // 4.5's bar labels centre their figures, not their line box (WidgetButton's
+  // `centerFigures`), so the speeds do the same where the kit does; 4.0.x's centre the line.
+  readonly property bool centerFigures: "centerFigures" in button
+  // 4.5 stills the shell's motion with Hyprland's animations off (Style.reduceMotion); 4.0.x
+  // has no such switch, and the speeds' fade follows only the bar's.
+  readonly property bool animate: (!root.bar || root.bar.foregroundAnimationEnabled) && Style.reduceMotion !== true
 
   WidgetButton {
     id: button
@@ -238,7 +268,8 @@ BarWidget {
         fontFamily: root.fontFamily
         valueSlot: root.valueSlot
         arrowSlot: root.arrowSlot
-        animate: !root.bar || root.bar.foregroundAnimationEnabled
+        animate: root.animate
+        centerFigures: root.centerFigures
       }
 
       SpeedField {
@@ -250,7 +281,8 @@ BarWidget {
         fontFamily: root.fontFamily
         valueSlot: root.valueSlot
         arrowSlot: root.arrowSlot
-        animate: !root.bar || root.bar.foregroundAnimationEnabled
+        animate: root.animate
+        centerFigures: root.centerFigures
       }
     }
   }

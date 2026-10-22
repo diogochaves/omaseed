@@ -3,7 +3,9 @@
 // folder the server puts in front of the paths, sends each rename in the order it was made,
 // then the file priorities, then starts it. A fake server records what arrives: the order,
 // the paths with their root, the wait while the file list is still empty, and a refused
-// rename, which leaves the torrent stopped and says so without losing the add.
+// rename, which leaves the torrent stopped and says so without losing the add. The sheet
+// closes on the add's own OK (DECISIONS C20, #124): `addFinished` comes first, and the steps
+// after it report a failure in the footer (`actionFailed`).
 
 #include "core/AddFilesModel.hpp"
 #include "core/TorrentFilesModel.hpp"
@@ -217,10 +219,13 @@ void TestAppAddRenames::renamesGoOutAfterTheAddThenPrioritiesThenStart()
     request.insert(QStringLiteral("stopped"), false);
 
     QSignalSpy finished(&app, &App::addFinished);
+    QSignalSpy failed(&app, &App::actionFailed);
     app.addTorrent(request);
     QVERIFY(finished.wait(10000));
     QVERIFY2(finished.first().at(0).toBool(), qPrintable(finished.first().at(1).toString()));
     QCOMPARE(finished.first().at(2).toString(), QString::fromLatin1(kTreeHash));
+    // C20: the sheet hears of the add before anything after it is sent.
+    QCOMPARE(server.calls, QStringList{QStringLiteral("torrents/add")});
 
     const QString root = QString::fromLatin1(kRoot);
     const QStringList expected{
@@ -235,7 +240,8 @@ void TestAppAddRenames::renamesGoOutAfterTheAddThenPrioritiesThenStart()
         QStringLiteral("torrents/filePrio 7=7"),
         QStringLiteral("torrents/start"),
     };
-    QCOMPARE(server.calls, expected);
+    QTRY_COMPARE_WITH_TIMEOUT(server.calls, expected, 10000);
+    QCOMPARE(failed.count(), 0);
 }
 
 void TestAppAddRenames::aRefusedRenameLeavesItStoppedAndSaysSo()
@@ -254,12 +260,20 @@ void TestAppAddRenames::aRefusedRenameLeavesItStoppedAndSaysSo()
     request.insert(QStringLiteral("stopped"), false);
 
     QSignalSpy finished(&app, &App::addFinished);
+    QSignalSpy failed(&app, &App::actionFailed);
     app.addTorrent(request);
     QVERIFY(finished.wait(10000));
-    QCOMPARE(finished.first().at(0).toBool(), false);
-    QVERIFY(finished.first().at(1).toString().contains(QStringLiteral("names")));
-    // The add itself happened: the id is there for the table to show it.
+    // The add itself happened: the sheet closes, and the id is there for the table.
+    QCOMPARE(finished.first().at(0).toBool(), true);
     QCOMPARE(finished.first().at(2).toString(), QString::fromLatin1(kTreeHash));
+    // C20: the refused rename says so in the footer, naming the torrent, with details.
+    QVERIFY(failed.wait(10000));
+    const QString sentence = failed.first().at(1).toString();
+    QVERIFY2(sentence.contains(QStringLiteral("names")), qPrintable(sentence));
+    QVERIFY2(sentence.contains(QStringLiteral("Blender Open Movies")), qPrintable(sentence));
+    QCOMPARE(app.actionFailure().value(QStringLiteral("sentence")).toString(), sentence);
+    QVERIFY(!app.actionFailure().value(QStringLiteral("details")).toString().isEmpty());
+    QCOMPARE(finished.count(), 1);
     QVERIFY(!server.calls.contains(QStringLiteral("torrents/start")));
 }
 

@@ -284,6 +284,29 @@ TestCase {
         compare(Status.serverWords(null), "omaseed");
     }
 
+    // DECISIONS C20 (#127): the version gives way first, then "qBittorrent"; the name stays.
+    function test_server_line_gives_way_version_first() {
+        var s = sample();
+        var forms = Status.serverLineForms(s);
+        compare(forms, ["HOME · QBITTORRENT 5.2.3", "HOME · QBITTORRENT", "HOME"]);
+        compare(forms[0], Status.serverLine(s));
+        // One unit a character, for the sums.
+        var widths = forms.map(function(f) { return f.length });
+        compare(Status.fittingForm(forms, widths, 40), "HOME · QBITTORRENT 5.2.3");
+        compare(Status.fittingForm(forms, widths, 24), "HOME · QBITTORRENT 5.2.3");
+        compare(Status.fittingForm(forms, widths, 23), "HOME · QBITTORRENT");
+        compare(Status.fittingForm(forms, widths, 18), "HOME · QBITTORRENT");
+        compare(Status.fittingForm(forms, widths, 17), "HOME");
+        // Not even the name: the name, which the popup elides.
+        compare(Status.fittingForm(forms, widths, 2), "HOME");
+        // No version known: the name is the only form.
+        s.server.version = "";
+        compare(Status.serverLineForms(s), ["HOME"]);
+        compare(Status.serverLineForms(null), ["OMASEED"]);
+        compare(Status.fittingForm(["NOT RUNNING"], [80, 0, 0], 40), "NOT RUNNING");
+        compare(Status.fittingForm([], [], 40), "");
+    }
+
     // docs/31 D12 (W1–W3): the widget follows the word the app writes. A file from before
     // alt.kind (or a mixed set, "alt") keeps today's yellow alternative limits.
     function test_alt_follows_the_word() {

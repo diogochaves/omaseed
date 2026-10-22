@@ -234,10 +234,20 @@ void Tray::setTooltip(const QString &server,
                       int downloading,
                       int seeding)
 {
-    m_tooltip = QStringLiteral("%1 · ↓ %2 ↑ %3 · %4 downloading · %5 seeding")
-                    .arg(server, downloadSpeedText, uploadSpeedText)
-                    .arg(downloading)
-                    .arg(seeding);
+    m_tooltipBase = QStringLiteral("%1 · ↓ %2 ↑ %3 · %4 downloading · %5 seeding")
+                        .arg(server, downloadSpeedText, uploadSpeedText)
+                        .arg(downloading)
+                        .arg(seeding);
+    m_tooltip = m_jobLine.isEmpty() ? m_tooltipBase : m_tooltipBase + QLatin1Char('\n') + m_jobLine;
+    m_trayIcon->setToolTip(m_tooltip);
+}
+
+void Tray::setJobLine(const QString &line)
+{
+    if (line == m_jobLine)
+        return;
+    m_jobLine = line;
+    m_tooltip = m_jobLine.isEmpty() ? m_tooltipBase : m_tooltipBase + QLatin1Char('\n') + m_jobLine;
     m_trayIcon->setToolTip(m_tooltip);
 }
 

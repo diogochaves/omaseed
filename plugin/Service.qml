@@ -2,6 +2,7 @@ import QtQuick
 import Quickshell
 import Quickshell.Io
 import qs.Commons
+import qs.Commons as Commons
 import "Status.js" as Status
 
 // Everything the widget knows and everything it can do, for one bar surface.
@@ -100,13 +101,13 @@ Item {
   property color themeGreen: "transparent"
   property color themeYellow: "transparent"
 
-  readonly property color blue: themeBlue.a > 0 ? themeBlue : Color.accent
-  readonly property color green: themeGreen.a > 0 ? themeGreen : Color.foreground
+  readonly property color blue: themeBlue.a > 0 ? themeBlue : Commons.Color.accent
+  readonly property color green: themeGreen.a > 0 ? themeGreen : Commons.Color.foreground
   readonly property color yellow: themeYellow.a > 0 ? themeYellow
-    : Qt.rgba((Color.foreground.r + Color.urgent.r) / 2, (Color.foreground.g + Color.urgent.g) / 2, (Color.foreground.b + Color.urgent.b) / 2, 1)
+    : Qt.rgba((Commons.Color.foreground.r + Commons.Color.urgent.r) / 2, (Commons.Color.foreground.g + Commons.Color.urgent.g) / 2, (Commons.Color.foreground.b + Commons.Color.urgent.b) / 2, 1)
 
   FileView {
-    path: Color.currentThemePath + "/colors.toml"
+    path: Commons.Color.currentThemePath + "/colors.toml"
     watchChanges: true
     printErrors: false
     onFileChanged: reload()

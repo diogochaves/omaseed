@@ -56,6 +56,31 @@ TestCase {
         compare(findChild(notice, "noticeRule").color, Theme.red);
     }
 
+    // Board 42 (DECISIONS C15 M10, M16): a folder's move uses the band too.
+    function test_a_move_draws_its_sign_progress_and_failures() {
+        const notice = createTemporaryObject(noticeComponent, testCase);
+        notice.kind = "info";
+        notice.glyph = "↻";
+        compare(findChild(notice, "noticeGlyph").text, "↻");
+        compare(findChild(notice, "noticeRule").color, Theme.accent);
+        const line = findChild(notice, "noticeProgress");
+        verify(!line.visible);
+        notice.progress = 0.5;
+        verify(line.visible);
+        fuzzyCompare(line.width, notice.width / 2, 1);
+        compare(line.color, Theme.accent);
+        notice.bodyAlert = "2 failed";
+        const text = findChild(notice, "noticeLine");
+        compare(text.textFormat, Text.StyledText);
+        verify(text.text.indexOf("2 failed") > 0);
+        notice.bodyAlert = "";
+        compare(text.textFormat, Text.PlainText);
+        notice.kind = "success";
+        notice.glyph = "";
+        compare(findChild(notice, "noticeGlyph").text, Glyphs.check);
+        compare(findChild(notice, "noticeRule").color, Theme.green);
+    }
+
     function test_actions_beside_then_under_when_narrow() {
         const notice = createTemporaryObject(noticeComponent, testCase);
         verify(!notice.stacked);
@@ -146,6 +171,43 @@ TestCase {
         notice.actionTriggered.connect(k => key = k);
         findChild(notice, "noticeAction-switch").children[0].clicked(null);
         compare(key, "switch");
+    }
+
+    // Board 43 J3 (DECISIONS C16 L12): the moves waiting behind this one, each with its link.
+    function test_detail_rows_list_above_the_text_each_with_its_link() {
+        const notice = createTemporaryObject(noticeComponent, testCase, {
+                                                 "detailRows": [
+                                                     {
+                                                         "text": "2 torrents to /mnt/fast/films",
+                                                         "link": "cancel"
+                                                     },
+                                                     {
+                                                         "text": "Big Film to /mnt/fast/films",
+                                                         "link": "cancel"
+                                                     }
+                                                 ]
+                                             });
+        notice.toggleDetails();
+        verify(findChild(notice, "noticeDetails").visible);
+        let picked = -1;
+        notice.detailRowTriggered.connect(index => picked = index);
+        const rows = [];
+        const walk = item => {
+            for (let i = 0; i < item.children.length; ++i) {
+                if (item.children[i].objectName === "noticeDetailRowLink")
+                    rows.push(item.children[i]);
+                walk(item.children[i]);
+            }
+        };
+        walk(notice);
+        compare(rows.length, 2);
+        compare(rows[1].text, "cancel");
+        rows[1].children[0].clicked(null);
+        compare(picked, 1);
+        // Rows alone unfold too, without the text and its copy.
+        notice.details = "";
+        verify(findChild(notice, "noticeDetails").visible);
+        verify(!findChild(notice, "noticeCopy").visible);
     }
 
     function test_no_details_no_toggle() {

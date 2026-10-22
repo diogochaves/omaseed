@@ -224,7 +224,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, a:focus-visib
     <div class="cols">
       <div style="display:grid;gap:10px;align-content:start">
         <p><code>POST torrents/fetchMetadata</code> with <code>source=</code> a magnet, a bare v1 or v2 hash, or an http(s) link to a <code>.torrent</code>. While qBittorrent looks it answers <b>202</b> with the hashes. Once it has the metadata it answers <b>200</b> with the whole info dictionary. Its own Web UI asks again every second.</p>
-        <p>The result is kept <b>per Web UI session</b>. omaseed's <code>QbtClient</code> keeps its cookie jar and prefers the API key, so it sees the 200 as long as every poll goes through the same client. A client without a session gets 202 forever (diogochaves/upstream#86; that is why <code>app-box.sh api</code> never saw a 200 in #39).</p>
+        <p>The result is kept <b>per Web UI session</b>. omaseed's <code>QbtClient</code> keeps its cookie jar and prefers the API key, so it sees the 200 as long as every poll goes through the same client. A client without a session gets 202 forever (a qBittorrent quirk; that is why <code>app-box.sh api</code> never saw a 200 in #39).</p>
         <p>Then, in the same session, <code>torrents/add urls=&lt;the magnet&gt;&amp;filePriorities=1,0,1</code> adds it <b>with its metadata and the priorities already set</b>. A skipped file is never created on disk. No stop, <code>filePrio</code>, start dance as for a <code>.torrent</code> (docs/11 D1).</p>
       </div>
 <pre class="log"><span class="k">0.00 s</span>  POST torrents/fetchMetadata  source=magnet:?xt=urn:btih:f43d…&amp;xt=urn:btmh:1220 1f85…&amp;dn=Public Domain Sampler&amp;tr=…
@@ -247,7 +247,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, a:focus-visib
         <tr><td>Paths</td><td><code>info.files[].path</code> starts with <code>&lt;info.name&gt;/</code> for a multi-file torrent; pad files are left out, so the n-th entry is file index n</td><td>Strip the root and feed <code>AddFilesModel::load</code>: the same tree as T1, with no new model</td></tr>
         <tr><td>Side effects</td><td>Never adds anything: no row in <code>torrents/info</code> or <code>sync/maindata</code>, nothing written to disk</td><td>Safe to start on its own, without asking</td></tr>
         <tr><td>Timeout</td><td class="m">None. A lookup lasts until the metadata arrives, until that hash is added, or until qBittorrent restarts</td><td>The sheet decides how long to wait (§3)</td></tr>
-        <tr><td>Cancel</td><td class="m">No endpoint (<code>cancelFetchMetadata</code> and its cousins: 404). Any <code>torrents/add</code> of the same hash cancels it; so does a restart (diogochaves/upstream#87)</td><td>Adding leaves nothing behind. Closing the sheet does (§5, D6)</td></tr>
+        <tr><td>Cancel</td><td class="m">No endpoint (<code>cancelFetchMetadata</code> and its cousins: 404). Any <code>torrents/add</code> of the same hash cancels it; so does a restart</td><td>Adding leaves nothing behind. Closing the sheet does (§5, D6)</td></tr>
         <tr><td>Private torrents</td><td class="n">202 forever: libtorrent never hands a private torrent's metadata to a magnet</td><td>A private tracker's magnet never gets a tree (§6, D7)</td></tr>
         <tr><td>A dead http(s) link</td><td class="n">202 <code>{}</code> forever, even after the download failed. No hash until it works</td><td>Looks the same as a slow magnet (D8)</td></tr>
         <tr><td>Already in the library</td><td>200 at once, from the library torrent</td><td>Never reached: the sheet's duplicate check (docs/25 D1 a) opens Fig. 10 from the magnet's hash before any lookup</td></tr>
@@ -415,7 +415,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, a:focus-visib
         <tr><td class="nw">c · only when asked</td><td>b, as an explicit "stop looking" in F4 only, with its cost on the button's tooltip</td><td class="m">possible later if leaks show up</td></tr>
       </tbody>
     </table></div>
-    <div class="note">If qBittorrent's API gains a way to cancel a lookup (diogochaves/upstream#87 records the gap), omaseed would call it when the sheet lets go of an unfinished one, detected the way D11 detects <code>fetchMetadata</code>.</div>
+    <div class="note">If qBittorrent's API gains a way to cancel a lookup, omaseed would call it when the sheet lets go of an unfinished one, detected the way D11 detects <code>fetchMetadata</code>.</div>
   </section>
 
   <!-- 6 -->

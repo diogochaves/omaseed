@@ -51,8 +51,9 @@ Presence presence(const QString &target);
 QString linkTarget(const QString &target);
 
 /// True when the shell config at `shellJson` loads the widget: where the shell itself looks
-/// for a plugin's entry (PluginRegistry.findEntryLocation), the bar's `id`, an entry in
-/// `bar.layout`'s sections, or a line of `plugins[]`. A container widget that hosts it (the
+/// for a plugin's entry (PluginRegistry.findEntryLocation), the bar's `id`, an entry in any
+/// of `bar.layout`'s sections (4.5 adds centerBegin, centerEnd and tray), or a line of
+/// `plugins[]`. A container widget that hosts it (the
 /// console's rail) lists it in its own settings *and* gives it a `plugins[]` line; `omarchy
 /// plugin disable` drops only that line, so the container's list alone does not count.
 bool isInBar(const QString &shellJson);

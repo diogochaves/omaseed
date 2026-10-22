@@ -81,7 +81,7 @@ TestCase {
         const bar = makeBar();
         compare(button(bar, "recheck").tooltip, "recheck · c");
         compare(button(bar, "start").tooltip, "start · p");
-        compare(button(bar, "location").tooltip, "set location · m");
+        compare(button(bar, "location").tooltip, "move… · m");
         compare(button(bar, "more").tooltip, "all actions · enter");
         compare(button(bar, "delete").tooltip, "delete · d");
         verify(button(bar, "recheck").tooltipAbove, "the bar's tips open over it");
@@ -92,7 +92,7 @@ TestCase {
     function test_each_button_is_named_by_its_action_and_the_key_is_the_description() {
         const bar = makeBar();
         const cases = [["recheck", "recheck", "shortcut c"], ["start", "start", "shortcut p"],
-                       ["location", "set location", "shortcut m"],
+                       ["location", "move…", "shortcut m"],
                        ["more", "all actions", "shortcut enter"],
                        ["delete", "delete", "shortcut d"],
                        ["clear", "clear selection", "shortcut esc"]];

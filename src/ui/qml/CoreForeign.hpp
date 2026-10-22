@@ -103,6 +103,7 @@
 #include "core/AltSpeed.hpp"
 #include "core/CategoryModel.hpp"
 #include "core/FilterCounts.hpp"
+#include "core/FolderModel.hpp"
 #include "core/GlobalState.hpp"
 #include "core/LogFilterModel.hpp"
 #include "core/MetadataLookup.hpp"
@@ -141,6 +142,15 @@ struct TorrentFilterModelForeign
     QML_FOREIGN(omaseed::core::TorrentFilterModel)
     QML_NAMED_ELEMENT(TorrentFilterModel)
     QML_UNCREATABLE("TorrentFilterModel is App.filtered; it is not created from QML.")
+};
+
+/// Board 42 (#97): the rail's folders group, `App.move.folders`.
+struct FolderModelForeign
+{
+    Q_GADGET
+    QML_FOREIGN(omaseed::core::FolderModel)
+    QML_NAMED_ELEMENT(FolderModel)
+    QML_UNCREATABLE("FolderModel is App.move.folders; it is not created from QML.")
 };
 
 struct FilterCountsForeign

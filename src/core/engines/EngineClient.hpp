@@ -18,6 +18,7 @@
 // record and App::qbtEngine(), not through this interface (docs/36 §4.4).
 
 #include "core/Reply.hpp"
+#include "core/ServerFolder.hpp"
 #include "core/engines/AddOptions.hpp"
 #include "core/engines/DetailsData.hpp"
 #include "core/engines/EngineFeatures.hpp"
@@ -102,6 +103,10 @@ public:
     virtual Reply<SyncDelta> *sync(int cursor) = 0;
     /// The torrents (all of them, or those of `hashes`), every field the engine has.
     virtual Reply<QList<TorrentPatch>> *torrents(const QStringList &hashes = {}) = 0;
+    /// Those of `hashes` that are stopped, whatever else their state says: an engine whose
+    /// state word hides a stop behind another (qBittorrent's `error`) answers from its own
+    /// record of it (DECISIONS C20, #142).
+    virtual Reply<QStringList> *stoppedAmong(const QStringList &hashes) = 0;
     virtual Reply<QList<CategoryPatch>> *categories() = 0;
     virtual Reply<QStringList> *tags() = 0;
     virtual Reply<TorrentProperties> *properties(const QString &hash) = 0;
@@ -118,6 +123,10 @@ public:
     /// A magnet's or a link's metadata, without adding it: ask again until it is ready.
     /// EngineFeatures::fetchMetadata.
     virtual Reply<FetchedMetadata> *fetchMetadata(const QString &source);
+    /// What is in `path`, a folder on the server's own disks, for a server whose disks
+    /// omaseed can't see (DECISIONS C16 L13). Always settles with a value: its state says
+    /// listed, missing, failed, or (the default) that this engine can't list folders.
+    virtual Reply<ServerFolder> *folderContent(const QString &path);
 
     // --- actions ---------------------------------------------------------------------------
     virtual Reply<Done> *start(const QStringList &hashes) = 0;

@@ -133,10 +133,11 @@ bool isInBar(const QString &shellJson)
     const QJsonObject bar = config.value(QStringLiteral("bar")).toObject();
     if (bar.value(QStringLiteral("id")).toString() == id)
         return true;
+    // Every section, not a fixed list: 4.0 has left, center and right; 4.5 adds centerBegin,
+    // centerEnd and tray (its Util.barSections, #110).
     const QJsonObject layout = bar.value(QStringLiteral("layout")).toObject();
-    for (const QString &section :
-         {QStringLiteral("left"), QStringLiteral("center"), QStringLiteral("right")}) {
-        if (listsId(layout.value(section), id))
+    for (auto section = layout.begin(); section != layout.end(); ++section) {
+        if (listsId(section.value(), id))
             return true;
     }
     return listsId(config.value(QStringLiteral("plugins")), id);

@@ -118,6 +118,13 @@ public:
     /// How many torrent fields are pending; the tests read it.
     int pendingTorrentValueCount() const;
 
+    /// DECISIONS C20 (#142): which errored torrents are stopped, from the engine's
+    /// EngineClient::stoppedAmong() (qBittorrent's `state` says only `error`), into
+    /// TorrentModel::setErrorStops(). Runs after every
+    /// sync, and is called after a stop or start was sent; one small request while some
+    /// torrent is in error, none otherwise. A call while a read is out reads again after it.
+    void readErrorStops();
+
     /// Shortens every interval; the tests use it to watch the cadence without waiting.
     void setIntervals(std::chrono::milliseconds visible,
                       std::chrono::milliseconds hidden,
@@ -207,6 +214,10 @@ private:
     bool m_pollInFlight = false;
     /// The probe or sync/maindata request in flight, so stop() can abort it.
     QPointer<ReplyBase> m_pollReply;
+    /// C20 (#142): the read of which errored torrents are stopped, in flight, and whether
+    /// another was asked for meanwhile.
+    QPointer<ReplyBase> m_errorStopsReply;
+    bool m_errorStopsAgain = false;
     /// Bumped by stop() (and so by setClient()); a reply from an older generation is dropped.
     quint64 m_generation = 0;
     bool m_probed = false;

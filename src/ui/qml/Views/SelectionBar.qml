@@ -80,7 +80,7 @@ Rectangle {
                                         },
                                         "location": {
                                             "glyph": Glyphs.location,
-                                            "text": qsTr("set location"),
+                                            "text": qsTr("move…"),
                                             "key": "m"
                                         },
                                         "limits": {

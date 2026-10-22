@@ -22,3 +22,12 @@ public:
         return omaseed::app::App::createForEngine(engine);
     }
 };
+
+/// Board 42 (#97): `App.move`, the folder's move: the sheet, the job, its band.
+struct MoveControllerForeign
+{
+    Q_GADGET
+    QML_FOREIGN(omaseed::app::MoveController)
+    QML_NAMED_ELEMENT(MoveController)
+    QML_UNCREATABLE("MoveController is App.move; it is not created from QML.")
+};

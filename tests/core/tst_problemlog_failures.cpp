@@ -156,11 +156,11 @@ private slots:
     void webSeedLinesGoToTheirTorrent();
     void theNewestExportFailureIsKept();
 
-    void aWatchedMoveTellsAtOnce();
-    void aBatchMoveTellsOnce();
+    void aMoveFailureIsTheBlockNotANote();
     void aLineFromBeforeTheWatchIsNotTold();
+    void aJobIsToldEveryMoveFailure();
     void aWatchedRenameAndDeleteTell();
-    void aWatchEndsAfterItsTimeOrWhenTheMoveLanded();
+    void aWatchEndsAfterItsTime();
 
     void readsEvery15sWhileShownAndNotWhileHidden();
     void aWatchReadsOnEveryPoll();
@@ -462,41 +462,56 @@ void TestProblemLogFailures::theNewestExportFailureIsKept()
     QVERIFY(m_log->exportFailure().isEmpty());
 }
 
-void TestProblemLogFailures::aWatchedMoveTellsAtOnce()
+// DECISIONS C16 L9: a move is a job, which hears of its failures (watchJob, below) and words
+// them itself; the log's own D2 note is for renames and deletes. The block stays (D1).
+void TestProblemLogFailures::aMoveFailureIsTheBlockNotANote()
 {
     QSignalSpy told(m_log, &ProblemLog::watchedFailure);
-    m_log->watchMove({kMoveHash}, kRoot + QStringLiteral("/dest"));
-    QVERIFY(m_log->isWatching());
     qbtfeed::entries(*m_log, {entry(220, moveLine())});
-    QCOMPARE(told.count(), 1);
-    QCOMPARE(told.at(0).at(0).toString(),
-             QStringLiteral("log55-move.bin didn't move: Permission denied"));
-    QCOMPARE(told.at(0).at(1).toStringList(), QStringList{kMoveHash});
-    // Its only torrent failed: nothing more to wait for. It stays as the block.
-    QVERIFY(!m_log->isWatching());
+    QCOMPARE(told.count(), 0);
     QVERIFY(!failureOf(*m_model, kMoveHash).isEmpty());
-}
-
-void TestProblemLogFailures::aBatchMoveTellsOnce()
-{
-    QSignalSpy told(m_log, &ProblemLog::watchedFailure);
-    m_log->watchMove({kMoveHash, kRenameHash, kSeedHash}, kRoot + QStringLiteral("/dest"));
-    qbtfeed::entries(*m_log, {entry(220, moveLine())});
-    QCOMPARE(told.count(), 1);
-    QCOMPARE(told.at(0).at(0).toString(), QStringLiteral("1 of 3 didn't move"));
-    QVERIFY(m_log->isWatching());
-    // A read with nothing new says nothing.
-    qbtfeed::entries(*m_log, {});
-    QCOMPARE(told.count(), 1);
 }
 
 void TestProblemLogFailures::aLineFromBeforeTheWatchIsNotTold()
 {
     QSignalSpy told(m_log, &ProblemLog::watchedFailure);
-    qbtfeed::entries(*m_log, {entry(220, moveLine())});
-    m_log->watchMove({kMoveHash}, kRoot + QStringLiteral("/dest"));
+    qbtfeed::entries(*m_log, {entry(221, renameLine(QStringLiteral("log55-rename/b.txt")))});
+    m_log->watchRename(kRenameHash, 1);
     qbtfeed::entries(*m_log, {});
     QCOMPARE(told.count(), 0);
+}
+
+// C15 M15 (board 42 §5): a move job hears of every failure of its torrents, for its whole
+// life, without the footer's note.
+void TestProblemLogFailures::aJobIsToldEveryMoveFailure()
+{
+    QSignalSpy told(m_log, &ProblemLog::jobMoveFailed);
+    QSignalSpy noted(m_log, &ProblemLog::watchedFailure);
+    const QDateTime since = QDateTime::fromSecsSinceEpoch(kLoggedAt - 60);
+    m_log->watchJob({kMoveHash, kSeedHash}, since);
+    QVERIFY(m_log->isWatching());
+
+    // A line from before the job began is not about it.
+    qbtfeed::entries(*m_log, {entry(219, moveLine(), kLoggedAt - 120), entry(220, moveLine())});
+    QCOMPARE(told.count(), 1);
+    QCOMPARE(told.at(0).at(0).toString(), kMoveHash);
+    QCOMPARE(told.at(0).at(1).toDateTime(), QDateTime::fromSecsSinceEpoch(kLoggedAt));
+    QCOMPARE(told.at(0).at(2).toString(), QStringLiteral("Permission denied"));
+    QCOMPARE(told.at(0).at(3).toString(), QStringLiteral("noAccess"));
+    QVERIFY(told.at(0).at(4).toString().startsWith(QStringLiteral("Failed to move torrent.")));
+    QCOMPARE(noted.count(), 0);
+    QVERIFY(!failureOf(*m_model, kMoveHash).isEmpty()); // D1's block, as for any failed move
+
+    // The same line again is not told again; a new one is.
+    qbtfeed::entries(*m_log, {});
+    QCOMPARE(told.count(), 1);
+    qbtfeed::entries(*m_log, {entry(230, moveLine(), kLoggedAt + 600)});
+    QCOMPARE(told.count(), 2);
+
+    m_log->watchJob({}, QDateTime());
+    QVERIFY(!m_log->isWatching());
+    qbtfeed::entries(*m_log, {entry(240, moveLine(), kLoggedAt + 900)});
+    QCOMPARE(told.count(), 2);
 }
 
 void TestProblemLogFailures::aWatchedRenameAndDeleteTell()
@@ -523,7 +538,7 @@ void TestProblemLogFailures::aWatchedRenameAndDeleteTell()
     QVERIFY(told.at(1).at(1).toStringList().isEmpty());
 }
 
-void TestProblemLogFailures::aWatchEndsAfterItsTimeOrWhenTheMoveLanded()
+void TestProblemLogFailures::aWatchEndsAfterItsTime()
 {
     m_log->setWatchDuration(std::chrono::milliseconds(0));
     m_log->watchRename(kRenameHash, 1);
@@ -531,15 +546,9 @@ void TestProblemLogFailures::aWatchEndsAfterItsTimeOrWhenTheMoveLanded()
     QVERIFY(!m_log->isWatching());
 
     m_log->setWatchDuration(std::chrono::seconds(30));
-    m_log->watchMove({kMoveHash}, kRoot + QStringLiteral("/dest/"));
+    m_log->watchRename(kRenameHash, 1);
     sync();
     QVERIFY(m_log->isWatching());
-    qbtfeed::partial(
-        *m_model,
-        {{kMoveHash, QJsonObject{{QStringLiteral("save_path"), kRoot + QStringLiteral("/dest")}}}},
-        {});
-    sync();
-    QVERIFY(!m_log->isWatching());
 }
 
 void TestProblemLogFailures::readsEvery15sWhileShownAndNotWhileHidden()
@@ -589,12 +598,11 @@ void TestProblemLogFailures::aWatchReadsOnEveryPoll()
         return done();
     };
     QSignalSpy told(m_log, &ProblemLog::watchedFailure);
-    m_log->watchMove({kMoveHash}, kRoot + QStringLiteral("/dest"));
+    m_log->watchRename(kRenameHash, 1);
     QVERIFY(pollUntil([&server] { return server.askedFrom.size() >= 3; }));
     // The line appears in the log: the next poll's read tells it.
-    server.log = {entry(220, moveLine())};
+    server.log = {entry(221, renameLine(QStringLiteral("log55-rename/b.txt")))};
     QVERIFY(pollUntil([&told] { return told.count() == 1; }));
-    QVERIFY(!m_log->isWatching());
 }
 
 void TestProblemLogFailures::aFullUpdateReadsFromTheTopAgain()

@@ -183,7 +183,7 @@ Window {
                 "key": "t"
             },
             {
-                "text": qsTr("set location"),
+                "text": qsTr("move…"),
                 "key": "m"
             },
             {

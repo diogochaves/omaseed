@@ -7,6 +7,8 @@
 
 #include <QLocale>
 
+#include <algorithm>
+
 namespace omaseed::core {
 
 namespace {
@@ -70,6 +72,37 @@ void ServerLog::setActive(bool active)
         read();
 }
 
+void ServerLog::setMoveLines(QList<Line> lines)
+{
+    std::stable_sort(
+        lines.begin(), lines.end(), [](const Line &a, const Line &b) { return a.at < b.at; });
+    beginResetModel();
+    m_lines.removeIf([](const Line &line) { return !line.moveId.isEmpty(); });
+    m_moveLines = std::move(lines);
+    mergeMoveLines();
+    endResetModel();
+    Q_EMIT countsChanged();
+}
+
+void ServerLog::mergeMoveLines()
+{
+    // Each of omaseed's lines after qBittorrent's of the same second or before.
+    QList<Line> merged;
+    merged.reserve(m_lines.size() + m_moveLines.size());
+    qsizetype i = 0;
+    for (const Line &line : std::as_const(m_lines)) {
+        while (i < m_moveLines.size() && m_moveLines.at(i).at < line.at)
+            merged.append(m_moveLines.at(i++));
+        merged.append(line);
+    }
+    while (i < m_moveLines.size())
+        merged.append(m_moveLines.at(i++));
+    m_lines = std::move(merged);
+    m_counts = {};
+    for (const Line &line : std::as_const(m_lines))
+        ++m_counts[levelIndex(line.level)];
+}
+
 void ServerLog::setCapacity(int lines)
 {
     m_capacity = qMax(1, lines);
@@ -103,10 +136,12 @@ void ServerLog::startOver()
     ++m_generation;
     m_reading = false;
     const bool had = !m_lines.isEmpty();
-    if (had) {
+    if (had || !m_moveLines.isEmpty()) {
         beginResetModel();
         m_lines.clear();
         m_counts = {};
+        // omaseed's own lines don't come from the server: they stay.
+        mergeMoveLines();
         endResetModel();
     }
     m_lastId = -1;
@@ -178,13 +213,33 @@ void ServerLog::applyRead(const QList<LogEntry> &entries)
         endRemoveRows();
     }
     if (!fresh.isEmpty()) {
-        const int first = int(m_lines.size());
-        beginInsertRows({}, first, first + int(fresh.size()) - 1);
-        for (Line &line : fresh) {
-            ++m_counts[levelIndex(line.level)];
-            m_lines.append(std::move(line));
+        // #137: in time order, among omaseed's lines (a move's line is written when it ends,
+        // qBittorrent's about it may come at the next read; after a start over, the whole log
+        // comes in one read behind omaseed's). Every row after `at` is one of omaseed's, none
+        // older than the first fresh line; each fresh line goes before those newer than it, as
+        // mergeMoveLines() puts them (omaseed's after qBittorrent's of the same second), in
+        // runs, one insert per run.
+        qsizetype at = m_lines.size();
+        while (at > 0 && !m_lines.at(at - 1).moveId.isEmpty() &&
+               m_lines.at(at - 1).at >= fresh.constFirst().at)
+            --at;
+        qsizetype next = 0;
+        while (next < fresh.size()) {
+            while (at < m_lines.size() && m_lines.at(at).at < fresh.at(next).at)
+                ++at;
+            qsizetype end = next + 1;
+            if (at == m_lines.size())
+                end = fresh.size();
+            else
+                while (end < fresh.size() && fresh.at(end).at <= m_lines.at(at).at)
+                    ++end;
+            beginInsertRows({}, int(at), int(at + end - next) - 1);
+            for (; next < end; ++next) {
+                ++m_counts[levelIndex(fresh.at(next).level)];
+                m_lines.insert(at++, std::move(fresh[next]));
+            }
+            endInsertRows();
         }
-        endInsertRows();
     }
     if (over > 0 || !fresh.isEmpty())
         Q_EMIT countsChanged();
@@ -335,6 +390,8 @@ QVariant ServerLog::data(const QModelIndex &index, int role) const
     case Qt::DisplayRole:
     case MessageRole:
         return line.message;
+    case MoveIdRole:
+        return line.moveId;
     default:
         return {};
     }
@@ -347,7 +404,8 @@ QHash<int, QByteArray> ServerLog::roleNames() const
             {LevelNameRole, "levelName"},
             {TimestampRole, "timestamp"},
             {TimeTextRole, "timeText"},
-            {MessageRole, "message"}};
+            {MessageRole, "message"},
+            {MoveIdRole, "moveId"}};
 }
 
 } // namespace omaseed::core
