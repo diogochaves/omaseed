@@ -698,7 +698,7 @@ shot "The selection bar: move…." bar
 keys space
 keys Escape
 
-step "A partial pack to another drive" "Big Collection 1: six files, the first two wanted and on disk, the other four never written, 100 % of what it wants. m, /tmp/fast/partial, enter: only the two wanted files go; it stays at 100 % with no missing files, and the four others don't appear anywhere."
+step "A partial pack to another drive" "Big Collection 1: six files, the first two wanted and on disk, the other four never written, 100 % of what it wants. In its Files tab, x on the half-ticked Disc 1 unticks it and x again brings back the two (C19 T1). m, /tmp/fast/partial, enter: only the two wanted files go; it stays at 100 % with no missing files, and the four others don't appear anywhere."
 python3 -I - "$home" <<'PY'
 import hashlib, os, sys
 home, PIECE = sys.argv[1], 16384
@@ -756,6 +756,33 @@ for _ in $(seq 1 60); do
 done
 if [ "$prog" = 1 ]; then pass "the pack is at 100 % of its two files"; else fail "the pack reads $prog ($st) after its check"; fi
 api -X POST torrents/start -d "hashes=$pack" >/dev/null
+# DECISIONS C19 T1 (#134): Disc 1's tick is half; x on it (the same as a click on its tick)
+# unticks all six, and x again brings back parts 0 and 1 only, never the whole folder.
+pack_prios() {
+    api "torrents/files?hash=$pack" | python3 -c '
+import json, sys
+print("".join(str(f["priority"]) for f in sorted(json.load(sys.stdin), key=lambda f: f["index"])))'
+}
+expect_prios() {
+    local what="$1" want="$2" got=""
+    for _ in $(seq 1 20); do
+        got="$(pack_prios 2>/dev/null || true)"
+        [ "$got" = "$want" ] && { pass "$what ($got)"; return 0; }
+        sleep 0.5
+    done
+    fail "$what (the priorities read ${got:-nothing}, wanted $want)"
+}
+expect_prios "parts 0 and 1 wanted, 2–5 skipped" 110000
+table_on "Big Collection 1"
+keys l 2
+keys j x
+expect_prios "x on the half-ticked Disc 1 unticks it" 000000
+shot "The Files tab: Disc 1 unticked by one x on its half tick." files
+keys x
+expect_prios "x again brings back parts 0 and 1 only" 110000
+# The details back on General and hidden, as the steps after this one expect them.
+keys 1 i
+keys Escape
 table_on "Big Collection 1"
 keys m
 expect_text "the Move… sheet is open" "Move Big Collection 1" 10

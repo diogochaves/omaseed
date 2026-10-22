@@ -840,7 +840,7 @@ void App::setFilePriority(const QString &hash, const QVariantList &fileIndexes, 
 {
     if (hash.isEmpty() || fileIndexes.isEmpty())
         return;
-    // docs/27 D3: what a skipped file was, so ticking it again brings that back.
+    // DECISIONS C19 T1: what a skipped file was, so ticking it again brings that back.
     if (priority == int(FilePriority::Skip) && m_details->hash() == hash) {
         const QHash<int, int> current = m_details->files()->priorityByFileIndex();
         QHash<int, int> &before = m_beforeSkip[hash];
@@ -4562,13 +4562,22 @@ void App::setFilesWanted(const QString &hash, const QVariantList &fileIndexes, b
 {
     if (hash.isEmpty() || fileIndexes.isEmpty())
         return;
-    if (!wanted) {
-        setFilePriority(hash, fileIndexes, int(FilePriority::Skip));
-        return;
-    }
     const QHash<int, int> current =
         m_details->hash() == hash ? m_details->files()->priorityByFileIndex() : QHash<int, int>();
     QHash<int, int> &before = m_beforeSkip[hash];
+    if (!wanted) {
+        // DECISIONS C19 T1: the next tick brings back what this untick took, so a file that was
+        // skipped already (by the menu, earlier) forgets what it was and stays skipped.
+        if (m_details->hash() == hash) {
+            for (const QVariant &value : fileIndexes) {
+                if (current.value(value.toInt(), int(FilePriority::Skip)) ==
+                    int(FilePriority::Skip))
+                    before.remove(value.toInt());
+            }
+        }
+        setFilePriority(hash, fileIndexes, int(FilePriority::Skip));
+        return;
+    }
     QList<int> skipped;
     bool remembered = false;
     for (const QVariant &value : fileIndexes) {
@@ -4590,6 +4599,20 @@ void App::setFilesWanted(const QString &hash, const QVariantList &fileIndexes, b
     }
     for (auto group = groups.cbegin(); group != groups.cend(); ++group)
         setFilePriority(hash, group.value(), group.key());
+}
+
+void App::toggleFilesWanted(const QString &hash, const QVariantList &fileIndexes)
+{
+    if (hash.isEmpty() || fileIndexes.isEmpty())
+        return;
+    const QHash<int, int> current =
+        m_details->hash() == hash ? m_details->files()->priorityByFileIndex() : QHash<int, int>();
+    // DECISIONS C19 T1: a half tick unticks; only a tick with nothing wanted brings files back.
+    const bool anyWanted =
+        std::any_of(fileIndexes.cbegin(), fileIndexes.cend(), [&](const QVariant &id) {
+            return current.value(id.toInt(), int(FilePriority::Skip)) != int(FilePriority::Skip);
+        });
+    setFilesWanted(hash, fileIndexes, !anyWanted);
 }
 
 void App::setFilePriorityGroups(const QString &hash, const QVariantList &groups)

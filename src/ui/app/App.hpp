@@ -263,16 +263,23 @@ public:
     /// POST torrents/filePrio. `fileIndexes` is a list of ints (the `fileIndexes` role of a
     /// TorrentFilesModel row); a no-op in demo mode, where there is no server to tell.
     /// Skipping (priority 0) a file of the torrent on show remembers the priority it had,
-    /// for setFilesWanted() to bring back (docs/27 D3).
+    /// for setFilesWanted() to bring back (DECISIONS C19 T1).
     Q_INVOKABLE void
     setFilePriority(const QString &hash, const QVariantList &fileIndexes, int priority);
     /// The Files tab's tick column, its head and `x` (#42): `wanted` false skips the files;
     /// true brings each skipped one back at the priority it had before it was skipped while
     /// omaseed has been running, and leaves the others alone. When none of them was skipped
     /// here, every one comes back at normal; when some were, only those do (#129: untick then
-    /// tick gives back what was there, never-wanted files included).
+    /// tick gives back what was there, never-wanted files included). An untick forgets what
+    /// the files it finds skipped already were, so the next tick gives back exactly what it
+    /// took (DECISIONS C19 T1).
     Q_INVOKABLE void
     setFilesWanted(const QString &hash, const QVariantList &fileIndexes, bool wanted);
+    /// A click on a tick, the head's or a folder's, and `x` (DECISIONS C19 T1): when any of
+    /// the files is wanted, all of them are skipped, so a half tick unticks; when none is,
+    /// setFilesWanted(true) brings back what was wanted before. A click never widens a half
+    /// selection to every file: the priority menu does that.
+    Q_INVOKABLE void toggleFilesWanted(const QString &hash, const QVariantList &fileIndexes);
 
     /// The fields `Details.qml`'s `torrent` property expects, for one hash: name, category,
     /// tagsText, addedOnText, sizeText, progressText, ratioText, etaLongText, stateText,

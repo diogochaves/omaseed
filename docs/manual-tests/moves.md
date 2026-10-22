@@ -63,10 +63,12 @@ Each: what to do, then what you should see. Note OK, or what you saw instead.
    to …"; the torrent still seeds where it was.
 8. **Names.** In the **:** palette, "set location" finds "move…"; the actions menu and the
    selection bar say "move…".
-9. **A partial pack, and re-ticking a folder.** Big Collection 1 → details → Files: untick the
-   "Disc 1" folder, tick it again. Only part 0 and part 1 come back wanted; the other four stay
-   skipped; it stays at 100 %. Then **m** → `/tmp/fast/partial`: only the two wanted files go
-   (`ls "/tmp/fast/partial/Big Collection 1/Disc 1"`), still 100 %.
+9. **A partial pack, and re-ticking a folder.** Big Collection 1 → details → Files: the "Disc 1"
+   folder's tick is half (parts 0 and 1 of six wanted). One click on it unticks all of Disc 1;
+   the next click brings back part 0 and part 1 only, the other four stay skipped, and it stays
+   at 100 % (DECISIONS C19 T1). A click never wants the whole folder: the folder row's priority
+   menu (right-click → normal) does that. Then **m** → `/tmp/fast/partial`: only the two wanted
+   files go (`ls "/tmp/fast/partial/Big Collection 1/Disc 1"`), still 100 %.
 10. **Move back after the summary closes.** Move the games folder to `/tmp/fast/games` and close
     its summary. Arcade Set 10's details show a "last move" block with "move back…".
 11. **Moves that overlap.** Filter `Arcade Set 1`; select Arcade Set 10, 11, 12; **m** →

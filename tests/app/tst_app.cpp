@@ -107,6 +107,7 @@ private slots:
     void filesTabActionsRunLocallyInDemo();
     void renamesRefuseANameAlreadyOnDisk();
     void filesWantedRemembersThePriority();
+    void halfTickUnticksThenRestores();
     void manyFilesRenameLocallyInDemo();
 
 private:
@@ -514,8 +515,8 @@ void TestApp::renamesRefuseANameAlreadyOnDisk()
     QCOMPARE(failed.count(), 3);
 }
 
-// #42 (docs/27 D3) and #129: the Files tab's ticks. Skipping remembers each file's priority for
-// the session, ticking brings it back; a file already wanted is left alone. A tick that brings
+// #42 (DECISIONS C19 T1) and #129: the Files tab's ticks. Skipping remembers each file's priority
+// for the session, ticking brings it back; a file already wanted is left alone. A tick that brings
 // some remembered files back leaves the never-wanted ones skipped (untick then tick gives back
 // what was there); a tick on never-wanted files alone wants them at normal.
 void TestApp::filesWantedRemembersThePriority()
@@ -569,6 +570,86 @@ void TestApp::filesWantedRemembersThePriority()
     app.setFilesWanted(hash, {0}, false);
     app.setFilesWanted(hash, {0}, true);
     QCOMPARE(files->filePriority(0), int(FilePriority::Normal));
+}
+
+// DECISIONS C19 T1 (#134): a click on a half-ticked folder, the half-ticked head, or `x` on a
+// mixed selection unticks; the next click brings back exactly what it took, and never widens
+// the half selection to every file. A folder with nothing wanted and nothing remembered still
+// wants all its files.
+void TestApp::halfTickUnticksThenRestores()
+{
+    App app;
+    app.startDemo(16);
+    QString hash;
+    for (int row = 0; row < app.torrents()->count(); ++row) {
+        if (roleOf(app.torrents(), row, "name").toString() ==
+            QStringLiteral("Big Buck Bunny 4K (CC-BY)"))
+            hash = roleOf(app.torrents(), row, "hash").toString();
+    }
+    QVERIFY(!hash.isEmpty());
+    app.selectTorrent(hash);
+    TorrentFilesModel *files = app.details()->files();
+    const int skip = int(FilePriority::Skip);
+    const int normal = int(FilePriority::Normal);
+    const auto wantedAt = [files](int row) {
+        return files->data(files->index(row, 0), TorrentFilesModel::WantedRole).toInt();
+    };
+    const int subs = files->rowOfPath(QStringLiteral("Big Buck Bunny 4K/subs"));
+    QVERIFY(subs >= 0);
+
+    // subs/ starts with nothing wanted and nothing remembered: a click wants both files.
+    QCOMPARE(wantedAt(subs), 0);
+    app.toggleFilesWanted(hash, files->fileIndexes(subs));
+    QCOMPARE(files->filePriority(2), normal);
+    QCOMPARE(files->filePriority(3), normal);
+
+    // The folder: one file skipped from the menu makes it half. A click unticks it, the next
+    // brings back the one that was wanted, and the menu's skip stays.
+    app.setFilePriority(hash, {3}, skip);
+    QCOMPARE(wantedAt(subs), 1);
+    app.toggleFilesWanted(hash, files->fileIndexes(subs));
+    QCOMPARE(files->filePriority(2), skip);
+    QCOMPARE(files->filePriority(3), skip);
+    QCOMPARE(wantedAt(subs), 0);
+    app.toggleFilesWanted(hash, files->fileIndexes(subs));
+    QCOMPARE(files->filePriority(2), normal);
+    QCOMPARE(files->filePriority(3), skip);
+    QCOMPARE(wantedAt(subs), 1);
+
+    // The head: half (file 3 skipped), so a click unticks every file, and the next brings
+    // back the four that were wanted, each at its own priority.
+    app.setFilePriority(hash, {0}, int(FilePriority::High));
+    QCOMPARE(files->headWanted(), 1);
+    app.toggleFilesWanted(hash, files->headFileIndexes());
+    QCOMPARE(files->headWanted(), 0);
+    app.toggleFilesWanted(hash, files->headFileIndexes());
+    QCOMPARE(files->filePriority(0), int(FilePriority::High));
+    QCOMPARE(files->filePriority(1), normal);
+    QCOMPARE(files->filePriority(2), normal);
+    QCOMPARE(files->filePriority(3), skip);
+    QCOMPARE(files->filePriority(4), normal);
+    QCOMPARE(files->headWanted(), 1);
+
+    // `x` on a mixed selection (files 1, 3 and 4): unticks, then brings back 1 and 4 only.
+    files->clearSelection();
+    for (const char *name : {"bbb_sunflower_1080p_30fps.mp4", "subs/bbb.pt.srt", "LICENSE.txt"})
+        files->setSelected(
+            files->rowOfPath(QStringLiteral("Big Buck Bunny 4K/") + QLatin1String(name)), true);
+    QCOMPARE(files->targetPriority(-1), int(FilePriority::Mixed));
+    const QVariantList selected = files->targetFileIndexes(-1);
+    QCOMPARE(selected, QVariantList({1, 3, 4}));
+    app.toggleFilesWanted(hash, selected);
+    QCOMPARE(files->filePriority(1), skip);
+    QCOMPARE(files->filePriority(4), skip);
+    app.toggleFilesWanted(hash, selected);
+    QCOMPARE(files->filePriority(1), normal);
+    QCOMPARE(files->filePriority(3), skip);
+    QCOMPARE(files->filePriority(4), normal);
+
+    // Fully ticked, a click unticks, as before.
+    app.toggleFilesWanted(hash, {0, 1});
+    QCOMPARE(files->filePriority(0), skip);
+    QCOMPARE(files->filePriority(1), skip);
 }
 
 // #11: the rename sheet's plan and run through App, on the demo's files: a prefix on every

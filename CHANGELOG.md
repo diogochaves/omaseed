@@ -153,6 +153,10 @@ before it will tag a release.
 
 ### Changed
 
+- The Files tab: a click on a half-ticked folder, on the half-ticked head, or `x` on a mixed
+  selection unticks it; the next click brings back exactly what was wanted before, never every
+  file (DECISIONS C19 T1, #134). The folder row's priority menu (normal) still wants the whole
+  folder.
 - `omarchy-shell chaves.omaseed open|close|toggle|altSpeed|settings` takes Omarchy 4.5's fast
   path, the shell's own socket, instead of starting a qs ipc client each time (#111). 4.0.x
   goes through qs ipc as before.

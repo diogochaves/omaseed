@@ -235,16 +235,15 @@ Item {
         root.applyPriority(wanted);
     }
 
-    /// `x` (#42, docs/27 D2): skips the selection, or the cursor row when nothing is
-    /// selected; when none of those files is wanted, ticks them back at the priority they
-    /// had (App.setFilesWanted).
+    /// `x` (#42, DECISIONS C19 T1): skips the selection, or the cursor row when nothing is
+    /// selected, mixed ones included; when none of those files is wanted, ticks back what was
+    /// wanted before (App.toggleFilesWanted).
     function toggleSkip() {
         if (root.currentTab !== 1 || root.details.files.count === 0)
             return;
-        const files = root.details.files;
-        const ids = files.targetFileIndexes(root.filesCursor);
+        const ids = root.details.files.targetFileIndexes(root.filesCursor);
         if (ids.length > 0)
-            App.setFilesWanted(root.details.hash, ids, files.targetPriority(root.filesCursor) === 0);
+            App.toggleFilesWanted(root.details.hash, ids);
     }
 
     /// The priority menu's rows: one API priority (0 skip, 1 normal, 6 high, 7 maximal) on the
@@ -1293,8 +1292,8 @@ Item {
             }
             onHeadTickClicked: {
                 root.takeKeys();
-                App.setFilesWanted(root.details.hash, root.details.files.headFileIndexes(),
-                                   root.details.files.headWanted !== 2);
+                // DECISIONS C19 T1: a half tick unticks; the next click brings it back.
+                App.toggleFilesWanted(root.details.hash, root.details.files.headFileIndexes());
             }
             onHideSkippedRequested: root.toggleHideSkipped()
             onRenameCancelled: root.cancelRename()
@@ -1318,11 +1317,10 @@ Item {
                 const at = filesTab.mapToItem(root, x, y);
                 root.fileMenuAt(root._takeKeysAt(row), at.x, at.y);
             }
-            onTickClicked: (row, wanted) => {
+            onTickClicked: row => {
                 row = root._takeKeysAt(row);
                 root.filesCursor = row;
-                App.setFilesWanted(root.details.hash, root.details.files.fileIndexes(row),
-                                   wanted !== 2);
+                App.toggleFilesWanted(root.details.hash, root.details.files.fileIndexes(row));
             }
         }
 
