@@ -153,6 +153,10 @@ before it will tag a release.
 
 ### Changed
 
+- "Move folder…" moved from a torrent's menu to the folder: a right-click on a folder row in
+  the rail (or the menu key / `shift+F10` on the rail's cursor row) opens a menu with "move
+  this folder…", which moves that row's folder. The scope line's link, `shift+m` and the
+  palette's "move folder…" stay (DECISIONS C19 T3, #136).
 - The Files tab: a click on a half-ticked folder, on the half-ticked head, or `x` on a mixed
   selection unticks it; the next click brings back exactly what was wanted before, never every
   file (DECISIONS C19 T1, #134). The folder row's priority menu (normal) still wants the whole

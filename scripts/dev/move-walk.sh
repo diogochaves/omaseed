@@ -677,7 +677,7 @@ expect_at "still nothing moved" "Short Film 020" "$places_from" 3
 keys Return
 expect_at "the next enter moves it to the place filled in" "Short Film 020" "$second" 30
 
-step "The names" "The : palette finds move… when set location is typed; the actions menu (enter) and the selection bar (space) say move…."
+step "The names" "The : palette finds move… when set location is typed; the actions menu (enter) and the selection bar (space) say move…; the actions menu has no move folder… (C19 T3: that is the rail folder row's)."
 keys colon
 keys -t "set location"
 expect_tree "the palette finds move… for \"set location\"" 'list item "move…"' 10
@@ -689,7 +689,11 @@ no_text "the palette is closed" "set location"
 table_on "Short Film 021"
 keys Return
 expect_tree "the actions menu says move…" 'menu item "move…"' 10
-shot "The actions menu: move… and move folder…." actions
+if omabox tree -b "$BOX" --window omaseed 2>/dev/null | grep -qF 'menu item "move folder…"'; then
+    fail "the actions menu still offers move folder…"
+fi
+pass "the actions menu offers no move folder…"
+shot "The actions menu: move…, no move folder…." actions
 keys Escape
 table_on "Short Film 021"
 keys space
@@ -921,7 +925,7 @@ shot "The paused band: the drive is full, the move is paused." full
 
 # The rail's fast/games exists only once the games step moved it there.
 if [ "$FROM" = games ]; then
-step "A folder picked in the rail" "A click on fast/games in the rail's folders group: the table narrows to it and the folder line above it keeps \"move this folder…\" on its one line, the text cut short instead."
+step "A folder picked in the rail" "A click on fast/games in the rail's folders group: the table narrows to it and the folder line above it keeps \"move this folder…\" on its one line, the text cut short instead. A right-click on the row opens its menu, \"move this folder…\" (C19 T3); esc closes it."
 where="$(omabox tree -b "$BOX" --window omaseed --find "fast/games" 2>/dev/null | python3 -c '
 import re, sys
 for line in sys.stdin:
@@ -935,6 +939,11 @@ for line in sys.stdin:
 omabox click -b "$BOX" --window omaseed --wait $where >/dev/null 2>&1 || true
 expect_text "the folder line offers to move it" "move this folder…" 10
 shot "The folder line: one line, its text cut short, \"shift+m move this folder…\" whole at its end."
+# shellcheck disable=SC2086 # two numbers
+omabox click -b "$BOX" --window omaseed --wait $where right >/dev/null 2>&1 || true
+expect_tree "a right-click on the folder row opens its menu" 'menu item "move this folder…"' 10
+shot "The folder row's menu: move this folder…." menu
+keys Escape
 fi
 fi
 

@@ -126,6 +126,10 @@ Item {
     signal moreServersRequested
     /// A folder row was folded or unfolded (F2): the host keeps `folders.folded`.
     signal folderFoldToggled
+    /// DECISIONS C19 T3 (C15 M1's "the row's menu"): a right-click on a folder row, or the
+    /// menu key / `shift+F10` on the cursor's: the host opens its menu ("move this folder…")
+    /// for `path` at `x`, `y` (this item's coordinates).
+    signal folderMenuRequested(string path, real x, real y)
 
     // ---- row bookkeeping -----------------------------------------------------------
     // Every row (and every group heading) registers itself with a function that selects it;
@@ -385,6 +389,19 @@ Item {
         root.filtered.folder = root.filtered.folder === path ? "" : path;
     }
 
+    /// The menu key / `shift+F10` (C19 T3): the cursor row's menu, under its start, when it
+    /// has one (a folder's save path; a drive's top heading has none).
+    function openCursorMenu(): bool {
+        const entry = root._rowMap[root.cursorIndex];
+        const path = entry && entry.item ? entry.item.menuFolder : undefined;
+        if (typeof path !== "string" || path.length === 0)
+            return false;
+        root._scrollCursorIntoView();
+        const point = entry.item.mapToItem(root, Theme.space(24), entry.item.height);
+        root.folderMenuRequested(path, point.x, point.y);
+        return true;
+    }
+
     function selectStatus(index) {
         if (index < 0 || index >= root.statusRowCount)
             return;
@@ -447,6 +464,14 @@ Item {
             break;
         case Qt.Key_Escape:
             if (root.foldServersOverlay())
+                event.accepted = true;
+            break;
+        case Qt.Key_Menu:
+            if (root.openCursorMenu())
+                event.accepted = true;
+            break;
+        case Qt.Key_F10:
+            if ((event.modifiers & Qt.ShiftModifier) && root.openCursorMenu())
                 event.accepted = true;
             break;
         case Qt.Key_0:
@@ -677,6 +702,8 @@ Item {
 
                         readonly property int globalIndex: root.foldersFolded ? -1 : root.foldersBase
                                                                                    + folderDelegate.index
+                        /// C19 T3: what the row's menu moves; a drive's top heading has none.
+                        readonly property string menuFolder: folderDelegate.heading ? "" : folderDelegate.path
 
                         // F1: a drive's top holds no torrents itself; a save path counts them and
                         // all below it. F3: a move's mark takes the count's place.
@@ -690,6 +717,7 @@ Item {
                                                           : Glyphs.middot
                         glyphClickable: folderDelegate.hasChildren
                         hasCursor: root.shownCursor === folderDelegate.globalIndex
+                        hasMenu: folderDelegate.menuFolder.length > 0
                         indent: folderDelegate.depth
                         objectName: "folderRow-" + folderDelegate.path
                         selected: root.filtered.folder === folderDelegate.path
@@ -698,6 +726,13 @@ Item {
                         width: content.width
 
                         onClicked: root.clickRow(folderDelegate.globalIndex)
+                        // C19 T3: the menu acts on this row's folder; the cursor goes there,
+                        // as a right-click on a table row moves the table's.
+                        onMenuRequested: (x, y) => {
+                            root.cursorIndex = folderDelegate.globalIndex;
+                            const point = folderDelegate.mapToItem(root, x, y);
+                            root.folderMenuRequested(folderDelegate.path, point.x, point.y);
+                        }
                         onGlyphClicked: {
                             root.folders.toggleFold(folderDelegate.path);
                             root.folderFoldToggled();

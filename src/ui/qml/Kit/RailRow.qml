@@ -35,8 +35,13 @@ Rectangle {
     /// The glyph is a fold switch of its own (a folder's ▾ / ▸): a click on it sends
     /// `glyphClicked`, not `clicked`.
     property bool glyphClickable: false
+    /// The row has a menu (DECISIONS C19 T3: a folder row's "move this folder…"): a
+    /// right-click sends `menuRequested` instead of selecting it.
+    property bool hasMenu: false
 
     signal clicked
+    /// A right-click on the row, while `hasMenu`, at `x`, `y` in the row's coordinates.
+    signal menuRequested(real x, real y)
     /// The glyph was clicked, while `glyphClickable`.
     signal glyphClicked
     /// The pointer came onto the row (true) or left it (false).
@@ -127,11 +132,17 @@ Rectangle {
     MouseArea {
         id: mouseArea
 
+        acceptedButtons: root.hasMenu ? Qt.LeftButton | Qt.RightButton : Qt.LeftButton
         anchors.fill: parent
         cursorShape: Qt.PointingHandCursor
         hoverEnabled: true
 
-        onClicked: root.clicked()
+        onClicked: mouse => {
+            if (mouse.button === Qt.RightButton)
+                root.menuRequested(mouse.x, mouse.y);
+            else
+                root.clicked();
+        }
         onContainsMouseChanged: root.hoverChanged(mouseArea.containsMouse)
     }
 

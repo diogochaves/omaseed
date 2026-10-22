@@ -94,12 +94,6 @@ Menu {
             "key": "m",
             "action": "location"
         },
-        // Board 42 (DECISIONS C15 M1): the row's folder, as a whole.
-        {
-            "text": qsTr("move folder…"),
-            "key": "M",
-            "action": "moveFolder"
-        },
         {
             "text": qsTr("limits"),
             "key": "L",

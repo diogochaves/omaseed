@@ -45,6 +45,8 @@ Item {
     readonly property alias helpSheetPanel: helpSheetPanel
     // T4.3
     readonly property alias actionsMenuPanel: actionsMenuPanel
+    /// C19 T3: the rail folder row's menu.
+    readonly property alias folderMenuPanel: folderMenuPanel
     readonly property alias selectionBar: selectionBar
     readonly property alias deleteConfirmPanel: deleteConfirmPanel
     readonly property alias moveSheet: moveSheet
@@ -133,6 +135,8 @@ Item {
             return deleteConfirmPanel;
         if (actionsMenuPanel.opened)
             return actionsMenuPanel;
+        if (folderMenuPanel.opened)
+            return folderMenuPanel;
         if (moreMenu.opened)
             return moreMenu;
         if (filterMenu.opened)
@@ -728,9 +732,6 @@ Item {
         if (hashes.length === 0)
             return;
         switch (action) {
-        case "moveFolder":
-            root.openMoveFolder(App.move.folderOf(hashes[0]), "");
-            break;
         case "stopStart":
             App.stopStart(hashes);
             break;
@@ -1923,6 +1924,11 @@ Item {
             }
             onMoreServersRequested: root.openServerPalette()
             onFolderFoldToggled: root.saveTableState()
+            onFolderMenuRequested: (path, x, y) => {
+                const point = rail.mapToItem(root, x, y);
+                folderMenuPanel.folder = path;
+                folderMenuPanel.openAt(Math.round(point.x), Math.round(point.y));
+            }
         }
 
         SplitLayout {
@@ -2817,6 +2823,34 @@ Item {
                 return;
             const at = actionsMenuPanel.mapToItem(table, x, y);
             table.contextClickAt(at.x, at.y);
+        }
+    }
+
+    // DECISIONS C19 T3 (C15 M1's "the row's menu"): a rail folder row's menu. It moves that
+    // row's folder, picked or not; a torrent's menu no longer offers it.
+    Menu {
+        id: folderMenuPanel
+
+        /// The save path the menu was opened on.
+        property string folder: ""
+
+        anchors.fill: parent
+        // The folder's own name: a whole path would be cut at its end, the part that tells.
+        heading: folderMenuPanel.folder.substring(folderMenuPanel.folder.lastIndexOf("/") + 1)
+        items: [
+            {
+                "text": qsTr("move this folder…"),
+                "key": "M",
+                "action": "moveFolder"
+            }
+        ]
+        menuWidth: Theme.space(240)
+        objectName: "folderMenu"
+        z: 9
+
+        onActivated: action => {
+            if (action === "moveFolder")
+                root.openMoveFolder(folderMenuPanel.folder, "");
         }
     }
 

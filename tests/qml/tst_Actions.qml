@@ -55,6 +55,7 @@ TestCase {
         view.limitsSheetPanel.close();
         view.renameSheetPanel.close();
         view.actionsMenuPanel.close();
+        view.folderMenuPanel.close();
         view.sharedMoveConfirm.close();
         view.categoryPalette.close();
     }
@@ -772,6 +773,56 @@ TestCase {
         compare(row.hasCursor, true);
         view.table.forceActiveFocus();
         compare(row.hasCursor, false);
+    }
+
+    // DECISIONS C19 T3 (#136): a rail folder row's menu moves that row's folder, picked or not;
+    // the menu key on the rail's cursor row opens it too. A torrent's menu no longer offers it.
+    function test_a_folder_rows_menu_moves_that_folder() {
+        const hash = hashByName("Big Buck Bunny 4K (CC-BY)");
+        const path = App.torrentRow(hash).savePath.replace(/\/+$/, "");
+        const row = findChild(view.rail, "folderRow-" + path);
+        verify(row !== null, "no rail row for " + path);
+        compare(App.filtered.folder, "");
+
+        mouseClick(row, row.width / 2, row.height / 2, Qt.RightButton);
+        const menu = view.folderMenuPanel;
+        compare(menu.opened, true);
+        compare(menu.folder, path);
+        compare(menu.items.length, 1);
+        compare(menu.items[0].text, "move this folder…");
+        compare(App.filtered.folder, ""); // nothing picked: the menu acts on the row
+        compare(view.rail.cursorIndex, row.globalIndex);
+        menu.activate(0);
+        compare(menu.opened, false);
+        const sheet = view.moveSheet;
+        compare(sheet.opened, true);
+        compare(sheet.folder, path);
+        sheet.close();
+
+        // The keyboard: the rail has the keys, the cursor on the row, the menu key.
+        view.rail.forceActiveFocus();
+        view.rail.cursorIndex = row.globalIndex;
+        keyClick(Qt.Key_Menu);
+        compare(menu.opened, true);
+        compare(menu.folder, path);
+        keyClick(Qt.Key_Escape);
+        compare(menu.opened, false);
+        keyClick(Qt.Key_F10, Qt.ShiftModifier);
+        compare(menu.opened, true);
+        keyClick("M", Qt.ShiftModifier); // the row's own key
+        compare(menu.opened, false);
+        compare(sheet.opened, true);
+        compare(sheet.folder, path);
+        sheet.close();
+
+        // Not on a status row.
+        view.rail.cursorIndex = 0;
+        keyClick(Qt.Key_Menu);
+        compare(menu.opened, false);
+
+        // The torrent's actions menu has no folder move.
+        for (const item of view.actionsMenuPanel.items)
+            verify(item.action !== "moveFolder", JSON.stringify(item));
     }
 
     // Board 42 S1 (M4–M9): shift+m opens the sheet on the folder; the field is its new path,

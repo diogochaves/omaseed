@@ -134,6 +134,36 @@ TestCase {
         compare(clicks, 1);
     }
 
+    // DECISIONS C19 T3: a row with a menu answers a right-click with `menuRequested` at the
+    // point, not a click; a row without one ignores the right button.
+    function test_a_right_click_asks_for_the_menu_when_the_row_has_one() {
+        const row = createTemporaryObject(railRowComponent, testCase, {
+                                              "text": "games",
+                                              "width": 300
+                                          });
+        let clicks = 0;
+        let menus = 0;
+        let at = null;
+        row.clicked.connect(() => clicks++);
+        row.menuRequested.connect((x, y) => {
+                                      menus++;
+                                      at = Qt.point(x, y);
+                                  });
+        mouseClick(row, 100, 5, Qt.RightButton);
+        compare(menus, 0);
+        compare(clicks, 0);
+
+        row.hasMenu = true;
+        mouseClick(row, 100, 5, Qt.RightButton);
+        compare(menus, 1);
+        compare(clicks, 0);
+        compare(at.x, 100);
+        compare(at.y, 5);
+        mouseClick(row, 100, 5);
+        compare(clicks, 1);
+        compare(menus, 1);
+    }
+
     // #75: a screen reader's press runs the click, once.
     function test_the_accessible_press_is_the_click() {
         const row = createTemporaryObject(railRowComponent, testCase, {
