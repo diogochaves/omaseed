@@ -472,3 +472,9 @@ omaseed_add_test(tst_skippedondisk
     SOURCES tst_skippedondisk.cpp
     LIBRARIES omaseed::core
 )
+
+# Board 44 on a real ntfs3 loop image through udisks, against the playground (#118, #120).
+omaseed_add_test(tst_skipped_ntfs3_live LIVE
+    SOURCES tst_skipped_ntfs3_live.cpp
+    LIBRARIES omaseed::core
+)

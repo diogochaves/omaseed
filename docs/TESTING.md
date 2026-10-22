@@ -25,13 +25,17 @@ follows. The commands themselves are listed in `CLAUDE.md`; `README.md` says how
    | `strict-walk.sh` | first run against `:8082`: cookie login and an API key |
    | `notify-walk.sh` | downloads finishing: one notice each, a click shows the torrent |
    | `magnet-walk.sh` | a magnet or `.torrent` opened with `xdg-open`: closed, hidden, running |
-   | `actions-walk.sh` | renames, categories, tags, automatic management, the Move… sheet, delete |
+   | `actions-walk.sh` | renames, categories, tags, automatic management, the Move… sheet, delete, skipped files that hold space (free the space, add it again) |
    | `settings-walk.sh` | the qBittorrent settings pane, against a qBittorrent in the box |
    | `servers-walk.sh` | two qBittorrents: first run, add, switch, an action on each, remove |
    | `backup-walk.sh` | a qBittorrent's torrents exported and imported through the app |
    | `error-walk.sh` | a torrent going into error, and the app saying why |
    | `menu-walk.sh` | the one menu shown by the tray and the bar widget |
    | `move-walk.sh` | moving folders and selections: queue, places, partial packs, move back, recheck |
+
+   `OMASEED_ACTIONS_WALK_FROM=disk` runs only the actions walk's board 44 steps. Their ntfs3 side
+   (a tick that allocates in full) needs a loop image udisks mounts on this machine, which a box
+   can't write to: `ctest -R tst_skipped_ntfs3_live` runs it against the playground.
 
    `move-walk.sh` takes about 11 minutes; `OMASEED_MOVE_WALK_FROM` set to `selection`, `sheet`,
    `history`, `music` or `remote` starts it later.

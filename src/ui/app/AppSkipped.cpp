@@ -61,6 +61,8 @@ void App::setUpSkipped()
         const SkippedReading &reading = m_skipped->reading();
         if (reading.hash == m_details->hash())
             m_details->files()->setOnDisk(reading.allocatedByIndex());
+        else if (reading.hash.isEmpty())
+            m_details->files()->setOnDisk({});
         Q_EMIT skippedOnDiskChanged();
     });
     // Another torrent: its own reading, once its file list is in.
@@ -306,7 +308,10 @@ void App::addTorrentAgain(const QString &hash, bool freeLeftovers)
                      {QStringLiteral("name"), name},
                      {QStringLiteral("deleted"), outcome.deleted},
                      {QStringLiteral("warnings"), outcome.warnings}});
-                Q_EMIT skippedOnDiskChanged();
+                // The same hash, a new torrent: read its disk again once its list is in.
+                m_skipped->clear();
+                m_skippedAfterRefresh = m_filesTabActive;
+                m_details->refreshNow();
             });
     m_skippedStep = QStringLiteral("reading");
     Q_EMIT skippedOnDiskChanged();

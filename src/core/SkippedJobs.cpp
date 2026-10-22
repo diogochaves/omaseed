@@ -9,6 +9,8 @@
 #include <QTimer>
 #include <QUrlQuery>
 
+#include <algorithm>
+
 namespace omaseed::core {
 
 namespace {
@@ -43,6 +45,7 @@ void FreeSkippedJob::start(const Input &input)
     m_input = input;
     m_outcome = Outcome();
     m_plan = FreePlan();
+    m_cycled = false;
     if (!m_input.running) {
         readAndDelete();
         return;
@@ -116,11 +119,32 @@ void FreeSkippedJob::readAndDelete()
                                         m_input.contentLocal,
                                         m_input.sharedRoots,
                                         SkippedOnDisk::openFileHolders(paths, m_input.procRoot));
+                // A tick on a stopped torrent leaves libtorrent holding the files it created
+                // (seen on ntfs3, #118): only a stop releases them, and a stopped torrent
+                // doesn't stop again. Started and stopped once, qBittorrent lets go.
+                const bool heldByQbt =
+                    std::any_of(m_plan.items.cbegin(), m_plan.items.cend(), [](const FreeItem &i) {
+                        return i.verdict == FreeItem::Verdict::Open &&
+                               i.openBy.contains(QLatin1String("qbittorrent"), Qt::CaseInsensitive);
+                    });
+                if (heldByQbt && !m_cycled) {
+                    m_cycled = true;
+                    log(QStringLiteral("%1: qBittorrent still holds its skipped files; starting "
+                                       "and stopping it so it lets go")
+                            .arg(m_input.name));
+                    Q_EMIT step(QStringLiteral("stopping"));
+                    m_client->torrentsStart({m_input.hash});
+                    m_client->torrentsStop({m_input.hash})
+                        ->then(this, [this](const QbtResult<QByteArray> &) { waitStopped(0); });
+                    return;
+                }
                 Q_EMIT step(QStringLiteral("deleting"));
                 bool piecesWent = false;
                 for (const FreeItem &item : std::as_const(m_plan.items)) {
                     if (item.verdict != FreeItem::Verdict::Delete) {
                         ++m_outcome.kept;
+                        if (!item.openBy.isEmpty())
+                            m_outcome.openBy.append(item.openBy);
                         continue;
                     }
                     if (m_input.remove(item.file.localPath)) {

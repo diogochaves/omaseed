@@ -83,8 +83,13 @@ Sheet {
 
     Connections {
         function onFreeSkippedPlanned(plan: var): void {
-            if (plan.hash === root.hash && root.opened)
-                root.plan = plan;
+            if (plan.hash !== root.hash || !root.opened)
+                return;
+            root.plan = plan;
+            // `enter` frees, as the sheet's primary: the keyboard on it once it can.
+            const primary = root.primaryButton();
+            if (primary && root.deletes > 0)
+                Qt.callLater(() => primary.forceActiveFocus());
         }
 
         target: App
@@ -202,6 +207,8 @@ Sheet {
     }
 
     Label {
+        Accessible.name: text
+        Accessible.role: Accessible.StaticText
         Layout.fillWidth: true
         dim: true
         objectName: "freeSpaceOpenNote"
@@ -218,6 +225,8 @@ Sheet {
         visible: (root.plan.leftWithPieces || 0) > 0
 
         Label {
+            Accessible.name: text
+            Accessible.role: Accessible.StaticText
             Layout.fillWidth: true
             dim: true
             objectName: "freeSpaceHybridNote"

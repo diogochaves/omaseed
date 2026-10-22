@@ -64,6 +64,7 @@ public:
         qint64 freed = 0;
         int kept = 0;       ///< files that held space and stayed
         QStringList failed; ///< deletes the disk refused
+        QStringList openBy; ///< the programs that held a file open, so it stayed
         bool started = false;
         bool rechecked = false;
     };
@@ -89,6 +90,7 @@ private:
     Input m_input;
     Outcome m_outcome;
     FreePlan m_plan;
+    bool m_cycled = false; ///< started and stopped once so qBittorrent let go of the files
     bool m_busy = false;
 };
 
