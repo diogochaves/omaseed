@@ -1135,6 +1135,50 @@ C17 D13 on Transmission and Deluge (K24), C5 D11 for Transmission (K26), and M16
   export stay qBittorrent's, its Backup scope line naming servers that have none (#88 later).
 - **Seed console on Deluge (K34):** all time counts from when omaseed began watching, said once.
 
+## C26 — Search through qBittorrent's search plugins (board 48, ruled 2026-10-22)
+
+Board [48](48-search.html) SR1–SR14, all as recommended, in board 46's frame (C24 H16: a rail view
+after log, ctrl+f). The rule from #145 holds throughout: omaseed never names, ships or scrapes a
+site; search goes through qBittorrent's own search API and the plugins the user installs. On
+Transmission and Deluge the view isn't offered (C25 K30). #145, v0.5.0.
+
+**This entry adds** a Search plugins section to C11's qBittorrent sections (SR10) and a second
+no-match row to C1 D8's palette (SR14).
+
+- **Asking (SR1–SR2):** one job per plugin that is on, at most four at once (one of qBittorrent's
+  five left for others), the rest queued; done when every plugin has answered or 30 s have
+  passed. "1 of 3 plugins didn't answer ›" opens each one: failed (its reason from qBittorrent's
+  log, search it again, turn it off) or slow (still heard until qBittorrent's 3 min, stop
+  asking). Nothing found is "0 results", not a failure.
+- **Rows (SR3–SR5):** one per info hash; the copy with the most seeds names it and the others'
+  trackers fold into its magnet, said on line 2. A copy on a tracker the library knows as private
+  is never folded, nor given another's trackers (C5 D7, board 25). Seeds a plugin doesn't report
+  (−1) read "?", sorted below every known count and above 0; hide dead hides only a reported 0.
+  Rows sort live as plugins answer; the cursor's row never moves, with a line when rows land
+  above it.
+- **The bar (SR6):** the field, plugins ▾, type ▾, hide dead (off), sort ▾ (most seeds, newest,
+  size, name); plugins and type ask again; a plugin without the chosen type is named as skipped;
+  at 720 px the filters fold into "filters ▾".
+- **Seed first (SR7–SR8):** "in your library" by hash (add… becomes trackers…), "likely on disk"
+  by name and size (the add sheet checks the files), "added" after the hand-off; seeds as words
+  and one colour (five or more green, one to four "few seeds" yellow, "?" and 0 dim) until the
+  seeding coach (#25) has its words.
+- **The hand-off (SR9):** add… (enter) opens today's add sheet with the folded magnet, or the
+  .torrent fetched through its plugin (`downloader`); its line names the plugins and trackers; esc
+  returns to the results.
+- **Plugins (SR10–SR11):** Settings › qBittorrent › Search plugins: install from a URL, or from a
+  file only when the server is this computer; omaseed watches the list for 30 s and says
+  installed or didn't install (qBittorrent answers 200 either way); a switch per plugin,
+  uninstall, check for updates (outcome from its log). No catalogue, no suggested plugin, no link
+  to any list; a result's page opens only on `o`; a site's host never in a row.
+- **Servers and jobs (SR12–SR13):** the current server only, said in the title's sentence; each
+  server's last results kept for the session; omaseed deletes the jobs it started when replaced
+  and on quit, never others'. With no plugins, all off, or no Python on the server, the view stays
+  in the rail with one sentence each (naming no plugin) and a link to the pane.
+- **Keys (SR14):** ctrl+f from anywhere; enter asks; ↓ into rows; enter add…, space the result,
+  `c` copy magnet, `o` open its page, `/` filter the rows; esc back out step by step; `:` "search…"
+  and "search plugins for '…'".
+
 ## M8 — A click leaves the keyboard focus where it was
 
 Buttons and toggles do not take the focus when clicked. Otherwise an overlay gives the focus
