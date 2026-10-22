@@ -11,6 +11,7 @@ qt_add_qml_module(omaseed-views
         ActionsMenu.qml
         AddAgainConfirm.qml
         AddBatchList.qml
+        AddDriverLine.qml
         AddDownloadsList.qml
         AddFetchLine.qml
         AddFilesTree.qml

@@ -894,6 +894,18 @@ void App::setFilePriority(const QString &hash, const QVariantList &fileIndexes, 
         m_hold->add(hash, ids, priority, before, sizes);
         return;
     }
+    // C17 D8: the room check at the tick, on a disk where every ticked file takes its full
+    // size at once. A change that waits says it in its band; one sent now, in the footer.
+    if (onShow && priority != int(FilePriority::Skip)) {
+        qint64 added = 0;
+        for (const int id : std::as_const(ids)) {
+            if (before.value(id, 1) == int(FilePriority::Skip))
+                added += sizes.value(id, 0);
+        }
+        const QVariantMap room = tickRoom(hash, added);
+        if (room.value(QStringLiteral("short")).toBool())
+            Q_EMIT actionFailed(QString(), room.value(QStringLiteral("text")).toString());
+    }
     sendFilePriority(hash, ids, priority);
 }
 
@@ -1249,6 +1261,10 @@ QVariantMap App::freeSpaceFor(const QString &savePath) const
         {QStringLiteral("bytesTotal"), answer.bytesTotal},
         {QStringLiteral("where"), answer.where},
         {QStringLiteral("defaultFree"), m_engine->globalState()->freeSpaceOnDisk()},
+        // DECISIONS C17 D8–D9: the driver, where this machine reads it.
+        {QStringLiteral("fileSystem"), answer.fileSystem},
+        {QStringLiteral("allocatesInFull"), FileSystems::allocatesInFull(answer.fileSystem)},
+        {QStringLiteral("fat32"), FileSystems::isFat32(answer.fileSystem)},
     };
 }
 

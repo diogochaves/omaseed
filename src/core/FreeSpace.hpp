@@ -22,6 +22,22 @@ struct StorageReading
     QString fileSystem;
 };
 
+/// Which filesystems make a tick cost a file's full size at once (DECISIONS C17 D8–D9, as #116
+/// measured them). Wanting a file makes libtorrent create it at its full length; on `ntfs3`,
+/// `exfat` and `vfat` that allocates it all, and skipping it later keeps it. The newer in-kernel
+/// `ntfs`, ext4 and btrfs keep it sparse. Types nobody measured (`fuseblk`, xfs, network mounts)
+/// get no line: omaseed won't guess.
+namespace FileSystems {
+
+/// `ntfs3`, `exfat` or `vfat`: every ticked file takes its full size at once.
+bool allocatesInFull(const QString &fileSystem);
+/// FAT32 (`vfat`) can't hold a file of 4 GiB or more (D9).
+bool isFat32(const QString &fileSystem);
+/// The smallest file FAT32 refuses: 4 GiB.
+constexpr qint64 kFat32TooBig = 4LL * 1024 * 1024 * 1024;
+
+} // namespace FileSystems
+
 /// Measures a local folder. Replaceable so tests never depend on this machine's disks.
 using StorageReader = std::function<StorageReading(const QString &localPath)>;
 

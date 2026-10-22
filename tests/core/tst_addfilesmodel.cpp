@@ -12,6 +12,8 @@
 #include <QTemporaryDir>
 #include <QTest>
 
+#include <algorithm>
+
 #ifndef OMASEED_FIXTURES_DIR
 #error "OMASEED_FIXTURES_DIR must be defined by CMake"
 #endif
@@ -84,7 +86,32 @@ private slots:
     void foldingKeepsTheChoices();
     void loadingAnotherTorrentStartsOver();
     void padFilesNeverShow();
+    void filesTooBigForFat32AreNamedAndSkipped();
 };
+
+void TestAddFilesModel::filesTooBigForFat32AreNamedAndSkipped()
+{
+    // DECISIONS C17 D9: the wanted files of the limit or more, named, and "Skip these".
+    const TorrentFile torrent = fixture("open_movies_v1.torrent");
+    QVERIFY(torrent.isValid());
+    AddFilesModel model;
+    model.load(torrent.files);
+    qint64 biggest = 0;
+    for (const auto &file : torrent.files)
+        biggest = std::max(biggest, file.size);
+    const QVariantList big = model.wantedFilesOfAtLeast(biggest);
+    QCOMPARE(big.size(), 1);
+    QCOMPARE(big.first().toMap().value(QStringLiteral("size")).toLongLong(), biggest);
+    QVERIFY(model.wantedFilesOfAtLeast(biggest + 1).isEmpty());
+
+    QSignalSpy changed(&model, &AddFilesModel::choicesChanged);
+    model.skipFilesOfAtLeast(biggest);
+    QCOMPARE(changed.count(), 1);
+    QCOMPARE(model.wantedCount(), 7);
+    QVERIFY(model.wantedFilesOfAtLeast(biggest).isEmpty());
+    model.skipFilesOfAtLeast(biggest); // nothing left to skip: no change
+    QCOMPARE(changed.count(), 1);
+}
 
 void TestAddFilesModel::loadsTheTreeAllNormal()
 {

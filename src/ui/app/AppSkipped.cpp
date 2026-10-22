@@ -330,13 +330,38 @@ void App::addTorrentAgain(const QString &hash, bool freeLeftovers)
 
 // ---- #119: a big selection waits (C17 D5–D7) -------------------------------------------------
 
+QVariantMap App::tickRoom(const QString &hash, qint64 added) const
+{
+    if (hash.isEmpty() || m_engine->torrents()->indexOfHash(hash) < 0)
+        return {};
+    const Torrent &torrent = m_engine->torrents()->torrent(hash);
+    const FreeSpaceProbe::Answer answer = m_freeSpace.answer(torrent.savePath);
+    if (answer.source == FreeSpaceProbe::Source::Unknown || answer.fileSystem.isEmpty())
+        return {};
+    const bool allocates = FileSystems::allocatesInFull(answer.fileSystem);
+    const bool tooShort = allocates && added > answer.bytesFree;
+    return {{QStringLiteral("fileSystem"), answer.fileSystem},
+            {QStringLiteral("allocates"), allocates},
+            {QStringLiteral("free"), answer.bytesFree},
+            {QStringLiteral("freeText"), Format::size(answer.bytesFree)},
+            {QStringLiteral("short"), tooShort},
+            {QStringLiteral("text"),
+             tooShort
+                 ? tr("Needs %1, %2 free on %3: every ticked file takes its full size there "
+                      "at once, so qBittorrent would stop with \"No space left on "
+                      "device\". Select fewer files, or save to another disk.")
+                       .arg(Format::size(added), Format::size(answer.bytesFree), answer.fileSystem)
+                 : QString()}};
+}
+
 QVariantMap App::heldSelectionMap() const
 {
     int changed = 0;
     const QMap<int, QList<int>> net = m_hold->net();
     for (const QList<int> &ids : net)
         changed += int(ids.size());
-    return {{QStringLiteral("waiting"), m_hold->waiting()},
+    return {{QStringLiteral("room"), tickRoom(m_hold->hash(), m_hold->addedBytes())},
+            {QStringLiteral("waiting"), m_hold->waiting()},
             {QStringLiteral("hash"), m_hold->hash()},
             {QStringLiteral("files"), m_hold->addedFiles()},
             {QStringLiteral("bytes"), m_hold->addedBytes()},

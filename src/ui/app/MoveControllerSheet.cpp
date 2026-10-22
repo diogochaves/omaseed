@@ -379,6 +379,15 @@ MoveController::checkLines(const MovePlan &plan, const QString &newPath, const Q
                            "\"no space\" from qBittorrent"));
                     break;
                 }
+                // DECISIONS C17 D8: a destination whose driver allocates every file in full.
+                const QString fs =
+                    m_hooks.probe ? m_hooks.probe->answer(newPath).fileSystem : QString();
+                if (core::FileSystems::allocatesInFull(fs))
+                    checks << check(QStringLiteral("fact"),
+                                    tr("%1: every file of these torrents takes its full size "
+                                       "there at once, the parts not downloaded yet too.")
+                                        .arg(fs),
+                                    tr("a file skipped later keeps that space"));
             }
             // M6: writable. #131: it names the destination folder (as boards 42 and 43 draw
             // it), and the folder a missing one will be made in; the drive only when there

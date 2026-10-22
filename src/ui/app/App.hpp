@@ -2064,6 +2064,10 @@ public:
     Q_INVOKABLE void undoHeldSelection();
     /// `enter`, and every way of leaving: the net change goes now.
     Q_INVOKABLE void sendHeldSelection();
+    /// C17 D8: what `added` newly wanted bytes cost on torrent `hash`'s disk: `{fileSystem,
+    /// allocates, free, freeText, short, text}`; `short` when the driver allocates in full and
+    /// they don't fit. Empty where this machine can't read the disk.
+    QVariantMap tickRoom(const QString &hash, qint64 added) const;
     /// The window's length; only the tests shorten it.
     void setSelectionHoldWindow(int ms) { m_hold->setWindowMs(ms); }
 

@@ -523,10 +523,17 @@ Item {
 
         // U1: what waits, Undo and Send now, the line running down the window.
         Notice {
+            readonly property var room: root.held.room || ({})
+
             animated: false
-            body: qsTr("Sends in %n s.", "", Math.ceil(root.holdLeftMs / 1000))
+            // C17 D8: on ntfs3, exfat and vfat the room check counts every newly ticked file
+            // at its full size, at the tick.
+            body: (room.allocates === true && room.short !== true
+                   ? qsTr("%1: every ticked file takes its full size at once; %2 free.").arg(room.fileSystem).arg(room.freeText) + " "
+                   : "") + qsTr("Sends in %n s.", "", Math.ceil(root.holdLeftMs / 1000))
+            bodyAlert: room.short === true ? room.text : ""
             edge: "bottom"
-            kind: "info"
+            kind: room.short === true ? "error" : "info"
             objectName: "filesHoldBand"
             progress: root.holdShown ? root.holdLeftMs / Math.max(1, root.held.windowMs) : -1
             shown: root.holdShown

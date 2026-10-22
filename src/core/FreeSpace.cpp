@@ -36,6 +36,17 @@ bool isUnder(const QString &path, const QString &base)
 
 } // namespace
 
+bool FileSystems::allocatesInFull(const QString &fileSystem)
+{
+    return fileSystem == QLatin1String("ntfs3") || fileSystem == QLatin1String("exfat") ||
+           fileSystem == QLatin1String("vfat");
+}
+
+bool FileSystems::isFat32(const QString &fileSystem)
+{
+    return fileSystem == QLatin1String("vfat");
+}
+
 FreeSpaceProbe::FreeSpaceProbe(StorageReader reader)
     : m_reader(std::move(reader))
 {}

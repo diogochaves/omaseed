@@ -79,6 +79,7 @@ private slots:
     void readsARealFolder();
     void localPathsOnlyWhereTheDisksAreSeen();
     void answersCarryTheFileSystem();
+    void whichFileSystemsAllocateInFull();
 };
 
 void TestFreeSpace::defaultFolderUsesTheServersFigure()
@@ -295,6 +296,20 @@ void TestFreeSpace::answersCarryTheFileSystem()
     probe.setServer(QStringLiteral("/downloads"), 1500 * kGiB, PathMap(), false);
     QVERIFY(probe.answer(QString()).fileSystem.isEmpty());
     QVERIFY(probe.answer(QStringLiteral("/downloads/films")).fileSystem.isEmpty());
+}
+
+void TestFreeSpace::whichFileSystemsAllocateInFull()
+{
+    // DECISIONS C17 D8, #116's table: the driver decides, not the format.
+    using omaseed::core::FileSystems::allocatesInFull;
+    using omaseed::core::FileSystems::isFat32;
+    for (const char *fs : {"ntfs3", "exfat", "vfat"})
+        QVERIFY2(allocatesInFull(QString::fromLatin1(fs)), fs);
+    for (const char *fs : {"ntfs", "ext4", "btrfs", "fuseblk", "xfs", "cifs", "nfs4", ""})
+        QVERIFY2(!allocatesInFull(QString::fromLatin1(fs)), fs);
+    QVERIFY(isFat32(QStringLiteral("vfat")));
+    QVERIFY(!isFat32(QStringLiteral("exfat")));
+    QCOMPARE(omaseed::core::FileSystems::kFat32TooBig, 4 * kGiB);
 }
 
 QTEST_APPLESS_MAIN(TestFreeSpace)

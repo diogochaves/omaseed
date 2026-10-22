@@ -1826,6 +1826,16 @@ Sheet {
                         }
 
                         // docs/25 §4 (#29): what the add needs and the room where it goes.
+                        // DECISIONS C17 D8–D9 (#120): the save disk's driver, where it
+                        // makes every ticked file take its full size at once.
+                        AddDriverLine {
+                            Layout.fillWidth: true
+                            neededBytes: sheet.neededBytes
+                            perFile: !sheet.batchMode
+                            savePath: savePathField.text
+                            serverDown: sheet.serverDown
+                        }
+
                         AddFreeLine {
                             id: freeLine
 

@@ -394,6 +394,31 @@ QVariantMap AddFilesModel::renameAnchor() const
                        {QStringLiteral("path"), m_files.first().path}};
 }
 
+QVariantList AddFilesModel::wantedFilesOfAtLeast(qint64 bytes) const
+{
+    QVariantList files;
+    for (int id = 0; id < int(m_files.size()); ++id) {
+        if (m_priorities.value(id, kNormal) == kSkip || m_files.at(id).size < bytes)
+            continue;
+        files.append(QVariantMap{{QStringLiteral("path"), m_paths.value(id)},
+                                 {QStringLiteral("size"), m_files.at(id).size}});
+    }
+    return files;
+}
+
+void AddFilesModel::skipFilesOfAtLeast(qint64 bytes)
+{
+    QList<int> ids;
+    for (int id = 0; id < int(m_files.size()); ++id) {
+        if (m_priorities.value(id, kNormal) != kSkip && m_files.at(id).size >= bytes)
+            ids.append(id);
+    }
+    if (ids.isEmpty() || !setIds(ids, kSkip))
+        return;
+    applyToTree();
+    Q_EMIT choicesChanged();
+}
+
 QVariantList AddFilesModel::priorityList() const
 {
     QVariantList list;
