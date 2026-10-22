@@ -742,6 +742,13 @@ Item {
         case "stop":
             App.stopTorrents(hashes);
             break;
+        // DECISIONS C20 (#107): the errored ones of the targets, tried again.
+        case "retry": {
+            const errored = hashes.filter(hash => App.torrentRow(hash).stateText === "error");
+            if (errored.length > 0)
+                App.retryTorrents(errored);
+            break;
+        }
         case "forceStart":
             App.forceStart(hashes);
             break;
@@ -1144,6 +1151,7 @@ Item {
         "start": () => root._runOnTorrents("start"),
         "stop": () => root._runOnTorrents("stop"),
         "stopStart": () => root._runOnTorrents("stopStart"),
+        "retry": () => root._runOnTorrents("retry"),
         "forceStart": () => root._runOnTorrents("forceStart"),
         "recheck": () => root._runOnTorrents("recheck"),
         "reannounce": () => root._runOnTorrents("reannounce"),
@@ -1313,6 +1321,8 @@ Item {
             "lastMove": App.move.newestMove(),
             "stopped": stopped,
             "running": targets.length - stopped,
+            // DECISIONS C20: what "retry" would try again.
+            "errored": targets.filter(row => row.stateText === "error").length,
             // App.stopStart follows the first hash: `p` starts when that one is stopped.
             "firstStopped": targets.length > 0 && targets[0].stopped === true,
             "marked": marked,
@@ -1473,6 +1483,11 @@ Item {
         switch (event.key) {
         case Qt.Key_P:
             root.torrentAction(shift ? "forceStart" : "stopStart");
+            return true;
+        case Qt.Key_E:
+            if (shift)
+                return false;
+            root.torrentAction("retry"); // DECISIONS C20: `p` stops an errored torrent
             return true;
         case Qt.Key_D:
             root.torrentAction(shift ? "deleteWithFiles" : "delete");
@@ -2247,8 +2262,8 @@ Item {
                     root.showTorrentLog(hashes[0]);
                 else if (action === "location")
                     moveSheet.openSelection(hashes, "");
-                else if (action === "start")
-                    App.startTorrents(hashes);
+                else if (action === "start") // DECISIONS C20: "retry", a start that forgets the stop
+                    App.retryTorrents(hashes);
                 else if (action === "recheck")
                     App.recheck(hashes);
             }

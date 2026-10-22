@@ -108,8 +108,9 @@ Flickable {
         const transfer = make();
         // docs/28: the short cause after the state, dim, when the log says why.
         const cause = row && row.problem ? (row.problem.cause || "") : "";
+        // DECISIONS C20 (#107): stopped by omaseed while in error.
         if (row)
-            add(transfer, qsTr("Status"), row.stateText, {
+            add(transfer, qsTr("Status"), row.errorStopped === true ? qsTr("error · stopped") : row.stateText, {
                     "color": row.stateRole ? Theme[row.stateRole] : Theme.foreground,
                     "tail": cause.length > 0 && cause !== row.stateText ? cause : ""
                 });

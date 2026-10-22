@@ -9,6 +9,7 @@ issue, with a README saying what it reproduces, how to run it and what it printe
 | [115-hybrid-recheck](115-hybrid-recheck/) | Why does a recheck after deleting skipped files put a torrent in error? | #115 |
 | [116-fs-allocation](116-fs-allocation/) | What does each filesystem do with the files a torrent starts writing? | #116 |
 | [117-open-file-move](117-open-file-move/) | Does qBittorrent's move of a finished file fail while someone has it open? | #117 |
+| [107-errored-stopped](107-errored-stopped/) | Does the Web API tell a stopped errored torrent from a running one? | #107 |
 
 They talk only to throwaway qBittorrents (the playground on `:8081`, or a profile made with
 `scripts/dev/test-server.sh`) and the offline swarm (`scripts/dev/swarm.sh`), never to a real

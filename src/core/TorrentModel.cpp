@@ -298,6 +298,9 @@ QVariant TorrentModel::data(const QModelIndex &index, int role) const
     case ProblemRole:
         return m_problems.value(t.hash);
     case StatusCauseRole:
+        // C20 (#107): stopped by omaseed, it says so; the cause stays in General's block.
+        if (t.state == TorrentState::Error && m_errorStops.contains(t.hash))
+            return tr("error · stopped");
         return m_problems.value(t.hash).value(QStringLiteral("cause")).toString();
     case FailureRole:
         return m_failures.value(t.hash);
@@ -626,6 +629,28 @@ void TorrentModel::setFailure(const QString &hash, const QVariantMap &failure)
     }
     Q_EMIT dataChanged(index(row), index(row), {FailureRole});
     Q_EMIT problemsChanged();
+}
+
+void TorrentModel::setErrorStops(const QSet<QString> &hashes)
+{
+    if (hashes == m_errorStops)
+        return;
+    // The rows whose Status may read differently: in one set and not the other.
+    QSet<QString> touched = hashes;
+    touched.unite(m_errorStops);
+    touched.subtract(QSet<QString>(hashes).intersect(m_errorStops));
+    m_errorStops = hashes;
+    for (const QString &hash : std::as_const(touched)) {
+        const int row = indexOfHash(hash);
+        if (row >= 0)
+            Q_EMIT dataChanged(index(row), index(row), {StatusCauseRole});
+    }
+    Q_EMIT problemsChanged();
+}
+
+bool TorrentModel::isErrorStopped(const QString &hash) const
+{
+    return m_errorStops.contains(hash) && torrent(hash).state == TorrentState::Error;
 }
 
 void TorrentModel::clear()

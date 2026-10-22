@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # omaseed — the error walkthrough (docs/28, #54): a torrent goes into error while the app
 # runs, and the app says why, from qBittorrent's log. Its row shows the short cause, General
-# opens with the error block, and one notice carries the reason. Then the torrent is moved to
-# a writable folder and `p` (try again) brings it back. Then (docs/32, #55) a move out of a
+# opens with the error block, and one notice carries the reason. `p` stops it (DECISIONS C20:
+# the row reads "error · stopped"); then it is moved to a writable folder and `e` (retry)
+# brings it back. Then (docs/32, #55) a move out of a
 # folder that can't be written fails: General's yellow block, the footer's note when the app
 # asked for it, and the block gone once the move lands. Last, a torrent whose files are gone
 # after a restart shows the missing-files block.
@@ -138,6 +139,17 @@ app_back() {
     return 1
 }
 broken_moves_again() { wait_state "$BROKEN" "^(downloading|stalledDL|uploading|stalledUP|forcedUP)" 60; }
+# broken_stopped: until the playground's `stopped` filter lists the fixture. Its state stays
+# `error` (qBittorrent ranks the error above the stop); the filter is what tells.
+broken_stopped() {
+    local hash
+    hash="$(hash_of "$BROKEN")"
+    for _ in $(seq 1 20); do
+        curl -fs "$PLAY/torrents/info?filter=stopped&hashes=$hash" | grep -q "\"$hash\"" && return 0
+        sleep 0.5
+    done
+    return 1
+}
 # failed_moves: how many failed moves of the fixture the playground's log holds.
 failed_moves() {
     curl -fs "$PLAY/log/main?normal=false&info=false&warning=true&critical=true" | python3 -c '
@@ -248,18 +260,25 @@ notice_up 30 || true
 step "Notice" "Top right: \"$BROKEN stopped with an error\" / \"Can't write to its save folder: Permission denied, opening $BROKEN\", in the shell's toast style."
 
 show "$BROKEN"
-step "Error block" "The row's status reads \"! no access\" (not \"error\"). General opens with the red-ruled block: ✕ Can't write to its save folder; Permission denied, opening $BROKEN; the swarm-readonly folder; qBittorrent's log · today HH:MM; then m set location · p try again · copy the line. The Status row reads \"error · no access\"."
+step "Error block" "The row's status reads \"! no access\" (not \"error\"). General opens with the red-ruled block: ✕ Can't write to its save folder; Permission denied, opening $BROKEN; the swarm-readonly folder; qBittorrent's log · today HH:MM; then m move… · e retry · copy the line. The Status row reads \"error · no access\"."
 
 check "one errored notice, with the reason in its body" one_notice_with_reason
 
-# The fix: somewhere it can write (as the location sheet would), then `p` on its row, which
-# starts an errored torrent instead of stopping it.
+# DECISIONS C20 (#107): `p` stops an errored torrent. qBittorrent still says `error`; only its
+# `stopped` filter lists it, and the app says so on the row from the stop it sent.
+omabox keys -b "$BOX" --window "$APP_ID" p >/dev/null
+check "p on the errored row stopped it (the server's stopped filter lists it)" broken_stopped
+sleep 2
+step "Stopped" "The row's status reads \"error · stopped\"; General's Status row \"error · stopped · no access\", the block unchanged (m move… · e retry)."
+check "the stopped errored torrent is still in error" wait_state "$BROKEN" "^error" 5
+
+# The fix: somewhere it can write (as the location sheet would), then `e` on its row: retry.
 mkdir -p "$WRITABLE"
 curl -fs -X POST "$PLAY/torrents/setLocation" -d "hashes=$(hash_of "$BROKEN")" \
     --data-urlencode "location=$WRITABLE" >/dev/null
 wait_state "$BROKEN" "^error" 10 || true
-omabox keys -b "$BOX" --window "$APP_ID" p >/dev/null
-check "p on the errored row starts it, and it downloads from the new folder" broken_moves_again
+omabox keys -b "$BOX" --window "$APP_ID" e >/dev/null
+check "e on the errored row retries it, and it downloads from the new folder" broken_moves_again
 sleep 3
 step "Tried again" "$BROKEN downloads or seeds again from swarm-writable: no block in General, the status cell back to a plain state."
 check "trying again sent no second notice" still_one_notice

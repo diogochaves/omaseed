@@ -113,9 +113,9 @@ TestCase {
 
         const act = Keymap.helpRows("act");
         // Then the Files tab's two (N1) and the details pane's copy (docs/12 G5).
-        compare(act.map(row => row.helpKeys), ["a", "enter", "p P", "d D", "c R", "C t m L r", "[ ]",
+        compare(act.map(row => row.helpKeys), ["a", "enter", "p P e", "d D", "c R", "C t m L r", "[ ]",
                                                "o", "y Y n", "p + - x", "O o r", "y enter"]);
-        compare(act.map(row => row.help), ["add", "actions", "stop/start · force",
+        compare(act.map(row => row.help), ["add", "actions", "stop/start · force · retry",
                                            "delete · with files", "recheck · reannounce",
                                            "category · tags · location · limits · rename", "queue",
                                            "open folder", "copy magnet · hash · name",
@@ -288,6 +288,23 @@ TestCase {
         compare(testCase._row(rows, "clearSelection").disabled, false);
     }
 
+    // DECISIONS C20 (#107): `p` stops an errored torrent, so "retry" is a command of its own,
+    // `e`, listed only while a target is in error.
+    function test_retry_only_while_a_target_is_in_error() {
+        compare(Keymap.find("table", "e").action, "retry");
+        verify(testCase._row(Keymap.commandRows(testCase._context({})), "retry") === null,
+               "retry listed with nothing in error");
+        const rows = Keymap.commandRows(testCase._context({
+                                                              "errored": 1
+                                                          }));
+        const retry = testCase._row(rows, "retry");
+        compare(retry.title, "retry");
+        compare(retry.meta, "e");
+        compare(retry.disabled, false);
+        compare(retry.detail, "torrents · 2 selected");
+        compare(rows.length, Keymap.commandRows(testCase._context({})).length + 1);
+    }
+
     function test_one_stopped_one_running_runs_both_and_p_starts() {
         const rows = Keymap.commandRows(testCase._context({
                                                               "stopped": 1,
@@ -324,6 +341,10 @@ TestCase {
                                                           }));
         for (const action of Keymap.commandGroups[0].actions) {
             const row = testCase._row(rows, action);
+            if (action === "retry") { // C20: listed only while a target is in error
+                compare(row, null);
+                continue;
+            }
             compare(row.disabled, true, action + " can run with nothing to act on");
             verify(row.detail.endsWith("nothing selected, no torrent under the cursor")
                    || row.detail.endsWith("no torrent under the cursor")
@@ -511,7 +532,7 @@ TestCase {
         for (const entry of Keymap.entries) {
             if (entry.title === undefined && entry.titles === undefined)
                 continue;
-            verify(["", "torrents", "cursor", "stopped", "running", "selection", "details", "marked",
+            verify(["", "torrents", "cursor", "stopped", "running", "errored", "selection", "details", "marked",
                     "row", "rows", "file", "servers", "folder", "lastMove"].indexOf(entry.needs) >= 0, "unknown needs: " + entry.needs);
             const listed = Keymap.commandGroups.some(group => group.actions.indexOf(entry.action) >= 0
                                                      && Keymap.commandEntry(group.group, entry.action) === entry);

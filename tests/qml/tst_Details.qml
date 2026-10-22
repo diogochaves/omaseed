@@ -116,6 +116,9 @@ TestCase {
         verify(findChild(view, "errorMeta").text.startsWith("qBittorrent's log · "));
         // docs/32 D13: and its lines in the log, last.
         compare(block.hints.map(hint => hint.action), ["location", "start", "copy", "log"]);
+        // DECISIONS C20 (#107): `p` stops an errored torrent; the block's retry is `e`.
+        compare(block.hints.map(hint => (hint.key + " " + hint.label).trim()),
+                ["m move…", "e retry", "copy the line", "its lines in the log"]);
         compare(findChild(view, "generalTail").text, "· disk full");
 
         const healthy = testCase.select(testCase.archName);

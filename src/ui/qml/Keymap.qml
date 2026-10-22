@@ -40,7 +40,8 @@ import QtQuick
 //             ("right") is added to the second line as "now right".
 //   needs     what the row needs to run; `whyNot()` is the rule (docs/30 §5): "" always,
 //             "torrents" a selection or a cursor row, "cursor" a cursor row, "stopped" /
-//             "running" one target to start / stop, "selection" one torrent selected,
+//             "running" one target to start / stop, "errored" one target in error (to retry,
+//             DECISIONS C20), "selection" one torrent selected,
 //             "details" the pane on show, and in a details tab "marked" (marked rows or the
 //             cursor's), "row" (the cursor's row), "rows" (any row), "file" (a file, not a
 //             folder, under the cursor), "lastMove" a finished move that can go back
@@ -661,9 +662,9 @@ QtObject {
             "label": qsTr("stop/start"),
             "column": "act",
             "rank": 3,
-            "helpKeys": "p P",
-            "help": qsTr("stop/start · force"),
-            "about": qsTr("Stop or start · force start, skipping the queue")
+            "helpKeys": "p P e",
+            "help": qsTr("stop/start · force · retry"),
+            "about": qsTr("Stop or start · force start, skipping the queue · retry an errored torrent (p stops it)")
         },
         // docs/30 D5: start and stop as two commands on the whole selection, as the selection
         // bar's two buttons; `p` runs one of them, the one the first target calls for.
@@ -750,6 +751,20 @@ QtObject {
             "state": "autoTmm",
             "needs": "torrents",
             "label": qsTr("automatic management"),
+            "column": "",
+            "rank": 0,
+            "helpKeys": "",
+            "help": ""
+        },
+        // DECISIONS C20 (#107): `p` stops an errored torrent; trying it again is a key of its
+        // own, the error block's first action and a row of the actions menu.
+        {
+            "area": "table",
+            "key": "e",
+            "action": "retry",
+            "title": qsTr("retry"),
+            "needs": "errored",
+            "label": qsTr("retry"),
             "column": "",
             "rank": 0,
             "helpKeys": "",
@@ -1981,13 +1996,13 @@ QtObject {
     // and of `commandRows()` and run its own switch on the same action ids.
 
     /// The palette's rows in the `?` sheet's order (docs/30 §5): torrents, selection,
-    /// library, view, speed, app, 44 in all. A group with an `area` is the focused area's own
+    /// library, view, speed, app, 44 in all (45 while a target is in error). A group with an `area` is the focused area's own
     /// (D2): listed only when the palette was opened from that tab or face, and first.
     readonly property var commandGroups: [
         {
             "group": "torrents",
             "word": qsTr("torrents"),
-            "actions": ["start", "stop", "forceStart", "recheck", "reannounce", "delete",
+            "actions": ["start", "stop", "retry", "forceStart", "recheck", "reannounce", "delete",
                 "deleteWithFiles", "category", "tags", "location", "moveFolder", "limits", "rename", "openFolder",
                 "queueUp", "queueDown", "copyMagnet", "copyHash", "copyName", "sequential", "firstLast",
                 "superSeeding", "autoManagement"]
@@ -2109,12 +2124,15 @@ QtObject {
         case "torrents":
         case "stopped":
         case "running":
+        case "errored":
             if (targets === 0)
                 return qsTr("nothing selected, no torrent under the cursor");
             if (entry.needs === "stopped" && (ctx.stopped || 0) === 0)
                 return already(qsTr("running"));
             if (entry.needs === "running" && (ctx.running || 0) === 0)
                 return already(qsTr("stopped"));
+            if (entry.needs === "errored" && (ctx.errored || 0) === 0)
+                return targets === 1 ? qsTr("not in error") : qsTr("none in error");
             return "";
         case "cursor":
             return cursor.length > 0 ? "" : qsTr("no torrent under the cursor");
@@ -2151,6 +2169,7 @@ QtObject {
         case "torrents":
         case "stopped":
         case "running":
+        case "errored":
             return (ctx.selected || 0) > 0 ? qsTr("%n selected", "", ctx.selected) : (ctx.cursor || "");
         case "cursor":
             return ctx.cursor || "";
@@ -2218,7 +2237,7 @@ QtObject {
     ///
     /// `context` is plain data: `{area: "table" | "rail" | "general" | "files" | "trackers" |
     /// "peers" | "webseeds" | "console" | "log", selected: 2, cursor: "<the cursor torrent's name>",
-    /// stopped: 0, running: 2 (of the targets), firstStopped: false (`p` starts),
+    /// stopped: 0, running: 2, errored: 0 (of the targets), firstStopped: false (`p` starts),
     /// marked: 3, row: "<the focused tab's cursor row>", rowIsFolder: false,
     /// serverLost: false, recent: ["stop", …], altKind: "burst" (docs/31, A's words),
     /// states: {detailsShown, railShown,
@@ -2244,6 +2263,9 @@ QtObject {
                     continue;
                 // Board 45 B3 (C18 D7): with no finished move kept, nothing offers to undo one.
                 if (found.needs === "lastMove" && (ctx.lastMove?.id ?? "").length === 0)
+                    continue;
+                // DECISIONS C20: "retry" only while a target is in error.
+                if (found.needs === "errored" && (ctx.errored || 0) === 0)
                     continue;
                 // D4: the per-server rows follow "switch server…".
                 const servers = found.action === "switchServer" ? root.serverRows(ctx, group) : [];

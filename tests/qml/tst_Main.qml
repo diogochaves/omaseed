@@ -355,6 +355,34 @@ TestCase {
         return -1;
     }
 
+    // DECISIONS C20 (#107): an errored torrent's actions menu reads "stop" (`p` stops it, as
+    // the selection bar's stop does) with "retry" (`e`) under it; a healthy one has no retry.
+    function test_an_errored_torrent_stops_and_has_its_own_retry() {
+        App.loadDemo(16);
+        const row = testCase.rowOf("Elephants Dream 1080p (CC-BY)");
+        verify(row >= 0);
+        view.table.moveCursorTo(row);
+        const errored = App.torrentRow(view.cursorHash);
+        compare(errored.stateText, "error");
+        compare(errored.stopped, false, "p would start an errored torrent");
+        compare(errored.errorStopped, false);
+        view.table.forceActiveFocus();
+        view.table.requestActions();
+        compare(view.actionsMenuPanel.opened, true);
+        const items = view.actionsMenuPanel.items;
+        compare(items[0].text, "stop");
+        compare(items[1].action, "retry");
+        compare(items[1].key, "e");
+        view.actionsMenuPanel.close();
+
+        view.table.moveCursorTo(0);
+        verify(App.torrentRow(view.cursorHash).stateText !== "error");
+        view.table.forceActiveFocus();
+        view.table.requestActions();
+        compare(view.actionsMenuPanel.items.filter(item => item.action === "retry").length, 0);
+        view.actionsMenuPanel.close();
+    }
+
     // docs/32 F1, D3: from the table, `m` on the torrent whose move didn't happen opens the
     // location sheet on its destination; `x` dismisses the block, but only while General
     // shows it.

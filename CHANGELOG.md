@@ -158,6 +158,11 @@ before it will tag a release.
   the word "qBittorrent"; the server's name, its dot and ▾ stay (DECISIONS C20, #127).
 - The bar widget builds its popup the first time it is opened, not with every monitor's bar at
   shell start-up (#114).
+- An errored torrent can be stopped (DECISIONS C20, #107): `p`, the actions menu and the
+  selection bar all stop it, so a retry that only fails again (a full or damaged disk) ends.
+  "retry" has a key of its own, `e`: first on the error block as before, and a row of the
+  actions menu under "stop". Once omaseed has stopped it the row reads "error · stopped"
+  (qBittorrent still reports only "error"); `p` again, or retry, starts it.
 - "Move folder…" moved from a torrent's menu to the folder: a right-click on a folder row in
   the rail (or the menu key / `shift+F10` on the rail's cursor row) opens a menu with "move
   this folder…", which moves that row's folder. The scope line's link, `shift+m` and the

@@ -31,7 +31,8 @@ Rectangle {
     readonly property var hints: {
         const keys = {
             "location": ["m", qsTr("move…")],
-            "start": ["p", qsTr("try again")],
+            // DECISIONS C20 (#107): `p` stops an errored torrent; "retry" has a key of its own.
+            "start": ["e", qsTr("retry")],
             "recheck": ["c", qsTr("recheck")],
             "rename": ["2", qsTr("rename in Files")],
             "folder": ["o", qsTr("open folder")]
