@@ -808,7 +808,12 @@ void TestTorrentFilesModel::the_filter_takes_wildcards_and_alternatives_data()
     QTest::newRow("star across folders") << QStringLiteral("4k*en") << srt << true;
     QTest::newRow("star alone") << QStringLiteral("*") << mp4 << true;
     QTest::newRow("regex characters are literal") << QStringLiteral("bbb.en") << srt << true;
-    QTest::newRow("a dot is not any character") << QStringLiteral("bbb.sunflower") << mp4 << false;
+    QTest::newRow("a dot is not any character") << QStringLiteral("bbb.s*") << mp4 << false;
+    // DECISIONS C22 (#125): a plain word folds `.`, `_` and `-` as the library's search does.
+    QTest::newRow("separators fold") << QStringLiteral("bbb.sunflower") << mp4 << true;
+    QTest::newRow("separators fold, both sides") << QStringLiteral("big_buck") << srt << true;
+    QTest::newRow("a folded word's parts in any order") << QStringLiteral("en-bbb") << srt << true;
+    QTest::newRow("a folded word, one part missing") << QStringLiteral("bbb.pt") << srt << false;
     QTest::newRow("brackets are literal") << QStringLiteral("[1080p]") << mp4 << false;
     QTest::newRow("or, first") << QStringLiteral("mkv|mp4") << mkv << true;
     QTest::newRow("or, second") << QStringLiteral("mkv|mp4") << mp4 << true;

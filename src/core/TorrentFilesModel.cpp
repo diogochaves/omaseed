@@ -1,6 +1,7 @@
 #include "core/TorrentFilesModel.hpp"
 
 #include "core/Format.hpp"
+#include "core/SearchWords.hpp"
 
 #include <QCollator>
 #include <QHash>
@@ -471,15 +472,24 @@ TorrentFilesModel::Filter TorrentFilesModel::parseFilter(const QString &text)
             FilterWord word;
             word.plain = part;
             word.wildcard = part.contains(QLatin1Char('*'));
-            if (word.wildcard) {
-                // `*` is any run of characters; everything else is literal, and the pattern
-                // may sit anywhere in the path, as a plain word does.
-                QStringList pieces = part.split(QLatin1Char('*'));
-                for (QString &piece : pieces)
-                    piece = QRegularExpression::escape(piece);
-                word.pattern = QRegularExpression(pieces.join(QStringLiteral(".*")),
-                                                  QRegularExpression::DotMatchesEverythingOption);
+            if (!word.wildcard) {
+                // DECISIONS C22 (#125): a plain word folds as the library's search does, so
+                // "big.buck" holds "big" and "buck", matched against the folded path.
+                const QStringList folded = SearchWords::parse(part).words;
+                for (const QString &piece : folded) {
+                    FilterWord plain;
+                    plain.plain = piece;
+                    words.append(plain);
+                }
+                continue;
             }
+            // `*` is any run of characters; everything else is literal, and the pattern may
+            // sit anywhere in the path, as a plain word does.
+            QStringList pieces = part.split(QLatin1Char('*'));
+            for (QString &piece : pieces)
+                piece = QRegularExpression::escape(piece);
+            word.pattern = QRegularExpression(pieces.join(QStringLiteral(".*")),
+                                              QRegularExpression::DotMatchesEverythingOption);
             words.append(word);
         }
         // "mkv| " while typing: an alternative of blanks is no alternative.
@@ -494,10 +504,11 @@ bool TorrentFilesModel::matches(const Filter &filter, const QString &path)
     if (filter.isEmpty())
         return true;
     const QString lower = path.toLower();
+    const QString folded = SearchWords::fold(path);
     for (const QList<FilterWord> &words : filter) {
         const bool all = std::all_of(words.cbegin(), words.cend(), [&](const FilterWord &word) {
             return word.wildcard ? word.pattern.match(lower).hasMatch()
-                                 : lower.contains(word.plain);
+                                 : folded.contains(word.plain);
         });
         if (all)
             return true;

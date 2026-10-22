@@ -20,9 +20,11 @@
 //     torrent and ignoring case: `|` separates alternatives ("mkv|mp4"), a file must hold
 //     every space-separated word of one of them, and `*` in a word stands for any run of
 //     characters ("*.srt", "bbb*srt"). Otherwise a word is a plain substring, so "subs/"
-//     finds a folder's files. A folder shows when one of its files does, and every folder
-//     is open while a filter is typed. A folder then acts on the files it shows, not on the
-//     hidden ones.
+//     finds a folder's files, and it folds as the library's search does (DECISIONS C22):
+//     `.`, `_` and `-` in the word and in the path count as a space ("big.buck" finds
+//     "Big_Buck_Bunny"). A `*` word is matched on the path as it is. A folder shows when one
+//     of its files does, and every folder is open while a filter is typed. A folder then acts
+//     on the files it shows, not on the hidden ones.
 //   * hiding the skipped files (`hideSkipped`, #9): a file at priority skip fails the
 //     filter, so a folder whose every file is skipped goes too. Unlike a typed filter it
 //     leaves the folds alone, and it is a preference, not the torrent's: clear() keeps it.
