@@ -422,15 +422,15 @@ board left open, or what the API decided:
   last time, not finished" and finishes them instead of skipping them.
 - **Which server**, as C8: the one the app is on, connected; one export or import at a time,
   its row saying how far it got, its button "stop". Not in the demo.
-- **A .torrent the server can't read** (#71). qBittorrent 5.2.3's `torrents/export` repeats a
-  v2 or hybrid torrent's piece layer once per file sharing its "pieces root" (files of the same
+- **A .torrent the server can't read** (#71). qBittorrent 5.2.3's `torrents/export` repeats a v2
+  or hybrid torrent's piece layer once per file sharing its "pieces root" (files of the same
   content), and libtorrent then refuses that .torrent: `torrents/add` answers 415 for the whole
-  request (upstream#97). `TorrentFile::repairPieceLayers` cuts such a layer back to one copy
-  (only whole copies of it; the info bytes, so the hashes, untouched), on export and again on
-  import, for files exported before. A 415 that is left is about one torrent, not the server:
-  the batch goes again one torrent at a time (a 409 then means the batch had added it), the
-  one refused is named ("qBittorrent couldn't read the .torrent of …") and the import goes on.
-  Board 24 §7's stop is for a server gone or a disk full, so this keeps to it (assumed, confirm).
+  request (upstream#97). `TorrentFile::repairPieceLayers` cuts such a layer back to one copy (only
+  whole copies of it; the info bytes, so the hashes, untouched), on export and again on import,
+  for files exported before. A 415 that is left is about one torrent, not the server: the batch
+  goes again one torrent at a time (a 409 then means the batch had added it), the one refused is
+  named ("qBittorrent couldn't read the .torrent of …") and the import goes on. Board 24 §7's stop
+  is for a server gone or a disk full, so this keeps to it (confirmed 2026-10-22, C20).
 
 ## C10 — A server is tested before it is saved (#68, ruled 2026-10-15)
 
@@ -445,8 +445,8 @@ test has said something about it.
 - **A test answers for the address and login it ran with** (URL, auth mode, username,
   secret). Changing any of them clears the answer and `save` waits again; the name and the
   path map are not part of it. An answer that comes back after the fields changed is dropped.
-- **Editing an existing server** — *assumed, confirm:* it needs a new test only when its URL,
-  auth mode or credentials (username, a newly typed key or password) changed. A rename, or a
+- **Editing an existing server** — *confirmed 2026-10-22 (C20):* it needs a new test only when its
+  URL, auth mode or credentials (username, a newly typed key or password) changed. A rename, or a
   new path map, saves straight away; putting the old address back saves straight away too.
 - **Q23 still holds:** the test that let the server be saved, passed or failed, is carried
   onto the new row; one for other fields is not.
@@ -465,7 +465,7 @@ left open, or what building it decided:
   when there are more, and has no link with one server.
 - **`t`** (D1 a) works in omaseed's Backup only, from the nav or the pane, and lands on
   qBittorrent › Backup with the keyboard on Export torrents. The help sheet has no Settings
-  section, so the footer is where `t` is listed — *assumed, confirm.*
+  section, so the footer is where `t` is listed — *confirmed 2026-10-22 (C20).*
 - **omaseed's Backup** names whose qBittorrent settings a backup holds ("with public's and
   private's qBittorrent settings") and reads the connected server's settings when it opens, so
   a backup made by hand carries them as they are (before, only after an export or a weekly
@@ -489,7 +489,7 @@ left open, or what building it decided:
   stays as it was, and `enter`, `space` or `l` open the list. `s` works from every qBittorrent
   pane and from the select; every one of their footers, Backup's too, says "s next server".
   Below 700 px the nav folds into tabs and there is no select; `s` still switches —
-  *assumed, confirm.*
+  *confirmed 2026-10-22 (C20).*
 - **After a switch** (D5 a) from the select or `s`, the footer's right end says "omaseed is on
   private now · the library too" for 8 s; Settings › Servers' `d` doesn't add it.
 - **Copy from another server** (D6 a) is a row of its own between Import settings and the
@@ -499,7 +499,7 @@ left open, or what building it decided:
   login. What it read is kept as that server's newest settings for omaseed's next backup.
   **The fallback** is the newest of what this run read of that server and what the newest
   automatic copy holding it has, by the settings' own date, so a server read earlier in the
-  session needn't wait for a weekly copy — *assumed, confirm* (the board says "the newest
+  session needn't wait for a weekly copy — *confirmed 2026-10-22 (C20)* (the board says "the newest
   omaseed copy"). The sheet's line says why it couldn't read ("no answer in time",
   "connection refused", "wrong username or password") and the date of what it shows. With no
   other server the row is dimmed and says to add one. A demo's "other server" is the demo
@@ -573,24 +573,24 @@ more a way to the others is always on screen; with one, nothing offers to switch
   with reduced motion) once the server is declared lost. The line keeps the retry countdown in
   a slot of fixed width; under about 600 px the actions go under the line. The lost server's
   line adds "The list below is from HH:MM." before the retry, where board 33 put it after —
-  *assumed, confirm.* Actions: "retry now", "edit login" (the server sheet, editing, the
+  *confirmed 2026-10-22 (C20).* Actions: "retry now", "edit login" (the server sheet, editing, the
   keyboard on the password) or "review certificate", then "switch server" with two servers.
 - **The footer's failure (docs/35 N8):** a refused action is one sentence with a red ✕
   ("Field Recordings wasn't moved: qBittorrent can't create or write /proc/omaseed") that stays
   until the next key, with "details" opening the band above the footer. The next key (`esc`
-  included) closes it and clears the sentence — *assumed, confirm* (the board names esc, a
+  included) closes it and clears the sentence — *confirmed 2026-10-22 (C20)* (the board names esc, a
   click outside and "details" again).
-- **The add sheet (#72, D13 a–D15 a, D20 a):** with two servers its title is "Add torrent to"
-  and a chip (the server's dot, its name, ▾) that opens the palette, as `ctrl+s` does; the foot
-  never says "server: NAME" (one server: "Add torrent", nothing). A switch from the sheet keeps
-  it open with what was typed, category and tags kept by name; once the new server's first
-  sync is in, the default save path (unless one was typed), free space, the library check and
-  the files match are read again and one yellow line says what moved, a category or tag the
-  new server lacks named "new there and will be created" — *assumed, confirm* (the board marks
-  the chip "new"). While the server is down the band is yellow ("NAME isn't answering"), free
-  space says it is unknown, and `add when back` holds the add (as stopped or not) and sends it,
-  built from the fields as they are then, when the server answers or the app is on another one
-  that does. A refused add is the red band in ErrorWords' words.
+- **The add sheet (#72, D13 a–D15 a, D20 a):** with two servers its title is "Add torrent to" and
+  a chip (the server's dot, its name, ▾) that opens the palette, as `ctrl+s` does; the foot never
+  says "server: NAME" (one server: "Add torrent", nothing). A switch from the sheet keeps it open
+  with what was typed, category and tags kept by name; once the new server's first sync is in, the
+  default save path (unless one was typed), free space, the library check and the files match are
+  read again and one yellow line says what moved, a category or tag the new server lacks named
+  "new there and will be created" — *confirmed 2026-10-22 (C20)* (the board marks the chip "new").
+  While the server is down the band is yellow ("NAME isn't answering"), free space says it is
+  unknown, and `add when back` holds the add (as stopped or not) and sends it, built from the
+  fields as they are then, when the server answers or the app is on another one that does. A
+  refused add is the red band in ErrorWords' words.
 - **Not built:** the server sheet's failed test as a notice (board 33's N5) keeps today's line;
   it is first run's and Settings' wording, not a state this board changed.
 
@@ -618,12 +618,12 @@ status file's contract as built.
   settings on Settings, quit is a real quit (queued, so a D-Bus caller still gets its answer).
 - **The order is one for both**, the order the issue gives and W1 draws (servers, limits, stop
   all, start all, add, settings, quit). Board 33's T0 kept the tray's "add torrent…" second,
-  under "show omaseed"; it now sits with settings, after start all — *assumed, confirm.*
+  under "show omaseed"; it now sits with settings, after start all — *confirmed 2026-10-22 (C20).*
 - **The tray (D10 a):** "show omaseed", the two figure rows (Fig. 18), then the shared rows. A
   server row is a radio (the shell draws ✓); DBusMenu has no column on the right, so its figure
-  follows the name: "private · 4 torrents" — *assumed, confirm* (T1 puts the count at the right).
-  The row's check follows the app, not the click: a refused switch leaves it where the app is.
-  A middle click is the menu's alt-speed.
+  follows the name: "private · 4 torrents" — *confirmed 2026-10-22 (C20)* (T1 puts the count at
+  the right). The row's check follows the app, not the click: a refused switch leaves it where the
+  app is. A middle click is the menu's alt-speed.
 - **The widget (§11 changes 3 and 4, W1, W2):** a fourth head button, ⋯ (`ctrl+.`), draws the
   status file's `menu` under the head, in the card style (Title Case labels from the app,
   UPPERCASE caption), with the popup's own key at the right of alt-speed (A) and add (m). With
@@ -632,7 +632,7 @@ status file's contract as built.
   sections' cursor is hidden meanwhile. A server pick switches and the popup stays to refill;
   alternative limits, stop all and start all close the menu; add, settings and quit close the
   popup. A server row's right-hand words are "N torrents" in ⋯ as in ▾, where W1 printed the
-  bare count — *assumed, confirm.* With four buttons the server line elides sooner
+  bare count — *confirmed 2026-10-22 (C20).* With four buttons the server line elides sooner
   ("PRIVATE · QBITTORRENT 5.…"); it was not shortened.
 - **Round 4 and docs/07 §1 (§11 changes 1, 2):** still no start or stop buttons and no
   per-torrent start or stop (`p`/`P` unbound); stop all and start all are menu rows. Quit is
@@ -640,8 +640,8 @@ status file's contract as built.
 - **The status file (§11 change 5):** within v2 (board 31 D12's rule; `v` stays 2), `servers`
   `[{id, name, current, state, count, seen, reason}]` (state ok · down · refused · first-sync ·
   unknown; a certificate refusal is "refused") and `menu` `[{id, label, kind, checked, enabled,
-  detail, urgent}]`. `detail` and `urgent` are added to §11's row fields so a row says its
-  figure without the widget joining it to `servers` — *assumed, confirm.* `label` is the card
+  detail, urgent}]`. `detail` and `urgent` are added to §11's row fields so a row says its figure
+  without the widget joining it to `servers` — *confirmed 2026-10-22 (C20).* `label` is the card
   style; the tray keeps its lower-case words. Captions and separators have ids of their own
   (`servers`, `separator:…`) that do nothing. A widget that does not know them, or an app that
   does not write them, shows the popup as before (no ⋯, no ▾).
@@ -885,6 +885,22 @@ C15 M1's "the row's menu" as the rail's folder row (T3).**
 - **Move a folder (T3):** from the folder: the rail's folder rows get a menu with "move this
   folder…"; the scope line, `shift+m` and `:` keep it. A torrent's menu no longer offers it.
   #136.
+
+## C20 — What v0.3.0 needed from Diogo (ruled 2026-10-22)
+
+- **The assumed calls:** every "assumed, confirm" in C9–C13 (marked confirmed where it stands),
+  in #100 (board 42's build) and #106 (board 43's), and the extras the board 45 builds named,
+  are confirmed as built, with one change: a move job's recheck starts only the torrents that
+  were running when the job sent them (#138).
+- **An errored torrent (#107; amends docs/28):** `p`, the actions menu and the selection bar
+  all stop it, so the keyboard and the bar agree. "retry" stays first on the error block and is
+  its own row in the actions menu. Once omaseed has stopped it, the row reads "error · stopped"
+  (qBittorrent reports only `error`).
+- **The widget's server line (#127):** at the popup's width, the engine's version gives way
+  first, then the word "qBittorrent"; the server's name, the state dot and ▾ always stay.
+- **Adding in a row (#124):** the add sheet closes as soon as qBittorrent accepts the add; the
+  row appears in its sorted place on the next sync, never at the end first; a refusal shows in
+  the footer as other actions' do.
 
 ## M8 — A click leaves the keyboard focus where it was
 
