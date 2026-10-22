@@ -90,6 +90,11 @@ Sheet {
     property var failure: ({})
     /// D14 (A2): what a switch from the sheet moved, one line; "" hides it.
     property string movedText: ""
+    /// #147: a bare info hash is to be added (the field's, or a batch row's) and the server
+    /// has DHT off, which is all such a torrent has to find peers with.
+    readonly property bool bareHashWithoutDht: App.serverPrefs.values.dht === false
+                                               && (sheet.batchMode ? sheet.batch.some(entry => entry.map.bareHash === true)
+                                                                   : sheet.addable !== null && sheet.addable.bareHash === true)
     /// D15: `add when back` holds `{stopped}` until the server answers.
     property var _held: null
     /// The server the sheet's figures came from, to tell a switch from another server change.
@@ -437,8 +442,11 @@ Sheet {
             "No subfolder")]
     readonly property var _layoutValues: ["Original", "Subfolder", "NoSubfolder"]
 
-    /// "from clipboard" and its siblings, the third part of the head's subtitle.
+    /// "from clipboard" and its siblings, the third part of the head's subtitle. A bare info
+    /// hash (#147) is named as one wherever it came from: that is what tells it from a magnet.
     readonly property string sourceText: {
+        if (sheet.addable && sheet.addable.bareHash === true)
+            return qsTr("from an info hash");
         switch (sheet.source) {
         case "clipboard":
             return qsTr("from clipboard");
@@ -1367,6 +1375,16 @@ Sheet {
                     }
 
                         target: App
+                    }
+
+                    // #147: a bare info hash names no tracker, so only DHT can find its peers.
+                    Banner {
+                        Layout.fillWidth: true
+                        kind: "warning"
+                        objectName: "addNoDhtLine"
+                        text: qsTr("DHT is off on %1, and an info hash names no tracker: it may never find anyone.").arg(
+                                  App.serverName)
+                        visible: sheet.bareHashWithoutDht
                     }
 
                     // docs/33 D14 (A2): what a switch from the sheet moved, in one yellow line.
