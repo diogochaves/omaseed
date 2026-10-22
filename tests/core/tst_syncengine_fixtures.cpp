@@ -181,6 +181,7 @@ private slots:
     void trackerErrorFlagReachesTheRowWithoutANotice();
     void diskAlmostFullFiresOncePerCrossing();
     void serverLostOnceThenBackWithAFullUpdate();
+    void aTimeoutCountsTheSilence();
     void forbiddenStopsThePollLoop();
     void applyDemoDataFillsTheModelsWithNoClient();
 
@@ -677,6 +678,57 @@ void TestSyncEngineFixtures::serverLostOnceThenBackWithAFullUpdate()
     QCOMPARE(engine.globalState()->apiVersion(), QStringLiteral("2.15.1"));
     QCOMPARE(server.seenRids.first(), 0);
     engine.stop();
+}
+
+// docs/44 W1 (D11): a server that times out is there but silent; GlobalState counts how long
+// since it last replied, every second, and drops the figure once it answers. A refused
+// connection never counts it (nothing is there to be silent).
+void TestSyncEngineFixtures::aTimeoutCountsTheSilence()
+{
+    FixtureServer server;
+    QVERIFY(server.start());
+    server.setMainData({m_full});
+    server.setDelayMs(60000);
+
+    QbtClient client;
+    client.setBaseUrl(server.url());
+    client.setTimeout(std::chrono::milliseconds(300));
+    SyncEngine engine;
+    engine.setClient(&client);
+    engine.setIntervals(std::chrono::milliseconds(10),
+                        std::chrono::milliseconds(10),
+                        std::chrono::milliseconds(10),
+                        std::chrono::milliseconds(200));
+
+    QSignalSpy lost(&engine, &SyncEngine::serverLost);
+    QSignalSpy back(&engine, &SyncEngine::serverBack);
+    engine.start();
+    QVERIFY(waitFor([&] { return lost.count() == 1; }));
+    QCOMPARE(lost.first().first().value<ApiError>().kind(), ApiError::Kind::Timeout);
+    QVERIFY(waitFor([&] { return engine.globalState()->silentSeconds() >= 2; }, 4000));
+
+    server.setDelayMs(0);
+    QVERIFY(waitFor([&] { return back.count() == 1; }, 5000));
+    QCOMPARE(engine.globalState()->silentSeconds(), 0);
+    engine.stop();
+
+    // Nothing listening: lost at once, never "silent".
+    quint16 port = server.serverPort();
+    server.close();
+    QbtClient refused;
+    refused.setBaseUrl(QUrl(QStringLiteral("http://127.0.0.1:%1").arg(port)));
+    SyncEngine gone;
+    gone.setClient(&refused);
+    gone.setIntervals(std::chrono::milliseconds(10),
+                      std::chrono::milliseconds(10),
+                      std::chrono::milliseconds(10),
+                      std::chrono::milliseconds(200));
+    QSignalSpy goneLost(&gone, &SyncEngine::serverLost);
+    gone.start();
+    QVERIFY(waitFor([&] { return goneLost.count() == 1; }));
+    spin(1300);
+    QCOMPARE(gone.globalState()->silentSeconds(), 0);
+    gone.stop();
 }
 
 void TestSyncEngineFixtures::forbiddenStopsThePollLoop()

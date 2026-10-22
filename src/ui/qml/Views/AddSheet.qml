@@ -1428,7 +1428,8 @@ Sheet {
 
                         Notice {
                             readonly property var problem: App.serverProblem(App.globalState.lastError,
-                                                                             App.globalState.retryInSeconds)
+                                                                             App.globalState.retryInSeconds,
+                                                                             App.globalState.silentSeconds)
                             readonly property bool failed: sheet.failure.headline !== undefined
 
                             actions: sheet.multiServer && (failed || sheet.serverDown) ? [
@@ -1446,12 +1447,15 @@ Sheet {
                             details: failed ? (sheet.failure.details || "") : sheet.serverDown ? (problem.details || "") : ""
                             edge: "both"
                             // N3: nothing has failed yet while it is down (yellow); a refused add is red.
-                            kind: failed || sheet.errorText.length > 0 ? "error" : "warning"
+                            // docs/44 D11: while down, the server's own colour: red when nothing is there.
+                            kind: failed || sheet.errorText.length > 0 || (sheet.serverDown && problem.kind === "unreachable")
+                                  ? "error" : "warning"
                             objectName: "addNotice"
                             shown: sheet.opened && (failed || sheet.serverDown || sheet.errorText.length > 0)
                             title: failed ? sheet.failure.headline
                                           : sheet.errorText.length > 0 ? sheet.errorText
-                                                                       : qsTr("%1 isn't answering").arg(App.serverName)
+                                                                       : problem.kind === "unreachable" ? qsTr("%1 is unreachable").arg(App.serverName)
+                                                                                                         : qsTr("%1 isn't answering").arg(App.serverName)
 
                             onActionTriggered: key => {
                                 if (key === "switch")
@@ -1491,8 +1495,9 @@ Sheet {
 
                                 Rectangle {
                                     anchors.verticalCenter: parent.verticalCenter
-                                    // docs/35 N3: yellow while omaseed retries, red when it needs you.
-                                    color: !sheet.serverDown ? Theme.green : App.serverRefused ? Theme.red : Theme.yellow
+                                    // docs/35 N3, docs/44 D11: yellow while it isn't answering, red when nothing
+                                    // is there or it needs you.
+                                    color: !sheet.serverDown ? Theme.green : App.serverWaiting ? Theme.yellow : Theme.red
                                     height: Theme.space(7)
                                     radius: width / 2
                                     width: Theme.space(7)

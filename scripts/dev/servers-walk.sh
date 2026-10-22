@@ -432,16 +432,16 @@ keys Escape -s 1000
 omabox run -b "$BOX" -- pkill -STOP -f qbittorrent-private >/dev/null
 # A stopped process still takes the connection: the poll waits out the client's 15 s first.
 sleep 30
-step "Private down: the notice" "docs/35 N1–N3: a band the window's width under the hero, its own fill, a 2 px yellow rule, a hairline under it: ! private is taking too long · retry now · switch server · details ▸; under it No answer in 15 s. The list below is from HH:MM. omaseed tries again in N s. The rail and the table start under its line, the list dimmed; the servers block's private row reads down in yellow. The hero's dot is yellow."
+step "Private down: the notice" "docs/35 N1–N3, docs/44 W1 (a stopped process is a timeout): a band the window's width under the hero, its own fill, a 2 px yellow rule, a hairline under it: ! private isn't answering · retry now · switch server · details ▸; under it qBittorrent is running but hasn't replied for N s. It may be busy writing to its disk. omaseed keeps asking. The list below is from HH:MM. waiting · N s. The rail and the table start under its line, the list dimmed; the servers block's private row reads waiting in yellow. The hero says private · isn't answering, its dot yellow."
 if click_text "details"; then
     step "The notice's details" "docs/35 N4: the band grew: under the line a darker block, timeout · GET sync/maindata · no reply within 15000 ms · 127.0.0.1:8091, copy at its right."
 else
     check "the notice's details link is in the window's accessibility tree" false
 fi
 keys p -s 800
-step "The guard says why" "D23: p did nothing, and the footer says private is unreachable: p waits until it answers."
+step "The guard says why" "D23, docs/44 D11: p did nothing, and the footer says private isn't answering: p waits until it answers."
 keys ctrl+s -s 800
-step "Switching away while down" "D4: ctrl+s went through the read-only guard: the server palette, private on it now with not answering, the cursor on public, 1 torrent."
+step "Switching away while down" "D4: ctrl+s went through the read-only guard: the server palette, private on it now with isn't answering, the cursor on public, 1 torrent."
 keys Escape -s 600
 omabox run -b "$BOX" -- pkill -CONT -f qbittorrent-private >/dev/null
 sleep 15

@@ -183,7 +183,11 @@ App::App(QObject *parent)
     });
     connect(m_engine, &SyncEngine::serverLost, this, [this](const ApiError &error) {
         m_serverLost = true;
-        qWarning().noquote() << QStringLiteral("server lost: %1").arg(error.toString());
+        // docs/44 D11: a timeout is a server there but silent, not a lost one.
+        qWarning().noquote() << (error.kind() == ApiError::Kind::Timeout
+                                     ? QStringLiteral("server isn't answering: %1")
+                                     : QStringLiteral("server lost: %1"))
+                                    .arg(error.toString());
         updateTray();
         if (error.kind() == ApiError::Kind::Certificate && !serverId().isEmpty())
             Q_EMIT certificateRefused(serverId());
@@ -1047,7 +1051,8 @@ void App::attachNotifier(omaseed::integration::Notifier *notifier)
         }
         if (m_notifier.isNull() || !m_notifyServerLostEnabled)
             return;
-        m_notifier->notifyServerBack(m_server.id, m_server.name);
+        // docs/44 §6: after a timeout the server didn't come back, it answered again.
+        m_notifier->notifyServerBack(m_server.id, m_server.name, m_lostWaiting);
     });
 
     // The first good sync ends the quiet start: from then on a loss is news.

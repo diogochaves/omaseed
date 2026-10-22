@@ -1821,10 +1821,16 @@ public:
     /// since. Not while a switch waits for the keychain: the window shows no loss for that.
     Q_PROPERTY(bool serverLost READ isServerLost NOTIFY serverStateChanged)
     /// D8, D9 (ErrorWords, D23): the current server's problem as `{headline, line, details,
-    /// kind, sentence}`, empty while it answers. It takes GlobalState's `lastError` and
-    /// `retryInSeconds` so a binding follows both: one retry figure for the window and the
-    /// desktop notice.
-    Q_INVOKABLE QVariantMap serverProblem(const QString &lastError, int retryInSeconds) const;
+    /// kind, sentence}`, empty while it answers. It takes GlobalState's `lastError`,
+    /// `retryInSeconds` and `silentSeconds` so a binding follows them: one retry figure for
+    /// the window and the desktop notice, and a timeout's silence (docs/44 W1).
+    Q_INVOKABLE QVariantMap serverProblem(const QString &lastError,
+                                          int retryInSeconds,
+                                          int silentSeconds = -1) const;
+    /// docs/44 D11: the server is lost on a timeout: there, but not answering (yellow), not
+    /// unreachable (red).
+    Q_PROPERTY(bool serverWaiting READ serverWaiting NOTIFY serverStateChanged)
+    bool serverWaiting() const;
     /// D23: what the read-only guard says when it stops `key`: "private is unreachable: p
     /// waits until it answers".
     Q_INVOKABLE QString guardNote(const QString &key) const;
@@ -1901,6 +1907,8 @@ private:
     bool m_serverRefused = false;
     /// What `serverLost` last said, so it notifies only when it moves.
     bool m_lostShown = false;
+    /// docs/44 D11: the latest failure while lost was a timeout; "answered again" after it.
+    bool m_lostWaiting = false;
     bool m_serversFolded = false;
     omaseed::core::ApiError m_serverError;
     QDateTime m_seenAt;

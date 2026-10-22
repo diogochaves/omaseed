@@ -26,22 +26,31 @@ private:
     }
 
 private slots:
+    // docs/44 D11 (DECISIONS C17): nothing there is "unreachable", red, retried.
     void connectionRefused()
     {
         const ApiError error(ApiError::Kind::Network,
                              QStringLiteral("GET sync/maindata: Connection refused"));
         const ErrorWords::Text text = ErrorWords::forServer(error, server());
-        QCOMPARE(text.headline, QStringLiteral("private didn't answer"));
-        QCOMPARE(
-            text.line,
-            QStringLiteral("Nothing is listening at 127.0.0.1:8091. omaseed tries again in 7 s."));
-        QCOMPARE(text.kind, QStringLiteral("down"));
+        QCOMPARE(text.headline, QStringLiteral("private is unreachable"));
+        QCOMPARE(text.line,
+                 QStringLiteral("Connection refused at 127.0.0.1:8091. Is qBittorrent running? "
+                                "omaseed tries again in 7 s."));
+        QCOMPARE(text.kind, QStringLiteral("unreachable"));
         QCOMPARE(text.details,
                  QStringLiteral("network error · GET sync/maindata · Connection refused · "
                                 "127.0.0.1:8091"));
-        // The API's and Qt's words reach the details only.
-        QVERIFY(!text.headline.contains(QStringLiteral("refused")));
-        QVERIFY(!text.line.contains(QStringLiteral("Connection refused")));
+    }
+
+    void noRoute()
+    {
+        const ApiError error(ApiError::Kind::Network,
+                             QStringLiteral("GET sync/maindata: Network unreachable"));
+        const ErrorWords::Text text = ErrorWords::forServer(error, server(AuthMode::Cookie, -1));
+        QCOMPARE(text.headline, QStringLiteral("private is unreachable"));
+        QCOMPARE(text.line, QStringLiteral("No route to 127.0.0.1:8091. Is qBittorrent running?"));
+        QCOMPARE(text.kind, QStringLiteral("unreachable"));
+        QCOMPARE(ErrorWords::shortReason(error), QStringLiteral("unreachable"));
     }
 
     void hostNotFound()
@@ -55,16 +64,29 @@ private slots:
         QCOMPARE(text.line,
                  QStringLiteral("seedbox.lan:8080 doesn't resolve on this computer. "
                                 "omaseed tries again in 7 s."));
+        QCOMPARE(text.kind, QStringLiteral("unreachable"));
         QCOMPARE(ErrorWords::shortReason(error), QStringLiteral("not found"));
     }
 
+    // docs/44 W1 (D11): a timeout is a server that is there but slow: yellow, waiting, the
+    // seconds it has been silent, and no countdown (omaseed keeps asking).
     void timeout()
     {
         const ApiError error(ApiError::Kind::Timeout,
                              QStringLiteral("GET sync/maindata: no reply within 8000 ms"));
-        const ErrorWords::Text text = ErrorWords::forServer(error, server(AuthMode::Cookie, 0));
-        QCOMPARE(text.headline, QStringLiteral("private is taking too long"));
-        QCOMPARE(text.line, QStringLiteral("No answer in 8 s. omaseed tries again now."));
+        ErrorWords::Subject subject = server(AuthMode::Cookie, 0);
+        subject.silentSeconds = 18;
+        const ErrorWords::Text text = ErrorWords::forServer(error, subject);
+        QCOMPARE(text.headline, QStringLiteral("private isn't answering"));
+        QCOMPARE(text.line,
+                 QStringLiteral("qBittorrent is running but hasn't replied for 18 s. It may be "
+                                "busy writing to its disk. omaseed keeps asking."));
+        QCOMPARE(text.kind, QStringLiteral("waiting"));
+        QCOMPARE(ErrorWords::waitingLine(18), QStringLiteral("waiting · 18 s"));
+        QCOMPARE(ErrorWords::shortReason(error), QStringLiteral("not answering"));
+        // Without the silence known, the timeout's own figure.
+        subject.silentSeconds = -1;
+        QVERIFY(ErrorWords::forServer(error, subject).line.contains(QStringLiteral("for 8 s.")));
     }
 
     void certificate()
@@ -355,7 +377,7 @@ private slots:
     void shortReasons()
     {
         QCOMPARE(ErrorWords::shortReason(ApiError(ApiError::Kind::Network, QStringLiteral("x"))),
-                 QStringLiteral("didn't answer"));
+                 QStringLiteral("unreachable"));
         QCOMPARE(
             ErrorWords::shortReason(ApiError(ApiError::Kind::Unauthorized, QStringLiteral("x"))),
             QStringLiteral("sign-in refused"));
@@ -366,6 +388,8 @@ private slots:
     {
         QCOMPARE(ErrorWords::guard(QStringLiteral("private"), QStringLiteral("p"), false),
                  QStringLiteral("private is unreachable: p waits until it answers"));
+        QCOMPARE(ErrorWords::guard(QStringLiteral("private"), QStringLiteral("p"), false, true),
+                 QStringLiteral("private isn't answering: p waits until it answers"));
         QCOMPARE(ErrorWords::guard(QStringLiteral("seedbox"), QStringLiteral("d"), true),
                  QStringLiteral("seedbox refused the sign-in: d waits until the login is fixed"));
     }

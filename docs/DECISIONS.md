@@ -827,7 +827,15 @@ shows that space and frees it where it can see the disk.
   `download_path` gets a red problem with the log's reason, Show both folders and Set
   location…. #121.
 - **Words (D11):** a timeout reads "home isn't answering" (yellow, waiting); refused or no route
-  "home is unreachable" (red). #122.
+  "home is unreachable" (red). #122. Built: `ErrorWords` gives a timeout the kind `waiting`
+  (W1's line, the seconds since the server last replied, `GlobalState::silentSeconds`, and
+  "waiting · N s" where the countdown would be) and every other connection failure
+  `unreachable`, red, still retried. This replaces C12's yellow for "didn't answer" and "can't
+  be found": a name that doesn't resolve is red too (*assumed*: nothing is there, as for a
+  refusal). The hero, the rail (a current server that times out reads "waiting"), the server
+  palette, the add sheet, the read-only guard and the desktop notices follow ("home answered
+  again" after a timeout); the bar widget's status and menu keep their contract ("down"), with
+  "not answering" or "unreachable" as the menu's reason.
 - **Busy disk (D12):** later, its own issue: say "busy writing to its disk" only when the local
   disk's activity shows it. #123.
 

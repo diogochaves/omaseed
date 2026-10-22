@@ -120,8 +120,9 @@ int runNotifyDemo()
 
     const quint32 serverLostId = notifier.notifyServerLost(
         serverId,
-        QStringLiteral("home didn't answer"),
-        QStringLiteral("Nothing is listening at nas.local:9090. omaseed tries again in 10 s."));
+        QStringLiteral("home is unreachable"),
+        QStringLiteral("Connection refused at nas.local:9090. Is qBittorrent running? omaseed "
+                       "tries again in 10 s."));
     qInfo().noquote() << QStringLiteral("notified server id=%1").arg(serverLostId);
 
     QTimer::singleShot(30000, &notifier, []() { QCoreApplication::quit(); });

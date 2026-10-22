@@ -114,6 +114,9 @@ QVariant ServerListModel::data(const QModelIndex &index, int role) const
         if (!server.id.isEmpty() && server.id == m_currentId) {
             if (m_currentState == QLatin1String("down"))
                 return QCoreApplication::translate("ServerListModel", "down");
+            // docs/44 D11: a timeout, there but not answering.
+            if (m_currentState == QLatin1String("waiting"))
+                return QCoreApplication::translate("ServerListModel", "waiting");
             if (m_currentState == QLatin1String("refused") ||
                 m_currentState == QLatin1String("certificate"))
                 return QStringLiteral("!");

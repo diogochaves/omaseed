@@ -50,6 +50,9 @@ class GlobalState : public QObject
     Q_PROPERTY(QString serverVersion READ serverVersion NOTIFY serverVersionChanged)
     Q_PROPERTY(QString apiVersion READ apiVersion NOTIFY apiVersionChanged)
     Q_PROPERTY(int retryInSeconds READ retryInSeconds NOTIFY retryInSecondsChanged)
+    /// docs/44 W1: while the server isn't answering (a timeout), how long since it last
+    /// replied, in seconds, counted up every second; 0 otherwise.
+    Q_PROPERTY(int silentSeconds READ silentSeconds NOTIFY silentSecondsChanged)
 
     // --- formatted, for the hero and the tray --------------------------------------------
     Q_PROPERTY(QString dlSpeedText READ dlSpeedText NOTIFY dlInfoSpeedChanged)
@@ -89,6 +92,7 @@ public:
     QString serverVersion() const { return m_serverVersion; }
     QString apiVersion() const { return m_apiVersion; }
     int retryInSeconds() const { return m_retryInSeconds; }
+    int silentSeconds() const { return m_silentSeconds; }
 
     QString dlSpeedText() const;
     QString upSpeedText() const;
@@ -110,6 +114,7 @@ public:
     /// Limits sheet's share-limit action row, T5.5 Q14).
     Q_INVOKABLE void setServerVersions(const QString &version, const QString &apiVersion);
     void setRetryInSeconds(int seconds);
+    void setSilentSeconds(int seconds);
     /// Back to the defaults, keeping the server's name: used when a server is swapped out.
     void reset();
 
@@ -136,6 +141,7 @@ Q_SIGNALS:
     void serverVersionChanged();
     void apiVersionChanged();
     void retryInSecondsChanged();
+    void silentSecondsChanged();
 
 private:
     qint64 m_dlInfoSpeed = 0;
@@ -163,6 +169,7 @@ private:
     QString m_serverVersion;
     QString m_apiVersion;
     int m_retryInSeconds = 0;
+    int m_silentSeconds = 0;
 };
 
 } // namespace omaseed::core

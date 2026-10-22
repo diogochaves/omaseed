@@ -25,11 +25,13 @@ QString contractState(const QString &listState, const QString &reason)
         return QStringLiteral("first-sync");
     if (listState == QLatin1String("refused") || listState == QLatin1String("certificate"))
         return QStringLiteral("refused");
-    if (listState == QLatin1String("down"))
+    // docs/44 D11: a timeout ("waiting") is a loss to the menu's contract too; its words
+    // ("not answering") tell it from "unreachable".
+    if (listState == QLatin1String("down") || listState == QLatin1String("waiting"))
         return QStringLiteral("down");
     if (listState == QLatin1String("failed")) {
         // ErrorWords::shortReason's words: "sign-in refused", "certificate refused" and
-        // "refused omaseed" are a refusal; "didn't answer", "not found", "too slow" a loss.
+        // "refused omaseed" are a refusal; "unreachable", "not found", "not answering" a loss.
         return reason.contains(QLatin1String("refused")) ? QStringLiteral("refused")
                                                          : QStringLiteral("down");
     }
@@ -98,9 +100,12 @@ void App::updateBarMenu()
                 reason = tr("sign-in refused");
             else if (listState == QLatin1String("certificate"))
                 reason = tr("certificate refused");
-            else if (listState == QLatin1String("down"))
-                reason = ErrorWords::shortReason(m_serverError);
-            else
+            else if (listState == QLatin1String("down") || listState == QLatin1String("waiting")) {
+                // The latest failure, which may have turned from a timeout into a refusal.
+                const QString last = m_engine->globalState()->lastError();
+                reason = ErrorWords::shortReason(last.isEmpty() ? m_serverError
+                                                                : ApiError::fromString(last));
+            } else
                 reason.clear();
             server.count =
                 (listState == QLatin1String("live")) ? m_engine->torrents()->count() : -1;

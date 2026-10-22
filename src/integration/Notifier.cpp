@@ -202,10 +202,12 @@ Notifier::notifyServerLost(const QString &serverId, const QString &headline, con
                       QStringLiteral("settings"));
 }
 
-quint32 Notifier::notifyServerBack(const QString &serverId, const QString &serverName)
+quint32
+Notifier::notifyServerBack(const QString &serverId, const QString &serverName, bool answeredAgain)
 {
     const QString key = QStringLiteral("server|%1").arg(serverId);
-    const QString summary = QStringLiteral("%1 is back").arg(serverName);
+    const QString summary = answeredAgain ? QStringLiteral("%1 answered again").arg(serverName)
+                                          : QStringLiteral("%1 is back").arg(serverName);
     const QString body = QStringLiteral("connected again");
 
     return sendNotice(key,

@@ -4,14 +4,14 @@ import Omaseed.Kit
 // The lost server's notice (spec v2 §7 Fig. 23, in docs/33 D8/D9's words and docs/35's look):
 // a band across the window under the hero, the server named in plain words (core/ErrorWords,
 // D23), what omaseed does next, and at most two actions: "retry now" while it retries on its
-// own (yellow, docs/35 N3), "edit login" after a refused sign-in or "review certificate" for a
+// own (yellow on a timeout, red when nothing is there: docs/44 D11), "edit login" after a refused sign-in or "review certificate" for a
 // certificate (red), then "switch server" with two servers or more; the technical text behind
 // "details". The caller places it (full width, no margins: docs/35 N1) and says what each
 // action does.
 Notice {
     id: root
 
-    /// `App.serverProblem(lastError, retryInSeconds)`: {headline, line, lineBase, retry,
+    /// `App.serverProblem(lastError, retryInSeconds, silentSeconds)`: {headline, line, lineBase, retry,
     /// retryChars, details, kind}.
     property var problem: ({})
     /// Two servers or more: "switch server" (D8).
@@ -26,8 +26,9 @@ Notice {
     signal loginRequested
     signal certificateRequested
 
-    // docs/35 N3: yellow while omaseed retries by itself, red once it needs you.
-    kind: root.problemKind === "down" || root.problemKind === "" ? "warning" : "error"
+    // docs/35 N3 as docs/44 D11 changed it: yellow while the server is there but not
+    // answering (a timeout), red when nothing is there or it needs you.
+    kind: root.problemKind === "waiting" || root.problemKind === "" ? "warning" : "error"
     title: root.problem.headline || ""
     body: {
         const base = root.problem.lineBase || "";

@@ -177,6 +177,7 @@ private slots:
     void anErrorSendsOneNoticeWithItsReason();
     void disabledToggleSuppressesTheNotice();
     void flappingServerFiresOneLostAndOneBack();
+    void aTimeoutIsNotAnsweringThenAnsweredAgain();
     void aHiddenStartWaitsQuietlyForItsServer();
     void aHiddenStartSaysSoWhenTheServerStaysAway();
     void lowDiskThresholdDefaultsToTwoGiBInTheEngine();
@@ -460,10 +461,11 @@ void TestAppNotifications::flappingServerFiresOneLostAndOneBack()
     QVERIFY(waitFor([&] { return m_bus.server()->calls.size() >= 1; }));
     QCOMPARE(m_bus.server()->calls.size(), 1);
     const auto &lostCall = m_bus.server()->calls.first();
-    // docs/33 D23: the window's words, the server named, one retry figure.
-    QCOMPARE(lostCall.summary, QStringLiteral("fake didn't answer"));
+    // docs/33 D23: the window's words, the server named, one retry figure; docs/44 D11: a
+    // refused connection is "unreachable".
+    QCOMPARE(lostCall.summary, QStringLiteral("fake is unreachable"));
     QVERIFY(lostCall.body.startsWith(
-        QStringLiteral("Nothing is listening at 127.0.0.1:%1.").arg(port)));
+        QStringLiteral("Connection refused at 127.0.0.1:%1. Is qBittorrent running?").arg(port)));
     QVERIFY(lostCall.body.contains(QStringLiteral("omaseed tries again")));
     // Plain words: neither the request that carried it nor Qt's text.
     QVERIFY(!lostCall.body.contains(QStringLiteral("GET")));
@@ -473,8 +475,9 @@ void TestAppNotifications::flappingServerFiresOneLostAndOneBack()
     const QVariantMap problem =
         app.serverProblem(app.globalState()->lastError(), app.globalState()->retryInSeconds());
     QCOMPARE(problem.value(QStringLiteral("headline")).toString(),
-             QStringLiteral("fake didn't answer"));
-    QCOMPARE(problem.value(QStringLiteral("kind")).toString(), QStringLiteral("down"));
+             QStringLiteral("fake is unreachable"));
+    QCOMPARE(problem.value(QStringLiteral("kind")).toString(), QStringLiteral("unreachable"));
+    QVERIFY(!app.property("serverWaiting").toBool());
 
     // Several failed retries must not spam a second "lost" notice.
     QTest::qWait(100);
@@ -490,6 +493,59 @@ void TestAppNotifications::flappingServerFiresOneLostAndOneBack()
     QCOMPARE(m_bus.server()->calls.at(1).body, QStringLiteral("connected again"));
     QVERIFY(waitFor([&] { return !app.property("serverLost").toBool(); }));
 
+    app.engine()->stop();
+}
+
+// docs/44 W1 (D11): a server that takes the connection and never answers is there but busy:
+// "isn't answering", yellow, how long it has been silent, and "answered again" after.
+void TestAppNotifications::aTimeoutIsNotAnsweringThenAnsweredAgain()
+{
+    QTcpServer silent;
+    QVERIFY(silent.listen(QHostAddress::LocalHost));
+    const quint16 port = silent.serverPort();
+    QList<QTcpSocket *> held; // accepted, never answered
+    connect(&silent, &QTcpServer::newConnection, &silent, [&]() {
+        while (QTcpSocket *socket = silent.nextPendingConnection())
+            held << socket;
+    });
+
+    qputenv("OMASEED_SERVER_URL", QStringLiteral("http://127.0.0.1:%1").arg(port).toUtf8());
+    qputenv("OMASEED_SERVER_NAME", "fake");
+
+    App app;
+    Notifier notifier(m_bus.connection());
+    app.attachNotifier(&notifier);
+    app.client()->setTimeout(std::chrono::milliseconds(300));
+    app.engine()->setIntervals(std::chrono::milliseconds(10),
+                               std::chrono::milliseconds(10),
+                               std::chrono::milliseconds(10),
+                               std::chrono::milliseconds(100));
+
+    app.start();
+    QVERIFY(waitFor([&] { return m_bus.server()->calls.size() >= 1; }, 8000));
+    const auto &lostCall = m_bus.server()->calls.first();
+    QCOMPARE(lostCall.summary, QStringLiteral("fake isn't answering"));
+    QVERIFY2(lostCall.body.startsWith(QStringLiteral("qBittorrent is running but hasn't replied")),
+             qPrintable(lostCall.body));
+    QVERIFY(lostCall.body.endsWith(QStringLiteral("omaseed keeps asking.")));
+    QVERIFY(app.property("serverWaiting").toBool());
+    const QVariantMap problem = app.serverProblem(app.globalState()->lastError(),
+                                                  app.globalState()->retryInSeconds(),
+                                                  app.globalState()->silentSeconds());
+    QCOMPARE(problem.value(QStringLiteral("kind")).toString(), QStringLiteral("waiting"));
+    QVERIFY(
+        problem.value(QStringLiteral("retry")).toString().startsWith(QStringLiteral("waiting")));
+    QCOMPARE(app.guardNote(QStringLiteral("p")),
+             QStringLiteral("fake isn't answering: p waits until it answers"));
+
+    silent.close();
+    qDeleteAll(held);
+    FakeQbtServer server;
+    QVERIFY(server.start(port));
+    server.setMainData({QByteArrayLiteral("{\"full_update\":true,\"rid\":1,\"torrents\":{}}")});
+    QVERIFY(waitFor([&] { return m_bus.server()->calls.size() >= 2; }, 8000));
+    QCOMPARE(m_bus.server()->calls.at(1).summary, QStringLiteral("fake answered again"));
+    QVERIFY(!app.property("serverWaiting").toBool());
     app.engine()->stop();
 }
 
@@ -565,7 +621,7 @@ void TestAppNotifications::aHiddenStartSaysSoWhenTheServerStaysAway()
     app.setQuietStartGrace(std::chrono::milliseconds(10));
     app.setLaunchHidden(true);
     QVERIFY(waitFor([&] { return m_bus.server()->calls.size() >= 1; }));
-    QCOMPARE(m_bus.server()->calls.first().summary, QStringLiteral("fake didn't answer"));
+    QCOMPARE(m_bus.server()->calls.first().summary, QStringLiteral("fake is unreachable"));
     QVERIFY(m_bus.server()->calls.first().body.contains(QStringLiteral("omaseed tries again")));
 
     FakeQbtServer server;

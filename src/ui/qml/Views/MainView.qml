@@ -298,9 +298,12 @@ Item {
     readonly property bool railServers: App.showServersGroup && root.multiServer
     /// D8, D9, D23: the lost server's words; docs/35 N3: yellow while omaseed retries.
     readonly property var serverProblem: App.serverProblem(App.globalState.lastError,
-                                                           App.globalState.retryInSeconds)
+                                                           App.globalState.retryInSeconds,
+                                                           App.globalState.silentSeconds)
+    /// docs/44 D11: yellow only while it is there but not answering (a timeout); nothing
+    /// there (refused, no route) is red, retried or not.
     readonly property bool serverRetrying: root.serverLost && !App.serverRefused
-                                           && (root.serverProblem.kind || "down") === "down"
+                                           && root.serverProblem.kind === "waiting"
 
     /// A filter that matches nothing: Fig. 24.
     readonly property bool filterEmpty: App.torrents.count > 0 && App.filtered.count === 0
@@ -1777,6 +1780,9 @@ Item {
             // docs/33 D9: a server that answered and said no is not "unreachable".
             if (root.serverLost && App.serverRefused)
                 return qsTr("%1 · sign-in refused").arg(App.serverName);
+            // docs/44 D11: a timeout is there but slow; refused or no route, nothing is.
+            if (root.serverLost && App.serverWaiting)
+                return qsTr("%1 · isn't answering").arg(App.serverName);
             if (root.serverLost)
                 return qsTr("%1 · unreachable").arg(App.serverName);
             if (root.firstSync)

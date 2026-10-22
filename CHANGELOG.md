@@ -7,6 +7,13 @@ before it will tag a release.
 
 ## Unreleased
 
+### Changed
+
+- **A server that is slow is no longer "unreachable".** When qBittorrent takes the connection
+  but doesn't reply in time (busy writing to its disk, say), omaseed says it "isn't answering",
+  in yellow, with how long it has waited, and "answered again" when it does. A refused
+  connection or no route says "unreachable", now in red, with "Is qBittorrent running?".
+
 ### Fixed
 
 - **`omaseed --help`, `--version` and `--theme-roles` work with no display.** Over SSH, in a
