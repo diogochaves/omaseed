@@ -161,6 +161,11 @@ QString ErrorWords::retryLine(int seconds)
     return tr("omaseed tries again in %1 s.").arg(seconds);
 }
 
+QString ErrorWords::waitingLine(int seconds)
+{
+    return tr("waiting · %1 s").arg(std::max(0, seconds));
+}
+
 QString ErrorWords::request(const ApiError &error)
 {
     // "GET sync/maindata: …", "POST torrents/setLocation: …", "auth/login: …".
@@ -198,9 +203,9 @@ QString ErrorWords::shortReason(const ApiError &error)
     case ApiError::Kind::Cancelled:
         return {};
     case ApiError::Kind::Network:
-        return hostNotFound(error) ? tr("not found") : tr("didn't answer");
+        return hostNotFound(error) ? tr("not found") : tr("unreachable");
     case ApiError::Kind::Timeout:
-        return tr("too slow");
+        return tr("not answering");
     case ApiError::Kind::Certificate:
         return tr("certificate refused");
     case ApiError::Kind::Unauthorized:
@@ -218,11 +223,13 @@ QString ErrorWords::shortReason(const ApiError &error)
     return tr("error");
 }
 
-QString ErrorWords::guard(const QString &server, const QString &key, bool refused)
+QString ErrorWords::guard(const QString &server, const QString &key, bool refused, bool waiting)
 {
     const QString name = server.isEmpty() ? tr("the server") : server;
     if (refused)
         return tr("%1 refused the sign-in: %2 waits until the login is fixed").arg(name, key);
+    if (waiting)
+        return tr("%1 isn't answering: %2 waits until it answers").arg(name, key);
     return tr("%1 is unreachable: %2 waits until it answers").arg(name, key);
 }
 
@@ -237,23 +244,35 @@ ErrorWords::Text ErrorWords::forServer(const ApiError &error, const Subject &sub
     case ApiError::Kind::None:
     case ApiError::Kind::Cancelled:
         return {};
+    // docs/44 D11 (DECISIONS C17): nothing there (refused, no route, a name that doesn't
+    // resolve) is red; a timeout, a server there but slow, is yellow and waits.
     case ApiError::Kind::Network:
-        text.kind = QStringLiteral("down");
+        text.kind = QStringLiteral("unreachable");
         if (hostNotFound(error)) {
             text.headline = tr("%1 couldn't be found").arg(name);
             text.line =
                 joined(tr("%1 doesn't resolve on this computer.").arg(addressOf(subject)), retry);
         } else {
-            text.headline = tr("%1 didn't answer").arg(name);
-            text.line = joined(tr("Nothing is listening at %1.").arg(addressOf(subject)), retry);
+            text.headline = tr("%1 is unreachable").arg(name);
+            const QString where =
+                ownText(error).contains(QLatin1String("refused"), Qt::CaseInsensitive)
+                    ? tr("Connection refused at %1.").arg(addressOf(subject))
+                    : tr("No route to %1.").arg(addressOf(subject));
+            text.line = joined(joined(where, tr("Is qBittorrent running?")), retry);
         }
         return text;
     case ApiError::Kind::Timeout: {
-        text.kind = QStringLiteral("down");
-        text.headline = tr("%1 is taking too long").arg(name);
-        const int seconds = timeoutSeconds(error);
-        text.line = joined(
-            seconds > 0 ? tr("No answer in %1 s.").arg(seconds) : tr("No answer in time."), retry);
+        text.kind = QStringLiteral("waiting");
+        text.headline = tr("%1 isn't answering").arg(name);
+        const int seconds =
+            subject.silentSeconds >= 0 ? subject.silentSeconds : timeoutSeconds(error);
+        text.line =
+            seconds >= 0
+                ? tr("qBittorrent is running but hasn't replied for %1 s. It may be busy writing "
+                     "to its disk. omaseed keeps asking.")
+                      .arg(seconds)
+                : tr("qBittorrent is running but hasn't replied. It may be busy writing to its "
+                     "disk. omaseed keeps asking.");
         return text;
     }
     case ApiError::Kind::Certificate:
@@ -314,6 +333,35 @@ ErrorWords::Text ErrorWords::forServer(const ApiError &error, const Subject &sub
     const QString req = request(error);
     if (!req.isEmpty())
         text.line = tr("omaseed asked for %1.").arg(req);
+    return text;
+}
+
+ErrorWords::Text
+ErrorWords::forTest(const ApiError &error, const Subject &subject, const QString &refusedText)
+{
+    if (!error.isError() || error.kind() == ApiError::Kind::Cancelled)
+        return {};
+    Subject once = subject;
+    once.retrySeconds = -1;
+    Text text = forServer(error, once);
+    if (error.kind() == ApiError::Kind::Network && !hostNotFound(error)) {
+        // docs/33 N5, as board 35 draws it in the sheet.
+        text.headline = tr("Nothing answered at %1").arg(addressOf(subject));
+        text.line = tr("Check the address and port, and that qBittorrent's Web UI is on (Tools "
+                       "› Options › Web UI).");
+    } else if (error.kind() == ApiError::Kind::Timeout) {
+        const int seconds = timeoutSeconds(error);
+        text.line = seconds > 0 ? tr("It took the connection but didn't reply in %1 s. Test "
+                                     "again in a moment.")
+                                      .arg(seconds)
+                                : tr("It took the connection but didn't reply in time. Test "
+                                     "again in a moment.");
+    } else if (!refusedText.isEmpty() &&
+               (text.kind == QLatin1String("refused") || text.kind == QLatin1String("banned") ||
+                text.kind == QLatin1String("certificate"))) {
+        // The sheet's own words for what it can fix there.
+        text.line = refusedText.at(0).toUpper() + refusedText.mid(1) + QLatin1Char('.');
+    }
     return text;
 }
 
@@ -464,15 +512,38 @@ ErrorWords::Text ErrorWords::forStuck(const QString &torrent,
     return text;
 }
 
-ErrorWords::Text ErrorWords::forLeftOut(int count, const QString &folder)
+ErrorWords::Text ErrorWords::forLeftOut(int count, const QString &folder, const QString &there)
 {
     Text text;
     text.kind = QStringLiteral("request");
     text.headline = tr("%1 left out").arg(count);
-    text.line = tr("%1 already has a file with their file's name. qBittorrent would keep that "
-                   "file and report the move as done.")
-                    .arg(folder.isEmpty() ? tr("The new folder") : folder);
+    const QString where = folder.isEmpty() ? tr("The new folder") : folder;
+    text.line = there.isEmpty()
+                    ? tr("%1 already has a file with their file's name. qBittorrent would keep "
+                         "that file and report the move as done.")
+                          .arg(where)
+                    : tr("%1 already has a file with their file's name (%2). qBittorrent would "
+                         "keep that file and report the move as done.")
+                          .arg(where, there);
     return text;
+}
+
+QString ErrorWords::whatIsThere(qint64 bytes, bool folder, bool ownerKnown, const QString &owner)
+{
+    // #161 (a): a leftover of an earlier failed copy, owned by no torrent, reads as one.
+    if (bytes < 0) {
+        // Not seen here (a server's listing names it, no more): only whose it is.
+        if (!ownerKnown)
+            return {};
+        return owner.isEmpty() ? tr("no torrent owns it") : tr("%1 owns it").arg(owner);
+    }
+    const QString thing =
+        bytes == 0 ? (folder ? tr("an empty folder") : tr("an empty file"))
+                   : (folder ? tr("a folder of %1") : tr("a file of %1")).arg(Format::size(bytes));
+    if (!ownerKnown)
+        return thing;
+    return owner.isEmpty() ? tr("%1 no torrent owns").arg(thing)
+                           : tr("%1 that %2 owns").arg(thing, owner);
 }
 
 } // namespace omaseed::core

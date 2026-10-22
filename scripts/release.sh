@@ -25,6 +25,12 @@ set -euo pipefail
 # "Set the vX.Y.Z checksum in PKGBUILD" on main after the tag. That commit's PKGBUILD is the
 # one that goes to omarchy-pkgs.
 #
+# A maintenance release runs the same way from a release/X.Y branch (a patch to a line already
+# released, cut from its last tag while main moves on): only X.Y.* versions, that branch pushed
+# instead of main and the checksum commit landing on it, and a release that isn't the newest
+# version tagged here is not marked GitHub's latest. Main is left alone; docs/RELEASING.md says
+# how its CHANGELOG and version catch up afterwards.
+#
 # --dry-run (the default) has no side effects on git: no tag, no commit, no file edited.
 # Nothing touches the network unless --publish is given. See docs/RELEASING.md.
 #
@@ -47,8 +53,9 @@ Options:
                    HEAD, exactly as the tag would be, but create no tag, make no commit, edit
                    no file and push nothing. The default.
   --publish       Tag, build dist/ (source tarball and binary package) from the tag, push
-                   main and the tag, create the GitHub release, then write GitHub's archive
-                   checksum into packaging/arch/PKGBUILD and commit and push that.
+                   the branch (main, or release/X.Y) and the tag, create the GitHub release,
+                   then write GitHub's archive checksum into packaging/arch/PKGBUILD and
+                   commit and push that.
   --add-package   For a release already out: build the binary package from the tag and
                    upload it (versioned and versionless) with a SHA256SUMS that lists it.
                    Touches neither the tag nor the source archive; refuses if the release
@@ -123,6 +130,7 @@ NOTES_PATH="$DIST_DIR/RELEASE_NOTES.md"
 ARCHIVE_PREFIX="omaseed-${VERSION}/"
 PKGBUILD_PATH="packaging/arch/PKGBUILD"
 PKGBUILD_LOCAL_PATH="packaging/arch/PKGBUILD.local"
+MANIFEST_PATH="plugin/manifest.json"
 MAKEPKG="${OMASEED_RELEASE_MAKEPKG:-makepkg}"
 PKG_BUILD_DIR="$DIST_DIR/pkgbuild"
 PKG_LATEST_NAME="omaseed-x86_64.pkg.tar.zst"
@@ -160,7 +168,8 @@ pkgbuild_field() {
     sed -n -E "s/^$2=//p" "$1" | head -n1
 }
 
-# bump_files: the version edits --bump makes (CMakeLists.txt and both PKGBUILDs).
+# bump_files: the version edits --bump makes (CMakeLists.txt, both PKGBUILDs and the bar
+# widget's manifest, which RELEASING step 8 keeps at the app's version).
 bump_files() {
     sed -i -E "0,/^([[:space:]]*VERSION[[:space:]]+)[0-9]+\.[0-9]+\.[0-9]+/s//\1${VERSION}/" CMakeLists.txt
     local f
@@ -169,6 +178,9 @@ bump_files() {
         sed -i -E "s/^pkgver=.*/pkgver=${VERSION}/; s/^pkgrel=.*/pkgrel=1/" "$f"
     done
     sed -i -E "s/^sha256sums=\([^)]*\)/sha256sums=('SKIP')/" "$PKGBUILD_PATH"
+    [[ -f "$MANIFEST_PATH" ]] &&
+        sed -i -E "0,/(\"version\"[[:space:]]*:[[:space:]]*\")[^\"]*\"/s//\1${VERSION}\"/" "$MANIFEST_PATH"
+    return 0
 }
 
 # unwrap_markdown: join each paragraph's and list item's wrapped lines into one. CHANGELOG.md
@@ -268,7 +280,19 @@ log "Checking the working tree is clean"
 
 log "Checking the current branch"
 BRANCH="$(git rev-parse --abbrev-ref HEAD)"
-[[ "$BRANCH" == "main" ]] || fail "must be on main, currently on $BRANCH"
+MAINTENANCE=0
+case "$BRANCH" in
+main) ;;
+release/*)
+    # A maintenance release: a patch to the X.Y line, while main holds the next one.
+    LINE="${BRANCH#release/}"
+    [[ "$LINE" =~ ^[0-9]+\.[0-9]+$ ]] || fail "a maintenance branch is release/X.Y, got $BRANCH"
+    [[ "$VERSION" == "${LINE}".* ]] || fail "$BRANCH releases ${LINE}.x versions, not ${VERSION}"
+    MAINTENANCE=1
+    log "Maintenance release from $BRANCH: it is pushed instead of main, and main is left alone"
+    ;;
+*) fail "must be on main or a release/X.Y maintenance branch, currently on $BRANCH" ;;
+esac
 
 log "Checking the tag is new"
 if git rev-parse -q --verify "refs/tags/${TAG}" >/dev/null; then
@@ -314,7 +338,7 @@ if [[ $DO_PUBLISH -eq 1 ]]; then
     if [[ $NEEDS_BUMP -eq 1 ]]; then
         log "Bumping CMakeLists.txt ${CMAKE_VERSION} and PKGBUILD ${PKGBUILD_VERSION} -> ${VERSION}"
         bump_files
-        git add CMakeLists.txt "$PKGBUILD_PATH" "$PKGBUILD_LOCAL_PATH"
+        git add CMakeLists.txt "$PKGBUILD_PATH" "$PKGBUILD_LOCAL_PATH" "$MANIFEST_PATH"
         git commit -q -m "Release v${VERSION}" -m "Bump the project and package version for the v${VERSION} release."
     fi
     log "Tagging ${TAG}"
@@ -387,6 +411,17 @@ log "Release artefacts in dist/:"
 printf '  %s\n' "${RELEASE_FILES[@]}" dist/RELEASE_NOTES.md
 
 RELEASE_ARGS=(release create "$TAG" "${RELEASE_FILES[@]}" --notes-file dist/RELEASE_NOTES.md)
+if [[ $MAINTENANCE -eq 1 ]]; then
+    # A patch to an older line, once a newer version is out, must not become GitHub's latest
+    # (the README's releases/latest/download/ link): the newest tag here decides.
+    NEWEST="$(git tag -l 'v[0-9]*' | sed 's/^v//' | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' |
+        sort -V | tail -n1 || true)"
+    if [[ -n "$NEWEST" && "$NEWEST" != "$VERSION" &&
+        "$(printf '%s\n%s\n' "$NEWEST" "$VERSION" | sort -V | tail -n1)" == "$NEWEST" ]]; then
+        log "v${NEWEST} is newer: ${TAG} will not be GitHub's latest release (git fetch --tags first)"
+        RELEASE_ARGS+=(--latest=false)
+    fi
+fi
 log "GitHub release command:"
 printf '  gh %s\n' "${RELEASE_ARGS[*]}"
 
@@ -396,8 +431,8 @@ if [[ $DO_PUBLISH -eq 0 ]]; then
     exit 0
 fi
 
-log "Publishing: pushing main and ${TAG} to ${REMOTE}"
-git push "$REMOTE" main "refs/tags/${TAG}"
+log "Publishing: pushing ${BRANCH} and ${TAG} to ${REMOTE}"
+git push "$REMOTE" "$BRANCH" "refs/tags/${TAG}"
 UNPUSHED_TAG=""
 
 log "Publishing: creating the GitHub release"
@@ -431,7 +466,11 @@ log "Writing the checksum into ${PKGBUILD_PATH} and committing it after the tag"
 sed -i -E "s/^sha256sums=\([^)]*\)/sha256sums=('${PKGBUILD_SHA}')/" "$PKGBUILD_PATH"
 git add "$PKGBUILD_PATH"
 git commit -q -m "Set the ${TAG} checksum in PKGBUILD" \
-    -m "The checksum of GitHub's ${TAG} archive, which the PKGBUILD downloads. It cannot be part of the tagged tree it checksums, so it lands on main right after the tag."
-git push "$REMOTE" main
+    -m "The checksum of GitHub's ${TAG} archive, which the PKGBUILD downloads. It cannot be part of the tagged tree it checksums, so it lands on ${BRANCH} right after the tag."
+git push "$REMOTE" "$BRANCH"
 
 log "Released ${TAG}. Next: scripts/release.sh ${VERSION} --omarchy-pr"
+if [[ $MAINTENANCE -eq 1 ]]; then
+    log "Then bring main up to date: the CHANGELOG's v${VERSION} section, and main's packaging if"
+    log "it is behind ${VERSION} (docs/RELEASING.md, \"A maintenance release\")"
+fi

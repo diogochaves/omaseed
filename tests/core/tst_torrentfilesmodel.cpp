@@ -73,6 +73,7 @@ private Q_SLOTS:
     void rename_targets_are_the_selected_files_else_every_shown_one();
     void the_tick_reads_wanted_over_each_subtree();
     void the_head_tick_covers_what_the_filter_shows();
+    void on_disk_shows_what_skipped_files_hold();
 };
 
 void TestTorrentFilesModel::builds_the_tree_from_slash_separated_names()
@@ -809,7 +810,12 @@ void TestTorrentFilesModel::the_filter_takes_wildcards_and_alternatives_data()
     QTest::newRow("star across folders") << QStringLiteral("4k*en") << srt << true;
     QTest::newRow("star alone") << QStringLiteral("*") << mp4 << true;
     QTest::newRow("regex characters are literal") << QStringLiteral("bbb.en") << srt << true;
-    QTest::newRow("a dot is not any character") << QStringLiteral("bbb.sunflower") << mp4 << false;
+    QTest::newRow("a dot is not any character") << QStringLiteral("bbb.s*") << mp4 << false;
+    // DECISIONS C22 (#125): a plain word folds `.`, `_` and `-` as the library's search does.
+    QTest::newRow("separators fold") << QStringLiteral("bbb.sunflower") << mp4 << true;
+    QTest::newRow("separators fold, both sides") << QStringLiteral("big_buck") << srt << true;
+    QTest::newRow("a folded word's parts in any order") << QStringLiteral("en-bbb") << srt << true;
+    QTest::newRow("a folded word, one part missing") << QStringLiteral("bbb.pt") << srt << false;
     QTest::newRow("brackets are literal") << QStringLiteral("[1080p]") << mp4 << false;
     QTest::newRow("or, first") << QStringLiteral("mkv|mp4") << mkv << true;
     QTest::newRow("or, second") << QStringLiteral("mkv|mp4") << mp4 << true;
@@ -1040,6 +1046,52 @@ void TestTorrentFilesModel::the_head_tick_covers_what_the_filter_shows()
     model.setFilterText(QString());
     QCOMPARE(model.headFileCount(), 5);
     QCOMPARE(model.headWanted(), 1);
+}
+
+void TestTorrentFilesModel::on_disk_shows_what_skipped_files_hold()
+{
+    // DECISIONS C17 D1: a skipped file's allocated bytes, "—" for a wanted one, a folder the
+    // sum of its skipped files'; the column shows only while some skipped file holds any.
+    const auto file = [](int index, const QString &name, int priority) {
+        return QJsonObject{{QStringLiteral("index"), index},
+                           {QStringLiteral("name"), name},
+                           {QStringLiteral("size"), 1000.0},
+                           {QStringLiteral("priority"), priority},
+                           {QStringLiteral("progress"), 0.0}};
+    };
+    const QJsonArray files{file(0, QStringLiteral("A/wanted.bin"), 1),
+                           file(1, QStringLiteral("A/b.bin"), 0),
+                           file(2, QStringLiteral("A/c.bin"), 0)};
+    TorrentFilesModel model;
+    QAbstractItemModelTester tester(&model);
+    qbtfeed::files(model, files);
+    QSignalSpy changed(&model, &TorrentFilesModel::onDiskChanged);
+    QVERIFY(!model.showOnDisk());
+    QCOMPARE(at(model, 2, TorrentFilesModel::OnDiskTextRole).toString(), QString());
+
+    model.setOnDisk({{1, 4096 * 1024}, {2, 0}});
+    QCOMPARE(changed.count(), 1);
+    QVERIFY(model.showOnDisk());
+    QCOMPARE(model.heldOnDisk(), qint64(4096 * 1024));
+    QCOMPARE(model.holdingOnDisk(), 1);
+    QCOMPARE(at(model, 0, TorrentFilesModel::OnDiskRole).toLongLong(), qint64(4096 * 1024));
+    QCOMPARE(at(model, 1, TorrentFilesModel::OnDiskTextRole).toString(), QStringLiteral("—"));
+    QVERIFY(
+        at(model, 2, TorrentFilesModel::OnDiskTextRole).toString().contains(QStringLiteral("MB")));
+    // Read, and holding nothing (sparse): a size, not the wanted file's "—".
+    const QString none = at(model, 3, TorrentFilesModel::OnDiskTextRole).toString();
+    QVERIFY(!none.isEmpty() && none != QStringLiteral("—"));
+
+    // A poll keeps the reading; a tick makes the file's space expected, so it leaves the sum.
+    qbtfeed::files(model, files);
+    QCOMPARE(model.heldOnDisk(), qint64(4096 * 1024));
+    model.setLocalPriority({1}, int(FilePriority::Normal));
+    QVERIFY(!model.showOnDisk());
+    QCOMPARE(at(model, 2, TorrentFilesModel::OnDiskTextRole).toString(), QStringLiteral("—"));
+
+    model.clear();
+    qbtfeed::files(model, files);
+    QVERIFY(!model.showOnDisk());
 }
 
 QTEST_MAIN(TestTorrentFilesModel)

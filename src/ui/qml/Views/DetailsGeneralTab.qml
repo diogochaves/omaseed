@@ -27,6 +27,8 @@ Flickable {
     property int cursorIndex: -1
     /// docs/28 G2: the free space on the torrent's disk, "0 B free", when its disk is full.
     property string freeText: ""
+    /// docs/44 D13: a stuck move's partial copies, as `App.stuckMoveCopies` names them.
+    property string partialText: ""
 
     /// A click on a row (G5: Details moves the cursor there and copies the value).
     signal rowClicked(int row)
@@ -208,6 +210,8 @@ Flickable {
             DetailsErrorBlock {
                 id: errorBlock
 
+                canAddAgain: App.features.addAgain !== false
+
                 anchors.left: parent.left
                 anchors.leftMargin: Theme.space(16)
                 anchors.right: parent.right
@@ -215,6 +219,7 @@ Flickable {
                 anchors.top: parent.top
                 anchors.topMargin: Theme.space(12)
                 freeText: root.freeText
+                partialText: root.partialText
                 problem: root.problem
 
                 onActionTriggered: action => root.problemAction(action)

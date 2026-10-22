@@ -57,6 +57,43 @@ TestCase {
         compare(block.hints[1].clickable, true);
     }
 
+    // docs/44 D13 (#121): a stuck move is red in board 28's place: show both folders and set
+    // location…, then the log's links; its partial copies named when they are seen.
+    function test_a_stuck_move_is_a_red_block() {
+        const problem = {
+            "found": true,
+            "stuckMove": true,
+            "causeKey": "stuckMove",
+            "headline": "Finished, but its files never reached /mnt/media/Downloads",
+            "detail": "qBittorrent couldn't move them: No space left on device.",
+            "folder": "It's seeding from /mnt/fast/incomplete.",
+            "advice": "Partial copies may be left in the destination.",
+            "destination": "/mnt/media/Downloads",
+            "actions": ["bothFolders", "location"]
+        };
+        const block = createTemporaryObject(errorBlockComponent, testCase, {
+                                                "problem": problem
+                                            });
+        compare(block.kindColor, Theme.red);
+        compare(block.hints.map(hint => (hint.key + " " + hint.label).trim()),
+                ["show both folders", "m set location…", "copy the line", "its lines in the log"]);
+        verify(block.hints[0].clickable);
+        compare(findChild(block, "errorAdvice").text, "Partial copies may be left in the destination.");
+        block.partialText = "Partial copies are left in /mnt/media/Downloads/Album: 699 files, 22 MB.";
+        compare(findChild(block, "errorAdvice").text, block.partialText);
+
+        // No line: no reason guessed, and no word about the log's limits.
+        const unlogged = Object.assign({}, problem, {
+                                           "found": false,
+                                           "detail": "Its files are still in its incomplete folder."
+                                       });
+        block.problem = unlogged;
+        compare(block.metaText, "");
+        verify(!findChild(block, "errorMeta").visible);
+        compare(block.hints.map(hint => (hint.key + " " + hint.label).trim()),
+                ["show both folders", "m set location…"]);
+    }
+
     function hashOf(name) {
         for (let row = 0; row < App.filtered.count; ++row) {
             const hash = App.filtered.hashAt(row);

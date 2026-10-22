@@ -99,6 +99,7 @@
 //   message string   marked bool (LogFilterModel only)
 // ---------------------------------------------------------------------------------------
 
+#include "core/ActionOutcome.hpp"
 #include "core/AddFilesModel.hpp"
 #include "core/AltSpeed.hpp"
 #include "core/CategoryModel.hpp"
@@ -217,6 +218,16 @@ struct LogFilterModelForeign
     QML_FOREIGN(omaseed::core::LogFilterModel)
     QML_NAMED_ELEMENT(LogFilterModel)
     QML_UNCREATABLE("LogFilterModel is App.logLines; it is not created from QML.")
+};
+
+/// DECISIONS C18 D1–D3 (board 45 §2): the strip in the selection bar's place, and the
+/// rows' marks.
+struct ActionOutcomesForeign
+{
+    Q_GADGET
+    QML_FOREIGN(omaseed::core::ActionOutcomes)
+    QML_NAMED_ELEMENT(ActionOutcomes)
+    QML_UNCREATABLE("ActionOutcomes is App.outcomes; it is not created from QML.")
 };
 
 struct AltSpeedForeign

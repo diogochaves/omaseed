@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # omaseed — the two-servers walkthrough: two qBittorrents running side by side, "public" and
 # "private", as people who keep public and private trackers apart run them. First run with
-# both up, the second added from Settings › Servers, a switch each way (Settings, the rail and
+# both up, a server whose test fails (docs/35 N7's band in the sheet, folded and open, #126),
+# the second added from Settings › Servers, a switch each way (Settings, the rail and
 # the qBittorrent group's `s`), an action after each switch checked on both servers, and the
 # live server removed. Between the switches, Settings' docs/34 (#70): each Backup pane's
 # scope line, the server select and its list, a copy of private's settings into public with no
@@ -175,6 +176,13 @@ for node in json.load(sys.stdin):
     omabox click -b "$BOX" --window "$APP_ID" $at >/dev/null
 }
 
+# in_tree TEXT: the app's accessibility tree has a node named TEXT (or starting with it).
+in_tree() {
+    omabox tree -b "$BOX" --window "$APP_ID" --json 2>/dev/null | python3 -c '
+import json, sys
+sys.exit(0 if any((n.get("name") or "").startswith(sys.argv[1]) for n in json.load(sys.stdin)) else 1)' "$1"
+}
+
 # window_is floating|tiled: the app's window, as the box's Hyprland has it.
 window_is() {
     omabox hyprctl -b "$BOX" -j clients | python3 -c '
@@ -265,11 +273,26 @@ check "servers.json: public only, default, no password in it" servers_are "publi
 public_id="$(server_id public)"
 check "the box's keyring holds public's password" keyring_has "$public_id"
 
+# ---- a test that fails: docs/35 N7 (#126) --------------------------------------------------
+# `,` settings, `2` Servers, `a` a new server at a port nothing in the box listens on; enter in
+# the URL field tests.
+keys comma -s 600 2 -s 300 a -s 800 -t seedbox Tab -t http://127.0.0.1:8095 Return -s 2500
+step "A failed test" "docs/33 N5 in docs/35 N7's band: under the sheet's head, edge to edge, its own fill and a 2 px red rule: ✕ Nothing answered at 127.0.0.1:8095 · details ▸; under it Check the address and port, and that qBittorrent's Web UI is on (Tools › Options › Web UI). No line under the fields any more. The buttons cancel · test · save anyway, test the primary."
+check "the failed test is the sheet's notice" in_tree "Nothing answered at 127.0.0.1:8095"
+if click_text "details"; then
+    step "A failed test, details open" "docs/35 N4: the band grew: under the line a darker block, network error · GET app/version · Connection refused · 127.0.0.1:8095, copy at its right. The sheet's buttons stay where they were."
+else
+    check "the failed test's details link is in the window's accessibility tree" false
+fi
+# esc: the sheet goes, nothing saved; Settings › Servers keeps the keyboard.
+keys Escape -s 800
+check "the failed test saved nothing" servers_are "public" public
+
 # ---- add the second server ----------------------------------------------------------------
-# `,` settings, `2` Servers, `a` a new server: name, URL, the chips, username, password, then
-# path map remote, local, cancel, and the keyboard on test.
+# `a` a new server: name, URL, the chips, username, password, then path map remote, local,
+# cancel, and the keyboard on test.
 clip private
-keys comma -s 600 2 -s 300 a -s 800 -t private Tab -t http://127.0.0.1:8091 Tab Tab space Tab Tab \
+keys a -s 800 -t private Tab -t http://127.0.0.1:8091 Tab Tab space Tab Tab \
     -t admin Tab ctrl+v Tab Tab Tab Tab -s 800
 unclip
 step "Save waits for a test" "#68, as first run: the New server sheet filled in (private, cookie login as admin), the keyboard on test, which is the primary; save dimmed beside it and \"test first\" at the right of the footer, which says enter test."
@@ -432,16 +455,16 @@ keys Escape -s 1000
 omabox run -b "$BOX" -- pkill -STOP -f qbittorrent-private >/dev/null
 # A stopped process still takes the connection: the poll waits out the client's 15 s first.
 sleep 30
-step "Private down: the notice" "docs/35 N1–N3: a band the window's width under the hero, its own fill, a 2 px yellow rule, a hairline under it: ! private is taking too long · retry now · switch server · details ▸; under it No answer in 15 s. The list below is from HH:MM. omaseed tries again in N s. The rail and the table start under its line, the list dimmed; the servers block's private row reads down in yellow. The hero's dot is yellow."
+step "Private down: the notice" "docs/35 N1–N3, docs/44 W1 (a stopped process is a timeout): a band the window's width under the hero, its own fill, a 2 px yellow rule, a hairline under it: ! private isn't answering · retry now · switch server · details ▸; under it qBittorrent is running but hasn't replied for N s. It may be busy writing to its disk. omaseed keeps asking. The list below is from HH:MM. waiting · N s. The rail and the table start under its line, the list dimmed; the servers block's private row reads waiting in yellow. The hero says private · isn't answering, its dot yellow."
 if click_text "details"; then
     step "The notice's details" "docs/35 N4: the band grew: under the line a darker block, timeout · GET sync/maindata · no reply within 15000 ms · 127.0.0.1:8091, copy at its right."
 else
     check "the notice's details link is in the window's accessibility tree" false
 fi
 keys p -s 800
-step "The guard says why" "D23: p did nothing, and the footer says private is unreachable: p waits until it answers."
+step "The guard says why" "D23, docs/44 D11: p did nothing, and the footer says private isn't answering: p waits until it answers."
 keys ctrl+s -s 800
-step "Switching away while down" "D4: ctrl+s went through the read-only guard: the server palette, private on it now with not answering, the cursor on public, 1 torrent."
+step "Switching away while down" "D4: ctrl+s went through the read-only guard: the server palette, private on it now with isn't answering, the cursor on public, 1 torrent."
 keys Escape -s 600
 omabox run -b "$BOX" -- pkill -CONT -f qbittorrent-private >/dev/null
 sleep 15

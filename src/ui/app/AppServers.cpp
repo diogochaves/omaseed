@@ -57,6 +57,19 @@ void App::setUpServers()
     connect(m_engine, &SyncEngine::authRequired, this, noteLost);
     connect(m_engine, &SyncEngine::serverBack, this, noteLost);
     connect(m_engine, &SyncEngine::synced, this, noteLost);
+    // docs/44 D11: whether the latest failure is a timeout, kept through the loss so the
+    // notice after it says "answered again".
+    connect(m_engine->globalState(), &GlobalState::lastErrorChanged, this, [this]() {
+        const QString text = m_engine->globalState()->lastError();
+        if (text.isEmpty())
+            return;
+        const bool waiting = ApiError::fromString(text).kind() == ApiError::Kind::Timeout;
+        if (waiting == m_lostWaiting)
+            return;
+        m_lostWaiting = waiting;
+        Q_EMIT serverStateChanged();
+        updateServerState();
+    });
     connect(m_engine->globalState(), &GlobalState::connectedChanged, this, &App::updateServerState);
     connect(m_engine->globalState(), &GlobalState::syncingChanged, this, &App::updateServerState);
     connect(m_engine, &SyncEngine::synced, this, [this]() {
@@ -142,6 +155,8 @@ void App::updateServerState()
             word = QStringLiteral("refused");
         else if (m_serverLost && m_serverError.kind() == ApiError::Kind::Certificate)
             word = QStringLiteral("certificate");
+        else if (serverWaiting())
+            word = QStringLiteral("waiting"); // docs/44 D11: a timeout
         else if (m_serverLost || (!state->connected() && !state->syncing()))
             word = QStringLiteral("down");
         else if (!state->connected())
@@ -166,6 +181,7 @@ bool App::switchServer(const QString &id)
     m_seenCount = -1;
     m_seenAt = QDateTime();
     m_serverError = ApiError();
+    m_lostWaiting = false;
     if (m_serverRefused) {
         m_serverRefused = false;
         Q_EMIT serverStateChanged();
@@ -183,7 +199,13 @@ ErrorWords::Subject App::errorSubject() const
     return subject;
 }
 
-QVariantMap App::serverProblem(const QString &lastError, int retryInSeconds) const
+bool App::serverWaiting() const
+{
+    return m_serverLost && !m_serverRefused && m_lostWaiting;
+}
+
+QVariantMap
+App::serverProblem(const QString &lastError, int retryInSeconds, int silentSeconds) const
 {
     if (lastError.isEmpty() && !m_serverRefused)
         return {};
@@ -196,28 +218,68 @@ QVariantMap App::serverProblem(const QString &lastError, int retryInSeconds) con
     // Q16: the engine's retry, counted down; none after a refused sign-in (D9).
     const bool refused = m_serverRefused || ErrorWords::isRefusedSignIn(error, m_server.authMode);
     subject.retrySeconds = refused ? -1 : retryInSeconds;
+    subject.silentSeconds =
+        silentSeconds >= 0 ? silentSeconds : m_engine->globalState()->silentSeconds();
     QVariantMap words = ErrorWords::forServer(error, subject).toMap();
     // docs/35 N5: the window draws the retry in a slot of its own, so the line without it,
     // the retry alone, and the slot's width (its longest form).
     ErrorWords::Subject base = subject;
     base.retrySeconds = -1;
     words.insert(QStringLiteral("lineBase"), ErrorWords::forServer(error, base).line);
-    const bool retried = words.value(QStringLiteral("kind")).toString() == QLatin1String("down");
+    // docs/44 W1: a timeout shows how long it has waited where the countdown would be.
+    const QString kind = words.value(QStringLiteral("kind")).toString();
+    const bool waiting = kind == QLatin1String("waiting");
+    const bool retried = waiting || kind == QLatin1String("unreachable");
     words.insert(QStringLiteral("retry"),
-                 retried ? ErrorWords::retryLine(subject.retrySeconds) : QString());
-    words.insert(QStringLiteral("retryChars"), retried ? int(ErrorWords::retryLine(88).size()) : 0);
+                 waiting   ? ErrorWords::waitingLine(subject.silentSeconds)
+                 : retried ? ErrorWords::retryLine(subject.retrySeconds)
+                           : QString());
+    words.insert(QStringLiteral("retryChars"),
+                 waiting   ? int(ErrorWords::waitingLine(888).size())
+                 : retried ? int(ErrorWords::retryLine(88).size())
+                           : 0);
     return words;
+}
+
+QVariantMap App::serverTestProblem(const QVariantMap &fields,
+                                   const QString &error,
+                                   const QString &errorDetail) const
+{
+    if (error.isEmpty() && errorDetail.isEmpty())
+        return {};
+    const Server server = ServerListModel::serverFromMap(fields);
+    ErrorWords::Subject subject;
+    const QUrl &url = server.url;
+    if (url.isValid() && !url.host().isEmpty())
+        subject.address =
+            url.port() > 0 ? QStringLiteral("%1:%2").arg(url.host()).arg(url.port()) : url.host();
+    subject.server = server.name.isEmpty() ? subject.address : server.name;
+    subject.authMode = server.authMode;
+    subject.pinnedCertificate = server.certificateSha256;
+    // runServerTest: the raw error alone, or the sheet's words with the raw one under them.
+    const QString raw = errorDetail.isEmpty() ? error : errorDetail;
+    const QString refusedText = errorDetail.isEmpty() ? QString() : error;
+    const ApiError parsed = ApiError::fromString(raw);
+    if (parsed.kind() == ApiError::Kind::Unknown) {
+        // Not a request that failed ("not a URL"): the words are the sheet's own.
+        return {{QStringLiteral("headline"), raw},
+                {QStringLiteral("line"), QString()},
+                {QStringLiteral("details"), QString()},
+                {QStringLiteral("kind"), QStringLiteral("request")}};
+    }
+    return ErrorWords::forTest(parsed, subject, refusedText).toMap();
 }
 
 QString App::guardNote(const QString &key) const
 {
-    return ErrorWords::guard(m_server.name, key, m_serverRefused);
+    return ErrorWords::guard(m_server.name, key, m_serverRefused, serverWaiting());
 }
 
 void App::notifyServerLost(const ApiError &error, int retrySeconds)
 {
     ErrorWords::Subject subject = errorSubject();
     subject.retrySeconds = retrySeconds;
+    subject.silentSeconds = m_engine->globalState()->silentSeconds();
     const ErrorWords::Text text = ErrorWords::forServer(error, subject);
     m_notifier->notifyServerLost(m_server.id, text.headline, text.line);
 }
@@ -252,8 +314,11 @@ QVariantList App::serverRows() const
         QString meta;
         if (isCurrent) {
             meta = tr("on it now");
-            if (state == QLatin1String("down"))
-                detail << tr("not answering");
+            // docs/44 D11: waiting on a timeout, or nothing there.
+            if (state == QLatin1String("waiting"))
+                detail << tr("isn't answering");
+            else if (state == QLatin1String("down"))
+                detail << tr("unreachable");
             else if (state == QLatin1String("refused"))
                 detail << tr("sign-in refused");
             else if (state == QLatin1String("certificate"))
@@ -264,7 +329,7 @@ QVariantList App::serverRows() const
                 detail << torrentsText(m_engine->torrents()->count());
             const QString version = m_engine->globalState()->serverVersion();
             if (!version.isEmpty() && state != QLatin1String("down") &&
-                state != QLatin1String("refused"))
+                state != QLatin1String("waiting") && state != QLatin1String("refused"))
                 detail << tr("qBittorrent %1")
                               .arg(version.startsWith(QLatin1Char('v')) ? version.mid(1) : version);
         } else if (state == QLatin1String("failed")) {

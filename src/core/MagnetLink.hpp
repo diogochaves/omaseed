@@ -12,6 +12,12 @@ public:
     /// Parses a magnet URI. Anything that isn't a "magnet:" scheme, or that carries no
     /// recognisable info hash, yields an object with isValid() false.
     static MagnetLink parse(const QString &uri);
+    /// A bare info hash, as the whole of `text` (surrounding whitespace aside): 40 hex or 32
+    /// base32 for v1, 64 hex for v2, read as the `xt` of a magnet that has nothing else.
+    /// Hex may be either case; base32 must be upper case, as clients print it, so a
+    /// lower-case 32-character token (an MD5, a word) is not taken for one. Anything else,
+    /// a hash inside other text included, yields an object with isValid() false.
+    static MagnetLink fromInfoHash(const QString &text);
 
     bool isValid() const { return m_valid; }
 

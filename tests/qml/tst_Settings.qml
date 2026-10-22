@@ -700,6 +700,42 @@ TestCase {
         compare(map.torrentCount, -1);
     }
 
+    // #126 (docs/33 N5, docs/35 N7): a failed test is the sheet's notice under its head, in
+    // ErrorWords' words, red for nothing there, yellow for a timeout, details folded.
+    function test_a_failed_test_is_the_sheets_notice() {
+        const modal = createTemporaryObject(modalComponent, testCase);
+        modal.open();
+        modal.showPane(1);
+        const sheet = modal.serverSheet;
+        sheet.openNew();
+        sheet.editName = "seedbox";
+        sheet.editUrl = "http://127.0.0.1:8095";
+        verify(!sheet._testFailed);
+        testCase.answerTest(sheet, false, "network: GET app/version: Connection refused");
+
+        const band = findChild(sheet, "testNotice");
+        verify(band !== null);
+        tryVerify(() => band.shown && band.height > 0, 2000);
+        compare(band.title, "Nothing answered at 127.0.0.1:8095");
+        compare(band.body, "Check the address and port, and that qBittorrent's Web UI is on (Tools › Options › Web UI).");
+        compare(band.kind, "error");
+        compare(band.actions.length, 0);
+        verify(band.details.indexOf("GET app/version · Connection refused") >= 0);
+        compare(band.detailsOpen, false);
+        // "save anyway" stays the sheet's button (#68).
+        verify(testCase.sheetButton(sheet, "save anyway") !== null);
+
+        testCase.answerTest(sheet, false, "timeout: GET app/version: no reply within 8000 ms");
+        compare(band.title, "seedbox isn't answering");
+        compare(band.kind, "warning");
+
+        // A pass takes the band away.
+        testCase.answerTest(sheet, true, "");
+        verify(!sheet._testFailed);
+        compare(band.shown, false);
+        sheet.close();
+    }
+
     // #68, assumed (confirm): an existing server needs a new test only when its URL, auth
     // mode or credentials changed. A rename, or a new path map, saves at once.
     function test_an_edit_needs_a_test_only_for_a_new_address_or_login() {

@@ -73,13 +73,14 @@ scripts/dev/swarm-walk.sh [OUT] | --interactive   # every torrent state, shown i
 scripts/dev/strict-walk.sh [OUT] | --interactive  # first run + cookie / API key login against :8082, in an omabox
 scripts/dev/notify-walk.sh [OUT] | --interactive  # downloads finish: one notice each, a click shows the torrent
 scripts/dev/magnet-walk.sh [OUT] | --interactive  # xdg-open a magnet / .torrent: the add sheet, closed, in the tray, duplicate
-scripts/dev/actions-walk.sh [OUT] | --interactive # renames, categories, tags, auto-TMM, set location, bar, delete: checked on server and disk
+scripts/dev/actions-walk.sh [OUT] | --interactive # renames, categories, tags, auto-TMM, set location, bar, outcome strip, mouse picks, delete, skipped files on disk: checked on server and disk (OMASEED_ACTIONS_WALK_FROM=disk)
 scripts/dev/settings-walk.sh [OUT] | --interactive  # qBittorrent settings pane on a box-owned qBittorrent: sections, switches, Web UI port and API key confirms
 scripts/dev/servers-walk.sh [OUT] | --interactive # two qBittorrents: first run, add, switch three ways, an action each side, remove
 scripts/dev/backup-walk.sh [OUT] | --interactive  # a qBittorrent's torrents exported and imported through the app, checked on both servers
 scripts/dev/error-walk.sh [OUT] | --interactive   # a torrent goes into error: the row's cause, the error block, one notice
 scripts/dev/menu-walk.sh [OUT] | --interactive    # the one menu: tray and bar widget ⋯, server switches, quit
-scripts/dev/move-walk.sh [OUT] | --interactive    # folder and selection moves, queue, places, partial pack, move back, recheck (~11 min; OMASEED_MOVE_WALK_FROM=selection|sheet|history|music|remote)
+scripts/dev/stuck-walk.sh [OUT] | --interactive   # finished into a full disk (a udisks loop image): the stuck move's red block, then a recheck moves it
+scripts/dev/move-walk.sh [OUT] | --interactive    # folder and selection moves, queue, places, partial pack, move back, recheck (~12 min; OMASEED_MOVE_WALK_FROM=selection|sheet|history|big|music|remote)
 omabox check run [--approve] --base .local/visual --plugin plugin -- scripts/dev/visual-check.sh  # the walks' screens against a baseline: same, or what changed
 scripts/dev/manual-box.sh [--headless] | down          # throwaway desktop for manual tests: omaseed installed, two qBittorrents (public :8090, private :8091)
 scripts/dev/move-library.sh [-b BOX] [--server S]  # the move test library in a box's qBittorrent: 109 torrents (4 partial packs), /tmp/fast, a clash, a read-only dest

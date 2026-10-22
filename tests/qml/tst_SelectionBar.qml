@@ -66,6 +66,26 @@ TestCase {
     }
 
     // ---- M9.3: which, in which order ------------------------------------------------------
+    // DECISIONS C18 D6 (board 45 M1): the mouse's hint after the buttons, while there is room;
+    // it goes before any button folds.
+    function test_the_mouse_hint_follows_the_buttons_and_goes_first() {
+        const plain = makeBar();
+        const bar = makeBar({
+                                "hint": "ctrl+click add · shift+click range"
+                            });
+        verify(bar.showHint);
+        const hint = findChild(bar, "bar_hint");
+        compare(hint.text, "ctrl+click add · shift+click range");
+        verify(bar.implicitWidth > plain.implicitWidth);
+        const last = button(bar, "delete");
+        verify(hint.mapToItem(bar, 0, 0).x > last.mapToItem(bar, 0, 0).x, "the hint is not after the buttons");
+        // Just too narrow for the hint: it goes, and every button stays.
+        bar.availableWidth = plain.implicitWidth + 1;
+        verify(!bar.showHint);
+        compare(bar.folded, []);
+        compare(bar.implicitWidth, plain.implicitWidth);
+    }
+
     function test_a_wide_bar_draws_every_button_in_the_boards_order() {
         const bar = makeBar();
         compare(bar.items, testCase.fullItems);

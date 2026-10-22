@@ -124,6 +124,18 @@ TestCase {
         compare(menu.rowsScroller.y, heading.y + heading.height);
         compare(heading.children[0].text, "2 selected");
         compare(heading.children[0].dim, true);
+        // #91: before the rows in the tree (declaration order), drawn above them.
+        const panel = heading.parent;
+        let headingAt = -1;
+        let rowsAt = -1;
+        for (let i = 0; i < panel.children.length; ++i) {
+            if (panel.children[i] === heading)
+                headingAt = i;
+            if (panel.children[i] === menu.rowsScroller)
+                rowsAt = i;
+        }
+        verify(headingAt >= 0 && headingAt < rowsAt, "the heading comes after the rows");
+        verify(heading.z > menu.rowsScroller.z);
 
         compare(menu.cursorIndex, 0);
         keyClick(Qt.Key_Return);

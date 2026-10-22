@@ -268,4 +268,19 @@ TestCase {
         compare(chip.Accessible.name, "normal");
         compare(chip.Accessible.description, "19 · shortcut 1");
     }
+
+    // #91: a chip that is a choice says whether it is on; one that only acts says nothing.
+    function test_a_choice_chip_publishes_its_state() {
+        const chip = createTemporaryObject(chipComponent, testCase, {
+                                               "text": "API key"
+                                           });
+        verify(!chip.Accessible.checkable);
+        chip.selected = true;
+        verify(!chip.Accessible.checked, "a chip that is no choice reads as checked");
+        chip.checkable = true;
+        verify(chip.Accessible.checkable);
+        verify(chip.Accessible.checked);
+        chip.selected = false;
+        verify(!chip.Accessible.checked);
+    }
 }

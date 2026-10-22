@@ -39,6 +39,7 @@ SyncEngine::SyncEngine(QObject *parent)
     , m_serverLog(new ServerLog(this))
     , m_pollTimer(new QTimer(this))
     , m_countdownTimer(new QTimer(this))
+    , m_silenceTimer(new QTimer(this))
 {
     m_counts->setModel(m_torrents);
     m_problemLog->setTorrents(m_torrents);
@@ -49,6 +50,8 @@ SyncEngine::SyncEngine(QObject *parent)
 
     m_countdownTimer->setInterval(1000);
     connect(m_countdownTimer, &QTimer::timeout, this, &SyncEngine::tickCountdown);
+    m_silenceTimer->setInterval(1000);
+    connect(m_silenceTimer, &QTimer::timeout, this, [this]() { updateSilence(true); });
 }
 
 SyncEngine::~SyncEngine()
@@ -135,6 +138,8 @@ void SyncEngine::start()
     // meanwhile is still announced. setClient(), the server switch, clears both (REG-5).
     m_globalState->setSyncing(true);
     m_globalState->setRetryInSeconds(0);
+    m_lastReply.start();
+    updateSilence(false);
     Q_EMIT runningChanged();
 
     // The engine owns the retry cadence; the client must not double it with its own.
@@ -160,6 +165,7 @@ void SyncEngine::stop()
     m_countdownTimer->stop();
     m_globalState->setSyncing(false);
     m_globalState->setRetryInSeconds(0);
+    updateSilence(false);
 
     if (m_client != nullptr && m_savedMaxRetries >= 0) {
         m_client->setMaxRetries(m_savedMaxRetries);
@@ -243,6 +249,8 @@ void SyncEngine::onPollResult(const SyncDelta &data)
     m_lost = false;
     m_countdownTimer->stop();
     m_globalState->setRetryInSeconds(0);
+    m_lastReply.start();
+    updateSilence(false);
     m_globalState->setLastError(ApiError());
     m_globalState->setConnected(true);
     m_globalState->setLastSyncTime(QDateTime::currentDateTime());
@@ -257,6 +265,12 @@ void SyncEngine::onPollResult(const SyncDelta &data)
 
 void SyncEngine::onPollError(const ApiError &error)
 {
+    // Any answer, even a refusal, is a reply; a timeout counts the silence on.
+    if (error.kind() != ApiError::Kind::Timeout && error.kind() != ApiError::Kind::Network &&
+        error.kind() != ApiError::Kind::Cancelled)
+        m_lastReply.start();
+    if (error.kind() != ApiError::Kind::Cancelled)
+        updateSilence(error.kind() == ApiError::Kind::Timeout);
     m_globalState->setLastError(error);
 
     switch (error.kind()) {
@@ -302,6 +316,18 @@ void SyncEngine::enterLostState(const ApiError &error)
 
     if (firstLoss)
         Q_EMIT serverLost(error);
+}
+
+void SyncEngine::updateSilence(bool timedOut)
+{
+    if (!timedOut || !m_running || !m_lastReply.isValid()) {
+        m_silenceTimer->stop();
+        m_globalState->setSilentSeconds(0);
+        return;
+    }
+    m_globalState->setSilentSeconds(int(m_lastReply.elapsed() / 1000));
+    if (!m_silenceTimer->isActive())
+        m_silenceTimer->start();
 }
 
 void SyncEngine::tickCountdown()

@@ -46,6 +46,7 @@
 #include <QTimer>
 #include <QUrlQuery>
 
+#include <algorithm>
 #include <memory>
 
 using omaseed::app::App;
@@ -138,6 +139,30 @@ QStringList keysOfRow(const QVariantMap &row)
         keys.append(row.value(QLatin1String(extra)).toMap().keys());
     keys.removeDuplicates();
     return keys;
+}
+
+/// Whether QbtSettingsPane draws `row` for a server with `prefs`: a row it can read one of
+/// the keys of (#150: 5.3 dropped `export_dir`, `export_dir_fin` and
+/// `mail_notification_ssl_enabled`, and their rows go with them). A write-only password field
+/// and a row with no key at all always show.
+bool shownFor(const QVariantMap &row, const QVariantMap &prefs)
+{
+    QStringList keys;
+    if (row.contains(QStringLiteral("toggle")))
+        keys.append(row.value(QStringLiteral("toggle")).toString());
+    for (const QVariant &field : row.value(QStringLiteral("fields")).toList()) {
+        if (field.toMap().value(QStringLiteral("kind")) == QLatin1String("password"))
+            return true;
+        keys.append(field.toMap().value(QStringLiteral("key")).toString());
+    }
+    for (const char *kind : {"choice", "pick", "list"}) {
+        const QVariantMap control = row.value(QLatin1String(kind)).toMap();
+        if (control.contains(QStringLiteral("key")))
+            keys.append(control.value(QStringLiteral("key")).toString());
+    }
+    return keys.isEmpty() || std::any_of(keys.cbegin(), keys.cend(), [&](const QString &key) {
+               return prefs.contains(key);
+           });
 }
 
 /// What QbtSettingRow::flipChanges writes for the row's switch turned `on`: the key, and the
@@ -253,7 +278,8 @@ const QHash<QString, QString> &skipped()
 QList<Change> changesFor(const QVariantList &sections,
                          const QVariantMap &prefs,
                          const QString &scratch,
-                         QStringList *notOnServer)
+                         QStringList *notOnServer,
+                         QStringList *hidden)
 {
     QList<Change> changes;
     QStringList rowKeys;
@@ -276,6 +302,11 @@ QList<Change> changesFor(const QVariantList &sections,
             const QVariantMap row = rowValue.toMap();
             const QString title = row.value(QStringLiteral("title")).toString();
             rowKeys = keysOfRow(row);
+            // A row the pane leaves out for this server is not a change it can make.
+            if (row.contains(QStringLiteral("title")) && !shownFor(row, prefs)) {
+                hidden->append(QStringLiteral("%1 › %2").arg(name, title));
+                continue;
+            }
             if (row.contains(QStringLiteral("toggle"))) {
                 const QString key = row.value(QStringLiteral("toggle")).toString();
                 add(name, title, flipChanges(row, prefs, !prefs.value(key).toBool()));
@@ -457,9 +488,14 @@ void TestQbtSettingsLive::everySettingRoundTrips()
     const QVariantMap original = prefs.values();
 
     QStringList notOnServer;
-    const QList<Change> changes = changesFor(sections, original, qbt.profilePath(), &notOnServer);
+    QStringList hidden;
+    const QList<Change> changes =
+        changesFor(sections, original, qbt.profilePath(), &notOnServer, &hidden);
     QVERIFY(changes.size() > 100);
     qInfo("%lld changes over %lld sections", qlonglong(changes.size()), qlonglong(sections.size()));
+    if (!hidden.isEmpty())
+        qInfo().noquote() << QStringLiteral("rows this qBittorrent does not have, left out: %1")
+                                 .arg(hidden.join(QStringLiteral(", ")));
 
     QStringList problems;
     for (const Change &change : changes) {
@@ -520,6 +556,7 @@ void TestQbtSettingsLive::everySettingRoundTrips()
     }
 
     if (!notOnServer.isEmpty())
+        // A row the pane shows with a key the server lacks: half of it would do nothing.
         problems.append(QStringLiteral("rows for keys qBittorrent does not have: %1")
                             .arg(notOnServer.join(QStringLiteral(", "))));
     for (const QString &problem : std::as_const(problems))

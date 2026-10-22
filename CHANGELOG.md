@@ -7,6 +7,69 @@ before it will tag a release.
 
 ## Unreleased
 
+### Changed
+
+- **What an action came to shows where you look.** A quick move, a stop, a category, a
+  delete… now says how it went in a strip in the selection bar's place, and on the row's own
+  status for a moment ("✓ moved · archive"). Done is green for 6 s; a failure is red and stays
+  until × or esc, with "details"; several at once are counts ("2 moved, 1 didn't"). The footer
+  keeps its counts and keys.
+- **Picking several rows with the mouse shows how.** A □ at a row's start under the pointer
+  adds that row (shift+click adds the range), ■ marks the selected ones, the `?` sheet has a
+  "select with the mouse" block, and the selection bar says "ctrl+click add · shift+click
+  range" the first three times.
+- **A server that is slow is no longer "unreachable".** When qBittorrent takes the connection
+  but doesn't reply in time (busy writing to its disk, say), omaseed says it "isn't answering",
+  in yellow, with how long it has waited, and "answered again" when it does. A refused
+  connection or no route says "unreachable", now in red, with "Is qBittorrent running?".
+- **A server's failed test says what to check.** In Settings › Servers, a test that fails is a
+  notice under the sheet's title, in plain words ("Nothing answered at 127.0.0.1:8095", then
+  what to check), with the technical text under "details", where it used to be one line of
+  Qt's words.
+- **A finished torrent that never left its incomplete folder says so.** When qBittorrent
+  can't move a finished torrent out of its incomplete folder (the destination full), it keeps
+  seeding from there in no error state. omaseed now marks the row "move failed", in red, and
+  General says where the files never arrived, why (from qBittorrent's log), where it is seeding
+  from and what partial copies were left, with "show both folders" and "set location…".
+
+### Fixed
+
+- **"Skip hash check" works with qBittorrent 5.3.** 5.3 reads the option under a new name and
+  silently ignored the old one, so a torrent added with it for files already on disk came in
+  at 0 % and had to be checked or downloaded again. omaseed now sends the name the server's
+  version reads (both, when it can't tell the version yet).
+- **Email encryption can be set on qBittorrent 5.3.** 5.3 replaced the email's "Use SSL"
+  switch with a choice of SMTPS, STARTTLS or none; the email rows in the qBittorrent settings
+  now offer that choice on a 5.3 server, and keep the switch on 5.2. As before, a setting the
+  server doesn't have (such as 5.3's dropped folders for copies of .torrent files) is left out.
+- **`omaseed --help`, `--version` and `--theme-roles` work with no display.** Over SSH, in a
+  container or in a package check they print and exit, instead of aborting before a word.
+
+## v0.3.2 — 2026-10-22
+
+### Added
+
+- **A bare info hash works like a magnet.** Paste one into the add sheet or the bar widget's
+  popup (ctrl+v), drop it on the window, or run `omaseed <hash>`: a v1 hash (40 hex digits, or
+  32 upper-case base32) or a v2 one (64 hex digits), standing alone, is added as the magnet it
+  stands for, and the sheet says "from an info hash". It is never taken from the clipboard when
+  the sheet opens, since a commit id copied for something else looks the same.
+- **A warning when the server has DHT off.** A bare hash names no tracker, so it finds peers
+  only through DHT; on a server with DHT off the add sheet says it may never find one.
+
+## v0.3.1 — 2026-10-22
+
+### Fixed
+
+- **A failed move no longer offers to break a hybrid torrent.** After a move where some
+  torrents fail, "recheck" leaves out every hybrid torrent (one made for both BitTorrent v1 and
+  v2). Its files may be split between the old place and the new, and a recheck would put it in
+  an error that only adding it again clears. The sheet lists it as not rechecked, says why, and
+  offers "move again" and "move back" to bring its files together; the others are rechecked as
+  before. When every failed torrent is hybrid, the sheet says there is nothing to recheck.
+- **Share limits work with qBittorrent 5.3.** 5.3 refuses a limits change without a new field,
+  so every ratio or seeding-time limit set from omaseed failed there; omaseed now sends it.
+
 ## v0.3.0 — 2026-10-22
 
 Moving torrents and whole folders, with a way back. Backups of a qBittorrent's torrents and

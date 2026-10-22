@@ -54,6 +54,12 @@ Sheet {
     property string testErrorDetail: ""
     readonly property bool _credentialRefused: !root.testing && root.tested && !root.testOk
                                                && root.testErrorDetail.length > 0
+    /// docs/33 N5 in docs/35 N7's band: the failed test in ErrorWords' words (`{headline,
+    /// line, details, kind}`), empty while none failed.
+    readonly property var testProblem: !root.testing && root.tested && !root.testOk
+                                       ? App.serverTestProblem(root.fieldMap(), root.testError,
+                                                               root.testErrorDetail) : ({})
+    readonly property bool _testFailed: (root.testProblem.headline || "").length > 0
     property bool testing: false
     /// The certificate the last test was refused (CertificatePin form); empty when it was not.
     property string certificateSha256: ""
@@ -416,6 +422,26 @@ Sheet {
         return parts.join(" · ");
     }
     title: root.editName.length > 0 ? root.editName : qsTr("New server")
+    // docs/35 N7: a failed test is the sheet's notice, under its head, edge to edge: yellow
+    // while it isn't answering (docs/44 D11), red otherwise; no actions of its own ("test"
+    // and "save anyway" stay the sheet's buttons, #68), the technical text under "details".
+    headBand: testBand
+
+    Component {
+        id: testBand
+
+        Notice {
+            details: root.testProblem.details || ""
+            body: root.testProblem.line || ""
+            edge: "both"
+            kind: root.testProblem.kind === "waiting" ? "warning" : "error"
+            objectName: "testNotice"
+            shown: root.opened && root._testFailed
+            title: root.testProblem.headline || ""
+
+            onCopyRequested: text => App.copyToClipboard(text)
+        }
+    }
 
     onActionTriggered: text => {
         if (text === qsTr("switch to it")) {
@@ -597,6 +623,7 @@ Sheet {
                         required property var modelData
 
                         focusable: true
+                        checkable: true
                         selected: root.editAuthMode === authChip.modelData.mode
                         text: authChip.modelData.text
 
@@ -703,8 +730,8 @@ Sheet {
             }
         }
 
-        // #79: a test's answer comes on its own, as first run's does: an alert by its words;
-        // the raw error under a refused sign-in is text.
+        // #79: a test's answer comes on its own, as first run's does: an alert by its words.
+        // A failed one is the head's notice (docs/35 N7); this line says "testing…" and a pass.
         Label {
             Accessible.name: text
             Accessible.role: Accessible.AlertMessage
@@ -722,21 +749,7 @@ Sheet {
                                                                                     "not reachable · %1").arg(
                                                                                     root.testError)) : ""
             color: root._credentialRefused ? Theme.red : Theme.dimForeground
-            visible: root.testing || root.tested
-            wrapMode: Text.WordWrap
-        }
-
-        // The server was reached and turned the credential down: the raw error, dim, under
-        // the words above.
-        Label {
-            Accessible.name: text
-            Accessible.role: Accessible.StaticText
-            Layout.fillWidth: true
-            dim: true
-            objectName: "testErrorDetail"
-            size: "small"
-            text: root.testErrorDetail
-            visible: root._credentialRefused
+            visible: root.testing || (root.tested && !root._testFailed)
             wrapMode: Text.WordWrap
         }
     }

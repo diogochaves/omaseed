@@ -29,19 +29,25 @@ FocusScope {
     /// docs/31 S1: A's line follows the alternative set, "burst", "turtle" or "alt".
     property string altKind: "alt"
     readonly property string query: filterField.text.trim().toLowerCase()
-    /// The sections that still have rows, each `{key, title, about, rows}`.
-    readonly property var sections: Keymap.columns.map(column => ({
-                                                                      "key": column,
-                                                                      "title": Keymap.columnTitles[column],
-                                                                      "about": Keymap.columnAbout[column],
-                                                                      "rows": Keymap.helpRows(column, root.altKind, App.features).filter(
-                                                                                  row => root.matches(row))
-                                                                  })).filter(section => section.rows.length > 0)
+    /// The sections that still have rows, each `{key, title, about, rows}`. DECISIONS C18 D6:
+    /// the mouse's block follows the select keys.
+    readonly property var sections: root._sectionKeys.map(column => ({
+                                                                         "key": column,
+                                                                         "title": column === "mouse" ? Keymap.mouseTitle
+                                                                                                     : Keymap.columnTitles[column],
+                                                                         "about": column === "mouse" ? Keymap.mouseAbout
+                                                                                                     : Keymap.columnAbout[column],
+                                                                         "rows": root._rowsOf(column).filter(row => root.matches(row))
+                                                                     })).filter(section => section.rows.length > 0)
+    readonly property var _sectionKeys: {
+        const keys = Keymap.columns.slice();
+        keys.splice(keys.indexOf("select") + 1, 0, "mouse");
+        return keys;
+    }
     /// Every row still shown, in reading order (left column first).
     readonly property var matchedRows: root._columnSections(0).concat(root._columnSections(1)).reduce(
                                            (all, section) => all.concat(section.rows), [])
-    readonly property int totalRows: Keymap.columns.reduce((n, column) => n + Keymap.helpRows(
-                                                               column, root.altKind, App.features).length, 0)
+    readonly property int totalRows: root._sectionKeys.reduce((n, column) => n + root._rowsOf(column).length, 0)
     /// Where `up`/`down` put the cursor, as an index into `matchedRows`; -1 until they are
     /// used, and again after every change of filter.
     property int cursor: -1
@@ -60,10 +66,14 @@ FocusScope {
     readonly property bool _twoColumns: root.width >= Theme.space(560)
     /// The widest key chip of the whole sheet sets the key column, so every sentence starts on
     /// the same line.
-    readonly property string _widestKeys: Keymap.columns.reduce((widest, column) => Keymap.helpRows(
-                                                                    column, root.altKind, App.features).reduce((w, row) => row.helpKeys.length
-                                                                                                > w.length ? row.helpKeys : w,
-                                                                                   widest), "")
+    readonly property string _widestKeys: root._sectionKeys.reduce((widest, column) => root._rowsOf(column).reduce(
+                                                                        (w, row) => row.helpKeys.length > w.length ? row.helpKeys : w,
+                                                                        widest), "")
+
+    /// A section's rows: the keys of a Keymap column, or the mouse's.
+    function _rowsOf(column: string): var {
+        return column === "mouse" ? Keymap.mouseRows : Keymap.helpRows(column, root.altKind, App.features);
+    }
 
     function matches(row: var): bool {
         if (root.query.length === 0)

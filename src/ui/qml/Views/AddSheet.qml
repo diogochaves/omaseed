@@ -84,8 +84,9 @@ Sheet {
     property var _batchMatches: ({})
     /// Test seam: the chooser for several `.torrent` files (App.pickTorrentFiles).
     property var pickTorrents: () => App.pickTorrentFiles()
-    /// Test seam: what `Xdg.detectClipboardMagnet()` would answer. Non-empty wins over the
-    /// real clipboard, which an offscreen test run has no control over.
+    /// Test seam: the clipboard's text, as `Xdg.detectClipboardMagnet()` would read it. Non-empty
+    /// wins over the real clipboard, which an offscreen test run has no control over; it goes
+    /// through the same probe, so a bare info hash here is not offered either (#147).
     property string clipboardAddable: ""
     /// What the sheet could not do, drawn in the band under the head (docs/35 N7); "" hides it.
     property string errorText: ""
@@ -93,6 +94,11 @@ Sheet {
     property var failure: ({})
     /// D14 (A2): what a switch from the sheet moved, one line; "" hides it.
     property string movedText: ""
+    /// #147: a bare info hash is to be added (the field's, or a batch row's) and the server
+    /// has DHT off, which is all such a torrent has to find peers with.
+    readonly property bool bareHashWithoutDht: App.serverPrefs.values.dht === false
+                                               && (sheet.batchMode ? sheet.batch.some(entry => entry.map.bareHash === true)
+                                                                   : sheet.addable !== null && sheet.addable.bareHash === true)
     /// D15: `add when back` holds `{stopped}` until the server answers.
     property var _held: null
     /// The server the sheet's figures came from, to tell a switch from another server change.
@@ -440,8 +446,11 @@ Sheet {
             "No subfolder")]
     readonly property var _layoutValues: ["Original", "Subfolder", "NoSubfolder"]
 
-    /// "from clipboard" and its siblings, the third part of the head's subtitle.
+    /// "from clipboard" and its siblings, the third part of the head's subtitle. A bare info
+    /// hash (#147) is named as one wherever it came from: that is what tells it from a magnet.
     readonly property string sourceText: {
+        if (sheet.addable && sheet.addable.bareHash === true)
+            return qsTr("from an info hash");
         switch (sheet.source) {
         case "clipboard":
             return qsTr("from clipboard");
@@ -505,11 +514,11 @@ Sheet {
 
     on_FilesWhereChanged: App.setAddFilesWhere(sheet._filesWhere)
 
-    /// What the clipboard offers, or "" — the fake first, so a test can drive it.
+    /// What the clipboard offers, or "" — the fake first, so a test can drive it. The fake
+    /// goes through the same probe as the real clipboard: never a bare info hash (#147).
     function clipboardText(): string {
-        if (sheet.clipboardAddable.length > 0)
-            return sheet.clipboardAddable;
-        const found = Xdg.detectClipboardMagnet();
+        const found = sheet.clipboardAddable.length > 0 ? Xdg.probeClipboardText(sheet.clipboardAddable)
+                                                        : Xdg.detectClipboardMagnet();
         return found ? found.value : "";
     }
 
@@ -1372,6 +1381,16 @@ Sheet {
                         target: App
                     }
 
+                    // #147: a bare info hash names no tracker, so only DHT can find its peers.
+                    Banner {
+                        Layout.fillWidth: true
+                        kind: "warning"
+                        objectName: "addNoDhtLine"
+                        text: qsTr("DHT is off on %1, and an info hash names no tracker: it may never find anyone.").arg(
+                                  App.serverName)
+                        visible: sheet.bareHashWithoutDht
+                    }
+
                     // docs/33 D14 (A2): what a switch from the sheet moved, in one yellow line.
                     Banner {
                         Layout.fillWidth: true
@@ -1412,7 +1431,8 @@ Sheet {
 
                         Notice {
                             readonly property var problem: App.serverProblem(App.globalState.lastError,
-                                                                             App.globalState.retryInSeconds)
+                                                                             App.globalState.retryInSeconds,
+                                                                             App.globalState.silentSeconds)
                             readonly property bool failed: sheet.failure.headline !== undefined
 
                             actions: sheet.multiServer && (failed || sheet.serverDown) ? [
@@ -1430,12 +1450,15 @@ Sheet {
                             details: failed ? (sheet.failure.details || "") : sheet.serverDown ? (problem.details || "") : ""
                             edge: "both"
                             // N3: nothing has failed yet while it is down (yellow); a refused add is red.
-                            kind: failed || sheet.errorText.length > 0 ? "error" : "warning"
+                            // docs/44 D11: while down, the server's own colour: red when nothing is there.
+                            kind: failed || sheet.errorText.length > 0 || (sheet.serverDown && problem.kind === "unreachable")
+                                  ? "error" : "warning"
                             objectName: "addNotice"
                             shown: sheet.opened && (failed || sheet.serverDown || sheet.errorText.length > 0)
                             title: failed ? sheet.failure.headline
                                           : sheet.errorText.length > 0 ? sheet.errorText
-                                                                       : qsTr("%1 isn't answering").arg(App.serverName)
+                                                                       : problem.kind === "unreachable" ? qsTr("%1 is unreachable").arg(App.serverName)
+                                                                                                         : qsTr("%1 isn't answering").arg(App.serverName)
 
                             onActionTriggered: key => {
                                 if (key === "switch")
@@ -1475,8 +1498,9 @@ Sheet {
 
                                 Rectangle {
                                     anchors.verticalCenter: parent.verticalCenter
-                                    // docs/35 N3: yellow while omaseed retries, red when it needs you.
-                                    color: !sheet.serverDown ? Theme.green : App.serverRefused ? Theme.red : Theme.yellow
+                                    // docs/35 N3, docs/44 D11: yellow while it isn't answering, red when nothing
+                                    // is there or it needs you.
+                                    color: !sheet.serverDown ? Theme.green : App.serverWaiting ? Theme.yellow : Theme.red
                                     height: Theme.space(7)
                                     radius: width / 2
                                     width: Theme.space(7)
@@ -1807,6 +1831,16 @@ Sheet {
                         }
 
                         // docs/25 §4 (#29): what the add needs and the room where it goes.
+                        // DECISIONS C17 D8–D9 (#120): the save disk's driver, where it
+                        // makes every ticked file take its full size at once.
+                        AddDriverLine {
+                            Layout.fillWidth: true
+                            neededBytes: sheet.neededBytes
+                            perFile: !sheet.batchMode
+                            savePath: savePathField.text
+                            serverDown: sheet.serverDown
+                        }
+
                         AddFreeLine {
                             id: freeLine
 

@@ -221,6 +221,40 @@ private:
         Q_EMIT m_engine->synced(false);
     }
 
+    /// Demo Disc (b2) is hybrid, both hashes; Open Arena (a1) is v1 only.
+    void markHybrid()
+    {
+        qbtfeed::partial(
+            *m_engine->torrents(),
+            QJsonObject{{QStringLiteral("b2"),
+                         QJsonObject{{QStringLiteral("infohash_v1"), QStringLiteral("b2v1")},
+                                     {QStringLiteral("infohash_v2"), QStringLiteral("b2v2")}}},
+                        {QStringLiteral("a1"),
+                         QJsonObject{{QStringLiteral("infohash_v1"), QStringLiteral("a1v1")},
+                                     {QStringLiteral("infohash_v2"), QString()}}}},
+            {});
+    }
+
+    /// DECISIONS C21 (#144): games moved, Homebrew Pack (c3) lands, Demo Disc (b2, hybrid) and
+    /// Open Arena (a1, v1 only) fail.
+    void failAHybridAndAV1()
+    {
+        markHybrid();
+        QVERIFY(m_engine->torrents()->torrent(QStringLiteral("b2")).isHybrid());
+        QVERIFY(!m_engine->torrents()->torrent(QStringLiteral("a1")).isHybrid());
+        m_move->setServer(QStringLiteral("home"));
+        QTRY_COMPARE(m_move->folders()->total(), 5);
+        QVERIFY(m_move->start(
+            QStringLiteral("/mnt/archive/games"), QStringLiteral("/mnt/fast/games"), false));
+        landSent(); // the first (c3) lands; b2 and a1 go
+        m_move->job()->onSendResult(
+            {QStringLiteral("b2"), QStringLiteral("a1")},
+            omaseed::core::ApiError(omaseed::core::ApiError::Kind::Conflict,
+                                    QStringLiteral("Cannot make save path")));
+        QCOMPARE(m_move->stateName(), QStringLiteral("done"));
+        QCOMPARE(m_move->failedHashes(), QStringList({QStringLiteral("b2"), QStringLiteral("a1")}));
+    }
+
 private slots:
     void initTestCase()
     {
@@ -350,8 +384,8 @@ private slots:
         const QStringList texts = checkTexts(plan);
         QVERIFY(texts.constFirst().startsWith(QStringLiteral("omaseed can't see home's disks.")));
         QVERIFY(texts.contains(QStringLiteral(
-            "1 left out: /volume2/games already has a file with their file's name. qBittorrent "
-            "would keep that file and report the move as done.")));
+            "1 left out: /volume2/games already has a file with their file's name (no torrent "
+            "owns it). qBittorrent would keep that file and report the move as done.")));
         QCOMPARE(plan.value(QStringLiteral("moveHashes")).toStringList(),
                  QStringList({QStringLiteral("c3"), QStringLiteral("b2")}));
         QVERIFY(server.asked.contains(QStringLiteral("/volume2/games/handheld")));
@@ -1180,6 +1214,115 @@ private slots:
         QVERIFY2(!server.calls.contains(QStringLiteral("start b2")),
                  qPrintable(server.calls.join(QStringLiteral(", "))));
         m_engine->setClient(nullptr);
+    }
+
+    void aHybridIsNotRecheckedButMovedAgain()
+    {
+        failAHybridAndAV1();
+        if (QTest::currentTestFailed())
+            return;
+        const QStringList failed = m_move->failedHashes();
+
+        // The sheet's rows: the hybrid listed as not rechecked, with why.
+        const QVariantList rows = m_move->recheckRows(failed);
+        QCOMPARE(rows.size(), 2);
+        const QVariantMap hybrid = rows.at(0).toMap();
+        QCOMPARE(hybrid.value(QStringLiteral("hash")).toString(), QStringLiteral("b2"));
+        QCOMPARE(hybrid.value(QStringLiteral("hybrid")).toBool(), true);
+        QCOMPARE(hybrid.value(QStringLiteral("starts")).toBool(), false);
+        QCOMPARE(hybrid.value(QStringLiteral("then")).toString(), QStringLiteral("not rechecked"));
+        QCOMPARE(hybrid.value(QStringLiteral("why")).toString(),
+                 QStringLiteral("Its files may be split between the two places, and on a hybrid "
+                                "torrent (v1 and v2) a recheck would put it in an error that only "
+                                "adding it again clears."));
+        const QVariantMap v1 = rows.at(1).toMap();
+        QCOMPARE(v1.value(QStringLiteral("hash")).toString(), QStringLiteral("a1"));
+        QCOMPARE(v1.value(QStringLiteral("hybrid")).toBool(), false);
+        QCOMPARE(v1.value(QStringLiteral("then")).toString(), QStringLiteral("starts if complete"));
+        QVERIFY(v1.value(QStringLiteral("why")).toString().isEmpty());
+
+        // The recheck sends only the v1 one, and starts it once complete.
+        ActionServer server;
+        QVERIFY(server.isListening());
+        omaseed::core::QbtEngine client;
+        client.setBaseUrl(server.url());
+        m_engine->setClient(&client);
+        // A client clears the rows: the library again, the two that failed where they were.
+        qbtfeed::full(*m_engine->torrents(), library());
+        markHybrid();
+        m_move->recheckSmallestFirst(failed);
+        QTRY_VERIFY(server.calls.contains(QStringLiteral("recheck a1")));
+        QCOMPARE(m_move->rechecksLeft(), 1); // a1 only, being rechecked
+        qbtfeed::partial(
+            *m_engine->torrents(),
+            QJsonObject{{QStringLiteral("a1"),
+                         QJsonObject{{QStringLiteral("state"), QStringLiteral("checkingUP")}}}},
+            {});
+        Q_EMIT m_engine->synced(false);
+        qbtfeed::partial(
+            *m_engine->torrents(),
+            QJsonObject{{QStringLiteral("a1"),
+                         QJsonObject{{QStringLiteral("state"), QStringLiteral("stoppedUP")}}}},
+            {});
+        Q_EMIT m_engine->synced(false);
+        QTRY_VERIFY(server.calls.contains(QStringLiteral("start a1")));
+        QCOMPARE(m_move->rechecksLeft(), 0);
+        QTest::qWait(100);
+        for (const QString &call : std::as_const(server.calls))
+            QVERIFY2(!call.endsWith(QStringLiteral(" b2")), qPrintable(call));
+
+        // The sheet's rows as listed, a hybrid among them: still never rechecked.
+        server.calls.clear();
+        m_move->recheckListed(rows);
+        QTRY_VERIFY(server.calls.contains(QStringLiteral("recheck a1")));
+        QVERIFY(!server.calls.contains(QStringLiteral("recheck b2")));
+        m_engine->setClient(nullptr);
+        qbtfeed::full(*m_engine->torrents(), library());
+        markHybrid();
+
+        // Only hybrids: nothing to recheck.
+        m_move->recheckSmallestFirst({QStringLiteral("b2")});
+        QCOMPARE(m_move->rechecksLeft(), 0);
+
+        // Move again: the hybrid alone, to the job's target, as a retry.
+        QVERIFY(m_move->moveAgain(QStringLiteral("b2")));
+        QCOMPARE(m_move->job()->kind(), QStringLiteral("retry"));
+        QCOMPARE(m_move->jobHashes(), QStringList({QStringLiteral("b2")}));
+        QCOMPARE(m_move->title(), QStringLiteral("Demo Disc"));
+        QCOMPARE(m_move->job()->entry(QStringLiteral("b2"))->to, QStringLiteral("/mnt/fast/games"));
+        landSent();
+        QCOMPARE(m_engine->torrents()->torrent(QStringLiteral("b2")).savePath,
+                 QStringLiteral("/mnt/fast/games"));
+        QVERIFY(!m_move->moveAgain(QStringLiteral("c3"))); // never failed
+    }
+
+    void aFailedHybridMovesBack()
+    {
+        failAHybridAndAV1();
+        if (QTest::currentTestFailed())
+            return;
+        // qBittorrent still has it where it was: nothing to send, and the note says so.
+        QSignalSpy notes(m_move, &MoveController::note);
+        QVERIFY(!m_move->moveFailedBack(QStringLiteral("b2")));
+        QCOMPARE(notes.count(), 1);
+        QCOMPARE(notes.at(0).at(0).toString(),
+                 QStringLiteral("Demo Disc wasn't moved: It is already at /mnt/archive/games."));
+        QCOMPARE(m_move->stateName(), QStringLiteral("done")); // the summary stays
+
+        // qBittorrent has it at the target (a move it took for done): back to where it was.
+        qbtfeed::partial(*m_engine->torrents(),
+                         QJsonObject{{QStringLiteral("b2"),
+                                      QJsonObject{{QStringLiteral("save_path"),
+                                                   QStringLiteral("/mnt/fast/games")}}}},
+                         {});
+        QVERIFY(m_move->moveFailedBack(QStringLiteral("b2")));
+        QCOMPARE(m_move->job()->kind(), QStringLiteral("back"));
+        QCOMPARE(m_move->jobHashes(), QStringList({QStringLiteral("b2")}));
+        QCOMPARE(m_move->job()->entry(QStringLiteral("b2"))->to,
+                 QStringLiteral("/mnt/archive/games"));
+        landSent();
+        QCOMPARE(m_engine->torrents()->torrent(QStringLiteral("b2")).savePath,
+                 QStringLiteral("/mnt/archive/games"));
     }
 
     void quitPausesAndTheNextStartRunsAgain()

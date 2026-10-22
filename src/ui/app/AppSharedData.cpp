@@ -6,6 +6,7 @@
 #include "core/Format.hpp"
 #include "core/SharedData.hpp"
 #include "core/engines/qbt/QbtTranslate.hpp"
+#include "core/engines/qbt/ServerPreferences.hpp"
 
 #include <QDir>
 #include <QJsonArray>
@@ -233,6 +234,17 @@ void App::patchDemoTorrents(const QVariantMap &torrents)
         return;
     m_engine->applyDemoData(QbtTranslate::syncDelta(
         QJsonObject{{QStringLiteral("torrents"), QJsonObject::fromVariantMap(torrents)}}));
+}
+
+void App::patchDemoPrefs(const QVariantMap &values, const QStringList &removed)
+{
+    if (!m_demoMode)
+        return;
+    QVariantMap next = m_prefs->values();
+    for (const QString &key : removed)
+        next.remove(key);
+    next.insert(values);
+    m_prefs->setOffline(next);
 }
 
 } // namespace omaseed::app

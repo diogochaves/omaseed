@@ -516,14 +516,17 @@ TestCase {
         compare(rail._rowMap[0].item.text, "public");
     }
 
-    // D5, docs/35 N3: a row's dot and count say what omaseed saw last.
+    // D5, docs/35 N3: a row's dot and count say what omaseed saw last; docs/44 D11: a timeout
+    // ("waiting") is yellow, nothing there ("down") red.
     function test_a_server_row_shows_its_state() {
         const rail = railWithServers(["public", "private"]);
         compare(rail._serverDotColor("live"), Theme.green);
         compare(rail._serverDotColor("refused"), Theme.red);
+        compare(rail._serverDotColor("waiting"), Theme.yellow);
+        compare(rail._serverDotColor("down"), Theme.red);
+        compare(rail._serverCountColor("down"), Theme.red);
         rail.serverRetrying = true;
-        compare(rail._serverDotColor("down"), Theme.yellow);
-        compare(rail._serverCountColor("down"), Theme.yellow);
+        compare(rail._serverCountColor("waiting"), Theme.yellow);
         compare(rail._serverCountColor("!"), Theme.red);
         compare(rail._serverCountColor("4"), Theme.dimForeground);
     }

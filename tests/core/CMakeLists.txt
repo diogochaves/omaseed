@@ -23,6 +23,11 @@ omaseed_add_test(tst_librarymatch
     LIBRARIES omaseed::core
 )
 
+omaseed_add_test(tst_searchwords
+    SOURCES tst_searchwords.cpp
+    LIBRARIES omaseed::core
+)
+
 omaseed_add_test(tst_metadatalookup
     SOURCES tst_metadatalookup.cpp
     LIBRARIES omaseed::core
@@ -363,6 +368,12 @@ omaseed_add_test(tst_torrentproblem
     LIBRARIES omaseed::core
 )
 
+# docs/44 D13 (#121): what a failed move left in the destination.
+omaseed_add_test(tst_partialcopies
+    SOURCES tst_partialcopies.cpp
+    LIBRARIES omaseed::core
+)
+
 omaseed_add_test(tst_problemlog
     SOURCES tst_problemlog.cpp
     LIBRARIES omaseed::core
@@ -478,6 +489,11 @@ omaseed_add_test(tst_moveplan
     LIBRARIES omaseed::core
 )
 
+omaseed_add_test(tst_actionoutcome
+    SOURCES tst_actionoutcome.cpp
+    LIBRARIES omaseed::core
+)
+
 omaseed_add_test(tst_movehistory
     SOURCES tst_movehistory.cpp
     LIBRARIES omaseed::core
@@ -490,5 +506,21 @@ omaseed_add_test(tst_movejob
 
 omaseed_add_test(tst_movejob_live LIVE
     SOURCES tst_movejob_live.cpp
+    LIBRARIES omaseed::core
+)
+
+omaseed_add_test(tst_skippedondisk
+    SOURCES tst_skippedondisk.cpp
+    LIBRARIES omaseed::core
+)
+
+# Board 44 on a real ntfs3 loop image through udisks, against the playground (#118, #120).
+omaseed_add_test(tst_skipped_ntfs3_live LIVE
+    SOURCES tst_skipped_ntfs3_live.cpp
+    LIBRARIES omaseed::core
+)
+
+omaseed_add_test(tst_selectionhold
+    SOURCES tst_selectionhold.cpp
     LIBRARIES omaseed::core
 )

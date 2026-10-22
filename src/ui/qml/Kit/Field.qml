@@ -26,8 +26,8 @@ import Omaseed.Kit
 //
 // An `opener` (board 45 D5, DECISIONS C18: the Move sheet's "places ▾") is a control in the
 // field, before `trailing`, in the accent: a click emits `openerClicked`, and its arrow follows
-// `openerExpanded` (▾ closed, ▴ open). With one, a screen reader reads the field as a combobox
-// and the opener as its button, collapsed or expanded.
+// `openerExpanded` (▾ closed, ▴ open). A screen reader reads the field as text, then the
+// opener as a button of its own, collapsed or expanded (#91).
 Rectangle {
     id: root
 
@@ -58,6 +58,14 @@ Rectangle {
     /// lesson, a glyph like `∞`); the placeholder then goes in its description. "" names it
     /// by `placeholder` (#78).
     property string accessibleName: ""
+    /// #91: named by the caption of the FormRow it sits straight in, having no
+    /// `accessibleName` of its own (FormRow then keeps its caption out of the tree).
+    readonly property bool namedByRow: root.accessibleName.length === 0 && root._rowCaption.length > 0
+    readonly property string _rowCaption: (root.parent as FormRow)?.label ?? ""
+    /// What a screen reader calls the field: its own name, its row's caption, or at last
+    /// its placeholder.
+    readonly property string spokenName: root.accessibleName.length > 0 ? root.accessibleName :
+                                         root._rowCaption.length > 0 ? root._rowCaption : root.placeholder
     property bool hasCursor: false
     /// `TextInput.Password` for a secret (spec §3 Fig. 9's `Key` field). Normal by default.
     property int echoMode: TextInput.Normal
@@ -181,6 +189,92 @@ Rectangle {
         objectName: "fieldMouse"
     }
 
+    // #91: the input comes first among the parts a screen reader reads (Qt publishes children
+    // in declaration order): the field, then its opener and its trailing button.
+    TextInput {
+        id: input
+
+        // Qt withholds a password field's name (#91): there the name is the description too.
+        Accessible.description: root.echoMode === TextInput.Password ? root.spokenName : root.spokenName
+                                                                      !== root.placeholder ? root.placeholder : ""
+        Accessible.name: root.spokenName
+        Accessible.editable: true
+        // #91: an editable text even with an opener. As a combobox, Qt published no text
+        // interface, so a screen reader could not read the path; the opener is its own
+        // button, expanded or not, right after the field.
+        Accessible.role: Accessible.EditableText
+        objectName: "fieldInput"
+        anchors.left: hintText.visible ? hintText.right : parent.left
+        anchors.leftMargin: hintText.visible ? Theme.space(6) : Theme.space(10)
+        anchors.right: openerText.visible ? openerText.left : trailingText.visible
+                                                             ? trailingText.left
+                                                             : trailingCap.visible
+                                                               ? trailingCap.left : parent.right
+        anchors.rightMargin: openerText.visible || trailingText.visible || trailingCap.visible
+                             ? Theme.space(6) : Theme.space(10)
+        anchors.verticalCenter: parent.verticalCenter
+        clip: true
+        color: Theme.brightForeground
+        // Qt shows a delegate caret when the field gains the keyboard but can leave it drawn
+        // when the keyboard moves on in the same frame: Speed limits opened on its alt-speed
+        // pair focused Download first, and Download kept a caret over its `∞` (batch-2 P2).
+        // Opacity rather than `visible`, which Qt itself toggles to blink.
+        cursorDelegate: Rectangle {
+            color: Theme.accent
+            objectName: "fieldCaret"
+            opacity: input.activeFocus ? 1 : 0
+            width: 1
+        }
+        echoMode: root.echoMode
+        passwordCharacter: "\u2022"
+        font.family: Theme.fontFamily
+        font.pixelSize: Theme.font.body
+        selectByMouse: true
+        selectionColor: Theme.selection
+
+        // The placeholder stays until something is typed: an empty focused field still
+        // says what empty means (`∞` in the limit sheets). It dims one step further while
+        // the caret is in, as most text fields do (batch-2 J6).
+        Text {
+            anchors.verticalCenter: parent.verticalCenter
+            color: Theme.dimForeground
+            font.family: Theme.fontFamily
+            font.pixelSize: Theme.font.body
+            objectName: "fieldPlaceholder"
+            opacity: input.activeFocus ? 0.55 : 1
+            text: root.placeholder
+            visible: input.text.length === 0
+        }
+
+        // Escape clears the field; with nothing left to clear it is passed on, so the
+        // sheet, palette or view around the field still gets its turn (spec §7 Fig. 26's
+        // escape ladder: "clear, then filter, then close").
+        Keys.onEscapePressed: event => {
+            if (!root.escClears || input.text.length === 0) {
+                event.accepted = false;
+                return;
+            }
+            input.text = "";
+            root.cleared();
+        }
+        Keys.onPressed: event => {
+            const mask = Qt.ControlModifier | Qt.AltModifier | Qt.ShiftModifier | Qt.MetaModifier;
+            for (const shortcut of root.shortcuts) {
+                if (event.key === shortcut.key && (event.modifiers & mask) === shortcut.modifiers) {
+                    root.shortcutPressed(event.key, shortcut.modifiers);
+                    event.accepted = true;
+                    return;
+                }
+            }
+            event.accepted = false;
+        }
+        // `enter` accepts; see `_onEnter`.
+        Keys.onReturnPressed: event => root._onEnter(event)
+        // Keypad `enter` is its own key; without this it went past `accepted` to the Sheet's
+        // primary action (KIT-7).
+        Keys.onEnterPressed: event => root._onEnter(event)
+    }
+
     Text {
         id: hintText
 
@@ -265,18 +359,22 @@ Rectangle {
     MouseArea {
         id: trailingButton
 
+        readonly property bool actionNamed: trailingButton.enabled && root.trailingName.length > 0
+
         // #78: the action is the name, its key the description ("shortcut ctrl+o"); a trailing
-        // that only shows something (a count) is a label, and none at all is nothing.
+        // that only shows something (a count) is a label, and none at all is nothing. #91:
+        // `trailingName` names it only while it is a button: a count that can't clear
+        // anything is read as the count.
         Accessible.description: {
             const parts = [];
-            if (root.trailingName.length > 0 && root.trailing.length > 0)
+            if (trailingButton.actionNamed && root.trailing.length > 0)
                 parts.push(root.trailing);
             if (root.trailingKey.length > 0)
                 parts.push(qsTr("shortcut %1").arg(root.trailingKey));
             return parts.join(" · ");
         }
         Accessible.ignored: !trailingText.visible && !trailingCap.visible
-        Accessible.name: root.trailingName.length > 0 ? root.trailingName : root.trailing
+        Accessible.name: trailingButton.actionNamed ? root.trailingName : root.trailing
         Accessible.role: trailingButton.enabled ? Accessible.Button : Accessible.StaticText
         // A screen reader's press is the click (#75): only on a clickable trailing, and not
         // while the field is disabled. A MouseArea's own `enabled` is its flag alone, so the
@@ -294,87 +392,6 @@ Rectangle {
         objectName: "fieldTrailingButton"
 
         onClicked: root.trailingClicked()
-    }
-
-    TextInput {
-        id: input
-
-        Accessible.description: root.accessibleName.length > 0 ? root.placeholder : ""
-        Accessible.name: root.accessibleName.length > 0 ? root.accessibleName : root.placeholder
-        Accessible.editable: true
-        Accessible.expandable: openerText.visible
-        Accessible.expanded: openerText.visible && root.openerExpanded
-        Accessible.role: openerText.visible ? Accessible.ComboBox : Accessible.EditableText
-        objectName: "fieldInput"
-        anchors.left: hintText.visible ? hintText.right : parent.left
-        anchors.leftMargin: hintText.visible ? Theme.space(6) : Theme.space(10)
-        anchors.right: openerText.visible ? openerText.left : trailingText.visible
-                                                             ? trailingText.left
-                                                             : trailingCap.visible
-                                                               ? trailingCap.left : parent.right
-        anchors.rightMargin: openerText.visible || trailingText.visible || trailingCap.visible
-                             ? Theme.space(6) : Theme.space(10)
-        anchors.verticalCenter: parent.verticalCenter
-        clip: true
-        color: Theme.brightForeground
-        // Qt shows a delegate caret when the field gains the keyboard but can leave it drawn
-        // when the keyboard moves on in the same frame: Speed limits opened on its alt-speed
-        // pair focused Download first, and Download kept a caret over its `∞` (batch-2 P2).
-        // Opacity rather than `visible`, which Qt itself toggles to blink.
-        cursorDelegate: Rectangle {
-            color: Theme.accent
-            objectName: "fieldCaret"
-            opacity: input.activeFocus ? 1 : 0
-            width: 1
-        }
-        echoMode: root.echoMode
-        passwordCharacter: "\u2022"
-        font.family: Theme.fontFamily
-        font.pixelSize: Theme.font.body
-        selectByMouse: true
-        selectionColor: Theme.selection
-
-        // The placeholder stays until something is typed: an empty focused field still
-        // says what empty means (`∞` in the limit sheets). It dims one step further while
-        // the caret is in, as most text fields do (batch-2 J6).
-        Text {
-            anchors.verticalCenter: parent.verticalCenter
-            color: Theme.dimForeground
-            font.family: Theme.fontFamily
-            font.pixelSize: Theme.font.body
-            objectName: "fieldPlaceholder"
-            opacity: input.activeFocus ? 0.55 : 1
-            text: root.placeholder
-            visible: input.text.length === 0
-        }
-
-        // Escape clears the field; with nothing left to clear it is passed on, so the
-        // sheet, palette or view around the field still gets its turn (spec §7 Fig. 26's
-        // escape ladder: "clear, then filter, then close").
-        Keys.onEscapePressed: event => {
-            if (!root.escClears || input.text.length === 0) {
-                event.accepted = false;
-                return;
-            }
-            input.text = "";
-            root.cleared();
-        }
-        Keys.onPressed: event => {
-            const mask = Qt.ControlModifier | Qt.AltModifier | Qt.ShiftModifier | Qt.MetaModifier;
-            for (const shortcut of root.shortcuts) {
-                if (event.key === shortcut.key && (event.modifiers & mask) === shortcut.modifiers) {
-                    root.shortcutPressed(event.key, shortcut.modifiers);
-                    event.accepted = true;
-                    return;
-                }
-            }
-            event.accepted = false;
-        }
-        // `enter` accepts; see `_onEnter`.
-        Keys.onReturnPressed: event => root._onEnter(event)
-        // Keypad `enter` is its own key; without this it went past `accepted` to the Sheet's
-        // primary action (KIT-7).
-        Keys.onEnterPressed: event => root._onEnter(event)
     }
 
     // The wheel, over the whole box: taken only while the caret is in a numeric field, else

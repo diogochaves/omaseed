@@ -412,7 +412,13 @@ void TorrentFilterModel::setText(const QString &text)
     if (m_text == next)
         return;
     m_text = next;
+    m_query = SearchWords::parse(next);
+    m_matchRanks.clear();
     applyFilterChange();
+    // C22: the ranks came or went with the query, so every row sorts again (a held order
+    // already did, in applyFilterChange()).
+    if (!m_holdOrder)
+        sortNow();
     Q_EMIT textChanged();
     Q_EMIT countChanged();
 }
@@ -558,15 +564,14 @@ bool TorrentFilterModel::filterAcceptsRow(int sourceRow, const QModelIndex &sour
         }
     }
 
-    if (!m_text.isEmpty()) {
-        const Qt::CaseSensitivity ci = Qt::CaseInsensitive;
-        const bool matches =
-            t.name.contains(m_text, ci) || t.hash.startsWith(m_text, ci) ||
-            t.category.contains(m_text, ci) ||
-            std::any_of(t.tags.cbegin(), t.tags.cend(), [this, ci](const QString &tag) {
-                return tag.contains(m_text, ci);
-            });
-        if (!matches)
+    if (!m_text.isEmpty() && !t.hash.startsWith(m_text, Qt::CaseInsensitive)) {
+        // C22: every word somewhere in the name, the category or a tag. The parts are joined
+        // with a character no fold keeps, so a word never spans two of them.
+        const QChar apart(0x1f);
+        QString haystack = SearchWords::fold(t.name) + apart + SearchWords::fold(t.category);
+        for (const QString &tag : t.tags)
+            haystack += apart + SearchWords::fold(tag);
+        if (!SearchWords::matches(m_query, haystack))
             return false;
     }
 
@@ -596,6 +601,13 @@ bool TorrentFilterModel::liveLessThan(const QModelIndex &left, const QModelIndex
 {
     const auto *source = qobject_cast<const TorrentModel *>(sourceModel());
     int compared = 0;
+    // C22: while a query is typed, the better match comes first whichever way the column
+    // sorts (the proxy reverses lessThan() for a descending sort, so this is reversed first).
+    if (!m_query.isEmpty()) {
+        compared = matchRank(left.row()) - matchRank(right.row());
+        if (compared != 0)
+            return sortOrder() == Qt::DescendingOrder ? compared > 0 : compared < 0;
+    }
     if (!m_heldKeys.isEmpty()) {
         const double l = m_heldKeys.at(left.row());
         const double r = m_heldKeys.at(right.row());
@@ -627,6 +639,26 @@ int TorrentFilterModel::compareValues(const QVariant &left, const QVariant &righ
         return l == r ? 0 : (l < r ? -1 : 1);
     }
     return 0;
+}
+
+int TorrentFilterModel::matchRank(int sourceRow) const
+{
+    const auto *source = qobject_cast<const TorrentModel *>(sourceModel());
+    if (source == nullptr || sourceRow < 0 || sourceRow >= source->rowCount())
+        return SearchWords::NoMatch;
+    if (m_matchRanks.size() != source->rowCount())
+        m_matchRanks = QList<qint8>(source->rowCount(), qint8(-1));
+    qint8 &cached = m_matchRanks[sourceRow];
+    if (cached < 0) {
+        const Torrent &t = source->torrentAt(sourceRow);
+        // A hash prefix ranks with the phrases; one found only in the category or a tag
+        // ranks last (its name holds none of the words, or not all of them).
+        const SearchWords::Rank rank = t.hash.startsWith(m_text, Qt::CaseInsensitive)
+                                           ? SearchWords::Phrase
+                                           : SearchWords::rank(m_query, SearchWords::fold(t.name));
+        cached = qint8(rank);
+    }
+    return cached;
 }
 
 int TorrentFilterModel::nameRank(int sourceRow) const

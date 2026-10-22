@@ -22,6 +22,15 @@ bool isErroredState(TorrentPhase phase)
     return phase == TorrentPhase::Errored || phase == TorrentPhase::Missing;
 }
 
+bool isCheckingState(TorrentPhase phase)
+{
+    return phase == TorrentPhase::Checking || phase == TorrentPhase::Loading;
+}
+
+/// How soon after a check an error counts as the check's (C17 D3): a big torrent's check runs
+/// long, and the polls may not see it at all.
+constexpr qint64 kAfterCheckSeconds = 600;
+
 /// The hash libtorrent prints the prefix of: v2 when there is one, otherwise v1.
 QString printedHash(const Torrent &torrent)
 {
@@ -70,6 +79,7 @@ void ProblemLog::setClient(EngineClient *client)
     m_seenFirstSync = false;
     m_errored.clear();
     m_newlyErrored.clear();
+    m_stuck.clear();
     // Another server: nothing of this one's failures applies there. The caller hands the next
     // server's dismissals over with setDismissed(); no dismissedChanged(), which would write
     // this server's (empty) list under the next one's name.
@@ -121,6 +131,8 @@ void ProblemLog::onSynced(bool fullUpdate, bool mayRead)
         reset();
     }
     updateErrored(fullUpdate);
+    if (fullUpdate)
+        publishStuck(); // the model dropped them with its rows
     m_seenFirstSync = true;
 
     endWatches();
@@ -134,6 +146,9 @@ void ProblemLog::onSynced(bool fullUpdate, bool mayRead)
     // D2: every poll while omaseed waits for an answer; C15 M15: and while a move job runs.
     bool due = !m_watches.isEmpty() || !m_jobHashes.isEmpty();
     if (!m_errored.isEmpty() && (!m_readOnce || since >= m_interval))
+        due = true;
+    // docs/44 D13: once for a stuck move's reason; after that, the 15 s reads find a new one.
+    if (!m_stuck.isEmpty() && !m_readOnce)
         due = true;
     if (m_visible && since >= m_idleInterval)
         due = true;
@@ -153,14 +168,36 @@ void ProblemLog::updateErrored(bool fullUpdate)
     }
 
     bool changed = false;
+    bool stuckChanged = false;
     for (const QString &hash : std::as_const(look)) {
         const bool known = m_torrents->indexOfHash(hash) >= 0;
         const TorrentPhase phase =
             known ? m_torrents->torrent(hash).status.phase : TorrentPhase::Unknown;
         const bool errored = known && isErroredState(phase);
+        if (known && isCheckingState(phase))
+            m_checkedAt.insert(hash, QDateTime::currentDateTimeUtc());
+        // docs/44 D13: an error says more than a stuck move, so an errored torrent is never
+        // stuck here.
+        const bool stuck =
+            known && !errored && ProblemMatch::isStuckMove(m_torrents->torrent(hash));
+        if (stuck && !m_stuck.contains(hash)) {
+            m_stuck.insert(hash);
+            stuckChanged = true;
+        } else if (!stuck && m_stuck.remove(hash)) {
+            stuckChanged = true;
+            if (!errored) {
+                m_problems.remove(hash);
+                if (known)
+                    m_torrents->setProblem(hash, {});
+            }
+        }
         if (errored && !m_errored.contains(hash)) {
             m_errored.insert(hash);
             changed = true;
+            const QDateTime checked = m_checkedAt.value(hash);
+            if (checked.isValid() &&
+                checked.secsTo(QDateTime::currentDateTimeUtc()) <= kAfterCheckSeconds)
+                m_erroredAfterCheck.insert(hash);
             // A notice only for an error that happened while watching (D4 a), never for the
             // library as the first sync finds it, and not for missing files, which the start
             // of a server finds by the dozen.
@@ -168,14 +205,19 @@ void ProblemLog::updateErrored(bool fullUpdate)
                 m_newlyErrored.insert(hash);
         } else if (!errored && m_errored.remove(hash)) {
             changed = true;
+            m_erroredAfterCheck.remove(hash);
             m_newlyErrored.remove(hash);
             m_problems.remove(hash);
             if (known)
                 m_torrents->setProblem(hash, {});
         }
     }
-    if (changed)
+    if (changed || stuckChanged)
         m_readOnce = false;
+    if (stuckChanged) {
+        publishStuck();
+        updateFailures();
+    }
 }
 
 void ProblemLog::read()
@@ -295,10 +337,18 @@ void ProblemLog::rematch()
 
     for (const Torrent &torrent : std::as_const(candidates)) {
         TorrentProblem problem = found.value(torrent.hash);
-        if (!problem.found)
-            problem = ProblemMatch::notLogged(torrent.status.phase == TorrentPhase::Missing);
+        if (!problem.found) {
+            // Board 44 §2: libtorrent's hybrid error is never logged; a hybrid that errored
+            // right after a check is that, and only adding it again clears it.
+            problem = torrent.status.phase == TorrentPhase::Errored && torrent.isHybrid() &&
+                              m_erroredAfterCheck.contains(torrent.hash)
+                          ? ProblemMatch::hybridRecheck()
+                          : ProblemMatch::notLogged(torrent.status.phase == TorrentPhase::Missing);
+        }
         publish(torrent.hash, problem);
     }
+
+    publishStuck();
 
     // The notices wait for a read, so they carry the reason (N1).
     const QSet<QString> pending = std::exchange(m_newlyErrored, {});
@@ -316,6 +366,37 @@ void ProblemLog::publish(const QString &hash, const TorrentProblem &problem)
         return;
     m_problems.insert(hash, problem);
     m_torrents->setProblem(hash, problem.toMap());
+}
+
+void ProblemLog::publishStuck()
+{
+    if (m_torrents.isNull() || m_stuck.isEmpty())
+        return;
+    // The newest "Failed to move torrent" line about each stuck torrent (board 32's feed).
+    QHash<QString, const Line *> newest;
+    const Index index = buildIndex();
+    for (const Line &line : std::as_const(m_lines)) {
+        if (line.parsed.kind != ProblemLine::Kind::MoveFailed)
+            continue;
+        bool ambiguous = false;
+        for (const QString &hash : failureMatch(line, index, &ambiguous)) {
+            if (m_stuck.contains(hash))
+                newest.insert(hash, &line);
+        }
+    }
+    for (const QString &hash : std::as_const(m_stuck)) {
+        if (m_errored.contains(hash) || m_torrents->indexOfHash(hash) < 0)
+            continue;
+        const Line *line = newest.value(hash);
+        TorrentProblem problem = ProblemMatch::describeStuckMove(m_torrents->torrent(hash),
+                                                                 line ? &line->parsed : nullptr);
+        if (line) {
+            problem.loggedAt = line->at;
+            problem.line = line->message;
+            problem.count = 1;
+        }
+        publish(hash, problem);
+    }
 }
 
 // ---- docs/32 (#55): failures ------------------------------------------------------------------
@@ -415,6 +496,9 @@ void ProblemLog::updateFailures()
         bool ambiguous = false;
         const QStringList hashes = failureMatch(line, index, &ambiguous);
         for (const QString &hash : hashes) {
+            // docs/44 D13: a stuck move's failure is its red problem, not the yellow block.
+            if (kind == ProblemLine::Kind::MoveFailed && m_stuck.contains(hash))
+                continue;
             candidates.insert(hash);
             const Torrent &torrent = m_torrents->torrent(hash);
             bool fixed = false;
@@ -423,6 +507,11 @@ void ProblemLog::updateFailures()
                 fixed = !line.parsed.source.isEmpty() &&
                         !samePath(torrent.savePath, line.parsed.source) &&
                         !samePath(torrent.downloadPath, line.parsed.source);
+                // docs/44 D13: a finished torrent's move out of its incomplete folder (the
+                // source is still its download path) landed once its content has left it.
+                if (!fixed && !line.parsed.source.isEmpty() && !torrent.contentPath.isEmpty() &&
+                    samePath(torrent.downloadPath, line.parsed.source))
+                    fixed = !ProblemMatch::isUnder(torrent.contentPath, line.parsed.source);
             } else if (kind == ProblemLine::Kind::RenameFailed) {
                 // F2: the file kept its old name until it is no longer among its files.
                 const auto files = m_files.constFind(hash);
@@ -558,6 +647,13 @@ void ProblemLog::updateLogLines()
     m_webSeedLines = webSeeds;
     m_exportFailure = exported;
     Q_EMIT logLinesChanged();
+}
+
+void ProblemLog::noteRechecked(const QStringList &hashes)
+{
+    const QDateTime now = QDateTime::currentDateTimeUtc();
+    for (const QString &hash : hashes)
+        m_checkedAt.insert(hash, now);
 }
 
 void ProblemLog::dismiss(const QString &hash)

@@ -299,7 +299,8 @@ public:
     QString nearlyFullTorrent() const { return m_nearlyFullHash; }
     qint64 nearlyFullFreeAfter() const { return m_nearlyFullFreeAfter; }
     Summary summary() const;
-    /// The torrents saved under the folder now that the job doesn't know: added during it.
+    /// The torrents saved under the folder now that the job doesn't know and that qBittorrent
+    /// added after it started (#164): added during it.
     QStringList addedDuring() const;
 
 Q_SIGNALS:
@@ -372,6 +373,8 @@ private:
     qint64 m_liveBytes = -1;
     qint64 m_liveFirstBytes = -1;
     QDateTime m_liveFirstAt;
+    /// #162: its first reading was already its whole size, so its readings mean nothing.
+    bool m_liveBlind = false;
     QString m_nearlyFullHash;
     qint64 m_nearlyFullFreeAfter = 0;
     int m_landedWhileAway = 0;

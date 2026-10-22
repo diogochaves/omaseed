@@ -65,6 +65,7 @@ private slots:
     void cleanup();
     void anErroredTorrentGetsItsLine();
     void noLineSaysNotLogged();
+    void aHybridErroredAfterACheckIsLibtorrentsHybridError();
     void leavingErrorDropsTheProblem();
     void repeatedLinesAreCounted();
     void missingFilesGetsTheRestoreLine();
@@ -130,6 +131,41 @@ void TestProblemLog::noLineSaysNotLogged()
     QCOMPARE(problem.value(QStringLiteral("headline")).toString(),
              QStringLiteral("qBittorrent didn't log a reason"));
     QCOMPARE(causeOf(*m_model, kA), QStringLiteral("error"));
+}
+
+void TestProblemLog::aHybridErroredAfterACheckIsLibtorrentsHybridError()
+{
+    // Board 44 §2 (C17 D3, #115): nothing is logged; a hybrid that errors right after a check
+    // is torrent_inconsistent_hashes, and "add it again" is the one way out.
+    const QString hybrid = QStringLiteral("c0ffee0000000000000000000000000000000000");
+    const QString v1 = QStringLiteral("d00d000000000000000000000000000000000000");
+    QJsonObject h = torrent(QStringLiteral("h.bin"), QStringLiteral("checkingUP"));
+    h.insert(QStringLiteral("infohash_v1"), hybrid);
+    h.insert(QStringLiteral("infohash_v2"), QStringLiteral("aa").repeated(32));
+    QJsonObject plain = torrent(QStringLiteral("v.bin"), QStringLiteral("stalledUP"));
+    plain.insert(QStringLiteral("infohash_v1"), v1);
+    qbtfeed::partial(*m_model, QJsonObject{{hybrid, h}, {v1, plain}}, {});
+    m_log->onSynced(false);
+    // omaseed asked for the v1 torrent's recheck itself; the hybrid was seen checking.
+    m_log->noteRechecked({v1});
+    qbtfeed::partial(
+        *m_model,
+        QJsonObject{{hybrid, QJsonObject{{QStringLiteral("state"), QStringLiteral("error")}}},
+                    {v1, QJsonObject{{QStringLiteral("state"), QStringLiteral("error")}}}},
+        {});
+    m_log->onSynced(false);
+    qbtfeed::entries(*m_log, {entry(3, QStringLiteral("WebUI: Now listening on IP: 127.0.0.1"))});
+
+    const QVariantMap problem = problemOf(*m_model, hybrid);
+    QCOMPARE(problem.value(QStringLiteral("causeKey")).toString(), QStringLiteral("hybridRecheck"));
+    QCOMPARE(problem.value(QStringLiteral("actions")).toStringList(),
+             QStringList{QStringLiteral("addAgain")});
+    // A v1-only torrent is never that error, rechecked or not.
+    QCOMPARE(problemOf(*m_model, v1).value(QStringLiteral("causeKey")).toString(),
+             QStringLiteral("notLogged"));
+    // A hybrid that errored with no check before it says nothing new.
+    QCOMPARE(problemOf(*m_model, kA).value(QStringLiteral("causeKey")).toString(),
+             QStringLiteral("notLogged"));
 }
 
 void TestProblemLog::leavingErrorDropsTheProblem()

@@ -22,8 +22,8 @@
 //     write it as the app syncs; App keeps it in state.json (`lastSeenJson()`/
 //     `loadLastSeen()`). No request ever goes to a server the app is not on;
 //   - the server the app is on and how it is doing (`setCurrent()`): "live", "syncing",
-//     "down", "refused" or "certificate", with its live count. The rail, the server palette
-//     and Settings read the `serverState` and `countLabel` roles from it.
+//     "waiting", "down", "refused" or "certificate", with its live count. The rail, the server
+//     palette and Settings read the `serverState` and `countLabel` roles from it.
 //
 // Secrets never travel through `Server` or `servers.json`. `add()`/`update()` take the secret
 // separately and hand it to `SecretStore` (asynchronously, keyed by the server's id);
@@ -70,7 +70,8 @@ public:
         VersionTextRole, ///< "v5.2.3" for the dim line; empty until a probe ran
         CertificateRole, ///< the trusted certificate's SHA-256 (CertificatePin), or empty
         IsCurrentRole,   ///< the server the app is on
-        /// The current one: "live", "syncing", "down", "refused", "certificate". Another:
+        /// The current one: "live", "syncing", "waiting" (a timeout), "down" (unreachable),
+        /// "refused", "certificate" (docs/44 D11). Another:
         /// "seen" (fine last time), "failed" (its last try failed), "unknown" (never seen).
         StateRole,
         LastCountRole,  ///< the count last seen on it, -1 when never

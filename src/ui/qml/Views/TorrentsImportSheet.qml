@@ -342,6 +342,7 @@ Sheet {
         Chip {
             focusable: true
             objectName: "thenCheck"
+            checkable: true
             selected: sheet.check
             text: qsTr("check files, start the complete ones")
 
@@ -351,6 +352,7 @@ Sheet {
         Chip {
             focusable: true
             objectName: "thenStopped"
+            checkable: true
             selected: !sheet.check
             text: qsTr("leave them stopped")
 

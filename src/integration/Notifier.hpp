@@ -42,14 +42,17 @@ public:
                           const QString &headline,
                           const QString &detail);
 
-    /// docs/33 D22, D23: the window's headline and line, in ErrorWords' words ("private
-    /// didn't answer" / "Nothing is listening at 127.0.0.1:8091. omaseed tries again in
-    /// 10 s."), so the notice and the window say the same with the same retry figure.
-    /// Action "settings", also the click. Event class "server", subject the server id.
+    /// docs/33 D22, D23: the window's headline and line, in ErrorWords' words ("private is
+    /// unreachable" / "Connection refused at 127.0.0.1:8091. Is qBittorrent running? omaseed
+    /// tries again in 10 s."), so the notice and the window say the same with the same retry
+    /// figure. Action "settings", also the click. Event class "server", subject the server id.
     quint32 notifyServerLost(const QString &serverId, const QString &headline, const QString &body);
 
     /// The matching "back" toast: replaces the server-lost notice for the same server id.
-    quint32 notifyServerBack(const QString &serverId, const QString &serverName);
+    /// "NAME is back", or after a timeout (`answeredAgain`, docs/44 §6) "NAME answered again".
+    quint32 notifyServerBack(const QString &serverId,
+                             const QString &serverName,
+                             bool answeredAgain = false);
 
     /// "<freeText> free". Action "settings", also the click. Event class "disk", subject the
     /// server id.

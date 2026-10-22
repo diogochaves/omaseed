@@ -1817,6 +1817,7 @@ Item {
 
                                             required property var modelData
 
+                                            checkable: true
                                             selected: App.startAtLogin === loginChip.modelData[0]
                                             text: loginChip.modelData[1]
 
@@ -2354,6 +2355,7 @@ Item {
                                             enabled: root._inTheBarOffered(barChip.modelData) && !App.barWidget.busy
                                             objectName: "inTheBar_" + barChip.modelData.key
                                             opacity: enabled ? 1 : 0.45
+                                            checkable: true
                                             selected: App.inTheBar === barChip.modelData.key
                                             text: barChip.modelData.text
 
@@ -2411,6 +2413,7 @@ Item {
 
                                             required property string modelData
 
+                                            checkable: true
                                             selected: App.speedsAlignment === speedsChip.modelData
                                             text: speedsChip.modelData
 
@@ -2438,6 +2441,7 @@ Item {
 
                                     Chip {
                                         objectName: "downloadTrendChip"
+                                        checkable: true
                                         selected: App.downloadTrend
                                         text: qsTr("download")
 
@@ -2446,6 +2450,7 @@ Item {
 
                                     Chip {
                                         objectName: "uploadTrendChip"
+                                        checkable: true
                                         selected: App.uploadTrend
                                         text: qsTr("upload")
 
@@ -2478,6 +2483,7 @@ Item {
 
                                             required property var modelData
 
+                                            checkable: true
                                             selected: App.railScrollHint === hintChip.modelData[0]
                                             text: hintChip.modelData[1]
 
@@ -2511,6 +2517,7 @@ Item {
 
                                             required property var modelData
 
+                                            checkable: true
                                             selected: App.surfaceTint === tintChip.modelData[0]
                                             text: tintChip.modelData[1]
 
@@ -2544,6 +2551,7 @@ Item {
 
                                             required property var modelData
 
+                                            checkable: true
                                             selected: App.trackerHostStyle === hostChip.modelData[0]
                                             text: hostChip.modelData[1]
 
@@ -2577,6 +2585,7 @@ Item {
 
                                             required property var modelData
 
+                                            checkable: true
                                             selected: App.detailsPlacement === placementChip.modelData[0]
                                             text: placementChip.modelData[1]
 
@@ -3025,6 +3034,7 @@ Item {
 
                                             required property var modelData
 
+                                            checkable: true
                                             selected: App.autoBackupMode === backupModeChip.modelData[0]
                                             text: backupModeChip.modelData[1]
 
@@ -3097,6 +3107,7 @@ Item {
                                         id: pluginField
 
                                         Layout.fillWidth: true
+                                        accessibleName: qsTr("command that adds the bar widget")
                                         hasCursor: root.area === "pane" && root.paneCursor === 0
                                         text: App.barWidgetCommand
                                     }

@@ -62,6 +62,9 @@ Rectangle {
                                                                                            ""
     Accessible.name: root.text
     Accessible.role: Accessible.ListItem
+    // #91: the row the rail (or Settings' nav) is on, as the fill shows it.
+    Accessible.selectable: true
+    Accessible.selected: root.selected
 
     // A screen reader's press is the click (#75); disabled, it does nothing, as the pointer.
     Accessible.onPressAction: if (root.enabled)

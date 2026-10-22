@@ -670,6 +670,37 @@ TestCase {
         compare(App.serverPrefs.values.encryption, 1);
     }
 
+    // #150: a row whose keys the server does not report is left out. The demo is a 5.2 server
+    // (mail over SSL is a switch, .torrent copies have folders); qBittorrent 5.3 dropped those
+    // keys and reports the mail's encryption type instead, a choice of three.
+    function test_rows_follow_the_keys_the_server_has() {
+        let modal = openOn(6); // Downloads and files
+        verify(testCase.childNamed(modal, "qbtRow-export_dir") !== null);
+        verify(testCase.childNamed(modal, "qbtRow-mail_notification_ssl_enabled") !== null);
+        compare(testCase.childNamed(modal, "qbtRow-mail_notification_encryption_type"), null);
+        modal.destroy();
+
+        App.patchDemoPrefs({
+                               "mail_notification_encryption_type": "SMTPS"
+                           }, ["export_dir", "export_dir_fin", "mail_notification_ssl_enabled"]);
+        modal = openOn(6);
+        compare(testCase.childNamed(modal, "qbtRow-export_dir"), null);
+        compare(testCase.childNamed(modal, "qbtRow-mail_notification_ssl_enabled"), null);
+        const row = testCase.childNamed(modal, "qbtRow-mail_notification_encryption_type");
+        verify(row !== null);
+        compare(row.title, "Encryption");
+        // Under "Send an email", dim while it is off, like the rest of the mail rows.
+        verify(!row.enabled);
+        App.serverPrefs.apply({
+                                  "mail_notification_enabled": true
+                              });
+        verify(row.enabled);
+        row.activate("enter");
+        compare(App.serverPrefs.values.mail_notification_encryption_type, "STARTTLS");
+        row.activate("enter");
+        compare(App.serverPrefs.values.mail_notification_encryption_type, "None");
+    }
+
     function test_the_proxy_rows_dim_until_a_proxy_is_chosen() {
         const modal = openOn(3); // Proxy
         verify(!testCase.childNamed(modal, "qbtRow-proxy_ip").enabled);

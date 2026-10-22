@@ -308,7 +308,9 @@ public:
     /// ratioLimit/seedingTimeLimit/inactiveSeedingTimeLimit: -2 = global default, -1 = none,
     /// >=0 the limit itself. `shareLimitAction` engaged sends the field (5.2.3 answers 400
     /// without it, `Default` included, so a >= 2.15.1 caller always passes one); nullopt
-    /// leaves it off for the pre-2.15.1 servers that do not know it.
+    /// leaves it off for the pre-2.15.1 servers that do not know it. With the action goes
+    /// `shareLimitsMode=Default`, which Web API 2.15.3 made required (qBittorrent 5.3.0 reports
+    /// 2.16.2) and 5.2 (2.15.1) accepts and ignores.
     Reply<QByteArray> *torrentsSetShareLimits(
         const QStringList &hashes,
         double ratioLimit,
@@ -356,6 +358,8 @@ public:
         /// Sent as `stopped` (5.x). `paused` (the pre-5.0 name) is sent alongside it too;
         /// a 5.2.3 server ignores the unknown extra parameter.
         std::optional<bool> stopped;
+        /// Add without checking the files already on disk. Spelled by `apiVersion`: see
+        /// supportsSeedMode().
         std::optional<bool> skipChecking;
         std::optional<ContentLayout> contentLayout;
         std::optional<QString> rename;
@@ -375,6 +379,11 @@ public:
         /// qBittorrent's `stopCondition`: "MetadataReceived" stops the torrent as soon as its
         /// metadata is in (docs/29 D5), "FilesChecked" after the check. Unset leaves it off.
         std::optional<QString> stopCondition;
+        /// The server's app/webapiVersion ("2.16.2"). It only decides how `skipChecking` is
+        /// spelled: `seedMode` when supportsSeedMode(), `skip_checking` otherwise, and both
+        /// when it is empty or unreadable, since each server reads only its own key and
+        /// qBittorrent ignores a parameter it does not know (as with `stopped`/`paused`).
+        QString apiVersion;
     };
 
     /// What torrents/fetchMetadata answered: `ready` false is 202, the lookup still running
@@ -393,6 +402,10 @@ public:
     /// follows must go through this one client. A 404 is a server
     /// without the endpoint.
     Reply<FetchedMetadata> *torrentsFetchMetadata(const QString &source);
+    /// True when a server with this app/webapiVersion skips the add's check through
+    /// `seedMode`: Web API 2.16.0 (qBittorrent 5.3) added it and stopped reading
+    /// `skip_checking`, which every earlier version reads instead.
+    static bool supportsSeedMode(const QString &apiVersion);
 
     /// POST torrents/add with one or more magnet links or .torrent URLs (the server fetches
     /// them itself), newline-separated.

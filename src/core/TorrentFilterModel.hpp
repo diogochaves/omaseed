@@ -40,7 +40,15 @@
 // too. Letting go sorts once, like the bracket. An explicit change (sort role or order,
 // filter text, a rail scope) applies at once: the rows sort afresh and the hold starts again
 // from there.
+//
+// The text is matched by words (DECISIONS C22, #125, through SearchWords): a torrent shows
+// when every word of the query appears in its name, category or tags, folded the same way
+// (`.`, `_`, `-` and spaces are one space), or when the query is a prefix of its hash, as
+// typed. While a query is typed the rows are ranked before the sort role: the whole query as
+// a phrase in the name first, then its words in order, then in any order. A hash prefix
+// ranks with the phrases. Clearing the query brings the plain sort back.
 
+#include "core/SearchWords.hpp"
 #include "core/Torrent.hpp"
 
 #include <QCollator>
@@ -205,9 +213,15 @@ private:
     /// Source row `sourceRow`'s place in the name-then-hash order, built on first use after
     /// rows came, went or were renamed.
     int nameRank(int sourceRow) const;
+    /// Source row `sourceRow`'s SearchWords::Rank against the query, cached per row.
+    int matchRank(int sourceRow) const;
     /// -1, 0 or 1: `left` against `right`, two values of the sort role.
     int compareValues(const QVariant &left, const QVariant &right) const;
-    void dropNameRanks() { m_nameRanks.clear(); }
+    void dropNameRanks()
+    {
+        m_nameRanks.clear();
+        m_matchRanks.clear();
+    }
 
     StatusFilter m_statusFilter = All;
     std::optional<QString> m_category;
@@ -216,6 +230,8 @@ private:
     QPointer<TrackerModel> m_trackerModel;
     QSet<QString> m_trackerHashes; ///< the filtered host's torrents, from m_trackerModel
     QString m_text;
+    /// m_text, folded.
+    SearchWords::Query m_query;
     QString m_folder; ///< normalised; "" is any
     QStringList m_onlyHashes;
     QSet<QString> m_onlyHashSet;
@@ -224,6 +240,8 @@ private:
     QCollator m_collator;
     QList<double> m_heldKeys;       ///< the sort role by source row, in releaseSort()
     mutable QList<int> m_nameRanks; ///< by source row; empty until a tie-break needs it
+    /// By source row, -1 not yet known; used while a query is typed.
+    mutable QList<qint8> m_matchRanks;
     QList<QMetaObject::Connection> m_sourceConnections;
     QHash<QString, int> m_heldPlaces; ///< the held order: proxy row by hash, while holdOrder
     QSet<QString> m_heldLibrary;      ///< every torrent in the library when the hold began

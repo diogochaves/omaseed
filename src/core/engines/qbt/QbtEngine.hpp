@@ -128,6 +128,9 @@ private:
     Reply<AddResult> *added(Reply<QByteArray> *reply);
 
     QbtClient *m_client = nullptr;
+    /// app/webapiVersion from the last probe of this server, for the add's skip-checking
+    /// spelling (QbtClient::supportsSeedMode); empty until then, and both spellings go.
+    QString m_apiVersion;
 };
 
 } // namespace omaseed::core

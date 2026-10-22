@@ -23,6 +23,7 @@
 //
 // App owns no view state (cursor, selection, open sheets): that belongs to the QML side.
 
+#include "core/ActionOutcome.hpp"
 #include "core/AddFilesModel.hpp"
 #include "core/AltSpeed.hpp"
 #include "core/AutoBackup.hpp"
@@ -38,10 +39,13 @@
 #include "core/SecretStore.hpp"
 #include "core/SeedConsole.hpp"
 #include "core/SeedLedger.hpp"
+#include "core/SelectionHold.hpp"
 #include "core/Server.hpp"
 #include "core/ServerDetector.hpp"
 #include "core/ServerListModel.hpp"
 #include "core/ServerStore.hpp"
+#include "core/SkippedJobs.hpp"
+#include "core/SkippedOnDisk.hpp"
 #include "core/SyncEngine.hpp"
 #include "core/TagModel.hpp"
 #include "core/TorrentDetails.hpp"
@@ -696,6 +700,14 @@ public:
     bool deleteFilesDefault() const;
     void setDeleteFilesDefault(bool value);
 
+    /// DECISIONS C18 D6: how many times the selection bar has shown its mouse hint ("ctrl+click
+    /// add · shift+click range") after a plain click; it stops at 3. Kept in state.json's
+    /// `"hints"` section.
+    Q_PROPERTY(int selectionHintsShown READ selectionHintsShown WRITE setSelectionHintsShown NOTIFY
+                   selectionHintsShownChanged)
+    int selectionHintsShown() const;
+    void setSelectionHintsShown(int count);
+
     /// `p`/`P`: stop/start decided from the cursor torrent's own state (the first hash of
     /// `hashes`), applied to every hash in the selection; `forceStart` always starts with the
     /// force flag set.
@@ -783,6 +795,14 @@ public:
     /// `o`: the cursor torrent's `contentPath`, mapped through the server's `PathMap` and
     /// handed to `Xdg::showInFileManager`.
     Q_INVOKABLE void openFolder(const QString &hash);
+    /// docs/44 D13 (#121), "Show both folders": a stuck move's incomplete folder (its content
+    /// there) and the destination it never reached, each mapped and shown in the file manager.
+    Q_INVOKABLE void showBothFolders(const QString &hash);
+    /// docs/44 D13: what a stuck move left in its destination, read on this machine when
+    /// omaseed can see it (FreeSpaceProbe::localPathFor): "Partial copies are left in
+    /// /mnt/media/Downloads/Album: 699 files, 22 MB." or "No partial copies are left in the
+    /// destination."; "" when it can't see the destination (the block keeps "may be left").
+    Q_INVOKABLE QString stuckMoveCopies(const QString &hash) const;
     /// `browse` / `ctrl+o` in the location sheet and Save to's `browse` in the add sheet (#41):
     /// the portal's folder picker, starting at
     /// `startDir`. An empty result means the picker was cancelled or no portal answered; the
@@ -833,6 +853,7 @@ private:
 public:
 Q_SIGNALS:
     void deleteFilesDefaultChanged();
+    void selectionHintsShownChanged();
     /// A server action from this block came back with an error. MainView shows it in the
     /// footer facts for a few seconds.
     void actionFailed(const QString &action, const QString &message);
@@ -889,6 +910,7 @@ private:
                             const QStringList &hashes = {},
                             const QString &folder = {});
     void loadDeleteFilesDefault();
+    int m_selectionHintsShown = -1; ///< -1 until read from state.json
     /// What `p` (stopStart) does to `torrent`: start it when stopped, stop it otherwise. An
     /// errored torrent is stopped (DECISIONS C20, amending docs/28's "try again"), unless it
     /// already is: then `p` starts it, which is the retry. `torrentRow()`'s `stopped` field
@@ -1005,8 +1027,11 @@ public:
     /// this machine reads the server's disks (#29), as the library's renames (#64).
     Q_INVOKABLE void setAddFilesWhere(const QVariantMap &where);
 
-    /// What one line of "magnet / http(s) URL / .torrent path" is, as the sheet draws it:
+    /// What one line of "magnet / http(s) URL / .torrent path / info hash" is, as the sheet
+    /// draws it:
     ///   kind         "magnet" | "url" | "file" | "none"
+    ///   bareHash     a magnet that was typed as a bare info hash (#147); `value` is the
+    ///                magnet it stands for
     ///   valid        bool, false when nothing recognisable was in `text`
     ///   pending      bool, true while a .torrent is still being read and hashed
     ///   name         the parsed name, or a URL's last path segment
@@ -1813,6 +1838,9 @@ public:
     /// torrent's check "fetches", answered on a later turn of the event loop as a server's
     /// reply would be. An empty list takes a hash's away.
     Q_INVOKABLE void patchDemoFiles(const QVariantMap &files);
+    /// Demo mode only (the QML tests): the demo server's preferences with `values` set and
+    /// the keys in `removed` gone, as another qBittorrent version reports them.
+    Q_INVOKABLE void patchDemoPrefs(const QVariantMap &values, const QStringList &removed);
 
 Q_SIGNALS:
     void sharedFilesLoaded();
@@ -1841,13 +1869,26 @@ public:
     /// since. Not while a switch waits for the keychain: the window shows no loss for that.
     Q_PROPERTY(bool serverLost READ isServerLost NOTIFY serverStateChanged)
     /// D8, D9 (ErrorWords, D23): the current server's problem as `{headline, line, details,
-    /// kind, sentence}`, empty while it answers. It takes GlobalState's `lastError` and
-    /// `retryInSeconds` so a binding follows both: one retry figure for the window and the
-    /// desktop notice.
-    Q_INVOKABLE QVariantMap serverProblem(const QString &lastError, int retryInSeconds) const;
+    /// kind, sentence}`, empty while it answers. It takes GlobalState's `lastError`,
+    /// `retryInSeconds` and `silentSeconds` so a binding follows them: one retry figure for
+    /// the window and the desktop notice, and a timeout's silence (docs/44 W1).
+    Q_INVOKABLE QVariantMap serverProblem(const QString &lastError,
+                                          int retryInSeconds,
+                                          int silentSeconds = -1) const;
+    /// docs/44 D11: the server is lost on a timeout: there, but not answering (yellow), not
+    /// unreachable (red).
+    Q_PROPERTY(bool serverWaiting READ serverWaiting NOTIFY serverStateChanged)
+    bool serverWaiting() const;
     /// D23: what the read-only guard says when it stops `key`: "private is unreachable: p
     /// waits until it answers".
     Q_INVOKABLE QString guardNote(const QString &key) const;
+    /// docs/33 N5, docs/35 N7: a server sheet's failed test in ErrorWords' words, from what
+    /// `serverTested()` said (`error`, and `errorDetail`, the raw error under a refused
+    /// sign-in): `{headline, line, details, kind}`. `fields` are the sheet's (`url`, `name`,
+    /// `authMode`), for the address and the name.
+    Q_INVOKABLE QVariantMap serverTestProblem(const QVariantMap &fields,
+                                              const QString &error,
+                                              const QString &errorDetail) const;
     /// S1, the server palette: one row per server in Settings' order, the current one first
     /// with "on it now" and its live figures, the others with what was seen last (D5):
     /// `[{key: id, title, meta, detail, current, state}]`.
@@ -1873,6 +1914,11 @@ public:
     /// sentence is its `sentence`, and its "details" open the band with the rest.
     Q_PROPERTY(QVariantMap actionFailure READ actionFailure NOTIFY actionFailureChanged)
     QVariantMap actionFailure() const { return m_actionFailure; }
+    /// DECISIONS C18 D1–D3 (board 45 §2): what a quick action on torrents came to, for the
+    /// strip in the selection bar's place and the rows' marks. Every action on torrents from
+    /// the table says it there (D2), not in the footer.
+    Q_PROPERTY(omaseed::core::ActionOutcomes *outcomes READ outcomes CONSTANT)
+    omaseed::core::ActionOutcomes *outcomes() const { return m_outcomes; }
 
 Q_SIGNALS:
     void serverStateChanged();
@@ -1917,10 +1963,22 @@ private:
                               const QString &torrent = QString(),
                               const QString &folder = QString());
     QVariantMap m_actionFailure;
+    omaseed::core::ActionOutcomes *m_outcomes = new omaseed::core::ActionOutcomes(this);
+    /// C18 D2: the answer to a table action on `hashes`, for `Reply::then`. Once `calls`
+    /// answers are in (limits takes up to three requests), the strip says how it went, in
+    /// ErrorWords' words when one failed. The torrent's name is read now, while it is still
+    /// in the list (a delete).
+    std::function<void(const omaseed::core::Result<omaseed::core::Done> &)>
+    tableAnswer(const QString &action,
+                const QStringList &hashes,
+                const QString &target = QString(),
+                int calls = 1);
 
     bool m_serverRefused = false;
     /// What `serverLost` last said, so it notifies only when it moves.
     bool m_lostShown = false;
+    /// docs/44 D11: the latest failure while lost was a timeout; "answered again" after it.
+    bool m_lostWaiting = false;
     bool m_serversFolded = false;
     omaseed::core::ApiError m_serverError;
     QDateTime m_seenAt;
@@ -1993,6 +2051,89 @@ private:
     void updateMoveServer();
     MoveController *m_move = nullptr;
     // --- end #97 ------------------------------------------------------------------------------
+
+    // --- #118: skipped files that still take space --------------------------------------------
+    // Board 44 §2 (DECISIONS C17 D1–D4). The Files tab reads what the details torrent's skipped
+    // files hold on this machine's disk when it opens and after a priority change, never on a
+    // poll; "Free the space…" plans and runs the deletes, and a hybrid's leftovers (or a hybrid
+    // in libtorrent's torrent_inconsistent_hashes) are freed by adding it again. AppSkipped.cpp.
+public:
+    /// The details torrent's reading: `{hash, seen, held, heldText, holding, band, where,
+    /// fileSystem, partlyWritten, busy, step}`. `seen` false is D4 (a server whose disks this
+    /// machine can't see); `band` is D2; `busy` while a free or an add-again runs.
+    Q_PROPERTY(QVariantMap skippedOnDisk READ skippedOnDiskMap NOTIFY skippedOnDiskChanged)
+    QVariantMap skippedOnDiskMap() const;
+    /// The Files tab is the one on show: its skipped files are read now, and after every
+    /// priority change while it shows.
+    Q_INVOKABLE void setFilesTabActive(bool active);
+    /// Reads the details torrent's skipped files again (after a free, or on demand).
+    Q_INVOKABLE void refreshSkippedOnDisk();
+    /// F2's sheet: reads the files, pieces and open files now and answers with
+    /// `freeSkippedPlanned(plan)`: `{hash, name, folder, hybrid, running, freed, freedText,
+    /// deletes, recheck, leftWithPieces, leftText, kept, items: [{name, holdsText, verdict,
+    /// openBy}], more, error}`. `verdict` is "delete", "open", "pieces", "shared" or "outside".
+    Q_INVOKABLE void planFreeSkipped(const QString &hash);
+    /// D3: stop, delete, start (and a recheck on a v1-only or v2-only torrent whose files with
+    /// pieces went). Answers with `skippedSpaceFreed({hash, ok, error, deleted, freedText,
+    /// kept, rechecked})`.
+    Q_INVOKABLE void freeSkippedSpace(const QString &hash);
+    /// D3's "add it again": remove `hash` keeping its files, add it back stopped with the same
+    /// selection, names, category, tags and limits, start it if it was started. With
+    /// `freeLeftovers`, the files the last plan would delete and the hybrid's leftovers with
+    /// pieces go while it is away. Answers with `torrentAddedAgain({hash, ok, error, name,
+    /// deleted})`.
+    Q_INVOKABLE void addTorrentAgain(const QString &hash, bool freeLeftovers);
+
+Q_SIGNALS:
+    void skippedOnDiskChanged();
+    void freeSkippedPlanned(QVariantMap plan);
+    void skippedSpaceFreed(QVariantMap outcome);
+    void torrentAddedAgain(QVariantMap outcome);
+
+private:
+    void setUpSkipped();
+    /// What the free and the plan need about `torrent` on this machine.
+    core::FreeSkippedJob::Input freeInputFor(const core::Torrent &torrent) const;
+    core::SkippedOnDisk::LocalPathOf localPathOfFiles(const core::Torrent &torrent) const;
+    core::SkippedOnDisk *m_skipped = nullptr;
+    bool m_filesTabActive = false;
+    /// Read again once the next file list has come in (a priority change, a new torrent).
+    bool m_skippedAfterRefresh = false;
+    QString m_skippedStep; ///< the running free's or add-again's step, "" when none
+    core::FreePlan m_lastFreePlan;
+    QString m_lastFreePlanHash;
+    // --- end #118 -----------------------------------------------------------------------------
+
+    // --- #119: a big selection waits ----------------------------------------------------------
+    // Board 44 §3 (DECISIONS C17 D5–D7, which change N1): setFilePriority() holds back a change
+    // that wants more than 1 GiB, or the whole torrent, for 3 s with Undo and Send now; the
+    // rows change at once. Leaving the torrent, closing the pane or quitting sends it.
+public:
+    /// `{waiting, hash, files, bytesText, changed, deadlineMs, windowMs}`: `files` newly wanted
+    /// (their `bytesText`), `changed` every file the net change touches, `deadlineMs` when it
+    /// is sent (ms since the epoch).
+    Q_PROPERTY(QVariantMap heldSelection READ heldSelectionMap NOTIFY heldSelectionChanged)
+    QVariantMap heldSelectionMap() const;
+    /// `u`: the rows go back to what the server has, and nothing is sent.
+    Q_INVOKABLE void undoHeldSelection();
+    /// `enter`, and every way of leaving: the net change goes now.
+    Q_INVOKABLE void sendHeldSelection();
+    /// C17 D8: what `added` newly wanted bytes cost on torrent `hash`'s disk: `{fileSystem,
+    /// allocates, free, freeText, short, text}`; `short` when the driver allocates in full and
+    /// they don't fit. Empty where this machine can't read the disk.
+    QVariantMap tickRoom(const QString &hash, qint64 added) const;
+    /// The window's length; only the tests shorten it.
+    void setSelectionHoldWindow(int ms) { m_hold->setWindowMs(ms); }
+
+Q_SIGNALS:
+    void heldSelectionChanged();
+    /// Every torrents/filePrio as sent, after the hold (for the tests).
+    void filePrioritySent(QString hash, QList<int> ids, int priority);
+
+private:
+    void sendFilePriority(const QString &hash, const QList<int> &ids, int priority);
+    core::SelectionHold *m_hold = new core::SelectionHold(this);
+    // --- end #119 -----------------------------------------------------------------------------
 };
 
 } // namespace omaseed::app

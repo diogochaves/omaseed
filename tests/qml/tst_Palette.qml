@@ -951,6 +951,20 @@ TestCase {
         palette.close();
     }
 
+    // #91: the query field and the list are named by the title, or by `accessibleName` when
+    // the palette has no title (the jump palette).
+    function test_the_query_and_the_list_are_named() {
+        const palette = createTemporaryObject(paletteComponent, testCase);
+        const input = findChild(palette, "paletteInput");
+        palette.title = "sort by";
+        compare(input.Accessible.name, "sort by");
+        compare(palette.listView.Accessible.name, "sort by");
+        palette.title = "";
+        palette.accessibleName = "jump to a torrent";
+        compare(input.Accessible.name, "jump to a torrent");
+        compare(palette.listView.Accessible.name, "jump to a torrent");
+    }
+
     // #75: a screen reader's press on a row is its click: in a single select it runs that
     // row, once; in a multi-select it toggles it, once, and runs nothing.
     function test_the_accessible_press_on_a_row_is_the_click() {

@@ -75,6 +75,9 @@ Three static libraries and the executable. Each layer only depends on the ones a
 - `ErrorWords` is the one table of plain words for what went wrong: an `ApiError` and what it
   was about become a headline naming the server or torrent, a line on what happens next, and
   the technical text for "details" ([DECISIONS.md](DECISIONS.md) C12).
+- `ActionOutcome` words what a quick action on torrents came to ("3 stopped", "NAME didn't
+  move", "2 moved to PATH, 1 didn't"), and `ActionOutcomes` holds the one strip on show and
+  each row's mark, for the strip in the selection bar's place (C18 D1–D3).
 - Servers and settings: `Server`, `ServerStore` (`servers.json`), `SecretStore` (the keyring
   through qtkeychain, a 0600 file under `secrets/` when there is none), `StateFile`,
   `CertificatePin` (trust on first use).
@@ -84,6 +87,10 @@ Three static libraries and the executable. Each layer only depends on the ones a
   `LibraryMatch`,
   `FreeSpace` and `SharedData` (what the add and delete sheets know about files already on
   disk), `RenamePlan` and `RenameDisk` (what a rename would land on).
+- Skipped files and the disk ([DECISIONS.md](DECISIONS.md) C17): `SkippedOnDisk` (what a
+  torrent's skipped files hold on this machine's disk, and the plan to free it),
+  `FreeSkippedJob` and `AddAgainJob` (`SkippedJobs`: the free, and a hybrid added again), and
+  `SelectionHold` (a big widening of a selection waits 3 s before it is sent).
 - Moving a folder or a selection ([DECISIONS.md](DECISIONS.md) C15, C16: every move is a job):
   `FolderTree` (the library's save paths as the rail's folders), `MovePlan` (the preflight:
   targets by rule (a folder's structure, one folder, each its own for move back), room per

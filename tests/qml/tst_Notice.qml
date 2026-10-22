@@ -86,10 +86,29 @@ TestCase {
         verify(!notice.stacked);
         verify(findChild(notice, "noticeActionsBeside").visible);
         verify(!findChild(notice, "noticeActionsUnder").visible);
+        const actions = findChild(notice, "noticeActions");
+        const at = name => findChild(notice, name).mapToItem(notice, 0, 0);
+        compare(actions.x, at("noticeActionsBeside").x);
+        compare(actions.y, at("noticeActionsBeside").y);
         notice.width = Theme.space(560);
         verify(notice.stacked);
         verify(findChild(notice, "noticeActionsUnder").visible);
         verify(!findChild(notice, "noticeActionsBeside").visible);
+        tryCompare(actions, "x", at("noticeActionsUnder").x);
+        tryCompare(actions, "y", at("noticeActionsUnder").y);
+        // #91: a screen reader reads the band's children in declaration order: the headline
+        // and its line (inside the content column) before the actions.
+        verify(actions.parent === notice);
+        const children = notice.children;
+        let content = -1;
+        let links = -1;
+        for (let i = 0; i < children.length; ++i) {
+            if (children[i] === findChild(notice, "noticeLine").parent)
+                content = i;
+            if (children[i] === actions)
+                links = i;
+        }
+        verify(content >= 0 && content < links, "the actions come before the line");
     }
 
     function test_height_holds_while_the_countdown_counts_and_the_kind_changes() {
@@ -207,6 +226,20 @@ TestCase {
         // Rows alone unfold too, without the text and its copy.
         notice.details = "";
         verify(findChild(notice, "noticeDetails").visible);
+        verify(!findChild(notice, "noticeCopy").visible);
+    }
+
+    // Board 44 F1: "Why?" unfolds a short note, which has nothing to copy.
+    function test_a_note_takes_its_own_link_and_no_copy() {
+        const notice = createTemporaryObject(noticeComponent, testCase, {
+                                                 "copyable": false,
+                                                 "detailsLabel": "Why?"
+                                             });
+        const toggle = findChild(notice, "noticeDetailsToggle");
+        verify(toggle.text.startsWith("Why?"));
+        compare(toggle.Accessible.name, "Why?");
+        notice.toggleDetails();
+        verify(findChild(notice, "noticeDetailsText").visible);
         verify(!findChild(notice, "noticeCopy").visible);
     }
 

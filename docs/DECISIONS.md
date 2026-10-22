@@ -119,7 +119,9 @@ own) are #56, ruled as C3.
   destination), open folder, rename in Files (the cursor on that file), copy the line, dismiss.
 - **D2** After a move, a rename or a delete with files that omaseed asked for, the log is read
   on every poll for 30 s; a failure shows at once in the footer's note line, yellow, one note
-  per action ("3 of 12 didn't move"), then stays as the block.
+  per action ("3 of 12 didn't move"), then stays as the block. *Changed by C18 D1 (v0.4.0):
+  a move's failure is said in the outcome strip, not the footer; a rename's or a delete's
+  files still get this note.*
 - **D3** The block stays until it is fixed (the save path changes; the file is no longer among
   the torrent's files), dismissed with `x`, or qBittorrent restarts (its log is in memory).
 - **D4** Dismissals are kept in `state.json` (`"failures"`), per server, as line keys (id,
@@ -129,7 +131,8 @@ own) are #56, ruled as C3.
   own words and when, or "no errors logged" (never "working"). No block, no notice.
 - **D6** An export failure is a note under "Copy .torrent files to" in Settings › qBittorrent ›
   Downloads, while either export folder is the one the copy tried.
-- **D7** The table does not change.
+- **D7** The table does not change. *Changed by C18 D1 (v0.4.0): a torrent whose move
+  failed reads "✕ didn't move" in its status cell while its block stands.*
 - **D8** None of them is a desktop notice.
 
 The log is read every 15 s while the window shows (failures nobody watched, such as a category
@@ -580,6 +583,9 @@ more a way to the others is always on screen; with one, nothing offers to switch
   until the next key, with "details" opening the band above the footer. The next key (`esc`
   included) closes it and clears the sentence — *confirmed 2026-10-22 (C20)* (the board names esc, a
   click outside and "details" again).
+  *Changed by C18 D2 (v0.4.0): an action on torrents from the table says it in the outcome
+  strip, its "details" opening the same band above the strip. Other actions (the details
+  tabs, settings, an add) keep this sentence.*
 - **The add sheet (#72, D13 a–D15 a, D20 a):** with two servers its title is "Add torrent to" and
   a chip (the server's dot, its name, ▾) that opens the palette, as `ctrl+s` does; the foot never
   says "server: NAME" (one server: "Add torrent", nothing). A switch from the sheet keeps it open
@@ -591,8 +597,12 @@ more a way to the others is always on screen; with one, nothing offers to switch
   unknown, and `add when back` holds the add (as stopped or not) and sends it, built from the
   fields as they are then, when the server answers or the app is on another one that does. A
   refused add is the red band in ErrorWords' words.
-- **Not built:** the server sheet's failed test as a notice (board 33's N5) keeps today's line;
-  it is first run's and Settings' wording, not a state this board changed.
+- **The server sheet's failed test (board 33's N5, #126):** docs/35 N7's band under the sheet's
+  head, edge to edge, red, or yellow for a timeout (C17 D11), in `ErrorWords::forTest`'s words
+  ("Nothing answered at 127.0.0.1:8095" / "Check the address and port, and that qBittorrent's
+  Web UI is on (Tools › Options › Web UI)."), with no actions of its own ("test" and "save
+  anyway" stay the sheet's buttons, C10) and the technical text under "details" with copy. The
+  line under the fields now says only "testing…" and a pass. First run keeps its own line.
 
 ## C13 — The tray and the widget share one menu, and one setting (board 33 §11, ruled 2026-10-16)
 
@@ -806,12 +816,14 @@ D2's 30 s watch stays for renames and deletes.
   ROOT is their deepest common folder).
 - **The band (L6):** it appears once a move has run 3 s; a move that lands sooner shows none.
 - **A quick move (L7):** the footer's note line (D2's) says it landed, "2 moved to …", for
-  6 s; no band, no notice.
+  6 s; no band, no notice. *Changed by C18 D1 (v0.4.0): the outcome strip says it, and the
+  row's status cell.*
 - **The notice (L8):** for a selection, one desktop notice only when the band showed and the
   move ran past a minute or the window was hidden at the end. A folder move keeps M16 (always
   one).
 - **Failures (L9):** the log is read for every move's whole life (M15); a failure gets C2 D1's
-  block and the summary's recheck smallest first / retry.
+  block and the summary's recheck smallest first / retry. *Changed by C18 D1 (v0.4.0): a
+  quick move's failure is the red strip, no longer the footer's note.*
 - **Live bytes (L10):** for a torrent moving, MoveJob's growth probe reads the target's file
   sizes every 2 s through the path map and feeds the band's bytes, %, time left and the row;
   without a local view the band says it can't tell.
@@ -860,9 +872,28 @@ shows that space and frees it where it can see the disk.
   torrent uses while downloading and adds a move step (#117).
 - **Stuck move (D13):** a finished torrent whose `content_path` is still under its
   `download_path` gets a red problem with the log's reason, Show both folders and Set
-  location…. #121.
+  location…. #121. Built: `ProblemMatch::isStuckMove` (progress 1, not moving, a download path
+  other than the save path, the content under it and not under the save path) and
+  `describeStuckMove`; `ProblemLog` publishes it as the torrent's `problem` (an error, when
+  there is one, wins), reads the log once when one turns up, and drops that move's yellow
+  failure. The row's status cell reads "move failed" with ✕ in the error colour
+  (`TorrentModel::StuckMoveRole`). The partial copies are named (`PartialCopies`, "N files,
+  SIZE") where `FreeSpaceProbe::localPathFor` sees the destination, "No partial copies are
+  left" when there are none, otherwise "may be left". *Not as the board drew it:* "Set
+  location…" opens board 43's sheet as for any move, not aimed at the destination it never
+  reached: qBittorrent ignores a move to the save path it already has, and a recheck is what
+  moves it once room is made (`scripts/dev/research/121-stuck-move`). Whether the block should
+  offer that recheck is #158.
 - **Words (D11):** a timeout reads "home isn't answering" (yellow, waiting); refused or no route
-  "home is unreachable" (red). #122.
+  "home is unreachable" (red). #122. Built: `ErrorWords` gives a timeout the kind `waiting`
+  (W1's line, the seconds since the server last replied, `GlobalState::silentSeconds`, and
+  "waiting · N s" where the countdown would be) and every other connection failure
+  `unreachable`, red, still retried. This replaces C12's yellow for "didn't answer" and "can't
+  be found": a name that doesn't resolve is red too (*assumed*: nothing is there, as for a
+  refusal). The hero, the rail (a current server that times out reads "waiting"), the server
+  palette, the add sheet, the read-only guard and the desktop notices follow ("home answered
+  again" after a timeout); the bar widget's status and menu keep their contract ("down"), with
+  "not answering" or "unreachable" as the menu's reason.
 - **Busy disk (D12):** later, its own issue: say "busy writing to its disk" only when the local
   disk's activity shows it. #123.
 
@@ -904,6 +935,39 @@ closing a move's summary lost "move back". #130.
     where the move put it, so it stays and is listed. v0.3.0.
 - **How long (D8):** the last 20 moves or 30 days, whichever ends first. v0.3.0.
 - **When (D9):** D5, D7 and D8 with v0.3.0; D1–D4 and D6 in v0.4.0.
+
+**Built for v0.4.0 (D1–D4 and D6, #130).** `core/ActionOutcome` words the strip and holds the
+rows' marks; `App.outcomes` is it, and every table action reports there once its answer is in
+(one strip for an action of several requests, such as limits). What the board left open,
+taken as its mocks show:
+
+- **The words.** "NAME stopped", "3 stopped", "NAME didn't move", "2 moved to PATH, 1 didn't";
+  the line is ErrorWords' headline for a refusal, the log's reason for a move; "details" (when
+  there is technical text) opens docs/35's band above the strip. A done strip offers "show"
+  (the cursor on the one torrent, or the several selected; a move that took them out of the
+  rail's folder switches the folder to their new place); a failed move offers "move…" again.
+- **The row's mark** is "✓ moved · FOLDER" (the folder's last part), "✓ stopped" and so on in
+  green for 6 s, "✕ didn't …" in red while the strip lasts; a move the log says failed keeps
+  "✕ didn't move" while its error block stands (board 45 O2; this amends C2 D7).
+- **Its time.** The pointer resting on a done strip holds its 6 s, as the seed toast's; esc
+  closes the strip before it clears a selection. The seed toast waits while the strip shows.
+- **Which actions:** start, stop, retry, force start, recheck, reannounce, category, tags,
+  limits, rename, queue, delete, the four options (sequential, first and last, super seeding,
+  automatic management) and quick moves. The details tabs' own actions (trackers, peers, HTTP
+  sources, files) keep the footer, as does a failure the log tells only after the answer (a
+  delete's files, C2 D2).
+- **D4:** the band and summary of a move that ran past 3 s were already under the top bar
+  (C15 M10); nothing moved.
+- **D6, the row's start.** The board's mocks drew a first column the table didn't have: the
+  rows now start with a 16 u space before the first column, empty but for □ on the row under
+  the pointer and ■ on selected rows. A click on □ adds or removes that row; shift+click on it
+  adds the range from the anchor and keeps the rest, since the □ never takes a row away from
+  others; two quick clicks on it are two ticks. The cursor's ▸ of the mocks is not drawn (the
+  cursor has its band). The `?` sheet's block, "select with the mouse", follows the select
+  keys. The hint, "ctrl+click add · shift+click range", is dim at caption size rather than
+  faint (Q19 keeps faint for what is disabled); it shows when a plain click opens the bar,
+  the first 3 times (state.json's `hints.selectionMouse`), goes with the bar, and is the
+  first thing the bar drops when narrow.
 
 ## C19 — From the second manual pass of the moves (ruled 2026-10-21)
 
@@ -954,6 +1018,157 @@ hybrid out. Each is listed as "not rechecked" with one line saying why, and offe
 again" (to the move's target) and "move back", which bring its files together; the others are
 rechecked as before. A torrent is hybrid when qBittorrent gives it both a v1 and a v2 hash.
 v0.3.1. #144.
+
+## C22 — Search matches words, not one string (#125, ruled 2026-10-22)
+
+Release names put dots, underscores or dashes between their words; people type spaces. The
+library's search, and the details pane's Files filter, fold both sides the same way before
+they meet: case aside, every run of `.`, `_`, `-` and spaces is one space.
+
+- **Every word, any order.** A torrent matches when each word of the query appears in its name,
+  category or tags (`bunny 1080p` finds `Big.Buck.Bunny.2008.1080p`). A word is a substring, so
+  `1080` still finds `1080p`.
+- **Ranked while typed.** The matches list the whole query as one phrase in the name first, then
+  its words in the query's order, then any order; rows of one rank keep the table's sort among
+  them. Clearing the field brings the table's own sort back. A row found only through its
+  category or a tag ranks last.
+- **A hash prefix stays exact:** the query as typed, no fold, ranked with the phrases.
+- **Files filter:** a plain word folds the same way and its parts must all appear in the path;
+  `|` alternatives and `*` words stay as N1 has them, a `*` word matched on the path as it is.
+  The Files tab keeps its own order: no ranking there.
+
+The add sheet's library match (docs/25) compares files, not typed words, so it has no fold.
+`core/SearchWords` is the one implementation.
+
+## C23 — Three move fixes before the post (v0.3.3, ruled 2026-10-22)
+
+From Diogo's own moves on qBittorrent 5.3, each issue's recommended option. They ship in a
+patch, v0.3.3, cut from v0.3.2 on `release/0.3`, so the version people install for the post
+about moves has none of these bugs; main keeps them for v0.4.0.
+
+- **One torrent's progress (#162 a):** qBittorrent makes a torrent's file at its new place at
+  full length before it copies (`scripts/dev/research/162-preallocated-move`), so a first
+  reading of the destination already at the torrent's size measures nothing: the band says
+  board 43 B2's "moving for … · qBittorrent doesn't report a single move's progress" until it
+  lands. *Amends C16 L10.*
+- **Added during the move (#164 a):** the summary counts only torrents qBittorrent added after
+  the job started (`added_on`), for every kind of move. A torrent's or a selection's root is a
+  save path other torrents share.
+- **What is in the way (#161 a):** the Move sheet's "left out" line says what is at the
+  destination and whose it is: "(an empty file no torrent owns)", "(a file of SIZE that NAME
+  owns)"; on a server omaseed can't see, only whose. *Adds to C15 M8.* Offering to replace an
+  empty file no torrent owns (#161 b) waits for its own ruling.
+
+## C24 — The whole app on v0.3 (board 46, ruled 2026-10-22)
+
+Board [46](46-the-whole-app-on-v03.html) H1–H18, all as recommended. Board 41's thesis (the
+window answers the five questions people bring to a torrent client, in words before numbers,
+inside one fixed frame) and its five laws, law 2 as tightened in 46 §2 for v0.3's bands, drawn
+over what v0.3 shipped. Triage the same day (#152) ruled one style, several displays for the
+list (rows, table, overview), two skins (Omarchy and the console) and building board by board.
+Boards 39 (D1–D8) and 40 (F1–F10) close as stashed ideas: 46 §9 lists what survives. v0.5.0.
+
+**This entry supersedes** v2's status group and hero buttons, S1's keys 0–8 (H2), C15 M1's scope
+line (H5), docs/12's tab names and docs/28's and C18 D7's "in General" (H6), docs/17's floating
+selection bar and C18 D1's place (H8), v2's footer hints and C11 D4's footer line (H10), Q1 and
+ARCHITECTURE rule 4's default (H13), docs/35 N1, C12's "the window's width", C15 M10's and C18
+D4's "under the top bar" (H14), and C12 D2–D4's hero ▾ (H15). Their looks and words stay where
+the call says so.
+
+- **The rail (H2):** the five questions (needs you, arriving, landed today, giving back,
+  resting) under the views (library, seed, log, search); keys 1–5. Every state stays in the
+  filter (`is:stalled`) and the palette.
+- **The library (H3–H4):** grouped under the questions in the rows display; the table stays one
+  sorted list. Rows is the default for new installs; an existing install keeps the table until
+  it picks another. The display is remembered per scope, folders included.
+- **A folder picked (H5):** the title becomes the folder, its sentence takes the scope line's
+  facts, "move this folder…" is a title-bar button; shift+m, the row's menu and `:` keep it.
+- **Details (H6):** 41's story: one fact, a sentence, then story · files · swarm · trackers ·
+  facts. The error block and the last move open the story; C17's on-disk column and band sit in
+  files. N1 unchanged.
+- **The add sheet (H7):** today's sheet in the new skins. 39's additions (type bar, guessed
+  category, ready time, program check) wait for the add sheet's own board.
+- **Acting on a selection (H8):** the status line becomes the action bar; C18's outcome strip
+  floats bottom middle of the rows, just above the bar while a selection is on. C18 D2–D3
+  unchanged; D6's first-times hint moves to the bar.
+- **Menus (H9):** right-click and enter: verbs grouped, keys right, delete last. The omaseed mark
+  (ctrl+.) opens C13's rows in the same order, plus a block for the window (seed console, log,
+  commands, help, hide). C13 gains the window as a third place.
+- **Keys (H10):** taught on demand (menus, tooltips, the palette, `?`), badges while alt is held.
+- **Skins (H11–H12):** Settings › Appearance › skin: Omarchy (the default), Console, Follow the
+  desktop (the console when omarchy-console's skin is on). Clean glow only. How the console skin
+  is built is decided at its build step.
+- **The ground (H13, #113):** opaque by default in both skins; super+backspace works as for any
+  app; Appearance keeps "translucent" (the launcher's alpha).
+- **Bands (H14):** a server's notice, a job, a creation: under the title, across the content
+  only, the rail beside them usable, stacked when there are two.
+- **Servers (H15):** the rail's foot (C12's block) and the status line, whose server name opens
+  the palette (ctrl+s); one server is named, with no ▾.
+- **Search (H16, #145):** a rail view after log (ctrl+f), results in the rows display, add… into
+  today's add sheet; plugins in Settings › qBittorrent; also `:` and the add sheet's empty
+  state. Board 48.
+- **Create a torrent (H17, #146):** "+ add ▾" gets "create a torrent from a folder…" (ctrl+n),
+  also `:` and a folder row's menu; while it hashes, the move's band. Board 49.
+- **Build order (H18):** frame (rail, title, status line, bands, ground) → library (questions,
+  displays) → details → sheets and menus (move, add, the app menu, the action bar) → the console
+  skin. Boards 47, 48 and 49 are drawn in this frame meanwhile.
+
+## C25 — Engines in the window, v2 (board 47, ruled 2026-10-22)
+
+Board [47](47-engines-in-the-window-v2.html) K1–K34, all as recommended. It replaces board 37
+(#83) inside board 46's frame (C24), with what each engine can do per feature from the engines
+matrix (#153). It builds on C14 (board 36), which lives on the `engines` branch until that work
+lands; this entry reaches `engines` with the next merge of main. K1–K13 and K29–K32 replace 37's
+W1–W16. Built in E3–E6 (#84–#87).
+
+**This entry changes** Q26 (K2), docs/14's welcome and step 1 (K3), C10's "save anyway" for
+refused versions (K8), C12's server line (K11), N1's priorities (K17), C4 on Deluge (K20), C16
+L10 for Deluge (K21), C12's "didn't answer" on Transmission during a move if verified (K22),
+C16 L13 in part and C21's reach (K23), docs/28's and C2 D1's log line, C20's retry first and
+C17 D13 on Transmission and Deluge (K24), C5 D11 for Transmission (K26), and M16's note (K30).
+
+- **Finding a server (K1–K3):** first run probes ports 8080, 9091 and 8112 and the engines'
+  processes and config files, no HTTP until a row is picked; one row per engine found
+  (qBittorrent, Transmission, Deluge), Q26 within one engine; the welcome names the engines this
+  build drives, step 1 asks "Which server should omaseed talk to?", install stays
+  qbittorrent-nox.
+- **Adding a server (K4–K10):** the engine is recognised on test (chips: recognise ·
+  qBittorrent · Transmission · Deluge); the address picks which engine is tried first (9091 or
+  `/transmission` → Transmission, 8112 or `/json` → Deluge, else qBittorrent); one URL field takes
+  Transmission's web UI or RPC address, a proxy's path included; sign-in chips follow the engine
+  (Deluge one password); a refused version says why, in red, with no "save anyway", an
+  unrecognised answer keeps it; an engine not driven yet is named and refused, keeping what was
+  typed; Deluge gets a daemon step when deluge-web knows several or none, stored with the server.
+- **Naming the engine (K11–K12):** "NAME · ENGINE VERSION" in the status line's server lane, C12's
+  state words in its place while the server is down; also the rail tooltip, ctrl+s, Settings ›
+  Servers, the server sheet and the app menu's head; the rail block, tray and widget keep names.
+- **Groups (K13–K16):** each section keeps its place, glyphs and keys under the engine's word
+  (Transmission's labels where tags are, Deluge's where categories are); Transmission: "new
+  label…" only while applying, commas refused; Deluge: lower case shown before apply, Label
+  plugin off removes the section with one line in Settings; Transmission's bandwidth groups left
+  out.
+- **Priorities and limits (K17–K20):** each engine's own priority words; the limits sheet shows
+  only what the engine keeps (Transmission ratio and idle; Deluge ratio, then stop or remove);
+  qBittorrent 5.3's share-limits mode hidden, sent as Default; no turtle on Deluge.
+- **Moves (K21–K23):** Deluge's own %; Transmission counts landed torrents, uses the growth probe
+  where it sees the disks, otherwise says it doesn't report how far; if verified, "busy moving,
+  answers when done" on Transmission; the Move sheet runs each engine's checks (room on the
+  server for all three, Transmission can't list the destination, said once); C21's hybrid line
+  only on libtorrent engines.
+- **Errors (K24):** docs/28's block in the engine's own words, copyable, no log link;
+  Transmission's errored torrent reads stopped and offers "start it here"; Deluge's failed move
+  offers recheck first; #121's case is this block on both.
+- **Adding torrents (K25–K28):** a v2-only hash refused on Transmission and Deluge; a magnet's
+  files before the add as C5 on Deluge, a dim line on Transmission; add options per engine,
+  absent when not possible; renaming on Transmission says it renames the folder on disk.
+- **Details and what goes (K29–K30):** tabs keep their places; a part filled in part says the
+  rest in one dim line; unreported facts are left out, impossible actions absent; what an engine
+  lacks is gone from rail, menus, palette and `?`, and its key says so once in the status line.
+- **Settings (K31–K33):** a group per engine (TRANSMISSION, DELUGE) with C11's server select and a
+  Basics page (port and test, global limits, turtle where there is one, default save path, DHT;
+  Deluge adds Plugins), present while a server of that engine is saved; backups and settings
+  export stay qBittorrent's, its Backup scope line naming servers that have none (#88 later).
+- **Seed console on Deluge (K34):** all time counts from when omaseed began watching, said once.
 
 ## M8 — A click leaves the keyboard focus where it was
 

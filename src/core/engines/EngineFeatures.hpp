@@ -44,6 +44,9 @@ struct EngineFeatures
     bool qbtSettings = false;
     bool torrentsBackup = false;
     bool rss = false;
+    /// Remove a torrent keeping its files and add its own .torrent back with its settings
+    /// (engines/qbt/AddAgainJob; C17 D3): what clears a hybrid's libtorrent error.
+    bool addAgain = false;
 
     bool shareLimitAction() const { return !shareLimitActions.isEmpty(); }
 

@@ -19,6 +19,7 @@
 #include <QTest>
 #include <QTimer>
 #include <QUrl>
+#include <QVersionNumber>
 
 using omaseed::core::ApiError;
 using omaseed::core::QbtClient;
@@ -109,7 +110,9 @@ void TestQbtClientLive::bearerAgainstStrictServer()
 
     const Result<QString> api = await(this, client.webApiVersion());
     QVERIFY2(!api.isError(), qPrintable(api.error().toString()));
-    QVERIFY2(api.value().startsWith(QStringLiteral("2.15.")), qPrintable(api.value()));
+    // 2.15 is qBittorrent 5.2, 2.16 is 5.3: anything from 2.15 on is the API this targets.
+    QVERIFY2(QVersionNumber::fromString(api.value()) >= QVersionNumber(2, 15),
+             qPrintable(api.value()));
 
     QCOMPARE(client.authState(), QbtClient::AuthState::Ok);
 }

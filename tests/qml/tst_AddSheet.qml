@@ -286,6 +286,96 @@ TestCase {
         compare(sheet.addable, null);
     }
 
+    // ---- a bare info hash (#147) -------------------------------------------------------
+
+    /// A v1 and a v2 hash nobody in the demo library has (nor `freshMagnet`).
+    readonly property string freshHash: "1f3e5d7c9b0a2f4e6d8c0b1a3f5e7d9c2b4a6f8e"
+    readonly property string freshHashV2: "2e4c6a8f0d1b3e5c7a9f2d4b6e8c0a1f3d5b7e9c4a6f8d0b2e1c3a5f7d9b0e2c"
+
+    function test_a_clipboard_hash_is_not_offered_but_a_paste_takes_it() {
+        const sheet = createTemporaryObject(addSheetComponent, testCase);
+        // A commit id copied for something else looks the same: opening never offers one.
+        sheet.clipboardAddable = testCase.freshHash.toUpperCase();
+        sheet.openBlank();
+        compare(sheet.sourceField.text, "");
+        compare(sheet.addable, null);
+
+        // Pasted into the field (it arrives whole), the same text is taken.
+        sheet.sourceField.text = testCase.freshHash.toUpperCase();
+        verify(sheet.addable !== null);
+        compare(sheet.addable.kind, "magnet");
+        compare(sheet.addable.bareHash, true);
+        compare(sheet.addable.value, "magnet:?xt=urn:btih:" + testCase.freshHash);
+        compare(sheet.request(false).value, "magnet:?xt=urn:btih:" + testCase.freshHash);
+        // The head names it as one: that is what tells it from a magnet.
+        compare(sheet.sourceText, "from an info hash");
+        compare(sheet.subtitle, testCase.freshHash + " · from an info hash");
+    }
+
+    function test_a_pasted_v2_hash_is_added_as_its_magnet() {
+        const sheet = createTemporaryObject(addSheetComponent, testCase);
+        sheet.open();
+        sheet.sourceField.text = testCase.freshHashV2;
+        compare(sheet.addable.value, "magnet:?xt=urn:btmh:1220" + testCase.freshHashV2);
+        compare(sheet.addable.infoHashV2, testCase.freshHashV2);
+        compare(sheet.sourceText, "from an info hash");
+    }
+
+    function test_a_clipboard_sentence_with_a_hash_is_not_offered() {
+        const sheet = createTemporaryObject(addSheetComponent, testCase);
+        sheet.clipboardAddable = "fixed in " + testCase.freshHash;
+        sheet.openBlank();
+        compare(sheet.sourceField.text, "");
+        compare(sheet.addable, null);
+    }
+
+    function test_hashes_and_magnets_pasted_together_are_a_batch() {
+        const pasted = createTemporaryObject(addSheetComponent, testCase);
+        pasted.open();
+        pasted.sourceField.text = testCase.freshHash + " " + testCase.freshMagnet;
+        compare(pasted.batchMode, true);
+        compare(pasted.batchCount, 2);
+        compare(pasted.batch[0].map.bareHash, true);
+
+        // Dropped (or handed over) one per line.
+        const sheet = createTemporaryObject(addSheetComponent, testCase);
+        sheet.openList(App.splitAddables(testCase.freshHash + "\n" + testCase.freshMagnet + "\n"
+                                         + testCase.freshHashV2), "drop");
+        compare(sheet.batchMode, true);
+        compare(sheet.batchCount, 3);
+        compare(sheet.batch[0].map.bareHash, true);
+        compare(sheet.batch[1].map.bareHash, false);
+        compare(sheet.batch[2].map.value, "magnet:?xt=urn:btmh:1220" + testCase.freshHashV2);
+    }
+
+    function test_a_bare_hash_on_a_server_without_dht_says_so() {
+        const sheet = createTemporaryObject(addSheetComponent, testCase);
+        const line = findChild(sheet, "addNoDhtLine");
+        compare(App.serverPrefs.values.dht, true);
+        sheet.open();
+        sheet.sourceField.text = testCase.freshHash;
+        verify(sheet.addable.bareHash);
+        verify(!line.visible);
+
+        App.serverPrefs.apply({
+            "dht": false
+        });
+        try {
+            verify(line.visible);
+            verify(line.text.indexOf("DHT is off") === 0, line.text);
+            // A magnet has its own trackers to say where its peers are.
+            sheet.loadText(testCase.freshMagnet, "");
+            verify(!line.visible);
+            sheet.loadText(testCase.freshHash, "");
+            verify(line.visible);
+        } finally {
+            App.serverPrefs.apply({
+                "dht": true
+            });
+        }
+        verify(!line.visible);
+    }
+
     // ---- the rows -------------------------------------------------------------------------
 
     function test_the_category_chips_are_the_servers_categories() {

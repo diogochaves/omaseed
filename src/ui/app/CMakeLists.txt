@@ -7,6 +7,7 @@ qt_add_library(omaseed-app STATIC
     AppMove.cpp
     AppServers.cpp
     AppSharedData.cpp
+    AppSkipped.cpp
     AppTorrentsBackup.cpp
     DemoData.cpp
     DemoData.hpp

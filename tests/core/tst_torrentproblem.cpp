@@ -68,6 +68,8 @@ private slots:
     void wordsAMissingFilesLine();
     void unknownMessagesKeepQbittorrentsWords();
     void notLoggedSaysSo();
+    void aStuckMoveIsFinishedAndStillInTheIncompleteFolder();
+    void aStuckMoveSaysWhereAndWhy();
 };
 
 void TestTorrentProblem::parsesAFileError()
@@ -392,6 +394,100 @@ void TestTorrentProblem::notLoggedSaysSo()
     QCOMPARE(problem.headline, QStringLiteral("qBittorrent didn't log a reason"));
     QCOMPARE(problem.cause, QStringLiteral("error"));
     QCOMPARE(ProblemMatch::notLogged(true).cause, QStringLiteral("missing files"));
+}
+
+namespace {
+
+/// #117's half-move: finished into /mnt/media/Downloads, which was full; still under
+/// /mnt/fast/incomplete, seeding.
+Torrent stuckTorrent()
+{
+    Torrent t;
+    t.hash = QStringLiteral("5e1d0c0000000000000000000000000000000000");
+    t.infohashV1 = t.hash;
+    t.name = QStringLiteral("Field Recordings Vol. 3");
+    t.progress = 1.0;
+    t.status = {omaseed::core::TorrentPhase::Seeding,
+                omaseed::core::TorrentFlag::Stalled,
+                QStringLiteral("stalledUP")};
+    t.savePath = QStringLiteral("/mnt/media/Downloads");
+    t.downloadPath = QStringLiteral("/mnt/fast/incomplete");
+    t.contentPath = QStringLiteral("/mnt/fast/incomplete/Field Recordings Vol. 3");
+    return t;
+}
+
+} // namespace
+
+// docs/44 D13 (DECISIONS C17): progress 1, not moving, a download path, the content under it.
+void TestTorrentProblem::aStuckMoveIsFinishedAndStillInTheIncompleteFolder()
+{
+    Torrent t = stuckTorrent();
+    QVERIFY(ProblemMatch::isStuckMove(t));
+
+    Torrent moved = t;
+    moved.contentPath = QStringLiteral("/mnt/media/Downloads/Field Recordings Vol. 3");
+    QVERIFY(!ProblemMatch::isStuckMove(moved));
+
+    Torrent downloading = t;
+    downloading.progress = 0.5;
+    QVERIFY(!ProblemMatch::isStuckMove(downloading));
+
+    Torrent moving = t;
+    moving.status.phase = omaseed::core::TorrentPhase::Moving;
+    QVERIFY(!ProblemMatch::isStuckMove(moving));
+
+    Torrent noIncomplete = t;
+    noIncomplete.downloadPath.clear();
+    QVERIFY(!ProblemMatch::isStuckMove(noIncomplete));
+
+    // The incomplete folder is its save folder: nowhere to go.
+    Torrent same = t;
+    same.savePath = t.downloadPath;
+    QVERIFY(!ProblemMatch::isStuckMove(same));
+
+    // A save folder under the incomplete one: the content under both has arrived.
+    Torrent nested = t;
+    nested.savePath = QStringLiteral("/mnt/fast/incomplete");
+    nested.downloadPath = QStringLiteral("/mnt/fast");
+    QVERIFY(!ProblemMatch::isStuckMove(nested));
+}
+
+void TestTorrentProblem::aStuckMoveSaysWhereAndWhy()
+{
+    // As qBittorrent 5.2.4 logs it (scripts/dev/stuck-walk.sh): the source is the incomplete
+    // folder, and libtorrent's reason names a source file, not the full destination (#117).
+    const ProblemLine line = ProblemLine::parse(QStringLiteral(
+        "Failed to move torrent. Torrent: \"Field Recordings Vol. 3\". Source: "
+        "\"/mnt/fast/incomplete\". Destination: \"/mnt/media/Downloads\". Reason: \"5e1d0c storage "
+        "move failed. file_truncate (/mnt/fast/incomplete/Field Recordings Vol. 3/01.flac): No "
+        "space left on device\""));
+    QCOMPARE(line.kind, ProblemLine::Kind::MoveFailed);
+
+    const TorrentProblem problem = ProblemMatch::describeStuckMove(stuckTorrent(), &line);
+    QVERIFY(problem.found);
+    QVERIFY(problem.stuckMove);
+    QCOMPARE(problem.causeKey, QStringLiteral("stuckMove"));
+    QCOMPARE(problem.cause, QStringLiteral("move failed"));
+    QCOMPARE(problem.headline,
+             QStringLiteral("Finished, but its files never reached /mnt/media/Downloads"));
+    QCOMPARE(problem.detail,
+             QStringLiteral("qBittorrent couldn't move them: No space left on device. It's "
+                            "seeding from /mnt/fast/incomplete."));
+    QVERIFY(problem.folder.isEmpty());
+    QCOMPARE(problem.advice, QStringLiteral("Partial copies may be left in the destination."));
+    QCOMPARE(problem.actions,
+             QStringList({QStringLiteral("bothFolders"), QStringLiteral("location")}));
+    QCOMPARE(problem.destination, QStringLiteral("/mnt/media/Downloads"));
+    QCOMPARE(problem.source, QStringLiteral("/mnt/fast/incomplete"));
+    QCOMPARE(problem.toMap().value(QStringLiteral("stuckMove")).toBool(), true);
+
+    // No line: it says where the files are and doesn't guess why.
+    const TorrentProblem unlogged = ProblemMatch::describeStuckMove(stuckTorrent(), nullptr);
+    QVERIFY(!unlogged.found);
+    QCOMPARE(unlogged.detail,
+             QStringLiteral("Its files are still in its incomplete folder. It's seeding from "
+                            "/mnt/fast/incomplete."));
+    QCOMPARE(unlogged.headline, problem.headline);
 }
 
 QTEST_GUILESS_MAIN(TestTorrentProblem)

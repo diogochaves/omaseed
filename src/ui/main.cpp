@@ -46,6 +46,7 @@
 #include <QWindow>
 #include <QtGlobal>
 
+#include <algorithm>
 #include <memory>
 
 using omaseed::integration::AppIdentity::applicationId;
@@ -119,8 +120,9 @@ int runNotifyDemo()
 
     const quint32 serverLostId = notifier.notifyServerLost(
         serverId,
-        QStringLiteral("home didn't answer"),
-        QStringLiteral("Nothing is listening at nas.local:9090. omaseed tries again in 10 s."));
+        QStringLiteral("home is unreachable"),
+        QStringLiteral("Connection refused at nas.local:9090. Is qBittorrent running? omaseed "
+                       "tries again in 10 s."));
     qInfo().noquote() << QStringLiteral("notified server id=%1").arg(serverLostId);
 
     QTimer::singleShot(30000, &notifier, []() { QCoreApplication::quit(); });
@@ -390,6 +392,110 @@ int runQuit(int argc, char *argv[])
     return 1;
 }
 
+/// The names Qt and omaseed give the application, for --version and the rest.
+void setApplicationNames()
+{
+    QCoreApplication::setApplicationName(omaseed::integration::AppIdentity::applicationName());
+    QCoreApplication::setApplicationVersion(omaseed::core::version());
+    QCoreApplication::setOrganizationDomain(
+        omaseed::integration::AppIdentity::organizationDomain());
+}
+
+/// Every option omaseed takes: one list for the print-only pass (#143) and for the app.
+struct CommandLine
+{
+    QCommandLineOption demo{QStringList{QStringLiteral("demo")},
+                            QStringLiteral("Show a demo view with fictional data: %1.")
+                                .arg(reservedDemoNames().join(QStringLiteral(", "))),
+                            QStringLiteral("name")};
+    QCommandLineOption rows{
+        QStringList{QStringLiteral("rows")},
+        QStringLiteral("How many fictional torrents `--demo table` builds (default 16, the "
+                       "16 rows of the spec's Fig. 1)."),
+        QStringLiteral("n"),
+        QStringLiteral("16")};
+    QCommandLineOption headless{
+        QStringList{QStringLiteral("headless")},
+        QStringLiteral("Run without a window. Implemented for --demo table, which prints "
+                       "what it loaded and exits.")};
+    // Settings › General › Start at login writes an autostart entry with this flag.
+    QCommandLineOption hidden{
+        QStringList{QStringLiteral("hidden")},
+        QStringLiteral("Start without showing the window: in the tray, or the bar widget. "
+                       "Launch omaseed again to open it.")};
+    QCommandLineOption themeRoles{
+        QStringList{QStringLiteral("theme-roles")},
+        QStringLiteral("Print the current theme's colour and alpha roles, as omaseed resolves "
+                       "them, as JSON, and exit. Opens no window.")};
+    // Handled before the application starts (runInstallBarWidget); listed for --help.
+    QCommandLineOption installBarWidget{
+        QStringList{QStringLiteral("install-bar-widget")},
+        QStringLiteral("Put omaseed's bar widget in the Omarchy bar: link "
+                       "~/.config/omarchy/plugins/%1 to the installed widget and enable it.")
+            .arg(omaseed::integration::BarWidgetInstaller::pluginId())};
+    // Handled before the application starts (runQuit); listed for --help.
+    QCommandLineOption quit{
+        QStringList{QStringLiteral("quit")},
+        QStringLiteral("Quit the running omaseed as the tray's quit does (a running move is "
+                       "paused), and wait until it has. SIGTERM, SIGINT and SIGHUP do the same.")};
+
+    void addTo(QCommandLineParser &parser) const
+    {
+        parser.setApplicationDescription(
+            QStringLiteral("omaseed — torrents for Omarchy, powered by qBittorrent."));
+        parser.addHelpOption();
+        parser.addVersionOption();
+        parser.addOptions({demo, rows, headless, hidden, themeRoles, installBarWidget, quit});
+        parser.addPositionalArgument(QStringLiteral("uris"),
+                                     QStringLiteral("magnet: links or .torrent files to add."),
+                                     QStringLiteral("[uris...]"));
+    }
+};
+
+/// #143: the flags that only print (--help, --help-all, --version, --theme-roles) run before
+/// the GUI application exists, so they work with no display: over SSH, in a container, in a
+/// package check. --help and --version on a QCoreApplication; the theme's roles on the
+/// offscreen platform. -1 when the command line asks for more than printing: anything else,
+/// Qt's own GUI options included, is left to the app's parser.
+int runPrintOnly(int argc, char *argv[])
+{
+    QStringList arguments;
+    for (int i = 0; i < argc; ++i)
+        arguments << QString::fromLocal8Bit(argv[i]);
+
+    QCommandLineParser parser;
+    const CommandLine options;
+    options.addTo(parser);
+    if (!parser.parse(arguments))
+        return -1;
+    static const QStringList printing{
+        QStringLiteral("h"),
+        QStringLiteral("?"),
+        QStringLiteral("help"),
+        QStringLiteral("help-all"),
+        QStringLiteral("v"),
+        QStringLiteral("version"),
+    };
+    const QStringList given = parser.optionNames();
+    const bool prints = std::any_of(
+        given.cbegin(), given.cend(), [](const QString &name) { return printing.contains(name); });
+    if (!prints && !parser.isSet(options.themeRoles))
+        return -1;
+
+    if (prints) {
+        QCoreApplication app(argc, argv);
+        setApplicationNames();
+        // --help and --version print and end the process here, as they always have.
+        parser.process(app);
+    }
+    // Theme reads fontconfig's monospace through QFont, which wants a QGuiApplication: the
+    // offscreen platform is one that needs no display and opens nothing.
+    qputenv("QT_QPA_PLATFORM", QByteArrayLiteral("offscreen"));
+    QGuiApplication app(argc, argv);
+    setApplicationNames();
+    return runThemeRoles();
+}
+
 } // namespace
 
 int main(int argc, char *argv[])
@@ -400,6 +506,8 @@ int main(int argc, char *argv[])
         if (qstrcmp(argv[i], "--quit") == 0)
             return runQuit(argc, argv);
     }
+    if (const int code = runPrintOnly(argc, argv); code >= 0)
+        return code;
 
     // File pickers go through the FileChooser portal, so the chooser is the portal backend's
     // window. Omarchy floats the default backend's (xdg-desktop-portal-gtk) by its class;
@@ -415,84 +523,27 @@ int main(int argc, char *argv[])
     // QSystemTrayIcon lives in QtWidgets, which needs a QApplication rather than a plain
     // QGuiApplication; nothing else in this app touches a QWidget.
     QApplication app(argc, argv);
-    QGuiApplication::setApplicationName(omaseed::integration::AppIdentity::applicationName());
-    QGuiApplication::setApplicationVersion(omaseed::core::version());
-    QGuiApplication::setOrganizationDomain(omaseed::integration::AppIdentity::organizationDomain());
+    setApplicationNames();
     QGuiApplication::setDesktopFileName(omaseed::integration::AppIdentity::desktopFileName());
 
     QCommandLineParser parser;
-    parser.setApplicationDescription(
-        QStringLiteral("omaseed — torrents for Omarchy, powered by qBittorrent."));
-    parser.addHelpOption();
-    parser.addVersionOption();
-
-    QCommandLineOption demoOption(QStringList{QStringLiteral("demo")},
-                                  QStringLiteral("Show a demo view with fictional data: %1.")
-                                      .arg(reservedDemoNames().join(QStringLiteral(", "))),
-                                  QStringLiteral("name"));
-    parser.addOption(demoOption);
-
-    QCommandLineOption rowsOption(
-        QStringList{QStringLiteral("rows")},
-        QStringLiteral("How many fictional torrents `--demo table` builds (default 16, the "
-                       "16 rows of the spec's Fig. 1)."),
-        QStringLiteral("n"),
-        QStringLiteral("16"));
-    parser.addOption(rowsOption);
-
-    QCommandLineOption headlessOption(
-        QStringList{QStringLiteral("headless")},
-        QStringLiteral("Run without a window. Implemented for --demo table, which prints "
-                       "what it loaded and exits."));
-    parser.addOption(headlessOption);
-
-    // Settings › General › Start at login writes an autostart entry with this flag.
-    QCommandLineOption hiddenOption(
-        QStringList{QStringLiteral("hidden")},
-        QStringLiteral("Start without showing the window: in the tray, or the bar widget. "
-                       "Launch omaseed again to open it."));
-    parser.addOption(hiddenOption);
-
-    QCommandLineOption themeRolesOption(
-        QStringList{QStringLiteral("theme-roles")},
-        QStringLiteral("Print the current theme's colour and alpha roles, as omaseed resolves "
-                       "them, as JSON, and exit. Opens no window."));
-    parser.addOption(themeRolesOption);
-
-    // Handled before the application starts (runInstallBarWidget); listed for --help.
-    QCommandLineOption installBarWidgetOption(
-        QStringList{QStringLiteral("install-bar-widget")},
-        QStringLiteral("Put omaseed's bar widget in the Omarchy bar: link "
-                       "~/.config/omarchy/plugins/%1 to the installed widget and enable it.")
-            .arg(omaseed::integration::BarWidgetInstaller::pluginId()));
-    parser.addOption(installBarWidgetOption);
-
-    // Handled before the application starts (runQuit); listed for --help.
-    QCommandLineOption quitOption(
-        QStringList{QStringLiteral("quit")},
-        QStringLiteral("Quit the running omaseed as the tray's quit does (a running move is "
-                       "paused), and wait until it has. SIGTERM, SIGINT and SIGHUP do the same."));
-    parser.addOption(quitOption);
-
-    parser.addPositionalArgument(QStringLiteral("uris"),
-                                 QStringLiteral("magnet: links or .torrent files to add."),
-                                 QStringLiteral("[uris...]"));
-
+    const CommandLine options;
+    options.addTo(parser);
     parser.process(app);
 
-    if (parser.isSet(themeRolesOption))
+    if (parser.isSet(options.themeRoles))
         return runThemeRoles();
 
     qInfo().noquote() << omaseed::core::versionLine() << QStringLiteral("as") << applicationId();
 
-    const QString demo = parser.isSet(demoOption) ? parser.value(demoOption) : QString();
-    const bool headless = parser.isSet(headlessOption);
+    const QString demo = parser.isSet(options.demo) ? parser.value(options.demo) : QString();
+    const bool headless = parser.isSet(options.headless);
 
     bool rowsOk = true;
-    const int demoRows = parser.value(rowsOption).toInt(&rowsOk);
+    const int demoRows = parser.value(options.rows).toInt(&rowsOk);
     if (!rowsOk || demoRows < 1) {
         qWarning().noquote() << QStringLiteral("--rows needs a positive number, not %1")
-                                    .arg(parser.value(rowsOption));
+                                    .arg(parser.value(options.rows));
         return 2;
     }
 
@@ -563,7 +614,7 @@ int main(int argc, char *argv[])
     if (demo.isEmpty()) {
         // A login entry (`--hidden`, no URIs) that finds omaseed already running has nothing
         // to hand over: leave it as it is instead of popping its window up.
-        if (parser.isSet(hiddenOption) && uris.isEmpty()) {
+        if (parser.isSet(options.hidden) && uris.isEmpty()) {
             const QDBusConnection bus = QDBusConnection::sessionBus();
             if (bus.isConnected() && bus.interface() &&
                 bus.interface()->isServiceRegistered(
@@ -598,7 +649,7 @@ int main(int argc, char *argv[])
     omaseed::app::App::setDefaultInstance(&omaseedApp);
     omaseedApp.barWidget()->setDevSourceDir(devPluginDir());
     // Main.qml reads it for its first `visible`; a demo always shows its window.
-    omaseedApp.setLaunchHidden(demo.isEmpty() && parser.isSet(hiddenOption));
+    omaseedApp.setLaunchHidden(demo.isEmpty() && parser.isSet(options.hidden));
     // The Appearance pane's "follow the Omarchy theme" and base-size override live in
     // state.json; App applies them to the reader here, before the first frame (T4.5).
     omaseedApp.attachTheme(&theme);

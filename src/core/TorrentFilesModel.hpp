@@ -20,9 +20,11 @@
 //     torrent and ignoring case: `|` separates alternatives ("mkv|mp4"), a file must hold
 //     every space-separated word of one of them, and `*` in a word stands for any run of
 //     characters ("*.srt", "bbb*srt"). Otherwise a word is a plain substring, so "subs/"
-//     finds a folder's files. A folder shows when one of its files does, and every folder
-//     is open while a filter is typed. A folder then acts on the files it shows, not on the
-//     hidden ones.
+//     finds a folder's files, and it folds as the library's search does (DECISIONS C22):
+//     `.`, `_` and `-` in the word and in the path count as a space ("big.buck" finds
+//     "Big_Buck_Bunny"). A `*` word is matched on the path as it is. A folder shows when one
+//     of its files does, and every folder is open while a filter is typed. A folder then acts
+//     on the files it shows, not on the hidden ones.
 //   * hiding the skipped files (`hideSkipped`, #9): a file at priority skip fails the
 //     filter, so a folder whose every file is skipped goes too. Unlike a typed filter it
 //     leaves the folds alone, and it is a preference, not the torrent's: clear() keeps it.
@@ -85,6 +87,11 @@ class TorrentFilesModel : public QAbstractListModel
     Q_PROPERTY(int headWanted READ headWanted NOTIFY headWantedChanged)
     /// How many files the head covers, for its tooltip.
     Q_PROPERTY(int headFileCount READ headFileCount NOTIFY headWantedChanged)
+    /// DECISIONS C17 D1: what the skipped files hold on this machine's disk (setOnDisk), and
+    /// how many hold any. The "on disk" column shows only while some skipped file does.
+    Q_PROPERTY(qint64 heldOnDisk READ heldOnDisk NOTIFY onDiskChanged)
+    Q_PROPERTY(int holdingOnDisk READ holdingOnDisk NOTIFY onDiskChanged)
+    Q_PROPERTY(bool showOnDisk READ showOnDisk NOTIFY onDiskChanged)
 
 public:
     enum Role {
@@ -109,6 +116,12 @@ public:
         PiecesTextRole, ///< "0–3859", or "3860" for a one-piece file
         SelectedRole,
         WantedRole, ///< the tick (#42): 2 nothing under the row skipped, 1 some, 0 all
+        /// C17 D1: the bytes a skipped file takes on disk (a folder: its skipped files'), -1
+        /// unknown or wanted.
+        OnDiskRole,
+        /// "1.02 GB" for a skipped file, "—" for a wanted one (its space is expected), "" not
+        /// read; a folder its skipped files' total, or "—".
+        OnDiskTextRole,
     };
     Q_ENUM(Role)
 
@@ -126,6 +139,19 @@ public:
     int skippedCount() const { return m_skippedCount; }
     int headWanted() const { return m_headWanted; }
     int headFileCount() const { return m_headFileCount; }
+    qint64 heldOnDisk() const { return m_heldOnDisk; }
+    int holdingOnDisk() const { return m_holdingOnDisk; }
+    bool showOnDisk() const { return m_holdingOnDisk > 0; }
+    /// The allocated bytes of the skipped files by API id (SkippedReading::allocatedByIndex);
+    /// kept across polls, read again only when asked (docs/44 §7), cleared with the torrent.
+    void setOnDisk(const QHash<int, qint64> &allocatedByIndex);
+    /// Every file's size by API id.
+    QHash<int, qint64> sizeByFileIndex() const;
+    /// C17 D5: priorities held back from the server (SelectionHold::targets()): the rows keep
+    /// them over the polls until they are sent or undone.
+    void setHeldPriorities(const QHash<int, int> &held);
+    /// The last file list, as the engine sent it.
+    QList<ContentFile> files() const { return m_files; }
     /// The API file ids the head tick covers: every file the typed filter matches (all of
     /// them with no filter), whether hideSkipped shows it or not.
     Q_INVOKABLE QVariantList headFileIndexes() const;
@@ -253,6 +279,7 @@ Q_SIGNALS:
     void selectionChanged();
     void summaryChanged();
     void headWantedChanged();
+    void onDiskChanged();
     /// The same rows changed places (a sort, or a poll moving the number sorted by). The
     /// cursor is a row number, so the view re-finds its file by path (rowOfPath).
     void reordered();
@@ -279,6 +306,7 @@ private:
         QList<int> shownIds;    ///< the ids of fileIndexes that pass the filter
         int files = 1;          ///< files in this subtree (a file: itself)
         int skippedFiles = 0;   ///< of those, at priority skip
+        qint64 onDisk = -1;     ///< C17 D1: a skipped file's allocated bytes; a folder's sum
         int parent = -1;
     };
 
@@ -339,6 +367,10 @@ private:
     int m_skippedCount = 0;
     int m_headWanted = 2;
     int m_headFileCount = 0;
+    QHash<int, qint64> m_onDisk;
+    QHash<int, int> m_held;
+    qint64 m_heldOnDisk = 0;
+    int m_holdingOnDisk = 0;
     qint64 m_totalSize = 0;
     QString m_filterText;
     bool m_hideSkipped = false;

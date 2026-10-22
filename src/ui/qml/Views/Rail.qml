@@ -421,6 +421,8 @@ Item {
             flick.contentY = bottom - flick.height;
     }
 
+    // #91: the rail's rows, by what they do.
+    Accessible.name: qsTr("filters")
     Accessible.role: Accessible.List
 
     activeFocusOnTab: true
@@ -969,8 +971,10 @@ Item {
             return Theme.green;
         case "syncing":
             return Theme.yellow;
+        case "waiting": // docs/44 D11: a timeout, there but not answering
+            return Theme.yellow;
         case "down":
-            return root.serverRetrying ? Theme.yellow : Theme.red; // docs/35 N3
+            return Theme.red; // docs/44 D11: nothing there
         case "refused":
         case "certificate":
         case "failed":
@@ -984,7 +988,7 @@ Item {
         if (text === "!")
             return Theme.red;
         if (text.length > 0 && isNaN(Number(text)))
-            return root.serverRetrying ? Theme.yellow : Theme.red; // "down", docs/35 N3
+            return root.serverRetrying ? Theme.yellow : Theme.red; // "waiting" / "down", docs/44 D11
         return Theme.dimForeground;
     }
 

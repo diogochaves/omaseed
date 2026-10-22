@@ -124,6 +124,12 @@ public:
     /// nothing, and so refuses nothing (clear() goes back to it).
     void setRenameDisk(const RenameDisk &disk, const QString &root);
 
+    /// DECISIONS C17 D9: the wanted files of `bytes` or more, as `[{path, size}]` in file
+    /// order (what FAT32 can't hold, at 4 GiB).
+    Q_INVOKABLE QVariantList wantedFilesOfAtLeast(qint64 bytes) const;
+    /// D9's "Skip these": every wanted file of `bytes` or more to skip.
+    Q_INVOKABLE void skipFilesOfAtLeast(qint64 bytes);
+
     /// One priority per file, in file-id order.
     QList<int> priorities() const { return m_priorities; }
     /// The same, for QML and for the request map the sheet builds.

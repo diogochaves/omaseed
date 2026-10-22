@@ -31,6 +31,7 @@
 
 #include <QDateTime>
 #include <QDeadlineTimer>
+#include <QElapsedTimer>
 #include <QHash>
 #include <QObject>
 #include <QPointer>
@@ -169,6 +170,9 @@ private:
     void applyData(const SyncDelta &data);
     void enterLostState(const ApiError &error);
     void tickCountdown();
+    /// docs/44 W1: silentSeconds from m_lastReply, and the timer that counts it, on while
+    /// the latest failure is a timeout.
+    void updateSilence(bool timedOut);
     std::chrono::milliseconds normalInterval() const;
     /// Keeps pending values over what a poll carries, noting what the server reported.
     QList<TorrentPatch>
@@ -208,6 +212,10 @@ private:
 
     QTimer *m_pollTimer = nullptr;
     QTimer *m_countdownTimer = nullptr;
+    /// docs/44 W1: counts GlobalState::silentSeconds up while the server times out.
+    QTimer *m_silenceTimer = nullptr;
+    /// Since the server last replied (or the run started, before it ever did).
+    QElapsedTimer m_lastReply;
 
     bool m_running = false;
     bool m_visible = true;

@@ -253,15 +253,24 @@ TestCase {
     }
 
     // docs/33 D8, D9 and docs/35: the notice's words come from App.serverProblem (ErrorWords),
-    // its kind follows "retrying" or "needs you", its actions the problem and the servers.
+    // its kind follows docs/44 D11: "waiting" (a timeout) yellow, "unreachable" and the ones
+    // that need you red; its actions the problem and the servers.
     readonly property var downProblem: ({
-                                            "headline": "private didn't answer",
-                                            "lineBase": "Nothing is listening at 127.0.0.1:8091.",
+                                            "headline": "private is unreachable",
+                                            "lineBase": "Connection refused at 127.0.0.1:8091. Is qBittorrent running?",
                                             "retry": "omaseed tries again in 7 s.",
                                             "retryChars": 28,
                                             "details": "network error · GET sync/maindata · Connection refused",
-                                            "kind": "down"
+                                            "kind": "unreachable"
                                         })
+    readonly property var waitingProblem: ({
+                                               "headline": "private isn't answering",
+                                               "lineBase": "qBittorrent is running but hasn't replied for 18 s. It may be busy writing to its disk. omaseed keeps asking.",
+                                               "retry": "waiting · 18 s",
+                                               "retryChars": 15,
+                                               "details": "timeout · GET sync/maindata · no reply within 15000 ms",
+                                               "kind": "waiting"
+                                           })
 
     function test_banner_names_the_server_and_retries() {
         const banner = createTemporaryObject(bannerComponent, testCase, {
@@ -269,9 +278,13 @@ TestCase {
                                                  "problem": testCase.downProblem,
                                                  "width": 800
                                              });
-        compare(banner.title, "private didn't answer");
+        compare(banner.title, "private is unreachable");
+        compare(banner.kind, "error");
+        verify(banner.lineText.startsWith("Connection refused at 127.0.0.1:8091. Is qBittorrent running? omaseed tries again in 7 s."));
+        banner.problem = testCase.waitingProblem;
         compare(banner.kind, "warning");
-        verify(banner.lineText.startsWith("Nothing is listening at 127.0.0.1:8091. omaseed tries again in 7 s."));
+        verify(banner.lineText.indexOf("omaseed keeps asking. waiting · 18 s") > 0);
+        banner.problem = testCase.downProblem;
         compare(banner.actions.map(action => action.key), ["retry"]);
         banner.multiServer = true;
         compare(banner.actions.map(action => action.key), ["retry", "switch"]);

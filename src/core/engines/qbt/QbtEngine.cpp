@@ -78,9 +78,10 @@ QString wireStopCondition(StopCondition condition)
                                                     : QStringLiteral("MetadataReceived");
 }
 
-QbtClient::AddOptions wireAddOptions(const AddOptions &options)
+QbtClient::AddOptions wireAddOptions(const AddOptions &options, const QString &apiVersion)
 {
     QbtClient::AddOptions wire;
+    wire.apiVersion = apiVersion; // spells skip-checking as seedMode or skip_checking
     wire.savepath = options.savePath;
     wire.category = options.category;
     wire.tags = options.tags;
@@ -134,7 +135,12 @@ const QStringList kAll{QStringLiteral("all")};
 QbtEngine::QbtEngine(QObject *parent)
     : EngineClient(parent)
     , m_client(new QbtClient(this))
-{}
+{
+    connect(m_client,
+            &QbtClient::serverInfoChanged,
+            this,
+            [this](const QString &, const QString &apiVersion) { m_apiVersion = apiVersion; });
+}
 
 QbtEngine::~QbtEngine() = default;
 
@@ -179,6 +185,8 @@ QUrl QbtEngine::baseUrl() const
 
 void QbtEngine::setBaseUrl(const QUrl &baseUrl)
 {
+    if (baseUrl != m_client->baseUrl())
+        m_apiVersion.clear(); // another server: its version is read again by the next probe
     m_client->setBaseUrl(baseUrl);
 }
 
@@ -618,19 +626,20 @@ Reply<Done> *QbtEngine::setAltSpeed(bool on)
 
 Reply<AddResult> *QbtEngine::addUrls(const QStringList &urls, const AddOptions &options)
 {
-    return added(m_client->torrentsAddUrls(urls, wireAddOptions(options)));
+    return added(m_client->torrentsAddUrls(urls, wireAddOptions(options, m_apiVersion)));
 }
 
 Reply<AddResult> *
 QbtEngine::addFile(const QString &fileName, const QByteArray &bytes, const AddOptions &options)
 {
-    return added(m_client->torrentsAddFile(fileName, bytes, wireAddOptions(options)));
+    return added(m_client->torrentsAddFile(fileName, bytes, wireAddOptions(options, m_apiVersion)));
 }
 
 Reply<AddResult> *
 QbtEngine::addMany(const QList<AddFile> &files, const QStringList &urls, const AddOptions &options)
 {
-    return added(m_client->torrentsAddMany(wireFiles(files), urls, wireAddOptions(options)));
+    return added(
+        m_client->torrentsAddMany(wireFiles(files), urls, wireAddOptions(options, m_apiVersion)));
 }
 
 } // namespace omaseed::core

@@ -92,6 +92,7 @@ private slots:
     void priorityRenameAndFolderRenameReachTheServer();
     void manyFilesRenameReachesTheServer();
     void aNameAlreadyOnDiskIsNeverSent();
+    void aWholeTorrentTickWaitsWithUndo();
 
 private:
     /// torrents/files as {name: priority}, or empty on an error.
@@ -355,6 +356,77 @@ void TestAppFilesLive::aNameAlreadyOnDiskIsNeverSent()
     QFile kept(strayFile);
     QVERIFY(kept.open(QIODevice::ReadOnly));
     QCOMPARE(kept.readAll(), QByteArray("keep me"));
+
+    app.engine()->stop();
+}
+
+// Board 44 §3 (DECISIONS C17 D5–D7, #119): ticking the whole torrent waits before it is sent;
+// undo, and a change put right by hand inside the window, send nothing; leaving the torrent
+// sends what waits.
+void TestAppFilesLive::aWholeTorrentTickWaitsWithUndo()
+{
+    App app;
+    app.start();
+    QVERIFY(app.hasServer());
+    QVERIFY2(waitFor([&app]() { return app.torrents()->indexOfHash(kHash) >= 0; }, 10000),
+             "the fixture never reached the table");
+    app.selectTorrent(kHash);
+    TorrentFilesModel *files = app.details()->files();
+    QVERIFY2(waitFor([files]() { return files->fileCount() == 3; }, 10000),
+             "the Files tab never filled");
+    app.setSelectionHoldWindow(1500);
+    QSignalSpy sent(&app, &App::filePrioritySent);
+    const auto waiting = [&app]() {
+        return app.heldSelectionMap().value(QStringLiteral("waiting")).toBool();
+    };
+    const auto serverWanted = [this]() {
+        int wanted = 0;
+        for (const int priority : serverFiles())
+            wanted += priority != 0 ? 1 : 0;
+        return wanted;
+    };
+
+    const QVariantList all = files->headFileIndexes();
+    QCOMPARE(all.size(), 3);
+    QVariantList rest = all;
+    const int first = rest.takeFirst().toInt();
+    // The first file at normal (an earlier test raised it): no widening, sent at once.
+    app.setFilePriority(kHash, {first}, 1);
+    QCOMPARE(sent.count(), 1);
+    // A skip goes at once (D5).
+    app.setFilePriority(kHash, rest, 0);
+    QCOMPARE(sent.count(), 2);
+    QVERIFY(!waiting());
+    QVERIFY2(waitFor([&]() { return serverWanted() == 1; }, 10000), "the skip never arrived");
+
+    // The whole torrent ticked waits; the rows change at once and keep it over the polls.
+    app.setFilePriority(kHash, all, 1);
+    QVERIFY(waiting());
+    QCOMPARE(sent.count(), 2);
+    QCOMPARE(app.heldSelectionMap().value(QStringLiteral("files")).toInt(), 2);
+    QCOMPARE(files->filePriority(rest.first().toInt()), 1);
+    // Undo: the rows go back, and nothing is ever sent.
+    app.undoHeldSelection();
+    QVERIFY(!waiting());
+    QCOMPARE(files->filePriority(rest.first().toInt()), 0);
+    QTest::qWait(2500);
+    QCOMPARE(sent.count(), 2);
+    QCOMPARE(serverWanted(), 1);
+
+    // Ticked again and put right by hand inside the window: it nets to nothing.
+    app.setFilePriority(kHash, all, 1);
+    app.setFilePriority(kHash, rest, 0);
+    QVERIFY(!waiting());
+    QCOMPARE(sent.count(), 2);
+    QCOMPARE(files->filePriority(first), 1);
+
+    // Ticked again and left for another torrent: it is sent, not dropped.
+    app.setFilePriority(kHash, all, 1);
+    QVERIFY(waiting());
+    app.selectTorrent(QString());
+    QVERIFY(!waiting());
+    QCOMPARE(sent.count(), 3);
+    QVERIFY2(waitFor([&]() { return serverWanted() == 3; }, 10000), "the tick never arrived");
 
     app.engine()->stop();
 }

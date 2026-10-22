@@ -121,6 +121,11 @@ void GlobalState::setRetryInSeconds(int seconds)
     assign(m_retryInSeconds, seconds, this, &GlobalState::retryInSecondsChanged);
 }
 
+void GlobalState::setSilentSeconds(int seconds)
+{
+    assign(m_silentSeconds, seconds, this, &GlobalState::silentSecondsChanged);
+}
+
 void GlobalState::reset()
 {
     ServerStatePatch defaults;
@@ -147,6 +152,7 @@ void GlobalState::reset()
     setLastSyncTime(QDateTime());
     setServerVersions(QString(), QString());
     setRetryInSeconds(0);
+    setSilentSeconds(0);
 }
 
 } // namespace omaseed::core

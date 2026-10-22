@@ -66,10 +66,10 @@ Rectangle {
         Label {
             id: line
 
-            // #79: what the pane acts on, by its plain words (not the styled text with its
-            // markup and key).
-            Accessible.name: root.text
-            Accessible.role: Accessible.StaticText
+            // #91: the label itself stays out of the tree: Qt publishes its link as a node no
+            // screen reader can press. Two stand-ins over it say it instead (omarchy-a11y's
+            // "links in a sentence"): the words, and the link.
+            Accessible.ignored: true
             Layout.fillWidth: true
             lineHeight: 1.25
             objectName: "scopeText"
@@ -92,6 +92,27 @@ Rectangle {
 
             HoverHandler {
                 cursorShape: line.hoveredLink.length > 0 ? Qt.PointingHandCursor : Qt.ArrowCursor
+            }
+
+            // #79: what the pane acts on, by its plain words (not the styled text with its
+            // markup and key). Draws nothing, takes nothing.
+            Item {
+                Accessible.name: root.text
+                Accessible.role: Accessible.StaticText
+                anchors.fill: parent
+                objectName: "scopeTextName"
+            }
+
+            // #91: the link in the sentence, pressable; its key is the description. (One line
+            // has a link of its own beside it, `oneLineLink`.)
+            Item {
+                Accessible.description: root.linkKey.length > 0 ? qsTr("shortcut %1").arg(root.linkKey) : ""
+                Accessible.name: root.linkText
+                Accessible.role: Accessible.Link
+                Accessible.onPressAction: root.linkActivated()
+                anchors.fill: parent
+                objectName: "scopeLinkName"
+                visible: !root.oneLine && root.linkText.length > 0
             }
         }
 

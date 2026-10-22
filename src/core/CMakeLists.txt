@@ -2,6 +2,8 @@
 configure_file(BuildConfig.hpp.in "${CMAKE_CURRENT_BINARY_DIR}/omaseed/core/BuildConfig.hpp" @ONLY)
 
 qt_add_library(omaseed-core STATIC
+    ActionOutcome.cpp
+    ActionOutcome.hpp
     AddFilesModel.cpp
     AddFilesModel.hpp
     AltSchedule.cpp
@@ -35,6 +37,8 @@ qt_add_library(omaseed-core STATIC
     engines/TorrentMetadata.hpp
     engines/TorrentPatch.hpp
     engines/TorrentStatus.hpp
+    engines/qbt/AddAgainJob.cpp
+    engines/qbt/AddAgainJob.hpp
     engines/qbt/QbtClient.cpp
     engines/qbt/QbtClient.hpp
     engines/qbt/QbtEngine.cpp
@@ -90,6 +94,8 @@ qt_add_library(omaseed-core STATIC
     MetadataLookup.hpp
     OmaseedBackup.cpp
     OmaseedBackup.hpp
+    PartialCopies.cpp
+    PartialCopies.hpp
     PathMap.cpp
     PathMap.hpp
     PeerInput.cpp
@@ -110,6 +116,8 @@ qt_add_library(omaseed-core STATIC
     RenameDisk.hpp
     RenamePlan.cpp
     RenamePlan.hpp
+    SearchWords.cpp
+    SearchWords.hpp
     SecretStore.cpp
     SecretStore.hpp
     Server.cpp
@@ -129,8 +137,14 @@ qt_add_library(omaseed-core STATIC
     SeedLedger.hpp
     SpeedSets.cpp
     SpeedSets.hpp
+    SelectionHold.cpp
+    SelectionHold.hpp
     SharedData.cpp
     SharedData.hpp
+    SkippedJobs.cpp
+    SkippedJobs.hpp
+    SkippedOnDisk.cpp
+    SkippedOnDisk.hpp
     StateFile.cpp
     StateFile.hpp
     StatusDigest.cpp

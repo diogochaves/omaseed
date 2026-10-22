@@ -16,6 +16,7 @@
 #include <QSslConfiguration>
 #include <QSslError>
 #include <QTimer>
+#include <QVersionNumber>
 
 #include <functional>
 #include <type_traits>
@@ -153,8 +154,15 @@ void applyAddOptions(QUrlQuery &form, const QbtClient::AddOptions &options)
         addBoolItem(form, QStringLiteral("stopped"), *options.stopped);
         addBoolItem(form, QStringLiteral("paused"), *options.stopped);
     }
-    if (options.skipChecking)
-        addBoolItem(form, QStringLiteral("skip_checking"), *options.skipChecking);
+    if (options.skipChecking) {
+        // Web API 2.16.0 renamed it; a server it can't place gets both (AddOptions::apiVersion).
+        const bool known = !QVersionNumber::fromString(options.apiVersion).isNull();
+        const bool seedMode = QbtClient::supportsSeedMode(options.apiVersion);
+        if (seedMode || !known)
+            addBoolItem(form, QStringLiteral("seedMode"), *options.skipChecking);
+        if (!seedMode)
+            addBoolItem(form, QStringLiteral("skip_checking"), *options.skipChecking);
+    }
     if (options.contentLayout)
         addItem(form, QStringLiteral("contentLayout"), contentLayoutName(*options.contentLayout));
     if (options.rename)
@@ -1290,8 +1298,13 @@ QbtClient::torrentsSetShareLimits(const QStringList &hashes,
     addItem(form,
             QStringLiteral("inactiveSeedingTimeLimit"),
             QString::number(inactiveSeedingTimeLimit));
-    if (shareLimitAction)
+    if (shareLimitAction) {
         addItem(form, QStringLiteral("shareLimitAction"), shareLimitActionName(*shareLimitAction));
+        // Web API 2.15.3 made the mode required, so qBittorrent 5.3 (2.16.2) answers 400
+        // without it; 5.2 (2.15.1) takes it and ignores it. Default leaves the torrent on the
+        // global rule, as before the field.
+        addItem(form, QStringLiteral("shareLimitsMode"), QStringLiteral("Default"));
+    }
     return post(QStringLiteral("torrents/setShareLimits"), form);
 }
 
@@ -1387,6 +1400,12 @@ Reply<QByteArray> *QbtClient::torrentsDelete(const QStringList &hashes, bool del
     QUrlQuery form = hashesForm(hashes);
     addBoolItem(form, QStringLiteral("deleteFiles"), deleteFiles);
     return post(QStringLiteral("torrents/delete"), form);
+}
+
+bool QbtClient::supportsSeedMode(const QString &apiVersion)
+{
+    const QVersionNumber version = QVersionNumber::fromString(apiVersion);
+    return !version.isNull() && version >= QVersionNumber(2, 16, 0);
 }
 
 Reply<QbtClient::FetchedMetadata> *QbtClient::torrentsFetchMetadata(const QString &source)

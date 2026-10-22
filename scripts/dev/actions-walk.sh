@@ -2,11 +2,16 @@
 # omaseed — the risky actions, walked through the app's own UI: renames, categories, tags,
 # automatic torrent management, set location through the Move… sheet (board 43: also onto
 # another filesystem, a 2 GiB torrent, and onto a folder that already has its name),
-# recheck, the selection bar on two torrents, the command palette (docs/30), delete with and
+# recheck, the selection bar on two torrents, what each action came to in the strip in the
+# selection bar's place (board 45, DECISIONS C18: done, a refusal, two at once), picking rows
+# with the mouse's □ (C18 D6), the command palette (docs/30), delete with and
 # without files, and two torrents that share one file (#27: the twin goes in through the add
 # sheet's "save there"; #28: the delete confirm, the location sheet, a category change and
-# turning automatic management on (#65) ask). After each step it checks what qBittorrent says
-# and what is on disk, and stops at the first mismatch.
+# turning automatic management on (#65) ask), and board 44's skipped files that still hold space
+# (#118): the On disk column and band, free the space on a v1-only torrent (with its recheck)
+# and on a hybrid (left, then added again); and a big tick that waits with Undo (#119). After each step it checks what qBittorrent says and
+# what is on disk, and stops at the first mismatch. OMASEED_ACTIONS_WALK_FROM=disk runs board
+# 44's steps alone.
 # Run it again after any change to an action, a sheet, a palette or the selection bar.
 #
 #   scripts/dev/actions-walk.sh [OUT_DIR]        # agents: a headless box, a shot per step,
@@ -89,7 +94,15 @@ print(next(t["hash"] for t in json.load(sys.stdin) if t["name"].startswith(sys.a
 # in_box CMD...: run CMD in the box (its /tmp and paths are not this machine's).
 in_box() { omabox run -b "$BOX" -- "$@" >/dev/null 2>&1; }
 
-keys() { omabox keys -b "$BOX" --window omaseed --wait "$@" >/dev/null 2>&1 || true; }
+# The outcome strip's line runs down for 6 s at the table's bottom (DECISIONS C18 D3): a wait
+# for the window to be still would wait it out, and the strip with it. Its band of the screen
+# (the selection bar's too) is left out of every wait; it is wide and tall enough to hold
+# whether omabox reads it in the screen's or the window's coordinates.
+STRIP_IGNORE="0,920 1920,110"
+keys() { omabox keys -b "$BOX" --window omaseed --wait --ignore "$STRIP_IGNORE" "$@" >/dev/null 2>&1 || true; }
+# keys_now KEY...: the same without waiting for the screen to settle, for while something on it
+# keeps moving (the hold band's countdown, #119) and the 3 s matter.
+keys_now() { omabox keys -b "$BOX" --window omaseed "$@" >/dev/null 2>&1 || true; }
 # bar_fit: move BAR_* from the BAR_W x BAR_H window they were measured on to omaseed's own.
 bar_fit() {
     local w h dx dy
@@ -107,7 +120,24 @@ print(*next(x["size"] for x in json.load(sys.stdin) if "omaseed" in x["class"]))
     BAR_W=$w
     BAR_H=$h
 }
-click() { omabox click -b "$BOX" --window omaseed --wait "$1" "$2" >/dev/null 2>&1 || true; }
+click() { omabox click -b "$BOX" --window omaseed --wait --ignore "$STRIP_IGNORE" "$1" "$2" >/dev/null 2>&1 || true; }
+
+# row_tick NAME: click the □ at the start of the row whose torrent is NAME (C18 D6), where the
+# window's tree places the row.
+row_tick() {
+    local where
+    where="$(omabox tree -b "$BOX" --window omaseed --find "$1" 2>/dev/null | python3 -c '
+import re, sys
+for line in sys.stdin:
+    m = re.search(r"list item \"" + re.escape(sys.argv[1]) + r"\"[^@]* @(-?\d+),(-?\d+) (\d+)x(\d+)", line)
+    if m:
+        x, y, w, h = map(int, m.groups())
+        print(x + 8, y + h // 2)
+        break' "$1")"
+    [ -n "$where" ] || fail "no row \"$1\" on screen"
+    # shellcheck disable=SC2086 # two numbers
+    omabox click -b "$BOX" --window omaseed --wait --ignore "$STRIP_IGNORE" $where >/dev/null 2>&1 || true
+}
 
 # menu_on QUERY: the jump palette's tab: the cursor on the torrent QUERY finds, its actions
 # menu open. table_on QUERY: the same, the menu closed again, the keyboard on the table.
@@ -188,6 +218,19 @@ expect_text() {
     fail "$what (after ${limit}s no \"$text\" in the window)"
 }
 
+# expect_no_text "WHAT" TEXT [SECONDS]: wait until omaseed's window no longer shows TEXT.
+expect_no_text() {
+    local what="$1" text="$2" limit="${3:-20}"
+    for _ in $(seq 1 "$limit"); do
+        omabox tree -b "$BOX" --window omaseed --find "$text" >/dev/null 2>&1 || {
+            pass "$what"
+            return 0
+        }
+        sleep 1
+    done
+    fail "$what (after ${limit}s \"$text\" is still in the window)"
+}
+
 # expect_size "WHAT" PATH BYTES: the file PATH in the box is BYTES long.
 expect_size() {
     local size
@@ -255,6 +298,173 @@ else
     "$APP_BOX" up --qbt -b "$BOX" >/dev/null
 fi
 home="$(omabox path -b "$BOX")/home"
+
+# ---- board 44: skipped files and the disk (DECISIONS C17, #118–#120) ----------------------
+# Two torrents of four 8 MiB files, one v1-only and one hybrid, made and seeded by the box's
+# own qBittorrent, so every skipped file holds its data and its downloaded pieces. The ntfs3
+# side (a tick that allocates in full, on a loop image) needs a mount the box can write to,
+# which udisks makes only on this machine: tests/app/tst_app_skipped_live.cpp runs it there
+# against the playground.
+
+# click_text TEXT: a click in the middle of the app's accessible node whose name starts with
+# TEXT, from the window's own tree.
+click_text() {
+    local at
+    at="$(omabox tree -b "$BOX" --window omaseed --json 2>/dev/null | python3 -c '
+import json, sys
+for node in json.load(sys.stdin):
+    if (node.get("name") or "").startswith(sys.argv[1]) and node.get("w", 0) > 0:
+        print(node["x"] + node["w"] // 2, node["y"] + node["h"] // 2)
+        break' "$1")"
+    [ -n "$at" ] || fail "no \"$1\" to click in the window"
+    # shellcheck disable=SC2086 # "X Y"
+    click $at
+}
+
+# make_disk_torrent NAME FORMAT: four 8 MiB files of random bytes in ~/Torrents/NAME, and a
+# torrent of them (FORMAT v1 or hybrid) that the box's qBittorrent makes and seeds from there.
+make_disk_torrent() {
+    local name="$1" format="$2" task
+    mkdir -p "$home/Torrents/$name"
+    for f in a b c d; do
+        head -c $((8 * 1024 * 1024)) /dev/urandom >"$home/Torrents/$name/$f.bin"
+    done
+    task="$(api torrentcreator/addTask -d "sourcePath=$TORRENTS_DIR/$name" -d "format=$format" \
+        -d startSeeding=true | python3 -c 'import json, sys; print(json.load(sys.stdin)["taskID"])')"
+    for _ in $(seq 1 120); do
+        api torrents/info | python3 -c '
+import json, sys
+sys.exit(0 if any(t["name"] == sys.argv[1] and t["progress"] == 1 for t in json.load(sys.stdin)) else 1)' "$name" && break
+        sleep 0.5
+    done
+    api -X POST torrentcreator/deleteTask -d "taskID=$task" >/dev/null 2>&1 || true
+}
+
+# priorities HASH: the torrent's file priorities, in file order ("1 1 0 0").
+priorities() {
+    api "torrents/files?hash=$1" | python3 -c '
+import json, sys
+print(" ".join(str(f["priority"]) for f in json.load(sys.stdin)))'
+}
+
+# expect_priorities "WHAT" HASH "P P P P" [SECONDS]: wait until the torrent's file priorities
+# are those.
+expect_priorities() {
+    local got="" limit="${4:-10}"
+    for _ in $(seq 1 $((limit * 4))); do
+        got="$(priorities "$2")"
+        [ "$got" = "$3" ] && { pass "$1: $3"; return 0; }
+        sleep 0.25
+    done
+    fail "$1 (after ${limit}s the priorities are $got, not $3)"
+}
+
+disk_walk() {
+    make_disk_torrent b44-v1 v1
+    make_disk_torrent b44-hybrid hybrid
+    D_V1="$(hash_of b44-v1)"
+    D_HY="$(hash_of b44-hybrid)"
+    [ "$(tq "$D_HY" 'bool(t["infohash_v1"]) and bool(t["infohash_v2"])')" = True ] ||
+        { echo "b44-hybrid is not hybrid" >&2; exit 1; }
+    [ "$(tq "$D_V1" 'not t["infohash_v2"]')" = True ] || { echo "b44-v1 is not v1-only" >&2; exit 1; }
+    for h in "$D_V1" "$D_HY"; do
+        api torrents/filePrio -d "hash=$h" -d "id=2|3" -d priority=0 >/dev/null
+    done
+    api torrents/createCategory -d category=b44 >/dev/null 2>&1 || true
+    api torrents/setCategory -d "hashes=$D_HY" -d category=b44 >/dev/null
+    api torrents/addTags -d "hashes=$D_HY" -d tags=b44-tag >/dev/null
+    keys Escape
+
+    step "Skipped files that hold space" "b44-v1, its Files tab: c.bin and d.bin are skipped but still hold their 8 MiB each. The On disk column shows it, and the yellow band says what they hold (16.8 MB, half the torrent: past 5 %)."
+    table_on "b44-v1"
+    keys l 2
+    expect_text "the band says 2 skipped files hold space" "2 skipped files hold"
+    expect_text "the On disk column is there" "On disk"
+    shot "The Files tab: On disk after Size, \"—\" on the wanted files, 8.4 MB on the skipped; the yellow band with Free the space… and Why?."
+
+    step "Free the space, v1-only" "shift+f: the sheet deletes c.bin and d.bin; they hold downloaded pieces, so on this v1-only torrent it says it rechecks after the start. enter."
+    keys shift+f
+    expect_text "the sheet says it rechecks after the start" "Start it again, then recheck it"
+    shot "Free 16.8 MB: stop, delete 2 skipped files (some holding downloaded pieces), start and recheck; both files marked delete." sheet
+    keys Return
+    expect_disk "c.bin is gone" ! "$TORRENTS_DIR/b44-v1/c.bin" 30
+    expect_disk "d.bin is gone" ! "$TORRENTS_DIR/b44-v1/d.bin"
+    expect_disk "a.bin, wanted, is still there" -f "$TORRENTS_DIR/b44-v1/a.bin"
+    expect_priorities "the selection is as it was" "$D_V1" "1 1 0 0"
+    expect "rechecked, it seeds the wanted files, complete" "$D_V1" "t['state'] in $SEEDING and t['progress'] == 1" 60
+    expect_text "the footer says what was freed" "freed"
+    expect_no_text "the band is gone" "skipped files hold"
+    shot "The band is gone; the footer: freed 16.8 MB, 2 skipped files deleted, rechecking."
+
+    step "Free the space, hybrid" "b44-hybrid, its Files tab, shift+f: its skipped files hold downloaded pieces, and a recheck on a hybrid hits libtorrent's bug (#115), so they stay; nothing to free, and the sheet offers adding it again."
+    table_on "b44-hybrid"
+    keys l 2
+    expect_text "the band shows on the hybrid" "2 skipped files hold"
+    keys shift+f
+    expect_text "the sheet says why they stay" "because this torrent is hybrid"
+    expect_text "and offers adding it again" "Free them too by adding the torrent again"
+    shot "Nothing to free: c.bin and d.bin have downloaded pieces and stay; the hybrid note and \"Free them too by adding the torrent again…\"." sheet
+
+    step "Add it again" "Its button: the confirm names the cost (ratio, seeding time, added date). l, enter: removed keeping its files, c.bin and d.bin deleted, added back with the same selection, category and tag, and started."
+    click_text "Free them too by adding the torrent again"
+    expect_text "the confirm asks first" "Add b44-hybrid again?"
+    shot "Add b44-hybrid again? The two files go, and what it loses." dialog
+    keys l Return
+    expect_disk "c.bin is gone" ! "$TORRENTS_DIR/b44-hybrid/c.bin" 30
+    expect_disk "d.bin is gone" ! "$TORRENTS_DIR/b44-hybrid/d.bin"
+    expect "it is back, seeding, not in error" "$D_HY" "t is not None and t['state'] in $SEEDING and t['progress'] == 1" 60
+    expect "its category and tag came back" "$D_HY" "t['category'] == 'b44' and 'b44-tag' in t['tags']"
+    expect_priorities "the same files are wanted" "$D_HY" "1 1 0 0"
+    expect_no_text "the band is gone" "skipped files hold" 30
+    shot "b44-hybrid is back; the footer: added again."
+
+    step "A big tick waits, and undo sends nothing" "b44-v1 (c.bin and d.bin skipped, gone from disk): ctrl+a, + raises every file, the whole torrent, so the change waits 3 s with Undo and Send now (#119). u: the rows go back, nothing reaches qBittorrent, and no file is created."
+    table_on "b44-v1"
+    keys l 2
+    keys ctrl+a
+    keys_now -t "+"
+    expect_text "the band says what waits" "Wanting 2 more files" 3
+    shot "Wanting 2 more files · 16.8 MB, Undo u, Send now ⏎, its line running down; the rows already read high." hold
+    keys_now u
+    expect_no_text "the band is gone" "Wanting 2 more files" 5
+    sleep 4
+    expect_priorities "qBittorrent never heard of it" "$D_V1" "1 1 0 0"
+    expect_disk "c.bin was never created" ! "$TORRENTS_DIR/b44-v1/c.bin"
+
+    step "Send now" "The same tick again, then enter: it goes at once."
+    keys_now -t "+"
+    expect_text "the band is back" "Wanting 2 more files" 3
+    keys_now Return
+    expect_priorities "qBittorrent has every file at high" "$D_V1" "6 6 6 6"
+
+    step "Leaving sends what waits" "Back to 1 1 0 0 through the API; the same tick, then the jump palette onto b44-hybrid before the 3 s are up: the change goes as the torrent is left."
+    api torrents/filePrio -d "hash=$D_V1" -d "id=0|1" -d priority=1 >/dev/null
+    api torrents/filePrio -d "hash=$D_V1" -d "id=2|3" -d priority=0 >/dev/null
+    expect_priorities "back to 1 1 0 0" "$D_V1" "1 1 0 0"
+    sleep 3
+    keys_now -t "+"
+    keys_now ctrl+k -t "b44-hybrid" Tab
+    keys_now Escape
+    expect_priorities "sent on leaving" "$D_V1" "6 6 6 6" 5
+    keys Escape
+}
+
+# finish: the walk's last lines.
+finish() {
+    echo
+    echo "all $CHECKS checks passed"
+    if [ "$INTERACTIVE" = 0 ]; then
+        printf '\n**All %s checks passed.**\n' "$CHECKS" >>"$OUT/index.md"
+        echo "shots and checks: $OUT/index.md"
+    fi
+}
+
+# OMASEED_ACTIONS_WALK_FROM=disk: board 44's steps alone, on a box with nothing else in it.
+if [ "${OMASEED_ACTIONS_WALK_FROM:-}" = disk ]; then
+    disk_walk
+    finish
+    exit 0
+fi
 echo "box $BOX is up; adding five swarm torrents and making a 2 GiB one"
 
 # The swarm's .torrent files are in the box's ~/Downloads (app-box.sh put them there).
@@ -432,7 +642,7 @@ api torrents/tags | python3 -c 'import json, sys; sys.exit(0 if "walk-tag" in js
     fail "the tag walk-tag itself was deleted (the app never deletes tags)"
 pass "the tag itself stays on the server"
 
-step "Set location, same disk" "Nested Library Sampler, the menu's move… (m), ~/Moved, enter. 113 files in 26 folders move; it lands within 3 s, so no band, and the footer says so (board 43 L7)."
+step "Set location, same disk" "Nested Library Sampler, the menu's move… (m), ~/Moved, enter. 113 files in 26 folders move; it lands within 3 s, so no band, and the strip in the selection bar's place says so, its row's status \"✓ moved · Moved\" (C18 D1)."
 menu_on "Nested Library"
 keys m
 expect_text "the Move… sheet is open" "new path on" 10
@@ -441,7 +651,8 @@ expect_text "one green line" "access are fine" 20
 shot "The Move… sheet: ~/Moved, one green line (L3)." sheet
 keys Return
 expect "the save path is ~/Moved" "$NESTED" "t['save_path'] == '$BOX_HOME/Moved'" 30
-expect_text "the footer says it moved" "Nested Library Sampler (2026) moved to $BOX_HOME/Moved" 20
+expect_text "the strip says it moved" "Nested Library Sampler (2026) moved to $BOX_HOME/Moved" 20
+shot "The green strip at the table's bottom middle: ✓ Nested Library Sampler (2026) moved to ~/Moved, show, ×; the row reads ✓ moved · Moved." strip
 expect_disk "the files are in ~/Moved" -f "$BOX_HOME/Moved/Nested Library Sampler (2026)/Docs/README.md" 30
 expect_disk "…and gone from ~/Torrents" ! "$TORRENTS_DIR/Nested Library Sampler (2026)"
 expect "it still seeds, complete" "$NESTED" "t['state'] in $SEEDING and t['progress'] == 1" 30
@@ -454,8 +665,8 @@ keys ctrl+a -t /tmp/elsewhere
 expect_text "the sheet reads the room on /tmp" "Room and access are fine on /tmp" 20
 keys Return
 shot "Straight after enter. A tmpfs takes 2 GiB in about a second, so the row seldom still reads moving, and the band (after 3 s) seldom shows."
+expect_text "the strip says it moved, or the band does" "$BIG moved to /tmp/elsewhere" 120
 expect "the save path is /tmp/elsewhere" "$BIGH" "t['save_path'] == '/tmp/elsewhere' and t['state'] != 'moving'" 120
-expect_text "the footer says it moved, or the band does" "$BIG moved to /tmp/elsewhere" 30
 expect_size "the 2 GiB file is in /tmp/elsewhere, whole" "/tmp/elsewhere/$BIG" "$BIG_SIZE"
 expect_disk "…and gone from ~/Torrents" ! "$TORRENTS_DIR/$BIG"
 expect "it still seeds, complete" "$BIGH" "t['state'] in $SEEDING and t['progress'] == 1" 30
@@ -506,7 +717,8 @@ click "$BAR_STOP" "$BAR_Y"
 expect "Field Recordings is stopped" "$FIELD" 't["state"] == "stoppedUP"'
 expect "Nested Library Sampler is stopped" "$NESTED" 't["state"] == "stoppedUP"'
 expect "no other torrent is" "$FIELD" 'all(not x["state"].startswith("stopped") for x in every if x["hash"] not in ("'"$FIELD"'", "'"$NESTED"'"))'
-shot "Both rows read stopped; the others still seed."
+expect_text "the strip counts them: 2 stopped" "2 stopped" 10
+shot "Both rows read stopped; the others still seed. The strip, \"✓ 2 stopped\", sits just above the selection bar (C18 D1, O3)."
 
 step "Category from the bar" "The bar's category button, \"walk\", enter. Field Recordings is managed, so it moves to ~/Torrents/walk; Nested Library is not (set location turned management off), so it stays in ~/Moved."
 click "$BAR_CATEGORY" "$BAR_Y"
@@ -530,7 +742,49 @@ step "Start them from the bar" "The bar's start button."
 click "$BAR_START" "$BAR_Y"
 expect "both seed again" "$FIELD" 'all(x["state"] in '"$SEEDING"' for x in every if x["hash"] in ("'"$FIELD"'", "'"$NESTED"'"))' 30
 shot "Both rows seeding, still selected, walk and bulk on them."
+keys Escape # closes the strip
 keys Escape # clears the selection
+
+step "Pick rows with the mouse" "A plain click on Field Recordings' row: one selected, and the bar's quiet hint \"ctrl+click add · shift+click range\" (C18 D6, the first of 3 times). The □ at Nested Library Sampler's row start adds it, the first staying; a second click on its □ takes it out. Then the ? sheet has a \"select with the mouse\" block."
+keys Escape
+# A plain click on the row, past its □:
+where="$(omabox tree -b "$BOX" --window omaseed --find "Field Recordings Vol. 3 [FLAC]" 2>/dev/null | python3 -c '
+import re, sys
+for line in sys.stdin:
+    m = re.search(r"list item \"[^\"]*\"[^@]* @(-?\d+),(-?\d+) (\d+)x(\d+)", line)
+    if m:
+        x, y, w, h = map(int, m.groups())
+        print(x + 200, y + h // 2)
+        break')"
+# shellcheck disable=SC2086 # two numbers
+omabox click -b "$BOX" --window omaseed --wait --ignore "$STRIP_IGNORE" $where >/dev/null 2>&1 || true
+expect_text "one selected" "1 selected" 10
+expect_text "the bar hints the mouse" "ctrl+click add · shift+click range" 10
+row_tick "Nested Library Sampler (2026)"
+expect_text "the □ added the second, the first stays" "2 selected" 10
+shot "Two rows selected, each with ■ at its start; the bar reads 2 selected and ends with the dim hint." mouse
+row_tick "Nested Library Sampler (2026)"
+expect_text "a second click on its □ took it out" "1 selected" 10
+keys Escape
+keys -t "?"
+shot "The ? sheet: SELECT WITH THE MOUSE after the select keys (click □, ctrl+click, shift+click, middle click, right click, below the fold)." help
+keys -t "middle"
+expect_text "the ? sheet finds the mouse's middle click" "Add or remove the row, as ctrl+click" 10
+keys Escape Escape
+
+step "A refusal says so in the strip" "Queueing switched off on the server; Public Domain Sampler, [ (up the queue): qBittorrent refuses (409). The strip is red and stays: \"Sampler (renamed) didn't move in the queue\", why, details, ×; esc closes it (C18 D1, D3). Queueing back on."
+api app/setPreferences --data-urlencode 'json={"queueing_enabled": false}' >/dev/null
+table_on "Public Domain"
+keys -t "["
+expect_text "the strip says it was refused" "didn't move in the queue" 15
+sleep 7
+find_text_aw() { omabox tree -b "$BOX" --window omaseed --find "$1" >/dev/null 2>&1; }
+find_text_aw "didn't move in the queue" || fail "the refusal went by itself (D3: it stays until closed)"
+pass "it is still there after 7 s"
+shot "The red strip: ✕ … didn't move in the queue, refused: Torrent queueing must be enabled, details, ×; the row reads ✕ didn't move in the queue." refused
+keys Escape
+if find_text_aw "didn't move in the queue"; then fail "esc left the strip"; else pass "esc closed it"; fi
+api app/setPreferences --data-urlencode 'json={"queueing_enabled": true}' >/dev/null
 
 # docs/30 §7: the command palette runs a command as its key would, menu-only ones included.
 step "Force start from the command palette" "Field Recordings, p (stopped); then : \"force\", enter: force start, on the server. Then : \"seq\", enter: sequential download, the actions menu's s, which has no window key."
@@ -551,6 +805,9 @@ keys Return
 expect "…and off again" "$FIELD" 'not t["seq_dl"]'
 keys p
 expect "p stops it" "$FIELD" 't["state"] == "stoppedUP"'
+# p goes by the row's state as the app last synced it, and the row's "✓ stopped" mark (C18 D1)
+# shows before that sync: let one poll (1.5 s) bring the stop in first.
+sleep 2
 keys p
 expect "it seeds again, not forced" "$FIELD" "t['state'] in $SEEDING and not t['force_start']" 30
 
@@ -651,6 +908,7 @@ api torrents/setCategory -d "hashes=$TWIN" -d category=pair >/dev/null
 api torrents/setAutoManagement -d "hashes=$TWIN" -d enable=true >/dev/null
 expect "the twin is in pair, managed, still in /tmp/pair" "$TWIN" "t['category'] == 'pair' and t['auto_tmm'] and t['save_path'] == '/tmp/pair'"
 expect "$BIG has no category and is not managed" "$BIGH" "t['category'] == '' and not t['auto_tmm']"
+sleep 2 # the app's next poll brings in what the API just changed
 menu_on "twin"
 keys C
 keys -t shelf
@@ -672,6 +930,9 @@ api torrents/setAutoManagement -d "hashes=$TWIN|$BIGH" -d enable=false >/dev/nul
 api torrents/setCategory -d "hashes=$TWIN" -d category=pair >/dev/null
 expect "the twin is in pair, manual, still in /tmp/shelf" "$TWIN" "t['category'] == 'pair' and not t['auto_tmm'] and t['save_path'] == '/tmp/shelf'"
 expect "$BIG is in shelf, manual, in /tmp/shelf" "$BIGH" "t['category'] == 'shelf' and not t['auto_tmm'] and t['save_path'] == '/tmp/shelf'"
+# What the API just changed reaches the app on its next poll (1.5 s): before it, the app still
+# sees the twin in shelf, where management would move nothing, and asks nothing.
+sleep 2
 menu_on "twin"
 keys a
 sleep 1
@@ -719,9 +980,5 @@ expect "$BIG is gone" "$BIGH" 't is None'
 expect_disk "the file is gone from /tmp/pair" ! "/tmp/pair/$BIG" 30
 expect_disk "Public Domain Sampler's files are still there" -f "$TORRENTS_DIR/Sampler (renamed)/sampler.mkv"
 
-echo
-echo "all $CHECKS checks passed"
-if [ "$INTERACTIVE" = 0 ]; then
-    printf '\n**All %s checks passed.**\n' "$CHECKS" >>"$OUT/index.md"
-    echo "shots and checks: $OUT/index.md"
-fi
+disk_walk
+finish

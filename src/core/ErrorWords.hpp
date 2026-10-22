@@ -8,9 +8,12 @@
 //
 // Per request where it is known (setLocation's 400/403/409, add's 415), per kind otherwise:
 //
-// - connection refused: "NAME didn't answer" / "Nothing is listening at ADDRESS."
-// - host not found: "NAME couldn't be found" / "ADDRESS doesn't resolve on this computer."
-// - timeout: "NAME is taking too long" / "No answer in N s."
+// - connection refused (docs/44 D11, red): "NAME is unreachable" / "Connection refused at
+//   ADDRESS. Is qBittorrent running?"; no route: "No route to ADDRESS. …"
+// - host not found (red, as nothing is there): "NAME couldn't be found" / "ADDRESS doesn't
+//   resolve on this computer."
+// - timeout (docs/44 W1, yellow): "NAME isn't answering" / "qBittorrent is running but hasn't
+//   replied for N s. It may be busy writing to its disk. omaseed keeps asking."
 // - certificate: Q27's words / review it in Settings › Servers
 // - 401, a sign-in: "NAME refused the sign-in" / credentialRefusedText, in a sentence
 // - 403: "NAME refused omaseed" / banned, or too many failed sign-ins
@@ -23,6 +26,8 @@
 //
 // A move made by a job (board 42 §8) has its own rows: a failure from the log (forMoveFailure),
 // a drive nearly full (forNearlyFull), a stuck queue (forStuck), torrents left out (forLeftOut).
+//
+// A server sheet's test has its own rows (forTest, docs/33 N5): no retry, what to check.
 //
 // A server's problem adds the retry (`retryLine`): one figure, the engine's countdown, read
 // by the window's notice and the desktop notice alike (Q16). The look of the notice that
@@ -57,6 +62,9 @@ public:
         /// What is left of the engine's retry, in seconds: > 0 a countdown, 0 "now", < 0 no
         /// retry to speak of (an action, a refused sign-in).
         int retrySeconds = -1;
+        /// docs/44 W1: how long a server that times out has gone without a reply, in
+        /// seconds; < 0 unknown (the timeout's own figure is used).
+        int silentSeconds = -1;
         /// The torrent a request was about ("Field Recordings Vol. 3"), or empty.
         QString torrent;
         /// setLocation's destination folder, or empty.
@@ -69,8 +77,11 @@ public:
         QString headline;
         QString line;
         QString details;
-        /// "down" (didn't answer, can't be found, too slow), "refused" (the sign-in), "banned"
-        /// (403), "certificate", "server" (5xx), "parse", "request" (an action refused).
+        /// "waiting" (a timeout: there, but not answering; yellow), "unreachable" (refused, no
+        /// route, can't be found; red), both retried by the engine (docs/44 D11); "down" (an
+        /// add the server stopped answering in the middle of), "refused" (the sign-in),
+        /// "banned" (403), "certificate", "server" (5xx), "parse", "request" (an action
+        /// refused).
         QString kind;
 
         /// The footer's one sentence: "Field Recordings wasn't moved: qBittorrent can't
@@ -86,12 +97,23 @@ public:
     /// An action that failed (a request about a torrent, an add): per request where it is
     /// known, else per kind.
     static Text forRequest(const ApiError &error, const Subject &subject);
+    /// A server sheet's test that failed (docs/33 N5, docs/35 N7): a test is asked once, so
+    /// nothing is retried and the line says what to check. Nothing answering at the address:
+    /// "Nothing answered at ADDRESS" / "Check the address and port, and that qBittorrent's Web
+    /// UI is on (Tools › Options › Web UI)."; a timeout: "NAME isn't answering" / "It took the
+    /// connection but didn't reply in N s. Test again in a moment."; the rest as forServer()
+    /// words them, without a retry. A refused sign-in or certificate keeps `refusedText`
+    /// (credentialRefusedText, certificateRefusedText) as its line.
+    static Text
+    forTest(const ApiError &error, const Subject &subject, const QString &refusedText = QString());
 
     /// "omaseed tries again in 7 s." / "omaseed tries again now."; empty for < 0.
     static QString retryLine(int seconds);
-    /// The short reason a server row prints for its last failed try: "didn't answer",
-    /// "sign-in refused", "certificate refused", "refused omaseed", "internal error",
-    /// "unreadable answer", "error".
+    /// docs/44 W1: "waiting · 18 s", what a timeout shows where a countdown would be.
+    static QString waitingLine(int seconds);
+    /// The short reason a server row prints for its last failed try: "unreachable", "not
+    /// found", "not answering" (docs/44 D11), "sign-in refused", "certificate refused", "refused
+    /// omaseed", "internal error", "unreadable answer", "error".
     static QString shortReason(const ApiError &error);
     /// "network error · GET sync/maindata · Connection refused · 127.0.0.1:8091": the kind
     /// (and status), the request, the API's or Qt's own text, the address.
@@ -99,8 +121,11 @@ public:
     /// "GET sync/maindata", the request the error names; empty when it names none.
     static QString request(const ApiError &error);
     /// The read-only guard (D23): the key it stops says so. "private is unreachable: p waits
-    /// until it answers" / "private refused the sign-in: p waits until the login is fixed".
-    static QString guard(const QString &server, const QString &key, bool refused);
+    /// until it answers" / "private refused the sign-in: p waits until the login is fixed";
+    /// `waiting` (a timeout, docs/44 D11): "private isn't answering: p waits until it
+    /// answers".
+    static QString
+    guard(const QString &server, const QString &key, bool refused, bool waiting = false);
     /// True when the error is a refused sign-in (401, or 403 to a key or to no credential).
     static bool isRefusedSignIn(const ApiError &error, AuthMode mode);
 
@@ -125,8 +150,13 @@ public:
                          const QDateTime &lastLanded,
                          std::chrono::seconds expected);
     /// M8: `count` torrents left out because `folder` already has a file with their file's
-    /// name.
-    static Text forLeftOut(int count, const QString &folder);
+    /// name. `there`, when given, says what that is (whatIsThere()), in brackets.
+    static Text forLeftOut(int count, const QString &folder, const QString &there = QString());
+    /// #161 (a): what is at a left-out torrent's target, "an empty file no torrent owns", "a
+    /// folder of 1.2 GB that NAME owns". `bytes` -1 is unknown, `folder` whether it is one;
+    /// `ownerKnown` false says nothing of whose it is, else `owner` names it (empty: none).
+    /// Empty when there is nothing to say.
+    static QString whatIsThere(qint64 bytes, bool folder, bool ownerKnown, const QString &owner);
 };
 
 } // namespace omaseed::core

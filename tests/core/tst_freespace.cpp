@@ -18,9 +18,14 @@ struct FakeDisks
 {
     QHash<QString, StorageReading> folders;
 
-    void add(const QString &path, const QString &root, qint64 free, qint64 total = 0)
+    void add(const QString &path,
+             const QString &root,
+             qint64 free,
+             qint64 total = 0,
+             const QString &fileSystem = QStringLiteral("ext4"))
     {
         StorageReading reading;
+        reading.fileSystem = fileSystem;
         reading.valid = true;
         reading.exists = true;
         reading.bytesFree = free;
@@ -73,6 +78,8 @@ private slots:
     void remoteOtherFolderIsUnknown();
     void readsARealFolder();
     void localPathsOnlyWhereTheDisksAreSeen();
+    void answersCarryTheFileSystem();
+    void whichFileSystemsAllocateInFull();
 };
 
 void TestFreeSpace::defaultFolderUsesTheServersFigure()
@@ -223,6 +230,7 @@ void TestFreeSpace::readsARealFolder()
     QVERIFY(here.exists);
     QVERIFY(here.bytesTotal > 0);
     QVERIFY(!here.rootPath.isEmpty());
+    QVERIFY(!here.fileSystem.isEmpty());
 
     const StorageReading later = FreeSpaceProbe::readLocal(dir.path() + QStringLiteral("/not/yet"));
     QVERIFY(later.valid);
@@ -256,6 +264,52 @@ void TestFreeSpace::localPathsOnlyWhereTheDisksAreSeen()
     probe.setServer(QStringLiteral("/downloads"), 1500 * kGiB, PathMap(), false);
     QVERIFY(!probe.seesServerDisks());
     QVERIFY(probe.localPathFor(QStringLiteral("/downloads/album")).isEmpty());
+}
+
+void TestFreeSpace::answersCarryTheFileSystem()
+{
+    // DECISIONS C17 D8: the driver's name, wherever this machine reads the drive.
+    FakeDisks disks;
+    disks.add(QStringLiteral("/home/d/Downloads"), QStringLiteral("/home"), 1500 * kGiB);
+    disks.add(QStringLiteral("/mnt/media"),
+              QStringLiteral("/mnt/media"),
+              23 * kGiB,
+              15000 * kGiB,
+              QStringLiteral("ntfs3"));
+    disks.add(QStringLiteral("/run/media/stick"),
+              QStringLiteral("/run/media/stick"),
+              20 * kGiB,
+              32 * kGiB,
+              QStringLiteral("vfat"));
+    FreeSpaceProbe probe(disks.reader());
+    probe.setServer(QStringLiteral("/home/d/Downloads"), 1500 * kGiB, PathMap(), false);
+    QCOMPARE(probe.answer(QStringLiteral("/mnt/media/Downloads")).fileSystem,
+             QStringLiteral("ntfs3"));
+    QCOMPARE(probe.answer(QStringLiteral("/run/media/stick/films")).fileSystem,
+             QStringLiteral("vfat"));
+    // The default folder keeps the server's figure, and still names its drive's type here.
+    const auto byDefault = probe.answer(QString());
+    QCOMPARE(byDefault.source, FreeSpaceProbe::Source::Default);
+    QCOMPARE(byDefault.fileSystem, QStringLiteral("ext4"));
+
+    // A server whose disks this machine can't see: no type, never a guess.
+    probe.setServer(QStringLiteral("/downloads"), 1500 * kGiB, PathMap(), false);
+    QVERIFY(probe.answer(QString()).fileSystem.isEmpty());
+    QVERIFY(probe.answer(QStringLiteral("/downloads/films")).fileSystem.isEmpty());
+}
+
+void TestFreeSpace::whichFileSystemsAllocateInFull()
+{
+    // DECISIONS C17 D8, #116's table: the driver decides, not the format.
+    using omaseed::core::FileSystems::allocatesInFull;
+    using omaseed::core::FileSystems::isFat32;
+    for (const char *fs : {"ntfs3", "exfat", "vfat"})
+        QVERIFY2(allocatesInFull(QString::fromLatin1(fs)), fs);
+    for (const char *fs : {"ntfs", "ext4", "btrfs", "fuseblk", "xfs", "cifs", "nfs4", ""})
+        QVERIFY2(!allocatesInFull(QString::fromLatin1(fs)), fs);
+    QVERIFY(isFat32(QStringLiteral("vfat")));
+    QVERIFY(!isFat32(QStringLiteral("exfat")));
+    QCOMPARE(omaseed::core::FileSystems::kFat32TooBig, 4 * kGiB);
 }
 
 QTEST_APPLESS_MAIN(TestFreeSpace)

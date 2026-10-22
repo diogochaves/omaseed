@@ -9,7 +9,9 @@ qt_add_qml_module(omaseed-views
         DemoEnvForeign.hpp
     QML_FILES
         ActionsMenu.qml
+        AddAgainConfirm.qml
         AddBatchList.qml
+        AddDriverLine.qml
         AddDownloadsList.qml
         AddFetchLine.qml
         AddFilesTree.qml
@@ -72,7 +74,9 @@ qt_add_qml_module(omaseed-views
         MoveLooseList.qml
         MoveQuitConfirm.qml
         MoveRecheckSheet.qml
+        FreeSpaceSheet.qml
         MoveSheet.qml
+        OutcomeStrip.qml
         QbtImportSheet.qml
         QbtListSheet.qml
         QbtSettingRow.qml

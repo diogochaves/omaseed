@@ -174,6 +174,9 @@ private slots:
     void fetchMetadataOfALinkStillDownloading();
     void fetchMetadataNotFoundIsAnError();
     void addUrlsSendsFilePrioritiesAndStopCondition();
+    void skipCheckingFollowsTheApiVersion_data();
+    void skipCheckingFollowsTheApiVersion();
+    void seedModeSupportFollowsTheApiVersion();
 };
 
 // #44 (docs/29 §2): 202 is "still looking" with the hashes, 200 the metadata. Bodies are the
@@ -298,6 +301,73 @@ void TestQbtClientActionsFake::addUrlsSendsFilePrioritiesAndStopCondition()
 }
 
 // #10: the HTTP sources tab's add and remove, and the edit the client offers besides.
+// #154: Web API 2.16.0 (qBittorrent 5.3) reads `seedMode` and no longer `skip_checking`;
+// 5.2 (2.15.1) reads only `skip_checking`. A server whose version is unknown gets both.
+void TestQbtClientActionsFake::skipCheckingFollowsTheApiVersion_data()
+{
+    QTest::addColumn<QString>("apiVersion");
+    QTest::addColumn<bool>("seedMode");
+    QTest::addColumn<bool>("skipChecking");
+
+    QTest::newRow("5.2 (2.15.1)") << QStringLiteral("2.15.1") << false << true;
+    QTest::newRow("2.15.4") << QStringLiteral("2.15.4") << false << true;
+    QTest::newRow("5.1 (2.11.4)") << QStringLiteral("2.11.4") << false << true;
+    QTest::newRow("2.16.0") << QStringLiteral("2.16.0") << true << false;
+    QTest::newRow("5.3 (2.16.2)") << QStringLiteral("2.16.2") << true << false;
+    QTest::newRow("2.17.0") << QStringLiteral("2.17.0") << true << false;
+    QTest::newRow("unknown") << QString() << true << true;
+    QTest::newRow("unreadable") << QStringLiteral("nonsense") << true << true;
+}
+
+void TestQbtClientActionsFake::skipCheckingFollowsTheApiVersion()
+{
+    QFETCH(QString, apiVersion);
+    QFETCH(bool, seedMode);
+    QFETCH(bool, skipChecking);
+
+    FakeServer server;
+    server.setHandler([](const Recorded &, int) { return httpResponse(200, "OK", "{}"); });
+    QbtClient client;
+    client.setBaseUrl(server.url());
+
+    QbtClient::AddOptions skip;
+    skip.skipChecking = true;
+    skip.apiVersion = apiVersion;
+    QVERIFY(!await(this, client.torrentsAddUrls({QStringLiteral("magnet:?xt=a")}, skip)).isError());
+    // Without the choice neither key travels, whatever the version.
+    QbtClient::AddOptions check;
+    check.apiVersion = apiVersion;
+    QVERIFY(
+        !await(this, client.torrentsAddUrls({QStringLiteral("magnet:?xt=b")}, check)).isError());
+    QCOMPARE(server.requests.size(), 2);
+
+    const QUrlQuery first(QString::fromUtf8(server.requests.at(0).body));
+    QCOMPARE(first.hasQueryItem(QStringLiteral("seedMode")), seedMode);
+    QCOMPARE(first.hasQueryItem(QStringLiteral("skip_checking")), skipChecking);
+    if (seedMode)
+        QCOMPARE(first.queryItemValue(QStringLiteral("seedMode")), QStringLiteral("true"));
+    if (skipChecking)
+        QCOMPARE(first.queryItemValue(QStringLiteral("skip_checking")), QStringLiteral("true"));
+    // The version is not a parameter of its own.
+    QVERIFY(!first.hasQueryItem(QStringLiteral("apiVersion")));
+
+    const QUrlQuery second(QString::fromUtf8(server.requests.at(1).body));
+    QVERIFY(!second.hasQueryItem(QStringLiteral("seedMode")));
+    QVERIFY(!second.hasQueryItem(QStringLiteral("skip_checking")));
+}
+
+void TestQbtClientActionsFake::seedModeSupportFollowsTheApiVersion()
+{
+    QVERIFY(QbtClient::supportsSeedMode(QStringLiteral("2.16.0")));
+    QVERIFY(QbtClient::supportsSeedMode(QStringLiteral("2.16.2"))); // qBittorrent 5.3.0
+    QVERIFY(QbtClient::supportsSeedMode(QStringLiteral("2.17")));
+    QVERIFY(QbtClient::supportsSeedMode(QStringLiteral("3.0")));
+    QVERIFY(!QbtClient::supportsSeedMode(QStringLiteral("2.15.4")));
+    QVERIFY(!QbtClient::supportsSeedMode(QStringLiteral("2.15.1"))); // every 5.2.x
+    QVERIFY(!QbtClient::supportsSeedMode(QString()));
+    QVERIFY(!QbtClient::supportsSeedMode(QStringLiteral("nonsense")));
+}
+
 void TestQbtClientActionsFake::webSeedWritesSendTheHashAndTheUrls()
 {
     FakeServer server;
@@ -545,6 +615,9 @@ void TestQbtClientActionsFake::shareLimitsSendsAllFiveFields()
     // 5.2.3 answers 400 without this field, so the default argument is Default, not "omit".
     QCOMPARE(body.queryItemValue(QStringLiteral("shareLimitAction"), QUrl::FullyDecoded),
              QStringLiteral("Default"));
+    // qBittorrent 5.3 answers 400 without the mode.
+    QCOMPARE(body.queryItemValue(QStringLiteral("shareLimitsMode"), QUrl::FullyDecoded),
+             QStringLiteral("Default"));
 }
 
 void TestQbtClientActionsFake::shareLimitsKeepRatioPrecision()
@@ -627,6 +700,7 @@ void TestQbtClientActionsFake::shareLimitActionIsOmittedForAnOldApi()
     QVERIFY2(!result.isError(), qPrintable(result.error().toString()));
     const QUrlQuery body(QString::fromUtf8(server.requests.at(0).body));
     QVERIFY(!body.hasQueryItem(QStringLiteral("shareLimitAction")));
+    QVERIFY(!body.hasQueryItem(QStringLiteral("shareLimitsMode")));
     QCOMPARE(body.queryItemValue(QStringLiteral("hashes"), QUrl::FullyDecoded),
              QStringLiteral("h1"));
     QCOMPARE(body.queryItemValue(QStringLiteral("inactiveSeedingTimeLimit"), QUrl::FullyDecoded),

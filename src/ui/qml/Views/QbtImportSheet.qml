@@ -109,6 +109,8 @@ Sheet {
             "temp_path": qsTr("incomplete files folder"),
             "export_dir": qsTr("copy .torrent files to"),
             "export_dir_fin": qsTr("copy finished .torrent files to"),
+            "mail_notification_ssl_enabled": qsTr("email over SSL"),
+            "mail_notification_encryption_type": qsTr("email encryption"),
             "web_ui_address": qsTr("Web UI address"),
             "web_ui_port": qsTr("Web UI port"),
             "web_ui_username": qsTr("Web UI user"),

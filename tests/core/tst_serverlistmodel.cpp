@@ -538,6 +538,11 @@ void TestServerListModel::currentServerState()
 
     model.setCurrent(home, QStringLiteral("down"), -1);
     QCOMPARE(roleOf(model, 0, ServerListModel::CountTextRole).toString(), QStringLiteral("down"));
+    // docs/44 D11: a timeout is "waiting", not "down".
+    model.setCurrent(home, QStringLiteral("waiting"), -1);
+    QCOMPARE(roleOf(model, 0, ServerListModel::CountTextRole).toString(),
+             QStringLiteral("waiting"));
+    model.setCurrent(home, QStringLiteral("down"), -1);
     model.setCurrent(home, QStringLiteral("refused"), -1);
     QCOMPARE(roleOf(model, 0, ServerListModel::CountTextRole).toString(), QStringLiteral("!"));
 

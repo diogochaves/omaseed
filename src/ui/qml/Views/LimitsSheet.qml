@@ -393,6 +393,7 @@ Sheet {
                 // `global`, the chip is the only way off it from the keyboard.
                 Chip {
                     focusable: true
+                    checkable: true
                     selected: root._ratioGlobal
                     // #78: the ▾ is drawn only.
                     Accessible.name: qsTr("global")
@@ -452,6 +453,7 @@ Sheet {
                     id: seedingGlobalChip
 
                     focusable: true
+                    checkable: true
                     selected: root._seedingGlobal
                     // #78: the ▾ is drawn only.
                     Accessible.name: qsTr("global")

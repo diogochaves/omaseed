@@ -8,7 +8,7 @@
 # Usage (from packaging/arch/, never with -i / sudo -- see CLAUDE.md):
 #   makepkg -p PKGBUILD.local -f
 pkgname=omaseed
-pkgver=0.3.0
+pkgver=0.3.2
 pkgrel=1
 pkgdesc="Torrents for Omarchy, powered by qBittorrent (local build)"
 arch=('x86_64')

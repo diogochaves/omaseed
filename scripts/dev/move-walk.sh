@@ -2,12 +2,15 @@
 # omaseed — moving a folder (board 42, DECISIONS C15), walked through the app's own UI on a
 # library of a few hundred small torrents: a folder with a nested save path and loose files
 # moved to another filesystem, omaseed killed mid-move and started again, the loose files
-# carried after the torrents; pause, end and "move the rest…"; two that fail and the
-# summary's recheck, which starts only the one that was running (#138); a destination
+# carried after the torrents; pause, end and "move the rest…"; three that fail and the
+# summary's recheck, which starts only the one that was running (#138) and leaves out the
+# hybrid, moved again instead (DECISIONS C21); a destination
 # qBittorrent can't write; a destination that fills up. Then a selection moved through the Move… sheet
 # (board 43, DECISIONS C16): one torrent's quick move, three from three folders keeping their
 # places, one queued behind a folder's move and the folder moved back from its summary, a name
-# already at the destination; and a second box whose omaseed is on the playground, whose disks
+# already at the destination; one big torrent whose file qBittorrent makes at full length before
+# it copies (#162), the summary's count of torrents added during it (#164), and what a file
+# already at the destination is and whose (#161); and a second box whose omaseed is on the playground, whose disks
 # it can't see (L13). After each step it checks what qBittorrent says and what is on disk, and
 # stops at the first mismatch.
 # Run it again after any change to the move sheet, the job, the carry or their words.
@@ -20,7 +23,8 @@
 #   OMASEED_MOVE_WALK_FROM=selection …        # from the selections on (no folder moves first)
 #   OMASEED_MOVE_WALK_FROM=sheet …            # from the places, names and partial pack on
 #   OMASEED_MOVE_WALK_FROM=history …          # from move back after the summary (C18) on
-#   OMASEED_MOVE_WALK_FROM=music …            # from the unwritable and full steps on
+#   OMASEED_MOVE_WALK_FROM=big …              # from one big torrent's move and a leftover on
+#   OMASEED_MOVE_WALK_FROM=music …            # from the recheck, unwritable and full steps on
 #   OMASEED_MOVE_WALK_FROM=remote …           # only the server omaseed can't see
 #   OMASEED_MOVE_WALK_KEEP=1 …                # a failed run leaves its box up
 #
@@ -358,7 +362,7 @@ def bencode(x):
         return b"l" + b"".join(map(bencode, x)) + b"e"
     return b"d" + b"".join(bencode(k) + bencode(x[k]) for k in sorted(x)) + b"e"
 
-def make(root, name, size, seed):
+def make(root, name, size, seed, hybrid=False):
     folder = os.path.join(home, "Torrents/library", root, name)
     os.makedirs(folder, exist_ok=True)
     data = hashlib.sha256(seed.encode()).digest() * (size // 32 + 1)
@@ -368,10 +372,18 @@ def make(root, name, size, seed):
     pieces = b"".join(hashlib.sha1(data[i:i + PIECE]).digest() for i in range(0, len(data), PIECE))
     info = {"name": name, "piece length": PIECE, "pieces": pieces, "private": 1,
             "files": [{"length": size, "path": ["data.bin"]}]}
+    top = {"created by": "move-walk"}
+    if hybrid:
+        # BEP 52's v2 half beside the v1 one, as libtorrent's create_torrent writes it: a file
+        # of one 16 KiB block has the block's SHA-256 as its root and no piece layer.
+        assert size <= PIECE
+        info["meta version"] = 2
+        info["file tree"] = {"data.bin": {"": {"length": size, "pieces root": hashlib.sha256(data).digest()}}}
+        top["piece layers"] = {}
     out = os.path.join(home, "walk-torrents", root.replace("/", "-"))
     os.makedirs(out, exist_ok=True)
     with open(os.path.join(out, name + ".torrent"), "wb") as f:
-        f.write(bencode({"info": info, "created by": "move-walk"}))
+        f.write(bencode(dict(top, info=info)))
 
 for i in range(1, games - handheld + 1):
     make("games", "Arcade Set %03d" % i, 8192 + 997 * i, "g%d" % i)
@@ -381,11 +393,12 @@ for i in range(1, films + 1):
     make("films", "Short Film %03d" % i, 8192 + 983 * i, "f%d" % i)
 for i in range(1, music + 1):
     make("music", "Album %02d" % i, 600 * 1024 + i, "m%d" % i)
-# The recheck after a move (#138): one that moves (the smallest, sent alone first) and two
-# below it that can't.
+# The recheck after a move (#138): one that moves (the smallest, sent alone first) and three
+# below it that can't, the last a hybrid (v1+v2) that the recheck leaves out (DECISIONS C21).
 make("recheck", "Recheck One", 8192, "r1")
 make("recheck/locked", "Recheck Two", 9000, "r2")
 make("recheck/locked", "Recheck Three", 9500, "r3")
+make("recheck/locked", "Recheck Four", 9700, "r4", hybrid=True)
 
 def loose(path, size, old=True):
     full = os.path.join(home, "Torrents/library", path)
@@ -424,7 +437,7 @@ add_root music "$LIB/music"
 add_root recheck "$LIB/recheck"
 add_root recheck-locked "$LIB/recheck/locked"
 
-step "The library" "$((GAMES + FILMS + MUSIC)) torrents added as complete: games ($GAMES, $HANDHELD of them in games/handheld), films ($FILMS), music ($MUSIC), and three in recheck; six files no torrent owns beside them."
+step "The library" "$((GAMES + FILMS + MUSIC)) torrents added as complete: games ($GAMES, $HANDHELD of them in games/handheld), films ($FILMS), music ($MUSIC), and four in recheck (one a hybrid); six files no torrent owns beside them."
 expect_count "games holds $GAMES torrents" count_under "$LIB/games" -eq "$GAMES" 60
 expect_count "games/handheld holds $HANDHELD" count_at "$LIB/games/handheld" -eq "$HANDHELD"
 expect_count "films holds $FILMS" count_under "$LIB/films" -eq "$FILMS"
@@ -432,7 +445,8 @@ expect_count "music holds $MUSIC" count_under "$LIB/music" -eq "$MUSIC"
 expect_text "the rail lists the folders" "handheld" 30
 shot "The library: the rail's folders group lists library, games with handheld under it, films and music."
 
-# OMASEED_MOVE_WALK_FROM skips what comes before: selection, sheet, history, music or remote.
+# OMASEED_MOVE_WALK_FROM skips what comes before: selection, sheet, history, big, music or
+# remote.
 FROM="${OMASEED_MOVE_WALK_FROM:-games}"
 if [ "$FROM" = games ]; then
 
@@ -520,7 +534,7 @@ fi
 if [ "$FROM" = games ] || [ "$FROM" = selection ]; then
 SEL="$BOX_HOME/sel"
 
-step "One torrent, a quick move" "The cursor on Handheld Pack 040, m: the Move… sheet on that torrent. ~/sel/one typed over the field: one green line (L3). enter: it lands within 3 s, so no band; the footer says it moved (L7)."
+step "One torrent, a quick move" "The cursor on Handheld Pack 040, m: the Move… sheet on that torrent. ~/sel/one typed over the field: one green line (L3). enter: it lands within 3 s, so no band; the strip in the selection bar's place says it moved, and the row's status reads ✓ moved · one (C18 D1). esc closes the strip."
 table_on "Handheld Pack 040"
 keys m
 expect_text "the Move… sheet is open" "Move Handheld Pack 040" 10
@@ -530,9 +544,32 @@ shot "The Move… sheet for one torrent: the field, one green line, move." sheet
 keys Return
 expect_at "Handheld Pack 040 saves at ~/sel/one" "Handheld Pack 040" "$SEL/one"
 expect_disk "its file is there" -f "$SEL/one/Handheld Pack 040/data.bin"
-expect_text "the footer says it moved" "Handheld Pack 040 moved to $SEL/one" 20
+expect_text "the strip says it moved" "Handheld Pack 040 moved to $SEL/one" 20
 no_text "no band for it" "Moving Handheld Pack 040"
-shot "The footer note: Handheld Pack 040 moved to ~/sel/one, a green ✓." note
+shot "The strip at the table's bottom middle: ✓ Handheld Pack 040 moved to ~/sel/one, show, ×, its green line running down; the row's status reads ✓ moved · one in green; the footer has only its counts and keys." strip
+keys Escape
+no_text "esc closed the strip" "Handheld Pack 040 moved to $SEL/one"
+
+step "A quick move qBittorrent can't do" "The box's ~/locked/quick exists, read-only. Handheld Pack 039, m, that folder, enter: qBittorrent answers OK and logs that it can't write there. The strip turns red and stays: Handheld Pack 039 didn't move, why, details and move…; the row reads ✕ didn't move (C18 D1, D3). details opens the band above the strip; esc closes the band, esc again the strip."
+mkdir -p "$home/locked/quick"
+chmod 0555 "$home/locked/quick"
+table_on "Handheld Pack 039"
+keys m
+expect_text "the Move… sheet is open" "Move Handheld Pack 039" 10
+keys ctrl+a -t "$BOX_HOME/locked/quick"
+expect_text "the sheet has checked it" "on $BOX_HOME" 20
+keys Return
+expect_text "the strip says it didn't move" "Handheld Pack 039 didn't move" 60
+sleep 7
+find_text "Handheld Pack 039 didn't move" || fail "the failure went by itself (D3: it stays until closed)"
+pass "it is still there after 7 s"
+shot "The red strip: ✕ Handheld Pack 039 didn't move, why, details, move…, ×; the row reads ✕ didn't move in red." strip
+press details
+shot "The band above the strip with the failure's words; the strip under it." band
+keys Escape
+keys Escape
+no_text "esc, esc: the band and the strip are gone" "Handheld Pack 039 didn't move"
+chmod 0755 "$home/locked/quick"
 
 step "Three from three folders, keeping their places" "space on Arcade Set 002 (games), Handheld Pack 002 (games/handheld) and Short Film 002 (films); m, ~/sel/keep. The sheet offers into one folder or keeping their places below the folder they share; keep their places: each folder's row and where it goes. move 3 torrents: each lands in the same place below ~/sel/keep."
 read -r common < <(api torrents/info | python3 -c '
@@ -559,10 +596,11 @@ expect_checked "keep their places is picked" "keep their places below $common"
 expect_text "a row for handheld" "to $SEL/keep$handheld_rel" 10
 shot "Keep their places: three rows, each folder and where it goes; room; move 3 torrents." sheet
 press "move 3 torrents"
-# C16 L6/L7: a move that lands within 3 s says so in the footer ("3 moved to …"); a slower
+# C16 L6, C18 D1: a move that lands within 3 s says so in the strip ("3 moved to …"); a slower
 # one (a busy machine) gets the band and its summary ("3 torrents moved to …"). Either is right.
 # Looked for first: the note lasts 6 s, and the server checks below take seconds.
-expect_text "the footer or the band says 3 moved" "moved to $SEL/keep" 30
+expect_text "the strip or the band says 3 moved" "moved to $SEL/keep" 30
+shot "With the three still selected, the strip (3 moved to ~/sel/keep, or the band's summary when it ran past 3 s) sits just above the selection bar (C18 D1, O3)." strip
 expect_at "Arcade Set 002 is at ~/sel/keep$arcade_rel" "Arcade Set 002" "$SEL/keep$arcade_rel"
 expect_at "Handheld Pack 002 at ~/sel/keep$handheld_rel" "Handheld Pack 002" "$SEL/keep$handheld_rel"
 expect_at "Short Film 002 at ~/sel/keep$film_rel" "Short Film 002" "$SEL/keep$film_rel"
@@ -587,7 +625,7 @@ shot "The band: films moving, next: Arcade Set 003 to ~/sel/after." band
 press details
 expect_text "details list it, waiting (J3)" "waiting: Arcade Set 003" 10
 shot "The band's details: waiting: Arcade Set 003, with cancel." details
-# Its footer note, or its band's summary when it ran past 3 s (C16 L6/L7). Looked for first,
+# Its strip, or its band's summary when it ran past 3 s (C16 L6, C18 D1). Looked for first,
 # with the details still open: the note lasts 6 s, while closing them waits out the films'
 # desktop notice (press) and the server checks below take seconds on a busy machine.
 expect_text "it says Arcade Set 003 moved" "Arcade Set 003 moved to $SEL/after" 400
@@ -595,7 +633,7 @@ press details
 expect_count "all films land on ~/sel/films" count_at "$SEL/films" -eq "$nfilms" 400
 expect_at "Arcade Set 003 moved after them" "Arcade Set 003" "$SEL/after" 60
 expect_text "the films' summary is still there" "films moved" 5
-shot "The films summary, still there after the queued move landed under it; the footer note." summary
+shot "The films summary, still there under the top bar after the queued move landed under it (C18 D4)." summary
 
 step "Move back" "The films summary's move back…: the sheet sends each of the $nfilms back to $films; move $nfilms back. Arcade Set 003, moved after it, stays."
 # The band's, not the details pane's: that one is the cursor torrent's own last move (C18 D7).
@@ -898,6 +936,185 @@ table_on "Short Film 023"
 keys Escape
 fi
 
+# ---- one big torrent, its neighbours, a leftover (#162, #164, #161) -------------------------
+
+if [ "$FROM" = games ] || [ "$FROM" = selection ] || [ "$FROM" = sheet ] || [ "$FROM" = history ] ||
+    [ "$FROM" = big ]; then
+BIG="$LIB/big"
+FULL=$((2048 * 1024 * 1024))
+
+# throttle on|off: stop and continue the box's qBittorrent (SIGSTOP 0.8 s, SIGCONT 0.02 s),
+# so a 2 GiB copy to the tmpfs lasts about 15 s instead of a fraction of one. Its file at the
+# destination is at full length from the start meanwhile, as on any drive
+# (scripts/dev/research/162-preallocated-move).
+throttle() {
+    if [ "$1" = on ]; then
+        local pid
+        pid="$(omabox run -b "$BOX" -- pgrep -x qbittorrent-nox)"
+        omabox run -b "$BOX" -d -- sh -c \
+            "while kill -STOP $pid; do sleep 0.8; kill -CONT $pid; sleep 0.02; done" >/dev/null 2>&1
+    else
+        in_box pkill -f "while kill -STOP" || true
+        in_box pkill -CONT -x qbittorrent-nox || true
+    fi
+}
+
+# hash_at "WHAT" HASH PATH [SECONDS]: wait until HASH saves at PATH, moved.
+hash_at() {
+    local what="$1" hash="$2" path="$3" limit="${4:-30}" got=""
+    for _ in $(seq 1 "$limit"); do
+        got="$(api "torrents/info?hashes=$hash" | python3 -c '
+import json, sys
+t = json.load(sys.stdin)[0]
+print(t["save_path"].rstrip("/") + ("" if t["state"] != "moving" else " (moving)"))' 2>/dev/null || true)"
+        [ "$got" = "$path" ] && { pass "$what"; return 0; }
+        sleep 1
+    done
+    fail "$what (after ${limit}s it saves at ${got:-nothing}, not $path)"
+}
+
+# expect_read "WHAT" PREFIX TEXT [SECONDS]: wait until the window's node whose name holds PREFIX
+# reads TEXT on screen. The tree cuts names at 80 characters, so the node's region is shot and
+# read with tesseract (whitespace folded, case aside); without tesseract only PREFIX is checked.
+expect_read() {
+    local what="$1" prefix="$2" text="$3" limit="${4:-10}" where="" read=""
+    if ! command -v tesseract >/dev/null; then
+        expect_text "$what (tesseract missing: only \"$prefix\" checked)" "$prefix" "$limit"
+        return 0
+    fi
+    for _ in $(seq 1 "$limit"); do
+        where="$(omabox tree -b "$BOX" --window omaseed --find "$prefix" 2>/dev/null |
+            sed -nE 's/.*@(-?[0-9]+),(-?[0-9]+) ([0-9]+)x([0-9]+).*/\1,\2 \3x\4/p' | tail -n1)"
+        if [ -n "$where" ]; then
+            omabox shot -b "$BOX" --window omaseed -g "$where" --zoom 2 -o "$OUT_READ" >/dev/null 2>&1 || true
+            read="$(tesseract "$OUT_READ" - 2>/dev/null | tr -s '[:space:]' ' ')"
+            grep -qiF -- "$text" <<<"$read" && { pass "$what"; return 0; }
+        fi
+        sleep 1
+    done
+    fail "$what (after ${limit}s the line reads: ${read:-nothing})"
+}
+OUT_READ="$(mktemp --suffix=.png)"
+
+# The big one (2 GiB, one file), three small neighbours in its save path, one more to add
+# while it moves, and a twin saved below them whose one file has Big Neighbour 3's name. Each
+# torrent's info hash comes back as SEED=HASH, into H.
+declare -A H=()
+while IFS='=' read -r seed hash; do H[$seed]=$hash; done < <(python3 - "$home" <<'PY'
+import hashlib, os, sys
+home = sys.argv[1]
+lib = os.path.join(home, "Torrents/library/big")
+def bencode(x):
+    if isinstance(x, int):
+        return b"i%de" % x
+    if isinstance(x, bytes):
+        return b"%d:%s" % (len(x), x)
+    if isinstance(x, str):
+        return bencode(x.encode())
+    return b"d" + b"".join(bencode(k) + bencode(x[k]) for k in sorted(x)) + b"e"
+def single(name, folder, blocks, piece, seed):
+    os.makedirs(folder, exist_ok=True)
+    block = hashlib.sha256(seed.encode()).digest() * (piece // 32)
+    with open(os.path.join(folder, name), "wb") as f:
+        for _ in range(blocks):
+            f.write(block)
+    info = {"name": name, "length": blocks * piece, "piece length": piece,
+            "pieces": hashlib.sha1(block).digest() * blocks, "private": 1}
+    out = os.path.join(home, "walk-torrents/big")
+    os.makedirs(out, exist_ok=True)
+    with open(os.path.join(out, seed + ".torrent"), "wb") as f:
+        f.write(bencode({"created by": "move-walk", "info": info}))
+    print("%s=%s" % (seed, hashlib.sha1(bencode(info)).hexdigest()))
+single("Big Feature.bin", lib, 2048, 1 << 20, "big")
+for i in (1, 2, 3):
+    single("Big Neighbour %d.bin" % i, lib, i, 16384, "nb%d" % i)
+single("Big Late.bin", lib, 1, 16384, "late")
+single("Big Neighbour 3.bin", os.path.join(lib, "twin"), 5, 16384, "twin")
+PY
+)
+add_big() { # add_big SEED SAVE_PATH
+    api torrents/add -F "torrents=@$BOX_HOME/walk-torrents/big/$1.torrent" -F "savepath=$2" \
+        -F skip_checking=true -F seedMode=true >/dev/null
+}
+for seed in big nb1 nb2 nb3; do add_big "$seed" "$BIG"; done
+add_big twin "$BIG/twin"
+expect_count "the big folder holds its 4" count_at "$BIG" -eq 4 60
+expect_count "the twin is below it" count_at "$BIG/twin" -eq 1 30
+# Its own name in the table; its file keeps Big Neighbour 3's.
+api torrents/rename -d "hash=${H[twin]}" --data-urlencode "name=Twin of Neighbour 3" >/dev/null
+for _ in $(seq 1 30); do
+    [ "$(save_of "Twin of Neighbour 3" 2>/dev/null)" = "$BIG/twin" ] && break
+    sleep 1
+done
+if [ "$(save_of "Twin of Neighbour 3" 2>/dev/null)" = "$BIG/twin" ]; then pass "the twin has its name"; else fail "the twin was not renamed"; fi
+
+step "One big torrent's move" "Big Feature.bin (2 GiB, one file) shares its save path with three neighbours. The cursor on it, m, /tmp/fast/big, enter; the box's qBittorrent is slowed so the copy lasts. Its file at /tmp/fast/big is at full length from the first second, so the band says how long it has been moving and that qBittorrent doesn't report a single move's progress, never 100 % measured at the destination (#162). Big Late.bin is added to the same folder meanwhile. The summary counts that one, not the three that were there before (#164)."
+table_on "Big Feature.bin"
+keys m
+expect_text "the Move… sheet is open" "Move Big Feature.bin" 10
+keys ctrl+a -t /tmp/fast/big
+expect_text "one green line" "access are fine" 20
+throttle on
+keys Return
+expect_text "the band shows the move" "Moving Big Feature.bin" 30
+size="$(omabox run -b "$BOX" -- stat -c %s "/tmp/fast/big/Big Feature.bin" 2>/dev/null || true)"
+if [ "$size" = "$FULL" ]; then
+    pass "its file at /tmp/fast/big is at full length while it moves ($size)"
+else
+    fail "its file at /tmp/fast/big is ${size:-missing}, not $FULL: this qBittorrent no longer makes it at full length first (scripts/dev/research/162-preallocated-move)"
+fi
+expect_text "the band says how long it has moved" "moving for" 15
+expect_text "the band says qBittorrent tells no progress" "doesn't report a single move's progress" 5
+no_text "no figure measured at the destination" "measured at"
+shot "The band of one big torrent: its size, moving for …, qBittorrent doesn't report a single move's progress; no bar stuck at 100 %." band
+add_big late "$BIG"
+hash_at "Big Late.bin is added to the big folder" "${H[late]}" "$BIG" 60
+hash_at "Big Feature.bin lands at /tmp/fast/big" "${H[big]}" /tmp/fast/big 180
+throttle off
+expect_disk "its file is there" -f "/tmp/fast/big/Big Feature.bin"
+# The tree cuts long names short: the folder is in the shot.
+expect_text "the summary counts the one added" "1 added during the move is still at" 30
+no_text "not the neighbours that were there before" "4 added during the move"
+shot "The summary: 1 of 1, and 1 added during the move is still at the big folder (the three neighbours were there before)." summary
+press close
+
+step "A leftover at the destination" "An empty Big Neighbour 1.bin is at /tmp/fast/big, as an earlier failed copy leaves one. Big Neighbour 1.bin, m, /tmp/fast/big: 1 left out, and the line says it is an empty file no torrent owns (#161). esc. Then Big Neighbour 3.bin moves there, and Twin of Neighbour 3 (saved below, its file has the same name) can't: the line says the file there is Big Neighbour 3.bin's."
+in_box sh -c ': >"/tmp/fast/big/Big Neighbour 1.bin"'
+table_on "Big Neighbour 1.bin"
+keys m
+expect_text "the Move… sheet is open" "Move Big Neighbour 1.bin" 10
+keys ctrl+a -t /tmp/fast/big
+expect_text "one is left out" "1 left out" 20
+expect_read "it is an empty file no torrent owns" "1 left out" "(an empty file no torrent owns)" 10
+shot "The Move… sheet: 1 left out, (an empty file no torrent owns)." empty
+# Typing opened the places list: esc closes it, esc again the sheet.
+keys Escape
+keys Escape
+no_text "the sheet is closed" "Move Big Neighbour 1.bin"
+hash_at "Big Neighbour 1.bin stayed" "${H[nb1]}" "$BIG" 1
+if [ "$(omabox run -b "$BOX" -- stat -c %s "/tmp/fast/big/Big Neighbour 1.bin")" = 0 ]; then pass "the empty file is untouched"; else fail "the empty file changed"; fi
+table_on "Big Neighbour 3.bin"
+keys m
+expect_text "the Move… sheet is open" "Move Big Neighbour 3.bin" 10
+keys ctrl+a -t /tmp/fast/big
+expect_text "one green line" "access are fine" 20
+keys Return
+hash_at "Big Neighbour 3.bin lands at /tmp/fast/big" "${H[nb3]}" /tmp/fast/big 30
+keys Escape
+table_on "Twin of Neighbour 3"
+keys m
+expect_text "the Move… sheet is open" "Move Twin of Neighbour 3" 10
+keys ctrl+a -t /tmp/fast/big
+expect_text "the twin is left out" "1 left out" 20
+expect_read "the file there is Big Neighbour 3.bin's" "1 left out" "that Big Neighbour 3.bin owns)" 10
+shot "The Move… sheet for the twin: 1 left out, (a file of 80 KB that Big Neighbour 3.bin owns)." owned
+keys Escape
+keys Escape
+no_text "the sheet is closed" "Move Twin of Neighbour 3"
+hash_at "the twin stayed below" "${H[twin]}" "$BIG/twin" 1
+rm -f "$OUT_READ"
+fi
+
 # ---- music: a folder qBittorrent can't write, then a full one ------------------------------
 
 if [ "$FROM" != remote ]; then
@@ -920,42 +1137,98 @@ expect_state() {
 }
 RUNNING="uploading|stalledUP|queuedUP|forcedUP"
 
-step "Recheck after a move: only what was running starts" "The recheck folder: Recheck One, and below it in locked Recheck Two (seeding) and Recheck Three (stopped first). shift+m, ~/rk, where ~/rk/locked exists read-only: One, the smallest, moves; Two and Three can't. The summary's recheck the 2…: Two's row says starts if complete, Three's stays stopped (DECISIONS C20, #138). recheck 2: both come out complete; Two starts, Three stays stopped."
+step "Recheck after a move: only what was running starts, never a hybrid" "The recheck folder: Recheck One, and below it in locked Recheck Two (seeding), Recheck Three (stopped first) and Recheck Four (a hybrid, v1+v2). shift+m, ~/rk, where ~/rk/locked exists read-only: One, the smallest, moves; the other three can't. The summary's recheck the 3…: Two's row says starts if complete, Three's stays stopped (DECISIONS C20, #138); Four is listed apart, not rechecked, with why, and offers move again and move back (C21, #144). ~/rk/locked made writable, move again: Four lands whole in ~/rk/locked. recheck 2: both come out complete; Two starts, Three stays stopped, Four is never rechecked."
+# A walk started here (OMASEED_MOVE_WALK_FROM=music) comes straight after the adds, while
+# qBittorrent may still be checking them (one at a time, a few minutes for the 284): a torrent
+# stopped mid-check would stay incomplete.
+checked=""
+for _ in $(seq 1 600); do
+    checked="$(api torrents/info | python3 -c '
+import json, sys
+rk = [t for t in json.load(sys.stdin) if t["name"].startswith("Recheck ")]
+print(len(rk) == 4 and all(t["progress"] == 1 and not t["state"].startswith("checking") for t in rk))' 2>/dev/null || true)"
+    [ "$checked" = True ] && break
+    sleep 1
+done
+if [ "$checked" = True ]; then
+    pass "the four Recheck torrents are complete"
+else
+    fail "the Recheck torrents are not complete after their adds"
+fi
 three="$(api torrents/info | python3 -c '
 import json, sys
 print(next(t["hash"] for t in json.load(sys.stdin) if t["name"] == "Recheck Three"))')"
 api -X POST torrents/stop -d "hashes=$three" >/dev/null
 expect_state "Recheck Three is stopped before the move" "Recheck Three" "stoppedUP" 20
 expect_state "Recheck Two is seeding" "Recheck Two" "$RUNNING" 20
+if [ "$(api torrents/info | python3 -c '
+import json, sys
+t = next(t for t in json.load(sys.stdin) if t["name"] == "Recheck Four")
+print(bool(t.get("infohash_v1")) and bool(t.get("infohash_v2")))')" = True ]; then
+    pass "qBittorrent gives Recheck Four both a v1 and a v2 hash: a hybrid"
+else
+    fail "Recheck Four is not a hybrid in qBittorrent"
+fi
 mkdir -p "$home/rk/locked"
 chmod 0555 "$home/rk/locked"
-open_move "Recheck One" "$BOX_HOME/rk" 3
+open_move "Recheck One" "$BOX_HOME/rk" 4
 keys Return
 expect_at "Recheck One, sent first, moved" "Recheck One" "$BOX_HOME/rk" 60
-expect_text "the summary offers to recheck the two that failed" "recheck the 2…" 120
-shot "The summary: 1 moved · 2 failed, with recheck the 2… and retry the 2." summary
-press "recheck the 2…" top
+expect_text "the summary offers to recheck the three that failed" "recheck the 3…" 120
+shot "The summary: 1 moved · 3 failed, with recheck the 3… and retry the 3." summary
+press "recheck the 3…" top
 expect_text "Recheck Two's row: it starts if complete" "Recheck Two, 9 KB, starts if complete" 10
 expect_text "Recheck Three's row: it stays stopped" "Recheck Three, 9 KB, stays stopped" 5
-shot "The recheck sheet: Recheck Two, starts if complete; Recheck Three, stays stopped." sheet
+expect_text "Recheck Four's row: not rechecked, and why" "Recheck Four, 9 KB, not rechecked: Its files may be split" 5
+expect_text "the sheet rechecks two" "Recheck 2 torrents" 5
+expect_tree "Recheck Four offers move again" 'button "move Recheck Four again"' 5
+expect_tree "Recheck Four offers move back" 'button "move Recheck Four back"' 5
+shot "The recheck sheet: Recheck Two, starts if complete; Recheck Three, stays stopped; apart, Recheck Four, not rechecked, why, move again and move back." sheet
+chmod 0755 "$home/rk/locked"
+press "move Recheck Four again"
+expect_at "Recheck Four, moved again, saves in ~/rk/locked" "Recheck Four" "$BOX_HOME/rk/locked" 60
+four_size="$(stat -c %s "$home/rk/locked/Recheck Four/data.bin" 2>/dev/null || echo 0)"
+if [ "$four_size" = 9700 ] && [ ! -e "$home/Torrents/library/recheck/locked/Recheck Four" ]; then
+    pass "Recheck Four is whole in ~/rk/locked, nothing left behind"
+else
+    fail "Recheck Four's data.bin in ~/rk/locked is $four_size bytes, or its folder is still in recheck/locked"
+fi
+expect_text "its row says it was sent" "Recheck Four, 9 KB, moving again" 10
+shot "The recheck sheet after move again: Recheck Four, moving again; recheck 2 still offered." again
 press "recheck 2"
-expect_state "Recheck Two, rechecked complete, runs again" "Recheck Two" "$RUNNING" 90
+# Recheck Four is never checked: watched while the two are rechecked.
+four_checked=""
+watch_four() {
+    local got
+    got="$(state_of "Recheck Four" 2>/dev/null || true)"
+    case "$got" in checking* | error | missingFiles) four_checked="$got" ;; esac
+}
+for _ in $(seq 1 90); do
+    watch_four
+    [[ "$(state_of "Recheck Two" 2>/dev/null || true)" =~ ^($RUNNING)$ ]] && break
+    sleep 1
+done
+expect_state "Recheck Two, rechecked complete, runs again" "Recheck Two" "$RUNNING" 5
 # Three is rechecked after Two (smallest first), and the app waits a few polls on each.
 for _ in $(seq 1 20); do
+    watch_four
     got="$(state_of "Recheck Three" 2>/dev/null || true)"
     [[ "$got" =~ ^($RUNNING)$ ]] && fail "Recheck Three started after its recheck ($got)"
     sleep 1
 done
 pass "Recheck Three stayed stopped through its recheck ($(state_of "Recheck Three"))"
+[ -z "$four_checked" ] || fail "Recheck Four was $four_checked during the recheck"
+expect_state "Recheck Four was never rechecked, and seeds" "Recheck Four" "$RUNNING" 5
 if [ "$(api torrents/info | python3 -c '
 import json, sys
 print(all(t["progress"] == 1 for t in json.load(sys.stdin) if t["name"].startswith("Recheck ")))')" = True ]; then
-    pass "both came out complete"
+    pass "all four complete"
 else
     fail "a Recheck torrent is not complete after its recheck"
 fi
-shot "After the recheck: Recheck Two seeding, Recheck Three stopped." after
-press close top
+shot "After the recheck: Recheck Two seeding, Recheck Three stopped, Recheck Four seeding in ~/rk/locked." after
+# Move again took the summary's place, as retry does: a band it left is closed.
+if omabox tree -b "$BOX" --window omaseed 2>/dev/null | grep -qF 'link "close"'; then press close top; fi
 
 step "A folder qBittorrent can't write" "The box's ~/locked/music exists, read-only. The sheet warns (yellow, not a block); enter sends the smallest alone; qBittorrent answers 200 and logs \"Permission denied\"; the job stops there: \"qBittorrent can't write to …\"."
 mkdir -p "$home/locked/music"
@@ -1042,8 +1315,8 @@ no_text "nothing claims a local write check" "is writable by the owner"
 shot "The Move… sheet on a server omaseed can't see: the remote line, room and writing can't tell, 1 left out from the server's listing." sheet
 press "move 1 torrent"
 # The note stays 6 s: read it first.
-expect_text "the footer says it moved" "Public Domain Sampler moved to" 20
-shot "The footer note on the playground: Public Domain Sampler moved to …/remote-walk." note
+expect_text "the strip says it moved" "Public Domain Sampler moved to" 20
+shot "The strip on the playground: Public Domain Sampler moved to …/remote-walk." note
 expect_at "Public Domain Sampler is in remote-walk" "Public Domain Sampler" "$REMOTE_DEST"
 expect_at "photo-archive-2019-2025 stayed" "photo-archive-2019-2025" "$photo_from" 1
 if [ -d "$REMOTE_DEST/Public Domain Sampler" ]; then pass "its files are there, on the playground's disk"; else fail "no $REMOTE_DEST/Public Domain Sampler"; fi

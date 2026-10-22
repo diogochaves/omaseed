@@ -119,6 +119,10 @@ struct Torrent
     QString infohashV2;
     QString magnetUri;
 
+    /// A hybrid torrent (BEP 52 v1+v2): the engine gives it both hashes. libtorrent 2.1.2
+    /// errors on a recheck of one that it downloaded when a file is missing (DECISIONS C21).
+    bool isHybrid() const { return !infohashV1.isEmpty() && !infohashV2.isEmpty(); }
+
     /// Merges the fields present in `patch` and returns the ones whose value changed.
     TorrentFields apply(const TorrentPatch &patch);
 

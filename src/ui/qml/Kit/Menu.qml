@@ -273,7 +273,7 @@ Item {
         readonly property int padding: Theme.space(6)
 
         // #79: a menu with a heading ("switch omaseed to") is named by it, so a screen reader
-        // says it first: the heading is drawn above the rows but comes after them in the tree.
+        // says it first; since #91 the heading also comes before the rows in the tree.
         Accessible.name: root.heading
         Accessible.role: Accessible.PopupMenu
         border.color: Theme.accent
@@ -292,6 +292,41 @@ Item {
         y: root.inline ? 0
                 : Math.max(root._edge, Math.min(root._up ? root.anchorY - height : root.anchorY,
                                                 root.height - height - root._edge))
+
+        // Before the rows in the tree (#91: a screen reader reads children in declaration
+        // order, and the heading is said first), drawn above them all the same.
+        Item {
+            id: heading
+
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.top: parent.top
+            anchors.topMargin: panel.padding
+            height: root.heading.length > 0 ? Theme.railRowHeight + 2 * Theme.space(4) + 1 : 0
+            objectName: "menuHeading"
+            visible: root.heading.length > 0
+            z: 1
+
+            Label {
+                anchors.left: parent.left
+                anchors.leftMargin: Theme.space(14)
+                anchors.right: parent.right
+                anchors.rightMargin: Theme.space(14)
+                dim: true
+                elide: Text.ElideRight
+                height: Theme.railRowHeight
+                text: root.heading
+                verticalAlignment: Text.AlignVCenter
+            }
+
+            Hairline {
+                anchors.left: parent.left
+                anchors.leftMargin: Theme.space(14)
+                anchors.right: parent.right
+                anchors.rightMargin: Theme.space(14)
+                y: Theme.railRowHeight + Theme.space(4)
+            }
+        }
 
         Flickable {
             id: rowScroller
@@ -430,39 +465,6 @@ Item {
             width: Theme.space(4)
             x: panel.width - width - panel.border.width - Theme.space(2)
             y: rowScroller.y
-        }
-
-        // After the rows, drawn above them all the same.
-        Item {
-            id: heading
-
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.top: parent.top
-            anchors.topMargin: panel.padding
-            height: root.heading.length > 0 ? Theme.railRowHeight + 2 * Theme.space(4) + 1 : 0
-            objectName: "menuHeading"
-            visible: root.heading.length > 0
-
-            Label {
-                anchors.left: parent.left
-                anchors.leftMargin: Theme.space(14)
-                anchors.right: parent.right
-                anchors.rightMargin: Theme.space(14)
-                dim: true
-                elide: Text.ElideRight
-                height: Theme.railRowHeight
-                text: root.heading
-                verticalAlignment: Text.AlignVCenter
-            }
-
-            Hairline {
-                anchors.left: parent.left
-                anchors.leftMargin: Theme.space(14)
-                anchors.right: parent.right
-                anchors.rightMargin: Theme.space(14)
-                y: Theme.railRowHeight + Theme.space(4)
-            }
         }
 
         // Under the rows: a hairline, then the caption, wrapped to the panel's width.

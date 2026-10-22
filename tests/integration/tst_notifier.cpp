@@ -129,6 +129,10 @@ void TestNotifier::serverBackReplacesTheServerLostNotice()
     QCOMPARE(m_server->calls.size(), 2);
     QCOMPARE(m_server->calls.at(1).replacesId, lostId);
     QCOMPARE(m_server->calls.at(1).summary, QStringLiteral("home is back"));
+
+    // docs/44 §6: after a timeout the server answered again; it was never gone.
+    m_notifier->notifyServerBack(QStringLiteral("home"), QStringLiteral("home"), true);
+    QCOMPARE(m_server->calls.at(2).summary, QStringLiteral("home answered again"));
 }
 
 void TestNotifier::everyNoticeCarriesTheDesktopEntryHint()

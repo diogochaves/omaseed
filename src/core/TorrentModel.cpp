@@ -315,6 +315,8 @@ QVariant TorrentModel::data(const QModelIndex &index, int role) const
         return m_problems.value(t.hash).value(QStringLiteral("cause")).toString();
     case FailureRole:
         return m_failures.value(t.hash);
+    case StuckMoveRole:
+        return m_problems.value(t.hash).value(QStringLiteral("stuckMove")).toBool();
     case ErrorStoppedRole:
         return t.status.phase == TorrentPhase::Errored && m_errorStops.contains(t.hash);
     default:
@@ -404,6 +406,7 @@ QHash<int, QByteArray> TorrentModel::roleNames() const
         {StatusCauseRole, "statusCause"},
         {FailureRole, "failure"},
         {ErrorStoppedRole, "errorStopped"},
+        {StuckMoveRole, "stuckMove"},
     };
     return names;
 }
@@ -627,7 +630,7 @@ void TorrentModel::setProblem(const QString &hash, const QVariantMap &problem)
             return;
         m_problems.insert(hash, problem);
     }
-    Q_EMIT dataChanged(index(row), index(row), {ProblemRole, StatusCauseRole});
+    Q_EMIT dataChanged(index(row), index(row), {ProblemRole, StatusCauseRole, StuckMoveRole});
     Q_EMIT problemsChanged();
 }
 

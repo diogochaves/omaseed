@@ -1,7 +1,9 @@
 # Releasing omaseed
 
 Human checklist for cutting a release. Run it from a clean `main` checkout with both dev
-servers up (`~/.config/omaseed/dev.env` loaded). `scripts/release.sh` automates steps 5–7;
+servers up (`~/.config/omaseed/dev.env` loaded). A patch to a line already released, while
+`main` holds unreleased work, comes from a maintenance branch instead: see
+[A maintenance release](#a-maintenance-release). `scripts/release.sh` automates steps 5–7;
 this file is the order to run them in and what to check by hand around them.
 
 1. **Full test pass, both test servers up.**
@@ -20,8 +22,8 @@ this file is the order to run them in and what to check by hand around them.
    leave the desktop changed.
 3. **Bump the version, if the release differs from `CMakeLists.txt`'s `project(VERSION …)`.**
    Either let the release script do it (step 6, `--bump`: `CMakeLists.txt`, and `pkgver`
-   with `pkgrel=1` and `sha256sums=('SKIP')` in both PKGBUILDs), or edit all three by hand
-   and commit.
+   with `pkgrel=1` and `sha256sums=('SKIP')` in both PKGBUILDs, and the bar widget's
+   `plugin/manifest.json` version), or edit all four by hand and commit.
 4. **CHANGELOG.md.** Add or check a `## vX.Y.Z` section that summarises what shipped in
    terms a user cares about (features), not the task IDs that built them. Fold anything
    sitting under `## Unreleased` into it.
@@ -29,7 +31,8 @@ this file is the order to run them in and what to check by hand around them.
    ```
    scripts/release.sh X.Y.Z --dry-run          # or: --bump --dry-run
    ```
-   Checks the tree is clean and on `main`, that `vX.Y.Z` is not tagged yet, the version in
+   Checks the tree is clean and on `main` (or `release/X.Y`, below), that `vX.Y.Z` is not
+   tagged yet, the version in
    `CMakeLists.txt` and `packaging/arch/PKGBUILD`, and the changelog section. Writes
    `dist/omaseed-X.Y.Z.tar.gz` (from `HEAD`), `dist/SHA256SUMS` and `dist/RELEASE_NOTES.md`
    (`dist/` is gitignored). It creates **no tag and no commit and edits no file**, so step 6
@@ -106,6 +109,50 @@ this file is the order to run them in and what to check by hand around them.
      can be listed in the Omarchy plugin marketplace. Submit `omaseed-bar` there once the first
      release is public, following the marketplace's own submission steps at the time.
 
+## A maintenance release
+
+When `main` already holds work for the next minor version and a fix has to reach people
+before it (v0.3.3, cut while v0.4.0 was on `main`), the patch is released from
+`release/X.Y`, a branch cut from the line's last tag. `scripts/release.sh` takes such a
+branch as it takes `main`: it releases only `X.Y.*` versions there, pushes that branch
+instead of `main`, and lands the checksum commit on it. When a newer version is already
+tagged (`git fetch --tags` first), the GitHub release is created with `--latest=false`, so
+the README's `releases/latest/download/` link keeps pointing at the newest. `main` is never
+touched by it.
+
+1. **Fix on `main` first**, with tests, and push. Each fix commit says `Closes #N`; reopen
+   the issues with `status: awaiting release` and the `vX.Y.Z` milestone.
+2. **The branch** (once per line; later patches reuse it):
+   ```
+   git switch -c release/X.Y vX.Y.(Z-1)      # e.g. release/0.3 from v0.3.2
+   git cherry-pick -x <fix commits>          # resolve against the line's own code
+   ```
+   Add a `## vX.Y.Z — DATE` section to its `CHANGELOG.md` (only what the patch fixes), then
+   step 1 above (build with `-DOMASEED_WERROR=ON`, `ctest -LE live`, lint) and the walks the
+   fixes touch, on this branch's build. Push the branch.
+3. **Dry run and publish** from `release/X.Y`, as steps 5 and 6:
+   ```
+   scripts/release.sh X.Y.Z --bump --dry-run
+   scripts/release.sh X.Y.Z --bump --publish
+   ```
+   The PKGBUILD that goes to omarchy-pkgs (step 7) is the one on `release/X.Y` after the
+   publish, with the checksum.
+4. **Bring `main` up to date.** On `main`, add the same `## vX.Y.Z` section to
+   `CHANGELOG.md`, below `## Unreleased` and above the previous release's, so the history
+   reads in order. If `main`'s `CMakeLists.txt` version and `packaging/arch/PKGBUILD` are
+   still at the version before the patch, copy the released PKGBUILD from the branch and
+   bump the rest to match, so `main` never packages less than what was released:
+   ```
+   git switch main
+   git show release/X.Y:packaging/arch/PKGBUILD > packaging/arch/PKGBUILD
+   sed -i -E "0,/^([[:space:]]*VERSION[[:space:]]+)[0-9.]+/s//\1X.Y.Z/" CMakeLists.txt
+   sed -i -E "s/^pkgver=.*/pkgver=X.Y.Z/; s/^pkgrel=.*/pkgrel=1/" packaging/arch/PKGBUILD.local
+   sed -i -E "0,/(\"version\"[[:space:]]*:[[:space:]]*\")[^\"]*\"/s//\1X.Y.Z\"/" plugin/manifest.json
+   git commit -am "Bring main up to vX.Y.Z" && git push
+   ```
+   The next release from `main` bumps past it as usual (`--bump` resets the checksum).
+   The issues close with the release (drop `status: awaiting release`).
+
 ## How the tarball and the checksum fit together
 
 - `packaging/arch/PKGBUILD` downloads GitHub's own archive of the tag
@@ -122,10 +169,12 @@ this file is the order to run them in and what to check by hand around them.
 
 ## What the script checks for you, and what it does not
 
-- It refuses to run on a dirty tree or off `main`, refuses to re-tag a version that
+- It refuses to run on a dirty tree or off `main` (a `release/X.Y` branch takes only `X.Y.*`
+  versions), refuses to re-tag a version that
   already has a tag, and refuses a PKGBUILD whose `pkgver` does not match (without
   `--bump`) or that already carries a checksum.
 - It does not run `ctest` or the theme sweep — those are step 1 and 2 above, by hand,
   because they need the dev servers and a live Hyprland session this script cannot see.
-- It does not merge or rebase anything; `main` must already have everything the release
-  needs.
+- It does not merge or rebase anything; `main` (or the `release/X.Y` branch) must already
+  have everything the release needs, and it never brings a maintenance release back to `main`
+  (step 4 of [A maintenance release](#a-maintenance-release)).

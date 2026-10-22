@@ -118,6 +118,7 @@ Item {
                     required property string modelData
 
                     hasCursor: root.activeFocus && root.cursorIndex === optionChip.index
+                    checkable: true
                     selected: root.isPicked(optionChip.modelData)
                     text: optionChip.modelData
 

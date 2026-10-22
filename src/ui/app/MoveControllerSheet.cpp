@@ -381,6 +381,15 @@ MoveController::checkLines(const MovePlan &plan, const QString &newPath, const Q
                            "\"no space\" from qBittorrent"));
                     break;
                 }
+                // DECISIONS C17 D8: a destination whose driver allocates every file in full.
+                const QString fs =
+                    m_hooks.probe ? m_hooks.probe->answer(newPath).fileSystem : QString();
+                if (core::FileSystems::allocatesInFull(fs))
+                    checks << check(QStringLiteral("fact"),
+                                    tr("%1: every file of these torrents takes its full size "
+                                       "there at once, the parts not downloaded yet too.")
+                                        .arg(fs),
+                                    tr("a file skipped later keeps that space"));
             }
             // M6: writable. #131: it names the destination folder (as boards 42 and 43 draw
             // it), and the folder a missing one will be made in; the drive only when there
@@ -496,8 +505,33 @@ MoveController::checkLines(const MovePlan &plan, const QString &newPath, const Q
             const MovePlan::Item *first = plan.item(plan.leftOut().constFirst());
             const QString where =
                 !newPath.isEmpty() || first == nullptr ? newPath : FolderTree::parentOf(first->why);
+            // #161 (a): what is there, and whose: one torrent's in brackets, several by name
+            // (three at most).
+            const auto there = [](const MovePlan::Item &item) {
+                return core::ErrorWords::whatIsThere(
+                    item.thereBytes, item.thereIsFolder, item.thereOwnerKnown, item.thereOwner);
+            };
+            QString about;
+            if (plan.leftOut().size() == 1) {
+                if (first != nullptr)
+                    about = there(*first);
+            } else {
+                QStringList each;
+                for (const QString &hash : plan.leftOut()) {
+                    const MovePlan::Item *one = plan.item(hash);
+                    const QString what = one == nullptr ? QString() : there(*one);
+                    if (!what.isEmpty())
+                        each << tr("%1: %2").arg(one->name, what);
+                }
+                if (each.size() > 3) {
+                    const int more = int(each.size()) - 2;
+                    each = each.mid(0, 2);
+                    each << tr("%1 more").arg(more);
+                }
+                about = each.join(QStringLiteral("; "));
+            }
             const core::ErrorWords::Text words =
-                core::ErrorWords::forLeftOut(int(plan.leftOut().size()), where);
+                core::ErrorWords::forLeftOut(int(plan.leftOut().size()), where, about);
             checks << check(QStringLiteral("bad"),
                             words.headline + QStringLiteral(": ") + words.line,
                             QString(),
@@ -1235,10 +1269,21 @@ QVariantMap MoveController::selectionWords(const MovePlan &plan, const QJsonObje
     case MovePlan::Blocker::NoPath:
         blocker = tr("Type the new path.");
         break;
-    case MovePlan::Blocker::AllThere:
-        blocker = count == 1 ? tr("It is already at %1.").arg(newPath)
-                             : tr("All %1 are already at %2.").arg(count).arg(newPath);
+    case MovePlan::Blocker::AllThere: {
+        // Each to its own place (a retry, a move back) has no one path: the torrent's own.
+        QString at = newPath;
+        for (const MovePlan::Item &item : plan.items()) {
+            if (at.isEmpty() && item.kind == MovePlan::Item::Kind::AlreadyThere)
+                at = item.to;
+        }
+        if (count == 1)
+            blocker = tr("It is already at %1.").arg(at);
+        else if (newPath.isEmpty())
+            blocker = tr("All %1 are already where they would go.").arg(count);
+        else
+            blocker = tr("All %1 are already at %2.").arg(count).arg(newPath);
         break;
+    }
     case MovePlan::Blocker::NothingToMove:
         blocker = tr("Nothing to move: every torrent is already there or left out.");
         break;

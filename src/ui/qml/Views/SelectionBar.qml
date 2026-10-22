@@ -34,6 +34,10 @@ Rectangle {
     /// #24 T1: the selection's ledger, `{sizeText, givenText, ratioText, ratioGood}`, drawn
     /// after the count while the bar has room for it (it goes before any button folds).
     property var summary: ({})
+    /// DECISIONS C18 D6 (board 45 M1): a quiet line after the buttons, the first 3 times the
+    /// bar opens after a plain click ("ctrl+click add · shift+click range"). It goes first
+    /// when the bar has no room, before the summary and any button.
+    property string hint: ""
 
     /// A button ran: "start", "stop", "recheck", "reannounce", "category", "tags",
     /// "location", "limits", "openFolder" or "delete".
@@ -132,6 +136,10 @@ Rectangle {
                                         && root.fit.word
                                         && root.widthOf(root.items, true) + root._summaryWidth
                                         <= root.availableWidth
+    readonly property real _hintWidth: hintLabel.implicitWidth + Theme.space(16)
+    readonly property bool showHint: root.hint.length > 0 && root.fit.folds === 0 && root.fit.word
+                                     && root.widthOf(root.items, true) + (root.showSummary ? root._summaryWidth : 0)
+                                     + root._hintWidth <= root.availableWidth
     /// The actions ⋯ now holds besides the menu's own, in `foldOrder`.
     readonly property var folded: root.foldOrder.slice(0, root.fit.folds)
     /// What the bar draws after the count: action names, and "|" for a hairline.
@@ -179,6 +187,7 @@ Rectangle {
     color: Theme.background
     implicitHeight: Theme.controlHeight + 2 * Theme.space(4)
     implicitWidth: root.widthOf(root.items, root.fit.word) + (root.showSummary ? root._summaryWidth : 0)
+                   + (root.showHint ? root._hintWidth : 0)
     radius: Theme.cornerRadius
 
     // The bar floats over the rows: a click on its own ground must not reach the row under
@@ -393,6 +402,28 @@ Rectangle {
                             root.triggered(slot.modelData);
                     }
                 }
+            }
+        }
+
+        // C18 D6: the mouse's ways to pick several, dim and small, after the last button.
+        Item {
+            height: Theme.controlHeight
+            visible: root.showHint
+            width: root._hintWidth
+
+            Label {
+                id: hintLabel
+
+                // #77: read out with the bar, as the count is.
+                Accessible.name: hintLabel.text
+                Accessible.role: Accessible.StaticText
+                anchors.right: parent.right
+                anchors.rightMargin: Theme.space(4)
+                anchors.verticalCenter: parent.verticalCenter
+                dim: true
+                objectName: "bar_hint"
+                size: "caption"
+                text: root.hint
             }
         }
     }

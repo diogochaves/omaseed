@@ -181,6 +181,9 @@ private slots:
     void trackerFilterGroupsByHostAndTrackerless();
     void trackerFilterListsWhatTheRailCounts();
     void textMatchesNameHashCategoryAndTags();
+    void textMatchesWordsAcrossSeparators();
+    void textRanksPhraseThenOrderThenAny();
+    void textRankHoldsEitherSortOrder();
     void filtersCombine();
     void sortsNamesNaturally();
     void sortByRoleNameAndOrder();
@@ -444,6 +447,107 @@ void TestFilterModel::textMatchesNameHashCategoryAndTags()
 
     m_proxy.setText(QString());
     QCOMPARE(m_proxy.rowCount(), 6);
+}
+
+void TestFilterModel::textMatchesWordsAcrossSeparators()
+{
+    // DECISIONS C22 (#125): `.`, `_`, `-` and spaces fold to one space on both sides.
+    m_proxy.setText(QStringLiteral("archlinux 2026 09")); // the name has dots and dashes
+    QCOMPARE(visibleHashes(m_proxy), QStringList({QStringLiteral("1111")}));
+
+    m_proxy.setText(QStringLiteral("x86.64")); // "x86_64": the query folds too
+    QCOMPARE(visibleHashes(m_proxy), QStringList({QStringLiteral("1111")}));
+
+    m_proxy.setText(QStringLiteral("bunny big")); // every word, any order
+    QCOMPARE(visibleHashes(m_proxy), QStringList({QStringLiteral("2222")}));
+
+    m_proxy.setText(QStringLiteral("bunny movies")); // a word from the name, one from the category
+    QCOMPARE(visibleHashes(m_proxy), QStringList({QStringLiteral("2222")}));
+
+    m_proxy.setText(QStringLiteral("bunny sintel")); // one word missing
+    QCOMPARE(m_proxy.rowCount(), 0);
+
+    m_proxy.setText(QStringLiteral("1111")); // a hash prefix, as typed
+    QCOMPARE(visibleHashes(m_proxy), QStringList({QStringLiteral("1111")}));
+    m_proxy.setText(QStringLiteral("11.11")); // is never folded into one
+    QCOMPARE(m_proxy.rowCount(), 0);
+
+    m_proxy.setText(QStringLiteral(" ._- ")); // nothing left to look for: every row
+    QCOMPARE(m_proxy.rowCount(), 6);
+}
+
+void TestFilterModel::textRanksPhraseThenOrderThenAny()
+{
+    TorrentModel source;
+    const auto row = [](const QString &name, qint64 size) {
+        return torrentJson(name, QStringLiteral("stoppedUP"), 1.0, {}, {}, {}, 0, size);
+    };
+    qbtfeed::full(
+        source,
+        QJsonObject{
+            // Name order: a, b, c, d; size order: d, c, b, a.
+            {QStringLiteral("aaaa"), row(QStringLiteral("a Bunny.Buck.Big"), 4)},       // any order
+            {QStringLiteral("bbbb"), row(QStringLiteral("b Big.Buck.Bunny.1080p"), 3)}, // phrase
+            {QStringLiteral("cccc"), row(QStringLiteral("c big_old_buck_bunny"), 2)},   // in order
+            {QStringLiteral("dddd"), row(QStringLiteral("d Sintel"), 1)},
+        });
+    TorrentFilterModel proxy;
+    proxy.setSourceModel(&source);
+    proxy.setSortRole(TorrentModel::SizeRole);
+    proxy.setSortOrder(Qt::AscendingOrder);
+    QCOMPARE(visibleHashes(proxy),
+             QStringList({QStringLiteral("dddd"),
+                          QStringLiteral("cccc"),
+                          QStringLiteral("bbbb"),
+                          QStringLiteral("aaaa")}));
+
+    proxy.setText(QStringLiteral("big buck bunny"));
+    QCOMPARE(visibleHashes(proxy),
+             QStringList({QStringLiteral("bbbb"), QStringLiteral("cccc"), QStringLiteral("aaaa")}));
+
+    // Rows of one rank keep the sort among them.
+    proxy.setText(QStringLiteral("b"));
+    QCOMPARE(visibleHashes(proxy),
+             QStringList({QStringLiteral("cccc"), QStringLiteral("bbbb"), QStringLiteral("aaaa")}));
+
+    // Cleared, the table's own sort is back.
+    proxy.setText(QString());
+    QCOMPARE(visibleHashes(proxy),
+             QStringList({QStringLiteral("dddd"),
+                          QStringLiteral("cccc"),
+                          QStringLiteral("bbbb"),
+                          QStringLiteral("aaaa")}));
+}
+
+void TestFilterModel::textRankHoldsEitherSortOrder()
+{
+    TorrentModel source;
+    const auto row = [](const QString &name, qint64 size) {
+        return torrentJson(name, QStringLiteral("stoppedUP"), 1.0, {}, {}, {}, 0, size);
+    };
+    qbtfeed::full(source,
+                  QJsonObject{
+                      {QStringLiteral("aaaa"), row(QStringLiteral("bunny big"), 1)},
+                      {QStringLiteral("bbbb"), row(QStringLiteral("big.bunny"), 2)},
+                      {QStringLiteral("cccc"), row(QStringLiteral("big x bunny"), 3)},
+                  });
+    TorrentFilterModel proxy;
+    proxy.setSourceModel(&source);
+    proxy.setSortRole(TorrentModel::SizeRole);
+    proxy.setText(QStringLiteral("big bunny"));
+    const QStringList ranked{
+        QStringLiteral("bbbb"), QStringLiteral("cccc"), QStringLiteral("aaaa")};
+    proxy.setSortOrder(Qt::DescendingOrder);
+    QCOMPARE(visibleHashes(proxy), ranked);
+    proxy.setSortOrder(Qt::AscendingOrder);
+    QCOMPARE(visibleHashes(proxy), ranked);
+
+    // While the pointer holds the order, a new query still ranks at once.
+    proxy.setHoldOrder(true);
+    proxy.setText(QStringLiteral("bunny big"));
+    QCOMPARE(visibleHashes(proxy),
+             QStringList({QStringLiteral("aaaa"), QStringLiteral("bbbb"), QStringLiteral("cccc")}));
+    proxy.setHoldOrder(false);
 }
 
 void TestFilterModel::filtersCombine()
@@ -929,9 +1033,10 @@ void TestFilterModel::explicitChangesApplyWhileHeld()
     qbtfeed::partial(source, reverseSpeeds(source, 1000), QJsonArray());
     QCOMPARE(visibleHashes(proxy), afterSort);
 
-    // The filter text: sorted at once, and held again.
-    proxy.setText(QStringLiteral("torrent-01"));
-    QCOMPARE(proxy.rowCount(), 10);
+    // The filter text: sorted at once, and held again. (One word, so every match ranks the
+    // same and the speed sort shows: 001 and 010 to 019.)
+    proxy.setText(QStringLiteral("01"));
+    QCOMPARE(proxy.rowCount(), 11);
     QVERIFY(sortedBySpeedDescending(proxy));
     const QStringList afterText = visibleHashes(proxy);
     qbtfeed::partial(source, reverseSpeeds(source, 1000), QJsonArray());

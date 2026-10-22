@@ -351,10 +351,19 @@ void Theme::setWindowAlpha(qreal alpha)
 
 int Theme::space(qreal px) const
 {
+    return spaceAt(px, spaceScale());
+}
+
+qreal Theme::spaceScale() const
+{
+    const qreal fontScale = std::max(1.0 / 12.0, m_font->baseSize() / 12.0);
+    return m_spacingScale * (m_spacingScaleWithFont ? fontScale : 1.0);
+}
+
+int Theme::spaceAt(qreal px, qreal scale)
+{
     if (px <= 0)
         return 0;
-    const qreal fontScale = std::max(1.0 / 12.0, m_font->baseSize() / 12.0);
-    const qreal scale = m_spacingScale * (m_spacingScaleWithFont ? fontScale : 1.0);
     return roundPositive(px * scale);
 }
 
@@ -408,7 +417,9 @@ QJsonObject Theme::rolesJson(const Theme &theme)
         if (type == QMetaType::QColor)
             colors.insert(QString::fromLatin1(property.name()),
                           hexColor(property.read(&theme).value<QColor>()));
-        else if (type == QMetaType::Double || type == QMetaType::Float)
+        // spaceScale is a size factor, not an alpha (#74).
+        else if ((type == QMetaType::Double || type == QMetaType::Float) &&
+                 qstrcmp(property.name(), "spaceScale") != 0)
             alphas.insert(QString::fromLatin1(property.name()), property.read(&theme).toDouble());
     }
 

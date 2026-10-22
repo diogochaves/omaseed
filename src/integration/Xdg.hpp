@@ -26,6 +26,9 @@ public:
         Magnet,
         HttpUrl,
         TorrentFile,
+        /// #147: a bare info hash (40 hex or 32 base32 for v1, 64 hex for v2), `value` as
+        /// it was given. `core::MagnetLink::fromInfoHash(value)` is the magnet it stands for.
+        InfoHash,
     };
     Q_ENUM(Kind)
 
@@ -60,14 +63,29 @@ public:
     /// QML tests, a tool) a fresh one owned by the engine.
     static Xdg *createForEngine(QQmlEngine *engine);
 
+    /// #147: whether a bare info hash counts. Only text the user gave on purpose (a paste, a
+    /// drop, a hand-off) is read for one: the clipboard probe ignores it, because a commit id
+    /// copied for something else looks just the same.
+    enum class BareHash {
+        Take,
+        Ignore,
+    };
+
     /// Pure parser: what does this one line of text look like? No I/O except `QFile::exists`
-    /// for a bare local path ending in `.torrent`.
-    static Addable parseAddable(const QString &text);
+    /// for a bare local path ending in `.torrent`. With `BareHash::Take`, a bare info hash
+    /// counts as the whole of `text`, never as a part of it.
+    static Addable parseAddable(const QString &text, BareHash bareHash);
     /// Splits `text` into lines and parses each one, dropping what parses to `Kind::None`. A
     /// line with whitespace in it that is not an existing `.torrent` path (which may contain
     /// spaces) is split on the whitespace and each token parsed: two magnets pasted side by
-    /// side are two addables.
-    static QList<Addable> parseAddableList(const QString &text);
+    /// side are two addables. A bare info hash among the tokens (`BareHash::Take`) counts only
+    /// when every token of its line is addable: hashes side by side are a list, a hash in a
+    /// sentence is prose.
+    static QList<Addable> parseAddableList(const QString &text, BareHash bareHash);
+    /// What the clipboard probe offers for `text` (its first addable, never a bare hash), or
+    /// `Kind::None`. `detectClipboardMagnet` asks it about the clipboard; the add sheet's test
+    /// seam asks it about a pretend clipboard.
+    Q_INVOKABLE omaseed::integration::Addable probeClipboardText(const QString &text) const;
 
     /// Reveals `path` in the file manager: a file is highlighted (`ShowItems`), a directory is
     /// opened (`ShowFolders`). Async; never blocks. Emits `revealFinished` with whether the
@@ -94,6 +112,7 @@ public:
     Q_INVOKABLE void setFirstRunPromptAsked();
 
     /// The magnet/URL/`.torrent` addable found in the current clipboard text, or `Kind::None`.
+    /// Never a bare info hash (#147): see `BareHash`.
     Q_INVOKABLE Addable detectClipboardMagnet() const;
 
 signals:

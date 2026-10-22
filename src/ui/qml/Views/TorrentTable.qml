@@ -466,6 +466,9 @@ Item {
     signal focusRail
     signal focusDetails
     signal escapePressed
+    /// DECISIONS C18 D6: a plain left click put the selection on one row; `hadSelection`
+    /// says whether one was on before it (the host's hint on the selection bar).
+    signal plainClicked(bool hadSelection)
     /// A right-click on a header cell (#51 D6): the host opens the columns palette.
     signal columnsRequested
 
@@ -494,6 +497,12 @@ Item {
     /// `hash => {text, glyph, kind}`; called again when `moveRevision` moves.
     property var moveStepFor: null
     property int moveRevision: 0
+    /// DECISIONS C18 D1: a quick action's mark in the row's status cell, `hash => {text,
+    /// kind ("done" or "failed")}` ({} for none); called again when `rowMarkRevision` moves.
+    property var rowMarkFor: null
+    property int rowMarkRevision: 0
+    /// C18 D3: `esc` goes to the host first (the outcome strip's), even with a selection on.
+    property bool escapeTaken: false
     readonly property var _moveColumnSpec: ({
                                                 "key": "move",
                                                 "title": qsTr("Move"),
@@ -507,6 +516,10 @@ Item {
     /// The active columns that are plain text, drawn by one generic cell each.
     readonly property var textColumns: root.activeColumns.filter(column => column.text !== undefined)
 
+    /// DECISIONS C18 D6 (board 45 M1): the row's start, before the first column: a □ under the
+    /// pointer (a click adds the row, shift+click the range), ■ on the selected rows.
+    readonly property int tickWidth: Theme.space(16)
+
     /// How wide the rows are: the view's width, or more when the chosen columns need it.
     readonly property int rowWidth: {
         let fixed = 0;
@@ -517,7 +530,7 @@ Item {
             else
                 least = Theme.space(root.widthOf(column.key));
         }
-        return Math.max(root.width, fixed + least);
+        return Math.max(root.width, root.tickWidth + fixed + least);
     }
 
     /// `{key: {"x": px, "w": px}}` for every key in `columns`; a hidden column has `w` 0.
@@ -534,8 +547,8 @@ Item {
             if (column.width > 0)
                 fixed += Theme.space(root.widthOf(column.key));
         }
-        const flexible = root.rowWidth - fixed;
-        let x = 0;
+        const flexible = root.rowWidth - root.tickWidth - fixed;
+        let x = root.tickWidth;
         for (const column of shown) {
             const w = column.width > 0 ? Theme.space(root.widthOf(column.key)) : flexible;
             layout[column.key] = {
@@ -888,6 +901,19 @@ Item {
         internal.refreshSelection();
     }
 
+    /// C18 (board 45 O3): the outcome strip's "show" selects the torrents it is about, those
+    /// the filter shows.
+    function selectHashes(hashes: var): void {
+        root.selection.clearSelection();
+        for (const hash of hashes) {
+            const row = root.filtered.rowOfHash(hash);
+            if (row >= 0)
+                internal.selectRow(row, ItemSelectionModel.Select);
+        }
+        internal.anchorHash = hashes.length > 0 ? hashes[0] : "";
+        internal.refreshSelection();
+    }
+
     function toggleSelection(index: int): void {
         internal.selectRow(index, ItemSelectionModel.Toggle);
         internal.anchorHash = root.filtered.hashAt(index);
@@ -1027,7 +1053,7 @@ Item {
             root.selectAll();
             break;
         case Qt.Key_Escape:
-            if (root.selectedCount > 0)
+            if (root.selectedCount > 0 && !root.escapeTaken)
                 root.clearSelection();
             else
                 root.escapePressed();
@@ -1457,6 +1483,9 @@ Item {
             /// DECISIONS C20 (#142): in error and stopped; its word ("stopped") takes the
             /// error colour, beside the ! glyph.
             required property bool errorStopped
+            /// docs/44 D13: finished, but its files never left the incomplete folder: "move
+            /// failed" and its glyph in the error colour, on a row that still seeds.
+            required property bool stuckMove
             required property string upspeedText
             /// #24 T5: bytes per second, for the pulse.
             required property real upspeed
@@ -1469,6 +1498,23 @@ Item {
                 const glyph = root.statusGlyphs[row.stateText];
                 return glyph !== undefined ? glyph : Glyphs.dot;
             }
+            /// DECISIONS C18 D1 (board 45 O1, O2): a quick action's mark, `{text, kind}`, for
+            /// its 6 s or while its failure stands; else a move the log says didn't happen,
+            /// for as long as its error block does. null for none.
+            readonly property var mark: {
+                const own = root.rowMarkFor !== null && root.rowMarkRevision >= 0
+                          ? root.rowMarkFor(row.hash) : ({});
+                if (own.text !== undefined)
+                    return own;
+                const failure = row.model.failure;
+                return failure !== undefined && failure !== null && failure.kind === "move"
+                       ? {
+                             "text": qsTr("didn't move"),
+                             "kind": "failed"
+                         } : null;
+            }
+            readonly property color markColor: row.mark !== null && row.mark.kind === "failed" ? Theme.red
+                                                                                              : Theme.green
 
             /// A left click on the row with `modifiers`: the pointer's, and a screen reader's
             /// press (#77), which is a plain one.
@@ -1483,8 +1529,22 @@ Item {
                     root.toggleSelection(row.index);
                     return;
                 }
+                const had = root.selectedCount > 0;
                 root.cursorIndex = row.index;
                 root.selectOnly(row.index);
+                root.plainClicked(had);
+            }
+
+            /// C18 D6: a click on the row's □ adds or removes it and leaves the others;
+            /// shift+click adds the range from the anchor.
+            function tickClick(modifiers: int): void {
+                root.forceActiveFocus();
+                if (modifiers & Qt.ShiftModifier) {
+                    root.selectRangeTo(row.index, true);
+                    return;
+                }
+                root.cursorIndex = row.index;
+                root.toggleSelection(row.index);
             }
 
             /// The whole text of the cell at `x` when the cell had to elide it, else "": what
@@ -1604,6 +1664,27 @@ Item {
                     width: Math.max(1, Math.round(Theme.space(2)))
                     x: 0
                     y: Math.round(Theme.space(5))
+                }
+
+                // C18 D6 (board 45 M1): □ under the pointer, ■ on a selected row, in the row's
+                // start; the pointer's own MouseArea below takes its click.
+                // a11y-ignore A2: the row is selectable already; this only draws its state
+                Text {
+                    id: tick
+
+                    readonly property bool onTick: pointer.containsMouse && pointer.mouseX < root.tickWidth
+
+                    color: row.isSelected || tick.onTick ? Theme.accent : Theme.foreground
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.font.small
+                    height: parent.height
+                    horizontalAlignment: Text.AlignHCenter
+                    objectName: "tick_" + row.index
+                    text: row.isSelected ? "■" : "□"
+                    verticalAlignment: Text.AlignVCenter
+                    visible: (row.isSelected || pointer.containsMouse) && !row.editing
+                    width: root.tickWidth
+                    x: 0
                 }
 
                 // Name + dimmed category (`.tbl > div.nm`): the name elides, the category
@@ -1740,6 +1821,11 @@ Item {
 
                 // Status (`.tbl .st`): the glyph in the state colour, the word in the row's
                 // own text colour.
+                // #74: its glyph and word are placed by spacing alone, and a binding that only
+                // calls Theme.space() never runs again (a call is nothing it can follow). A row
+                // built before the theme had read the shell's base size kept the default's
+                // 8 / 12 / 6 px: the glyph 2 px and the word 4 px left, until a restart. They
+                // read Theme.spaceScale, so they follow the theme whenever it settles.
                 Item {
                     id: statusCell
 
@@ -1753,30 +1839,35 @@ Item {
                         id: statusGlyphText
 
                         anchors.left: parent.left
-                        anchors.leftMargin: Theme.space(8)
+                        anchors.leftMargin: Theme.spaceAt(8, Theme.spaceScale)
                         anchors.verticalCenter: parent.verticalCenter
-                        color: row.stateColor
+                        color: row.mark !== null ? row.markColor : row.stuckMove ? Theme.stateError
+                                                                                 : row.stateColor
                         height: Theme.font.body
                         objectName: "statusGlyph_" + row.index
                         pixelSize: Theme.font.body
-                        text: row.statusGlyph
-                        width: Theme.space(12)
+                        text: row.mark !== null ? (row.mark.kind === "failed" ? "✕" : "✓")
+                                                : row.stuckMove ? Glyphs.close : row.statusGlyph
+                        width: Theme.spaceAt(12, Theme.spaceScale)
                     }
 
                     Text {
                         id: statusWord
 
                         anchors.left: statusGlyphText.right
-                        anchors.leftMargin: Theme.space(6)
+                        anchors.leftMargin: Theme.spaceAt(6, Theme.spaceScale)
                         anchors.right: parent.right
-                        anchors.rightMargin: Theme.space(8)
+                        anchors.rightMargin: Theme.spaceAt(8, Theme.spaceScale)
                         anchors.verticalCenter: parent.verticalCenter
-                        color: row.errorStopped ? row.stateColor : band.textColor
+                        color: row.mark !== null ? row.markColor : row.stuckMove ? Theme.stateError
+                                                                                 : row.errorStopped ? row.stateColor
+                                                                                                    : band.textColor
                         elide: Text.ElideRight
                         font.family: Theme.fontFamily
                         font.pixelSize: Theme.font.body
                         objectName: "status_" + row.index
-                        text: root.statusWord(row.statusCause.length > 0 ? row.statusCause : row.stateText)
+                        text: row.mark !== null ? row.mark.text
+                                                : root.statusWord(row.statusCause.length > 0 ? row.statusCause : row.stateText)
                     }
                 }
 
@@ -2005,10 +2096,18 @@ Item {
                         root.toggleSelection(row.index);
                         return;
                     }
-                    row.click(mouse.modifiers);
+                    if (mouse.button === Qt.LeftButton && mouse.x < root.tickWidth)
+                        row.tickClick(mouse.modifiers);
+                    else
+                        row.click(mouse.modifiers);
                 }
                 // The press before it already put the cursor and the selection on the row.
                 onDoubleClicked: mouse => {
+                    // Two quick ticks are two ticks, not an open.
+                    if (mouse.button === Qt.LeftButton && mouse.x < root.tickWidth) {
+                        row.tickClick(mouse.modifiers);
+                        return;
+                    }
                     if (mouse.button === Qt.LeftButton && !(mouse.modifiers & (Qt.ShiftModifier
                                                                               | Qt.ControlModifier)))
                         root.activated(row.hash);
@@ -2161,6 +2260,10 @@ Item {
 
                 readonly property color accent: Theme.accent
                 readonly property color highlight: Qt.rgba(editor.accent.r, editor.accent.g, editor.accent.b, 0.35)
+
+                // #91: the inline rename's field, by what it edits.
+                Accessible.name: qsTr("torrent name")
+                Accessible.role: Accessible.EditableText
 
                 anchors.fill: parent
                 anchors.leftMargin: Theme.space(6)

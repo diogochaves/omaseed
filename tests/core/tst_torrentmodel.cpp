@@ -236,11 +236,12 @@ void TestTorrentModel::rolesCoverTheTableAndTheDetails()
     QVERIFY(model.data(first, TorrentModel::LastActivityRole).toDateTime().isValid());
     QVERIFY(!model.data(first, TorrentModel::LastActivityTextRole).toString().isEmpty());
 
-    QCOMPARE(model.roleNames().size(), 79);
+    QCOMPARE(model.roleNames().size(), 80);
     QCOMPARE(roleOf(model, "problem"), int(TorrentModel::ProblemRole));
     QCOMPARE(roleOf(model, "statusCause"), int(TorrentModel::StatusCauseRole));
     QCOMPARE(roleOf(model, "failure"), int(TorrentModel::FailureRole));
     QCOMPARE(roleOf(model, "errorStopped"), int(TorrentModel::ErrorStoppedRole));
+    QCOMPARE(roleOf(model, "stuckMove"), int(TorrentModel::StuckMoveRole)); // docs/44 D13
     // Nothing in maindata sets them: ProblemLog does (docs/28, docs/32), and SyncEngine's
     // read of the stopped filter (DECISIONS C20, #142).
     QVERIFY(model.data(first, TorrentModel::ProblemRole).toMap().isEmpty());
