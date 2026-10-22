@@ -7,6 +7,25 @@ before it will tag a release.
 
 ## Unreleased
 
+## v0.3.3 — 2026-10-22
+
+### Fixed
+
+- **A big torrent's move no longer reads 100 % from its first second.** qBittorrent makes a
+  torrent's file at its new place at full length before it copies into it, so the band
+  measured the whole size there at once and its bar sat at 100 % for the whole move. It now
+  says how long the torrent has been moving, and that qBittorrent doesn't report a single
+  move's progress, until it lands.
+- **"Added during the move" counts only torrents added during the move.** After moving one
+  torrent, the summary could say that dozens were "added during the move" and still at the
+  old place: every other torrent saved in the same folder. It now counts only those added
+  after the move started.
+- **A file already at the destination says what it is.** When a torrent is left out because a
+  file with its name is already where it would go, the Move sheet now says what that file is
+  and whose: "an empty file no torrent owns" (often what an earlier failed copy left), or "a
+  file of 4.2 GB that NAME owns". On a server whose disks omaseed can't see, it says only
+  whose it is.
+
 ## v0.3.2 — 2026-10-22
 
 ### Added
