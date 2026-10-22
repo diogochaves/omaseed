@@ -126,6 +126,64 @@ TestCase {
         tryCompare(notice, "height", folded, 1000);
     }
 
+    // #173: two hundred rows (a big move's record) stop at a third of the window and scroll
+    // inside the block, clipped; what sits under the band moves down and is never drawn over.
+    // The keys scroll it while it has them, and esc folds it.
+    function test_long_details_stop_and_scroll_inside_the_band() {
+        const rows = [];
+        for (let i = 0; i < 200; ++i)
+            rows.push({
+                          "text": "moved · Torrent %1 · /mnt/slow/a → /mnt/fast/b".arg(i + 1)
+                      });
+        const column = createTemporaryQmlObject("import QtQuick; Column { width: 1100 }",
+                                                testCase);
+        const notice = noticeComponent.createObject(column, {
+                                                        "detailRows": rows
+                                                    });
+        const below = createTemporaryQmlObject(
+                        "import QtQuick; Rectangle { width: 1100; height: 40 }", column);
+        const folded = notice.height;
+        notice.toggleDetails();
+        const block = findChild(notice, "noticeDetails");
+        const scroll = findChild(notice, "noticeDetailsScroll");
+        verify(block.visible);
+        tryVerify(() => notice.height > folded, 1000);
+        verify(notice.detailsMaxHeight >= testCase.height / 3 - 1);
+        verify(block.height <= notice.detailsMaxHeight + 0.5,
+               "the block is %1 tall, past %2".arg(block.height).arg(notice.detailsMaxHeight));
+        verify(notice.height < testCase.height);
+        verify(scroll.clip);
+        verify(scroll.contentHeight > scroll.height * 3);
+        tryVerify(() => below.y >= notice.y + notice.height, 1000);
+
+        scroll.forceActiveFocus();
+        verify(scroll.activeFocus);
+        keyClick(Qt.Key_Down);
+        verify(scroll.contentY > 0);
+        keyClick(Qt.Key_End);
+        fuzzyCompare(scroll.contentY, scroll.contentHeight - scroll.height, 1);
+        keyClick(Qt.Key_Home);
+        compare(scroll.contentY, 0);
+        keyClick(Qt.Key_Escape);
+        verify(!notice.detailsOpen);
+        tryCompare(notice, "height", folded, 1000);
+        notice.destroy();
+    }
+
+    // Short details take only their own height: nothing to scroll, Tab passes them by.
+    function test_short_details_take_their_own_height() {
+        const notice = createTemporaryObject(noticeComponent, testCase);
+        notice.toggleDetails();
+        const block = findChild(notice, "noticeDetails");
+        const scroll = findChild(notice, "noticeDetailsScroll");
+        // Once laid out: its width comes on a later polish than its height.
+        tryVerify(() => scroll.width > 0 && scroll.height > 0, 1000);
+        verify(block.height < notice.detailsMaxHeight, "%1 tall".arg(block.height));
+        compare(scroll.contentY, 0);
+        verify(!scroll.activeFocusOnTab, "content %1 in %2".arg(scroll.contentHeight).arg(
+                   scroll.height));
+    }
+
     // #77: the details' "copy" is a link whose press is the click, once; disabled, nothing.
     function test_the_details_copy_is_a_link_a_screen_reader_presses() {
         const notice = createTemporaryObject(noticeComponent, testCase);

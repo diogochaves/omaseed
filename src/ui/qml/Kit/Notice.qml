@@ -13,7 +13,9 @@ import Omaseed.Kit
 //           (accent; "details ▸" dim, last)
 //   row 2   the line under it, aligned with the headline's first letter; it wraps, never
 //           elides
-//   details the technical text in a further 4 % block, `copy` at its bottom right (N4)
+//   details the technical text in a further 4 % block, `copy` at its bottom right (N4); a long
+//           one stops at `detailsMaxHeight` (a third of the window) and scrolls inside it,
+//           clipped, so the band never grows past it and what is below moves down (#173)
 //
 // Kinds (N3): "warning" is the yellow "!" while omaseed retries on its own, "error" the red
 // "✕" when it has stopped and needs you or an action failed, "info" the accent "·". Board 42
@@ -65,6 +67,9 @@ Item {
     property real stackWidth: Theme.space(600)
     /// N8: docked over the content (above the footer), the band is opaque under its fill.
     property bool opaque: false
+    /// #173: the unfolded details stop here and scroll inside: a third of the window, never
+    /// less than a few lines.
+    property real detailsMaxHeight: Math.max(Theme.space(96), root.Window.height / 3)
 
     readonly property bool stacked: root.width < root.stackWidth
     readonly property color kindColor: root.kind === "error" ? Theme.red : root.kind === "warning"
@@ -89,6 +94,7 @@ Item {
     /// The full height the band takes while shown.
     readonly property real fullHeight: content.implicitHeight + Theme.space(9) + Theme.space(10)
     readonly property alias detailsBlock: detailsBlock
+    readonly property alias detailsScroll: detailsScroll
 
     signal actionTriggered(string key)
     signal copyRequested(string text)
@@ -257,7 +263,9 @@ Item {
             visible: root.stacked
         }
 
-        // N4: the details unfold inside the band.
+        // N4: the details unfold inside the band. #173: up to detailsMaxHeight; past it they
+        // scroll inside the block, clipped, so a move of hundreds of torrents keeps its band a
+        // band and the body below it moves down instead of drawing over the list.
         Rectangle {
             id: detailsBlock
 
@@ -265,113 +273,164 @@ Item {
             Layout.leftMargin: glyph.Layout.preferredWidth + Theme.space(8)
             Layout.topMargin: Theme.space(4)
             color: Theme.fill(Theme.fillIdle)
-            implicitHeight: detailsColumn.implicitHeight + 2 * Theme.space(6)
+            implicitHeight: Math.min(detailsColumn.implicitHeight + 2 * Theme.space(6),
+                                     root.detailsMaxHeight)
             objectName: "noticeDetails"
             visible: root.detailsOpen && (root.details.length > 0 || root.detailRows.length > 0)
 
-            ColumnLayout {
-                id: detailsColumn
+            Flickable {
+                id: detailsScroll
 
-                anchors.left: parent.left
-                anchors.leftMargin: Theme.space(8)
-                anchors.right: parent.right
-                anchors.rightMargin: Theme.space(8)
-                anchors.verticalCenter: parent.verticalCenter
-                spacing: Theme.space(2)
+                /// One line of the details, for the keys.
+                readonly property real step: Theme.font.caption * 1.5
+                readonly property real maxY: Math.max(0, contentHeight - height)
 
-                Repeater {
-                    model: root.detailRows
+                function scrollTo(y: real): void {
+                    detailsScroll.contentY = Math.max(0, Math.min(detailsScroll.maxY, y));
+                }
 
-                    RowLayout {
-                        id: detailRow
+                // Tab reaches it only when there is something to scroll (half a pixel is
+                // rounding); esc goes on up to the band, which folds it.
+                activeFocusOnTab: detailsScroll.activeFocus || (detailsBlock.visible
+                                                                 && detailsScroll.maxY > 0.5)
+                anchors.fill: parent
+                anchors.margins: Theme.space(6)
+                boundsBehavior: Flickable.StopAtBounds
+                clip: true
+                contentHeight: detailsColumn.implicitHeight
+                contentWidth: width
+                objectName: "noticeDetailsScroll"
 
-                        required property int index
-                        required property var modelData
+                Keys.onPressed: event => {
+                    const page = Math.max(detailsScroll.step, detailsScroll.height
+                                          - detailsScroll.step);
+                    if (event.key === Qt.Key_Down || event.key === Qt.Key_J)
+                        detailsScroll.scrollTo(detailsScroll.contentY + detailsScroll.step);
+                    else if (event.key === Qt.Key_Up || event.key === Qt.Key_K)
+                        detailsScroll.scrollTo(detailsScroll.contentY - detailsScroll.step);
+                    else if (event.key === Qt.Key_PageDown || event.key === Qt.Key_Space)
+                        detailsScroll.scrollTo(detailsScroll.contentY + page);
+                    else if (event.key === Qt.Key_PageUp)
+                        detailsScroll.scrollTo(detailsScroll.contentY - page);
+                    else if (event.key === Qt.Key_Home)
+                        detailsScroll.scrollTo(0);
+                    else if (event.key === Qt.Key_End)
+                        detailsScroll.scrollTo(detailsScroll.maxY);
+                    else
+                        return;
+                    event.accepted = true;
+                }
 
-                        Layout.fillWidth: true
-                        objectName: "noticeDetailRow"
-                        spacing: Theme.space(10)
+                // Its hairline while it has the keys.
+                Rectangle {
+                    anchors.fill: parent
+                    border.color: Theme.accent
+                    border.width: 1
+                    color: "transparent"
+                    parent: detailsBlock
+                    visible: detailsScroll.activeFocus
+                }
 
-                        Text {
-                            Accessible.name: text
-                            Accessible.role: Accessible.StaticText
+                ColumnLayout {
+                    id: detailsColumn
+
+                    width: detailsScroll.width
+                    spacing: Theme.space(2)
+
+                    Repeater {
+                        model: root.detailRows
+
+                        RowLayout {
+                            id: detailRow
+
+                            required property int index
+                            required property var modelData
+
                             Layout.fillWidth: true
-                            color: Theme.foreground
-                            elide: Text.ElideRight
-                            font.family: Theme.fontFamily
-                            font.pixelSize: Theme.font.caption
-                            text: detailRow.modelData.text
-                            textFormat: Text.PlainText
-                        }
+                            objectName: "noticeDetailRow"
+                            spacing: Theme.space(10)
 
-                        Text {
-                            id: rowLink
+                            Text {
+                                Accessible.name: text
+                                Accessible.role: Accessible.StaticText
+                                Layout.fillWidth: true
+                                color: Theme.foreground
+                                elide: Text.ElideRight
+                                font.family: Theme.fontFamily
+                                font.pixelSize: Theme.font.caption
+                                text: detailRow.modelData.text
+                                textFormat: Text.PlainText
+                            }
 
-                            Accessible.name: rowLink.text
-                            Accessible.role: Accessible.Link
-                            Accessible.onPressAction: root.detailRowTriggered(detailRow.index)
-                            color: rowLinkMouse.containsMouse ? Theme.brightForeground :
-                                                                Theme.accent
-                            font.family: Theme.fontFamily
-                            font.pixelSize: Theme.font.caption
-                            objectName: "noticeDetailRowLink"
-                            text: detailRow.modelData.link ?? ""
-                            visible: text.length > 0
+                            Text {
+                                id: rowLink
 
-                            MouseArea {
-                                id: rowLinkMouse
+                                Accessible.name: rowLink.text
+                                Accessible.role: Accessible.Link
+                                Accessible.onPressAction: root.detailRowTriggered(detailRow.index)
+                                color: rowLinkMouse.containsMouse ? Theme.brightForeground :
+                                                                    Theme.accent
+                                font.family: Theme.fontFamily
+                                font.pixelSize: Theme.font.caption
+                                objectName: "noticeDetailRowLink"
+                                text: detailRow.modelData.link ?? ""
+                                visible: text.length > 0
 
-                                anchors.fill: parent
-                                anchors.margins: -Theme.space(4)
-                                cursorShape: Qt.PointingHandCursor
-                                hoverEnabled: true
+                                MouseArea {
+                                    id: rowLinkMouse
 
-                                onClicked: root.detailRowTriggered(detailRow.index)
+                                    anchors.fill: parent
+                                    anchors.margins: -Theme.space(4)
+                                    cursorShape: Qt.PointingHandCursor
+                                    hoverEnabled: true
+
+                                    onClicked: root.detailRowTriggered(detailRow.index)
+                                }
                             }
                         }
                     }
-                }
 
-                Text {
-                    // #79: the technical text, once "details" unfolds it.
-                    Accessible.name: text
-                    Accessible.role: Accessible.StaticText
-                    Layout.fillWidth: true
-                    color: Theme.dimForeground
-                    font.family: Theme.fontFamily
-                    font.pixelSize: Theme.font.caption
-                    objectName: "noticeDetailsText"
-                    text: root.details
-                    textFormat: Text.PlainText
-                    visible: root.details.length > 0
-                    wrapMode: Text.WrapAnywhere
-                }
+                    Text {
+                        // #79: the technical text, once "details" unfolds it.
+                        Accessible.name: text
+                        Accessible.role: Accessible.StaticText
+                        Layout.fillWidth: true
+                        color: Theme.dimForeground
+                        font.family: Theme.fontFamily
+                        font.pixelSize: Theme.font.caption
+                        objectName: "noticeDetailsText"
+                        text: root.details
+                        textFormat: Text.PlainText
+                        visible: root.details.length > 0
+                        wrapMode: Text.WrapAnywhere
+                    }
 
-                Text {
-                    id: copyLink
+                    Text {
+                        id: copyLink
 
-                    // #77: a link, as the notice's actions; its press is the click.
-                    Accessible.name: copyLink.text
-                    Accessible.role: Accessible.Link
-                    Accessible.onPressAction: if (copyLink.enabled)
-                                                  root.copyRequested(root.details)
-                    Layout.alignment: Qt.AlignRight
-                    color: copyMouse.containsMouse ? Theme.brightForeground : Theme.accent
-                    font.family: Theme.fontFamily
-                    font.pixelSize: Theme.font.caption
-                    objectName: "noticeCopy"
-                    text: qsTr("copy")
-                    visible: root.details.length > 0
+                        // #77: a link, as the notice's actions; its press is the click.
+                        Accessible.name: copyLink.text
+                        Accessible.role: Accessible.Link
+                        Accessible.onPressAction: if (copyLink.enabled)
+                                                      root.copyRequested(root.details)
+                        Layout.alignment: Qt.AlignRight
+                        color: copyMouse.containsMouse ? Theme.brightForeground : Theme.accent
+                        font.family: Theme.fontFamily
+                        font.pixelSize: Theme.font.caption
+                        objectName: "noticeCopy"
+                        text: qsTr("copy")
+                        visible: root.details.length > 0
 
-                    MouseArea {
-                        id: copyMouse
+                        MouseArea {
+                            id: copyMouse
 
-                        anchors.fill: parent
-                        anchors.margins: -Theme.space(4)
-                        cursorShape: Qt.PointingHandCursor
-                        hoverEnabled: true
+                            anchors.fill: parent
+                            anchors.margins: -Theme.space(4)
+                            cursorShape: Qt.PointingHandCursor
+                            hoverEnabled: true
 
-                        onClicked: root.copyRequested(root.details)
+                            onClicked: root.copyRequested(root.details)
+                        }
                     }
                 }
             }
