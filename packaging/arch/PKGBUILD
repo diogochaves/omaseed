@@ -34,7 +34,7 @@ optdepends=(
     'xdg-desktop-portal: native file picker for choosing .torrent files and download folders'
 )
 source=("$pkgname-$pkgver.tar.gz::https://github.com/diogochaves/omaseed/archive/refs/tags/v$pkgver.tar.gz")
-sha256sums=('SKIP')
+sha256sums=('e547a4a303e1c8f46ea9f73eb9082a5b8c57ee83b56e1355bb29c8653aeb9c20')
 
 # No .install: current Arch convention leaves desktop-database, mime-database and (on the
 # rare system without it already) icon-cache updates to the libalpm hooks shipped by
