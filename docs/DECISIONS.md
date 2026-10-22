@@ -870,6 +870,22 @@ closing a move's summary lost "move back". #130.
 - **How long (D8):** the last 20 moves or 30 days, whichever ends first. v0.3.0.
 - **When (D9):** D5, D7 and D8 with v0.3.0; D1–D4 and D6 in v0.4.0.
 
+## C19 — From the second manual pass of the moves (ruled 2026-10-21)
+
+Three calls from Diogo's pass of `docs/manual-tests/moves.md`. All v0.3.0.
+
+**This entry changes docs/27 D3's head tick (T1), spec v2's rail `.row.cur` (T2) and reads
+C15 M1's "the row's menu" as the rail's folder row (T3).**
+
+- **A half tick (T1):** a click on a half-ticked folder, or the half-ticked head, unticks it;
+  the next click brings back what was wanted before (#129). A click never widens a half
+  selection to every file: the folder row's priority menu does that. #134.
+- **The rail's cursor (T2):** its fill shows only while the rail has the keys. A click still
+  moves the cursor, so `j`/`k` start from the row clicked. #135.
+- **Move a folder (T3):** from the folder: the rail's folder rows get a menu with "move this
+  folder…"; the scope line, `shift+m` and `:` keep it. A torrent's menu no longer offers it.
+  #136.
+
 ## M8 — A click leaves the keyboard focus where it was
 
 Buttons and toggles do not take the focus when clicked. Otherwise an overlay gives the focus
