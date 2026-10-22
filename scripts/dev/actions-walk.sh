@@ -8,8 +8,8 @@
 # without files, and two torrents that share one file (#27: the twin goes in through the add
 # sheet's "save there"; #28: the delete confirm, the location sheet, a category change and
 # turning automatic management on (#65) ask), and board 44's skipped files that still hold space
-# (#118): the On disk column and band, free the space on a v1-only torrent (with its recheck)
-# and on a hybrid (left, then added again); and a big tick that waits with Undo (#119). After each step it checks what qBittorrent says and
+# (#118): the On disk column and band, free the space (taught by the ? sheet and the palette,
+# #160) on a v1-only torrent (with its recheck) and on a hybrid (left, then added again); and a big tick that waits with Undo (#119). After each step it checks what qBittorrent says and
 # what is on disk, and stops at the first mismatch. OMASEED_ACTIONS_WALK_FROM=disk runs board
 # 44's steps alone.
 # Run it again after any change to an action, a sheet, a palette or the selection bar.
@@ -303,8 +303,9 @@ home="$(omabox path -b "$BOX")/home"
 # Two torrents of four 8 MiB files, one v1-only and one hybrid, made and seeded by the box's
 # own qBittorrent, so every skipped file holds its data and its downloaded pieces. The ntfs3
 # side (a tick that allocates in full, on a loop image) needs a mount the box can write to,
-# which udisks makes only on this machine: tests/app/tst_app_skipped_live.cpp runs it there
-# against the playground.
+# which udisks makes only on this machine: tests/core/tst_skipped_ntfs3_live.cpp and, for a
+# tick that doesn't fit and so waits (DECISIONS C28, #159), tests/app/tst_app_tickroom_live.cpp
+# run it there against the playground.
 
 # click_text TEXT: a click in the middle of the app's accessible node whose name starts with
 # TEXT, from the window's own tree.
@@ -382,8 +383,17 @@ disk_walk() {
     expect_text "the On disk column is there" "On disk"
     shot "The Files tab: On disk after Size, \"—\" on the wanted files, 8.4 MB on the skipped; the yellow band with Free the space… and Why?."
 
-    step "Free the space, v1-only" "shift+f: the sheet deletes c.bin and d.bin; they hold downloaded pieces, so on this v1-only torrent it says it rechecks after the start. enter."
-    keys shift+f
+    step "Free the space is taught" "#160: the ? sheet has F, free the space, among the acts; the : palette, from the Files tab, offers free the space… with its key F."
+    keys -t "?"
+    expect_text "the ? sheet teaches F" "In the Files tab: delete the skipped files that still hold space" 10
+    shot "The ? sheet: F, free the space, after O o r." help
+    keys Escape
+    keys -t ":free"
+    expect_text "the palette offers free the space…" "free the space…" 10
+    shot "The command palette from the Files tab, \"free\" typed: free the space… with its key F." palette
+
+    step "Free the space, v1-only" "From the palette, enter (shift+f does the same: the hybrid's step presses it): the sheet deletes c.bin and d.bin; they hold downloaded pieces, so on this v1-only torrent it says it rechecks after the start. enter."
+    keys Return
     expect_text "the sheet says it rechecks after the start" "Start it again, then recheck it"
     shot "Free 16.8 MB: stop, delete 2 skipped files (some holding downloaded pieces), start and recheck; both files marked delete." sheet
     keys Return

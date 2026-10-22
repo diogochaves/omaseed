@@ -1261,6 +1261,7 @@ Item {
         "collapseAll": () => root._runInFiles(() => details.fileAction("collapseAll")),
         "expandAll": () => root._runInFiles(() => details.fileAction("expandAll")),
         "hideSkipped": () => root._runInFiles(() => details.fileAction("hideSkipped")),
+        "freeSpace": () => root._runInFiles(() => details.fileAction("freeSpace")),
         // Trackers, Peers, HTTP sources, and the pane's `y` everywhere (docs/12 G5)
         "addRow": () => root._runInTab("add"),
         "removeRow": () => root._runInTab("remove"),
@@ -1347,6 +1348,10 @@ Item {
             "running": targets.length - stopped,
             // DECISIONS C20: what "retry" would try again.
             "errored": targets.filter(row => row.stateText === "error").length,
+            // #160 (C17 D3): "free the space…", while the details torrent's skipped files hold
+            // space on a disk omaseed sees.
+            "freeable": App.skippedOnDisk.hash === App.details.hash && App.skippedOnDisk.seen === true
+                        && (App.skippedOnDisk.holding || 0) > 0,
             // App.stopStart follows the first hash: `p` starts when that one is stopped.
             "firstStopped": targets.length > 0 && targets[0].stopped === true,
             "marked": marked,

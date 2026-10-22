@@ -712,7 +712,7 @@ Item {
             root.toggleHideSkipped();
             break;
         case "freeSpace":
-            if (filesTab.bandShown)
+            if (filesTab.freeable)
                 root.freeSpaceRequested();
             break;
         }
@@ -788,8 +788,9 @@ Item {
             root.toggleHideSkipped();
             return true;
         case Qt.Key_F:
-            // Board 44 F1: shift+f frees what skipped files hold, while the band shows.
-            if (!shift || !filesTab.bandShown)
+            // Board 44 F1: shift+f frees what skipped files hold (#160: whenever some do, as
+            // the palette offers it).
+            if (!shift || !filesTab.freeable)
                 return false;
             root.freeSpaceRequested();
             return true;

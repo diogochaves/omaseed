@@ -45,7 +45,7 @@ import QtQuick
 //             "details" the pane on show, and in a details tab "marked" (marked rows or the
 //             cursor's), "row" (the cursor's row), "rows" (any row), "file" (a file, not a
 //             folder, under the cursor), "lastMove" a finished move that can go back
-//             (board 45 D7).
+//             (board 45 D7), "freeable" skipped files that hold space here (#160).
 //   via       a menu-only action has no key ("key": ""): the path to it ("enter s",
 //             "ctrl+."), printed in the key's place (D3). Key routing, the footer and the `?`
 //             sheet never see an entry with no key.
@@ -1744,6 +1744,21 @@ QtObject {
             "help": qsTr("hide skipped files"),
             "about": qsTr("In the Files tab: hide the files set to skip, or show them again")
         },
+        // Board 44 F1 (DECISIONS C17 D3, #160): shift+f, the band's "Free the space…". The
+        // palette offers it only on a torrent whose skipped files hold space here.
+        {
+            "area": "details",
+            "key": "F",
+            "action": "freeSpace",
+            "titles": {"files": qsTr("free the space…")},
+            "needs": "freeable",
+            "label": qsTr("free the space"),
+            "column": "act",
+            "rank": 11.5,
+            "helpKeys": "F",
+            "help": qsTr("free the space"),
+            "about": qsTr("In the Files tab: delete the skipped files that still hold space on this machine's disk, when omaseed can see it")
+        },
 
         // the log face (docs/32 §6, D10–D13): LogView takes these while it is on show. The
         // levels have one key each for the palette, and one row for the footer and the sheet.
@@ -2075,7 +2090,7 @@ QtObject {
             "word": qsTr("files"),
             "actions": ["priorityMenu", "raisePriority", "lowerPriority", "skipFile", "openFile",
                 "revealFile", "renameFile", "copyLocalPath", "copyFileName", "sortFiles", "filterFiles",
-                "selectAllFiles", "collapseAll", "expandAll", "hideSkipped"]
+                "selectAllFiles", "collapseAll", "expandAll", "hideSkipped", "freeSpace"]
         },
         {
             "group": "trackers",
@@ -2184,6 +2199,8 @@ QtObject {
             return ctx.lastMove.canBack === true ? "" : qsTr("moved again since: nothing to move back");
         case "details":
             return states.detailsShown === true ? "" : qsTr("details hidden · i shows them");
+        case "freeable":
+            return ctx.freeable === true ? "" : qsTr("no skipped file holds space here");
         case "marked":
         case "row":
         case "rows":
@@ -2302,6 +2319,9 @@ QtObject {
                     continue;
                 // DECISIONS C20: "retry" only while a target is in error.
                 if (found.needs === "errored" && (ctx.errored || 0) === 0)
+                    continue;
+                // #160 (C17 D3): "free the space…" only while skipped files hold space here.
+                if (found.needs === "freeable" && ctx.freeable !== true)
                     continue;
                 // D4: the per-server rows follow "switch server…".
                 const servers = found.action === "switchServer" ? root.serverRows(ctx, group) : [];

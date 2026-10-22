@@ -823,6 +823,9 @@ shows that space and frees it where it can see the disk.
   v2-only torrents included with a recheck after the start; on a hybrid left, with "add it
   again" and its cost named, because a recheck there hits libtorrent 2.1.2's
   `torrent_inconsistent_hashes` (#115). Board 28 names that error on a hybrid. #118.
+  `shift+f` has its keymap row (the `?` sheet's "F free the space") and the Files tab's `:`
+  palette offers "free the space…" (#160); both, like the key, whenever a skipped file holds
+  space on a disk omaseed sees, the band or not.
 - **Disks omaseed can't see (D4):** an "at least" hint from skipped files with progress above 0 %,
   pointing to path maps, no action. A NAS share mounted here and mapped counts as seen. #118.
 - **Hold back a big selection (D5–D7):** a widening that adds more than 1 GiB, or the whole

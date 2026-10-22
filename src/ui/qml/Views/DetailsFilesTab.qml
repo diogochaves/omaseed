@@ -142,6 +142,9 @@ Item {
     readonly property bool showOnDisk: root.model !== null && root.model.showOnDisk
     /// C17 D2: the yellow band, over the threshold.
     readonly property bool bandShown: root.skipped.band === true
+    /// #160: shift+f and the palette's "free the space…": some skipped file holds space on a
+    /// disk omaseed sees, with or without the band (the band waits for 1 GiB or 5 %).
+    readonly property bool freeable: root.skipped.seen === true && (root.skipped.holding || 0) > 0
     /// C17 D5: a change waits before it is sent.
     readonly property bool holdShown: root.held.waiting === true
     readonly property real holdLeftMs: root.holdShown ? Math.max(0, root.held.deadlineMs - root._now) : 0
