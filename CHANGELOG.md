@@ -24,8 +24,14 @@ before it will tag a release.
   General says where the files never arrived, why (from qBittorrent's log), where it is seeding
   from and what partial copies were left, with "show both folders" and "set location…".
 
+## v0.3.3 — 2026-10-22
+
 ### Fixed
 
+- **"Skip hash check" works with qBittorrent 5.3.** 5.3 reads the option under a new name and
+  silently ignored the old one, so a torrent added with it for files already on disk came in
+  at 0 % and had to be checked or downloaded again. omaseed now sends the name the server's
+  version reads (both, when it can't tell the version yet).
 - **`omaseed --help`, `--version` and `--theme-roles` work with no display.** Over SSH, in a
   container or in a package check they print and exit, instead of aborting before a word.
 

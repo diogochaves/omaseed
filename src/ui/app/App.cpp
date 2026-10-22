@@ -1975,8 +1975,10 @@ QbtClient::AddOptions App::addOptionsFrom(const QVariantMap &request) const
 
     if (request.value(QStringLiteral("stopped")).toBool())
         options.stopped = true;
-    if (request.value(QStringLiteral("skipChecking")).toBool())
+    if (request.value(QStringLiteral("skipChecking")).toBool()) {
         options.skipChecking = true;
+        options.apiVersion = m_engine->globalState()->apiVersion(); // seedMode or skip_checking
+    }
     if (request.value(QStringLiteral("sequentialDownload")).toBool())
         options.sequentialDownload = true;
 

@@ -10,6 +10,7 @@
 
 #include "LiveServer.hpp"
 
+#include <QCryptographicHash>
 #include <QDir>
 #include <QElapsedTimer>
 #include <QEventLoop>
@@ -17,6 +18,7 @@
 #include <QJsonArray>
 #include <QJsonObject>
 #include <QProcessEnvironment>
+#include <QRandomGenerator>
 #include <QStandardPaths>
 #include <QTcpSocket>
 #include <QTest>
@@ -93,6 +95,7 @@ private slots:
     void queuePriorityMoves();
     void addFileFixtureAndDeleteWithFiles();
     void deleteWithoutFilesKeepsData();
+    void skipCheckingAddsComplete();
 
 private:
     /// Polls torrents/info for `hash` until `predicate` is true or the deadline passes.
@@ -574,6 +577,76 @@ void TestQbtClientActionsLive::deleteWithoutFilesKeepsData()
     // deleteFiles=false: qBittorrent may or may not have created the directory yet for a
     // stopped, metadata-only add, so this only checks that no error occurred above; any
     // directory left behind is still removed by cleanupTestCase().
+}
+
+// #154: "skip hash check" on a stopped add of data already on disk. The torrent is made here
+// from random bytes written to a throwaway folder first, so its hash is new on every run and its
+// pieces are real. Sent as the server's version spells it (seedMode from Web API 2.16.0,
+// skip_checking before): the torrent comes back complete, stopped as a seed. Without the
+// option, or with the spelling the server does not read, it would sit at 0 % as stoppedDL.
+void TestQbtClientActionsLive::skipCheckingAddsComplete()
+{
+    const QbtResult<QString> apiVersion = await(this, m_client->webApiVersion());
+    QVERIFY2(!apiVersion.isError(), qPrintable(apiVersion.error().toString()));
+
+    const int pieceLength = 16384;
+    QByteArray content(pieceLength * 2 + 7000, Qt::Uninitialized);
+    QRandomGenerator::global()->fillRange(reinterpret_cast<quint32 *>(content.data()),
+                                          content.size() / int(sizeof(quint32)));
+    QByteArray pieces;
+    for (qsizetype at = 0; at < content.size(); at += pieceLength)
+        pieces += QCryptographicHash::hash(content.mid(at, pieceLength), QCryptographicHash::Sha1);
+    const QByteArray name =
+        "t154-skip-" + QCryptographicHash::hash(content, QCryptographicHash::Sha1).toHex().left(8) +
+        ".bin";
+    const QByteArray info = "d6:lengthi" + QByteArray::number(content.size()) + "e4:name" +
+                            QByteArray::number(name.size()) + ':' + name + "12:piece lengthi" +
+                            QByteArray::number(pieceLength) + "e6:pieces" +
+                            QByteArray::number(pieces.size()) + ':' + pieces + 'e';
+    const QByteArray torrent = "d4:info" + info + 'e';
+    const QString hash =
+        QString::fromLatin1(QCryptographicHash::hash(info, QCryptographicHash::Sha1).toHex());
+
+    const QString savePath = m_downloadsRoot + QStringLiteral("/t154-skip");
+    m_addedDirs.append(savePath);
+    QVERIFY(QDir().mkpath(savePath));
+    QFile data(savePath + QLatin1Char('/') + QString::fromLatin1(name));
+    QVERIFY(data.open(QIODevice::WriteOnly));
+    QCOMPARE(data.write(content), content.size());
+    data.close();
+
+    QbtClient::AddOptions options;
+    options.stopped = true;
+    options.savepath = savePath;
+    options.skipChecking = true;
+    options.apiVersion = apiVersion.value();
+    const QbtResult<QByteArray> added =
+        await(this,
+              m_client->torrentsAddFile(
+                  QString::fromLatin1(name) + QStringLiteral(".torrent"), torrent, options));
+    QVERIFY2(!added.isError(), qPrintable(added.error().toString()));
+    m_addedHashes.append(hash);
+
+    const QJsonObject seed = pollUntil(
+        hash,
+        [](const QJsonObject &t) {
+            return t.value(QStringLiteral("state")).toString() == QStringLiteral("stoppedUP");
+        },
+        10000);
+    QVERIFY2(!seed.isEmpty(), "the add never showed up in torrents/info");
+    QCOMPARE(seed.value(QStringLiteral("state")).toString(), QStringLiteral("stoppedUP"));
+    QCOMPARE(seed.value(QStringLiteral("progress")).toDouble(), 1.0);
+    QCOMPARE(seed.value(QStringLiteral("amount_left")).toInteger(), 0);
+
+    // Gone again, the torrent first (keeping its files), then the folder.
+    const QbtResult<QByteArray> deleted =
+        await(this, m_client->torrentsDelete(QStringList{hash}, false));
+    QVERIFY2(!deleted.isError(), qPrintable(deleted.error().toString()));
+    pollUntil(hash, [](const QJsonObject &t) { return t.isEmpty(); }, 3000);
+    QCOMPARE(torrentInfo(hash), QJsonObject());
+    m_addedHashes.removeAll(hash);
+    QVERIFY(QDir(savePath).removeRecursively());
+    m_addedDirs.removeAll(savePath);
 }
 
 QTEST_MAIN(TestQbtClientActionsLive)
