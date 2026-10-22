@@ -58,6 +58,13 @@ step, so it is checked every time after.
 
 - **Never a real library.** Tests, walks and scripts talk to the playground, the strict twin, a
   box's own qBittorrent, or the swarm. A script that takes a Web API URL refuses `:8080`.
+- **Take turns on the playground.** Several agents on one machine share `:8081` and the swarm:
+  wrap every live ctest and every walk in `flock -o LOCK …`, LOCK being one file they all name
+  (`/tmp/claude-$UID/omaseed-playground.lock`). `-o`, so nothing the command starts keeps the
+  lock. Start, stop and restart the playground with `test-server.sh` outside the lock. The
+  servers the scripts start themselves (`scripts/dev/detach.sh`: qBittorrent, the swarm's
+  tracker and leecher) take none of their caller's descriptors, so a walk that restarts the
+  playground (`error-walk.sh`) doesn't hand the lock to it either (#141).
 - **Anything with a window runs in a box.** Apps, test binaries outside `ctest`, the tray, the
   bar, notifications, the keyring: an omabox, never the desktop you are using.
 - **Test scripts are committed and re-runnable.** A script that builds test state (a library,

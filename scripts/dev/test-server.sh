@@ -31,6 +31,8 @@ set -euo pipefail
 
 # shellcheck source=scripts/dev/home-guard.sh
 . "$(dirname "${BASH_SOURCE[0]}")/home-guard.sh"
+# shellcheck source=scripts/dev/detach.sh
+. "$(dirname "${BASH_SOURCE[0]}")/detach.sh"
 
 STRICT=0
 if [ "${!#}" = "--strict" ]; then STRICT=1; set -- "${@:1:$(($#-1))}"; fi
@@ -330,8 +332,8 @@ cmd_start() {
     echo "new strict login saved to $DEV_ENV as QBT_STRICT_USER / QBT_STRICT_PASS"
   fi
   [ -f "$CONF" ] || write_conf
-  nohup qbittorrent-nox --profile="$PROFILE" --webui-port="$PORT" --confirm-legal-notice \
-    >"$LOGFILE" 2>&1 &
+  # #141: none of the caller's descriptors (a flock's lock) go with it.
+  detach "$LOGFILE" qbittorrent-nox --profile="$PROFILE" --webui-port="$PORT" --confirm-legal-notice
   local pid=$!
   echo "$pid" > "$PIDFILE"
   wait_up
