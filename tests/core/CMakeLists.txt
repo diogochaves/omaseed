@@ -140,6 +140,12 @@ omaseed_add_test(tst_enginerecognizer
     LIBRARIES omaseed::core Qt6::Network
 )
 
+# The same against the real Transmission (:8085) and deluge-web (:8086) test servers.
+omaseed_add_test(tst_enginerecognizer_live LIVE
+    SOURCES tst_enginerecognizer_live.cpp
+    LIBRARIES omaseed::core Qt6::Network
+)
+
 omaseed_add_test(tst_serverdetector
     SOURCES tst_serverdetector.cpp
     LIBRARIES omaseed::core Qt6::Network

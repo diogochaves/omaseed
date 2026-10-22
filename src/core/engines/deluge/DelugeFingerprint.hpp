@@ -5,8 +5,9 @@
 // deluge-web speaks JSON-RPC v1 on one endpoint, /json. `auth.check_session` is the one
 // method it answers before a sign-in: `{"result": false, "error": null, "id": 1}` (engine
 // matrix §1.1). With the password (K7: one password, no user name) `auth.login` sets its
-// `_session_id` cookie; then `web.connected` says whether it has a daemon, `daemon.info` names
-// the daemon's version ("2.2.0"), and `web.get_hosts` lists the daemons it knows (K10's
+// `_session_id` cookie; then `web.connected` says whether it has a daemon,
+// `daemon.get_version` names the daemon's version ("2.2.0"; deluge-web 2.2.0 answers
+// `daemon.info` with "Unknown method"), and `web.get_hosts` lists the daemons it knows (K10's
 // daemon step).
 
 #include "core/engines/EngineFingerprint.hpp"

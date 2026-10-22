@@ -368,7 +368,7 @@ void EngineRecognizer::delugeSignedIn()
                                finish();
                                return;
                            }
-                           delugeCall(QStringLiteral("daemon.info"),
+                           delugeCall(QStringLiteral("daemon.get_version"),
                                       {},
                                       [this](const QJsonValue &info, const QString &) {
                                           m_result.version = info.toString();

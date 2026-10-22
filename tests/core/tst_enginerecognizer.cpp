@@ -3,7 +3,7 @@
 // Transmission nor Deluge runs on this machine: FakeHttp answers as each would (Transmission's
 // 409 with X-Transmission-Session-Id, its 401 with a Transmission realm, session_get;
 // deluge-web's JSON-RPC auth.check_session, auth.login, web.connected, web.get_hosts,
-// daemon.info), from the shapes in the engine matrix §1.1 and §4.1.
+// daemon.get_version), from the shapes in the engine matrix §1.1 and §4.1.
 
 #include "FakeEngines.hpp"
 #include "FakeHttp.hpp"
@@ -256,7 +256,7 @@ void TestEngineRecognizer::delugeSignsInAndNamesItsDaemon()
                           QStringLiteral("auth.login"),
                           QStringLiteral("web.connected"),
                           QStringLiteral("web.get_hosts"),
-                          QStringLiteral("daemon.info")}));
+                          QStringLiteral("daemon.get_version")}));
     // deluge-web's session rides on its cookie.
     QVERIFY(server.requests.last().header("Cookie").contains("_session_id=c00k1e"));
     QVERIFY(engineSupport(found.engine, found.version, {})

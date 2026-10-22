@@ -12,6 +12,12 @@
 #   scripts/dev/test-server.sh seed     # add a few stopped fixture torrents
 #   scripts/dev/test-server.sh log      # tail the server log
 #   scripts/dev/test-server.sh rotate --strict   # a new strict login; the API key stays
+#   scripts/dev/test-server.sh start|stop|status|reset|seed|log --transmission   # :8085
+#   scripts/dev/test-server.sh start|stop|status|reset|seed|log --deluge         # :8086
+#
+# --transmission and --deluge (C14 E11) are the other engines' test servers, run by
+# scripts/dev/test-engine.sh: user processes with their own config dirs under
+# ~/.local/share/omaseed-test/ (transmission/, deluge/), which a playground reset keeps.
 #
 # Two profiles, chosen with --strict as the LAST argument:
 #   default  :8081  localhost auth-bypassed. Plain requests need no credential. The
@@ -33,6 +39,13 @@ set -euo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/home-guard.sh"
 # shellcheck source=scripts/dev/detach.sh
 . "$(dirname "${BASH_SOURCE[0]}")/detach.sh"
+
+case "${!#}" in
+--transmission | --deluge)
+  engine="${!#}"
+  exec "$(dirname "${BASH_SOURCE[0]}")/test-engine.sh" "${engine#--}" "${@:1:$(($#-1))}"
+  ;;
+esac
 
 STRICT=0
 if [ "${!#}" = "--strict" ]; then STRICT=1; set -- "${@:1:$(($#-1))}"; fi
@@ -403,7 +416,10 @@ cmd_reset() {
   if [ "$STRICT" = 1 ]; then
     echo "reset --strict wipes the API key in this profile. Type YES to continue:"; read -r a; [ "$a" = YES ] || exit 2
   fi
-  cmd_stop; rm -rf "$PROFILE"; cmd_start
+  cmd_stop
+  # The other engines' test servers live under the playground's directory: they stay.
+  find "$PROFILE" -mindepth 1 -maxdepth 1 ! -name transmission ! -name deluge -exec rm -rf {} + 2>/dev/null || true
+  cmd_start
 }
 
 # rotate --strict: a new random login on the running strict server, set through the WebUI

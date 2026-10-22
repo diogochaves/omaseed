@@ -12,7 +12,7 @@
 //
 // After that, for the two engines this build doesn't drive yet, just enough to name them:
 // Transmission's session_get (its version; the login, Basic, when one was given), deluge-web's
-// auth.login with the password, web.connected, daemon.info and, when it has no daemon,
+// auth.login with the password, web.connected, daemon.get_version and, when it has no daemon,
 // web.get_hosts. qBittorrent's signed-in probe is its engine's (QbtEngine::probe), as before.
 //
 // A transport failure (nothing listening, no answer in time, a certificate the system refuses

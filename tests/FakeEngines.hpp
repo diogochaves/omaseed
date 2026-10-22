@@ -7,7 +7,7 @@
 //   * transmission(): the 409 with X-Transmission-Session-Id (and 4.1's RPC version), a 401
 //     with a Transmission realm when it wants a login, then session_get;
 //   * deluge(): deluge-web's JSON-RPC on /json, auth.check_session, auth.login with its
-//     cookie, web.connected, web.get_hosts and daemon.info.
+//     cookie, web.connected, web.get_hosts and daemon.get_version.
 
 #include "FakeHttp.hpp"
 
@@ -110,7 +110,7 @@ inline FakeServer::Handler deluge(bool connected = true)
                                                 QStringLiteral("127.0.0.1"),
                                                 58846,
                                                 QStringLiteral("localclient")}});
-        if (method == QLatin1String("daemon.info"))
+        if (method == QLatin1String("daemon.get_version"))
             return answer(QStringLiteral("2.2.0"));
         return answer(QJsonValue::Null);
     };

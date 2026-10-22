@@ -24,6 +24,11 @@ A maintainer's private `CLAUDE.local.md` beside this file, when there is one, ad
     `QBT_STRICT_API_KEY` from `dev.env`. Never `reset --strict`: the key lives in that profile.
     The first `start --strict` makes a random login (and a key, if there is none) and saves
     it to `dev.env`; `rotate --strict` changes the login and keeps the key.
+  - The other engines (DECISIONS C14 E11), user processes with config dirs under
+    `~/.local/share/omaseed-test/`, never the system units: Transmission 4.1 on
+    `http://127.0.0.1:8085` (`start --transmission`, no login) and deluge-web 2.2 on
+    `http://127.0.0.1:8086` (`start --deluge`, its daemon on :58847; the password is
+    `DELUGE_TEST_PASS` in `dev.env`, made with the profile).
 - Credentials live in `~/.config/omaseed/dev.env` (0600, outside the repo). Load with
   `set -a; . ~/.config/omaseed/dev.env; set +a`. Never print them, never commit them: no
   credential is written in the repo. Scripts and tests read `QBT_STRICT_*` from the
@@ -61,6 +66,8 @@ qmllint src/ui/qml/**/*.qml && qmlformat -i <file>
 scripts/dev/shellcheck.sh                          # every tracked shell script (also ctest -R shellcheck)
 scripts/dev/test-server.sh start|stop|status|reset|seed [--strict]
 scripts/dev/test-server.sh rotate --strict        # new random strict login in dev.env; key kept
+scripts/dev/test-server.sh start|stop|status|reset|seed|log --transmission  # Transmission on :8085
+scripts/dev/test-server.sh start|stop|status|reset|seed|log --deluge        # deluge-web on :8086
 scripts/dev/swarm.sh start|seed|status|break CASE|fix|reset|stop   # offline swarm: real downloads on :8081
 scripts/dev/swarm.sh leech start [--rate KIB]|status|stop  # a leecher on :8084 pulls from :8081, nonstop: live uploads
 ```

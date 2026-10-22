@@ -11,7 +11,13 @@ follows. The commands themselves are listed in `CLAUDE.md`; `README.md` says how
 2. **Live tests** (`ctest -L live`). Against two throwaway qBittorrents from
    `scripts/dev/test-server.sh`: the playground on `:8081` (no login from localhost) and the
    strict twin on `:8082` (real logins and an API key, kept in `~/.config/omaseed/dev.env`,
-   outside the repo). Without `dev.env` loaded the strict tests skip and say so.
+   outside the repo). Without `dev.env` loaded the strict tests skip and say so. The other
+   engines have test servers of their own (DECISIONS C14 E11): Transmission 4.1 on `:8085`
+   (`test-server.sh start --transmission`) and deluge-web 2.2 on `:8086` (`start --deluge`,
+   its password `DELUGE_TEST_PASS` in `dev.env`), user processes with their config under
+   `~/.local/share/omaseed-test/`, each with `seed` (three small generic torrents, complete
+   and seeding) and `reset`. `tst_enginerecognizer_live` recognises both; it skips a server
+   that isn't running.
 3. **Walks** (`scripts/dev/*-walk.sh`). The app driven through its own UI in an
    [omabox](https://github.com/diogochaves/omabox), an invisible desktop, checking what
    qBittorrent says and what is on disk after each step, with a shot per step and an `index.md`
