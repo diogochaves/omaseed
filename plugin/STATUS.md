@@ -16,7 +16,7 @@ a schema change is one commit touching both sides. Design: `docs/20-companion-wi
 - The widget treats the file as dead (the "not running" state) when it is missing, when
   `now - t > 30`, or when `v` is not `2` (Q12: no compatibility).
 - Fields may be added within v2 (`alt.kind`, `alt.until`, `alt.byHand`, docs/31; `servers`
-  and `menu`, docs/33 §11 and docs/DECISIONS.md C13): a reader ignores what it does not know
+  and `menu`, docs/33 §11 and docs/DECISIONS.md C13; `server.engine`, #84): a reader ignores what it does not know
   and reads a missing field as the default the schema names. Changing or removing a field is a
   new `v`.
 
@@ -44,7 +44,9 @@ a schema change is one commit touching both sides. Design: `docs/20-companion-wi
   "server": {
     "name": "home",
     "url": "127.0.0.1:8080",          // host:port only, never a credential
-    "version": "5.2.3",               // qBittorrent's version, "" until known
+    "version": "5.2.3",               // the engine's version, "" until known
+    "engine": "qbittorrent",          // the engine it runs: "qbittorrent" | "transmission" |
+                                      // "deluge"; "" with no server (#84, added within v2)
     "reachable": true,                // false while the app cannot reach the server
     "error": "",                      // a short phrase while unreachable: "connection refused"
     "retryIn": 0                      // seconds until the next retry while unreachable

@@ -5283,6 +5283,7 @@ void App::updateStatusServer()
     if (m_statusWriter.isNull())
         return;
     m_statusWriter->setServer(m_server.id, serverName(), m_hasServer ? m_server.url : QUrl());
+    m_statusWriter->setServerEngine(m_hasServer ? engineKindToString(m_server.engine) : QString());
 }
 
 // --- end #12 ---------------------------------------------------------------------------------

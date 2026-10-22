@@ -91,6 +91,9 @@ public:
     void setServer(const QString &id, const QString &name, const QUrl &url);
     /// Why the server cannot be reached, as a short phrase; empty while it can.
     void setServerError(const QString &error);
+    /// #84: the engine the server runs, as servers.json writes it ("qbittorrent"); "" with
+    /// none. `server.engine`, added within v2.
+    void setServerEngine(const QString &engine);
     void setWindowShown(bool shown);
     /// A server path to a local one (the server's path map). Identity until set.
     void setPathMapper(std::function<QString(const QString &)> mapper);
@@ -169,6 +172,7 @@ private:
     QPointer<const BarMenu> m_menu;
     QString m_serverId;
     QString m_serverName;
+    QString m_serverEngine;
     QString m_serverHostPort;
     QString m_serverError;
     bool m_windowShown = false;

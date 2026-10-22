@@ -1135,6 +1135,9 @@ Item {
                     glyphColor: root._serverDotColor(serverDelegate.serverState)
                     hasCursor: root.shownCursor === serverDelegate.globalIndex
                     objectName: "serverRow-" + serverDelegate.name
+                    // TODO(v0.5.0 frame): C25 K12, the row's tooltip names the server, its
+                    // engine and version and its address (the model's engineText, urlText);
+                    // drawn with board 46's rail. The row itself keeps the name only.
                     selected: serverDelegate.isDefault
                     text: serverDelegate.name
                     visible: !root.serversShownFolded && serverDelegate.listed

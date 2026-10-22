@@ -187,6 +187,14 @@ void StatusWriter::setServer(const QString &id, const QString &name, const QUrl 
     markDirty();
 }
 
+void StatusWriter::setServerEngine(const QString &engine)
+{
+    if (m_serverEngine == engine)
+        return;
+    m_serverEngine = engine;
+    markDirty();
+}
+
 void StatusWriter::setServerError(const QString &error)
 {
     if (m_serverError == error)
@@ -602,6 +610,7 @@ QJsonObject StatusWriter::content() const
             {QStringLiteral("name"), m_serverName},
             {QStringLiteral("url"), m_serverHostPort},
             {QStringLiteral("version"), serverVersion},
+            {QStringLiteral("engine"), m_serverEngine},
             {QStringLiteral("reachable"), reachable},
             {QStringLiteral("error"), reachable ? QString() : error},
             {QStringLiteral("retryIn"), !reachable && state ? state->retryInSeconds() : 0},

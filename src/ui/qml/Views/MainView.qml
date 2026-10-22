@@ -1805,6 +1805,9 @@ Item {
             if (root.firstSync)
                 return qsTr("%1 · first sync").arg(App.serverName);
             // The API answers "v5.2.3"; the figure prints "qBittorrent 5.2.3".
+            // TODO(v0.5.0 frame): C25 K11, the status line's server lane, "NAME · ENGINE
+            // VERSION" for every engine (App.serverList's engineText), C12's state words in
+            // its place while down. Built with board 46's frame, not on this hero line.
             const version = App.globalState.serverVersion.replace(/^v/, "");
             return version.length > 0 ? qsTr("%1 · qBittorrent %2").arg(App.serverName).arg(
                                             version) : App.serverName;

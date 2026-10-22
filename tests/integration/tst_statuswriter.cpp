@@ -183,6 +183,7 @@ void TestStatusWriter::startWriter(StatusWriter &writer, SyncEngine &engine)
     writer.setServer(QStringLiteral("srv-1"),
                      QStringLiteral("home"),
                      QUrl(QStringLiteral("http://admin:%1@127.0.0.1:8081/").arg(kFakePassword)));
+    writer.setServerEngine(QStringLiteral("qbittorrent"));
     writer.setWindowShown(true);
     QSignalSpy written(&writer, &StatusWriter::written);
     writer.start();
@@ -221,6 +222,8 @@ void TestStatusWriter::writesSchemaTwo()
     QCOMPARE(server.value(QStringLiteral("name")).toString(), QStringLiteral("home"));
     QCOMPARE(server.value(QStringLiteral("url")).toString(), QStringLiteral("127.0.0.1:8081"));
     QCOMPARE(server.value(QStringLiteral("version")).toString(), QStringLiteral("5.2.3"));
+    QCOMPARE(server.value(QStringLiteral("engine")).toString(),
+             QStringLiteral("qbittorrent")); // #84
     QCOMPARE(server.value(QStringLiteral("reachable")).toBool(), true);
     QCOMPARE(server.value(QStringLiteral("error")).toString(), QString());
     QVERIFY(server.value(QStringLiteral("retryIn")).isDouble());
