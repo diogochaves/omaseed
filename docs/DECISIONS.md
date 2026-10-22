@@ -920,6 +920,27 @@ again" (to the move's target) and "move back", which bring its files together; t
 rechecked as before. A torrent is hybrid when qBittorrent gives it both a v1 and a v2 hash.
 v0.3.1. #144.
 
+## C22 — Search matches words, not one string (#125, ruled 2026-10-22)
+
+Release names put dots, underscores or dashes between their words; people type spaces. The
+library's search, and the details pane's Files filter, fold both sides the same way before
+they meet: case aside, every run of `.`, `_`, `-` and spaces is one space.
+
+- **Every word, any order.** A torrent matches when each word of the query appears in its name,
+  category or tags (`bunny 1080p` finds `Big.Buck.Bunny.2008.1080p`). A word is a substring, so
+  `1080` still finds `1080p`.
+- **Ranked while typed.** The matches list the whole query as one phrase in the name first, then
+  its words in the query's order, then any order; rows of one rank keep the table's sort among
+  them. Clearing the field brings the table's own sort back. A row found only through its
+  category or a tag ranks last.
+- **A hash prefix stays exact:** the query as typed, no fold, ranked with the phrases.
+- **Files filter:** a plain word folds the same way and its parts must all appear in the path;
+  `|` alternatives and `*` words stay as N1 has them, a `*` word matched on the path as it is.
+  The Files tab keeps its own order: no ranking there.
+
+The add sheet's library match (docs/25) compares files, not typed words, so it has no fold.
+`core/SearchWords` is the one implementation.
+
 ## M8 — A click leaves the keyboard focus where it was
 
 Buttons and toggles do not take the focus when clicked. Otherwise an overlay gives the focus
