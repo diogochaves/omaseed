@@ -831,6 +831,8 @@ shows that space and frees it where it can see the disk.
 - **Name the driver (D8):** for `ntfs3`, `exfat` and `vfat` only, Save to, the Move sheet and a
   Files tab tick name the driver and count the full size of every newly ticked file at the
   tick. The newer `ntfs` driver, Linux filesystems and unmeasured types get no line. #120.
+  A tick that doesn't fit there always waits in D5's band, whatever its size, so it can be
+  undone before anything is written (C28, #159).
 - **FAT32 (D9):** files of 4 GiB or more on `vfat`: a red line naming them, with "Skip these";
   the add stays possible. #120.
 - **No incomplete-folder hint (D10):** omaseed never suggests one: it doubles the space a

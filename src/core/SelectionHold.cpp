@@ -17,7 +17,8 @@ SelectionHold::SelectionHold(QObject *parent)
 bool SelectionHold::mustWait(const QHash<int, int> &current,
                              const QHash<int, qint64> &sizes,
                              const QList<int> &ids,
-                             int priority)
+                             int priority,
+                             qint64 roomBytes)
 {
     if (priority == 0)
         return false; // a skip never costs space (D5)
@@ -33,12 +34,31 @@ bool SelectionHold::mustWait(const QHash<int, int> &current,
         return false;
     if (added > kThresholdBytes)
         return true;
+    // C28 (#159): a tick that doesn't fit on ntfs3, exfat or vfat waits, so it can be undone
+    // before libtorrent writes anything (#116).
+    if (roomBytes >= 0 && added > roomBytes)
+        return true;
     // D6: or the whole torrent: after the change no file is skipped.
     for (auto it = current.cbegin(); it != current.cend(); ++it) {
         if (it.value() == 0 && !ids.contains(it.key()))
             return false;
     }
     return true;
+}
+
+qint64 SelectionHold::widening(const QHash<int, int> &current,
+                               const QHash<int, qint64> &sizes,
+                               const QList<int> &ids,
+                               int priority)
+{
+    if (priority == 0)
+        return 0;
+    qint64 added = 0;
+    for (const int id : ids) {
+        if (current.value(id, 1) == 0)
+            added += sizes.value(id, 0);
+    }
+    return added;
 }
 
 void SelectionHold::add(const QString &hash,

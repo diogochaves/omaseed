@@ -36,7 +36,8 @@ follows. The commands themselves are listed in `CLAUDE.md`; `README.md` says how
 
    `OMASEED_ACTIONS_WALK_FROM=disk` runs only the actions walk's board 44 steps. Their ntfs3 side
    (a tick that allocates in full) needs a loop image udisks mounts on this machine, which a box
-   can't write to: `ctest -R tst_skipped_ntfs3_live` runs it against the playground.
+   can't write to: `ctest -R tst_skipped_ntfs3_live` runs it against the playground, and
+   `ctest -R tst_app_tickroom_live` a tick that doesn't fit on a FAT image (it waits, C28).
 
    `move-walk.sh` takes about 12 minutes; `OMASEED_MOVE_WALK_FROM` set to `selection`, `sheet`,
    `history`, `big`, `music` or `remote` starts it later. Its `big` step reads a sheet's line

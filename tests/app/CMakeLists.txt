@@ -110,6 +110,13 @@ omaseed_add_test(tst_app_files_live LIVE
     DEFINES OMASEED_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../fixtures"
 )
 
+# DECISIONS C28 (#159): a tick that doesn't fit on a FAT loop image waits, through App, live
+# against the :8081 playground (udisks mounts the image as the user).
+omaseed_add_test(tst_app_tickroom_live LIVE
+    SOURCES tst_app_tickroom_live.cpp
+    LIBRARIES omaseed::app omaseed::core omaseed::integration
+)
+
 # docs/16's settings against a real qBittorrent the test starts and throws away (never the
 # :8081/:8082 servers): every row's keys, the Web UI cut-offs, the API key rotation. Skips
 # without qbittorrent-nox. Live for the lock: it starts servers and runs for a while.

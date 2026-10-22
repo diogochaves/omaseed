@@ -882,10 +882,21 @@ void App::setFilePriority(const QString &hash, const QVariantList &fileIndexes, 
         onShow ? m_details->files()->priorityByFileIndex() : QHash<int, int>();
     const QHash<int, qint64> sizes =
         onShow ? m_details->files()->sizeByFileIndex() : QHash<int, qint64>();
+    // C17 D8: the room check at the tick, on a disk where every ticked file takes its full
+    // size at once. DECISIONS C28 (#159): one that doesn't fit always waits, in D5's band,
+    // which says it in red, so it can be undone before anything is written.
+    qint64 room = -1;
+    if (onShow && !m_demoMode && m_hasServer && priority != int(FilePriority::Skip)) {
+        const QVariantMap tick =
+            tickRoom(hash, SelectionHold::widening(before, sizes, ids, priority));
+        if (tick.value(QStringLiteral("allocates")).toBool())
+            room = tick.value(QStringLiteral("free")).toLongLong();
+    }
     // D5–D7: a widening of more than 1 GiB, or of the whole torrent, waits 3 s (the tick
     // itself makes libtorrent create the files, #116); a change made while one waits joins it.
-    const bool hold = onShow && !m_demoMode && m_hasServer && !ids.isEmpty() &&
-                      (m_hold->waiting() || SelectionHold::mustWait(before, sizes, ids, priority));
+    const bool hold =
+        onShow && !m_demoMode && m_hasServer && !ids.isEmpty() &&
+        (m_hold->waiting() || SelectionHold::mustWait(before, sizes, ids, priority, room));
     // N1: the rows change at once, before the server answers (and instead of it in demo
     // mode, where there is none); the next poll confirms or corrects them.
     if (onShow)
@@ -895,18 +906,6 @@ void App::setFilePriority(const QString &hash, const QVariantList &fileIndexes, 
     if (hold) {
         m_hold->add(hash, ids, priority, before, sizes);
         return;
-    }
-    // C17 D8: the room check at the tick, on a disk where every ticked file takes its full
-    // size at once. A change that waits says it in its band; one sent now, in the footer.
-    if (onShow && priority != int(FilePriority::Skip)) {
-        qint64 added = 0;
-        for (const int id : std::as_const(ids)) {
-            if (before.value(id, 1) == int(FilePriority::Skip))
-                added += sizes.value(id, 0);
-        }
-        const QVariantMap room = tickRoom(hash, added);
-        if (room.value(QStringLiteral("short")).toBool())
-            Q_EMIT actionFailed(QString(), room.value(QStringLiteral("text")).toString());
     }
     sendFilePriority(hash, ids, priority);
 }
