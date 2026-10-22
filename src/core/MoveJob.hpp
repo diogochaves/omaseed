@@ -122,7 +122,7 @@ public:
         /// it: a recheck after the move starts only these (DECISIONS C20, #138). Saved with
         /// the job, so a pause and quit keeps it.
         bool wasRunning = false;
-        QString later;        ///< after the end: "error" or "missingFiles" within 24 h
+        QString later; ///< after the end: "error" or "missingFiles" within 24 h
     };
 
     /// What the summary band and the notice say (E1, E2).
