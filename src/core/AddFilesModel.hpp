@@ -13,6 +13,7 @@
 // torrent is on the server.
 
 #include "core/RenameDisk.hpp"
+#include "core/TorrentExtras.hpp"
 #include "core/TorrentFile.hpp"
 
 #include <QIdentityProxyModel>
@@ -39,6 +40,11 @@ class AddFilesModel : public QIdentityProxyModel
     Q_PROPERTY(QString summaryText READ summaryText NOTIFY choicesChanged)
     /// True once any file is not at "normal": the add then has to set priorities afterwards.
     Q_PROPERTY(bool customised READ isCustomised NOTIFY choicesChanged)
+    /// #63 (DECISIONS C28): the line under the tree when the torrent carries extras (NFOs,
+    /// samples, adverts: TorrentExtras::find), "" when it has none. "2 extras: an NFO and a
+    /// sample (12 MB). Ticked, so the torrent seeds whole." Nothing is unticked for it; the
+    /// last sentence goes once one of them is skipped by hand.
+    Q_PROPERTY(QString extrasText READ extrasText NOTIFY choicesChanged)
 
 public:
     /// The extra role, after TorrentFilesModel's own.
@@ -46,6 +52,7 @@ public:
         WantedRole = Qt::UserRole + 100, ///< 0 all skipped, 1 some, 2 none skipped
         RenamedRole,                     ///< the row's own name differs from the metainfo's
         OriginalNameRole,                ///< the metainfo's name for the row (no "/")
+        ExtraRole,                       ///< #63: a file TorrentExtras counts as an extra
     };
     Q_ENUM(Role)
 
@@ -60,6 +67,9 @@ public:
     qint64 wantedSize() const;
     QString summaryText() const;
     bool isCustomised() const;
+    QString extrasText() const;
+    /// #63: the file ids TorrentExtras counts as extras, in file order.
+    QList<int> extraIds() const;
 
     /// Shows `files` (TorrentFile::files), every one at "normal", every folder open.
     void load(const QList<TorrentFileEntry> &files);
@@ -160,6 +170,7 @@ private:
 
     TorrentFilesModel *m_tree = nullptr;
     QList<TorrentFileEntry> m_files;
+    QList<TorrentExtras::Extra> m_extras; ///< #63, from load()
     QList<int> m_priorities;
     /// The priority each file had before it was last skipped (normal when none).
     QList<int> m_beforeSkip;

@@ -5,6 +5,7 @@
 
 #include <QJsonArray>
 #include <QJsonObject>
+#include <QStringList>
 
 namespace omaseed::core {
 
@@ -12,6 +13,51 @@ namespace {
 
 constexpr int kSkip = int(FilePriority::Skip);
 constexpr int kNormal = int(FilePriority::Normal);
+
+/// #63: what an extra is called in the line, by kind (an NFO apart from the other text).
+enum class ExtraWord { Nfo, Sample, Text, Checksum, Advert, Image };
+
+ExtraWord wordFor(const TorrentExtras::Extra &extra, const QString &path)
+{
+    switch (extra.kind) {
+    case TorrentExtras::Kind::Sample:
+        return ExtraWord::Sample;
+    case TorrentExtras::Kind::Advert:
+        return ExtraWord::Advert;
+    case TorrentExtras::Kind::Image:
+        return ExtraWord::Image;
+    case TorrentExtras::Kind::Info:
+        break;
+    }
+    const QString lower = path.toLower();
+    if (lower.endsWith(QLatin1String(".nfo")))
+        return ExtraWord::Nfo;
+    if (lower.endsWith(QLatin1String(".txt")))
+        return ExtraWord::Text;
+    return ExtraWord::Checksum; // .sfv, .md5, .srr
+}
+
+QString counted(ExtraWord word, int n)
+{
+    // No translations ship yet, so "%n" plurals would print as written: pick the words here.
+    switch (word) {
+    case ExtraWord::Nfo:
+        return n == 1 ? AddFilesModel::tr("an NFO") : AddFilesModel::tr("%1 NFOs").arg(n);
+    case ExtraWord::Sample:
+        return n == 1 ? AddFilesModel::tr("a sample") : AddFilesModel::tr("%1 samples").arg(n);
+    case ExtraWord::Text:
+        return n == 1 ? AddFilesModel::tr("a text file")
+                      : AddFilesModel::tr("%1 text files").arg(n);
+    case ExtraWord::Checksum:
+        return n == 1 ? AddFilesModel::tr("a checksum file")
+                      : AddFilesModel::tr("%1 checksum files").arg(n);
+    case ExtraWord::Advert:
+        return n == 1 ? AddFilesModel::tr("an advert") : AddFilesModel::tr("%1 adverts").arg(n);
+    case ExtraWord::Image:
+        return n == 1 ? AddFilesModel::tr("an image") : AddFilesModel::tr("%1 images").arg(n);
+    }
+    return QString();
+}
 
 } // namespace
 
@@ -32,6 +78,7 @@ QHash<int, QByteArray> AddFilesModel::roleNames() const
     names.insert(WantedRole, "wanted");
     names.insert(RenamedRole, "renamed");
     names.insert(OriginalNameRole, "originalName");
+    names.insert(ExtraRole, "extra");
     return names;
 }
 
@@ -42,6 +89,12 @@ QVariant AddFilesModel::data(const QModelIndex &index, int role) const
         if (role == OriginalNameRole)
             return original;
         return !original.isEmpty() && original != pathAt(index.row()).section(QLatin1Char('/'), -1);
+    }
+    if (role == ExtraRole) {
+        if (m_tree->isFolder(index.row()))
+            return false;
+        const QList<int> ids = idsAt(index.row());
+        return ids.size() == 1 && extraIds().contains(ids.constFirst());
     }
     if (role != WantedRole)
         return QIdentityProxyModel::data(index, role);
@@ -91,6 +144,44 @@ QString AddFilesModel::summaryText() const
     return tr("%1 of %2 %3 · %4").arg(wanted).arg(total).arg(files, size);
 }
 
+QList<int> AddFilesModel::extraIds() const
+{
+    QList<int> ids;
+    for (const TorrentExtras::Extra &extra : m_extras)
+        ids.append(extra.index);
+    return ids;
+}
+
+QString AddFilesModel::extrasText() const
+{
+    // #63, DECISIONS C28: the issue's words, one sentence and no warning tone.
+    if (m_extras.isEmpty())
+        return QString();
+    QMap<int, int> byWord; // ExtraWord, in the enum's order
+    qint64 bytes = 0;
+    bool allTicked = true;
+    for (const TorrentExtras::Extra &extra : m_extras) {
+        if (extra.index < 0 || extra.index >= m_files.size())
+            continue;
+        ++byWord[int(wordFor(extra, m_files.at(extra.index).path))];
+        bytes += m_files.at(extra.index).size;
+        if (m_priorities.value(extra.index, kNormal) == kSkip)
+            allTicked = false;
+    }
+    QStringList parts;
+    for (auto it = byWord.cbegin(); it != byWord.cend(); ++it)
+        parts << counted(ExtraWord(it.key()), it.value());
+    const QString last = parts.takeLast();
+    const QString list =
+        parts.isEmpty() ? last : tr("%1 and %2").arg(parts.join(QStringLiteral(", ")), last);
+    const int count = int(m_extras.size());
+    QString text = (count == 1 ? tr("1 extra: %1 (%2).") : tr("%3 extras: %1 (%2)."))
+                       .arg(list, Format::size(bytes), QString::number(count));
+    if (allTicked)
+        text += QLatin1Char(' ') + tr("Ticked, so the torrent seeds whole.");
+    return text;
+}
+
 bool AddFilesModel::isCustomised() const
 {
     for (int priority : m_priorities) {
@@ -103,6 +194,8 @@ bool AddFilesModel::isCustomised() const
 void AddFilesModel::load(const QList<TorrentFileEntry> &files)
 {
     m_files = files;
+    // #63: counted once, from the metainfo's names; nothing is unticked for it.
+    m_extras = TorrentExtras::find(files);
     m_priorities = QList<int>(files.size(), kNormal);
     m_beforeSkip = QList<int>(files.size(), kNormal);
     m_paths.clear();
@@ -122,6 +215,7 @@ void AddFilesModel::clear()
     if (m_files.isEmpty())
         return;
     m_files.clear();
+    m_extras.clear();
     m_priorities.clear();
     m_beforeSkip.clear();
     m_paths.clear();

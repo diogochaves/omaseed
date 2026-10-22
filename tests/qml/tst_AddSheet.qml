@@ -36,8 +36,10 @@ TestCase {
     Component {
         id: shortSheetComponent
 
+        // 720 rather than 700 since #63's extras line (the fixture's README is one) takes a
+        // caption line under the tree: the tree, at its four rows, still has to scroll.
         AddSheet {
-            height: 700
+            height: 720
             width: 1100
         }
     }
@@ -1172,6 +1174,21 @@ TestCase {
         compare(sheet.sourceText, "from file");
     }
 
+    // #63 (DECISIONS C28): its README is an extra: a dim line under the tree, a dim "extra" on
+    // its row, and nothing unticked.
+    function test_extras_are_said_under_the_tree() {
+        const sheet = testCase.openTorrent(addSheetComponent);
+        compare(App.addFiles.wantedCount, 8);
+        const line = findChild(sheet, "addExtrasLine");
+        verify(line.visible);
+        compare(line.text.indexOf("1 extra: a text file ("), 0);
+        verify(line.text.endsWith(" Ticked, so the torrent seeds whole."), line.text);
+        const readme = testCase.rowItem(sheet, "README.txt");
+        verify(findChild(readme, "addFilesExtra").visible);
+        const film = testCase.rowItem(sheet, "Sintel/");
+        verify(!findChild(film, "addFilesExtra").visible);
+    }
+
     function test_the_tree_is_keyboard_driven() {
         const sheet = testCase.openTorrent(addSheetComponent);
         const tree = sheet.filesTree;
@@ -1548,7 +1565,7 @@ TestCase {
         const tree = sheet.filesTree;
         tryVerify(() => tree.height > 0);
         verify(tree.height < tree.count * Theme.railRowHeight,
-               "14 rows cannot fit under the form in 700 px");
+               "14 rows cannot fit under the form in 720 px");
         compare(tree.scrollBar.needed, true);
         // The panel still fits the window, margins included.
         verify(sheet.panel.height <= sheet.height - 2 * Theme.space(16) + 1,

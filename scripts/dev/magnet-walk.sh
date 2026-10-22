@@ -37,7 +37,7 @@ refuse_home "$PLAY"
 DOWNLOADS="${OMASEED_TEST_PROFILE:-$HOME/.local/share/omaseed-test}/downloads"
 TORRENTS="${OMASEED_SWARM_PROFILE:-$HOME/.local/share/omaseed-swarm}/torrents"
 APP_ID=io.github.diogochaves.omaseed
-BOX="magnet-walk"
+BOX="${OMASEED_MAGNET_BOX:-magnet-walk}"
 INTERACTIVE=0
 OUT=""
 case "${1:-}" in
@@ -385,7 +385,7 @@ PRIVATE_MAGNET="$(seeder_field "$PRIVATE_NAME" magnet_uri)"
 
 echo "starting a second box, with its own qBittorrent"
 [ "$INTERACTIVE" = 1 ] || omabox down -b "$BOX" >/dev/null 2>&1 || true
-BOX="magnet-walk-qbt"
+BOX="${OMASEED_MAGNET_BOX:-magnet-walk}-qbt"
 qbt_args=(up -b "$BOX" --qbt --handlers)
 [ "$INTERACTIVE" = 1 ] && qbt_args+=(--interactive)
 OMASEED_LOOKUP_CLOCK_SCALE=6 "$repo/scripts/dev/app-box.sh" "${qbt_args[@]}" >/dev/null
@@ -436,7 +436,11 @@ open_in_box "$SAMPLER_MAGNET"
 wait_window 10 || true
 sleep 4 # the lookup: about a second on the swarm, a little more on a box just started
 check "the magnet brought the hidden window back" window_shown
-step "A magnet's files, from the tray" "The add sheet for Public Domain Sampler, \"24.0 MB · from magnet link\"; under the switches, Files \"3 files · 24.0 MB\": README.txt, sampler.mkv, sampler.srt, all ticked; the free line needs 24.0 MB."
+# #63 (DECISIONS C28): once the metadata is in, the line under the tree names the extra.
+in_sheet() { omabox tree -b "$BOX" --find "$1" >/dev/null 2>&1; }
+check "the line under the tree says README.txt is an extra, still ticked" \
+    in_sheet "1 extra: a text file"
+step "A magnet's files, from the tray" "The add sheet for Public Domain Sampler, \"24.0 MB · from magnet link\"; under the switches, Files \"3 files · 24.0 MB\": README.txt (a dim \"extra\" on its row), sampler.mkv, sampler.srt, all ticked; under the tree, dim: \"1 extra: a text file (…). Ticked, so the torrent seeds whole.\"; the free line needs 24.0 MB."
 
 # From the field, shift+tab goes back past add, add stopped and cancel to the tree.
 keys shift+Tab shift+Tab shift+Tab shift+Tab j space

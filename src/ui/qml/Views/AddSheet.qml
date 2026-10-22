@@ -264,7 +264,8 @@ Sheet {
     /// this binding cannot loop.
     readonly property real _treeRoom: {
         let used = filesHead.height + filesSection.spacing
-                + (nothingTickedLine.visible ? nothingTickedLine.height + filesSection.spacing : 0);
+                + (nothingTickedLine.visible ? nothingTickedLine.height + filesSection.spacing : 0)
+                + (extrasLine.visible ? extrasLine.height + filesSection.spacing : 0);
         const rows = sheet.body.children;
         for (let i = 0; i < rows.length; ++i) {
             const row = rows[i];
@@ -2048,6 +2049,22 @@ Sheet {
                             // The header and four rows at least: below that the whole body scrolls.
                             maximumHeight: Math.max(5 * Theme.railRowHeight + 2, sheet._treeRoom)
                             model: App.addFiles
+                        }
+
+                        // #63 (DECISIONS C28): the torrent carries extras (an NFO, a sample, an
+                        // advert); said once, dim like the free-space line, and nothing unticked.
+                        Label {
+                            id: extrasLine
+
+                            Accessible.name: text
+                            Accessible.role: Accessible.StaticText
+                            Layout.fillWidth: true
+                            dim: true
+                            objectName: "addExtrasLine"
+                            size: "caption"
+                            text: App.addFiles.extrasText
+                            visible: sheet.showFiles && text.length > 0
+                            wrapMode: Text.Wrap
                         }
 
                         // #43: why the button reads "add stopped".

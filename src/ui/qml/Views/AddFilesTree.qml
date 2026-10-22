@@ -329,6 +329,8 @@ Rectangle {
             required property int wanted
             required property bool renamed
             required property string originalName
+            /// #63 (DECISIONS C28): an NFO, a sample, an advert: a dim "extra", still ticked.
+            required property bool extra
 
             readonly property color priorityColor: row.priority === 6 || row.priority === 7
                                                    ? Theme.yellow : Theme.dimForeground
@@ -569,6 +571,18 @@ Rectangle {
                             width: Math.min(implicitWidth, parent.width / 2)
                         }
                     }
+                }
+
+                // #63 (DECISIONS C28): the extra's meta, dim; the line under the tree says why.
+                Text {
+                    Accessible.name: text
+                    Accessible.role: Accessible.StaticText
+                    color: Theme.dimForeground
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.font.caption
+                    objectName: "addFilesExtra"
+                    text: qsTr("extra")
+                    visible: row.extra && !row.editing
                 }
 
                 // M18: the pencil on the hovered row.
