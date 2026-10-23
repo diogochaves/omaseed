@@ -14,6 +14,7 @@ issue, with a README saying what it reproduces, how to run it and what it printe
 | [146-torrent-creator](146-torrent-creator/) | What does qBittorrent's torrent creator do through the API, and does a tracker's copy seed from the original folder? | #146 |
 | [162-preallocated-move](162-preallocated-move/) | How big is a torrent's file at its new place while qBittorrent moves it? | #162 |
 | [151-add-file-prio](151-add-file-prio/) | Are a .torrent's file choices kept when they are set right after a stopped add? | #151 |
+| [182-v2-free](182-v2-free/) | Why does freeing a skipped file leave a v2-only torrent short of 100 %, and does adding it again fix it? | #182 |
 
 They talk only to throwaway qBittorrents (the playground on `:8081`, or a profile made with
 `scripts/dev/test-server.sh`) and the offline swarm (`scripts/dev/swarm.sh`), never to a real

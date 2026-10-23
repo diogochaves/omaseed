@@ -819,10 +819,11 @@ shows that space and frees it where it can see the disk.
   (board 25's FreeSpaceProbe check). #118.
 - **The band (D2):** yellow, when skipped files hold more than 1 GiB or 5 % of the torrent. #118.
 - **Free the space (D3):** stop, delete the skipped files with no downloaded piece (inside the
-  content path, not shared, not open), start, no recheck. Files with pieces: on v1-only and
-  v2-only torrents included with a recheck after the start; on a hybrid left, with "add it
+  content path, not shared, not open), start, no recheck. Files with pieces: on v1-only
+  torrents included with a recheck after the start; on a hybrid left, with "add it
   again" and its cost named, because a recheck there hits libtorrent 2.1.2's
-  `torrent_inconsistent_hashes` (#115). Board 28 names that error on a hybrid. #118.
+  `torrent_inconsistent_hashes` (#115). Board 28 names that error on a hybrid. #118. A v2-only
+  torrent is treated like a hybrid (C29, #182).
   `shift+f` has its keymap row (the `?` sheet's "F free the space") and the Files tab's `:`
   palette offers "free the space…" (#160); both, like the key, whenever a skipped file holds
   space on a disk omaseed sees, the band or not.
@@ -1281,6 +1282,30 @@ Diogo's answers, all as recommended, to the questions the v0.4.0 builders record
   and shows in the refused state's places in ErrorWords' words: "seedbox is a Transmission
   server" / "This omaseed only talks to qBittorrent. A newer omaseed can.", with only "switch
   server" to offer.
+
+## C29 — v2-only in the free plan (#182, ruled 2026-10-23)
+
+Diogo's answer, as recommended. On a v2-only torrent, deleting a skipped file that holds
+downloaded pieces and rechecking leaves the torrent short of 100 % for good: libtorrent 2.1.2
+then counts each wanted piece at its full size, the last piece of a file included, but counts
+only the file's real bytes as done, and since it reads the torrent as finished it never
+downloads anything to close the gap (98.6 % in the manual box). A recheck with the file still
+there reads 100 %, and so does a v1-only torrent, whose missing pieces it downloads again
+(`scripts/dev/research/182-v2-free`).
+
+**This entry changes C17 D3:** a v2-only torrent is a hybrid in the free plan.
+
+- **What stays:** on a v2-only torrent (qBittorrent gives a v2 hash and no v1), a skipped file
+  with downloaded pieces stays ("has downloaded pieces · stays"), and nothing is rechecked. A
+  skipped file with no downloaded piece still goes, as on v1.
+- **Its words:** the sheet says why in words of its own: "1 file stays (SIZE) because this
+  torrent is v2 and pieces of it were downloaded: deleting it leaves the torrent short of
+  100 % for good, a libtorrent bug." ("N files stay … pieces of them … deleting them …").
+- **Add it again:** offered as on a hybrid ("Free it too by adding the torrent again…"), with
+  the same confirm and cost. It is sound on v2: added again from its own .torrent, with its
+  files checked from scratch and that file gone, libtorrent counts what is wanted from the
+  real bytes, and the torrent reads 100 % (the research's `readd-after` and `readd-at`, and
+  the actions walk's disk stage, `b44-v2`).
 
 ## M8 — A click leaves the keyboard focus where it was
 
