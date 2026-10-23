@@ -269,6 +269,31 @@ for t in json.load(sys.stdin):
         print(t["magnet_uri"]); break' "$1"
 }
 
+# v1_torrent: "private" makes and seeds a v1-only torrent of four 8 MiB files (its own torrent
+# creator), so the manual box has one whose skipped files "free the space" deletes for real:
+# every swarm torrent there is hybrid or v2-only, and a hybrid's files with downloaded pieces
+# stay (DECISIONS C17 D3, #115). One file is a quarter of it, past the band's 5 % (D2).
+V1_TORRENT="Sketchbook Scans (v1)"
+v1_torrent() {
+    local dir="$home/Downloads/private/$V1_TORRENT" task n
+    mkdir -p "$dir"
+    for n in 1 2 3 4; do
+        head -c $((8 * 1024 * 1024)) /dev/urandom >"$dir/scan 0$n.raw"
+    done
+    task="$(SERVER=private api "" torrentcreator/addTask \
+        --data-urlencode "sourcePath=$BOX_HOME/Downloads/private/$V1_TORRENT" -d format=v1 \
+        -d startSeeding=true | python3 -c 'import json, sys; print(json.load(sys.stdin)["taskID"])')" ||
+        die "the private qBittorrent did not take the v1 torrent's task"
+    for _ in $(seq 1 60); do
+        SERVER=private api "" torrents/info | python3 -c '
+import json, sys
+sys.exit(0 if any(t["name"] == sys.argv[1] and t["progress"] == 1 for t in json.load(sys.stdin)) else 1)' \
+            "$V1_TORRENT" && break
+        sleep 0.5
+    done
+    SERVER=private api POST torrentcreator/deleteTask -d "taskID=$task" >/dev/null 2>&1 || true
+}
+
 up_manual() {
     local build="$1" interactive="$2" home stage password password2 sampler name file
     echo "building omaseed for the box ($build/, installed under $BOX_HOME/.local)"
@@ -344,7 +369,7 @@ up_manual() {
             [[ "$(basename "$file")" == "$name"* ]] && cp "$file" "$home/Downloads/"
         done
     done
-    echo "adding the swarm's private torrents to \"private\""
+    echo "adding the swarm's private torrents and a v1-only one to \"private\""
     for name in "${PRIVATE_TORRENTS[@]}"; do
         for file in "$TORRENTS"/*.torrent; do
             [[ "$(basename "$file")" == "$name"* ]] || continue
@@ -354,6 +379,7 @@ up_manual() {
             rm -f "$home/$LOGINS/$(basename "$file")"
         done
     done
+    v1_torrent
     MAGNET="$sampler" python3 - "$home/Downloads/links.html" <<'PY'
 import html, os, sys
 magnet = html.escape(os.environ["MAGNET"])
@@ -375,7 +401,7 @@ PY
     echo "  Start omaseed from the launcher (SUPER+SPACE). First run should find the box's qBittorrent"
     echo "  \"public\"; add \"private\" in Settings › Servers (a) to have two."
     echo "  public:  http://127.0.0.1:$BOX_QBT_PORT  admin / $password  (empty: fill it from ~/Downloads)"
-    echo "  private: http://127.0.0.1:$BOX_QBT2_PORT  admin / $password2  (${#PRIVATE_TORRENTS[@]} private swarm torrents)"
+    echo "  private: http://127.0.0.1:$BOX_QBT2_PORT  admin / $password2  (${#PRIVATE_TORRENTS[@]} private swarm torrents, and $V1_TORRENT)"
     echo "  Both logins are in the box's ~/qbittorrent-login.txt."
     echo "  ~/Downloads: .torrent files for Files, and links.html (open it in Chromium) with a magnet."
     echo "  Throw it away: scripts/dev/manual-box.sh down (or close the window)."

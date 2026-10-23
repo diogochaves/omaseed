@@ -22,7 +22,9 @@
 #     config. The Public Domain Sampler (links.html) is its torrent.
 #   - "private" on 127.0.0.1:8091, its own --profile (~/.local/share/qbittorrent-private),
 #     ports and save path (~/Downloads/private), already downloading four of the swarm's
-#     private torrents. Add it in Settings › Servers (a) to switch between the two.
+#     private torrents (hybrid, and one v2-only), and seeding "Sketchbook Scans (v1)", a v1-only
+#     torrent it made itself, whose skipped files "free the space" deletes for real (a hybrid's
+#     stay, C17 D3). Add it in Settings › Servers (a) to switch between the two.
 # - ~/Downloads: five of the swarm's .torrent files, and links.html with the Public Domain
 #   Sampler's magnet (the only swarm torrent that is not private, so the magnet gets its
 #   metadata). Open them from Files (Nautilus) and Chromium, both in the box.
