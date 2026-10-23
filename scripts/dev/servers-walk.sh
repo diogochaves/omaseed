@@ -23,8 +23,9 @@
 #
 # The box is a manual box (scripts/dev/app-box.sh up --manual): omaseed from build-box/ installed
 # in it, "public" on the box's 127.0.0.1:8090 (the usual ~/.config/qBittorrent, empty until the
-# add sheet gives it the Public Domain Sampler) and "private" on :8091 (its own --profile, four of the swarm's private
-# torrents). The box's network reaches only the swarm's tracker and seeder, so nothing outside
+# add sheet gives it the Public Domain Sampler) and "private" on :8091 (its own --profile, four of
+# the swarm's private torrents and "Sketchbook Scans (v1)", a v1-only one it made and seeds:
+# five). The box's network reaches only the swarm's tracker and seeder, so nothing outside
 # it is touched. The logins stay in the box: each password goes from the box's login file to its
 # clipboard inside the box (ctrl+v in the field), never through a command line or this terminal.
 # What the server must show after each action is read from both qBittorrents (app-box.sh api).
@@ -241,8 +242,8 @@ home="$(omabox path -b "$BOX")/home"
 # docs/33: "public" starts empty (the issue's case); the swarm's one public torrent waits in
 # its HOME for the add sheet, which sends it there from private (#72).
 cp "$TORRENTS/$SAMPLER.torrent" "$home/sampler.torrent"
-check "both qBittorrents answer: public has no torrent, private 4" \
-    test "$(count public):$(count private)" = "0:4"
+check "both qBittorrents answer: public has no torrent, private 5" \
+    test "$(count public):$(count private)" = "0:5"
 
 # ---- first run with two clients running ---------------------------------------------------
 "$APP_BOX" restart -b "$BOX" >/dev/null
@@ -301,11 +302,11 @@ step "Save waits for a test" "#68, as first run: the New server sheet filled in 
 # there runs the primary, the test, not a save.
 keys Tab Return -s 2500
 check "a dimmed save is not reached: nothing saved before the test" servers_are "public" public
-step "Adding private" "The New server sheet, now titled private: cookie login as admin, the password as dots; under it reached http://127.0.0.1:8091 · qBittorrent 5.2.3 · API 2.15.1 · 4 torrents. save is the primary now, no \"test first\"."
+step "Adding private" "The New server sheet, now titled private: cookie login as admin, the password as dots; under it reached http://127.0.0.1:8091 · qBittorrent 5.2.3 · API 2.15.1 · 5 torrents. save is the primary now, no \"test first\"."
 
 # The test passed, so save is the primary: enter in the Name field saves.
 keys Return -s 1200
-step "Two servers" "Settings › Servers (D11): public in use and private, both green, private with 4 torrents; add a server below. The footer names d switch to it and a add."
+step "Two servers" "Settings › Servers (D11): public in use and private, both green, private with 5 torrents; add a server below. The footer names d switch to it and a add."
 check "servers.json: public and private, public still the default, no password in it" \
     servers_are "public private" public
 private_id="$(server_id private)"
@@ -319,7 +320,7 @@ step "Empty public, two servers" "docs/33 E1, D6: the rail is the servers block 
 keys ctrl+s -s 800
 step "The server palette" "docs/33 S1: switch server · 2 servers; public first, on it now, 127.0.0.1:8090 · 0 torrents · qBittorrent 5.2.3; private under it with the cursor, 127.0.0.1:8091 · not seen yet. Hints: ↑↓ move, enter switch, , manage servers, esc close."
 keys Return -s 2500
-step "Switched to private" "The hero says PRIVATE ▾; the table has private's four torrents (tiny-notes, Ünïcødé, Field Recordings, Nested Library Sampler); the rail's filters above, its servers block pinned below with private selected and its count, public 0 (seen just now)."
+step "Switched to private" "The hero says PRIVATE ▾; the table has private's five torrents (tiny-notes, Ünïcødé, Field Recordings, Nested Library Sampler, Sketchbook Scans (v1)); the rail's filters above, its servers block pinned below with private selected and its count, public 0 (seen just now)."
 check "servers.json: private is the default" servers_are "public private" private
 check "state.json remembers public's count, seen before the switch (D5)" test "$(seen_count public)" = 0
 
@@ -327,11 +328,11 @@ check "state.json remembers public's count, seen before the switch (D5)" test "$
 keys ctrl+k -s 400 -t tiny -s 300 Return -s 600 p -s 2000
 check "p stopped tiny-notes on private" stopped private "$TINY"
 check "public still has no torrent" test "$(count public)" = 0
-step "Stopped on private" "tiny-notes.txt reads completed (a finished torrent, stopped; the rail counts it under stopped); the other three still run."
+step "Stopped on private" "tiny-notes.txt reads completed (a finished torrent, stopped; the rail counts it under stopped); the other four still run."
 
 # A restart while on private: its password has to come back from the keyring.
 "$APP_BOX" restart -b "$BOX" >/dev/null
-step "Private after a restart" "Straight back to private's four torrents (tiny-notes still completed, stopped 1 in the rail), signed in from the keyring: no first run, no banner, the hero says PRIVATE."
+step "Private after a restart" "Straight back to private's five torrents (tiny-notes still completed, stopped 1 in the rail), signed in from the keyring: no first run, no banner, the hero says PRIVATE."
 
 # ---- the hero's server line (D3), the command palette (D4) ---------------------------------
 if click_text "switch server"; then
@@ -365,14 +366,14 @@ step "Sheet moved to public" "D14 (A2): the sheet is still open with the same fi
 check "servers.json: the sheet moved the app to public" servers_are "public private" public
 keys Return -s 3000
 check "the sampler went to public" test "$(count public)" = 1
-check "private still has its four" test "$(count private)" = 4
+check "private still has its five" test "$(count private)" = 5
 
 # ---- switch: the rail's servers block ------------------------------------------------------
 # `h` to the rail, `G` to its last row (private), enter; then `G`, `k` to public, enter.
 keys h -s 300 G -s 300 Return -s 2500
 check "the rail moved the app to private" servers_are "public private" private
 keys h -s 300 G -s 300 k -s 300 Return -s 2500
-step "Back to public, from the rail" "The hero says PUBLIC ▾; one row, the sampler; the servers block has public selected, private 4."
+step "Back to public, from the rail" "The hero says PUBLIC ▾; one row, the sampler; the servers block has public selected, private 5."
 check "servers.json: public is the default again" servers_are "public private" public
 
 # The rail hands the keyboard back to the table once it has switched.
@@ -484,7 +485,7 @@ step "Library after the removal" "The app moved to public on its own: the hero s
 check "servers.json: public only, the default" servers_are "public" public
 check "private's password left the keyring" keyring_lacks "$private_id"
 check "public's password is still there" keyring_has "$public_id"
-check "nothing on the private server was touched (4 torrents)" test "$(count private)" = 4
+check "nothing on the private server was touched (5 torrents)" test "$(count private)" = 5
 
 # ---- a restart ------------------------------------------------------------------------------
 "$APP_BOX" restart -b "$BOX" >/dev/null
