@@ -157,6 +157,12 @@ public:
     /// way: dataChanged() for FailureRole, then problemsChanged(); dropped with the row.
     void setFailure(const QString &hash, const QVariantMap &failure);
     QVariantMap failure(const QString &hash) const { return m_failures.value(hash); }
+    /// DECISIONS C24 H2: what the log says about `hash` makes it need you: a problem (an
+    /// error's cause, a stuck move) or a failure that left it working.
+    bool hasLoggedTrouble(const QString &hash) const
+    {
+        return m_problems.contains(hash) || m_failures.contains(hash);
+    }
 
     /// docs/DECISIONS.md C20 (#107, #142): the errored torrents that are stopped. qBittorrent
     /// ranks the error above the stop and reports `state: error` either way; its `stopped`

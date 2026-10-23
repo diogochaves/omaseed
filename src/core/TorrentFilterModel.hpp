@@ -41,6 +41,18 @@
 // filter text, a rail scope) applies at once: the rows sort afresh and the hold starts again
 // from there.
 //
+// The rail's five questions (DECISIONS C24 H2, board 46) are the first filter: `question`
+// keeps the torrents that answer one, AnyQuestion all of them (the library). They are
+// disjoint, in this order: needs you (in error, missing files, or a problem or failure in the
+// log), landed today (complete, finished since local midnight), resting (stopped), then giving
+// back (complete) or arriving (not yet). "Today" is a LocalDay's; at its midnight the rows
+// are filtered again.
+//
+// Every state the rail used to list stays in the text (C24 H2): `is:stalled` keeps the
+// stalled torrents, `is:` taking the StatusFilter rows' words (isWords()) or a prefix only one
+// of them has. Several are ANDed. An empty or shared prefix narrows nothing yet, so the list
+// does not empty while one is typed; a word no state starts with stays a word of the query.
+//
 // The text is matched by words (DECISIONS C22, #125, through SearchWords): a torrent shows
 // when every word of the query appears in its name, category or tags, folded the same way
 // (`.`, `_`, `-` and spaces are one space), or when the query is a prefix of its hash, as
@@ -64,6 +76,7 @@
 
 namespace omaseed::core {
 
+class LocalDay;
 class TorrentModel;
 class TrackerModel;
 
@@ -72,6 +85,7 @@ class TorrentFilterModel : public QSortFilterProxyModel
     Q_OBJECT
     Q_PROPERTY(StatusFilter statusFilter READ statusFilter WRITE setStatusFilter NOTIFY
                    statusFilterChanged)
+    Q_PROPERTY(Question question READ question WRITE setQuestion NOTIFY questionChanged)
     Q_PROPERTY(QVariant category READ category WRITE setCategory RESET clearCategory NOTIFY
                    categoryChanged)
     Q_PROPERTY(QVariant tag READ tag WRITE setTag RESET clearTag NOTIFY tagChanged)
@@ -102,10 +116,37 @@ public:
     };
     Q_ENUM(StatusFilter)
 
+    /// DECISIONS C24 H2: the rail's questions, in its order; AnyQuestion is the library.
+    enum Question {
+        AnyQuestion,
+        NeedsYou,
+        Arriving,
+        LandedToday,
+        GivingBack,
+        Resting,
+    };
+    Q_ENUM(Question)
+
     explicit TorrentFilterModel(QObject *parent = nullptr);
 
     StatusFilter statusFilter() const { return m_statusFilter; }
     void setStatusFilter(StatusFilter filter);
+
+    Question question() const { return m_question; }
+    void setQuestion(Question question);
+
+    /// Where "today" comes from, for LandedToday; not owned. Without one, the system clock
+    /// at each pass, and nothing re-filters at midnight.
+    void setDay(LocalDay *day);
+
+    /// The question `torrent` answers. `logged`: the log holds a problem or a failure for it
+    /// (TorrentModel::hasLoggedTrouble()); `dayStartMSecs`: local midnight, today.
+    static Question questionOf(const Torrent &torrent, bool logged, qint64 dayStartMSecs);
+    /// The words `is:` takes: the StatusFilter rows', All's aside.
+    static QStringList isWords();
+    /// The StatusFilter `word` names, whole or by a prefix only it has (case-insensitive);
+    /// All when none or several do.
+    static StatusFilter statusFilterForWord(QStringView word);
 
     QVariant category() const;
     void setCategory(const QVariant &category);
@@ -168,6 +209,7 @@ protected:
 
 Q_SIGNALS:
     void statusFilterChanged();
+    void questionChanged();
     void categoryChanged();
     void tagChanged();
     void trackerChanged();
@@ -224,6 +266,14 @@ private:
     }
 
     StatusFilter m_statusFilter = All;
+    Question m_question = AnyQuestion;
+    QPointer<LocalDay> m_day;
+    /// The text's `is:` words, as groups a row must all be in.
+    StatusGroups m_isGroups;
+    /// The text without its `is:` words: what the name, category, tags and hash meet.
+    QString m_queryText;
+    /// Local midnight in ms since the epoch, for one filter pass (m_day's, or the clock's).
+    qint64 dayStartMSecs() const;
     std::optional<QString> m_category;
     std::optional<QString> m_tag;
     std::optional<QString> m_tracker;

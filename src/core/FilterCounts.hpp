@@ -12,11 +12,13 @@
 
 #include <QHash>
 #include <QObject>
+#include <QPointer>
 #include <QString>
 #include <QStringList>
 
 namespace omaseed::core {
 
+class LocalDay;
 class TorrentModel;
 
 class FilterCounts : public QObject
@@ -35,6 +37,13 @@ class FilterCounts : public QObject
     Q_PROPERTY(int uncategorised READ uncategorised NOTIFY changed)
     Q_PROPERTY(int untagged READ untagged NOTIFY changed)
     Q_PROPERTY(int trackerless READ trackerless NOTIFY changed)
+    // DECISIONS C24 H2: the rail's five questions, one count each (TorrentFilterModel::
+    // questionOf(), so the rail's number and the rows it shows always agree).
+    Q_PROPERTY(int needsYou READ needsYou NOTIFY changed)
+    Q_PROPERTY(int arriving READ arriving NOTIFY changed)
+    Q_PROPERTY(int landedToday READ landedToday NOTIFY changed)
+    Q_PROPERTY(int givingBack READ givingBack NOTIFY changed)
+    Q_PROPERTY(int resting READ resting NOTIFY changed)
     /// Torrents with the private flag: the hero warns about anonymous mode only when there
     /// is one (docs/16 §5).
     Q_PROPERTY(int privateCount READ privateCount NOTIFY changed)
@@ -48,6 +57,9 @@ public:
     /// Watches `model`'s updated() signal; pass nullptr to detach.
     void setModel(TorrentModel *model);
     TorrentModel *model() const { return m_model; }
+    /// Where "today" comes from for landed today; not owned. A new day counts again.
+    /// Without one, the system clock at each pass.
+    void setDay(LocalDay *day);
 
     int total() const { return m_total; }
     int downloading() const { return count(StatusGroup::Downloading); }
@@ -67,6 +79,13 @@ public:
     int privateCount() const { return m_private; }
     int trackerless() const { return m_trackerCounts.value(trackerlessKey()); }
     int revision() const { return m_revision; }
+    int needsYou() const { return m_questionCounts[1]; }
+    int arriving() const { return m_questionCounts[2]; }
+    int landedToday() const { return m_questionCounts[3]; }
+    int givingBack() const { return m_questionCounts[4]; }
+    int resting() const { return m_questionCounts[5]; }
+    /// A TorrentFilterModel::Question's count; AnyQuestion is the total.
+    Q_INVOKABLE int questionCount(int question) const;
 
     int count(StatusGroup group) const;
     /// The rail's status rows; StatusGroup::NoGroup stands for "all".
@@ -102,6 +121,8 @@ private:
     int m_inProgress = 0;
     int m_revision = 0;
     int m_groupCounts[8] = {};
+    int m_questionCounts[6] = {}; ///< by TorrentFilterModel::Question; [0] unused
+    QPointer<LocalDay> m_day;
     QHash<QString, int> m_categoryCounts;
     QHash<QString, int> m_tagCounts;
     QHash<QString, int> m_trackerCounts;

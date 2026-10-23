@@ -44,6 +44,7 @@ namespace omaseed::core {
 
 class CategoryModel;
 class FilterCounts;
+class LocalDay;
 class GlobalState;
 class ProblemLog;
 class QbtClient;
@@ -74,6 +75,8 @@ public:
     TrackerModel *trackers() const { return m_trackers; }
     GlobalState *globalState() const { return m_globalState; }
     FilterCounts *counts() const { return m_counts; }
+    /// Today, by the local clock: the counts' and the library filter's "landed today".
+    LocalDay *day() const { return m_day; }
     /// docs/28: why errored torrents are in error, read from the server's log after each poll.
     ProblemLog *problems() const { return m_problemLog; }
     /// docs/32 §6 (#56): the whole log for the log face, read after each poll while it shows.
@@ -205,6 +208,7 @@ private:
     TrackerModel *m_trackers = nullptr;
     GlobalState *m_globalState = nullptr;
     FilterCounts *m_counts = nullptr;
+    LocalDay *m_day = nullptr;
     ProblemLog *m_problemLog = nullptr;
     ServerLog *m_serverLog = nullptr;
 

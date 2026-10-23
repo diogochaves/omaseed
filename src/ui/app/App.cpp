@@ -127,6 +127,8 @@ App::App(QObject *parent)
     m_filtered->setSourceModel(m_engine->torrents());
     // A tracker row lists what the rail counts for it: every torrent on that host.
     m_filtered->setTrackerModel(m_engine->trackers());
+    // DECISIONS C24 H2: "landed today" turns over at the same midnight as the counts.
+    m_filtered->setDay(m_engine->day());
     // The add sheet's "in library" follows the library, not the moment of the last scan: a
     // torrent added from the bar widget while the sheet is up is marked at the next sync.
     // `updated` comes after the model's own bookkeeping (rowsRemoved comes before it).

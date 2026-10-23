@@ -1,5 +1,6 @@
 #include "core/TorrentFilterModel.hpp"
 
+#include "core/LocalDay.hpp"
 #include "core/SharedData.hpp"
 #include "core/TorrentModel.hpp"
 #include "core/TrackerModel.hpp"
@@ -51,6 +52,100 @@ StatusGroup TorrentFilterModel::groupFor(StatusFilter filter)
         break;
     }
     return StatusGroup::NoGroup;
+}
+
+TorrentFilterModel::Question
+TorrentFilterModel::questionOf(const Torrent &torrent, bool logged, qint64 dayStartMSecs)
+{
+    // DECISIONS C24 H2, #167's assumed answers: disjoint, the first that holds.
+    const StatusGroups groups = torrent.statusGroups();
+    if (logged || groups.testFlag(StatusGroup::Errored))
+        return NeedsYou;
+    const bool complete = groups.testFlag(StatusGroup::Completed);
+    if (complete && torrent.completionOn.isValid() &&
+        torrent.completionOn.toMSecsSinceEpoch() >= dayStartMSecs)
+        return LandedToday;
+    if (groups.testFlag(StatusGroup::Stopped))
+        return Resting;
+    return complete ? GivingBack : Arriving;
+}
+
+namespace {
+
+/// The StatusFilter rows' words, in the enum's order after All.
+const QStringList &statusWords()
+{
+    static const QStringList words{QStringLiteral("downloading"),
+                                   QStringLiteral("seeding"),
+                                   QStringLiteral("completed"),
+                                   QStringLiteral("stopped"),
+                                   QStringLiteral("active"),
+                                   QStringLiteral("stalled"),
+                                   QStringLiteral("checking"),
+                                   QStringLiteral("errored")};
+    return words;
+}
+
+const QLatin1StringView kIsPrefix("is:");
+
+} // namespace
+
+QStringList TorrentFilterModel::isWords()
+{
+    return statusWords();
+}
+
+TorrentFilterModel::StatusFilter TorrentFilterModel::statusFilterForWord(QStringView word)
+{
+    if (word.isEmpty())
+        return All;
+    int found = -1;
+    for (int i = 0; i < statusWords().size(); ++i) {
+        const QString &name = statusWords().at(i);
+        if (name.compare(word, Qt::CaseInsensitive) == 0)
+            return StatusFilter(i + 1);
+        if (name.startsWith(word, Qt::CaseInsensitive)) {
+            if (found >= 0)
+                return All; // a prefix two words share
+            found = i;
+        }
+    }
+    return found >= 0 ? StatusFilter(found + 1) : All;
+}
+
+void TorrentFilterModel::setQuestion(Question question)
+{
+    if (m_question == question)
+        return;
+    m_question = question;
+    applyFilterChange();
+    Q_EMIT questionChanged();
+    Q_EMIT countChanged();
+}
+
+void TorrentFilterModel::setDay(LocalDay *day)
+{
+    if (m_day == day)
+        return;
+    if (m_day != nullptr)
+        disconnect(m_day, nullptr, this, nullptr);
+    m_day = day;
+    if (m_day != nullptr) {
+        connect(m_day, &LocalDay::dayChanged, this, [this]() {
+            // A new day: what landed yesterday is giving back or resting now.
+            if (m_question == AnyQuestion)
+                return;
+            refilter();
+            Q_EMIT countChanged();
+        });
+    }
+}
+
+qint64 TorrentFilterModel::dayStartMSecs() const
+{
+    if (m_day != nullptr)
+        return m_day->startMSecs();
+    return QDateTime(QDate::currentDate(), QTime(0, 0)).toMSecsSinceEpoch();
 }
 
 void TorrentFilterModel::setStatusFilter(StatusFilter filter)
@@ -201,6 +296,17 @@ void TorrentFilterModel::setSourceModel(QAbstractItemModel *model)
                 this,
                 &TorrentFilterModel::holdSortFor),
         connect(torrents, &TorrentModel::runsAnnounced, this, &TorrentFilterModel::releaseSort),
+        // C24 H2: a problem or failure in the log makes a torrent need you, or stop needing
+        // you, with no poll.
+        connect(torrents,
+                &TorrentModel::problemsChanged,
+                this,
+                [this]() {
+                    if (m_question == AnyQuestion)
+                        return;
+                    refilter();
+                    Q_EMIT countChanged();
+                }),
     };
 }
 
@@ -412,7 +518,28 @@ void TorrentFilterModel::setText(const QString &text)
     if (m_text == next)
         return;
     m_text = next;
-    m_query = SearchWords::parse(next);
+    // C24 H2: `is:` words name states; the rest is the query.
+    StatusGroups groups;
+    QStringList rest;
+    for (const QString &word : next.split(QLatin1Char(' '), Qt::SkipEmptyParts)) {
+        if (word.startsWith(kIsPrefix, Qt::CaseInsensitive)) {
+            const QStringView named = QStringView(word).mid(kIsPrefix.size());
+            const StatusFilter filter = statusFilterForWord(named);
+            if (filter != All) {
+                groups |= groupFor(filter);
+                continue;
+            }
+            bool partOfOne = named.isEmpty();
+            for (const QString &state : statusWords())
+                partOfOne = partOfOne || state.startsWith(named, Qt::CaseInsensitive);
+            if (partOfOne)
+                continue; // still being typed: narrows nothing yet
+        }
+        rest.append(word);
+    }
+    m_isGroups = groups;
+    m_queryText = rest.join(QLatin1Char(' '));
+    m_query = SearchWords::parse(m_queryText);
     m_matchRanks.clear();
     applyFilterChange();
     // C22: the ranks came or went with the query, so every row sorts again (a held order
@@ -529,6 +656,13 @@ bool TorrentFilterModel::filterAcceptsRow(int sourceRow, const QModelIndex &sour
     if (m_statusFilter != All && !t.statusGroups().testFlag(groupFor(m_statusFilter)))
         return false;
 
+    if (m_isGroups != StatusGroup::NoGroup && (t.statusGroups() & m_isGroups) != m_isGroups)
+        return false;
+
+    if (m_question != AnyQuestion &&
+        questionOf(t, source->hasLoggedTrouble(t.hash), dayStartMSecs()) != m_question)
+        return false;
+
     if (!m_onlyHashSet.isEmpty() && !m_onlyHashSet.contains(t.hash))
         return false;
 
@@ -564,7 +698,7 @@ bool TorrentFilterModel::filterAcceptsRow(int sourceRow, const QModelIndex &sour
         }
     }
 
-    if (!m_text.isEmpty() && !t.hash.startsWith(m_text, Qt::CaseInsensitive)) {
+    if (!m_queryText.isEmpty() && !t.hash.startsWith(m_queryText, Qt::CaseInsensitive)) {
         // C22: every word somewhere in the name, the category or a tag. The parts are joined
         // with a character no fold keeps, so a word never spans two of them.
         const QChar apart(0x1f);
