@@ -653,14 +653,35 @@ bool TorrentFilterModel::filterAcceptsRow(int sourceRow, const QModelIndex &sour
     if (t.hash.isEmpty())
         return false;
 
-    if (m_statusFilter != All && !t.statusGroups().testFlag(groupFor(m_statusFilter)))
-        return false;
-
     if (m_isGroups != StatusGroup::NoGroup && (t.statusGroups() & m_isGroups) != m_isGroups)
         return false;
 
+    if (!inScope(t, *source, dayStartMSecs()))
+        return false;
+
+    if (!m_queryText.isEmpty() && !t.hash.startsWith(m_queryText, Qt::CaseInsensitive)) {
+        // C22: every word somewhere in the name, the category or a tag. The parts are joined
+        // with a character no fold keeps, so a word never spans two of them.
+        const QChar apart(0x1f);
+        QString haystack = SearchWords::fold(t.name) + apart + SearchWords::fold(t.category);
+        for (const QString &tag : t.tags)
+            haystack += apart + SearchWords::fold(tag);
+        if (!SearchWords::matches(m_query, haystack))
+            return false;
+    }
+
+    return true;
+}
+
+bool TorrentFilterModel::inScope(const Torrent &t,
+                                 const TorrentModel &source,
+                                 qint64 dayStart) const
+{
+    if (m_statusFilter != All && !t.statusGroups().testFlag(groupFor(m_statusFilter)))
+        return false;
+
     if (m_question != AnyQuestion &&
-        questionOf(t, source->hasLoggedTrouble(t.hash), dayStartMSecs()) != m_question)
+        questionOf(t, source.hasLoggedTrouble(t.hash), dayStart) != m_question)
         return false;
 
     if (!m_onlyHashSet.isEmpty() && !m_onlyHashSet.contains(t.hash))
@@ -698,18 +719,23 @@ bool TorrentFilterModel::filterAcceptsRow(int sourceRow, const QModelIndex &sour
         }
     }
 
-    if (!m_queryText.isEmpty() && !t.hash.startsWith(m_queryText, Qt::CaseInsensitive)) {
-        // C22: every word somewhere in the name, the category or a tag. The parts are joined
-        // with a character no fold keeps, so a word never spans two of them.
-        const QChar apart(0x1f);
-        QString haystack = SearchWords::fold(t.name) + apart + SearchWords::fold(t.category);
-        for (const QString &tag : t.tags)
-            haystack += apart + SearchWords::fold(tag);
-        if (!SearchWords::matches(m_query, haystack))
-            return false;
-    }
-
     return true;
+}
+
+ScopeFacts TorrentFilterModel::scopeFacts() const
+{
+    ScopeFacts facts;
+    const auto *source = qobject_cast<const TorrentModel *>(sourceModel());
+    if (source == nullptr)
+        return facts;
+    const qint64 dayStart = dayStartMSecs();
+    for (int row = 0, count = source->rowCount(); row < count; ++row) {
+        const Torrent &t = source->torrentAt(row);
+        if (t.hash.isEmpty() || !inScope(t, *source, dayStart))
+            continue;
+        facts.add(t, questionOf(t, source->hasLoggedTrouble(t.hash), dayStart));
+    }
+    return facts;
 }
 
 bool TorrentFilterModel::lessThan(const QModelIndex &left, const QModelIndex &right) const

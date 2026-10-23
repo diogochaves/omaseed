@@ -7,6 +7,7 @@
 #include "core/FreeSpace.hpp"
 #include "core/QbtClient.hpp"
 #include "core/QbtMoveFeed.hpp"
+#include "core/ScopeSentence.hpp"
 #include "core/SharedData.hpp"
 #include "core/SyncEngine.hpp"
 #include "core/TorrentModel.hpp"
@@ -326,25 +327,35 @@ QString MoveController::folderOf(const QString &hash) const
 
 QString MoveController::folderLine(const QString &path) const
 {
-    const QVariantMap figures = m_folders->figures(SharedData::normalize(path));
+    // DECISIONS C24 H5 (board 46): the title bar's sentence for a folder, the scope line's
+    // facts (C15 M1) in the board's order; its name is the title. While this folder moves, the
+    // move's progress instead.
+    const QString normal = SharedData::normalize(path);
+    const QVariantMap figures = m_folders->figures(normal);
     if (figures.isEmpty())
         return {};
-    QStringList parts;
-    parts << figures.value(QStringLiteral("name")).toString()
-          << figures.value(QStringLiteral("path")).toString()
-          << counted(figures.value(QStringLiteral("count")).toInt(),
-                     tr("%1 torrent"),
-                     tr("%1 torrents"))
-          << tr("%1 on disk")
-                 .arg(core::Format::size(figures.value(QStringLiteral("bytes")).toLongLong()));
-    const int savePaths = figures.value(QStringLiteral("savePaths")).toInt();
-    if (savePaths > 1)
-        parts << counted(savePaths, tr("%1 save path"), tr("%1 save paths"));
+    if (m_job != nullptr && m_job->kind() == QLatin1String("folder") &&
+        SharedData::normalize(m_job->root()) == normal) {
+        switch (m_job->state()) {
+        case MoveJob::State::Running:
+        case MoveJob::State::Pausing:
+        case MoveJob::State::Paused:
+        case MoveJob::State::Ending:
+            return core::ScopeSentence::folderMoving(
+                m_job->newPath(), m_job->moved(), m_job->total());
+        default:
+            break;
+        }
+    }
+    int loose = 0;
     const auto walk = m_loose.constFind(figures.value(QStringLiteral("path")).toString());
-    if (walk != m_loose.cend() && !walk->running && walk->result.complete && walk->result.loose > 0)
-        parts << counted(
-            walk->result.loose, tr("%1 file no torrent owns"), tr("%1 files no torrent owns"));
-    return parts.join(QStringLiteral(" · "));
+    if (walk != m_loose.cend() && !walk->running && walk->result.complete)
+        loose = walk->result.loose;
+    return core::ScopeSentence::folder(figures.value(QStringLiteral("count")).toInt(),
+                                       figures.value(QStringLiteral("bytes")).toLongLong(),
+                                       figures.value(QStringLiteral("savePaths")).toInt(),
+                                       loose,
+                                       figures.value(QStringLiteral("path")).toString());
 }
 
 bool MoveController::start(const QString &rootIn, const QString &newPathIn, bool carry)

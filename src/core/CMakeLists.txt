@@ -93,6 +93,8 @@ qt_add_library(omaseed-core STATIC
     RenameDisk.hpp
     RenamePlan.cpp
     RenamePlan.hpp
+    ScopeSentence.cpp
+    ScopeSentence.hpp
     SearchWords.cpp
     SearchWords.hpp
     SecretStore.cpp

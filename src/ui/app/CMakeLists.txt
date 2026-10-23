@@ -5,6 +5,7 @@ qt_add_library(omaseed-app STATIC
     App.hpp
     AppBarMenu.cpp
     AppMove.cpp
+    AppScope.cpp
     AppServers.cpp
     AppSharedData.cpp
     AppSkipped.cpp

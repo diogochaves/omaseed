@@ -2134,6 +2134,25 @@ private:
     void sendFilePriority(const QString &hash, const QList<int> &ids, int priority);
     core::SelectionHold *m_hold = new core::SelectionHold(this);
     // --- end #119 -----------------------------------------------------------------------------
+
+    // --- #167: the title bar's sentence ---------------------------------------------------------
+    // Board 46 `titleBar()` (DECISIONS C24 H5): under the title, one sentence for the scope the
+    // rail picked, from core/ScopeSentence over TorrentFilterModel::scopeFacts() (the rail's
+    // filters, not the filter's words). A folder's is MoveController::folderLine(); a move's
+    // "show", the seed console's and the log's are the window's (they know its faces).
+    // AppScope.cpp.
+public:
+    Q_PROPERTY(QString scopeSentence READ scopeSentence NOTIFY scopeSentenceChanged)
+    QString scopeSentence() const { return m_scopeSentence; }
+
+Q_SIGNALS:
+    void scopeSentenceChanged();
+
+private:
+    void setUpScope();
+    void updateScopeSentence();
+    QString m_scopeSentence;
+    // --- end #167 -----------------------------------------------------------------------------
 };
 
 } // namespace omaseed::app

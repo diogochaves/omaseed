@@ -60,6 +60,7 @@
 // a phrase in the name first, then its words in order, then in any order. A hash prefix
 // ranks with the phrases. Clearing the query brings the plain sort back.
 
+#include "core/ScopeSentence.hpp"
 #include "core/SearchWords.hpp"
 #include "core/Torrent.hpp"
 
@@ -186,6 +187,11 @@ public:
     bool holdOrder() const { return m_holdOrder; }
     void setHoldOrder(bool hold);
 
+    /// What the rail's scope holds, for the title bar's sentence (core/ScopeSentence): every
+    /// filter but the words (the text and its `is:`), so the sentence names the place and the
+    /// filter tool counts what the words leave of it. One pass over the library.
+    ScopeFacts scopeFacts() const;
+
     /// The proxy row showing `hash`, or -1.
     Q_INVOKABLE int rowOfHash(const QString &hash) const;
     /// The hash on proxy row `row`, or an empty string.
@@ -204,6 +210,9 @@ public:
     void setSourceModel(QAbstractItemModel *model) override;
 
 protected:
+    /// The rail's filters alone (status, question, a move's hashes, folder, category, tag,
+    /// tracker): what scopeFacts() counts, and filterAcceptsRow() narrows by the words.
+    bool inScope(const Torrent &torrent, const TorrentModel &source, qint64 dayStart) const;
     bool filterAcceptsRow(int sourceRow, const QModelIndex &sourceParent) const override;
     bool lessThan(const QModelIndex &left, const QModelIndex &right) const override;
 

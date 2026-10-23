@@ -278,6 +278,7 @@ App::App(QObject *parent)
     setUpBarMenu();
     setUpMove();
     setUpSkipped();
+    setUpScope();
 }
 
 App::~App()

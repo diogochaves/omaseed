@@ -213,6 +213,11 @@ omaseed_add_test(tst_filtermodel
     LIBRARIES omaseed::core
 )
 
+omaseed_add_test(tst_scopesentence
+    SOURCES tst_scopesentence.cpp
+    LIBRARIES omaseed::core
+)
+
 omaseed_add_test(tst_filtercounts
     SOURCES tst_filtercounts.cpp
     LIBRARIES omaseed::core

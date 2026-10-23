@@ -102,6 +102,7 @@ private slots:
     void demoDataReproducesTheSpecsSixteenRows();
     void demoListsItsServerAndPersistsNothing();
     void demoDataScalesWithUniqueHashes();
+    void theScopeSentenceFollowsTheRail();
     void qmlSeesAppAndTheCoreTypes();
     void trayStateFollowsTheWorld();
     void environmentOverrideReachesThePlayground();
@@ -186,6 +187,43 @@ void TestApp::demoListsItsServerAndPersistsNothing()
     // A second demo in the same process does not list "home" twice.
     app.startDemo(16);
     QCOMPARE(app.serverCount(), 1);
+}
+
+// DECISIONS C24 H5 (board 46 `titleBar()`): the title bar's sentence names the rail's scope,
+// read again on every pick; the filter's words narrow the rows, not the sentence.
+void TestApp::theScopeSentenceFollowsTheRail()
+{
+    App app;
+    QSignalSpy changed(&app, &App::scopeSentenceChanged);
+    app.startDemo(16);
+    const QString library = app.scopeSentence();
+    QVERIFY2(library.contains(QStringLiteral(" arriving")), qPrintable(library));
+    QVERIFY2(library.contains(QStringLiteral("giving back ")), qPrintable(library));
+    QVERIFY(changed.count() > 0);
+
+    app.filtered()->setText(QStringLiteral("ubuntu"));
+    QCOMPARE(app.scopeSentence(), library);
+    app.filtered()->setText(QString());
+
+    app.filtered()->setQuestion(TorrentFilterModel::Resting);
+    QVERIFY2(app.scopeSentence().endsWith(QStringLiteral(" · not sharing")) ||
+                 app.scopeSentence() == QStringLiteral("nothing resting"),
+             qPrintable(app.scopeSentence()));
+    app.filtered()->setQuestion(TorrentFilterModel::AnyQuestion);
+
+    app.filtered()->setCategory(QStringLiteral("linux"));
+    const int linux = app.counts()->categoryCount(QStringLiteral("linux"));
+    QVERIFY2(app.scopeSentence().startsWith(QStringLiteral("%1 torrents · ").arg(linux)),
+             qPrintable(app.scopeSentence()));
+    app.filtered()->setQuestion(TorrentFilterModel::Arriving);
+    QVERIFY2(app.scopeSentence().startsWith(QStringLiteral("arriving · ")),
+             qPrintable(app.scopeSentence()));
+    app.filtered()->clearCategory();
+    app.filtered()->setQuestion(TorrentFilterModel::AnyQuestion);
+    app.filtered()->setTag(QStringLiteral("x"));
+    QCOMPARE(app.scopeSentence(), QStringLiteral("0 torrents · tag"));
+    app.filtered()->clearTag();
+    QCOMPARE(app.scopeSentence(), library);
 }
 
 void TestApp::demoDataReproducesTheSpecsSixteenRows()
