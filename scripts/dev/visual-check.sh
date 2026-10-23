@@ -83,11 +83,32 @@ declare -A SECTION_IGNORE=(
 # key KEY...: into the app, returning once the window has settled; what the wait saw goes to the
 # run's log, so a 124 there says what it waited on.
 key() { omabox keys --window "$APP" --wait "$@"; }
+# click_text NAME: a click on the middle of the first node of the app's accessibility tree whose
+# name starts with NAME (a rail row), waiting for the window to settle.
+click_text() {
+    local at
+    at="$(omabox tree --window "$APP" --json 2>/dev/null | python3 -c '
+import json, sys
+for node in json.load(sys.stdin):
+    if (node.get("name") or "").startswith(sys.argv[1]) and node.get("w", 0) > 0:
+        print(node["x"] + node["w"] // 2, node["y"] + node["h"] // 2)
+        break' "$1")"
+    [ -n "$at" ] || die "no \"$1\" to click in the window"
+    # shellcheck disable=SC2086 # "X Y"
+    omabox click --window "$APP" --wait $at
+}
 
 omabox check point bar -g "0,0 1920x30"
 omabox check point library --window "$APP" --ignore "$ADDED" --ignore "$CREATED" --ignore "$FREE"
 key 5 # resting (DECISIONS C24 H2), where these stopped torrents are
 omabox check point library-resting --window "$APP" --ignore "$ADDED" --ignore "$CREATED" --ignore "$FREE"
+# A folder picked in the rail (DECISIONS C24 H5): its name the title, the scope line's facts its
+# sentence, "move this folder…" a title-bar tool. The pointer leaves the row, so its path's
+# tooltip is not in the shot.
+key 0
+click_text Torrents
+omabox pointer --window "$APP" -- move 900 600 >/dev/null
+omabox check point folder --window "$APP" --ignore "$ADDED" --ignore "$CREATED" --ignore "$FREE"
 key 0 j j
 omabox check point library-third --window "$APP" --ignore "$ADDED" --ignore "$CREATED" --ignore "$FREE"
 key l 2

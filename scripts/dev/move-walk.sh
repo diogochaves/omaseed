@@ -1318,7 +1318,7 @@ shot "The paused band: the drive is full, the move is paused." full
 
 # The rail's fast/games exists only once the games step moved it there.
 if [ "$FROM" = games ]; then
-step "A folder picked in the rail" "A click on fast/games in the rail's folders group: the table narrows to it and the folder line above it keeps \"move this folder…\" on its one line, the text cut short instead. A right-click on the row opens its menu, \"move this folder…\" (C19 T3); esc closes it."
+step "A folder picked in the rail" "A click on fast/games in the rail's folders group: the table narrows to it, the title bar's title is games and its sentence the folder's facts (N torrents · bytes on disk · its path, cut short at the end when the bar is short), and \"move this folder…\" is a title-bar tool (C24 H5). A right-click on the row opens its menu, \"move this folder…\" (C19 T3); esc closes it."
 where="$(omabox tree -b "$BOX" --window omaseed --find "fast/games" 2>/dev/null | python3 -c '
 import re, sys
 for line in sys.stdin:
@@ -1330,8 +1330,8 @@ for line in sys.stdin:
 [ -n "$where" ] || fail "no fast/games row in the rail"
 # shellcheck disable=SC2086 # two numbers
 omabox click -b "$BOX" --window omaseed --wait $where >/dev/null 2>&1 || true
-expect_text "the folder line offers to move it" "move this folder…" 10
-shot "The folder line: one line, its text cut short, \"shift+m move this folder…\" whole at its end."
+expect_text "the title bar offers to move it" "move this folder…" 10
+shot "The title bar: games, its sentence on one line, the move this folder… tool whole before the filter."
 # shellcheck disable=SC2086 # two numbers
 omabox click -b "$BOX" --window omaseed --wait $where right >/dev/null 2>&1 || true
 expect_tree "a right-click on the folder row opens its menu" 'menu item "move this folder…"' 10

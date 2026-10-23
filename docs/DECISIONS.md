@@ -698,6 +698,13 @@ job's whole life, not 30 s. Set location keeps D2.
   paths and loose files go in the scope line and the row's tooltip. The scope line offers
   "move this folder…"; so do `shift+m`, the row's menu and `:` "move folder…" (`m` stays set
   location). The Save path column cuts from the left.
+  *Changed by C24 H5 (v0.5.0): the scope line is the title bar's: the folder's name is the
+  title, and its sentence takes the facts in board 46's order, "49 torrents · 1.32 MB on disk ·
+  2 loose files · PATH" ("loose files" for "files no torrent owns", the save paths when there
+  are several); while that folder moves, "moving to PATH · 17 of 49 landed". "move this
+  folder…" is a title-bar tool. A move's "show" (M10) is the title too ("The move of NAME",
+  "From the move sheet"), the line's link a tool beside it: "all torrents", or "back to the
+  sheet" with esc.*
 - **The field (M4):** the folder's new path, prefilled with its current one; browse picks a
   parent and the sheet adds the folder's name. Each torrent's new save path is the new path
   plus its save path below the folder.
