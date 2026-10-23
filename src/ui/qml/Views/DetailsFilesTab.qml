@@ -567,7 +567,9 @@ Item {
 
             animated: false
             body: root.skipped.busy === true ? root._stepText(root.skipped.step || "")
-                                             : qsTr("They were written while wanted. qBittorrent keeps them; it never deletes a skipped file.")
+                                             : (root.skipped.holding || 0) === 1
+                                               ? qsTr("It was written while wanted. qBittorrent keeps it; it never deletes a skipped file.")
+                                               : qsTr("They were written while wanted. qBittorrent keeps them; it never deletes a skipped file.")
             copyable: false
             details: {
                 const fs = root.skipped.fileSystem || "";
