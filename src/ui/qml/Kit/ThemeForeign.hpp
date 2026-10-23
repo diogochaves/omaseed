@@ -4,22 +4,17 @@
 
 #include <QQmlEngine>
 
-/// `Theme` is a C++ object in omaseed-integration, but every QML file reaches it as
-/// `Omaseed.Kit`'s `Theme` singleton. These two declarations are the whole bridge: they are
-/// what puts the type in the module's type registry, so qmllint and qmlls resolve
-/// `Theme.background` statically instead of guessing at runtime.
+/// `Theme` is a C++ object in omaseed-integration, registered into `Omaseed.Kit` as
+/// `ThemeBase`. Every QML file reaches it through `Theme.qml`, the module's `Theme` singleton,
+/// which derives from it and adds a `space()` a binding follows (#156, docs/DECISIONS.md C28).
+/// This declaration is what puts the type in the module's type registry, so qmllint and qmlls
+/// resolve `Theme.background` statically instead of guessing at runtime. Nothing but
+/// `Theme.qml` creates one.
 struct ThemeForeign
 {
     Q_GADGET
     QML_FOREIGN(omaseed::integration::Theme)
-    QML_NAMED_ELEMENT(Theme)
-    QML_SINGLETON
-
-public:
-    static omaseed::integration::Theme *create(QQmlEngine *engine, QJSEngine *)
-    {
-        return omaseed::integration::Theme::createForEngine(engine);
-    }
+    QML_NAMED_ELEMENT(ThemeBase)
 };
 
 /// The type behind `Theme.font`. It is never instantiated from QML; it only needs a name in

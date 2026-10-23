@@ -20,6 +20,16 @@ namespace {
 
 ThemeReader *s_defaultReader = nullptr;
 
+/// The reader setDefaultReader() set; when nobody wired one up (the QML tests, a tool), one
+/// reading the desktop's theme directly. Deliberately not owned by anything; it lives as long
+/// as the process does.
+ThemeReader *defaultReader()
+{
+    if (!s_defaultReader)
+        s_defaultReader = new ThemeReader;
+    return s_defaultReader;
+}
+
 /// A shell.toml number, or the fallback when the key is absent or not a number.
 qreal number(const QHash<QString, QString> &shell, const QString &key, qreal fallback)
 {
@@ -138,6 +148,10 @@ QString Theme::defaultEventSocket()
     return HyprlandEvents::defaultSocketPath();
 }
 
+Theme::Theme()
+    : Theme(defaultReader())
+{}
+
 Theme::Theme(ThemeReader *reader, QObject *parent)
     : Theme(reader, Hyprland{}, parent)
 {}
@@ -181,17 +195,6 @@ Theme::~Theme()
 void Theme::setDefaultReader(ThemeReader *reader)
 {
     s_defaultReader = reader;
-}
-
-Theme *Theme::createForEngine(QQmlEngine *engine)
-{
-    Q_UNUSED(engine);
-    if (!s_defaultReader) {
-        // Nobody wired one up (the QML tests, a tool): read the desktop's theme directly.
-        // Deliberately not owned by anything; it lives as long as the process does.
-        s_defaultReader = new ThemeReader;
-    }
-    return new Theme(s_defaultReader); // the QML engine takes ownership
 }
 
 void Theme::adopt()

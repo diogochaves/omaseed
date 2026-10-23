@@ -10,7 +10,6 @@
 
 QT_BEGIN_NAMESPACE
 class QJsonObject;
-class QQmlEngine;
 QT_END_NAMESPACE
 
 namespace omaseed::integration {
@@ -68,9 +67,10 @@ private:
     int m_icon = 13;
 };
 
-/// The one source of every colour, size and alpha in the QML. Imported as `Omaseed.Kit`'s
-/// `Theme` singleton; every value is a binding target, so a theme change repaints without a
-/// restart. No QML file outside this class may hold a colour literal or a pixel size.
+/// The one source of every colour, size and alpha in the QML. QML reads it as `Omaseed.Kit`'s
+/// `Theme` singleton, `Theme.qml`, which derives from it (#156); every value is a binding
+/// target, so a theme change repaints without a restart. No QML file outside this class may
+/// hold a colour literal or a pixel size.
 class Theme : public QObject
 {
     Q_OBJECT
@@ -119,9 +119,9 @@ class Theme : public QObject
     /// `focusExtent` is how far the ring reaches past the edge; a parent that clips leaves
     /// that much room around its focusable children.
     Q_PROPERTY(int focusGap READ focusGap NOTIFY changed FINAL)
-    /// What `space()` multiplies by (#74): a binding that calls `space()` alone never
-    /// re-evaluates, since a call is not a property it can follow. One that must follow a
-    /// base size read late, or changed, reads this: `Theme.spaceAt(8, Theme.spaceScale)`.
+    /// What `space()` multiplies by (#74). A binding follows the properties it reads, and a
+    /// call to a C++ method reads none, so QML's `Theme.space()` is not this class's: it is
+    /// the `Theme.qml` wrapper's, which reads this (#156, docs/DECISIONS.md C28).
     Q_PROPERTY(qreal spaceScale READ spaceScale NOTIFY changed FINAL)
     Q_PROPERTY(int focusExtent READ focusExtent NOTIFY changed FINAL)
     Q_PROPERTY(qreal fillIdle READ fillIdle NOTIFY changed FINAL)
@@ -169,6 +169,9 @@ public:
     /// The session's event socket, "" when not under Hyprland.
     static QString defaultEventSocket();
 
+    /// What QML creates: `Theme.qml` derives from this class (`ThemeBase` in Omaseed.Kit), so
+    /// each engine's one Theme is built here, on setDefaultReader()'s reader.
+    Theme();
     explicit Theme(ThemeReader *reader, QObject *parent = nullptr);
     Theme(ThemeReader *reader, const Hyprland &hyprland, QObject *parent = nullptr);
     ~Theme() override;
@@ -176,8 +179,6 @@ public:
     /// The reader a QML-engine-created Theme binds to. main() sets this before the engine
     /// exists; anything else (the QML tests, a tool) gets a reader on the default paths.
     static void setDefaultReader(ThemeReader *reader);
-    /// Factory for the QML singleton registration. The engine takes ownership.
-    static Theme *createForEngine(QQmlEngine *engine);
 
     QColor background() const { return m_background; }
     QColor foreground() const { return m_foreground; }
@@ -225,11 +226,12 @@ public:
     qreal windowAlpha() const { return m_windowAlpha; }
     void setWindowAlpha(qreal alpha);
 
-    /// Spacing in spec pixels, scaled by `[spacing] scale` and the base size.
-    Q_INVOKABLE int space(qreal px) const;
+    /// Spacing in spec pixels, scaled by `[spacing] scale` and the base size. Not invokable:
+    /// QML's `Theme.space()` is `Theme.qml`'s, which a binding follows (#156).
+    int space(qreal px) const;
     qreal spaceScale() const;
-    /// `px` at `scale`, rounded as `space()` rounds: `spaceAt(px, spaceScale)` is `space(px)`,
-    /// in a form a binding follows.
+    /// `px` at `scale`, rounded as `space()` rounds: `spaceAt(px, spaceScale)` is `space(px)`.
+    /// `Theme.qml`'s `space()` is this at `spaceScale`, a form a binding follows (#156).
     Q_INVOKABLE static int spaceAt(qreal px, qreal scale);
     /// The foreground at an alpha: 0.04 idle, 0.08 hover, 0.18 selected, 0.22 pressed.
     Q_INVOKABLE QColor fill(qreal alpha) const;

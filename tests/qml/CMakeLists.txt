@@ -3,7 +3,7 @@
 omaseed_add_test(tst_qml
     XDG_DIR "${CMAKE_BINARY_DIR}/tests/qml-env"
     SOURCES tst_qml.cpp
-    LIBRARIES Qt6::Qml Qt6::Quick Qt6::QuickTest omaseed-kitplugin omaseed-viewsplugin omaseed-qmlplugin
+    LIBRARIES Qt6::Qml Qt6::Quick Qt6::QuickTest omaseed::integration omaseed-kitplugin omaseed-viewsplugin omaseed-qmlplugin
     DEFINES QUICK_TEST_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
 )
 
