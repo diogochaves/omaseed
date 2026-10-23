@@ -240,7 +240,7 @@ TOAST_Y=75
 wait_state "$TINY" "UP|^uploading" 60 || true
 toast_up "$TINY" 15 || true
 sleep 0.6 # past the fade-in
-step "Toast" "Top right, over the app: \"Download complete\", \"tiny-notes.txt · 4 KB · swarm\" and omaseed's icon, in the shell's own toast style. Omarchy's toasts draw no buttons."
+step "Toast" "Top right, over the app: \"Download complete\", \"tiny-notes.txt · 4 KB · swarm\" and omaseed's icon, in the shell's own toast style. No button on the toast itself: a click is Show."
 
 # Hide the window to the tray (closing it hides it), then click the next notice: the app has
 # to come back on its own, with the cursor on that torrent.
@@ -264,8 +264,10 @@ check "exactly one notice each for $TINY and the unicode torrent" one_each
 check "the body reads name · size · category" tiny_notice 'c["body"] == "tiny-notes.txt · 4 KB · swarm"'
 check "app omaseed, icon and desktop-entry $APP_ID, urgency low" tiny_notice \
     'c["app"] == "Omaseed" and c["icon"] == sys.argv[1] and c["hints"].get("desktop-entry") == sys.argv[1] and c["hints"].get("urgency") == "0"'
-check "actions: open folder (the content is local), show, and show again as default" tiny_notice \
-    'c["actions"] == ["open-folder", "open folder", "show", "show", "default", "show"]'
+# Since 3148dc9 (#111, docs/DECISIONS.md C6 "Words"): sentence-case labels, and the main
+# action only as "default", the click, so Omarchy 4.5 draws no second button doing the same.
+check "actions: Open folder (the content is local), and Show only as default, the click" tiny_notice \
+    'c["actions"] == ["open-folder", "Open folder", "default", "Show"]'
 check "the shell drew both (its state files name them)" shell_drew
 
 # A fresh start sees both torrents already finished: that is not a completion.
