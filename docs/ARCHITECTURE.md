@@ -70,7 +70,10 @@ Three static libraries and the executable. Each layer only depends on the ones a
 
 - `ThemeReader` and `Theme`: read the current Omarchy theme's `colors.toml` and `shell.toml`
   (the bundled Tokyo Night when Omarchy is absent), watch them, and repaint live. A theme hook
-  can also ask for a reload over D-Bus.
+  can also ask for a reload over D-Bus. QML never sees `Theme` by that name: `Omaseed.Kit`
+  registers it as `ThemeBase`, and its `Theme` singleton is `Kit/Theme.qml`, which derives from
+  it and adds the one thing C++ can't give a binding, a `space(px)` that reads `spaceScale`
+  ([DECISIONS.md](DECISIONS.md) C28, #156).
 - `SingleInstance`: `org.freedesktop.Application` on `io.github.diogochaves.omaseed`; a second
   launch hands its magnets and `.torrent` files to the first one and raises it, and
   `omaseed --quit` asks it to quit. `QuitSignals` turns SIGTERM, SIGINT and SIGHUP into the
@@ -116,7 +119,8 @@ theme changes.
 2. Fills through `Theme.fill(alpha)`: 0.04 idle, 0.08 hover or cursor, 0.18 selected, 0.22
    pressed. Borders 0.40 idle, 0.25 hover. Hairlines 0.12.
 3. Sizes from the shell's `base-size`: `Theme.font.caption|small|body|subtitle|title|heading|display`
-   (× 0.833 / 0.917 / 1 / 1.083 / 1.167 / 1.333 / 2), spacing through `Theme.space(px)`.
+   (× 0.833 / 0.917 / 1 / 1.083 / 1.167 / 1.333 / 2), spacing through `Theme.space(px)`. A
+   binding of `Theme.space(…)` alone follows a base-size change like one of `Theme.font.*`.
 4. The window is `Theme.background` at `Theme.windowAlpha` with a 1 px edge, `accent` when
    active and `muted` when not. Popups, sheets and palettes are opaque with an `accent` edge.
 5. Corner radius comes from Hyprland, 0 by default. Never hardcode rounding.

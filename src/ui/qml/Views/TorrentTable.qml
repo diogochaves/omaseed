@@ -1821,11 +1821,10 @@ Item {
 
                 // Status (`.tbl .st`): the glyph in the state colour, the word in the row's
                 // own text colour.
-                // #74: its glyph and word are placed by spacing alone, and a binding that only
-                // calls Theme.space() never runs again (a call is nothing it can follow). A row
-                // built before the theme had read the shell's base size kept the default's
-                // 8 / 12 / 6 px: the glyph 2 px and the word 4 px left, until a restart. They
-                // read Theme.spaceScale, so they follow the theme whenever it settles.
+                // #74: its glyph and word are placed by spacing alone. A row built before the
+                // theme had read the shell's base size kept the default's 8 / 12 / 6 px while
+                // Theme.space() was a C++ call no binding could follow; it reads
+                // Theme.spaceScale now (#156), so they follow the theme whenever it settles.
                 Item {
                     id: statusCell
 
@@ -1839,7 +1838,7 @@ Item {
                         id: statusGlyphText
 
                         anchors.left: parent.left
-                        anchors.leftMargin: Theme.spaceAt(8, Theme.spaceScale)
+                        anchors.leftMargin: Theme.space(8)
                         anchors.verticalCenter: parent.verticalCenter
                         color: row.mark !== null ? row.markColor : row.stuckMove ? Theme.stateError
                                                                                  : row.stateColor
@@ -1848,16 +1847,16 @@ Item {
                         pixelSize: Theme.font.body
                         text: row.mark !== null ? (row.mark.kind === "failed" ? "✕" : "✓")
                                                 : row.stuckMove ? Glyphs.close : row.statusGlyph
-                        width: Theme.spaceAt(12, Theme.spaceScale)
+                        width: Theme.space(12)
                     }
 
                     Text {
                         id: statusWord
 
                         anchors.left: statusGlyphText.right
-                        anchors.leftMargin: Theme.spaceAt(6, Theme.spaceScale)
+                        anchors.leftMargin: Theme.space(6)
                         anchors.right: parent.right
-                        anchors.rightMargin: Theme.spaceAt(8, Theme.spaceScale)
+                        anchors.rightMargin: Theme.space(8)
                         anchors.verticalCenter: parent.verticalCenter
                         color: row.mark !== null ? row.markColor : row.stuckMove ? Theme.stateError
                                                                                  : row.errorStopped ? row.stateColor
