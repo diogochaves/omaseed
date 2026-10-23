@@ -437,7 +437,15 @@ wait_window 10 || true
 sleep 4 # the lookup: about a second on the swarm, a little more on a box just started
 check "the magnet brought the hidden window back" window_shown
 # #63 (DECISIONS C28): once the metadata is in, the line under the tree names the extra.
-in_sheet() { omabox tree -b "$BOX" --find "$1" >/dev/null 2>&1; }
+# The metadata can take longer than the sleep on a box just started: look for up to 20 s.
+in_sheet() {
+    local _
+    for _ in $(seq 20); do
+        omabox tree -b "$BOX" --find "$1" >/dev/null 2>&1 && return 0
+        sleep 1
+    done
+    return 1
+}
 check "the line under the tree says README.txt is an extra, still ticked" \
     in_sheet "1 extra: a text file"
 step "A magnet's files, from the tray" "The add sheet for Public Domain Sampler, \"24.0 MB · from magnet link\"; under the switches, Files \"3 files · 24.0 MB\": README.txt (a dim \"extra\" on its row), sampler.mkv, sampler.srt, all ticked; under the tree, dim: \"1 extra: a text file (…). Ticked, so the torrent seeds whole.\"; the free line needs 24.0 MB."
