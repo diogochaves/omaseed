@@ -100,6 +100,7 @@ qt_add_qml_module(omaseed-views
         SharedDataLine.qml
         SharedMoveConfirm.qml
         SortPalette.qml
+        StatusLine.qml
         TagPalette.qml
         ThemeGallery.qml
         TorrentTable.qml

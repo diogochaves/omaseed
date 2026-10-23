@@ -37,4 +37,27 @@ ThemeBase {
     readonly property int railMenuGap: space(4)
     /// From a folded row to its name's tooltip.
     readonly property int railTipGap: space(2)
+
+    // ---- the frame's form: the status line (board 46 `statusLine()`, `.status`) ----------
+    /// Its height: the line it replaced (the footer), one small line with room around it.
+    readonly property int statusLineHeight: Math.round(font.baseSize * 2.2)
+    /// Its type: the small size (board 46's 11.8 px at 13 px type); the server's name weighs
+    /// a little more.
+    readonly property int statusLineFontSize: font.small
+    readonly property int statusLineNameWeight: Font.Medium
+    /// Before its first part and after its last (board 46: 18 and 14 px at 13 px type).
+    readonly property int statusLineInsetStart: space(16)
+    readonly property int statusLineInsetEnd: space(13)
+    /// Between its parts (board 46's 12 px), and inside the server lane (dot, name, ▾: 7 px).
+    readonly property int statusLineGap: space(11)
+    readonly property int statusLineLaneGap: space(6)
+    /// The server's dot.
+    readonly property int statusLineDotSize: space(7)
+    /// How far the server lane's hover fill reaches past its words.
+    readonly property int statusLineHoverInset: space(3)
+    /// The widths its steps start at, widest first (step 0 at the first, step 4 below the
+    /// last): from step 1 the lane is the name alone and the alt-speed limits are short, from
+    /// 2 the facts' words shorten, from 3 the speeds are short and the count loses its word,
+    /// at 4 the downloading count and the free space go.
+    readonly property var statusLineSteps: [space(880), space(740), space(600), space(460)]
 }
