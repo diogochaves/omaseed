@@ -342,6 +342,10 @@ else
     "$APP_BOX" up --qbt -b "$BOX" >/dev/null
 fi
 home="$(omabox path -b "$BOX")/home"
+# The desktop's do-not-disturb: "Download complete" toasts come every few seconds while the
+# library downloads, and under the title bar (DECISIONS C24 H5) the move band's links sit where
+# a toast covers them, so a press there hit the toast. Nothing here checks a toast.
+in_box omarchy-shell -q notifications setDnd on >/dev/null || true
 echo "box $BOX is up; making $((GAMES + FILMS + MUSIC)) torrents and their files"
 
 # The library: each torrent a folder with one file, its .torrent beside the walk's own files.
