@@ -183,8 +183,8 @@ it. A capital letter is the stronger variant of its lower-case neighbour (`p` st
 | `j` `k` | move down / up |
 | `g` `G` | first / last row |
 | `h` `l` | rail · table · details |
-| `/` | filter |
-| `0`–`8` | status filter |
+| `/` | filter (`is:stalled` and the like for any state) |
+| `1`–`5`, `0` | needs you, arriving, landed today, giving back, resting; the library |
 | `ctrl+k` | jump to a torrent by name, hash or tracker |
 | `ctrl+h` `ctrl+l` | scroll sideways |
 
@@ -206,7 +206,7 @@ it. A capital letter is the stronger variant of its lower-case neighbour (`p` st
 | `1`–`4` | details tab (in the details pane) |
 | `s` | sort |
 | `\|` | columns (`alt+↑` `alt+↓` reorder them) |
-| `ctrl+b` | rail |
+| `ctrl+b` | fold the rail to its glyphs |
 | `I` | details right · bottom · auto |
 | `<` `>` | details smaller · larger |
 | `H` `L` | fold / unfold every folder (Files tab) |
