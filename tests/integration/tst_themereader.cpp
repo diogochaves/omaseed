@@ -301,10 +301,12 @@ void TestThemeReader::spacingAndTypeFollowTheBaseSize()
     // The user's overlay takes the shell to 14: space(10) becomes round(10 * 14 / 12) = 12.
     // #74: spaceScale moves with it and says so, which is what a binding follows.
     QSignalSpy changed(&theme, &Theme::changed);
+    QSignalSpy scaleChanged(&theme, &Theme::spaceScaleChanged);
     writeFile(configDir() + QStringLiteral("/shell.toml"),
               QStringLiteral("[font]\nbase-size = 14\n"));
     reader.reload();
     QVERIFY(changed.count() > 0);
+    QCOMPARE(scaleChanged.count(), 1);
     QCOMPARE(theme.spaceScale(), 14.0 / 12.0);
     for (const qreal px : {qreal(6), qreal(8), qreal(12), qreal(0.5), qreal(0)})
         QCOMPARE(Theme::spaceAt(px, theme.spaceScale()), theme.space(px));
@@ -322,6 +324,8 @@ void TestThemeReader::spacingAndTypeFollowTheBaseSize()
     reader.reload();
     QCOMPARE(theme.font()->heading(), 24);
     QCOMPARE(theme.font()->body(), 14);
+    // #156: what moved is not the scale, so the bindings of Theme.space() are left alone.
+    QCOMPARE(scaleChanged.count(), 1);
 }
 
 /// #156: QML builds its Theme (`Theme.qml`, deriving from `ThemeBase`) with the default

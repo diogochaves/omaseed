@@ -201,6 +201,7 @@ void Theme::adopt()
 {
     const ColorMap palette = m_reader->palette();
     const QHash<QString, QString> shell = m_reader->shellValues();
+    const qreal spaceScaleBefore = spaceScale();
 
     m_background = colorOf(palette, QStringLiteral("background"), m_background);
     m_foreground = colorOf(palette, QStringLiteral("foreground"), m_foreground);
@@ -257,6 +258,8 @@ void Theme::adopt()
 
     m_font->apply(shell);
     Q_EMIT changed();
+    if (!qFuzzyCompare(spaceScale(), spaceScaleBefore))
+        Q_EMIT spaceScaleChanged();
 }
 
 Theme::WindowCorners Theme::windowCorners(const QByteArray &rounding,

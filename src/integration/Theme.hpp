@@ -121,8 +121,10 @@ class Theme : public QObject
     Q_PROPERTY(int focusGap READ focusGap NOTIFY changed FINAL)
     /// What `space()` multiplies by (#74). A binding follows the properties it reads, and a
     /// call to a C++ method reads none, so QML's `Theme.space()` is not this class's: it is
-    /// the `Theme.qml` wrapper's, which reads this (#156, docs/DECISIONS.md C28).
-    Q_PROPERTY(qreal spaceScale READ spaceScale NOTIFY changed FINAL)
+    /// the `Theme.qml` wrapper's, which reads this (#156, docs/DECISIONS.md C28). Its own
+    /// signal, sent only when the scale moves: the ~1,300 bindings of `Theme.space()` follow
+    /// it, and a colour theme switch must not run them all again.
+    Q_PROPERTY(qreal spaceScale READ spaceScale NOTIFY spaceScaleChanged FINAL)
     Q_PROPERTY(int focusExtent READ focusExtent NOTIFY changed FINAL)
     Q_PROPERTY(qreal fillIdle READ fillIdle NOTIFY changed FINAL)
     Q_PROPERTY(qreal fillHover READ fillHover NOTIFY changed FINAL)
@@ -280,6 +282,7 @@ public:
 
 Q_SIGNALS:
     void changed();
+    void spaceScaleChanged();
     void windowAlphaChanged();
     void cornerRadiusChanged();
     void windowEdgeChanged();
