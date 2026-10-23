@@ -675,6 +675,35 @@ TestCase {
         compare(view.table.selectedCount, 0);
     }
 
+    // Board 44 §2: the footer's note after a free counts its files, one or several.
+    function test_the_free_note_counts_one_or_several() {
+        App.skippedSpaceFreed({
+                                  "ok": true,
+                                  "deleted": 1,
+                                  "freedText": "3.00 MB",
+                                  "kept": 1,
+                                  "rechecked": true
+                              });
+        compare(view.footerNote, "freed 3.00 MB · 1 skipped file deleted · 1 stays · rechecking");
+        App.skippedSpaceFreed({
+                                  "ok": true,
+                                  "deleted": 2,
+                                  "freedText": "16.8 MB",
+                                  "kept": 3,
+                                  "rechecked": false
+                              });
+        compare(view.footerNote, "freed 16.8 MB · 2 skipped files deleted · 3 stay");
+        App.skippedSpaceFreed({
+                                  "ok": true,
+                                  "deleted": 2,
+                                  "freedText": "16.8 MB",
+                                  "kept": 0,
+                                  "rechecked": false
+                              });
+        compare(view.footerNote, "freed 16.8 MB · 2 skipped files deleted");
+        view.footerNote = "";
+    }
+
     function test_a_category_change_that_moves_shared_files_asks_first() {
         const sintel = hashByName("Sintel 1080p (CC-BY)");
         const tears = hashByName("Tears of Steel 4K (CC-BY)");

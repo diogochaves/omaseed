@@ -3082,9 +3082,12 @@ Item {
                 root.flashFooterNote(qsTr("free the space failed: %1").arg(outcome.error));
                 return;
             }
-            const kept = outcome.kept > 0 ? " · " + qsTr("%n stay", "", outcome.kept) : "";
-            root.flashFooterNote(qsTr("freed %1 · %n skipped files deleted", "", outcome.deleted).arg(
-                                     outcome.freedText) + kept + (outcome.rechecked ? " · " + qsTr("rechecking") : ""));
+            const kept = outcome.kept === 1 ? " · " + qsTr("1 stays")
+                       : outcome.kept > 1 ? " · " + qsTr("%1 stay").arg(outcome.kept) : "";
+            const deleted = outcome.deleted === 1 ? qsTr("freed %1 · 1 skipped file deleted").arg(outcome.freedText)
+                                                  : qsTr("freed %1 · %2 skipped files deleted").arg(outcome.freedText).arg(
+                                                        outcome.deleted);
+            root.flashFooterNote(deleted + kept + (outcome.rechecked ? " · " + qsTr("rechecking") : ""));
         }
 
         function onTorrentAddedAgain(outcome: var): void {

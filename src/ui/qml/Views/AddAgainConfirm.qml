@@ -21,8 +21,9 @@ ConfirmDialog {
     confirmText: qsTr("add it again")
     destructive: true
     message: qsTr("Add %1 again?").arg(root.name)
-    subtitle: (root.files > 0 ? qsTr("It is removed from qBittorrent keeping its files, %n skipped files are deleted, and it comes back with the same files ticked, names, category, tags and limits.", "", root.files)
-                              : qsTr("It is removed from qBittorrent keeping its files, and comes back with the same files ticked, names, category, tags and limits."))
+    subtitle: (root.files === 1 ? qsTr("It is removed from qBittorrent keeping its files, 1 skipped file is deleted, and it comes back with the same files ticked, names, category, tags and limits.")
+               : root.files > 1 ? qsTr("It is removed from qBittorrent keeping its files, %1 skipped files are deleted, and it comes back with the same files ticked, names, category, tags and limits.").arg(root.files)
+                                : qsTr("It is removed from qBittorrent keeping its files, and comes back with the same files ticked, names, category, tags and limits."))
               + " " + qsTr("It loses its ratio, seeding time and added date.")
 
     function openFor(hash: string, name: string, files: int): void {

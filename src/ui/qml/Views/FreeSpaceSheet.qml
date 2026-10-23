@@ -112,9 +112,16 @@ Sheet {
             const steps = [];
             if (root.plan.running)
                 steps.push(qsTr("Stop the torrent so nothing writes while files go."));
-            steps.push(root.plan.recheck
-                       ? qsTr("Delete %n skipped files from the disk, some holding downloaded pieces. Only skipped files, only inside this torrent's folder, and none another torrent also uses.", "", root.deletes)
-                       : qsTr("Delete %n skipped files from the disk: those that hold no downloaded piece. Only skipped files, only inside this torrent's folder, and none another torrent also uses.", "", root.deletes));
+            const only = qsTr("Only skipped files, only inside this torrent's folder, and none another torrent also uses.");
+            if (root.deletes === 1)
+                steps.push((root.plan.recheck ? qsTr("Delete 1 skipped file from the disk, one holding downloaded pieces.")
+                                              : qsTr("Delete 1 skipped file from the disk: one that holds no downloaded piece."))
+                           + " " + only);
+            else
+                steps.push((root.plan.recheck
+                            ? qsTr("Delete %1 skipped files from the disk, some holding downloaded pieces.").arg(root.deletes)
+                            : qsTr("Delete %1 skipped files from the disk: those that hold no downloaded piece.").arg(root.deletes))
+                           + " " + only);
             if (root.plan.running)
                 steps.push(root.plan.recheck ? qsTr("Start it again, then recheck it, so it downloads those pieces again when you tick them.")
                                              : qsTr("Start it again. The wanted files carry on. No recheck."));
@@ -231,14 +238,18 @@ Sheet {
             dim: true
             objectName: "freeSpaceHybridNote"
             size: "small"
-            text: qsTr("%n files stay (%1) because this torrent is hybrid and pieces of them were downloaded: deleting them safely needs a recheck, and a recheck there hits a libtorrent bug.", "",
-                       root.plan.leftWithPieces || 0).arg(root.plan.leftText || "")
+            text: (root.plan.leftWithPieces || 0) === 1
+                  ? qsTr("1 file stays (%1) because this torrent is hybrid and pieces of it were downloaded: deleting it safely needs a recheck, and a recheck there hits a libtorrent bug.").arg(
+                        root.plan.leftText || "")
+                  : qsTr("%1 files stay (%2) because this torrent is hybrid and pieces of them were downloaded: deleting them safely needs a recheck, and a recheck there hits a libtorrent bug.").arg(
+                        root.plan.leftWithPieces || 0).arg(root.plan.leftText || "")
             wrapMode: Text.Wrap
         }
 
         Button {
             objectName: "freeSpaceAddAgain"
-            text: qsTr("Free them too by adding the torrent again…")
+            text: (root.plan.leftWithPieces || 0) === 1 ? qsTr("Free it too by adding the torrent again…")
+                                                         : qsTr("Free them too by adding the torrent again…")
 
             onClicked: {
                 root.close();
