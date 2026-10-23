@@ -5,7 +5,31 @@ All notable changes to omaseed are logged here, newest first. Loosely follows
 versioning stability (pre-1.0). `scripts/release.sh` requires a `## v<version>` section here
 before it will tag a release.
 
-## Unreleased
+## v0.4.0 — 2026-10-23
+
+### Added
+
+- **Skipped files that still take space.** A file you skip after it was written stays on disk:
+  qBittorrent never deletes it. The Files tab now has an "On disk" column, the footer says what
+  skipped files hold, and past 1 GiB or 5 % of the torrent a yellow band says so with "Why?".
+  **Free the space** (the band's button, `shift+f`, or "free the space…" in the `:` palette)
+  stops the torrent, deletes those files, starts it and rechecks, after a sheet that says
+  exactly what goes. On a hybrid or v2-only torrent a file that holds downloaded pieces stays
+  (a recheck there would leave the torrent short of 100 % for good); the sheet says why and
+  offers to add the torrent again instead, which keeps your other files and choices.
+- **A big tick waits 3 s, with Undo.** Ticking files that are skipped makes qBittorrent create
+  them at full size at once, even on a stopped torrent. A tick that adds more than 1 GiB, or
+  wants the whole torrent, now waits 3 s in a band with Undo (`u`) and Send now (`⏎`); a
+  misclick undone in time never reaches qBittorrent.
+- **Drives that can't hold part of a file.** On ntfs3, exFAT and FAT, a ticked file takes its
+  whole size the moment it is wanted. The add sheet and the Files tab say so, check the room
+  before a tick is sent (one that doesn't fit always waits), and name files of 4 GiB or more on
+  FAT32, with "Skip these".
+- **The add sheet names a torrent's extras.** NFO files, samples and adverts get a dim "extra"
+  on their row and a line under the tree; they stay ticked, so the torrent seeds whole.
+- **Search by words.** The library filter and the Files filter match words in any order and
+  ignore the dots, dashes and underscores between them: "big buck bunny" finds
+  Big.Buck.Bunny.
 
 ### Changed
 
@@ -31,8 +55,25 @@ before it will tag a release.
   seeding from there in no error state. omaseed now marks the row "move failed", in red, and
   General says where the files never arrived, why (from qBittorrent's log), where it is seeding
   from and what partial copies were left, with "show both folders" and "set location…".
+- **A stuck move offers a recheck.** When a finished torrent couldn't move because the
+  destination was full, its red block now offers `c recheck`: once there is room, the recheck
+  moves it, where moving it to the same folder again did nothing.
+- **"replace it" for an empty file in a move's way.** When a move's destination already holds
+  an empty file that no torrent owns, the Move sheet offers to replace it instead of leaving
+  that torrent out.
+- **Ready for other engines.** A `servers.json` written by a future omaseed that talks to
+  Transmission or Deluge is read and kept as it is; a server of another engine is listed and
+  never contacted.
+- **Screen readers** hear every field by its name, which rail row and which choices are
+  selected, a notice's line before its actions, and nothing of a sheet's background.
 
 ### Fixed
+
+- **A magnet clicked while omaseed is closed opens the add sheet.** From a browser or the file
+  manager the link was lost on the way in (the app started, with no sheet); it now opens the
+  sheet, or says at once that the torrent is already in your list.
+- **The library table's Status cells line up.** About one start in eight drew a row's glyph
+  and word 4 px to the left.
 
 - **"Skip hash check" works with qBittorrent 5.3.** 5.3 reads the option under a new name and
   silently ignored the old one, so a torrent added with it for files already on disk came in
