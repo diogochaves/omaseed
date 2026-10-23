@@ -164,6 +164,9 @@ void TestScopeSentence::placesSayTheirCountAndKind()
     QCOMPARE(ScopeSentence::category(games, QStringLiteral("/home/sbx/library/games")),
              QStringLiteral("49 torrents · 1.21 MB · saves to /home/sbx/library/games"));
     QCOMPARE(ScopeSentence::category(games, QString()), QStringLiteral("49 torrents · 1.21 MB"));
+    ScopeFacts sizeless;
+    sizeless.total = 3;
+    QCOMPARE(ScopeSentence::category(sizeless, QString()), QStringLiteral("3 torrents"));
     // #167 assumed 9.
     ScopeFacts one;
     one.total = 1;

@@ -159,7 +159,8 @@ QString ScopeSentence::question(int question, const ScopeFacts &facts)
 QString ScopeSentence::category(const ScopeFacts &facts, const QString &savePath)
 {
     QStringList parts{torrents(facts.total)};
-    if (facts.total > 0)
+    // Magnets still fetching their metadata have no size yet: nothing to say then.
+    if (facts.bytes > 0)
         parts << Format::size(facts.bytes);
     if (!savePath.isEmpty())
         parts << tr("saves to %1").arg(savePath);

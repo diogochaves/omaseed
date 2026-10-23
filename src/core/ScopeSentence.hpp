@@ -55,7 +55,8 @@ public:
     static QString library(const ScopeFacts &facts);
     /// One of the five questions (a TorrentFilterModel::Question); the library for any other.
     static QString question(int question, const ScopeFacts &facts);
-    /// A category: its count, its size and where it saves ("" leaves the place out).
+    /// A category: its count, its size (none known: left out) and where it saves ("" leaves
+    /// the place out).
     static QString category(const ScopeFacts &facts, const QString &savePath);
     /// #167 assumed 9: a tag's and a tracker's count and the kind of place.
     static QString tag(const ScopeFacts &facts);
