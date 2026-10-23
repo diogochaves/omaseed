@@ -847,6 +847,12 @@ Item {
                                               * Theme.space(16) - Theme.space(12) - Theme.space(8) - 1
                                               - Math.ceil(captionMetrics.height))
 
+    /// The pane's scroll bar, once it was needed on the pane on show: its room is kept until
+    /// another pane shows. A pane that is shorter at the narrower width the bar leaves would
+    /// otherwise put the bar up and take it down again for ever, freezing the window (a
+    /// qBittorrent section, when Appearance lost three rows and the modal got shorter).
+    property bool _paneBarKept: false
+
     /// The pane on show, in `navRows` order; every qBittorrent section is the one pane.
     readonly property Item _paneOnShow: root.inQbtBackup ? qbtBackupPane
                                                          : root.inQbt ? qbtPane
@@ -1153,6 +1159,8 @@ Item {
     }
     onPaneIndexChanged: {
         paneStack.contentY = 0;
+        // The new pane's own need, which its bindings may have settled before this ran.
+        root._paneBarKept = paneBar.needed;
         // A click on a tab sets the tabs' own index, which ends a binding; keep them in step.
         // From paneIndex itself: `inQbt` may not have caught up yet inside this handler.
         const qbt = root.paneIndex >= root.qbtStart;
@@ -1614,7 +1622,8 @@ Item {
                         clip: true
                         contentHeight: root.paneIndex === 3 ? height : Math.max(height,
                                                                                 root._paneOnShow.implicitHeight)
-                        contentWidth: width - (paneBar.needed ? paneBar.width + Theme.space(8) : 0)
+                        contentWidth: width - (paneBar.needed || root._paneBarKept ? paneBar.width + Theme.space(8)
+                                                                                   : 0)
                         objectName: "paneScroller"
 
                         // The wheel as in the nav. Not over Keybindings, whose list scrolls
@@ -1640,6 +1649,11 @@ Item {
                             objectName: "settingsScrollBar"
                             parent: paneStack
                             vertical: true
+
+                            onNeededChanged: {
+                                if (paneBar.needed)
+                                    root._paneBarKept = true;
+                            }
                         }
 
                         // ---- General ---------------------------------------------------

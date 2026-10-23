@@ -1630,10 +1630,17 @@ TestCase {
         compare(modal.paneCursor, 8);
         tryVerify(() => scroller.contentY > 0, 1000, "the last row was left below the fold");
 
+        // The bar's room is kept while the pane shows, so a pane shorter at the narrower width
+        // cannot put the bar up and down for ever (a frozen window, seen on a qBittorrent
+        // section at one size); another pane starts without it.
+        verify(modal._paneBarKept);
+        compare(scroller.contentWidth, scroller.width - bar.width - Theme.space(8));
+
         // Another pane starts at its top.
         keyClick(Qt.Key_Tab);
         keyClick(Qt.Key_1);
         compare(scroller.contentY, 0);
+        verify(!modal._paneBarKept || bar.needed);
 
         // The wheel moves the pane as it moves the library (Kit/WheelScroll; `mouseWheel`
         // does not deliver offscreen, so through the one function its wheel calls), but not
