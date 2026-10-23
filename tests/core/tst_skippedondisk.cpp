@@ -1,6 +1,7 @@
 #include "core/PieceStates.hpp"
 #include "core/SkippedJobs.hpp"
 #include "core/SkippedOnDisk.hpp"
+#include "core/Torrent.hpp"
 
 #include <QDir>
 #include <QFile>
@@ -14,9 +15,12 @@
 using omaseed::core::AddAgainJob;
 using omaseed::core::FreeItem;
 using omaseed::core::FreePlan;
+using omaseed::core::HashVersion;
+namespace PieceStates = omaseed::core::PieceStates;
 using omaseed::core::QbtClient;
 using omaseed::core::SkippedOnDisk;
 using omaseed::core::SkippedReading;
+using omaseed::core::Torrent;
 using omaseed::core::TorrentRecord;
 
 namespace {
@@ -77,6 +81,8 @@ private Q_SLOTS:
     void bandThreshold();
     void planDeletesFilesWithoutPieces();
     void planOnAHybridLeavesFilesWithPieces();
+    void planOnAV2OnlyTorrentLeavesFilesWithPieces();
+    void hashVersionsFromTheTwoHashes();
     void planGuardsOutsideSharedAndOpen();
     void openFileHoldersReadsProcFds();
     void readAllocatedReadsBlocksNotLength();
@@ -179,7 +185,8 @@ void TestSkippedOnDisk::planDeletesFilesWithoutPieces()
                                                        under(QStringLiteral("/m")),
                                                        disk.reader());
     // v1-only: Encore holds pieces, so it goes too, with a recheck after the start.
-    const FreePlan plan = SkippedOnDisk::plan(reading, false, QStringLiteral("/m/Archive"), {}, {});
+    const FreePlan plan =
+        SkippedOnDisk::plan(reading, HashVersion::V1, QStringLiteral("/m/Archive"), {}, {});
     QCOMPARE(plan.deletes, 3);
     QCOMPARE(plan.freed, 2 * kGiB + 750 * kMiB + 400 * kMiB);
     QVERIFY(plan.recheck);
@@ -193,7 +200,8 @@ void TestSkippedOnDisk::planDeletesFilesWithoutPieces()
                                                      12 * kGiB,
                                                      under(QStringLiteral("/m")),
                                                      disk.reader());
-    QVERIFY(!SkippedOnDisk::plan(clean, false, QStringLiteral("/m/Archive"), {}, {}).recheck);
+    QVERIFY(
+        !SkippedOnDisk::plan(clean, HashVersion::V1, QStringLiteral("/m/Archive"), {}, {}).recheck);
 }
 
 void TestSkippedOnDisk::planOnAHybridLeavesFilesWithPieces()
@@ -208,8 +216,9 @@ void TestSkippedOnDisk::planOnAHybridLeavesFilesWithPieces()
                                                        under(QStringLiteral("/m")),
                                                        disk.reader());
     // C17 D3: never a recheck on a hybrid; Encore stays, freed only by adding it again.
-    const FreePlan plan = SkippedOnDisk::plan(reading, true, QStringLiteral("/m/Archive"), {}, {});
-    QVERIFY(plan.hybrid);
+    const FreePlan plan =
+        SkippedOnDisk::plan(reading, HashVersion::Hybrid, QStringLiteral("/m/Archive"), {}, {});
+    QCOMPARE(plan.version, HashVersion::Hybrid);
     QVERIFY(!plan.recheck);
     QCOMPARE(plan.deletes, 1);
     QCOMPARE(plan.leftWithPieces, 1);
@@ -217,6 +226,89 @@ void TestSkippedOnDisk::planOnAHybridLeavesFilesWithPieces()
     QCOMPARE(plan.items.last().verdict, FreeItem::Verdict::Pieces);
     QCOMPARE(plan.piecesPaths(), QStringList{QStringLiteral("/m/Archive/Encore.mp4")});
     QCOMPARE(plan.deletePaths(), QStringList{QStringLiteral("/m/Archive/Concert part 1.mp4")});
+}
+
+void TestSkippedOnDisk::planOnAV2OnlyTorrentLeavesFilesWithPieces()
+{
+    FakeDisk disk;
+    disk.allocated.insert(QStringLiteral("/m/Archive/Concert part 1.mp4"), 2 * kGiB);
+    disk.allocated.insert(QStringLiteral("/m/Archive/Concert part 2.mp4"), 750 * kMiB);
+    disk.allocated.insert(QStringLiteral("/m/Archive/Encore.mp4"), 400 * kMiB);
+    // Interview holds downloaded pieces too, from pieceStates rather than its progress.
+    disk.allocated.insert(QStringLiteral("/m/Archive/Interview.mov"), 1 * kGiB);
+    QByteArray states(1552, char(PieceStates::Missing));
+    states[1500] = char(PieceStates::Have);
+    const SkippedReading reading = SkippedOnDisk::read(QStringLiteral("h"),
+                                                       archive(),
+                                                       states,
+                                                       12 * kGiB,
+                                                       under(QStringLiteral("/m")),
+                                                       disk.reader());
+    // DECISIONS C29 (#182): a v2-only torrent is a hybrid here. Its files with downloaded
+    // pieces stay, since a recheck after their delete leaves it short of 100 % for good; the
+    // files with none still go, as on v1, and no recheck follows.
+    const FreePlan plan =
+        SkippedOnDisk::plan(reading, HashVersion::V2, QStringLiteral("/m/Archive"), {}, {});
+    QCOMPARE(plan.version, HashVersion::V2);
+    QVERIFY(!plan.recheck);
+    QCOMPARE(plan.deletes, 2);
+    QCOMPARE(plan.freed, 2 * kGiB + 750 * kMiB);
+    QCOMPARE(plan.leftWithPieces, 2);
+    QCOMPARE(plan.leftWithPiecesBytes, 1 * kGiB + 400 * kMiB);
+    QCOMPARE(plan.items.size(), 4);
+    QCOMPARE(plan.items.at(2).verdict, FreeItem::Verdict::Pieces); // the biggest first
+    QCOMPARE(plan.items.at(2).file.index, 4);
+    QCOMPARE(plan.items.at(3).verdict, FreeItem::Verdict::Pieces);
+    QCOMPARE(plan.piecesPaths(),
+             (QStringList{QStringLiteral("/m/Archive/Interview.mov"),
+                          QStringLiteral("/m/Archive/Encore.mp4")}));
+    QCOMPARE(plan.deletePaths(),
+             (QStringList{QStringLiteral("/m/Archive/Concert part 1.mp4"),
+                          QStringLiteral("/m/Archive/Concert part 2.mp4")}));
+
+    // The same reading on a v1-only torrent: everything goes, with the recheck.
+    const FreePlan v1 =
+        SkippedOnDisk::plan(reading, HashVersion::V1, QStringLiteral("/m/Archive"), {}, {});
+    QCOMPARE(v1.deletes, 4);
+    QCOMPARE(v1.leftWithPieces, 0);
+    QVERIFY(v1.recheck);
+
+    // A v2-only torrent whose skipped files hold no downloaded piece frees them all, as on v1.
+    disk.allocated.remove(QStringLiteral("/m/Archive/Encore.mp4"));
+    disk.allocated.remove(QStringLiteral("/m/Archive/Interview.mov"));
+    const SkippedReading clean = SkippedOnDisk::read(QStringLiteral("h"),
+                                                     archive(),
+                                                     QByteArray(),
+                                                     12 * kGiB,
+                                                     under(QStringLiteral("/m")),
+                                                     disk.reader());
+    const FreePlan free =
+        SkippedOnDisk::plan(clean, HashVersion::V2, QStringLiteral("/m/Archive"), {}, {});
+    QCOMPARE(free.deletes, 2);
+    QCOMPARE(free.leftWithPieces, 0);
+    QVERIFY(!free.recheck);
+}
+
+void TestSkippedOnDisk::hashVersionsFromTheTwoHashes()
+{
+    // As qBittorrent's torrents/info gives them: a v2-only torrent has an empty infohash_v1.
+    const QString v1 = QStringLiteral("a8a7e1b4fa3000000000000000000000000000aa");
+    const QString v2 =
+        QStringLiteral("bb94b8b57e00000000000000000000000000000000000000000000000000bb94");
+    Torrent torrent;
+    torrent.infohashV1 = v1;
+    QVERIFY(!torrent.isHybrid());
+    QVERIFY(!torrent.isV2Only());
+    torrent.infohashV2 = v2;
+    QVERIFY(torrent.isHybrid());
+    QVERIFY(!torrent.isV2Only());
+    torrent.infohashV1.clear();
+    QVERIFY(!torrent.isHybrid());
+    QVERIFY(torrent.isV2Only());
+    // A server too old to give either: v1, as before.
+    torrent.infohashV2.clear();
+    QVERIFY(!torrent.isHybrid());
+    QVERIFY(!torrent.isV2Only());
 }
 
 void TestSkippedOnDisk::planGuardsOutsideSharedAndOpen()
@@ -235,7 +327,7 @@ void TestSkippedOnDisk::planGuardsOutsideSharedAndOpen()
         {QStringLiteral("/m/Archive/Interview.mov"), QStringLiteral("mpv")}};
     // Another torrent's content path is part 2 itself (a single-file cross-seed).
     const FreePlan plan = SkippedOnDisk::plan(reading,
-                                              false,
+                                              HashVersion::V1,
                                               QStringLiteral("/m/Archive"),
                                               {QStringLiteral("/m/Archive/Concert part 2.mp4")},
                                               open);
@@ -250,11 +342,11 @@ void TestSkippedOnDisk::planGuardsOutsideSharedAndOpen()
 
     // Nothing outside the content path is ever deleted (a file the path map puts elsewhere).
     const FreePlan outside =
-        SkippedOnDisk::plan(reading, false, QStringLiteral("/m/Other"), {}, {});
+        SkippedOnDisk::plan(reading, HashVersion::V1, QStringLiteral("/m/Other"), {}, {});
     QCOMPARE(outside.deletes, 0);
     QCOMPARE(outside.items.first().verdict, FreeItem::Verdict::Outside);
     // No local content path: nothing goes.
-    QCOMPARE(SkippedOnDisk::plan(reading, false, QString(), {}, {}).deletes, 0);
+    QCOMPARE(SkippedOnDisk::plan(reading, HashVersion::V1, QString(), {}, {}).deletes, 0);
 }
 
 void TestSkippedOnDisk::openFileHoldersReadsProcFds()

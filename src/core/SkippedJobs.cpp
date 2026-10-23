@@ -115,7 +115,7 @@ void FreeSkippedJob::readAndDelete()
                 }
                 m_plan =
                     SkippedOnDisk::plan(reading,
-                                        m_input.hybrid,
+                                        m_input.version,
                                         m_input.contentLocal,
                                         m_input.sharedRoots,
                                         SkippedOnDisk::openFileHolders(paths, m_input.procRoot));
@@ -155,7 +155,7 @@ void FreeSkippedJob::readAndDelete()
                         m_outcome.failed.append(item.file.localPath);
                     }
                 }
-                m_plan.recheck = piecesWent && !m_input.hybrid;
+                m_plan.recheck = piecesWent && m_input.version == HashVersion::V1;
                 log(QStringLiteral("deleted %1 skipped files of %2 (%3), %4 stay")
                         .arg(m_outcome.deleted)
                         .arg(m_input.name, Format::size(m_outcome.freed))
@@ -189,7 +189,8 @@ void FreeSkippedJob::recheck()
         finish();
         return;
     }
-    // C17 D3: only a v1-only or v2-only torrent gets here; a hybrid never does (#115).
+    // C17 D3: only a v1-only torrent gets here; a hybrid never does (#115), nor a v2-only
+    // torrent (C29, #182).
     Q_EMIT step(QStringLiteral("rechecking"));
     m_client->torrentsRecheck({m_input.hash})->then(this, [this](const QbtResult<QByteArray> &r) {
         if (r.isError()) {

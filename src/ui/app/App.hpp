@@ -2034,8 +2034,9 @@ private:
     // --- #118: skipped files that still take space --------------------------------------------
     // Board 44 §2 (DECISIONS C17 D1–D4). The Files tab reads what the details torrent's skipped
     // files hold on this machine's disk when it opens and after a priority change, never on a
-    // poll; "Free the space…" plans and runs the deletes, and a hybrid's leftovers (or a hybrid
-    // in libtorrent's torrent_inconsistent_hashes) are freed by adding it again. AppSkipped.cpp.
+    // poll; "Free the space…" plans and runs the deletes, and a hybrid's or a v2-only torrent's
+    // leftovers (C29), or a hybrid in libtorrent's torrent_inconsistent_hashes, are freed by
+    // adding it again. AppSkipped.cpp.
 public:
     /// The details torrent's reading: `{hash, seen, held, heldText, holding, band, where,
     /// fileSystem, partlyWritten, busy, step}`. `seen` false is D4 (a server whose disks this
@@ -2048,19 +2049,20 @@ public:
     /// Reads the details torrent's skipped files again (after a free, or on demand).
     Q_INVOKABLE void refreshSkippedOnDisk();
     /// F2's sheet: reads the files, pieces and open files now and answers with
-    /// `freeSkippedPlanned(plan)`: `{hash, name, folder, hybrid, running, freed, freedText,
-    /// deletes, recheck, leftWithPieces, leftText, kept, items: [{name, holdsText, verdict,
-    /// openBy}], more, error}`. `verdict` is "delete", "open", "pieces", "shared" or "outside".
+    /// `freeSkippedPlanned(plan)`: `{hash, name, folder, hybrid, version ("v1", "v2" or
+    /// "hybrid", C29), running, freed, freedText, deletes, recheck, leftWithPieces, leftText,
+    /// kept, items: [{name, holdsText, verdict, openBy}], more, error}`. `verdict` is "delete",
+    /// "open", "pieces", "shared" or "outside".
     Q_INVOKABLE void planFreeSkipped(const QString &hash);
-    /// D3: stop, delete, start (and a recheck on a v1-only or v2-only torrent whose files with
-    /// pieces went). Answers with `skippedSpaceFreed({hash, ok, error, deleted, freedText,
-    /// kept, rechecked})`.
+    /// D3: stop, delete, start (and a recheck on a v1-only torrent whose files with pieces
+    /// went; C29: on a v2-only torrent, as on a hybrid, those files stay). Answers with
+    /// `skippedSpaceFreed({hash, ok, error, deleted, freedText, kept, rechecked})`.
     Q_INVOKABLE void freeSkippedSpace(const QString &hash);
     /// D3's "add it again": remove `hash` keeping its files, add it back stopped with the same
     /// selection, names, category, tags and limits, start it if it was started. With
-    /// `freeLeftovers`, the files the last plan would delete and the hybrid's leftovers with
-    /// pieces go while it is away. Answers with `torrentAddedAgain({hash, ok, error, name,
-    /// deleted})`.
+    /// `freeLeftovers`, the files the last plan would delete and the leftovers with pieces (a
+    /// hybrid's or a v2-only torrent's, C29) go while it is away. Answers with
+    /// `torrentAddedAgain({hash, ok, error, name, deleted})`.
     Q_INVOKABLE void addTorrentAgain(const QString &hash, bool freeLeftovers);
 
 Q_SIGNALS:

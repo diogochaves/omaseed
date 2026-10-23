@@ -3,10 +3,11 @@ import QtQuick
 import Omaseed
 import Omaseed.Kit
 
-// "Add it again" (board 44 §2, DECISIONS C17 D3, #118): what frees a hybrid's skipped files
-// that hold downloaded pieces, and the one way out of libtorrent's torrent_inconsistent_hashes
-// on a hybrid (board 28's error block). The torrent is removed keeping its files and added back
-// with the same selection, names, category, tags and limits; its cost is named before it runs.
+// "Add it again" (board 44 §2, DECISIONS C17 D3, #118): what frees a hybrid's or a v2-only
+// torrent's (C29) skipped files that hold downloaded pieces, and the one way out of
+// libtorrent's torrent_inconsistent_hashes on a hybrid (board 28's error block). The torrent is
+// removed keeping its files and added back with the same selection, names, category, tags and
+// limits; its cost is named before it runs.
 //
 // Hand-formatted to qmlformat's own style (the kit's overlays, KIT-19).
 ConfirmDialog {

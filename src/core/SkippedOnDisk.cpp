@@ -143,13 +143,13 @@ SkippedReading SkippedOnDisk::read(const QString &hash,
 }
 
 FreePlan SkippedOnDisk::plan(const SkippedReading &reading,
-                             bool hybrid,
+                             HashVersion version,
                              const QString &contentLocal,
                              const QStringList &sharedRoots,
                              const QHash<QString, QString> &openBy)
 {
     FreePlan plan;
-    plan.hybrid = hybrid;
+    plan.version = version;
     for (const SkippedFile &file : reading.files) {
         if (!file.holdsSpace() || file.localPath.isEmpty())
             continue;
@@ -168,8 +168,9 @@ FreePlan SkippedOnDisk::plan(const SkippedReading &reading,
         } else if (openBy.contains(file.localPath)) {
             item.verdict = FreeItem::Verdict::Open;
             item.openBy = openBy.value(file.localPath);
-        } else if (file.holdsPieces && hybrid) {
-            // C17 D3: never a recheck on a hybrid (#115).
+        } else if (file.holdsPieces && version != HashVersion::V1) {
+            // C17 D3: never a recheck on a hybrid (#115). C29: nor on a v2-only torrent, which
+            // libtorrent then counts short of 100 % for good (#182).
             item.verdict = FreeItem::Verdict::Pieces;
             ++plan.leftWithPieces;
             plan.leftWithPiecesBytes += file.allocated;

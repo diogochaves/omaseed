@@ -7,10 +7,12 @@ import Omaseed.Kit
 // "Free the space…" (board 44 §2 F2, DECISIONS C17 D3, #118): a sheet that says each step
 // before it runs. Stop the torrent (when it runs), delete the skipped files that hold space and
 // no downloaded piece (only inside its folder, none another torrent uses, none a program has
-// open), start it again; no recheck, but on a v1-only or v2-only torrent whose files with
-// downloaded pieces go too, which is named before it runs. On a hybrid those files stay, the
-// sheet says why (a recheck there hits libtorrent's bug, #115), and "add it again" frees them,
-// its cost named first (AddAgainConfirm).
+// open), start it again; no recheck, but on a v1-only torrent whose files with downloaded
+// pieces go too, which is named before it runs. On a hybrid those files stay, the sheet says
+// why (a recheck there hits libtorrent's bug, #115), and "add it again" frees them, its cost
+// named first (AddAgainConfirm). A v2-only torrent is treated like a hybrid, in words of its
+// own: a recheck there leaves it short of 100 % for good, and adding it again doesn't
+// (DECISIONS C29, #182).
 //
 // The plan is App.planFreeSkipped()'s, read when the sheet opens; App.freeSkippedSpace() reads
 // the files again at delete time, so a file wanted or opened since stays.
@@ -25,7 +27,7 @@ Sheet {
     readonly property var items: root.plan.items || []
     readonly property bool anyOpen: root.items.some(item => item.verdict === "open")
 
-    /// The hybrid's "add it again", with what it costs.
+    /// A hybrid's or a v2-only torrent's "add it again" (C29), with what it costs.
     signal addAgainRequested(string hash, string name, int files)
     /// "Show in folder": the torrent's folder.
     signal showFolderRequested(string hash)
@@ -225,7 +227,8 @@ Sheet {
         wrapMode: Text.Wrap
     }
 
-    // C17 D3: a hybrid's files with downloaded pieces stay; adding it again frees them.
+    // C17 D3: a hybrid's files with downloaded pieces stay; adding it again frees them. C29: a
+    // v2-only torrent's too, said in its own words.
     ColumnLayout {
         Layout.fillWidth: true
         spacing: Theme.space(4)
@@ -236,13 +239,19 @@ Sheet {
             Accessible.role: Accessible.StaticText
             Layout.fillWidth: true
             dim: true
-            objectName: "freeSpaceHybridNote"
+            objectName: "freeSpaceStaysNote"
             size: "small"
-            text: (root.plan.leftWithPieces || 0) === 1
-                  ? qsTr("1 file stays (%1) because this torrent is hybrid and pieces of it were downloaded: deleting it safely needs a recheck, and a recheck there hits a libtorrent bug.").arg(
-                        root.plan.leftText || "")
-                  : qsTr("%1 files stay (%2) because this torrent is hybrid and pieces of them were downloaded: deleting them safely needs a recheck, and a recheck there hits a libtorrent bug.").arg(
-                        root.plan.leftWithPieces || 0).arg(root.plan.leftText || "")
+            text: {
+                const left = root.plan.leftWithPieces || 0;
+                const bytes = root.plan.leftText || "";
+                if (root.plan.version === "v2")
+                    return left === 1
+                           ? qsTr("1 file stays (%1) because this torrent is v2 and pieces of it were downloaded: deleting it leaves the torrent short of 100 % for good, a libtorrent bug.").arg(bytes)
+                           : qsTr("%1 files stay (%2) because this torrent is v2 and pieces of them were downloaded: deleting them leaves the torrent short of 100 % for good, a libtorrent bug.").arg(left).arg(bytes);
+                return left === 1
+                       ? qsTr("1 file stays (%1) because this torrent is hybrid and pieces of it were downloaded: deleting it safely needs a recheck, and a recheck there hits a libtorrent bug.").arg(bytes)
+                       : qsTr("%1 files stay (%2) because this torrent is hybrid and pieces of them were downloaded: deleting them safely needs a recheck, and a recheck there hits a libtorrent bug.").arg(left).arg(bytes);
+            }
             wrapMode: Text.Wrap
         }
 

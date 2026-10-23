@@ -8,8 +8,9 @@
 // qBittorrent never deletes a skipped file and its API can't see one, so this reads each
 // skipped file on this machine: its allocated size (st_blocks, not its length, so a sparse
 // file on ext4, btrfs or the newer ntfs reads as the little it costs), and whether it holds a
-// downloaded piece (D3: such a file needs a recheck once it is gone, and on a hybrid that
-// recheck hits libtorrent 2.1.2's torrent_inconsistent_hashes, #115).
+// downloaded piece (D3: such a file needs a recheck once it is gone; on a hybrid that recheck
+// hits libtorrent 2.1.2's torrent_inconsistent_hashes, #115, and on a v2-only torrent it leaves
+// the torrent short of 100 % for good, C29, #182).
 //
 // `read` is the pure half: a `torrents/files` array, the torrent's `torrents/pieceStates`, and
 // where each file is on this machine ("" when it can't see the disk, D4). `refresh` runs it on
@@ -19,8 +20,8 @@
 // `plan` is what "Free the space…" would do (D3): delete every skipped file that holds space
 // and no downloaded piece, only inside the content path, not shared with another torrent
 // (board 26's guard), not held open by a program (/proc/*/fd); a file with downloaded pieces
-// is deleted too on a v1-only or v2-only torrent, with a recheck after the start, and left on
-// a hybrid.
+// is deleted too on a v1-only torrent, with a recheck after the start, and left on a hybrid or
+// a v2-only torrent (C17 D3, C29), where adding it again frees it.
 
 #include <QByteArray>
 #include <QHash>
@@ -34,6 +35,15 @@
 #include <functional>
 
 namespace omaseed::core {
+
+/// Which hashes a torrent has (BEP 52), as qBittorrent's infohash_v1 and infohash_v2 say. It
+/// decides what "Free the space…" does with a skipped file that holds downloaded pieces:
+/// deleted with a recheck on V1, left on Hybrid (C17 D3, #115) and V2 (C29, #182).
+enum class HashVersion {
+    V1,     ///< v1-only, or a server too old to say
+    V2,     ///< v2-only: a recheck after the delete counts it short of 100 % for good
+    Hybrid, ///< v1 and v2: a recheck after the delete hits torrent_inconsistent_hashes
+};
 
 /// One skipped file of a torrent, as this machine reads it.
 struct SkippedFile
@@ -76,7 +86,7 @@ struct FreeItem
     enum class Verdict {
         Delete,  ///< deleted
         Open,    ///< a program has it open: on Linux the space would only come back later
-        Pieces,  ///< holds downloaded pieces on a hybrid: a recheck there hits #115
+        Pieces,  ///< holds downloaded pieces on a hybrid (#115) or a v2-only torrent (C29)
         Shared,  ///< another torrent uses it (board 26's guard)
         Outside, ///< not inside this torrent's content path
     };
@@ -90,10 +100,11 @@ struct FreePlan
     QList<FreeItem> items; ///< every skipped file that holds space, deletes first
     qint64 freed = 0;      ///< what the deletes give back
     int deletes = 0;
-    /// A file with downloaded pieces goes (v1-only or v2-only): recheck after the start.
+    /// A file with downloaded pieces goes (v1-only only): recheck after the start.
     bool recheck = false;
-    bool hybrid = false;
-    int leftWithPieces = 0; ///< a hybrid's: freed only by adding it again
+    HashVersion version = HashVersion::V1;
+    /// A hybrid's or a v2-only torrent's files with pieces: freed only by adding it again.
+    int leftWithPieces = 0;
     qint64 leftWithPiecesBytes = 0;
 
     QStringList deletePaths() const;
@@ -126,7 +137,7 @@ public:
     /// the local content paths of every other torrent of the library; `openBy` what
     /// openFileHolders() found for the files.
     static FreePlan plan(const SkippedReading &reading,
-                         bool hybrid,
+                         HashVersion version,
                          const QString &contentLocal,
                          const QStringList &sharedRoots,
                          const QHash<QString, QString> &openBy);

@@ -1,6 +1,7 @@
 // App's #118 block (board 44 §2, DECISIONS C17 D1–D4): what the details torrent's skipped
-// files hold on this machine's disk, "Free the space…", and adding a hybrid again. Kept out of
-// App.cpp so it reads as one piece; the declarations sit at the end of App.hpp.
+// files hold on this machine's disk, "Free the space…", and adding a hybrid or a v2-only
+// torrent again (C29). Kept out of App.cpp so it reads as one piece; the declarations sit at
+// the end of App.hpp.
 #include "ui/app/App.hpp"
 
 #include "core/Format.hpp"
@@ -35,6 +36,20 @@ bool isRunning(TorrentState state)
     default:
         return true;
     }
+}
+
+/// The plan's `version` for the sheet (C29): "v1", "v2" or "hybrid".
+QString versionName(HashVersion version)
+{
+    switch (version) {
+    case HashVersion::V2:
+        return QStringLiteral("v2");
+    case HashVersion::Hybrid:
+        return QStringLiteral("hybrid");
+    case HashVersion::V1:
+        break;
+    }
+    return QStringLiteral("v1");
 }
 
 QString verdictName(FreeItem::Verdict verdict)
@@ -184,7 +199,10 @@ FreeSkippedJob::Input App::freeInputFor(const Torrent &torrent) const
     input.hash = torrent.hash;
     input.name = torrent.name;
     input.running = isRunning(torrent.state);
-    input.hybrid = torrent.isHybrid();
+    // C17 D3 and C29: what a skipped file with downloaded pieces may come to.
+    input.version = torrent.isHybrid()   ? HashVersion::Hybrid
+                    : torrent.isV2Only() ? HashVersion::V2
+                                         : HashVersion::V1;
     input.torrentSize = torrent.totalSize > 0 ? torrent.totalSize : torrent.size;
     input.localPathOf = localPathOfFiles(torrent);
     input.contentLocal = m_freeSpace.localPathFor(torrent.contentPath);
@@ -235,7 +253,7 @@ void App::planFreeSkipped(const QString &hash)
                     }
                     const FreePlan plan =
                         SkippedOnDisk::plan(reading,
-                                            input.hybrid,
+                                            input.version,
                                             input.contentLocal,
                                             input.sharedRoots,
                                             SkippedOnDisk::openFileHolders(paths, input.procRoot));
@@ -255,7 +273,8 @@ void App::planFreeSkipped(const QString &hash)
                     answer({{QStringLiteral("name"), input.name},
                             {QStringLiteral("folder"), torrent.contentPath},
                             {QStringLiteral("seen"), reading.seen},
-                            {QStringLiteral("hybrid"), input.hybrid},
+                            {QStringLiteral("hybrid"), input.version == HashVersion::Hybrid},
+                            {QStringLiteral("version"), versionName(input.version)},
                             {QStringLiteral("running"), input.running},
                             {QStringLiteral("freed"), plan.freed},
                             {QStringLiteral("freedText"), Format::size(plan.freed)},

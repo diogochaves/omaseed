@@ -49,7 +49,8 @@ Three static libraries and the executable. Each layer only depends on the ones a
   disk), `RenamePlan` and `RenameDisk` (what a rename would land on).
 - Skipped files and the disk ([DECISIONS.md](DECISIONS.md) C17): `SkippedOnDisk` (what a
   torrent's skipped files hold on this machine's disk, and the plan to free it),
-  `FreeSkippedJob` and `AddAgainJob` (`SkippedJobs`: the free, and a hybrid added again), and
+  `FreeSkippedJob` and `AddAgainJob` (`SkippedJobs`: the free, and a hybrid or a v2-only
+  torrent added again, C29), and
   `SelectionHold` (a big widening of a selection waits 3 s before it is sent).
 - Moving a folder or a selection ([DECISIONS.md](DECISIONS.md) C15, C16: every move is a job):
   `FolderTree` (the library's save paths as the rail's folders), `MovePlan` (the preflight:
