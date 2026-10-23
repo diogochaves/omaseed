@@ -16,7 +16,12 @@ bytes and reads 100 %, whether the priorities come with the add or right after i
 `AddAgainJob` sends them. So DECISIONS C29: a v2-only torrent is a hybrid in the free plan, and
 "add it again" is offered.
 
-## The script
+## The scripts
+
+| Script | What it does |
+|---|---|
+| `lt_free.py` | Offline, libtorrent's Python bindings: a torrent downloaded whole, one file skipped, then each mode below, for v1, v2 and hybrid. |
+| `qbt-made.sh` | Through a real qBittorrent, in a box (`scripts/dev/app-box.sh up --qbt -b BOX`): a v2-only torrent that qBittorrent makes and seeds, as the actions walk's `b44-v2`, one file skipped; the free as it was before C29 on one copy, "add it again" on another. |
 
 `lt_free.py` (needs `python-libtorrent` 2.x): two libtorrent sessions on loopback, offline, a
 three-file torrent downloaded whole, one file skipped, then:
@@ -52,3 +57,16 @@ hybrid readd-after    skip=Fixture/b.nfo   added again  state=finished    pieces
 
 `3538944` is 108 pieces of 32 KiB: the wanted pieces at full size. A recheck after the re-add
 reads the same 100 %.
+
+`qbt-made.sh` on the box's qBittorrent 5.3.0 (2026-10-23): a torrent that was never downloaded,
+only made, is hit the same way.
+
+```
+made, c.bin skipped:
+  r182-recheck     state=stalledUP  progress=1.0000 v1=False v2=True
+  r182-readd       state=stalledUP  progress=1.0000 v1=False v2=True
+stop, delete c.bin, start, recheck (free the space before C29):
+  r182-recheck     state=stalledUP  progress=0.9936 v1=False v2=True
+add it again: export, remove keeping files, delete c.bin, add stopped, skip c.bin, start:
+  r182-readd       state=stalledUP  progress=1.0000 v1=False v2=True
+```
