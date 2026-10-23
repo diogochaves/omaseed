@@ -106,6 +106,15 @@ bool isStopped(const QJsonObject &info)
            state.startsWith(QStringLiteral("paused"), Qt::CaseInsensitive);
 }
 
+/// Whether `torrents/info` says this one was started. Not merely "not stopped": a torrent
+/// added stopped is "checkingResumeData" first, which is neither, and a check that took that
+/// for started read the file priorities while the app was still sending them (#151).
+bool isStarted(const QJsonObject &info)
+{
+    const QString state = info.value(QStringLiteral("state")).toString();
+    return !state.isEmpty() && !isStopped(info) && state != QLatin1String("checkingResumeData");
+}
+
 /// Every OMASEED_* key App reads, cleared so a developer's own shell cannot change a test.
 void clearServerEnvironment()
 {
@@ -643,11 +652,13 @@ void TestAppAdd::addsWithFileChoicesRenameAndLimits()
     QCOMPARE(info.value(QStringLiteral("name")).toString(), QString::fromLatin1(kTreeRename));
     QCOMPARE(info.value(QStringLiteral("dl_limit")).toInt(), 300 * 1024);
     QVERIFY(info.value(QStringLiteral("f_l_piece_prio")).toBool());
-    // Added stopped for the priorities, then started, because `stopped` was false.
+    // Added stopped for the priorities, then started, because `stopped` was false. The app
+    // starts it only once every torrents/filePrio has been answered, so a started torrent is
+    // the server's word that the choices are in: the list below is read once, exactly (#151).
     QVERIFY2(waitFor(
                  [&]() {
                      info = infoFor(probe, QString::fromLatin1(kTreeHash));
-                     return !info.isEmpty() && !isStopped(info);
+                     return isStarted(info);
                  },
                  15000),
              qPrintable(info.value(QStringLiteral("state")).toString()));
