@@ -125,7 +125,7 @@ launch
 # ---- the walk -----------------------------------------------------------------------------
 wait_state "Open Movie" "^downloading 0\.0[2-9]|^downloading 0\.[1-9]" 90
 [ "$INTERACTIVE" = 1 ] || show "Open Movie" 1
-step "Downloading" "Open Movie Night: status downloading, a moving speed and ETA, the pieces bar partly filled, the hero's download speed near 1 MiB/s. Two downloads run; the rest are queued."
+step "Downloading" "Open Movie Night: status downloading, a moving speed and ETA, the pieces bar partly filled, the status line's ↓ near 1 MiB/s. Two downloads run; the rest are queued."
 [ "$INTERACTIVE" = 1 ] || show "Open Movie" 2
 step "Files tree" "Open Movie Night's Files tab: the film, extras/, subs/ (english, português (Brasil), 日本語) and sample/, with per-file progress."
 [ "$INTERACTIVE" = 1 ] || show "photo-archive" 2

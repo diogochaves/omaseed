@@ -240,7 +240,7 @@ for _ in $(seq 1 40); do
     sleep 0.25
 done
 sleep 3 # a sync or two from the new place
-step "Web UI port moved" "The port field reads $NEW_WEBUI_PORT; the hero still shows the box server connected (no lost-server banner); omaseed followed by itself."
+step "Web UI port moved" "The port field reads $NEW_WEBUI_PORT; the status line still names the box server, with no state words after it (no lost-server banner); omaseed followed by itself."
 check "qBittorrent's Web UI on the new port" "$(pref web_ui_port "$NEW_WEBUI_PORT")" "$NEW_WEBUI_PORT"
 check "saved server moved" "$(saved_url)" "http://127.0.0.1:$NEW_WEBUI_PORT"
 QBT_PORT=$NEW_WEBUI_PORT

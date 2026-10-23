@@ -63,10 +63,11 @@ omabox run -d --wait -- "$BUILD/omaseed"
 omabox wait --timeout 20s window "$APP"
 
 # Window coordinates of what follows the real clock or the disk: the selected torrent's
-# "added today HH:MM", its "Created on" value, the footer's free space.
-ADDED="1500,86 396x22"
-CREATED="1600,712 296x26"
-FREE="244,1004 230x24"
+# "added today HH:MM", its "Created on" value, the status line's free space (and "synced now"
+# after it, which moves with its width).
+ADDED="1500,78 396x22"
+CREATED="1600,704 296x26"
+FREE="750,1006 190x24"
 # A sheet over the dimmed window: its own region only (settings and help; the add sheet is smaller).
 SHEET="568,78 760x875"
 ADD_SHEET="648,275 600x481"
