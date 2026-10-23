@@ -23,6 +23,8 @@ Column {
     property string accessibleName: root.label
     /// Said before "folded"/"unfolded" in the heading's description; "" says nothing more.
     property string accessibleDetail: ""
+    /// The folded rail's groups go without their heading (board 46's narrow `rail()`).
+    property bool headed: true
 
     readonly property alias header: header
 
@@ -47,6 +49,7 @@ Column {
         color: root.hasCursor || headerMouse.containsMouse ? Theme.fill(Theme.fillHover) :
                                                              "transparent"
         implicitHeight: headerText.implicitHeight + Theme.space(4)
+        visible: root.headed
         width: parent.width
 
         Label {

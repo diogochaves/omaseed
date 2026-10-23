@@ -99,7 +99,7 @@ TestCase {
         model.focusArea = "rail";
         compare(model.area, "rail");
         compare(testCase.line(model.hints),
-                "j k move · enter select · 0–8 status · z fold · l table");
+                "j k move · enter select · 1–5 question · z fold · l table");
         compare(model.pinned.key, "?");
     }
 

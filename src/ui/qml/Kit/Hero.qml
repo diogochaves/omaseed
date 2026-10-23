@@ -3,7 +3,8 @@ import QtQuick
 import QtQuick.Layouts
 import Omaseed.Kit
 
-// The hero row (spec v2 §1 Fig. 1 `.hero`): the mark, app name with a
+// The hero row (spec v2 §1 Fig. 1 `.hero`; the mark and the view tabs moved to the rail,
+// DECISIONS C24 H2): app name with a
 // tracked server caption and status dot beneath, two headline speed `Stat`s, a search `Field`
 // with a `/` hint and live count, four glyph `IconButton`s, and a hairline rule underneath.
 // Only `Theme` tokens; the caller owns state and reacts to the signals.
@@ -12,8 +13,8 @@ import Omaseed.Kit
 // takes steps (`level`): the server line drops its version and the alt-speed chip goes short
 // (1), the speed captions go and the gear and `?` move into ⋯ (2, `compact`), the filter
 // folds into a `/` button that opens over the speeds and the chip keeps only its glyph (3),
-// and the name and server line give way to the dot (4). The mark, the dot, both speeds, `+`
-// and ⋯ never leave, and if something still does not fit the server line elides first.
+// and the name and server line give way to the dot (4). The dot, both speeds, `+` and ⋯
+// never leave, and if something still does not fit the server line elides first.
 // On step 4 the speeds print short (`↓4.21M ↑812K`) and the filter chips leave the row: the
 // `/` button carries them, lit with their count, and `filtersClicked` asks the caller for the
 // menu that lists them (docs/15 Q1 A).
@@ -174,12 +175,12 @@ Item {
                                                : step >= 1 ? measureAltShort.implicitWidth
                                                            : measureAltFull.implicitWidth;
         const searchWidth = step >= 3 ? addButton.implicitWidth : Theme.space([220, 180, 140][step]);
-        // mark, identity (or the dot), two spacers, two speeds, search, alt-speed, buttons:
-        // nine items and eight spacings; the chips bring their own (`_chipsWidth`).
-        return Theme.space(24) + identityWidth + Theme.space(6) + measureDown.implicitWidth
+        // identity (or the dot), two spacers, two speeds, search, alt-speed, buttons: eight
+        // items and seven spacings; the chips bring their own (`_chipsWidth`).
+        return identityWidth + Theme.space(6) + measureDown.implicitWidth
                 + measureUp.implicitWidth + searchWidth + altWidth
                 + buttons * addButton.implicitWidth + (buttons - 1) * Theme.space(2)
-                + 8 * heroRow.spacing;
+                + 7 * heroRow.spacing;
     }
     /// The filter chips fold to their glyph and ✕ from step 3, as the alt-speed chip does.
     readonly property bool chipsFolded: root.level >= 3
@@ -255,14 +256,12 @@ Item {
     property var downSpark: []
     /// #24 T2: what the ↑ caption adds after "upload", e.g. "18.4 GB today".
     property string upNote: ""
-    /// #24: the window's two faces, `[{key, label, hint}]`, drawn as tabs after the speeds
-    /// (docs/22 D1 a); empty draws none.
-    property var views: []
-    property string currentView: ""
+    /// #24: the ↑ number is a button to the seed console (the rail's views hold the faces,
+    /// DECISIONS C24 H2); false leaves it the "upload" figure.
+    property bool upOpensSeed: false
 
     signal addClicked
-    /// #24: a view tab, or the ↑ number (which opens the seed console).
-    signal viewSelected(string key)
+    /// #24: the ↑ number, which opens the seed console.
     signal upClicked
     signal altSpeedClicked
     signal helpClicked
@@ -295,22 +294,6 @@ Item {
         anchors.top: parent.top
         anchors.topMargin: Theme.space(12)
         spacing: Theme.space(14)
-
-        Glyph {
-            id: mark
-
-            Layout.alignment: Qt.AlignVCenter
-            Layout.preferredHeight: Theme.space(24)
-            Layout.preferredWidth: Theme.space(24)
-            color: (root.connected || root.syncing || !root.serverConfigured) ? Theme.accent
-                                                                              : Theme.red
-            pixelSize: Theme.space(24)
-            text: Glyphs.mark
-
-            HoverHandler {
-                id: markHover
-            }
-        }
 
         // Step 4: the name and server line are gone; the dot stays beside the mark, in the
         // same colour, and the words move into the tooltip.
@@ -565,14 +548,14 @@ Item {
         Item {
             id: upBox
 
-            // #77: with the views, the ↑ number is a button to the seed console (the "seed"
-            // tab does the same), its speed the description; without them it is no control.
-            // #79: without them it is the "upload" figure, as ↓ is "download"; the day's total
+            // #77: with `upOpensSeed`, the ↑ number is a button to the seed console (the
+            // rail's "seed" does the same), its speed the description; otherwise no control.
+            // #79: then it is the "upload" figure, as ↓ is "download"; the day's total
             // follows the speed either way.
             Accessible.description: [upStat.value, root.upNote].filter(part => part.length > 0).join(" · ")
-            Accessible.name: root.views.length > 0 ? qsTr("seed console") : qsTr("upload")
-            Accessible.role: root.views.length > 0 ? Accessible.Button : Accessible.StaticText
-            Accessible.onPressAction: if (upBox.enabled && root.views.length > 0)
+            Accessible.name: root.upOpensSeed ? qsTr("seed console") : qsTr("upload")
+            Accessible.role: root.upOpensSeed ? Accessible.Button : Accessible.StaticText
+            Accessible.onPressAction: if (upBox.enabled && root.upOpensSeed)
                                           root.upClicked()
             Layout.alignment: Qt.AlignVCenter
             objectName: "upBox"
@@ -605,91 +588,12 @@ Item {
             }
 
             HoverHandler {
-                cursorShape: root.views.length > 0 ? Qt.PointingHandCursor : Qt.ArrowCursor
+                cursorShape: root.upOpensSeed ? Qt.PointingHandCursor : Qt.ArrowCursor
             }
 
             TapHandler {
-                enabled: root.views.length > 0
+                enabled: root.upOpensSeed
                 onTapped: root.upClicked()
-            }
-        }
-
-        // #24: library | seed, tabs in the Details tabs' idiom: the current one bright with
-        // an accent rule under it.
-        Row {
-            id: viewTabs
-
-            Layout.alignment: Qt.AlignVCenter
-            Layout.leftMargin: Theme.space(8)
-            objectName: "viewTabs"
-            spacing: Theme.space(2)
-            visible: root.views.length > 0 && !(root.level >= 3 && root.searchOpen)
-
-            Repeater {
-                model: root.views
-
-                delegate: Item {
-                    id: viewTab
-
-                    required property var modelData
-                    readonly property bool current: viewTab.modelData.key === root.currentView
-
-                    // #77: a page tab, selected while its view shows; the key is the
-                    // description. Its press is the click.
-                    Accessible.description: viewTab.modelData.hint
-                                            ? qsTr("shortcut %1").arg(viewTab.modelData.hint) : ""
-                    Accessible.name: viewTab.modelData.label
-                    Accessible.role: Accessible.PageTab
-                    Accessible.selectable: true
-                    Accessible.selected: viewTab.current
-                    Accessible.onPressAction: if (viewTab.enabled)
-                                                  root.viewSelected(viewTab.modelData.key)
-                    implicitHeight: Theme.space(34)
-                    objectName: "viewTab_" + viewTab.modelData.key
-                    implicitWidth: tabRow.implicitWidth + Theme.space(20)
-
-                    Row {
-                        id: tabRow
-
-                        anchors.centerIn: parent
-                        spacing: Theme.space(6)
-
-                        Text {
-                            anchors.verticalCenter: parent.verticalCenter
-                            color: viewTab.current ? Theme.brightForeground : Theme.dimForeground
-                            font.family: Theme.fontFamily
-                            font.pixelSize: Theme.font.body
-                            text: viewTab.modelData.label
-                        }
-
-                        Text {
-                            anchors.verticalCenter: parent.verticalCenter
-                            color: Theme.dimForeground
-                            font.family: Theme.fontFamily
-                            font.pixelSize: Theme.font.caption
-                            opacity: 0.7
-                            text: viewTab.modelData.hint ?? ""
-                            visible: text.length > 0 && root.level < 2
-                        }
-                    }
-
-                    Rectangle {
-                        anchors.bottom: parent.bottom
-                        anchors.left: parent.left
-                        anchors.right: parent.right
-                        color: Theme.accent
-                        height: Theme.space(2)
-                        visible: viewTab.current
-                    }
-
-                    HoverHandler {
-                        cursorShape: Qt.PointingHandCursor
-                    }
-
-                    TapHandler {
-                        onTapped: root.viewSelected(viewTab.modelData.key)
-                    }
-                }
             }
         }
 
@@ -1076,7 +980,7 @@ Item {
                                                                   || root.level >= 1
                                                                   || networkHover.hovered
                                                                   || serverMouse.containsMouse))
-                                       || dotHover.hovered || (markHover.hovered && root.level >= 4)
+                                       || dotHover.hovered
         // With a warning up, the tip also says what it means and where to change it.
         readonly property string fullLine: (root.networkText.length > 0
                                             ? root.serverLine + " · " + root.networkText
@@ -1093,7 +997,7 @@ Item {
 
         onWantedChanged: {
             if (serverTip.wanted) {
-                const at = root.mapToItem(serverTip, mark.x, root.height);
+                const at = root.mapToItem(serverTip, heroRow.x, root.height);
                 serverTip.showAt(at.x, at.y, serverTip.fullLine);
             } else {
                 serverTip.hide();

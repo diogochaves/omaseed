@@ -52,6 +52,7 @@ TestCase {
         App.logLines.clearMarks();
         testCase.logView.filterField.text = "";
         App.filtered.statusFilter = TorrentFilterModel.All;
+        App.filtered.question = TorrentFilterModel.AnyQuestion;
         view.footerNote = "";
         view.table.moveCursorTo(0);
         view.table.forceActiveFocus();
@@ -94,9 +95,11 @@ TestCase {
         verify(view.logShown);
         verify(testCase.logView.visible);
         verify(testCase.logView.list.activeFocus, "the lines did not take the keys");
-        verify(!view.rail.visible, "the rail is about torrents");
+        // C24 H2: the rail stays, its views and servers; its filters are about torrents.
+        verify(view.rail.visible);
+        verify(view.rail.serversOnly, "the rail's filters show on the log");
+        verify(findChild(view.rail, "railView-log").current);
         verify(!view.split.visible);
-        compare(view.hero.currentView, "log");
         verify(App.serverLog.active, "the face on screen reads the log");
         compare(view.focusArea, "log");
 

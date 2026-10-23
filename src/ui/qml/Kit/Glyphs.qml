@@ -51,6 +51,17 @@ QtObject {
     readonly property string statusChecking: "icon:checking"
     readonly property string statusErrored: "!"
     readonly property string statusQueued: "≡"
+    // ---- the rail's views and five questions, board 46 `rail()` (DECISIONS C24 H2) -------
+    readonly property string viewLibrary: "≡"
+    readonly property string viewSeed: "↑"
+    readonly property string viewLog: "~"
+    readonly property string questionNeedsYou: "!"
+    readonly property string questionArriving: "↓"
+    readonly property string questionLanded: "✓"
+    readonly property string questionGivingBack: "↑"
+    readonly property string questionResting: "■"
+    /// The folded rail's one row for its categories, folders, tags and trackers.
+    readonly property string railGroups: "▤"
     readonly property string category: "icon:folder"
     readonly property string tag: "#"
     readonly property string tracker: "◦"

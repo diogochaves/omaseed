@@ -66,7 +66,7 @@ omabox wait --timeout 20s window "$APP"
 # "added today HH:MM", its "Created on" value, the footer's free space.
 ADDED="1500,86 396x22"
 CREATED="1600,712 296x26"
-FREE="10,1004 200x24"
+FREE="244,1004 230x24"
 # A sheet over the dimmed window: its own region only (settings and help; the add sheet is smaller).
 SHEET="568,78 760x875"
 ADD_SHEET="648,275 600x481"
@@ -85,8 +85,8 @@ key() { omabox keys --window "$APP" --wait "$@"; }
 
 omabox check point bar -g "0,0 1920x30"
 omabox check point library --window "$APP" --ignore "$ADDED" --ignore "$CREATED" --ignore "$FREE"
-key 4
-omabox check point library-stopped --window "$APP" --ignore "$ADDED" --ignore "$CREATED" --ignore "$FREE"
+key 5 # resting (DECISIONS C24 H2), where these stopped torrents are
+omabox check point library-resting --window "$APP" --ignore "$ADDED" --ignore "$CREATED" --ignore "$FREE"
 key 0 j j
 omabox check point library-third --window "$APP" --ignore "$ADDED" --ignore "$CREATED" --ignore "$FREE"
 key l 2

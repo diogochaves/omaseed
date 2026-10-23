@@ -43,6 +43,7 @@ TestCase {
         view.table.clearSelection();
         App.filtered.text = "";
         App.filtered.statusFilter = TorrentFilterModel.All;
+        App.filtered.question = TorrentFilterModel.AnyQuestion;
         App.filtered.setSortByRoleName("dlspeed");
         App.filtered.sortOrder = Qt.DescendingOrder;
         view.table.moveCursorTo(0);

@@ -38,6 +38,12 @@ Rectangle {
     /// The row has a menu (DECISIONS C19 T3: a folder row's "move this folder…"): a
     /// right-click sends `menuRequested` instead of selecting it.
     property bool hasMenu: false
+    /// DECISIONS C24 H2 (board 46 `.views .ri.on`): the view on show, the hover fill with an
+    /// accent edge on the left, so a view and the filter it shows never look alike.
+    property bool current: false
+    /// The folded rail (board 46's narrow `rail()`): the glyph alone; the name goes into the
+    /// tooltip the rail shows.
+    property bool compact: false
 
     signal clicked
     /// A right-click on the row, while `hasMenu`, at `x`, `y` in the row's coordinates.
@@ -70,8 +76,8 @@ Rectangle {
     Accessible.onPressAction: if (root.enabled)
                                   root.clicked()
 
-    color: root.selected ? Theme.fill(Theme.fillSelected) : root.hot ? Theme.fill(Theme.fillHover) :
-                                                                       "transparent"
+    color: root.selected ? Theme.fill(Theme.fillSelected) : root.hot || root.current
+                                                            ? Theme.fill(Theme.fillHover) : "transparent"
     height: Theme.railRowHeight
     implicitHeight: Theme.railRowHeight
 
@@ -79,6 +85,16 @@ Rectangle {
         ColorAnimation {
             duration: 120
         }
+    }
+
+    Rectangle {
+        anchors.bottom: parent.bottom
+        anchors.left: parent.left
+        anchors.top: parent.top
+        color: Theme.accent
+        objectName: "railRowCurrentEdge"
+        visible: root.current
+        width: Theme.railCurrentEdge
     }
 
     Row {
@@ -107,13 +123,15 @@ Rectangle {
             id: nameText
 
             anchors.verticalCenter: parent.verticalCenter
-            color: root.selected ? Theme.brightForeground : root.dimText ? Theme.dimForeground :
-                                                                           Theme.foreground
+            color: root.selected || root.current ? Theme.brightForeground : root.dimText
+                                                                            ? Theme.dimForeground
+                                                                            : Theme.foreground
 
             elide: root.elideLeft ? Text.ElideLeft : Text.ElideRight
             font.family: Theme.fontFamily
             font.pixelSize: Theme.font.body
             text: root.text
+            visible: !root.compact
             width: Math.max(0, label.width - glyphText.width - label.spacing)
         }
     }
@@ -129,7 +147,7 @@ Rectangle {
         font.pixelSize: Theme.font.small
         objectName: "railRowCount"
         text: root.countText.length > 0 ? root.countText : String(root.count)
-        visible: root.countText.length > 0 || root.count >= 0
+        visible: !root.compact && (root.countText.length > 0 || root.count >= 0)
     }
 
     MouseArea {

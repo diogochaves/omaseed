@@ -1396,6 +1396,9 @@ changes the rows at once, but waits 3 s before it is sent, with Undo.
 The rail has nine status rows, `0` (all) to `8` (errored), so the help sheet and the rail's
 footer print `0–8`. The approved design's figure prints `0–9`; `9` does nothing.
 
+Changed by C24 H2 (v0.5.0): the rail's five questions take `1`–`5`, `0` is the library and
+`6`–`9` do nothing; the states are `is:` words in the filter.
+
 ## The click rules every list follows
 
 From a pass over the whole app with the mouse:

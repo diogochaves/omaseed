@@ -265,7 +265,7 @@ step "Done, another running" "You're connected to public. Under the magnet line,
 # Open the library.
 keys Return -s 3000
 check "after setup the window tiles" window_is tiled
-step "Library: public, empty, one server" "docs/33 O1, D19: Fig. 22 as built: No torrents yet (no server name), the rows a, , and ?, no ctrl+s row, no rail. The hero says PUBLIC · QBITTORRENT 5.2.3 with no ▾."
+step "Library: public, empty, one server" "docs/33 O1, D19: Fig. 22 as built: No torrents yet (no server name), the rows a, , and ?, no ctrl+s row. The rail is its mark and its views (library · seed · log), with no filters and no servers block. The hero says PUBLIC · QBITTORRENT 5.2.3 with no ▾."
 # D19: ctrl+s by habit answers in the footer.
 keys ctrl+s -s 600
 step "ctrl+s, one server" "D19: no palette; the footer's note reads one server · add another in Settings › Servers."
@@ -313,7 +313,7 @@ check "the box's keyring holds private's password" keyring_has "$private_id"
 
 # ---- docs/33 E1: the empty library with two servers ----------------------------------------
 keys Escape -s 1500
-step "Empty public, two servers" "docs/33 E1, D6: the rail is the servers block alone, pinned at its bottom on its band (servers · 2 ▾, ● public selected, ● private faint, never seen); the body: No torrents on public yet, then a, ctrl+s switch server, , and ?. The hero reads PUBLIC · QBITTORRENT 5.2.3 ▾. The footer: a add · ctrl+s server."
+step "Empty public, two servers" "docs/33 E1, D6: the rail is its mark and views, no filters, and the servers block pinned at its bottom on its band (servers · 2 ▾, ● public selected, ● private faint, never seen); the body: No torrents on public yet, then a, ctrl+s switch server, , and ?. The hero reads PUBLIC · QBITTORRENT 5.2.3 ▾. The footer: a add · ctrl+s server."
 
 # ---- switch: ctrl+s, the server palette (D2) -----------------------------------------------
 keys ctrl+s -s 800
@@ -327,11 +327,11 @@ check "state.json remembers public's count, seen before the switch (D5)" test "$
 keys ctrl+k -s 400 -t tiny -s 300 Return -s 600 p -s 2000
 check "p stopped tiny-notes on private" stopped private "$TINY"
 check "public still has no torrent" test "$(count public)" = 0
-step "Stopped on private" "tiny-notes.txt reads completed (a finished torrent, stopped; the rail counts it under stopped); the other three still run."
+step "Stopped on private" "tiny-notes.txt reads completed (a finished torrent, stopped; the rail counts it under resting); the other three still run."
 
 # A restart while on private: its password has to come back from the keyring.
 "$APP_BOX" restart -b "$BOX" >/dev/null
-step "Private after a restart" "Straight back to private's four torrents (tiny-notes still completed, stopped 1 in the rail), signed in from the keyring: no first run, no banner, the hero says PRIVATE."
+step "Private after a restart" "Straight back to private's four torrents (tiny-notes still completed, resting 1 in the rail), signed in from the keyring: no first run, no banner, the hero says PRIVATE."
 
 # ---- the hero's server line (D3), the command palette (D4) ---------------------------------
 if click_text "switch server"; then
@@ -380,7 +380,7 @@ keys ctrl+k -s 400 -t sampler -s 300 Return -s 600 p -s 2000
 check "p stopped the sampler on public" stopped public "$SAMPLER"
 check "private's tiny-notes is still stopped" stopped private "$TINY"
 check "private's other torrents still run" running private "Field Recordings"
-step "Stopped on public" "Public Domain Sampler reads completed; the rail counts 1 stopped."
+step "Stopped on public" "Public Domain Sampler reads completed; the rail counts 1 resting."
 
 # ---- switch: the qBittorrent group's `s` ---------------------------------------------------
 keys ctrl+shift+comma -s 1500
@@ -455,7 +455,7 @@ keys Escape -s 1000
 omabox run -b "$BOX" -- pkill -STOP -f qbittorrent-private >/dev/null
 # A stopped process still takes the connection: the poll waits out the client's 15 s first.
 sleep 30
-step "Private down: the notice" "docs/35 N1–N3, docs/44 W1 (a stopped process is a timeout): a band the window's width under the hero, its own fill, a 2 px yellow rule, a hairline under it: ! private isn't answering · retry now · switch server · details ▸; under it qBittorrent is running but hasn't replied for N s. It may be busy writing to its disk. omaseed keeps asking. The list below is from HH:MM. waiting · N s. The rail and the table start under its line, the list dimmed; the servers block's private row reads waiting in yellow. The hero says private · isn't answering, its dot yellow."
+step "Private down: the notice" "docs/35 N1–N3, docs/44 W1 (a stopped process is a timeout): a band across the content under the hero (the rail beside it, usable: C24 H14), its own fill, a 2 px yellow rule, a hairline under it: ! private isn't answering · retry now · switch server · details ▸; under it qBittorrent is running but hasn't replied for N s. It may be busy writing to its disk. omaseed keeps asking. The list below is from HH:MM. waiting · N s. The table starts under its line, the list dimmed; the servers block's private row reads waiting in yellow. The hero says private · isn't answering, its dot yellow."
 if click_text "details"; then
     step "The notice's details" "docs/35 N4: the band grew: under the line a darker block, timeout · GET sync/maindata · no reply within 15000 ms · 127.0.0.1:8091, copy at its right."
 else

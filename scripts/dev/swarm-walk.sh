@@ -132,7 +132,7 @@ step "Files tree" "Open Movie Night's Files tab: the film, extras/, subs/ (engli
 step "Many files" "photo-archive: 1 208 files in 92 folders by year and month; scrolling and folding stay smooth."
 wait_state "tiny-notes" "UP|^uploading" 30
 [ "$INTERACTIVE" = 1 ] || show "tiny-notes" 1
-step "Seeding" "tiny-notes.txt: finished, seeding (also when nobody is downloading from it), done 100 %, ETA —, the rail counts it under seeding and completed. Each finished download raises a \"Download complete\" notification in the box (often caught by the first shots)."
+step "Seeding" "tiny-notes.txt: finished, seeding (also when nobody is downloading from it), done 100 %, ETA —, the rail counts it under landed today (giving back once local midnight has passed). Each finished download raises a \"Download complete\" notification in the box (often caught by the first shots)."
 wait_state "Spaces & Symbols" "UP|^uploading" 60
 [ "$INTERACTIVE" = 1 ] || show "Spaces & Symbols" 1
 step "Long unicode name" "The v2-only torrent: its long unicode name elides in the table and the details head; General shows a v2 hash and no v1."
@@ -166,7 +166,7 @@ step "Dead tracker" "distro ISO's Trackers tab: 127.0.0.1:26996 working, 127.0.0
 "$SWARM" break error >/dev/null
 wait_state "unwritable" "^error" 30
 [ "$INTERACTIVE" = 1 ] || show "unwritable" 1
-step "Error" "unwritable-fixture.bin: status error (its save path is read-only); the rail counts it under errored."
+step "Error" "unwritable-fixture.bin: status error (its save path is read-only); the rail counts it under needs you, in red."
 
 "$SWARM" break stall >/dev/null
 sleep 8
@@ -178,12 +178,12 @@ step "Stalled" "The seeder stopped: running downloads read stalled, speeds fall 
 wait_state "tiny-notes" "^missingFiles" 60
 sleep 4 # the app reconnects to the restarted playground
 [ "$INTERACTIVE" = 1 ] || show "tiny-notes" 1
-step "Missing files" "tiny-notes.txt: status missing files (red, counted under errored), ETA —, after the playground restarted; the app reconnected on its own (no banner left)."
+step "Missing files" "tiny-notes.txt: status missing files (red, counted under needs you), ETA —, after the playground restarted; the app reconnected on its own (no banner left)."
 
 "$SWARM" fix >/dev/null
 sleep 10
 [ "$INTERACTIVE" = 1 ] || show "Open Movie" 1
-step "Fixed" "After swarm.sh fix: no errored rows, downloads moving again (a stalled one can take a minute to reconnect)."
+step "Fixed" "After swarm.sh fix: no errored rows, nothing under needs you, downloads moving again (a stalled one can take a minute to reconnect)."
 
 echo
 if [ "$INTERACTIVE" = 1 ]; then

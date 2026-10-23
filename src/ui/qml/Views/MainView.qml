@@ -5,8 +5,9 @@ import Omaseed
 import Omaseed.Kit
 import Omaseed.Views
 
-// The whole main window, minus the window (spec v2 §1 Fig. 1 and the `.win.main` grid:
-// hero row, then rail | table | details, then footer). `Main.qml` is a `Window` that holds
+// The whole main window, minus the window (board 46's frame, DECISIONS C24 H2, H14): the rail
+// down the whole left side, and beside it a column of the hero, the bands (the server's notice,
+// a move's), the body (table | details, or the seed console, or the log) and the footer. `Main.qml` is a `Window` that holds
 // exactly one of these; the split exists so the qmltestrunner can build the shell without
 // a top-level window and still drive its keys and focus.
 //
@@ -49,6 +50,7 @@ Item {
     readonly property alias folderMenuPanel: folderMenuPanel
     readonly property alias selectionBar: selectionBar
     readonly property alias outcomeStrip: outcomeStrip
+    readonly property alias footerNoticeItem: footerNotice
     readonly property alias deleteConfirmPanel: deleteConfirmPanel
     readonly property alias moveSheet: moveSheet
     readonly property alias moveBand: moveBand
@@ -370,9 +372,9 @@ Item {
     /// The console's scope in words, from what the rail selects.
     readonly property string consoleScopeName: {
         const parts = [];
-        const status = App.filtered.statusFilter;
-        if (status !== TorrentFilterModel.All)
-            parts.push(rail.statusRows[status].text);
+        const question = rail.questionRow(App.filtered.question);
+        if (question !== null)
+            parts.push(question.text);
         if (App.filtered.category !== undefined)
             parts.push(App.filtered.category === "" ? qsTr("no category") : qsTr("category %1").arg(App.filtered.category));
         if (App.filtered.tag !== undefined)
@@ -391,7 +393,7 @@ Item {
             return;
         }
         if (App.console.scoped) {
-            App.filtered.statusFilter = TorrentFilterModel.All;
+            App.filtered.question = TorrentFilterModel.AnyQuestion;
             App.filtered.clearCategory();
             App.filtered.clearTag();
             App.filtered.clearTracker();
@@ -669,16 +671,23 @@ Item {
             root.clearFilter();
     }
 
-    /// The rail's own word for a status enum, for Fig. 24's `in <status>`.
-    function statusName(status: int): string {
-        const names = [qsTr("All"), qsTr("Downloading"), qsTr("Seeding"), qsTr("Completed"),
-            qsTr("Stopped"), qsTr("Active"), qsTr("Stalled"), qsTr("Checking"), qsTr("Errored")];
-        return status >= 0 && status < names.length ? names[status] : "";
+    /// The rail's own word for a question, for Fig. 24's `in <status>`; "" for the library.
+    function questionName(question: int): string {
+        const row = rail.questionRow(question);
+        return row === null ? "" : row.text.charAt(0).toUpperCase() + row.text.slice(1);
     }
 
-    /// `0`-`8`: a status row of the rail, so the rail's own selection follows the key.
-    function selectStatus(index: int): void {
-        rail.selectStatus(index);
+    /// `1`–`5`: a question of the rail, `0` the library (DECISIONS C24 H2), so the rail's own
+    /// selection follows the key.
+    function selectQuestion(question: int): void {
+        rail.selectQuestion(question);
+    }
+
+    /// The mark (C24 H9): today's ⋯ menu under it, left edges flush, until S6's app menu.
+    function openMarkMenu(): void {
+        const button = rail.markButton;
+        const corner = button.mapToItem(root, Theme.railMarkInset, button.height);
+        moreMenu.openAt(Math.round(corner.x), Math.round(corner.y + Theme.railMenuGap));
     }
 
     /// Put `text` on the clipboard and say `note`. An empty value leaves the clipboard as it
@@ -974,9 +983,8 @@ Item {
             case Qt.Key_Period:
                 root.openMoreMenu();
                 break;
-            case Qt.Key_B:
-                if (!root.logShown) // the log face has no rail (docs/32 L1)
-                    root.toggleRail();
+            case Qt.Key_B: // #167 assumed 4: folds the rail, which every face has
+                root.toggleRail();
                 break;
             case Qt.Key_S: // docs/33 D2: the server palette, app-level like ctrl+k
                 root.openServerPalette();
@@ -1014,8 +1022,7 @@ Item {
                 seedConsole.scrollBy(shift ? seedConsole.contentHeight : -seedConsole.contentHeight);
                 event.accepted = true;
                 return;
-            case Qt.Key_H:
-                App.railHidden = false;
+            case Qt.Key_H: // the rail, folded or not
                 rail.forceActiveFocus();
                 event.accepted = true;
                 return;
@@ -1110,13 +1117,13 @@ Item {
         case Qt.Key_3:
         case Qt.Key_4:
         case Qt.Key_5:
+            root.selectQuestion(event.key - Qt.Key_0); // C24 H2: 0 the library, 1–5 the questions
+            break;
         case Qt.Key_6:
         case Qt.Key_7:
         case Qt.Key_8:
-            root.selectStatus(event.key - Qt.Key_0);
-            break;
         case Qt.Key_9:
-            break; // there are only nine status rows; `9` is spare
+            break; // five questions; 6–9 are spare
         default:
             if (!table.activeFocus || !root._tableAction(event, shift))
                 return;
@@ -1127,7 +1134,7 @@ Item {
     /// docs/30 D9 (DECISIONS C1): the one runner behind the `?` sheet's `enter` and the
     /// command palette, so the two can never disagree. Each id does what its key does, through
     /// the same functions the keys call; keys keep their own routing. Rows of the sheet that
-    /// name a movement rather than a command (j k, g G, h l, 0–8, 1–4, space, v, esc) are not
+    /// name a movement rather than a command (j k, g G, h l, 1–5, 1–4, space, v, esc) are not
     /// here: false, and nothing ran.
     function runAction(action: string): bool {
         // Fig. 23's read-only guard: with the server lost, only what the guard itself still
@@ -1392,30 +1399,37 @@ Item {
 
     /// The palette's `enter`. Its last five run come first next time (D7).
     function runCommand(action: string): void {
+        // C24 H2: "show stalled…" types `is:stalled` into the filter and leaves the caret there.
+        if (action.startsWith(Keymap.showStatePrefix)) {
+            root.showState(action.slice(Keymap.showStatePrefix.length));
+            App.noteCommandRun(action);
+            return;
+        }
         if (root.runAction(action))
             App.noteCommandRun(action);
     }
 
-    /// `ctrl+b` (docs/08 §5): hide or show the rail. Hiding it never hides a filter: while it
-    /// is gone, each active filter shows as a chip in the hero.
-    function toggleRail(): void {
-        App.railHidden = !App.railHidden;
-        if (App.railHidden && rail.activeFocus)
-            table.forceActiveFocus();
+    /// The palette's "show STATE…" rows: the library, filtered by `is:STATE`, the caret in the
+    /// field so more words can follow.
+    function showState(word: string): void {
+        root.setView("library");
+        root.focusSearch();
+        hero.searchField.text = "is:" + word + " ";
     }
 
-    /// The filters the rail would show as selected, as the hero's chips while it is hidden.
+    /// `ctrl+b` (docs/08 §5): fold the rail to its glyphs or open it again (#167 assumed 4).
+    /// Folding it never hides a filter: the questions keep their glyphs, and each other filter
+    /// shows as a chip in the hero.
+    function toggleRail(): void {
+        App.railHidden = !App.railHidden;
+    }
+
+    /// The filters the folded rail no longer names, as the hero's chips (the questions keep
+    /// their glyphs in it).
     readonly property var activeFilterChips: {
         if (!App.railHidden)
             return [];
         const chips = [];
-        const status = App.filtered.statusFilter;
-        if (status !== TorrentFilterModel.All)
-            chips.push({
-                           "key": "status",
-                           "glyph": rail.statusRows[status].glyph,
-                           "text": rail.statusRows[status].text
-                       });
         const category = App.filtered.category;
         if (category !== undefined)
             chips.push({
@@ -1450,7 +1464,7 @@ Item {
     function clearOneFilter(key: string): void {
         switch (key) {
         case "status":
-            App.filtered.statusFilter = TorrentFilterModel.All;
+            App.filtered.question = TorrentFilterModel.AnyQuestion;
             break;
         case "category":
             App.filtered.clearCategory();
@@ -1578,12 +1592,12 @@ Item {
         App.setDetailsVisible(!details.collapsed);
         if (!App.demoMode || App.torrents.count !== 16)
             return;
-        // `--demo table` reproduces spec §1 Fig. 1 exactly: Downloading selected in the rail
+        // `--demo table` reproduces spec §1 Fig. 1 exactly: Arriving (C24 H2) selected in the rail
         // with the cursor parked on "movies", the table's cursor on row 1, rows 1 and 2
         // selected, row 3 in inline rename, the details open on General for row 1.
         App.filtered.setSortByRoleName(table.initialSortRoleName);
         App.filtered.sortOrder = table.initialSortOrder;
-        rail.selectStatus(1);
+        rail.selectQuestion(TorrentFilterModel.Arriving);
         rail.cursorIndex = rail.categoriesBase + 2;
         table.moveCursorTo(0);
         table.toggleCursorSelection();
@@ -1755,6 +1769,85 @@ Item {
         target: App
     }
 
+    // The rail, the window's full height (board 46, DECISIONS C24 H2): the mark, the views,
+    // the five questions and the groups, the servers at its foot. Every face has it; the log's
+    // shows no filters (docs/32 L1), nor does a window with no list (docs/33 D1, D7).
+    Rail {
+        id: rail
+
+        anchors.bottom: parent.bottom
+        anchors.left: parent.left
+        anchors.top: parent.top
+        categories: App.categories
+        // #167 assumed 4: ctrl+b folds it to its glyphs.
+        compact: App.railHidden
+        counts: App.counts
+        filtered: App.filtered
+        // Board 42 F1 (M1, M2): the library's folders, after the categories.
+        folders: App.move.folders
+        // The mark's rule meets the hero's.
+        headHeight: hero.height
+        markAlert: App.hasServer && root.serverLost && !root.firstSync
+        servers: App.servers
+        // T4.5: the SERVERS group is off unless the General pane asks for it.
+        serverCount: App.showServersGroup ? App.serverCount : 0
+        // T4.8: the group draws the real names, and picking one switches server.
+        serverList: App.serverList
+        tags: App.tags
+        trackers: App.trackers
+        view: root.view
+        // docs/14 A1: setup has no library chrome.
+        visible: !root.firstRun
+        serversOnly: root.libraryEmpty || root.firstSync || root.noList || root.logShown
+        serversFolded: App.serversFolded
+        serverRetrying: root.serverRetrying
+
+        collapsedGroups: root.railFolded
+        scrollHint: App.railScrollHint
+        trackerHostStyle: App.trackerHostStyle
+
+        // docs/08 §5: Settings -> Appearance may tint the side surfaces, in the plan's own
+        // fill steps: 4 % puts the rail and details on one step, 8 % puts the rail on two.
+        Rectangle {
+            anchors.fill: parent
+            color: Theme.fill(App.surfaceTint === 8 ? Theme.fillHover : Theme.fillIdle)
+            visible: App.surfaceTint > 0
+            z: -1
+        }
+
+        onFocusTable: table.forceActiveFocus()
+        onGroupToggled: group => {
+            // docs/33 D17: the servers block folds app-wide, not per server.
+            if (group === "servers") {
+                App.serversFolded = !App.serversFolded;
+                return;
+            }
+            root.railFolded = root.railFolded.indexOf(group) >= 0 ? root.railFolded.filter(
+                                                                        g => g !== group) :
+                                                                    root.railFolded.concat(
+                                                                        [group]);
+            root.saveTableState();
+        }
+        onMarkClicked: root.openMarkMenu()
+        // The rail hands the keyboard back to the table once it has switched, as it did.
+        onServerActivated: id => {
+            table.forceActiveFocus();
+            App.switchServer(id);
+        }
+        onMoreServersRequested: root.openServerPalette()
+        onFolderFoldToggled: root.saveTableState()
+        onFolderMenuRequested: (path, x, y) => {
+            const point = rail.mapToItem(root, x, y);
+            folderMenuPanel.folder = path;
+            folderMenuPanel.openAt(Math.round(point.x), Math.round(point.y));
+        }
+        onUnfoldRequested: App.railHidden = false
+        onViewPicked: view => root.setView(view)
+    }
+
+    /// Where the column beside the rail starts.
+    readonly property real contentLeft: rail.visible ? rail.width : 0
+
     // hero (spec `.hero`)
     Hero {
         id: hero
@@ -1764,6 +1857,7 @@ Item {
         visible: !root.firstRun
 
         anchors.left: parent.left
+        anchors.leftMargin: root.contentLeft
         anchors.right: parent.right
         anchors.top: parent.top
         altDownLimit: App.globalState.dlRateLimitText
@@ -1826,29 +1920,13 @@ Item {
         upSpeed: root.live ? App.globalState.upSpeedText : "—"
         upSpeedShort: root.live ? App.speedShortText(App.globalState.upInfoSpeed) : "—"
 
-        // #24: library | seed, and the hero's ↓ ↑ breathing (T2, when Appearance turns them on).
-        views: [
-            {
-                "key": "library",
-                "label": qsTr("library")
-            },
-            {
-                "key": "seed",
-                "label": qsTr("seed"),
-                "hint": "`"
-            },
-            {
-                "key": "log",
-                "label": qsTr("log"),
-                "hint": "~"
-            }
-        ]
-        currentView: root.view
+        // #24: the ↑ number opens the seed console (the views are the rail's now, C24 H2),
+        // and the hero's ↓ ↑ breathing (T2, when Appearance turns them on).
+        upOpensSeed: true
         upSpark: root.live && App.uploadTrend ? App.console.heroSpark : []
         downSpark: root.live && App.downloadTrend ? App.console.heroDownSpark : []
         upNote: root.live ? App.console.todayText : ""
 
-        onViewSelected: key => root.setView(key)
         onUpClicked: root.setView("seed")
         onAddClicked: App.addRequested()
         onAltSpeedClicked: root.toggleAltSpeed()
@@ -1873,12 +1951,13 @@ Item {
     }
 
     // The lost server's notice (spec §7 Fig. 23; docs/33 D8, D9 in docs/35's look): a band
-    // the full width of the window under the hero, and the body starts under its line
-    // (docs/35 N1, N2). It grows in once the server is declared lost (N6).
+    // across the content under the hero, the rail beside it usable (DECISIONS C24 H14), and
+    // the body starts under its line (docs/35 N2). It grows in once the server is declared
+    // lost (N6).
     DisconnectedBanner {
         id: banner
 
-        anchors.left: parent.left
+        anchors.left: hero.left
         anchors.right: parent.right
         anchors.top: hero.bottom
         animated: !App.reducedMotion
@@ -1897,11 +1976,11 @@ Item {
     }
 
     // Board 42 §4–§6 (DECISIONS C15 M10): a folder's move, under the lost server's notice,
-    // through every view, until its summary is closed.
+    // through every view, until its summary is closed; across the content (C24 H14).
     MoveBand {
         id: moveBand
 
-        anchors.left: parent.left
+        anchors.left: hero.left
         anchors.right: parent.right
         anchors.top: banner.bottom
         animated: !App.reducedMotion
@@ -1917,90 +1996,22 @@ Item {
         onCopyRequested: text => root.copyText(text, qsTr("copied"))
     }
 
-    // body: rail | table | details
+    // body: table | details, beside the rail
     Item {
         id: body
 
         // The first-run page (T4.6) stands in for the whole body, not over it.
         visible: !root.firstRun
         anchors.bottom: footer.top
-        anchors.left: parent.left
+        anchors.left: hero.left
         anchors.right: parent.right
         anchors.top: moveBand.bottom
-
-        Rail {
-            id: rail
-
-            anchors.bottom: parent.bottom
-            anchors.left: parent.left
-            anchors.top: parent.top
-            categories: App.categories
-            counts: App.counts
-            filtered: App.filtered
-            // Board 42 F1 (M1, M2): the library's folders, after the categories.
-            folders: App.move.folders
-            servers: App.servers
-            // T4.5: the SERVERS group is off unless the General pane asks for it.
-            serverCount: App.showServersGroup ? App.serverCount : 0
-            // T4.8: the group draws the real names, and picking one switches server.
-            serverList: App.serverList
-            tags: App.tags
-            trackers: App.trackers
-            // docs/08 §5: `ctrl+b` hides it; the filters it holds show as chips in the hero.
-            // The log face has none: the rail is about torrents (docs/32 L1). docs/33 D1, D7:
-            // with two servers it shows in every state, only its servers block while there is
-            // no list; with one, not without a list, as v2.
-            visible: !App.railHidden && !root.logShown
-                     && (root.railServers || (!root.libraryEmpty && !root.firstSync && !root.noList))
-            serversOnly: root.libraryEmpty || root.firstSync || root.noList
-            serversFolded: App.serversFolded
-            serverRetrying: root.serverRetrying
-
-            collapsedGroups: root.railFolded
-            scrollHint: App.railScrollHint
-            trackerHostStyle: App.trackerHostStyle
-
-            // docs/08 §5: Settings -> Appearance may tint the side surfaces, in the plan's own
-            // fill steps: 4 % puts the rail and details on one step, 8 % puts the rail on two.
-            Rectangle {
-                anchors.fill: parent
-                color: Theme.fill(App.surfaceTint === 8 ? Theme.fillHover : Theme.fillIdle)
-                visible: App.surfaceTint > 0
-                z: -1
-            }
-
-            onFocusTable: table.forceActiveFocus()
-            onGroupToggled: group => {
-                // docs/33 D17: the servers block folds app-wide, not per server.
-                if (group === "servers") {
-                    App.serversFolded = !App.serversFolded;
-                    return;
-                }
-                root.railFolded = root.railFolded.indexOf(group) >= 0 ? root.railFolded.filter(
-                                                                            g => g !== group) :
-                                                                        root.railFolded.concat(
-                                                                            [group]);
-                root.saveTableState();
-            }
-            // The rail hands the keyboard back to the table once it has switched, as it did.
-            onServerActivated: id => {
-                table.forceActiveFocus();
-                App.switchServer(id);
-            }
-            onMoreServersRequested: root.openServerPalette()
-            onFolderFoldToggled: root.saveTableState()
-            onFolderMenuRequested: (path, x, y) => {
-                const point = rail.mapToItem(root, x, y);
-                folderMenuPanel.folder = path;
-                folderMenuPanel.openAt(Math.round(point.x), Math.round(point.y));
-            }
-        }
 
         SplitLayout {
             id: split
 
             anchors.bottom: parent.bottom
-            anchors.left: rail.visible ? rail.right : parent.left
+            anchors.left: parent.left
             anchors.right: parent.right
             anchors.top: parent.top
             main: tableHost
@@ -2034,7 +2045,7 @@ Item {
             id: seedConsole
 
             anchors.bottom: parent.bottom
-            anchors.left: rail.visible ? rail.right : parent.left
+            anchors.left: parent.left
             anchors.right: parent.right
             anchors.top: parent.top
             focus: root.consoleShown
@@ -2196,10 +2207,7 @@ Item {
                     if (!details.collapsed)
                         details.forceActiveFocus();
                 }
-                onFocusRail: {
-                    App.railHidden = false; // `h` brings a hidden rail back
-                    rail.forceActiveFocus();
-                }
+                onFocusRail: rail.forceActiveFocus() // folded or not (#167 assumed 4)
                 // The inline editor is the primary rename; the sheet (`renameSheetPanel`) is
                 // only the menu/multi-selection fallback.
                 onRenameRequested: (hash, name) => App.rename(hash, name)
@@ -2222,11 +2230,11 @@ Item {
                         parts.push(rail.trackerText(String(tracker)));
                     return parts.join(" · ");
                 }
-                statusName: root.statusName(App.filtered.statusFilter)
+                statusName: root.questionName(App.filtered.question)
                 text: App.filtered.text
                 visible: root.filterEmpty
 
-                onAllStatusesRequested: root.selectStatus(0)
+                onAllStatusesRequested: rail.pickLibrary()
                 onClearRequested: root.handleEscape()
             }
 
@@ -2411,8 +2419,6 @@ Item {
             readonly property var other: App.busiestOtherServer
 
             anchors.centerIn: parent
-            // In the room the rail leaves (docs/33 E1).
-            anchors.horizontalCenterOffset: rail.visible ? rail.width / 2 : 0
             multiServer: root.multiServer
             objectName: "emptyState"
             otherCount: emptyState.other.count !== undefined ? emptyState.other.count : -1
@@ -2432,7 +2438,7 @@ Item {
         }
 
         LoadingState {
-            anchors.left: rail.visible ? rail.right : parent.left
+            anchors.left: parent.left
             anchors.leftMargin: Theme.space(16)
             anchors.right: parent.right
             anchors.rightMargin: Theme.space(16)
@@ -2467,7 +2473,7 @@ Item {
         // strip, the same band one line higher.
         anchors.bottomMargin: root.footerFailure.fromStrip === true && outcomeStrip.visible
                               ? root._outcomeBandLift : 0
-        anchors.left: parent.left
+        anchors.left: hero.left
         anchors.right: parent.right
         animated: !App.reducedMotion
         body: root.footerFailure.line || ""
@@ -2512,7 +2518,7 @@ Item {
 
         visible: !root.firstRun
         anchors.bottom: parent.bottom
-        anchors.left: parent.left
+        anchors.left: hero.left
         anchors.right: parent.right
         height: Math.round(Theme.font.baseSize * 2.2)
 

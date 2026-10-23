@@ -2,10 +2,10 @@ import QtQuick
 import Omaseed.Kit
 
 // The filter-with-no-result state (spec v2 §7 Fig. 24): `Nothing matches "<text>" in
-// <status>` over the note `esc clears the filter · 0 shows all statuses` (small dim, `esc`
+// <status>` over the note `esc clears the filter · 0 shows the library` (small dim, `esc`
 // and `0` set as key chips, each half also clickable). Each half shows only when its key does
-// something: `esc` while there is filter text, `0` while a status narrows the table (#51
-// D13). Three shapes, chosen from the properties the caller passes:
+// something: `esc` while there is filter text, `0` while a question narrows the table (#51
+// D13; the status rows became the rail's questions, DECISIONS C24 H2). Three shapes, chosen from the properties the caller passes:
 //   - `text` set, `statusName` a real status (not "All"/empty): `Nothing matches "<text>" in
 //     <statusName>`.
 //   - `text` set, no narrowing status: `Nothing matches "<text>"`.
@@ -24,7 +24,7 @@ Item {
 
     /// A click on `esc clears the filter`: the host runs what `esc` runs.
     signal clearRequested
-    /// A click on `0 shows all statuses`: the host runs what `0` runs.
+    /// A click on `0 shows the library`: the host runs what `0` runs.
     signal allStatusesRequested
 
     function _computeMessage() {
@@ -125,7 +125,7 @@ Item {
 
                 // #77: as the other link.
                 Accessible.description: qsTr("shortcut %1").arg("0")
-                Accessible.name: qsTr("show all statuses")
+                Accessible.name: qsTr("show the library")
                 Accessible.role: Accessible.Link
                 Accessible.onPressAction: if (allLink.enabled)
                                               root.allStatusesRequested()
@@ -153,7 +153,7 @@ Item {
                         font.family: Theme.fontFamily
                         font.pixelSize: Theme.font.small
                         objectName: "allStatusesHint"
-                        text: qsTr("shows all statuses")
+                        text: qsTr("shows the library")
                     }
                 }
 

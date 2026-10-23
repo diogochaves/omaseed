@@ -84,6 +84,9 @@ TestCase {
         view.globalLimitsSheet.close();
         testCase.width = 1360;
         App.filtered.clearCategory();
+        App.filtered.clearTag();
+        App.filtered.clearTracker();
+        App.filtered.folder = "";
         view.helpOpen = false;
         view._testServerLost = false;
         App.railHidden = false;
@@ -94,6 +97,7 @@ TestCase {
         view.hero.searchField.text = "";
         App.filtered.text = "";
         App.filtered.statusFilter = TorrentFilterModel.All;
+        App.filtered.question = TorrentFilterModel.AnyQuestion;
         App.filtered.setSortByRoleName("dlspeed");
         App.filtered.sortOrder = Qt.DescendingOrder;
         view.table.moveCursorTo(0);
@@ -101,6 +105,56 @@ TestCase {
         addSpy.clear();
         settingsSpy.clear();
         actionSpy.clear();
+    }
+
+    // DECISIONS C24 H2, H14: the rail runs the window's whole height; the hero, the bands,
+    // the body and the footer sit beside it, and the mark's block is the hero's height.
+    function test_the_rail_is_full_height_and_the_rest_sits_beside_it() {
+        compare(view.rail.y, 0);
+        compare(view.rail.height, view.height);
+        compare(view.rail.width, Theme.railWidth);
+        compare(view.hero.x, view.rail.width);
+        compare(view.serverNotice.x, view.rail.width);
+        compare(view.moveBand.x, view.rail.width);
+        compare(view.split.mapToItem(view, 0, 0).x, view.rail.width);
+        compare(view.footerNoticeItem.x, view.rail.width);
+        compare(findChild(view.rail, "railMark").height, view.hero.height);
+        verify(findChild(view.hero, "viewTabs") === null);
+    }
+
+    // C24 H2: 1–5 pick the questions from anywhere, 0 is the library (every rail filter off),
+    // 6–9 do nothing.
+    function test_digits_pick_questions_and_zero_the_library() {
+        view.table.forceActiveFocus();
+        keyClick(Qt.Key_3);
+        compare(App.filtered.question, TorrentFilterModel.LandedToday);
+        verify(findChild(view.rail, "railQuestion-landedToday").selected);
+        keyClick(Qt.Key_7);
+        compare(App.filtered.question, TorrentFilterModel.LandedToday);
+        App.filtered.category = "linux";
+        keyClick(Qt.Key_0);
+        compare(App.filtered.question, TorrentFilterModel.AnyQuestion);
+        compare(App.filtered.category, undefined);
+        verify(findChild(view.rail, "railView-library").current);
+        keyClick(Qt.Key_1);
+        compare(App.filtered.question, TorrentFilterModel.NeedsYou);
+        compare(App.filtered.count, App.counts.needsYou);
+    }
+
+    // The palette's "show stalled…" types `is:stalled` into the filter, caret in it.
+    function test_a_state_row_types_its_is_word() {
+        view.runCommand(Keymap.showStatePrefix + "stalled");
+        compare(App.filtered.text, "is:stalled");
+        compare(App.filtered.count, App.counts.stalled);
+        verify(view.hero.searchField.editing);
+        view.clearFilter();
+    }
+
+    // The mark opens the window's menu (today's ⋯, until the app menu, S6) under it.
+    function test_the_mark_opens_the_more_menu() {
+        findChild(view.rail, "railMark").Accessible.pressAction();
+        verify(view.moreMenu.opened);
+        view.moreMenu.close();
     }
 
     // DECISIONS C24 H13 (#113): the window's ground is opaque unless Appearance says
@@ -593,31 +647,43 @@ TestCase {
         compare(view.table.selectedHashes().length, App.filtered.count);
     }
 
-    // docs/08 §5: ctrl+b hides the rail; its filters then show as chips in the hero, and a
-    // chip's ✕ clears that filter. `h` from the table brings the rail back.
-    function test_ctrl_b_hides_the_rail_and_its_filters_become_chips() {
-        App.filtered.statusFilter = TorrentFilterModel.Downloading;
+    // #167 assumed 4: ctrl+b folds the rail to its glyphs; the questions keep theirs, the
+    // other filters show as chips in the hero, and a chip's ✕ clears that filter. `h` from
+    // the table gives the folded rail the keys; ctrl+b again opens it.
+    function test_ctrl_b_folds_the_rail_and_its_other_filters_become_chips() {
+        App.filtered.question = TorrentFilterModel.Arriving;
+        App.filtered.category = "linux";
         keyClick(Qt.Key_B, Qt.ControlModifier);
         compare(App.railHidden, true);
-        compare(view.rail.visible, false);
+        verify(view.rail.visible);
+        verify(view.rail.compact);
+        compare(view.rail.width, Theme.railFoldedWidth);
+        compare(view.hero.x, view.rail.width);
+        const arriving = findChild(view.rail, "railQuestion-arriving");
+        verify(arriving.selected && arriving.compact);
+        verify(findChild(view.rail, "railGroupsRow").visible);
         compare(view.activeFilterChips.length, 1);
-        compare(view.activeFilterChips[0].key, "status");
+        compare(view.activeFilterChips[0].key, "category");
 
-        view.clearOneFilter("status");
-        compare(App.filtered.statusFilter, TorrentFilterModel.All);
+        view.clearOneFilter("category");
+        compare(App.filtered.category, undefined);
         compare(view.activeFilterChips.length, 0);
 
         view.table.forceActiveFocus();
         keyClick("h");
-        compare(App.railHidden, false);
+        compare(App.railHidden, true);
         verify(view.rail.activeFocus);
+        keyClick(Qt.Key_B, Qt.ControlModifier);
+        compare(App.railHidden, false);
+        verify(!view.rail.compact);
+        compare(view.rail.width, Theme.railWidth);
     }
 
     // docs/15 Q1 A: at the floor the chips leave the hero; `/` opens one menu with the name
     // filter on top and a row per filter, and its ✕ clears that filter.
     function test_slash_opens_the_filters_menu_on_the_last_step() {
-        App.filtered.statusFilter = TorrentFilterModel.Downloading;
         App.filtered.category = "linux";
+        App.filtered.tag = "";
         keyClick(Qt.Key_B, Qt.ControlModifier);
         testCase.width = Theme.space(480);
         compare(view.hero.level, 4);
@@ -634,13 +700,13 @@ TestCase {
 
         keyClick(Qt.Key_Down);
         keyClick(Qt.Key_X);
-        compare(App.filtered.statusFilter, TorrentFilterModel.All);
+        compare(App.filtered.category, undefined);
         verify(view.filterMenu.opened);
         // "clear all filters" is the row after the last filter.
         keyClick(Qt.Key_J);
         keyClick(Qt.Key_Return);
         verify(!view.filterMenu.opened);
-        compare(App.filtered.category, undefined);
+        compare(App.filtered.tag, undefined);
         compare(App.filtered.text, "");
         compare(view.hero.searchField.text, "");
 
@@ -1929,10 +1995,14 @@ TestCase {
     function test_the_empty_library_keeps_the_servers_block() {
         App.loadEmptyDemo();
         compare(view.libraryEmpty, true);
-        compare(view.rail.visible, false);
+        // C24 H2: the rail keeps its mark and views; one server has no block, nothing filters.
+        compare(view.rail.visible, true);
+        compare(view.rail.serversOnly, true);
+        compare(findChild(view.rail, "serversBlock").visible, false);
         testCase._twoServers();
         compare(view.rail.visible, true);
         compare(view.rail.serversOnly, true);
+        compare(findChild(view.rail, "serversBlock").visible, true);
         compare(findChild(view, "emptyState").headline.indexOf("No torrents on"), 0);
         testCase._noServers();
         App.loadDemo(16);

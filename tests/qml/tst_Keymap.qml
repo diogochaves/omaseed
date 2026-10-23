@@ -12,8 +12,8 @@ TestCase {
     name: "Keymap"
 
     /// Every key of Fig. 26, in the figure's reading order. One deviation, logged in
-    /// docs/DECISIONS.md S1: the figure prints `0–9`, the app `0–8` (batch-2 S1).
-    readonly property list<string> figureKeys: ["j", "k", "g", "G", "h", "l", "/", "0–8", "i", "1–4",
+    /// DECISIONS C24 H2 (supersedes S1): the figure's `0–9` became the five questions, `1–5`.
+    readonly property list<string> figureKeys: ["j", "k", "g", "G", "h", "l", "/", "1–5", "i", "1–4",
         "ctrl+k", "space", "v", "ctrl+a", "esc", "a", "enter", "p", "P", "d", "D", "c", "R", "C",
         "t", "m", "L", "r", "[", "]", "o", "y", "Y", "s", "A", ",", "ctrl+,", "|", "q", "ctrl+q", "?"]
 
@@ -105,7 +105,7 @@ TestCase {
         compare(Keymap.columns, ["navigate", "select", "view", "act", "app"]);
 
         const navigate = Keymap.helpRows("navigate");
-        compare(navigate.map(row => row.helpKeys), ["j k", "g G", "h l", "/", "0–8", "ctrl+k",
+        compare(navigate.map(row => row.helpKeys), ["j k", "g G", "h l", "/", "1–5 0", "ctrl+k",
                                                   "ctrl+h ctrl+l"]);
 
         const select = Keymap.helpRows("select");
@@ -230,37 +230,38 @@ TestCase {
         compare(row.helpKeys, ": ctrl+shift+p");
     }
 
-    // §5: 45 rows from the table (docs/32 added `~`, board 42 "move folder…"), plus the focused area's own: Files 15,
+    // §5: 53 rows from the table (docs/32 added `~`, board 42 "move folder…", C24 H2 a "show
+    // STATE…" per `is:` word), plus the focused area's own: Files 15,
     // Trackers 4, Peers 3, HTTP sources 3, the seed console 3, the log 14.
     function test_the_rows_from_each_area() {
-        compare(Keymap.commandRows(testCase._context({})).length, 45);
+        compare(Keymap.commandRows(testCase._context({})).length, 53);
         compare(Keymap.commandRows(testCase._context({
                                                          "area": "rail"
-                                                     })).length, 45);
+                                                     })).length, 53);
         compare(Keymap.commandRows(testCase._context({
                                                          "area": "files"
-                                                     })).length, 60);
+                                                     })).length, 68);
         compare(Keymap.commandRows(testCase._context({
                                                          "area": "trackers"
-                                                     })).length, 49);
+                                                     })).length, 57);
         compare(Keymap.commandRows(testCase._context({
                                                          "area": "peers"
-                                                     })).length, 48);
+                                                     })).length, 56);
         compare(Keymap.commandRows(testCase._context({
                                                          "area": "webseeds"
-                                                     })).length, 48);
+                                                     })).length, 56);
         compare(Keymap.commandRows(testCase._context({
                                                          "area": "console"
-                                                     })).length, 48);
+                                                     })).length, 56);
         compare(Keymap.commandRows(testCase._context({
                                                          "area": "log"
-                                                     })).length, 59);
+                                                     })).length, 67);
         // Every action id is listed once, and movements never.
         const actions = Keymap.commandRows(testCase._context({})).map(row => row.action);
         for (const action of actions)
             compare(actions.filter(other => other === action).length, 1, "listed twice: " + action);
         for (const movement of ["moveDown", "first", "focusRail", "toggleSelection", "selectRange",
-                                "statusFilter", "escape", "actions", "more", "stopStart", "commands",
+                                "question", "escape", "actions", "more", "stopStart", "commands",
                                 "hyprlandBind"])
             verify(actions.indexOf(movement) < 0, "not a command: " + movement);
     }
@@ -353,6 +354,25 @@ TestCase {
         }
         compare(testCase._row(rows, "add").disabled, false);
         compare(rows[0].action, "selectAll", "a row that can run did not come first");
+    }
+
+    // DECISIONS C24 H2: the states the rail no longer lists, one "show STATE…" row each after
+    // "filter", which types `is:STATE`; none while the filter can't run.
+    function test_the_states_have_palette_rows() {
+        const rows = Keymap.commandRows(testCase._context({}));
+        const at = rows.findIndex(row => row.action === "filter");
+        verify(at >= 0);
+        const states = rows.slice(at + 1, at + 9);
+        compare(states.map(row => row.title), ["show downloading…", "show seeding…", "show completed…",
+                                               "show stopped…", "show active…", "show stalled…",
+                                               "show checking…", "show errored…"]);
+        compare(states[5].action, Keymap.showStatePrefix + "stalled");
+        compare(states[5].detail, "library · is:stalled");
+        verify(states.every(row => !row.disabled));
+        const lost = Keymap.commandRows(testCase._context({
+                                                              "serverLost": true
+                                                          }));
+        compare(lost.filter(row => row.action.startsWith(Keymap.showStatePrefix)).length, 0);
     }
 
     // P6, Fig. 23: only settings, shortcuts, hide and quit run; the rest is read-only.
@@ -464,7 +484,7 @@ TestCase {
         compare(testCase._row(rows, "sequential").detail, "torrents · Field Recordings · now on");
         compare(testCase._row(rows, "toggleDetails").title, "show details");
         compare(testCase._row(rows, "altSpeed").title, "alt-speed off");
-        compare(testCase._row(rows, "toggleRail").title, "show the rail");
+        compare(testCase._row(rows, "toggleRail").title, "open the rail");
         // The `details` need: smaller and larger only while the pane shows.
         compare(testCase._row(rows, "detailsSmaller").detail, "view · details hidden · i shows them");
     }

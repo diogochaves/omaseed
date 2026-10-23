@@ -16,7 +16,7 @@ import QtQuick
 //             "global" entry for the same key — that is how `a` adds a tracker inside the
 //             details pane and a torrent everywhere else.
 //   key       the key as the spec writes it: "j", "G", "ctrl+q", "esc", "enter", "space",
-//             "0–8", "1–4" (en dashes, like the figure).
+//             "1–5", "1–4" (en dashes, like the figure).
 //   action    the verb `MainView` switches on.
 //   label     the short word the footer hints print after the key.
 //   column    the help-sheet section: "navigate", "select", "act", "view", "app" — set
@@ -386,13 +386,14 @@ QtObject {
             "help": qsTr("qBittorrent settings"),
             "about": qsTr("Settings, open on the server's own: speed, discovery, port, seeding, queue…")
         },
-        // docs/08 §5: hide or show the rail (the sidebar key of most editors).
+        // docs/08 §5: fold the rail to its glyphs or open it (#167 assumed 4; the sidebar key
+        // of most editors).
         {
             "area": "global",
             "key": "ctrl+b",
             "action": "toggleRail",
-            "title": qsTr("show the rail"),
-            "titleOn": qsTr("hide the rail"),
+            "title": qsTr("open the rail"),
+            "titleOn": qsTr("fold the rail"),
             "state": "railShown",
             "needs": "",
             "label": qsTr("rail"),
@@ -400,7 +401,7 @@ QtObject {
             "rank": 5,
             "helpKeys": "ctrl+b",
             "help": qsTr("rail"),
-            "about": qsTr("Hide or show the rail")
+            "about": qsTr("Fold the rail to its glyphs, or open it")
         },
         // The hero's ⋯ menu (docs/08 §3).
         {
@@ -1135,16 +1136,16 @@ QtObject {
         },
         {
             "area": "global", // handled by the window from the table, rail and details alike
-            // Fig. 26 prints 0–9, but the rail has nine status rows, 0 (all) to 8 (errored),
-            // so `9` does nothing; the sheet prints the keys that work (batch-2 S1, REVIEW §9).
-            "key": "0–8",
-            "action": "statusFilter",
-            "label": qsTr("status"),
+            // DECISIONS C24 H2: the rail's five questions, and 0 the library; 6–9 do nothing.
+            // Every state stays in the filter (`is:stalled`) and the palette.
+            "key": "1–5",
+            "action": "question",
+            "label": qsTr("question"),
             "column": "navigate",
             "rank": 5,
-            "helpKeys": "0–8",
-            "help": qsTr("status filter"),
-            "about": qsTr("Filter by status: 0 all, 1 downloading, 2 seeding…")
+            "helpKeys": "1–5 0",
+            "help": qsTr("questions · library"),
+            "about": qsTr("1 needs you, 2 arriving, 3 landed today, 4 giving back, 5 resting; 0 the library. Type is:stalled in the filter for any other state")
         },
 
         // details (spec §2 Fig. 2-4 add the file/tracker/peer keys) -------------------
@@ -2134,6 +2135,12 @@ QtObject {
 
     /// docs/33 D4: one "switch to NAME" row per other server, its action "switchTo:<id>".
     readonly property string switchToPrefix: "switchTo:"
+    /// DECISIONS C24 H2: one "show STATE…" row per state the rail no longer lists, its action
+    /// "showState:<word>"; the window types `is:<word>` into the filter.
+    readonly property string showStatePrefix: "showState:"
+    /// The words `is:` takes (TorrentFilterModel::isWords()).
+    readonly property var stateWords: ["downloading", "seeding", "completed", "stopped", "active",
+        "stalled", "checking", "errored"]
 
     /// Whether `action` runs while the server is lost.
     function isOffline(action: string): bool {
@@ -2323,10 +2330,12 @@ QtObject {
                 // #160 (C17 D3): "free the space…" only while skipped files hold space here.
                 if (found.needs === "freeable" && ctx.freeable !== true)
                     continue;
-                // D4: the per-server rows follow "switch server…".
-                const servers = found.action === "switchServer" ? root.serverRows(ctx, group) : [];
                 const entry = root.worded(found, ctx.altKind);
                 const row = root._commandRow(entry, group, ctx);
+                // D4: the per-server rows follow "switch server…"; C24 H2: the states' rows
+                // follow "filter", while it can run.
+                const servers = found.action === "switchServer" ? root.serverRows(ctx, group) :
+                                found.action === "filter" && !row.disabled ? root.stateRows(ctx, group) : [];
                 if (row.disabled)
                     off.push(row);
                 else if (group.area !== undefined)
@@ -2373,6 +2382,23 @@ QtObject {
                       });
         }
         return rows;
+    }
+
+    /// DECISIONS C24 H2: "show stalled…" and the like, one per `is:` word, after "filter".
+    function stateRows(context: var, group: var): var {
+        const ctx = context || {};
+        return root.stateWords.map(word => ({
+                                                "action": root.showStatePrefix + word,
+                                                "key": root.showStatePrefix + word,
+                                                "title": qsTr("show %1…").arg(word),
+                                                "meta": "",
+                                                "via": "",
+                                                "detail": [group.word, "is:" + word].join(" · "),
+                                                "disabled": false,
+                                                "group": group.group,
+                                                "word": group.word,
+                                                "recent": (ctx.recent || []).indexOf(root.showStatePrefix + word)
+                                            }));
     }
 
     /// `label` of (area, key), falling back to the global entry and then to the key itself,

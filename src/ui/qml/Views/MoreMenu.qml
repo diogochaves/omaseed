@@ -9,7 +9,7 @@ import Omaseed.Kit
 Menu {
     id: root
 
-    /// The rail row reads "show rail" while it is hidden.
+    /// The rail row reads "open rail" while it is folded (#167 assumed 4).
     property bool railHidden: false
     /// docs/10 §2: the hero is too narrow for its gear and `?`, so they lead the menu.
     property bool appRows: false
@@ -79,7 +79,7 @@ Menu {
             "action": "selectAll"
         },
         {
-            "text": root.railHidden ? qsTr("show rail") : qsTr("hide rail"),
+            "text": root.railHidden ? qsTr("open rail") : qsTr("fold rail"),
             "glyph": Glyphs.sidebar,
             "key": "ctrl+b",
             "action": "toggleRail"
