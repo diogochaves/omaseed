@@ -1142,7 +1142,7 @@ TestCase {
         // Appearance: "In the bar" (docs/33 D25) steps through the choices it can have:
         // without the shell, tray icon and none.
         keyClick(Qt.Key_5);
-        compare(modal.paneRowCount, 12);
+        compare(modal.paneRowCount, 9);
         const tray = App.trayIconMode;
         App.trayIconMode = "auto";
         compare(App.inTheBar, "tray");
@@ -1155,43 +1155,25 @@ TestCase {
         compare(App.inTheBar, "tray");
         compare(App.trayIconMode, "auto");
 
-        // ...and the sixth row swaps the side the hero's speed pair sits on.
-        const speeds = App.speedsAlignment;
+        // The hero's speed alignment and trends and the surface tint left with it (#167
+        // assumed 6): no row names them.
+        verify(findChild(modal, "downloadTrendChip") === null);
+        verify(findChild(modal, "uploadTrendChip") === null);
+
+        // ...and the next two cycle the rail's looks (docs/08 §5).
+        const hint = App.railScrollHint;
+        const hosts = App.trackerHostStyle;
         modal.paneCursor = 5;
         modal.activateRow();
-        verify(App.speedsAlignment !== speeds);
-        compare(App.speedsAlignment, speeds === "left" ? "right" : "left");
-
-        // ...and the seventh steps the hero's speed trends (#24 T2): off at first, then both,
-        // download, upload, off again.
-        compare(App.downloadTrend, false);
-        compare(App.uploadTrend, false);
-        modal.paneCursor = 6;
-        const trends = [[true, true], [true, false], [false, true], [false, false]];
-        for (const [down, up] of trends) {
-            modal.activateRow();
-            compare(App.downloadTrend, down);
-            compare(App.uploadTrend, up);
-        }
-
-        // ...and the next three cycle the rail's looks (docs/08 §5).
-        const hint = App.railScrollHint;
-        const tint = App.surfaceTint;
-        const hosts = App.trackerHostStyle;
-        modal.paneCursor = 7;
-        modal.activateRow();
         verify(App.railScrollHint !== hint);
-        modal.paneCursor = 8;
-        modal.activateRow();
-        verify(App.surfaceTint !== tint);
-        modal.paneCursor = 9;
+        modal.paneCursor = 6;
         modal.activateRow();
         verify(App.trackerHostStyle !== hosts);
 
-        // ...and the last places Details (docs/10 §5): auto, right, bottom.
+        // ...and the next places Details (docs/10 §5): auto, right, bottom.
         const placement = App.detailsPlacement;
         compare(placement, "auto");
-        modal.paneCursor = 10;
+        modal.paneCursor = 7;
         modal.activateRow();
         compare(App.detailsPlacement, "right");
         modal.activateRow();
@@ -1202,9 +1184,7 @@ TestCase {
         App.pathMapEnabled = mapping;
         App.setNotificationEnabled("completed", completed);
         App.trayIconMode = tray;
-        App.speedsAlignment = speeds;
         App.railScrollHint = hint;
-        App.surfaceTint = tint;
         App.trackerHostStyle = hosts;
         App.detailsPlacement = placement;
     }
@@ -1278,7 +1258,7 @@ TestCase {
         const row = testCase.childNamed(modal, "pulseRowsRow");
         verify(row, "the Appearance pane has no pulse row");
         compare(row.title, "Pulse sending rows");
-        modal.paneCursor = 11;
+        modal.paneCursor = 8;
         modal.area = "pane";
         compare(row.hasCursor, true);
         modal.activateRow();
@@ -1381,7 +1361,7 @@ TestCase {
         compare(row.title, "Window");
         const alphaRow = testCase.childNamed(modal, "windowAlphaRow");
         compare(alphaRow.visible, false);
-        compare(modal.paneRowCount, 12);
+        compare(modal.paneRowCount, 9);
 
         modal.area = "pane";
         modal.paneCursor = 2;
@@ -1389,7 +1369,7 @@ TestCase {
         modal.activateRow();
         compare(App.windowGround, "translucent");
         compare(alphaRow.visible, true);
-        compare(modal.paneRowCount, 13);
+        compare(modal.paneRowCount, 10);
         // "In the bar" moved down one.
         modal.paneCursor = 4;
         compare(testCase.childNamed(modal, "inTheBarRow").hasCursor, true);
@@ -1645,9 +1625,9 @@ TestCase {
 
         // Walking the rows down scrolls the pane so the cursor row stays in view.
         keyClick(Qt.Key_Tab);
-        for (let i = 0; i < 10; ++i)
+        for (let i = 0; i < 8; ++i)
             keyClick(Qt.Key_J);
-        compare(modal.paneCursor, 10);
+        compare(modal.paneCursor, 8);
         tryVerify(() => scroller.contentY > 0, 1000, "the last row was left below the fold");
 
         // Another pane starts at its top.

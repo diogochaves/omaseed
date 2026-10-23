@@ -514,7 +514,8 @@ public:
 
     /// Which side of the hero the download/upload pair sits on: "left" (the spec's own
     /// placement, beside the server name) or "right" (against the search field). Anything
-    /// else is read back as "left".
+    /// else is read back as "left". The hero went (DECISIONS C24 H5, #167 assumed 6): nothing
+    /// reads it or offers it any more; it is kept so state.json keeps the value.
     Q_PROPERTY(QString speedsAlignment READ speedsAlignment WRITE setSpeedsAlignment NOTIFY
                    settingsChanged)
     QString speedsAlignment() const;
@@ -522,6 +523,7 @@ public:
 
     /// #24 T2: the last 60 s of upload (and of download) drawn faintly behind the hero's ↑
     /// (↓) number. Both off by default: Diogo found them crowding the figures (2026-10-03).
+    /// Kept but read by nothing since the hero went (#167 assumed 6), as speedsAlignment.
     Q_PROPERTY(bool uploadTrend READ uploadTrend WRITE setUploadTrend NOTIFY settingsChanged)
     bool uploadTrend() const;
     void setUploadTrend(bool on);
@@ -552,6 +554,7 @@ public:
     void setRailScrollHint(const QString &hint);
     /// The fill the rail and details sit on, as a percentage of the foreground: 0 (none, the
     /// default), 4 or 8 — the plan's own fill steps, so every theme still holds together.
+    /// Kept but drawn by nothing since the hero went (#167 assumed 6), as speedsAlignment.
     Q_PROPERTY(int surfaceTint READ surfaceTint WRITE setSurfaceTint NOTIFY settingsChanged)
     int surfaceTint() const;
     void setSurfaceTint(int percent);

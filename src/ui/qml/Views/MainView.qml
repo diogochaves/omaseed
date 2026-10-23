@@ -1819,15 +1819,6 @@ Item {
         scrollHint: App.railScrollHint
         trackerHostStyle: App.trackerHostStyle
 
-        // docs/08 §5: Settings -> Appearance may tint the side surfaces, in the plan's own
-        // fill steps: 4 % puts the rail and details on one step, 8 % puts the rail on two.
-        Rectangle {
-            anchors.fill: parent
-            color: Theme.fill(App.surfaceTint === 8 ? Theme.fillHover : Theme.fillIdle)
-            visible: App.surfaceTint > 0
-            z: -1
-        }
-
         onFocusTable: table.forceActiveFocus()
         onGroupToggled: group => {
             // docs/33 D17: the servers block folds app-wide, not per server.
@@ -2350,12 +2341,6 @@ Item {
             onMoveBackRequested: (id, only) => moveSheet.openBack(id, only)
             onMoveShowRequested: hashes => root.showMoveHashes(hashes, false)
 
-            Rectangle {
-                anchors.fill: parent
-                color: Theme.fill(Theme.fillIdle)
-                visible: App.surfaceTint > 0
-                z: -1
-            }
             onOpenFolderRequested: path => App.revealTorrentFile(App.details.hash, path)
             onPeerAction: (action, addresses) => root.detailsRowAction("peer", action, addresses)
             onTrackerAction: (action, urls) => root.detailsRowAction("tracker", action, urls)

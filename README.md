@@ -258,9 +258,10 @@ repaints as soon as `omarchy-theme-set` runs, on every bundled theme. Text size 
 `shell.toml`'s `[font] base-size`, and window corners follow Hyprland's rounding. Without
 Omarchy it uses a bundled Tokyo Night at base size 12.
 
-Settings › Appearance has: follow the Omarchy theme, base size, window transparency, tray
-icon (`auto` hides it while the bar widget runs), bar widget, speed figures and trends,
-surface tint, tracker hosts, and where the details panel sits.
+Settings › Appearance has: follow the Omarchy theme, base size, the window's ground (opaque, or
+translucent with its transparency), tray icon (`auto` hides it while the bar widget runs), bar
+widget, the scroll hint, tracker hosts, where the details panel sits, and the sending rows'
+pulse.
 
 ## Servers
 
