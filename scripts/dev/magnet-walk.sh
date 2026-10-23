@@ -337,7 +337,9 @@ keys Escape
 # 3b. The same, with omaseed quit, the way a browser or Files hands it over (GIO, the OpenURI
 # portal): the .desktop entry is DBusActivatable, so they call Open on omaseed's name and the
 # bus starts the app, without the link, to answer it. The app has to have its object up before
-# it takes the name, or the queued Open is refused and the window opens with no sheet.
+# it takes the name, or the queued Open is refused and the window opens with no sheet; and the
+# link lands before the library is in, so the sheet looks for the duplicate again once the first
+# sync is (docs/25 D1 a), or it would show the add form until `add`.
 omabox run -b "$BOX" -- "$repo/build/omaseed" --quit >/dev/null 2>&1 || true
 omabox wait -b "$BOX" --timeout 15s window "$APP_ID" --gone >/dev/null 2>&1 || true
 # shellcheck disable=SC2016 # expands in the inner sh, which gets the box as $1

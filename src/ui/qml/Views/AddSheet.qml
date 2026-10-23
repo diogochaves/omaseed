@@ -102,6 +102,9 @@ Sheet {
     property string _serverId: ""
     /// A switch whose first sync has not come yet: the moved line waits for it.
     property bool _switchPending: false
+    /// docs/25 D1 a: the source was checked against a library that wasn't in yet (a link that
+    /// started the app, which is still on its first sync): checked again once it is.
+    property bool _duplicateUnknown: false
     /// A test seam: the QML tests run on the demo library, whose server never goes.
     property bool _testServerDown: false
     /// docs/33 D13: there is another server to send it to.
@@ -1029,6 +1032,7 @@ Sheet {
                 sheet.movedText = "";
                 sheet._held = null;
                 sheet._switchPending = false;
+                sheet._duplicateUnknown = false;
                 sheet.autoTMM = true;
                 sheet._savePathEdited = false;
                 sheet._pendingToken = "";
@@ -1069,8 +1073,11 @@ Sheet {
                 function _checkDuplicate() {
                     const addable = sheet.addable;
                     const duplicate = sheet._duplicateOf(addable);
-                    if (!duplicate)
+                    if (!duplicate) {
+                        sheet._duplicateUnknown = App.globalState.syncing;
                         return false;
+                    }
+                    sheet._duplicateUnknown = false;
                     sheet.duplicateFound(duplicate, {
                                              "trackers": addable.trackers || [],
                                              "isPrivate": addable.isPrivate === true
@@ -1418,6 +1425,16 @@ Sheet {
                                 sheet._afterSwitch();
                             else
                                 sheet._releaseHeld();
+                        }
+
+                        // D1 a: the library is in now; a source loaded before it was is
+                        // checked again, so a duplicate still turns into Fig. 10 up front.
+                        function onSyncingChanged(): void {
+                            if (!sheet.opened || App.globalState.syncing || !sheet._duplicateUnknown)
+                                return;
+                            sheet._duplicateUnknown = false;
+                            if (!sheet.batchMode && !sheet._typing)
+                                sheet._checkDuplicate();
                         }
 
                         target: App.globalState
