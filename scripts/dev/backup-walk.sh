@@ -285,8 +285,10 @@ source_api torrents/setCategory -d "hashes=$TINY" -d category=notes >/dev/null
 source_api torrents/addTags -d "hashes=$TINY" -d tags=keep >/dev/null
 source_api torrents/addTags -d "hashes=$ALBUM" -d "tags=flac,field" >/dev/null
 source_api torrents/setUploadLimit -d "hashes=$TINY" -d limit=10240 >/dev/null
+# As QbtClient::torrentsSetShareLimits sends it: Web API 2.15.3 made shareLimitsMode required
+# (5.3 answers 400 without it), and 5.2 and older ignore it. Default keeps the global rule.
 source_api torrents/setShareLimits -d "hashes=$ALBUM" -d ratioLimit=2 -d seedingTimeLimit=-2 \
-    -d inactiveSeedingTimeLimit=-2 -d shareLimitAction=Default >/dev/null
+    -d inactiveSeedingTimeLimit=-2 -d shareLimitAction=Default -d shareLimitsMode=Default >/dev/null
 source_api torrents/renameFile --data-urlencode "hash=$ALBUM" --data-urlencode "oldPath=$TRACK" \
     --data-urlencode "newPath=$RENAMED" >/dev/null
 cover="$(source_api "torrents/files?hash=$ALBUM" | python3 -c '
