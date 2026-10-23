@@ -7,19 +7,20 @@ import Omaseed.Views
 
 // The whole main window, minus the window (board 46's frame, DECISIONS C24 H2, H14): the rail
 // down the whole left side, and beside it a column of the hero, the bands (the server's notice,
-// a move's), the body (table | details, or the seed console, or the log) and the footer. `Main.qml` is a `Window` that holds
-// exactly one of these; the split exists so the qmltestrunner can build the shell without
+// a move's), the body (table | details, or the seed console, or the log) and the status line
+// (H15). `Main.qml` is a `Window` that holds exactly one of these; the split exists so the qmltestrunner can build the shell without
 // a top-level window and still drive its keys and focus.
 //
 // What lives here and nowhere else:
-//   - the wiring between App and the four views (Rail, TorrentTable, Details, Hero);
+//   - the wiring between App and the views (Rail, TorrentTable, Details, Hero, StatusLine);
 //   - key routing. A key press reaches the focused view first — Qt propagates what the view
 //     does not accept up the parent chain to this item's `Keys.onPressed` — so `routeKey`
 //     only ever sees what no view claimed. That is what lets `a` add a tracker inside the
 //     details pane and a torrent everywhere else, with one table of keys (`Keymap`);
 //   - which state the window is in (first sync, empty, lost server, filter with no result)
 //     and therefore which of §7's views covers the body.
-// Everything the footer teaches comes from `HintModel`, which reads the same `Keymap`.
+// Keys are taught on demand (C24 H10): menus, tooltips, the palette and `?` read `Keymap`; the
+// status line teaches none but "? keys".
 //
 // Do NOT run `qmlformat` on this file: it oscillates, de-indenting everything after the
 // `body` Item on every other pass (the same defect T3.3 hit in `TorrentTable.qml`). It is
@@ -41,7 +42,7 @@ Item {
     readonly property alias table: table
     readonly property alias details: details
     readonly property alias split: split
-    readonly property alias hintModel: hintModel
+    readonly property alias statusLine: statusLine
     readonly property alias helpSheet: helpSheet
     readonly property alias helpSheetPanel: helpSheetPanel
     // T4.3
@@ -85,9 +86,9 @@ Item {
 
     // ---- overlays (T4.8) -----------------------------------------------------------------
     // Sheets, palettes and the actions menu are all modal: while one is up it owns the
-    // keyboard, `esc` closes that one and nothing else, and the footer teaches its keys
-    // instead of the table's. They are listed topmost-first, by the `z` each one is given
-    // further down, so the one the user is actually looking at is the one that answers.
+    // keyboard, `esc` closes that one and nothing else, and its own foot teaches its keys.
+    // They are listed topmost-first, by the `z` each one is given further down, so the one
+    // the user is actually looking at is the one that answers.
     /// The overlay on top, or null.
     readonly property var activeOverlay: {
         if (serverPalette.opened)
@@ -433,7 +434,7 @@ Item {
         enabled: !root.firstRun
     }
 
-    /// Which view holds the focus, for `HintModel`.
+    /// Which view holds the focus, for the palette's context (`commandContext`).
     readonly property string focusArea: {
         if (hero.searchField.editing || details.filterEditing || logView.filterEditing)
             return "search";
@@ -451,15 +452,16 @@ Item {
     /// The table's cursor row, which the details pane follows.
     readonly property string cursorHash: table.cursorHash
 
-    // the footer's facts (left half of `.foot`)
+    // the status line's facts (board 46 `statusLine()`: count · free · sync)
     /// `[{value, label}]`, drawn value-in-foreground / label-in-dim and joined with `·`.
     readonly property var factParts: {
         if (root.serverLost)
             return [
                 {
                     "value": "",
-                    // docs/33 D9: never "last sync" with nothing after it.
-                    "label": App.globalState.lastSyncText.length > 0 ? qsTr("last sync %1").arg(
+                    // Board 46: the list's time, as the notice says it ("The list below is
+                    // from HH:MM", C12); docs/33 D9: never a time with nothing after it.
+                    "label": App.globalState.lastSyncText.length > 0 ? qsTr("list from %1").arg(
                                                                            App.globalState.lastSyncText)
                                                                      : qsTr("not synced yet")
                 }
@@ -471,16 +473,24 @@ Item {
                     "label": qsTr("syncing")
                 }
             ]; // Fig. 25
+        // Board 46: count · free · sync, "synced now" while the server answers; what the
+        // selection and the Files tab add comes after.
+        const synced = root.live ? [
+                                       {
+                                           "value": "",
+                                           "label": qsTr("synced now")
+                                       }
+                                   ] : [];
         if (root.filterEmpty)
             return [
                 {
                     "value": "0",
                     "label": qsTr("of %1").arg(App.counts.total)
                 }
-            ]; // Fig. 24
+            ].concat(synced); // Fig. 24
         // Fig. 1 (and Fig. 22, which simply has no downloading torrents to count). docs/10 §3:
-        // on the hero's narrow steps the words shorten, then the least-read facts go.
-        const step = hero.level;
+        // on the status line's narrow steps the words shorten, then the least-read facts go.
+        const step = statusLine.level;
         // `spoken` (#79): the words a screen reader says where the narrow steps shorten them.
         const torrentsWord = App.counts.total === 1 ? qsTr("torrent") : qsTr("torrents");
         const parts = [
@@ -503,6 +513,9 @@ Item {
                 "value": App.globalState.freeSpaceText,
                 "label": qsTr("free")
             });
+        // From step 3 the dot says it.
+        if (step < 3)
+            parts.push(...synced);
         if (table.selectedCount > 0)
             parts.push({
                 "value": "",
@@ -1848,7 +1861,8 @@ Item {
     /// Where the column beside the rail starts.
     readonly property real contentLeft: rail.visible ? rail.width : 0
 
-    // hero (spec `.hero`)
+    // hero (spec `.hero`): the name, the filter and the buttons until the title bar (S4); the
+    // server line, the speeds and the alt-speed chip are the status line's (C24 H15).
     Hero {
         id: hero
 
@@ -1860,76 +1874,14 @@ Item {
         anchors.leftMargin: root.contentLeft
         anchors.right: parent.right
         anchors.top: parent.top
-        altDownLimit: App.globalState.dlRateLimitText
-        altDownLimitShort: App.limitShortText(App.globalState.dlRateLimit)
-        altUpLimitShort: App.limitShortText(App.globalState.upRateLimit)
-        altSpeedActive: App.globalState.useAltSpeedLimits
-        // docs/31: burst, turtle or today's alt-speed, until when, and how it came about.
-        altKind: App.altSpeed.kind
-        altTooltip: App.altSpeed.chipTooltip
-        altUntil: App.altSpeed.untilText
-        altUpLimit: App.globalState.upRateLimitText
         appName: qsTr("omaseed")
-        connected: !root.serverLost
-        connectionStatus: App.globalState.connectionStatus
-        // docs/16 §5: the port behind "not reachable", and anonymous mode with private
-        // torrents in the library.
-        listenPort: App.serverPrefs.values.listen_port ?? 0
-        anonymousWarning: App.serverPrefs.values.anonymous_mode === true && App.counts.privateCount > 0
-        serverConfigured: App.hasServer
-        downSpeed: root.live ? App.globalState.dlSpeedText : "—"
-        downSpeedShort: root.live ? App.speedShortText(App.globalState.dlInfoSpeed) : "—"
         searchCount: App.filtered.count
         searchCountText: App.filtered.text.length > 0 ? qsTr("%1 of %2").arg(
                                                             App.filtered.count).arg(
                                                             App.counts.total) : String(
                                                             App.filtered.count)
-        serverLine: {
-            if (!App.hasServer)
-                return qsTr("no server");
-            // DECISIONS C28: another engine's server, never asked ("seedbox · Transmission server").
-            if (root.serverLost && root.serverProblem.kind === "engine")
-                return qsTr("%1 · %2").arg(App.serverName).arg(root.serverProblem.reason);
-            // docs/33 D9: a server that answered and said no is not "unreachable".
-            if (root.serverLost && App.serverRefused)
-                return qsTr("%1 · sign-in refused").arg(App.serverName);
-            // docs/44 D11: a timeout is there but slow; refused or no route, nothing is.
-            if (root.serverLost && App.serverWaiting)
-                return qsTr("%1 · isn't answering").arg(App.serverName);
-            if (root.serverLost)
-                return qsTr("%1 · unreachable").arg(App.serverName);
-            if (root.firstSync)
-                return qsTr("%1 · first sync").arg(App.serverName);
-            // The API answers "v5.2.3"; the figure prints "qBittorrent 5.2.3".
-            const version = App.globalState.serverVersion.replace(/^v/, "");
-            return version.length > 0 ? qsTr("%1 · qBittorrent %2").arg(App.serverName).arg(
-                                            version) : App.serverName;
-        }
-        // docs/10 §2: from the first narrow step the line drops the version (the tooltip
-        // keeps it); the states that matter more than the version keep their words.
-        serverLineShort: {
-            if (!App.hasServer || root.serverLost || root.firstSync)
-                return "";
-            return App.serverName;
-        }
-        speedsAlignment: App.speedsAlignment
-        syncing: root.firstSync
-        // docs/33 D3: with two servers the server line switches; docs/35 N3: its dot.
-        serverSwitchable: root.multiServer
-        retrying: root.serverRetrying
-        upSpeed: root.live ? App.globalState.upSpeedText : "—"
-        upSpeedShort: root.live ? App.speedShortText(App.globalState.upInfoSpeed) : "—"
 
-        // #24: the ↑ number opens the seed console (the views are the rail's now, C24 H2),
-        // and the hero's ↓ ↑ breathing (T2, when Appearance turns them on).
-        upOpensSeed: true
-        upSpark: root.live && App.uploadTrend ? App.console.heroSpark : []
-        downSpark: root.live && App.downloadTrend ? App.console.heroDownSpark : []
-        upNote: root.live ? App.console.todayText : ""
-
-        onUpClicked: root.setView("seed")
         onAddClicked: App.addRequested()
-        onAltSpeedClicked: root.toggleAltSpeed()
         onHelpClicked: root.helpOpen = true
         onFilterChipCleared: key => root.clearOneFilter(key)
         onFiltersClicked: root.openFilterMenu()
@@ -1947,7 +1899,6 @@ Item {
         onSearchAccepted: root.focusHome()
         onSearchCleared: root.clearFilter()
         onSettingsClicked: App.openSettings()
-        onServerClicked: root.openServerPalette()
     }
 
     // The lost server's notice (spec §7 Fig. 23; docs/33 D8, D9 in docs/35's look): a band
@@ -2002,7 +1953,7 @@ Item {
 
         // The first-run page (T4.6) stands in for the whole body, not over it.
         visible: !root.firstRun
-        anchors.bottom: footer.top
+        anchors.bottom: statusLine.top
         anchors.left: hero.left
         anchors.right: parent.right
         anchors.top: moveBand.bottom
@@ -2339,8 +2290,8 @@ Item {
             // docs/17 M10: `i`, the divider and the strip fold it, all through the split.
             collapsed: split.folded
             details: App.details
-            // Main's footer carries the hints for every tab (Fig. 1), so the pane does not
-            // repeat them inside the window.
+            // Keys are taught on demand in the window (DECISIONS C24 H10: menus, tooltips,
+            // the palette, `?`), so the pane draws no hint row inside it.
             showHints: false
             // SplitLayout draws the divider between the table and the pane.
             showEdge: false
@@ -2450,7 +2401,7 @@ Item {
         }
     }
 
-    // docs/35 N8: an action's failure, its details docked above the footer over the table's
+    // docs/35 N8: an action's failure, its details docked above the status line over the table's
     // last rows, opaque; nothing moves. esc, a click outside or "details" again close it.
     // a11y-ignore A2: a click outside, not a control; esc and "details" close the band too (#77)
     MouseArea {
@@ -2468,7 +2419,7 @@ Item {
     Notice {
         id: footerNotice
 
-        anchors.bottom: footer.top
+        anchors.bottom: statusLine.top
         // DECISIONS C18 D2 (changes docs/35 N8): a table action's details open above the
         // strip, the same band one line higher.
         anchors.bottomMargin: root.footerFailure.fromStrip === true && outcomeStrip.visible
@@ -2490,244 +2441,71 @@ Item {
         onCopyRequested: text => App.copyToClipboard(text)
     }
 
-    // footer (spec `.foot`)
-    HintModel {
-        id: hintModel
+    // The status line (board 46 `statusLine()`, DECISIONS C24 H15; supersedes v2's footer and
+    // its hints, H10): the server lane, ↓ ↑, alt speeds and the network, the facts, the note
+    // slot and "? keys", across the content under the body.
+    StatusLine {
+        id: statusLine
 
-        connected: !root.serverLost
-        refused: App.serverRefused
-        serverCount: App.serverCount
-        detailsFolded: split.folded
-        detailsTab: details.currentTab
-        filterText: App.filtered.text
-        filteredCount: App.filtered.count
-        focusArea: root.focusArea
-        logFollowing: logView.following
-        logMarked: App.logLines.markedCount
-        // T4.8, batch-2 D3: while an overlay is up the footer keeps its facts and teaches
-        // nothing; the overlay's own hint row is the only one.
-        overlayOpen: root.overlayOpen || details.menuOpen
-        // Fig. 1 keeps the table's line while row 3 is being renamed, because its cursor is
-        // elsewhere; a rename the user started is always on the cursor row.
-        renaming: table.renaming && table.renameIndex === table.cursorIndex
-        torrentCount: App.torrents.count
-    }
-
-    Item {
-        id: footer
-
-        visible: !root.firstRun
         anchors.bottom: parent.bottom
         anchors.left: hero.left
         anchors.right: parent.right
-        height: Math.round(Theme.font.baseSize * 2.2)
+        visible: !root.firstRun
 
-        Hairline {
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.top: parent.top
-        }
+        serverText: root.serverLaneText()
+        // docs/10 §2: from the first narrow step the lane drops the version (its tooltip keeps
+        // it); the states that matter more than the version keep their words.
+        serverShortText: !App.hasServer || root.serverLost || root.firstSync ? "" : App.serverName
+        // docs/33 D3, H15: with two servers the lane opens the server palette.
+        serverSwitchable: root.multiServer
+        serverConfigured: App.hasServer
+        connected: !root.serverLost
+        syncing: root.firstSync
+        retrying: root.serverRetrying
+        connectionStatus: App.globalState.connectionStatus
+        // docs/16 §5: the port behind "not reachable", and anonymous mode with private
+        // torrents in the library.
+        listenPort: App.serverPrefs.values.listen_port ?? 0
+        anonymousWarning: App.serverPrefs.values.anonymous_mode === true && App.counts.privateCount > 0
 
-        RowLayout {
-            anchors.fill: parent
-            anchors.leftMargin: Theme.space(16)
-            anchors.rightMargin: Theme.space(16)
-            spacing: Theme.space(16)
+        downSpeed: root.live ? App.globalState.dlSpeedText : "—"
+        downSpeedShort: root.live ? App.speedShortText(App.globalState.dlInfoSpeed) : "—"
+        upSpeed: root.live ? App.globalState.upSpeedText : "—"
+        upSpeedShort: root.live ? App.speedShortText(App.globalState.upInfoSpeed) : "—"
+        upNote: root.live ? App.console.todayText : ""
+        // #24: ↑ opens the seed console, as the rail's "seed" does.
+        upOpensSeed: true
 
-            Row {
-                id: facts
+        // docs/31: burst, turtle or today's alt-speed, until when, and how it came about.
+        altSpeedActive: App.globalState.useAltSpeedLimits
+        altDownLimit: App.globalState.dlRateLimitText
+        altUpLimit: App.globalState.upRateLimitText
+        altDownLimitShort: App.limitShortText(App.globalState.dlRateLimit)
+        altUpLimitShort: App.limitShortText(App.globalState.upRateLimit)
+        altKind: App.altSpeed.kind
+        altTooltip: App.altSpeed.chipTooltip
+        altUntil: App.altSpeed.untilText
 
-                // #79: the status line, one label in whole words ("16 torrents, 7 downloading,
-                // 1.80 TB free"); the texts it is drawn from publish nothing themselves.
-                Accessible.name: root.factsSpoken
-                Accessible.role: Accessible.StaticText
-                Layout.alignment: Qt.AlignVCenter
-                objectName: "footerFacts"
-                spacing: Theme.space(10)
+        facts: root.factParts
+        factsSpoken: root.factsSpoken
 
-                Repeater {
-                    model: root.factParts
+        noteText: root.footerNote
+        noteMark: root.footerNoteMark
+        noteWarn: root.footerNoteWarn
+        noteSticky: root.footerNoteSticky
+        noteHasDetails: root.footerFailure.headline !== undefined
+        noteDetailsOpen: root.footerNoticeOpen
+        noteHintShown: root.footerNoteHint && details.collapsed
+        logFollowShown: root.logShown && !root.overlayOpen
+        logFollowing: logView.following
 
-                    Row {
-                        id: factRow
-
-                        required property int index
-                        required property var modelData
-
-                        spacing: Theme.space(10)
-
-                        Text {
-                            color: Theme.dimForeground
-                            font.family: Theme.fontFamily
-                            font.pixelSize: Theme.font.small
-                            text: "·"
-                            visible: factRow.index > 0
-                        }
-
-                        Row {
-                            spacing: Theme.space(4)
-
-                            Text {
-                                color: Theme.foreground
-                                font.family: Theme.fontFamily
-                                font.pixelSize: Theme.font.small
-                                text: factRow.modelData.value
-                                visible: factRow.modelData.value.length > 0
-                            }
-
-                            Text {
-                                color: Theme.dimForeground
-                                font.family: Theme.fontFamily
-                                font.pixelSize: Theme.font.small
-                                text: factRow.modelData.label
-                            }
-                        }
-                    }
-                }
-            }
-
-            // The note sits in the footer's own line, after the facts (docs/DECISIONS.md M16): it
-            // used to float above the footer and covered whatever was there, the details
-            // pane's first column included. The hints after it drop what no longer fits.
-            // docs/31 F1: the note after A leads with the set's mark, ▲ for burst in green and
-            // ▼ for turtle in yellow, and reads in the foreground.
-            Label {
-                Layout.alignment: Qt.AlignVCenter
-                color: root.footerNoteMark === "▲" || root.footerNoteMark === "✓" ? Theme.green
-                                                                                   : root.footerNoteMark === "✕"
-                                                                                     ? Theme.red : Theme.yellow
-                objectName: "footerNoteMark"
-                size: "caption"
-                text: root.footerNoteMark
-                visible: root.footerNote.length > 0 && root.footerNoteMark.length > 0
-            }
-
-            Label {
-                id: footerNoteText
-
-                // #79: the note comes on its own ("copied", a failure, the set after A): an
-                // alert by its words. Its ▲ ▼ mark stays out; the words name the set.
-                Accessible.name: text
-                Accessible.role: Accessible.AlertMessage
-                Layout.alignment: Qt.AlignVCenter
-                // docs/32 N1: a failure the log told of is yellow, as its block is.
-                color: root.footerNoteWarn ? Theme.yellow : root.footerNoteSticky ? Theme.foreground
-                                                                                  : Theme.accent
-                objectName: "footerNote"
-                size: "small"
-                text: root.footerNote
-                visible: root.footerNote.length > 0
-            }
-
-            // docs/35 N8: the sentence's "details" open the band above the footer.
-            Label {
-                id: footerDetailsLink
-
-                /// Open or close the band: a click, or a screen reader's press.
-                function toggle(): void {
-                    root.footerNoticeOpen = !root.footerNoticeOpen;
-                }
-
-                // #77: a "details" button; its press is the click.
-                Accessible.name: qsTr("details")
-                Accessible.role: Accessible.Button
-                Accessible.onPressAction: if (footerDetailsLink.enabled)
-                                              footerDetailsLink.toggle()
-                Layout.alignment: Qt.AlignVCenter
-                color: footerDetailsMouse.containsMouse ? Theme.accent : Theme.dimForeground
-                objectName: "footerFailureDetails"
-                size: "small"
-                text: qsTr("details") + " " + (root.footerNoticeOpen ? Glyphs.chevronDown : Glyphs.chevronRight)
-                visible: root.footerNote.length > 0 && root.footerFailure.headline !== undefined
-
-                MouseArea {
-                    id: footerDetailsMouse
-
-                    anchors.fill: parent
-                    anchors.margins: -Theme.space(4)
-                    cursorShape: Qt.PointingHandCursor
-                    hoverEnabled: true
-
-                    onClicked: footerDetailsLink.toggle()
-                }
-            }
-
-            // docs/32 N1: "· i details", while the pane that holds the block is hidden.
-            Item {
-                id: footerNoteHint
-
-                // #77: it shows while the pane is hidden: a "show details" button with its
-                // key; its press is the click.
-                Accessible.description: qsTr("shortcut %1").arg("i")
-                Accessible.name: qsTr("show details")
-                Accessible.role: Accessible.Button
-                Accessible.onPressAction: if (footerNoteHint.enabled)
-                                              root.toggleDetails()
-                Layout.alignment: Qt.AlignVCenter
-                implicitHeight: noteHintRow.implicitHeight
-                implicitWidth: noteHintRow.implicitWidth
-                objectName: "footerNoteHint"
-                visible: root.footerNote.length > 0 && root.footerNoteHint && details.collapsed
-
-                Row {
-                    id: noteHintRow
-
-                    spacing: Theme.space(6)
-
-                    Label {
-                        dim: true
-                        size: "small"
-                        text: "·"
-                    }
-
-                    Label {
-                        color: noteHintMouse.containsMouse ? Theme.accent : Theme.foreground
-                        size: "small"
-                        text: "i"
-                    }
-
-                    Label {
-                        color: noteHintMouse.containsMouse ? Theme.accent : Theme.dimForeground
-                        size: "small"
-                        text: qsTr("details")
-                    }
-                }
-
-                MouseArea {
-                    id: noteHintMouse
-
-                    anchors.fill: parent
-                    cursorShape: Qt.PointingHandCursor
-                    hoverEnabled: true
-
-                    onClicked: root.toggleDetails()
-                }
-            }
-
-            // docs/32 D12 (L1, L2): whether the log follows new lines, on its face only.
-            Label {
-                // #79: the log's state by its word, without the ● or ○.
-                Accessible.name: logView.following ? qsTr("following") : qsTr("paused")
-                Accessible.role: Accessible.StaticText
-                Layout.alignment: Qt.AlignVCenter
-                color: logView.following ? Theme.green : Theme.dimForeground
-                objectName: "logFollowState"
-                size: "small"
-                text: logView.following ? qsTr("● following") : qsTr("○ paused")
-                visible: root.logShown && !root.overlayOpen
-            }
-
-            KeyHints {
-                Layout.alignment: Qt.AlignVCenter
-                Layout.fillWidth: true
-                // Given only what the facts leave, so it can drop the hints that don't fit
-                // (docs/10 §3); a layout never sizes an item under its minimum otherwise.
-                Layout.minimumWidth: 0
-                model: hintModel.hints
-                pinned: hintModel.pinned
-                pinnedLead: hintModel.pinnedLead
-            }
-        }
+        onServerClicked: root.openServerPalette()
+        onUpClicked: root.setView("seed")
+        onAltSpeedClicked: root.toggleAltSpeed()
+        onKeysClicked: root.helpOpen = true
+        // docs/35 N8: the sentence's "details" open the band above the line.
+        onDetailsToggled: root.footerNoticeOpen = !root.footerNoticeOpen
+        onNoteHintClicked: root.toggleDetails()
     }
 
     // the `?` sheet (spec §7 Fig. 26: 760 wide, no buttons — a sheet may have none)
@@ -2834,8 +2612,8 @@ Item {
             "details": outcome.details || "",
             "fromStrip": true
         };
-        const top = outcomeStrip.mapToItem(footer.parent, 0, 0).y;
-        root._outcomeBandLift = Math.max(0, footer.y - top + Theme.space(6));
+        const top = outcomeStrip.mapToItem(statusLine.parent, 0, 0).y;
+        root._outcomeBandLift = Math.max(0, statusLine.y - top + Theme.space(6));
         root.footerNoticeOpen = true;
     }
 
@@ -2880,7 +2658,7 @@ Item {
     /// The state A asked to leave, while its flip has not come back yet; null otherwise.
     property var _altFlipFrom: null
 
-    /// A, the hero's chip and the palette's row.
+    /// A, the status line's chip and the palette's row.
     function toggleAltSpeed(): void {
         root._altFlipFrom = App.globalState.useAltSpeedLimits === true;
         altFlipTimer.restart();
@@ -3263,8 +3041,34 @@ Item {
         onManageRequested: id => settingsModal.showServer(id)
     }
 
-    /// `ctrl+s`, the hero's server line, "switch server…", the rail's "… N more", the add
-    /// sheet's chip. With one server there is nothing to switch to: the footer says so (D19).
+    /// The status line's server lane (DECISIONS C24 H15, C12's words): "NAME · qBittorrent
+    /// 5.2.3", or the name with its state while the server is down or on its first sync.
+    /// The one place the lane's words are made, for engines' K11 (C25: "NAME · ENGINE
+    /// VERSION", C12's state words in its place while it is down).
+    function serverLaneText(): string {
+        if (!App.hasServer)
+            return qsTr("no server");
+        // DECISIONS C28: another engine's server, never asked ("seedbox · Transmission server").
+        if (root.serverLost && root.serverProblem.kind === "engine")
+            return qsTr("%1 · %2").arg(App.serverName).arg(root.serverProblem.reason);
+        // docs/33 D9: a server that answered and said no is not "unreachable".
+        if (root.serverLost && App.serverRefused)
+            return qsTr("%1 · sign-in refused").arg(App.serverName);
+        // docs/44 D11: a timeout is there but slow; refused or no route, nothing is.
+        if (root.serverLost && App.serverWaiting)
+            return qsTr("%1 · isn't answering").arg(App.serverName);
+        if (root.serverLost)
+            return qsTr("%1 · unreachable").arg(App.serverName);
+        if (root.firstSync)
+            return qsTr("%1 · first sync").arg(App.serverName);
+        // The API answers "v5.2.3"; the line prints "qBittorrent 5.2.3".
+        const version = App.globalState.serverVersion.replace(/^v/, "");
+        return version.length > 0 ? qsTr("%1 · qBittorrent %2").arg(App.serverName).arg(version)
+                                  : App.serverName;
+    }
+
+    /// `ctrl+s`, the status line's server lane, "switch server…", the rail's "… N more", the
+    /// add sheet's chip. With one server there is nothing to switch to: the note says so (D19).
     function openServerPalette(): void {
         if (root.firstRun)
             return;

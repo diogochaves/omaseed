@@ -23,14 +23,6 @@ TestCase {
     }
 
     Component {
-        id: serverClickedSpy
-
-        SignalSpy {
-            signalName: "serverClicked"
-        }
-    }
-
-    Component {
         id: filtersClickedSpy
 
         SignalSpy {
@@ -47,230 +39,12 @@ TestCase {
         compare(lastText, "fedora 45");
     }
 
-    // docs/33 D3: with two servers or more the server line takes a ▾ and a click; one server,
-    // nothing. docs/35 N3: a server omaseed retries on its own has a yellow dot, one that
-    // needs you a red one.
-    function test_the_server_line_switches_with_two_servers() {
-        const hero = createTemporaryObject(heroComponent, testCase, {
-                                               "serverLine": "private · qBittorrent 5.2.3"
-                                           });
-        const label = findChild(hero, "serverLine");
-        const mouse = findChild(hero, "serverLineMouse");
-        compare(label.text, "private · qBittorrent 5.2.3");
-        verify(!mouse.enabled);
-        hero.serverSwitchable = true;
-        compare(label.text, "private · qBittorrent 5.2.3 " + Glyphs.chevronDown);
-        verify(mouse.enabled);
-        let clicks = 0;
-        hero.serverClicked.connect(() => clicks++);
-        mouse.clicked(null);
-        compare(clicks, 1);
-        verify(findChild(hero, "loneDotMouse").enabled);
-
-        hero.connected = false;
-        compare(hero.statusDot.color, Theme.red);
-        hero.retrying = true;
-        compare(hero.statusDot.color, Theme.yellow);
-    }
-
     // docs/08 §3: the `+` carries the kit's primary outline so it reads as a button.
     function test_add_is_a_primary_outline() {
         const hero = createTemporaryObject(heroComponent, testCase);
         verify(hero.addButton.primary);
         compare(hero.addButton.border.color, Theme.accent);
         compare(hero.addButton.border.width, 1);
-    }
-
-    // docs/08 §3: silent while connected; firewalled and disconnected are named in colour.
-    function test_the_network_status_is_named_only_when_it_is_not_connected() {
-        const hero = createTemporaryObject(heroComponent, testCase);
-        compare(hero.networkWarning, "");
-        compare(hero.statusDot.color, Theme.green);
-
-        hero.connectionStatus = "firewalled";
-        compare(hero.networkWarning, "firewalled");
-        verify(hero.networkLabel.text.indexOf("firewalled") >= 0);
-        compare(hero.networkLabel.color, Theme.yellow);
-        compare(hero.statusDot.color, Theme.yellow);
-
-        // docs/16 §5: with the port known, the line says which one peers cannot reach.
-        hero.listenPort = 26999;
-        verify(hero.networkLabel.text.indexOf("port 26999 not reachable") >= 0,
-               hero.networkLabel.text);
-        verify(hero.networkAdvice.indexOf("UPnP") >= 0);
-
-        hero.connectionStatus = "disconnected";
-        compare(hero.networkLabel.color, Theme.red);
-        compare(hero.statusDot.color, Theme.red);
-
-        // While the API itself is unreachable, or before the first sync, the line already says
-        // so; qBittorrent's own network state is not read then.
-        hero.connected = false;
-        compare(hero.networkWarning, "");
-        hero.connected = true;
-        hero.syncing = true;
-        compare(hero.networkWarning, "");
-    }
-
-    // #79: the connection line is text by its words (no ▾), a network warning an alert with
-    // the tooltip's advice as its description, and ↓ the "download" figure on every step.
-    function test_a_screen_reader_hears_the_server_line_and_the_figures() {
-        const hero = createTemporaryObject(heroComponent, testCase, {
-                                               "serverLine": "private · qBittorrent 5.2.3",
-                                               "serverSwitchable": true,
-                                               "downSpeed": "4.21 MB/s"
-                                           });
-        const label = findChild(hero, "serverLine");
-        compare(label.Accessible.role, Accessible.StaticText);
-        compare(label.Accessible.name, "private · qBittorrent 5.2.3");
-
-        hero.connectionStatus = "firewalled";
-        hero.listenPort = 26999;
-        compare(hero.networkLabel.Accessible.role, Accessible.AlertMessage);
-        compare(hero.networkLabel.Accessible.name, "port 26999 not reachable");
-        verify(hero.networkLabel.Accessible.description.indexOf("UPnP") >= 0);
-
-        const down = findChild(hero, "downInner");
-        compare(down.Accessible.role, Accessible.StaticText);
-        compare(down.Accessible.name, "download");
-        compare(down.Accessible.description, "4.21 MB/s");
-        hero.width = 700; // a narrow step drops the caption, not the name
-        compare(down.Accessible.name, "download");
-    }
-
-    // docs/16 §5: anonymous mode with private torrents is named in the warning colour.
-    function test_anonymous_mode_is_named_while_it_is_on() {
-        const hero = createTemporaryObject(heroComponent, testCase);
-        verify(!hero.networkLabel.visible);
-        hero.anonymousWarning = true;
-        verify(hero.networkLabel.visible);
-        verify(hero.networkLabel.text.indexOf("anonymous mode") >= 0, hero.networkLabel.text);
-        compare(hero.networkLabel.color, Theme.yellow);
-        compare(hero.statusDot.color, Theme.yellow);
-        verify(hero.networkAdvice.indexOf("private trackers") >= 0);
-        // Both at once, joined.
-        hero.connectionStatus = "firewalled";
-        hero.listenPort = 26999;
-        compare(hero.networkText, "port 26999 not reachable · anonymous mode");
-        // Not while the API itself is down: that is what the line says then.
-        hero.connected = false;
-        compare(hero.networkText, "");
-    }
-
-    // docs/08 §3 and manual box M14: off, alt-speed is its glyph alone, named by its tooltip;
-    // on, it prints the limits.
-    function test_the_alt_speed_chip_shows_the_limits_while_on() {
-        const hero = createTemporaryObject(heroComponent, testCase, {
-                                               "altDownLimit": "10 KB/s",
-                                               "altUpLimit": "∞"
-                                           });
-        compare(hero.altChip.text, "");
-        compare(hero.altChip.tooltip, "alt-speed · A");
-        verify(!hero.altChip.warn);
-        hero.altSpeedActive = true;
-        compare(hero.altChip.text, "↓10 KB/s ↑∞");
-        compare(hero.altChip.tooltip, "alt-speed on · A");
-        verify(hero.altChip.warn);
-        compare(hero.altChip.border.color, Theme.yellow);
-
-        let clicks = 0;
-        hero.altSpeedClicked.connect(() => clicks++);
-        hero.altChip.clicked();
-        compare(clicks, 1);
-    }
-
-    // docs/31 H1 and the burst steps 0 to 3: the word, the limits and "until", in green with
-    // the needle up; from step 2 the word and "until", from step 3 the glyph.
-    function test_a_burst_chip_names_itself_and_its_end() {
-        const hero = createTemporaryObject(heroComponent, testCase, {
-                                               "altKind": "burst",
-                                               "altUntil": "07:00",
-                                               "altDownLimit": "∞",
-                                               "altUpLimit": "∞",
-                                               "altTooltip": "burst until 07:00, by the schedule · A"
-                                           });
-        // Off: the glyph alone, its needle already up.
-        compare(hero.altChip.text, "");
-        compare(hero.altChip.suffix, "");
-        compare(hero.altChip.glyph, Glyphs.burst);
-        verify(!hero.altChip.warn);
-        hero.altSpeedActive = true;
-        compare(hero.level, 0);
-        compare(hero.altChip.text, "burst ↓∞ ↑∞");
-        compare(hero.altChip.suffix, "· until 07:00");
-        compare(hero.altChip.tooltip, "burst until 07:00, by the schedule · A");
-        verify(hero.altChip.warn);
-        compare(hero.altChip.border.color, Theme.green);
-        compare(findChild(hero.altChip, "chipLabel").color, Theme.green);
-        compare(hero._altText(1), "burst ↓∞ ↑∞");
-        compare(hero._altText(2), "burst");
-        compare(hero._altSuffix(2), "· until 07:00");
-        compare(hero._altText(3), "");
-        compare(hero._altSuffix(3), "");
-        hero.width = Theme.space(800);
-        compare(hero.level, 2);
-        compare(hero.altChip.text, "burst");
-        compare(hero.altChip.suffix, "· until 07:00");
-        // No schedule, no end.
-        hero.altUntil = "";
-        compare(hero.altChip.suffix, "");
-    }
-
-    // docs/31 H2 and the turtle steps: today's yellow chip with its word and its end. Someone
-    // who uses the set as a turtle keeps everything they had.
-    function test_a_turtle_chip_is_todays_with_its_word() {
-        const hero = createTemporaryObject(heroComponent, testCase, {
-                                               "altKind": "turtle",
-                                               "altUntil": "18:00",
-                                               "altSpeedActive": true,
-                                               "altDownLimit": "10 KB/s",
-                                               "altUpLimit": "10 KB/s",
-                                               "altDownLimitShort": "10K",
-                                               "altUpLimitShort": "10K"
-                                           });
-        compare(hero.altChip.text, "turtle ↓10 KB/s ↑10 KB/s");
-        compare(hero.altChip.suffix, "· until 18:00");
-        compare(hero.altChip.glyph, Glyphs.altSpeed);
-        compare(hero.altChip.border.color, Theme.yellow);
-        compare(hero._altText(1), "turtle ↓10K ↑10K");
-        compare(hero._altText(2), "turtle");
-        compare(hero._altText(3), "");
-        // Today's tooltip until the caller gives one.
-        compare(hero.altChip.tooltip, "alt-speed on · A");
-    }
-
-    // Mixed or the same: today's chip, unchanged at every step, and no "until" on it.
-    function test_a_mixed_set_keeps_todays_chip() {
-        const hero = createTemporaryObject(heroComponent, testCase, {
-                                               "altKind": "alt",
-                                               "altUntil": "07:00",
-                                               "altSpeedActive": true,
-                                               "altDownLimit": "2.00 MB/s",
-                                               "altUpLimit": "∞",
-                                               "altDownLimitShort": "2.00M",
-                                               "altUpLimitShort": "∞"
-                                           });
-        compare(hero.altChip.text, "↓2.00 MB/s ↑∞");
-        compare(hero.altChip.suffix, "");
-        compare(hero._altText(1), "↓2.00M ↑∞");
-        compare(hero._altText(2), "↓2.00M ↑∞");
-        compare(hero._altText(3), "");
-        compare(hero.altChip.border.color, Theme.yellow);
-    }
-
-    // The ladder measures the chip as it is drawn at each step, word and end included.
-    function test_the_ladder_measures_the_named_chip() {
-        const hero = createTemporaryObject(heroComponent, testCase, {
-                                               "altSpeedActive": true,
-                                               "altDownLimit": "10 KB/s",
-                                               "altUpLimit": "10 KB/s"
-                                           });
-        const plain = hero._rowWidth(0);
-        hero.altKind = "turtle";
-        hero.altUntil = "18:00";
-        // The measuring copies are Rows: they lay out at the next polish.
-        tryVerify(() => hero._rowWidth(0) > plain);
-        tryVerify(() => hero._rowWidth(2) < hero._rowWidth(1));
     }
 
     function test_emits_search_cleared() {
@@ -308,25 +82,6 @@ TestCase {
         hero.searchField.text = "";
     }
 
-    // #78: the alt-speed chip is named by its set, never by the limits or the time it prints
-    // (read out again with every change), and off it is no unnamed glyph; its tooltip is the
-    // description.
-    function test_the_alt_speed_chip_is_named_by_its_set() {
-        const hero = createTemporaryObject(heroComponent, testCase, {
-                                               "altDownLimit": "10 KB/s",
-                                               "altUpLimit": "∞"
-                                           });
-        compare(hero.altChip.Accessible.name, "alt-speed");
-        compare(hero.altChip.Accessible.description, "alt-speed · A");
-        hero.altSpeedActive = true;
-        compare(hero.altChip.Accessible.name, "alt-speed");
-        compare(hero.altChip.Accessible.description, "alt-speed on · A");
-        hero.altKind = "burst";
-        compare(hero.altChip.Accessible.name, "burst");
-        hero.altKind = "turtle";
-        compare(hero.altChip.Accessible.name, "turtle");
-    }
-
     // While the field filters, its count and `esc` cap clear it with a click, as `esc` does.
     function test_a_click_on_the_trailing_esc_clears_the_filter() {
         const hero = createTemporaryObject(heroComponent, testCase);
@@ -356,69 +111,20 @@ TestCase {
         compare(chip.tooltip, "keep");
     }
 
-    // T5.4: with no server configured the dot is absent-looking (spec `.dot.off`), not the
-    // green of a healthy connection.
-    function test_the_status_dot_follows_the_connection_state() {
-        const hero = createTemporaryObject(heroComponent, testCase);
-        compare(hero.statusDot.color, Theme.green);
-        hero.connected = false;
-        compare(hero.statusDot.color, Theme.red);
-        hero.syncing = true;
-        compare(hero.statusDot.color, Theme.yellow);
-        hero.serverConfigured = false;
-        compare(hero.statusDot.color, Theme.dimForeground);
-        hero.connected = true;
-        hero.syncing = false;
-        compare(hero.statusDot.color, Theme.dimForeground, "no server still drew a live dot");
-    }
-
     function test_action_signals_fire() {
         const hero = createTemporaryObject(heroComponent, testCase);
         let addClicks = 0;
-        let altSpeedClicks = 0;
         let settingsClicks = 0;
         let helpClicks = 0;
         hero.addClicked.connect(() => addClicks++);
-        hero.altSpeedClicked.connect(() => altSpeedClicks++);
         hero.settingsClicked.connect(() => settingsClicks++);
         hero.helpClicked.connect(() => helpClicks++);
         hero.addClicked();
-        hero.altSpeedClicked();
         hero.settingsClicked();
         hero.helpClicked();
         compare(addClicks, 1);
-        compare(altSpeedClicks, 1);
         compare(settingsClicks, 1);
         compare(helpClicks, 1);
-    }
-
-    function test_speeds_sit_left_of_the_search_field_by_default() {
-        // Wide enough that the row has real slack for a spacer to take; at the component's
-        // own 900 there is none, and neither alignment could move anything.
-        const hero = createTemporaryObject(heroComponent, testCase, {
-                                               "width": 1400
-                                           });
-        compare(hero.speedsAlignment, "left");
-        verify(hero.downStat.x < hero.searchField.x, "the speed pair is not left of the field");
-        // Beside the server line rather than against the field: well inside the left half.
-        verify(hero.downStat.x < hero.width / 2, "the speed pair drifted right");
-    }
-
-    function test_right_alignment_pushes_the_speeds_against_the_field() {
-        const hero = createTemporaryObject(heroComponent, testCase, {
-                                               "speedsAlignment": "right",
-                                               "width": 1400
-                                           });
-        verify(hero.downStat.x < hero.searchField.x, "the pair must stay before the field");
-        verify(hero.downStat.x > hero.width / 2, "the speed pair did not move right");
-    }
-
-    function test_an_unknown_alignment_is_drawn_as_left() {
-        const hero = createTemporaryObject(heroComponent, testCase, {
-                                               "speedsAlignment": "sideways",
-                                               "width": 1400
-                                           });
-        verify(hero.downStat.x < hero.width / 2);
     }
 
     // docs/10 §2: the steps the hero takes as it narrows.
@@ -429,26 +135,6 @@ TestCase {
             hero.width = widths[i];
             compare(hero.level, i, "at " + widths[i]);
         }
-    }
-
-    function test_step_one_shortens_the_server_line_and_the_chip() {
-        const hero = createTemporaryObject(heroComponent, testCase, {
-                                               "serverLine": "home · qBittorrent 5.2.3",
-                                               "serverLineShort": "home",
-                                               "altSpeedActive": true,
-                                               "altDownLimit": "1.00 MB/s",
-                                               "altUpLimit": "200 KB/s",
-                                               "altDownLimitShort": "1.00M",
-                                               "altUpLimitShort": "200K"
-                                           });
-        compare(findChild(hero, "serverLine").text, "home · qBittorrent 5.2.3");
-        compare(hero.altChip.text, "↓1.00 MB/s ↑200 KB/s");
-        hero.width = Theme.space(1000);
-        compare(hero.level, 1);
-        compare(findChild(hero, "serverLine").text, "home");
-        compare(hero.altChip.text, "↓1.00M ↑200K");
-        hero.altSpeedActive = false;
-        compare(hero.altChip.text, ""); // the glyph alone
     }
 
     function test_step_two_moves_the_gear_and_help_out() {
@@ -473,7 +159,7 @@ TestCase {
         verify(hero.searchOpen);
         verify(hero.searchField.visible);
         verify(!findChild(hero, "searchButton").visible);
-        verify(!hero.downStat.visible);
+        verify(!findChild(hero, "heroName").visible, "the open field did not take the name's room");
         verify(hero.addButton.visible);
     }
 
@@ -491,19 +177,7 @@ TestCase {
     // KIT-5: the filter chips (shown while the rail is hidden) count in the ladder and fold to
     // glyph and ✕ from step 3, so `+` and ⋯ never leave the window with a chip up.
     function test_filter_chips_never_push_the_buttons_out() {
-        const hero = createTemporaryObject(heroComponent, testCase, {
-                                               "downSpeed": "12.3 MB/s",
-                                               "downSpeedShort": "12.3M",
-                                               "upSpeed": "999.9 KB/s",
-                                               "upSpeedShort": "1000K",
-                                               "altSpeedActive": true,
-                                               "altDownLimit": "10.0 MB/s",
-                                               "altUpLimit": "1.00 MB/s",
-                                               "altDownLimitShort": "10.0M",
-                                               "altUpLimitShort": "1.00M",
-                                               "serverLine": "home · qBittorrent 5.2.3",
-                                               "serverLineShort": "home"
-                                           });
+        const hero = createTemporaryObject(heroComponent, testCase);
         const sets = [[], [{
                                "key": "category",
                                "glyph": Glyphs.folder,
@@ -542,10 +216,6 @@ TestCase {
     // slack first; a step is taken only when the row no longer holds them.
     function test_filter_chips_fold_only_when_the_row_is_full() {
         const hero = createTemporaryObject(heroComponent, testCase, {
-                                               "downSpeed": "0 B/s",
-                                               "upSpeed": "0 B/s",
-                                               "serverLine": "playground · qBittorrent 5.1.2",
-                                               "serverLineShort": "playground",
                                                "filterChips": [{
                                                        "key": "status",
                                                        "glyph": Glyphs.statusStopped,
@@ -583,50 +253,6 @@ TestCase {
         }
     }
 
-    // KIT-9: the server line elides only when the row really has no room left for it.
-    function test_the_server_line_does_not_elide_while_there_is_room() {
-        const hero = createTemporaryObject(heroComponent, testCase, {
-                                               "downSpeed": "12.3 MB/s",
-                                               "upSpeed": "999.9 KB/s",
-                                               "serverLine": "seedbox-in-a-far-away-datacentre.a-rather-long-domain.example.org · qBittorrent 5.2.3",
-                                               "serverLineShort": "seedbox-in-a-far-away-datacentre.a-rather-long-domain.example.org"
-                                           });
-        const identity = findChild(hero, "serverLine").parent.parent;
-        const spacer = hero.children[0].children.find(c => c.objectName === "speedsSpacerRight");
-        verify(spacer, "no right spacer");
-        let squeezedOnce = false;
-        for (let w = 700; w <= 1300; w += 10) {
-            hero.width = Theme.space(w);
-            waitForItemPolished(hero.children[0]);
-            verify(overflow(hero) <= 0.5, "at " + w + " the row runs " + overflow(hero) + " px over");
-            if (!identity.squeezed)
-                continue;
-            squeezedOnce = true;
-            // Eliding, the slack spacer must have nothing left to give it.
-            verify(spacer.width < 1, "at " + w + " the server line elides with " + spacer.width
-                   + " px spare");
-        }
-        verify(squeezedOnce, "the probe never squeezed the server line");
-    }
-
-    // KIT-8: the whole server line opens below the hero, not over the line it spells out.
-    function test_the_server_tip_opens_below_the_hero() {
-        const hero = createTemporaryObject(heroComponent, testCase, {
-                                               "serverLine": "home · qBittorrent 5.2.3",
-                                               "serverLineShort": "home"
-                                           });
-        hero.width = Theme.space(1000); // step 1: the tip carries the version
-        const server = findChild(hero, "serverLine");
-        waitForItemPolished(hero.children[0]);
-        mouseMove(server, 2, server.height / 2);
-        tryVerify(() => hero.serverTip.shown, 2000, "the tip never opened");
-        const panel = hero.serverTip.panelItem;
-        const top = panel.mapToItem(hero, 0, 0).y;
-        verify(top >= hero.height, "the tip covers the hero: its top is at " + top);
-        compare(hero.serverTip.text, "home · qBittorrent 5.2.3");
-        mouseMove(testCase, testCase.width - 1, testCase.height - 1);
-    }
-
     readonly property var fourChips: [{
             "key": "status",
             "glyph": Glyphs.arrowDown,
@@ -645,23 +271,10 @@ TestCase {
             "text": "tracker.example.org"
         }]
 
-    // docs/15 Q1 A, measured: with "4.21 MB/s" and "812 KB/s" the last step needed 562 px at
-    // the 560 px floor (base 14) and ~62 px more per chip. With the speeds short and the chips
-    // in the `/` button, the row fits the floor with no filters and with all four.
+    // docs/15 Q1 A: with the chips in the `/` button, the row fits the floor (560 px at base
+    // 14) with no filters and with all four.
     function test_step_four_fits_the_floor_with_zero_and_four_filters() {
-        const hero = createTemporaryObject(heroComponent, testCase, {
-                                               "downSpeed": "4.21 MB/s",
-                                               "upSpeed": "812 KB/s",
-                                               "downSpeedShort": "4.21M",
-                                               "upSpeedShort": "812K",
-                                               "altSpeedActive": true,
-                                               "altDownLimit": "10.0 MB/s",
-                                               "altUpLimit": "1.00 MB/s",
-                                               "altDownLimitShort": "10.0M",
-                                               "altUpLimitShort": "1.00M",
-                                               "serverLine": "home · qBittorrent 5.2.3",
-                                               "serverLineShort": "home"
-                                           });
+        const hero = createTemporaryObject(heroComponent, testCase);
         hero.width = Theme.space(480);
         const row = hero.children[0];
         for (const chips of [[], testCase.fourChips]) {
@@ -679,12 +292,7 @@ TestCase {
     }
 
     function test_step_four_puts_the_filters_in_the_slash_button() {
-        const hero = createTemporaryObject(heroComponent, testCase, {
-                                               "downSpeed": "4.21 MB/s",
-                                               "downSpeedShort": "4.21M",
-                                               "upSpeed": "812 KB/s",
-                                               "upSpeedShort": "812K"
-                                           });
+        const hero = createTemporaryObject(heroComponent, testCase);
         let asked = 0;
         hero.filtersClicked.connect(() => asked += 1);
         hero.filterChips = testCase.fourChips;
@@ -695,7 +303,6 @@ TestCase {
         verify(hero.level < 4, "level " + hero.level);
         verify(!button.visible);
         verify(findChild(hero, "filterChip_tag").visible);
-        compare(hero.downStat.value, "4.21 MB/s");
 
         hero.width = Theme.space(480);
         compare(hero.level, 4);
@@ -705,7 +312,6 @@ TestCase {
         verify(!findChild(hero, "filterChip_tag").visible);
         compare(button.border.color, Theme.accent);
         compare(findChild(hero, "filterCount").text, "4");
-        compare(hero.downStat.value, "4.21M");
 
         // The name filter counts too.
         hero.searchField.text = "iso";
@@ -745,103 +351,36 @@ TestCase {
         hero.searchField.text = "";
     }
 
-    function test_step_four_keeps_the_dot_beside_the_mark() {
+    // The server's dot went to the status line's lane (DECISIONS C24 H15): step 4 keeps `+`
+    // and ⋯, and lets the name go.
+    function test_step_four_keeps_the_buttons_and_lets_the_name_go() {
         const hero = createTemporaryObject(heroComponent, testCase);
         hero.width = Theme.space(500);
         compare(hero.level, 4);
-        verify(findChild(hero, "loneDot").visible);
-        verify(hero.downStat.visible);
+        verify(findChild(hero, "loneDot") === null, "the hero still draws the server's dot");
+        verify(findChild(hero, "serverLine") === null, "the hero still draws the server line");
         verify(hero.addButton.visible);
         verify(hero.moreButton.visible);
     }
 
-    // #75: a screen reader's press on the server line (when it switches) and on the filters
-    // button is their click, once each.
+    // #75: a screen reader's press on the filters button is its click, once.
     function test_the_accessible_press_is_the_click() {
-        const hero = createTemporaryObject(heroComponent, testCase, {
-                                               "serverLine": "private · qBittorrent 5.2.3",
-                                               "serverSwitchable": true
-                                           });
-        const server = createTemporaryObject(serverClickedSpy, testCase, {
-                                                 "target": hero
-                                             });
+        const hero = createTemporaryObject(heroComponent, testCase);
         const filters = createTemporaryObject(filtersClickedSpy, testCase, {
                                                   "target": hero
                                               });
-        findChild(hero, "serverLineMouse").Accessible.pressAction();
-        compare(server.count, 1);
         findChild(hero, "filterButton").Accessible.pressAction();
         compare(filters.count, 1);
     }
 
-    // #75: a server line that can't switch, and a disabled hero, ignore a screen reader's
-    // press, as they ignore the pointer.
+    // #75: a disabled hero ignores a screen reader's press, as it ignores the pointer.
     function test_what_takes_no_click_ignores_the_accessible_press() {
-        const hero = createTemporaryObject(heroComponent, testCase, {
-                                               "serverLine": "private · qBittorrent 5.2.3"
-                                           });
-        const server = createTemporaryObject(serverClickedSpy, testCase, {
-                                                 "target": hero
-                                             });
+        const hero = createTemporaryObject(heroComponent, testCase);
         const filters = createTemporaryObject(filtersClickedSpy, testCase, {
                                                   "target": hero
                                               });
-        const line = findChild(hero, "serverLineMouse");
-        line.Accessible.pressAction();
-        compare(server.count, 0, "a server line that can't switch ran");
-        hero.serverSwitchable = true;
         hero.enabled = false;
-        line.Accessible.pressAction();
         findChild(hero, "filterButton").Accessible.pressAction();
-        compare(server.count, 0, "a disabled hero's server line ran");
         compare(filters.count, 0, "a disabled hero's filters button ran");
-    }
-
-    // #77: the ↑ number is a button to the seed console (the views are the rail's now,
-    // DECISIONS C24 H2); a screen reader's press is its click, once.
-    function test_the_up_number_takes_the_accessible_press() {
-        const hero = createTemporaryObject(heroComponent, testCase, {
-                                               "upOpensSeed": true
-                                           });
-        verify(findChild(hero, "viewTabs") === null, "the hero still draws the view tabs");
-        const up = findChild(hero, "upBox");
-        compare(up.Accessible.role, Accessible.Button);
-        compare(up.Accessible.name, "seed console");
-        verify(!up.Accessible.ignored);
-        let ups = 0;
-        hero.upClicked.connect(() => ups++);
-        up.Accessible.pressAction();
-        compare(ups, 1);
-
-        hero.enabled = false;
-        up.Accessible.pressAction();
-        compare(ups, 1, "a disabled hero's ↑ ran");
-    }
-
-    // #77: without `upOpensSeed` the ↑ number is no control (#79: it is the "upload" figure); the
-    // lone dot is the server line's button only while the server can switch.
-    function test_the_up_number_and_the_lone_dot_without_a_click() {
-        const hero = createTemporaryObject(heroComponent, testCase);
-        const up = findChild(hero, "upBox");
-        compare(up.Accessible.role, Accessible.StaticText);
-        compare(up.Accessible.name, "upload");
-        let ups = 0;
-        hero.upClicked.connect(() => ups++);
-        up.Accessible.pressAction();
-        compare(ups, 0);
-
-        const dot = findChild(hero, "loneDot");
-        compare(dot.Accessible.role, Accessible.Button);
-        compare(dot.Accessible.name, "switch server");
-        verify(dot.Accessible.ignored);
-        const server = createTemporaryObject(serverClickedSpy, testCase, {
-                                                 "target": hero
-                                             });
-        dot.Accessible.pressAction();
-        compare(server.count, 0, "a dot that can't switch ran");
-        hero.serverSwitchable = true;
-        verify(!dot.Accessible.ignored);
-        dot.Accessible.pressAction();
-        compare(server.count, 1);
     }
 }

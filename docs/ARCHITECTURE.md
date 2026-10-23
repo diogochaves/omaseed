@@ -96,7 +96,8 @@ sync engine and the models, and turns key presses and clicks into API calls.
   take only `Theme` tokens and each has a `tests/qml/tst_<Name>.qml`.
 - `qml/Views/`: the screens, built from the kit; views take models. The window has three
   faces: the library, the seed console (`Console`) and qBittorrent's log (`LogView`).
-- `Keymap.qml` maps keys to actions per focus area and feeds the key hints.
+- `Keymap.qml` maps keys to actions per focus area and feeds the command palette and the `?`
+  sheet.
 
 **`plugin/`** is the bar widget itself, a Quickshell plugin (`chaves.omaseed`). It never talks
 to qBittorrent: it reads the status file and sends commands over D-Bus.

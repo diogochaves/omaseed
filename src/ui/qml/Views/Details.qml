@@ -33,9 +33,8 @@ Item {
     /// The pane's own left border. Inside the main window `SplitLayout` already draws the
     /// divider between the table and the pane, so Main turns this off to avoid a 2 px rule.
     property bool showEdge: true
-    /// The tab's key hints along the pane's foot (Fig. 2-4). The main window teaches every
-    /// tab from its own footer (`HintModel`), so Main turns this off too; the standalone
-    /// figures keep it.
+    /// The tab's key hints along the pane's foot (Fig. 2-4). The main window teaches keys on
+    /// demand (DECISIONS C24 H10), so Main turns this off; the standalone figures keep it.
     property bool showHints: true
     /// docs/10 §5, reworked by docs/13: under the table the pane is wide and short, so the
     /// head and the strip share one band across the top (name on the left, the four facts on
@@ -1458,8 +1457,8 @@ Item {
     }
 
     // The tab's own hints (spec §2 Fig. 2-4 `.foot .hints`), and since docs/12 G5 General's
-    // (`j k` move, `y` copy value, `enter` change an option). Inside the window Main's footer teaches
-    // them instead (HintModel), so this row only shows in the standalone figures.
+    // (`j k` move, `y` copy value, `enter` change an option). Inside the window keys are taught on
+    // demand (DECISIONS C24 H10), so this row only shows in the standalone figures.
     Item {
         id: footer
 

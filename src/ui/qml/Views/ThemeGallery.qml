@@ -856,11 +856,7 @@ Window {
                             id: heroSample
 
                             appName: "omaseed"
-                            connected: true
-                            downSpeed: qsTr("4.21 MB/s")
                             searchCount: 142
-                            serverLine: qsTr("home · qBittorrent 5.2.3")
-                            upSpeed: qsTr("812 KB/s")
                             width: parent.width
                         }
                     }

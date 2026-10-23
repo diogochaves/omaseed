@@ -2,8 +2,8 @@ pragma Singleton
 import QtQuick
 
 // The one table of keys (spec v2 §7 Fig. 26, "the same map as v1"). Everything that binds a
-// key in omaseed reads it from here: `MainView` routes presses through it, `HintModel`
-// derives the footer's hints from it, and `HelpSheet` draws the `?` sheet from it. Nothing
+// key in omaseed reads it from here: `MainView` routes presses through it, the command
+// palette lists it, and `HelpSheet` draws the `?` sheet from it. Nothing
 // else may invent a window key. A menu's own row letters (Fig. 11's actions menu, the Files
 // tab's menus) are part of that menu's rows and live with it.
 //
@@ -2402,7 +2402,7 @@ QtObject {
     }
 
     /// `label` of (area, key), falling back to the global entry and then to the key itself,
-    /// so `HintModel` never has to repeat a word the map already holds.
+    /// so a caller never has to repeat a word the map already holds.
     function labelOf(area, key) {
         const own = root.find(area, key);
         if (own)

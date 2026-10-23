@@ -196,7 +196,6 @@ TestCase {
         verify(findChild(testCase.logView, "newerPill").visible);
         compare(findChild(testCase.logView, "newerText").text, "3 new lines below · follow is paused");
         compare(list.contentY, top, "new lines pulled a paused view down");
-        compare(view.hintModel.hints.map(hint => hint.key).indexOf("G") >= 0, true);
 
         keyClick(Qt.Key_G, Qt.ShiftModifier);
         verify(testCase.logView.following);
@@ -244,7 +243,6 @@ TestCase {
         keyClick("j");
         keyClick(Qt.Key_Space);
         compare(App.logLines.markedCount, 2);
-        compare(view.hintModel.hints[0].label, "copy 2 marked lines");
         keyClick("y");
         const two = copySpy.signalArguments[1][0].split("\n");
         compare(two.length, 2);

@@ -16,7 +16,6 @@ qt_add_qml_module(omaseed-qml
         CoreForeign.hpp
         XdgForeign.hpp
     QML_FILES
-        HintModel.qml
         Keymap.qml
         Main.qml
 )

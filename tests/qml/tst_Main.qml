@@ -107,8 +107,9 @@ TestCase {
         actionSpy.clear();
     }
 
-    // DECISIONS C24 H2, H14: the rail runs the window's whole height; the hero, the bands,
-    // the body and the footer sit beside it, and the mark's block is the hero's height.
+    // DECISIONS C24 H2, H14, H15: the rail runs the window's whole height; the hero, the
+    // bands, the body and the status line sit beside it, and the mark's block is the hero's
+    // height.
     function test_the_rail_is_full_height_and_the_rest_sits_beside_it() {
         compare(view.rail.y, 0);
         compare(view.rail.height, view.height);
@@ -118,6 +119,9 @@ TestCase {
         compare(view.moveBand.x, view.rail.width);
         compare(view.split.mapToItem(view, 0, 0).x, view.rail.width);
         compare(view.footerNoticeItem.x, view.rail.width);
+        compare(view.statusLine.x, view.rail.width);
+        compare(view.statusLine.y + view.statusLine.height, view.height);
+        compare(view.statusLine.width, view.width - view.rail.width);
         compare(findChild(view.rail, "railMark").height, view.hero.height);
         verify(findChild(view.hero, "viewTabs") === null);
     }
@@ -171,12 +175,12 @@ TestCase {
         App.windowAlphaOverride = 0;
     }
 
-    // ---- the footer's facts (spec §1 Fig. 1 `.foot .facts`) -----------------------------
+    // ---- the status line (board 46 `statusLine()`, DECISIONS C24 H15) ---------------------
     // Seven, not the rail's eight: the demo's stopped download is not "downloading" here.
-    function test_the_footer_states_the_library() {
+    function test_the_status_line_states_the_library() {
         compare(App.counts.downloading, 8);
         compare(view.factsText, "16 torrents · 7 downloading · " + App.globalState.freeSpaceText
-                + " free");
+                + " free · synced now");
         // One is "1 torrent", not "1 torrents".
         App.loadDemo(1);
         verify(view.factsText.startsWith("1 torrent · "), view.factsText);
@@ -193,12 +197,12 @@ TestCase {
     }
 
     // #79: the facts are one label in whole words, the ↓ and the narrow steps' "sel" spelled
-    // out; a footer note is an alert by its words.
-    function test_a_screen_reader_hears_the_footer() {
-        const facts = findChild(view, "footerFacts");
+    // out; a note is an alert by its words.
+    function test_a_screen_reader_hears_the_status_line() {
+        const facts = findChild(view, "statusFacts");
         compare(facts.Accessible.role, Accessible.StaticText);
         compare(facts.Accessible.name, "16 torrents, 7 downloading, " + App.globalState.freeSpaceText
-                + " free");
+                + " free, synced now");
         compare(view.factsSpoken, facts.Accessible.name);
         view.flashFooterNote("copied");
         const note = findChild(view, "footerNote");
@@ -207,12 +211,45 @@ TestCase {
         view.footerNote = "";
     }
 
-    function test_the_footer_hints_follow_the_focus() {
-        compare(view.hintModel.area, "table");
-        view.rail.forceActiveFocus();
-        compare(view.hintModel.area, "rail");
-        view.table.forceActiveFocus();
-        compare(view.hintModel.area, "table");
+    // C24 H10: keys are taught on demand; the status line teaches none but "? keys", whose
+    // click is `?`.
+    function test_the_status_line_teaches_keys_on_demand() {
+        verify(findChild(view, "footerHints") === null);
+        const keys = findChild(view.statusLine, "statusKeys");
+        compare(keys.text, "? keys");
+        compare(keys.Accessible.name, "keys");
+        compare(keys.Accessible.description, "shortcut ?");
+        mouseClick(keys);
+        compare(view.helpOpen, true);
+        view.helpOpen = false;
+        view.focusHome();
+    }
+
+    // The lane's words are MainView.serverLaneText() (one place, for C25 K11); one server is
+    // named, with no ▾ and no click (C24 H15, docs/33 D19), and ctrl+s says why in the note.
+    function test_one_server_is_named_in_the_lane_without_a_switch() {
+        compare(App.serverCount <= 1, true);
+        compare(view.statusLine.serverText, view.serverLaneText());
+        verify(view.serverLaneText().startsWith(App.serverName), view.serverLaneText());
+        verify(!view.statusLine.serverSwitchable);
+        verify(!findChild(view.statusLine, "statusServerChevron").visible);
+        const lane = view.statusLine.serverLane;
+        compare(lane.Accessible.role, Accessible.StaticText);
+        mouseClick(lane);
+        verify(!view.serverPalette.opened, "one server opened the palette");
+        keyClick(Qt.Key_S, Qt.ControlModifier);
+        compare(view.footerNote, "one server · add another in Settings › Servers");
+        view.footerNote = "";
+    }
+
+    // #24: the status line's ↑ opens the seed console, as the rail's "seed" does.
+    function test_the_up_figure_opens_the_seed_console() {
+        const up = findChild(view.statusLine, "statusUp");
+        compare(up.Accessible.name, "seed console");
+        up.Accessible.pressAction();
+        compare(view.view, "seed");
+        view.setView("library");
+        view.focusHome();
     }
 
     // ---- `/` and `esc` ------------------------------------------------------------------
@@ -284,12 +321,10 @@ TestCase {
     }
 
     // docs/17 M10.3: `i` and the divider's double-click are one fold, and a folded pane at the
-    // bottom leaves the strip with the cursor torrent on it; `i` joins the footer (M16).
+    // bottom leaves the strip with the cursor torrent on it.
     function test_i_and_the_divider_share_one_fold_and_the_strip_shows_the_cursor_row() {
         view.split.placement = "bottom";
         const strip = findChild(view, "stripName");
-        const iHint = () => view.hintModel.hints.some(h => h.key === "i");
-        verify(!iHint(), "the footer teaches i while the pane is open");
 
         keyClick("i");
         compare(view.split.folded, true);
@@ -297,7 +332,6 @@ TestCase {
         compare(strip.text, App.torrentRow(view.cursorHash).name);
         verify(findChild(view, "stripStats").text.indexOf(App.torrentRow(view.cursorHash)
                                                           .progressText) === 0);
-        verify(iHint(), "the footer does not teach the way back");
         verify(view.table.activeFocus);
 
         // The same state the divider's double-click unfolds.
@@ -315,14 +349,14 @@ TestCase {
         view.split.placement = Qt.binding(() => App.detailsPlacement);
     }
 
-    // docs/DECISIONS.md M16: the footer's note sits in the footer's own line, never over the pane.
-    function test_the_footer_note_stays_in_the_footer() {
+    // docs/DECISIONS.md M16: the note sits in the status line, never over the pane.
+    function test_the_note_stays_in_the_status_line() {
         view.flashFooterNote("details: bottom · I to change");
         const note = findChild(view, "footerNote");
         verify(note.visible);
         const top = note.mapToItem(view, 0, 0).y;
-        const footerTop = view.height - Math.round(Theme.font.baseSize * 2.2);
-        verify(top >= footerTop, "the note is drawn above the footer, at " + top);
+        const lineTop = view.height - Theme.statusLineHeight;
+        verify(top >= lineTop, "the note is drawn above the status line, at " + top);
         view.footerNote = "";
     }
 
@@ -349,7 +383,7 @@ TestCase {
         compare(App.altSpeed.kind, "turtle"); // the demo's 10 KB/s set
         verify(!App.altSpeed.on);
         verify(App.altSpeed.byHand);
-        compare(view.hero.altChip.tooltip.indexOf("off by hand · the schedule starts turtle at "), 0);
+        compare(view.statusLine.altChip.tooltip.indexOf("off by hand · the schedule starts turtle at "), 0);
 
         view.footerNote = "";
         view._altFlipFrom = true; // as if A had asked to leave "on" and the poll came back
@@ -492,7 +526,7 @@ TestCase {
 
         keyClick("l");
         verify(view.details.activeFocus, "`l` did not reach the details pane");
-        compare(view.hintModel.area, "details");
+        compare(view.focusArea, "details");
     }
 
     // ---- `?` --------------------------------------------------------------------------------
@@ -587,15 +621,13 @@ TestCase {
         testCase.width = 1360;
     }
 
-    // docs/30 D10: the ⋯ menu's first row opens the command palette, and the footer and the
-    // ? sheet name it.
+    // docs/30 D10: the ⋯ menu's first row opens the command palette, and the ? sheet names it.
     function test_the_palette_is_found_without_its_key() {
         compare(view.moreMenu.items[0].action, "commands");
         compare(view.moreMenu.items[0].key, ":");
         view.moreAction("commands");
         compare(view.commandPalette.opened, true);
         view.commandPalette.close();
-        compare(view.hintModel.pinnedLead.key, ":");
         verify(view.helpSheetPanel.subtitle.endsWith(": runs any of them by name"));
     }
 
@@ -969,23 +1001,20 @@ TestCase {
         view.table.moveCursorTo(row);
     }
 
-    // Batch-2 D3: with a sheet, palette, modal or menu up, the window footer keeps its facts
-    // and prints no hints, so nothing repeats the overlay's own row or contradicts it; the
-    // table's hints come back when it closes.
+    // Batch-2 D3: with a sheet, palette, modal or menu up, the status line keeps its facts
+    // under it; the overlay's own row is the only one that teaches keys (the line teaches
+    // none, C24 H10).
     function _checkFooterStandsAside(open, overlay, what) {
         open();
         compare(overlay.opened, true, what + " did not open");
-        compare(view.hintModel.area, "overlay", what);
-        compare(view.hintModel.hints.length, 0, "the footer still teaches keys under " + what);
-        compare(view.hintModel.pinned, null, what);
+        verify(view.overlayOpen, what);
         verify(view.factParts.length > 0, "the facts went with " + what);
+        verify(view.statusLine.visible, "the status line went with " + what);
         overlay.close();
-        compare(view.hintModel.area, "table", what);
-        verify(view.hintModel.hints.length > 0, "the hints did not come back after " + what);
-        verify(view.hintModel.pinned !== null, "`? help` did not come back after " + what);
+        verify(!view.overlayOpen, what + " stayed open");
     }
 
-    function test_the_window_footer_stands_aside_for_every_overlay() {
+    function test_the_status_line_stays_under_every_overlay() {
         testCase._checkFooterStandsAside(() => App.addRequested(), view.addSheet, "the add sheet");
         testCase._checkFooterStandsAside(() => keyClick("L", Qt.ShiftModifier),
                                          view.limitsSheetPanel, "the limits sheet");
@@ -1016,17 +1045,14 @@ TestCase {
                                          view.globalLimitsSheet, "the speed limits sheet");
     }
 
-    // The Files tab's own menus (N1) are overlays too, as far as the footer goes.
-    function test_the_window_footer_stands_aside_for_the_files_menus() {
+    // The Files tab's own menus (N1) are overlays too: the facts stay under them.
+    function test_the_status_line_stays_under_the_files_menus() {
         view.details.currentTab = 1;
         view.details.openPriorityMenu();
         tryVerify(() => view.details.menuOpen, 1000, "the priority menu did not open");
-        compare(view.hintModel.area, "overlay");
-        compare(view.hintModel.hints.length, 0, "the footer still teaches keys under the menu");
         verify(view.factParts.length > 0, "the facts went with the menu");
         keyClick(Qt.Key_Escape);
         tryVerify(() => !view.details.menuOpen, 1000, "esc did not close the priority menu");
-        verify(view.hintModel.area !== "overlay", "the footer stayed in overlay mode");
         view.details.currentTab = 0;
     }
 
@@ -1949,13 +1975,26 @@ TestCase {
         keyClick(Qt.Key_S, Qt.ControlModifier);
         compare(view.serverPalette.opened, false);
         compare(view.footerNote, "one server · add another in Settings › Servers");
-        verify(!view.hero.serverSwitchable);
+        verify(!view.statusLine.serverSwitchable);
     }
 
-    // D2, D3: two servers, the palette and the hero's ▾.
+    // D2, D3, C24 H15: two servers, the palette, and the status line's lane with its ▾, which
+    // opens it too: a button named "switch server", its words the description.
     function test_ctrl_s_opens_the_server_palette_with_two() {
         testCase._twoServers();
-        verify(view.hero.serverSwitchable);
+        verify(view.statusLine.serverSwitchable);
+        verify(findChild(view.statusLine, "statusServerChevron").visible);
+        const lane = view.statusLine.serverLane;
+        compare(lane.Accessible.role, Accessible.Button);
+        compare(lane.Accessible.name, "switch server");
+        compare(lane.Accessible.description, view.statusLine.serverShortText.length > 0
+                && view.statusLine.level >= 1 ? view.statusLine.serverShortText : view.serverLaneText());
+        verify(view.statusLine.serverTipText.endsWith("\nswitch server · ctrl+s"),
+               view.statusLine.serverTipText);
+        mouseClick(lane);
+        compare(view.serverPalette.opened, true);
+        view.serverPalette.close();
+        view.focusHome();
         keyClick(Qt.Key_S, Qt.ControlModifier);
         compare(view.serverPalette.opened, true);
         compare(view.serverPalette.items.length, 2);
@@ -1984,6 +2023,12 @@ TestCase {
         keyClick("p");
         compare(actionSpy.count, 0);
         verify(view.footerNote.indexOf("p waits until it answers") >= 0, view.footerNote);
+        // The status line: the lane takes C12's words, its dot red (or yellow while retried,
+        // docs/35 N3), and the facts give the list's time.
+        verify(view.statusLine.serverText.startsWith(App.serverName + " · "), view.statusLine.serverText);
+        compare(view.statusLine.serverShortText, "");
+        verify(Qt.colorEqual(view.statusLine.dotColor, view.serverRetrying ? Theme.yellow : Theme.red));
+        verify(/^(list from \d\d:\d\d|not synced yet)$/.test(view.factsText), view.factsText);
         keyClick(Qt.Key_S, Qt.ControlModifier);
         compare(view.serverPalette.opened, true);
         view.serverPalette.close();

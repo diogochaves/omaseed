@@ -558,6 +558,9 @@ more a way to the others is always on screen; with one, nothing offers to switch
   lone dot at step 4); its tooltip adds "switch server · ctrl+s". `:` lists "switch server…" and
   one "switch to NAME" per other server (`switchTo:<id>`), and both run while the server is lost
   (`Keymap.isOffline`). The read-only guard lets `ctrl+s` through.
+  *Changed by C24 H15 (v0.5.0): the server line, its ▾, hover and click are the status line's
+  server lane (`MainView.serverLaneText()`), the same words; the footer's "last sync HH:MM" is
+  "list from HH:MM", as the notice says it, and a live server's line ends in "synced now".*
 - **One server (D19 a):** no block, no ▾, no `:` rows, no hint; `ctrl+s` answers in the footer
   "one server · add another in Settings › Servers"; the `?` sheet lists it dim as "Switch
   server, with two servers or more".
