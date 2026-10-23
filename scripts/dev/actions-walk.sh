@@ -8,7 +8,8 @@
 # without files, and two torrents that share one file (#27: the twin goes in through the add
 # sheet's "save there"; #28: the delete confirm, the location sheet, a category change and
 # turning automatic management on (#65) ask), and board 44's skipped files that still hold space
-# (#118): the On disk column and band, free the space (taught by the ? sheet and the palette,
+# (#118): the On disk column and band (also after an `x` skip and tick back in the app, #180),
+# free the space (taught by the ? sheet and the palette,
 # #160) on a v1-only torrent (with its recheck) and on a hybrid (left, then added again); and a big tick that waits with Undo (#119). After each step it checks what qBittorrent says and
 # what is on disk, and stops at the first mismatch. OMASEED_ACTIONS_WALK_FROM=disk runs board
 # 44's steps alone.
@@ -363,8 +364,10 @@ expect_priorities() {
 disk_walk() {
     make_disk_torrent b44-v1 v1
     make_disk_torrent b44-hybrid hybrid
+    make_disk_torrent b44-skip v1
     D_V1="$(hash_of b44-v1)"
     D_HY="$(hash_of b44-hybrid)"
+    D_SK="$(hash_of b44-skip)"
     [ "$(tq "$D_HY" 'bool(t["infohash_v1"]) and bool(t["infohash_v2"])')" = True ] ||
         { echo "b44-hybrid is not hybrid" >&2; exit 1; }
     [ "$(tq "$D_V1" 'not t["infohash_v2"]')" = True ] || { echo "b44-v1 is not v1-only" >&2; exit 1; }
@@ -375,6 +378,23 @@ disk_walk() {
     api torrents/setCategory -d "hashes=$D_HY" -d category=b44 >/dev/null
     api torrents/addTags -d "hashes=$D_HY" -d tags=b44-tag >/dev/null
     keys Escape
+
+    # #180: the band follows a skip and a tick made with `x` in the app, not only skips that
+    # were on the server before the tab opened.
+    step "Skip in the app, then tick back" "b44-skip, every file wanted, its Files tab: j onto a.bin, x skips it. Its 8 MiB stay on disk, a quarter of the torrent, so the band comes once qBittorrent has the skip. x again ticks it back: the whole torrent, so it waits 3 s (#119), and once it is sent the band goes."
+    table_on "b44-skip"
+    keys l 2
+    expect_no_text "no band while every file is wanted" "skipped file holds" 3
+    keys j
+    keys x
+    expect_priorities "qBittorrent has a.bin skipped" "$D_SK" "0 1 1 1"
+    expect_text "the band says 1 skipped file holds space" "1 skipped file holds" 10
+    shot "a.bin reads skip, On disk 8.00 MB; the yellow band: 1 skipped file holds 8.00 MB, with Free the space…."
+    keys_now x
+    expect_text "the tick back waits" "Wanting 1 more file" 3
+    expect_priorities "sent once the hold ran out: every file wanted" "$D_SK" "1 1 1 1" 10
+    expect_no_text "the band is gone" "skipped file holds" 10
+    shot "Every file normal again: no band, and no On disk column (nothing skipped holds space)." ticked
 
     step "Skipped files that hold space" "b44-v1, its Files tab: c.bin and d.bin are skipped but still hold their 8 MiB each. The On disk column shows it, and the yellow band says what they hold (16.8 MB, half the torrent: past 5 %)."
     table_on "b44-v1"
