@@ -22,7 +22,7 @@ ThemeBase {
     /// The rail open, and folded to its glyphs (board 46: 214 and 48 px at its 13 px type).
     readonly property int railWidth: space(200)
     readonly property int railFoldedWidth: space(46)
-    /// The mark's block before the host gives it the hero's height.
+    /// The mark's block before the host gives it the title bar's height.
     readonly property int railHeadHeight: space(46)
     /// The mark: its glyph, the inset before it, the gap to the name, the name's weight.
     readonly property int railMarkSize: space(20)
@@ -37,6 +37,29 @@ ThemeBase {
     readonly property int railMenuGap: space(4)
     /// From a folded row to its name's tooltip.
     readonly property int railTipGap: space(2)
+
+    // ---- the frame's form: the title bar (board 46 `titleBar()`, `.top`, `.tool`) ----------
+    /// Its height, which the rail's mark block takes too so their rules meet (board 46: 54 px
+    /// at 13 px type).
+    readonly property int titleBarHeight: space(46)
+    /// Before the title and after the last tool (board 46: 18 and 14 px), between the parts
+    /// (12 px), and between the title and its sentence.
+    readonly property int titleBarInsetStart: space(16)
+    readonly property int titleBarInsetEnd: space(13)
+    readonly property int titleBarGap: space(11)
+    readonly property int titleBarLineGap: space(1)
+    /// The title (board 46: 15 px, 600, bright) and its sentence (11.5 px, dim).
+    readonly property int titleBarTitleSize: font.title
+    readonly property int titleBarTitleWeight: Font.DemiBold
+    readonly property int titleBarSentenceSize: font.small
+    /// A tool's height (board 46 `.tool`, 28 px: the kit's control, as the filter field's),
+    /// and the filter tool's width (176 px).
+    readonly property int titleBarToolHeight: controlHeight
+    readonly property int titleBarFindWidth: space(164)
+    /// The widths its steps start at, widest first: from step 1 the tools keep their glyph
+    /// alone (their words in the tooltip), from step 2 the filter folds into its `/` tool and
+    /// opens over the title.
+    readonly property var titleBarSteps: [space(760), space(560)]
 
     // ---- the frame's form: the status line (board 46 `statusLine()`, `.status`) ----------
     /// Its height: the line it replaced (the footer), one small line with room around it.

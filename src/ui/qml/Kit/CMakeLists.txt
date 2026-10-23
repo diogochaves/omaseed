@@ -26,7 +26,6 @@ qt_add_qml_module(omaseed-kit
         ConfirmDialog.qml
         DayGrid.qml
         Field.qml
-        FilterMenu.qml
         FocusRing.qml
         FormRow.qml
         Fuzzy.qml
@@ -34,7 +33,6 @@ qt_add_qml_module(omaseed-kit
         Glyphs.qml
         Hairline.qml
         Hatch.qml
-        Hero.qml
         Icon.qml
         IconButton.qml
         InputMouseArea.qml

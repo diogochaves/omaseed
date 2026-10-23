@@ -882,7 +882,8 @@ TestCase {
 
     // ---- the location sheet (Fig. 7) -------------------------------------------------------
     // Board 42 F1 (DECISIONS C15 M1, M2): the folders group lists the library's save paths;
-    // picking one filters the table to it and the scope line offers the move.
+    // picking one filters the table to it, and the title bar names it and offers the move
+    // (C24 H5).
     function test_folders_in_the_rail_filter_and_offer_the_move() {
         const folders = App.move.folders;
         verify(folders.total > 0);
@@ -894,12 +895,14 @@ TestCase {
         compare(App.filtered.folder, path);
         for (let i = 0; i < App.filtered.count; ++i)
             verify(App.torrentRow(App.filtered.hashAt(i)).savePath.startsWith(path));
-        verify(view.moveScope.visible);
-        compare(view.moveScope.linkText, "move this folder…");
-        verify(view.moveScope.text.indexOf(path) >= 0, view.moveScope.text);
+        verify(view.titleBar.moveFolderTool.visible);
+        compare(view.titleBar.moveFolderTool.words, "move this folder…");
+        compare(view.titleBar.title, path.substring(path.lastIndexOf("/") + 1));
+        verify(view.titleBar.sentence.endsWith(path), view.titleBar.sentence);
         mouseClick(row); // picked again: the filter goes
         compare(App.filtered.folder, "");
-        verify(!view.moveScope.visible);
+        verify(!view.titleBar.moveFolderTool.visible);
+        compare(view.titleBar.title, "Library");
         // C19 T2 (#135): the keys stayed in the table, so the row keeps no cursor fill; they
         // come to the rail and the cursor shows on the row clicked.
         verify(!view.rail.activeFocus);
@@ -988,7 +991,13 @@ TestCase {
         sheet.close();
         compare(App.filtered.onlyHashes.length, sheet.plan.moveHashes.length);
         verify(view.moveShowing);
-        compare(view.moveScope.linkText, "back to the sheet");
+        // C15 M10 (J1): the show is the title, its way back a title tool.
+        compare(view.titleBar.title, "From the move sheet");
+        compare(view.titleBar.sentence, sheet.plan.moveHashes.length === 1 ? "1 torrent the move sheet listed"
+                                                                            : sheet.plan.moveHashes.length
+                                                                              + " torrents the move sheet listed");
+        compare(view.titleBar.backText, "back to the sheet");
+        compare(view.titleBar.backKey, "esc");
         view.handleEscape();
         compare(App.filtered.onlyHashes.length, 0);
         compare(sheet.opened, true);

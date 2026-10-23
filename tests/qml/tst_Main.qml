@@ -80,7 +80,6 @@ TestCase {
         view.columnsPalette.close();
         view.commandPalette.close();
         view.moreMenu.close();
-        view.filterMenu.close();
         view.globalLimitsSheet.close();
         testCase.width = 1360;
         App.filtered.clearCategory();
@@ -94,7 +93,7 @@ TestCase {
         view.details.activateTab(0);
         view.table.cancelRename();
         view.table.clearSelection();
-        view.hero.searchField.text = "";
+        view.titleBar.searchField.text = "";
         App.filtered.text = "";
         App.filtered.statusFilter = TorrentFilterModel.All;
         App.filtered.question = TorrentFilterModel.AnyQuestion;
@@ -107,14 +106,16 @@ TestCase {
         actionSpy.clear();
     }
 
-    // DECISIONS C24 H2, H14, H15: the rail runs the window's whole height; the hero, the
-    // bands, the body and the status line sit beside it, and the mark's block is the hero's
-    // height.
+    // DECISIONS C24 H2, H5, H14, H15: the rail runs the window's whole height; the title bar,
+    // the bands, the body and the status line sit beside it, and the mark's block is the title
+    // bar's height.
     function test_the_rail_is_full_height_and_the_rest_sits_beside_it() {
         compare(view.rail.y, 0);
         compare(view.rail.height, view.height);
         compare(view.rail.width, Theme.railWidth);
-        compare(view.hero.x, view.rail.width);
+        compare(view.titleBar.x, view.rail.width);
+        compare(view.titleBar.y, 0);
+        compare(view.titleBar.width, view.width - view.rail.width);
         compare(view.serverNotice.x, view.rail.width);
         compare(view.moveBand.x, view.rail.width);
         compare(view.split.mapToItem(view, 0, 0).x, view.rail.width);
@@ -122,8 +123,9 @@ TestCase {
         compare(view.statusLine.x, view.rail.width);
         compare(view.statusLine.y + view.statusLine.height, view.height);
         compare(view.statusLine.width, view.width - view.rail.width);
-        compare(findChild(view.rail, "railMark").height, view.hero.height);
-        verify(findChild(view.hero, "viewTabs") === null);
+        compare(findChild(view.rail, "railMark").height, view.titleBar.height);
+        compare(view.titleBar.height, Theme.titleBarHeight);
+        compare(view.serverNotice.y, view.titleBar.height);
     }
 
     // C24 H2: 1–5 pick the questions from anywhere, 0 is the library (every rail filter off),
@@ -150,7 +152,7 @@ TestCase {
         view.runCommand(Keymap.showStatePrefix + "stalled");
         compare(App.filtered.text, "is:stalled");
         compare(App.filtered.count, App.counts.stalled);
-        verify(view.hero.searchField.editing);
+        verify(view.titleBar.searchField.editing);
         view.clearFilter();
     }
 
@@ -255,7 +257,7 @@ TestCase {
     // ---- `/` and `esc` ------------------------------------------------------------------
     function test_slash_focuses_the_search_field_and_the_count_follows() {
         keyClick("/");
-        verify(view.hero.searchField.editing, "`/` did not put the caret in the field");
+        verify(view.titleBar.searchField.editing, "`/` did not put the caret in the field");
         compare(view.focusArea, "search");
 
         keyClick("f");
@@ -267,8 +269,8 @@ TestCase {
         compare(App.filtered.text, "fedora");
         // One row of the demo library is a Fedora ISO (the match is case-insensitive).
         compare(App.filtered.count, 1);
-        compare(view.hero.searchCount, 1);
-        compare(view.hero.searchCountText, "1 of 16");
+        compare(view.titleBar.searchCountText, "1 of 16");
+        compare(findChild(view.titleBar, "titleFilter").trailing, "1 of 16");
     }
 
     function test_escape_in_the_field_clears_it_and_goes_back_to_the_table() {
@@ -280,7 +282,7 @@ TestCase {
 
         keyClick(Qt.Key_Escape);
         compare(App.filtered.text, "");
-        compare(view.hero.searchField.text, "");
+        compare(view.titleBar.searchField.text, "");
         verify(view.table.activeFocus, "the table did not get the focus back");
         compare(view.focusArea, "table");
     }
@@ -604,13 +606,10 @@ TestCase {
         compare(view.columnsPalette.opened, false);
     }
 
-    // docs/10 §2: once the hero is too narrow for the gear and `?`, they lead the ⋯ menu,
-    // and their rows run what the buttons did.
-    function test_a_narrow_hero_moves_settings_and_help_into_the_more_menu() {
+    // C24 H9: the hero's gear and `?` went, so they lead the mark's menu at every width, and
+    // their rows run what the buttons did.
+    function test_settings_and_help_lead_the_marks_menu() {
         const actions = () => view.moreMenu.items.map(item => item.action);
-        verify(actions().indexOf("settings") < 0);
-        testCase.width = Theme.space(800); // the view fills the case, the hero spans the view
-        verify(view.hero.compact);
         // docs/30 D10: after the command palette's row and its rule.
         compare(actions().slice(0, 4), ["commands", undefined, "settings", "help"]);
         view.moreAction("settings");
@@ -618,7 +617,6 @@ TestCase {
         view.moreAction("help");
         compare(view.helpOpen, true);
         view.helpOpen = false;
-        testCase.width = 1360;
     }
 
     // docs/30 D10: the ⋯ menu's first row opens the command palette, and the ? sheet names it.
@@ -648,12 +646,15 @@ TestCase {
         view.helpOpen = false;
     }
 
-    // docs/08 §3: ctrl+. opens the ⋯ menu under its button; its rows reach the limits sheet,
-    // the columns palette and select-all.
+    // docs/08 §3: ctrl+. opens the window's menu, under the mark now the hero's ⋯ went (C24
+    // H9); its rows reach the limits sheet, the columns palette and select-all.
     function test_ctrl_period_opens_the_more_menu_and_its_rows_run() {
         keyClick(Qt.Key_Period, Qt.ControlModifier);
         compare(view.moreMenu.opened, true);
         compare(view.activeOverlay, view.moreMenu);
+        const mark = findChild(view.rail, "railMark");
+        const corner = mark.mapToItem(view, Theme.railMarkInset, mark.height);
+        compare(view.moreMenu.anchorX, Math.round(corner.x));
 
         view.moreAction("altLimits");
         compare(view.moreMenu.opened, false);
@@ -679,10 +680,10 @@ TestCase {
         compare(view.table.selectedHashes().length, App.filtered.count);
     }
 
-    // #167 assumed 4: ctrl+b folds the rail to its glyphs; the questions keep theirs, the
-    // other filters show as chips in the hero, and a chip's ✕ clears that filter. `h` from
-    // the table gives the folded rail the keys; ctrl+b again opens it.
-    function test_ctrl_b_folds_the_rail_and_its_other_filters_become_chips() {
+    // #167 assumed 4: ctrl+b folds the rail to its glyphs; the questions keep theirs, and the
+    // title bar names the place the folded rail no longer shows (C24 H5; the hero's chips
+    // went). `h` from the table gives the folded rail the keys; ctrl+b again opens it.
+    function test_ctrl_b_folds_the_rail_and_the_title_names_the_scope() {
         App.filtered.question = TorrentFilterModel.Arriving;
         App.filtered.category = "linux";
         keyClick(Qt.Key_B, Qt.ControlModifier);
@@ -690,16 +691,16 @@ TestCase {
         verify(view.rail.visible);
         verify(view.rail.compact);
         compare(view.rail.width, Theme.railFoldedWidth);
-        compare(view.hero.x, view.rail.width);
+        compare(view.titleBar.x, view.rail.width);
         const arriving = findChild(view.rail, "railQuestion-arriving");
         verify(arriving.selected && arriving.compact);
         verify(findChild(view.rail, "railGroupsRow").visible);
-        compare(view.activeFilterChips.length, 1);
-        compare(view.activeFilterChips[0].key, "category");
+        compare(view.titleBar.title, "linux");
+        verify(view.titleBar.sentence.startsWith("arriving · "), view.titleBar.sentence);
+        verify(findChild(view.titleBar, "filterChip_category") === null);
 
-        view.clearOneFilter("category");
-        compare(App.filtered.category, undefined);
-        compare(view.activeFilterChips.length, 0);
+        App.filtered.clearCategory();
+        compare(view.titleBar.title, "Arriving");
 
         view.table.forceActiveFocus();
         keyClick("h");
@@ -711,39 +712,79 @@ TestCase {
         compare(view.rail.width, Theme.railWidth);
     }
 
-    // docs/15 Q1 A: at the floor the chips leave the hero; `/` opens one menu with the name
-    // filter on top and a row per filter, and its ✕ clears that filter.
-    function test_slash_opens_the_filters_menu_on_the_last_step() {
-        App.filtered.category = "linux";
-        App.filtered.tag = "";
-        keyClick(Qt.Key_B, Qt.ControlModifier);
+    // At the narrowest step the filter folds into its `/` tool; `/` opens it over the title,
+    // and leaving it folds it again, lit while it filters.
+    function test_slash_opens_the_folded_filter_over_the_title() {
         testCase.width = Theme.space(480);
-        compare(view.hero.level, 4);
-        verify(view.hero.filtersInButton);
+        compare(view.titleBar.level, 2);
+        verify(view.titleBar.searchFolded);
+        verify(view.titleBar.filterTool.visible);
 
         view.table.forceActiveFocus();
         keyClick(Qt.Key_Slash);
-        verify(view.filterMenu.opened);
-        verify(view.overlayOpen);
-        compare(view.filterMenu.filters.length, 2);
+        verify(view.titleBar.searchField.editing);
+        verify(!findChild(view.titleBar, "titleText").visible);
         keyClick("u");
         compare(App.filtered.text, "u");
-        compare(view.hero.searchField.text, "u");
-
-        keyClick(Qt.Key_Down);
-        keyClick(Qt.Key_X);
-        compare(App.filtered.category, undefined);
-        verify(view.filterMenu.opened);
-        // "clear all filters" is the row after the last filter.
-        keyClick(Qt.Key_J);
         keyClick(Qt.Key_Return);
-        verify(!view.filterMenu.opened);
-        compare(App.filtered.tag, undefined);
-        compare(App.filtered.text, "");
-        compare(view.hero.searchField.text, "");
-
+        verify(view.table.activeFocus);
+        verify(view.titleBar.searchFolded);
+        verify(view.titleBar.filterTool.selected);
+        verify(findChild(view.titleBar, "titleText").visible);
+        view.clearFilter();
         testCase.width = 1360;
-        view.filterMenu.close();
+    }
+
+    // C24 H5 (board 46 `titleBar()`): the title is where the window is, the sentence what the
+    // scope holds, from the library to a question, a category, a tag, a face.
+    function test_the_title_bar_names_the_scope() {
+        compare(view.titleBar.title, "Library");
+        compare(view.titleBar.sentence, App.scopeSentence);
+        verify(view.titleBar.sentence.indexOf(" arriving") >= 0, view.titleBar.sentence);
+        keyClick(Qt.Key_5);
+        compare(view.titleBar.title, "Resting");
+        verify(view.titleBar.sentence.endsWith("not sharing") || view.titleBar.sentence === "nothing resting",
+               view.titleBar.sentence);
+        keyClick(Qt.Key_0);
+        App.filtered.tag = "";
+        compare(view.titleBar.title, "Untagged");
+        verify(view.titleBar.sentence.endsWith(" · tag"), view.titleBar.sentence);
+        App.filtered.clearTag();
+        // The words narrow the rows, never the place.
+        App.filtered.text = "fedora";
+        compare(view.titleBar.title, "Library");
+        App.filtered.text = "";
+        // The faces.
+        view.setView("seed");
+        compare(view.titleBar.title, "Seed console");
+        verify(view.titleBar.sentence.indexOf("every torrent") >= 0, view.titleBar.sentence);
+        view.setView("log");
+        compare(view.titleBar.title, "Log");
+        verify(view.titleBar.sentence.startsWith("qBittorrent's log"), view.titleBar.sentence);
+        verify(!findChild(view.titleBar, "titleFilter").visible);
+        view.setView("library");
+        // A lost server: the list's time and the notice's headline.
+        view._testServerLost = true;
+        compare(view.titleBar.sentence, App.lostSentence(App.globalState.lastSyncText,
+                                                         view.serverProblem.headline ?? ""));
+        view._testServerLost = false;
+    }
+
+    // H5: a folder picked: its name the title, its facts the sentence, "move this folder…" a
+    // title-bar tool.
+    function test_a_folder_picked_gives_the_title_its_move() {
+        const folder = App.move.folderOf(view.cursorHash);
+        verify(folder.length > 0);
+        App.filtered.folder = folder;
+        compare(view.titleBar.title, folder.substring(folder.lastIndexOf("/") + 1));
+        verify(view.titleBar.sentence.endsWith(folder), view.titleBar.sentence);
+        verify(view.titleBar.moveFolderShown);
+        verify(view.titleBar.moveFolderTool.visible);
+        view.titleBar.moveFolderTool.Accessible.pressAction();
+        compare(view.moveSheet.opened, true);
+        view.moveSheet.close();
+        App.filtered.folder = "";
+        verify(!view.titleBar.moveFolderShown);
     }
 
     function test_pipe_opens_the_columns_palette() {
@@ -980,21 +1021,23 @@ TestCase {
                                       "the settings modal");
     }
 
-    // M8: the hero's gear opens settings with the mouse and leaves the keyboard where it was,
-    // so closing settings gives it back to the table: no ring or tip left on the gear, and
-    // `j` moves the cursor.
-    function test_a_click_on_the_gear_gives_the_keyboard_back_to_the_table() {
-        const gear = findChild(view.hero, "settingsButton");
-        verify(gear && gear.visible, "no settings button in the hero");
+    // M8: the title bar's "+ add" opens the add sheet with the mouse and leaves the keyboard
+    // where it was, so closing the sheet gives it back to the table: no ring or tip left on
+    // the tool, and `j` moves the cursor.
+    function test_a_click_on_add_gives_the_keyboard_back_to_the_table() {
+        const add = view.titleBar.addTool;
+        verify(add && add.visible, "no + add in the title bar");
         const row = view.table.cursorIndex;
-        mouseClick(gear);
-        compare(view.settingsModal.opened, true, "the gear did not open settings");
+        mouseClick(add);
+        compare(view.addSheet.opened, true, "+ add did not open the add sheet");
         keyClick(Qt.Key_Escape);
-        compare(view.settingsModal.opened, false);
+        if (view.addSheet.opened)
+            keyClick(Qt.Key_Escape); // the add sheet's guard (manual box M5)
+        compare(view.addSheet.opened, false);
         mouseMove(view.table, view.table.width / 2, view.table.height / 2);
-        compare(gear.activeFocus, false, "the gear kept the keyboard");
-        compare(findChild(gear, "focusRing").shown, false);
-        tryCompare(gear.tooltipItem, "shown", false);
+        compare(add.activeFocus, false, "+ add kept the keyboard");
+        compare(findChild(add, "focusRing").shown, false);
+        tryCompare(view.titleBar.tip, "shown", false);
         verify(view.table.activeFocus, "the table did not get the keyboard back");
         keyClick("j");
         compare(view.table.cursorIndex, row + 1);
@@ -1175,7 +1218,7 @@ TestCase {
 
         keyClick("/");
         compare(view.footerNote, "one file, nothing to filter");
-        verify(!view.hero.searchField.editing, "`/` went on to the window's search");
+        verify(!view.titleBar.searchField.editing, "`/` went on to the window's search");
         view.details.activateTab(0);
     }
 
@@ -1304,14 +1347,14 @@ TestCase {
         verify(testCase._focusInside(view.limitsSheetPanel), "a notice's show took the sheet's keyboard");
     }
 
-    function test_the_jump_palette_clears_the_heros_field_with_the_filter() {
+    function test_the_jump_palette_clears_the_title_bars_field_with_the_filter() {
         const hash = App.filtered.hashAt(2);
-        view.hero.searchField.text = "archlinux";
+        view.titleBar.searchField.text = "archlinux";
         verify(App.filtered.rowOfHash(hash) < 0 || App.filtered.hashAt(0) === hash);
         view.jumpPalette.jumpTo(hash);
         compare(view.cursorHash, hash);
         compare(App.filtered.text, "");
-        compare(view.hero.searchField.text, "", "the hero kept a word that no longer filters");
+        compare(view.titleBar.searchField.text, "", "the title bar kept a word that no longer filters");
     }
 
     // ---- server switch (review VIEW-3) ---------------------------------------------------
@@ -1461,7 +1504,7 @@ TestCase {
     // commands lead.
     function test_ctrl_shift_p_opens_it_from_a_field_and_from_files() {
         keyClick("/");
-        verify(view.hero.searchField.editing);
+        verify(view.titleBar.searchField.editing);
         keyClick(Qt.Key_P, Qt.ControlModifier | Qt.ShiftModifier);
         compare(view.commandPalette.opened, true, "ctrl+shift+p did not open it from the field");
         view.commandPalette.close();
@@ -1849,7 +1892,7 @@ TestCase {
     function test_the_back_button_steps_the_escape_ladder() {
         waitForRendering(view, 250);
         App.filtered.text = "e";
-        view.hero.searchField.text = "e";
+        view.titleBar.searchField.text = "e";
         view.table.forceActiveFocus();
         verify(App.filtered.count > 2);
         testCase.selectTwo();

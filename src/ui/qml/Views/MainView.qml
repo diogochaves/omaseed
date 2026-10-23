@@ -6,13 +6,13 @@ import Omaseed.Kit
 import Omaseed.Views
 
 // The whole main window, minus the window (board 46's frame, DECISIONS C24 H2, H14): the rail
-// down the whole left side, and beside it a column of the hero, the bands (the server's notice,
-// a move's), the body (table | details, or the seed console, or the log) and the status line
-// (H15). `Main.qml` is a `Window` that holds exactly one of these; the split exists so the qmltestrunner can build the shell without
+// down the whole left side, and beside it a column of the title bar (H5), the bands (the
+// server's notice, a move's), the body (table | details, or the seed console, or the log) and
+// the status line (H15). `Main.qml` is a `Window` that holds exactly one of these; the split exists so the qmltestrunner can build the shell without
 // a top-level window and still drive its keys and focus.
 //
 // What lives here and nowhere else:
-//   - the wiring between App and the views (Rail, TorrentTable, Details, Hero, StatusLine);
+//   - the wiring between App and the views (Rail, TitleBar, TorrentTable, Details, StatusLine);
 //   - key routing. A key press reaches the focused view first — Qt propagates what the view
 //     does not accept up the parent chain to this item's `Keys.onPressed` — so `routeKey`
 //     only ever sees what no view claimed. That is what lets `a` add a tracker inside the
@@ -37,7 +37,7 @@ Item {
     signal setupFinished
 
     // the pieces, exposed for tests and for Main
-    readonly property alias hero: hero
+    readonly property alias titleBar: titleBar
     readonly property alias rail: rail
     readonly property alias table: table
     readonly property alias details: details
@@ -55,12 +55,10 @@ Item {
     readonly property alias deleteConfirmPanel: deleteConfirmPanel
     readonly property alias moveSheet: moveSheet
     readonly property alias moveBand: moveBand
-    readonly property alias moveScope: moveScope
     readonly property alias moveQuitConfirm: moveQuitConfirm
     readonly property alias sharedMoveConfirm: sharedMoveConfirm
     readonly property alias limitsSheetPanel: limitsSheetPanel
     readonly property alias moreMenu: moreMenu
-    readonly property alias filterMenu: filterMenu
     readonly property alias globalLimitsSheet: globalLimitsSheet
     readonly property alias renameSheetPanel: renameSheetPanel
     // ruling Q4: the Trackers/Peers tabs' `a` and the Peers tab's `b`
@@ -143,8 +141,6 @@ Item {
             return folderMenuPanel;
         if (moreMenu.opened)
             return moreMenu;
-        if (filterMenu.opened)
-            return filterMenu;
         return null;
     }
 
@@ -168,7 +164,7 @@ Item {
         return root.cursorHash.length > 0 ? App.move.folderOf(root.cursorHash) : "";
     }
 
-    /// `shift+m`, the palette's "move folder…", the scope line's link (M1); `newPath` for
+    /// `shift+m`, the palette's "move folder…", the title bar's tool (C24 H5); `newPath` for
     /// J3's "move the rest…" and T2's "change the folder…".
     function openMoveFolder(folder: var, newPath: var): void {
         const from = typeof folder === "string" && folder.length > 0 ? folder : root.moveFolderTarget();
@@ -311,7 +307,7 @@ Item {
 
     /// A filter that matches nothing: Fig. 24.
     readonly property bool filterEmpty: App.torrents.count > 0 && App.filtered.count === 0
-    /// There are numbers worth printing in the hero.
+    /// There are numbers worth printing in the status line.
     readonly property bool live: App.demoMode || App.globalState.connected
 
     /// #24 (docs/22 D1 a): the window's face, "library" or "seed" (the seed console); docs/32
@@ -324,7 +320,7 @@ Item {
     /// The face `~` and `esc` go back to from the log ("back to where you were").
     property string _viewBeforeLog: "library"
 
-    /// `` ` ``, `~` and the hero's tabs. With a selection, the console opens on it (D2 a).
+    /// `` ` ``, `~` and the rail's views. With a selection, the console opens on it (D2 a).
     function setView(next: string): void {
         if (next === root.view)
             return;
@@ -436,7 +432,7 @@ Item {
 
     /// Which view holds the focus, for the palette's context (`commandContext`).
     readonly property string focusArea: {
-        if (hero.searchField.editing || details.filterEditing || logView.filterEditing)
+        if (titleBar.searchField.editing || details.filterEditing || logView.filterEditing)
             return "search";
         if (root.logShown)
             return "log";
@@ -558,15 +554,15 @@ Item {
 
     // the API Main and the tests drive
 
-    /// `/`: put the caret in the hero's search field.
+    /// `/`: put the caret in the title bar's filter.
     function focusSearch(): void {
-        hero.openSearch();
+        titleBar.openSearch();
     }
 
     /// `esc` in the field, and the field's own clear: empty the filter and go back to the
     /// table.
     function clearFilter(): void {
-        hero.searchField.text = "";
+        titleBar.searchField.text = "";
         App.filtered.text = "";
         root.focusHome();
     }
@@ -1011,7 +1007,7 @@ Item {
 
         // #24: the console's own keys, while it is the face on show and the rail is not
         // where the keyboard is.
-        if (root.consoleShown && !rail.activeFocus && !hero.searchField.editing) {
+        if (root.consoleShown && !rail.activeFocus && !titleBar.searchField.editing) {
             switch (event.key) {
             case Qt.Key_BracketLeft:
                 App.console.stepRange(-1);
@@ -1427,95 +1423,20 @@ Item {
     function showState(word: string): void {
         root.setView("library");
         root.focusSearch();
-        hero.searchField.text = "is:" + word + " ";
+        titleBar.searchField.text = "is:" + word + " ";
     }
 
     /// `ctrl+b` (docs/08 §5): fold the rail to its glyphs or open it again (#167 assumed 4).
-    /// Folding it never hides a filter: the questions keep their glyphs, and each other filter
-    /// shows as a chip in the hero.
+    /// Folding it never hides a filter: the questions keep their glyphs, and the title bar's
+    /// title and sentence name the place picked (C24 H5).
     function toggleRail(): void {
         App.railHidden = !App.railHidden;
     }
 
-    /// The filters the folded rail no longer names, as the hero's chips (the questions keep
-    /// their glyphs in it).
-    readonly property var activeFilterChips: {
-        if (!App.railHidden)
-            return [];
-        const chips = [];
-        const category = App.filtered.category;
-        if (category !== undefined)
-            chips.push({
-                           "key": "category",
-                           "glyph": Glyphs.category,
-                           "text": category === "" ? qsTr("no category") : category
-                       });
-        const tag = App.filtered.tag;
-        if (tag !== undefined)
-            chips.push({
-                           "key": "tag",
-                           "glyph": Glyphs.tag,
-                           "text": tag === "" ? qsTr("untagged") : tag
-                       });
-        const tracker = App.filtered.tracker;
-        if (tracker !== undefined)
-            chips.push({
-                           "key": "tracker",
-                           "glyph": Glyphs.tracker,
-                           "text": rail.trackerText(tracker)
-                       });
-        const folder = App.filtered.folder;
-        if (folder.length > 0)
-            chips.push({
-                           "key": "folder",
-                           "glyph": Glyphs.folder,
-                           "text": folder.substring(folder.lastIndexOf("/") + 1)
-                       });
-        return chips;
-    }
-
-    function clearOneFilter(key: string): void {
-        switch (key) {
-        case "status":
-            App.filtered.question = TorrentFilterModel.AnyQuestion;
-            break;
-        case "category":
-            App.filtered.clearCategory();
-            break;
-        case "tag":
-            App.filtered.clearTag();
-            break;
-        case "tracker":
-            App.filtered.clearTracker();
-            break;
-        case "folder":
-            App.filtered.folder = "";
-            break;
-        }
-    }
-
-    /// Every filter off: the rail's (shown as chips) and the name filter.
-    function clearAllFilters(): void {
-        for (const chip of root.activeFilterChips)
-            root.clearOneFilter(chip.key);
-        root.clearFilter();
-    }
-
-    /// docs/15 Q1 A: the hero's filters on its last step, hung under its `/` button with
-    /// their right edges flush.
-    function openFilterMenu(): void {
-        const button = hero.filterButton;
-        const corner = button.mapToItem(root, button.width, button.height);
-        filterMenu.openAt(Math.round(corner.x - filterMenu.menuWidth), Math.round(corner.y
-                                                                                  + Theme.space(4)));
-    }
-
-    /// The hero's ⋯ menu, hung under its button with their right edges flush.
+    /// ctrl+. and the palette's "more": the hero's ⋯ went (C24 H9), so the mark's menu, under
+    /// the mark (S6 makes it the app menu).
     function openMoreMenu(): void {
-        const button = hero.moreButton;
-        const corner = button.mapToItem(root, button.width, button.height);
-        moreMenu.openAt(Math.round(corner.x - moreMenu.menuWidth), Math.round(corner.y
-                                                                              + Theme.space(4)));
+        root.openMarkMenu();
     }
 
     /// ctrl+shift+, (docs/16 §2): Settings on the qBittorrent group. First run holds it like
@@ -1650,7 +1571,7 @@ Item {
     // table's cursor moved twice for one notification click. One block also makes it plain
     // which signal is answered where.
     Connections {
-        /// `a`, the hero's `+`, the tray.
+        /// `a`, the title bar's "+ add", the tray.
         function onAddRequested(): void {
             if (root.firstRun) // the tray's `add…`: held like a hand-off (review REG-6)
                 root._pendingBlankAdd = true;
@@ -1666,7 +1587,7 @@ Item {
                 addSheet.openList(uris, "handoff");
         }
 
-        /// `,`, the hero's gear, the tray's `settings…`, the disconnected banner.
+        /// `,`, the tray's `settings…`, the disconnected banner.
         function onOpenSettings(): void {
             if (root.firstRun) // the tray's `settings…`: held like a hand-off (review REG-6)
                 root._pendingSettings = true;
@@ -1798,8 +1719,8 @@ Item {
         filtered: App.filtered
         // Board 42 F1 (M1, M2): the library's folders, after the categories.
         folders: App.move.folders
-        // The mark's rule meets the hero's.
-        headHeight: hero.height
+        // The mark's rule meets the title bar's.
+        headHeight: titleBar.height
         markAlert: App.hasServer && root.serverLost && !root.firstSync
         servers: App.servers
         // T4.5: the SERVERS group is off unless the General pane asks for it.
@@ -1852,12 +1773,62 @@ Item {
     /// Where the column beside the rail starts.
     readonly property real contentLeft: rail.visible ? rail.width : 0
 
-    // hero (spec `.hero`): the name, the filter and the buttons until the title bar (S4); the
-    // server line, the speeds and the alt-speed chip are the status line's (C24 H15).
-    Hero {
-        id: hero
+    /// The title bar's title (board 46 `titleBar()`, DECISIONS C24 H5): the face, a move's
+    /// torrents on show, the place the rail picked (folder, category, tag, tracker), the
+    /// question, or the library. A question picked with a place goes in the sentence.
+    readonly property string scopeTitle: {
+        if (root.logShown)
+            return qsTr("Log");
+        if (root.consoleShown)
+            return qsTr("Seed console");
+        if (root.moveShowingJob)
+            return App.move.title.length > 0 ? qsTr("The move of %1").arg(App.move.title) : qsTr("The move");
+        if (root.moveShowing)
+            return qsTr("From the move sheet");
+        const folder = App.filtered.folder;
+        if (folder.length > 0)
+            return folder.substring(folder.lastIndexOf("/") + 1) || folder;
+        const category = App.filtered.category;
+        if (category !== undefined)
+            return category === "" ? qsTr("No category") : category;
+        const tag = App.filtered.tag;
+        if (tag !== undefined)
+            return tag === "" ? qsTr("Untagged") : tag;
+        const tracker = App.filtered.tracker;
+        if (tracker !== undefined)
+            return rail.trackerText(tracker);
+        const question = root.questionName(App.filtered.question);
+        return question.length > 0 ? question : qsTr("Library");
+    }
 
-        filterChips: root.activeFilterChips
+    /// Its sentence (core/ScopeSentence): App's for the rail's scope; the faces', a move's
+    /// show and a lost server's from what the window knows.
+    readonly property string scopeSentence: {
+        if (root.firstRun || root.libraryEmpty && !root.logShown)
+            return "";
+        if (root.serverLost)
+            return App.lostSentence(App.torrents.count > 0 ? App.globalState.lastSyncText : "",
+                                    root.serverProblem.headline ?? "");
+        if (root.logShown)
+            return App.logSentence(App.serverName, App.serverLog.total, App.serverLog.firstAtText);
+        if (root.consoleShown)
+            return App.seedSentence(App.globalState.upInfoSpeed > 0 ? App.globalState.upSpeedText : "",
+                                    App.console.todayText,
+                                    App.console.selectionScope ? qsTr("the selection") : root.consoleScopeName);
+        if (root.moveShowingJob)
+            return App.moveJobSentence(App.move.jobHashes.length,
+                                       App.move.revision >= 0 ? App.move.band.withServer ?? 0 : 0);
+        if (root.moveShowing)
+            return App.moveSheetSentence(root.moveShowHashes.length);
+        return App.scopeSentence;
+    }
+
+    // The title bar (board 46 `titleBar()`, DECISIONS C24 H5; supersedes v2's hero, H9): where
+    // the window is and its sentence, then a move's way back, "move this folder…", the filter
+    // and "+ add"; across the content's top beside the rail's mark.
+    TitleBar {
+        id: titleBar
+
         // docs/14 A1: setup has no library chrome; FirstRunPage draws its own footer.
         visible: !root.firstRun
 
@@ -1865,43 +1836,42 @@ Item {
         anchors.leftMargin: root.contentLeft
         anchors.right: parent.right
         anchors.top: parent.top
-        appName: qsTr("omaseed")
-        searchCount: App.filtered.count
-        searchCountText: App.filtered.text.length > 0 ? qsTr("%1 of %2").arg(
-                                                            App.filtered.count).arg(
-                                                            App.counts.total) : String(
-                                                            App.filtered.count)
+        title: root.scopeTitle
+        sentence: root.scopeSentence
+        // The log filters its own lines (docs/32 D11).
+        filterShown: !root.logShown
+        searchCountText: App.filtered.text.length > 0 ? qsTr("%1 of %2").arg(App.filtered.count).arg(
+                                                            App.counts.total) : String(App.filtered.count)
+        // H5: "move this folder…" while a folder is picked (shift+m, the row's menu and `:`
+        // keep it).
+        moveFolderShown: root.view === "library" && !root.moveShowing && App.filtered.folder.length > 0
+                         && !root.serverLost
+        // C15 M10 (J1), C18: the scope line's link, now a tool: esc back to the sheet, or all
+        // torrents.
+        backText: !root.moveShowing || root.view !== "library" ? "" : root.moveShowingJob ? qsTr("all torrents")
+                                                                                          : qsTr("back to the sheet")
+        backKey: root.moveShowing ? "esc" : ""
 
         onAddClicked: App.addRequested()
-        onHelpClicked: root.helpOpen = true
-        onFilterChipCleared: key => root.clearOneFilter(key)
-        onFiltersClicked: root.openFilterMenu()
-        onMoreClicked: root.openMoreMenu()
-
-        Rectangle {
-            anchors.fill: parent
-            color: Theme.fill(Theme.fillIdle)
-            visible: App.surfaceTint === 8
-            z: -1
-        }
+        onBackClicked: root.leaveMoveShow()
+        onMoveFolderClicked: root.openMoveFolder(App.filtered.folder, "")
         onSearchChanged: text => App.filtered.text = text
         // Review RUN-12: enter keeps the filter and gives the table back its keys, as `/`
         // then enter does in vim or less.
         onSearchAccepted: root.focusHome()
         onSearchCleared: root.clearFilter()
-        onSettingsClicked: App.openSettings()
     }
 
     // The lost server's notice (spec §7 Fig. 23; docs/33 D8, D9 in docs/35's look): a band
-    // across the content under the hero, the rail beside it usable (DECISIONS C24 H14), and
+    // across the content under the title bar, the rail beside it usable (DECISIONS C24 H14), and
     // the body starts under its line (docs/35 N2). It grows in once the server is declared
     // lost (N6).
     DisconnectedBanner {
         id: banner
 
-        anchors.left: hero.left
+        anchors.left: titleBar.left
         anchors.right: parent.right
-        anchors.top: hero.bottom
+        anchors.top: titleBar.bottom
         animated: !App.reducedMotion
         listTime: App.torrents.count > 0 ? App.globalState.lastSyncText : ""
         multiServer: root.multiServer
@@ -1922,7 +1892,7 @@ Item {
     MoveBand {
         id: moveBand
 
-        anchors.left: hero.left
+        anchors.left: titleBar.left
         anchors.right: parent.right
         anchors.top: banner.bottom
         animated: !App.reducedMotion
@@ -1945,7 +1915,7 @@ Item {
         // The first-run page (T4.6) stands in for the whole body, not over it.
         visible: !root.firstRun
         anchors.bottom: statusLine.top
-        anchors.left: hero.left
+        anchors.left: titleBar.left
         anchors.right: parent.right
         anchors.top: moveBand.bottom
 
@@ -2049,44 +2019,6 @@ Item {
         Item {
             id: tableHost
 
-            // Board 42 F1, J1 (M1, M10): what the table is narrowed to, a folder picked in the
-            // rail or a move's torrents, and the way on: move it, or back to all.
-            ScopeLine {
-                id: moveScope
-
-                anchors.left: parent.left
-                anchors.leftMargin: Theme.space(16)
-                anchors.right: parent.right
-                anchors.rightMargin: Theme.space(16)
-                anchors.top: parent.top
-                anchors.topMargin: Theme.space(12)
-                linkKey: root.moveShowing ? "esc" : "shift+m"
-                oneLine: true
-                linkText: root.moveShowingJob ? qsTr("all torrents") : root.moveShowing ? qsTr("back to the sheet")
-                                                                                         : qsTr("move this folder…")
-                objectName: "moveScope"
-                text: {
-                    if (root.moveShowingJob)
-                        return qsTr("the move of %1 · %2 · %3 with qBittorrent").arg(App.move.root.substring(
-                                                                                         App.move.root.lastIndexOf("/") + 1)).arg(
-                                    App.move.jobHashes.length === 1 ? qsTr("1 torrent") : qsTr("%1 torrents").arg(
-                                                                          App.move.jobHashes.length)).arg(
-                                    App.move.revision >= 0 ? App.move.band.withServer ?? 0 : 0);
-                    if (root.moveShowing)
-                        return root.moveShowHashes.length === 1 ? qsTr("1 torrent from the move sheet") : qsTr(
-                                                                      "%1 torrents from the move sheet").arg(root.moveShowHashes.length);
-                    return App.move.folders.revision >= 0 ? App.move.folderLine(App.filtered.folder) : "";
-                }
-                visible: root.view === "library" && (root.moveShowing || App.filtered.folder.length > 0) && text.length > 0
-
-                onLinkActivated: {
-                    if (root.moveShowing)
-                        root.leaveMoveShow();
-                    else
-                        root.openMoveFolder(App.filtered.folder, "");
-                }
-            }
-
             TorrentTable {
                 id: table
 
@@ -2096,7 +2028,7 @@ Item {
                 anchors.leftMargin: Theme.space(16)
                 anchors.right: parent.right
                 anchors.rightMargin: Theme.space(16)
-                anchors.top: moveScope.visible ? moveScope.bottom : parent.top
+                anchors.top: parent.top
                 anchors.topMargin: Theme.space(12)
                 // Board 42 J1: the job's step for each of its torrents.
                 showMoveColumn: root.moveShowingJob
@@ -2409,7 +2341,7 @@ Item {
         // strip, the same band one line higher.
         anchors.bottomMargin: root.footerFailure.fromStrip === true && outcomeStrip.visible
                               ? root._outcomeBandLift : 0
-        anchors.left: hero.left
+        anchors.left: titleBar.left
         anchors.right: parent.right
         animated: !App.reducedMotion
         body: root.footerFailure.line || ""
@@ -2433,7 +2365,7 @@ Item {
         id: statusLine
 
         anchors.bottom: parent.bottom
-        anchors.left: hero.left
+        anchors.left: titleBar.left
         anchors.right: parent.right
         visible: !root.firstRun
 
@@ -2722,29 +2654,13 @@ Item {
         id: moreMenu
 
         anchors.fill: parent
-        // docs/10 §2: once the hero is too narrow for them, settings and help are here.
+        // C24 H9: the hero's gear and ? went; until S6's app menu, they lead this one.
         altKind: App.altSpeed.kind
-        appRows: hero.compact
+        appRows: true
         railHidden: App.railHidden
         z: 9
 
         onActivated: action => root.moreAction(action)
-    }
-
-    FilterMenu {
-        id: filterMenu
-
-        anchors.fill: parent
-        countText: hero.searchCountText
-        filters: root.activeFilterChips
-        text: App.filtered.text
-        z: 9
-
-        onAllCleared: root.clearAllFilters()
-        onFilterCleared: key => root.clearOneFilter(key)
-        // The hero's field stays the one source: it writes the model and keeps the text for
-        // when the window widens again.
-        onTextEdited: text => hero.searchField.text = text
     }
 
     GlobalLimitsSheet {
@@ -3088,12 +3004,12 @@ Item {
         }
 
         // A filter cleared from elsewhere (the jump palette, a notice's "show") empties the
-        // hero's field too, which would otherwise keep a word that no longer filters.
+        // title bar's field too, which would otherwise keep a word that no longer filters.
         // Only the emptying: the model trims, so mirroring every change would eat a space
         // the user is still typing.
         function onTextChanged() {
-            if (App.filtered.text.length === 0 && hero.searchField.text.trim().length > 0)
-                hero.searchField.text = "";
+            if (App.filtered.text.length === 0 && titleBar.searchField.text.trim().length > 0)
+                titleBar.searchField.text = "";
         }
 
         target: App.filtered
@@ -3236,8 +3152,8 @@ Item {
     // --- end T4.4 ------------------------------------------------------------------------
 
     // --- T4.2: add flow ---
-    // Every source of an add ends up in one sheet (spec §3 Fig. 5): `a` and the hero's `+`
-    // arrive as `App.addRequested`, a drop as `Main.qml`'s `addDropped`, the browser's
+    // Every source of an add ends up in one sheet (spec §3 Fig. 5): `a` and the title bar's
+    // "+ add" arrive as `App.addRequested`, a drop as `Main.qml`'s `addDropped`, the browser's
     // `magnet:`/`.torrent` hand-off as `App.addUrisRequested`. An infohash the library
     // already holds opens Fig. 10 instead of being sent.
     AddSheet {
@@ -3301,7 +3217,7 @@ Item {
 
     // --- T4.5: settings ---
     // The settings modal of spec §5 Fig. 16, with Fig. 9's server sheet inside it. `,`, the
-    // hero's gear, the tray's `settings…` and the disconnected banner all arrive through
+    // mark's menu, the tray's `settings…` and the disconnected banner all arrive through
     // App.openSettings().
     SettingsModal {
         id: settingsModal

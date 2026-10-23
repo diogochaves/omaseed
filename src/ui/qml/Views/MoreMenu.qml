@@ -2,16 +2,16 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import Omaseed.Kit
 
-// The hero's ⋯ menu (docs/08 §3): global, occasional actions that have no room in the hero
-// of their own, each row teaching its key where it has one. Opened by the ⋯ button or
-// `ctrl+.`; MainView runs `activated`. Rows for features the server has but omaseed does not
+// The window's menu (docs/08 §3): global, occasional actions, each row teaching its key where
+// it has one. The hero's ⋯ went with the hero (DECISIONS C24 H9): the rail's mark and `ctrl+.`
+// open it until S6 makes it the app menu; MainView runs `activated`. Rows for features the server has but omaseed does not
 // implement yet (create torrent, search, export, RSS) are added when those features ship.
 Menu {
     id: root
 
     /// The rail row reads "open rail" while it is folded (#167 assumed 4).
     property bool railHidden: false
-    /// docs/10 §2: the hero is too narrow for its gear and `?`, so they lead the menu.
+    /// Settings and help lead the menu (the hero's gear and `?` went, C24 H9).
     property bool appRows: false
     /// docs/31: the alternative set's kind, "burst", "turtle" or "alt"; its row follows it.
     property string altKind: "alt"

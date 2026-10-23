@@ -836,27 +836,28 @@ Window {
                     }
                 }
 
-                // Hero: the full row, sample data (spec v2 §1 Fig. 1).
+                // The title bar (board 46 `titleBar()`, DECISIONS C24 H5): sample data.
                 Column {
                     spacing: Theme.space(6)
                     width: parent.width
 
                     KitGroupLabel {
-                        text: qsTr("hero")
+                        text: qsTr("title bar")
                     }
 
                     Rectangle {
                         border.color: Theme.accent
                         border.width: 1
                         color: Theme.background
-                        height: heroSample.implicitHeight
+                        height: titleSample.implicitHeight
                         width: parent.width
 
-                        Hero {
-                            id: heroSample
+                        TitleBar {
+                            id: titleSample
 
-                            appName: "omaseed"
-                            searchCount: 142
+                            searchCountText: "142"
+                            sentence: qsTr("2 need you · 7 arriving, the next in 3 min · 2 landed today · giving back 41 KB/s")
+                            title: qsTr("Library")
                             width: parent.width
                         }
                     }

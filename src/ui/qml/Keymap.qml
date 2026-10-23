@@ -356,7 +356,7 @@ QtObject {
             "rank": 2.5,
             "helpKeys": "ctrl+s",
             "help": qsTr("switch server"),
-            "about": qsTr("Switch to another server; the hero's server line and the rail's servers do too"),
+            "about": qsTr("Switch to another server; the status line's server and the rail's servers do too"),
             "aboutOne": qsTr("Switch server, with two servers or more")
         },
         // `ctrl+,` is where the rest of the desktop keeps settings (GTK, macOS, VS Code,
@@ -403,7 +403,8 @@ QtObject {
             "help": qsTr("rail"),
             "about": qsTr("Fold the rail to its glyphs, or open it")
         },
-        // The hero's ⋯ menu (docs/08 §3).
+        // The window's menu (docs/08 §3), under the rail's mark since the hero's ⋯ went (C24
+        // H9); S6 makes it the app menu.
         {
             "area": "global",
             "key": "ctrl+.",
@@ -413,7 +414,7 @@ QtObject {
             "rank": 3,
             "helpKeys": "ctrl+.",
             "help": qsTr("more actions"),
-            "about": qsTr("The ⋯ menu: speed limits, columns, select all")
+            "about": qsTr("The mark's menu: settings, help, speed limits, columns, select all")
         },
         {
             "area": "global",

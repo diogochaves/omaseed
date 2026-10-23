@@ -68,4 +68,29 @@ void App::updateScopeSentence()
     Q_EMIT scopeSentenceChanged();
 }
 
+QString App::lostSentence(const QString &listTime, const QString &headline) const
+{
+    return ScopeSentence::lost(listTime, headline);
+}
+
+QString App::logSentence(const QString &server, int lines, const QString &since) const
+{
+    return ScopeSentence::log(server, lines, since);
+}
+
+QString App::seedSentence(const QString &upSpeed, const QString &today, const QString &scope) const
+{
+    return ScopeSentence::seed(upSpeed, today, scope);
+}
+
+QString App::moveJobSentence(int torrents, int withServer) const
+{
+    return ScopeSentence::moveJob(torrents, withServer);
+}
+
+QString App::moveSheetSentence(int torrents) const
+{
+    return ScopeSentence::moveSheet(torrents);
+}
+
 } // namespace omaseed::app

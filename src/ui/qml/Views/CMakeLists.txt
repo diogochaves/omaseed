@@ -103,6 +103,7 @@ qt_add_qml_module(omaseed-views
         StatusLine.qml
         TagPalette.qml
         ThemeGallery.qml
+        TitleBar.qml
         TorrentTable.qml
         TorrentsImportSheet.qml
 )
