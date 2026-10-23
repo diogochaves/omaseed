@@ -68,18 +68,18 @@ omabox wait --timeout 20s window "$APP"
 ADDED="1500,72 396x22"
 CREATED="1600,698 296x26"
 FREE="750,1006 190x24"
-# A sheet over the dimmed window: its own region only (help; settings and the add sheet are
-# smaller: settings as tall as its tallest pane, Appearance, which lost three rows with the hero).
+# A sheet over the dimmed window: its own region only (settings and help; the add sheet is smaller).
+# Settings is as tall as its head and its tallest pane, so shorter than help, and taller on the
+# qBittorrent sections (their head) than on omaseed's: the region is the tallest it can be.
 SHEET="568,78 760x875"
-SETTINGS_SHEET="568,147 760x736"
 ADD_SHEET="648,275 600x481"
 # Settings sections that show today's date or the clock, in window coordinates (every --ignore
 # with --window is, crop or not): the alt-speed schedule's "Next: off at 20:00", omaseed's backup
 # "seed history since <date>", qBittorrent's backup file names "…-<date>.json" (settings, torrents).
 declare -A SECTION_IGNORE=(
-    [qbt-speed]="792,688 512x38"
+    [qbt-speed]="792,673 512x38"
     [backup]="798,293 425x52"
-    [qbt-backup]="798,277 430x52|798,548 430x52"
+    [qbt-backup]="798,262 430x52|798,533 430x52"
 )
 
 # key KEY...: into the app, returning once the window has settled; what the wait saw goes to the
@@ -140,7 +140,7 @@ for i in "${!sections[@]}"; do
     ignores=()
     IFS='|' read -ra regions <<<"${SECTION_IGNORE[${sections[$i]}]:-}"
     for r in "${regions[@]}"; do ignores+=(--ignore "$r"); done
-    omabox check point "settings-${sections[$i]}" --window "$APP" -g "$SETTINGS_SHEET" "${ignores[@]}"
+    omabox check point "settings-${sections[$i]}" --window "$APP" -g "$SHEET" "${ignores[@]}"
 done
 key Escape
 
