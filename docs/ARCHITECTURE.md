@@ -122,7 +122,9 @@ theme changes.
    (× 0.833 / 0.917 / 1 / 1.083 / 1.167 / 1.333 / 2), spacing through `Theme.space(px)`. A
    binding of `Theme.space(…)` alone follows a base-size change like one of `Theme.font.*`.
 4. The window is `Theme.background` at `Theme.windowAlpha` with a 1 px edge, `accent` when
-   active and `muted` when not. Popups, sheets and palettes are opaque with an `accent` edge.
+   active and `muted` when not. The ground is opaque (`windowAlpha` 1) unless Settings ›
+   Appearance › Window is translucent, which takes the launcher's alpha or the transparency
+   set there (DECISIONS C24 H13). Popups, sheets and palettes are opaque with an `accent` edge.
 5. Corner radius comes from Hyprland, 0 by default. Never hardcode rounding.
 6. The font is fontconfig's `monospace`; icons are Nerd Font glyphs chosen once in
    `Kit/Glyphs.qml`.

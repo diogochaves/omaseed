@@ -103,6 +103,20 @@ TestCase {
         actionSpy.clear();
     }
 
+    // DECISIONS C24 H13 (#113): the window's ground is opaque unless Appearance says
+    // translucent, which reads the launcher's alpha, or the transparency set there.
+    function test_the_ground_is_opaque_unless_translucent() {
+        compare(App.windowGround, "opaque");
+        compare(Theme.windowAlpha, 1);
+        App.windowGround = "translucent";
+        fuzzyCompare(Theme.windowAlpha, Theme.defaultWindowAlpha, 0.001);
+        App.windowAlphaOverride = 80;
+        fuzzyCompare(Theme.windowAlpha, 0.8, 0.001);
+        App.windowGround = "opaque";
+        compare(Theme.windowAlpha, 1);
+        App.windowAlphaOverride = 0;
+    }
+
     // ---- the footer's facts (spec §1 Fig. 1 `.foot .facts`) -----------------------------
     // Seven, not the rail's eight: the demo's stopped download is not "downloading" here.
     function test_the_footer_states_the_library() {

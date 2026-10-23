@@ -193,11 +193,11 @@ Item {
         case 2:
             return 6; // four toggles, the low-disk threshold field, the weekly recap (#24 T8)
         case 4:
-            // theme, base size, transparency, tray icon, the bar widget (#17), speed alignment,
-            // the speed trends (#24 T2), then the rail's scroll hint, surface tint and tracker
-            // hosts (docs/08 §5), then where Details sits (docs/10), then the rows' pulse
-            // (#24 T5)
-            return 12;
+            // theme, base size, the window's ground (C24 H13) and, while translucent, its
+            // transparency, tray icon, the bar widget (#17), speed alignment, the speed trends
+            // (#24 T2), then the rail's scroll hint, surface tint and tracker hosts (docs/08
+            // §5), then where Details sits (docs/10), then the rows' pulse (#24 T5)
+            return 12 + root._groundShift;
         case 5:
             return 3; // back up, restore, automatic copies (#31)
         case 6:
@@ -525,24 +525,26 @@ Item {
             else if (root.paneCursor === 1)
                 baseSizeField.focusInput();
             else if (root.paneCursor === 2)
+                root._toggleGround();
+            else if (root.paneCursor === 3 && root._groundShift > 0)
                 alphaField.focusInput();
-            else if (root.paneCursor === 3)
+            else if (root.paneCursor === 3 + root._groundShift)
                 App.inTheBar = root._nextInTheBar();
-            else if (root.paneCursor === 4)
+            else if (root.paneCursor === 4 + root._groundShift)
                 root.customizeBarWidget();
-            else if (root.paneCursor === 5)
+            else if (root.paneCursor === 5 + root._groundShift)
                 App.speedsAlignment = App.speedsAlignment === "left" ? "right" : "left";
-            else if (root.paneCursor === 6)
+            else if (root.paneCursor === 6 + root._groundShift)
                 root.cycleTrends();
-            else if (root.paneCursor === 7)
+            else if (root.paneCursor === 7 + root._groundShift)
                 App.railScrollHint = root._next(root.scrollHints, App.railScrollHint);
-            else if (root.paneCursor === 8)
+            else if (root.paneCursor === 8 + root._groundShift)
                 App.surfaceTint = root._next(root.tints, App.surfaceTint);
-            else if (root.paneCursor === 9)
+            else if (root.paneCursor === 9 + root._groundShift)
                 App.trackerHostStyle = root._next(root.hostStyles, App.trackerHostStyle);
-            else if (root.paneCursor === 10)
+            else if (root.paneCursor === 10 + root._groundShift)
                 App.detailsPlacement = root._next(root.placements, App.detailsPlacement);
-            else if (root.paneCursor === 11)
+            else if (root.paneCursor === 11 + root._groundShift)
                 App.pulseRows = !App.pulseRows;
             return;
         }
@@ -773,6 +775,14 @@ Item {
     function _applyBaseSize(): void {
         App.baseSizeOverride = parseInt(baseSizeField.text, 10) || 0;
         root._syncAppearanceFields();
+    }
+
+    /// C24 H13: the transparency row shows only while the ground is translucent; the rows
+    /// after it move down one then.
+    readonly property int _groundShift: App.windowGround === "translucent" ? 1 : 0
+
+    function _toggleGround(): void {
+        App.windowGround = App.windowGround === "translucent" ? "opaque" : "translucent";
     }
 
     function _applyAlpha(): void {
@@ -2282,15 +2292,56 @@ Item {
                                 }
                             }
 
+                            // DECISIONS C24 H13: opaque by default, like every Omarchy 4.5
+                            // app; translucent takes the launcher's alpha (Q1), or the
+                            // transparency the next row sets.
+                            SettingsRow {
+                                Layout.fillWidth: true
+                                description: qsTr("Opaque like the other apps, or translucent: the launcher's wallpaper alpha.")
+                                glyph: Glyphs.appearance
+                                hasCursor: root.area === "pane" && root.paneCursor === 2
+                                objectName: "windowGroundRow"
+                                title: qsTr("Window")
+
+                                onClicked: {
+                                    root.paneCursor = 2;
+                                    root.area = "pane";
+                                    root._toggleGround();
+                                }
+
+                                RowLayout {
+                                    spacing: Theme.space(6)
+
+                                    Repeater {
+                                        model: ["opaque", "translucent"]
+
+                                        Chip {
+                                            id: groundChip
+
+                                            required property string modelData
+
+                                            checkable: true
+                                            objectName: "groundChip-" + groundChip.modelData
+                                            selected: App.windowGround === groundChip.modelData
+                                            text: groundChip.modelData === "opaque" ? qsTr("opaque") : qsTr("translucent")
+
+                                            onClicked: App.windowGround = groundChip.modelData
+                                        }
+                                    }
+                                }
+                            }
+
                             SettingsRow {
                                 Layout.fillWidth: true
                                 description: qsTr("How much wallpaper shows through the window, 50–100. Empty follows shell.toml.")
                                 glyph: Glyphs.altSpeed
-                                hasCursor: root.area === "pane" && root.paneCursor === 2
+                                hasCursor: root.area === "pane" && root.paneCursor === 3
+                                objectName: "windowAlphaRow"
                                 title: qsTr("Window transparency")
+                                visible: root._groundShift > 0
 
                                 onClicked: {
-                                    root.paneCursor = 2;
+                                    root.paneCursor = 3;
                                     root.area = "pane";
                                     alphaField.focusInput();
                                 }
@@ -2328,12 +2379,12 @@ Item {
                                 Layout.fillWidth: true
                                 description: root._inTheBarText()
                                 glyph: Glyphs.mark
-                                hasCursor: root.area === "pane" && root.paneCursor === 3
+                                hasCursor: root.area === "pane" && root.paneCursor === 3 + root._groundShift
                                 objectName: "inTheBarRow"
                                 title: qsTr("In the bar")
 
                                 onClicked: {
-                                    root.paneCursor = 3;
+                                    root.paneCursor = 3 + root._groundShift;
                                     root.area = "pane";
                                     App.inTheBar = root._nextInTheBar();
                                 }
@@ -2366,12 +2417,12 @@ Item {
                                 Layout.fillWidth: true
                                 description: App.barWidget.inBar ? qsTr("what it shows and what its clicks do: the gear in its popup.") : qsTr("in the bar with widget or both.")
                                 glyph: Glyphs.settings
-                                hasCursor: root.area === "pane" && root.paneCursor === 4
+                                hasCursor: root.area === "pane" && root.paneCursor === 4 + root._groundShift
                                 objectName: "barWidgetRow"
                                 title: qsTr("Widget")
 
                                 onClicked: {
-                                    root.paneCursor = 4;
+                                    root.paneCursor = 4 + root._groundShift;
                                     root.area = "pane";
                                     root.customizeBarWidget();
                                 }
@@ -2390,11 +2441,11 @@ Item {
                                 Layout.fillWidth: true
                                 description: qsTr("which side of the hero the download and upload figures sit on.")
                                 glyph: Glyphs.arrowDown
-                                hasCursor: root.area === "pane" && root.paneCursor === 5
+                                hasCursor: root.area === "pane" && root.paneCursor === 5 + root._groundShift
                                 title: qsTr("Speed figures")
 
                                 onClicked: {
-                                    root.paneCursor = 5;
+                                    root.paneCursor = 5 + root._groundShift;
                                     root.area = "pane";
                                     App.speedsAlignment = App.speedsAlignment === "left" ? "right" : "left";
                                 }
@@ -2424,11 +2475,11 @@ Item {
                                 Layout.fillWidth: true
                                 description: qsTr("the last minute of each speed, drawn faintly behind its figure. Each chip turns one on or off.")
                                 glyph: Glyphs.arrowUp
-                                hasCursor: root.area === "pane" && root.paneCursor === 6
+                                hasCursor: root.area === "pane" && root.paneCursor === 6 + root._groundShift
                                 title: qsTr("Speed trends")
 
                                 onClicked: {
-                                    root.paneCursor = 6;
+                                    root.paneCursor = 6 + root._groundShift;
                                     root.area = "pane";
                                     root.cycleTrends();
                                 }
@@ -2460,11 +2511,11 @@ Item {
                                 Layout.fillWidth: true
                                 description: qsTr("how lists say there is more above or below: the rail and every palette.")
                                 glyph: Glyphs.scrollHint
-                                hasCursor: root.area === "pane" && root.paneCursor === 7
+                                hasCursor: root.area === "pane" && root.paneCursor === 7 + root._groundShift
                                 title: qsTr("Scroll hint")
 
                                 onClicked: {
-                                    root.paneCursor = 7;
+                                    root.paneCursor = 7 + root._groundShift;
                                     root.area = "pane";
                                     App.railScrollHint = root._next(root.scrollHints, App.railScrollHint);
                                 }
@@ -2494,11 +2545,11 @@ Item {
                                 Layout.fillWidth: true
                                 description: qsTr("a light fill behind the rail and the details.")
                                 glyph: Glyphs.sidebar
-                                hasCursor: root.area === "pane" && root.paneCursor === 8
+                                hasCursor: root.area === "pane" && root.paneCursor === 8 + root._groundShift
                                 title: qsTr("Surface tint")
 
                                 onClicked: {
-                                    root.paneCursor = 8;
+                                    root.paneCursor = 8 + root._groundShift;
                                     root.area = "pane";
                                     App.surfaceTint = root._next(root.tints, App.surfaceTint);
                                 }
@@ -2528,11 +2579,11 @@ Item {
                                 Layout.fillWidth: true
                                 description: qsTr("how a long tracker host fits the rail.")
                                 glyph: Glyphs.host
-                                hasCursor: root.area === "pane" && root.paneCursor === 9
+                                hasCursor: root.area === "pane" && root.paneCursor === 9 + root._groundShift
                                 title: qsTr("Tracker hosts")
 
                                 onClicked: {
-                                    root.paneCursor = 9;
+                                    root.paneCursor = 9 + root._groundShift;
                                     root.area = "pane";
                                     App.trackerHostStyle = root._next(root.hostStyles, App.trackerHostStyle);
                                 }
@@ -2562,11 +2613,11 @@ Item {
                                 Layout.fillWidth: true
                                 description: qsTr("auto puts it right when the window is 16:10 or wider, else at the bottom. I cycles it.")
                                 glyph: Glyphs.sidebar
-                                hasCursor: root.area === "pane" && root.paneCursor === 10
+                                hasCursor: root.area === "pane" && root.paneCursor === 10 + root._groundShift
                                 title: qsTr("Details panel")
 
                                 onClicked: {
-                                    root.paneCursor = 10;
+                                    root.paneCursor = 10 + root._groundShift;
                                     root.area = "pane";
                                     App.detailsPlacement = root._next(root.placements, App.detailsPlacement);
                                 }
@@ -2599,12 +2650,12 @@ Item {
                                 Layout.fillWidth: true
                                 description: qsTr("a green tick at the left of each row that is uploading, breathing faster the more it sends. Still when the desktop asks for less motion.")
                                 glyph: Glyphs.statusSeeding
-                                hasCursor: root.area === "pane" && root.paneCursor === 11
+                                hasCursor: root.area === "pane" && root.paneCursor === 11 + root._groundShift
                                 objectName: "pulseRowsRow"
                                 title: qsTr("Pulse sending rows")
 
                                 onClicked: {
-                                    root.paneCursor = 11;
+                                    root.paneCursor = 11 + root._groundShift;
                                     root.area = "pane";
                                     App.pulseRows = !App.pulseRows;
                                 }

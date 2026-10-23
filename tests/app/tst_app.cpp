@@ -13,6 +13,7 @@
 #include "core/Paths.hpp"
 #include "core/ServerListModel.hpp"
 #include "core/ServerStore.hpp"
+#include "core/StateFile.hpp"
 #include "core/SyncEngine.hpp"
 #include "core/TorrentDetails.hpp"
 #include "core/TorrentFilesModel.hpp"
@@ -109,6 +110,9 @@ private slots:
     void filesWantedRemembersThePriority();
     void halfTickUnticksThenRestores();
     void manyFilesRenameLocallyInDemo();
+    void theGroundIsOpaqueByDefault();
+    void theGroundIsRemembered();
+    void aTransparencySetBeforeTheGroundReadsAsTranslucent();
 
 private:
     QTemporaryDir m_config;
@@ -704,4 +708,57 @@ void TestApp::manyFilesRenameLocallyInDemo()
 }
 
 QTEST_MAIN(TestApp)
+// DECISIONS C24 H13 (#113): the ground is opaque by default, like every Omarchy 4.5 app.
+void TestApp::theGroundIsOpaqueByDefault()
+{
+    QFile::remove(omaseed::core::StateFile::path()); // the directory is shared between cases
+    App app;
+    QCOMPARE(app.windowGround(), QStringLiteral("opaque"));
+    QCOMPARE(app.windowAlphaOverride(), 0);
+    // Anything but "translucent" is opaque.
+    app.setWindowGround(QStringLiteral("glass"));
+    QCOMPARE(app.windowGround(), QStringLiteral("opaque"));
+}
+
+void TestApp::theGroundIsRemembered()
+{
+    QFile::remove(omaseed::core::StateFile::path());
+    {
+        App app;
+        QSignalSpy changed(&app, &App::settingsChanged);
+        app.setWindowGround(QStringLiteral("translucent"));
+        QCOMPARE(changed.count(), 1);
+        app.setWindowGround(QStringLiteral("translucent"));
+        QCOMPARE(changed.count(), 1);
+    }
+    {
+        App app;
+        QCOMPARE(app.windowGround(), QStringLiteral("translucent"));
+        // A chosen opaque stays opaque, a transparency kept for later or not.
+        app.setWindowAlphaOverride(80);
+        app.setWindowGround(QStringLiteral("opaque"));
+    }
+    App app;
+    QCOMPARE(app.windowGround(), QStringLiteral("opaque"));
+    QCOMPARE(app.windowAlphaOverride(), 80);
+}
+
+// Before the choice, a transparency set by hand was the only way to ask for a ground of one's
+// own: such a state.json reads as translucent, and one without an override as opaque.
+void TestApp::aTransparencySetBeforeTheGroundReadsAsTranslucent()
+{
+    QFile::remove(omaseed::core::StateFile::path());
+    omaseed::core::StateFile::writeSection(
+        QStringLiteral("appearance"), QJsonObject{{QStringLiteral("windowAlphaOverride"), 85}});
+    {
+        App app;
+        QCOMPARE(app.windowGround(), QStringLiteral("translucent"));
+        QCOMPARE(app.windowAlphaOverride(), 85);
+    }
+    omaseed::core::StateFile::writeSection(QStringLiteral("appearance"),
+                                           QJsonObject{{QStringLiteral("windowAlphaOverride"), 0}});
+    App app;
+    QCOMPARE(app.windowGround(), QStringLiteral("opaque"));
+}
+
 #include "tst_app.moc"

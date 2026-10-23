@@ -4254,6 +4254,24 @@ void App::setBaseSizeOverride(int pixels)
     Q_EMIT settingsChanged();
 }
 
+QString App::windowGround() const
+{
+    const_cast<App *>(this)->loadSettings();
+    return m_windowGround;
+}
+
+void App::setWindowGround(const QString &ground)
+{
+    loadSettings();
+    const QString wanted = ground == QLatin1String("translucent") ? QStringLiteral("translucent")
+                                                                  : QStringLiteral("opaque");
+    if (m_windowGround == wanted)
+        return;
+    m_windowGround = wanted;
+    saveSettings();
+    Q_EMIT settingsChanged();
+}
+
 int App::windowAlphaOverride() const
 {
     const_cast<App *>(this)->loadSettings();
@@ -4548,6 +4566,16 @@ void App::loadSettings()
     m_followOmarchyTheme = appearance.value(QStringLiteral("followOmarchyTheme")).toBool(true);
     m_baseSizeOverride = appearance.value(QStringLiteral("baseSizeOverride")).toInt(0);
     m_windowAlphaOverride = appearance.value(QStringLiteral("windowAlphaOverride")).toInt(0);
+    // DECISIONS C24 H13: opaque by default. Before the choice existed, a transparency set by
+    // hand was the only way to ask for a ground of one's own, so it reads as translucent.
+    const QJsonValue ground = appearance.value(QStringLiteral("windowGround"));
+    if (ground.isString())
+        m_windowGround = ground.toString() == QLatin1String("translucent")
+                             ? QStringLiteral("translucent")
+                             : QStringLiteral("opaque");
+    else
+        m_windowGround =
+            m_windowAlphaOverride > 0 ? QStringLiteral("translucent") : QStringLiteral("opaque");
     m_trayIconMode =
         oneOf(appearance.value(QStringLiteral("trayIconMode")).toString(), kTrayIconModes);
     m_speedsAlignment =
@@ -4580,6 +4608,7 @@ void App::saveSettings()
     appearance[QStringLiteral("followOmarchyTheme")] = m_followOmarchyTheme;
     appearance[QStringLiteral("baseSizeOverride")] = m_baseSizeOverride;
     appearance[QStringLiteral("windowAlphaOverride")] = m_windowAlphaOverride;
+    appearance[QStringLiteral("windowGround")] = m_windowGround;
     appearance[QStringLiteral("trayIconMode")] = m_trayIconMode;
     appearance[QStringLiteral("speedsAlignment")] = m_speedsAlignment;
     appearance[QStringLiteral("uploadTrend")] = m_uploadTrend;

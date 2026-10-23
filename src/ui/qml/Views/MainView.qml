@@ -3522,12 +3522,15 @@ Item {
         }
     }
 
-    // The Appearance pane's transparency override; 0 keeps the shell's `[launcher]
-    // background-alpha` (docs/DECISIONS.md Q1), which a theme change can move under us.
+    // DECISIONS C24 H13: the ground is opaque unless Appearance says translucent; then the
+    // transparency override, or with none the shell's `[launcher] background-alpha` (Q1),
+    // which a theme change can move under us. super+backspace is Hyprland's, as for any app.
     Binding {
         property: "windowAlpha"
         target: Theme
-        value: App.windowAlphaOverride > 0 ? App.windowAlphaOverride / 100 : Theme.defaultWindowAlpha
+        value: App.windowGround !== "translucent" ? 1 : App.windowAlphaOverride > 0
+                                                       ? App.windowAlphaOverride / 100
+                                                       : Theme.defaultWindowAlpha
     }
     // --- end T4.5 ---
 

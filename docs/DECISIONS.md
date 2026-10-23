@@ -11,6 +11,9 @@ The window's ground defaults to the shell's `[launcher] background-alpha` from `
 (0.95 on a stock Omarchy), so omaseed sits on the wallpaper the way the launcher does.
 Settings → Appearance overrides it. Sheets, palettes and popups stay opaque.
 
+Changed by C24 H13 (v0.5.0): the ground is opaque by default; this alpha is Appearance's
+"translucent" choice.
+
 ## Q16 — Formatting, states and notices
 
 - Sizes and speeds print three significant digits everywhere (`641 MB`).

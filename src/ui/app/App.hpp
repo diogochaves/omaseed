@@ -497,9 +497,16 @@ public:
     int baseSizeOverride() const;
     void setBaseSizeOverride(int pixels);
 
-    /// Window transparency in percent, 50…100; 0 means "the default", which is
-    /// `Theme.defaultWindowAlpha` (docs/DECISIONS.md Q1: `shell.toml` `[launcher]
-    /// background-alpha`, 0.95 when missing); this is its override.
+    /// The window's ground (DECISIONS C24 H13, #113): "opaque", the default as for every
+    /// Omarchy 4.5 app, or "translucent", the launcher's alpha (Q1) or windowAlphaOverride.
+    /// A state.json from before it, with an override set, reads as translucent.
+    Q_PROPERTY(QString windowGround READ windowGround WRITE setWindowGround NOTIFY settingsChanged)
+    QString windowGround() const;
+    void setWindowGround(const QString &ground);
+
+    /// Window transparency in percent, 50…100, while the ground is translucent; 0 means "the
+    /// default", which is `Theme.defaultWindowAlpha` (docs/DECISIONS.md Q1: `shell.toml`
+    /// `[launcher] background-alpha`, 0.95 when missing); this is its override.
     Q_PROPERTY(int windowAlphaOverride READ windowAlphaOverride WRITE setWindowAlphaOverride NOTIFY
                    settingsChanged)
     int windowAlphaOverride() const;
@@ -650,6 +657,7 @@ private:
     bool m_followOmarchyTheme = true;
     int m_baseSizeOverride = 0;
     int m_windowAlphaOverride = 0;
+    QString m_windowGround = QStringLiteral("opaque");
     QString m_trayIconMode = QStringLiteral("auto");
     bool m_launchHidden = false;
     QString m_speedsAlignment = QStringLiteral("left");

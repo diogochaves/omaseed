@@ -100,6 +100,7 @@ TestCase {
     }
 
     function cleanup() {
+        App.windowGround = "opaque";
         // Leave no server behind: App is a singleton shared with every other test file.
         while (App.serverList.count > 0)
             App.serverList.remove(App.serverList.idAt(0));
@@ -1367,9 +1368,41 @@ TestCase {
         verify(scroller.contentHeight <= scroller.height + 1);
     }
 
+    // DECISIONS C24 H13 (#113): the ground is opaque by default; the Window row makes it
+    // translucent, and only then does the transparency row show, moving the rows below it.
+    function test_the_window_row_picks_the_ground() {
+        const modal = createTemporaryObject(modalComponent, testCase);
+        compare(App.windowGround, "opaque");
+        modal.open();
+        keyClick(Qt.Key_5);
+        compare(modal.paneIndex, 4);
+        const row = testCase.childNamed(modal, "windowGroundRow");
+        verify(row !== null && row.visible);
+        compare(row.title, "Window");
+        const alphaRow = testCase.childNamed(modal, "windowAlphaRow");
+        compare(alphaRow.visible, false);
+        compare(modal.paneRowCount, 12);
+
+        modal.area = "pane";
+        modal.paneCursor = 2;
+        compare(row.hasCursor, true);
+        modal.activateRow();
+        compare(App.windowGround, "translucent");
+        compare(alphaRow.visible, true);
+        compare(modal.paneRowCount, 13);
+        // "In the bar" moved down one.
+        modal.paneCursor = 4;
+        compare(testCase.childNamed(modal, "inTheBarRow").hasCursor, true);
+
+        mouseClick(testCase.childNamed(modal, "groundChip-opaque"));
+        compare(App.windowGround, "opaque");
+        compare(alphaRow.visible, false);
+    }
+
     // T5.5 Q1: the transparency row's placeholder is the shell's own default, not a
     // literal — 95 under the harness's empty shell.toml — so the user sees what "empty" means.
     function test_the_transparency_placeholder_is_the_shells_default() {
+        App.windowGround = "translucent"; // C24 H13: the field shows only then
         const modal = createTemporaryObject(modalComponent, testCase);
         modal.open();
         keyClick(Qt.Key_5);
@@ -1383,6 +1416,7 @@ TestCase {
     // Review RUN-4: an override stored earlier shows in its field, and a refused value does
     // not stay there as if it applied.
     function test_the_appearance_fields_show_the_stored_overrides() {
+        App.windowGround = "translucent"; // C24 H13: the field shows only then
         App.windowAlphaOverride = 80;
         App.baseSizeOverride = 16;
         const modal = createTemporaryObject(modalComponent, testCase);
@@ -1406,6 +1440,7 @@ TestCase {
     // to show in the field and never apply. What does not parse is the empty meaning, again
     // as on enter.
     function test_the_number_fields_apply_when_the_caret_leaves() {
+        App.windowGround = "translucent"; // C24 H13: the field shows only then
         const modal = createTemporaryObject(modalComponent, testCase);
         modal.open();
         const probe = createTemporaryObject(probeComponent, testCase);
@@ -1450,6 +1485,7 @@ TestCase {
     // value applies as a typed one does, when the caret leaves; base size steps from the size
     // it follows, and transparency stays in 50–100.
     function test_the_number_fields_step_with_the_wheel_only_with_the_caret() {
+        App.windowGround = "translucent"; // C24 H13: the field shows only then
         const modal = createTemporaryObject(modalComponent, testCase);
         modal.open();
         const probe = createTemporaryObject(probeComponent, testCase);
