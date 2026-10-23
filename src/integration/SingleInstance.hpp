@@ -98,9 +98,10 @@ private:
 
     bool startOnSessionBus(const QString &busAddress, const QStringList &uris);
     bool startOnLocalSocket(const QStringList &uris);
-    bool becomePrimaryOnBus(QDBusConnection &connection,
-                            const QString &connectionName,
-                            const QStringList &uris);
+    /// Its object exported already (exportApplication), the name just taken: primary.
+    bool becomePrimaryOnBus(const QString &connectionName, const QStringList &uris);
+    /// Puts `org.freedesktop.Application` on the app's object path of `connection` (once).
+    void exportApplication(QDBusConnection &connection);
     void deliverOwnUris(const QStringList &uris);
     void acceptLocalConnection();
 
@@ -116,6 +117,7 @@ private:
     QString m_connectionName;
     QString m_lastActivationToken;
     QLocalServer *m_localServer = nullptr;
+    SingleInstanceDBusAdaptor *m_adaptor = nullptr;
 };
 
 } // namespace omaseed::integration

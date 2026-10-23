@@ -15,10 +15,12 @@
 #include <QMap>
 #include <QProcess>
 #include <QProcessEnvironment>
+#include <QScopeGuard>
 #include <QSignalSpy>
 #include <QStandardPaths>
 #include <QTemporaryDir>
 #include <QTest>
+#include <QTimer>
 #include <QUrl>
 
 namespace Identity = omaseed::integration::AppIdentity;
@@ -72,6 +74,8 @@ private slots:
 
     // INT-1: the theme-set hook calls Reload on the app's *name*.
     void themeReloadReachesThePrimaryByName();
+    // A link opened while omaseed is closed: the bus starts it and hands it the link.
+    void dbusActivationDeliversTheOpen();
     // INT-3: the owner of the name failed the hand-off; the URIs must not be dropped.
     void secondaryTakesOverFromAQuittingOwner();
     void secondaryGivesUpOnAnOwnerThatIsNotTheApp();
@@ -205,6 +209,83 @@ void TestSingleInstance::themeReloadReachesThePrimaryByName()
     QCOMPARE(changed.count(), 1);
     QCOMPARE(reader.mode(), QStringLiteral("light"));
     QDBusConnection::disconnectFromBus(QStringLiteral("hook"));
+}
+
+void TestSingleInstance::dbusActivationDeliversTheOpen()
+{
+    // What a browser (through GIO, `gio open`, the OpenURI portal) does with a magnet when
+    // omaseed is closed: `DBusActivatable=true`, so it calls Open on the name and the bus
+    // starts the service's Exec, without the link, to answer it. The bus hands the queued
+    // call over the instant the name is taken; an app that took its name before exporting its
+    // object answered "No such object path", the link was lost and the window came up with no
+    // add sheet. Here, a bus of its own with a service file that starts this binary as the
+    // primary (main() below), which writes what Open brought it to a file.
+    const QString daemon = QStandardPaths::findExecutable(QStringLiteral("dbus-daemon"));
+    if (daemon.isEmpty())
+        QSKIP("dbus-daemon not installed");
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString services = dir.path() + QStringLiteral("/services");
+    QVERIFY(QDir().mkpath(services));
+    const QString opened = dir.path() + QStringLiteral("/opened");
+
+    QFile service(services + QLatin1Char('/') + Identity::dbusServiceName() +
+                  QStringLiteral(".service"));
+    QVERIFY(service.open(QIODevice::WriteOnly));
+    service.write(
+        QStringLiteral("[D-BUS Service]\nName=%1\nExec=%2 --activated-primary %3\n")
+            .arg(Identity::dbusServiceName(), QCoreApplication::applicationFilePath(), opened)
+            .toUtf8());
+    service.close();
+    QFile config(dir.path() + QStringLiteral("/bus.conf"));
+    QVERIFY(config.open(QIODevice::WriteOnly));
+    config.write(QStringLiteral(
+                     "<!DOCTYPE busconfig PUBLIC \"-//freedesktop//DTD D-Bus Bus Configuration "
+                     "1.0//EN\" \"http://www.freedesktop.org/standards/dbus/1.0/busconfig.dtd\">\n"
+                     "<busconfig><type>session</type><listen>unix:tmpdir=/tmp</listen>"
+                     "<auth>EXTERNAL</auth><servicedir>%1</servicedir>"
+                     "<policy context=\"default\"><allow send_destination=\"*\"/>"
+                     "<allow receive_sender=\"*\"/><allow own=\"*\"/></policy></busconfig>\n")
+                     .arg(services)
+                     .toUtf8());
+    config.close();
+
+    QProcess bus;
+    bus.start(daemon,
+              {QStringLiteral("--config-file=") + config.fileName(),
+               QStringLiteral("--print-address"),
+               QStringLiteral("--nofork")});
+    QVERIFY2(bus.waitForStarted(5000), "dbus-daemon did not start");
+    const auto stopBus = qScopeGuard([&bus]() {
+        bus.terminate();
+        if (!bus.waitForFinished(2000))
+            bus.kill();
+    });
+    QVERIFY2(bus.waitForReadyRead(5000), "dbus-daemon printed no address");
+    const QString address = QString::fromUtf8(bus.readLine().trimmed());
+
+    const QString callerName = QStringLiteral("activating-caller");
+    QDBusConnection caller = QDBusConnection::connectToBus(address, callerName);
+    QVERIFY(caller.isConnected());
+    const QStringList uris{QStringLiteral("magnet:?xt=urn:btih:activated")};
+    QDBusMessage open =
+        QDBusMessage::createMethodCall(Identity::dbusServiceName(),
+                                       Identity::dbusObjectPath(),
+                                       QStringLiteral("org.freedesktop.Application"),
+                                       QStringLiteral("Open"));
+    open.setAutoStartService(true);
+    open << QVariant(uris) << QVariant(QVariantMap());
+    QDBusPendingCall pending = caller.asyncCall(open, 15000);
+    QTRY_VERIFY_WITH_TIMEOUT(pending.isFinished(), 16000);
+    const QString error = pending.isError() ? pending.error().message() : QString();
+    QDBusConnection::disconnectFromBus(callerName);
+
+    QVERIFY2(error.isEmpty(), qPrintable(error));
+    QTRY_VERIFY_WITH_TIMEOUT(QFileInfo::exists(opened), 5000);
+    QFile result(opened);
+    QVERIFY(result.open(QIODevice::ReadOnly));
+    QCOMPARE(QString::fromUtf8(result.readAll()).split(QLatin1Char('\n'), Qt::SkipEmptyParts),
+             uris);
 }
 
 void TestSingleInstance::secondaryTakesOverFromAQuittingOwner()
@@ -353,6 +434,43 @@ void TestSingleInstance::desktopFileValidates()
     QCOMPARE(validator.exitCode(), 0);
 }
 
-QTEST_GUILESS_MAIN(TestSingleInstance)
+namespace {
+
+/// `--activated-primary FILE`: this binary as the bus starts it in
+/// dbusActivationDeliversTheOpen, the way it starts omaseed for a link: no URIs of its own,
+/// on the bus that started it. It writes the URIs Open brings, one a line, to FILE and exits;
+/// 1 when none came within 10 s.
+int runActivatedPrimary(int argc, char **argv)
+{
+    QCoreApplication app(argc, argv);
+    const QByteArray starter = qgetenv("DBUS_STARTER_ADDRESS");
+    if (!starter.isEmpty())
+        qputenv("DBUS_SESSION_BUS_ADDRESS", starter);
+    const QString out = QString::fromLocal8Bit(argv[2]);
+    SingleInstance instance;
+    QObject::connect(
+        &instance, &SingleInstance::openRequested, &app, [out](const QStringList &uris) {
+            QFile file(out);
+            if (file.open(QIODevice::WriteOnly))
+                file.write(uris.join(QLatin1Char('\n')).toUtf8() + '\n');
+            QCoreApplication::exit(0);
+        });
+    QTimer::singleShot(10000, &app, []() { QCoreApplication::exit(1); });
+    if (!instance.start({}))
+        return 1;
+    return app.exec();
+}
+
+} // namespace
+
+int main(int argc, char **argv)
+{
+    if (argc == 3 && qstrcmp(argv[1], "--activated-primary") == 0)
+        return runActivatedPrimary(argc, argv);
+    QCoreApplication app(argc, argv);
+    TestSingleInstance test;
+    QTEST_SET_MAIN_SOURCE_PATH
+    return QTest::qExec(&test, argc, argv);
+}
 
 #include "tst_singleinstance.moc"

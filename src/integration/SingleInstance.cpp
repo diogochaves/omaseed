@@ -177,16 +177,19 @@ void SingleInstance::deliverOwnUris(const QStringList &uris)
     QTimer::singleShot(0, this, [this, uris]() { emit openRequested(uris); });
 }
 
-bool SingleInstance::becomePrimaryOnBus(QDBusConnection &connection,
-                                        const QString &connectionName,
-                                        const QStringList &uris)
+bool SingleInstance::becomePrimaryOnBus(const QString &connectionName, const QStringList &uris)
 {
     m_connectionName = connectionName;
     m_isPrimary = true;
-    new SingleInstanceDBusAdaptor(this);
-    connection.registerObject(AppIdentity::dbusObjectPath(), this, QDBusConnection::ExportAdaptors);
     deliverOwnUris(uris);
     return true;
+}
+
+void SingleInstance::exportApplication(QDBusConnection &connection)
+{
+    if (!m_adaptor)
+        m_adaptor = new SingleInstanceDBusAdaptor(this);
+    connection.registerObject(AppIdentity::dbusObjectPath(), this, QDBusConnection::ExportAdaptors);
 }
 
 bool SingleInstance::startOnSessionBus(const QString &busAddress, const QStringList &uris)
@@ -204,10 +207,17 @@ bool SingleInstance::startOnSessionBus(const QString &busAddress, const QStringL
         return startOnLocalSocket(uris);
     }
 
+    // The object before the name. A D-Bus activation (a link opened through GIO or the
+    // portal while omaseed is closed) has its Open queued on the bus, which hands it over the
+    // instant the name is taken, on Qt's D-Bus thread, before this thread is back from the
+    // claim: with no object at the path yet it was answered "No such object path" and the
+    // link was lost. On a secondary the object is never called (calls go to the name's owner)
+    // and goes with the connection.
+    exportApplication(connection);
     const QString serviceName = AppIdentity::dbusServiceName();
     switch (claimName(connection, serviceName)) {
     case NameClaim::Registered:
-        return becomePrimaryOnBus(connection, connectionName, uris);
+        return becomePrimaryOnBus(connectionName, uris);
     case NameClaim::Failed:
         // The bus refused outright (not "someone has it"): single-instance over the bus is
         // impossible, but the app itself can still run, guarded by the local socket instead.
@@ -257,7 +267,7 @@ bool SingleInstance::startOnSessionBus(const QString &busAddress, const QStringL
     qCWarning(lcInstance).noquote()
         << QStringLiteral("the running instance did not take %1: %2").arg(methodName, why);
     if (claimName(connection, serviceName) == NameClaim::Registered)
-        return becomePrimaryOnBus(connection, connectionName, uris);
+        return becomePrimaryOnBus(connectionName, uris);
 
     QDBusConnection::disconnectFromBus(connectionName);
     m_isPrimary = false;

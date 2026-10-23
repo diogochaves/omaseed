@@ -2,7 +2,8 @@
 # omaseed — the hand-off walkthrough: a magnet link or a .torrent file opened with xdg-open,
 # as a browser or a file manager does, lands in omaseed's add sheet, pre-filled, whether the
 # app is closed, hidden in the tray, or already has that torrent (and, for a public one, merges
-# the trackers the link brings). Three links handed over one after another make one batch,
+# the trackers the link brings); with the app quit, a link handed over through D-Bus activation
+# (`gio open`, as GIO, the OpenURI portal and Chromium do) still reaches the sheet. Three links handed over one after another make one batch,
 # added in one request (#40). Then, on a second box with its own qBittorrent, a magnet's file
 # list before the add (docs/29, #44): the Sampler's magnet from the tray shows its tree, one file
 # unticked is never written, and a private magnet goes through "fetching", "still looking" and
@@ -330,6 +331,33 @@ open_in_box "$MAGNET"
 sleep 3
 step "Magnet it already has" "The duplicate sheet straight away, no add form behind it: tiny-notes.txt is already on this server; a dim line says its metadata hasn't arrived, so its trackers stay as they are; \"close\" and \"show it\", no merge."
 check "no second copy on the playground" one_copy
+check "still one omaseed process" one_process
+keys Escape
+
+# 3b. The same, with omaseed quit, the way a browser or Files hands it over (GIO, the OpenURI
+# portal): the .desktop entry is DBusActivatable, so they call Open on omaseed's name and the
+# bus starts the app, without the link, to answer it. The app has to have its object up before
+# it takes the name, or the queued Open is refused and the window opens with no sheet.
+omabox run -b "$BOX" -- "$repo/build/omaseed" --quit >/dev/null 2>&1 || true
+omabox wait -b "$BOX" --timeout 15s window "$APP_ID" --gone >/dev/null 2>&1 || true
+# shellcheck disable=SC2016 # expands in the inner sh, which gets the box as $1
+check "omaseed quit" sh -c '! omabox run -b "$1" -- pgrep -x omaseed >/dev/null 2>&1' _ "$BOX"
+GIO_LOG="$(omabox run -b "$BOX" -d -- gio open "$MAGNET" 2>&1 | sed -n 's/.*(log: \(.*\))$/\1/p' | head -n 1)"
+wait_window 15 || true
+# dup_sheet: until the duplicate sheet is up (the first sync comes first: the app just started).
+dup_sheet() {
+    for _ in $(seq 1 40); do
+        omabox tree -b "$BOX" --find "Already on" 2>/dev/null | grep -q '^dialog "Already on' && return 0
+        sleep 0.25
+    done
+    return 1
+}
+check "gio open started omaseed" window_shown
+check "and handed it the link: the duplicate sheet came up" dup_sheet
+# open_answered: gio said nothing about the call it made (it prints why an Open failed).
+open_answered() { [ -z "$GIO_LOG" ] || ! grep -q "No such object path" "$GIO_LOG"; }
+check "gio's Open was answered (no \"No such object path\")" open_answered
+step "Magnet it already has, app quit" "The window opened by D-Bus activation, with the same duplicate sheet as the step before: tiny-notes.txt is already on this server, \"close\" and \"show it\"."
 check "still one omaseed process" one_process
 keys Escape
 
