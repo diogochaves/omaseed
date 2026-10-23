@@ -214,21 +214,18 @@ void TorrentFilesModel::applyFiles(const QJsonArray &files)
 {
     if (files.isEmpty()) {
         clear();
-        return;
-    }
-
-    if (shapeOf(files) == m_shape) {
+    } else if (shapeOf(files) == m_shape) {
         updateInPlace(files);
         updateSummary();
-        return;
+    } else {
+        beginResetModel();
+        rebuild(files);
+        endResetModel();
+        Q_EMIT countChanged();
+        Q_EMIT selectionChanged();
+        updateSummary();
     }
-
-    beginResetModel();
-    rebuild(files);
-    endResetModel();
-    Q_EMIT countChanged();
-    Q_EMIT selectionChanged();
-    updateSummary();
+    Q_EMIT filesApplied();
 }
 
 void TorrentFilesModel::clear()

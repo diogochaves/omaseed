@@ -285,6 +285,8 @@ Q_SIGNALS:
     void summaryChanged();
     void headWantedChanged();
     void onDiskChanged();
+    /// applyFiles() took a torrents/files array, changed or not: files() is that array now.
+    void filesApplied();
     /// The same rows changed places (a sort, or a poll moving the number sorted by). The
     /// cursor is a row number, so the view re-finds its file by path (rowOfPath).
     void reordered();

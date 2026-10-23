@@ -2074,10 +2074,18 @@ private:
     /// What the free and the plan need about `torrent` on this machine.
     core::FreeSkippedJob::Input freeInputFor(const core::Torrent &torrent) const;
     core::SkippedOnDisk::LocalPathOf localPathOfFiles(const core::Torrent &torrent) const;
+    /// #180: the file list just came in; while the Files tab shows, reads the disk again if
+    /// m_skippedAfterRefresh asks, or if its priorities are not m_skippedPriorities.
+    void readSkippedIfDue();
+    /// A torrents/files array's priorities by file id (its `index`, else its place).
+    static QHash<int, int> serverPrioritiesOf(const QJsonArray &files);
     core::SkippedOnDisk *m_skipped = nullptr;
     bool m_filesTabActive = false;
-    /// Read again once the next file list has come in (a priority change, a new torrent).
+    /// Read again once the next file list has come in (the tab opened before it, a new
+    /// torrent, a free).
     bool m_skippedAfterRefresh = false;
+    /// The server's priorities the last reading was taken with (serverPrioritiesOf).
+    QHash<int, int> m_skippedPriorities;
     QString m_skippedStep; ///< the running free's or add-again's step, "" when none
     core::FreePlan m_lastFreePlan;
     QString m_lastFreePlanHash;

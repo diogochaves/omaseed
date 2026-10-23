@@ -10,6 +10,7 @@
 
 #include <QCoreApplication>
 #include <QJsonArray>
+#include <QJsonObject>
 #include <QSet>
 
 namespace omaseed::app {
@@ -78,18 +79,38 @@ void App::setUpSkipped()
     // Another torrent: its own reading, once its file list is in.
     connect(m_details, &TorrentDetails::hashChanged, this, [this]() {
         m_skipped->clear();
+        m_skippedPriorities.clear();
         m_skippedAfterRefresh = m_filesTabActive;
     });
-    connect(m_details, &TorrentDetails::refreshed, this, [this]() {
-        if (!m_skippedAfterRefresh || !m_filesTabActive)
-            return;
-        m_skippedAfterRefresh = false;
-        refreshSkippedOnDisk();
-    });
-    // A tick or a skip: the next file list says what the disk holds now (docs/44 §7).
-    connect(m_details->files(), &TorrentFilesModel::summaryChanged, this, [this]() {
-        m_skippedAfterRefresh = m_filesTabActive;
-    });
+    // #180: a skip or a tick is read once the server's file list carries it (docs/44 §7), not
+    // on the first refresh after the key, whose list can be the old one (a poll in flight, a
+    // tick still held) or not in yet (TorrentDetails::refreshed is the properties' answer).
+    // A change made elsewhere, in qBittorrent's own Web UI, is read the same way.
+    connect(m_details->files(), &TorrentFilesModel::filesApplied, this, &App::readSkippedIfDue);
+}
+
+void App::readSkippedIfDue()
+{
+    if (!m_filesTabActive)
+        return;
+    // Nothing the last reading went by has changed: the disk is not read again.
+    if (!m_skippedAfterRefresh &&
+        serverPrioritiesOf(m_details->files()->files()) == m_skippedPriorities)
+        return;
+    m_skippedAfterRefresh = false;
+    refreshSkippedOnDisk();
+}
+
+QHash<int, int> App::serverPrioritiesOf(const QJsonArray &files)
+{
+    QHash<int, int> priorities;
+    priorities.reserve(files.size());
+    for (qsizetype at = 0; at < files.size(); ++at) {
+        const QJsonObject file = files.at(at).toObject();
+        priorities.insert(file.value(QStringLiteral("index")).toInt(int(at)),
+                          file.value(QStringLiteral("priority")).toInt(1));
+    }
+    return priorities;
 }
 
 QVariantMap App::skippedOnDiskMap() const
@@ -147,7 +168,10 @@ void App::refreshSkippedOnDisk()
     if (hash.isEmpty() || m_demoMode || !m_hasServer || m_engine->torrents()->indexOfHash(hash) < 0)
         return;
     const Torrent torrent = m_engine->torrents()->torrent(hash);
+    // The server's last file list, not the rows: they show a change before it is sent (N1)
+    // and a held one until it is (C17 D5), and the disk follows only what qBittorrent has.
     const QJsonArray files = m_details->files()->files();
+    m_skippedPriorities = serverPrioritiesOf(files);
     const SkippedOnDisk::LocalPathOf localPathOf = localPathOfFiles(torrent);
     const qint64 size = torrent.totalSize > 0 ? torrent.totalSize : torrent.size;
     // The pieces only matter to the plan; the column and the band need the disk alone.
