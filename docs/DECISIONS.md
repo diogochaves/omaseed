@@ -1307,6 +1307,47 @@ there reads 100 %, and so does a v1-only torrent, whose missing pieces it downlo
   real bytes, and the torrent reads 100 % (the research's `readd-after` and `readd-at`, and
   the actions walk's disk stage, `b44-v2`).
 
+## C30 — Fills, show and free (board 50, ruled 2026-10-23)
+
+Board [50](50-frame-and-details-notes.html) F1–F19, all as recommended. #90's call, which C28
+left for the frame step, and the drawings of the v0.4.0 manual pass's notes on #167 (the
+outcome strip's "show") and #169 (nothing to free; the size of a skipped file still on disk).
+
+**This entry amends** Q19 (the floor holds on every ground, not only the window), C18 O3's
+"show" (offered only when it brings something back) and C17's band and free sheet (the words
+when only adding the torrent again frees the space).
+
+- **The floor (F1–F7, #90):** 4.5:1 against the ground each text is painted on: the window and
+  every fill (idle, hover, cursor, selected, selected + cursor, pressed, tints). Every role, dim
+  text and state colours included, gets the least lift against that fill, only where it sits on
+  it, so captions stay distinct (1.91:1 under the main text on a selected row, median over 28
+  themes; #90's full strength would have made them 1.00:1). Hover and pressed follow the same
+  rule, the lift following the fill's 120 ms change. On a tinted band the tint's colour and its
+  dim words are lifted against the tint. A theme whose palette reads on nothing at a fill's
+  alpha gets that fill capped (everforest 0.215). Theme resolves each role on each fill once
+  per theme change and the Kit asks for the ground it paints on; `tst_themecontrast` and
+  `contrast-board.py` cover every pair, so a theme that fails is a failing test.
+- **"show" (F8–F11, #167):** offered only when one of the strip's torrents is out of view, out
+  of the scope (folder, question, category, tag, filter) or not selected, and live while the
+  strip is up. It selects them, puts the cursor on the first and scrolls to it; when one left
+  the scope, the rail goes where they all are (their folder, their question), else library, and
+  the filter clears. Never a filter of its own (42 J1). A dim line under the strip's words says
+  why it is there ("they are out of view, under giving back").
+- **Nothing to free (F12–F16, #169):** on a hybrid (or v2-only, C29) torrent whose space-holding
+  skipped files all have downloaded pieces, the band keeps its title, says "They were written
+  while wanted, and pieces of them were downloaded. qBittorrent keeps them; on this torrent only
+  adding it again frees them.", and offers Add it again… (F) · Why? ›. shift+f goes to the
+  add-again confirm, which says why in one line; the palette row reads "add it again to free
+  SIZE…", the ? sheet's F "free the space, or add it again". The free sheet, when its plan finds
+  nothing after all, is titled "Only adding it again frees this" with "Re-add to delete them…"
+  ("…it…" for one) as its main button; when some can be freed, the main button frees them and
+  "re-add to free all SIZE…" sits beside it. The Files tab's reading decides (hashes, each
+  file's progress, pieceStates as it reads now); shift+f from the table reads the files first,
+  and the plan at delete time checks again and falls back to the "only adding it again" sheet.
+- **The size (F17–F19, #169):** the size fact and the files head say "· 2 skipped, 16.0 MB still
+  on disk"; on a disk omaseed can't see, "2.43 GB · 1.03 GB of it in skipped files", from
+  torrents/files' progress. Ships with the details step (#169), in the new details only.
+
 ## M8 — A click leaves the keyboard focus where it was
 
 Buttons and toggles do not take the focus when clicked. Otherwise an overlay gives the focus
