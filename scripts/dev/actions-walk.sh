@@ -10,7 +10,9 @@
 # turning automatic management on (#65) ask), and board 44's skipped files that still hold space
 # (#118): the On disk column and band (also after an `x` skip and tick back in the app, #180),
 # free the space (taught by the ? sheet and the palette,
-# #160) on a v1-only torrent (with its recheck) and on a hybrid (left, then added again); and a big tick that waits with Undo (#119). After each step it checks what qBittorrent says and
+# #160) on a v1-only torrent (with its recheck), on a hybrid (left, then added again) and on a
+# v2-only torrent (left too, DECISIONS C29, #182, then added again); and a big tick that waits
+# with Undo (#119). After each step it checks what qBittorrent says and
 # what is on disk, and stops at the first mismatch. OMASEED_ACTIONS_WALK_FROM=disk runs board
 # 44's steps alone.
 # Run it again after any change to an action, a sheet, a palette or the selection bar.
@@ -232,6 +234,29 @@ expect_no_text() {
     fail "$what (after ${limit}s \"$text\" is still in the window)"
 }
 
+# expect_read "WHAT" PREFIX TEXT [SECONDS]: wait until the window's node whose name holds PREFIX
+# reads TEXT on screen. The tree cuts names at 80 characters, so the node's region is shot and
+# read with tesseract (whitespace folded, case aside); without tesseract only PREFIX is checked.
+OUT_READ="$(mktemp --suffix=.png)"
+expect_read() {
+    local what="$1" prefix="$2" text="$3" limit="${4:-10}" where="" read=""
+    if ! command -v tesseract >/dev/null; then
+        expect_text "$what (tesseract missing: only \"$prefix\" checked)" "$prefix" "$limit"
+        return 0
+    fi
+    for _ in $(seq 1 "$limit"); do
+        where="$(omabox tree -b "$BOX" --window omaseed --find "$prefix" 2>/dev/null |
+            sed -nE 's/.*@(-?[0-9]+),(-?[0-9]+) ([0-9]+)x([0-9]+).*/\1,\2 \3x\4/p' | tail -n1)"
+        if [ -n "$where" ]; then
+            omabox shot -b "$BOX" --window omaseed -g "$where" --zoom 2 -o "$OUT_READ" >/dev/null 2>&1 || true
+            read="$(tesseract "$OUT_READ" - 2>/dev/null | tr -s '[:space:]' ' ')"
+            grep -qiF -- "$text" <<<"$read" && { pass "$what"; return 0; }
+        fi
+        sleep 1
+    done
+    fail "$what (after ${limit}s the line reads: ${read:-nothing})"
+}
+
 # expect_size "WHAT" PATH BYTES: the file PATH in the box is BYTES long.
 expect_size() {
     local size
@@ -277,6 +302,7 @@ shot() {
 
 cleanup() {
     local status=$?
+    rm -f "$OUT_READ"
     if [ "$INTERACTIVE" = 1 ]; then
         echo
         echo "The box stays up for a look around; throw it away with: scripts/dev/app-box.sh down -b $BOX"
@@ -302,7 +328,8 @@ home="$(omabox path -b "$BOX")/home"
 
 # ---- board 44: skipped files and the disk (DECISIONS C17, #118–#120) ----------------------
 # Two torrents of four 8 MiB files, one v1-only and one hybrid, made and seeded by the box's
-# own qBittorrent, so every skipped file holds its data and its downloaded pieces. The ntfs3
+# own qBittorrent, so every skipped file holds its data and its downloaded pieces; and a v2-only
+# one whose files are no piece multiple, as C29's trap needs (#182). The ntfs3
 # side (a tick that allocates in full, on a loop image) needs a mount the box can write to,
 # which udisks makes only on this machine: tests/core/tst_skipped_ntfs3_live.cpp and, for a
 # tick that doesn't fit and so waits (DECISIONS C28, #159), tests/app/tst_app_tickroom_live.cpp
@@ -323,13 +350,15 @@ for node in json.load(sys.stdin):
     click $at
 }
 
-# make_disk_torrent NAME FORMAT: four 8 MiB files of random bytes in ~/Torrents/NAME, and a
-# torrent of them (FORMAT v1 or hybrid) that the box's qBittorrent makes and seeds from there.
+# make_disk_torrent NAME FORMAT [SIZES]: four files of random bytes in ~/Torrents/NAME, a.bin to
+# d.bin (8 MiB each, or the four byte counts SIZES lists), and a torrent of them (FORMAT v1, v2
+# or hybrid) that the box's qBittorrent makes and seeds from there.
 make_disk_torrent() {
-    local name="$1" format="$2" task
+    local name="$1" format="$2" task i sizes files=(a b c d)
+    read -r -a sizes <<<"${3:-8388608 8388608 8388608 8388608}"
     mkdir -p "$home/Torrents/$name"
-    for f in a b c d; do
-        head -c $((8 * 1024 * 1024)) /dev/urandom >"$home/Torrents/$name/$f.bin"
+    for i in 0 1 2 3; do
+        head -c "${sizes[$i]}" /dev/urandom >"$home/Torrents/$name/${files[$i]}.bin"
     done
     task="$(api torrentcreator/addTask -d "sourcePath=$TORRENTS_DIR/$name" -d "format=$format" \
         -d startSeeding=true | python3 -c 'import json, sys; print(json.load(sys.stdin)["taskID"])')"
@@ -365,15 +394,22 @@ disk_walk() {
     make_disk_torrent b44-v1 v1
     make_disk_torrent b44-hybrid hybrid
     make_disk_torrent b44-skip v1
+    # C29: no file a piece multiple, so every file's last piece is short (the clip in #182).
+    make_disk_torrent b44-v2 v2 "8388608 3158073 2097929 500003"
     D_V1="$(hash_of b44-v1)"
     D_HY="$(hash_of b44-hybrid)"
     D_SK="$(hash_of b44-skip)"
+    D_V2="$(hash_of b44-v2)"
     [ "$(tq "$D_HY" 'bool(t["infohash_v1"]) and bool(t["infohash_v2"])')" = True ] ||
         { echo "b44-hybrid is not hybrid" >&2; exit 1; }
     [ "$(tq "$D_V1" 'not t["infohash_v2"]')" = True ] || { echo "b44-v1 is not v1-only" >&2; exit 1; }
+    [ "$(tq "$D_V2" 'not t["infohash_v1"] and bool(t["infohash_v2"])')" = True ] ||
+        { echo "b44-v2 is not v2-only" >&2; exit 1; }
     for h in "$D_V1" "$D_HY"; do
         api torrents/filePrio -d "hash=$h" -d "id=2|3" -d priority=0 >/dev/null
     done
+    # b44-v2: one file skipped once it is all there, its pieces downloaded.
+    api torrents/filePrio -d "hash=$D_V2" -d id=2 -d priority=0 >/dev/null
     api torrents/createCategory -d category=b44 >/dev/null 2>&1 || true
     api torrents/setCategory -d "hashes=$D_HY" -d category=b44 >/dev/null
     api torrents/addTags -d "hashes=$D_HY" -d tags=b44-tag >/dev/null
@@ -447,6 +483,40 @@ disk_walk() {
     expect_priorities "the same files are wanted" "$D_HY" "1 1 0 0"
     expect_no_text "the band is gone" "skipped files hold" 30
     shot "b44-hybrid is back; the footer: added again."
+
+    # DECISIONS C29 (#182): deleting c.bin and rechecking would leave b44-v2 short of 100 % for
+    # good, so the sheet keeps it, as on a hybrid, and says why in its own words.
+    step "Free the space, v2-only" "b44-v2, a v2-only torrent, its Files tab: c.bin (2 MiB, no piece multiple) was skipped after it was all there. shift+f: it holds downloaded pieces, and on a v2-only torrent deleting it and rechecking leaves the torrent short of 100 % for good, so it stays; nothing to free, the sheet says why and offers adding it again. esc: nothing changed, still 100 %."
+    expect_priorities "c.bin is skipped" "$D_V2" "1 1 0 1"
+    table_on "b44-v2"
+    keys l 2
+    expect_text "the band shows on the v2-only torrent" "1 skipped file holds"
+    keys shift+f
+    expect_text "the sheet has nothing to free" "Nothing to free"
+    expect_text "the sheet says why c.bin stays" "because this torrent is v2 and pieces of it"
+    expect_read "and that deleting it leaves it short of 100 % for good" "because this torrent is v2" "short of 100 % for good"
+    expect_text "c.bin is marked as staying" "has downloaded pieces · stays"
+    expect_text "and it offers adding it again" "Free it too by adding the torrent again"
+    shot "Nothing to free: c.bin has downloaded pieces and stays; the v2 note (short of 100 % for good) and \"Free it too by adding the torrent again…\"." sheet
+    keys Escape
+    expect_no_text "the sheet is closed" "Nothing to free" 5
+    expect_disk "c.bin is still there" -f "$TORRENTS_DIR/b44-v2/c.bin"
+    expect "nothing rechecked: it seeds, 100 %" "$D_V2" "t['state'] in $SEEDING and t['progress'] == 1"
+
+    step "Add it again, v2-only" "shift+f again, its button: removed keeping its files, c.bin deleted, added back from its own .torrent with the same selection, and started. Checked from scratch with c.bin gone, it reads 100 % (C29: adding it again is sound on v2)."
+    keys shift+f
+    expect_text "the sheet offers adding it again" "Free it too by adding the torrent again"
+    click_text "Free it too by adding the torrent again"
+    expect_text "the confirm asks first" "Add b44-v2 again?"
+    expect_text "and names the one file that goes" "1 skipped file is deleted"
+    keys l Return
+    expect_disk "c.bin is gone" ! "$TORRENTS_DIR/b44-v2/c.bin" 30
+    expect_disk "d.bin, wanted, is still there" -f "$TORRENTS_DIR/b44-v2/d.bin"
+    expect "it is back, seeding, 100 %" "$D_V2" "t is not None and t['state'] in $SEEDING and t['progress'] == 1" 60
+    expect "still v2-only" "$D_V2" "not t['infohash_v1'] and bool(t['infohash_v2'])"
+    expect_priorities "the same files are wanted" "$D_V2" "1 1 0 1"
+    expect_no_text "the band is gone" "skipped file holds" 30
+    shot "b44-v2 is back at 100 %, c.bin gone; the footer: added again." back
 
     step "A big tick waits, and undo sends nothing" "b44-v1 (c.bin and d.bin skipped, gone from disk): ctrl+a, + raises every file, the whole torrent, so the change waits 3 s with Undo and Send now (#119). u: the rows go back, nothing reaches qBittorrent, and no file is created."
     table_on "b44-v1"
