@@ -571,7 +571,7 @@ TestCase {
     }
 
     // DECISIONS C18 D1 (changes C16 L7): a move that landed before its band showed is said in
-    // the strip in the selection bar's place, and on its row; the footer keeps quiet.
+    // the strip over the rows, and on its row; the footer keeps quiet.
     function test_a_landed_move_says_so_in_the_strip() {
         const hash = App.filtered.hashAt(0);
         const name = App.torrentRow(hash).name;
@@ -663,7 +663,7 @@ TestCase {
         mouseClick(findChild(strip, "outcomeShow"));
         compare(view.table.selectedCount, 2);
         compare(view.table.selectedHashes().sort(), [hashes[0], hashes[1]].sort());
-        // With a selection on, the strip sits just above the selection bar.
+        // With a selection on, the strip sits just above the action bar (C24 H8).
         verify(view.selectionBar.visible);
         verify(strip.mapToItem(view, 0, strip.height).y <= view.selectionBar.mapToItem(view, 0, 0).y,
                "the strip sits above the bar");

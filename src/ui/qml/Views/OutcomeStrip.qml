@@ -1,10 +1,10 @@
 import QtQuick
 import Omaseed.Kit
 
-// What a quick action on torrents came to (board 45 §2 O1–O3, DECISIONS C18 D1–D3), in the
-// selection bar's place and shape: the bottom middle of the table, over the rows. A rule at
-// its start in the outcome's colour, the mark, the headline naming the torrent (or the count),
-// one dim line on why, at most two actions, and ×.
+// What a quick action on torrents came to (board 45 §2 O1–O3, DECISIONS C18 D1–D3), floating
+// bottom middle of the rows, just above the action bar while a selection is on (C24 H8). A
+// rule at its start in the outcome's colour, the mark, the headline naming the torrent (or the
+// count), one dim line on why, at most two actions, and ×.
 //
 //   done    green, ✓, "Arcade Set 01 moved to /srv/library/archive"   show ×
 //           it goes after 6 s, its line running down; the pointer resting on it holds them

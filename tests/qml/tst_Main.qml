@@ -190,12 +190,15 @@ TestCase {
         compare(App.counts.total, 16);
     }
 
-    function test_a_selection_adds_its_own_fact() {
+    // C24 H8: a selection is the action bar's to count, in the line's place; the facts
+    // don't say it.
+    function test_a_selection_is_the_action_bars_to_count() {
         view.table.toggleCursorSelection();
         view.table.moveCursor(1);
         view.table.toggleCursorSelection();
         compare(view.table.selectedCount, 2);
-        verify(view.factsText.endsWith(" · 2 selected"));
+        verify(view.factsText.indexOf("selected") < 0, view.factsText);
+        compare(findChild(view.selectionBar, "selectionCount").Accessible.name, "2 selected");
     }
 
     // #79: the facts are one label in whole words, the ↓ and the narrow steps' "sel" spelled
@@ -857,29 +860,53 @@ TestCase {
 
     function test_the_selection_bar_shows_with_a_selection_only() {
         verify(!view.selectionBar.visible, "no selection, no bar");
+        verify(view.statusLine.visible);
         compare(view.table.bottomRoom, 0);
         view.table.moveCursor(2);
         verify(!view.selectionBar.visible, "the cursor alone is not a selection (M9.2)");
         view.table.toggleCursorSelection();
         verify(view.selectionBar.visible);
         compare(view.selectionBar.count, 1);
-        // M9.6: the last row can scroll clear of it.
-        compare(view.table.bottomRoom, view.selectionBar.height + Theme.space(12));
+        // C24 H8: the status line becomes the bar, so the line itself goes, and the bar is
+        // docked under the rows: they need no room past the last one for it.
+        verify(!view.statusLine.visible, "the status line showed under the action bar");
+        compare(view.table.bottomRoom, 0);
         view.table.clearSelection();
         verify(!view.selectionBar.visible);
+        verify(view.statusLine.visible);
         compare(view.table.bottomRoom, 0);
     }
 
-    function test_the_selection_bar_floats_centred_over_the_tables_bottom() {
+    // DECISIONS C24 H8 (supersedes docs/17's floating bar): the bar is docked in the status
+    // line's place, across the content beside the rail, and the rows above it don't move.
+    function test_the_action_bar_docks_in_the_status_lines_place() {
+        const table = view.table;
+        const tableHeight = table.height;
+        const line = view.statusLine;
+        const lineAt = line.mapToItem(view, 0, 0);
         testCase.selectTwo();
         const bar = view.selectionBar;
-        const table = view.table;
         const barAt = bar.mapToItem(view, 0, 0);
-        const tableAt = table.mapToItem(view, 0, 0);
-        fuzzyCompare(barAt.x + bar.width / 2, tableAt.x + table.width / 2, 1);
-        compare(barAt.y + bar.height, tableAt.y + table.height - Theme.space(12));
-        verify(bar.width <= table.width - Theme.space(16), "at 1360 the whole bar fits");
-        compare(bar.folded, []);
+        compare(barAt.x, lineAt.x);
+        compare(barAt.y, lineAt.y);
+        compare(bar.width, line.width);
+        compare(bar.height, line.height);
+        compare(barAt.y + bar.height, view.height);
+        fuzzyCompare(barAt.x, view.contentLeft, 1);
+        compare(table.height, tableHeight, "the rows moved when the bar came");
+        verify(table.mapToItem(view, 0, table.height).y <= barAt.y, "the rows run under the bar");
+        compare(bar.folded, [], "at 1360 the whole bar fits");
+        // Its count is the line's facts' no more: the facts went with the line.
+        verify(view.factsText.indexOf("selected") < 0);
+    }
+
+    // The status line's note ("copied") shows in the bar while the bar hides the line.
+    function test_a_note_shows_in_the_action_bar() {
+        testCase.selectTwo();
+        view.flashFooterNote("copied");
+        compare(view.selectionBar.note, "copied");
+        compare(findChild(view.selectionBar, "bar_note").text, "copied");
+        view.footerNote = "";
     }
 
     function test_a_bar_button_acts_on_the_selection_and_keeps_the_keyboard() {

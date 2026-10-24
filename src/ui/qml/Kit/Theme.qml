@@ -83,4 +83,25 @@ ThemeBase {
     /// 2 the facts' words shorten, from 3 the speeds are short and the count loses its word,
     /// at 4 the downloading count and the free space go.
     readonly property var statusLineSteps: [space(880), space(740), space(600), space(460)]
+
+    // ---- the frame's form: the action bar (board 46 `statusLine()` while selecting, `.sel`) --
+    /// The status line's own height and insets: the bar takes its place, and nothing above it
+    /// moves when a selection starts or ends (DECISIONS C24 H8).
+    readonly property int actionBarHeight: statusLineHeight
+    readonly property int actionBarInsetStart: statusLineInsetStart
+    readonly property int actionBarInsetEnd: statusLineInsetEnd
+    /// Its ground, a fill over the window's (board 46 `.status.sel`: the 8 % fill).
+    readonly property real actionBarFill: fillHover
+    /// A button, square, inside the line with a little room above and below it.
+    readonly property int actionBarButtonSize: statusLineHeight - space(4)
+    /// Between two buttons, and a group's hairline: its room and how far it stops short of
+    /// the line's edges.
+    readonly property int actionBarGap: space(2)
+    readonly property int actionBarRuleRoom: space(8)
+    readonly property int actionBarRuleInset: space(7)
+
+    // ---- the frame's form: the outcome strip (board 46 `.ostrip`, board 50 §2) -------------
+    /// How far over the rows' bottom it floats (board 46's 12 px): with a selection on, the
+    /// action bar is just under that edge.
+    readonly property int outcomeStripLift: space(12)
 }

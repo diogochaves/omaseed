@@ -470,7 +470,7 @@ Item {
                 }
             ]; // Fig. 25
         // Board 46: count · free · sync, "synced now" while the server answers; what the
-        // selection and the Files tab add comes after.
+        // Files tab adds comes after.
         const synced = root.live ? [
                                        {
                                            "value": "",
@@ -510,15 +510,9 @@ Item {
                 "label": qsTr("free")
             });
         // From step 3 the dot says it.
+        // A selection is the action bar's to count, in the line's place (C24 H8).
         if (step < 3)
             parts.push(...synced);
-        if (table.selectedCount > 0)
-            parts.push({
-                "value": "",
-                "label": step >= 2 ? qsTr("%1 sel").arg(table.selectedCount)
-                                   : qsTr("%1 selected").arg(table.selectedCount),
-                "spoken": qsTr("%1 selected").arg(table.selectedCount)
-            });
         // C17 D1: what the skipped files still hold, while the Files tab shows them.
         const held = App.details.files.holdingOnDisk;
         if (held > 0 && details.currentTab === 1 && !details.collapsed && step < 3) {
@@ -2038,11 +2032,9 @@ Item {
                 rowMarkRevision: App.outcomes.revision
                 rowMarkFor: hash => App.outcomes.rowMark(hash)
                 escapeTaken: outcomeStrip.visible
-                // docs/17 M9.6: the last row can always scroll clear of the selection bar, and
-                // of the outcome strip over it (C18 D1).
-                bottomRoom: (selectionBar.visible ? selectionBar.height + Theme.space(12) : 0)
-                            + (outcomeStrip.visible ? outcomeStrip.height + Theme.space(selectionBar.visible ? 6 : 12)
-                                                    : 0)
+                // docs/17 M9.6: the last row can always scroll clear of the outcome strip over
+                // it (C18 D1); the action bar is docked under the rows (C24 H8).
+                bottomRoom: outcomeStrip.visible ? outcomeStrip.height + Theme.outcomeStripLift : 0
                 filtered: App.filtered
                 // #51 D9: rows hold still under the open actions menu, for D17's right-click.
                 holdOrder: actionsMenuPanel.opened
@@ -2065,8 +2057,8 @@ Item {
                 onActivated: root.openDetails()
                 onColumnsRequested: columnsPalette.open()
                 onEscapePressed: root.handleEscape()
-                // C18 D6: the selection bar's mouse hint, the first 3 times it opens after a
-                // plain click; it goes with the bar.
+                // C18 D6: the action bar's mouse hint (C24 H8), the first 3 times it opens
+                // after a plain click; it goes with the bar.
                 onPlainClicked: hadSelection => {
                     if (hadSelection || App.selectionHintsShown >= 3)
                         return;
@@ -2112,41 +2104,14 @@ Item {
                 onClearRequested: root.handleEscape()
             }
 
-            // docs/17 M9: over the table, centred, 12 u above its bottom edge, while one or
-            // more torrents are selected. Never while the server is lost (Fig. 23 is
-            // read-only) or with no rows on show.
-            SelectionBar {
-                id: selectionBar
-
-                anchors.bottom: table.bottom
-                anchors.bottomMargin: Theme.space(12)
-                anchors.horizontalCenter: table.horizontalCenter
-                availableWidth: table.width - Theme.space(16)
-                count: table.selectedCount
-                hint: root.selectionHint
-                // #24 T1: re-read when the selection or the library moves.
-                summary: {
-                    App.torrents.count; // the dependency: a sync that adds or drops a row
-                    return table.selectedCount > 0 ? App.console.selectionSummary(table.selectedHashes()) : ({});
-                }
-                height: implicitHeight
-                visible: table.selectedCount > 0 && table.visible && !root.serverLost
-                width: implicitWidth
-
-                onClearRequested: table.clearSelection()
-                onMoreRequested: (button, folded) => root.openSelectionMore(button, folded)
-                onSummaryClicked: root.setView("seed")
-                onTriggered: action => root.selectionBarAction(action)
-            }
-
-            // DECISIONS C18 D1–D3 (board 45 §2): what a quick action on torrents came to, in
-            // the selection bar's place. While a selection is on it sits just above the bar,
-            // so both read together and nothing moves under the pointer (O3).
+            // DECISIONS C18 D1–D3 (board 45 §2): what a quick action on torrents came to. C24
+            // H8 (supersedes D1's place): it floats bottom middle of the rows, so with a
+            // selection on it sits just above the action bar, and both read together.
             OutcomeStrip {
                 id: outcomeStrip
 
-                anchors.bottom: selectionBar.visible ? selectionBar.top : table.bottom
-                anchors.bottomMargin: Theme.space(selectionBar.visible ? 6 : 12)
+                anchors.bottom: table.bottom
+                anchors.bottomMargin: Theme.outcomeStripLift
                 anchors.horizontalCenter: table.horizontalCenter
                 availableWidth: table.width - Theme.space(16)
                 height: implicitHeight
@@ -2367,7 +2332,8 @@ Item {
         anchors.bottom: parent.bottom
         anchors.left: titleBar.left
         anchors.right: parent.right
-        visible: !root.firstRun
+        // While torrents are selected the action bar stands in its place (C24 H8).
+        visible: !root.firstRun && !selectionBar.visible
 
         serverText: root.serverLaneText()
         // docs/10 §2: from the first narrow step the lane drops the version (its tooltip keeps
@@ -2423,6 +2389,35 @@ Item {
         // docs/35 N8: the sentence's "details" open the band above the line.
         onDetailsToggled: root.footerNoticeOpen = !root.footerNoticeOpen
         onNoteHintClicked: root.toggleDetails()
+    }
+
+    // The action bar (board 46 `statusLine()` while selecting, DECISIONS C24 H8; supersedes
+    // docs/17's floating bar): while one or more torrents are selected the status line becomes
+    // it, docked in the line's place. Never while the server is lost (Fig. 23 is read-only) or
+    // with no rows on show: the status line stays then.
+    SelectionBar {
+        id: selectionBar
+
+        anchors.fill: statusLine
+        // The line's width, not the bar's own: while the bar is made, its width follows its
+        // implicit width for a moment, which follows its folds (a binding loop).
+        availableWidth: statusLine.width - Theme.actionBarInsetStart - Theme.actionBarInsetEnd
+        count: table.selectedCount
+        hint: root.selectionHint
+        // The line's note, while the bar hides the line.
+        note: root.footerNote
+        noteWarn: root.footerNoteWarn
+        // #24 T1: re-read when the selection or the library moves.
+        summary: {
+            App.torrents.count; // the dependency: a sync that adds or drops a row
+            return table.selectedCount > 0 ? App.console.selectionSummary(table.selectedHashes()) : ({});
+        }
+        visible: table.selectedCount > 0 && table.visible && !root.serverLost && !root.firstRun
+
+        onClearRequested: table.clearSelection()
+        onMoreRequested: (button, folded) => root.openSelectionMore(button, folded)
+        onSummaryClicked: root.setView("seed")
+        onTriggered: action => root.selectionBarAction(action)
     }
 
     // the `?` sheet (spec §7 Fig. 26: 760 wide, no buttons — a sheet may have none)
