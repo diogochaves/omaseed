@@ -1,10 +1,18 @@
 #!/usr/bin/env python3
 """Write docs/38-contrast-floor.html: each installed theme's text colours, before and after a
-change to Theme's contrast floor, as omaseed itself resolves them.
+change to Theme's contrast floor, as omaseed itself resolves them. Or check every text role on
+every ground it is painted on (docs/DECISIONS.md C30 F7).
 
     scripts/dev/contrast-board.py --before OLD_BIN --after NEW_BIN [--out FILE]
                                   [--before-label TEXT] [--after-label TEXT]
                                   [--themes-root DIR]...
+    scripts/dev/contrast-board.py --check BIN [--themes-root DIR]... [--json OUT] [--quiet]
+
+--check reads each theme's `grounds` (Theme.on: the window, every fill, every tint) from
+`BIN --theme-roles` and measures each text role on each ground, plus the key badge's
+background on accent; it prints the failing pairs and exits 1 when there is one. A build from
+before C30 prints no grounds: the check then paints its window roles on each fill, as that
+build did, which is board 50's "today".
 
 For each theme (Omarchy's in /usr/share/omarchy/themes, then the user's in
 ~/.config/omarchy/themes, which win on a name clash) it runs `BIN --theme-roles` (#76) once
@@ -435,10 +443,93 @@ def board(data, before_label, after_label):
 """
 
 
+# ---- every role on every ground (docs/DECISIONS.md C30 F7) -----------------------------------
+
+INK_ROLES = ["foreground", "dimForeground", "brightForeground", "accent", "red", "yellow",
+             "orange", "green", "cyan", "blue", "magenta"]
+# A build from before C30 has no grounds: each one as that build painted it, (tint, alpha).
+OLD_GROUNDS = {"window": ("foreground", 0.0), "idle": ("foreground", "fillIdle"),
+               "hover": ("foreground", "fillHover"), "cursor": ("foreground", "fillHover"),
+               "selected": ("foreground", "fillSelected"),
+               "selectedCursor": ("foreground", "fillSelectedCursor"),
+               "pressed": ("foreground", "fillPressed"), "warning": ("yellow", 0.08),
+               "attention": ("red", 0.07), "danger": ("red", "fillSelected"),
+               "ticked": ("accent", "fillPressed"), "accentIdle": ("accent", "fillIdle")}
+
+
+def grounds_of(roles):
+    """{ground: (opaque ground, {role: colour})}, as the build resolved them, or as a build
+    from before C30 painted them (its window roles on every fill)."""
+    c, a = roles["colors"], roles["alphas"]
+    if "grounds" in roles:
+        return {name: (parse(g["ground"]), {r: parse(g["colors"][r]) for r in INK_ROLES})
+                for name, g in roles["grounds"].items()}
+    out = {}
+    for name, (tint, alpha) in OLD_GROUNDS.items():
+        al = a[alpha] if isinstance(alpha, str) else alpha
+        g = tuple(round(v) for v in over(parse(c[tint]), parse(c["background"]), al))
+        # A selected row's main text was brightForeground (TableRow), every other role as is.
+        cols = {r: parse(c[r]) for r in INK_ROLES}
+        out[name] = (g, cols)
+    return out
+
+
+def check(data):
+    """Every pair, measured: {"pairs", "fails": [(theme, ground, role, ratio)], "sep"}."""
+    fails, pairs, seps = [], 0, []
+    for theme, roles in data.items():
+        grounds = grounds_of(roles)
+        for ground, (g, cols) in grounds.items():
+            for role in INK_ROLES:
+                pairs += 1
+                q = ratio(cols[role], g)
+                if q < FLOOR:
+                    fails.append((theme, ground, role, q))
+        # Kit/KeyBadge: background on a solid accent.
+        c = roles["colors"]
+        pairs += 1
+        q = ratio(parse(c["background"]), parse(c["accent"]))
+        if q < FLOOR:
+            fails.append((theme, "accent (solid)", "background", q))
+        # The hierarchy C30 F2 keeps: a caption under a selected row's main text.
+        g, cols = grounds["selected"]
+        seps.append(ratio(cols["dimForeground"], cols["brightForeground"]))
+    return {"themes": len(data), "pairs": pairs, "fails": fails,
+            "sep": statistics.median(seps) if seps else 0, "sep_min": min(seps) if seps else 0}
+
+
+def check_main(a, found):
+    data = {name: roles_for(a.check, d, name) for name, d in found.items()}
+    res = check(data)
+    by_ground = {}
+    for theme, ground, role, q in res["fails"]:
+        by_ground.setdefault(ground, []).append((theme, role, q))
+    if not a.quiet:
+        for ground, rows in sorted(by_ground.items()):
+            worst = min(rows, key=lambda r: r[2])
+            print(f"{ground}: {len(rows)} failing, worst {worst[1]} {worst[2]:.2f} ({worst[0]})")
+    caps = {t: r["alphas"].get("fillCap", 1.0) for t, r in data.items()}
+    # A cap holds a theme's fills when one of them sits at it (C30 F6).
+    fills = ("fillIdle", "fillHover", "fillSelected", "fillSelectedCursor", "fillPressed")
+    capped = {t: v for t, v in caps.items()
+              if any(abs(data[t]["alphas"].get(f, 0) - v) < 1e-9 for f in fills)}
+    print(f"contrast-board: {res['themes']} themes, {res['pairs']} pairs, "
+          f"{len(res['fails'])} under {FLOOR:g}:1; caption under a selected row's text, median "
+          f"{res['sep']:.2f}:1 (closest {res['sep_min']:.2f}); fills held: "
+          + (", ".join(f"{t} {v:g}" for t, v in sorted(capped.items())) or "none"))
+    if a.json:
+        with open(a.json, "w", encoding="utf-8") as f:
+            json.dump({**res, "caps": caps}, f, indent=1)
+    return 1 if res["fails"] else 0
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    ap.add_argument("--before", required=True, help="omaseed built before the change")
-    ap.add_argument("--after", required=True, help="omaseed built with it")
+    ap.add_argument("--check", metavar="BIN", help="check every role on every ground")
+    ap.add_argument("--json", help="--check: write the measurement here")
+    ap.add_argument("--quiet", action="store_true", help="--check: the summary line only")
+    ap.add_argument("--before", help="omaseed built before the change")
+    ap.add_argument("--after", help="omaseed built with it")
     ap.add_argument("--before-label", default="before")
     ap.add_argument("--after-label", default="after")
     ap.add_argument("--out", default=os.path.join(os.path.dirname(os.path.abspath(__file__)),
@@ -448,6 +539,10 @@ def main(argv=None):
     found = themes(a.themes_root or DEFAULT_ROOTS)
     if not found:
         sys.exit("contrast-board: no themes found")
+    if a.check:
+        return check_main(a, found)
+    if not (a.before and a.after):
+        ap.error("--before and --after are needed for the board (or --check BIN)")
     data = {name: {"before": roles_for(a.before, d, name), "after": roles_for(a.after, d, name)}
             for name, d in found.items()}
     with open(a.out, "w", encoding="utf-8") as f:

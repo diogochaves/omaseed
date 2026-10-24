@@ -161,7 +161,9 @@ Theme::Theme(ThemeReader *reader, const Hyprland &hyprland, QObject *parent)
     , m_reader(reader)
     , m_font(new ThemeFont(this))
     , m_hyprland(hyprland)
+    , m_on(new ThemeGrounds(this))
 {
+    resolveGrounds(); // the bundled palette's, until a reader gives one
     if (m_reader) {
         connect(m_reader, &ThemeReader::changed, this, &Theme::adopt);
         adopt();
@@ -251,6 +253,14 @@ void Theme::adopt()
     m_borderHover = number(shell, QStringLiteral("controls.hover-cursor-border-alpha"), 0.25);
     m_defaultWindowAlpha = std::clamp(
         number(shell, QStringLiteral("launcher.background-alpha"), 0.95), qreal(0), qreal(1));
+    // C30 F6: a theme whose text reads on nothing at a fill's alpha (everforest: its foreground
+    // and bright foreground are one colour) gets that fill held where the text still reads.
+    m_fillCap = fillCapFor(m_foreground, m_foreground, m_brightForeground, m_background);
+    m_fillSelectedCursor = kFillSelectedCursor;
+    for (qreal *alpha :
+         {&m_fillIdle, &m_fillHover, &m_fillSelected, &m_fillPressed, &m_fillSelectedCursor})
+        *alpha = std::min(*alpha, m_fillCap);
+    resolveGrounds();
 
     // The font family is fontconfig's answer for "monospace", which a theme change can move.
     if (QGuiApplication::instance())
@@ -260,6 +270,56 @@ void Theme::adopt()
     Q_EMIT changed();
     if (!qFuzzyCompare(spaceScale(), spaceScaleBefore))
         Q_EMIT spaceScaleChanged();
+}
+
+void Theme::resolveGrounds()
+{
+    // Once per theme change, every role on every ground (C30 F7): a binding reads the
+    // resolved colour, it never lifts one itself.
+    ThemeInk::Roles window;
+    window[ThemeInk::Foreground] = m_foreground;
+    window[ThemeInk::DimForeground] = m_dimForeground;
+    window[ThemeInk::BrightForeground] = m_brightForeground;
+    window[ThemeInk::Accent] = m_accent;
+    window[ThemeInk::Red] = m_red;
+    window[ThemeInk::Yellow] = m_yellow;
+    window[ThemeInk::Orange] = m_orange;
+    window[ThemeInk::Green] = m_green;
+    window[ThemeInk::Cyan] = m_cyan;
+    window[ThemeInk::Blue] = m_blue;
+    window[ThemeInk::Magenta] = m_magenta;
+
+    m_on->window()->resolve(m_foreground, 0, m_background, window);
+    m_on->idle()->resolve(m_foreground, m_fillIdle, m_background, window);
+    m_on->hover()->resolve(m_foreground, m_fillHover, m_background, window);
+    m_on->cursor()->resolve(m_foreground, m_fillHover, m_background, window);
+    m_on->selected()->resolve(m_foreground, m_fillSelected, m_background, window);
+    m_on->selectedCursor()->resolve(m_foreground, m_fillSelectedCursor, m_background, window);
+    m_on->pressed()->resolve(m_foreground, m_fillPressed, m_background, window);
+    m_on->warning()->resolve(m_yellow, warningTintAlpha(), m_background, window);
+    m_on->attention()->resolve(m_red, attentionTintAlpha(), m_background, window);
+    m_on->danger()->resolve(m_red, m_fillSelected, m_background, window);
+    m_on->ticked()->resolve(m_accent, m_fillPressed, m_background, window);
+    m_on->accentIdle()->resolve(m_accent, m_fillIdle, m_background, window);
+}
+
+qreal Theme::fillCapFor(const QColor &tint,
+                        const QColor &foreground,
+                        const QColor &bright,
+                        const QColor &background)
+{
+    const QColor &best = contrastRatio(bright, background) > contrastRatio(foreground, background)
+                             ? bright
+                             : foreground;
+    if (contrastRatio(best, background) < kTextContrastFloor)
+        return 1.0;
+    // Board 50's measure: 0.005 steps from the bare window up, the last one that still reads.
+    int steps = 0;
+    while (steps < 200 &&
+           contrastRatio(best, ThemeInk::over(tint, background, (steps + 1) * 0.005)) >=
+               kTextContrastFloor)
+        ++steps;
+    return steps >= 200 ? 1.0 : steps * 0.005;
 }
 
 Theme::WindowCorners Theme::windowCorners(const QByteArray &rounding,
@@ -436,6 +496,22 @@ QJsonObject Theme::rolesJson(const Theme &theme)
     roles.insert(QStringLiteral("colors"), colors);
     roles.insert(QStringLiteral("alphas"), alphas);
     roles.insert(QStringLiteral("windowAlpha"), theme.windowAlpha());
+
+    // C30 F7: every role on every ground, as `Theme.on` holds them, for the contrast checks.
+    QJsonObject grounds;
+    for (const ThemeInk *ink : theme.on()->all()) {
+        QJsonObject inkColors;
+        for (int role = 0; role < ThemeInk::RoleCount; ++role)
+            inkColors.insert(QString::fromLatin1(ThemeInk::roleNames()[role]),
+                             hexColor(ink->role(static_cast<ThemeInk::Role>(role))));
+        QJsonObject ground;
+        ground.insert(QStringLiteral("alpha"), ink->alpha());
+        ground.insert(QStringLiteral("fill"), hexColor(ink->fill()));
+        ground.insert(QStringLiteral("ground"), hexColor(ink->ground()));
+        ground.insert(QStringLiteral("colors"), inkColors);
+        grounds.insert(ink->name(), ground);
+    }
+    roles.insert(QStringLiteral("grounds"), grounds);
     return roles;
 }
 

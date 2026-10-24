@@ -26,3 +26,22 @@ struct ThemeFontForeign
     QML_NAMED_ELEMENT(ThemeFont)
     QML_UNCREATABLE("ThemeFont is the type of Theme.font; it is not created from QML.")
 };
+
+/// The type behind each of `Theme.on`'s grounds (docs/DECISIONS.md C30 F7): the text roles as
+/// they read on one ground. Never created from QML.
+struct ThemeInkForeign
+{
+    Q_GADGET
+    QML_FOREIGN(omaseed::integration::ThemeInk)
+    QML_NAMED_ELEMENT(ThemeInk)
+    QML_UNCREATABLE("ThemeInk is a ground of Theme.on; it is not created from QML.")
+};
+
+/// The type behind `Theme.on`. Never created from QML.
+struct ThemeGroundsForeign
+{
+    Q_GADGET
+    QML_FOREIGN(omaseed::integration::ThemeGrounds)
+    QML_NAMED_ELEMENT(ThemeGrounds)
+    QML_UNCREATABLE("ThemeGrounds is the type of Theme.on; it is not created from QML.")
+};

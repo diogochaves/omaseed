@@ -24,6 +24,8 @@ qt_add_library(omaseed-integration STATIC
     StatusWriter.hpp
     Theme.cpp
     Theme.hpp
+    ThemeInk.cpp
+    ThemeInk.hpp
     ThemeReader.cpp
     ThemeReader.hpp
     StatusBus.cpp
