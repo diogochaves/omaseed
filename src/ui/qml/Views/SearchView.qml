@@ -266,6 +266,17 @@ FocusScope {
 
     Keys.onEscapePressed: event => event.accepted = root.backOut()
 
+    /// Moves whenever a row's words do (a mark, a fresh copy), so the pane reads its row again.
+    property int _paneTick: 0
+
+    Connections {
+        target: root.results
+
+        function onDataChanged() {
+            ++root._paneTick;
+        }
+    }
+
     // SR5: the cursor's row stays where it is on screen while rows sort in above it.
     property string _keptKey: ""
     property real _keptOffset: 0
@@ -516,6 +527,8 @@ FocusScope {
                         color: Theme.dimForeground
                         font.family: Theme.fontFamily
                         font.pixelSize: Theme.searchLineSize
+                        Accessible.name: text
+                        Accessible.role: Accessible.StaticText
                         objectName: "searchHidden"
                         text: root.results.hiddenDead === 1 ? qsTr(
                                                                   "1 hidden: no seeds when the plugin looked · rows whose seeds aren't reported stay") :
@@ -594,6 +607,8 @@ FocusScope {
                 color: Theme.dimForeground
                 font.family: Theme.fontFamily
                 font.pixelSize: Theme.searchLineSize
+                Accessible.name: text
+                Accessible.role: Accessible.StaticText
                 objectName: "searchIdle"
                 text: qsTr(
                           "Type what you are looking for, then enter: each plugin that is on asks its own site, through %1's qBittorrent. Nothing is asked until then.").arg(
@@ -626,10 +641,8 @@ FocusScope {
             anchors.bottom: parent.bottom
             anchors.right: parent.right
             anchors.top: parent.top
-            details: root.paneOpen && root.currentIndex >= 0 ? root.results.details(root.keyAt(
-                                                                                        root.currentIndex)) :
-                                                               ({})
-            revision: root.results.count
+            details: root._paneTick >= 0 && root.paneOpen && root.currentIndex >= 0
+                     ? root.results.details(root.keyAt(root.currentIndex)) : ({})
             serverName: root.serverName
             visible: root.paneOpen && root.currentIndex >= 0 && root.emptyKind.length === 0
             width: Math.min(Theme.searchPaneWidth, Math.round(content.width * 0.45))

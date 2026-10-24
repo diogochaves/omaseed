@@ -1086,8 +1086,9 @@ Item {
                 root.requestQuit();
                 break;
             case Qt.Key_K:
-                // The jump palette moves the library's cursor: from the log, the library first.
-                if (root.logShown)
+                // The jump palette moves the library's cursor: from the log or search, the
+                // library first.
+                if (root.logShown || root.searchShown)
                     root.setView("library");
                 jumpPalette.open();
                 break;
@@ -2441,7 +2442,7 @@ Item {
             // C28: another engine's server says so in its problem's words.
             problem: root.serverProblem
             variant: !root.noList ? "empty" : root.serverProblem.kind === "engine" ? "engine" : App.serverRefused ? "refused" : "noList"
-            visible: (root.libraryEmpty || root.noList) && !root.firstRun && !root.logShown // T4.6: first run replaces this state
+            visible: (root.libraryEmpty || root.noList) && !root.firstRun && !root.logShown && !root.searchShown // T4.6: first run replaces this state
             width: Math.min(parent.width, Theme.space(520))
 
             onAddRequested: App.addRequested()
@@ -2459,7 +2460,7 @@ Item {
             anchors.topMargin: Theme.space(12)
             receivedText: App.sizeText(App.globalState.dlInfoData)
             torrentCount: App.torrents.count
-            visible: root.firstSync && !root.logShown
+            visible: root.firstSync && !root.logShown && !root.searchShown
         }
     }
 
@@ -3622,6 +3623,9 @@ Item {
         // `show it` gives up on the add: the sheet behind this one goes away with it.
         onShowRequested: hash => {
             addSheet.dismiss();
+            // From search's add… too (C26 SR9): `show it` is the library's torrent.
+            if (root.searchShown)
+                root.setView("library");
             root.showTorrent(hash);
         }
         // docs/25 D3 a: `trackersMerged` then moves to the torrent's Trackers tab.

@@ -15,8 +15,6 @@ Rectangle {
     /// SearchModel::details(key): the row's roles plus `copyList`, `trackers`, `hashV1`,
     /// `hashV2`, `published`.
     property var details: ({})
-    /// Moves when the rows do, so the pane reads its row again.
-    property int revision: 0
     property string serverName: ""
 
     signal addClicked
@@ -35,10 +33,14 @@ Rectangle {
                         root.details.plugins ?? "").arg(root.serverName.length > 0 ? root.serverName :
                                                                                      qsTr("the server"));
         if (root.copies.length > 1)
-            return qsTr(
-                        "%1 copies of one torrent, from %2. The magnet carries all %3 of their trackers.").arg(
-                        root.copies.length).arg(root.details.plugins ?? "").arg(
-                        root.trackers.length);
+            return root.trackers.length === 2 ? qsTr(
+                                                    "%1 copies of one torrent, from %2. The magnet carries both their trackers.").arg(
+                                                    root.copies.length).arg(root.details.plugins
+                                                                            ?? "") : qsTr(
+                                                    "%1 copies of one torrent, from %2. The magnet carries all %3 of their trackers.").arg(
+                                                    root.copies.length).arg(root.details.plugins
+                                                                            ?? "").arg(
+                                                    root.trackers.length);
         if ((root.details.privateHost ?? "").length > 0)
             return qsTr(
                         "On a tracker your library knows as private: kept as its own row, never given another copy's trackers.");
@@ -58,7 +60,7 @@ Rectangle {
 
     /// The facts as the plugin gave them, label and value in turn.
     function facts(): var {
-        const said = qsTr("as %1 says").arg(root.details.plugins ?? "");
+        const said = qsTr("as %1 says").arg(root.details.namingPlugin ?? "");
         const size = root.details.sizeText ?? "";
         const published = root.details.published ?? "";
         const leechers = root.details.leechers ?? -1;
@@ -118,6 +120,8 @@ Rectangle {
                         font.family: Theme.fontFamily
                         font.pixelSize: Theme.libraryRowNameSize
                         font.weight: Theme.libraryRowNameWeight
+                        Accessible.name: text
+                        Accessible.role: Accessible.StaticText
                         objectName: "searchPaneName"
                         text: root.details.name ?? ""
                         textFormat: Text.PlainText
@@ -159,6 +163,8 @@ Rectangle {
                     font.family: Theme.fontFamily
                     font.pixelSize: Theme.searchPaneFactSize
                     font.weight: Theme.libraryRowFactWeight
+                    Accessible.name: text
+                    Accessible.role: Accessible.StaticText
                     objectName: "searchPaneFact"
                     text: root.details.seedsText ?? ""
                     textFormat: Text.PlainText
@@ -179,6 +185,8 @@ Rectangle {
                 color: Theme.foreground
                 font.family: Theme.fontFamily
                 font.pixelSize: Theme.libraryRowSentenceSize
+                Accessible.name: text
+                Accessible.role: Accessible.StaticText
                 objectName: "searchPaneSentence"
                 text: root.heroText
                 textFormat: Text.PlainText

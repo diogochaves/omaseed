@@ -83,6 +83,8 @@ Item {
             font.pixelSize: Theme.searchEmptyTitleSize
             font.weight: Font.DemiBold
             horizontalAlignment: Text.AlignHCenter
+            Accessible.name: text
+            Accessible.role: Accessible.StaticText
             objectName: "searchEmptyTitle"
             text: root.titleText
             textFormat: Text.PlainText
@@ -95,6 +97,8 @@ Item {
             font.family: Theme.fontFamily
             font.pixelSize: Theme.searchEmptyWordsSize
             horizontalAlignment: Text.AlignHCenter
+            Accessible.name: text
+            Accessible.role: Accessible.StaticText
             objectName: "searchEmptyWords"
             text: root.wordsText
             textFormat: Text.PlainText

@@ -115,6 +115,8 @@ Item {
         elide: Text.ElideRight
         font.family: Theme.fontFamily
         font.pixelSize: Theme.searchLineSize
+        Accessible.name: text
+        Accessible.role: Accessible.StaticText
         objectName: "searchLineLeft"
         text: root.leftText
         textFormat: Text.PlainText

@@ -163,12 +163,14 @@ void TestSearchPluginsFake::anInstallIsWatchedUntilItShows()
     plugins.setWatch(20, 2000);
     plugins.refresh();
     QTRY_VERIFY(plugins.loaded());
+    // Another plugin turning up meanwhile (another client's) is not this install.
+    fake.list.append(plugin(QStringLiteral("p_x"), QStringLiteral("1.0"), true, {}));
     plugins.install(QStringLiteral("  /srv/plugins/p_d.py "));
     QCOMPARE(plugins.installState(), QStringLiteral("installing"));
     QTRY_COMPARE(plugins.installState(), QStringLiteral("installed"));
     QCOMPARE(plugins.installName(), QStringLiteral("plugin d"));
     QCOMPARE(fake.installed, QStringList{QStringLiteral("/srv/plugins/p_d.py")});
-    QCOMPARE(plugins.rowCount(), 2);
+    QCOMPARE(plugins.rowCount(), 3);
     plugins.dismissInstall();
     QCOMPARE(plugins.installState(), QString());
 }

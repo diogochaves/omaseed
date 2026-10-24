@@ -118,14 +118,26 @@ QVariantList SearchPlugins::types() const
 
 void SearchPlugins::refresh()
 {
-    if (m_client.isNull())
+    refreshThen({});
+}
+
+void SearchPlugins::refreshThen(const std::function<void()> &done)
+{
+    if (m_client.isNull()) {
+        if (done)
+            done();
         return;
+    }
     const quint64 generation = m_generation;
-    m_client->searchPlugins()->then(this, [this, generation](const QbtResult<QJsonArray> &result) {
-        if (generation != m_generation || result.isError())
-            return;
-        apply(result.value());
-    });
+    m_client->searchPlugins()->then(this,
+                                    [this, generation, done](const QbtResult<QJsonArray> &result) {
+                                        if (generation != m_generation)
+                                            return;
+                                        if (!result.isError())
+                                            apply(result.value());
+                                        if (done)
+                                            done();
+                                    });
 }
 
 void SearchPlugins::apply(const QJsonArray &list)
@@ -231,7 +243,16 @@ void SearchPlugins::watchInstall()
                 return;
             if (!result.isError()) {
                 apply(result.value());
+                // qBittorrent names a plugin after its file: a source ending in NAME.py is
+                // NAME, and only that one counts (another client may install one meanwhile).
+                const QString file =
+                    m_installSource.section(QLatin1Char('/'), -1).section(QLatin1Char('?'), 0, 0);
+                const QString expected = file.endsWith(QLatin1String(".py"), Qt::CaseInsensitive)
+                                             ? file.chopped(3)
+                                             : QString();
                 for (const Plugin &plugin : std::as_const(m_plugins)) {
+                    if (!expected.isEmpty() && plugin.name != expected)
+                        continue;
                     const auto before = m_versionsBefore.constFind(plugin.name);
                     if (before == m_versionsBefore.cend() || *before != plugin.version) {
                         m_installState = QStringLiteral("installed");

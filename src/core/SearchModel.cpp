@@ -434,6 +434,8 @@ QVariantMap SearchModel::details(const QString &key) const
         trackers.append(QVariantMap{{QStringLiteral("url"), url}, {QStringLiteral("from"), from}});
     }
     map.insert(QStringLiteral("copyList"), copies);
+    // The facts are the naming copy's (board 48: "as plugin a says").
+    map.insert(QStringLiteral("namingPlugin"), m_pluginNames.value(row->plugin, row->plugin));
     map.insert(QStringLiteral("trackers"), trackers);
     map.insert(QStringLiteral("hashV1"), row->hashV1);
     map.insert(QStringLiteral("hashV2"), row->hashV2);

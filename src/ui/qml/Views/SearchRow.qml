@@ -169,6 +169,8 @@ Item {
                 color: row.ink.accent
                 font.family: Theme.fontFamily
                 font.pixelSize: Theme.libraryRowMetaSize
+                Accessible.name: text
+                Accessible.role: Accessible.StaticText
                 objectName: "searchRowFresh_" + row.index
                 text: row.fresh === "copy" ? qsTr("+1 copy") : qsTr("new")
                 textFormat: Text.PlainText
@@ -182,6 +184,8 @@ Item {
                 color: row.mark === "disk" ? row.ink.yellow : row.ink.green
                 font.family: Theme.fontFamily
                 font.pixelSize: Theme.libraryRowMetaSize
+                Accessible.name: text
+                Accessible.role: Accessible.StaticText
                 objectName: "searchRowMark_" + row.index
                 text: row.markText
                 textFormat: Text.PlainText

@@ -170,19 +170,23 @@ void App::startSearch(const QString &pattern, const QString &category, const QSt
     }
     // Jobs a search left here while the window was on another server (SR12).
     m_search->deleteJobs(m_searchLeftJobs.take(m_searchServerId));
-    QList<SearchSession::Plugin> asked;
-    for (const QVariant &value : m_searchPlugins->enabledPlugins()) {
-        const QVariantMap plugin = value.toMap();
-        const QString name = plugin.value(QStringLiteral("name")).toString();
-        if (!plugins.isEmpty() && !plugins.contains(name))
-            continue;
-        asked.append({name,
-                      plugin.value(QStringLiteral("fullName")).toString(),
-                      plugin.value(QStringLiteral("categories")).toStringList()});
-    }
-    rebuildSearchIndex();
-    m_searchModel->startOver();
-    m_search->start(words, category, asked);
+    // The plugins as the server lists them now: one may have come or gone since the view
+    // opened (another client, the Web UI).
+    m_searchPlugins->refreshThen([this, words, category, plugins]() {
+        QList<SearchSession::Plugin> asked;
+        for (const QVariant &value : m_searchPlugins->enabledPlugins()) {
+            const QVariantMap plugin = value.toMap();
+            const QString name = plugin.value(QStringLiteral("name")).toString();
+            if (!plugins.isEmpty() && !plugins.contains(name))
+                continue;
+            asked.append({name,
+                          plugin.value(QStringLiteral("fullName")).toString(),
+                          plugin.value(QStringLiteral("categories")).toStringList()});
+        }
+        rebuildSearchIndex();
+        m_searchModel->startOver();
+        m_search->start(words, category, asked);
+    });
 }
 
 void App::rebuildSearchIndex()

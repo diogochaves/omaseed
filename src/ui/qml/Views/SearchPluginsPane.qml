@@ -117,7 +117,7 @@ Item {
                 accessibleName: qsTr("a search plugin to install")
                 hasCursor: root.keyboard && root.cursor === 0
                 objectName: "searchInstallField"
-                placeholder: root.serverLocal ? qsTr("a URL, or a .py file on this computer") : qsTr(
+                placeholder: root.serverLocal ? qsTr("a URL, or a .py file here") : qsTr(
                                                     "a URL %1 can reach").arg(root.serverName)
                 trailing: root.serverLocal ? qsTr("browse…") : ""
                 trailingClickable: root.serverLocal
@@ -152,6 +152,8 @@ Item {
             color: Theme.dimForeground
             font.family: Theme.fontFamily
             font.pixelSize: Theme.searchLineSize
+            Accessible.name: text
+            Accessible.role: Accessible.StaticText
             objectName: "searchInstallRemote"
             text: qsTr(
                       "A file on this computer can't reach %1: qBittorrent installs from a URL, or a path on its own machine.").arg(
@@ -184,6 +186,8 @@ Item {
                 color: root.plugins.installState === "failed" ? Theme.yellow : Theme.foreground
                 font.family: Theme.fontFamily
                 font.pixelSize: Theme.searchLineSize
+                Accessible.name: text
+                Accessible.role: Accessible.StaticText
                 objectName: "searchInstallWords"
                 text: {
                     switch (root.plugins.installState) {
@@ -248,6 +252,8 @@ Item {
             color: root.plugins.updateState === "silent" ? Theme.yellow : Theme.dimForeground
             font.family: Theme.fontFamily
             font.pixelSize: Theme.searchLineSize
+            Accessible.name: text
+            Accessible.role: Accessible.StaticText
             objectName: "searchUpdateWords"
             text: root.plugins.updateState === "silent" ? qsTr(
                                                               "qBittorrent said nothing about its plugins in 30 s.") :
@@ -266,6 +272,8 @@ Item {
             color: Theme.dimForeground
             font.family: Theme.fontFamily
             font.pixelSize: Theme.searchEmptyWordsSize
+            Accessible.name: text
+            Accessible.role: Accessible.StaticText
             objectName: "searchNoPlugins"
             text: qsTr(
                       "No plugins yet. A search plugin is a small Python file that asks one site. You choose them and install them here, from a URL or a file; they run inside %1's qBittorrent. omaseed doesn't name, ship or suggest any.").arg(
@@ -331,8 +339,8 @@ Item {
                         Toggle {
                             checked: plugin.pluginOn
                             hasCursor: plugin.hasCursor
+                            Accessible.name: qsTr("use %1").arg(plugin.fullName)
                             objectName: "searchPluginSwitch_" + plugin.name
-                            text: plugin.fullName
 
                             onToggled: {
                                 root.rowClicked(plugin.index + 2);

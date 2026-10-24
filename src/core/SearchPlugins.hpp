@@ -19,6 +19,8 @@
 #include <QTimer>
 #include <QVariantList>
 
+#include <functional>
+
 namespace omaseed::core {
 
 class QbtClient;
@@ -78,6 +80,8 @@ public:
 
     /// The list again (search/plugins).
     Q_INVOKABLE void refresh();
+    /// The list again, then `done` (also when it couldn't be read).
+    void refreshThen(const std::function<void()> &done);
     /// A switch (enablePlugin), then the list again.
     Q_INVOKABLE void setEnabled(const QString &name, bool enabled);
     Q_INVOKABLE void uninstall(const QString &name);
