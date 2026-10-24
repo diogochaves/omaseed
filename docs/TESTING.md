@@ -21,7 +21,7 @@ follows. The commands themselves are listed in `CLAUDE.md`; `README.md` says how
 
    | Walk | What it covers |
    |---|---|
-   | `swarm-walk.sh` | every torrent state the swarm can produce, in the table and details |
+   | `swarm-walk.sh` | every torrent state the swarm can produce, in the table and details, then in the rows display; it ends on the shelves |
    | `strict-walk.sh` | first run against `:8082`: cookie login and an API key |
    | `notify-walk.sh` | downloads finishing: one notice each, a click shows the torrent |
    | `magnet-walk.sh` | a magnet or `.torrent` opened with `xdg-open`: closed, hidden, running; with `gio open` (D-Bus activation) while quit |
@@ -34,6 +34,10 @@ follows. The commands themselves are listed in `CLAUDE.md`; `README.md` says how
    | `stuck-walk.sh` | a finished torrent whose move into a full disk failed (a loop image), and a recheck once room is made |
    | `move-walk.sh` | moving folders and selections: queue, places, partial packs, move back, recheck |
 
+   A box is a new install, so omaseed starts on the rows display there (DECISIONS C24 H4). Each
+   walk pins the display it reads with `OMASEED_DISPLAY` (`table`, `rows` or `overview`: every
+   scope starts on it); all but the swarm walk's rows pass read the table.
+
    `OMASEED_ACTIONS_WALK_FROM=disk` runs only the actions walk's board 44 steps. Their ntfs3 side
    (a tick that allocates in full) needs a loop image udisks mounts on this machine, which a box
    can't write to: `ctest -R tst_skipped_ntfs3_live` runs it against the playground, and
@@ -45,8 +49,8 @@ follows. The commands themselves are listed in `CLAUDE.md`; `README.md` says how
    line's start is checked).
 
 4. **Visual check** (`omabox check run … -- scripts/dev/visual-check.sh`). The screens the walks
-   reach (library, details, menus, palette, help, the add sheet, every Settings page, the bar
-   widget) compared with a baseline: "same", or which region changed and which elements moved.
+   reach (library, details, menus, palette, help, the add sheet, the rows display and the shelves,
+   every Settings page, the bar widget) compared with a baseline: "same", or which region changed and which elements moved.
    The baseline is per machine and GPU, in `.local/visual` (not committed): make it once with
    `--approve` (three runs, about 6 minutes); a check takes about 90 s.
 5. **A person's pass** (`docs/manual-tests/*.md`). What tests can't judge: whether it reads well,
