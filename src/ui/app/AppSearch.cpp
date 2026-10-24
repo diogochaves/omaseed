@@ -10,12 +10,14 @@
 #include <QCoreApplication>
 #include <QDateTime>
 #include <QEventLoop>
+#include <QFileDialog>
 #include <QHostAddress>
 #include <QHostInfo>
 #include <QJsonArray>
 #include <QJsonObject>
 #include <QTimer>
 #include <QUrl>
+#include <QWindow>
 
 namespace omaseed::app {
 
@@ -95,6 +97,21 @@ bool App::searchServerLocal() const
     return !address.isNull() && address.isLoopback();
 }
 
+QString App::pickSearchPluginFile()
+{
+    // The portal's chooser, as a dialog of our window (App.cpp's runPicker).
+    QFileDialog dialog(nullptr,
+                       tr("Choose a search plugin"),
+                       QString(),
+                       tr("Search plugins (*.py);;All files (*)"));
+    dialog.setFileMode(QFileDialog::ExistingFile);
+    if (m_dialogParent) {
+        dialog.winId();
+        dialog.windowHandle()->setTransientParent(m_dialogParent);
+    }
+    return dialog.exec() == QDialog::Accepted ? dialog.selectedFiles().value(0) : QString();
+}
+
 void App::setSearchTimings(int pollMs, int deadlineMs, int maxRunning)
 {
     m_search->setTimings(pollMs, deadlineMs, maxRunning);
@@ -146,6 +163,11 @@ void App::startSearch(const QString &pattern, const QString &category, const QSt
     const QString words = pattern.trimmed();
     if (words.isEmpty() || !searchOffered())
         return;
+    // A demo asks no server: board 48's invented answers stand in.
+    if (m_demoMode) {
+        loadDemoSearch(QStringLiteral("done"));
+        return;
+    }
     // Jobs a search left here while the window was on another server (SR12).
     m_search->deleteJobs(m_searchLeftJobs.take(m_searchServerId));
     QList<SearchSession::Plugin> asked;
@@ -188,8 +210,9 @@ void App::rebuildSearchIndex()
             m_searchByHash.insert(torrent.infohashV2.toLower(), match);
             m_searchByHash.insert(torrent.infohashV2.left(40).toLower(), match);
         }
-        if (torrent.totalSize > 0)
-            m_searchByNameSize.insert(nameSizeKey(torrent.name, torrent.totalSize), torrent.name);
+        const qint64 size = torrent.totalSize > 0 ? torrent.totalSize : torrent.size;
+        if (size > 0)
+            m_searchByNameSize.insert(nameSizeKey(torrent.name, size), torrent.name);
     }
 }
 
@@ -223,8 +246,6 @@ QVariantMap App::searchAddable(const QString &key) const
         parts.append(QStringLiteral("a magnet with 1 tracker"));
     else
         parts.append(QStringLiteral("a magnet with %1 trackers").arg(row->trackers.size()));
-    if (row->size > 0)
-        parts.append(core::Format::size(row->size));
     const SearchModel::LibraryMatch match = searchLibraryMatch(*row);
     return {{QStringLiteral("key"), row->key},
             {QStringLiteral("text"), row->link},
@@ -452,14 +473,21 @@ void App::loadDemoSearch(const QString &stage)
             library->data(library->index(1), core::TorrentModel::HashRole).toString());
         hits.append(demoHit(a,
                             mine.name,
-                            mine.totalSize,
+                            mine.totalSize > 0 ? mine.totalSize : mine.size,
                             5,
                             23,
                             3,
                             mine.infohashV1.isEmpty() ? mine.hash : mine.infohashV1,
                             t1));
         if (stage != QLatin1String("one"))
-            hits.append(demoHit(c, other.name, other.totalSize, 7, 9, 1, hash(4), t2.mid(0, 2)));
+            hits.append(demoHit(c,
+                                other.name,
+                                other.totalSize > 0 ? other.totalSize : other.size,
+                                7,
+                                9,
+                                1,
+                                hash(4),
+                                t2.mid(0, 2)));
     }
     QVariantList rows;
     if (stage == QLatin1String("asking")) {

@@ -67,6 +67,10 @@ Sheet {
     /// `App.parseAddable`'s map for what is in the field, or null while it holds nothing
     /// recognisable. `valid`, `name`, `sizeText`, `infoHashV1/V2`, `kind`, `value`, `token`.
     property var addable: null
+    /// #145 (DECISIONS C26 SR9): the search result the sheet was opened on, App.searchAddable's
+    /// `{key, text, downloader, fromLine}`, or null. Its link goes through its plugin
+    /// (`downloader`), its line names the plugins and trackers, and the row says "added".
+    property var searchFrom: null
     /// Where the current text came from: "clipboard", "magnet", "file", "drop", "handoff" (a
     /// browser or a file manager opened it with omaseed), or "" when it was typed. Only the
     /// head's subtitle reads it.
@@ -295,6 +299,9 @@ Sheet {
     signal tagPaletteRequested
     /// docs/33 D14: the head's server chip or ctrl+s: the host opens the server palette.
     signal serverPaletteRequested
+    /// C24 H16: the empty state's "search your plugins…", or "search plugins for ‘…’" under
+    /// typed words that no add takes: the search face, asking for `text` when it isn't empty.
+    signal searchRequested(string text)
 
     /// How many the add hands over: the batch's, or the ticks in In Downloads while it shows,
     /// less those in the library, which the batch they make leaves out.
@@ -342,6 +349,8 @@ Sheet {
         if (sheet.addable && sheet.addable.bareHash === true)
             return qsTr("from an info hash");
         switch (sheet.source) {
+        case "search":
+            return sheet.searchFrom !== null ? sheet.searchFrom.fromLine : qsTr("from search");
         case "clipboard":
             return qsTr("from clipboard");
         case "magnet":
@@ -432,6 +441,20 @@ Sheet {
     sheet.loadText(prefill, demo.length > 0 && parsed.kind === "file" ? "file" : "clipboard");
     sheet.open();
     sheet._checkDuplicate(); // only a demo prefill can still be one: Fig. 10 on `--demo`
+}
+
+    /// #145 (C26 SR9): add… on a search result: today's sheet on its folded magnet, or its
+    /// link fetched through its plugin. esc goes back to the results (the window's face).
+    function openFromSearch(item: var): void {
+    if (!item || (item.text ?? "").length === 0)
+    return;
+    if (sheet.opened)
+    sheet.dismiss();
+    sheet.reset();
+    sheet.searchFrom = item;
+    sheet.loadText(item.text, "search");
+    sheet.open();
+    sheet._checkDuplicate();
 }
 
     /// One source, from a known place ("drop", "handoff", …).
@@ -630,6 +653,10 @@ Sheet {
     /// Re-read the field. Called on every keystroke, so the head follows a paste live.
     function parseField(): void {
                                const map = App.parseAddable(sourceField.text);
+                               // C26 SR9: a search result's link is fetched through its plugin.
+                               if (sheet.searchFrom !== null && sourceField.text === sheet.searchFrom.text
+                                   && (sheet.searchFrom.downloader ?? "").length > 0)
+                               map.downloader = sheet.searchFrom.downloader;
                                sheet._pendingToken = map.token;
                                sheet.addable = (map.valid || map.pending) ? map : null;
                                sheet._parseError = map.error || "";
@@ -880,6 +907,9 @@ Sheet {
                 return;
             }
             sheet.failure = {};
+            // C26 SR7: the result it came from says "added".
+            if (sheet.searchFrom !== null)
+                App.searchAdded(sheet.searchFrom.key);
             if (sheet.queue.length > 0) {
                 const next = sheet.queue[0];
                 sheet.queue = sheet.queue.slice(1);
@@ -912,6 +942,7 @@ Sheet {
                 sheet._programmatic = false;
                 sheet.addable = null;
                 sheet.source = "";
+                sheet.searchFrom = null;
                 sheet.queue = [];
                 sheet.batch = [];
                 sheet._batchMatches = {};
@@ -1630,6 +1661,41 @@ Sheet {
                                 sheet.addToBatch(paths, "file");
                                 sheet.focusFirst();
                             }
+                        }
+                    }
+
+                    // C24 H16 (#145): the empty state offers search; words no add takes are
+                    // offered to the plugins instead (C26 SR14's "search plugins for ‘…’").
+                    RowLayout {
+                        Layout.fillWidth: true
+                        objectName: "addSearchRow"
+                        spacing: Theme.space(10)
+                        visible: App.searchOffered && !sheet.batchMode && sheet.searchFrom === null
+                                 && (sourceField.text.trim().length === 0
+                                     || (sheet.addable === null && sheet._typing))
+
+                        Label {
+                            dim: true
+                            size: "small"
+                            text: sourceField.text.trim().length === 0 ? qsTr("Not a link yet?")
+                                                                      : qsTr("Not a magnet, a link or a file.")
+                        }
+
+                        Button {
+                            objectName: "addSearchButton"
+                            text: sourceField.text.trim().length === 0 ? qsTr("search your plugins…")
+                                                                      : qsTr("search plugins for “%1”").arg(sourceField.text.trim())
+                            tooltip: qsTr("search · ctrl+f")
+
+                            onClicked: {
+                                const words = sourceField.text.trim();
+                                sheet.dismiss();
+                                sheet.searchRequested(words);
+                            }
+                        }
+
+                        Item {
+                            Layout.fillWidth: true
                         }
                     }
 

@@ -268,7 +268,7 @@ void TestAppSearch::addHandsOverTheMagnetOrTheLinkAndItsPlugin()
                 .startsWith(QStringLiteral("magnet:?xt=urn:btih:1111")));
     QVERIFY(magnet.value(QStringLiteral("downloader")).toString().isEmpty());
     QCOMPARE(magnet.value(QStringLiteral("fromLine")).toString(),
-             QStringLiteral("from search · plugin a · a magnet with 2 trackers · 24.0 MB"));
+             QStringLiteral("from search · plugin a · a magnet with 2 trackers"));
 
     const QVariantMap link =
         app.searchAddable(rows->data(rows->index(2), SearchModel::KeyRole).toString());

@@ -28,7 +28,7 @@ QHash<int, QByteArray> SearchPlugins::roleNames() const
             {FullNameRole, "fullName"},
             {VersionRole, "version"},
             {UrlRole, "url"},
-            {EnabledRole, "enabled"},
+            {EnabledRole, "pluginOn"},
             {TypesTextRole, "typesText"},
             {CategoriesRole, "categories"},
             {NoteRole, "note"}};

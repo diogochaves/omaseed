@@ -55,6 +55,11 @@ QtObject {
     readonly property string viewLibrary: "≡"
     readonly property string viewSeed: "↑"
     readonly property string viewLog: "~"
+    /// #145 (board 48 `.q2`): the search view, in the rail and its field.
+    readonly property string viewSearch: "⌕"
+    /// A search result that is a link to a .torrent (board 48's ⋯), and one that is a magnet (◇).
+    readonly property string searchLink: "⋯"
+    readonly property string searchMagnet: "◇"
     // DECISIONS C24 H3–H4: the library's displays (board 46's display tool).
     readonly property string displayRows: "≡"
     readonly property string displayTable: "▤"

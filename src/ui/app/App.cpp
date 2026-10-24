@@ -2065,7 +2065,8 @@ QbtClient::AddOptions App::addOptionsFrom(const QVariantMap &request) const
 
     // DECISIONS C26 SR9: a search result's link to a .torrent is fetched through its plugin.
     const QString downloader = request.value(QStringLiteral("downloader")).toString();
-    if (!downloader.isEmpty() && request.value(QStringLiteral("kind")).toString() == QLatin1String("url"))
+    if (!downloader.isEmpty() &&
+        request.value(QStringLiteral("kind")).toString() == QLatin1String("url"))
         options.downloader = downloader;
 
     return options;
@@ -2717,8 +2718,9 @@ void App::lookUpMetadata(const QVariantMap &addable)
     if (key != m_addLookup->key())
         m_lookupToken.clear();
     // C26 SR9: a search result's link goes through its plugin.
-    m_lookupDownloader = kind == QLatin1String("url") ? addable.value(QStringLiteral("downloader")).toString()
-                                                      : QString();
+    m_lookupDownloader = kind == QLatin1String("url")
+                             ? addable.value(QStringLiteral("downloader")).toString()
+                             : QString();
     if (kind == QLatin1String("magnet")) {
         const QString host =
             privateTrackerOf(addable.value(QStringLiteral("trackers")).toStringList());

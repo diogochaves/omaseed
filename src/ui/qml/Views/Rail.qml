@@ -4,7 +4,7 @@ import Omaseed
 import Omaseed.Kit
 
 // The left rail, the window's full height (board 46 `rail()`, DECISIONS C24 H2): the omaseed
-// mark on top (`markClicked`), the window's views (library, seed, log) under it, then,
+// mark on top (`markClicked`), the window's views (library, seed, log, search) under it, then,
 // scrolling, the five questions under "now" and the tracked groups (categories, folders,
 // tags, trackers), and the servers pinned at its foot when there is more than one. Every row is
 // a Kit `RailRow`; the rail owns no filter state of its own, it only reads and writes
@@ -61,8 +61,11 @@ Item {
     property bool serverRetrying: false
     /// docs/33 D18: at most this many servers open, then "… N more".
     readonly property int serversShownMax: 5
-    /// The window's face, for the views' rows: "library", "seed" or "log".
+    /// The window's face, for the views' rows: "library", "seed", "log" or "search".
     property string view: "library"
+    /// #145 (C24 H16, C25 K30): the server has search plugins to offer, so the views end with
+    /// search. Gone where it can't be offered.
+    property bool searchOffered: false
     /// #167 assumed 4: folded to its glyphs (ctrl+b).
     property bool compact: false
     /// DECISIONS C24 H10: alt is held: the mark, the views, the questions and the servers
@@ -303,7 +306,13 @@ Item {
             "glyph": Glyphs.viewLog,
             "shortcut": "~"
         }
-    ]
+    ].concat(root.searchOffered ? [
+                                      {
+                                          "key": "search",
+                                          "text": qsTr("search"),
+                                          "glyph": Glyphs.viewSearch,
+                                          "shortcut": "ctrl+f"
+                                      }] : [])
 
     /// In the rail's order, which is `TorrentFilterModel.Question`'s (keys 1–5).
     readonly property var questionRows: [

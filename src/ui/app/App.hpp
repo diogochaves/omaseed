@@ -2258,12 +2258,15 @@ public:
     Q_INVOKABLE void refreshSearchPlugins();
     /// SR9: what add… hands the add sheet for row `key`: `{text, downloader, fromLine, key,
     /// libraryHash}`; `fromLine` is "from search · plugin a and plugin c · a magnet with 5
-    /// trackers · 1.46 GB".
+    /// trackers" (the sheet's head adds the name and size).
     Q_INVOKABLE QVariantMap searchAddable(const QString &key) const;
     /// The add sheet sent row `key`'s torrent: the row says "added" (SR7).
     Q_INVOKABLE void searchAdded(const QString &key);
     /// SR2's "turn it off…": the plugin off, its row in the pane saying why.
     Q_INVOKABLE void turnOffSearchPlugin(const QString &name);
+    /// SR10's browse…: a search plugin file on this computer (the portal's picker); its path,
+    /// or "" when cancelled.
+    Q_INVOKABLE QString pickSearchPluginFile();
     /// Test seam: the session's poll, deadline and how many jobs run at once.
     Q_INVOKABLE void setSearchTimings(int pollMs, int deadlineMs, int maxRunning);
     /// The demo's search (board 48's invented plugins and rows), for the QML tests and

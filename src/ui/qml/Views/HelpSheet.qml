@@ -35,9 +35,11 @@ FocusScope {
                                                                          "key": column,
                                                                          "title": column === "mouse" ? Keymap.mouseTitle
                                                                                                      : column === "sheet" ? Keymap.sheetTitle
+                                                                                                     : column === "search" ? Keymap.searchTitle
                                                                                                                           : Keymap.columnTitles[column],
                                                                          "about": column === "mouse" ? Keymap.mouseAbout
                                                                                                      : column === "sheet" ? Keymap.sheetAbout
+                                                                                                     : column === "search" ? Keymap.searchAbout
                                                                                                                           : Keymap.columnAbout[column],
                                                                          "rows": root._rowsOf(column).filter(row => root.matches(row))
                                                                      })).filter(section => section.rows.length > 0)
@@ -47,6 +49,8 @@ FocusScope {
         // DECISIONS C24 H10: the keys sheets' feet printed, after view: the first column's
         // last block, so "act on torrents" still heads the second.
         keys.splice(keys.indexOf("view") + 1, 0, "sheet");
+        // #145 (C26 SR14): search's own keys, last.
+        keys.push("search");
         return keys;
     }
     /// Every row still shown, in reading order (left column first).
@@ -79,6 +83,8 @@ FocusScope {
     function _rowsOf(column: string): var {
         if (column === "sheet")
             return Keymap.sheetRows;
+        if (column === "search")
+            return Keymap.searchRows;
         return column === "mouse" ? Keymap.mouseRows : Keymap.helpRows(column, root.altKind);
     }
 

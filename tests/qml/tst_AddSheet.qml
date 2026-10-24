@@ -2221,4 +2221,65 @@ TestCase {
         second.Accessible.pressAction();
         compare(choice.choice, 0, "a disabled choice picked");
     }
+
+    // ---- search's hand-off (#145, DECISIONS C26 SR9, C24 H16) ----------------------------
+    Component {
+        id: searchRequestSpy
+
+        SignalSpy {
+            signalName: "searchRequested"
+        }
+    }
+
+    // SR9: add… opens today's sheet on the folded magnet, its line naming the plugins and
+    // trackers; a link carries its plugin as `downloader` into the add.
+    function test_a_search_result_opens_the_sheet_with_its_line() {
+        const sheet = createTemporaryObject(addSheetComponent, testCase);
+        sheet.openFromSearch({
+                                 "key": "k1",
+                                 "text": testCase.freshMagnet,
+                                 "downloader": "",
+                                 "fromLine": "from search · plugin a and plugin c · a magnet with 5 trackers"
+                             });
+        verify(sheet.opened);
+        compare(sheet.source, "search");
+        verify(sheet.subtitle.indexOf("from search · plugin a and plugin c · a magnet with 5 trackers") > 0, sheet.subtitle);
+        compare(sheet.request(false).downloader, undefined);
+        sheet.dismiss();
+
+        const link = "http://plugin-a.invalid/get/1.torrent";
+        sheet.openFromSearch({
+                                 "key": "link:" + link,
+                                 "text": link,
+                                 "downloader": "plugin_a",
+                                 "fromLine": "from search · plugin a · a link to a .torrent"
+                             });
+        compare(sheet.addable.kind, "url");
+        compare(sheet.request(true).downloader, "plugin_a");
+        sheet.dismiss();
+        verify(sheet.searchFrom === null || !sheet.opened);
+    }
+
+    // C24 H16: the empty state offers search; words no add takes are offered to the plugins.
+    function test_the_empty_state_offers_search() {
+        const sheet = createTemporaryObject(addSheetComponent, testCase);
+        const searches = createTemporaryObject(searchRequestSpy, testCase, {
+                                                   "target": sheet
+                                               });
+        sheet.openWith("", "");
+        const row = findChild(sheet, "addSearchRow");
+        verify(row.visible);
+        compare(findChild(sheet, "addSearchButton").text, "search your plugins…");
+        sheet.sourceField.focusInput();
+        keyClick("o");
+        keyClick("p");
+        keyClick("e");
+        keyClick("n");
+        tryVerify(() => sheet.addable === null);
+        compare(findChild(sheet, "addSearchButton").text, "search plugins for “open”");
+        findChild(sheet, "addSearchButton").clicked();
+        compare(searches.count, 1);
+        compare(searches.signalArguments[0][0], "open");
+        verify(!sheet.opened);
+    }
 }

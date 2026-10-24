@@ -367,6 +367,39 @@ struct ServerListModelForeign
     QML_UNCREATABLE("ServerListModel is App.serverList; it is not created from QML.")
 };
 
+// #145 (board 48, DECISIONS C26): search. App.search's `state` ("idle", "asking", "done",
+// "nopython", "error"), `pattern`, `plugins` (`{name, fullName, state, count, seconds, reason,
+// logTime}`); App.searchResults' rows (SearchModel::roleNames: key, name, meta, seedsText,
+// seedsCaption, health, sentence, sentenceShort, mark, markText, fresh, addWord, isLink, …);
+// App.searchPlugins' rows (name, fullName, version, enabled, typesText, categories, note).
+#include "core/SearchModel.hpp"
+#include "core/SearchPlugins.hpp"
+#include "core/SearchSession.hpp"
+
+struct SearchSessionForeign
+{
+    Q_GADGET
+    QML_FOREIGN(omaseed::core::SearchSession)
+    QML_NAMED_ELEMENT(SearchSession)
+    QML_UNCREATABLE("SearchSession is App.search; it is not created from QML.")
+};
+
+struct SearchModelForeign
+{
+    Q_GADGET
+    QML_FOREIGN(omaseed::core::SearchModel)
+    QML_NAMED_ELEMENT(SearchModel)
+    QML_UNCREATABLE("SearchModel is App.searchResults; it is not created from QML.")
+};
+
+struct SearchPluginsForeign
+{
+    Q_GADGET
+    QML_FOREIGN(omaseed::core::SearchPlugins)
+    QML_NAMED_ELEMENT(SearchPlugins)
+    QML_UNCREATABLE("SearchPlugins is App.searchPlugins; it is not created from QML.")
+};
+
 // ---------------------------------------------------------------------------------------
 // T4.2, the add flow (spec §3 Fig. 5 and Fig. 10). Nothing new is registered here; these are
 // the shapes the `App` singleton's add methods pass through QML, documented next to the

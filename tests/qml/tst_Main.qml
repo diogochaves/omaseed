@@ -2328,4 +2328,50 @@ TestCase {
         compare(view.footerNoticeOpen, false);
         view.flashFooterNote("");
     }
+
+    // #145 (C24 H16, DECISIONS C26 SR14): ctrl+f from anywhere opens search, the rail's view
+    // after log; esc on an empty field goes back to where the window was.
+    function test_ctrl_f_opens_search_and_esc_comes_back() {
+        App.loadDemoSearch("done");
+        verify(findChild(view.rail, "railView-search") !== null);
+        keyClick(Qt.Key_F, Qt.ControlModifier);
+        compare(view.view, "search");
+        verify(view.searchShown);
+        const search = findChild(view, "searchView");
+        verify(search.visible);
+        verify(search.field.editing);
+        compare(view.scopeTitle, "Search");
+        verify(view.scopeSentence.indexOf("“open movie night”") === 0, view.scopeSentence);
+        verify(!view.split.visible);
+        // `/` filters the results, not the library.
+        keyClick(Qt.Key_Down);
+        keyClick(Qt.Key_Slash);
+        verify(view.titleBar.searchField.editing);
+        keyClick("1");
+        keyClick("0");
+        keyClick("8");
+        tryCompare(App.searchResults, "filterText", "108");
+        compare(App.filtered.text, "");
+        keyClick(Qt.Key_Escape);
+        compare(App.searchResults.filterText, "");
+        // esc back out: the rows, the field, then the library.
+        search.focusField();
+        search.field.text = "";
+        keyClick(Qt.Key_Escape);
+        compare(view.view, "library");
+        App.loadDemoSearch("off");
+    }
+
+    // C26 SR14: the palette's "search…" row and the no-match row reach search.
+    function test_the_palette_reaches_search() {
+        App.loadDemoSearch("done");
+        view.runCommand("search");
+        compare(view.view, "search");
+        view.setView("library");
+        view.runCommand(Keymap.searchForPrefix + "open movie");
+        compare(view.view, "search");
+        compare(findChild(view, "searchView").field.text, "open movie");
+        view.setView("library");
+        App.loadDemoSearch("off");
+    }
 }

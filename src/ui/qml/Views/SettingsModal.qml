@@ -107,6 +107,15 @@ Item {
     /// docs/16: the qBittorrent group's sections, closed by docs/24 §4's Backup (#32, D1 a),
     /// which is drawn by `qbtBackupPane` rather than from rows.
     readonly property var qbtSections: qbtSchema.sections.concat([{
+                                                                      // #145 (DECISIONS C26 SR10): the server's
+                                                                      // search plugins, drawn by searchPluginsPane.
+                                                                      "id": "search",
+                                                                      "glyph": Glyphs.viewSearch,
+                                                                      "name": qsTr("Search plugins"),
+                                                                      "shortName": qsTr("Search"),
+                                                                      "sub": qsTr("the plugins search asks, on this server"),
+                                                                      "rows": []
+                                                                  }, {
                                                                       "id": "backup",
                                                                       "glyph": Glyphs.backup,
                                                                       "name": qsTr("Backup"),
@@ -116,6 +125,8 @@ Item {
                                                                   }])
     /// The qBittorrent group's Backup pane is on show.
     readonly property bool inQbtBackup: root.qbtSection !== null && root.qbtSection.id === "backup"
+    /// The qBittorrent group's Search plugins pane is on show (#145).
+    readonly property bool inQbtSearch: root.qbtSection !== null && root.qbtSection.id === "search"
     /// Where the qBittorrent group starts in `paneIndex`.
     readonly property int qbtStart: root.navRows.length
     readonly property int paneCount: root.navRows.length + root.qbtSections.length
@@ -183,6 +194,8 @@ Item {
     readonly property int paneRowCount: {
         if (root.inQbtBackup)
             return 5; // settings: export, import (#32), copy (#70); torrents: export, import (#33)
+        if (root.inQbtSearch)
+            return searchPluginsPane.cursorCount;
         if (root.inQbt)
             return qbtPane.cursorCount;
         switch (root.paneIndex) {
@@ -251,6 +264,12 @@ Item {
         serverSheet.editLogin(map);
     }
 
+    /// #145 (C26 SR13): search's empty state's link: Settings › qBittorrent › Search plugins.
+    function openSearchPlugins(): void {
+        root.showPane(root.qbtStart + root.qbtSections.length - 2);
+        root.open();
+    }
+
     /// ctrl+shift+, (docs/16 §2): Settings, on the qBittorrent group.
     function openQbt(): void {
         if (!root.inQbt)
@@ -265,6 +284,8 @@ Item {
             App.serverPrefs.reload();
         if (root.inQbtBackup)
             App.refreshQbtBackupInfo();
+        if (root.inQbtSearch)
+            App.refreshSearchPlugins();
         if (root.qbtSection && root.qbtSection.id === "connection")
             App.serverPrefs.loadInterfaces(App.serverPrefs.values.current_network_interface ?? "");
     }
@@ -464,6 +485,10 @@ Item {
     /// `enter` / `space` on the cursor row of the pane on show. `how` is "enter" or "space":
     /// on a qBittorrent row with a switch and a field, space flips and enter edits.
     function activateRow(how = "enter"): void {
+        if (root.inQbtSearch) {
+            searchPluginsPane.activate(root.paneCursor, how);
+            return;
+        }
         if (root.inQbtBackup) {
             if (root.paneCursor === 0)
                 root.exportQbt();
@@ -855,6 +880,7 @@ Item {
 
     /// The pane on show, in `navRows` order; every qBittorrent section is the one pane.
     readonly property Item _paneOnShow: root.inQbtBackup ? qbtBackupPane
+                                                         : root.inQbtSearch ? searchPluginsPane
                                                          : root.inQbt ? qbtPane
                                                                       : [generalPane, serversPane,
                                                                          notificationsPane, keysPane,
@@ -966,11 +992,12 @@ Item {
             return;
         }
         // The digits pick a section of the group on show: 1–7 in omaseed's, 1–9 and 0 for the
-        // tenth (Backup, #32) in the qBittorrent group's.
+        // last (Backup, #32) in the qBittorrent group's; Search plugins (#145), before it, has
+        // no digit of its own.
         if ((event.key >= Qt.Key_1 && event.key <= Qt.Key_9) || event.key === Qt.Key_0) {
             const base = root.inQbt ? root.qbtStart : 0;
             const count = root.inQbt ? root.qbtSections.length : root.navRows.length;
-            const at = event.key === Qt.Key_0 ? 9 : event.key - Qt.Key_1;
+            const at = event.key === Qt.Key_0 ? (root.inQbt ? count - 1 : 9) : event.key - Qt.Key_1;
             if (at < count)
                 root.showPane(base + at);
             event.accepted = true;
@@ -1508,7 +1535,7 @@ Item {
                             size: "caption"
                             text: root.qbtNote.length > 0 ? root.qbtNote
                                                           : root.paneIndex === 5 ? qsTr("omaseed · on this machine") // docs/34 D1 a
-                                                          : root.inQbtBackup ? root.qbtServerHead
+                                                          : root.inQbtBackup || root.inQbtSearch ? root.qbtServerHead
                                                                              : qsTr("%1 · saved as you change it").arg(
                                                                                    App.serverName)
                             visible: root.inQbt || root.paneIndex === 5
@@ -2511,7 +2538,7 @@ Item {
                             prefs: App.serverPrefs
                             section: root.qbtSection
                             serverName: App.serverName
-                            visible: root.inQbt && !root.inQbtBackup
+                            visible: root.inQbt && !root.inQbtBackup && !root.inQbtSearch
 
                             onActionRequested: action => root.qbtAction(action)
                             onChangeRequested: (changes, confirmKind, what) => root.qbtRequest(changes,
@@ -2791,6 +2818,37 @@ Item {
                                 text: root.backupNote
                                 visible: root.backupNote.length > 0
                                 wrapMode: Text.WordWrap
+                            }
+                        }
+
+                        // ---- qBittorrent › Search plugins (#145, DECISIONS C26 SR10) ----------
+                        SearchPluginsPane {
+                            id: searchPluginsPane
+
+                            anchors.left: parent.left
+                            anchors.right: parent.right
+                            anchors.top: parent.top
+                            cursor: root.paneCursor
+                            keyboard: root.area === "pane"
+                            otherText: {
+                                const others = root.otherServerIds;
+                                if (others.length === 0)
+                                    return "";
+                                return others.length === 1 ? qsTr("%1 has its own.").arg(App.serverList.serverMap(others[0]).name)
+                                                           : qsTr("The other servers have their own.");
+                            }
+                            serverLocal: App.searchServerLocal
+                            serverName: App.serverName
+                            visible: root.inQbtSearch
+
+                            onFieldDone: bodyItem.forceActiveFocus()
+                            onNextServerRequested: {
+                                root.qbtNextServer();
+                                bodyItem.forceActiveFocus();
+                            }
+                            onRowClicked: index => {
+                                root.paneCursor = index;
+                                root.area = "pane";
                             }
                         }
 
