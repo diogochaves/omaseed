@@ -32,6 +32,10 @@ makedepends=('cmake' 'ninja' 'librsvg')
 optdepends=(
     'qbittorrent-nox: local engine, if you want omaseed to manage one for you on first run'
     'xdg-desktop-portal: native file picker for choosing .torrent files and download folders'
+    'ttf-chakra-petch: labels in the Console skin (AUR)'
+    'ttf-share-gf: Share Tech Mono, figures in the Console skin (AUR)'
+    'noto-fonts-cjk: kana in the Console skin'
+    'ttf-material-symbols-variable: icons in the Console skin'
 )
 source=("$pkgname-$pkgver.tar.gz::https://github.com/diogochaves/omaseed/archive/refs/tags/v$pkgver.tar.gz")
 sha256sums=('a29918b49d988d4c877dc75f258b416e5df5ffe1f63494bca35dde6a405402c0')
