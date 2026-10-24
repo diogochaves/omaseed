@@ -114,6 +114,8 @@ private slots:
     void theGroundIsOpaqueByDefault();
     void theGroundIsRemembered();
     void aTransparencySetBeforeTheGroundReadsAsTranslucent();
+    void theSkinIsRememberedAndReachesTheReader();
+    void theEnvironmentPinsTheSkin();
     void aNewInstallShowsRows();
     void anExistingInstallKeepsTheTable();
     void theDisplayIsRememberedPerScope();
@@ -124,6 +126,7 @@ private:
     QTemporaryDir m_config;
     QByteArray m_savedConfigHome;
     QByteArray m_savedDisplay;
+    QByteArray m_savedSkin;
 };
 
 void TestApp::init()
@@ -134,6 +137,7 @@ void TestApp::init()
     // ctest pins every App to the table (tests/CMakeLists.txt); these cases test the default.
     m_savedDisplay = qgetenv("OMASEED_DISPLAY");
     qunsetenv("OMASEED_DISPLAY");
+    m_savedSkin = qgetenv("OMASEED_SKIN");
     clearServerEnvironment();
 }
 
@@ -142,6 +146,10 @@ void TestApp::cleanup()
     clearServerEnvironment();
     if (!m_savedDisplay.isEmpty())
         qputenv("OMASEED_DISPLAY", m_savedDisplay);
+    if (m_savedSkin.isEmpty())
+        qunsetenv("OMASEED_SKIN");
+    else
+        qputenv("OMASEED_SKIN", m_savedSkin);
     if (m_savedConfigHome.isEmpty())
         qunsetenv("XDG_CONFIG_HOME");
     else
@@ -808,6 +816,75 @@ void TestApp::aTransparencySetBeforeTheGroundReadsAsTranslucent()
                                            QJsonObject{{QStringLiteral("windowAlphaOverride"), 0}});
     App app;
     QCOMPARE(app.windowGround(), QStringLiteral("opaque"));
+}
+
+// DECISIONS C24 H11 (#171): Settings › Appearance › skin, saved in state.json and handed to
+// the theme reader, which draws it. The reader looks in a temporary folder: Follow the desktop
+// must never read this machine's own console files.
+void TestApp::theSkinIsRememberedAndReachesTheReader()
+{
+    QFile::remove(omaseed::core::StateFile::path());
+    qunsetenv("OMASEED_SKIN");
+    QTemporaryDir desktop;
+    QVERIFY(desktop.isValid());
+    const ThemeReader::Paths paths{desktop.path() + QStringLiteral("/state/omarchy/current"),
+                                   desktop.path() + QStringLiteral("/config/omarchy")};
+    {
+        App app;
+        ThemeReader reader(paths);
+        app.attachTheme(&reader);
+        QCOMPARE(app.skinChoice(), QStringLiteral("omarchy"));
+        QCOMPARE(reader.skinName(), QStringLiteral("omarchy"));
+
+        QSignalSpy changed(&app, &App::settingsChanged);
+        QSignalSpy skinChanged(&reader, &ThemeReader::skinChanged);
+        app.setSkinChoice(QStringLiteral("console"));
+        QCOMPARE(changed.count(), 1);
+        QCOMPARE(skinChanged.count(), 1);
+        QCOMPARE(reader.skinName(), QStringLiteral("console"));
+        app.setSkinChoice(QStringLiteral("console"));
+        QCOMPARE(changed.count(), 1);
+        // Anything that is no choice is the default.
+        app.setSkinChoice(QStringLiteral("neon"));
+        QCOMPARE(app.skinChoice(), QStringLiteral("omarchy"));
+        app.setSkinChoice(QStringLiteral("desktop"));
+        // No console-skin.json in the folder: following the desktop draws Omarchy.
+        QCOMPARE(reader.skinName(), QStringLiteral("omarchy"));
+    }
+    QCOMPARE(omaseed::core::StateFile::readSection(QStringLiteral("appearance"))
+                 .value(QStringLiteral("skin"))
+                 .toString(),
+             QStringLiteral("desktop"));
+    App app;
+    ThemeReader reader(paths);
+    app.attachTheme(&reader);
+    QCOMPARE(app.skinChoice(), QStringLiteral("desktop"));
+    QCOMPARE(reader.skinChoice(), QStringLiteral("desktop"));
+}
+
+// OMASEED_SKIN pins the skin for tests and walks: it wins over the choice for the run, and the
+// choice is still saved for the next one.
+void TestApp::theEnvironmentPinsTheSkin()
+{
+    QFile::remove(omaseed::core::StateFile::path());
+    QTemporaryDir desktop;
+    QVERIFY(desktop.isValid());
+    const ThemeReader::Paths paths{desktop.path() + QStringLiteral("/state/omarchy/current"),
+                                   desktop.path() + QStringLiteral("/config/omarchy")};
+    qputenv("OMASEED_SKIN", "console");
+    {
+        App app;
+        ThemeReader reader(paths);
+        app.attachTheme(&reader);
+        QCOMPARE(app.skinChoice(), QStringLiteral("omarchy"));
+        QCOMPARE(reader.skinName(), QStringLiteral("console"));
+        app.setSkinChoice(QStringLiteral("omarchy"));
+        app.setSkinChoice(QStringLiteral("desktop"));
+        QCOMPARE(reader.skinName(), QStringLiteral("console"));
+    }
+    qunsetenv("OMASEED_SKIN");
+    App app;
+    QCOMPARE(app.skinChoice(), QStringLiteral("desktop"));
 }
 
 // DECISIONS C24 H4: rows for a new install, decided at the first read and written at once.

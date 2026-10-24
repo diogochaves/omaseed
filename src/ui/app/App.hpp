@@ -498,6 +498,14 @@ public:
     void setPathMapEnabled(bool enabled);
 
     // Appearance pane --------------------------------------------------------------------
+    /// The skin (docs/DECISIONS.md C24 H11, #171): "omarchy" (the default), "console", or
+    /// "desktop", Follow the desktop: the built-in Console while omarchy-console's skin is on.
+    /// The theme reader resolves it (ThemeReader::skinName), and `OMASEED_SKIN`, when set,
+    /// wins over it for the run without changing what is saved.
+    Q_PROPERTY(QString skinChoice READ skinChoice WRITE setSkinChoice NOTIFY settingsChanged)
+    QString skinChoice() const;
+    void setSkinChoice(const QString &choice);
+
     /// Off pins the bundled Tokyo Night instead of following `omarchy-theme-set`.
     Q_PROPERTY(bool followOmarchyTheme READ followOmarchyTheme WRITE setFollowOmarchyTheme NOTIFY
                    settingsChanged)
@@ -674,6 +682,7 @@ private:
     int m_baseSizeOverride = 0;
     int m_windowAlphaOverride = 0;
     QString m_windowGround = QStringLiteral("opaque");
+    QString m_skinChoice = QStringLiteral("omarchy");
     QString m_trayIconMode = QStringLiteral("auto");
     bool m_launchHidden = false;
     QString m_speedsAlignment = QStringLiteral("left");
