@@ -104,4 +104,7 @@ ThemeBase {
     /// How far over the rows' bottom it floats (board 46's 12 px): with a selection on, the
     /// action bar is just under that edge.
     readonly property int outcomeStripLift: space(12)
+    /// Between its words and the dim line under them that says why "show" is there
+    /// (DECISIONS C30 F10).
+    readonly property int outcomeStripReasonGap: space(1)
 }

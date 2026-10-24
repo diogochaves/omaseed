@@ -12,6 +12,10 @@ import Omaseed.Kit
 //           no timer: it stays until × / esc or the next action
 //   mixed   yellow, !, "2 moved to /mnt/fast/keep, 1 didn't" · "NAME: why"   details  show  ×
 //
+// C30 F8–F11 (board 50 §2): "show" is there only when it brings something back, and a dim
+// line under the words says why ("they are out of view, under giving back"). The host works
+// that out live and hands it over as `showReason`; "" keeps "show" away.
+//
 // `outcome` is App.outcomes.current (core::ActionOutcome::words()). It runs nothing itself:
 // the host answers its signals. Hand-formatted to qmlformat's own style (typed functions).
 Rectangle {
@@ -27,14 +31,18 @@ Rectangle {
     property bool reducedMotion: false
     /// What is left of a done strip's time, 1 to 0.
     property real timeLeft: 1
+    /// C30 F10: why "show" is offered ("they are resting now, out of giving back"); "" when
+    /// everything it would bring back is already in front of you (F8), and no "show".
+    property string showReason: ""
 
     readonly property string kind: root.outcome.kind ?? ""
     readonly property bool shown: root.kind.length > 0
     readonly property color tone: root.kind === "failed" ? Theme.red : root.kind === "mixed" ? Theme.yellow
                                                                                             : Theme.green
-    /// "show" for what landed, while there is something left to show (never after a delete).
+    /// "show" for what landed, while there is something left to show (never after a delete)
+    /// and something it would bring back (C30 F8).
     readonly property bool canShow: root.kind !== "failed" && (root.outcome.doneRow ?? "").length > 0
-                                    && (root.outcome.doneHashes ?? []).length > 0
+                                    && (root.outcome.doneHashes ?? []).length > 0 && root.showReason.length > 0
     readonly property bool canDetail: root.kind !== "done" && (root.outcome.details ?? "").length > 0
     /// A failed move offers to try again, as the error block's "set location" does (docs/32 D1).
     readonly property bool canMove: root.kind === "failed" && (root.outcome.action === "move")
@@ -56,13 +64,22 @@ Rectangle {
     /// The padding on both sides and the colour rule.
     readonly property int _frameWidth: 2 * root._padding + Theme.space(2)
 
+    /// Its height with the reason line, whether or not it shows: the room the host keeps
+    /// under the rows, so "show" coming and going (live, F11) never scrolls them.
+    readonly property real roomHeight: Theme.controlHeight + 2 * Theme.space(4) + reasonText.implicitHeight
+                                       + Theme.outcomeStripReasonGap
+
     border.color: Theme.fill(Theme.borderIdle)
     border.width: 1
     color: Theme.background
     implicitHeight: Theme.controlHeight + 2 * Theme.space(4)
+                    + (reasonText.visible ? reasonText.implicitHeight + Theme.outcomeStripReasonGap : 0)
     implicitWidth: Math.min(root.availableWidth > 0 ? root.availableWidth : Infinity,
-                            root._frameWidth + content.fixedWidth + headline.implicitWidth
-                            + (lineText.text.length > 0 ? lineText.implicitWidth + root._spacing : 0))
+                            Math.max(root._frameWidth + content.fixedWidth + headline.implicitWidth
+                                     + (lineText.text.length > 0 ? lineText.implicitWidth + root._spacing : 0),
+                                     // C30 F10: the reason under the headline, from its start.
+                                     root.canShow ? root._frameWidth + markText.implicitWidth + root._spacing
+                                                    + reasonText.implicitWidth : 0))
     objectName: "outcomeStrip"
     radius: Theme.cornerRadius
     visible: root.shown
@@ -102,7 +119,9 @@ Rectangle {
         objectName: "outcomeContent"
         anchors.left: parent.left
         anchors.leftMargin: root._padding + Theme.space(2)
-        anchors.verticalCenter: parent.verticalCenter
+        anchors.top: parent.top
+        anchors.topMargin: Theme.space(4)
+        height: Theme.controlHeight
         spacing: root._spacing
 
         /// The mark, the actions and the gaps around the words.
@@ -196,6 +215,24 @@ Rectangle {
                 onClicked: root.closeRequested()
             }
         }
+    }
+
+    // C30 F10: why "show" is there, dim, under the headline (board 50 §2, board 46's `.ln`).
+    Label {
+        id: reasonText
+
+        Accessible.name: reasonText.text
+        Accessible.role: Accessible.StaticText
+        anchors.top: content.bottom
+        anchors.topMargin: Theme.outcomeStripReasonGap - Theme.space(4)
+        dim: true
+        elide: Text.ElideRight
+        objectName: "outcomeShowReason"
+        size: "small"
+        text: root.showReason
+        visible: root.canShow
+        width: Math.max(0, root.width - reasonText.x - root._padding)
+        x: content.x + headline.x
     }
 
     // D3: a done strip's line runs down over its 6 s.

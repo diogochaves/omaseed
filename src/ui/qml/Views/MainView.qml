@@ -2034,7 +2034,9 @@ Item {
                 escapeTaken: outcomeStrip.visible
                 // docs/17 M9.6: the last row can always scroll clear of the outcome strip over
                 // it (C18 D1); the action bar is docked under the rows (C24 H8).
-                bottomRoom: outcomeStrip.visible ? outcomeStrip.height + Theme.outcomeStripLift : 0
+                // Its tallest (C30 F10's reason line counted), so the reason coming and going
+                // never moves the rows it is read from.
+                bottomRoom: outcomeStrip.visible ? outcomeStrip.roomHeight + Theme.outcomeStripLift : 0
                 filtered: App.filtered
                 // #51 D9: rows hold still under the open actions menu, for D17's right-click.
                 holdOrder: actionsMenuPanel.opened
@@ -2117,6 +2119,8 @@ Item {
                 height: implicitHeight
                 outcome: App.outcomes.current
                 reducedMotion: App.reducedMotion
+                // C30 F8, F10: "show" only when it brings something back, and why.
+                showReason: root.outcomeShowReason
                 visible: outcomeStrip.shown && table.visible && !root.serverLost
                 width: implicitWidth
 
@@ -2529,25 +2533,195 @@ Item {
         root.footerNoticeOpen = true;
     }
 
-    /// The strip's "show" (O1, O3): the cursor on the one torrent, or the several selected.
-    /// A move that took them out of the rail's folder switches the folder to their new
-    /// place, as the jump palette's pick shows a torrent wherever it is.
+    // --- DECISIONS C30 F8–F11 (board 50 §2): "show" only when it brings something back ---
+
+    /// The strip's torrents "show" would bring back: its done ones still in the library.
+    function _outcomeShowHashes(outcome: var): var {
+        if ((outcome.kind ?? "") === "" || outcome.kind === "failed" || (outcome.doneRow ?? "").length === 0)
+            return [];
+        return (outcome.doneHashes ?? []).filter(hash => App.torrents.indexOfHash(hash) >= 0);
+    }
+
+    /// "it is", "they are", or "2 of them are", for `count` of `total`.
+    function _showSubject(count: int, total: int): string {
+        if (count === total)
+            return total === 1 ? qsTr("it is") : qsTr("they are");
+        return count === 1 ? qsTr("1 of them is") : qsTr("%1 of them are").arg(count);
+    }
+
+    /// Where a question's torrents are now, in a whole clause: "they are resting now".
+    function _questionNow(question: int, one: bool): string {
+        switch (question) {
+        case TorrentFilterModel.NeedsYou:
+            return one ? qsTr("it needs you now") : qsTr("they need you now");
+        case TorrentFilterModel.Arriving:
+            return one ? qsTr("it is arriving now") : qsTr("they are arriving now");
+        case TorrentFilterModel.LandedToday:
+            return one ? qsTr("it landed today") : qsTr("they landed today");
+        case TorrentFilterModel.GivingBack:
+            return one ? qsTr("it is giving back now") : qsTr("they are giving back now");
+        case TorrentFilterModel.Resting:
+            return one ? qsTr("it is resting now") : qsTr("they are resting now");
+        }
+        return "";
+    }
+
+    /// The scope `gone` left, in the strip's words: the filter's words when they alone hide
+    /// them, else the rail's place, else the question.
+    function _showScopeWords(gone: var): string {
+        if (App.filtered.text.length > 0 && gone.every(hash => App.filtered.hashInScope(hash)))
+            return qsTr("the filter");
+        if (root.moveShowing)
+            return qsTr("the move's list");
+        const folder = App.filtered.folder;
+        if (folder.length > 0)
+            return folder.substring(folder.lastIndexOf("/") + 1) || folder;
+        const category = App.filtered.category;
+        if (category !== undefined)
+            return category === "" ? qsTr("no category") : String(category);
+        const tag = App.filtered.tag;
+        if (tag !== undefined)
+            return tag === "" ? qsTr("untagged") : String(tag);
+        const tracker = App.filtered.tracker;
+        if (tracker !== undefined)
+            return rail.trackerText(String(tracker));
+        const question = rail.questionRow(App.filtered.question);
+        if (question !== null)
+            return question.text;
+        return qsTr("the filter");
+    }
+
+    /// The one value `valueOf` gives every hash, or undefined when they differ.
+    function _sharedValue(hashes: var, valueOf: var): var {
+        const first = valueOf(hashes[0]);
+        return hashes.every(hash => valueOf(hash) === first) ? first : undefined;
+    }
+
+    /// F8, F10: why "show" is there, as the dim line under the strip's words; "" when it
+    /// would bring nothing back (each torrent in the scope, wholly on screen, and selected, or
+    /// for one acted on alone the cursor's row).
+    function outcomeShowWhy(outcome: var): string {
+        const hashes = root._outcomeShowHashes(outcome);
+        if (hashes.length === 0)
+            return "";
+        const one = hashes.length === 1;
+        // Out of the scope: the folder, question, category, tag or the filter's words.
+        const gone = hashes.filter(hash => App.filtered.rowOfHash(hash) < 0);
+        if (gone.length > 0) {
+            const scope = root._showScopeWords(gone);
+            if (gone.length === hashes.length && scope !== qsTr("the filter")) {
+                const folder = App.filtered.folder;
+                const place = folder.length > 0 ? root._sharedValue(hashes, hash => App.torrentRow(hash).savePath ?? "")
+                                                : undefined;
+                if (place !== undefined && place.length > 0)
+                    return qsTr("%1 in %2 now, out of %3").arg(root._showSubject(gone.length, hashes.length)).arg(
+                                place.substring(place.lastIndexOf("/") + 1) || place).arg(scope);
+                const question = folder.length === 0 && App.filtered.question !== TorrentFilterModel.AnyQuestion
+                               ? root._sharedValue(hashes, hash => App.filtered.questionOfHash(hash)) : undefined;
+                if (question !== undefined && question !== TorrentFilterModel.AnyQuestion)
+                    return qsTr("%1, out of %2").arg(root._questionNow(question, one)).arg(scope);
+            }
+            return qsTr("%1 out of %2").arg(root._showSubject(gone.length, hashes.length)).arg(scope);
+        }
+        // Scrolled away: board 50's "they are out of view, under giving back".
+        const away = hashes.filter(hash => !table.hashInView(hash));
+        if (away.length > 0) {
+            const words = qsTr("%1 out of view").arg(root._showSubject(away.length, hashes.length));
+            const question = App.filtered.question === TorrentFilterModel.AnyQuestion
+                           ? root._sharedValue(away, hash => App.filtered.questionOfHash(hash)) : undefined;
+            const row = question !== undefined ? rail.questionRow(question) : null;
+            return row !== null ? qsTr("%1, under %2").arg(words).arg(row.text) : words;
+        }
+        const loose = hashes.filter(hash => !table.hashSelected(hash)
+                                    && !(one && table.selectedCount === 0 && table.cursorHash === hash));
+        if (loose.length > 0)
+            return qsTr("%1 not selected").arg(root._showSubject(loose.length, hashes.length));
+        return "";
+    }
+
+    /// F11: moves while the strip is up whenever its torrents may have come into the rows or
+    /// left them (a sync, a sort, a filter), so "show" follows them live.
+    property int _showTick: 0
+
+    Connections {
+        function onCountChanged(): void {
+            root._showTick += 1;
+        }
+
+        function onDataChanged(): void {
+            root._showTick += 1;
+        }
+
+        function onLayoutChanged(): void {
+            root._showTick += 1;
+        }
+
+        function onModelReset(): void {
+            root._showTick += 1;
+        }
+
+        enabled: outcomeStrip.shown
+        target: App.filtered
+    }
+
+    /// The strip's reason for "show", live (F11): the rows, the scroll, the selection, the
+    /// cursor and the scope are what it reads.
+    readonly property string outcomeShowReason: {
+        root._showTick;
+        table.scrollY;
+        table.height;
+        table.selectionRevision;
+        table.cursorHash;
+        App.filtered.text;
+        App.filtered.question;
+        App.filtered.folder;
+        App.filtered.category;
+        App.filtered.tag;
+        App.filtered.tracker;
+        root.moveShowing;
+        return outcomeStrip.shown ? root.outcomeShowWhy(App.outcomes.current) : "";
+    }
+
+    /// F9: the strip's "show" selects them (one acted on alone gets the cursor, as C18 had
+    /// it), the cursor on the first, scrolled to it. When one left the scope the rail goes
+    /// where they all are, their folder or their question, else the library, and the filter
+    /// clears; never a filter of its own (board 42 J1).
     function showOutcome(hashes: var): void {
-        const present = hashes.filter(hash => App.torrentRow(hash).name !== undefined);
+        const present = hashes.filter(hash => App.torrents.indexOfHash(hash) >= 0);
         if (present.length === 0)
             return;
         root.setView("library");
         root.leaveMoveShow();
-        const first = present[0];
-        if (App.filtered.rowOfHash(first) < 0 && App.filtered.folder.length > 0)
-            App.filtered.folder = App.torrentRow(first).savePath || "";
-        if (present.length === 1) {
-            root.showTorrent(first);
+        if (present.some(hash => App.filtered.rowOfHash(hash) < 0))
+            root._scopeForShow(present);
+        const rows = present.map(hash => App.filtered.rowOfHash(hash)).filter(row => row >= 0);
+        if (rows.length === 0)
             return;
-        }
-        if (table.revealHash(first))
+        if (present.length > 1 || table.selectedCount > 0)
             table.selectHashes(present);
+        table.moveCursorTo(Math.min(...rows));
         root.focusHome();
+    }
+
+    /// F9's scope: the filter's words go; if one is still out, the rail goes to the folder
+    /// (a folder was picked) or the question (a question was) they all share, else the
+    /// library.
+    function _scopeForShow(hashes: var): void {
+        root.clearFilter();
+        if (hashes.every(hash => App.filtered.rowOfHash(hash) >= 0))
+            return;
+        const folder = App.filtered.folder;
+        const question = App.filtered.question;
+        rail.pickLibrary();
+        if (folder.length > 0) {
+            const place = root._sharedValue(hashes, hash => App.torrentRow(hash).savePath ?? "");
+            if (place !== undefined && place.length > 0)
+                App.filtered.folder = place;
+        } else if (question !== TorrentFilterModel.AnyQuestion) {
+            const shared = root._sharedValue(hashes, hash => App.filtered.questionOfHash(hash));
+            if (shared !== undefined && shared !== TorrentFilterModel.AnyQuestion)
+                rail.selectQuestion(shared);
+        }
     }
 
     Connections {

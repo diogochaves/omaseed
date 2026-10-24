@@ -1346,6 +1346,17 @@ when only adding the torrent again frees the space).
   the scope, the rail goes where they all are (their folder, their question), else library, and
   the filter clears. Never a filter of its own (42 J1). A dim line under the strip's words says
   why it is there ("they are out of view, under giving back").
+  Built with the action bar (C24 H8, #167), as the board reads it: "in view" is the row wholly
+  inside the list's visible part, the strip over it aside; one torrent acted on alone counts as
+  selected while it is the cursor's row and nothing is selected. The line names the first reason
+  that holds, in the order scope, view, selection: "they are resting now, out of giving back"
+  (a question picked, all in one question now), "it is in keep now, out of films" (a folder),
+  "they are out of the filter" (the words alone hide them), "they are out of keep" (a category,
+  tag or tracker), "they are out of view" (", under giving back" while no question is picked
+  and they share one), "it is not selected"; "1 of them is …" when only some are.
+  The rail goes to a question only when a question was picked, to a folder only when a folder
+  was; else the library. The table keeps room for the strip with its line, so the line coming
+  and going never scrolls the rows it is read from.
 - **Nothing to free (F12–F16, #169):** on a hybrid (or v2-only, C29) torrent whose space-holding
   skipped files all have downloaded pieces, the band keeps its title, says "They were written
   while wanted, and pieces of them were downloaded. qBittorrent keeps them; on this torrent only

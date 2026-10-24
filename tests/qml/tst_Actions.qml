@@ -571,7 +571,8 @@ TestCase {
     }
 
     // DECISIONS C18 D1 (changes C16 L7): a move that landed before its band showed is said in
-    // the strip over the rows, and on its row; the footer keeps quiet.
+    // the strip over the rows, and on its row; the footer keeps quiet. Its torrent is the
+    // cursor's row, in view: no "show" (C30 F8).
     function test_a_landed_move_says_so_in_the_strip() {
         const hash = App.filtered.hashAt(0);
         const name = App.torrentRow(hash).name;
@@ -587,7 +588,8 @@ TestCase {
         compare(findChild(strip, "outcomeHeadline").text, name + " moved to /mnt/fast/films");
         compare(findChild(strip, "outcomeMark").text, "✓");
         compare(findChild(strip, "outcomeMark").color, Theme.green);
-        verify(findChild(strip, "outcomeShow").visible);
+        compare(view.table.cursorHash, hash);
+        verify(!findChild(strip, "outcomeShow").visible, "show for the row under the cursor");
         compare(view.footerNote, "");
         // The row says it in its status cell, in green.
         compare(findChild(view.table, "status_0").text, "moved · films");
@@ -644,7 +646,8 @@ TestCase {
         verify(!strip.visible);
     }
 
-    // C18 D3 (O3): several at once are counts, yellow when some failed; "show" selects them.
+    // C18 D3 (O3): several at once are counts, yellow when some failed; "show" selects them
+    // while they aren't (C30 F8), and goes once they are (F11).
     function test_several_are_counts_and_show_selects_them() {
         const hashes = [App.filtered.hashAt(0), App.filtered.hashAt(1), App.filtered.hashAt(2)];
         App.outcomes.reportMap({
@@ -659,11 +662,13 @@ TestCase {
         compare(findChild(strip, "outcomeHeadline").text, "2 moved to /mnt/fast/keep, 1 didn't");
         compare(findChild(strip, "outcomeMark").text, "!");
         compare(findChild(strip, "outcomeMark").color, Theme.yellow);
+        compare(findChild(strip, "outcomeShowReason").text, "they are not selected");
         stripLaidOut(strip);
         mouseClick(findChild(strip, "outcomeShow"));
         compare(view.table.selectedCount, 2);
         compare(view.table.selectedHashes().sort(), [hashes[0], hashes[1]].sort());
-        // With a selection on, the strip sits just above the action bar (C24 H8).
+        verify(!findChild(strip, "outcomeShow").visible, "show stayed with them selected");
+        // With a selection on, the strip sits just above the action bar.
         verify(view.selectionBar.visible);
         verify(strip.mapToItem(view, 0, strip.height).y <= view.selectionBar.mapToItem(view, 0, 0).y,
                "the strip sits above the bar");

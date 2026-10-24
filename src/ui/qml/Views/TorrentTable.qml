@@ -455,6 +455,12 @@ Item {
     /// Whether the rows' order is held now (TorrentFilterModel::holdOrder).
     readonly property bool orderHeld: rowsHover.hovered || root.holdOrder
 
+    /// Moves whenever the selection does: a binding that asks isRowSelected() or
+    /// hashSelected() reads it, as the rows do.
+    readonly property alias selectionRevision: internal.revision
+    /// How far the rows are scrolled, for a binding that asks hashInView().
+    readonly property real scrollY: list.contentY
+
     /// The filled band of `.tbl .r.sel`, exposed so the details pane can follow it.
     readonly property ItemSelectionModel selection: ItemSelectionModel {
         model: root.filtered
@@ -929,6 +935,22 @@ Item {
         internal.anchorHash = root.filtered.hashAt(anchor);
         root.filtered.selectRows(root.selection, anchor, index, !add);
         internal.refreshSelection();
+    }
+
+    /// DECISIONS C30 F8: `hash`'s row is wholly inside the visible part of the list. A
+    /// binding reads `scrollY` beside it; rows all have the one height.
+    function hashInView(hash: string): bool {
+        const row = root.filtered.rowOfHash(hash);
+        if (row < 0)
+            return false;
+        const top = list.originY + row * Theme.rowHeight;
+        return top >= list.contentY - 1 && top + Theme.rowHeight <= list.contentY + list.height + 1;
+    }
+
+    /// `hash` is shown and selected.
+    function hashSelected(hash: string): bool {
+        const row = root.filtered.rowOfHash(hash);
+        return row >= 0 && root.isRowSelected(row);
     }
 
     function isRowSelected(index: int): bool {
