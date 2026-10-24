@@ -32,6 +32,12 @@ import Omaseed.Kit
 // (`.tbl .r.sel.cur`). The cursor is kept on its torrent by hash across a re-sort or a
 // removal, and clamps when that hash is gone.
 //
+// DECISIONS C24 H3 (#168): the rows display and the overview are faces of this table. While
+// `face` is set, it draws the rows and the table hides its header and list but keeps
+// everything else: the cursor, the selection, the anchor, the keys, the rename, and every
+// function the window and the outcome strip call (revealHash, selectHashes, hashInView,
+// scrollToRow…), which ask the face where its rows are. One brain, three faces.
+//
 // This view never talks to the network. `r` opens the inline editor and emits
 // `renameRequested`; `enter` and right-click emit `actionsRequested`; phase 4 wires both to
 // `QbtClient`.
@@ -453,13 +459,23 @@ Item {
     /// torrent it was aimed at.
     property bool holdOrder: false
     /// Whether the rows' order is held now (TorrentFilterModel::holdOrder).
-    readonly property bool orderHeld: rowsHover.hovered || root.holdOrder
+    readonly property bool orderHeld: (root.face !== null ? root.face.hovered : rowsHover.hovered)
+                                      || root.holdOrder
 
     /// Moves whenever the selection does: a binding that asks isRowSelected() or
     /// hashSelected() reads it, as the rows do.
     readonly property alias selectionRevision: internal.revision
     /// How far the rows are scrolled, for a binding that asks hashInView().
-    readonly property real scrollY: list.contentY
+    readonly property real scrollY: root.face !== null ? root.face.scrollY : list.contentY
+
+    /// DECISIONS C24 H3: the display drawing the rows instead of the table's own header and
+    /// list (LibraryRows, LibraryShelves), or null. A face is an Item with `scrollY`,
+    /// `hovered` (the pointer is over its rows), `inlineRename` (it draws the rename editor
+    /// itself) and four functions: `positionAt(row)` scrolls just enough for the row to be
+    /// wholly in view, `rowInView(row)` says whether it is, `rowAnchor(row)` is the point
+    /// under the row a menu opens at and `rowAt(x, y)` the row there or -1 (both in the face's
+    /// own coordinates).
+    property Item face: null
 
     /// The filled band of `.tbl .r.sel`, exposed so the details pane can follow it.
     readonly property ItemSelectionModel selection: ItemSelectionModel {
@@ -477,6 +493,9 @@ Item {
     signal plainClicked(bool hadSelection)
     /// A right-click on a header cell (#51 D6): the host opens the columns palette.
     signal columnsRequested
+    /// `r` while a face with no inline editor draws the rows (#168 assumed 9): the host opens
+    /// the rename sheet on `hash`.
+    signal renameSheetRequested(string hash)
 
     // ---- derived -------------------------------------------------------------------------
     /// `columns` in `columnOrder`.
@@ -843,7 +862,10 @@ Item {
         const last = root.filtered.count - 1;
         const wanted = last < 0 ? 0 : Math.max(0, Math.min(index, last));
         root.cursorIndex = wanted;
-        list.positionViewAtIndex(wanted, ListView.Contain);
+        if (root.face !== null)
+            root.face.positionAt(wanted);
+        else
+            list.positionViewAtIndex(wanted, ListView.Contain);
     }
 
     /// Put the cursor on `hash`, first clearing every filter that hides it (text, status,
@@ -943,13 +965,19 @@ Item {
         const row = root.filtered.rowOfHash(hash);
         if (row < 0)
             return false;
+        if (root.face !== null)
+            return root.face.rowInView(row);
         const top = list.originY + row * Theme.rowHeight;
         return top >= list.contentY - 1 && top + Theme.rowHeight <= list.contentY + list.height + 1;
     }
 
     /// Scroll just enough for row `row` to be wholly in view; the cursor stays.
     function scrollToRow(row: int): void {
-        if (row >= 0 && row < root.filtered.count)
+        if (row < 0 || row >= root.filtered.count)
+            return;
+        if (root.face !== null)
+            root.face.positionAt(row);
+        else
             list.positionViewAtIndex(row, ListView.Contain);
     }
 
@@ -972,6 +1000,10 @@ Item {
     function startRename(): void {
         if (root.filtered.count <= 0)
             return;
+        if (root.face !== null && !root.face.inlineRename) {
+            root.renameSheetRequested(root.filtered.hashAt(root.cursorIndex));
+            return;
+        }
         // The text first: writing `renameIndex` is what loads the editor, and the editor
         // selects whatever `renameText` holds at that moment.
         const at = root.filtered.index(root.cursorIndex, 0);
@@ -1013,6 +1045,10 @@ Item {
 
     /// The row under `x`, `y` (this item's coordinates), or -1 off the rows.
     function rowAt(x: real, y: real): int {
+        if (root.face !== null) {
+            const onFace = root.mapToItem(root.face, x, y);
+            return root.face.rowAt(onFace.x, onFace.y);
+        }
         const at = root.mapToItem(list.contentItem, x, y);
         if (x < list.x || x >= list.x + list.width || y < list.y || y >= list.y + list.height)
             return -1;
@@ -1034,6 +1070,12 @@ Item {
     function requestActions(): void {
         if (root.cursorHash.length === 0)
             return;
+        if (root.face !== null) {
+            const under = root.face.rowAnchor(root.cursorIndex);
+            const point = root.face.mapToItem(root, under.x, under.y);
+            root.actionsRequested(root.cursorHash, point.x, point.y);
+            return;
+        }
         const top = header.height + (root.cursorIndex * Theme.rowHeight);
         const y = top - list.contentY + Theme.rowHeight;
         root.actionsRequested(root.cursorHash, Theme.space(24), y);
@@ -1258,6 +1300,7 @@ Item {
         anchors.top: parent.top
         clip: true
         height: header.height
+        visible: root.face === null
     }
 
     Item {
@@ -1483,6 +1526,7 @@ Item {
         model: root.filtered
         objectName: "rows"
         reuseItems: true
+        visible: root.face === null
 
         // #77: the rows' list, for a screen reader; each row is the `TableRow` band in it.
         Accessible.name: qsTr("torrents")
@@ -2164,7 +2208,8 @@ Item {
                 /// The right edge of the table's visible part, in the row's coordinates.
                 readonly property real room: list.contentX + list.width - Theme.space(8) - x
 
-                active: row.editing
+                // A face draws its own editor, or none (#168).
+                active: row.editing && root.face === null
                 anchors.verticalCenter: parent.verticalCenter
                 height: Theme.rowHeight - Theme.space(8)
                 objectName: "renameEditor"
@@ -2189,6 +2234,7 @@ Item {
         height: Math.max(0, list.y + list.height - emptySpace.y)
         objectName: "emptySpace"
         width: list.width
+        visible: root.face === null
         x: list.x
         y: list.y + Math.max(0, Math.min(list.height, emptySpace.rowsEnd))
         z: 1
@@ -2208,11 +2254,13 @@ Item {
         anchors.right: parent.right
         flickable: list
         objectName: "sideways"
+        visible: root.face === null && sideways.needed
     }
 
     // A wheel notch moves three rows, and quick notches add up (Kit/WheelScroll).
     WheelScroll {
         anchors.fill: list
+        enabled: root.face === null
         flickable: list
         objectName: "tableWheel"
         z: 2
@@ -2245,6 +2293,7 @@ Item {
         objectName: "tableScrollHint"
         revealOnHover: false
         style: "scrollbar"
+        visible: root.face === null
         z: 3
     }
 
