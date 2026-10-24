@@ -214,7 +214,7 @@ Board [31](31-burst.html) (#62), D1–D14 as recommended:
 - **D8** Settings › qBittorrent › Speed has a "nights" preset (`n`): 23:00 to 07:00 every day,
   all four time keys at once. **D9** A plain summary under Days says what the schedule will
   do by qBittorrent's rule, and warns in yellow when a window past midnight reads the days
-  backwards (on a day that is not picked it is on all day; diogochaves/upstream#84). A line
+  backwards (on a day that is not picked it is on all day). A line
   under the four limits names the set; the schedule's row title follows the word.
 - **D10** The guidance line under the alternative upload limit ("85–90 % of your real upload
   speed") is **not shipped**: the measurement it waited for did not support it (2026-10-15, two
@@ -245,7 +245,7 @@ Board [29](29-magnet-files.html) (#44), D1–D11 as recommended:
 - **D1** As soon as one magnet (or one link to a `.torrent`) is in the add sheet and isn't a
   duplicate, qBittorrent is asked for its metadata (`torrents/fetchMetadata`), on the current
   server's client: the answer is kept in the Web UI session, so every poll and the add after it
-  must share that session's cookie or API key (diogochaves/upstream#86). A magnet is keyed by its
+  must share that session's cookie or API key. A magnet is keyed by its
   infohash, so typing `&dn=…` after a whole hash starts nothing new.
 - **D2** Nothing shows for the first 0.5 s, so a quick answer just shows the tree. **D3**
   "Fetching" until 10 s, "still looking" until 60 s, then "may never come" in yellow. The polls
@@ -256,7 +256,7 @@ Board [29](29-magnet-files.html) (#44), D1–D11 as recommended:
   arrives, with nothing downloaded (a plain stopped magnet never connects).
 - **D6** Closing the sheet, another source over it or a batch leaves an unanswered lookup running
   on the server until it restarts or that hash is added: there is no cancel
-  (diogochaves/upstream#87), and add-then-delete would flash a row everywhere. The 60 s line says
+  in the API, and add-then-delete would flash a row everywhere. The 60 s line says
   so. Any add of the magnet ends it.
 - **D7** A magnet whose `tr=` host is one the library's private torrents announce to (maindata's
   `private`, every announce URL in the tracker map) is not looked up: libtorrent never hands a
@@ -732,7 +732,7 @@ job's whole life, not 30 s. Set location keeps D2.
   (Q16). Short turns the move off with the figures; can't tell is a yellow line and the move is
   allowed; the same drive needs no room. Read again before every send.
 - **Writable (M6):** qBittorrent 5.2.3 answers 200 for a folder it can't write
-  (diogochaves/upstream#120). A local check against the owner of the folder's files when
+  (seen on a server). A local check against the owner of the folder's files when
   omaseed sees the disks, and always the smallest torrent alone first: if it fails, the job
   stops with its reason before anything else moves.
 - **Automatic management (M7):** a yellow line with the count and the category's folder;
