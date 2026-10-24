@@ -424,7 +424,7 @@ keys j -s 300 Return -s 3000
 check "the ⋯ menu switched to private" default_is private
 step "Switched from the widget" "The popup stayed open and refilled: PRIVATE · QBITTORRENT in the head, the menu closed, Add lists the Downloads files with \"already on private\"." "$POPUP"
 keys ctrl+s -s 600
-step "The server line's ▾" "W2: just the servers, ○ public 0 torrents, ● private 4 torrents (the cursor on it); the ▾ turned ▴ in the accent." "$POPUP"
+step "The server line's ▾" "W2: just the servers, ○ public 0 torrents, ● private 5 torrents (the cursor on it); the ▾ turned ▴ in the accent." "$POPUP"
 keys k -s 300 Return -s 3000
 check "the servers part switched back to public" default_is public
 keys ctrl+period -s 600 j j j j j j j -s 400
@@ -457,22 +457,24 @@ else
 fi
 if [ -n "${TRAY_X:-}" ]; then
     tray_menu_open
-    step "The tray's menu" "D10 (T1): show omaseed, the figures, servers with ✓ public · 0 torrents and private · 4 torrents, then the alternative limits, stop all, start all, add torrent…, settings…, and quit last after a separator." "$TRAY_MENU"
-    if tray_menu_row "private · 4 torrents"; then
+    step "The tray's menu" "D10 (T1): show omaseed, the figures, servers with ✓ public · 0 torrents and private · 5 torrents, then the alternative limits, stop all, start all, add torrent…, settings…, and quit last after a separator." "$TRAY_MENU"
+    # private's row by its name: its figure is whatever the box's private holds.
+    PRIVATE_ROW="$(tray_rows | cut -f3 | grep -m1 '^private · ' || true)"
+    if [ -n "$PRIVATE_ROW" ] && tray_menu_row "$PRIVATE_ROW"; then
         omabox click -b "$BOX" "$TRAY_ROW_X" "$TRAY_ROW_Y" >/dev/null
         settle
     else
-        echo "  the menu's row \"private · 4 torrents\" was not found: ${TRAY_LINES:-no menu under the bar}" >&2
+        echo "  the menu's row \"${PRIVATE_ROW:-private · …}\" was not found: ${TRAY_LINES:-no menu under the bar}" >&2
     fi
 fi
 check "the tray switched to private" default_is private
 keys Escape -s 400
 if [ -n "${TRAY_X:-}" ]; then
     tray_menu_open
-    step "The tray on private" "✓ private · 4 torrents now; public · 0 torrents (last seen)." "$TRAY_MENU"
+    step "The tray on private" "✓ private · 5 torrents now; public · 0 torrents (last seen)." "$TRAY_MENU"
     keys Escape -s 400
 fi
-check "the tray's exported menu has private checked" tray_checked "private · 4 torrents"
+check "the tray's exported menu has private checked" tray_checked "${PRIVATE_ROW:-private}"
 check "the tray's exported menu ends with quit" tray_ends_with_quit
 tray_click quit
 omabox wait -b "$BOX" --timeout 10s window "$APP_ID" --gone >/dev/null 2>&1 || true
