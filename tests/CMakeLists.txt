@@ -94,6 +94,14 @@ if(NOT WIN32)
     )
     set_tests_properties(dev_install_extras PROPERTIES TIMEOUT 60 SKIP_RETURN_CODE 77)
 
+    # No QML branches on a skin's name, and no literal border.width in the Kit (#171): a skin
+    # is only its tokens. Reads the source tree.
+    add_test(
+        NAME skin_lint
+        COMMAND bash "${CMAKE_SOURCE_DIR}/tests/dev/test_skin_lint.sh"
+    )
+    set_tests_properties(skin_lint PROPERTIES LABELS "lint" TIMEOUT 60)
+
     # Every tracked shell script is shellcheck-clean (settings in .shellcheckrc). Skips
     # when shellcheck is not installed.
     add_test(
