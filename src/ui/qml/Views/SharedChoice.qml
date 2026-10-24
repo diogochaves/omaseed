@@ -53,6 +53,12 @@ FocusScope {
                 required property var modelData
 
                 readonly property bool picked: row.index === root.choice
+                /// The row's words on its ground, the hover fill on the picked row
+                /// (docs/DECISIONS.md C30 F1).
+                readonly property Ink ink: Ink {
+                    animated: false
+                    ground: row.picked ? Theme.on.cursor : Theme.on.window
+                }
 
                 /// Pick this row: a click, or a screen reader's press or toggle.
                 function pick(): void {
@@ -72,7 +78,7 @@ FocusScope {
                 objectName: "sharedChoice_" + row.index
                 border.color: Qt.alpha(Theme.foreground, row.picked ? Theme.borderHover : 0)
                 border.width: 1
-                color: row.picked ? Qt.alpha(Theme.foreground, Theme.fillHover) : "transparent"
+                color: row.picked ? row.ink.fill : "transparent"
                 implicitHeight: rowLayout.implicitHeight + Theme.space(10)
                 radius: Theme.cornerRadius
 
@@ -88,7 +94,7 @@ FocusScope {
 
                     Label {
                         Layout.alignment: Qt.AlignTop
-                        color: row.picked ? Theme.accent : Theme.dimForeground
+                        color: row.picked ? row.ink.accent : row.ink.dimForeground
                         size: "small"
                         text: row.picked ? "●" : "○"
                     }
@@ -100,6 +106,7 @@ FocusScope {
                         Label {
                             Layout.fillWidth: true
                             bright: row.picked
+                            ink: row.ink
                             size: "small"
                             text: row.modelData.title
                             wrapMode: Text.WordWrap
@@ -108,6 +115,7 @@ FocusScope {
                         Label {
                             Layout.fillWidth: true
                             dim: true
+                            ink: row.ink
                             size: "caption"
                             text: row.modelData.detail ?? ""
                             visible: text.length > 0

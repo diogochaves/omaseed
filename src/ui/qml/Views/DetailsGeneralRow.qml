@@ -22,9 +22,17 @@ Rectangle {
     signal clicked
 
     readonly property bool hasTail: (root.entry.tail || "").length > 0
-    readonly property color valueColor: root.entry.color ? root.entry.color : root.entry.dim
-                                                                               ? Theme.dimForeground :
-                                                                                 Theme.foreground
+    /// docs/DECISIONS.md C30 F1: the row's words on its ground, the cursor's fill or the
+    /// pointer's 4 %; they change at once, as the fill does. An entry's `color` is a window
+    /// role: the ground's of the same (C30 F3).
+    readonly property Ink ink: Ink {
+        animated: false
+        ground: root.hasCursor ? Theme.on.cursor : mouse.containsMouse ? Theme.on.idle
+                                                                         : Theme.on.window
+    }
+    readonly property color valueColor: root.entry.color ? root.ink.of(root.entry.color)
+                                                         : root.entry.dim ? root.ink.dimForeground
+                                                                          : root.ink.foreground
 
     // #77: a list item named by its key, the value (live, some of them) the description; its
     // press is the click, and does nothing while disabled.
@@ -36,9 +44,7 @@ Rectangle {
 
     border.color: root.hasCursor ? Theme.fill(Theme.borderHover) : "transparent"
     border.width: root.hasCursor ? 1 : 0
-    color: root.hasCursor ? Theme.fill(Theme.fillHover) : mouse.containsMouse ? Theme.fill(
-                                                                                    Theme.fillIdle) :
-                                                                                "transparent"
+    color: root.hasCursor || mouse.containsMouse ? root.ink.fill : "transparent"
     implicitHeight: Math.max(Theme.space(26), rowLayout.implicitHeight + Theme.space(8))
 
     RowLayout {
@@ -55,6 +61,7 @@ Rectangle {
             Layout.alignment: Qt.AlignTop
             Layout.preferredWidth: root.keyWidth
             elide: Text.ElideRight
+            ink: root.ink
             text: root.entry.key
             tracked: true
         }
@@ -88,7 +95,7 @@ Rectangle {
         Text {
             Layout.alignment: Qt.AlignTop
             Layout.fillWidth: true
-            color: Theme.dimForeground
+            color: root.ink.dimForeground
             font.family: Theme.fontFamily
             font.pixelSize: Theme.font.small
             objectName: "generalTail"

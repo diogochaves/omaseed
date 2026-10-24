@@ -355,14 +355,14 @@ Sheet {
                 Rectangle {
                     border.color: importRow.ticked ? Theme.accent : Theme.fill(Theme.borderIdle)
                     border.width: 1
-                    color: importRow.ticked ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b,
-                                                      Theme.fillPressed) : "transparent"
+                    // The ticked tint, its ✓ lifted against it (docs/DECISIONS.md C30 F5).
+                    color: importRow.ticked ? Theme.on.ticked.fill : "transparent"
                     implicitHeight: Theme.space(14)
                     implicitWidth: Theme.space(14)
 
                     Label {
                         anchors.centerIn: parent
-                        bright: true
+                        color: Theme.on.ticked.brightForeground
                         size: "caption"
                         text: Glyphs.check
                         visible: importRow.ticked

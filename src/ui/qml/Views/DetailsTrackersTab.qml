@@ -116,9 +116,11 @@ Item {
             required property string leechesText
             required property bool isPseudo
 
-            readonly property color rowColor: row.isPseudo ? Theme.dimForeground : row.textColor
-            readonly property color statusColor: row.isPseudo ? Theme.dimForeground : row.status
-                                                                === 4 ? Theme.yellow : row.textColor
+            // Every cell's words are the row's ground's (docs/DECISIONS.md C30 F1): `row.ink`.
+            readonly property color rowColor: row.isPseudo ? row.ink.dimForeground : row.textColor
+            readonly property color statusColor: row.isPseudo ? row.ink.dimForeground
+                                                              : row.status === 4 ? row.ink.yellow
+                                                                                 : row.textColor
 
             // #77: a screen reader finds a tracker by its URL (DHT, PeX and LSD, which have
             // none, by their word), and only a real tracker can be selected.
@@ -162,7 +164,7 @@ Item {
                     Rectangle {
                         anchors.left: parent.left
                         anchors.verticalCenter: parent.verticalCenter
-                        color: Theme[row.dotRole]
+                        color: row.ink[row.dotRole]
                         height: Theme.space(6)
                         radius: width / 2
                         width: Theme.space(6)

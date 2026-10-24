@@ -297,6 +297,11 @@ FocusScope {
                                         readonly property bool current: root.cursorRow !== null
                                                                         && root.cursorRow.action
                                                                         === keyRow.modelData.action
+                                        /// The row's ground, the cursor's fill on the current
+                                        /// row (docs/DECISIONS.md C30 F1).
+                                        readonly property ThemeInk ground: keyRow.current
+                                                                           ? Theme.on.cursor
+                                                                           : Theme.on.window
 
                                         // #77: a list item named by what the key does, the
                                         // keys its description, selected under the cursor.
@@ -309,8 +314,7 @@ FocusScope {
                                         Accessible.onPressAction: if (keyRow.enabled)
                                                                       root.clickRow(keyRow.modelData)
                                         Layout.fillWidth: true
-                                        color: keyRow.current ? Theme.fill(Theme.fillHover) :
-                                                                "transparent"
+                                        color: keyRow.current ? keyRow.ground.fill : "transparent"
                                         implicitHeight: Math.max(keysText.implicitHeight,
                                                                  aboutText.implicitHeight)
                                                         + Theme.space(8)
@@ -340,7 +344,8 @@ FocusScope {
                                             anchors.leftMargin: Theme.space(6)
                                             anchors.top: parent.top
                                             anchors.topMargin: Theme.space(4)
-                                            color: keyRow.waiting ? Theme.dimForeground : Theme.brightForeground
+                                            color: keyRow.waiting ? keyRow.ground.dimForeground
+                                                                  : keyRow.ground.brightForeground
                                             font.family: Theme.fontFamily
                                             font.pixelSize: Theme.font.small
                                             font.weight: Font.Medium
@@ -358,7 +363,8 @@ FocusScope {
                                             anchors.topMargin: Theme.space(4)
                                             // docs/33 D19: a key that needs two servers is
                                             // listed dim, saying so, while there is one.
-                                            color: keyRow.waiting ? Theme.dimForeground : Theme.foreground
+                                            color: keyRow.waiting ? keyRow.ground.dimForeground
+                                                                  : keyRow.ground.foreground
                                             font.family: Theme.fontFamily
                                             font.pixelSize: Theme.font.small
                                             text: keyRow.waiting ? keyRow.modelData.aboutOne : keyRow.modelData.about

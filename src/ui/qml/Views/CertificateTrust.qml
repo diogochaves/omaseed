@@ -49,10 +49,17 @@ ColumnLayout {
     }
 
     Rectangle {
+        id: fingerprintBlock
+
+        /// The fingerprint on its 4 % fill (docs/DECISIONS.md C30 F1).
+        readonly property Ink ink: Ink {
+            ground: Theme.on.idle
+        }
+
         Layout.fillWidth: true
         border.color: Theme.fill(Theme.hairlineAlpha)
         border.width: 1
-        color: Theme.fill(Theme.fillIdle)
+        color: fingerprintBlock.ink.fill
         implicitHeight: fingerprintColumn.implicitHeight + Theme.space(16)
         radius: Theme.cornerRadius
 
@@ -67,6 +74,7 @@ ColumnLayout {
             spacing: Theme.space(2)
 
             Label {
+                ink: fingerprintBlock.ink
                 text: qsTr("SHA-256")
                 tracked: true
             }
@@ -74,6 +82,7 @@ ColumnLayout {
             Label {
                 Accessible.name: text
                 Accessible.role: Accessible.StaticText
+                ink: fingerprintBlock.ink
                 objectName: "fingerprintFirstHalf"
                 size: "small"
                 text: root._pairs.slice(0, 16).join(":")
@@ -82,6 +91,7 @@ ColumnLayout {
             Label {
                 Accessible.name: text
                 Accessible.role: Accessible.StaticText
+                ink: fingerprintBlock.ink
                 objectName: "fingerprintSecondHalf"
                 size: "small"
                 text: root._pairs.slice(16).join(":")

@@ -57,10 +57,16 @@ Rectangle {
         return parts.join(", ");
     }
 
+    /// docs/DECISIONS.md C30 F1: the block's words on its own 4 % fill.
+    readonly property Ink ink: Ink {
+        animated: false
+        ground: Theme.on.idle
+    }
+
     // The block is a note named by its headline; its lines are text under it.
     Accessible.name: root.headline
     Accessible.role: Accessible.Note
-    color: Theme.fill(Theme.fillIdle)
+    color: root.ink.fill
     implicitHeight: column.implicitHeight + Theme.space(12)
     objectName: "moveBlock"
 
@@ -68,7 +74,7 @@ Rectangle {
         anchors.bottom: parent.bottom
         anchors.left: parent.left
         anchors.top: parent.top
-        color: Theme.accent
+        color: root.ink.accent
         width: 1
     }
 
@@ -83,7 +89,7 @@ Rectangle {
         spacing: Theme.space(3)
 
         Text {
-            color: Theme.brightForeground
+            color: root.ink.brightForeground
             font.family: Theme.fontFamily
             font.pixelSize: Theme.font.body
             font.weight: Font.Medium
@@ -97,7 +103,7 @@ Rectangle {
         Text {
             Accessible.name: text
             Accessible.role: Accessible.StaticText
-            color: Theme.foreground
+            color: root.ink.foreground
             font.family: Theme.fontFamily
             font.pixelSize: Theme.font.small
             objectName: "movePaths"
@@ -110,7 +116,7 @@ Rectangle {
         Text {
             Accessible.name: text
             Accessible.role: Accessible.StaticText
-            color: Theme.dimForeground
+            color: root.ink.dimForeground
             font.family: Theme.fontFamily
             font.pixelSize: Theme.font.small
             objectName: "moveMeta"
@@ -128,6 +134,7 @@ Rectangle {
         }
 
         KeyHints {
+            ink: root.ink
             model: root.hints
             objectName: "moveActions"
             size: "small"

@@ -206,13 +206,14 @@ TestCase {
         verify(!findChild(bar, "bar_hint"), "the hint showed beside the note");
         const note = findChild(bar, "bar_note");
         compare(note.text, "copied");
-        compare(note.color, Theme.accent);
+        // The bar's words on its own ground, the hover fill (DECISIONS C30 F1).
+        compare(note.color, Theme.actionBarGround.accent);
         compare(note.Accessible.role, Accessible.AlertMessage);
         bar.noteWarn = true;
-        compare(note.color, Theme.yellow);
+        compare(note.color, Theme.actionBarGround.yellow);
         bar.note = "";
         compare(findChild(bar, "bar_hint").text, "ctrl+click add · shift+click range");
-        compare(findChild(bar, "bar_hint").color, Theme.dimForeground);
+        compare(findChild(bar, "bar_hint").color, Theme.actionBarGround.dimForeground);
     }
 
     // ---- what a click says -----------------------------------------------------------------

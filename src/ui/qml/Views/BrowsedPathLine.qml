@@ -32,7 +32,9 @@ Item {
 
     Rectangle {
         anchors.fill: parent
-        color: Qt.alpha(Theme.yellow, 0.08)
+        // The warning tint; its yellow and dim words lifted against it (docs/DECISIONS.md
+        // C30 F5).
+        color: Theme.on.warning.fill
         visible: root.outside
 
         Rectangle {
@@ -52,7 +54,7 @@ Item {
         anchors.right: parent.right
         anchors.rightMargin: root.outside ? Theme.space(10) : 0
         anchors.verticalCenter: parent.verticalCenter
-        color: Theme.dimForeground
+        color: root.outside ? Theme.on.warning.dimForeground : Theme.dimForeground
         font.family: Theme.fontFamily
         font.pixelSize: Theme.font.small
         lineHeight: 1.3
@@ -64,8 +66,8 @@ Item {
                 return "";
             const head = qsTr("%1 is outside the folders mapped for %2.").arg(root.pick.local).arg(root.serverName);
             const tail = qsTr("qBittorrent may not see it. Mapped: %1.").arg(root.pick.mappings);
-            return "<font color='%1'>%2</font><br><font color='%3'>%4</font>".arg(Theme.yellow).arg(root._escape(head)).arg(
-                        Theme.dimForeground).arg(root._escape(tail));
+            return "<font color='%1'>%2</font><br><font color='%3'>%4</font>".arg(Theme.on.warning.yellow).arg(
+                        root._escape(head)).arg(Theme.on.warning.dimForeground).arg(root._escape(tail));
         }
         textFormat: root.outside ? Text.StyledText : Text.PlainText
         wrapMode: Text.Wrap

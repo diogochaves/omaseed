@@ -24,6 +24,18 @@ Item {
     /// The view's column widths, so every row lines up under the header.
     property real timeWidth: Theme.space(118)
     property real levelWidth: Theme.space(84)
+    /// docs/DECISIONS.md C30 F1: the line's words on its ground, the selected fill while
+    /// marked, else the cursor's or the pointer's; they change at once, as the fill does.
+    readonly property Ink ink: Ink {
+        animated: false
+        ground: {
+            if (root.marked)
+                return Theme.on.selected;
+            if (root.current)
+                return Theme.on.cursor;
+            return mouse.containsMouse ? Theme.on.hover : Theme.on.window;
+        }
+    }
 
     signal clicked(int index, int modifiers)
     /// Board 45 B2: "move back…" on a move's line.
@@ -39,17 +51,17 @@ Item {
     Accessible.onPressAction: if (root.enabled)
                                   root.clicked(root.index, Qt.NoModifier)
 
-    /// A level's Theme role.
+    /// A level's role, on the line's ground.
     function levelColor(level: int): color {
         switch (level) {
         case ServerLog.Critical:
-            return Theme.red;
+            return root.ink.red;
         case ServerLog.Warning:
-            return Theme.yellow;
+            return root.ink.yellow;
         case ServerLog.Info:
-            return Theme.accent;
+            return root.ink.accent;
         default:
-            return Theme.dimForeground;
+            return root.ink.dimForeground;
         }
     }
 
@@ -65,15 +77,14 @@ Item {
         anchors.fill: parent
         border.color: Theme.fill(Theme.fillSelected)
         border.width: root.current ? 1 : 0
-        color: root.marked ? Theme.fill(Theme.fillSelected) : root.current || mouse.containsMouse
-                                                              ? Theme.fill(Theme.fillHover) : "transparent"
+        color: root.ink.ground.fill
         objectName: "logRowFill"
     }
 
     Text {
         id: timeLabel
 
-        color: Theme.dimForeground
+        color: root.ink.dimForeground
         font.family: Theme.fontFamily
         font.features: {
             "tnum": 1
@@ -100,11 +111,11 @@ Item {
     Text {
         id: messageText
 
-        color: Theme.foreground
+        color: root.ink.foreground
         font.family: Theme.fontFamily
         font.pixelSize: Theme.font.small
         objectName: "logMessage"
-        text: root.styled(root.message, Theme.brightForeground)
+        text: root.styled(root.message, root.ink.brightForeground)
         textFormat: Text.StyledText
         width: root.width - x - Theme.space(16) - (moveBack.visible ? moveBack.width + Theme.space(12) : 0)
         wrapMode: Text.WrapAnywhere
@@ -132,7 +143,7 @@ Item {
         Accessible.onPressAction: root.moveBackRequested(root.moveId)
         anchors.right: parent.right
         anchors.rightMargin: Theme.space(16)
-        color: moveBackMouse.containsMouse ? Theme.brightForeground : Theme.accent
+        color: moveBackMouse.containsMouse ? root.ink.brightForeground : root.ink.accent
         font.family: Theme.fontFamily
         font.pixelSize: Theme.font.small
         objectName: "logMoveBack"

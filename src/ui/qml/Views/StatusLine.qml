@@ -257,13 +257,23 @@ Item {
             Layout.preferredWidth: lane.naturalWidth
             objectName: "statusServer"
 
+            // docs/DECISIONS.md C30 F1: the lane's words on its hover fill while it shows; the
+            // fill comes and goes at once, so do they.
+            Ink {
+                id: laneInk
+
+                animated: false
+                ground: root.serverSwitchable && laneMouse.containsMouse ? Theme.on.hover
+                                                                          : Theme.on.window
+            }
+
             Rectangle {
                 anchors.fill: parent
                 anchors.leftMargin: -Theme.statusLineHoverInset
                 anchors.rightMargin: -Theme.statusLineHoverInset
                 anchors.topMargin: Theme.statusLineHoverInset
                 anchors.bottomMargin: Theme.statusLineHoverInset
-                color: Theme.fill(Theme.fillHover)
+                color: Theme.on.hover.fill
                 radius: Theme.cornerRadius
                 visible: root.serverSwitchable && laneMouse.containsMouse
             }
@@ -291,7 +301,7 @@ Item {
                     // The lane says it (#79).
                     Accessible.ignored: true
                     anchors.verticalCenter: parent.verticalCenter
-                    color: Theme.foreground
+                    color: laneInk.foreground
                     elide: Text.ElideRight
                     font.family: Theme.fontFamily
                     font.pixelSize: Theme.statusLineFontSize
@@ -307,7 +317,7 @@ Item {
 
                     Accessible.ignored: true
                     anchors.verticalCenter: parent.verticalCenter
-                    color: Theme.dimForeground
+                    color: laneInk.dimForeground
                     font.family: Theme.fontFamily
                     font.pixelSize: Theme.statusLineFontSize
                     objectName: "statusServerChevron"

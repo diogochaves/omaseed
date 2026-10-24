@@ -154,7 +154,8 @@ Flickable {
             Accessible.role: attentionBand.showsThem ? Accessible.Button : Accessible.AlertMessage
             Accessible.onPressAction: if (attentionBand.enabled && attentionBand.showsThem)
                                           root.attentionRequested(root.seed.attention.host ?? "")
-            color: Qt.alpha(Theme.stateError, 0.07)
+            // The attention tint, its words lifted against it (docs/DECISIONS.md C30 F5).
+            color: Theme.on.attention.fill
             objectName: "consoleAttention"
             height: attentionRow.implicitHeight + Theme.space(14)
             visible: root.seed.attention.visible === true
@@ -177,7 +178,7 @@ Flickable {
                 spacing: Theme.space(14)
 
                 Text {
-                    color: Theme.stateError
+                    color: Theme.on.attention.stateError
                     font.family: Theme.fontFamily
                     font.pixelSize: Theme.font.small
                     font.weight: Font.Medium
@@ -186,7 +187,7 @@ Flickable {
 
                 Text {
                     Layout.fillWidth: true
-                    color: Theme.foreground
+                    color: Theme.on.attention.foreground
                     elide: Text.ElideRight
                     font.family: Theme.fontFamily
                     font.pixelSize: Theme.font.small
@@ -194,7 +195,7 @@ Flickable {
                 }
 
                 Text {
-                    color: Theme.dimForeground
+                    color: Theme.on.attention.dimForeground
                     font.family: Theme.fontFamily
                     font.pixelSize: Theme.font.caption
                     text: qsTr("show them")
@@ -307,6 +308,10 @@ Flickable {
 
                         required property string modelData
                         readonly property bool on: rangeChip.modelData === root.seed.range
+                        /// The chip's ground, selected or under the pointer (docs/DECISIONS.md
+                        /// C30 F1); its word takes that ground's colour.
+                        readonly property ThemeInk ground: Theme.ground(rangeChip.on, false,
+                                                                        rangeHover.hovered, false)
 
                         /// Show this range: a click, or a screen reader's press or toggle.
                         function pick(): void {
@@ -327,8 +332,7 @@ Flickable {
                                                                                         : Theme.fill(Theme.hairlineAlpha)
                         border.width: 1
                         // Kit Chip's hover fill, so the pointer says it is a choice.
-                        color: rangeChip.on ? Theme.fill(Theme.fillSelected) : rangeHover.hovered ? Theme.fill(Theme.fillHover)
-                                                                                                  : "transparent"
+                        color: rangeChip.on || rangeHover.hovered ? rangeChip.ground.fill : "transparent"
                         implicitHeight: chipText.implicitHeight + Theme.space(4)
                         implicitWidth: chipText.implicitWidth + Theme.space(16)
 
@@ -336,7 +340,7 @@ Flickable {
                             id: chipText
 
                             anchors.centerIn: parent
-                            color: rangeChip.on ? Theme.brightForeground : Theme.foreground
+                            color: rangeChip.on ? rangeChip.ground.brightForeground : rangeChip.ground.foreground
                             font.family: Theme.fontFamily
                             font.pixelSize: Theme.font.caption
                             text: rangeChip.modelData

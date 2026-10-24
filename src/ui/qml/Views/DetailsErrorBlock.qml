@@ -37,7 +37,13 @@ Rectangle {
     /// docs/44 D13 (#121): finished, but its files never left the incomplete folder. Red, in
     /// board 28's place, on a torrent that still seeds.
     readonly property bool stuckMove: root.problem.stuckMove === true
-    readonly property color kindColor: root.missingFiles || root.failure ? Theme.yellow : Theme.red
+    /// docs/DECISIONS.md C30 F1: the block's words on its own 4 % fill.
+    readonly property Ink ink: Ink {
+        animated: false
+        ground: Theme.on.idle
+    }
+    readonly property color kindColor: root.missingFiles || root.failure ? root.ink.yellow
+                                                                         : root.ink.red
     readonly property var hints: {
         const keys = {
             // docs/44 M1: board 43's sheet.
@@ -115,7 +121,7 @@ Rectangle {
     // kind's glyph stays out.
     Accessible.name: root.problem.headline || ""
     Accessible.role: Accessible.AlertMessage
-    color: Theme.fill(Theme.fillIdle)
+    color: root.ink.fill
     implicitHeight: column.implicitHeight + Theme.space(12)
     objectName: "errorBlock"
 
@@ -150,7 +156,7 @@ Rectangle {
         spacing: Theme.space(3)
 
         Text {
-            color: Theme.brightForeground
+            color: root.ink.brightForeground
             font.family: Theme.fontFamily
             font.pixelSize: Theme.font.body
             font.weight: Font.Medium
@@ -164,7 +170,7 @@ Rectangle {
         Text {
             Accessible.name: text
             Accessible.role: Accessible.StaticText
-            color: Theme.foreground
+            color: root.ink.foreground
             font.family: Theme.fontFamily
             font.pixelSize: Theme.font.small
             objectName: "errorDetail"
@@ -179,7 +185,7 @@ Rectangle {
         Text {
             Accessible.name: text
             Accessible.role: Accessible.StaticText
-            color: Theme.foreground
+            color: root.ink.foreground
             font.family: Theme.fontFamily
             font.pixelSize: Theme.font.small
             objectName: "errorAdvice"
@@ -193,7 +199,7 @@ Rectangle {
         Text {
             Accessible.name: text
             Accessible.role: Accessible.StaticText
-            color: Theme.dimForeground
+            color: root.ink.dimForeground
             font.family: Theme.fontFamily
             font.pixelSize: Theme.font.small
             objectName: "errorFolder"
@@ -207,7 +213,7 @@ Rectangle {
         Text {
             Accessible.name: text
             Accessible.role: Accessible.StaticText
-            color: Theme.dimForeground
+            color: root.ink.dimForeground
             font.family: Theme.fontFamily
             font.pixelSize: Theme.font.small
             objectName: "errorMeta"
@@ -227,6 +233,7 @@ Rectangle {
         KeyHints {
             id: actions
 
+            ink: root.ink
             model: root.hints
             objectName: "errorActions"
             size: "small"
@@ -239,6 +246,7 @@ Rectangle {
         // keyless "copy the line" and "its lines in the log" (docs/32 D13) would otherwise be
         // dropped, and the log link has no key to stand in for it.
         KeyHints {
+            ink: root.ink
             model: root.hints.filter((hint, index) => actions._shown[index] !== true)
             objectName: "errorActionsMore"
             size: "small"

@@ -156,27 +156,32 @@ Window {
         {
             "name": "idle",
             "fill": Theme.fillIdle,
-            "border": Theme.borderIdle
+            "border": Theme.borderIdle,
+            "ground": Theme.on.idle
         },
         {
             "name": "hover / cursor",
             "fill": Theme.fillHover,
-            "border": Theme.borderHover
+            "border": Theme.borderHover,
+            "ground": Theme.on.hover
         },
         {
             "name": "selected",
             "fill": Theme.fillSelected,
-            "border": 0
+            "border": 0,
+            "ground": Theme.on.selected
         },
         {
             "name": "pressed",
             "fill": Theme.fillPressed,
-            "border": 0
+            "border": 0,
+            "ground": Theme.on.pressed
         },
         {
             "name": "hairline",
             "fill": Theme.hairlineAlpha,
-            "border": 0
+            "border": 0,
+            "ground": null
         }
     ]
     readonly property var spacingSteps: [2, 4, 6, 8, 12, 16, 24, 32]
@@ -1068,9 +1073,10 @@ Window {
                                         text: tableRowSample.modelData.name
                                     }
 
+                                    // docs/DECISIONS.md C30 F2: the caption on the row's own ground.
                                     Text {
                                         anchors.verticalCenter: parent.verticalCenter
-                                        color: Theme.dimForeground
+                                        color: tableRowSample.ink.dimForeground
                                         font.family: Theme.fontFamily
                                         font.pixelSize: Theme.font.caption
                                         text: tableRowSample.modelData.caption
@@ -1273,11 +1279,11 @@ Window {
                                     Rectangle {
                                         id: splitWideMain
 
-                                        color: Theme.fill(Theme.fillIdle)
+                                        color: Theme.on.idle.fill
 
                                         Text {
                                             anchors.centerIn: parent
-                                            color: Theme.dimForeground
+                                            color: Theme.on.idle.dimForeground
                                             font.family: Theme.fontFamily
                                             font.pixelSize: Theme.font.small
                                             text: splitWide.docked ? qsTr("main · docked") : qsTr(
@@ -1288,11 +1294,11 @@ Window {
                                     Rectangle {
                                         id: splitWideSide
 
-                                        color: Theme.fill(Theme.fillHover)
+                                        color: Theme.on.hover.fill
 
                                         Text {
                                             anchors.centerIn: parent
-                                            color: Theme.dimForeground
+                                            color: Theme.on.hover.dimForeground
                                             font.family: Theme.fontFamily
                                             font.pixelSize: Theme.font.small
                                             text: qsTr("side")
@@ -1322,11 +1328,11 @@ Window {
                                     Rectangle {
                                         id: splitNarrowMain
 
-                                        color: Theme.fill(Theme.fillIdle)
+                                        color: Theme.on.idle.fill
 
                                         Text {
                                             anchors.centerIn: parent
-                                            color: Theme.dimForeground
+                                            color: Theme.on.idle.dimForeground
                                             font.family: Theme.fontFamily
                                             font.pixelSize: Theme.font.small
                                             text: splitNarrow.docked ? qsTr("main · docked") : qsTr(
@@ -1337,11 +1343,11 @@ Window {
                                     Rectangle {
                                         id: splitNarrowSide
 
-                                        color: Theme.fill(Theme.fillHover)
+                                        color: Theme.on.hover.fill
 
                                         Text {
                                             anchors.centerIn: parent
-                                            color: Theme.dimForeground
+                                            color: Theme.on.hover.dimForeground
                                             font.family: Theme.fontFamily
                                             font.pixelSize: Theme.font.small
                                             text: qsTr("side")
@@ -1656,14 +1662,30 @@ Window {
                             radius: Theme.cornerRadius
                             width: Theme.space(180)
 
-                            Text {
+                            // docs/DECISIONS.md C30 F1: each fill's words in its ground's roles,
+                            // a caption beside them; the hairline is no ground for text.
+                            Row {
                                 anchors.centerIn: parent
-                                color: Theme.foreground
-                                font.family: Theme.fontFamily
-                                font.pixelSize: Theme.font.small
-                                text: qsTr("%1 · %2 %").arg(stateBox.modelData.name).arg(Math.round(
-                                                                                             stateBox.modelData.fill
-                                                                                             * 100))
+                                spacing: Theme.space(6)
+
+                                Text {
+                                    color: stateBox.modelData.ground ? stateBox.modelData.ground.foreground
+                                                                     : Theme.foreground
+                                    font.family: Theme.fontFamily
+                                    font.pixelSize: Theme.font.small
+                                    text: qsTr("%1 · %2 %").arg(stateBox.modelData.name).arg(Math.round(
+                                                                                                 stateBox.modelData.fill
+                                                                                                 * 100))
+                                }
+
+                                Text {
+                                    color: stateBox.modelData.ground ? stateBox.modelData.ground.dimForeground
+                                                                     : Theme.dimForeground
+                                    font.family: Theme.fontFamily
+                                    font.pixelSize: Theme.font.small
+                                    text: qsTr("dim")
+                                    visible: stateBox.modelData.ground !== null
+                                }
                             }
                         }
                     }

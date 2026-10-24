@@ -41,7 +41,7 @@ Rectangle {
                                                                   : Theme.fill(Theme.borderIdle)
     border.width: 1
     clip: true
-    color: Theme.fill(Theme.fillIdle)
+    color: Theme.on.idle.fill
     implicitHeight: Math.min(root.count, 8) * Theme.railRowHeight + 2
     implicitWidth: Theme.space(400)
     radius: Theme.cornerRadius
@@ -93,6 +93,11 @@ Rectangle {
             required property var modelData
 
             readonly property bool out: row.modelData.out === true
+            /// docs/DECISIONS.md C30 F1: the row's words on the list's 4 % block, and under the
+            /// cursor on the hover fill over it (the band's own `ink` is over the window).
+            readonly property Ink blockInk: Ink {
+                ground: Theme.groundIn(Theme.on.idle, false, row.hasCursor, false, false)
+            }
 
             // #77: a screen reader finds the torrent by its name; the flag says the rest.
             Accessible.description: row.modelData.flag ?? ""
@@ -120,7 +125,7 @@ Rectangle {
 
                 Text {
                     Layout.fillWidth: true
-                    color: row.out ? Theme.dimForeground : row.textColor
+                    color: row.out ? row.blockInk.dimForeground : row.blockInk.foreground
                     elide: Text.ElideMiddle
                     font.family: Theme.fontFamily
                     font.pixelSize: Theme.font.small
@@ -129,7 +134,8 @@ Rectangle {
                 }
 
                 Text {
-                    color: row.modelData.warn === true ? Theme.yellow : Theme.dimForeground
+                    color: row.modelData.warn === true ? row.blockInk.yellow
+                                                       : row.blockInk.dimForeground
                     font.family: Theme.fontFamily
                     font.pixelSize: Theme.font.caption
                     objectName: "batchFlag"
@@ -139,7 +145,7 @@ Rectangle {
 
                 Text {
                     Layout.preferredWidth: root.sizeWidth
-                    color: row.out ? Theme.dimForeground : row.textColor
+                    color: row.out ? row.blockInk.dimForeground : row.blockInk.foreground
                     elide: Text.ElideRight
                     font.family: Theme.fontFamily
                     font.pixelSize: Theme.font.small
@@ -161,7 +167,7 @@ Rectangle {
 
                     Rectangle {
                         anchors.centerIn: parent
-                        color: removeMouse.containsMouse ? Theme.fill(Theme.fillHover) : "transparent"
+                        color: removeMouse.containsMouse ? Theme.on.blockHover.fill : "transparent"
                         height: Theme.railRowHeight - Theme.space(6)
                         radius: Theme.cornerRadius
                         width: parent.width
@@ -169,7 +175,8 @@ Rectangle {
 
                     Text {
                         anchors.centerIn: parent
-                        color: removeMouse.containsMouse ? Theme.brightForeground : Theme.dimForeground
+                        color: removeMouse.containsMouse ? Theme.on.blockHover.brightForeground
+                                                         : row.blockInk.dimForeground
                         font.family: Theme.fontFamily
                         font.pixelSize: Theme.font.small
                         text: Glyphs.close

@@ -25,8 +25,18 @@ Column {
     property string accessibleDetail: ""
     /// The folded rail's groups go without their heading (board 46's narrow `rail()`).
     property bool headed: true
+    /// What the heading sits on while it paints nothing: the window, or the rail's servers
+    /// block (`Theme.on.idle`, docs/DECISIONS.md C30 F1).
+    property ThemeInk block: Theme.on.window
 
     readonly property alias header: header
+    /// The heading's words on its ground, the hover fill under the pointer or the cursor (over
+    /// the block, in one); the fill comes and goes at once, so do they.
+    readonly property Ink ink: Ink {
+        animated: false
+        ground: Theme.groundIn(root.block, false, false, root.hasCursor || headerMouse.containsMouse,
+                               false)
+    }
 
     signal toggled
 
@@ -46,8 +56,7 @@ Column {
         Accessible.role: Accessible.Button
         Accessible.onPressAction: if (header.enabled)
                                       root.toggled()
-        color: root.hasCursor || headerMouse.containsMouse ? Theme.fill(Theme.fillHover) :
-                                                             "transparent"
+        color: root.ink.ground === root.block ? "transparent" : root.ink.ground.fill
         implicitHeight: headerText.implicitHeight + Theme.space(4)
         visible: root.headed
         width: parent.width
@@ -59,6 +68,7 @@ Column {
             anchors.leftMargin: Theme.space(4)
             anchors.top: parent.top
             dim: true
+            ink: root.ink
             size: "caption"
             text: root.collapsed ? Glyphs.chevronRight : Glyphs.chevronDown
             visible: headerMouse.containsMouse || root.collapsed || root.hasCursor
@@ -70,6 +80,7 @@ Column {
             anchors.left: parent.left
             anchors.leftMargin: Theme.space(16)
             anchors.top: parent.top
+            ink: root.ink
             tracked: true
             text: root.label
         }
@@ -79,6 +90,7 @@ Column {
             anchors.rightMargin: Theme.space(16)
             anchors.top: parent.top
             dim: true
+            ink: root.ink
             size: "caption"
             text: String(root.count)
             visible: root.collapsed && root.count >= 0

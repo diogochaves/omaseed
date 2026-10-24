@@ -653,9 +653,18 @@ Item {
         anchors.left: parent.left
         anchors.right: hairline.left
         anchors.top: parent.top
-        color: markMouse.containsMouse ? Theme.fill(Theme.fillHover) : "transparent"
+        color: markMouse.containsMouse ? markInk.fill : "transparent"
         height: root.headHeight
         objectName: "railMark"
+
+        // docs/DECISIONS.md C30 F1: the mark's words on the hover fill while the pointer is on
+        // it; the fill comes and goes at once, so do they.
+        Ink {
+            id: markInk
+
+            animated: false
+            ground: markMouse.containsMouse ? Theme.on.hover : Theme.on.window
+        }
 
         Row {
             anchors.left: parent.left
@@ -668,7 +677,7 @@ Item {
                 id: markGlyph
 
                 anchors.verticalCenter: parent.verticalCenter
-                color: root.markAlert ? Theme.red : Theme.accent
+                color: root.markAlert ? markInk.red : markInk.accent
                 height: Theme.railMarkSize
                 pixelSize: Theme.railMarkSize
                 text: Glyphs.mark
@@ -677,7 +686,7 @@ Item {
 
             Text {
                 anchors.verticalCenter: parent.verticalCenter
-                color: Theme.brightForeground
+                color: markInk.brightForeground
                 font.family: Theme.fontFamily
                 font.pixelSize: Theme.font.body
                 font.weight: Theme.railMarkWeight
@@ -687,7 +696,7 @@ Item {
 
             Text {
                 anchors.verticalCenter: parent.verticalCenter
-                color: Theme.dimForeground
+                color: markInk.dimForeground
                 font.family: Theme.fontFamily
                 font.pixelSize: Theme.font.small
                 text: Glyphs.chevronDown
@@ -1379,10 +1388,12 @@ Item {
         visible: root.serverCount > 1 && root.serversRowCount > 0
         z: 5
 
+        // docs/DECISIONS.md C30 F1: the block's rows and heading are on this fill
+        // (`block: Theme.on.idle`), hovered on the hover fill over it.
         Rectangle {
             anchors.fill: parent
             anchors.margins: parent.border.width
-            color: Theme.fill(Theme.fillIdle)
+            color: Theme.on.idle.fill
         }
 
         Hairline {
@@ -1415,6 +1426,7 @@ Item {
                 // #78: "servers", the count in the description.
                 accessibleDetail: qsTr("%n server(s)", "", root.serversRowCount)
                 accessibleName: qsTr("servers")
+                block: Theme.on.idle
                 collapsed: false
                 label: qsTr("servers · %1").arg(root.serversRowCount)
                 objectName: "serversHeading"
@@ -1438,6 +1450,7 @@ Item {
                                          serversFoldedLine.countText, qsTr("folded")].filter(
                                             part => part.length > 0).join(" · ")
                 Accessible.name: qsTr("servers")
+                block: Theme.on.idle
                 compact: root.compact
                 countText: qsTr("%n servers", "", root.serversRowCount)
                 glyph: Glyphs.dot
@@ -1476,6 +1489,7 @@ Item {
                                                                                         + serverDelegate.index
                     readonly property bool pinned: true
 
+                    block: Theme.on.idle
                     compact: root.compact
                     countColor: root._serverCountColor(serverDelegate.countLabel)
                     countText: serverDelegate.countLabel
@@ -1513,6 +1527,7 @@ Item {
                 Accessible.description: qsTr("%1 more · shortcut %2").arg(
                                             root.serversRowCount - root.serversListed).arg("ctrl+s")
                 Accessible.name: qsTr("more servers")
+                block: Theme.on.idle
                 compact: root.compact
                 glyph: "…"
                 hasCursor: root.shownCursor === serversMoreRow.globalIndex

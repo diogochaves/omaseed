@@ -113,7 +113,7 @@ Rectangle {
                                                                   : Theme.fill(Theme.borderIdle)
     border.width: 1
     clip: true
-    color: Theme.fill(Theme.fillIdle)
+    color: Theme.on.idle.fill
     implicitHeight: root.count * Theme.railRowHeight + 2
     implicitWidth: Theme.space(400)
     radius: Theme.cornerRadius
@@ -172,6 +172,14 @@ Rectangle {
 
                 readonly property bool inLibrary: row.modelData.inLibrary === true
                 readonly property bool isTicked: root.ticked.indexOf(row.modelData.path) >= 0
+                /// docs/DECISIONS.md C30 F1: the row's words on the list's 4 % block, the hover
+                /// fill over it under the cursor, the selected fills while ticked (the band's
+                /// own `ink` is over the window).
+                readonly property Ink blockInk: Ink {
+                    ground: Theme.groundIn(Theme.on.idle, row.selected, row.hasCursor, false, false)
+                }
+                readonly property color wordColor: row.selected ? row.blockInk.brightForeground
+                                                                : row.blockInk.foreground
 
                 /// A click on the row with `modifiers`: the pointer's, and a screen reader's
                 /// press (#77), which is a plain one.
@@ -217,7 +225,7 @@ Rectangle {
 
                     Text {
                         Layout.preferredWidth: Theme.space(10)
-                        color: Theme.accent
+                        color: row.blockInk.accent
                         font.family: Theme.fontFamily
                         font.pixelSize: Theme.font.small
                         objectName: "downloadsTick"
@@ -226,7 +234,7 @@ Rectangle {
 
                     Text {
                         Layout.fillWidth: true
-                        color: row.inLibrary ? Theme.dimForeground : row.textColor
+                        color: row.inLibrary ? row.blockInk.dimForeground : row.wordColor
                         elide: Text.ElideMiddle
                         font.family: Theme.fontFamily
                         font.pixelSize: Theme.font.small
@@ -234,7 +242,7 @@ Rectangle {
                     }
 
                     Text {
-                        color: Theme.dimForeground
+                        color: row.blockInk.dimForeground
                         font.family: Theme.fontFamily
                         font.pixelSize: Theme.font.caption
                         objectName: "downloadsInLibrary"
@@ -244,7 +252,7 @@ Rectangle {
 
                     Text {
                         Layout.preferredWidth: root.sizeWidth
-                        color: row.inLibrary ? Theme.dimForeground : row.textColor
+                        color: row.inLibrary ? row.blockInk.dimForeground : row.wordColor
                         elide: Text.ElideRight
                         font.family: Theme.fontFamily
                         font.pixelSize: Theme.font.small
@@ -254,7 +262,7 @@ Rectangle {
 
                     Text {
                         Layout.preferredWidth: root.ageWidth
-                        color: Theme.dimForeground
+                        color: row.blockInk.dimForeground
                         elide: Text.ElideRight
                         font.family: Theme.fontFamily
                         font.pixelSize: Theme.font.small

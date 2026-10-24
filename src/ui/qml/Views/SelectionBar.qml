@@ -209,8 +209,14 @@ Rectangle {
                                          + (root.showSummary ? root._summaryWidth : 0)
                                          + (root.showHint ? root._hintWidth : 0)
 
+    /// docs/DECISIONS.md C30 F1: every word on the bar is on its ground; its buttons rest on it.
+    readonly property Ink ink: Ink {
+        animated: false
+        ground: Theme.actionBarGround
+    }
+
     border.width: 0
-    color: Theme.fill(Theme.actionBarFill)
+    color: Theme.actionBarGround.fill
     implicitHeight: Theme.actionBarHeight
     implicitWidth: Theme.actionBarInsetStart + root.contentWidth + Theme.actionBarInsetEnd
 
@@ -259,6 +265,7 @@ Rectangle {
                     font.features: {
                         "tnum": 1
                     }
+                    ink: root.ink
                     objectName: "selectionCount"
                     text: String(root.count)
                 }
@@ -267,6 +274,7 @@ Rectangle {
                     id: countWord
 
                     dim: true
+                    ink: root.ink
                     size: "small"
                     text: qsTr("selected")
                     visible: root.fit.word
@@ -283,6 +291,7 @@ Rectangle {
                     accent: clearButton.hot
                     activeFocusOnTab: false
                     anchors.verticalCenter: parent.verticalCenter
+                    block: Theme.actionBarGround
                     glyph: Glyphs.close
                     height: Theme.font.body + Theme.space(4)
                     objectName: "bar_clear"
@@ -330,6 +339,7 @@ Rectangle {
                     id: summarySize
 
                     dim: true
+                    ink: root.ink
                     size: "small"
                     text: root.summary.sizeText ?? ""
                 }
@@ -341,6 +351,7 @@ Rectangle {
                         id: givenWord
 
                         dim: true
+                        ink: root.ink
                         size: "small"
                         text: qsTr("given")
                     }
@@ -349,6 +360,7 @@ Rectangle {
                         id: givenValue
 
                         bright: true
+                        ink: root.ink
                         size: "small"
                         text: root.summary.givenText ?? ""
                     }
@@ -361,6 +373,7 @@ Rectangle {
                         id: ratioWord
 
                         dim: true
+                        ink: root.ink
                         size: "small"
                         text: qsTr("ratio")
                     }
@@ -368,7 +381,8 @@ Rectangle {
                     Label {
                         id: ratioValue
 
-                        color: root.summary.ratioGood === true ? Theme.stateSeeding : Theme.brightForeground
+                        color: root.summary.ratioGood === true ? root.ink.stateSeeding
+                                                               : root.ink.brightForeground
                         size: "small"
                         text: root.summary.ratioText ?? ""
                     }
@@ -433,6 +447,7 @@ Rectangle {
                     Accessible.name: slot.button ? slot.button.text : ""
                     activeFocusOnTab: false
                     anchors.fill: parent
+                    block: Theme.actionBarGround
                     danger: slot.modelData === "delete"
                     glyph: slot.button ? slot.button.glyph : ""
                     objectName: "bar_" + slot.modelData
@@ -477,7 +492,8 @@ Rectangle {
                 anchors.right: parent.right
                 anchors.rightMargin: Theme.space(4)
                 anchors.verticalCenter: parent.verticalCenter
-                color: !hintLabel.isNote ? Theme.dimForeground : root.noteWarn ? Theme.yellow : Theme.accent
+                color: !hintLabel.isNote ? root.ink.dimForeground : root.noteWarn ? root.ink.yellow
+                                                                                   : root.ink.accent
                 objectName: hintLabel.isNote ? "bar_note" : "bar_hint"
                 size: hintLabel.isNote ? "small" : "caption"
                 text: root.tail

@@ -812,9 +812,10 @@ Item {
             required property bool rowSelected
             required property int wanted
 
+            // Every cell's words are the row's ground's (docs/DECISIONS.md C30 F1): `row.ink`.
             readonly property color priorityColor: row.priority === 6 || row.priority === 7
-                                                   ? Theme.yellow : row.selected
-                                                     ? row.textColor : Theme.dimForeground
+                                                   ? row.ink.yellow : row.selected
+                                                     ? row.textColor : row.ink.dimForeground
             // A delegate on its way out of a reset reads index -1 for a moment; without the
             // first test it would open the editor, which takes the keyboard as it is built.
             readonly property bool editing: root.renamingRow >= 0 && root.renamingRow === row.index
@@ -858,6 +859,7 @@ Item {
                 FileTick {
                     Layout.preferredHeight: Theme.railRowHeight
                     Layout.preferredWidth: root.tickWidth
+                    ink: row.ink
                     objectName: "fileTick_" + row.index
                     // What a click does, as the header's tick says it for every file.
                     tip: row.wanted === 2 ? (row.isFolder ? qsTr("skip this folder · x")
@@ -892,7 +894,8 @@ Item {
 
                         anchors.left: parent.left
                         anchors.verticalCenter: parent.verticalCenter
-                        color: foldMouse.containsMouse ? Theme.brightForeground : Theme.dimForeground
+                        color: foldMouse.containsMouse ? row.ink.brightForeground
+                                                       : row.ink.dimForeground
                         font.family: Theme.fontFamily
                         font.pixelSize: Theme.font.small
                         text: row.expanded ? Glyphs.chevronDown : Glyphs.chevronRight
@@ -967,7 +970,7 @@ Item {
 
                 DetailsCell {
                     Layout.preferredWidth: root.sizeWidth
-                    color: row.onDiskText === "—" ? Theme.dimForeground : row.textColor
+                    color: row.onDiskText === "—" ? row.ink.dimForeground : row.textColor
                     horizontalAlignment: Text.AlignRight
                     objectName: "fileOnDisk_" + row.index
                     text: row.onDiskText
@@ -986,7 +989,7 @@ Item {
                         // Complete in the seeding colour, where the percent reads "100 %":
                         // exactly 1, as Format::percentCompact has it (a folder's progress
                         // leaves out what it skips, so a folder that is done is exactly 1).
-                        color: row.progress >= 1 ? Theme.stateSeeding : Theme.accent
+                        color: row.progress >= 1 ? row.ink.stateSeeding : row.ink.accent
                         showText: false
                         value: row.progress
                         visible: !root.compact
@@ -1035,7 +1038,7 @@ Item {
 
                 DetailsCell {
                     Layout.preferredWidth: root.piecesWidth
-                    color: Theme.dimForeground
+                    color: row.ink.dimForeground
                     horizontalAlignment: Text.AlignRight
                     text: row.piecesText
                     tip: nameTip
@@ -1126,14 +1129,14 @@ Item {
         Rectangle {
             border.color: Theme.accent
             border.width: 1
-            color: Theme.fill(Theme.fillIdle)
+            color: Theme.on.idle.fill
 
+            // The name on the field's idle fill, its selected part on the 35 % accent
+            // highlight over that (docs/DECISIONS.md C30 F1, F5).
             TextInput {
                 id: editor
 
-                readonly property color accent: Theme.accent
-                readonly property color highlight: Qt.rgba(editor.accent.r, editor.accent.g,
-                                                           editor.accent.b, 0.35)
+                readonly property color highlight: Theme.on.highlight.fill
 
                 // #91: the inline rename's field, by what it edits.
                 Accessible.name: qsTr("file name")
@@ -1143,12 +1146,12 @@ Item {
                 anchors.leftMargin: Theme.space(4)
                 anchors.rightMargin: Theme.space(4)
                 clip: true
-                color: Theme.brightForeground
+                color: Theme.on.idle.brightForeground
                 font.family: Theme.fontFamily
                 font.pixelSize: Theme.font.small
                 objectName: "fileRenameEditor"
                 selectByMouse: true
-                selectedTextColor: Theme.brightForeground
+                selectedTextColor: Theme.on.highlight.brightForeground
                 selectionColor: editor.highlight
                 text: root.renameText
                 verticalAlignment: TextInput.AlignVCenter

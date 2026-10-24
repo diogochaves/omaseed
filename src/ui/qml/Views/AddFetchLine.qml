@@ -48,7 +48,7 @@ Rectangle {
 
     /// A key or a name inside a dim line, in the foreground colour (a binding: it repaints).
     function keyText(text: string): string {
-        return "<font color=\"" + Theme.foreground + "\">" + text + "</font>";
+        return "<font color=\"" + root.ink.foreground + "\">" + text + "</font>";
     }
 
     readonly property string summaryText: {
@@ -75,9 +75,15 @@ Rectangle {
                                   : root.phase === "never" ? Glyphs.lookupNever
                                   : root.phase === "private" ? Glyphs.privateTracker
                                   : Glyphs.lookup
-    readonly property color glyphColor: root.phase === "slow" || root.phase === "never" ? Theme.yellow
-                                        : root.phase === "private" ? Theme.magenta
-                                        : Theme.dimForeground
+    /// docs/DECISIONS.md C30 F1: the line's words on its own 4 % fill.
+    readonly property Ink ink: Ink {
+        animated: false
+        ground: Theme.on.idle
+    }
+    readonly property color glyphColor: root.phase === "slow" || root.phase === "never"
+                                        ? root.ink.yellow
+                                        : root.phase === "private" ? root.ink.magenta
+                                        : root.ink.dimForeground
 
     readonly property string headline: {
         switch (root.phase) {
@@ -127,7 +133,7 @@ Rectangle {
 
     border.color: Theme.fill(Theme.hairlineAlpha)
     border.width: 1
-    color: Theme.fill(Theme.fillIdle)
+    color: root.ink.fill
     implicitHeight: content.implicitHeight + 2 * Theme.space(9)
     visible: root.shown
 
@@ -159,6 +165,7 @@ Rectangle {
                 Accessible.role: Accessible.StaticText
                 Layout.fillWidth: true
                 bright: true
+                ink: root.ink
                 objectName: "addFetchHeadline"
                 size: "small"
                 text: root.headline
@@ -179,6 +186,7 @@ Rectangle {
                     Accessible.role: Accessible.StaticText
                     Layout.fillWidth: true
                     dim: true
+                    ink: root.ink
                     lineHeight: 1.1
                     objectName: "addFetchLine"
                     size: "caption"

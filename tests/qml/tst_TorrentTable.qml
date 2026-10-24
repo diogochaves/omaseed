@@ -285,13 +285,40 @@ TestCase {
         compare(cellText("eta_0"), "2m 40s");
     }
 
+    // DECISIONS C30 F1–F3: a selected row's dim and state words are lifted on its fill, the
+    // 24 % one under the cursor; the row beside it keeps the window's.
+    function test_a_selected_rows_dim_and_state_text_reads_on_its_fill() {
+        table.moveCursorTo(2);
+        table.selectOnly(2);
+        const row = findChild(table, "row_2");
+        const band = row.children.find(child => child.ink !== undefined);
+        compare(band.ink.ground, Theme.on.selectedCursor);
+        tryCompare(findChild(table, "category_2"), "color", Theme.on.selectedCursor.dimForeground);
+        verify(!Qt.colorEqual(Theme.on.selectedCursor.dimForeground, Theme.dimForeground));
+        tryCompare(band.ink, "stateSeeding", Theme.on.selectedCursor.green);
+        compare(row.stateColor, band.ink[row.stateRole]);
+        table.moveCursorTo(3);
+        compare(band.ink.ground, Theme.on.selected);
+        tryCompare(findChild(table, "category_2"), "color", Theme.on.selected.dimForeground);
+        // The row beside it is not selected: its words are its own ground's (the window's,
+        // or the hover fill's while the pointer is on it).
+        const other = findChild(table, "row_1").children.find(child => child.ink !== undefined);
+        verify(other.ink.ground !== Theme.on.selected && other.ink.ground !== Theme.on.selectedCursor);
+        tryCompare(findChild(table, "category_1"), "color", other.ink.ground.dimForeground);
+    }
+
     function test_the_name_elides_and_keeps_the_category_visible() {
         testCase.cellProbe = findChild(table, "name_4");
         verify(testCase.cellProbe);
         compare(testCase.cellProbe.elide, Text.ElideRight);
         testCase.cellProbe = findChild(table, "category_4");
         verify(testCase.cellProbe);
-        compare(testCase.cellProbe.color, Theme.dimForeground);
+        // Dim, as it reads on the row's ground (DECISIONS C30 F1): the band's ink.
+        const row = findChild(table, "row_4");
+        const band = row.children.find(child => child.ink !== undefined);
+        verify(band);
+        tryCompare(testCase.cellProbe, "color", band.ink.dimForeground);
+        tryCompare(band.ink, "dimForeground", Theme.inkOf(Theme.dimForeground, band.ink.ground));
         compare(testCase.cellProbe.font.pixelSize, Theme.font.small);
     }
 

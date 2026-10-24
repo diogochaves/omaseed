@@ -163,14 +163,14 @@ Sheet {
                     Layout.topMargin: Theme.space(2)
                     border.color: partRow.ticked ? Theme.accent : Theme.fill(Theme.borderIdle)
                     border.width: 1
-                    color: partRow.ticked ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b,
-                                                    Theme.fillPressed) : "transparent"
+                    // The ticked tint, its ✓ lifted against it (docs/DECISIONS.md C30 F5).
+                    color: partRow.ticked ? Theme.on.ticked.fill : "transparent"
                     implicitHeight: Theme.space(14)
                     implicitWidth: Theme.space(14)
 
                     Label {
                         anchors.centerIn: parent
-                        bright: true
+                        color: Theme.on.ticked.brightForeground
                         size: "caption"
                         text: Glyphs.check
                         visible: partRow.ticked

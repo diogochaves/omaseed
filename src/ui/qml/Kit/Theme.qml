@@ -150,6 +150,9 @@ ThemeBase {
     readonly property int actionBarInsetEnd: statusLineInsetEnd
     /// Its ground, a fill over the window's (board 46 `.status.sel`: the 8 % fill).
     readonly property real actionBarFill: fillHover
+    /// The same ground as `Theme.on`'s, which the bar paints and takes its words from
+    /// (DECISIONS C30 F1): a skin that moves the bar's fill moves its text with it.
+    readonly property ThemeInk actionBarGround: on.hover
     /// A button, square, inside the line with a little room above and below it.
     readonly property int actionBarButtonSize: statusLineHeight - space(4)
     /// Between two buttons, and a group's hairline: its room and how far it stops short of

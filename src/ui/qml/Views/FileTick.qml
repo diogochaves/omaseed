@@ -17,10 +17,25 @@ Item {
     property int wanted: 2
     property string tip: ""
     property Tooltip tooltip: null
+    /// The row the cell sits on (its TableRow's `ink`, docs/DECISIONS.md C30 F1); null is the
+    /// window.
+    property Ink ink: null
 
     signal clicked
 
     readonly property bool hovered: mouse.containsMouse
+    /// The mark's colours: resting, the row's; under the pointer, on the cell's own hover fill:
+    /// over the window the hover ground, over a 4 % block the hover in a block, over a filled
+    /// row its fill (no ground of its own: the row's bright foreground).
+    readonly property ThemeInk _rest: root.ink !== null ? root.ink.ground : Theme.on.window
+    readonly property color _foreground: root.ink !== null ? root.ink.foreground : Theme.foreground
+    readonly property color _dim: root.ink !== null ? root.ink.dimForeground : Theme.dimForeground
+    readonly property color _hot: {
+        if (root._rest === Theme.on.window)
+            return Theme.on.hover.brightForeground;
+        return root._rest === Theme.on.idle ? Theme.on.blockHover.brightForeground
+                                            : root.ink.brightForeground;
+    }
 
     // #77: a screen reader finds a check box, "download", checked when nothing under it is
     // skipped and mixed when some is; the tip (what a click does, and its key) is the
@@ -48,7 +63,7 @@ Item {
 
     Rectangle {
         anchors.centerIn: parent
-        color: mouse.containsMouse ? Theme.fill(Theme.fillHover) : "transparent"
+        color: mouse.containsMouse ? Theme.on.hover.fill : "transparent"
         height: Theme.railRowHeight - Theme.space(6)
         radius: Theme.cornerRadius
         width: root.width + Theme.space(6)
@@ -56,8 +71,7 @@ Item {
 
     Text {
         anchors.centerIn: parent
-        color: mouse.containsMouse ? Theme.brightForeground : root.wanted === 0 ? Theme.dimForeground
-                                                                                : Theme.foreground
+        color: mouse.containsMouse ? root._hot : root.wanted === 0 ? root._dim : root._foreground
         font.family: Theme.fontFamily
         font.pixelSize: Theme.font.small
         objectName: "fileTickGlyph"

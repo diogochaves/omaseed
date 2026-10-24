@@ -216,7 +216,7 @@ Item {
         Accessible.onPressAction: if (foldedColumn.enabled)
                                       root.toggleFold()
 
-        color: foldedMouse.containsMouse ? Theme.fill(Theme.fillHover) : "transparent"
+        color: foldedMouse.containsMouse ? Theme.on.hover.fill : "transparent"
         height: root.docked ? root.height : root.foldedExtent
         objectName: "foldedColumn"
         visible: root._shut && (root.docked || root.foldedBar === null)
@@ -232,10 +232,19 @@ Item {
             width: root.docked ? Theme.space(3) : Theme.space(28)
         }
 
+        // docs/DECISIONS.md C30 F1: the chevron on the hover fill while the pointer is on the
+        // column; the fill comes and goes at once, so does it.
+        Ink {
+            id: foldedInk
+
+            animated: false
+            ground: foldedMouse.containsMouse ? Theme.on.hover : Theme.on.window
+        }
+
         // Placed by x/y, not anchors: anchors switched by `docked` kept the old ones and drew
         // the chevron in the middle of the table after a placement change.
         Label {
-            color: Theme.accent
+            color: foldedInk.accent
             objectName: "foldedChevron"
             size: "small"
             text: root.docked ? Glyphs.chevronLeft : Glyphs.chevronUp

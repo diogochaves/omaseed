@@ -1286,6 +1286,12 @@ Item {
                 elides: true
                 descending: root.filtered.sortOrder === Qt.DescendingOrder
                 dragging: internal.dragKey.length > 0
+                // The column being dragged: its caption on the selected fill below.
+                ink: Ink {
+                    animated: false
+                    ground: internal.dragKey === headerCell.modelData.key ? Theme.on.selected
+                                                                          : Theme.on.window
+                }
                 objectName: "header_" + headerCell.modelData.key
                 sorted: root.sortRoleName === headerCell.modelData.role
                 text: headerCell.modelData.title
@@ -1326,7 +1332,7 @@ Item {
                 // The column being dragged.
                 Rectangle {
                     anchors.fill: parent
-                    color: Theme.fill(Theme.fillSelected)
+                    color: Theme.on.selected.fill
                     visible: internal.dragKey === headerCell.modelData.key
                 }
             }
@@ -1521,7 +1527,7 @@ Item {
             readonly property bool editing: root.renaming && row.index === internal.renameIndex
             readonly property bool isCursor: row.index === root.cursorIndex
             readonly property bool isSelected: root.isRowSelected(row.index)
-            readonly property color stateColor: Theme[row.stateRole]
+            readonly property color stateColor: band.ink[row.stateRole]
             readonly property string statusGlyph: {
                 const glyph = root.statusGlyphs[row.stateText];
                 return glyph !== undefined ? glyph : Glyphs.dot;
@@ -1541,8 +1547,8 @@ Item {
                              "kind": "failed"
                          } : null;
             }
-            readonly property color markColor: row.mark !== null && row.mark.kind === "failed" ? Theme.red
-                                                                                              : Theme.green
+            readonly property color markColor: row.mark !== null && row.mark.kind === "failed" ? band.ink.red
+                                                                                              : band.ink.green
 
             /// A left click on the row with `modifiers`: the pointer's, and a screen reader's
             /// press (#77), which is a plain one.
@@ -1660,16 +1666,12 @@ Item {
                 Accessible.ignored: true
                 anchors.fill: parent
                 hasCursor: row.isCursor
+                // The hover fill of `.tbl .r:hover`. `TableRow`'s own MouseArea never sees these
+                // events (the delegate's one is on top), so the hover state comes from here; it
+                // is a ground like the others, and every cell's words take `band.ink`
+                // (docs/DECISIONS.md C30 F1, F4).
+                hovered: pointer.containsMouse
                 selected: row.isSelected
-
-                // The hover fill of `.tbl .r:hover`. `TableRow` carries the cursor and
-                // selection bands only, and its own MouseArea never sees these events (the
-                // delegate's one is on top), so the hover state lives here.
-                Rectangle {
-                    anchors.fill: parent
-                    color: Theme.fill(Theme.fillHover)
-                    visible: pointer.containsMouse && !row.isSelected && !row.isCursor
-                }
 
                 // #24 T5 (docs/22 §6 `.pulse`): the row is sending. Opacity .25 → 1 → .25 over
                 // a breath, on the table's clock; still (and whole) when the clock is off or
@@ -1681,7 +1683,7 @@ Item {
                     readonly property bool onScreen: row.y + row.height > list.contentY
                                                      && row.y < list.contentY + list.height
 
-                    color: Theme.stateSeeding
+                    color: band.ink.stateSeeding
                     height: parent.height - 2 * pulseTick.y
                     objectName: "pulse_" + row.index
                     opacity: pulseTick.sending && root.pulseRunning && pulseTick.onScreen
@@ -1702,7 +1704,7 @@ Item {
 
                     readonly property bool onTick: pointer.containsMouse && pointer.mouseX < root.tickWidth
 
-                    color: row.isSelected || tick.onTick ? Theme.accent : Theme.foreground
+                    color: row.isSelected || tick.onTick ? band.ink.accent : band.ink.foreground
                     font.family: Theme.fontFamily
                     font.pixelSize: Theme.font.small
                     height: parent.height
@@ -1756,7 +1758,7 @@ Item {
                         anchors.left: nameText.right
                         anchors.leftMargin: Theme.space(8)
                         anchors.verticalCenter: parent.verticalCenter
-                        color: Theme.dimForeground
+                        color: band.ink.dimForeground
                         font.family: Theme.fontFamily
                         font.pixelSize: Theme.font.small
                         objectName: "category_" + row.index
@@ -1772,7 +1774,7 @@ Item {
                         anchors.left: categoryText.visible ? categoryText.right : nameText.right
                         anchors.leftMargin: Theme.space(8)
                         anchors.verticalCenter: parent.verticalCenter
-                        color: Theme.magenta
+                        color: band.ink.magenta
                         font.family: Theme.fontFamily
                         font.pixelSize: Theme.font.small
                         objectName: "private_" + row.index
@@ -1834,7 +1836,7 @@ Item {
                         anchors.right: parent.right
                         anchors.rightMargin: Theme.space(8)
                         anchors.verticalCenter: parent.verticalCenter
-                        color: Theme.dimForeground
+                        color: band.ink.dimForeground
                         font.family: Theme.fontFamily
                         font.features: ({
                                 "tnum": 1
@@ -1868,7 +1870,7 @@ Item {
                         anchors.left: parent.left
                         anchors.leftMargin: Theme.space(8)
                         anchors.verticalCenter: parent.verticalCenter
-                        color: row.mark !== null ? row.markColor : row.stuckMove ? Theme.stateError
+                        color: row.mark !== null ? row.markColor : row.stuckMove ? band.ink.stateError
                                                                                  : row.stateColor
                         height: Theme.font.body
                         objectName: "statusGlyph_" + row.index
@@ -1886,7 +1888,7 @@ Item {
                         anchors.right: parent.right
                         anchors.rightMargin: Theme.space(8)
                         anchors.verticalCenter: parent.verticalCenter
-                        color: row.mark !== null ? row.markColor : row.stuckMove ? Theme.stateError
+                        color: row.mark !== null ? row.markColor : row.stuckMove ? band.ink.stateError
                                                                                  : row.errorStopped ? row.stateColor
                                                                                                     : band.textColor
                         elide: Text.ElideRight
@@ -2017,12 +2019,12 @@ Item {
                         }
 
                         color: textCell.step !== null && textCell.step !== undefined
-                               ? (textCell.step.kind === "ok" ? Theme.green : textCell.step.kind === "bad"
-                                                                ? Theme.red : textCell.step.kind === "busy"
-                                                                  ? Theme.accent : Theme.dimForeground)
-                               : textCell.rare ? Theme.yellow
+                               ? (textCell.step.kind === "ok" ? band.ink.green : textCell.step.kind === "bad"
+                                                                ? band.ink.red : textCell.step.kind === "busy"
+                                                                  ? band.ink.accent : band.ink.dimForeground)
+                               : textCell.rare ? band.ink.yellow
                                                : textCell.isRatio && textCell.ratio >= textCell.ratioGoal
-                                                 ? Theme.stateSeeding : band.textColor
+                                                 ? band.ink.stateSeeding : band.textColor
                         // Board 42 M3: a save path is cut from the left, so the folder that
                         // differs stays in sight.
                         elide: textCell.modelData.key === "savePath" ? Text.ElideLeft : Text.ElideRight
@@ -2049,7 +2051,7 @@ Item {
                         // T3: "only you" boxed in the rare colour.
                         Rectangle {
                             anchors.verticalCenter: parent.verticalCenter
-                            border.color: Qt.alpha(Theme.yellow, 0.4)
+                            border.color: Qt.alpha(band.ink.yellow, 0.4)
                             border.width: 1
                             color: "transparent"
                             height: Theme.font.body + Theme.space(4)
@@ -2077,7 +2079,7 @@ Item {
                                 width: Theme.space(20)
 
                                 Rectangle {
-                                    color: Theme.foreground
+                                    color: band.ink.foreground
                                     height: parent.height
                                     opacity: 0.45
                                     width: parent.width * Math.min(1, textCell.ratio)
@@ -2090,7 +2092,7 @@ Item {
                                 width: Theme.space(16)
 
                                 Rectangle {
-                                    color: Theme.stateSeeding
+                                    color: band.ink.stateSeeding
                                     height: parent.height
                                     width: parent.width * Math.max(0, Math.min(1, (textCell.ratio - 1)
                                                                                / (textCell.ratioGoal - 1)))
@@ -2279,14 +2281,15 @@ Item {
             Rectangle {
                 anchors.fill: parent
                 anchors.margins: 1
-                color: Theme.fill(Theme.fillIdle)
+                color: Theme.on.idle.fill
             }
 
+            // The name on the field's idle fill, its selected part on the 35 % accent
+            // highlight over that (docs/DECISIONS.md C30 F1, F5).
             TextInput {
                 id: editor
 
-                readonly property color accent: Theme.accent
-                readonly property color highlight: Qt.rgba(editor.accent.r, editor.accent.g, editor.accent.b, 0.35)
+                readonly property color highlight: Theme.on.highlight.fill
 
                 // #91: the inline rename's field, by what it edits.
                 Accessible.name: qsTr("torrent name")
@@ -2296,11 +2299,11 @@ Item {
                 anchors.leftMargin: Theme.space(6)
                 anchors.rightMargin: Theme.space(6)
                 clip: true
-                color: Theme.brightForeground
+                color: Theme.on.idle.brightForeground
                 font.family: Theme.fontFamily
                 font.pixelSize: Theme.font.body
                 selectByMouse: true
-                selectedTextColor: Theme.brightForeground
+                selectedTextColor: Theme.on.highlight.brightForeground
                 selectionColor: editor.highlight
                 text: root.renameText
                 verticalAlignment: TextInput.AlignVCenter

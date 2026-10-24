@@ -26,6 +26,12 @@ Item {
 
     signal clicked
 
+    /// The row's ground: the cursor's fill on the current row, the hover fill under the pointer
+    /// (docs/DECISIONS.md C30 F1). Its words take that ground's colours; the colours a caller
+    /// gives are window roles, painted as the ground's of the same (C30 F3).
+    readonly property ThemeInk ground: Theme.ground(false, root.current,
+                                                    hover.hovered && root.clickable, false)
+
     // #77: a row that shows its torrent is a list item named by it, its notes the
     // description, and its press is the click; a row that takes no click (the empty line) is
     // text.
@@ -41,8 +47,7 @@ Item {
         anchors.fill: parent
         border.color: root.current ? Theme.fill(0.25) : "transparent"
         border.width: 1
-        color: hover.hovered && root.clickable ? Theme.fill(Theme.fillHover)
-                                               : root.current ? Theme.fill(Theme.fillHover) : "transparent"
+        color: root.ground === Theme.on.window ? "transparent" : root.ground.fill
     }
 
     RowLayout {
@@ -53,7 +58,7 @@ Item {
 
         Text {
             Layout.preferredWidth: Theme.space(14)
-            color: root.glyphColor
+            color: Theme.inkOf(root.glyphColor, root.ground)
             font.family: Theme.fontFamily
             font.pixelSize: Theme.font.small
             horizontalAlignment: Text.AlignHCenter
@@ -65,7 +70,7 @@ Item {
             id: nameText
 
             Layout.fillWidth: true
-            color: Theme.foreground
+            color: root.ground.foreground
             elide: Text.ElideRight
             font.family: Theme.fontFamily
             font.pixelSize: Theme.font.small
@@ -117,7 +122,7 @@ Item {
 
         Text {
             Layout.preferredWidth: root.noteWidth
-            color: root.noteColor
+            color: Theme.inkOf(root.noteColor, root.ground)
             elide: Text.ElideRight
             font.family: Theme.fontFamily
             font.pixelSize: Theme.font.caption
@@ -128,7 +133,7 @@ Item {
 
         Text {
             Layout.preferredWidth: root.trailingWidth
-            color: root.trailingColor
+            color: Theme.inkOf(root.trailingColor, root.ground)
             elide: Text.ElideRight
             font.family: Theme.fontFamily
             font.pixelSize: Theme.font.caption

@@ -63,7 +63,7 @@ Item {
 
         anchors.top: labels.bottom
         anchors.topMargin: Theme.space(4)
-        color: Theme.fill(Theme.fillIdle)
+        color: Theme.on.idle.fill
         height: Theme.space(10)
         width: parent.width
 

@@ -63,7 +63,8 @@ TestCase {
         compare(line.summaryText, "fetching · 3 s");
         compare(line.summaryWarn, false);
         compare(line.glyph, Glyphs.lookup);
-        compare(line.glyphColor, Theme.dimForeground);
+        // On the line's 4 % block: the dim role as it reads there (DECISIONS C30 F1).
+        compare(line.glyphColor, Theme.on.idle.dimForeground);
         compare(line.headline, "Asking qBittorrent for the file list");
         compare(line.lines.length, 1);
         verify(line.lines[0].indexOf("usually in a few seconds") > 0);

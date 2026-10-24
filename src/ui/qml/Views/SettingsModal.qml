@@ -2154,8 +2154,10 @@ Item {
                                     border.color: helpKeyHover.hovered ? Theme.fill(Theme.borderHover)
                                                                        : Theme.fill(Theme.borderIdle)
                                     border.width: 1
-                                    color: helpKeyHover.hovered ? Theme.fill(Theme.fillHover)
-                                                                : Theme.fill(Theme.fillIdle)
+                                    // Its idle fill, the hover fill under the pointer; the
+                                    // key on that ground (docs/DECISIONS.md C30 F1).
+                                    color: helpKeyHover.hovered ? Theme.on.hover.fill
+                                                                : Theme.on.idle.fill
                                     implicitHeight: keyText.implicitHeight + Theme.space(2)
                                     implicitWidth: Math.max(implicitHeight, keyText.implicitWidth
                                                             + Theme.space(10))
@@ -2166,7 +2168,8 @@ Item {
                                         id: keyText
 
                                         anchors.centerIn: parent
-                                        color: Theme.brightForeground
+                                        color: helpKeyHover.hovered ? Theme.on.hover.brightForeground
+                                                                    : Theme.on.idle.brightForeground
                                         font.family: Theme.fontFamily
                                         font.pixelSize: Theme.font.small
                                         font.weight: Font.Medium
