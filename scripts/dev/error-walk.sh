@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # omaseed — the error walkthrough (docs/28, #54): a torrent goes into error while the app
-# runs, and the app says why, from qBittorrent's log. Its row shows the short cause, General
-# opens with the error block, and one notice carries the reason. Stopped, from the API and
+# runs, and the app says why, from qBittorrent's log. Its row shows the short cause, the story
+# (DECISIONS C24 H6) opens with the error block, and one notice carries the reason. Stopped, from the API and
 # then with `p`, the row reads "stopped" in red (DECISIONS C20, #142); then it is moved to a
 # writable folder and `e` (retry) brings it back. Then (docs/32, #55) a move out of a
-# folder that can't be written fails: General's yellow block, the footer's note when the app
+# folder that can't be written fails: the story's yellow block, the footer's note when the app
 # asked for it, and the block gone once the move lands. Last, a torrent whose files are gone
 # after a restart shows the missing-files block.
 #
@@ -90,7 +90,7 @@ launch() {
     sleep 2.5
 }
 
-# show NAME: put the table's cursor on NAME (the jump palette). General is the tab a fresh
+# show NAME: put the table's cursor on NAME (the jump palette). The story is the tab a fresh
 # app opens on; the digits would pick rail rows from the table.
 show() {
     omabox keys -b "$BOX" --window "$APP_ID" ctrl+k -t "$1" Return >/dev/null
@@ -274,7 +274,7 @@ notice_up 30 || true
 step "Notice" "Top right: \"$BROKEN stopped with an error\" / \"Can't write to its save folder: Permission denied, opening $BROKEN\", in the shell's toast style."
 
 show "$BROKEN"
-step "Error block" "The row's status reads \"! no access\" (not \"error\"). General opens with the red-ruled block: ✕ Can't write to its save folder; Permission denied, opening $BROKEN; the swarm-readonly folder; qBittorrent's log · today HH:MM; then m move… · e retry · copy the line. The Status row reads \"error · no access\"."
+step "Error block" "The row's status reads \"! no access\" (not \"error\"). The story opens with the red-ruled block: ✕ Can't write to its save folder; Permission denied, opening $BROKEN; the swarm-readonly folder; qBittorrent's log · today HH:MM; then m move… · e retry · copy the line. The fact reads \"no access\" in red over \"needs you\"; facts' Status row \"error · no access\"."
 
 check "one errored notice, with the reason in its body" one_notice_with_reason
 
@@ -286,7 +286,7 @@ check "a stop sent from the API: the server's stopped filter lists it" broken_st
 # The app reads the filter after its next poll (1.5 s); the screen is the only place it
 # shows, and `p` below is the check: it starts only a torrent the app knows is stopped.
 sleep 4
-step "Stopped elsewhere" "Stopped through the API, not omaseed. The row's status reads \"! stopped\", the word and the glyph in the error colour, whole at the column's default width; General's Status row \"error · stopped · no access\", the block unchanged (m move… · e retry)."
+step "Stopped elsewhere" "Stopped through the API, not omaseed. The row's status reads \"! stopped\", the word and the glyph in the error colour, whole at the column's default width; facts' Status row \"error · stopped · no access\", the block unchanged (m move… · e retry)."
 check "the stopped errored torrent is still in error" wait_state "$BROKEN" "^error" 5
 
 # `p` on a stopped errored torrent starts it (the retry); on one that runs, it stops it. Had
@@ -307,7 +307,7 @@ wait_state "$BROKEN" "^error" 10 || true
 omabox keys -b "$BOX" --window "$APP_ID" e >/dev/null
 check "e on the errored row retries it, and it downloads from the new folder" broken_moves_again
 sleep 3
-step "Tried again" "$BROKEN downloads or seeds again from swarm-writable: no block in General, the status cell back to a plain state."
+step "Tried again" "$BROKEN downloads or seeds again from swarm-writable: no block in the story, the status cell back to a plain state."
 check "trying again sent no second notice" still_one_notice
 
 # docs/32 (#55): a move that answers "OK" and fails. Once the fixture is whole, its folder
@@ -323,7 +323,7 @@ moves_failed 1 20 || true
 show "$BROKEN"
 # Nobody watched this move: the app finds it at its next look at the log, every 15 s.
 sleep 16
-step "Move failed" "General opens with a yellow-ruled block: ! The move to downloads/swarm-moved didn't happen; Permission denied, moving $BROKEN; Its files are still in …/swarm-writable; qBittorrent's log · today HH:MM; m set location · o open folder · x dismiss. The row still reads seeding (the table is unchanged)."
+step "Move failed" "The story opens with a yellow-ruled block: ! The move to downloads/swarm-moved didn't happen; Permission denied, moving $BROKEN; Its files are still in …/swarm-writable; qBittorrent's log · today HH:MM; m set location · o open folder · x dismiss. The row still reads seeding (the table is unchanged)."
 check "the move failed, and qBittorrent said so in its log only" moves_failed 1 1
 move_from_app
 moves_failed 2 20 || true
@@ -334,7 +334,7 @@ chmod 755 "$WRITABLE"
 move_from_app
 check "with the folder writable, the move landed" moved_to "$MOVED" 30
 sleep 2
-step "Moved" "$BROKEN is in swarm-moved: no block in General, its save path ends in swarm-moved."
+step "Moved" "$BROKEN is in swarm-moved: no block in the story, its save path ends in swarm-moved."
 
 "$SWARM" fix >/dev/null
 rm -rf -- "$WRITABLE" "$MOVED"
@@ -343,7 +343,7 @@ wait_state "$MISSING" "^missingFiles" 60 || true
 check "the app reconnects to the restarted playground by itself" app_back 40
 sleep 2 # its first poll after that reads the new log
 show "$MISSING"
-step "Missing files" "$MISSING: the row reads \"! missing\"; General opens with the yellow-ruled block: ! Its files aren't where qBittorrent left them; Moved, deleted or changed since qBittorrent last ran (mismatching file size); the swarm folder; qBittorrent's log · today HH:MM; m set location · c recheck · copy the line."
+step "Missing files" "$MISSING: the row reads \"! missing\"; the story opens with the yellow-ruled block: ! Its files aren't where qBittorrent left them; Moved, deleted or changed since qBittorrent last ran (mismatching file size); the swarm folder; qBittorrent's log · today HH:MM; m set location · c recheck · copy the line."
 check "missing files at a server's start sends no notice" still_one_notice
 
 if [ "$INTERACTIVE" = 0 ]; then

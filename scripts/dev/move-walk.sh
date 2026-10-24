@@ -892,7 +892,7 @@ expect_prios "x on the half-ticked Disc 1 unticks it" 000000
 shot "The Files tab: Disc 1 unticked by one x on its half tick." files
 keys x
 expect_prios "x again brings back parts 0 and 1 only" 110000
-# The details back on General and hidden, as the steps after this one expect them.
+# The details back on the story and hidden, as the steps after this one expect them.
 keys 1 i
 keys Escape
 table_on "Big Collection 1"
@@ -967,10 +967,10 @@ expect_text "and the second's" "omaseed moved 3 torrents to $SEL/hist2" 5
 shot "The log: a line for each move, with move back… at its end." log
 keys asciitilde
 
-step "The first move back, from a torrent's details" "Short Film 023's General tab shows its last move (B1). move back…: the sheet for the four; 3 were moved again since, by the move to ~/sel/hist2, with move that one back first; the button reads move 1 back · 3 stay. move that one back first opens the second move's sheet: move 3 back, and they land on ~/sel/hist. Short Film 023's move back… again: move 4 back, whole again; they all land where they were."
+step "The first move back, from a torrent's details" "Short Film 023's story shows its last move (B1). move back…: the sheet for the four; 3 were moved again since, by the move to ~/sel/hist2, with move that one back first; the button reads move 1 back · 3 stay. move that one back first opens the second move's sheet: move 3 back, and they land on ~/sel/hist. Short Film 023's move back… again: move 4 back, whole again; they all land where they were."
 table_on "Short Film 023"
 find_text "Moved today" || keys i
-expect_text "General shows its last move" "Moved today" 20
+expect_text "the story shows its last move" "Moved today" 20
 expect_text "from where it was" "from ${hist_from[023]} to $SEL/hist" 5
 shot "Short Film 023's details: its last move, move back…, this one only, show the move." details
 press "move back…"

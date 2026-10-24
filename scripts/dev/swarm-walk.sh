@@ -72,7 +72,8 @@ launch() {
     sleep 2.5
 }
 
-# show NAME TAB: put the cursor on NAME (the jump palette) and open details tab TAB (1-4).
+# show NAME TAB: put the cursor on NAME (the jump palette) and open details tab TAB: 1 story,
+# 2 files, 3 swarm, 4 trackers, 5 facts (DECISIONS C24 H6).
 # Each step restarts the app so it starts from the same state whatever the last step did.
 show() {
     launch
@@ -140,7 +141,7 @@ launch
 # ---- the walk -----------------------------------------------------------------------------
 wait_state "Open Movie" "^downloading 0\.0[2-9]|^downloading 0\.[1-9]" 90
 [ "$INTERACTIVE" = 1 ] || show "Open Movie" 1
-step "Downloading" "Open Movie Night: status downloading, a moving speed and ETA, the pieces bar partly filled, the status line's ↓ near 1 MiB/s. Two downloads run; the rest are queued."
+step "Downloading" "Open Movie Night: status downloading, a moving speed and ETA; its details open on the story: the time to ready large in blue with \"to ready\", the sentence \"N % of SIZE · from N seeds at SPEED.\", the pieces bar partly filled, what happened (Added, into swarm). The status line's ↓ near 1 MiB/s. Two downloads run; the rest are queued."
 rows "Downloading" "The rows display, grouped: under ARRIVING the two downloads say their time to ready (\"to ready\") and \"N % of SIZE · from N seeds at SPEED\", the queued ones \"next\" or \"queued\" in line; heads in the rail's order, each with its count and a short line."
 [ "$INTERACTIVE" = 1 ] || show "Open Movie" 2
 step "Files tree" "Open Movie Night's Files tab: the film, extras/, subs/ (english, português (Brasil), 日本語) and sample/, with per-file progress."
@@ -148,23 +149,23 @@ step "Files tree" "Open Movie Night's Files tab: the film, extras/, subs/ (engli
 step "Many files" "photo-archive: 1 208 files in 92 folders by year and month; scrolling and folding stay smooth."
 wait_state "tiny-notes" "UP|^uploading" 30
 [ "$INTERACTIVE" = 1 ] || show "tiny-notes" 1
-step "Seeding" "tiny-notes.txt: finished, seeding (also when nobody is downloading from it), done 100 %, ETA —, the rail counts it under landed today (giving back once local midnight has passed). Each finished download raises a \"Download complete\" notification in the box (often caught by the first shots)."
+step "Seeding" "tiny-notes.txt: finished, seeding (also when nobody is downloading from it), done 100 %, ETA —, the rail counts it under landed today (giving back once local midnight has passed). Its story: the time it landed in green, \"landed\", and what happened: Added (Finished downloading under it once it took a second or more). Each finished download raises a \"Download complete\" notification in the box (often caught by the first shots)."
 rows "Seeding" "tiny-notes.txt under LANDED TODAY: the time it landed and \"landed\", \"in swarm · 4 KB · given back 0.0× so far\"; the head says \"since midnight\"."
 wait_state "Spaces & Symbols" "UP|^uploading" 60
-[ "$INTERACTIVE" = 1 ] || show "Spaces & Symbols" 1
-step "Long unicode name" "The v2-only torrent: its long unicode name elides in the table and the details head; General shows a v2 hash and no v1."
-[ "$INTERACTIVE" = 1 ] || show "Open Movie" 4
-step "Peers" "Open Movie Night's Peers tab: the seeder at 127.0.0.1:26997, qBittorrent 5.2.3, sending."
+[ "$INTERACTIVE" = 1 ] || show "Spaces & Symbols" 5
+step "Long unicode name" "The v2-only torrent: its long unicode name elides in the table and the details head; facts shows a v2 hash and no v1."
+[ "$INTERACTIVE" = 1 ] || show "Open Movie" 3
+step "Swarm" "Open Movie Night's swarm tab: the seeder at 127.0.0.1:26997, qBittorrent 5.2.3, sending."
 
 "$SWARM" break crowd >/dev/null
 sleep 6
-[ "$INTERACTIVE" = 1 ] || show "Open Movie" 1
-step "Crowded swarm" "General's seeds and peers: 1 connected of 13 seeds, 40 more peers than there are (the tracker's extra counts)."
+[ "$INTERACTIVE" = 1 ] || show "Open Movie" 5
+step "Crowded swarm" "Facts' seeds and peers: 1 connected of 13 seeds, 40 more peers than there are (the tracker's extra counts)."
 
 "$SWARM" break tracker >/dev/null
 sleep 6
-[ "$INTERACTIVE" = 1 ] || show "Spaces & Symbols" 3
-step "Tracker error" "The unicode torrent: the Trackers tab says \"unregistered torrent (omaseed swarm)\", the tab carries its error badge, the table row shows the tracker error."
+[ "$INTERACTIVE" = 1 ] || show "Spaces & Symbols" 4
+step "Tracker error" "The unicode torrent: the trackers tab says \"unregistered torrent (omaseed swarm)\", the tab carries its error badge, the table row shows the tracker error."
 
 "$SWARM" break dead >/dev/null
 # until qBittorrent has tried 127.0.0.1:9 and marked it not working (status 4)
@@ -177,13 +178,13 @@ import json, sys
 sys.exit(0 if any(t["url"].endswith(":9/announce") and t["status"] == 4 for t in json.load(sys.stdin)) else 1)' && break
     sleep 0.5
 done
-[ "$INTERACTIVE" = 1 ] || show "distro" 3
-step "Dead tracker" "distro ISO's Trackers tab: 127.0.0.1:26996 working, 127.0.0.1:9 not working (connection refused)."
+[ "$INTERACTIVE" = 1 ] || show "distro" 4
+step "Dead tracker" "distro ISO's trackers tab: 127.0.0.1:26996 working, 127.0.0.1:9 not working (connection refused)."
 
 "$SWARM" break error >/dev/null
 wait_state "unwritable" "^error" 30
 [ "$INTERACTIVE" = 1 ] || show "unwritable" 1
-step "Error" "unwritable-fixture.bin: status error (its save path is read-only); the rail counts it under needs you, in red."
+step "Error" "unwritable-fixture.bin: status error (its save path is read-only); the rail counts it under needs you, in red. Its story opens with the red error block (Can't write to its save folder), the fact \"no access\" in red over \"needs you\"."
 rows "Error" "unwritable-fixture.bin first, under NEEDS YOU in red: its short cause on the right in red over \"needs you\", the long cause under the name, and its fix (\"retry\") as a button."
 
 "$SWARM" break stall >/dev/null
