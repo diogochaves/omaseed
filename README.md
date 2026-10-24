@@ -189,6 +189,27 @@ or its link fetched through the plugin; `space` shows it on the right, `c` copie
 `o` opens its page in the browser, `/` filters the results. Search isn't offered on a server
 without plugins to run.
 
+## Create a torrent
+
+"+ add ▾", `ctrl+n`, `:` or a folder's menu in the rail opens **Create a torrent**; a folder
+dropped on the window does too. Pick the folder (or one file) with the Move sheet's places and
+browse, and say who it is for. The server's qBittorrent hashes it, in the band a move uses
+while it takes more than a few seconds; you can close the window meanwhile.
+
+- **For anyone**: it seeds at once from where the files are, nothing copied or moved, and its
+  magnet is on the clipboard. The trackers offered are the public ones your library uses most,
+  or the last ones you chose; none is fine (DHT and peer exchange).
+- **For a private tracker**: pick the tracker from your library's private ones; its announce
+  URL comes from your newest torrent there and the passkey only ever shows as dots, never in a
+  log or a file of omaseed's. The private flag, v1 and the source tag you used there are
+  filled in. The `.torrent` is saved as "NAME [HOST].torrent" in your Downloads, not added,
+  ready to drag into the site's upload form. When the site's copy comes back, the add sheet
+  knows it and points it at your folder, so it seeds without downloading anything.
+
+v1 is the default either way, and the piece size qBittorrent will choose shows before you
+create, with an override. omaseed checks the folder first and says in its own words when it is
+missing, unreadable or empty. Create needs qBittorrent's Web API 2.10.4 or later.
+
 ## Keys
 
 Every key comes from one table (`src/ui/qml/Keymap.qml`), and the `?` sheet is drawn from
@@ -244,6 +265,7 @@ selected, the status line becomes the action bar: their verbs as words, "all act
 | Key | Does |
 |---|---|
 | `a` | add |
+| `ctrl+n` | create a torrent from a folder |
 | `enter` | actions menu |
 | `p` `P` | stop/start · force start |
 | `d` `D` | delete · delete with files |
