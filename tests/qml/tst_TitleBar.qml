@@ -86,6 +86,31 @@ TestCase {
     }
 
     // H5: a folder picked brings "move this folder…" before the filter.
+    // DECISIONS C24 H3–H4: the display tool between the filter and "+ add", its word and ▾;
+    // its glyph alone from step 1; none where there is no library (display "").
+    function test_the_display_tool() {
+        const bar = make({
+                             "display": "rows"
+                         });
+        const tool = findChild(bar, "titleDisplay");
+        verify(tool.visible);
+        compare(tool.text, "rows ▾");
+        compare(tool.Accessible.name, "display: rows");
+        verify(testCase.xOf(bar, "titleFilter") < testCase.xOf(bar, "titleDisplay"));
+        verify(testCase.xOf(bar, "titleDisplay") < testCase.xOf(bar, "titleAdd"));
+        bar.display = "overview";
+        compare(tool.text, "shelves ▾");
+        bar.display = "table";
+        compare(tool.text, "table ▾");
+        const clicked = testCase.spy(bar, "displayClicked");
+        mouseClick(tool);
+        compare(clicked.count, 1);
+        bar.width = Theme.titleBarSteps[0] - 1;
+        compare(tool.text, "");
+        bar.display = "";
+        verify(!tool.visible);
+    }
+
     function test_a_folder_offers_its_move() {
         const bar = make({
                              "title": "games",
