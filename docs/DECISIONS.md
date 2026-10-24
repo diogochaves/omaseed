@@ -65,6 +65,14 @@ as recommended). The floor is **4.5:1**, WCAG 2.2 AA for normal-size text
   well as before in every theme but is still under 4.5:1 in some: board 38 §4 lists them, and
   they are not ruled yet.
 
+**Changed by C30** (2026-10-23, #90, board [50](50-frame-and-details-notes.html) F1–F7): the
+floor holds against the ground each text is painted on, not only the window. The roles above
+stay the window's; `Theme.on` resolves every role again on each fill and tint (the least lift
+towards the foreground, only where it sits on that fill), so the "not against the row fills"
+bullet and the tints left open above are settled there: a caption on a selected row sits a
+median 1.91:1 under the row's main text (board 50 §1). A theme whose text reads on nothing at a
+fill's alpha has that fill held lower (everforest 0.215).
+
 ## Q23 — A server tested before it is saved keeps its result
 
 Settings → Servers shows each server's version and torrent count from its last test. A test
@@ -1350,6 +1358,14 @@ when only adding the torrent again frees the space).
   alpha gets that fill capped (everforest 0.215). Theme resolves each role on each fill once
   per theme change and the Kit asks for the ground it paints on; `tst_themecontrast` and
   `contrast-board.py` cover every pair, so a theme that fails is a failing test.
+  Built in v0.5.0's frame (S7) as `Theme.on.<ground>` and `Kit/Ink` (ARCHITECTURE's theme rule
+  3). Read as the board reads it: the lift ends at the better of the foreground and the bright
+  foreground, never past the palette (F6 a); a tint is capped the same way against its own
+  colour; a fill inside a 4 % block (a picker's hovered row, a notice's details, the selected
+  text of a rename) is a ground of its own, over the block's. Over the 28 installed themes,
+  board 50's measure finds 1722 of 4648 pairs (15 grounds, 11 roles, and the key badge's
+  background on its accent) under 4.5:1 before and none after; the ctest `contrast_board_check`
+  and `tst_themecontrast` hold Omarchy's 23 at none, under three shell fill sets.
 - **"show" (F8–F11, #167):** offered only when one of the strip's torrents is out of view, out
   of the scope (folder, question, category, tag, filter) or not selected, and live while the
   strip is up. It selects them, puts the cursor on the first and scrolls to it; when one left
