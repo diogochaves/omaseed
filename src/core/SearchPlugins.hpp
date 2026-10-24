@@ -89,6 +89,8 @@ public:
     Q_INVOKABLE void setNote(const QString &name, const QString &note);
     /// Another server: the list, the watches and the notes go.
     void clear();
+    /// search/plugins' answer, as if it had come in (the demo's plugins).
+    void applyList(const QJsonArray &list) { apply(list); }
 
     /// `{name, fullName, categories}` of each plugin that is on.
     QVariantList enabledPlugins() const;

@@ -185,15 +185,22 @@ void SearchSession::stopAsking(const QString &plugin)
     Q_EMIT changed();
 }
 
-void SearchSession::shutdown()
+int SearchSession::shutdown()
 {
     m_poll.stop();
+    int sent = 0;
     for (Job &job : m_jobs) {
-        if (job.id >= 0 && !job.deleted && !m_client.isNull()) {
-            m_client->searchDelete(job.id);
-            job.deleted = true;
-        }
+        if (job.id < 0 || job.deleted || m_client.isNull())
+            continue;
+        job.deleted = true;
+        ++sent;
+        ++m_deleting;
+        m_client->searchDelete(job.id)->then(this, [this](const QbtResult<QByteArray> &) {
+            if (--m_deleting == 0)
+                Q_EMIT jobsDeleted();
+        });
     }
+    return sent;
 }
 
 void SearchSession::forget()

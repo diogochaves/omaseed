@@ -168,6 +168,12 @@ omaseed_add_test(tst_app_magnet
     LIBRARIES omaseed::app omaseed::core omaseed::integration Qt6::Network
 )
 
+# #145: search, against a fake qBittorrent with invented plugins.
+omaseed_add_test(tst_app_search
+    SOURCES tst_app_search.cpp
+    LIBRARIES omaseed::app omaseed::core omaseed::integration Qt6::Network
+)
+
 # #32: export and import of a qBittorrent's settings, on the demo's offline server.
 omaseed_add_test(tst_app_qbtbackup
     SOURCES tst_app_qbtbackup.cpp

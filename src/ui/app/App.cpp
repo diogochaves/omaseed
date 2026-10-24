@@ -281,6 +281,7 @@ App::App(QObject *parent)
     setUpSkipped();
     setUpScope();
     setUpLibraryDisplays();
+    setUpSearch();
 }
 
 App::~App()
@@ -2062,6 +2063,11 @@ QbtClient::AddOptions App::addOptionsFrom(const QVariantMap &request) const
     if (request.value(QStringLiteral("firstLastPiecePrio")).toBool())
         options.firstLastPiecePrio = true;
 
+    // DECISIONS C26 SR9: a search result's link to a .torrent is fetched through its plugin.
+    const QString downloader = request.value(QStringLiteral("downloader")).toString();
+    if (!downloader.isEmpty() && request.value(QStringLiteral("kind")).toString() == QLatin1String("url"))
+        options.downloader = downloader;
+
     return options;
 }
 
@@ -2600,7 +2606,7 @@ void App::setUpMetadataLookup()
     m_addLookup = new MetadataLookup(this);
     m_addLookup->setFetch([this](const QString &source) -> QbtReply<QbtClient::FetchedMetadata> * {
         if (!m_demoMode)
-            return m_client->torrentsFetchMetadata(source);
+            return m_client->torrentsFetchMetadata(source, m_lookupDownloader);
         // Demo: the demo .torrent's magnet answers with its files, anything else looks for
         // ever, as a dead magnet does. Nothing leaves the process.
         auto *reply = new QbtReply<QbtClient::FetchedMetadata>(this);
@@ -2649,10 +2655,8 @@ void App::updateLookupServer()
     m_addLookup->setServer(ready, state->apiVersion());
 }
 
-QString App::privateTrackerOf(const QStringList &trackers) const
+PrivateTrackers App::libraryPrivateTrackers() const
 {
-    if (trackers.isEmpty())
-        return {};
     PrivateTrackers library;
     TorrentModel *model = m_engine->torrents();
     for (int row = 0; row < model->count(); ++row) {
@@ -2673,7 +2677,14 @@ QString App::privateTrackerOf(const QStringList &trackers) const
         if (anyPrivate)
             library.addTorrent(true, groups->data(index, TrackerModel::UrlsRole).toStringList());
     }
-    return library.match(trackers);
+    return library;
+}
+
+QString App::privateTrackerOf(const QStringList &trackers) const
+{
+    if (trackers.isEmpty())
+        return {};
+    return libraryPrivateTrackers().match(trackers);
 }
 
 void App::lookUpMetadata(const QVariantMap &addable)
@@ -2705,6 +2716,9 @@ void App::lookUpMetadata(const QVariantMap &addable)
     }
     if (key != m_addLookup->key())
         m_lookupToken.clear();
+    // C26 SR9: a search result's link goes through its plugin.
+    m_lookupDownloader = kind == QLatin1String("url") ? addable.value(QStringLiteral("downloader")).toString()
+                                                      : QString();
     if (kind == QLatin1String("magnet")) {
         const QString host =
             privateTrackerOf(addable.value(QStringLiteral("trackers")).toStringList());
@@ -2841,8 +2855,8 @@ void App::retryUrlAdd(const QVariantMap &request,
                             request.value(QStringLiteral("filePriorities")).toList());
             });
     };
-    m_client->torrentsFetchMetadata(value)->then(
-        this, [=, this](const QbtResult<QbtClient::FetchedMetadata> &fetched) {
+    m_client->torrentsFetchMetadata(value, options.downloader.value_or(QString()))
+        ->then(this, [=, this](const QbtResult<QbtClient::FetchedMetadata> &fetched) {
             if (fetched.isError()) {
                 fallback();
                 return;

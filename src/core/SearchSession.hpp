@@ -97,8 +97,9 @@ public:
     Q_INVOKABLE void askAgain(const QString &plugin);
     /// "stop asking": a slow plugin's job is stopped; what it sent stays.
     Q_INVOKABLE void stopAsking(const QString &plugin);
-    /// Deletes every job this session started (a quit, SR12); the rows stay.
-    void shutdown();
+    /// Deletes every job this session started (a quit, SR12); the rows stay. Returns how many
+    /// deletes went out; `jobsDeleted()` follows once each has answered.
+    int shutdown();
     /// Lets go of everything without a word to the server (its client now points at another
     /// one); jobIds() first, to delete them when back.
     void forget();
@@ -126,6 +127,8 @@ public:
 Q_SIGNALS:
     void changed();
     void hitsChanged();
+    /// Every delete shutdown() sent has answered.
+    void jobsDeleted();
 
 private:
     struct Job
@@ -176,6 +179,7 @@ private:
     /// Jobs ended with nothing, waiting for the log to say whether they failed.
     bool m_logPending = false;
     bool m_logChecking = false;
+    int m_deleting = 0;
     /// A restored snapshot's plugin rows (its jobs are gone).
     QVariantList m_restoredPlugins;
 };
