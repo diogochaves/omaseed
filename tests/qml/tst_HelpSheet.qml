@@ -59,6 +59,21 @@ TestCase {
         compare(sheet.matchedRows.map(row => row.action), ["mouse:middle"]);
     }
 
+    // DECISIONS C24 H10: what sheets' feet printed (v2's hints, C11 D4's "s next server") is
+    // the last block, "in a sheet".
+    function test_the_sheets_keys_have_the_last_block() {
+        const sheet = init();
+        const keys = sheet.sections.map(section => section.key);
+        compare(keys[keys.length - 1], "sheet");
+        const block = sheet.sections[keys.length - 1];
+        compare(block.title, "in a sheet");
+        const helpKeys = block.rows.map(row => row.helpKeys);
+        for (const key of ["enter", "shift+enter", "tab", "esc", "ctrl+o", "↓", "ctrl+s", "alt+s", "s"])
+            verify(helpKeys.indexOf(key) >= 0, key + " is not in the block");
+        sheet.filterField.text = "next server";
+        compare(sheet.matchedRows.map(row => row.action), ["sheet:nextServer"]);
+    }
+
     function test_scrollbarShowsWhenRowsOverflow() {
         const sheet = init();
         const bar = childNamed(sheet, "helpScrollBar");

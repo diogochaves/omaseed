@@ -30,18 +30,22 @@ FocusScope {
     property string altKind: "alt"
     readonly property string query: filterField.text.trim().toLowerCase()
     /// The sections that still have rows, each `{key, title, about, rows}`. DECISIONS C18 D6:
-    /// the mouse's block follows the select keys.
+    /// the mouse's block follows the select keys; C24 H10: a sheet's block comes last.
     readonly property var sections: root._sectionKeys.map(column => ({
                                                                          "key": column,
                                                                          "title": column === "mouse" ? Keymap.mouseTitle
-                                                                                                     : Keymap.columnTitles[column],
+                                                                                                     : column === "sheet" ? Keymap.sheetTitle
+                                                                                                                          : Keymap.columnTitles[column],
                                                                          "about": column === "mouse" ? Keymap.mouseAbout
-                                                                                                     : Keymap.columnAbout[column],
+                                                                                                     : column === "sheet" ? Keymap.sheetAbout
+                                                                                                                          : Keymap.columnAbout[column],
                                                                          "rows": root._rowsOf(column).filter(row => root.matches(row))
                                                                      })).filter(section => section.rows.length > 0)
     readonly property var _sectionKeys: {
         const keys = Keymap.columns.slice();
         keys.splice(keys.indexOf("select") + 1, 0, "mouse");
+        // DECISIONS C24 H10: the keys sheets' feet printed, last.
+        keys.push("sheet");
         return keys;
     }
     /// Every row still shown, in reading order (left column first).
@@ -70,8 +74,10 @@ FocusScope {
                                                                         (w, row) => row.helpKeys.length > w.length ? row.helpKeys : w,
                                                                         widest), "")
 
-    /// A section's rows: the keys of a Keymap column, or the mouse's.
+    /// A section's rows: the keys of a Keymap column, the mouse's, or a sheet's.
     function _rowsOf(column: string): var {
+        if (column === "sheet")
+            return Keymap.sheetRows;
         return column === "mouse" ? Keymap.mouseRows : Keymap.helpRows(column, root.altKind);
     }
 
