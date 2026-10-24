@@ -43,8 +43,8 @@ omaseed_add_test(tst_printonly
 add_dependencies(tst_printonly omaseed)
 
 # docs/DECISIONS.md C30 F7: every text role on every ground, in every theme of
-# tests/fixtures/themes, as the built omaseed resolves them (`--theme-roles`, offscreen, no
-# window). A theme that puts one pair under 4.5:1 fails here.
+# tests/fixtures/themes and every built-in skin (#171), as the built omaseed resolves them
+# (`--theme-roles --skin`, offscreen, no window). A pair under 4.5:1 fails here.
 find_package(Python3 COMPONENTS Interpreter)
 if(Python3_FOUND)
     add_test(

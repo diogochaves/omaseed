@@ -323,14 +323,18 @@ int runHeadlessTableDemo(int rows)
 /// Omarchy theme, as JSON on stdout, for tools (a contrast check across themes) that must not
 /// re-implement the palette's cascade or the dim foreground's lift. The reader is the app's,
 /// on XDG_STATE_HOME and XDG_CONFIG_HOME; the Appearance pane's overrides are not applied.
-int runThemeRoles()
+/// `skin` (`--skin`, #171) draws the grounds in that skin; "" keeps OMASEED_SKIN's, or
+/// Omarchy's.
+int runThemeRoles(const QString &skin)
 {
     using omaseed::integration::Theme;
 
     omaseed::integration::ThemeReader reader;
     // No Hyprland: an empty hyprctl fails to start on the spot (nothing is spawned) and no
     // event socket is opened. Neither feeds a colour or an alpha.
-    const Theme theme(&reader, Theme::Hyprland{QString(), QString()});
+    Theme theme(&reader, Theme::Hyprland{QString(), QString()});
+    if (!skin.isEmpty())
+        theme.setSkin(skin);
     QTextStream(stdout) << QJsonDocument(Theme::rolesJson(theme)).toJson(QJsonDocument::Indented);
     return 0;
 }
@@ -427,6 +431,11 @@ struct CommandLine
         QStringList{QStringLiteral("theme-roles")},
         QStringLiteral("Print the current theme's colour and alpha roles, as omaseed resolves "
                        "them, as JSON, and exit. Opens no window.")};
+    QCommandLineOption skin{
+        QStringList{QStringLiteral("skin")},
+        QStringLiteral("With --theme-roles: resolve the grounds in this skin (omarchy, "
+                       "console) instead of OMASEED_SKIN's."),
+        QStringLiteral("name")};
     // Handled before the application starts (runInstallBarWidget); listed for --help.
     QCommandLineOption installBarWidget{
         QStringList{QStringLiteral("install-bar-widget")},
@@ -445,7 +454,7 @@ struct CommandLine
             QStringLiteral("omaseed — torrents for Omarchy, powered by qBittorrent."));
         parser.addHelpOption();
         parser.addVersionOption();
-        parser.addOptions({demo, rows, headless, hidden, themeRoles, installBarWidget, quit});
+        parser.addOptions({demo, rows, headless, hidden, themeRoles, skin, installBarWidget, quit});
         parser.addPositionalArgument(QStringLiteral("uris"),
                                      QStringLiteral("magnet: links or .torrent files to add."),
                                      QStringLiteral("[uris...]"));
@@ -493,7 +502,7 @@ int runPrintOnly(int argc, char *argv[])
     qputenv("QT_QPA_PLATFORM", QByteArrayLiteral("offscreen"));
     QGuiApplication app(argc, argv);
     setApplicationNames();
-    return runThemeRoles();
+    return runThemeRoles(parser.value(options.skin));
 }
 
 } // namespace
@@ -532,7 +541,7 @@ int main(int argc, char *argv[])
     parser.process(app);
 
     if (parser.isSet(options.themeRoles))
-        return runThemeRoles();
+        return runThemeRoles(parser.value(options.skin));
 
     qInfo().noquote() << omaseed::core::versionLine() << QStringLiteral("as") << applicationId();
 

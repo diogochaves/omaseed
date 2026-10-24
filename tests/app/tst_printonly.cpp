@@ -20,6 +20,8 @@ private slots:
     void help();
     void version();
     void themeRoles();
+    void themeRolesInASkin_data();
+    void themeRolesInASkin();
 
 private:
     /// Runs omaseed with `arguments` and no display; false when it didn't finish in time.
@@ -108,6 +110,32 @@ void TestPrintOnly::themeRoles()
     QVERIFY2(error.error == QJsonParseError::NoError, qPrintable(m_out + m_err));
     QVERIFY(
         json.object().value(QLatin1String("colors")).toObject().contains(QLatin1String("accent")));
+}
+
+void TestPrintOnly::themeRolesInASkin_data()
+{
+    QTest::addColumn<QString>("skin");
+    QTest::addColumn<QString>("drawn");
+    QTest::addColumn<QString>("reason");
+    QTest::newRow("omarchy") << "omarchy" << "omarchy" << "";
+    QTest::newRow("console") << "console" << "console" << "";
+    QTest::newRow("no such skin") << "neon" << "omarchy" << "unknown skin";
+}
+
+/// #171: `--theme-roles --skin NAME` resolves the grounds in that skin, for the contrast check
+/// over every skin; a name that is no skin is Omarchy's, and says why.
+void TestPrintOnly::themeRolesInASkin()
+{
+    QFETCH(QString, skin);
+    QFETCH(QString, drawn);
+    QFETCH(QString, reason);
+    QVERIFY(run({QStringLiteral("--theme-roles"), QStringLiteral("--skin"), skin}));
+    QVERIFY2(m_exitStatus == QProcess::NormalExit, qPrintable(m_err));
+    QVERIFY2(m_exitCode == 0, qPrintable(m_err));
+    const QJsonObject roles = QJsonDocument::fromJson(m_out.toUtf8()).object();
+    QCOMPARE(roles.value(QLatin1String("skin")).toString(), drawn);
+    QCOMPARE(roles.value(QLatin1String("skinReason")).toString(), reason);
+    QVERIFY(roles.value(QLatin1String("grounds")).toObject().contains(QLatin1String("panel")));
 }
 
 QTEST_GUILESS_MAIN(TestPrintOnly)
