@@ -881,9 +881,14 @@ Sheet {
     }
 
     // ---- format and pieces (CR10, CR11) ----------------------------------------------------
-    RowLayout {
+    // Side by side while both buttons' words fit (board 49 `.frow2`), one over the other when
+    // the window is narrow.
+    GridLayout {
         Layout.fillWidth: true
-        spacing: Theme.createPairGap
+        columnSpacing: Theme.createPairGap
+        columns: root.isPrivate || root.panel.width - 2 * Theme.sheetBodyPadding
+                 >= 2 * Math.max(formatButton.implicitWidth, piecesButton.implicitWidth) + Theme.createPairGap ? 2 : 1
+        rowSpacing: Theme.sheetRowGap
 
         FormRow {
             Layout.fillWidth: true
@@ -892,6 +897,8 @@ Sheet {
             visible: !root.isPrivate
 
             Button {
+                id: formatButton
+
                 Layout.fillWidth: true
                 bordered: true
                 objectName: "createFormatButton"
@@ -908,6 +915,8 @@ Sheet {
             label: qsTr("pieces")
 
             Button {
+                id: piecesButton
+
                 Layout.fillWidth: true
                 bordered: true
                 objectName: "createPiecesButton"
