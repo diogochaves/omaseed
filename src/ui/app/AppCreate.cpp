@@ -191,7 +191,7 @@ QVariantMap App::createSheet() const
         publicTop.append(QVariantMap{{QStringLiteral("url"), tracker.url},
                                      {QStringLiteral("count"), tracker.count}});
     QVariantList hosts;
-    const QLocale locale;
+    const QLocale locale = QLocale::c();
     for (const auto &host : trackers.privateHosts()) {
         hosts.append(QVariantMap{
             {QStringLiteral("host"), host.host},
@@ -366,7 +366,7 @@ QString App::pieceSizeText(double bytes) const
 QVariantList App::createPieceRows(double bytes, int files) const
 {
     QVariantList rows;
-    const QLocale locale;
+    const QLocale locale = QLocale::c();
     for (const auto &row : core::CreatePlan::pieceRows(qint64(bytes), files)) {
         rows.append(QVariantMap{
             {QStringLiteral("size"), double(row.size)},
@@ -922,8 +922,8 @@ QVariantMap App::madeHereFor(const QString &token) const
     const QDateTime at = record.madeAt.toLocalTime();
     const QString madeText =
         at.date() == QDate::currentDate()
-            ? tr("made here today %1").arg(QLocale().toString(at.time(), QStringLiteral("HH:mm")))
-            : tr("made here %1").arg(QLocale().toString(at.date(), QStringLiteral("d MMM")));
+            ? tr("made here today %1").arg(QLocale::c().toString(at.time(), QStringLiteral("HH:mm")))
+            : tr("made here %1").arg(QLocale::c().toString(at.date(), QStringLiteral("d MMM")));
     const QString madeId = core::TorrentFile::torrentIdFor(record.infoHashV1, record.infoHashV2);
     const bool inLibrary = m_engine->torrents()->indexOfHash(madeId) >= 0;
     const QString kind = match.kind == core::MadeHere::Kind::TheMadeFile ? QStringLiteral("made")

@@ -362,7 +362,7 @@ Sheet {
         const rows = root.privateHosts.map(row => ({
             "section": qsTr("private trackers in your library"),
             "text": row.host,
-            "detail": qsTr("%n torrents", "", row.count),
+            "detail": row.count === 1 ? qsTr("1 torrent") : qsTr("%1 torrents").arg(row.count),
             "value": row.host
         }));
         rows.push({
@@ -386,6 +386,8 @@ Sheet {
         optionList.rows = rows;
         optionList.current = Math.max(0, rows.findIndex(row => row.value === now));
         root.listOpen = which;
+        // The list takes the keys (keyHandler): no field keeps them meanwhile.
+        root.panel.forceActiveFocus();
     }
 
     function _pickOption(): void {
@@ -419,6 +421,23 @@ Sheet {
     }
 
     accessibleName: qsTr("Create a torrent")
+    // The tracker, format and pieces lists take ↑↓ (j k), enter picks, esc closes them first.
+    keyHandler: event => {
+        if (root.listOpen !== "hosts" && root.listOpen !== "format" && root.listOpen !== "pieces")
+            return;
+        if (event.key === Qt.Key_Down || event.key === Qt.Key_J) {
+            optionList.move(1);
+        } else if (event.key === Qt.Key_Up || event.key === Qt.Key_K) {
+            optionList.move(-1);
+        } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+            root._pickOption();
+        } else if (event.key === Qt.Key_Escape) {
+            root.listOpen = "";
+        } else {
+            return;
+        }
+        event.accepted = true;
+    }
     actions: [{
         "text": qsTr("cancel"),
         "cancel": true
@@ -502,7 +521,7 @@ Sheet {
             readonly property bool listing: root.listOpen === "places" || root.listOpen === "browse"
 
             Layout.fillWidth: true
-            accessibleName: qsTr("folder")
+            accessibleName: qsTr("folder or file to share")
             escClears: false
             objectName: "createFolderField"
             opener: qsTr("places")
@@ -699,8 +718,10 @@ Sheet {
                 if (last.length > 0)
                     lead = qsTr("last time's trackers");
                 else if (top.length > 0)
-                    lead = qsTr("the %n public trackers most used in your library (%1 torrents)", "", top.length)
-                           .arg(top.map(row => row.count).join(qsTr(" and ")));
+                    lead = top.length === 1
+                           ? qsTr("the public tracker most used in your library (%1 torrents)").arg(top[0].count)
+                           : qsTr("the %1 public trackers most used in your library (%2 torrents)").arg(top.length)
+                             .arg(top.map(row => row.count).join(qsTr(" and ")));
                 return qsTr("%1 · DHT and peer exchange find peers too · none is fine").arg(lead);
             }
             wrapMode: Text.Wrap
@@ -717,10 +738,14 @@ Sheet {
             Layout.fillWidth: true
             bordered: true
             objectName: "createHostButton"
-            text: root.pasting ? qsTr("another tracker ▾")
-                               : root.hostRow !== null
-                                 ? qsTr("%1 · %n torrents in your library ▾", "", root.hostRow.count).arg(root.host)
-                                 : qsTr("paste an announce URL ▾")
+            text: {
+                if (root.pasting)
+                    return qsTr("another tracker ▾");
+                if (root.hostRow === null)
+                    return qsTr("paste an announce URL ▾");
+                return root.hostRow.count === 1 ? qsTr("%1 · 1 torrent in your library ▾").arg(root.host)
+                                                : qsTr("%1 · %2 torrents in your library ▾").arg(root.host).arg(root.hostRow.count);
+            }
 
             onClicked: root._openList("hosts")
         }
@@ -945,8 +970,9 @@ Sheet {
         Toggle {
             checked: root.ignoreDotfiles
             objectName: "createHidden"
-            text: root.checked && root.check.hidden > 0
-                  ? qsTr("leave hidden files out · %n files", "", root.check.hidden) : qsTr("leave hidden files out")
+            text: !root.checked || !(root.check.hidden > 0) ? qsTr("leave hidden files out")
+                  : root.check.hidden === 1 ? qsTr("leave hidden files out · 1 file")
+                                            : qsTr("leave hidden files out · %1 files").arg(root.check.hidden)
             visible: root.moreOpen
 
             onToggled: {

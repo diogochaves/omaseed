@@ -43,7 +43,7 @@ ColumnLayout {
         kind: root.kind === "made" ? "warn" : "ok"
         objectName: "addMadeFact"
         title: root.kind === "same" ? qsTr("%1: the same torrent").arg(root.madeText)
-                                    : root.kind === "files" ? qsTr("%1: the same %n files, another hash", "", root.made.fileCount ?? 0).arg(root.madeText)
+                                    : root.kind === "files" ? qsTr("%1: the same %2 files, another hash").arg(root.madeText).arg(root.made.fileCount ?? 0)
                                                             : qsTr("This is the .torrent made here for %1").arg(root.made.host ?? "")
     }
 

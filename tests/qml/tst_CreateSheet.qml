@@ -99,8 +99,15 @@ TestCase {
         compare(findChild(sheet, "createPiecesButton").text, "1 MiB ▾");
         sheet._openList("format");
         compare(sheet.optionsList.rows.map(row => row.value), ["v1", "hybrid", "v2"]);
-        sheet.optionsList.current = 1;
-        sheet._pickOption();
+        // The keys: ↓ then enter picks; esc closes a list before the sheet.
+        sheet.forceActiveFocus();
+        keyClick(Qt.Key_Down);
+        keyClick(Qt.Key_Return);
+        compare(sheet.listOpen, "");
+        sheet._openList("format");
+        keyClick(Qt.Key_Escape);
+        compare(sheet.listOpen, "");
+        verify(sheet.opened);
         compare(sheet.request().format, "hybrid");
         compare(sheet.request().pieceSize, 1048576);
     }
