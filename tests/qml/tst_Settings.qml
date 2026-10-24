@@ -101,6 +101,9 @@ TestCase {
 
     function cleanup() {
         App.windowGround = "opaque";
+        // #171: every other test reads Omarchy's grounds.
+        App.skinChoice = "omarchy";
+        TestTheme.setSkinChoice("omarchy");
         // Leave no server behind: App is a singleton shared with every other test file.
         while (App.serverList.count > 0)
             App.serverList.remove(App.serverList.idAt(0));
@@ -1125,11 +1128,11 @@ TestCase {
         // Appearance: "In the bar" (docs/33 D25) steps through the choices it can have:
         // without the shell, tray icon and none.
         keyClick(Qt.Key_5);
-        compare(modal.paneRowCount, 9);
+        compare(modal.paneRowCount, 10);
         const tray = App.trayIconMode;
         App.trayIconMode = "auto";
         compare(App.inTheBar, "tray");
-        modal.paneCursor = 3;
+        modal.paneCursor = 4;
         modal.area = "pane";
         modal.activateRow();
         compare(App.inTheBar, "none");
@@ -1146,17 +1149,17 @@ TestCase {
         // ...and the next two cycle the rail's looks (docs/08 §5).
         const hint = App.railScrollHint;
         const hosts = App.trackerHostStyle;
-        modal.paneCursor = 5;
+        modal.paneCursor = 6;
         modal.activateRow();
         verify(App.railScrollHint !== hint);
-        modal.paneCursor = 6;
+        modal.paneCursor = 7;
         modal.activateRow();
         verify(App.trackerHostStyle !== hosts);
 
         // ...and the next places Details (docs/10 §5): auto, right, bottom.
         const placement = App.detailsPlacement;
         compare(placement, "auto");
-        modal.paneCursor = 7;
+        modal.paneCursor = 8;
         modal.activateRow();
         compare(App.detailsPlacement, "right");
         modal.activateRow();
@@ -1232,6 +1235,56 @@ TestCase {
     }
 
     // #24 T5: the rows' pulse is the Appearance pane's last row, off until turned on.
+    // DECISIONS C24 H11 (#171): the skin, Appearance's first row: three chips, enter steps
+    // through them, the line under it follows the choice, and a choice that can draw Console
+    // names its fonts that aren't installed. App hands the choice to the theme reader in the
+    // real launch; here TestTheme does, and the skin repaints at once.
+    function test_the_skin_row_picks_the_skin() {
+        compare(App.skinChoice, "omarchy");
+        const modal = createTemporaryObject(modalComponent, testCase);
+        modal.open();
+        keyClick(Qt.Key_5);
+        compare(modal.paneIndex, 4);
+        const row = testCase.childNamed(modal, "skinRow");
+        verify(row !== null && row.visible);
+        compare(row.title, "Skin");
+        verify(row.description.indexOf("The default") >= 0, row.description);
+        compare(row.warning, "");
+        compare(testCase.childNamed(modal, "skinChip-omarchy").selected, true);
+
+        modal.area = "pane";
+        modal.paneCursor = 0;
+        compare(row.hasCursor, true);
+        modal.activateRow();
+        compare(App.skinChoice, "console");
+        compare(testCase.childNamed(modal, "skinChip-console").selected, true);
+        verify(row.description.indexOf("plates, labels and lamps") >= 0, row.description);
+        const missing = Theme.skin.missingFontsOf("console");
+        compare(row.warning === "", missing.length === 0);
+        for (const family of missing)
+            verify(row.warning.indexOf(family) >= 0, row.warning);
+
+        // Console's selected row is lighterBackground itself, Omarchy's an 18 % fill. (The
+        // alpha is a number, copied; a colour read here would follow the property.)
+        const selected = Theme.on.selected.fill.a;
+        TestTheme.setSkinChoice(App.skinChoice);
+        compare(Theme.skin.name, "console");
+        verify(Theme.on.selected.fill.a !== selected, "selected kept Omarchy's ground");
+
+        // Follow the desktop: the harness's desktop has no console skin, so Omarchy, and
+        // the line says so.
+        mouseClick(testCase.childNamed(modal, "skinChip-desktop"));
+        compare(App.skinChoice, "desktop");
+        TestTheme.setSkinChoice(App.skinChoice);
+        compare(Theme.skin.name, "omarchy");
+        verify(row.description.indexOf("Now: Omarchy") >= 0, row.description);
+
+        modal.activateRow(); // wraps round to Omarchy
+        compare(App.skinChoice, "omarchy");
+        TestTheme.setSkinChoice("omarchy");
+        compare(row.warning, "");
+    }
+
     function test_the_appearance_pane_turns_the_rows_pulse_on() {
         const modal = createTemporaryObject(modalComponent, testCase);
         compare(App.pulseRows, false);
@@ -1241,7 +1294,7 @@ TestCase {
         const row = testCase.childNamed(modal, "pulseRowsRow");
         verify(row, "the Appearance pane has no pulse row");
         compare(row.title, "Pulse sending rows");
-        modal.paneCursor = 8;
+        modal.paneCursor = 9;
         modal.area = "pane";
         compare(row.hasCursor, true);
         modal.activateRow();
@@ -1344,17 +1397,17 @@ TestCase {
         compare(row.title, "Window");
         const alphaRow = testCase.childNamed(modal, "windowAlphaRow");
         compare(alphaRow.visible, false);
-        compare(modal.paneRowCount, 9);
+        compare(modal.paneRowCount, 10);
 
         modal.area = "pane";
-        modal.paneCursor = 2;
+        modal.paneCursor = 3;
         compare(row.hasCursor, true);
         modal.activateRow();
         compare(App.windowGround, "translucent");
         compare(alphaRow.visible, true);
-        compare(modal.paneRowCount, 10);
+        compare(modal.paneRowCount, 11);
         // "In the bar" moved down one.
-        modal.paneCursor = 4;
+        modal.paneCursor = 5;
         compare(testCase.childNamed(modal, "inTheBarRow").hasCursor, true);
 
         mouseClick(testCase.childNamed(modal, "groundChip-opaque"));
@@ -1608,9 +1661,9 @@ TestCase {
 
         // Walking the rows down scrolls the pane so the cursor row stays in view.
         keyClick(Qt.Key_Tab);
-        for (let i = 0; i < 8; ++i)
+        for (let i = 0; i < 9; ++i)
             keyClick(Qt.Key_J);
-        compare(modal.paneCursor, 8);
+        compare(modal.paneCursor, 9);
         tryVerify(() => scroller.contentY > 0, 1000, "the last row was left below the fold");
 
         // The bar's room is kept while the pane shows, so a pane shorter at the narrower width

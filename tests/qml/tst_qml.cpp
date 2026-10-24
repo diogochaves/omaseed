@@ -38,7 +38,8 @@ private:
 };
 
 /// The base size every Theme in the run reads, as `TestTheme` (a context property): the
-/// Appearance pane's override, without the App that applies it in the real launch (#156).
+/// Appearance pane's override, without the App that applies it in the real launch (#156);
+/// the skin choice likewise.
 /// A test that moves it puts it back to 0, the shell's own (12, the harness's empty XDG).
 class TestTheme : public QObject
 {
@@ -50,6 +51,9 @@ public:
     {}
 
     Q_INVOKABLE void setBaseSize(int pixels) { m_reader->setBaseSizeOverride(pixels); }
+    /// Appearance's skin choice as App hands it to the reader (#171). A test that moves it
+    /// puts it back to "omarchy".
+    Q_INVOKABLE void setSkinChoice(const QString &choice) { m_reader->setSkinChoice(choice); }
 
 private:
     omaseed::integration::ThemeReader *m_reader;
