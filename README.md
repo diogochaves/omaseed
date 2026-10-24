@@ -171,6 +171,24 @@ short cause ("disk full", "no access"), and the torrent's story opens with what 
 the folder, and the keys that fix it. A notice says so too, with its own switch in Settings ›
 Notifications.
 
+## Search
+
+`ctrl+f` (or the rail's **search**, after log) searches through the search plugins of the
+qBittorrent you're on: the small Python files qBittorrent runs to ask a site, which you choose
+and install yourself in Settings › qBittorrent › Search plugins, from a URL or, when the server
+is this computer, a file. omaseed names, ships and suggests none, and never asks a site itself;
+every request is qBittorrent's.
+
+Each plugin is asked on its own, so the results fill in as each answers and nothing waits for
+the slowest. One row per torrent, however many plugins found it: the copy with the most seeds
+names it and the others' trackers join its magnet. A row says what is already yours ("in your
+library", "likely on disk") and reads seeds as health ("few seeds" in yellow, "?" when a plugin
+doesn't report them, never taken for dead). A plugin that fails or is slow is named, with its
+reason from qBittorrent's log. `enter` on a result opens the usual add sheet with its magnet,
+or its link fetched through the plugin; `space` shows it on the right, `c` copies its magnet,
+`o` opens its page in the browser, `/` filters the results. Search isn't offered on a server
+without plugins to run.
+
 ## Keys
 
 Every key comes from one table (`src/ui/qml/Keymap.qml`), and the `?` sheet is drawn from
@@ -193,6 +211,7 @@ selected, the status line becomes the action bar: their verbs as words, "all act
 | `/` | filter (`is:stalled` and the like for any state) |
 | `1`–`5`, `0` | needs you, arriving, landed today, giving back, resting; the library |
 | `ctrl+k` | jump to a torrent by name, hash or tracker |
+| `ctrl+f` | search the server's search plugins (`enter` asks, `↓` the results, `enter` add…, `space` the result, `c` `o` copy magnet · its page) |
 | `ctrl+h` `ctrl+l` | scroll sideways |
 
 **Select**

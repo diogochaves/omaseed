@@ -1288,6 +1288,42 @@ no-match row to C1 D8's palette (SR14).
   `c` copy magnet, `o` open its page, `/` filter the rows; esc back out step by step; `:` "search…"
   and "search plugins for '…'".
 
+Built in v0.5.0 (#145) as core/SearchSession (one job per plugin), core/SearchResults (the
+fold), core/SearchModel (the rows) and core/SearchPlugins (the pane), drawn by Views/SearchView
+and Views/SearchPluginsPane in `Theme.search*` tokens, with these assumed answers (recorded in
+#145):
+
+- **Switching servers mid-search:** the jobs left on the old server are deleted the next time
+  omaseed is on it (before its next search, or at a quit there); each server's last rows come
+  back with it. A quit deletes the current server's jobs, waiting at most a second.
+- **Failed or "0 results":** a job that stopped with nothing is failed only when log/main has a
+  warning naming its plugin since the search began (read when it stops, and once more as the
+  search ends); its reason is the traceback's last line. "search it again" asks that plugin
+  alone and replaces its rows; "turn it off…" turns it off with no confirm, and its row in the
+  pane says why ("turned off · it failed in the last search, HH:MM").
+- **The bar:** type ▾ lists the types of the plugins that are on, in qBittorrent's words; a
+  plugin without the chosen type is "skipped" in its pill. Hide dead and the order last for
+  the session. The field prints no key words (H10, as for the sheets in #170): the bar's
+  tooltips name them, and the `?` sheet has an "in search" block.
+- **Marks:** "likely on disk" is a library torrent with the same name (C22's fold) and size
+  in bytes and another hash; a link to a .torrent has no hash, so it can be "likely on disk"
+  but never "in your library". "added" stays for the session; "new" and "+1 copy" for 4 s.
+- **The result** opens in the search face's own right-hand pane (the details' place and
+  width), not the torrent details. `o` and its button open the page with the desktop's
+  browser, nothing else does.
+- **The hand-off:** the add sheet's subtitle is the name, the size and "from search · PLUGINS ·
+  a magnet with N trackers" (or "a link to a .torrent"); a link carries its plugin as
+  `downloader` into the lookup and the add. The add sheet's empty state offers "search your
+  plugins…", and words it can't add "search plugins for ‘…’".
+- **Plugins pane:** Search plugins sits between Advanced and Backup; `0` stays Backup's and
+  the pane has no digit. The server is "this computer" when its address is a loopback or this
+  machine's name. An install counts when the plugin its file names (NAME.py → NAME) shows up
+  new or with a new version; a URL with no .py name takes the first new one. ⋯ on a plugin
+  has uninstall only: qBittorrent's `url` is the plugin's site, not where it came from (SR11).
+  Each search reads the plugin list again first.
+- **The face:** like the log's, it hides the rail's filter groups; while the server isn't
+  answering its rows dim as a stale list's and the sentence says it waits.
+
 ## C27 — Create a torrent from a folder (board 49, ruled 2026-10-22)
 
 Board [49](49-create-a-torrent.html) CR1–CR19, all as recommended, in board 46's frame (C24 H17,
