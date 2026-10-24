@@ -2121,7 +2121,9 @@ Item {
                 reducedMotion: App.reducedMotion
                 // C30 F8, F10: "show" only when it brings something back, and why.
                 showReason: root.outcomeShowReason
-                visible: outcomeStrip.shown && table.visible && !root.serverLost
+                // Over the rows, or over the empty scope they left (C30 F9: "show" takes the
+                // rail where they went).
+                visible: outcomeStrip.shown && (table.visible || root.filterEmpty) && !root.serverLost
                 width: implicitWidth
 
                 onCloseRequested: App.outcomes.dismiss()

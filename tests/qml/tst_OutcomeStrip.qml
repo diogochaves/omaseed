@@ -393,6 +393,34 @@ TestCase {
         App.loadDemo(16);
     }
 
+    // F9: the last torrent left the question, which is empty now: the strip stays, over the
+    // empty scope, and "show" takes the rail where it went.
+    function test_the_last_one_left_an_empty_scope() {
+        const hash = App.filtered.hashAt(0);
+        const question = App.filtered.questionOfHash(hash);
+        App.filtered.question = question;
+        // Every other torrent in that question goes resting too, so this one is its last.
+        const patch = {};
+        for (let row = 0; row < App.filtered.count; ++row)
+            patch[App.filtered.hashAt(row)] = {
+                "state": "stoppedUP"
+            };
+        view.table.moveCursorTo(App.filtered.rowOfHash(hash));
+        showCase.report("stop", [hash]);
+        App.patchDemoTorrents(patch);
+        if (question === TorrentFilterModel.Resting) {
+            App.loadDemo(16);
+            skip("the demo's first row is resting already");
+        }
+        compare(App.filtered.count, 0);
+        verify(view.outcomeStrip.visible, "the strip went with the rows");
+        compare(view.outcomeShowReason, "it is resting now, out of " + view.rail.questionRow(question).text);
+        showCase.clickShow();
+        compare(App.filtered.question, TorrentFilterModel.Resting);
+        compare(view.table.cursorHash, hash);
+        App.loadDemo(16);
+    }
+
     // F9: a move took one out of the rail's folder: "show" switches the folder to its new
     // place; the filter's words go too.
     function test_it_left_the_folder() {
