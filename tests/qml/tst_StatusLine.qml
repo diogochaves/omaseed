@@ -404,4 +404,23 @@ TestCase {
         line.facts = [];
         verify(!facts.visible);
     }
+
+    // DECISIONS C24 H10: alt held, the server lane shows ctrl+s, with two servers only (D19).
+    function test_alt_badges_the_server_lane_with_two_servers() {
+        const line = make({
+                              "serverSwitchable": false,
+                              "keysShown": true
+                          });
+        const badge = findChild(line, "statusServerKey");
+        verify(!badge.visible);
+        const width = line.serverLane.width;
+        line.serverSwitchable = true;
+        verify(badge.visible);
+        compare(badge.key, "ctrl+s");
+        line.keysShown = false;
+        verify(!badge.visible);
+        line.keysShown = true;
+        waitForItemPolished(line);
+        verify(line.serverLane.width >= width);
+    }
 }

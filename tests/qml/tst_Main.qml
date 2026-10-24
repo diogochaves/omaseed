@@ -707,6 +707,89 @@ TestCase {
         compare(view.table.selectedHashes().length, App.filtered.count);
     }
 
+    // DECISIONS C24 H10: alt held alone a moment badges the frame's keys: the mark, the
+    // views and the questions, the title bar's tools and filter; with two servers the rail's
+    // servers and the status line's lane; with a selection the action bar's buttons, which
+    // stay where they were. Its release takes them away; alt+j's alt never shows them; an
+    // overlay keeps them hidden.
+    function test_alt_held_badges_the_frames_keys() {
+        const key = (item, name) => findChild(item, name);
+        const mark = key(view.rail, "railMarkKey");
+        const seed = key(findChild(view.rail, "railView-seed"), "railRowKey");
+        const arriving = key(findChild(view.rail, "railQuestion-arriving"), "railRowKey");
+        const add = key(view.titleBar.addTool, "keyBadge");
+        const filter = key(view.titleBar, "titleFilterKey");
+        verify(!mark.visible && !arriving.visible && !add.visible);
+
+        keyPress(Qt.Key_Alt);
+        verify(view.altWatch.altHeld);
+        verify(!view.keysShown, "badges before the delay");
+        tryVerify(() => view.keysShown, 2000);
+        verify(mark.visible);
+        compare(mark.key, "ctrl+.");
+        verify(seed.visible);
+        compare(seed.key, "`");
+        verify(arriving.visible);
+        compare(arriving.key, "2");
+        verify(add.visible);
+        compare(add.key, "a");
+        verify(filter.visible);
+        compare(filter.key, "/");
+        // One server: no lane badge, nothing to switch to (D19).
+        verify(!key(view.statusLine, "statusServerKey").visible);
+        keyRelease(Qt.Key_Alt);
+        verify(!view.keysShown);
+        verify(!mark.visible && !arriving.visible && !add.visible);
+
+        // alt+j: alt goes with j's press, before the delay; nothing ever shows.
+        let flashed = false;
+        const watch = () => flashed = flashed || view.keysShown;
+        view.keysShownChanged.connect(watch);
+        keyPress(Qt.Key_Alt);
+        keyClick(Qt.Key_J, Qt.AltModifier);
+        wait(Theme.keyBadgeDelay * 2);
+        keyRelease(Qt.Key_Alt);
+        view.keysShownChanged.disconnect(watch);
+        verify(!flashed, "alt+j flashed the badges");
+
+        // Under an overlay its own keys are written in it.
+        view.openAppMenu();
+        keyPress(Qt.Key_Alt);
+        wait(Theme.keyBadgeDelay * 2);
+        verify(view.altWatch.altHeld);
+        verify(!view.keysShown);
+        keyRelease(Qt.Key_Alt);
+        view.appMenu.close();
+
+        // Two servers: the rail's block and the status line's lane say ctrl+s.
+        testCase._twoServers();
+        keyPress(Qt.Key_Alt);
+        tryVerify(() => view.keysShown, 2000);
+        verify(key(view.statusLine, "statusServerKey").visible);
+        verify(key(view.rail, "serversKey").visible);
+        keyRelease(Qt.Key_Alt);
+        testCase._noServers();
+
+        // A selection: the action bar's buttons, each with its key, none moved.
+        view.table.selectOnly(0);
+        view.table.toggleSelection(1);
+        tryVerify(() => view.selectionBar.visible);
+        const stop = findChild(view.selectionBar, "bar_stop");
+        const del = findChild(view.selectionBar, "bar_delete");
+        // The ledger fills in once the selection's figures are read: measure after it.
+        tryVerify(() => view.selectionBar.summary.sizeText !== undefined);
+        wait(50);
+        const before = [stop.mapToItem(view, 0, 0).x, del.mapToItem(view, 0, 0).x, view.selectionBar.items.join()];
+        keyPress(Qt.Key_Alt);
+        tryVerify(() => view.keysShown, 2000);
+        verify(findChild(view.selectionBar, "barKey_stop").visible);
+        compare(findChild(view.selectionBar, "barKey_delete").key, "d");
+        verify(findChild(view.selectionBar, "barKey_clear").visible);
+        compare([stop.mapToItem(view, 0, 0).x, del.mapToItem(view, 0, 0).x, view.selectionBar.items.join()], before);
+        keyRelease(Qt.Key_Alt);
+        view.table.clearSelection();
+    }
+
     // #167 assumed 4: ctrl+b folds the rail to its glyphs; the questions keep theirs, and the
     // title bar names the place the folded rail no longer shows (C24 H5; the hero's chips
     // went). `h` from the table gives the folded rail the keys; ctrl+b again opens it.

@@ -50,6 +50,9 @@ Rectangle {
     property string note: ""
     /// The note is a failure qBittorrent's log told of: yellow, as in the status line.
     property bool noteWarn: false
+    /// DECISIONS C24 H10: alt is held: each button shows its key over its corner (board 46
+    /// `.ab .kb`), outside the row, so no fold moves.
+    property bool keysShown: false
 
     /// A button ran: "start", "stop", "recheck", "reannounce", "category", "tags",
     /// "location", "limits", "openFolder" or "delete".
@@ -288,6 +291,12 @@ Rectangle {
                     width: clearButton.height
 
                     onClicked: root.clearRequested()
+
+                    KeyBadge {
+                        key: "esc"
+                        objectName: "barKey_clear"
+                        shown: root.keysShown
+                    }
                 }
             }
         }
@@ -438,6 +447,12 @@ Rectangle {
                         else
                             root.triggered(slot.modelData);
                     }
+                }
+
+                KeyBadge {
+                    key: slot.button ? slot.button.key : ""
+                    objectName: "barKey_" + slot.modelData
+                    shown: root.keysShown && !slot.rule
                 }
             }
         }

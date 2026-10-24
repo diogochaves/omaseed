@@ -183,6 +183,8 @@ Item {
 
     /// The row whose own key chip is exactly `text`, or -1.
     function indexOfKey(text: string): int {
+        if (text.length === 0) // a modifier alone (alt, held for the badges) is no row's key
+            return -1;
         for (let i = 0; i < root.items.length; ++i) {
             if (root.selectable(i) && root.items[i].key === text)
                 return i;

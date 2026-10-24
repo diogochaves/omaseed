@@ -184,4 +184,27 @@ TestCase {
         bar.width = Theme.titleBarSteps[1] - 1;
         verify(!bar.filterTool.visible);
     }
+
+    // DECISIONS C24 H10: alt held, each tool and the filter show their keys over their corner,
+    // and nothing in the bar moves.
+    function test_alt_badges_the_tools_keys() {
+        const bar = make({
+                             "moveFolderShown": true
+                         });
+        const badge = tool => findChild(tool, "keyBadge");
+        const before = [bar.addTool.x, bar.addTool.width, bar.moveFolderTool.x, bar.searchField.x];
+        verify(!badge(bar.addTool).visible);
+        bar.keysShown = true;
+        waitForItemPolished(bar);
+        verify(badge(bar.addTool).visible);
+        compare(badge(bar.addTool).key, "a");
+        compare(badge(bar.moveFolderTool).key, "shift+m");
+        verify(badge(bar.moveFolderTool).visible);
+        compare(findChild(bar, "titleFilterKey").key, "/");
+        verify(findChild(bar, "titleFilterKey").visible);
+        // A hidden tool's badge stays hidden.
+        verify(!badge(bar.backTool).visible);
+        compare(badge(bar.addTool).y, -Theme.keyBadgeOverhangY);
+        compare([bar.addTool.x, bar.addTool.width, bar.moveFolderTool.x, bar.searchField.x], before);
+    }
 }

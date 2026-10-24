@@ -632,4 +632,43 @@ TestCase {
         compare(rail._serverCountColor("!"), Theme.red);
         compare(rail._serverCountColor("4"), Theme.dimForeground);
     }
+
+    // DECISIONS C24 H10: alt held, the mark, the views and the questions show their keys (0 and
+    // the views' own, 1–5 in the rail's order), the servers' block ctrl+s; folded too. A badge
+    // covers nothing it moves: the counts stay where they were. Their tooltips name the keys.
+    function test_alt_badges_the_rails_keys_and_tooltips_name_them() {
+        const rail = railWithServers(["public", "private"]);
+        const badge = name => findChild(findChild(rail, name), "railRowKey");
+        const arriving = findChild(rail, "railQuestion-arriving");
+        const countRight = arriving.countRight;
+        verify(!findChild(rail, "railMarkKey").visible);
+        verify(!badge("railView-library").visible);
+        rail.keysShown = true;
+        compare(findChild(rail, "railMarkKey").key, "ctrl+.");
+        verify(findChild(rail, "railMarkKey").visible);
+        compare(["railView-library", "railView-seed", "railView-log"].map(name => badge(name).key),
+                ["0", "`", "~"]);
+        compare(["railQuestion-needsYou", "railQuestion-arriving", "railQuestion-landedToday",
+                 "railQuestion-givingBack", "railQuestion-resting"].map(name => badge(name).key),
+                ["1", "2", "3", "4", "5"]);
+        verify(badge("railQuestion-arriving").visible);
+        compare(arriving.countRight, countRight);
+        // Before the count, clear of it.
+        const key = badge("railQuestion-arriving");
+        verify(key.x + key.width <= findChild(arriving, "railRowCount").x);
+        verify(findChild(rail, "serversKey").visible);
+        compare(findChild(rail, "serversKey").key, "ctrl+s");
+        rail.compact = true;
+        verify(badge("railQuestion-arriving").visible);
+        verify(badge("railQuestion-arriving").x + badge("railQuestion-arriving").width <= arriving.width);
+        rail.compact = false;
+
+        rail._keyTip(findChild(rail, "railView-seed"), true);
+        compare(findChild(rail, "railTip").text, "seed · `");
+        rail._keyTip(arriving, true);
+        compare(findChild(rail, "railTip").text, "arriving · 2");
+        rail._markTip(true);
+        compare(findChild(rail, "railTip").text, "omaseed menu · ctrl+.");
+        rail._markTip(false);
+    }
 }

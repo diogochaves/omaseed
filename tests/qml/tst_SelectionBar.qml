@@ -338,4 +338,27 @@ TestCase {
         summary.Accessible.pressAction();
         compare(clicks, 1, "a disabled bar took the press");
     }
+
+    // DECISIONS C24 H10: alt held, each button and the ✕ show their keys over their corner;
+    // the bar's room and its folds don't move.
+    function test_alt_badges_every_buttons_key_and_moves_nothing() {
+        const bar = createTemporaryObject(barComponent, testCase, {
+                                              "availableWidth": 400
+                                          });
+        const items = bar.items.join();
+        const stopX = button(bar, "stop").mapToItem(bar, 0, 0).x;
+        verify(!findChild(bar, "barKey_stop").visible);
+        bar.keysShown = true;
+        compare(bar.items.join(), items);
+        compare(button(bar, "stop").mapToItem(bar, 0, 0).x, stopX);
+        for (const action of bar.items) {
+            if (action === "|")
+                continue;
+            const badge = findChild(bar, "barKey_" + action);
+            verify(badge.visible, action);
+            compare(badge.key, bar.buttons[action].key, action);
+        }
+        compare(findChild(bar, "barKey_clear").key, "esc");
+        verify(findChild(bar, "barKey_clear").visible);
+    }
 }

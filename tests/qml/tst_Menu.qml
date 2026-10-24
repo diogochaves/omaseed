@@ -457,6 +457,23 @@ TestCase {
         compare(menu.opened, true);
     }
 
+    // A key with no text (alt alone, held for the badges) runs no row, even one whose key is
+    // empty.
+    function test_a_modifier_alone_runs_nothing() {
+        const menu = createTemporaryObject(menuComponent, testCase, {
+                                               "items": [{
+                                                       "text": "stop all",
+                                                       "key": "",
+                                                       "action": "stop-all"
+                                                   }]
+                                           });
+        menu.open();
+        compare(menu.indexOfKey(""), -1);
+        keyPress(Qt.Key_Alt);
+        keyRelease(Qt.Key_Alt);
+        verify(menu.opened);
+    }
+
     function test_the_index_of_a_key_skips_what_cannot_be_run() {
         const menu = createTemporaryObject(menuComponent, testCase);
         compare(menu.indexOfKey("c"), 3);

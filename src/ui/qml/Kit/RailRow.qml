@@ -44,6 +44,10 @@ Rectangle {
     /// The folded rail (board 46's narrow `rail()`): the glyph alone; the name goes into the
     /// tooltip the rail shows.
     property bool compact: false
+    /// DECISIONS C24 H10: the row's key ("1", "`"), badged while `keysShown` (alt held), just
+    /// before the count, or at the folded row's edge. "" for a row with no key of its own.
+    property string keyText: ""
+    property bool keysShown: false
 
     signal clicked
     /// A right-click on the row, while `hasMenu`, at `x`, `y` in the row's coordinates.
@@ -148,6 +152,17 @@ Rectangle {
         objectName: "railRowCount"
         text: root.countText.length > 0 ? root.countText : String(root.count)
         visible: !root.compact && (root.countText.length > 0 || root.count >= 0)
+    }
+
+    KeyBadge {
+        anchors.right: countText.visible ? countText.left : parent.right
+        anchors.rightMargin: countText.visible ? Theme.keyBadgeRowGap : root.compact ? Theme.keyBadgeEdge
+                                                                                     : Theme.space(16)
+        anchors.verticalCenter: parent.verticalCenter
+        corner: false
+        key: root.keyText
+        objectName: "railRowKey"
+        shown: root.keysShown
     }
 
     MouseArea {

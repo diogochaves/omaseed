@@ -138,7 +138,7 @@ Menu {
             // Board 46: the window's last row says whose quit it is, beside "hide window".
             "text": row.id === "quit" ? qsTr("quit omaseed") : row.label,
             "glyph": root._glyph(row.id),
-            "key": root.sharedKeys[row.id] ?? "",
+            "key": root.sharedKeys[row.id],
             "disabled": !row.enabled,
             "action": row.id
         };

@@ -50,6 +50,10 @@ Item {
     property string backText: ""
     property string backKey: ""
 
+    /// DECISIONS C24 H10: alt is held: each tool, and the filter, shows its key over its
+    /// top-right corner (board 46 `.tool .kb`).
+    property bool keysShown: false
+
     /// The parts tests and the walks read.
     readonly property alias addTool: addTool
     readonly property alias moveFolderTool: moveFolderTool
@@ -104,6 +108,11 @@ Item {
         bordered: !tool.primary
         height: Theme.titleBarToolHeight
         text: root.level >= 1 ? "" : tool.words
+
+        KeyBadge {
+            key: tool.key
+            shown: root.keysShown && tool.visible
+        }
 
         HoverHandler {
             id: toolHover
@@ -253,6 +262,12 @@ Item {
             onTrailingClicked: {
                 filterField.text = "";
                 root.searchCleared();
+            }
+
+            KeyBadge {
+                key: "/"
+                objectName: "titleFilterKey"
+                shown: root.keysShown
             }
         }
 

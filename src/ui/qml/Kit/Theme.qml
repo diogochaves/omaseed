@@ -117,6 +117,10 @@ ThemeBase {
     /// How far it hangs past its control's top-right corner (board 46: 6 px right, 9 px up).
     readonly property int keyBadgeOverhangX: space(6)
     readonly property int keyBadgeOverhangY: space(9)
+    /// Placed inside a control rather than over its corner (a rail row, the mark): the gap to
+    /// the row's count, and the room to an edge where nothing else is (the folded rail).
+    readonly property int keyBadgeRowGap: space(6)
+    readonly property int keyBadgeEdge: space(3)
     /// How long alt is held alone before the badges show, in ms: the alt of alt+j never shows
     /// them, even for a frame.
     readonly property int keyBadgeDelay: 200

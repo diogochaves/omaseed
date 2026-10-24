@@ -147,6 +147,12 @@ Item {
     /// The rail groups folded on this server (docs/08 §5), saved with the table's state.
     property var railFolded: []
 
+    /// DECISIONS C24 H10: the frame shows its keys (alt held alone a moment, see altWatch).
+    readonly property bool keysShown: root._altLong && !root.overlayOpen && !root.firstRun
+    property bool _altLong: false
+    /// altWatch, for the tests.
+    readonly property alias altWatch: altWatch
+
     // ---- board 42: moving a folder (DECISIONS C15, #97) ---------------------------------
     /// "show" (J1, S1): the table lists these torrents, with the Move column while they are
     /// the job's. Empty: the library as the rail filters it.
@@ -1720,6 +1726,7 @@ Item {
         folders: App.move.folders
         // The mark's rule meets the title bar's.
         headHeight: titleBar.height
+        keysShown: root.keysShown
         markAlert: App.hasServer && root.serverLost && !root.firstSync
         servers: App.servers
         // T4.5: the SERVERS group is off unless the General pane asks for it.
@@ -1839,6 +1846,7 @@ Item {
         sentence: root.scopeSentence
         // The log filters its own lines (docs/32 D11).
         filterShown: !root.logShown
+        keysShown: root.keysShown
         searchCountText: App.filtered.text.length > 0 ? qsTr("%1 of %2").arg(App.filtered.count).arg(
                                                             App.counts.total) : String(App.filtered.count)
         // H5: "move this folder…" while a folder is picked (shift+m, the row's menu and `:`
@@ -2352,6 +2360,7 @@ Item {
         serverShortText: !App.hasServer || root.serverLost || root.firstSync ? "" : App.serverName
         // docs/33 D3, H15: with two servers the lane opens the server palette.
         serverSwitchable: root.multiServer
+        keysShown: root.keysShown
         serverConfigured: App.hasServer
         connected: !root.serverLost
         syncing: root.firstSync
@@ -2415,6 +2424,7 @@ Item {
         availableWidth: statusLine.width - Theme.actionBarInsetStart - Theme.actionBarInsetEnd
         count: table.selectedCount
         hint: root.selectionHint
+        keysShown: root.keysShown
         // The line's note, while the bar hides the line.
         note: root.footerNote
         noteWarn: root.footerNoteWarn
@@ -2439,8 +2449,8 @@ Item {
         glyph: Glyphs.help
         sheetWidth: Theme.space(760)
         // docs/30 D10: the sheet names the palette that runs them, on a line of its own: the
-        // head's one line at 760 cut it off (#66).
-        subtitle: qsTr("single letters act on the table \u00b7 capitals are the stronger variant \u00b7 ctrl is app-level\n: runs any of them by name")
+        // head's one line at 760 cut it off (#66). C24 H10: and alt, which badges the frame.
+        subtitle: qsTr("single letters act on the table \u00b7 capitals are the stronger variant \u00b7 ctrl is app-level\nhold alt to see the keys on screen \u00b7 : runs any of them by name")
         subtitleWraps: true
         title: qsTr("Shortcuts")
         z: 10
@@ -2799,6 +2809,31 @@ Item {
         interval: 15000
 
         onTriggered: root._altFlipFrom = null
+    }
+
+    // DECISIONS C24 H10: keys on demand. Alt held alone for a moment (Theme.keyBadgeDelay)
+    // badges the frame's keys: the rail, the title bar's tools, the status line's server lane
+    // and the action bar. alt+j's alt is let go before the delay, so nothing flashes; an
+    // overlay has its own keys written in it, so the frame's stay hidden under it.
+    KeyWatch {
+        id: altWatch
+
+        onAltHeldChanged: {
+            if (altWatch.altHeld) {
+                altBadgeTimer.restart();
+            } else {
+                altBadgeTimer.stop();
+                root._altLong = false;
+            }
+        }
+    }
+
+    Timer {
+        id: altBadgeTimer
+
+        interval: Theme.keyBadgeDelay
+
+        onTriggered: root._altLong = altWatch.altHeld
     }
 
     // The next key takes the note away.

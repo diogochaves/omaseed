@@ -9,7 +9,7 @@ import Omaseed.Kit
 // alt-speed chip and the network's warning (#167 assumed 5), the facts (count · free · sync),
 // the note slot (a copied, a failure with its "details", the note after A), and "? keys" at
 // the right edge. It replaces the footer's key hints (supersedes v2's footer hints): keys are
-// taught on demand now, in menus, tooltips, the palette and `?`.
+// taught on demand now, in menus, tooltips, the palette, `?` and badges while alt is held.
 //
 // Properties only: MainView feeds it the words and the state and answers its signals. Its
 // form (height, insets, gaps, the dot, the steps) is `Theme.statusLine*` tokens, so a later
@@ -150,6 +150,10 @@ Item {
         }
         return steps.length;
     }
+
+    /// DECISIONS C24 H10: alt is held: the server lane shows ctrl+s over its corner, with
+    /// two servers (one has nothing to switch to, docs/33 D19).
+    property bool keysShown: false
 
     /// The parts tests and the walks read.
     readonly property alias serverLane: lane
@@ -324,6 +328,12 @@ Item {
                                root.serverClicked()
                 onContainsMouseChanged: laneMouse.containsMouse ? tip.showFor(lane, root.serverTipText, true)
                                                                 : tip.hide()
+            }
+
+            KeyBadge {
+                key: "ctrl+s"
+                objectName: "statusServerKey"
+                shown: root.keysShown && root.serverSwitchable
             }
         }
 

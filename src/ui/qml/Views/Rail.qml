@@ -65,6 +65,9 @@ Item {
     property string view: "library"
     /// #167 assumed 4: folded to its glyphs (ctrl+b).
     property bool compact: false
+    /// DECISIONS C24 H10: alt is held: the mark, the views, the questions and the servers
+    /// show their keys.
+    property bool keysShown: false
     /// The mark's height: the host gives it the hero's, so their hairlines meet.
     property real headHeight: Theme.railHeadHeight
     /// The mark in red, as the hero's was: the server is lost and nothing retries.
@@ -275,17 +278,20 @@ Item {
         {
             "key": "library",
             "text": qsTr("library"),
-            "glyph": Glyphs.viewLibrary
+            "glyph": Glyphs.viewLibrary,
+            "shortcut": "0"
         },
         {
             "key": "seed",
             "text": qsTr("seed"),
-            "glyph": Glyphs.viewSeed
+            "glyph": Glyphs.viewSeed,
+            "shortcut": "`"
         },
         {
             "key": "log",
             "text": qsTr("log"),
-            "glyph": Glyphs.viewLog
+            "glyph": Glyphs.viewLog,
+            "shortcut": "~"
         }
     ]
 
@@ -490,6 +496,29 @@ Item {
             root.viewPicked(key);
     }
 
+    /// DECISIONS C24 H10: a view's or a question's tooltip names it and its key, beside the
+    /// folded rail as its name, under the open one.
+    function _keyTip(row: RailRow, hovering: bool): void {
+        const text = qsTr("%1 · %2").arg(row.text).arg(row.keyText);
+        if (root.compact)
+            root._compactTip(row, hovering, text);
+        else
+            root._nameTip(row, hovering, text);
+    }
+
+    /// The mark's tooltip: what it opens and its key.
+    function _markTip(hovering: bool): void {
+        const text = qsTr("omaseed menu · %1").arg("ctrl+.");
+        if (root.compact) {
+            root._compactTip(markButton, hovering, text);
+        } else if (hovering) {
+            const point = markButton.mapToItem(root, Theme.railMarkInset, markButton.height);
+            hostTip.showAt(point.x, point.y, text);
+        } else {
+            hostTip.hide();
+        }
+    }
+
     /// The folded rail's tooltip: a row's name beside it, since only its glyph shows.
     function _compactTip(row: Item, hovering: bool, text: string): void {
         if (hovering && root.compact) {
@@ -615,7 +644,7 @@ Item {
     Rectangle {
         id: markButton
 
-        // C24 H9: the omaseed menu, as ctrl+. opens it.
+        // C24 H9: the omaseed menu, as ctrl+. opens it; its key badged while alt is held (H10).
         Accessible.description: qsTr("shortcut %1").arg("ctrl+.")
         Accessible.name: qsTr("omaseed menu")
         Accessible.role: Accessible.Button
@@ -680,7 +709,17 @@ Item {
             hoverEnabled: true
 
             onClicked: root.markClicked()
-            onContainsMouseChanged: root._compactTip(markButton, markMouse.containsMouse, qsTr("omaseed"))
+            onContainsMouseChanged: root._markTip(markMouse.containsMouse)
+        }
+
+        KeyBadge {
+            anchors.right: parent.right
+            anchors.rightMargin: root.compact ? Theme.keyBadgeEdge : Theme.railMarkInset
+            anchors.verticalCenter: parent.verticalCenter
+            corner: false
+            key: "ctrl+."
+            objectName: "railMarkKey"
+            shown: root.keysShown
         }
     }
 
@@ -711,12 +750,14 @@ Item {
                                                                     root.view === viewDelegate.modelData.key
                 glyph: viewDelegate.modelData.glyph
                 hasCursor: root.shownCursor === viewDelegate.globalIndex
+                keyText: viewDelegate.modelData.shortcut
+                keysShown: root.keysShown
                 objectName: "railView-" + viewDelegate.modelData.key
                 text: viewDelegate.modelData.text
                 width: viewsBlock.width
 
                 onClicked: root.clickRow(viewDelegate.globalIndex)
-                onHoverChanged: hovering => root._compactTip(viewDelegate, hovering, viewDelegate.text)
+                onHoverChanged: hovering => root._keyTip(viewDelegate, hovering)
 
                 Component.onCompleted: root._registerRow(viewDelegate, () => root.pickView(
                                                              viewDelegate.modelData.key))
@@ -802,6 +843,9 @@ Item {
                         glyphColor: questionDelegate.alarm ? Theme.red : questionDelegate.selected
                                                                          ? Theme.accent : Theme.dimForeground
                         hasCursor: root.shownCursor === questionDelegate.globalIndex
+                        // C24 H2: 1–5 in the rail's order.
+                        keyText: String(questionDelegate.index + 1)
+                        keysShown: root.keysShown
                         objectName: "railQuestion-" + questionDelegate.modelData.key
                         selected: root.filtered.question === questionDelegate.modelData.question
                         text: questionDelegate.modelData.text
@@ -809,8 +853,7 @@ Item {
                         width: content.width
 
                         onClicked: root.clickRow(questionDelegate.globalIndex)
-                        onHoverChanged: hovering => root._compactTip(questionDelegate, hovering,
-                                                                     questionDelegate.text)
+                        onHoverChanged: hovering => root._keyTip(questionDelegate, hovering)
 
                         Component.onCompleted: root._registerRow(questionDelegate, ()
                                                                  => root.selectQuestion(
@@ -1346,6 +1389,17 @@ Item {
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.top: parent.top
+        }
+
+        // C24 H10: ctrl+s, the server palette, on the block's top edge while alt is held.
+        KeyBadge {
+            anchors.right: parent.right
+            anchors.rightMargin: root.compact ? Theme.keyBadgeEdge : Theme.space(16)
+            anchors.verticalCenter: parent.top
+            corner: false
+            key: "ctrl+s"
+            objectName: "serversKey"
+            shown: root.keysShown
         }
 
         Column {
