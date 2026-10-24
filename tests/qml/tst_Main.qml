@@ -90,7 +90,7 @@ TestCase {
         view._testServerLost = false;
         App.railHidden = false;
         view.split.folded = false;
-        view.details.activateTab(0);
+        view.details.activateTab(view.details.tabStory);
         view.table.cancelRename();
         view.table.clearSelection();
         view.titleBar.searchField.text = "";
@@ -513,7 +513,7 @@ TestCase {
         view.details.activateTab(1);
         keyClick("x");
         compare(App.torrentRow(hash).failure.kind, "move");
-        view.details.activateTab(0);
+        view.details.activateTab(view.details.tabStory);
         keyClick("x");
         verify(App.torrentRow(hash).failure.kind === undefined);
         App.loadDemo(16);
@@ -1230,7 +1230,7 @@ TestCase {
         verify(view.factParts.length > 0, "the facts went with the menu");
         keyClick(Qt.Key_Escape);
         tryVerify(() => !view.details.menuOpen, 1000, "esc did not close the priority menu");
-        view.details.currentTab = 0;
+        view.details.currentTab = view.details.tabStory;
     }
 
     // ---- one Connections block, and the jump palette's `tab` (T4.8) --------------------------
@@ -1353,7 +1353,7 @@ TestCase {
         keyClick("/");
         compare(view.footerNote, "one file, nothing to filter");
         verify(!view.titleBar.searchField.editing, "`/` went on to the window's search");
-        view.details.activateTab(0);
+        view.details.activateTab(view.details.tabStory);
     }
 
     // docs/12 F3: the Files tab's selection is a fact of the footer while the tab shows.
@@ -1371,7 +1371,7 @@ TestCase {
 
         App.details.files.clearSelection();
         verify(!view.factsText.includes("files selected"));
-        view.details.activateTab(0);
+        view.details.activateTab(view.details.tabStory);
     }
 
     // #11 (docs/18 A1): `r` with several files selected opens the rename sheet on them; with
@@ -1399,7 +1399,7 @@ TestCase {
         compare(view.renameFilesSheet.fromSelection, false);
         compare(view.renameFilesSheet.paths.length, 5);
         view.renameFilesSheet.close();
-        view.details.activateTab(0);
+        view.details.activateTab(view.details.tabStory);
     }
 
     // ---- focusHome (review VIEW-1) -------------------------------------------------------
@@ -1617,7 +1617,7 @@ TestCase {
         keyClick(Qt.Key_Escape);
         compare(view.details.menuOpen, false);
         compare(view.details.activeFocus, true, "a Files command left the keyboard elsewhere");
-        view.details.activateTab(0);
+        view.details.activateTab(view.details.tabStory);
     }
 
     // ---- the command palette's keys (docs/30 D1) -------------------------------------------
@@ -1652,7 +1652,7 @@ TestCase {
         compare(view.commandPalette.context.area, "files");
         compare(view.commandPalette.items[0].action, "priorityMenu");
         view.commandPalette.close();
-        view.details.activateTab(0);
+        view.details.activateTab(view.details.tabStory);
     }
 
     // enter runs the row as its key would, and it comes first next time (D7).
@@ -1725,7 +1725,7 @@ TestCase {
 
     // ---- the details pane's row keys (review VIEW-6) ------------------------------------
     function test_a_in_the_general_tab_still_adds_a_torrent() {
-        view.details.activateTab(0);
+        view.details.activateTab(view.details.tabStory);
         view.details.forceActiveFocus();
         keyClick("a");
         compare(addSpy.count, 1, "the details pane swallowed the window's `a`");
@@ -1733,11 +1733,11 @@ TestCase {
 
     function test_tracker_keys_act() {
         testCase._cursorOn("Big Buck Bunny 4K (CC-BY)");
-        view.details.activateTab(2);
+        view.details.activateTab(view.details.tabTrackers);
         view.details.forceActiveFocus();
         keyClick(Qt.Key_R, Qt.ShiftModifier);
         compare(view.footerNote, "reannounced");
-        view.details.activateTab(0);
+        view.details.activateTab(view.details.tabStory);
     }
 
     // ---- ruling Q4: the add sheet and the ban confirm ---------------------------------------
@@ -1748,7 +1748,7 @@ TestCase {
 
     function test_a_in_trackers_opens_the_add_sheet_and_checks_the_urls() {
         testCase._cursorOn("Big Buck Bunny 4K (CC-BY)");
-        view.details.activateTab(2);
+        view.details.activateTab(view.details.tabTrackers);
         view.details.forceActiveFocus();
         keyClick("a");
         compare(addSpy.count, 0, "`a` in Trackers opened the add-torrent sheet");
@@ -1778,12 +1778,12 @@ TestCase {
         compare(view.detailsAddSheet.errorText, "", "typing did not clear the error");
         keyClick(Qt.Key_Return);
         compare(view.detailsAddSheet.opened, false);
-        view.details.activateTab(0);
+        view.details.activateTab(view.details.tabStory);
     }
 
     function test_a_in_peers_opens_the_add_sheet_for_host_and_port() {
         testCase._cursorOn("Big Buck Bunny 4K (CC-BY)");
-        view.details.activateTab(3);
+        view.details.activateTab(view.details.tabSwarm);
         view.details.forceActiveFocus();
         keyClick("a");
         compare(view.detailsAddSheet.opened, true);
@@ -1797,14 +1797,14 @@ TestCase {
         testCase._type("203.0.113.5:6881, [2001:db8::1]:51413");
         keyClick(Qt.Key_Return);
         compare(view.detailsAddSheet.opened, false);
-        view.details.activateTab(0);
+        view.details.activateTab(view.details.tabStory);
     }
 
     // #10: the HTTP sources tab's `a` takes http or https URLs; `d` removes the row's.
     function test_http_sources_add_and_remove() {
         testCase._cursorOn("archlinux-2026.09.01-x86_64.iso");
-        view.details.activateTab(4);
-        compare(view.details.currentTab, 4, "the demo's Arch ISO has no web seeds");
+        view.details.activateTab(view.details.tabWebSeeds);
+        compare(view.details.currentTab, view.details.tabWebSeeds, "the demo's Arch ISO has no web seeds");
         view.details.forceActiveFocus();
         keyClick("a");
         compare(addSpy.count, 0, "`a` in HTTP sources opened the add-torrent sheet");
@@ -1824,11 +1824,11 @@ TestCase {
 
         keyClick("d");
         compare(view.footerNote, "removed https://mirror.example.net/archlinux/iso/2026.09.01/");
-        view.details.activateTab(0);
+        view.details.activateTab(view.details.tabStory);
     }
 
     function test_ctrl_q_quits_from_the_add_sheet() {
-        view.details.activateTab(2);
+        view.details.activateTab(view.details.tabTrackers);
         view.details.forceActiveFocus();
         keyClick("a");
         compare(view.detailsAddSheet.opened, true);
@@ -1836,12 +1836,12 @@ TestCase {
         keyClick(Qt.Key_Q, Qt.ControlModifier);
         compare(quitSpy.count, 1, "ctrl+q was swallowed by the sheet");
         view.detailsAddSheet.close();
-        view.details.activateTab(0);
+        view.details.activateTab(view.details.tabStory);
     }
 
     function test_b_in_peers_asks_before_a_permanent_ban() {
         testCase._cursorOn("Big Buck Bunny 4K (CC-BY)");
-        view.details.activateTab(3);
+        view.details.activateTab(view.details.tabSwarm);
         view.details.forceActiveFocus();
         tryVerify(() => App.details.peers.rowCount() > 0, 2000, "the demo torrent has no peers");
         const address = App.details.peers.addressAt(view.details.peersCursor);
@@ -1865,14 +1865,14 @@ TestCase {
         keyClick(Qt.Key_L);
         keyClick(Qt.Key_Return);
         compare(view.banPeerConfirm.opened, false);
-        view.details.activateTab(0);
+        view.details.activateTab(view.details.tabStory);
     }
 
     // #51 D15: with peers selected, `b` asks once about all of them, and `d` in Trackers
     // removes every selected tracker.
     function test_b_on_selected_peers_asks_about_them_all() {
         testCase._cursorOn("Big Buck Bunny 4K (CC-BY)");
-        view.details.activateTab(3);
+        view.details.activateTab(view.details.tabSwarm);
         view.details.forceActiveFocus();
         tryVerify(() => App.details.peers.rowCount() > 1, 2000, "the demo torrent has too few peers");
         const peers = App.details.peers;
@@ -1889,7 +1889,7 @@ TestCase {
         compare(view.details.peersSelection.count, 0);
 
         testCase._cursorOn("archlinux-2026.09.01-x86_64.iso");
-        view.details.activateTab(2);
+        view.details.activateTab(view.details.tabTrackers);
         view.details.forceActiveFocus();
         keyClick(Qt.Key_A, Qt.ControlModifier);
         const count = view.details.trackersSelection.count;
@@ -1897,7 +1897,7 @@ TestCase {
         keyClick("d");
         compare(view.footerNote, "removed " + count + " trackers");
         keyClick(Qt.Key_Escape);
-        view.details.activateTab(0);
+        view.details.activateTab(view.details.tabStory);
     }
 
     // A drop with nothing addable in it (a file that is not a .torrent) says so.

@@ -283,4 +283,40 @@ ThemeBase {
     readonly property int coverLineGap: space(4)
     /// A selected cover's border, and the cursor's.
     readonly property int coverSelectedBorder: 2
+
+    // ---- the details' form: the story (board 46 `details()`, `.dhero`, `.tl`, `.tb h5`) -------
+    /// The head's one fact (`.dhero .big`: 22 px at 13 px type, 500, in the state's colour), its
+    /// caption beside it (12 px, dim) and the sentence under them (12 px, the foreground).
+    readonly property int detailsFactSize: font.heading
+    readonly property int detailsFactWeight: Font.Medium
+    readonly property int detailsCaptionSize: font.small
+    readonly property int detailsSentenceSize: font.small
+    /// The sentence's lines before it elides.
+    readonly property int detailsSentenceLines: 2
+    /// Around the fact and the sentence (`.dhero`: 10 px over, 16 px in, 12 px under), between
+    /// them (3 px), and from the fact to its caption (8 px).
+    readonly property int detailsHeroInset: space(16)
+    readonly property int detailsHeroPaddingTop: space(8)
+    readonly property int detailsHeroPaddingBottom: space(12)
+    readonly property int detailsHeroGap: space(3)
+    readonly property int detailsCaptionGap: space(8)
+    /// A tab's body (`.tb`: 12 px over, 16 px in, 12 px between its blocks).
+    readonly property int detailsBodyInset: space(16)
+    readonly property int detailsBodyPaddingTop: space(12)
+    readonly property int detailsBodyGap: space(12)
+    /// A block's heading (`.tb h5`: 10.5 px, upper case, tracked, dim) and the room under it.
+    readonly property int detailsHeadingSize: font.caption
+    readonly property real detailsHeadingTracking: font.caption * 0.12
+    readonly property int detailsHeadingGap: space(6)
+    /// The story's timeline (`.tl`): the time's column (42 px), the marker's (10 px) with its
+    /// square (7 px, 6 px down), the room between columns (8 px) and between lines (7 px); the
+    /// event (12 px, the foreground) over its dim line (11 px).
+    readonly property int detailsEventTimeWidth: space(70)
+    readonly property int detailsEventMarkWidth: space(10)
+    readonly property int detailsEventMarkSize: space(7)
+    readonly property int detailsEventMarkTop: space(5)
+    readonly property int detailsEventGap: space(8)
+    readonly property int detailsEventSpacing: space(7)
+    readonly property int detailsEventTitleSize: font.small
+    readonly property int detailsEventDetailSize: font.caption
 }

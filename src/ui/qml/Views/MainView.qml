@@ -366,11 +366,11 @@ Item {
         logView.showTorrentLines(hash);
     }
 
-    /// The log's `enter` (D13): the line's torrent in the library, its General tab open.
+    /// The log's `enter` (D13): the line's torrent in the library, its story open (C24 H6).
     function showLogTorrent(hash: string): void {
         root.setView("library");
         if (table.revealHash(hash)) {
-            root.showDetailsTab(0);
+            root.showDetailsTab(details.tabStory);
             root.focusHome();
         }
     }
@@ -1367,7 +1367,7 @@ Item {
         if (area === "search")
             area = details.filterEditing ? "files" : logView.filterEditing ? "log" : "table";
         if (area === "details")
-            area = ["general", "files", "trackers", "peers", "webseeds"][details.currentTab] || "general";
+            area = ["story", "files", "peers", "trackers", "facts", "webseeds"][details.currentTab] || "story";
         const targets = root.actionHashes().map(hash => App.torrentRow(hash));
         const stopped = targets.filter(row => row.stopped === true).length;
         const cursor = root.cursorHash.length > 0 ? App.torrentRow(root.cursorHash) : ({});
@@ -1408,6 +1408,9 @@ Item {
             // space on a disk omaseed sees.
             "freeable": App.skippedOnDisk.hash === App.details.hash && App.skippedOnDisk.seen === true
                         && (App.skippedOnDisk.holding || 0) > 0,
+            // C30 F13: "add it again to free SIZE…" while only that frees them.
+            "readdText": App.skippedOnDisk.hash === App.details.hash && App.skippedOnDisk.outlook === "readd"
+                         ? (App.skippedOnDisk.readdText || "") : "",
             // App.stopStart follows the first hash: `p` starts when that one is stopped.
             "firstStopped": targets.length > 0 && targets[0].stopped === true,
             "marked": marked,
@@ -1531,8 +1534,8 @@ Item {
             root.torrentAction("copyName");
             return true;
         case Qt.Key_X:
-            // docs/32 D3: the failure block's `x`, only while the pane shows it on General.
-            if (details.collapsed || details.currentTab !== 0 || root.cursorHash.length === 0
+            // docs/32 D3: the failure block's `x`, only while the pane shows it on the story.
+            if (details.collapsed || details.currentTab !== details.tabStory || root.cursorHash.length === 0
                     || (App.torrentRow(root.cursorHash).failure || {}).kind === undefined)
                 return false;
             App.dismissFailure(root.cursorHash);
@@ -1693,7 +1696,7 @@ Item {
         /// details open on Trackers, and the footer says how many were added.
         function onTrackersMerged(hash: string, count: int): void {
             root.showTorrent(hash);
-            root.showDetailsTab(2);
+            root.showDetailsTab(details.tabTrackers);
             const name = App.torrentRow(hash).name || "";
             root.flashFooterNote(count === 1 ? qsTr("1 tracker added to %1").arg(name)
                                              : qsTr("%1 trackers added to %2").arg(count).arg(name));

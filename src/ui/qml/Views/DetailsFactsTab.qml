@@ -1,13 +1,15 @@
 pragma ComponentBehavior: Bound
 import QtQuick
-import Omaseed
 import Omaseed.Kit
 
-// The details pane's General tab (spec v2 §2 Fig. 1's `.kv` block), grouped as docs/12 G1
-// draws it: Transfer (what is moving), Information (what the torrent is) and Options (what
-// you can change), each under a tracked heading in the accent, in that order. `properties`
-// is `TorrentDetails.properties` — every value is already a formatted string — and `torrent`
-// is the cursor row, which owns the Status row's word and its colour.
+// The details pane's facts tab (board 46 `details()`'s `.kv`, DECISIONS C24 H6: "General's rows
+// move to facts"), grouped as docs/12 G1 draws General: Transfer (what is moving), Information
+// (what the torrent is) and Options (what you can change), each under a tracked heading in the
+// accent, in that order. The four facts the head's strip had (size, done, ratio, ETA) lead
+// Transfer, and the head's meta (category, tags, added) joins Information. `properties` is
+// `TorrentDetails.properties` — every value is already a formatted string — and `torrent` is
+// the cursor row, which owns the Status row's word and its colour. The error block, the last
+// move and the pieces bar went to the story.
 //
 // A row whose value is empty is left out, so a magnet with no metadata shows a short block
 // rather than a column of dashes, and a group left with no row at all loses its heading.
@@ -18,41 +20,17 @@ import Omaseed.Kit
 Flickable {
     id: root
 
-    /// The controller, for docs/12 G3's pieces bar; null draws no bar.
-    property TorrentDetails details: null
     property var properties: ({})
     property var torrent: null
     property int columns: 1
     /// docs/12 G5: the row under the pane's `j k` cursor, an index into `rows`.
     property int cursorIndex: -1
-    /// docs/28 G2: the free space on the torrent's disk, "0 B free", when its disk is full.
-    property string freeText: ""
-    /// docs/44 D13: a stuck move's partial copies, as `App.stuckMoveCopies` names them.
-    property string partialText: ""
+    /// DECISIONS C30 F17–F18: the size's tail, "2 skipped, 16.0 MB still on disk", or "1.03 GB
+    /// of it in skipped files" on a disk omaseed can't see; "" for none.
+    property string sizeTail: ""
 
     /// A click on a row (G5: Details moves the cursor there and copies the value).
     signal rowClicked(int row)
-    /// docs/28: an action of the error block, for the cursor torrent ("location", "start",
-    /// "recheck", "rename", "copy").
-    signal problemAction(string action)
-
-    /// docs/32: an action of the failure block ("location", "folder", "rename", "copy",
-    /// "dismiss").
-    signal failureAction(string action)
-
-    /// Board 45 B1: an action of the last move's block ("back", "backThis", "show").
-    signal moveAction(string action)
-
-    /// docs/28: why the torrent is in error (TorrentProblem::toMap()), or an empty map.
-    readonly property var problem: root.torrent && root.torrent.problem ? root.torrent.problem : ({})
-    readonly property bool _hasProblem: (root.problem.headline || "").length > 0
-    /// docs/32 (#55): a move, rename or part file that failed (TorrentFailure::toMap()), or an
-    /// empty map. It comes under the error, in yellow, when there is both.
-    readonly property var failure: root.torrent && root.torrent.failure ? root.torrent.failure : ({})
-    readonly property bool _hasFailure: (root.failure.headline || "").length > 0
-    /// Board 45 B1 (C18 D7): App.move.lastMoveOf() for this torrent, {} for none.
-    property var lastMove: ({})
-    readonly property bool _hasMove: (root.lastMove.id || "").length > 0
 
     /// Every row in reading order (Transfer, Information, Options), each carrying its
     /// `index` there: the list the cursor walks.
@@ -76,7 +54,7 @@ Flickable {
         const stack = [first, second];
         while (stack.length > 0) {
             const item = stack.pop();
-            if (item.objectName === "generalRow_" + index)
+            if (item.objectName === "factsRow_" + index)
                 return item;
             for (const child of item.children)
                 stack.push(child);
@@ -108,6 +86,16 @@ Flickable {
         };
 
         const transfer = make();
+        // The head's strip had these four (spec v2 Fig. 8); C30 F17–F18 add the size's tail.
+        if (row) {
+            add(transfer, qsTr("Size"), row.sizeText, {
+                    "tail": root.sizeTail
+                });
+            add(transfer, qsTr("Done"), row.progressText);
+            add(transfer, qsTr("Ratio"), row.ratioText);
+            if (row.etaLongText && row.etaLongText !== "—")
+                add(transfer, qsTr("ETA"), row.etaLongText);
+        }
         // docs/28: the short cause after the state, dim, when the log says why.
         const cause = row && row.problem ? (row.problem.cause || "") : "";
         // DECISIONS C20 (#107): stopped by omaseed while in error.
@@ -130,6 +118,12 @@ Flickable {
         add(transfer, qsTr("Reannounce"), map.reannounce);
 
         const information = make();
+        // The head's meta line (spec v2 Fig. 1), whole here.
+        if (row) {
+            add(information, qsTr("Category"), row.category);
+            add(information, qsTr("Tags"), row.tagsText);
+            add(information, qsTr("Added"), row.addedOnText);
+        }
         add(information, qsTr("Save path"), map.savePath);
         add(information, qsTr("Pieces"), map.pieces);
         // Broken in half, not wherever the width runs out, when it does not fit on one line.
@@ -183,7 +177,6 @@ Flickable {
             }].filter(group => group.rows.length > 0);
     }
 
-    readonly property bool _hasBar: root.details !== null && root.details.pieceCount > 0
     readonly property int _gap: Theme.space(24)
     readonly property int _blockWidth: root.columns === 2 ? Math.floor((root.width - root._gap) / 2)
                                                           : root.width
@@ -200,94 +193,6 @@ Flickable {
         id: first
 
         width: root._blockWidth
-
-        // docs/28 G1: why it is in error, over everything else.
-        Item {
-            height: root._hasProblem ? errorBlock.implicitHeight + Theme.space(12) : 0
-            visible: root._hasProblem
-            width: parent.width
-
-            DetailsErrorBlock {
-                id: errorBlock
-
-                anchors.left: parent.left
-                anchors.leftMargin: Theme.space(16)
-                anchors.right: parent.right
-                anchors.rightMargin: Theme.space(16)
-                anchors.top: parent.top
-                anchors.topMargin: Theme.space(12)
-                freeText: root.freeText
-                partialText: root.partialText
-                problem: root.problem
-
-                onActionTriggered: action => root.problemAction(action)
-            }
-        }
-
-        // docs/32 F1–F3: what didn't happen, under the error when there is one.
-        Item {
-            height: root._hasFailure ? failureBlock.implicitHeight + Theme.space(12) : 0
-            visible: root._hasFailure
-            width: parent.width
-
-            DetailsErrorBlock {
-                id: failureBlock
-
-                anchors.left: parent.left
-                anchors.leftMargin: Theme.space(16)
-                anchors.right: parent.right
-                anchors.rightMargin: Theme.space(16)
-                anchors.top: parent.top
-                anchors.topMargin: Theme.space(12)
-                objectName: "failureBlock"
-                problem: root.failure
-
-                onActionTriggered: action => root.failureAction(action)
-            }
-        }
-
-        // Board 45 B1 (C18 D7): the torrent's last move, while the history keeps it.
-        Item {
-            height: root._hasMove ? moveBlock.implicitHeight + Theme.space(12) : 0
-            visible: root._hasMove
-            width: parent.width
-
-            DetailsMoveBlock {
-                id: moveBlock
-
-                anchors.left: parent.left
-                anchors.leftMargin: Theme.space(16)
-                anchors.right: parent.right
-                anchors.rightMargin: Theme.space(16)
-                anchors.top: parent.top
-                anchors.topMargin: Theme.space(12)
-                move: root.lastMove
-
-                onActionTriggered: action => root.moveAction(action)
-            }
-        }
-
-        // docs/12 G3: at the top of General, over Transfer.
-        Item {
-            height: root._hasBar ? bar.implicitHeight + Theme.space(12) : 0
-            visible: root._hasBar
-            width: parent.width
-
-            DetailsPiecesBar {
-                id: bar
-
-                anchors.left: parent.left
-                anchors.leftMargin: Theme.space(16)
-                anchors.right: parent.right
-                anchors.rightMargin: Theme.space(16)
-                anchors.top: parent.top
-                anchors.topMargin: Theme.space(12)
-                details: root.details
-                haveText: (root.properties || {}).piecesHave || ""
-                objectName: "piecesBar"
-                percentText: root.torrent ? root.torrent.progressText : ""
-            }
-        }
 
         Repeater {
             model: root.columns === 2 ? root.groups.slice(0, 1) : root.groups
@@ -317,7 +222,7 @@ Flickable {
         anchors.right: parent.right
         anchors.top: parent.top
         flickable: root
-        objectName: "generalScrollBar"
+        objectName: "factsScrollBar"
         parent: root
         vertical: true
         width: Theme.space(4)
@@ -327,7 +232,7 @@ Flickable {
     WheelScroll {
         anchors.fill: parent
         flickable: root
-        objectName: "generalWheel"
+        objectName: "factsWheel"
         parent: root
         rowHeight: Theme.railRowHeight
         z: 2
@@ -341,7 +246,7 @@ Flickable {
 
             required property var modelData
 
-            objectName: "generalGroup_" + group.modelData.label
+            objectName: "factsGroup_" + group.modelData.label
             width: parent ? parent.width : 0
 
             // The rail's section heading (RailGroup: a tracked caption, 16 u in, 4 u above
@@ -354,7 +259,7 @@ Flickable {
                 bottomPadding: Theme.space(4)
                 color: Theme.accent
                 leftPadding: Theme.space(16)
-                objectName: "generalHeading_" + group.modelData.label
+                objectName: "factsHeading_" + group.modelData.label
                 text: group.modelData.label
                 topPadding: Theme.space(12)
                 tracked: true
@@ -363,12 +268,12 @@ Flickable {
             Repeater {
                 model: group.modelData.rows
 
-                DetailsGeneralRow {
+                DetailsFactsRow {
                     required property var modelData
 
                     entry: modelData
                     hasCursor: modelData.index === root.cursorIndex
-                    objectName: "generalRow_" + modelData.index
+                    objectName: "factsRow_" + modelData.index
                     width: group.width
 
                     onClicked: root.rowClicked(modelData.index)

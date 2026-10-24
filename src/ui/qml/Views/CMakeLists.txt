@@ -45,8 +45,11 @@ qt_add_qml_module(omaseed-views
         DetailsErrorBlock.qml
         DetailsMoveBlock.qml
         DetailsFilesTab.qml
-        DetailsGeneralRow.qml
-        DetailsGeneralTab.qml
+        DetailsFactsRow.qml
+        DetailsFactsTab.qml
+        DetailsHero.qml
+        DetailsStoryEvent.qml
+        DetailsStoryTab.qml
         DetailsHeader.qml
         DetailsPeersTab.qml
         DetailsPiecesBar.qml

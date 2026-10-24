@@ -1040,7 +1040,7 @@ QtObject {
             "help": qsTr("open folder"),
             "about": qsTr("Open the cursor row's folder in the file manager")
         },
-        // docs/32 D3 (#55): the failure block's `x`, while the pane shows it on General. A
+        // docs/32 D3 (#55): the failure block's `x`, while the pane shows it on the story. A
         // gesture on that block rather than a command: no title, no palette row.
         {
             "area": "table",
@@ -1232,14 +1232,14 @@ QtObject {
         },
         {
             "area": "details",
-            "key": "1–4",
+            "key": "1–5",
             "action": "detailsTab",
             "label": qsTr("tab"),
             "column": "view",
             "rank": 2,
-            "helpKeys": "1–4",
+            "helpKeys": "1–5",
             "help": qsTr("details tab"),
-            "about": qsTr("In the details: general, files, trackers, peers tab, and 5 for HTTP sources when the torrent has any; 0 and 5–8 pick a status otherwise")
+            "about": qsTr("In the details: the story, files, swarm, trackers, facts tab, and 6 for web seeds when the torrent has any; elsewhere 1–5 pick a question")
         },
         {
             "area": "details",
@@ -1289,8 +1289,8 @@ QtObject {
             "helpKeys": "",
             "help": ""
         },
-        // docs/12 G5/G4: the sheet row for the details pane's `y`, which General's rows share,
-        // and General's `enter` on an option row.
+        // docs/12 G5/G4: the sheet row for the details pane's `y`, which facts' rows share,
+        // and facts' `enter` on an option row (General's until DECISIONS C24 H6).
         {
             "area": "details",
             "key": "y",
@@ -1302,7 +1302,7 @@ QtObject {
             "rank": 12,
             "helpKeys": "y enter",
             "help": qsTr("copy value · change option"),
-            "about": qsTr("In the details: copy the row under the cursor; in General, its whole value (the full hash or magnet). enter turns a General option on or off; a click does either")
+            "about": qsTr("In the details: copy the row under the cursor; in facts, its whole value (the full hash or magnet). enter turns a facts option on or off; a click does either")
         },
         {
             "area": "details",
@@ -1787,7 +1787,8 @@ QtObject {
             "about": qsTr("In the Files tab: hide the files set to skip, or show them again")
         },
         // Board 44 F1 (DECISIONS C17 D3, #160): shift+f, the band's "Free the space…". The
-        // palette offers it only on a torrent whose skipped files hold space here.
+        // palette offers it only on a torrent whose skipped files hold space here; C30 F13:
+        // when only adding it again frees them, it says so (commandRows' `readdText`).
         {
             "area": "details",
             "key": "F",
@@ -1798,8 +1799,8 @@ QtObject {
             "column": "act",
             "rank": 11.5,
             "helpKeys": "F",
-            "help": qsTr("free the space"),
-            "about": qsTr("In the Files tab: delete the skipped files that still hold space on this machine's disk, when omaseed can see it")
+            "help": qsTr("free the space, or add it again"),
+            "about": qsTr("In the files tab: delete the skipped files that still hold space on this machine's disk, when omaseed can see it; on a hybrid or v2 torrent whose skipped files hold downloaded pieces, add it again to free them")
         },
 
         // the log face (docs/32 §6, D10–D13): LogView takes these while it is on show. The
@@ -2144,13 +2145,13 @@ QtObject {
         {
             "group": "peers",
             "area": "peers",
-            "word": qsTr("peers"),
+            "word": qsTr("swarm"),
             "actions": ["addRow", "ban", "copy"]
         },
         {
             "group": "webseeds",
             "area": "webseeds",
-            "word": qsTr("HTTP sources"),
+            "word": qsTr("web seeds"),
             "actions": ["addRow", "removeRow", "copy"]
         },
         {
@@ -2337,8 +2338,8 @@ QtObject {
     /// the focused area's own commands when it is not the table (P5), the last ones run
     /// (D7), the rest in the `?` sheet's order, then every row that can't run (D4).
     ///
-    /// `context` is plain data: `{area: "table" | "rail" | "general" | "files" | "trackers" |
-    /// "peers" | "webseeds" | "console" | "log", selected: 2, cursor: "<the cursor torrent's name>",
+    /// `context` is plain data: `{area: "table" | "rail" | "story" | "files" | "peers" |
+    /// "trackers" | "facts" | "webseeds" | "console" | "log", selected: 2, cursor: "<the cursor torrent's name>",
     /// stopped: 0, running: 2, errored: 0 (of the targets), firstStopped: false (`p` starts),
     /// marked: 3, row: "<the focused tab's cursor row>", rowIsFolder: false,
     /// serverLost: false, recent: ["stop", …], altKind: "burst" (docs/31, A's words),
@@ -2372,7 +2373,14 @@ QtObject {
                 // #160 (C17 D3): "free the space…" only while skipped files hold space here.
                 if (found.needs === "freeable" && ctx.freeable !== true)
                     continue;
-                const entry = root.worded(found, ctx.altKind);
+                let entry = root.worded(found, ctx.altKind);
+                // DECISIONS C30 F13: only adding it again frees this torrent's skipped files.
+                if (found.action === "freeSpace" && (ctx.readdText || "").length > 0)
+                    entry = Object.assign({}, entry, {
+                                              "titles": {
+                                                  "files": qsTr("add it again to free %1…").arg(ctx.readdText)
+                                              }
+                                          });
                 const row = root._commandRow(entry, group, ctx);
                 // D4: the per-server rows follow "switch server…"; C24 H2: the states' rows
                 // follow "filter", while it can run.

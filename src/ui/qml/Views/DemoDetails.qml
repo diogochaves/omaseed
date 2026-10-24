@@ -5,8 +5,8 @@ import Omaseed.Kit
 import Omaseed.Views
 
 // `--demo details`: the details pane docked at its default width beside a placeholder for the
-// table, with the fictional library already in App. The General tab shows spec §1 Fig. 1's
-// torrent; `OMASEED_DEMO_TAB=files|trackers|peers` opens one of the other three for the
+// table, with the fictional library already in App. The story shows spec §1 Fig. 1's
+// torrent; `OMASEED_DEMO_TAB=files|swarm|trackers|facts` opens another tab for the
 // screenshots of §2 Fig. 2-4, and picks the torrent that figure draws (Fig. 2 is Big Buck
 // Bunny, Fig. 3 and Fig. 4 the Arch ISO).
 Window {
@@ -14,7 +14,9 @@ Window {
 
     readonly property int tabIndex: {
         const tab = App.demoTab();
-        return tab === "files" ? 1 : tab === "trackers" ? 2 : tab === "peers" ? 3 : 0;
+        // DECISIONS C24 H6: story · files · swarm · trackers · facts.
+        return tab === "files" ? 1 : tab === "swarm" || tab === "peers" ? 2 : tab === "trackers" ? 3
+                                                                            : tab === "facts" ? 4 : 0;
     }
     /// `OMASEED_DEMO_TORRENT=<name>` shows another torrent of the demo library (N1: "Sintel
     /// 1080p (CC-BY)" has a generated tree with extras, subtitles and a skipped sample), and

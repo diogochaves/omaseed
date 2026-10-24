@@ -113,7 +113,7 @@ TestCase {
 
         const act = Keymap.helpRows("act");
         // Then the Files tab's two (N1) and the details pane's copy (docs/12 G5).
-        // #160: shift+f, free the space, after them.
+        // #160: shift+f, free the space, after them (C30 F13: "or add it again").
         compare(act.map(row => row.helpKeys), ["a", "enter", "p P e", "d D", "c R", "C t m L r", "[ ]",
                                                "o", "y Y n", "p + - x", "O o r", "F", "y enter"]);
         compare(act.map(row => row.help), ["add", "actions", "stop/start · force · retry",
@@ -121,12 +121,13 @@ TestCase {
                                            "category · tags · location · limits · rename", "queue",
                                            "open folder", "copy magnet · hash · name",
                                            "file priority", "open · folder · rename",
-                                           "free the space", "copy value · change option"]);
+                                           "free the space, or add it again",
+                                           "copy value · change option"]);
 
         const view = Keymap.helpRows("view");
         // #24 puts the seed console's ` first, docs/32 the log's ~ after it, and the log
         // face's own keys last.
-        compare(view.map(row => row.helpKeys), ["`", "~", "i", "1–4", "s", "|", "alt+↑ alt+↓", "ctrl+b", "I",
+        compare(view.map(row => row.helpKeys), ["`", "~", "i", "1–5", "s", "|", "alt+↑ alt+↓", "ctrl+b", "I",
                                                 "< >", "H L", "X", "1–4 / w f t"]);
 
         const application = Keymap.helpRows("app");
@@ -441,6 +442,16 @@ TestCase {
         // Not a command of the library's own palette.
         const library = Keymap.commandRows(testCase._context({"freeable": true}));
         compare(testCase._row(library, "freeSpace"), null);
+
+        // DECISIONS C30 F13: when only adding it again frees them, the row says so.
+        const readd = Keymap.commandRows(testCase._context({
+                                                               "area": "files",
+                                                               "row": "a.bin",
+                                                               "freeable": true,
+                                                               "readdText": "1.03 GB"
+                                                           }));
+        compare(testCase._row(readd, "freeSpace").title, "add it again to free 1.03 GB…");
+        compare(testCase._row(readd, "freeSpace").meta, "F");
     }
 
     function test_the_trackers_and_peers_tabs() {
@@ -460,7 +471,8 @@ TestCase {
         compare(peers.slice(0, 3).map(row => row.title), ["add peers", "ban peers",
                                                           "copy peer addresses"]);
         compare(peers[1].meta, "b");
-        compare(peers[1].detail, "peers · 2 marked");
+        // DECISIONS C24 H6: the peers are the details' swarm tab.
+        compare(peers[1].detail, "swarm · 2 marked");
     }
 
     // An option row reads like the actions menu's: the cursor torrent decides on or off.

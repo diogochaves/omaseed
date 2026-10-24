@@ -868,14 +868,14 @@ TestCase {
         App.setAutoManagement([tears], true);
     }
 
-    function test_generals_auto_manage_row_asks_too() {
+    function test_facts_auto_manage_row_asks_too() {
         const sintel = hashByName("Sintel 1080p (CC-BY)");
         const tears = hashByName("Tears of Steel 4K (CC-BY)");
         shareData(sintel, tears);
         unmanage(tears, "tv");
         view.table.moveCursorTo(App.filtered.rowOfHash(tears));
         tryCompare(App.details, "hash", tears, 1000);
-        const general = findChild(view.details, "generalTab");
+        const general = findChild(view.details, "factsTab");
         tryVerify(() => general.rows.some(row => row.option === "autoManagement" && row.on === false), 1000);
         const row = general.rows.findIndex(entry => entry.option === "autoManagement");
         verify(view.details.toggleGeneralOption(row));
@@ -1441,16 +1441,17 @@ TestCase {
         // not just "it did not crash": the text really is what `y` would have copied.
     }
 
-    // docs/12 G5: `y` on a General row says what it copied.
-    function test_y_in_general_says_what_it_copied() {
+    // docs/12 G5: `y` on a facts row (General's until DECISIONS C24 H6) says what it copied.
+    function test_y_in_facts_says_what_it_copied() {
         const hash = hashByName("archlinux-2026.09.01-x86_64.iso");
         view.table.moveCursorTo(App.filtered.rowOfHash(hash));
-        view.details.activateTab(0);
-        const general = findChild(view.details, "generalTab");
+        view.details.activateTab(view.details.tabFacts);
+        const general = findChild(view.details, "factsTab");
         const hashRow = general.rows.findIndex(row => row.key === "Hash v1");
         view.details.forceActiveFocus();
         view.details.moveCursor(hashRow - view.details.cursorIndex);
         keyClick("y");
         compare(view.footerNote, "copied hash v1");
+        view.details.activateTab(view.details.tabStory);
     }
 }

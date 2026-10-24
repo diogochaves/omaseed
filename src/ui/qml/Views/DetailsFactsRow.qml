@@ -3,9 +3,10 @@ import QtQuick
 import QtQuick.Layouts
 import Omaseed.Kit
 
-// One key/value row of the details pane's General tab (spec v2 §3 Fig. 9 `.kv`, grouped by
-// docs/12 G1): a fixed key column and a flexible value column, closed by a row hairline, the
-// same measures as Kit's KeyValue. `entry` is one of DetailsGeneralTab's rows,
+// One key/value row of the details pane's facts tab (General's until DECISIONS C24 H6; spec v2
+// §3 Fig. 9 `.kv`, grouped by docs/12 G1): a fixed key column and a flexible value column,
+// closed by a row hairline, the same measures as Kit's KeyValue. `entry` is one of
+// DetailsFactsTab's rows,
 // `{key, value, color?, dim?, halves?, tail?}`; `tail` follows the value in the dim
 // colour (docs/28: the Status row's "error · no access"). A `halves` value that does not fit on one line breaks
 // at its middle (20 + 20 for a hash v1) instead of leaving two characters on a line of their
@@ -78,7 +79,7 @@ Rectangle {
             color: root.valueColor
             font.family: Theme.fontFamily
             font.pixelSize: Theme.font.small
-            objectName: "generalValue"
+            objectName: "factsValue"
             text: valueText.split ? valueText.value.slice(0, valueText.middle) + "\n"
                                     + valueText.value.slice(valueText.middle) : valueText.value
             textFormat: Text.PlainText
@@ -98,7 +99,7 @@ Rectangle {
             color: root.ink.dimForeground
             font.family: Theme.fontFamily
             font.pixelSize: Theme.font.small
-            objectName: "generalTail"
+            objectName: "factsTail"
             text: "· " + (root.entry.tail || "")
             textFormat: Text.PlainText
             visible: root.hasTail

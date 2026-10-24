@@ -261,7 +261,7 @@ TestCase {
     }
 
     // D13 (F1, L2): a torrent's block opens its lines; `enter` on a line shows its torrent in
-    // the library with General open; `t` narrows to the cursor line's torrent, `esc` widens.
+    // the library with its story open (C24 H6); `t` narrows to the cursor line's torrent, `esc` widens.
     function test_a_block_opens_its_lines_and_enter_goes_back() {
         const row = testCase.rowOf("Spring (2019) 4K (CC-BY)");
         verify(row >= 0);
@@ -286,7 +286,7 @@ TestCase {
         keyClick(Qt.Key_Return);
         compare(view.view, "library");
         compare(view.cursorHash, hash);
-        compare(view.details.currentTab, 0);
+        compare(view.details.currentTab, view.details.tabStory);
         verify(!view.details.collapsed);
 
         // Back, and wider again with `esc`.
