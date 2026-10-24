@@ -47,7 +47,11 @@ Window {
     visible: true
     width: Theme.space(1360)
 
+    // Opens at that size and keeps it, as Main.qml does: Theme.space() follows the base size
+    // live (#156), and a demo window left bound resized itself on a change (#184).
     Component.onCompleted: {
+        window.width = window.width;
+        window.height = window.height;
         const hash = window.hashOf(window.subjectName);
         App.selectTorrent(hash);
         details.torrent = App.torrentRow(hash);

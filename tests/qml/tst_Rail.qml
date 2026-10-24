@@ -57,6 +57,7 @@ TestCase {
     }
 
     function cleanup() {
+        TestTheme.setBaseSize(0); // qmllint disable unqualified
         // Leave no server behind: App is a singleton shared with every other test file.
         while (App.serverList.count > 0)
             App.serverList.remove(App.serverList.idAt(0));
@@ -210,6 +211,32 @@ TestCase {
         verify(categories.ink.ground !== categories.block, "the cursor's heading has no fill");
         rail.focus = false;
         compare(categories.hasCursor, false);
+    }
+
+    // #184: the "N below" hint recounts when the rows move without a scroll. A rail that holds
+    // every row at base 12 overflows at 20, and once back at 12 has nothing below again (it
+    // said "2 below" with nothing there).
+    function test_the_hint_recounts_after_a_base_size_change() {
+        const rail = createTemporaryObject(railComponent, testCase);
+        const flick = findChild(rail, "railScroll");
+        verify(flick !== null);
+        waitForRendering(testCase);
+        rail.height += flick.contentHeight + Theme.space(4) - flick.height;
+        waitForRendering(testCase);
+        verify(flick.contentHeight <= flick.height);
+        compare(rail.rowsBelow, 0);
+
+        TestTheme.setBaseSize(20); // qmllint disable unqualified
+        waitForRendering(testCase);
+        verify(flick.contentHeight > flick.height, "nothing to scroll at base 20");
+        verify(rail.rowsBelow > 0, "nothing counted below at base 20");
+        compare(rail.rowsBelow, rail._countOutside(false));
+
+        TestTheme.setBaseSize(0); // qmllint disable unqualified
+        waitForRendering(testCase);
+        compare(rail._countOutside(false), 0);
+        compare(rail.rowsBelow, 0);
+        compare(rail.rowsAbove, 0);
     }
 
     // docs/08 §5: a folded group hides its rows and leaves one cursor stop, its heading;

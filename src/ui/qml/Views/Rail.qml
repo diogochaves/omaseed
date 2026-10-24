@@ -130,6 +130,10 @@ Item {
 
     function _countOutside(above: bool): int {
         root._rowsRevision;
+        // #184: the rows' places, which `mapToItem` reads and no binding follows. Anything that
+        // moves a row (a base-size change, a group folding, a row growing) moves the content's
+        // height too, and the Column sets it once every row is in its new place.
+        content.implicitHeight;
         const top = flick.contentY;
         const bottom = top + flick.height;
         let n = 0;
@@ -804,6 +808,7 @@ Item {
         contentHeight: content.implicitHeight
         contentWidth: width
         interactive: content.implicitHeight > height
+        objectName: "railScroll"
         visible: !root.serversOnly
 
         Column {
