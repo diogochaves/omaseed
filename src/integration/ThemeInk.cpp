@@ -78,9 +78,10 @@ void ThemeInk::resolve(const QColor &tint, qreal alpha, const QColor &under, con
     const QColor ground = over(tint, under, alpha);
     const Roles roles = resolveOn(window, ground);
     if (qFuzzyCompare(1 + alpha, 1 + m_alpha) && fill == m_fill && ground == m_ground &&
-        roles == m_roles)
+        under == m_under && roles == m_roles)
         return;
     m_alpha = alpha;
+    m_under = under;
     m_fill = fill;
     m_ground = ground;
     m_roles = roles;
@@ -104,6 +105,8 @@ ThemeGrounds::ThemeGrounds(QObject *parent)
     , m_blockIdle(new ThemeInk(QStringLiteral("blockIdle"), this))
     , m_blockHover(new ThemeInk(QStringLiteral("blockHover"), this))
     , m_highlight(new ThemeInk(QStringLiteral("highlight"), this))
+    , m_panel(new ThemeInk(QStringLiteral("panel"), this))
+    , m_picked(new ThemeInk(QStringLiteral("picked"), this))
 {}
 
 QList<ThemeInk *> ThemeGrounds::all() const
@@ -122,7 +125,17 @@ QList<ThemeInk *> ThemeGrounds::all() const
             m_accentIdle,
             m_blockIdle,
             m_blockHover,
-            m_highlight};
+            m_highlight,
+            m_panel,
+            m_picked};
+}
+
+ThemeInk *ThemeGrounds::byName(const QString &name) const
+{
+    for (ThemeInk *ink : all())
+        if (ink->name() == name)
+            return ink;
+    return nullptr;
 }
 
 } // namespace omaseed::integration
