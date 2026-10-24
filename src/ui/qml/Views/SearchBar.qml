@@ -156,7 +156,10 @@ Item {
             id: field
 
             Layout.fillWidth: true
-            Layout.minimumWidth: Theme.searchFieldMinWidth
+            // Grows from its least width, so the chips always fit beside it (narrower still
+            // once the filters fold).
+            Layout.minimumWidth: root.narrow ? Theme.searchFieldNarrowWidth : Theme.searchFieldMinWidth
+            Layout.preferredWidth: Layout.minimumWidth
             accessibleName: qsTr("search your plugins")
             hint: Glyphs.viewSearch
             objectName: "searchField"

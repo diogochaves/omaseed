@@ -299,6 +299,7 @@ ThemeBase {
     readonly property int searchBarInsetBottom: space(7)
     readonly property int searchBarGap: space(9)
     readonly property int searchFieldMinWidth: space(185)
+    readonly property int searchFieldNarrowWidth: space(110)
     /// The plugins' line under it (`.sline`: 11.5 px, 12 px between its parts, 6 px under).
     readonly property int searchLineSize: font.small
     readonly property int searchLineGap: space(11)

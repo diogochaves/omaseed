@@ -200,13 +200,18 @@ void App::rebuildSearchIndex()
         const core::Torrent &torrent = model->torrent(hash);
         SearchModel::LibraryMatch match;
         match.hash = torrent.hash;
-        if (torrent.progress < 1.0)
+        // The library's state in a few words (the rows display's question, C24 H2).
+        const QString state = torrent.stateText();
+        const bool stopped = state == QLatin1String("stopped");
+        if (state == QLatin1String("error") || state == QLatin1String("missing files"))
+            match.words = QStringLiteral("needs you");
+        else if (torrent.progress < 1.0)
             match.words =
-                QStringLiteral("arriving at %1").arg(core::Format::percent(torrent.progress));
+                stopped
+                    ? QStringLiteral("stopped at %1").arg(core::Format::percent(torrent.progress))
+                    : QStringLiteral("arriving at %1").arg(core::Format::percent(torrent.progress));
         else
-            match.words = torrent.stateText() == QLatin1String("stopped")
-                              ? QStringLiteral("resting")
-                              : QStringLiteral("seeding");
+            match.words = stopped ? QStringLiteral("resting") : QStringLiteral("seeding");
         m_searchByHash.insert(torrent.hash.toLower(), match);
         if (!torrent.infohashV1.isEmpty())
             m_searchByHash.insert(torrent.infohashV1.toLower(), match);

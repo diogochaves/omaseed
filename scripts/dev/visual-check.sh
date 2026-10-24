@@ -185,6 +185,13 @@ for _ in $(seq 1 20); do
     omabox tree --window "$APP" --find "1 of 3 plugins didn't answer" >/dev/null 2>&1 && break
     sleep 1
 done
+# "new" and "+1 copy" fade 4 s after plugin c's answer.
+for _ in $(seq 1 15); do
+    omabox tree --window "$APP" --json 2>/dev/null | python3 -c '
+import json, sys
+sys.exit(1 if any((n.get("name") or "") in ("new", "+1 copy") for n in json.load(sys.stdin)) else 0)' && break
+    sleep 1
+done
 omabox wait --timeout 10s still >/dev/null || true
 omabox check point search --window "$APP" --ignore "$FREE"
 # esc clears the words, esc again goes back to the library (SR14).
