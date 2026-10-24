@@ -615,7 +615,7 @@ Item {
     Rectangle {
         id: markButton
 
-        // C24 H9 (S6 gives it the app menu): today's ⋯ menu, as ctrl+. opens it.
+        // C24 H9: the omaseed menu, as ctrl+. opens it.
         Accessible.description: qsTr("shortcut %1").arg("ctrl+.")
         Accessible.name: qsTr("omaseed menu")
         Accessible.role: Accessible.Button

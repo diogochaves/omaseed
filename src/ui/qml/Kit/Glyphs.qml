@@ -107,6 +107,10 @@ QtObject {
     readonly property string openFolder: "icon:openFolder"
     readonly property string trash: "icon:delete"
 
+    // ---- the app menu's window block, board 46 `menuHtml("app")` (DECISIONS C24 H9) -----
+    readonly property string hideWindow: "–"
+    readonly property string quit: "×"
+
     // ---- hero ⋯ menu, docs/08 §3 -------------------------------------------------------
     readonly property string more: "icon:more"
     readonly property string columns: "icon:columns"

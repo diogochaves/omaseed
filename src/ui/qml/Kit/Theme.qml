@@ -100,6 +100,11 @@ ThemeBase {
     readonly property int actionBarRuleRoom: space(8)
     readonly property int actionBarRuleInset: space(7)
 
+    // ---- the frame's form: the app menu (board 46 `menuHtml("app")`, DECISIONS C24 H9) ---
+    /// Its width: board 46's `.menu` is 268 px at least at 13 px type; the head's version and
+    /// server line want a little more than the kit's 280.
+    readonly property int appMenuWidth: space(300)
+
     // ---- the frame's form: keys on demand (board 46 `.kb`, DECISIONS C24 H10) ------------
     /// A key's badge while alt is held: its height, the room either side of the key, its type
     /// (board 46: a 14 px line, 4 px each side, 10 px bold at 13 px type) and its corners

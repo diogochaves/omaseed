@@ -46,8 +46,8 @@ import QtQuick
 //             cursor's), "row" (the cursor's row), "rows" (any row), "file" (a file, not a
 //             folder, under the cursor), "lastMove" a finished move that can go back
 //             (board 45 D7), "freeable" skipped files that hold space here (#160).
-//   via       a menu-only action has no key ("key": ""): the path to it ("enter s",
-//             "ctrl+."), printed in the key's place (D3). Key routing, the footer and the `?`
+//   via       a menu-only action has no key ("key": ""): the path to it ("enter s", or
+//             ":" for the palette's own), printed in the key's place (D3). Key routing, the footer and the `?`
 //             sheet never see an entry with no key.
 //   sharesKey start and stop have no key of their own: `p` runs one or the other (D5), and
 //             the palette prints it on the one it would run now.
@@ -408,13 +408,13 @@ QtObject {
         {
             "area": "global",
             "key": "ctrl+.",
-            "action": "more",
-            "label": qsTr("more"),
+            "action": "appMenu",
+            "label": qsTr("omaseed menu"),
             "column": "app",
             "rank": 3,
             "helpKeys": "ctrl+.",
-            "help": qsTr("more actions"),
-            "about": qsTr("The mark's menu: settings, help, speed limits, columns, select all")
+            "help": qsTr("omaseed menu"),
+            "about": qsTr("The mark's menu: servers, alternative limits, stop and start all, add, settings, this window's keys, quit")
         },
         {
             "area": "global",
@@ -520,12 +520,12 @@ QtObject {
             "helpKeys": "",
             "help": ""
         },
-        // docs/30 D3: the ⋯ menu's two limit sheets have no key; the palette lists them with
-        // the path to them.
+        // docs/30 D3: the two limit sheets have no key. The ⋯ menu that held them went with
+        // the app menu (DECISIONS C24 H9), so the palette is their one way in.
         {
             "area": "global",
             "key": "",
-            "via": "ctrl+.",
+            "via": ":",
             "action": "globalLimits",
             "title": qsTr("speed limits…"),
             "needs": "",
@@ -538,7 +538,7 @@ QtObject {
         {
             "area": "global",
             "key": "",
-            "via": "ctrl+.",
+            "via": ":",
             "action": "altLimits",
             "title": qsTr("alt-speed limits…"),
             "needs": "",

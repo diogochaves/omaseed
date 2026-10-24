@@ -236,7 +236,7 @@ it. A capital letter is the stronger variant of its lower-case neighbour (`p` st
 | `A` | alternative speed limits |
 | `,` `ctrl+,` | settings |
 | `ctrl+shift+,` | qBittorrent's settings |
-| `ctrl+.` | more actions |
+| `ctrl+.` | the omaseed menu (the mark): servers, limits, add, settings, quit |
 | `q` | hide to the tray |
 | `ctrl+q` | quit |
 | `?` `F1` | every key |

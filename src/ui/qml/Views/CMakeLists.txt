@@ -19,6 +19,7 @@ qt_add_qml_module(omaseed-views
         AddFreeLine.qml
         AddMatchLine.qml
         AddSheet.qml
+        AppMenu.qml
         BanPeerConfirm.qml
         BrowsedPathLine.qml
         CategoryPalette.qml
@@ -68,7 +69,6 @@ qt_add_qml_module(omaseed-views
         LogRow.qml
         LogView.qml
         MainView.qml
-        MoreMenu.qml
         MoveBand.qml
         MoveCheckLine.qml
         MoveLooseList.qml

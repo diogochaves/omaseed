@@ -79,7 +79,7 @@ TestCase {
         view.sortPalette.close();
         view.columnsPalette.close();
         view.commandPalette.close();
-        view.moreMenu.close();
+        view.appMenu.close();
         view.globalLimitsSheet.close();
         testCase.width = 1360;
         App.filtered.clearCategory();
@@ -156,11 +156,12 @@ TestCase {
         view.clearFilter();
     }
 
-    // The mark opens the window's menu (today's ⋯, until the app menu, S6) under it.
-    function test_the_mark_opens_the_more_menu() {
+    // C24 H9: the mark opens the omaseed menu under it.
+    function test_the_mark_opens_the_app_menu() {
         findChild(view.rail, "railMark").Accessible.pressAction();
-        verify(view.moreMenu.opened);
-        view.moreMenu.close();
+        verify(view.appMenu.opened);
+        compare(view.activeOverlay, view.appMenu);
+        view.appMenu.close();
     }
 
     // DECISIONS C24 H13 (#113): the window's ground is opaque unless Appearance says
@@ -609,24 +610,33 @@ TestCase {
         compare(view.columnsPalette.opened, false);
     }
 
-    // C24 H9: the hero's gear and `?` went, so they lead the mark's menu at every width, and
-    // their rows run what the buttons did.
-    function test_settings_and_help_lead_the_marks_menu() {
-        const actions = () => view.moreMenu.items.map(item => item.action);
-        // docs/30 D10: after the command palette's row and its rule.
-        compare(actions().slice(0, 4), ["commands", undefined, "settings", "help"]);
-        view.moreAction("settings");
+    // C24 H9: the omaseed menu is C13's rows in C13's order (one server: no servers block),
+    // then this window's block before quit; settings and help, which the hero's gear and `?`
+    // were, run from it.
+    function test_the_app_menu_is_c13s_rows_and_the_windows() {
+        const actions = view.appMenu.items.map(item => item.separator ? "|" : item.caption ? "caption"
+                                                                                                 : item.action);
+        compare(actions, ["alt-speed", "stop-all", "start-all", "|", "add", "settings", "|", "caption",
+                          "toggleConsole", "toggleLog", "commands", "help", "hide", "|", "quit"]);
+        compare(view.appMenu.headingTitle, "omaseed");
+        verify(view.appMenu.heading.indexOf(App.serverName) > 0, view.appMenu.heading);
+        verify(/^\d+\.\d+/.test(view.appMenu.heading), view.appMenu.heading);
+        const quit = view.appMenu.items[view.appMenu.items.length - 1];
+        compare(quit.text, "quit omaseed");
+        compare(quit.key, "ctrl+q");
+        view.appMenuAction("settings");
         compare(settingsSpy.count, 1);
-        view.moreAction("help");
+        view.appMenuAction("help");
         compare(view.helpOpen, true);
         view.helpOpen = false;
     }
 
-    // docs/30 D10: the ⋯ menu's first row opens the command palette, and the ? sheet names it.
+    // docs/30 D10: the command palette is found without its key, in the omaseed menu, and the
+    // ? sheet names it.
     function test_the_palette_is_found_without_its_key() {
-        compare(view.moreMenu.items[0].action, "commands");
-        compare(view.moreMenu.items[0].key, ":");
-        view.moreAction("commands");
+        const row = view.appMenu.items.find(item => item.action === "commands");
+        compare(row.key, ":");
+        view.appMenuAction("commands");
         compare(view.commandPalette.opened, true);
         view.commandPalette.close();
         verify(view.helpSheetPanel.subtitle.endsWith(": runs any of them by name"));
@@ -649,18 +659,32 @@ TestCase {
         view.helpOpen = false;
     }
 
-    // docs/08 §3: ctrl+. opens the window's menu, under the mark now the hero's ⋯ went (C24
-    // H9); its rows reach the limits sheet, the columns palette and select-all.
-    function test_ctrl_period_opens_the_more_menu_and_its_rows_run() {
+    // C24 H9: ctrl+. opens the omaseed menu under the mark; a row's own key runs it (`?`
+    // opens help), `esc` closes it, its quit asks as ctrl+q does. What only the old ⋯ menu
+    // held (the limit sheets, select all) runs from the palette and the keys.
+    function test_ctrl_period_opens_the_app_menu_and_its_rows_run() {
         keyClick(Qt.Key_Period, Qt.ControlModifier);
-        compare(view.moreMenu.opened, true);
-        compare(view.activeOverlay, view.moreMenu);
+        compare(view.appMenu.opened, true);
+        compare(view.activeOverlay, view.appMenu);
         const mark = findChild(view.rail, "railMark");
         const corner = mark.mapToItem(view, Theme.railMarkInset, mark.height);
-        compare(view.moreMenu.anchorX, Math.round(corner.x));
+        compare(view.appMenu.anchorX, Math.round(corner.x));
+        compare(view.appMenu.anchorY, Math.round(corner.y + Theme.railMenuGap));
+        compare(view.appMenu.panel.width, Theme.appMenuWidth);
+        keyClick(Qt.Key_Question, Qt.ShiftModifier);
+        compare(view.appMenu.opened, false);
+        compare(view.helpOpen, true);
+        view.helpOpen = false;
+        keyClick(Qt.Key_Period, Qt.ControlModifier);
+        compare(view.appMenu.opened, true);
+        keyClick(Qt.Key_Escape);
+        compare(view.appMenu.opened, false);
 
-        view.moreAction("altLimits");
-        compare(view.moreMenu.opened, false);
+        quitSpy.clear();
+        view.appMenuAction("quit");
+        compare(quitSpy.count, 1);
+
+        view.runCommand("altLimits");
         compare(view.globalLimitsSheet.opened, true);
         // The demo answers with its own alt limits (1 MB/s, 200 KB/s).
         tryCompare(view.globalLimitsSheet, "loaded", true);
@@ -672,14 +696,14 @@ TestCase {
         verify(view.globalLimitsSheet.subtitle.indexOf("turtle is on") >= 0);
         view.globalLimitsSheet.close();
 
-        view.moreAction("globalLimits");
+        view.runCommand("globalLimits");
         compare(view.globalLimitsSheet.opened, true);
         tryCompare(view.globalLimitsSheet, "loaded", true);
         compare(view.globalLimitsSheet.title, "Speed limits");
         compare(view.globalLimitsSheet.subtitle, "the server's global limits");
         view.globalLimitsSheet.close();
 
-        view.moreAction("selectAll");
+        view.runCommand("selectAll");
         compare(view.table.selectedHashes().length, App.filtered.count);
     }
 
@@ -1110,7 +1134,7 @@ TestCase {
                                          "the delete confirm");
         testCase._checkFooterStandsAside(() => keyClick(Qt.Key_Return), view.actionsMenuPanel,
                                          "the actions menu");
-        testCase._checkFooterStandsAside(() => view.moreMenu.open(), view.moreMenu, "the ⋯ menu");
+        testCase._checkFooterStandsAside(() => view.openAppMenu(), view.appMenu, "the omaseed menu");
         testCase._checkFooterStandsAside(() => view.globalLimitsSheet.openFor(true),
                                          view.globalLimitsSheet, "the speed limits sheet");
     }

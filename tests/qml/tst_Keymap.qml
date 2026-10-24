@@ -261,7 +261,7 @@ TestCase {
         for (const action of actions)
             compare(actions.filter(other => other === action).length, 1, "listed twice: " + action);
         for (const movement of ["moveDown", "first", "focusRail", "toggleSelection", "selectRange",
-                                "question", "escape", "actions", "more", "stopStart", "commands",
+                                "question", "escape", "actions", "appMenu", "stopStart", "commands",
                                 "hyprlandBind"])
             verify(actions.indexOf(movement) < 0, "not a command: " + movement);
     }
@@ -491,7 +491,7 @@ TestCase {
 
     function test_the_limit_sheets_show_their_path() {
         const rows = Keymap.commandRows(testCase._context({}));
-        compare(testCase._row(rows, "globalLimits").via, "ctrl+.");
+        compare(testCase._row(rows, "globalLimits").via, ":");
         compare(testCase._row(rows, "altLimits").title, "alt-speed limits…");
     }
 
@@ -594,11 +594,9 @@ TestCase {
     }
 
     Component {
-        id: moreMenuComponent
+        id: appMenuComponent
 
-        MoreMenu {
-            appRows: true
-        }
+        AppMenu {}
     }
 
     function test_the_menus_rows_are_in_the_keymap() {
@@ -613,17 +611,19 @@ TestCase {
             else
                 compare(entry.via, "enter " + item.key, item.action);
         }
-        const more = createTemporaryObject(moreMenuComponent, testCase);
-        for (const item of more.items) {
-            if (item.separator === true)
-                continue;
-            const entry = Keymap.entries.find(e => e.action === item.action && (e.area === "global"
-                                                                                 || e.area === "table"));
-            verify(entry !== undefined, "a ⋯ menu row not in the Keymap: " + item.action);
-            if (entry.key.length > 0)
-                compare(entry.key, item.key, item.action);
-            else
-                compare(entry.via, "ctrl+.", item.action);
+        // C24 H9: the omaseed menu's window rows are Keymap actions with their keys, and each
+        // C13 row it gives a key has that key in the Keymap.
+        const app = createTemporaryObject(appMenuComponent, testCase);
+        for (const row of app.windowRows) {
+            const entry = Keymap.entries.find(e => e.action === row.action && e.area === "global"
+                                              && e.key === row.key);
+            verify(entry !== undefined, "an omaseed menu row not in the Keymap: " + row.action);
+        }
+        for (const id of Object.keys(app.sharedKeys)) {
+            const action = app.sharedKeymapActions[id];
+            const entry = Keymap.entries.find(e => e.action === action && e.area === "global"
+                                              && e.key === app.sharedKeys[id]);
+            verify(entry !== undefined, "an omaseed menu key not in the Keymap: " + id);
         }
     }
 

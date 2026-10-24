@@ -677,6 +677,16 @@ status file's contract as built.
   one choice in Settings.
 - **The manifest version** stays: the contract changes within v2 and the widget ships with the
   app.
+- **The window, a third place (C24 H9, v0.5.0, as built):** the rail's mark and `ctrl+.` open
+  the omaseed menu (`Views/AppMenu`) under the mark. Its rows are these, in this order, from
+  the same `BarMenu` (`App.appMenuRows`, in the tray's words; a pick goes through
+  `App.invokeAppMenu`, the tray's and the widget's invoke), with a head (omaseed, its version,
+  the status line's server words) and, before quit's rule, a "this window only" block of the
+  window's own rows: seed console `` ` ``, log `~`, commands `:`, keys and help `?`, hide window
+  `q`. Each row teaches its key (alternative limits `A`, add `a`, settings `,`, quit
+  `ctrl+q`); quit reads "quit omaseed" and asks first while a move runs, as `ctrl+q` does, and
+  alternative limits leaves `A`'s note. The old ⋯ menu's other rows (speed limits…, alt-speed
+  limits…, columns…, select all, fold rail) are `:` rows and keys.
 
 ## C15 — Move a folder (board 42, ruled 2026-10-18)
 

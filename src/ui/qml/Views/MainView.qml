@@ -58,7 +58,7 @@ Item {
     readonly property alias moveQuitConfirm: moveQuitConfirm
     readonly property alias sharedMoveConfirm: sharedMoveConfirm
     readonly property alias limitsSheetPanel: limitsSheetPanel
-    readonly property alias moreMenu: moreMenu
+    readonly property alias appMenu: appMenu
     readonly property alias globalLimitsSheet: globalLimitsSheet
     readonly property alias renameSheetPanel: renameSheetPanel
     // ruling Q4: the Trackers/Peers tabs' `a` and the Peers tab's `b`
@@ -139,8 +139,8 @@ Item {
             return actionsMenuPanel;
         if (folderMenuPanel.opened)
             return folderMenuPanel;
-        if (moreMenu.opened)
-            return moreMenu;
+        if (appMenu.opened)
+            return appMenu;
         return null;
     }
 
@@ -686,11 +686,29 @@ Item {
         rail.selectQuestion(question);
     }
 
-    /// The mark (C24 H9): today's ⋯ menu under it, left edges flush, until S6's app menu.
-    function openMarkMenu(): void {
+    /// The mark and ctrl+. (DECISIONS C24 H9): the omaseed menu under the mark, left edges
+    /// flush. First run holds it, as it holds `:`.
+    function openAppMenu(): void {
+        if (root.firstRun)
+            return;
         const button = rail.markButton;
         const corner = button.mapToItem(root, Theme.railMarkInset, button.height);
-        moreMenu.openAt(Math.round(corner.x), Math.round(corner.y + Theme.railMenuGap));
+        appMenu.openAt(Math.round(corner.x), Math.round(corner.y + Theme.railMenuGap));
+    }
+
+    /// A row of the omaseed menu, which has closed and given the focus back. The window's own
+    /// rows and `A`'s row run as their keys do (alt-speed's note, docs/31 F1); quit asks
+    /// first while a move runs (J5); the rest are C13's, through the one invoke the tray and
+    /// the widget use.
+    function appMenuAction(id: string): void {
+        if (id === "quit")
+            root.requestQuit();
+        else if (id === "alt-speed")
+            root.toggleAltSpeed();
+        else if (appMenu.windowActions.indexOf(id) >= 0)
+            root.runAction(id);
+        else
+            App.invokeAppMenu(id);
     }
 
     /// Put `text` on the clipboard and say `note`. An empty value leaves the clipboard as it
@@ -984,7 +1002,7 @@ Item {
                 root.openQbtSettings();
                 break;
             case Qt.Key_Period:
-                root.openMoreMenu();
+                root.openAppMenu();
                 break;
             case Qt.Key_B: // #167 assumed 4: folds the rail, which every face has
                 root.toggleRail();
@@ -1252,7 +1270,7 @@ Item {
         "qbtSettings": () => root.openQbtSettings(),
         "help": () => root.helpOpen = true,
         "commands": () => root.openCommandPalette(),
-        "more": () => root.openMoreMenu(),
+        "appMenu": () => root.openAppMenu(),
         "hide": () => root.hideRequested(),
         "quit": () => root.requestQuit(),
         // the Files tab
@@ -1427,25 +1445,12 @@ Item {
         App.railHidden = !App.railHidden;
     }
 
-    /// ctrl+. and the palette's "more": the hero's ⋯ went (C24 H9), so the mark's menu, under
-    /// the mark (S6 makes it the app menu).
-    function openMoreMenu(): void {
-        root.openMarkMenu();
-    }
-
     /// ctrl+shift+, (docs/16 §2): Settings on the qBittorrent group. First run holds it like
     /// `,` does.
     function openQbtSettings(): void {
         if (root.firstRun)
             return;
         settingsModal.openQbt();
-    }
-
-    /// Runs a row of the ⋯ menu (docs/08 §3) through the one runner. The menu has closed and
-    /// given the focus back.
-    function moreAction(action: string): void {
-        moreMenu.close();
-        root.runAction(action);
     }
 
     /// Fig. 26's "act" column, for the table only: each key goes through `torrentAction()`,
@@ -1747,7 +1752,7 @@ Item {
                                                                         [group]);
             root.saveTableState();
         }
-        onMarkClicked: root.openMarkMenu()
+        onMarkClicked: root.openAppMenu()
         // The rail hands the keyboard back to the table once it has switched, as it did.
         onServerActivated: id => {
             table.forceActiveFocus();
@@ -2823,17 +2828,17 @@ Item {
         onTriggered: root.footerNote = ""
     }
 
-    MoreMenu {
-        id: moreMenu
+    AppMenu {
+        id: appMenu
 
         anchors.fill: parent
-        // C24 H9: the hero's gear and ? went; until S6's app menu, they lead this one.
         altKind: App.altSpeed.kind
-        appRows: true
-        railHidden: App.railHidden
+        serverLine: root.serverLaneText()
+        sharedRows: App.appMenuRows
+        version: App.versionText.replace(/^omaseed /, "")
         z: 9
 
-        onActivated: action => root.moreAction(action)
+        onActivated: id => root.appMenuAction(id)
     }
 
     GlobalLimitsSheet {
