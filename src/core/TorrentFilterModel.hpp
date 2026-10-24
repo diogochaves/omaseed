@@ -70,6 +70,7 @@
 // group, and the rows display's words (core/RowWords), as roles of its own; whenever a source
 // role of a row changes, a second dataChanged names those roles too.
 
+#include "core/RowWords.hpp"
 #include "core/ScopeSentence.hpp"
 #include "core/SearchWords.hpp"
 #include "core/Torrent.hpp"
@@ -244,6 +245,10 @@ public:
     /// The question `hash` answers now, whatever the filters (AnyQuestion when the library
     /// lacks it): the outcome strip's "show" names where its torrents went (DECISIONS C30 F9).
     Q_INVOKABLE int questionOfHash(const QString &hash) const;
+    /// The row's words for `hash` (RowWords, as the rows display says them), whatever the
+    /// filters: the details' head says the same fact and sentence (DECISIONS C24 H6). Empty
+    /// words when the library lacks it.
+    RowWords wordsOfHash(const QString &hash) const;
     /// `hash` is in the rail's scope, the filter's words aside (inScope()): a row the words
     /// alone hide. False when the library lacks it.
     Q_INVOKABLE bool hashInScope(const QString &hash) const;
@@ -350,6 +355,8 @@ private:
     QString m_queryText;
     /// Local midnight in ms since the epoch, for one filter pass (m_day's, or the clock's).
     qint64 dayStartMSecs() const;
+    /// The words of source row `at`, which answers `question`.
+    RowWords wordsAt(const TorrentModel &source, const QModelIndex &at, int question) const;
     std::optional<QString> m_category;
     std::optional<QString> m_tag;
     std::optional<QString> m_tracker;

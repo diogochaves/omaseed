@@ -288,9 +288,14 @@ public:
 
     /// The fields `Details.qml`'s `torrent` property expects, for one hash: name, category,
     /// tagsText, addedOnText, sizeText, progressText, ratioText, etaLongText, stateText,
-    /// stateRole, hasTrackerError. An unknown hash gives an empty map. It is a snapshot, not
-    /// a binding — rebind it on `App.torrents.updated` to follow a live torrent.
+    /// stateRole, hasTrackerError, and the rows display's words (rowFact, rowCaption,
+    /// rowSentence: the details' head, DECISIONS C24 H6). An unknown hash gives an empty map.
+    /// It is a snapshot, not a binding — rebind it on `App.torrents.updated` to follow a live
+    /// torrent.
     Q_INVOKABLE QVariantMap torrentRow(const QString &hash) const;
+    /// The details' story (board 46 H6, core::TorrentStory): what happened to `hash`, oldest
+    /// first, as `[{time, kind ("plain", "move", "warn", "error"), title, detail}]`.
+    Q_INVOKABLE QVariantList torrentStory(const QString &hash) const;
 
     /// `OMASEED_DEMO_TAB` — which tab `--demo details` opens on ("", "files", "trackers",
     /// "peers"). Only the demo host reads it.
@@ -2065,8 +2070,8 @@ public:
     /// machine can't see); `band` is D2; `busy` while a free or an add-again runs.
     Q_PROPERTY(QVariantMap skippedOnDisk READ skippedOnDiskMap NOTIFY skippedOnDiskChanged)
     QVariantMap skippedOnDiskMap() const;
-    /// The Files tab is the one on show: its skipped files are read now, and after every
-    /// priority change while it shows.
+    /// The Files tab, or facts (whose size line says what they hold, C30 F17), is the one on
+    /// show: the skipped files are read now, and after every priority change while it shows.
     Q_INVOKABLE void setFilesTabActive(bool active);
     /// Reads the details torrent's skipped files again (after a free, or on demand).
     Q_INVOKABLE void refreshSkippedOnDisk();
@@ -2083,7 +2088,8 @@ public:
     /// D3's "add it again": remove `hash` keeping its files, add it back stopped with the same
     /// selection, names, category, tags and limits, start it if it was started. With
     /// `freeLeftovers`, the files the last plan would delete and the leftovers with pieces (a
-    /// hybrid's or a v2-only torrent's, C29) go while it is away. Answers with
+    /// hybrid's or a v2-only torrent's, C29) go while it is away; with no plan for `hash` in
+    /// hand (shift+f straight to the confirm, C30 F13), it is read first. Answers with
     /// `torrentAddedAgain({hash, ok, error, name, deleted})`.
     Q_INVOKABLE void addTorrentAgain(const QString &hash, bool freeLeftovers);
 
@@ -2098,6 +2104,9 @@ private:
     /// What the free and the plan need about `torrent` on this machine.
     core::FreeSkippedJob::Input freeInputFor(const core::Torrent &torrent) const;
     core::SkippedOnDisk::LocalPathOf localPathOfFiles(const core::Torrent &torrent) const;
+    /// Reads `hash`'s files, pieces and open files now, keeps the plan (m_lastFreePlan) and
+    /// answers `done` with planFreeSkipped()'s map.
+    void makeFreePlan(const QString &hash, const std::function<void(QVariantMap)> &done);
     /// #180: the file list just came in; while the Files tab shows, reads the disk again if
     /// m_skippedAfterRefresh asks, or if its priorities are not m_skippedPriorities.
     void readSkippedIfDue();

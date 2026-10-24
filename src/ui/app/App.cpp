@@ -18,6 +18,7 @@
 #include "core/StateFile.hpp"
 #include "core/TorrentFile.hpp"
 #include "core/TorrentFolderScan.hpp"
+#include "core/TorrentStory.hpp"
 #include "core/TrackerMerge.hpp"
 #include "core/Version.hpp"
 #include "core/WeeklyRecap.hpp"
@@ -1002,7 +1003,47 @@ QVariantMap App::torrentRow(const QString &hash) const
     row.insert(QStringLiteral("firstLastPiecePrio"), torrent.firstLastPiecePrio);
     row.insert(QStringLiteral("superSeeding"), torrent.superSeeding);
     row.insert(QStringLiteral("autoTmm"), torrent.autoTmm);
+    // DECISIONS C24 H6: the details' head says the rows display's fact and sentence.
+    const RowWords words = m_filtered->wordsOfHash(hash);
+    row.insert(QStringLiteral("rowFact"), words.fact);
+    row.insert(QStringLiteral("rowCaption"), words.caption);
+    row.insert(QStringLiteral("rowSentence"), words.sentence);
+    row.insert(QStringLiteral("hashVersion"),
+               torrent.isHybrid()   ? QStringLiteral("hybrid")
+               : torrent.isV2Only() ? QStringLiteral("v2")
+                                    : QStringLiteral("v1"));
     return row;
+}
+
+QVariantList App::torrentStory(const QString &hash) const
+{
+    if (hash.isEmpty() || m_engine->torrents()->indexOfHash(hash) < 0)
+        return {};
+    StoryInput input;
+    input.torrent = m_engine->torrents()->torrent(hash);
+    input.now = QDateTime::currentDateTime();
+    // C18 D8: the moves the history keeps for it, whatever moved with it.
+    for (const MoveRecord &record : m_move->history().records()) {
+        if (!record.from.contains(hash) || !record.finishedAt.isValid())
+            continue;
+        input.moves.append({record.finishedAt,
+                            record.to.value(hash),
+                            int(record.from.size()) - 1,
+                            record.kind == QLatin1String("folder") ? record.title : QString()});
+    }
+    const QVariantMap problem = m_engine->torrents()->problem(hash);
+    input.problem = problem.value(QStringLiteral("headline")).toString();
+    input.problemAt = problem.value(QStringLiteral("loggedAt")).toDateTime();
+    const QVariantMap failure = m_engine->torrents()->failure(hash);
+    input.failure = failure.value(QStringLiteral("headline")).toString();
+    input.failureAt = failure.value(QStringLiteral("loggedAt")).toDateTime();
+    QVariantList out;
+    for (const StoryEvent &event : TorrentStory::events(input))
+        out.append(QVariantMap{{QStringLiteral("time"), event.time},
+                               {QStringLiteral("kind"), TorrentStory::kindName(event.kind)},
+                               {QStringLiteral("title"), event.title},
+                               {QStringLiteral("detail"), event.detail}});
+    return out;
 }
 
 QString App::demoTab() const

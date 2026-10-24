@@ -689,6 +689,38 @@ int TorrentFilterModel::rowOfHash(const QString &hash) const
     return proxyIndex.isValid() ? proxyIndex.row() : -1;
 }
 
+RowWords
+TorrentFilterModel::wordsAt(const TorrentModel &source, const QModelIndex &at, int question) const
+{
+    RowTrouble trouble;
+    if (question == NeedsYou) {
+        const QVariantMap problem = source.data(at, TorrentModel::ProblemRole).toMap();
+        const QVariantMap failure = source.data(at, TorrentModel::FailureRole).toMap();
+        trouble.cause = source.data(at, TorrentModel::StatusCauseRole).toString();
+        trouble.headline = problem.value(QStringLiteral("headline")).toString();
+        trouble.actions = problem.value(QStringLiteral("actions")).toStringList();
+        trouble.missingFiles = problem.value(QStringLiteral("missingFiles")).toBool();
+        trouble.stuckMove = problem.value(QStringLiteral("stuckMove")).toBool();
+        trouble.failureKind = failure.value(QStringLiteral("kind")).toString();
+        trouble.failureHeadline = failure.value(QStringLiteral("headline")).toString();
+        trouble.failureActions = failure.value(QStringLiteral("actions")).toStringList();
+    }
+    return RowWords::of(source.torrentAt(at.row()), question, trouble);
+}
+
+RowWords TorrentFilterModel::wordsOfHash(const QString &hash) const
+{
+    const auto *source = qobject_cast<const TorrentModel *>(sourceModel());
+    if (source == nullptr)
+        return {};
+    const int sourceRow = source->indexOfHash(hash);
+    if (sourceRow < 0)
+        return {};
+    const Torrent &t = source->torrentAt(sourceRow);
+    const int question = questionOf(t, source->hasLoggedTrouble(t.hash), dayStartMSecs());
+    return wordsAt(*source, source->index(sourceRow, 0), question);
+}
+
 int TorrentFilterModel::questionOfHash(const QString &hash) const
 {
     const auto *source = qobject_cast<const TorrentModel *>(sourceModel());
@@ -1106,20 +1138,7 @@ QVariant TorrentFilterModel::data(const QModelIndex &index, int role) const
     if (role == GroupRole)
         return groupKeyOf(t, question);
 
-    RowTrouble trouble;
-    if (question == NeedsYou) {
-        const QVariantMap problem = source->data(at, TorrentModel::ProblemRole).toMap();
-        const QVariantMap failure = source->data(at, TorrentModel::FailureRole).toMap();
-        trouble.cause = source->data(at, TorrentModel::StatusCauseRole).toString();
-        trouble.headline = problem.value(QStringLiteral("headline")).toString();
-        trouble.actions = problem.value(QStringLiteral("actions")).toStringList();
-        trouble.missingFiles = problem.value(QStringLiteral("missingFiles")).toBool();
-        trouble.stuckMove = problem.value(QStringLiteral("stuckMove")).toBool();
-        trouble.failureKind = failure.value(QStringLiteral("kind")).toString();
-        trouble.failureHeadline = failure.value(QStringLiteral("headline")).toString();
-        trouble.failureActions = failure.value(QStringLiteral("actions")).toStringList();
-    }
-    const RowWords words = RowWords::of(t, question, trouble);
+    const RowWords words = wordsAt(*source, at, question);
     switch (role) {
     case RowFactRole:
         return words.fact;
