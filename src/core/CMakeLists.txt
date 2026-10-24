@@ -131,6 +131,8 @@ qt_add_library(omaseed-core STATIC
     SkippedJobs.hpp
     SkippedOnDisk.cpp
     SkippedOnDisk.hpp
+    SkippedOutlook.cpp
+    SkippedOutlook.hpp
     StateFile.cpp
     StateFile.hpp
     StatusDigest.cpp

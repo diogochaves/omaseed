@@ -514,3 +514,8 @@ omaseed_add_test(tst_torrentstory
     SOURCES tst_torrentstory.cpp
     LIBRARIES omaseed::core
 )
+
+omaseed_add_test(tst_skippedoutlook
+    SOURCES tst_skippedoutlook.cpp
+    LIBRARIES omaseed::core
+)
