@@ -115,7 +115,7 @@ public:
     void startOver();
     void setPrivateHostOf(std::function<QString(const QStringList &)> privateHostOf);
     void setLibraryLookup(LibraryLookup lookup);
-    /// A plugin's own name (fullName), for line 2.
+    /// Plugins' own names (fullName), for line 2; added to those already known.
     void setPluginNames(const QHash<QString, QString> &names);
     /// The library or the plugins moved: the marks and words again.
     Q_INVOKABLE void refreshMarks();

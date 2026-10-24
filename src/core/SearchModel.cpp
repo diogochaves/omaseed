@@ -334,7 +334,9 @@ void SearchModel::setLibraryLookup(LibraryLookup lookup)
 
 void SearchModel::setPluginNames(const QHash<QString, QString> &names)
 {
-    m_pluginNames = names;
+    // Merged, never dropped: a plugin uninstalled since keeps its own name on the rows it found.
+    for (auto it = names.cbegin(); it != names.cend(); ++it)
+        m_pluginNames.insert(it.key(), it.value());
     if (!m_rows.isEmpty())
         Q_EMIT dataChanged(index(0),
                            index(int(m_rows.size()) - 1),

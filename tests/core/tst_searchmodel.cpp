@@ -161,6 +161,10 @@ void TestSearchModel::wordsOfARow()
              QStringLiteral("plugin c · this plugin doesn't report seeds: unknown, not dead"));
     QCOMPARE(role(model, 3, SearchModel::SentenceRole),
              QStringLiteral("plugin a · no seeds when the plugin looked · 1 leecher"));
+    // A plugin uninstalled later keeps its own name on its rows.
+    model.setPluginNames({{QStringLiteral("c"), QStringLiteral("plugin c")}});
+    QCOMPARE(role(model, 1, SearchModel::SentenceRole),
+             QStringLiteral("plugin a · a .torrent link: its info hash is known at add"));
     const QVariantMap details = model.details(role(model, 0, SearchModel::KeyRole));
     QCOMPARE(details.value(QStringLiteral("copyList")).toList().size(), 2);
     QCOMPARE(details.value(QStringLiteral("trackers")).toList().size(), 2);
