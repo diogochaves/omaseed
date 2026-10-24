@@ -796,12 +796,28 @@ Item {
     /// rather than on the row it opened on alone, so a jump + `tab` onto a third torrent
     /// does not read as acting on that one. Empty when the selection is just `hash` or none.
     function actionsHeading(hash: string): string {
+        if (root._actionsOnSeveral(hash))
+            return qsTr("%n selected", "", table.selectedCount);
+        // Board 46 `menuHtml()`'s `.mh` (C24 H9): one torrent's state under its name.
+        if (hash.length === 0)
+            return "";
+        const row = App.torrentRow(hash);
+        return [row.stateText ?? "", row.progressText ?? "", (row.category ?? "").length > 0
+                ? row.category : qsTr("no category")].filter(part => part.length > 0).join(" · ");
+    }
+
+    /// The actions menu's bright title (board 46 `.mh b`): the torrent's name when it acts on
+    /// one; none when Q24's "N selected" heads it.
+    function actionsHeadingTitle(hash: string): string {
+        if (root._actionsOnSeveral(hash) || hash.length === 0)
+            return "";
+        return App.torrentRow(hash).name ?? "";
+    }
+
+    /// The actions menu acts on a selection other than `hash`'s row alone (Q24).
+    function _actionsOnSeveral(hash: string): bool {
         const count = table.selectedCount;
-        if (count === 0)
-            return "";
-        if (count === 1 && table.selectedHashes()[0] === hash)
-            return "";
-        return qsTr("%n selected", "", count);
+        return count > 1 || (count === 1 && table.selectedHashes()[0] !== hash);
     }
 
     /// Every action of Fig. 11/26: the direct ones call straight through to `App`, the ones
@@ -905,6 +921,28 @@ Item {
             App.setAutoManagement(hashes, false);
     }
 
+    /// The action bar's `p` word (DECISIONS C24 H8, #170): whether the selection holds stopped
+    /// torrents, running ones, or both; read again on every sync.
+    readonly property var selectionRunStates: {
+        App.globalState.lastSyncTime; // the dependency: a sync that starts or stops one
+        App.torrents.count;
+        const states = {
+            "stopped": false,
+            "running": false
+        };
+        if (table.selectedCount === 0)
+            return states;
+        for (const hash of table.selectedHashes()) {
+            if (App.torrentRow(hash).stopped === true)
+                states.stopped = true;
+            else
+                states.running = true;
+            if (states.stopped && states.running)
+                break;
+        }
+        return states;
+    }
+
     /// The selection bar's buttons (docs/17 M9.3): the actions menu's own path, plus start
     /// and stop as two buttons, since a selection can hold both kinds and `stopStart`
     /// follows the cursor torrent alone.
@@ -921,6 +959,7 @@ Item {
         actionsMenuPanel.cursorRow = hash.length > 0 ? App.torrentRow(hash) : ({});
         actionsMenuPanel.leadActions = folded;
         actionsMenuPanel.heading = root.actionsHeading(hash);
+        actionsMenuPanel.headingTitle = root.actionsHeadingTitle(hash);
         actionsMenuPanel.openAbove(Math.round(corner.x - actionsMenuPanel.menuWidth),
                                    Math.round(corner.y - Theme.space(4)));
     }
@@ -2101,6 +2140,7 @@ Item {
                     actionsMenuPanel.cursorRow = App.torrentRow(hash);
                     actionsMenuPanel.leadActions = [];
                     actionsMenuPanel.heading = root.actionsHeading(hash);
+                    actionsMenuPanel.headingTitle = root.actionsHeadingTitle(hash);
                     actionsMenuPanel.openAt(point.x, point.y);
                 }
                 onActivated: root.openDetails()
@@ -2452,6 +2492,9 @@ Item {
         // implicit width for a moment, which follows its folds (a binding loop).
         availableWidth: statusLine.width - Theme.actionBarInsetStart - Theme.actionBarInsetEnd
         count: table.selectedCount
+        // #170: `p`'s word, as the selection needs it.
+        startable: root.selectionRunStates.stopped
+        stoppable: root.selectionRunStates.running
         hint: root.selectionHint
         keysShown: root.keysShown
         // The line's note, while the bar hides the line.
@@ -2485,21 +2528,6 @@ Item {
         z: 10
 
         onRejected: root.helpOpen = false
-
-        hints: [
-            {
-                "key": "↑↓",
-                "label": qsTr("move")
-            },
-            {
-                "key": "enter",
-                "label": qsTr("run")
-            },
-            {
-                "key": "esc",
-                "label": qsTr("clear, then close")
-            }
-        ]
 
         HelpSheet {
             id: helpSheet

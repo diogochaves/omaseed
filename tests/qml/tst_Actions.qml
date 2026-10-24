@@ -159,6 +159,24 @@ TestCase {
         compare(deleteRow.danger, true);
     }
 
+    // DECISIONS C24 H9 (board 46 `menuHtml()`): verbs grouped, keys right, delete last: run ·
+    // place · transfer · reach · delete.
+    function test_the_menu_groups_its_verbs_and_ends_with_delete() {
+        const groups = [[]];
+        for (const item of view.actionsMenuPanel.items) {
+            if (item.separator === true)
+                groups.push([]);
+            else
+                groups[groups.length - 1].push(item.action);
+        }
+        compare(groups, [["stopStart", "forceStart", "recheck", "reannounce"],
+                         ["location", "category", "tags", "rename"],
+                         ["limits", "sequential", "firstLast", "superSeeding", "autoManagement",
+                          "queueUp", "queueDown"],
+                         ["openFolder", "copyMagnet", "copyHash", "copyName"],
+                         ["delete"]]);
+    }
+
     // docs/12 G4: the four per-torrent options, checked for the cursor torrent.
     function test_the_menu_carries_the_four_options() {
         const hash = hashByName("archlinux-2026.09.01-x86_64.iso");
@@ -210,16 +228,21 @@ TestCase {
         const fedora = hashByName("Fedora-Workstation-Live-44-1.6.x86_64.iso");
         const bunny = hashByName("Big Buck Bunny 4K (CC-BY)");
 
-        // No selection: the menu acts on its row, no head line.
+        // No selection: the menu acts on its row, headed by its name over its state (board 46
+        // `menuHtml()`'s `.mh`, C24 H9).
+        const row = App.torrentRow(bunny);
+        const state = [row.stateText, row.progressText, row.category].join(" · ");
         view.table.moveCursorTo(App.filtered.rowOfHash(bunny));
         view.table.requestActions();
-        compare(view.actionsMenuPanel.heading, "");
+        compare(view.actionsMenuPanel.headingTitle, "Big Buck Bunny 4K (CC-BY)");
+        compare(view.actionsMenuPanel.heading, state);
         view.actionsMenuPanel.close();
 
-        // The selection is the row itself: still none.
+        // The selection is the row itself: the same.
         view.table.toggleSelection(App.filtered.rowOfHash(bunny));
         view.table.requestActions();
-        compare(view.actionsMenuPanel.heading, "");
+        compare(view.actionsMenuPanel.headingTitle, "Big Buck Bunny 4K (CC-BY)");
+        compare(view.actionsMenuPanel.heading, state);
         view.actionsMenuPanel.close();
         view.table.clearSelection();
 
@@ -230,6 +253,7 @@ TestCase {
         view.table.requestActions();
         compare(view.actionsMenuPanel.opened, true);
         compare(view.actionsMenuPanel.heading, "2 selected");
+        compare(view.actionsMenuPanel.headingTitle, "");
         compare(view.actionsMenuPanel.cursorIndex, 0);
         view.actionsMenuPanel.close();
         compare(view.table.selectedCount, 2);

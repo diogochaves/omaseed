@@ -381,35 +381,9 @@ Sheet {
                                                            }
                                                        ])
     // M2: why `save` is dimmed, under it.
-    footerRight: root.saveState === "wait" ? qsTr("test first") : ""
+    note: root.saveState === "wait" ? qsTr("test first") : ""
     glyph: Glyphs.server
-    hints: root.editing ? [
-        {
-            "key": "tab",
-            "label": qsTr("fields")
-        },
-        {
-            "key": "enter",
-            "label": root._enterLabel
-        }
-    ] : [
-        {
-            "key": "enter",
-            "label": root._enterLabel
-        }
-    ]
-    /// What `enter` runs: the focused button, else the primary one (review RUN-9: with the
-    /// keyboard on `test` the footer still said "enter edit").
-    readonly property string _enterLabel: {
-        // Only while open: a closed sheet asking actionButtons() (which claims its buttons)
-        // whenever another overlay's button takes the focus was a binding loop.
-        const item = root.opened ? root.Window.activeFocusItem as Button : null;
-        if (item && root.actionButtons().indexOf(item) >= 0)
-            return String(item.text);
-        const primary = root._actionFlagged("primary");
-        return primary ? String(primary.text) : "";
-    }
-    // Four equal buttons need more room than three: "switch to it" sat on its outline.
+    // Four buttons need more room than three (each as wide as its words, board 46 `.shf`).
     sheetWidth: Theme.space(root.editing || root.isNew || root.isDefault ? 460 : 520)
     subtitle: {
         const parts = [];

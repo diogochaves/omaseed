@@ -152,10 +152,8 @@ TestCase {
         verify(testCase.childNamed(modal, "torrentsImportRow").hasCursor);
         keyClick(Qt.Key_J);
         verify(exportRow.hasCursor);
-        // The footer: rows to act on, nothing to toggle or edit; one server, no `s`.
-        verify(modal.sheet.hints.some(hint => hint.key === "enter" && hint.label === "act"));
-        verify(!modal.sheet.hints.some(hint => hint.key === "space"));
-        verify(!modal.sheet.hints.some(hint => hint.key === "s"));
+        // C24 H10: the foot names no keys (the `?` sheet's "in a sheet" block does).
+        compare(modal.sheet.note, "");
     }
 
     /// A second (and third) server for the demo, in memory only.
@@ -185,8 +183,6 @@ TestCase {
         const head = testCase.childNamed(modal, "qbtHeadNote");
         verify(head.visible);
         compare(head.text, "omaseed · on this machine");
-        verify(modal.sheet.hints.some(hint => hint.key === "t"
-                                      && hint.label === "torrents: qBittorrent › Backup"));
         compare(modal.paneRowCount, 3);
         keyClick("t");
         verify(modal.inQbtBackup);
@@ -218,11 +214,9 @@ TestCase {
         verify(select.switches);
         verify(testCase.childNamed(select, "serverSelectBox").visible);
         compare(select.currentId, home);
-        // Every footer of the group has `s`.
-        verify(modal.sheet.hints.some(hint => hint.key === "s" && hint.label === "next server"));
+        // C24 H10 supersedes C11 D4's "every footer says s next server": `s` still goes.
         keyClick(Qt.Key_0);
         verify(modal.inQbtBackup);
-        verify(modal.sheet.hints.some(hint => hint.key === "s" && hint.label === "next server"));
         compare(testCase.childNamed(modal, "qbtScopeLine").text,
                 "home's own settings and torrents, read from and sent to home only. The other servers have their own:");
 
@@ -234,7 +228,6 @@ TestCase {
         verify(select.hasCursor);
         compare(modal.paneIndex, modal.qbtStart);
         verify(!testCase.childNamed(modal, "qbtNavRow0").hasCursor);
-        verify(modal.sheet.hints.some(hint => hint.key === "enter" && hint.label === "servers"));
         keyClick(Qt.Key_K);
         verify(!modal.navOnServer);
         compare(modal.paneIndex, modal.qbtStart - 1);
@@ -256,17 +249,17 @@ TestCase {
         keyClick(Qt.Key_Return);
         verify(!select.listOpen);
         verify(App.serverList.defaultId !== home);
-        verify(modal.sheet.footerRight.indexOf("omaseed is on seedbox now · the library too") === 0,
-               modal.sheet.footerRight);
+        verify(modal.sheet.note.indexOf("omaseed is on seedbox now · the library too") === 0,
+               modal.sheet.note);
 
         // `s` from the select itself, then from a pane: one step each.
         keyClick("s");
         compare(App.serverList.defaultId, home);
-        compare(modal.sheet.footerRight, "omaseed is on home now · the library too");
+        compare(modal.sheet.note, "omaseed is on home now · the library too");
         keyClick(Qt.Key_0);
         keyClick("s");
         compare(App.serverList.defaultId, second);
-        compare(modal.sheet.footerRight, "omaseed is on private now · the library too");
+        compare(modal.sheet.note, "omaseed is on private now · the library too");
     }
 
     // docs/34 D6 a: copy settings from another server, on the demo's fiction of one: space

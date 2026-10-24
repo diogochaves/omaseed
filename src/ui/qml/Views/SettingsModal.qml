@@ -1216,74 +1216,8 @@ Item {
         // The head belongs to the pane in this figure, not to the sheet: no glyph, no title,
         // and no `esc` chip up there either.
         escText: ""
-        hints: {
-            const hints = [{
-                               "key": "j k",
-                               "label": qsTr("move")
-                           }, root.folded ? {
-                                                "key": "h l",
-                                                "label": qsTr("section")
-                                            } : {
-                                                "key": "tab",
-                                                "label": qsTr("pane")
-                                            }];
-            // docs/34 D4 a: `s` goes to the next server from every qBittorrent pane and from
-            // the select, and every one of their footers says so.
-            const next = {
-                "key": "s",
-                "label": qsTr("next server")
-            };
-            if (root.navOnServer)
-                return hints.concat([{
-                                         "key": "enter",
-                                         "label": qsTr("servers")
-                                     }, next]);
-            if (!root.inQbt || root.inQbtBackup) {
-                const out = hints.concat([{
-                                              "key": "enter",
-                                              "label": qsTr("act")
-                                          }]);
-                if (root.paneIndex === 5) // docs/34 D1 a
-                    out.push({
-                                 "key": "t",
-                                 "label": qsTr("torrents: qBittorrent › Backup")
-                             });
-                // docs/33 D11: the Servers pane names its keys, `d` only with two servers.
-                if (root.paneIndex === 1) {
-                    if (App.serverList.count > 1)
-                        out.push({
-                                     "key": "d",
-                                     "label": qsTr("switch to it")
-                                 });
-                    out.push({
-                                 "key": "a",
-                                 "label": qsTr("add")
-                             });
-                }
-                if (root.inQbtBackup && App.serverList.count > 1)
-                    out.push(next);
-                return out;
-            }
-            hints.push({
-                           "key": "space",
-                           "label": qsTr("toggle")
-                       }, {
-                           "key": "enter",
-                           "label": qsTr("edit")
-                       });
-            if (root.qbtSection && root.qbtSection.id === "advanced")
-                hints.push({
-                               "key": "d",
-                               "label": qsTr("default")
-                           });
-            for (const preset of qbtPane.presets)
-                hints.push(preset);
-            if (App.serverList.count > 1)
-                hints.push(next);
-            return hints;
-        }
         // docs/34 D5 a: after a switch from here, that the library went with it.
-        footerRight: root.switchNote
+        note: root.switchNote
         sheetWidth: Theme.space(760)
         title: ""
 

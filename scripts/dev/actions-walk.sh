@@ -1037,7 +1037,7 @@ step "Add a twin, saved where the file is" "The 2 GiB file's twin: the same file
 keys a
 keys -t "$BOX_HOME/Downloads/$BIG.twin.torrent"
 sleep 3 # the parse, then the library's file lists
-shot "Add torrent, the twin in the field: a blue line, \"This file is already on disk. The same file, same size, as $BIG, seeding from 127.0.0.1\", with save there; alt+s save there in the hints." match
+shot "Add torrent, the twin in the field: a blue line, \"This file is already on disk. The same file, same size, as $BIG, seeding from 127.0.0.1\", with save there (alt+s in the ? sheet, C24 H10)." match
 keys alt+s
 shot "After alt+s: \"Saving beside $BIG\" with undo; Save to /tmp/elsewhere, \"from the files match\"; the line under it green, \"needs nothing new\"." saved
 keys Return

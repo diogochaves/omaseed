@@ -109,6 +109,93 @@ QtObject {
         }
     ]
 
+    /// DECISIONS C24 H10 (keys on demand): the keys a sheet's foot printed until v0.5.0 (v2's
+    /// footer hints, C11 D4's "s next server"), in a block of the `?` sheet after view, and Settings ›
+    /// Keybindings. Not entries: each sheet routes its own keys, so the palette doesn't list
+    /// them.
+    readonly property string sheetTitle: qsTr("in a sheet")
+    readonly property string sheetAbout: qsTr("Add, Move, Settings and the other sheets and lists over the window.")
+    readonly property var sheetRows: [
+        {
+            "action": "sheet:enter",
+            "helpKeys": qsTr("enter"),
+            "help": qsTr("the main button"),
+            "about": qsTr("Run the filled button: add, move, save; on a focused button, that one")
+        },
+        {
+            "action": "sheet:shiftEnter",
+            "helpKeys": qsTr("shift+enter"),
+            "help": qsTr("add stopped"),
+            "about": qsTr("The add sheet's second button: add it without starting it")
+        },
+        {
+            "action": "sheet:tab",
+            "helpKeys": qsTr("tab"),
+            "help": qsTr("next field"),
+            "about": qsTr("Through the sheet's fields, lists and buttons, never out of it; shift+tab back")
+        },
+        {
+            "action": "sheet:esc",
+            "helpKeys": qsTr("esc"),
+            "help": qsTr("close"),
+            "about": qsTr("Close the sheet; on the add sheet the first esc goes to cancel")
+        },
+        {
+            "action": "sheet:browse",
+            "helpKeys": qsTr("ctrl+o"),
+            "help": qsTr("browse"),
+            "about": qsTr("The add sheet's file chooser, or the Move sheet's folder chooser")
+        },
+        {
+            "action": "sheet:places",
+            "helpKeys": qsTr("↓"),
+            "help": qsTr("places"),
+            "about": qsTr("In the Move sheet's path: the places list (↑↓ choose, enter fill, esc close it)")
+        },
+        {
+            "action": "sheet:server",
+            "helpKeys": qsTr("ctrl+s"),
+            "help": qsTr("server"),
+            "about": qsTr("In the add sheet with two servers: which one it goes to")
+        },
+        {
+            "action": "sheet:saveThere",
+            "helpKeys": qsTr("alt+s"),
+            "help": qsTr("save there"),
+            "about": qsTr("In the add sheet, while its files are already on disk: add it where they are")
+        },
+        {
+            "action": "sheet:files",
+            "helpKeys": qsTr("space · ctrl+a"),
+            "help": qsTr("tick files"),
+            "about": qsTr("In the add sheet's files: tick a file or a folder, then all or none; + - priority, h l fold, r rename")
+        },
+        {
+            "action": "sheet:lists",
+            "helpKeys": qsTr("j k · d"),
+            "help": qsTr("its lists"),
+            "about": qsTr("In the add sheet's lists (in Downloads, several torrents): move; space ticks, d removes one")
+        },
+        {
+            "action": "sheet:lines",
+            "helpKeys": qsTr("ctrl+enter"),
+            "help": qsTr("save a list"),
+            "about": qsTr("In a sheet of lines (trackers, peers, extensions): enter starts a new line")
+        },
+        {
+            "action": "sheet:settings",
+            "helpKeys": qsTr("j k · h l"),
+            "help": qsTr("settings"),
+            "about": qsTr("In Settings: move, and between the sections and the pane (tab too); space toggles, enter edits or acts, d its default")
+        },
+        {
+            "action": "sheet:nextServer",
+            "helpKeys": qsTr("s"),
+            "help": qsTr("next server"),
+            "about": qsTr("In Settings' qBittorrent panes, with two servers or more: the next one")
+        }
+    ]
+
     readonly property var entries: [
         // global: routed by MainView wherever the focus is -------------------------
         // #24 (docs/22): the window's second face.

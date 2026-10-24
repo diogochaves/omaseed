@@ -278,123 +278,12 @@ Sheet {
         return sheet.bodyRoom - used;
     }
 
-    /// The hint line: the tree's own keys while it has the keyboard (Keymap "addFiles").
-    readonly property var _formHints: sheet.filesMatches.length > 0 && !sheet.savedThere
-                                      ? sheet._baseFormHints.concat([{
-                                                                         "key": "alt+s",
-                                                                         "label": qsTr("save there")
-                                                                     }])
-                                      : sheet._baseFormHints
     /// The keys every field of the form hands to the sheet instead of typing them.
     readonly property var _fieldShortcuts: sheet.filesMatches.length > 0 && !sheet.savedThere
                                            ? [{
                                                   "key": Qt.Key_S,
                                                   "modifiers": Qt.AltModifier
                                               }] : []
-    readonly property var _baseFormHints: [
-        {
-            "key": "tab",
-            "label": qsTr("fields")
-        },
-        {
-            "key": "enter",
-            "label": sheet._nothingTicked ? sheet._addStoppedText : sheet._addText
-        }
-    ].concat(sheet.multiServer ? [
-                                     {
-                                         "key": "ctrl+s",
-                                         "label": qsTr("server")
-                                     }] : [], [
-                 {
-                     "key": "shift+enter",
-                     "label": qsTr("add stopped")
-                 }])
-    /// … and the "in Downloads" list's (Keymap "addDownloads").
-    readonly property var _downloadsHints: [
-        {
-            "key": "j k",
-            "label": Keymap.labelOf("addDownloads", "j")
-        },
-        {
-            "key": "space",
-            "label": Keymap.labelOf("addDownloads", "space")
-        },
-        {
-            "key": "enter",
-            "label": Keymap.labelOf("addDownloads", "enter")
-        },
-        {
-            "key": "tab",
-            "label": qsTr("fields")
-        }
-    ]
-    /// … and the batch list's (Keymap "addBatch").
-    readonly property var _batchHints: [
-        {
-            "key": "j k",
-            "label": Keymap.labelOf("addBatch", "j")
-        },
-        {
-            "key": "d",
-            "label": Keymap.labelOf("addBatch", "d")
-        },
-        {
-            "key": "tab",
-            "label": qsTr("fields")
-        },
-        {
-            "key": "enter",
-            "label": sheet._addText
-        },
-        {
-            "key": "shift+enter",
-            "label": qsTr("add stopped")
-        }
-    ]
-    readonly property var _treeHints: [
-        {
-            "key": "j k",
-            "label": Keymap.labelOf("addFiles", "j")
-        },
-        {
-            "key": "space",
-            "label": Keymap.labelOf("addFiles", "space")
-        },
-        {
-            "key": "ctrl+a",
-            "label": Keymap.labelOf("addFiles", "ctrl+a")
-        },
-        {
-            "key": "+ -",
-            "label": Keymap.labelOf("addFiles", "+")
-        },
-        {
-            "key": "h l",
-            "label": Keymap.labelOf("addFiles", "h")
-        },
-        {
-            "key": "r",
-            "label": Keymap.labelOf("addFiles", "r")
-        },
-        {
-            "key": "enter",
-            "label": sheet._nothingTicked ? sheet._addStoppedText : sheet._addText,
-            // #8: at the sheet's 600 wide the tree's keys run out of room; these go first.
-            "keep": true
-        }
-    ]
-    /// While a file tree row is being renamed (M18): its field takes both keys.
-    readonly property var _renameHints: [
-        {
-            "key": "enter",
-            "label": qsTr("rename")
-        },
-        {
-            "key": "esc",
-            "label": qsTr("cancel")
-        }
-    ]
-
     /// `add` / `add stopped`: the map `App.addTorrent` takes.
     signal addRequested(var request)
     /// This infohash is already on the server: `row` is `App.torrentRow`'s map, `source`
@@ -1227,19 +1116,11 @@ Sheet {
                                                 ]
                 // docs/33 D13, D20: the server is named in the head with two servers, nowhere
                 // with one; the foot's "server: NAME" is gone.
-                footerRight: ""
                 glyph: Glyphs.add
                 headBand: noticeBand
                 titleTrailer: sheet.multiServer ? serverChip : null
                 // Manual box M5: a stray click or `esc` must not lose a half-filled add.
                 guarded: true
-                hints: filesTree.editing ? sheet._renameHints : filesTree.activeFocus
-                                                                ? sheet._treeHints
-                                                                : batchList.activeFocus
-                                                                  ? sheet._batchHints
-                                                                  : downloadsList.activeFocus
-                                                                  ? sheet._downloadsHints
-                                                                  : sheet._formHints
                 sheetWidth: Theme.space(600)
                 subtitle: {
                     if (sheet.batchMode) {
@@ -1637,6 +1518,8 @@ Sheet {
                             trailing: qsTr("browse")
                             trailingClickable: true
                             trailingKey: "ctrl+o"
+                            // C24 H10: keys on demand; the `?` sheet and a screen reader have it.
+                            trailingKeyShown: false
 
                             onAccepted: {
                                 // In a batch the field is for more: `enter` with text adds it

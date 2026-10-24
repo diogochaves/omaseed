@@ -299,23 +299,6 @@ Sheet {
         return list;
     }
     glyph: root.mode === "back" ? "↺" : "▱"
-    hints: [
-        {
-            "key": "enter",
-            "label": qsTr("move")
-        },
-        root.selection ? {
-                             "key": "↓",
-                             "label": qsTr("places")
-                         } : {
-                             "key": "tab",
-                             "label": qsTr("next")
-                         },
-        {
-            "key": "esc",
-            "label": qsTr("cancel")
-        }
-    ]
     sheetWidth: root.mode === "folder" ? Theme.space(640) : root.asking ? Theme.space(600) : Theme.space(560)
     subtitle: root.plan.header ?? ""
     title: root.plan.title ?? (root.selection ? qsTr("Move…") : qsTr("Move a folder"))
@@ -404,6 +387,8 @@ Sheet {
             trailing: qsTr("browse")
             trailingClickable: true
             trailingKey: "ctrl+o"
+            // C24 H10: keys on demand; the `?` sheet and a screen reader have it.
+            trailingKeyShown: false
 
             // Field's own `Keys.onReturnPressed` already marks the key accepted (it emits
             // `accepted()` either way), so `enter` reaches the sheet only through here. On a

@@ -1390,18 +1390,8 @@ Window {
                                     "primary": true
                                 }
                             ]
-                            footerRight: qsTr("server: home")
+                            note: qsTr("server: home")
                             glyph: Glyphs.folder
-                            hints: [
-                                {
-                                    "key": "tab",
-                                    "label": qsTr("fields")
-                                },
-                                {
-                                    "key": "enter",
-                                    "label": qsTr("move")
-                                }
-                            ]
                             inline: true
                             sheetWidth: Theme.space(420)
                             subtitle: qsTr("1 torrent \u00b7 1.31 GB moves with it")

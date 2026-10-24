@@ -5,27 +5,30 @@ import Omaseed.Kit
 // The action bar (board 46 `statusLine()` while torrents are selected, DECISIONS C24 H8;
 // supersedes docs/17's floating bar): while one or more torrents are selected the status
 // line becomes this bar, docked in its place across the content's foot, so the mouse has
-// what `enter` gives the keyboard. Its contents are docs/17 M9's (Diogo took every
-// recommendation, 2026-09-29):
+// what `enter` gives the keyboard. Board 46 draws it, and the sheets-and-menus step (#170)
+// built it so:
 //
-//   M9.2  the host shows it while one or more torrents are selected (never for the cursor)
-//   M9.3  count ✕ · the ledger | start · stop | recheck · reannounce | category · tags ·
-//         set location · limits | open folder · ⋯ | delete (red), then C18 D6's mouse hint.
-//         ⋯ is the full actions menu. The ✕ right after the count clears the selection, as
-//         `esc` does (#51 D2).
-//   M9.4  mouse only: no button takes the focus (tab never lands here, a click leaves the
-//         keyboard on the table) and each tooltip names the key that does the same
-//   M9.5  never wraps: when it is wider than `availableWidth`, buttons fold into ⋯ in
-//         `foldOrder`; the count, start, stop, ⋯ and delete always stay, and last of all the
-//         count drops its word
+//   "3 selected" · the ledger (#24 T1) · stop · recheck · move… · category · tags · limits ·
+//   delete (red) · C18 D6's mouse hint ......................... all actions · esc
+//
+// Words, not glyphs: each button is its word, its key in its tooltip and, while alt is held,
+// in a badge over its corner (C24 H10). `p`'s word follows the selection (`startable`,
+// `stoppable`): "stop" when any is running, "start" when any is stopped, both for a mix.
+// "all actions" is the actions menu (as `enter`), "esc" clears the selection (#51 D2).
+//
+// Mouse only (docs/17 M9.4): no button takes the focus (tab never lands here, a click leaves
+// the keyboard on the table). It never wraps (M9.5): the hint goes first, then the ledger,
+// then the middle buttons fold into all actions from the right (limits, tags, category,
+// recheck: board 46's narrow bar keeps stop, move… and delete), and last of all the count
+// drops its word.
 //
 // The status line's note (a "copied", a failure) takes the hint's place while the bar shows,
 // so a key pressed on a selection still says what it did.
 //
 // It runs nothing itself: `triggered(action)` names the action (the actions menu's names,
-// plus "start" and "stop"), and ⋯ asks the host for the menu with `moreRequested(button,
-// folded)`, `folded` being the actions it no longer shows, for the menu to list first. Its
-// form is `Theme.actionBar*` tokens (frame plan, "form in tokens").
+// plus "start" and "stop"), and all actions asks the host for the menu with
+// `moreRequested(button, folded)`, `folded` being the actions it no longer shows, for the
+// menu to list first. Its form is `Theme.actionBar*` tokens (frame plan, "form in tokens").
 //
 //     SelectionBar { count: table.selectedCount; anchors.fill: statusLine
 //                    availableWidth: width - Theme.actionBarInsetStart - Theme.actionBarInsetEnd }
@@ -36,8 +39,11 @@ Rectangle {
 
     /// How many torrents are selected; the host hides the bar at 0.
     property int count: 0
-    /// The widest its contents may be, insets aside; buttons fold into ⋯ past it.
+    /// The widest its contents may be, insets aside; buttons fold into all actions past it.
     property real availableWidth: 0
+    /// Some of the selection is stopped (`start` is offered), some is running (`stop`).
+    property bool startable: false
+    property bool stoppable: true
     /// #24 T1: the selection's ledger, `{sizeText, givenText, ratioText, ratioGood}`, drawn
     /// after the count while the bar has room for it (it goes before any button folds).
     property var summary: ({})
@@ -50,164 +56,172 @@ Rectangle {
     property string note: ""
     /// The note is a failure qBittorrent's log told of: yellow, as in the status line.
     property bool noteWarn: false
-    /// DECISIONS C24 H10: alt is held: each button shows its key over its corner (board 46
+    /// DECISIONS C24 H10: alt is held: each word shows its key over its corner (board 46
     /// `.ab .kb`), outside the row, so no fold moves.
     property bool keysShown: false
 
-    /// A button ran: "start", "stop", "recheck", "reannounce", "category", "tags",
-    /// "location", "limits", "openFolder" or "delete".
+    /// A button ran: "start", "stop", "recheck", "category", "tags", "location", "limits" or
+    /// "delete".
     signal triggered(string action)
-    /// ⋯ ran: open the actions menu over `button`, with `folded` first.
+    /// All actions ran: open the actions menu over `button`, with `folded` first.
     signal moreRequested(Item button, var folded)
     /// #24 T1: the summary was clicked: the seed console, on the selection.
     signal summaryClicked
-    /// The ✕ after the count: clear the selection (#51 D2).
+    /// "esc": clear the selection (#51 D2).
     signal clearRequested
 
-    /// Every button, keyed by the actions menu's action names; `key` is what the tooltip
-    /// teaches (the same keys as Fig. 11's menu).
+    /// Every button, keyed by the actions menu's action names; `key` is what the tooltip and
+    /// the badge teach (the actions menu's keys).
     readonly property var buttons: ({
                                         "start": {
-                                            "glyph": Glyphs.start,
                                             "text": qsTr("start"),
                                             "key": "p"
                                         },
                                         "stop": {
-                                            "glyph": Glyphs.stop,
                                             "text": qsTr("stop"),
                                             "key": "p"
                                         },
                                         "recheck": {
-                                            "glyph": Glyphs.recheck,
                                             "text": qsTr("recheck"),
                                             "key": "c"
                                         },
-                                        "reannounce": {
-                                            "glyph": Glyphs.reannounce,
-                                            "text": qsTr("reannounce"),
-                                            "key": "R"
+                                        "location": {
+                                            "text": qsTr("move…"),
+                                            "key": "m"
                                         },
                                         "category": {
-                                            "glyph": Glyphs.category,
                                             "text": qsTr("category"),
                                             "key": "C"
                                         },
                                         "tags": {
-                                            "glyph": Glyphs.tag,
                                             "text": qsTr("tags"),
                                             "key": "t"
                                         },
-                                        "location": {
-                                            "glyph": Glyphs.location,
-                                            "text": qsTr("move…"),
-                                            "key": "m"
-                                        },
                                         "limits": {
-                                            "glyph": Glyphs.limits,
                                             "text": qsTr("limits"),
                                             "key": "L"
                                         },
-                                        "openFolder": {
-                                            "glyph": Glyphs.openFolder,
-                                            "text": qsTr("open folder"),
-                                            "key": "o"
+                                        "delete": {
+                                            "text": qsTr("delete"),
+                                            "key": "d"
                                         },
                                         "more": {
-                                            "glyph": Glyphs.more,
                                             "text": qsTr("all actions"),
                                             "key": "enter"
                                         },
-                                        "delete": {
-                                            "glyph": Glyphs.trash,
-                                            "text": qsTr("delete"),
-                                            "key": "d"
+                                        "clear": {
+                                            "text": qsTr("esc"),
+                                            "key": "esc"
                                         }
                                     })
-    /// M9.3's groups, a hairline between each two.
-    readonly property var groups: [["start", "stop"], ["recheck", "reannounce"], ["category", "tags",
-            "location", "limits"], ["openFolder", "more"], ["delete"]]
+    /// The middle group in board 46's order, `p`'s word as the selection needs it.
+    readonly property var middle: (root.startable ? ["start"] : []).concat(root.stoppable || !root.startable
+                                                                            ? ["stop"] : [],
+                                                                            ["recheck", "location",
+                                                                             "category", "tags",
+                                                                             "limits", "delete"])
     /// M9.5: the first to go when the bar does not fit, one at a time.
-    readonly property var foldOrder: ["openFolder", "limits", "location", "reannounce", "recheck",
-        "tags", "category"]
+    readonly property var foldOrder: ["limits", "tags", "category", "recheck"]
 
-    /// How many of `foldOrder` are folded, and whether the count keeps its word, at
-    /// `availableWidth`.
-    readonly property var fit: {
-        for (let folds = 0; folds <= root.foldOrder.length; ++folds) {
-            if (root.widthOf(root.itemsFor(folds), true) <= root.availableWidth)
-                return {
-                    "folds": folds,
-                    "word": true
-                };
-        }
-        return {
-            "folds": root.foldOrder.length,
-            "word": false
-        };
+    /// A word button's width: its word, measured, and the room either side.
+    function wordWidth(action: string): real {
+        return Math.ceil(wordMetrics.advanceWidth(root.buttons[action].text)) + 2 * Theme.actionBarWordPadding;
     }
-    /// #24 T1: the summary's own width, and whether it fits beside every button.
-    // From its texts, not the row: a row hidden with the summary lays nothing out, and a
-    // width that went with it would bring the summary back (a binding loop).
-    readonly property real _summaryWidth: summarySize.implicitWidth + givenWord.implicitWidth
-                                          + givenValue.implicitWidth + ratioWord.implicitWidth
-                                          + ratioValue.implicitWidth + 2 * Theme.space(12)
-                                          + 2 * Theme.space(5) + Theme.space(4) + Theme.space(8)
-    readonly property bool showSummary: root.summary.sizeText !== undefined && root.fit.folds === 0
-                                        && root.fit.word
-                                        && root.widthOf(root.items, true) + root._summaryWidth
-                                        <= root.availableWidth
-    /// What follows the buttons: the note, else the hint.
-    readonly property string tail: root.note.length > 0 ? root.note : root.hint
-    readonly property real _hintWidth: hintLabel.implicitWidth + Theme.space(16)
-    readonly property bool showHint: root.tail.length > 0 && root.fit.folds === 0 && root.fit.word
-                                     && root.widthOf(root.items, true) + (root.showSummary ? root._summaryWidth : 0)
-                                     + root._hintWidth <= root.availableWidth
-    /// The actions ⋯ now holds besides the menu's own, in `foldOrder`.
-    readonly property var folded: root.foldOrder.slice(0, root.fit.folds)
-    /// What the bar draws after the count: action names, and "|" for a hairline.
-    readonly property var items: root.itemsFor(root.fit.folds)
 
-    readonly property int _spacing: Theme.actionBarGap
-    readonly property int _ruleWidth: 1 + Theme.actionBarRuleRoom
-
-    /// The buttons and hairlines left once `folds` of `foldOrder` have gone: empty groups
-    /// leave no hairline behind.
+    /// The middle group once `folds` of `foldOrder` have gone.
     function itemsFor(folds: int): var {
         const gone = root.foldOrder.slice(0, folds);
-        const out = [];
-        for (const group of root.groups) {
-            const kept = group.filter(action => gone.indexOf(action) < 0);
-            if (kept.length === 0)
-                continue;
-            if (out.length > 0)
-                out.push("|");
-            for (const action of kept)
-                out.push(action);
-        }
-        return out;
+        return root.middle.filter(action => gone.indexOf(action) < 0);
     }
 
     /// The count's width, with or without its word. Worked out from the parts, not read from
     /// the row: the row hides the word by `fit`, which is itself worked out from this.
     function countWidth(word: bool): real {
-        return countRow.leftPadding + countNumber.implicitWidth + countRow.rightPadding
-                + (word ? countRow.spacing + countWord.implicitWidth : 0) + countRow.spacing
-                + clearButton.width;
+        return countNumber.implicitWidth + (word ? countRow.spacing + countWord.implicitWidth : 0)
+                + countRow.rightPadding;
     }
 
-    /// The contents' width drawing `items`, with or without the count's word: what
-    /// `availableWidth` bounds.
-    function widthOf(items: var, word: bool): real {
-        let width = root.countWidth(word) + root._spacing + root._ruleWidth;
-        for (const item of items)
-            width += root._spacing + (item === "|" ? root._ruleWidth : Theme.actionBarButtonSize);
-        return width;
+    /// The contents' width with `folds` buttons folded, the count's word or not, the ledger
+    /// and the hint or not: what `availableWidth` bounds.
+    function widthOf(folds: int, word: bool, summary: bool, hint: bool): real {
+        let width = root.countWidth(word);
+        if (summary)
+            width += root._spacing + root._summaryWidth;
+        for (const action of root.itemsFor(folds))
+            width += root._spacing + root.wordWidth(action);
+        if (hint)
+            width += root._spacing + root._hintWidth;
+        return width + Theme.actionBarEndGap + root.wordWidth("more") + root._spacing + root.wordWidth("clear");
     }
+
+    readonly property bool _hasSummary: root.summary.sizeText !== undefined
+    /// What follows the buttons: the note, else the hint.
+    readonly property string tail: root.note.length > 0 ? root.note : root.hint
+    readonly property bool _hasTail: root.tail.length > 0
+
+    /// How many of `foldOrder` are folded, whether the count keeps its word, and whether the
+    /// ledger and the hint show, at `availableWidth`: the hint goes first, then the ledger,
+    /// then the buttons one by one, then the count's word.
+    readonly property var fit: {
+        const steps = [];
+        steps.push({
+                       "folds": 0,
+                       "word": true,
+                       "summary": root._hasSummary,
+                       "hint": root._hasTail
+                   });
+        if (root._hasTail)
+            steps.push({
+                           "folds": 0,
+                           "word": true,
+                           "summary": root._hasSummary,
+                           "hint": false
+                       });
+        if (root._hasSummary)
+            steps.push({
+                           "folds": 0,
+                           "word": true,
+                           "summary": false,
+                           "hint": false
+                       });
+        for (let folds = 1; folds <= root.foldOrder.length; ++folds)
+            steps.push({
+                           "folds": folds,
+                           "word": true,
+                           "summary": false,
+                           "hint": false
+                       });
+        steps.push({
+                       "folds": root.foldOrder.length,
+                       "word": false,
+                       "summary": false,
+                       "hint": false
+                   });
+        for (const step of steps) {
+            if (root.widthOf(step.folds, step.word, step.summary, step.hint) <= root.availableWidth)
+                return step;
+        }
+        return steps[steps.length - 1];
+    }
+    readonly property bool showSummary: root.fit.summary
+    readonly property bool showHint: root.fit.hint
+    /// The actions all actions now holds besides the menu's own, in `foldOrder`.
+    readonly property var folded: root.foldOrder.slice(0, root.fit.folds)
+    /// The middle group drawn now.
+    readonly property var items: root.itemsFor(root.fit.folds)
+
+    // From its texts, not the row: a row hidden with the summary lays nothing out, and a
+    // width that went with it would bring the summary back (a binding loop).
+    readonly property real _summaryWidth: summarySize.implicitWidth + givenWord.implicitWidth
+                                          + givenValue.implicitWidth + ratioWord.implicitWidth
+                                          + ratioValue.implicitWidth + 2 * Theme.space(12)
+                                          + 2 * Theme.space(5) + Theme.space(4)
+    readonly property real _hintWidth: hintLabel.implicitWidth + Theme.space(8)
+    readonly property int _spacing: Theme.actionBarGap
 
     /// The contents drawn now, insets aside.
-    readonly property real contentWidth: root.widthOf(root.items, root.fit.word)
-                                         + (root.showSummary ? root._summaryWidth : 0)
-                                         + (root.showHint ? root._hintWidth : 0)
+    readonly property real contentWidth: root.widthOf(root.fit.folds, root.fit.word, root.fit.summary,
+                                                      root.fit.hint)
 
     /// docs/DECISIONS.md C30 F1: every word on the bar is on its ground; its buttons rest on it.
     readonly property Ink ink: Ink {
@@ -219,6 +233,13 @@ Rectangle {
     color: Theme.actionBarGround.fill
     implicitHeight: Theme.actionBarHeight
     implicitWidth: Theme.actionBarInsetStart + root.contentWidth + Theme.actionBarInsetEnd
+
+    FontMetrics {
+        id: wordMetrics
+
+        font.family: Theme.fontFamily
+        font.pixelSize: Theme.actionBarFontSize
+    }
 
     // Its ground is no row: a click there selects nothing and goes no further.
     MouseArea {
@@ -233,6 +254,38 @@ Rectangle {
         anchors.top: parent.top
     }
 
+    component WordButton: Button {
+        id: word
+
+        /// The action it names, a key of `root.buttons`.
+        property string action: ""
+        readonly property var spec: root.buttons[word.action] ?? ({
+                                                                     "text": "",
+                                                                     "key": ""
+                                                                 })
+        /// Draw its key's badge while alt is held.
+        property bool badged: true
+
+        // #78: named by its action ("delete"), the key its description.
+        Accessible.description: qsTr("shortcut %1").arg(word.spec.key)
+        activeFocusOnTab: false
+        block: Theme.actionBarGround
+        fontSize: Theme.actionBarFontSize
+        height: Theme.actionBarButtonSize
+        objectName: "bar_" + word.action
+        sidePadding: Theme.actionBarWordPadding
+        text: word.spec.text
+        tooltip: qsTr("%1 · %2").arg(word.spec.text).arg(word.spec.key)
+        tooltipAbove: true
+        width: root.wordWidth(word.action)
+
+        KeyBadge {
+            key: word.badged ? word.spec.key : ""
+            objectName: "barKey_" + word.action
+            shown: root.keysShown
+        }
+    }
+
     Row {
         id: content
 
@@ -241,7 +294,7 @@ Rectangle {
         anchors.verticalCenter: parent.verticalCenter
         spacing: root._spacing
 
-        // `.sbar .n`: the count, bright and tabular, and a dim word after it.
+        // board 46 `.status.sel b`: the count, bright and tabular, and its word.
         Item {
             height: Theme.actionBarButtonSize
             width: root.countWidth(root.fit.word)
@@ -250,8 +303,7 @@ Rectangle {
                 id: countRow
 
                 anchors.verticalCenter: parent.verticalCenter
-                leftPadding: 0
-                rightPadding: Theme.space(8)
+                rightPadding: Theme.space(4)
                 spacing: Theme.space(5)
 
                 Label {
@@ -278,34 +330,6 @@ Rectangle {
                     size: "small"
                     text: qsTr("selected")
                     visible: root.fit.word
-                }
-
-                // #51 D2: quiet beside the count, dim until the pointer is on it. Like every
-                // button here it never takes the focus (M9.4).
-                IconButton {
-                    id: clearButton
-
-                    // #78: the action is the name, the key the description.
-                    Accessible.description: qsTr("shortcut %1").arg("esc")
-                    Accessible.name: qsTr("clear selection")
-                    accent: clearButton.hot
-                    activeFocusOnTab: false
-                    anchors.verticalCenter: parent.verticalCenter
-                    block: Theme.actionBarGround
-                    glyph: Glyphs.close
-                    height: Theme.font.body + Theme.space(4)
-                    objectName: "bar_clear"
-                    tooltip: qsTr("clear selection · esc")
-                    tooltipAbove: true
-                    width: clearButton.height
-
-                    onClicked: root.clearRequested()
-
-                    KeyBadge {
-                        key: "esc"
-                        objectName: "barKey_clear"
-                        shown: root.keysShown
-                    }
                 }
             }
         }
@@ -398,79 +422,16 @@ Rectangle {
             }
         }
 
-        Item {
-            height: Theme.actionBarButtonSize
-            width: root._ruleWidth
-
-            Hairline {
-                anchors.bottom: parent.bottom
-                anchors.bottomMargin: Theme.actionBarRuleInset
-                anchors.horizontalCenter: parent.horizontalCenter
-                anchors.top: parent.top
-                anchors.topMargin: Theme.actionBarRuleInset
-                vertical: true
-            }
-        }
-
         Repeater {
             model: root.items
 
-            Item {
-                id: slot
-
+            WordButton {
                 required property string modelData
 
-                readonly property bool rule: slot.modelData === "|"
-                readonly property var button: slot.rule ? null : root.buttons[slot.modelData]
+                action: modelData
+                danger: modelData === "delete"
 
-                height: Theme.actionBarButtonSize
-                width: slot.rule ? root._ruleWidth : Theme.actionBarButtonSize
-
-                Hairline {
-                    anchors.bottom: parent.bottom
-                    anchors.bottomMargin: Theme.actionBarRuleInset
-                    anchors.horizontalCenter: parent.horizontalCenter
-                    anchors.top: parent.top
-                    anchors.topMargin: Theme.actionBarRuleInset
-                    vertical: true
-                    visible: slot.rule
-                }
-
-                IconButton {
-                    id: iconButton
-
-                    // #78: named by its action ("delete"), the key its description; a rule
-                    // between groups is no button.
-                    Accessible.description: slot.button ? qsTr("shortcut %1").arg(slot.button.key)
-                                                        : ""
-                    Accessible.ignored: slot.rule
-                    Accessible.name: slot.button ? slot.button.text : ""
-                    activeFocusOnTab: false
-                    anchors.fill: parent
-                    block: Theme.actionBarGround
-                    danger: slot.modelData === "delete"
-                    glyph: slot.button ? slot.button.glyph : ""
-                    objectName: "bar_" + slot.modelData
-                    tooltip: slot.button ? qsTr("%1 · %2").arg(slot.button.text).arg(slot.button.key)
-                                         : ""
-                    tooltipAbove: true
-                    visible: !slot.rule
-
-                    onClicked: {
-                        if (slot.modelData === "more")
-                            root.moreRequested(iconButton, root.folded);
-                        else
-                            root.triggered(slot.modelData);
-                    }
-                }
-
-                // ⋯'s "enter" would hang over open folder's badge; board 46's "all actions"
-                // has none either, its tooltip says it.
-                KeyBadge {
-                    key: slot.button && slot.modelData !== "more" ? slot.button.key : ""
-                    objectName: "barKey_" + slot.modelData
-                    shown: root.keysShown && !slot.rule
-                }
+                onClicked: root.triggered(modelData)
             }
         }
 
@@ -490,7 +451,6 @@ Rectangle {
                 Accessible.name: hintLabel.text
                 Accessible.role: hintLabel.isNote ? Accessible.AlertMessage : Accessible.StaticText
                 anchors.right: parent.right
-                anchors.rightMargin: Theme.space(4)
                 anchors.verticalCenter: parent.verticalCenter
                 color: !hintLabel.isNote ? root.ink.dimForeground : root.noteWarn ? root.ink.yellow
                                                                                    : root.ink.accent
@@ -498,6 +458,37 @@ Rectangle {
                 size: hintLabel.isNote ? "small" : "caption"
                 text: root.tail
             }
+        }
+    }
+
+    // board 46: "all actions" and "esc" at the right end.
+    Row {
+        id: end
+
+        anchors.right: parent.right
+        anchors.rightMargin: Theme.actionBarInsetEnd
+        anchors.verticalCenter: parent.verticalCenter
+        spacing: root._spacing
+
+        WordButton {
+            id: moreButton
+
+            // Its key is its tooltip's (`enter` opens the same menu); board 46 badges none.
+            Accessible.name: qsTr("all actions")
+            action: "more"
+            badged: false
+
+            onClicked: root.moreRequested(moreButton, root.folded)
+        }
+
+        WordButton {
+            // #51 D2: what `esc` does, by click; the word is its key.
+            Accessible.name: qsTr("clear selection")
+            action: "clear"
+            badged: false
+            tooltip: qsTr("clear selection · esc")
+
+            onClicked: root.clearRequested()
         }
     }
 }

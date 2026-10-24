@@ -503,7 +503,8 @@ left open, or what building it decided:
   stays as it was, and `enter`, `space` or `l` open the list. `s` works from every qBittorrent
   pane and from the select; every one of their footers, Backup's too, says "s next server".
   Below 700 px the nav folds into tabs and there is no select; `s` still switches —
-  *confirmed 2026-10-22 (C20).*
+  *confirmed 2026-10-22 (C20).* Since v0.5.0 (C24 H10, #170) no footer says it: the `?`
+  sheet's block "in a sheet" (also Settings › Keybindings) has `s` next server.
 - **After a switch** (D5 a) from the select or `s`, the footer's right end says "omaseed is on
   private now · the library too" for 8 s; Settings › Servers' `d` doesn't add it.
 - **Copy from another server** (D6 a) is a row of its own between Import settings and the
@@ -1126,13 +1127,48 @@ the call says so.
   "web seeds".
 - **The add sheet (H7):** today's sheet in the new skins. 39's additions (type bar, guessed
   category, ready time, program check) wait for the add sheet's own board.
+  Built in v0.5.0's sheets step (#170) for every sheet at once, in Kit/Sheet: board 46's
+  `.sheet`, the head on a hairline (the title, the dim subtitle beside it while the whole of
+  it fits there and under it otherwise, `esc` at the right), the rows, and a foot on a
+  hairline with a dim note at its left (words only) and the buttons at its right, each as wide
+  as its words, the primary filled with the accent (background on accent, the key badge's
+  pair, already held at 4.5:1); a red action stays an outline. No glyph square in the head
+  (board 46 draws none). On a window too narrow for its buttons the foot wraps them onto a
+  second line inside the panel; the mixed free sheet (C30 F15) is 680 wide, not 880. The
+  form is `Theme.sheet*` tokens, the filled primary `Theme.sheetPrimaryFilled`. The confirm
+  card (delete, add it again) keeps its own shape.
 - **Acting on a selection (H8):** the status line becomes the action bar; C18's outcome strip
   floats bottom middle of the rows, just above the bar while a selection is on. C18 D2–D3
   unchanged; D6's first-times hint moves to the bar.
+  Its contents built in the sheets step (#170) as board 46 draws them: "N selected" and the
+  ledger (#24 T1: size, given, ratio, a click to the seed console), then words: stop or start
+  as the selection needs (`p`'s word; both when it holds running and stopped torrents),
+  recheck, move…, category, tags, limits, delete in red; D6's hint after them; "all actions"
+  (the actions menu, as `enter`) and "esc" (clear the selection, #51 D2) at the right end. Each
+  word's key is in its tooltip and, while alt is held, its badge; "all actions" and "esc" have
+  none. Reannounce and open folder are in all actions only. Narrow, the hint goes first, then
+  the ledger, then limits, tags, category and recheck fold into all actions (listed first
+  there), so stop, move… and delete stay, as board 46's narrow bar; the count drops its word
+  last.
 - **Menus (H9):** right-click and enter: verbs grouped, keys right, delete last. The omaseed mark
   (ctrl+.) opens C13's rows in the same order, plus a block for the window (seed console, log,
   commands, help, hide). C13 gains the window as a third place.
+  The torrent menu built in the sheets step (#170) with the same rows and words, in board
+  46's groups: stop/start, retry, force start, recheck, reannounce · move…, category, tags,
+  rename · limits, the four options, queue up, queue down · open folder, copy magnet, hash and
+  name · delete. Board 46's "transfer ›", "queue ›" and "copy ›" are drawn as their groups'
+  rows (the kit's menu has no submenus), and "move back…" stays in details, the log and the
+  palette (C18 D7). Its head is the torrent's name over "state · NN % · category" for one
+  torrent, Q24's "N selected" for several. Every menu's head is board 46's `.mh`: a bright
+  title over its dim words (the mark's "omaseed" over its version line).
 - **Keys (H10):** taught on demand (menus, tooltips, the palette, `?`), badges while alt is held.
+  Sheets built so in the sheets step (#170): no sheet's foot prints keys (v2's hints and C11
+  D4's "s next server" went with Kit/Sheet's hint line, as did the `ctrl+o` cap after the add
+  and Move sheets' "browse", kept for a screen reader). Board 46's mocks still draw a few key
+  lines in sheets' feet; law 4 is read as ruling over them. What those lines taught is a block of
+  the `?` sheet after view, "in a sheet", also in Settings › Keybindings; the window's alt badges
+  stay off while a sheet is up (frame S6). Kit/KeyHints stays for the palettes' and the places
+  list's own lines, the error and move blocks' actions and first run.
 - **Skins (H11–H12):** Settings › Appearance › skin: Omarchy (the default), Console, Follow the
   desktop (the console when omarchy-console's skin is on). Clean glow only. How the console skin
   is built is decided at its build step.

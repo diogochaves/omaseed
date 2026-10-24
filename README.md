@@ -175,7 +175,11 @@ Notifications.
 
 Every key comes from one table (`src/ui/qml/Keymap.qml`), and the `?` sheet is drawn from
 it. A capital letter is the stronger variant of its lower-case neighbour (`p` stop/start,
-`P` force start; `d` delete, `D` delete with files).
+`P` force start; `d` delete, `D` delete with files). Keys are taught where you ask for them:
+menus and tooltips name them, holding `alt` badges the controls on screen, and the `?` sheet
+lists them all, one block the keys inside a sheet (add, move, settings). With torrents
+selected, the status line becomes the action bar: their verbs as words, "all actions" and
+"esc" at its end.
 
 <p align="center"><img src="docs/screenshots/shortcuts-tokyo-night.png" alt="The shortcuts sheet: a filter field, and the keys to move, select, view and act on torrents, each with what it does" width="560"></p>
 

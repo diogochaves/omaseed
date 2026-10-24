@@ -58,24 +58,6 @@ Sheet {
         }
     ]
     glyph: "✎" // ✎
-    hints: [
-        {
-            "key": "tab",
-            "label": qsTr("next")
-        },
-        {
-            "key": "ctrl+e",
-            "label": qsTr("regex")
-        },
-        {
-            "key": "{n}",
-            "label": qsTr("counter")
-        },
-        {
-            "key": "$1",
-            "label": qsTr("group")
-        }
-    ]
     sheetWidth: Theme.space(640)
     subtitle: {
         const row = App.torrentRow(root.hash);

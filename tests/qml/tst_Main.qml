@@ -824,7 +824,8 @@ TestCase {
         tryVerify(() => view.keysShown, 2000);
         verify(findChild(view.selectionBar, "barKey_stop").visible);
         compare(findChild(view.selectionBar, "barKey_delete").key, "d");
-        verify(findChild(view.selectionBar, "barKey_clear").visible);
+        // "esc" is its own key's word (board 46 badges neither it nor "all actions").
+        verify(!findChild(view.selectionBar, "barKey_clear").visible);
         compare([stop.mapToItem(view, 0, 0).x, del.mapToItem(view, 0, 0).x, view.selectionBar.items.join()], before);
         keyRelease(Qt.Key_Alt);
         view.table.clearSelection();
@@ -1022,6 +1023,31 @@ TestCase {
         verify(!view.selectionBar.visible);
         verify(view.statusLine.visible);
         compare(view.table.bottomRoom, 0);
+    }
+
+    // #170: the bar's `p` word follows what is selected: "stop" for running torrents,
+    // "start" for stopped ones, both for a mix (board 46 draws "stop" for three seeding).
+    function test_the_action_bars_p_word_follows_the_selection() {
+        const all = App.filtered.count;
+        let running = "";
+        let stopped = "";
+        for (let i = 0; i < all; ++i) {
+            view.table.selectOnly(i);
+            const hash = view.table.selectedHashes()[0];
+            if (App.torrentRow(hash).stopped === true)
+                stopped = stopped || hash;
+            else
+                running = running || hash;
+        }
+        verify(running.length > 0 && stopped.length > 0, "the demo has no mix");
+        view.table.selectHashes([running]);
+        tryVerify(() => view.selectionBar.items[0] === "stop" && view.selectionBar.items.indexOf("start") < 0);
+        view.table.selectHashes([stopped]);
+        tryVerify(() => view.selectionBar.items[0] === "start" && view.selectionBar.items.indexOf("stop") < 0);
+        view.table.selectHashes([running, stopped]);
+        tryCompare(view.selectionBar, "startable", true);
+        compare(view.selectionBar.items.slice(0, 2), ["start", "stop"]);
+        view.table.clearSelection();
     }
 
     // DECISIONS C24 H8 (supersedes docs/17's floating bar): the bar is docked in the status

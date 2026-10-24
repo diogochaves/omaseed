@@ -169,6 +169,44 @@ TestCase {
         compare(steps[2], "Start it again. The wanted files carry on. No recheck.");
     }
 
+    // #169 found the mixed sheet's four equal buttons needed 880 u; as wide as their words
+    // (board 46 `.shf`, #170) they fit one line at 680, and at the window's narrowest (480 u)
+    // they wrap onto two lines inside the panel instead of leaving it.
+    function test_the_mixed_sheets_four_buttons_fit_and_wrap_when_narrow() {
+        openWith({
+                     "deletes": 1,
+                     "freedText": "16.0 MB",
+                     "leftWithPieces": 2,
+                     "leftText": "1.03 GB",
+                     "allText": "1.04 GB"
+                 });
+        verify(sheet.mixed);
+        compare(sheet.sheetWidth, Theme.space(680));
+        waitForRendering(sheet);
+        const buttons = findChild(sheet, "sheetActions");
+        const panel = sheet.panel;
+        const inside = () => {
+            const items = sheet.actionButtons();
+            for (const button of items) {
+                const left = button.mapToItem(panel, 0, 0).x;
+                const right = button.mapToItem(panel, button.width, 0).x;
+                if (left < 0 || right > panel.width)
+                    return false;
+            }
+            return items.length === 4;
+        };
+        verify(inside(), "a button is outside the panel");
+        compare(buttons.height, sheet.actionButtons()[0].height, "the buttons took two lines at 680");
+        testCase.width = Theme.space(480);
+        try {
+            tryVerify(() => buttons.height > sheet.actionButtons()[0].height, 2000, "no second line");
+            waitForRendering(sheet);
+            verify(inside(), "a button is outside the narrow panel");
+        } finally {
+            testCase.width = 1200;
+        }
+    }
+
     // A v2-only torrent whose skipped files hold no downloaded piece frees them, as on v1: no note.
     function test_a_v2_torrent_without_pieces_frees() {
         openWith({

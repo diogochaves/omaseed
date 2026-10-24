@@ -31,6 +31,16 @@ Rectangle {
     property bool hasCursor: false
     property bool selected: false
     property bool bordered: false
+    /// A `primary` drawn filled with the accent, its words in the window's ground (board 46
+    /// `.btn.pri`, a sheet's main button: `Theme.sheetPrimaryFilled`). Background on accent is
+    /// the key badge's pair, held at 4.5:1 by tst_themecontrast (C30 F1). Not for `danger`.
+    property bool filled: false
+    /// A tooltip under the button (over it with `tooltipAbove`), on hover and on keyboard
+    /// focus, as IconButton's: the word button's key (DECISIONS C24 H10). Empty shows none.
+    property string tooltip: ""
+    property bool tooltipAbove: false
+    /// The room either side of the words (spec v2 `.btn`: 10 px; a sheet's foot, 12 px).
+    property int sidePadding: Theme.space(10)
     // The label's type size. Body everywhere (spec `.btn`), except the confirm dialog's two
     // buttons, which the spec prints at caption (`.confirm .bts .btn`).
     property int fontSize: Theme.font.body
@@ -44,6 +54,7 @@ Rectangle {
     signal clicked
 
     readonly property bool hot: root.hasCursor || mouseArea.containsMouse
+    readonly property alias tooltipItem: tip
     /// The ground under the label in each state, as `color` paints it (C30 F1, F4).
     readonly property ThemeInk ground: {
         if (mouseArea.pressed || root.pressed)
@@ -58,8 +69,10 @@ Rectangle {
     readonly property Ink ink: Ink {
         ground: root.ground
     }
-    readonly property color _textColor: root.danger ? root.ink.red : (root.primary ? root.ink.accent :
-                                                                                     root.ink.foreground)
+    readonly property bool _filled: root.filled && root.primary && !root.danger
+    readonly property color _textColor: root._filled ? Theme.background : root.danger ? root.ink.red
+                                                                                     : (root.primary ? root.ink.accent
+                                                                                                     : root.ink.foreground)
     readonly property color _borderColor: (root.danger && (root.selected || root.primary))
                                           ? Theme.red : root.primary ? Theme.accent : root.hot
                                                                        ? Theme.fill(
@@ -84,9 +97,9 @@ Rectangle {
     border.color: root._borderColor
     border.width: (root.primary || root.hot || root.bordered || root.selected) ? 1 : 0
     // The ground's own fill; resting in a block, nothing: the block's is under it already.
-    color: root.ground === root.block ? "transparent" : root.ground.fill
+    color: root._filled ? Theme.accent : root.ground === root.block ? "transparent" : root.ground.fill
     height: Theme.controlHeight
-    implicitWidth: label.implicitWidth + glyphLabel.implicitWidth + Theme.space(20) + (root.glyph.length
+    implicitWidth: label.implicitWidth + glyphLabel.implicitWidth + 2 * root.sidePadding + (root.glyph.length
                                                                                        > 0 && root.text.length
                                                                                        > 0 ? Theme.space(
                                                                                                  6) : 0)
@@ -138,6 +151,22 @@ Rectangle {
         // A click leaves the keyboard where it was (see Button's header).
         onClicked: root.clicked()
     }
+
+    // On the window's content item, not in the button, as IconButton's (KIT-8).
+    Tooltip {
+        id: tip
+
+        readonly property bool wanted: root.visible && root.tooltip.length > 0 && (mouseArea.containsMouse
+                                                                                   || root.activeFocus)
+
+        objectName: "buttonTip"
+        parent: root.Window.window ? root.Window.window.contentItem : root
+        z: 1000
+
+        onWantedChanged: tip.wanted ? tip.showFor(root, root.tooltip, root.tooltipAbove) : tip.hide()
+    }
+
+    onTooltipChanged: tip.wanted ? tip.showFor(root, root.tooltip, root.tooltipAbove) : tip.hide()
 
     // Keypad `enter` is its own key (`Qt.Key_Enter`); without it the key went on to the
     // Sheet, which ran its primary action instead of this button (KIT-7).

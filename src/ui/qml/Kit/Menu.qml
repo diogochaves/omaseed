@@ -306,36 +306,50 @@ Item {
         Item {
             id: heading
 
+            readonly property bool shown: root.heading.length > 0 || root.headingTitle.length > 0
+            /// Board 46 `.menu .mh` (a grid): the bright title on its line, the dim words under
+            /// it; the dim words alone (Q24's "2 selected") take the title's line.
+            readonly property bool twoLines: root.headingTitle.length > 0 && root.heading.length > 0
+            readonly property real contentHeight: heading.twoLines
+                                                  ? Theme.railRowHeight + Theme.menuHeadLineGap + headingLine.implicitHeight
+                                                  : Theme.railRowHeight
+
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.top: parent.top
             anchors.topMargin: panel.padding
-            readonly property bool shown: root.heading.length > 0 || root.headingTitle.length > 0
-
-            height: heading.shown ? Theme.railRowHeight + 2 * Theme.space(4) + 1 : 0
+            height: heading.shown ? heading.contentHeight + 2 * Theme.menuHeadPadding + 1 : 0
             objectName: "menuHeading"
             visible: heading.shown
             z: 1
 
             Label {
-                anchors.left: headingTitle.visible ? headingTitle.right : parent.left
-                anchors.leftMargin: headingTitle.visible ? Theme.space(8) : Theme.space(14)
+                id: headingLine
+
+                anchors.left: parent.left
+                anchors.leftMargin: Theme.menuHeadInset
                 anchors.right: parent.right
-                anchors.rightMargin: Theme.space(14)
+                anchors.rightMargin: Theme.menuHeadInset
                 dim: true
                 elide: Text.ElideRight
-                height: Theme.railRowHeight
+                height: heading.twoLines ? implicitHeight : Theme.railRowHeight
+                objectName: "menuHeadingLine"
+                size: heading.twoLines ? "small" : "body"
                 text: root.heading
                 verticalAlignment: Text.AlignVCenter
+                y: heading.twoLines ? Theme.railRowHeight + Theme.menuHeadLineGap : 0
             }
 
             Label {
                 id: headingTitle
 
                 anchors.left: parent.left
-                anchors.leftMargin: Theme.space(14)
+                anchors.leftMargin: Theme.menuHeadInset
+                anchors.right: parent.right
+                anchors.rightMargin: Theme.menuHeadInset
                 bright: true
-                font.weight: Font.DemiBold
+                elide: Text.ElideRight
+                font.weight: Theme.menuHeadTitleWeight
                 height: Theme.railRowHeight
                 objectName: "menuHeadingTitle"
                 text: root.headingTitle
@@ -345,10 +359,10 @@ Item {
 
             Hairline {
                 anchors.left: parent.left
-                anchors.leftMargin: Theme.space(14)
+                anchors.leftMargin: Theme.menuHeadInset
                 anchors.right: parent.right
-                anchors.rightMargin: Theme.space(14)
-                y: Theme.railRowHeight + Theme.space(4)
+                anchors.rightMargin: Theme.menuHeadInset
+                y: heading.contentHeight + Theme.menuHeadPadding
             }
         }
 

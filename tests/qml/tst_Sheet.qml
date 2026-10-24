@@ -47,14 +47,8 @@ TestCase {
                 }
             ]
             anchors.fill: parent
-            footerRight: "server: home"
             glyph: "H"
-            hints: [
-                {
-                    "key": "tab",
-                    "label": "fields"
-                }
-            ]
+            note: "waves of 3, smallest first"
             sheetWidth: Theme.space(420)
             subtitle: "1 torrent · 1.31 GB moves with it"
             title: "Set location"
@@ -222,41 +216,90 @@ TestCase {
         verify(!line.truncated);
     }
 
-    function test_the_padding_is_sixteen() {
-        const sheet = createTemporaryObject(plainSheetComponent, testCase);
-        compare(sheet.panel.padding, Theme.space(16));
-    }
-
-    function test_the_head_square_is_thirty_with_a_hairline_border() {
+    // Board 46 `.shh`, `.shb`, `.shf`: one inset at the sides, the head and the foot each on a
+    // hairline, from the `Theme.sheet*` tokens (frame plan, "form in tokens").
+    function test_the_form_is_the_sheet_tokens() {
         const sheet = createTemporaryObject(formSheetComponent, testCase);
         sheet.open();
-        const square = findHeadSquare(sheet);
-        verify(square, "the head has no icon square");
-        compare(square.width, Theme.space(30));
-        compare(square.height, Theme.space(30));
-        compare(square.border.color, Theme.fill(Theme.borderIdle));
+        waitForRendering(sheet);
+        compare(sheet.panel.border.width, Theme.sheetEdge);
+        compare(sheet.panel.radius, Theme.sheetRadius);
+        const title = findChild(sheet, "sheetTitle");
+        const at = title.mapToItem(sheet.panel, 0, 0);
+        compare(Math.round(at.x), Theme.sheetEdge + Theme.sheetInset);
+        compare(title.font.pixelSize, Theme.sheetTitleSize);
+        compare(title.font.weight, Theme.sheetTitleWeight);
+        const headRule = findChild(sheet, "sheetHeadRule");
+        const footRule = findChild(sheet, "sheetFootRule");
+        verify(headRule.visible && footRule.visible, "the head or the foot has no rule");
+        compare(headRule.width, sheet.panel.width - 2 * Theme.sheetEdge);
+        const body = findChild(sheet, "sheetBody");
+        const bodyAt = body.mapToItem(sheet.panel, 0, 0);
+        compare(Math.round(bodyAt.x), Theme.sheetEdge + Theme.sheetInset - Theme.focusExtent);
+        verify(bodyAt.y > headRule.mapToItem(sheet.panel, 0, 0).y, "the rows are over the head's rule");
     }
 
-    function findHeadSquare(sheet) {
-        const rows = sheet.panel.children[0].children;
-        for (let i = 0; i < rows.length; ++i) {
-            if (rows[i].children.length > 0 && rows[i].children[0].border !== undefined
-                    && rows[i].children[0].width === Theme.space(30))
-                return rows[i].children[0];
-        }
-        return null;
-    }
-
-    // ---- the buttons (`.acts`) --------------------------------------------------------
-    function test_the_actions_share_the_width_equally() {
+    // Board 46 draws no glyph square in a sheet's head (`Theme.sheetHeadGlyph`).
+    function test_the_head_draws_no_glyph_square_in_this_skin() {
         const sheet = createTemporaryObject(formSheetComponent, testCase);
+        sheet.open();
+        compare(Theme.sheetHeadGlyph, false);
+        verify(!findChild(sheet, "sheetGlyph").visible, "the glyph square shows");
+    }
+
+    // Board 46's move sheet: "Move 3 torrents  81 KB on disk · on public" on one line; a
+    // subtitle that doesn't fit goes under the title.
+    function test_a_short_subtitle_sits_beside_the_title_a_long_one_under_it() {
+        const sheet = createTemporaryObject(formSheetComponent, testCase);
+        sheet.open();
+        waitForRendering(sheet);
+        const title = findChild(sheet, "sheetTitle");
+        const line = findChild(sheet, "sheetSubtitle");
+        tryVerify(() => line.visible, 1000);
+        compare(Math.round(line.mapToItem(sheet.panel, 0, line.baselineOffset).y),
+                Math.round(title.mapToItem(sheet.panel, 0, title.baselineOffset).y));
+        verify(line.mapToItem(sheet.panel, 0, 0).x >= title.mapToItem(sheet.panel, title.width, 0).x,
+               "the subtitle is not after the title");
+        compare(line.font.pixelSize, Theme.sheetSubtitleSize);
+        sheet.subtitle = "a name long enough that it never fits beside the title of a sheet this narrow, said twice over";
+        tryVerify(() => findChild(sheet, "sheetSubtitle").mapToItem(sheet.panel, 0, 0).y
+                  > title.mapToItem(sheet.panel, 0, title.height / 2).y, 1000);
+    }
+
+    // ---- the buttons (board 46 `.shf .btn`) ------------------------------------------
+    // Each as wide as its words, at the foot's right, in the order given; spec v2's equal
+    // widths made the mixed free sheet 880 wide (#169).
+    function test_the_actions_are_as_wide_as_their_words_at_the_right() {
+        const sheet = createTemporaryObject(formSheetComponent, testCase);
+        sheet.open();
+        waitForRendering(sheet);
         const buttons = sheet.actionButtons();
         compare(buttons.length, 3);
-        compare(buttons[0].width, buttons[1].width);
-        compare(buttons[1].width, buttons[2].width);
-        verify(buttons[0].width > 0, "the buttons have no width");
+        for (let i = 0; i < buttons.length; ++i) {
+            compare(buttons[i].width, Math.max(Theme.sheetButtonMinWidth, buttons[i].implicitWidth));
+            compare(buttons[i].sidePadding, Theme.sheetButtonPadding);
+        }
+        verify(buttons[1].width > buttons[0].width, "\"add stopped\" is no wider than \"cancel\"");
+        const last = buttons[2].mapToItem(sheet.panel, buttons[2].width, 0);
+        compare(Math.round(last.x), sheet.panel.width - Theme.sheetEdge - Theme.sheetInset);
+        for (let i = 1; i < buttons.length; ++i) {
+            const gap = buttons[i].mapToItem(sheet.panel, 0, 0).x
+                    - buttons[i - 1].mapToItem(sheet.panel, buttons[i - 1].width, 0).x;
+            verify(Math.abs(gap - Theme.sheetButtonGap) <= 1, "the gap is " + gap);
+        }
         compare(buttons[2].primary, true);
         compare(buttons[0].primary, false);
+    }
+
+    // Board 46 `.btn.pri`: the primary filled with the accent, its words in the ground.
+    function test_the_primary_is_filled_with_the_accent() {
+        const sheet = createTemporaryObject(formSheetComponent, testCase);
+        sheet.open();
+        const primary = sheet.primaryButton();
+        compare(primary.filled, Theme.sheetPrimaryFilled);
+        verify(Qt.colorEqual(primary.color, Theme.accent), "the primary is not filled");
+        const cancel = sheet.actionButtons()[0];
+        verify(!Qt.colorEqual(cancel.color, Theme.accent), "cancel is filled too");
     }
 
     // T5.4: spec §3 draws every `.sheet .acts .btn` as `.btn b` — an idle hairline outline.
@@ -672,11 +715,26 @@ TestCase {
         compare(sheet.opened, false, "escape did not reach a sheet with nothing focusable");
     }
 
-    // ---- the footer (`.ft`) -----------------------------------------------------------
-    function test_the_footer_prints_its_hints_at_caption_size() {
+    // ---- the foot's note (board 46 `.shf`'s dim words) --------------------------------
+    // C24 H10: words at the foot's left, never key hints.
+    function test_the_note_sits_at_the_foots_left_and_the_foot_has_no_key_hints() {
         const sheet = createTemporaryObject(formSheetComponent, testCase);
-        compare(sheet.hints.length, 1);
-        compare(sheet.footerRight, "server: home");
+        sheet.open();
+        waitForRendering(sheet);
+        const note = findChild(sheet, "sheetNote");
+        compare(note.text, "waves of 3, smallest first");
+        compare(note.font.pixelSize, Theme.sheetNoteSize);
+        compare(Math.round(note.mapToItem(sheet.panel, 0, 0).x), Theme.sheetEdge + Theme.sheetInset);
+        verify(note.mapToItem(sheet.panel, note.width, 0).x
+               <= sheet.actionButtons()[0].mapToItem(sheet.panel, 0, 0).x, "the note runs under the buttons");
+        verify(sheet.hints === undefined, "the sheet still takes key hints");
+        verify(!findChild(sheet, "keyHint_tab"), "a key hint is drawn");
+    }
+
+    function test_no_actions_and_no_note_draw_no_foot() {
+        const sheet = createTemporaryObject(plainSheetComponent, testCase);
+        sheet.open();
+        verify(!findChild(sheet, "sheetFootRule").visible, "an empty foot draws its rule");
     }
 
     // ---- inline (the gallery) ---------------------------------------------------------
