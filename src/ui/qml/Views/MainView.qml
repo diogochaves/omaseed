@@ -905,6 +905,28 @@ Item {
             App.setAutoManagement(hashes, false);
     }
 
+    /// The action bar's `p` word (DECISIONS C24 H8, #170): whether the selection holds stopped
+    /// torrents, running ones, or both; read again on every sync.
+    readonly property var selectionRunStates: {
+        App.globalState.lastSyncTime; // the dependency: a sync that starts or stops one
+        App.torrents.count;
+        const states = {
+            "stopped": false,
+            "running": false
+        };
+        if (table.selectedCount === 0)
+            return states;
+        for (const hash of table.selectedHashes()) {
+            if (App.torrentRow(hash).stopped === true)
+                states.stopped = true;
+            else
+                states.running = true;
+            if (states.stopped && states.running)
+                break;
+        }
+        return states;
+    }
+
     /// The selection bar's buttons (docs/17 M9.3): the actions menu's own path, plus start
     /// and stop as two buttons, since a selection can hold both kinds and `stopStart`
     /// follows the cursor torrent alone.
@@ -2452,6 +2474,9 @@ Item {
         // implicit width for a moment, which follows its folds (a binding loop).
         availableWidth: statusLine.width - Theme.actionBarInsetStart - Theme.actionBarInsetEnd
         count: table.selectedCount
+        // #170: `p`'s word, as the selection needs it.
+        startable: root.selectionRunStates.stopped
+        stoppable: root.selectionRunStates.running
         hint: root.selectionHint
         keysShown: root.keysShown
         // The line's note, while the bar hides the line.

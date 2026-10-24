@@ -153,17 +153,14 @@ ThemeBase {
     /// The same ground as `Theme.on`'s, which the bar paints and takes its words from
     /// (DECISIONS C30 F1): a skin that moves the bar's fill moves its text with it.
     readonly property ThemeInk actionBarGround: on.hover
-    /// A button, square, inside the line with a little room above and below it.
+    /// A button's height: inside the line with a little room above and below it.
     readonly property int actionBarButtonSize: statusLineHeight - space(4)
-    /// Between two buttons, and a group's hairline: its room and how far it stops short of
-    /// the line's edges.
-    readonly property int actionBarGap: space(2)
-    readonly property int actionBarRuleRoom: space(8)
-    readonly property int actionBarRuleInset: space(7)
-
-    /// A word button (board 46 `.status.sel .ab`: 8 px either side of its word), and the room
-    /// before the end's "all actions" and "esc".
+    /// Between two of its parts (board 46 `.status.sel`: 4 px).
+    readonly property int actionBarGap: space(4)
+    /// A word button (board 46 `.status.sel .ab`: 8 px either side of its word, the status
+    /// line's type), and the room before the end's "all actions" and "esc".
     readonly property int actionBarWordPadding: space(8)
+    readonly property int actionBarFontSize: statusLineFontSize
     readonly property int actionBarEndGap: space(12)
 
     // ---- the sheets' form (board 46 `.sheet`, `.shh`, `.shb`, `.shf`, DECISIONS C24 H7) ------

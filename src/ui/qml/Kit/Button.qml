@@ -35,6 +35,10 @@ Rectangle {
     /// `.btn.pri`, a sheet's main button: `Theme.sheetPrimaryFilled`). Background on accent is
     /// the key badge's pair, held at 4.5:1 by tst_themecontrast (C30 F1). Not for `danger`.
     property bool filled: false
+    /// A tooltip under the button (over it with `tooltipAbove`), on hover and on keyboard
+    /// focus, as IconButton's: the word button's key (DECISIONS C24 H10). Empty shows none.
+    property string tooltip: ""
+    property bool tooltipAbove: false
     /// The room either side of the words (spec v2 `.btn`: 10 px; a sheet's foot, 12 px).
     property int sidePadding: Theme.space(10)
     // The label's type size. Body everywhere (spec `.btn`), except the confirm dialog's two
@@ -50,6 +54,7 @@ Rectangle {
     signal clicked
 
     readonly property bool hot: root.hasCursor || mouseArea.containsMouse
+    readonly property alias tooltipItem: tip
     /// The ground under the label in each state, as `color` paints it (C30 F1, F4).
     readonly property ThemeInk ground: {
         if (mouseArea.pressed || root.pressed)
@@ -146,6 +151,22 @@ Rectangle {
         // A click leaves the keyboard where it was (see Button's header).
         onClicked: root.clicked()
     }
+
+    // On the window's content item, not in the button, as IconButton's (KIT-8).
+    Tooltip {
+        id: tip
+
+        readonly property bool wanted: root.visible && root.tooltip.length > 0 && (mouseArea.containsMouse
+                                                                                   || root.activeFocus)
+
+        objectName: "buttonTip"
+        parent: root.Window.window ? root.Window.window.contentItem : root
+        z: 1000
+
+        onWantedChanged: tip.wanted ? tip.showFor(root, root.tooltip, root.tooltipAbove) : tip.hide()
+    }
+
+    onTooltipChanged: tip.wanted ? tip.showFor(root, root.tooltip, root.tooltipAbove) : tip.hide()
 
     // Keypad `enter` is its own key (`Qt.Key_Enter`); without it the key went on to the
     // Sheet, which ran its primary action instead of this button (KIT-7).
