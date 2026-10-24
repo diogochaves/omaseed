@@ -122,6 +122,14 @@ key Escape
 key colon
 omabox check point palette --window "$APP" --ignore "$ADDED" --ignore "$CREATED" --ignore "$FREE"
 key Escape
+# The omaseed menu under the mark (DECISIONS C24 H9): C13's rows, then this window's, quit last.
+key ctrl+period
+omabox check point app-menu --window "$APP" --ignore "$ADDED" --ignore "$CREATED" --ignore "$FREE"
+key Escape
+# Alt held alone (C24 H10): the frame's keys in badges, over the rail, the title bar's tools.
+key down:alt
+omabox check point alt-keys --window "$APP" --ignore "$ADDED" --ignore "$CREATED" --ignore "$FREE"
+omabox keys --window "$APP" up:alt >/dev/null
 key question
 omabox check point help --window "$APP" -g "$SHEET"
 key Escape
@@ -137,6 +145,10 @@ click_text distro
 key j space j space
 omabox pointer --window "$APP" -- move 900 600 >/dev/null
 omabox check point selection --window "$APP" --ignore "$ADDED" --ignore "$CREATED"
+# Alt held over the action bar: each button's key over its corner, no button moved.
+key down:alt
+omabox check point selection-alt-keys --window "$APP" --ignore "$ADDED" --ignore "$CREATED"
+omabox keys --window "$APP" up:alt >/dev/null
 key Escape
 
 # Settings: every section, j by j, the first (General) open.

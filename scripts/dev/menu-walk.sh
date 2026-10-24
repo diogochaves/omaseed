@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
 # omaseed — the shared-menu walkthrough (#73, docs/33 §11: D10, D24, D25). One menu, built once
-# in the app, shown by the tray and by the bar widget popup's ⋯: first run puts the widget in
-# the bar; with one server the ⋯ has no servers and the server line no ▾ (D19); "private" is
-# added; ctrl+. opens the menu and switches to private, ctrl+s opens the servers and a click
-# goes back to public; quit from the ⋯. Then "In the bar: both" (D25, read from the two old
+# in the app, shown by the tray, by the bar widget popup's ⋯ and by the window's mark (ctrl+.,
+# DECISIONS C24 H9): first run puts the widget in the bar; with one server the ⋯ and the
+# window's menu have no servers and the server line no ▾ (D19); "private" is added; the
+# window's menu switches to private and back, and opens settings… by its key; the widget's
+# ctrl+. opens its menu and switches to private, ctrl+s opens the servers and a click goes
+# back to public; quit from the ⋯. Then "In the bar: both" (D25, read from the two old
 # settings), the tray's menu with its servers block, a switch from it, and quit from it. What
 # each action must leave is checked in servers.json and the process list, not only in shots.
 #
@@ -407,6 +409,11 @@ keys ctrl+period -s 600
 step "One server, the menu" "W1 with one server (T0): ⋯ lit in the head, the server line with no ▾; the menu: Alternative Speed Limits (or Turtle/Burst) with A, Stop All, Start All, a hairline, Add Torrent… with m, omaseed Settings…, a hairline, Quit omaseed. No SERVERS." "$POPUP"
 keys ctrl+period -s 400 Escape -s 600
 
+# ---- the window: the mark's menu, C13's third place (DECISIONS C24 H9) ---------------------
+keys --window "$APP_ID" ctrl+period -s 600
+step "One server, the window's menu" "Under the rail's mark: omaseed, its version, public · qBittorrent …; turtle (or the alternative limits' word) with A, stop all, start all, a rule, add torrent… a, settings… comma, a rule, THIS WINDOW ONLY: seed console, log, commands, keys and help, hide window, each with its key, a rule, quit omaseed ctrl+q. No servers (D19)."
+keys Escape -s 400
+
 # ---- the second server ---------------------------------------------------------------------
 clip private
 keys --window "$APP_ID" comma -s 600 2 -s 300 a -s 800 -t private Tab -t http://127.0.0.1:8091 Tab Tab space Tab Tab \
@@ -416,6 +423,17 @@ keys Escape -s 1500
 check "two servers in status.json, two server rows in the menu" \
     status_has 'len(s["servers"]) == 2 and sum(r["kind"] == "radio" for r in s["menu"]) == 2'
 
+# ---- the window's menu with two servers: a switch, back, and settings… ----------------------
+keys --window "$APP_ID" ctrl+period -s 600
+step "Two servers, the window's menu" "As the widget's: SERVERS, ● public ✓ (0 torrents) and ● private (its torrents, or nothing before its first sync), a rule, then the rows of the one-server shot. The cursor on public."
+keys j -s 300 Return -s 3000
+check "the window's menu switched to private" default_is private
+keys --window "$APP_ID" ctrl+period -s 600 Return -s 3000
+check "the window's menu switched back to public" default_is public
+keys --window "$APP_ID" ctrl+period -s 600 comma -s 1200
+step "Settings, from the window's menu" "settings… picked by its key (,): Settings open over the window, on the pane it was last on (Servers, from adding private)."
+keys Escape -s 800
+
 # ---- the widget: ⋯ and ▾ -------------------------------------------------------------------
 popup
 keys ctrl+period -s 600
@@ -424,7 +442,7 @@ keys j -s 300 Return -s 3000
 check "the ⋯ menu switched to private" default_is private
 step "Switched from the widget" "The popup stayed open and refilled: PRIVATE · QBITTORRENT in the head, the menu closed, Add lists the Downloads files with \"already on private\"." "$POPUP"
 keys ctrl+s -s 600
-step "The server line's ▾" "W2: just the servers, ○ public 0 torrents, ● private 4 torrents (the cursor on it); the ▾ turned ▴ in the accent." "$POPUP"
+step "The server line's ▾" "W2: just the servers, ○ public 0 torrents, ● private 5 torrents (the cursor on it); the ▾ turned ▴ in the accent." "$POPUP"
 keys k -s 300 Return -s 3000
 check "the servers part switched back to public" default_is public
 keys ctrl+period -s 600 j j j j j j j -s 400
@@ -457,22 +475,24 @@ else
 fi
 if [ -n "${TRAY_X:-}" ]; then
     tray_menu_open
-    step "The tray's menu" "D10 (T1): show omaseed, the figures, servers with ✓ public · 0 torrents and private · 4 torrents, then the alternative limits, stop all, start all, add torrent…, settings…, and quit last after a separator." "$TRAY_MENU"
-    if tray_menu_row "private · 4 torrents"; then
+    step "The tray's menu" "D10 (T1): show omaseed, the figures, servers with ✓ public · 0 torrents and private · 5 torrents, then the alternative limits, stop all, start all, add torrent…, settings…, and quit last after a separator." "$TRAY_MENU"
+    # private's row by its name: its figure is whatever the box's private holds.
+    PRIVATE_ROW="$(tray_rows | cut -f3 | grep -m1 '^private · ' || true)"
+    if [ -n "$PRIVATE_ROW" ] && tray_menu_row "$PRIVATE_ROW"; then
         omabox click -b "$BOX" "$TRAY_ROW_X" "$TRAY_ROW_Y" >/dev/null
         settle
     else
-        echo "  the menu's row \"private · 4 torrents\" was not found: ${TRAY_LINES:-no menu under the bar}" >&2
+        echo "  the menu's row \"${PRIVATE_ROW:-private · …}\" was not found: ${TRAY_LINES:-no menu under the bar}" >&2
     fi
 fi
 check "the tray switched to private" default_is private
 keys Escape -s 400
 if [ -n "${TRAY_X:-}" ]; then
     tray_menu_open
-    step "The tray on private" "✓ private · 4 torrents now; public · 0 torrents (last seen)." "$TRAY_MENU"
+    step "The tray on private" "✓ private · 5 torrents now; public · 0 torrents (last seen)." "$TRAY_MENU"
     keys Escape -s 400
 fi
-check "the tray's exported menu has private checked" tray_checked "private · 4 torrents"
+check "the tray's exported menu has private checked" tray_checked "${PRIVATE_ROW:-private}"
 check "the tray's exported menu ends with quit" tray_ends_with_quit
 tray_click quit
 omabox wait -b "$BOX" --timeout 10s window "$APP_ID" --gone >/dev/null 2>&1 || true
