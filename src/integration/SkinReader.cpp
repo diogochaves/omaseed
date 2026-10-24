@@ -174,8 +174,8 @@ QVariant check(const QJsonValue &value, Kind kind)
     }
     case Kind::Step: {
         const QString text = value.toString();
-        return text == QLatin1String("caption") || text == QLatin1String("small")
-                       || text == QLatin1String("body")
+        return text == QLatin1String("caption") || text == QLatin1String("small") ||
+                       text == QLatin1String("body")
                    ? QVariant(text)
                    : QVariant();
     }
