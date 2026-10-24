@@ -61,16 +61,15 @@ Column {
         visible: root.headed
         width: parent.width
 
-        Label {
+        Glyph {
             id: chevron
 
             anchors.left: parent.left
             anchors.leftMargin: Theme.space(4)
             anchors.top: parent.top
-            dim: true
-            ink: root.ink
-            size: "caption"
-            text: root.collapsed ? Glyphs.chevronRight : Glyphs.chevronDown
+            color: root.ink.dimForeground
+            pixelSize: Theme.font.caption
+            text: root.collapsed ? Glyphs.chevronRight : Glyphs.chevronDownGlyph
             visible: headerMouse.containsMouse || root.collapsed || root.hasCursor
         }
 

@@ -65,7 +65,7 @@ Sheet {
             "primary": true
         }
     ]
-    glyph: "⇅" // ⇅
+    glyph: Glyphs.speedLimits
     // 460, not Fig. 8's 420: the five action chips of T5.5 Q14 fit on one line at base 14.
     sheetWidth: Theme.space(460)
     subtitle: root.hashes.length === 1 ? qsTr("1 torrent") : qsTr("%1 torrents").arg(

@@ -21,7 +21,10 @@ TestCase {
                        "privateTracker", "copyFrom", "viewLibrary", "viewSeed", "viewLog", "viewSearch",
                        "searchLink", "searchMagnet",
                        "questionNeedsYou", "questionArriving", "questionLanded",
-                       "questionGivingBack", "questionResting", "railGroups"];
+                       "questionGivingBack", "questionResting", "railGroups", "chevronDownGlyph",
+                       "arrowRight", "diamond", "radioOn", "radioOff", "settingWarn",
+                       "settingPending", "serverLocal", "serverRemote", "sort", "speedLimits",
+                       "move", "moveBack", "moveQuit"];
         for (let i = 0; i < names.length; ++i) {
             const value = Glyphs[names[i]];
             verify(typeof value === "string", names[i] + " should be a string");
@@ -43,6 +46,8 @@ TestCase {
         compare(Glyphs.search, icons ? "ms:search" : "/");
         compare(Glyphs.category, icons ? "ms:category" : "icon:folder");
         compare(Glyphs.chevronDown, "▾");
+        // Drawn alone in a Glyph, the same name takes the skin's icon.
+        compare(Glyphs.chevronDownGlyph, icons ? "ms:expand_more" : "▾");
         compare(Glyphs.arrowDown, "↓");
         TestTheme.setSkinChoice("omarchy");
         if (Theme.skin.name === "omarchy")

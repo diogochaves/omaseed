@@ -46,7 +46,7 @@ Palette {
         }
     ]
 
-    glyph: "⇅"
+    glyph: Glyphs.sort
     hints: [
         {
             "key": "enter",

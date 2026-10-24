@@ -22,7 +22,7 @@ Sheet {
             "primary": true
         }
     ]
-    glyph: "✎" // ✎
+    glyph: Glyphs.rename
     sheetWidth: Theme.space(420)
     title: qsTr("Rename")
 

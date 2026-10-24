@@ -713,12 +713,11 @@ Item {
                 visible: !root.compact
             }
 
-            Text {
+            Glyph {
                 anchors.verticalCenter: parent.verticalCenter
                 color: markInk.dimForeground
-                font.family: Theme.fontFamily
-                font.pixelSize: Theme.font.small
-                text: Glyphs.chevronDown
+                pixelSize: Theme.font.small
+                text: Glyphs.chevronDownGlyph
                 visible: !root.compact
             }
         }
@@ -1065,7 +1064,7 @@ Item {
                         // A path below its parent row: the end tells two apart (M3).
                         elideLeft: true
                         glyph: folderDelegate.hasChildren ? (folderDelegate.folded ? Glyphs.chevronRight
-                                                                                   : Glyphs.chevronDown)
+                                                                                   : Glyphs.chevronDownGlyph)
                                                           : Glyphs.middot
                         glyphClickable: folderDelegate.hasChildren
                         hasCursor: root.cursorOn(folderDelegate.globalIndex)

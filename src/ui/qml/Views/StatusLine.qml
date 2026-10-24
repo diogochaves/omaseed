@@ -310,16 +310,15 @@ Item {
                                     - (chevron.visible ? chevron.implicitWidth + laneRow.spacing : 0))
                 }
 
-                Text {
+                Glyph {
                     id: chevron
 
                     Accessible.ignored: true
                     anchors.verticalCenter: parent.verticalCenter
                     color: laneInk.dimForeground
-                    font.family: Theme.fontFamily
-                    font.pixelSize: Theme.statusLineFontSize
                     objectName: "statusServerChevron"
-                    text: Glyphs.chevronDown
+                    pixelSize: Theme.statusLineFontSize
+                    text: Glyphs.chevronDownGlyph
                     visible: root.serverSwitchable
                 }
             }

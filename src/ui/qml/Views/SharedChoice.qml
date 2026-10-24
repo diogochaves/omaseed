@@ -96,7 +96,7 @@ FocusScope {
                         Layout.alignment: Qt.AlignTop
                         color: row.picked ? row.ink.accent : row.ink.dimForeground
                         size: "small"
-                        text: row.picked ? "●" : "○"
+                        text: row.picked ? Glyphs.radioOn : Glyphs.radioOff
                     }
 
                     ColumnLayout {

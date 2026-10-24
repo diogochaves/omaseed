@@ -104,6 +104,9 @@ QtObject {
     // docs/17 M10.4: the folded right dock
     readonly property string chevronLeft: t("chevronLeft", "‹")
     readonly property string chevronDown: t("chevronDown", "▾")
+    /// The same name for a caller that draws it alone in a `Glyph` (a rail group's fold, the
+    /// server lane's ▾), where a skin's icon-font glyph can show (#171).
+    readonly property string chevronDownGlyph: g("chevronDown", "▾")
     // table header sort-ascending, spec §2 `.tbl > div.h.sort`
     readonly property string chevronUp: t("chevronUp", "▴")
     readonly property string check: t("check", "✓")
@@ -112,6 +115,13 @@ QtObject {
     readonly property string close: t("close", "✕")
     readonly property string rename: t("rename", "✎") // the add sheet's file tree (manual box M18)
     readonly property string dot: g("dot", "●")
+    /// From one thing to what it becomes (a rename's preview, a move's paths).
+    readonly property string arrowRight: t("arrowRight", "→")
+    /// A bullet before a sheet's line (a duplicate's, a match's, a seed moment's).
+    readonly property string diamond: t("diamond", "◆")
+    /// A radio choice, picked and not (the shared-data choice).
+    readonly property string radioOn: t("radioOn", "●")
+    readonly property string radioOff: t("radioOff", "○")
     // docs/29 (#44): the add sheet's Files row while a magnet's list is looked up
     // F1 fetching, F7 waiting for the server, F8 a link
     readonly property string lookup: g("lookup", "⋯")
@@ -136,6 +146,19 @@ QtObject {
     readonly property string copyFrom: g("copyFrom", "⇣")
     readonly property string home: g("home", "⌂") // Fig. 16's path-mapping row, Fig. 7's head
     readonly property string plus: g("plus", "+")
+    /// A qBittorrent setting's line: one to look at, and one not read yet (docs/34).
+    readonly property string settingWarn: t("settingWarn", "!")
+    readonly property string settingPending: t("settingPending", "◷")
+    /// The first run's two ways in: a qBittorrent on this computer, one elsewhere.
+    readonly property string serverLocal: t("serverLocal", "⛁")
+    readonly property string serverRemote: t("serverRemote", "⇢")
+
+    // ---- sheet heads (spec v2 `.hd .ic`; board 46 draws none, Theme.sheetHeadGlyph) ------
+    readonly property string sort: g("sort", "⇅")
+    readonly property string speedLimits: g("speedLimits", "⇅")
+    readonly property string move: g("move", "▱")
+    readonly property string moveBack: g("moveBack", "↺")
+    readonly property string moveQuit: g("moveQuit", "↻")
 
     // ---- the selection bar, docs/17 M9.3 (limits and more are the ⋯ menu's below) ----
     readonly property string start: g("start", "icon:start")

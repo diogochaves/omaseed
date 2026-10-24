@@ -87,7 +87,7 @@ Rectangle {
             color: root.current !== null && root.current.kind === "lastSeed" ? Theme.yellow : Theme.stateSeeding
             font.family: Theme.fontFamily
             font.pixelSize: Theme.font.small
-            text: "◆"
+            text: Glyphs.diamond
         }
 
         Label {
