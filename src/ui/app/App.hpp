@@ -32,6 +32,7 @@
 #include "core/FilterCounts.hpp"
 #include "core/FreeSpace.hpp"
 #include "core/GlobalState.hpp"
+#include "core/LibraryDisplays.hpp"
 #include "core/LogFilterModel.hpp"
 #include "core/MetadataLookup.hpp"
 #include "core/OmaseedBackup.hpp"
@@ -2173,6 +2174,43 @@ private:
     void updateScopeSentence();
     QString m_scopeSentence;
     // --- end #167 -----------------------------------------------------------------------------
+
+    // --- #168: the library's displays -------------------------------------------------------
+    // Board 46 H3–H4 (DECISIONS C24): rows grouped under the questions, the table, or the
+    // overview's shelves, remembered per scope (core/LibraryDisplays) in state.json's
+    // `displays`, and `filtered`'s grouping set to match. AppLibrary.cpp.
+public:
+    /// The display the rail's scope shows now: "rows", "table" or "overview". A move's
+    /// torrents on show (C15 M10) are always the table (#168 assumed 5).
+    Q_PROPERTY(QString display READ display NOTIFY displayChanged)
+    QString display() const { return m_display; }
+    /// The scope's key (LibraryDisplays::scopeKey) the display is remembered under.
+    Q_PROPERTY(QString displayScope READ displayScope NOTIFY displayChanged)
+    QString displayScope() const { return m_displayScope; }
+    /// The display tool's pick: `display` for the scope shown now (the library's is every
+    /// scope's that has none of its own). A move's show changes nothing.
+    Q_INVOKABLE void setDisplay(const QString &display);
+    /// What `scopeKey` shows.
+    Q_INVOKABLE QString displayFor(const QString &scopeKey) const;
+    /// A test seam: forget every scope's pick and start the library on the display a new
+    /// (false) or an existing (true) install gets, as if this build read state.json first now.
+    Q_INVOKABLE void resetDisplays(bool existingInstall);
+
+Q_SIGNALS:
+    void displayChanged();
+
+private:
+    void setUpLibraryDisplays();
+    void updateDisplay();
+    void saveDisplays();
+    /// Writes the displays when this run decided them and has not written them yet: the first
+    /// write to state.json takes them along (writeStateSection()).
+    void saveDisplaysFirst();
+    core::LibraryDisplays m_displays;
+    bool m_displaysUnsaved = false;
+    QString m_display = QStringLiteral("rows");
+    QString m_displayScope = core::LibraryDisplays::libraryKey();
+    // --- end #168 -----------------------------------------------------------------------------
 };
 
 } // namespace omaseed::app

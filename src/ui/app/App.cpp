@@ -279,6 +279,7 @@ App::App(QObject *parent)
     setUpMove();
     setUpSkipped();
     setUpScope();
+    setUpLibraryDisplays();
 }
 
 App::~App()
@@ -4550,6 +4551,9 @@ void App::writeStateSection(const QString &key, const QJsonObject &value)
         m_demoState.insert(key, value);
         return;
     }
+    // DECISIONS C24 H4: the display this run decided goes with its first write (AppLibrary).
+    if (key != QLatin1String("displays"))
+        saveDisplaysFirst();
     StateFile::writeSection(key, value);
 }
 

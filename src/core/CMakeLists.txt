@@ -41,6 +41,8 @@ qt_add_library(omaseed-core STATIC
     GlobalState.cpp
     GlobalState.hpp
     HomeGuard.hpp
+    LibraryDisplays.cpp
+    LibraryDisplays.hpp
     LibraryMatch.cpp
     LibraryMatch.hpp
     LocalDay.cpp
