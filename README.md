@@ -167,8 +167,8 @@ server is replaced.
 
 qBittorrent's API only says a torrent is in error, never why. omaseed reads qBittorrent's own
 log, ties each line to its torrent and says it in plain words: the table's status reads the
-short cause ("disk full", "no access"), and General opens with what went wrong, the folder,
-and the keys that fix it. A notice says so too, with its own switch in Settings ›
+short cause ("disk full", "no access"), and the torrent's story opens with what went wrong,
+the folder, and the keys that fix it. A notice says so too, with its own switch in Settings ›
 Notifications.
 
 ## Keys
@@ -206,7 +206,7 @@ it. A capital letter is the stronger variant of its lower-case neighbour (`p` st
 |---|---|
 | `` ` `` | seed console |
 | `i` | details |
-| `1`–`4` | details tab (in the details pane) |
+| `1`–`5` | story · files · swarm · trackers · facts (in the details pane; `6` web seeds) |
 | `s` | sort |
 | `:` show as … | rows, table or shelves, for the place on show (also the title bar's tool) |
 | `\|` | columns (`alt+↑` `alt+↓` reorder them) |
@@ -231,7 +231,8 @@ it. A capital letter is the stronger variant of its lower-case neighbour (`p` st
 | `y` `Y` `n` | copy magnet · hash · name |
 | `p` `+` `-` `x` | file priority (Files tab) |
 | `O` `o` `r` | open · folder · rename a file (Files tab) |
-| `y` `enter` | copy a value · change an option (General tab) |
+| `F` | free the space, or add it again (Files tab) |
+| `y` `enter` | copy a value · change an option (facts tab) |
 
 **App**
 

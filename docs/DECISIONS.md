@@ -124,7 +124,7 @@ a move or rename that then fails, and a dead web seed or a .torrent copy it can'
 the torrent looking fine: the reason is in `log/main` only. D9–D15 (the log as a face of its
 own) are #56, ruled as C3.
 
-- **D1** A move, rename or part file that failed gets #54's block at the top of General, in
+- **D1** A move, rename or part file that failed gets #54's block at the top of General (the story since C24 H6), in
   yellow (the torrent still works), under the red one when it is also errored. Two failures on
   one torrent show the newest. The block's actions: set location (the sheet holds the
   destination), open folder, rename in Files (the cursor on that file), copy the line, dismiss.
@@ -172,7 +172,7 @@ Board [32](32-log-and-failures.html) (#56), D9–D15 as recommended:
   footer says "● following" or "○ paused". The face opens on its newest line, following.
 - **D13** "its lines in the log" on #54's red block and #55's yellow one opens the face narrowed
   to that torrent (a chip, `esc` clears it); `t` does the same for the cursor line's torrent and
-  `enter` shows it in the library with General open. A line is about a torrent when a quoted
+  `enter` shows it in the library with General open (its story since C24 H6). A line is about a torrent when a quoted
   part is its name, or starts with libtorrent's hash prefix (or its name, on libtorrent 2.0) and
   a space. In a narrow pane the block's actions that don't fit go to a second line, so the
   keyless link is never dropped.
@@ -998,8 +998,8 @@ C15 M1's "the row's menu" as the rail's folder row (T3).**
   all stop it, so the keyboard and the bar agree. "retry" stays first on the error block and is
   its own row in the actions menu. Once omaseed has stopped it, the row reads "error · stopped"
   (qBittorrent reports only `error`). Ruled after the build: the row reads "stopped" in the
-  error colour with the ! glyph, since "error · stopped" doesn't fit the column; General keeps
-  "error · stopped · CAUSE". Whether it is stopped comes from qBittorrent (its `stopped`
+  error colour with the ! glyph, since "error · stopped" doesn't fit the column; General (facts since C24
+  H6) keeps "error · stopped · CAUSE". Whether it is stopped comes from qBittorrent (its `stopped`
   filter lists an errored torrent only while it is stopped), so it survives a restart and
   counts a stop sent from elsewhere (#142).
 - **The widget's server line (#127):** at the popup's width, the engine's version gives way
@@ -1111,6 +1111,19 @@ the call says so.
 - **Details (H6):** 41's story: one fact, a sentence, then story · files · swarm · trackers ·
   facts. The error block and the last move open the story; C17's on-disk column and band sit in
   files. N1 unchanged.
+  Built in v0.5.0's details step (#169), with its assumed answers: inside the details `1`–`5`
+  pick the tabs (elsewhere the questions), web seeds stay a tab of their own on `6` while a
+  torrent has any; the pane opens on the story wherever it opened on General; the head keeps
+  the name and its meta line, then the rows display's fact (in the state's colour) and its
+  caption, then its sentence (core/RowWords, the library's words), in place of the four-up
+  strip, beside the name under the table; swarm is the Peers list, trackers the Trackers list,
+  unchanged; facts is General's three groups led by the strip's size, done, ratio and ETA,
+  with category, tags and added in Information; the story is the error block, the failure
+  block, the last move, the pieces bar, then what happened (core/TorrentStory: added, each
+  move the history keeps, finished downloading, the error and the failure at their logged
+  times; no record of alternative limits is kept, so board 46's "slowed by" line is not
+  drawn) and "its lines in the log". The palette's and `?` sheet's groups read "swarm" and
+  "web seeds".
 - **The add sheet (H7):** today's sheet in the new skins. 39's additions (type bar, guessed
   category, ready time, program check) wait for the add sheet's own board.
 - **Acting on a selection (H8):** the status line becomes the action bar; C18's outcome strip
@@ -1405,6 +1418,17 @@ when only adding the torrent again frees the space).
 - **The size (F17–F19, #169):** the size fact and the files head say "· 2 skipped, 16.0 MB still
   on disk"; on a disk omaseed can't see, "2.43 GB · 1.03 GB of it in skipped files", from
   torrents/files' progress. Ships with the details step (#169), in the new details only.
+- **Built (F12–F18, #169),** as the board reads it: core/SkippedOutlook decides from the Files
+  tab's reading (free, mixed, readd); the band's action reads "Add it again…  F", its Why?
+  board 50's hybrid or v2 words; shift+f and the band go straight to the confirm while the
+  reading says readd, and to the sheet otherwise, also before the reading is this torrent's
+  (the sheet's plan reads first); the confirm's line is "Nothing else frees them: this
+  torrent is hybrid, and pieces of them were downloaded." (v2's words on a v2-only torrent),
+  its "why?" opening the band's longer words in place, its sentence naming the size; "add it
+  again" with no plan in hand reads the plan first, so the leftovers still go. The `?` sheet's
+  F row reads "In the files tab: free the space, or add it again. …". F17's count is every
+  skipped file, its bytes what they hold on disk (shown while files or facts reads them); F18
+  is the size fact only, the files head keeping "N skipped" where D4's hint speaks.
 
 ## M8 — A click leaves the keyboard focus where it was
 
@@ -1446,13 +1470,17 @@ folders.
 Changed by C17 D5: a priority change that adds more than 1 GiB (or the whole torrent) still
 changes the rows at once, but waits 3 s before it is sent, with Undo.
 
+Named "files" since C24 H6 (v0.5.0): the second of story · files · swarm · trackers · facts,
+on `2` as before; what it does is unchanged.
+
 ## S1 — The status keys are `0`–`8`
 
 The rail has nine status rows, `0` (all) to `8` (errored), so the help sheet and the rail's
 footer print `0–8`. The approved design's figure prints `0–9`; `9` does nothing.
 
 Changed by C24 H2 (v0.5.0): the rail's five questions take `1`–`5`, `0` is the library and
-`6`–`9` do nothing; the states are `is:` words in the filter.
+`6`–`9` do nothing; the states are `is:` words in the filter. Inside the details `1`–`5` pick
+its tabs and `6` web seeds (C24 H6).
 
 ## The click rules every list follows
 
