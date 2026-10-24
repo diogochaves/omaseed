@@ -254,7 +254,8 @@ TestCase {
         compare(rows[1].Accessible.checked, true);
         compare(rows[5].Accessible.checkable, false);
         compare(findChild(rows[2], "menuRowNote").color, Theme.red);
-        compare(findChild(rows[1], "menuRowNote").color, Theme.dimForeground);
+        // The cursor's row: its words on the cursor's fill (DECISIONS C30 F1).
+        compare(findChild(rows[1], "menuRowNote").color, Theme.on.cursor.dimForeground);
         keyClick(Qt.Key_J);
         keyClick(Qt.Key_J);
         compare(menu.cursorIndex, 5);

@@ -153,6 +153,9 @@ class Theme : public QObject
     /// console's attention block (7 %). `Theme.on.warning` and `Theme.on.attention` paint them.
     Q_PROPERTY(qreal warningTintAlpha READ warningTintAlpha CONSTANT FINAL)
     Q_PROPERTY(qreal attentionTintAlpha READ attentionTintAlpha CONSTANT FINAL)
+    /// The selected text of a rename in place (`.tbl .rn .ren`, a 35 % accent highlight):
+    /// `Theme.on.highlight`.
+    Q_PROPERTY(qreal highlightAlpha READ highlightAlpha CONSTANT FINAL)
 
     // ---- text on a ground (docs/DECISIONS.md C30 F7) -----------------------------------
     /// Every text role as it reads on each ground: `Theme.on.selected.dimForeground`. The
@@ -237,6 +240,7 @@ public:
     qreal fillCap() const { return m_fillCap; }
     static constexpr qreal warningTintAlpha() { return 0.08; }
     static constexpr qreal attentionTintAlpha() { return 0.07; }
+    static constexpr qreal highlightAlpha() { return 0.35; }
     ThemeGrounds *on() const { return m_on; }
 
     QString mode() const { return m_mode; }

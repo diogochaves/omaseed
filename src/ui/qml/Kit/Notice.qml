@@ -76,10 +76,10 @@ Item {
     property real detailsMaxHeight: Math.max(Theme.space(96), root.Window.height / 3)
 
     readonly property bool stacked: root.width < root.stackWidth
-    readonly property color kindColor: root.kind === "error" ? Theme.red : root.kind === "warning"
-                                                               ? Theme.yellow : root.kind
-                                                                 === "success" ? Theme.green :
-                                                                                 Theme.accent
+    readonly property color kindColor: root.kind === "error" ? Theme.on.idle.red : root.kind === "warning"
+                                                               ? Theme.on.idle.yellow : root.kind
+                                                                 === "success" ? Theme.on.idle.green :
+                                                                                 Theme.on.idle.accent
     readonly property string kindGlyph: root.glyph.length > 0 ? root.glyph : root.kind === "error"
                                                                 ? Glyphs.close : root.kind
                                                                   === "warning" ? "!" : root.kind
@@ -146,7 +146,7 @@ Item {
 
     Rectangle {
         anchors.fill: parent
-        color: Theme.fill(Theme.fillIdle)
+        color: Theme.on.idle.fill
     }
 
     Rectangle {
@@ -216,7 +216,7 @@ Item {
             Text {
                 Layout.alignment: Qt.AlignTop
                 Layout.fillWidth: true
-                color: Theme.brightForeground
+                color: Theme.on.idle.brightForeground
                 font.family: Theme.fontFamily
                 font.pixelSize: Theme.font.body
                 font.weight: Font.DemiBold
@@ -245,13 +245,13 @@ Item {
             Accessible.role: Accessible.StaticText
             Layout.fillWidth: true
             Layout.leftMargin: glyph.Layout.preferredWidth + Theme.space(8)
-            color: Theme.foreground
+            color: Theme.on.idle.foreground
             font.family: Theme.fontFamily
             font.pixelSize: Theme.font.small
             objectName: "noticeLine"
             text: root.bodyAlert.length === 0 ? root.lineText : root._escaped(root.lineText) + (
                                                     root.lineText.length > 0 ? " · " : "")
-                                                + "<font color='%1'>%2</font>".arg(Theme.red).arg(
+                                                + "<font color='%1'>%2</font>".arg(Theme.on.idle.red).arg(
                                                     root._escaped(root.bodyAlert))
             textFormat: root.bodyAlert.length === 0 ? Text.PlainText : Text.StyledText
             visible: text.length > 0
@@ -278,7 +278,7 @@ Item {
             Layout.fillWidth: true
             Layout.leftMargin: glyph.Layout.preferredWidth + Theme.space(8)
             Layout.topMargin: Theme.space(4)
-            color: Theme.fill(Theme.fillIdle)
+            color: Theme.on.blockIdle.fill
             implicitHeight: Math.min(detailsColumn.implicitHeight + 2 * Theme.space(6),
                                      root.detailsMaxHeight)
             objectName: "noticeDetails"
@@ -330,7 +330,7 @@ Item {
                 // Its hairline while it has the keys.
                 Rectangle {
                     anchors.fill: parent
-                    border.color: Theme.accent
+                    border.color: Theme.on.blockIdle.accent
                     border.width: 1
                     color: "transparent"
                     parent: detailsBlock
@@ -360,7 +360,7 @@ Item {
                                 Accessible.name: text
                                 Accessible.role: Accessible.StaticText
                                 Layout.fillWidth: true
-                                color: Theme.foreground
+                                color: Theme.on.blockIdle.foreground
                                 elide: Text.ElideRight
                                 font.family: Theme.fontFamily
                                 font.pixelSize: Theme.font.caption
@@ -374,8 +374,8 @@ Item {
                                 Accessible.name: rowLink.text
                                 Accessible.role: Accessible.Link
                                 Accessible.onPressAction: root.detailRowTriggered(detailRow.index)
-                                color: rowLinkMouse.containsMouse ? Theme.brightForeground :
-                                                                    Theme.accent
+                                color: rowLinkMouse.containsMouse ? Theme.on.blockIdle.brightForeground :
+                                                                    Theme.on.blockIdle.accent
                                 font.family: Theme.fontFamily
                                 font.pixelSize: Theme.font.caption
                                 objectName: "noticeDetailRowLink"
@@ -401,7 +401,7 @@ Item {
                         Accessible.name: text
                         Accessible.role: Accessible.StaticText
                         Layout.fillWidth: true
-                        color: Theme.dimForeground
+                        color: Theme.on.blockIdle.dimForeground
                         font.family: Theme.fontFamily
                         font.pixelSize: Theme.font.caption
                         objectName: "noticeDetailsText"
@@ -420,7 +420,7 @@ Item {
                         Accessible.onPressAction: if (copyLink.enabled)
                                                       root.copyRequested(root.details)
                         Layout.alignment: Qt.AlignRight
-                        color: copyMouse.containsMouse ? Theme.brightForeground : Theme.accent
+                        color: copyMouse.containsMouse ? Theme.on.blockIdle.brightForeground : Theme.on.blockIdle.accent
                         font.family: Theme.fontFamily
                         font.pixelSize: Theme.font.caption
                         objectName: "noticeCopy"
@@ -469,7 +469,7 @@ Item {
                 // the pointer.
                 Accessible.onPressAction: if (link.enabled)
                                               root.actionTriggered(link.modelData.key)
-                color: linkMouse.containsMouse ? Theme.brightForeground : Theme.accent
+                color: linkMouse.containsMouse ? Theme.on.idle.brightForeground : Theme.on.idle.accent
                 font.family: Theme.fontFamily
                 font.pixelSize: Theme.font.small
                 objectName: "noticeAction-" + link.modelData.key
@@ -499,7 +499,7 @@ Item {
             // As an action's (#75).
             Accessible.onPressAction: if (detailsLink.enabled)
                                           root.toggleDetails()
-            color: detailsMouse.containsMouse ? Theme.foreground : Theme.dimForeground
+            color: detailsMouse.containsMouse ? Theme.on.idle.foreground : Theme.on.idle.dimForeground
             font.family: Theme.fontFamily
             font.pixelSize: Theme.font.small
             objectName: "noticeDetailsToggle"

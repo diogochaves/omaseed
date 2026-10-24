@@ -28,6 +28,7 @@ TestCase {
         compare(row.color.a, 0);
         compare(row.border.width, 0);
         compare(row.textColor, Theme.foreground);
+        compare(row.ink.ground, Theme.on.window);
     }
 
     function test_selected_fills_and_brightens_text() {
@@ -35,7 +36,32 @@ TestCase {
                                               "selected": true
                                           });
         fuzzyCompare(row.color.a, Theme.fill(Theme.fillSelected).a, 0.01);
-        compare(row.textColor, Theme.brightForeground);
+        compare(row.textColor, Theme.on.selected.brightForeground);
+    }
+
+    // DECISIONS C30 F1, F2: a selected row's caption and state colours are the selected
+    // fill's, lifted against it; under the cursor too, the 24 % fill's.
+    function test_a_selected_rows_dim_and_state_text_is_lifted_on_its_fill() {
+        const row = createTemporaryObject(rowComponent, testCase, {
+                                              "selected": true
+                                          });
+        compare(row.ink.ground, Theme.on.selected);
+        compare(row.ink.dimForeground, Theme.on.selected.dimForeground);
+        verify(!Qt.colorEqual(row.ink.dimForeground, Theme.dimForeground));
+        compare(row.ink.stateQueued, Theme.on.selected.magenta);
+        row.hasCursor = true;
+        compare(row.ink.ground, Theme.on.selectedCursor);
+        tryCompare(row.ink, "dimForeground", Theme.on.selectedCursor.dimForeground, 1000);
+    }
+
+    // C30 F4: the pointer's hover is a ground too.
+    function test_hovered_fills_at_the_hover_alpha_and_lifts_on_it() {
+        const row = createTemporaryObject(rowComponent, testCase, {
+                                              "hovered": true
+                                          });
+        compare(row.ink.ground, Theme.on.hover);
+        fuzzyCompare(row.color.a, Theme.fill(Theme.fillHover).a, 0.01);
+        compare(row.ink.dimForeground, Theme.on.hover.dimForeground);
     }
 
     function test_cursor_fills_and_draws_an_inset_border() {

@@ -18,6 +18,64 @@ ThemeBase {
         return spaceAt(px, spaceScale);
     }
 
+    // ---- text on a ground (DECISIONS C30 F1–F7) -------------------------------------------
+    /// The ground of a row or control in these states, the strongest first: pressed, selected
+    /// under the cursor, selected, the cursor's, the pointer's, else the window. Its roles are
+    /// the text's colours there (`Theme.on.selected.dimForeground`); `Kit/Ink` eases them with
+    /// the fill.
+    function ground(selected: bool, cursor: bool, hovered: bool, pressed: bool): ThemeInk {
+        if (pressed)
+            return on.pressed;
+        if (selected)
+            return cursor ? on.selectedCursor : on.selected;
+        if (cursor)
+            return on.cursor;
+        return hovered ? on.hover : on.window;
+    }
+    /// The same inside a block that paints `block` (a notice's or a picker's 4 % fill, which is
+    /// `on.idle`): resting, the text is on the block; under the pointer or the cursor, on the
+    /// hover fill over it. The stronger fills are taken as they are over the window.
+    function groundIn(block: ThemeInk, selected: bool, cursor: bool, hovered: bool,
+                      pressed: bool): ThemeInk {
+        const plain = ground(selected, cursor, hovered, pressed);
+        if (plain === on.window)
+            return block;
+        return block === on.idle && (plain === on.hover || plain === on.cursor) ? on.blockHover
+                                                                                 : plain;
+    }
+    /// `colour`, one of the window's text roles (`Theme.yellow`, a caller's `tone`), as it reads
+    /// on `ground`: that ground's role of the same colour, resolved with the rest (C30 F3). A
+    /// colour that is no role comes back as it is. `Kit/Ink` has the same, eased.
+    function inkOf(colour: color, ground: ThemeInk): color {
+        const w = on.window;
+        if (Qt.colorEqual(colour, w.foreground))
+            return ground.foreground;
+        if (Qt.colorEqual(colour, w.brightForeground))
+            return ground.brightForeground;
+        if (Qt.colorEqual(colour, w.dimForeground))
+            return ground.dimForeground;
+        if (Qt.colorEqual(colour, w.accent))
+            return ground.accent;
+        if (Qt.colorEqual(colour, w.red))
+            return ground.red;
+        if (Qt.colorEqual(colour, w.yellow))
+            return ground.yellow;
+        if (Qt.colorEqual(colour, w.orange))
+            return ground.orange;
+        if (Qt.colorEqual(colour, w.green))
+            return ground.green;
+        if (Qt.colorEqual(colour, w.cyan))
+            return ground.cyan;
+        if (Qt.colorEqual(colour, w.blue))
+            return ground.blue;
+        if (Qt.colorEqual(colour, w.magenta))
+            return ground.magenta;
+        return colour;
+    }
+    /// How long a fill takes to change colour (the rows', the buttons'), and the text on it
+    /// with it (C30 F4).
+    readonly property int fillChangeDuration: 120
+
     // ---- the frame's form: the rail (board 46 `rail()`, `.mark`, `.views`) --------------
     /// The rail open, and folded to its glyphs (board 46: 214 and 48 px at its 13 px type).
     readonly property int railWidth: space(200)

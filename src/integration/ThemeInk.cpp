@@ -67,18 +67,15 @@ ThemeInk::Roles ThemeInk::resolveOn(const Roles &window, const QColor &ground)
     return roles;
 }
 
-void ThemeInk::resolve(const QColor &tint,
-                       qreal alpha,
-                       const QColor &background,
-                       const Roles &window)
+void ThemeInk::resolve(const QColor &tint, qreal alpha, const QColor &under, const Roles &window)
 {
     // C30 F6 on a tint: held where the theme's text still reads on it (the foreground's own
     // fills come in held already, Theme::fillCap).
-    alpha = std::min(
-        alpha, Theme::fillCapFor(tint, window[Foreground], window[BrightForeground], background));
+    alpha = std::min(alpha,
+                     Theme::fillCapFor(tint, window[Foreground], window[BrightForeground], under));
     QColor fill = tint;
     fill.setAlphaF(static_cast<float>(std::clamp(alpha, qreal(0), qreal(1))));
-    const QColor ground = over(tint, background, alpha);
+    const QColor ground = over(tint, under, alpha);
     const Roles roles = resolveOn(window, ground);
     if (qFuzzyCompare(1 + alpha, 1 + m_alpha) && fill == m_fill && ground == m_ground &&
         roles == m_roles)
@@ -104,6 +101,9 @@ ThemeGrounds::ThemeGrounds(QObject *parent)
     , m_danger(new ThemeInk(QStringLiteral("danger"), this))
     , m_ticked(new ThemeInk(QStringLiteral("ticked"), this))
     , m_accentIdle(new ThemeInk(QStringLiteral("accentIdle"), this))
+    , m_blockIdle(new ThemeInk(QStringLiteral("blockIdle"), this))
+    , m_blockHover(new ThemeInk(QStringLiteral("blockHover"), this))
+    , m_highlight(new ThemeInk(QStringLiteral("highlight"), this))
 {}
 
 QList<ThemeInk *> ThemeGrounds::all() const
@@ -119,7 +119,10 @@ QList<ThemeInk *> ThemeGrounds::all() const
             m_attention,
             m_danger,
             m_ticked,
-            m_accentIdle};
+            m_accentIdle,
+            m_blockIdle,
+            m_blockHover,
+            m_highlight};
 }
 
 } // namespace omaseed::integration

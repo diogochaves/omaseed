@@ -301,6 +301,10 @@ void Theme::resolveGrounds()
     m_on->danger()->resolve(m_red, m_fillSelected, m_background, window);
     m_on->ticked()->resolve(m_accent, m_fillPressed, m_background, window);
     m_on->accentIdle()->resolve(m_accent, m_fillIdle, m_background, window);
+    const QColor block = m_on->idle()->ground();
+    m_on->blockIdle()->resolve(m_foreground, m_fillIdle, block, window);
+    m_on->blockHover()->resolve(m_foreground, m_fillHover, block, window);
+    m_on->highlight()->resolve(m_accent, highlightAlpha(), block, window);
 }
 
 qreal Theme::fillCapFor(const QColor &tint,

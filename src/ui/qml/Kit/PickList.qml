@@ -26,6 +26,10 @@ Rectangle {
 
     readonly property var currentRow: root.current >= 0 && root.current < root.rows.length
                                       ? root.rows[root.current] : null
+    /// The text on the list's own fill, and each row's on the hover fill over it (C30 F1).
+    readonly property Ink ink: Ink {
+        ground: Theme.on.idle
+    }
 
     /// A click on a row.
     signal picked(int index)
@@ -45,7 +49,7 @@ Rectangle {
 
     border.color: Theme.fill(Theme.hairlineAlpha)
     border.width: 1
-    color: Theme.fill(Theme.fillIdle)
+    color: root.ink.fill
     implicitHeight: column.implicitHeight + 2 * Theme.space(4)
     objectName: "pickList"
     radius: Theme.cornerRadius
@@ -83,6 +87,7 @@ Rectangle {
                 Label {
                     Layout.leftMargin: Theme.space(10)
                     Layout.topMargin: entry.index === 0 ? 0 : Theme.space(4)
+                    ink: root.ink
                     objectName: "pickListSection"
                     text: entry.modelData.section ?? ""
                     tracked: true
@@ -93,6 +98,11 @@ Rectangle {
                     id: rowBox
 
                     readonly property bool isCurrent: entry.index === root.current
+                    /// C30 F1: the row's ground, the hover fill over the list's own.
+                    readonly property Ink ink: Ink {
+                        ground: rowBox.isCurrent || rowMouse.containsMouse ? Theme.on.blockHover
+                                                                           : Theme.on.idle
+                    }
 
                     // C18 D5: each option with its group and count ("library, 60").
                     Accessible.description: [entry.modelData.section ?? "",
@@ -117,12 +127,14 @@ Rectangle {
                             Layout.fillWidth: true
                             bright: rowBox.isCurrent
                             elide: Text.ElideLeft
+                            ink: rowBox.ink
                             size: "small"
                             text: entry.modelData.text
                         }
 
                         Label {
                             dim: true
+                            ink: rowBox.ink
                             size: "small"
                             text: entry.modelData.detail ?? ""
                             visible: text.length > 0
@@ -149,6 +161,7 @@ Rectangle {
             Layout.leftMargin: Theme.space(10)
             Layout.topMargin: Theme.space(2)
             dim: true
+            ink: root.ink
             objectName: "pickListMore"
             size: "small"
             text: root.more
@@ -164,6 +177,7 @@ Rectangle {
         KeyHints {
             Layout.leftMargin: Theme.space(10)
             Layout.topMargin: Theme.space(2)
+            ink: root.ink
             model: root.hints
             visible: root.hints.length > 0
         }

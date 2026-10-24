@@ -389,6 +389,16 @@ Item {
                         readonly property bool separator: menuRow.modelData.separator === true
                         readonly property bool caption: menuRow.modelData.caption === true
                         readonly property bool checkable: menuRow.modelData.checked !== undefined
+                        readonly property bool filled: menuRow.current && !menuRow.separator
+                                                       && !menuRow.caption
+                        /// docs/DECISIONS.md C30 F1: the row's words on its ground, the cursor's
+                        /// fill on the current row. The fill comes and goes at once, so do they.
+                        /// A row's `glyphColor` and `noteColor` are window roles: the ground's of
+                        /// the same (C30 F3).
+                        readonly property Ink ink: Ink {
+                            animated: false
+                            ground: menuRow.filled ? Theme.on.cursor : Theme.on.window
+                        }
 
                         Accessible.checkable: menuRow.checkable
                         Accessible.checked: menuRow.modelData.checked === true
@@ -409,8 +419,8 @@ Item {
 
                         Rectangle {
                             anchors.fill: parent
-                            color: Theme.fill(Theme.fillHover)
-                            visible: menuRow.current && !menuRow.separator && !menuRow.caption
+                            color: Theme.on.cursor.fill
+                            visible: menuRow.filled
                         }
 
                         Label {
@@ -448,7 +458,7 @@ Item {
                             Glyph {
                                 Layout.preferredHeight: Theme.font.body
                                 Layout.preferredWidth: Theme.space(14)
-                                color: menuRow.modelData.glyphColor ?? Theme.dimForeground
+                                color: menuRow.ink.of(menuRow.modelData.glyphColor ?? Theme.dimForeground)
                                 objectName: "menuRowGlyph"
                                 text: menuRow.modelData.glyph ?? ""
                                 visible: text.length > 0
@@ -456,11 +466,11 @@ Item {
 
                             Label {
                                 Layout.fillWidth: true
-                                color: menuRow.disabled ? Theme.dimForeground
-                                        : menuRow.modelData.danger === true ? Theme.red
-                                        : menuRow.current ? Theme.accent
-                                        : menuRow.modelData.dim === true ? Theme.dimForeground
-                                        : Theme.foreground
+                                color: menuRow.disabled ? menuRow.ink.dimForeground
+                                        : menuRow.modelData.danger === true ? menuRow.ink.red
+                                        : menuRow.current ? menuRow.ink.accent
+                                        : menuRow.modelData.dim === true ? menuRow.ink.dimForeground
+                                        : menuRow.ink.foreground
                                 elide: Text.ElideRight
                                 objectName: "menuRowText"
                                 text: menuRow.modelData.text !== undefined
@@ -470,7 +480,7 @@ Item {
                             Glyph {
                                 Layout.preferredHeight: Theme.font.caption
                                 Layout.preferredWidth: Theme.font.caption
-                                color: Theme.accent
+                                color: menuRow.ink.accent
                                 objectName: "menuRowCheck"
                                 pixelSize: Theme.font.caption
                                 text: Glyphs.check
@@ -478,7 +488,7 @@ Item {
                             }
 
                             Label {
-                                color: menuRow.modelData.noteColor ?? Theme.dimForeground
+                                color: menuRow.ink.of(menuRow.modelData.noteColor ?? Theme.dimForeground)
                                 objectName: "menuRowNote"
                                 size: "caption"
                                 text: menuRow.modelData.key !== undefined

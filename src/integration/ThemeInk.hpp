@@ -92,11 +92,12 @@ public:
     QColor blue() const { return m_roles[Blue]; }
     QColor magenta() const { return m_roles[Magenta]; }
 
-    /// `tint` at `alpha` over `background` (`alpha` held by C30 F6's cap for that tint), and
-    /// every role of `window` resolved on it. Emits
+    /// `tint` at `alpha` over `under` (the window's background, or another ground's for a fill
+    /// inside a filled block; `alpha` held by C30 F6's cap for that tint), and every role of
+    /// `window` resolved on it. Emits
     /// changed() only when something moved, so a theme change that leaves this ground as it
     /// was repaints nothing on it.
-    void resolve(const QColor &tint, qreal alpha, const QColor &background, const Roles &window);
+    void resolve(const QColor &tint, qreal alpha, const QColor &under, const Roles &window);
 
     /// The roles of `window` (the theme's colours as they read on its background) on `ground`,
     /// an opaque colour (docs/DECISIONS.md C30 F1–F3, F5). The foreground and the bright one
@@ -134,6 +135,10 @@ private:
 ///   `danger` (red at fillSelected: a selected danger button), `ticked` (accent at fillPressed:
 ///   a ticked box, a switched-on toggle) and `accentIdle` (accent at fillIdle: the drop
 ///   target).
+/// - A fill inside a filled block, over that block's ground: `blockIdle` (fillIdle over
+///   `idle`: a notice's details, a chip in a block), `blockHover` (fillHover over `idle`: a
+///   picker's row under the pointer or the keyboard), `highlight` (accent at highlightAlpha
+///   over `idle`: the selected text of a rename in place).
 class ThemeGrounds : public QObject
 {
     Q_OBJECT
@@ -150,6 +155,9 @@ class ThemeGrounds : public QObject
     Q_PROPERTY(omaseed::integration::ThemeInk *danger READ danger CONSTANT FINAL)
     Q_PROPERTY(omaseed::integration::ThemeInk *ticked READ ticked CONSTANT FINAL)
     Q_PROPERTY(omaseed::integration::ThemeInk *accentIdle READ accentIdle CONSTANT FINAL)
+    Q_PROPERTY(omaseed::integration::ThemeInk *blockIdle READ blockIdle CONSTANT FINAL)
+    Q_PROPERTY(omaseed::integration::ThemeInk *blockHover READ blockHover CONSTANT FINAL)
+    Q_PROPERTY(omaseed::integration::ThemeInk *highlight READ highlight CONSTANT FINAL)
 
 public:
     explicit ThemeGrounds(QObject *parent = nullptr);
@@ -166,6 +174,9 @@ public:
     ThemeInk *danger() const { return m_danger; }
     ThemeInk *ticked() const { return m_ticked; }
     ThemeInk *accentIdle() const { return m_accentIdle; }
+    ThemeInk *blockIdle() const { return m_blockIdle; }
+    ThemeInk *blockHover() const { return m_blockHover; }
+    ThemeInk *highlight() const { return m_highlight; }
 
     /// Every ground, window first: what `--theme-roles` prints and the contrast tests walk.
     QList<ThemeInk *> all() const;
@@ -183,6 +194,9 @@ private:
     ThemeInk *m_danger;
     ThemeInk *m_ticked;
     ThemeInk *m_accentIdle;
+    ThemeInk *m_blockIdle;
+    ThemeInk *m_blockHover;
+    ThemeInk *m_highlight;
 };
 
 } // namespace omaseed::integration

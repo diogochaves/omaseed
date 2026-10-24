@@ -163,18 +163,22 @@ Rectangle {
     }
 
     readonly property bool hot: root.hasCursor || hoverHandler.hovered || input.activeFocus
+    /// docs/DECISIONS.md C30 F1: the field's words on its fill, idle or hot, eased with it.
+    readonly property Ink ink: Ink {
+        ground: root.hot ? Theme.on.hover : Theme.on.idle
+    }
 
     border.color: input.activeFocus ? Theme.accent : root.hot ? Theme.fill(Theme.borderHover) :
                                                                 Theme.fill(Theme.borderIdle)
     border.width: 1
-    color: root.hot ? Theme.fill(Theme.fillHover) : Theme.fill(Theme.fillIdle)
+    color: root.ink.ground.fill
     height: Theme.controlHeight
     implicitWidth: Theme.space(220)
     radius: Theme.cornerRadius
 
     Behavior on color {
         ColorAnimation {
-            duration: 120
+            duration: Theme.fillChangeDuration
         }
     }
 
@@ -214,13 +218,13 @@ Rectangle {
                              ? Theme.space(6) : Theme.space(10)
         anchors.verticalCenter: parent.verticalCenter
         clip: true
-        color: Theme.brightForeground
+        color: root.ink.brightForeground
         // Qt shows a delegate caret when the field gains the keyboard but can leave it drawn
         // when the keyboard moves on in the same frame: Speed limits opened on its alt-speed
         // pair focused Download first, and Download kept a caret over its `∞` (batch-2 P2).
         // Opacity rather than `visible`, which Qt itself toggles to blink.
         cursorDelegate: Rectangle {
-            color: Theme.accent
+            color: root.ink.accent
             objectName: "fieldCaret"
             opacity: input.activeFocus ? 1 : 0
             width: 1
@@ -237,7 +241,7 @@ Rectangle {
         // the caret is in, as most text fields do (batch-2 J6).
         Text {
             anchors.verticalCenter: parent.verticalCenter
-            color: Theme.dimForeground
+            color: root.ink.dimForeground
             font.family: Theme.fontFamily
             font.pixelSize: Theme.font.body
             objectName: "fieldPlaceholder"
@@ -281,7 +285,7 @@ Rectangle {
         anchors.left: parent.left
         anchors.leftMargin: Theme.space(10)
         anchors.verticalCenter: parent.verticalCenter
-        color: Theme.dimForeground
+        color: root.ink.dimForeground
         font.family: Theme.fontFamily
         font.pixelSize: Theme.font.body
         text: root.hint
@@ -294,6 +298,7 @@ Rectangle {
         anchors.right: parent.right
         anchors.rightMargin: Theme.space(8)
         anchors.verticalCenter: parent.verticalCenter
+        ink: root.ink
         objectName: "fieldTrailingKey"
         text: root.trailingKey
         visible: root.trailingKey.length > 0
@@ -305,7 +310,7 @@ Rectangle {
         anchors.right: trailingCap.visible ? trailingCap.left : parent.right
         anchors.rightMargin: trailingCap.visible ? Theme.space(8) : Theme.space(10)
         anchors.verticalCenter: parent.verticalCenter
-        color: trailingButton.containsMouse ? Theme.accent : Theme.dimForeground
+        color: trailingButton.containsMouse ? root.ink.accent : root.ink.dimForeground
         font.family: Theme.fontFamily
         font.pixelSize: Theme.font.caption
         objectName: "fieldTrailingText"
@@ -321,7 +326,7 @@ Rectangle {
         anchors.rightMargin: trailingText.visible || trailingCap.visible ? Theme.space(12)
                                                                         : Theme.space(10)
         anchors.verticalCenter: parent.verticalCenter
-        color: openerButton.containsMouse ? Theme.brightForeground : Theme.accent
+        color: openerButton.containsMouse ? root.ink.brightForeground : root.ink.accent
         font.family: Theme.fontFamily
         font.pixelSize: Theme.font.caption
         objectName: "fieldOpenerText"

@@ -267,10 +267,14 @@ void TestThemeContrast::everyRoleReadsOnEveryGround()
     QCOMPARE(theme.themeName(), name);
 
     const QList<ThemeInk *> grounds = theme.on()->all();
-    QCOMPARE(grounds.size(), 12);
+    QCOMPARE(grounds.size(), 15);
     QStringList failing;
     for (const ThemeInk *ink : grounds) {
-        QCOMPARE(ink->ground(), ThemeInk::over(ink->fill(), theme.background(), ink->alpha()));
+        // A fill inside a block is painted over that block's ground.
+        const bool inBlock = ink == theme.on()->blockIdle() || ink == theme.on()->blockHover() ||
+                             ink == theme.on()->highlight();
+        const QColor under = inBlock ? theme.on()->idle()->ground() : theme.background();
+        QCOMPARE(ink->ground(), ThemeInk::over(ink->fill(), under, ink->alpha()));
         QCOMPARE(ink->ground().alpha(), 255);
         for (int role = 0; role < ThemeInk::RoleCount; ++role) {
             const qreal ratio =

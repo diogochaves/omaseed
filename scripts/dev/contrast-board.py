@@ -454,7 +454,10 @@ OLD_GROUNDS = {"window": ("foreground", 0.0), "idle": ("foreground", "fillIdle")
                "selectedCursor": ("foreground", "fillSelectedCursor"),
                "pressed": ("foreground", "fillPressed"), "warning": ("yellow", 0.08),
                "attention": ("red", 0.07), "danger": ("red", "fillSelected"),
-               "ticked": ("accent", "fillPressed"), "accentIdle": ("accent", "fillIdle")}
+               "ticked": ("accent", "fillPressed"), "accentIdle": ("accent", "fillIdle"),
+               "blockIdle": ("foreground", "fillIdle", "fillIdle"),
+               "blockHover": ("foreground", "fillHover", "fillIdle"),
+               "highlight": ("accent", 0.35, "fillIdle")}
 
 
 def grounds_of(roles):
@@ -465,10 +468,12 @@ def grounds_of(roles):
         return {name: (parse(g["ground"]), {r: parse(g["colors"][r]) for r in INK_ROLES})
                 for name, g in roles["grounds"].items()}
     out = {}
-    for name, (tint, alpha) in OLD_GROUNDS.items():
+    for name, (tint, alpha, *block) in OLD_GROUNDS.items():
         al = a[alpha] if isinstance(alpha, str) else alpha
-        g = tuple(round(v) for v in over(parse(c[tint]), parse(c["background"]), al))
-        # A selected row's main text was brightForeground (TableRow), every other role as is.
+        under = parse(c["background"])
+        if block:  # a fill inside a block: over the foreground's fill at the block's alpha
+            under = tuple(round(v) for v in over(parse(c["foreground"]), under, a[block[0]]))
+        g = tuple(round(v) for v in over(parse(c[tint]), under, al))
         cols = {r: parse(c[r]) for r in INK_ROLES}
         out[name] = (g, cols)
     return out

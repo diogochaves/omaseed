@@ -44,9 +44,26 @@ Rectangle {
     /// The chip's tooltip, which lives on the window's content item (the tests read it).
     readonly property alias tooltipItem: tip
 
+    /// What the chip sits on (docs/DECISIONS.md C30 F1): the window, or the block it is in.
+    /// Its own idle fill is painted over it either way.
+    property ThemeInk block: Theme.on.window
+
     signal clicked
 
     readonly property bool hot: root.hasCursor || mouseArea.containsMouse
+    /// The ground under the words in each state, as `color` paints it (C30 F1, F4): the
+    /// chip's idle fill resting; in a block, its fills sit over the block's.
+    readonly property ThemeInk ground: {
+        if (root.selected)
+            return Theme.on.selected;
+        if (root.block === Theme.on.idle)
+            return root.hot ? Theme.on.blockHover : Theme.on.blockIdle;
+        return root.hot ? Theme.on.hover : Theme.on.idle;
+    }
+    /// The words' colours on that ground, eased with the fill.
+    readonly property Ink ink: Ink {
+        ground: root.ground
+    }
 
     // #79: the count it shows ("19") and its key are the description, as a rail row's count.
     Accessible.description: [root.count, root.keyText.length > 0 ? qsTr("shortcut %1").arg(root.keyText) : ""].filter(
@@ -73,7 +90,7 @@ Rectangle {
 
     Behavior on color {
         ColorAnimation {
-            duration: 120
+            duration: Theme.fillChangeDuration
         }
     }
 
@@ -95,7 +112,7 @@ Rectangle {
 
         Text {
             anchors.verticalCenter: parent.verticalCenter
-            color: Theme.dimForeground
+            color: root.ink.dimForeground
             font.family: Theme.fontFamily
             font.pixelSize: Theme.font.caption
             objectName: "chipKey"
@@ -108,12 +125,13 @@ Rectangle {
             id: label
 
             anchors.verticalCenter: parent.verticalCenter
+            // A caller's colour is one of the window's roles: the ground's of the same (C30 F3).
             color: {
                 if (root.warn)
-                    return root.warnColor;
+                    return root.ink.of(root.warnColor);
                 if (root.selected)
-                    return root.tone.a > 0 ? root.tone : Theme.brightForeground;
-                return root.toggle ? Theme.dimForeground : Theme.foreground;
+                    return root.tone.a > 0 ? root.ink.of(root.tone) : root.ink.brightForeground;
+                return root.toggle ? root.ink.dimForeground : root.ink.foreground;
             }
 
             font.family: Theme.fontFamily
@@ -135,7 +153,7 @@ Rectangle {
 
         Text {
             anchors.verticalCenter: parent.verticalCenter
-            color: Theme.dimForeground
+            color: root.ink.dimForeground
             font.family: Theme.fontFamily
             font.features: {
                 "tnum": 1
