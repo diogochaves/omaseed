@@ -282,15 +282,15 @@ Rectangle {
         Keys.onEnterPressed: event => root._onEnter(event)
     }
 
-    Text {
+    // A glyph slot, so a skin's icon for the hint (Glyphs.search) draws as one (#171).
+    Glyph {
         id: hintText
 
         anchors.left: parent.left
         anchors.leftMargin: Theme.space(10)
         anchors.verticalCenter: parent.verticalCenter
         color: root.ink.dimForeground
-        font.family: Theme.fontFamily
-        font.pixelSize: Theme.font.body
+        pixelSize: Theme.font.body
         text: root.hint
         visible: root.hint.length > 0
     }

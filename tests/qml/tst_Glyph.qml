@@ -44,4 +44,16 @@ TestCase {
         compare(glyph.implicitWidth, 18);
         compare(glyph.implicitHeight, 18);
     }
+
+    // #171: an `ms:` glyph draws its ligature in the skin's icon font.
+    function test_a_ligature_draws_in_the_icon_font() {
+        const glyph = createTemporaryObject(glyphComponent, testCase, {
+                                                "text": "ms:add"
+                                            });
+        verify(glyph.isLigature);
+        verify(!glyph.isIcon);
+        const label = glyph.children[0];
+        compare(label.text, "add");
+        compare(label.font.family, Theme.iconsFamily);
+    }
 }
