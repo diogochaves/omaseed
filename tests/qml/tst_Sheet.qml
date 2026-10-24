@@ -170,9 +170,19 @@ TestCase {
     // ---- geometry ---------------------------------------------------------------------
     function test_the_panel_is_opaque_with_a_one_pixel_accent_edge() {
         const sheet = createTemporaryObject(plainSheetComponent, testCase);
-        compare(sheet.panel.color, Theme.background);
-        compare(sheet.panel.border.color, Theme.accent);
-        compare(sheet.panel.border.width, 1);
+        // The skin's Plate draws it (#171): Omarchy's is a rectangle.
+        const plate = findChild(sheet, "sheetPlate");
+        compare(plate.fill, Theme.background);
+        compare(plate.edgeColor, Theme.edgeColor);
+        compare(plate.edgeWidth, Theme.edgeWidth);
+        compare(plate.height, sheet.panel.height);
+        if (Theme.skin.name === "omarchy") {
+            compare(plate.edgeColor, Theme.accent);
+            compare(plate.edgeWidth, 1);
+            compare(plate.face.objectName, "plateFaceOmarchy");
+        } else {
+            compare(plate.face.objectName, "plateFaceConsole");
+        }
     }
 
     function test_the_panel_is_as_wide_as_sheet_width_and_centred() {
@@ -222,8 +232,8 @@ TestCase {
         const sheet = createTemporaryObject(formSheetComponent, testCase);
         sheet.open();
         waitForRendering(sheet);
-        compare(sheet.panel.border.width, Theme.sheetEdge);
-        compare(sheet.panel.radius, Theme.sheetRadius);
+        compare(findChild(sheet, "sheetPlate").edgeWidth, Theme.sheetEdge);
+        compare(findChild(sheet, "sheetPlate").radius, Theme.sheetRadius);
         const title = findChild(sheet, "sheetTitle");
         const at = title.mapToItem(sheet.panel, 0, 0);
         compare(Math.round(at.x), Theme.sheetEdge + Theme.sheetInset);

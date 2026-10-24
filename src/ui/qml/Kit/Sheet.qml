@@ -418,7 +418,7 @@ Item {
         }
     }
 
-    Rectangle {
+    Item {
         id: panel
 
         /// The head's room for the title, its trailer and a subtitle beside them.
@@ -434,17 +434,23 @@ Item {
 
         Accessible.name: root.accessibleName
         Accessible.role: Accessible.Dialog
-        border.color: Theme.edgeColor
-        border.width: Theme.sheetEdge
-        color: Theme.background
         height: root.inline ? implicitHeight
                 : Math.min(implicitHeight, Math.max(0, root.height - 2 * root._margin))
         implicitHeight: layout.implicitHeight + 2 * Theme.sheetEdge
-        radius: Theme.sheetRadius
         width: Math.min(root.sheetWidth, root.inline ? root.sheetWidth
                 : Math.max(0, root.width - 2 * root._margin))
         x: root.inline ? 0 : Math.round((root.width - width) / 2)
         y: root.inline ? 0 : Math.round((root.height - height) / 2)
+
+        // The sheet's ground and edge (board 46 `.sheet`), drawn by the skin's Plate face.
+        Plate {
+            anchors.fill: parent
+            edgeColor: Theme.edgeColor
+            edgeWidth: Theme.sheetEdge
+            fill: Theme.background
+            objectName: "sheetPlate"
+            radius: Theme.sheetRadius
+        }
 
         ColumnLayout {
             id: layout

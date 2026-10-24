@@ -171,12 +171,12 @@ Item {
             anchors.verticalCenter: parent.verticalCenter
             spacing: Theme.space(6)
 
-            Rectangle {
+            Lamp {
                 Layout.preferredHeight: Theme.space(7)
                 Layout.preferredWidth: Theme.space(7)
                 color: root.connected ? selectBox.ink.green : selectBox.ink.red
                 objectName: "serverSelectDot"
-                radius: width / 2
+                size: Theme.space(7)
             }
 
             Label {

@@ -77,5 +77,11 @@
     "files": "ファイル",
     "swarm": "スウォーム"
   },
-  "glow": "clean"
+  "glow": "clean",
+  "faces": {
+    "Plate": "Plate.qml",
+    "SelectionMark": "SelectionMark.qml",
+    "Meter": "Meter.qml",
+    "Lamp": "Lamp.qml"
+  }
 }
