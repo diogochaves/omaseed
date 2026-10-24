@@ -45,3 +45,13 @@ struct ThemeGroundsForeign
     QML_NAMED_ELEMENT(ThemeGrounds)
     QML_UNCREATABLE("ThemeGrounds is the type of Theme.on; it is not created from QML.")
 };
+
+/// The type behind `Theme.skin` (#171): the skin's tokens and why it is Omarchy's when another
+/// was asked for. Never created from QML.
+struct ThemeSkinForeign
+{
+    Q_GADGET
+    QML_FOREIGN(omaseed::integration::ThemeSkin)
+    QML_NAMED_ELEMENT(ThemeSkin)
+    QML_UNCREATABLE("ThemeSkin is the type of Theme.skin; it is not created from QML.")
+};

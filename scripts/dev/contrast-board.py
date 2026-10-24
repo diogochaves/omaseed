@@ -6,10 +6,12 @@ every ground it is painted on (docs/DECISIONS.md C30 F7).
     scripts/dev/contrast-board.py --before OLD_BIN --after NEW_BIN [--out FILE]
                                   [--before-label TEXT] [--after-label TEXT]
                                   [--themes-root DIR]...
-    scripts/dev/contrast-board.py --check BIN [--themes-root DIR]... [--json OUT] [--quiet]
+    scripts/dev/contrast-board.py --check BIN [--themes-root DIR]... [--skins LIST]
+                                  [--json OUT] [--quiet]
 
 --check reads each theme's `grounds` (Theme.on: the window, every fill, every tint) from
-`BIN --theme-roles` and measures each text role on each ground, plus the key badge's
+`BIN --theme-roles --skin SKIN`, once per skin in --skins (default omarchy,console: #171, so a
+skin's ground that fails in one theme fails the check), and measures each text role on each ground, plus the key badge's
 background on accent; it prints the failing pairs and exits 1 when there is one. A build from
 before C30 prints no grounds: the check then paints its window roles on each fill, as that
 build did, which is board 50's "today".
@@ -108,7 +110,7 @@ def themes(roots):
     return dict(sorted(found.items()))
 
 
-def roles_for(binary, theme_dir, name):
+def roles_for(binary, theme_dir, name, skin=None):
     with tempfile.TemporaryDirectory(prefix="omaseed-contrast-board-") as tmp:
         cur = os.path.join(tmp, "state", "omarchy", "current")
         os.makedirs(cur)
@@ -119,7 +121,8 @@ def roles_for(binary, theme_dir, name):
         os.makedirs(cfg)
         env = dict(os.environ, XDG_STATE_HOME=os.path.join(tmp, "state"), XDG_CONFIG_HOME=cfg,
                    QT_QPA_PLATFORM="offscreen")
-        out = subprocess.run([os.path.abspath(binary), "--theme-roles"], env=env,
+        args = [os.path.abspath(binary), "--theme-roles"] + (["--skin", skin] if skin else [])
+        out = subprocess.run(args, env=env,
                              capture_output=True, text=True, timeout=60, check=False)
         if out.returncode != 0:
             sys.exit(f"contrast-board: {binary} --theme-roles exited {out.returncode} on {name}: "
@@ -504,7 +507,13 @@ def check(data):
 
 
 def check_main(a, found):
-    data = {name: roles_for(a.check, d, name) for name, d in found.items()}
+    skins = [s for s in a.skins.split(",") if s]
+    data = {f"{skin} · {name}": roles_for(a.check, d, name, skin)
+            for skin in skins for name, d in found.items()}
+    for key, roles in data.items():
+        if roles.get("skin", "omarchy") != key.split(" · ")[0]:
+            sys.exit(f"contrast-board: {key} drew the {roles.get('skin')} skin "
+                     f"({roles.get('skinReason', 'no reason given')})")
     res = check(data)
     by_ground = {}
     for theme, ground, role, q in res["fails"]:
@@ -518,7 +527,7 @@ def check_main(a, found):
     fills = ("fillIdle", "fillHover", "fillSelected", "fillSelectedCursor", "fillPressed")
     capped = {t: v for t, v in caps.items()
               if any(abs(data[t]["alphas"].get(f, 0) - v) < 1e-9 for f in fills)}
-    print(f"contrast-board: {res['themes']} themes, {res['pairs']} pairs, "
+    print(f"contrast-board: {len(skins)} skins × {len(found)} themes, {res['pairs']} pairs, "
           f"{len(res['fails'])} under {FLOOR:g}:1; caption under a selected row's text, median "
           f"{res['sep']:.2f}:1 (closest {res['sep_min']:.2f}); fills held: "
           + (", ".join(f"{t} {v:g}" for t, v in sorted(capped.items())) or "none"))
@@ -540,6 +549,8 @@ def main(argv=None):
     ap.add_argument("--out", default=os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                                   "..", "..", "docs", "38-contrast-floor.html"))
     ap.add_argument("--themes-root", action="append", default=[])
+    ap.add_argument("--skins", default="omarchy,console",
+                    help="--check: the skins to check, comma-separated")
     a = ap.parse_args(argv)
     found = themes(a.themes_root or DEFAULT_ROOTS)
     if not found:

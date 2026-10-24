@@ -100,6 +100,8 @@ A box is a new install, so omaseed starts on the rows display there (DECISIONS C
 walk pins its display with `OMASEED_DISPLAY=rows|table|overview` (each scope starts on it;
 app-box.sh passes it through): the walks that read the table pin the table, the swarm walk adds a
 rows pass and ends on the shelves, and ctest pins the table for every test.
+`OMASEED_SKIN=omarchy|console` picks the skin the same way (Omarchy's when unset; #171), and
+`omaseed --theme-roles --skin NAME` prints the grounds as that skin paints them.
 
 Anything that can open a window, reach the session D-Bus or the keyring runs in an omabox or
 through `ctest`, never straight on the desktop. Test binaries force Qt's offscreen platform

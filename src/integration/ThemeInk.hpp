@@ -77,6 +77,9 @@ public:
     qreal alpha() const { return m_alpha; }
     QColor fill() const { return m_fill; }
     QColor ground() const { return m_ground; }
+    /// The opaque ground `fill` is painted over: the window's background, or the ground of the
+    /// one a skin paints it over (`over` in its recipe).
+    QColor under() const { return m_under; }
     QColor role(Role role) const { return m_roles[role]; }
     const Roles &roles() const { return m_roles; }
 
@@ -119,6 +122,7 @@ private:
     qreal m_alpha = 0;
     QColor m_fill;
     QColor m_ground;
+    QColor m_under;
     Roles m_roles;
 };
 
@@ -139,6 +143,10 @@ private:
 ///   `idle`: a notice's details, a chip in a block), `blockHover` (fillHover over `idle`: a
 ///   picker's row under the pointer or the keyboard), `highlight` (accent at highlightAlpha
 ///   over `idle`: the selected text of a rename in place).
+/// - The skin's own (#171, the console skin's design note): `panel` (a plate's ground: a
+///   sheet, a menu; the window's own in Omarchy's skin) and `picked` (a torrent picked among
+///   several). A skin may paint any ground but the window its own way, as a recipe of tint,
+///   alpha and the ground it lies over (SkinReader), and C30's floor holds on each.
 class ThemeGrounds : public QObject
 {
     Q_OBJECT
@@ -158,6 +166,8 @@ class ThemeGrounds : public QObject
     Q_PROPERTY(omaseed::integration::ThemeInk *blockIdle READ blockIdle CONSTANT FINAL)
     Q_PROPERTY(omaseed::integration::ThemeInk *blockHover READ blockHover CONSTANT FINAL)
     Q_PROPERTY(omaseed::integration::ThemeInk *highlight READ highlight CONSTANT FINAL)
+    Q_PROPERTY(omaseed::integration::ThemeInk *panel READ panel CONSTANT FINAL)
+    Q_PROPERTY(omaseed::integration::ThemeInk *picked READ picked CONSTANT FINAL)
 
 public:
     explicit ThemeGrounds(QObject *parent = nullptr);
@@ -177,9 +187,13 @@ public:
     ThemeInk *blockIdle() const { return m_blockIdle; }
     ThemeInk *blockHover() const { return m_blockHover; }
     ThemeInk *highlight() const { return m_highlight; }
+    ThemeInk *panel() const { return m_panel; }
+    ThemeInk *picked() const { return m_picked; }
 
     /// Every ground, window first: what `--theme-roles` prints and the contrast tests walk.
     QList<ThemeInk *> all() const;
+    /// The ground of that name, nullptr for none.
+    ThemeInk *byName(const QString &name) const;
 
 private:
     ThemeInk *m_window;
@@ -197,6 +211,8 @@ private:
     ThemeInk *m_blockIdle;
     ThemeInk *m_blockHover;
     ThemeInk *m_highlight;
+    ThemeInk *m_panel;
+    ThemeInk *m_picked;
 };
 
 } // namespace omaseed::integration

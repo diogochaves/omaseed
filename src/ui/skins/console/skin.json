@@ -1,0 +1,81 @@
+{
+  "skin": "console",
+  "version": 1,
+  "roles": { "accent": "accent", "signal": "cyan", "alert": "red", "warn": "yellow" },
+  "grounds": {
+    "panel": { "tint": "lighterBackground", "alpha": 0.45, "over": "window" },
+    "hover": { "tint": "lighterBackground", "alpha": 0.45, "over": "window" },
+    "cursor": { "tint": "lighterBackground", "alpha": 1, "over": "window" },
+    "selected": { "tint": "lighterBackground", "alpha": 1, "over": "window" },
+    "selectedCursor": { "tint": "lighterBackground", "alpha": 1, "over": "window" },
+    "picked": { "tint": "accent", "alpha": 0.2, "over": "window" },
+    "ticked": { "tint": "accent", "alpha": 0.2, "over": "window" },
+    "warning": { "tint": "warn", "alpha": 0.09, "over": "window" }
+  },
+  "line": {
+    "hair": 1, "hairRole": "foreground", "hairAlpha": 0.21, "faintAlpha": 0.1,
+    "lit": 2, "litRole": "accent",
+    "edge": 1, "edgeRole": "accent",
+    "menuEdge": 1, "menuEdgeRole": "hair"
+  },
+  "cut": { "panel": 16, "key": 10 },
+  "radius": 0,
+  "font": {
+    "label": "Chakra Petch",
+    "value": "Share Tech Mono",
+    "kana": "Noto Sans CJK JP",
+    "icons": "Material Symbols Sharp"
+  },
+  "label": { "case": "upper", "track": 0.16, "trackTitle": 0.22, "weight": 600, "kana": true },
+  "numerals": "pad",
+  "density": {
+    "railWidth": 222,
+    "railFoldedWidth": 52,
+    "railHeadHeight": 58,
+    "railMarkSize": 22,
+    "railMarkGap": 10,
+    "titleBarHeight": 58,
+    "titleBarInsetStart": 18,
+    "titleBarInsetEnd": 14,
+    "titleBarGap": 10,
+    "titleBarFindWidth": 188
+  },
+  "glyphs": {
+    "questionNeedsYou": "ms:error",
+    "questionArriving": "ms:download",
+    "questionLanded": "ms:inventory_2",
+    "questionGivingBack": "ms:upload",
+    "questionResting": "ms:pause",
+    "add": "ms:add",
+    "category": "ms:category",
+    "folder": "ms:folder_open",
+    "tracker": "ms:radar",
+    "location": "ms:drive_file_move",
+    "chevronDown": "ms:expand_more",
+    "search": "ms:search",
+    "factWarn": "ms:warning"
+  },
+  "labels": {
+    "library": "ライブラリ",
+    "needsYou": "要対応",
+    "arriving": "受信中",
+    "landed": "完了",
+    "givingBack": "シード中",
+    "resting": "停止中",
+    "categories": "カテゴリ",
+    "folders": "フォルダ",
+    "trackers": "トラッカー",
+    "servers": "サーバー",
+    "search": "検索",
+    "station": "ステーション",
+    "add": "追加",
+    "move": "移動",
+    "settings": "設定",
+    "appearance": "外観",
+    "pieces": "ピース",
+    "story": "履歴",
+    "files": "ファイル",
+    "swarm": "スウォーム"
+  },
+  "glow": "clean"
+}

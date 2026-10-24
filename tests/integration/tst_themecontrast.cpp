@@ -1,3 +1,4 @@
+#include "integration/SkinReader.hpp"
 #include "integration/Theme.hpp"
 #include "integration/ThemeReader.hpp"
 
@@ -11,6 +12,7 @@
 #include <algorithm>
 #include <memory>
 
+using omaseed::integration::SkinReader;
 using omaseed::integration::Theme;
 using omaseed::integration::ThemeInk;
 using omaseed::integration::ThemeReader;
@@ -48,11 +50,13 @@ QStringList fixtureThemeNames()
 }
 
 /// A Theme on one fixture theme and shell.toml, read the way the app reads them: from a
-/// throwaway `omarchy/current` with no user overlay.
+/// throwaway `omarchy/current` with no user overlay, drawn in one skin (#171).
 class FixtureTheme
 {
 public:
-    FixtureTheme(const QString &name, const QByteArray &shell)
+    FixtureTheme(const QString &name,
+                 const QByteArray &shell,
+                 const QString &skin = QStringLiteral("omarchy"))
     {
         const QString current = m_dir.filePath(QStringLiteral("current"));
         QDir().mkpath(current + QStringLiteral("/theme"));
@@ -64,6 +68,7 @@ public:
         m_reader = std::make_unique<ThemeReader>(
             ThemeReader::Paths{current, m_dir.filePath(QStringLiteral("config"))});
         m_theme = std::make_unique<Theme>(m_reader.get(), Theme::Hyprland{QString(), QString()});
+        m_theme->setSkin(skin);
     }
 
     Theme &theme() { return *m_theme; }
@@ -86,14 +91,19 @@ private:
     std::unique_ptr<Theme> m_theme;
 };
 
+/// Every skin × every fixture theme × every fill set: a skin's ground that fails the floor
+/// in one theme is a failing row (the console skin's design note, "Tests").
 void addFixtureRows()
 {
+    QTest::addColumn<QString>("skin");
     QTest::addColumn<QString>("name");
     QTest::addColumn<QByteArray>("shell");
-    for (const QString &name : fixtureThemeNames())
-        for (const auto &shell : kShells)
-            QTest::newRow(qPrintable(name + QStringLiteral(" · ") + QLatin1String(shell[0])))
-                << name << QByteArray(shell[1]);
+    for (const QString &skin : SkinReader::builtInNames())
+        for (const QString &name : fixtureThemeNames())
+            for (const auto &shell : kShells)
+                QTest::newRow(qPrintable(skin + QStringLiteral(" · ") + name +
+                                         QStringLiteral(" · ") + QLatin1String(shell[0])))
+                    << skin << name << QByteArray(shell[1]);
 }
 
 } // namespace
@@ -126,6 +136,12 @@ private slots:
     void captionsStayCaptionsOnASelectedRow();
     void theWindowGroundIsTheWindowsRoles();
     void groundsFollowAThemeChange();
+
+    // #171: the skin's grounds.
+    void omarchysSkinPaintsTheGroundsAsBefore_data();
+    void omarchysSkinPaintsTheGroundsAsBefore();
+    void consolesGroundsAreItsOwn();
+    void aSkinChangeRepaintsTheGrounds();
 };
 
 void TestThemeContrast::theFloorIsWcagAaForNormalText()
@@ -260,20 +276,25 @@ void TestThemeContrast::everyRoleReadsOnEveryGround_data()
 /// against the ground it is painted on, and the key badge's background reads on its accent.
 void TestThemeContrast::everyRoleReadsOnEveryGround()
 {
+    QFETCH(QString, skin);
     QFETCH(QString, name);
     QFETCH(QByteArray, shell);
-    FixtureTheme fixture(name, shell);
+    FixtureTheme fixture(name, shell, skin);
     const Theme &theme = fixture.theme();
     QCOMPARE(theme.themeName(), name);
+    QCOMPARE(theme.skin()->name(), skin);
 
     const QList<ThemeInk *> grounds = theme.on()->all();
-    QCOMPARE(grounds.size(), 15);
+    QCOMPARE(grounds.size(), SkinReader::groundNames().size() + 1); // and the window
+    const auto recipes = SkinReader::groundsOf(theme.skin()->skin());
     QStringList failing;
     for (const ThemeInk *ink : grounds) {
-        // A fill inside a block is painted over that block's ground.
-        const bool inBlock = ink == theme.on()->blockIdle() || ink == theme.on()->blockHover() ||
-                             ink == theme.on()->highlight();
-        const QColor under = inBlock ? theme.on()->idle()->ground() : theme.background();
+        // A fill is painted over the ground its recipe names: the window's, or a block's.
+        const QString over = recipes.value(ink->name()).over;
+        const ThemeInk *block = theme.on()->byName(over);
+        const QColor under =
+            block && ink != theme.on()->window() ? block->ground() : theme.background();
+        QCOMPARE(ink->under(), under);
         QCOMPARE(ink->ground(), ThemeInk::over(ink->fill(), under, ink->alpha()));
         QCOMPARE(ink->ground().alpha(), 255);
         for (int role = 0; role < ThemeInk::RoleCount; ++role) {
@@ -302,9 +323,10 @@ void TestThemeContrast::eachRoleGetsTheLeastLiftOnItsGround_data()
 /// text as the ground allows.
 void TestThemeContrast::eachRoleGetsTheLeastLiftOnItsGround()
 {
+    QFETCH(QString, skin);
     QFETCH(QString, name);
     QFETCH(QByteArray, shell);
-    FixtureTheme fixture(name, shell);
+    FixtureTheme fixture(name, shell, skin);
     const Theme &theme = fixture.theme();
     const ThemeInk *window = theme.on()->window();
     for (const ThemeInk *ink : theme.on()->all()) {
@@ -413,6 +435,102 @@ void TestThemeContrast::groundsFollowAThemeChange()
 
     fixture.reader().reload(); // nothing moved: nothing repaints
     QCOMPARE(spy.count(), 1);
+}
+
+void TestThemeContrast::omarchysSkinPaintsTheGroundsAsBefore_data()
+{
+    QTest::addColumn<QString>("name");
+    QTest::addColumn<QByteArray>("shell");
+    for (const QString &name : fixtureThemeNames())
+        for (const auto &shell : kShells)
+            QTest::newRow(qPrintable(name + QStringLiteral(" · ") + QLatin1String(shell[0])))
+                << name << QByteArray(shell[1]);
+}
+
+/// #171 changes nothing under Omarchy: each of C30's grounds is what Theme painted before
+/// skins, tint for tint and alpha for alpha, the panel the window and picked board 46's 9 %.
+void TestThemeContrast::omarchysSkinPaintsTheGroundsAsBefore()
+{
+    QFETCH(QString, name);
+    QFETCH(QByteArray, shell);
+    FixtureTheme fixture(name, shell);
+    const Theme &t = fixture.theme();
+    QCOMPARE(t.skin()->name(), QStringLiteral("omarchy"));
+    const ThemeInk::Roles window = t.on()->window()->roles();
+    const QColor bg = t.background();
+    const auto expect =
+        [&](const ThemeInk *ink, const QColor &tint, qreal alpha, const QColor &under) {
+            ThemeInk before(ink->name());
+            before.resolve(tint, alpha, under, window);
+            QVERIFY2(before.alpha() == ink->alpha() && before.fill() == ink->fill() &&
+                         before.ground() == ink->ground() && before.roles() == ink->roles(),
+                     qPrintable(ink->name()));
+        };
+    const auto *on = t.on();
+    expect(on->idle(), t.foreground(), t.fillIdle(), bg);
+    expect(on->hover(), t.foreground(), t.fillHover(), bg);
+    expect(on->cursor(), t.foreground(), t.fillHover(), bg);
+    expect(on->selected(), t.foreground(), t.fillSelected(), bg);
+    expect(on->selectedCursor(), t.foreground(), t.fillSelectedCursor(), bg);
+    expect(on->pressed(), t.foreground(), t.fillPressed(), bg);
+    expect(on->warning(), t.yellow(), Theme::warningTintAlpha(), bg);
+    expect(on->attention(), t.red(), Theme::attentionTintAlpha(), bg);
+    expect(on->danger(), t.red(), t.fillSelected(), bg);
+    expect(on->ticked(), t.accent(), t.fillPressed(), bg);
+    expect(on->accentIdle(), t.accent(), t.fillIdle(), bg);
+    const QColor block = on->idle()->ground();
+    expect(on->blockIdle(), t.foreground(), t.fillIdle(), block);
+    expect(on->blockHover(), t.foreground(), t.fillHover(), block);
+    expect(on->highlight(), t.accent(), Theme::highlightAlpha(), block);
+    expect(on->panel(), t.foreground(), 0, bg);
+    expect(on->picked(), t.accent(), Theme::pickedTintAlpha(), bg);
+    QCOMPARE(on->panel()->ground(), bg);
+}
+
+/// Board 46's `.sk-con` tiers, as Theme resolves them: the panel is the lighter background at
+/// 45 % over the window, a selected row the lighter background, a picked one the accent at
+/// 20 %; what Console leaves alone is Omarchy's.
+void TestThemeContrast::consolesGroundsAreItsOwn()
+{
+    FixtureTheme omarchy(QStringLiteral("tokyo-night"), QByteArray());
+    FixtureTheme console(QStringLiteral("tokyo-night"), QByteArray(), QStringLiteral("console"));
+    const Theme &t = console.theme();
+    QCOMPARE(t.skin()->name(), QStringLiteral("console"));
+    QCOMPARE(t.on()->panel()->ground(),
+             ThemeInk::over(t.lighterBackground(), t.background(), 0.45));
+    QCOMPARE(t.on()->hover()->ground(), t.on()->panel()->ground());
+    QCOMPARE(t.on()->selected()->ground(), t.lighterBackground());
+    QCOMPARE(t.on()->cursor()->ground(), t.lighterBackground());
+    QCOMPARE(t.on()->picked()->ground(), ThemeInk::over(t.accent(), t.background(), 0.2));
+    QCOMPARE(t.on()->pressed()->ground(), omarchy.theme().on()->pressed()->ground());
+    QCOMPARE(t.on()->idle()->ground(), omarchy.theme().on()->idle()->ground());
+    QVERIFY(t.on()->selected()->ground() != omarchy.theme().on()->selected()->ground());
+}
+
+void TestThemeContrast::aSkinChangeRepaintsTheGrounds()
+{
+    FixtureTheme fixture(QStringLiteral("tokyo-night"), QByteArray());
+    Theme &theme = fixture.theme();
+    const ThemeInk *panel = theme.on()->panel();
+    QSignalSpy themeChanged(&theme, &Theme::changed);
+    QSignalSpy panelChanged(panel, &ThemeInk::changed);
+    QSignalSpy pressedChanged(theme.on()->pressed(), &ThemeInk::changed);
+
+    theme.setSkin(QStringLiteral("console"));
+    QCOMPARE(themeChanged.count(), 1);
+    QCOMPARE(panelChanged.count(), 1);
+    QCOMPARE(pressedChanged.count(), 0); // Console paints it as Omarchy does
+    QCOMPARE(theme.on()->panel(), panel);
+    QVERIFY(panel->ground() != theme.background());
+
+    theme.setSkin(QStringLiteral("console")); // nothing moved
+    QCOMPARE(themeChanged.count(), 1);
+
+    theme.setSkin(QStringLiteral("neon")); // no such skin: Omarchy's, with the reason
+    QCOMPARE(theme.skin()->name(), QStringLiteral("omarchy"));
+    QCOMPARE(theme.skin()->reason(), QStringLiteral("unknown skin"));
+    QCOMPARE(panel->ground(), theme.background());
+    QCOMPARE(themeChanged.count(), 2);
 }
 
 QTEST_MAIN(TestThemeContrast)

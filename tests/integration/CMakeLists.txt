@@ -28,6 +28,12 @@ omaseed_add_test(tst_themereader
     LIBRARIES omaseed::integration
 )
 
+# #171: a skin file read and checked, all or nothing (the console skin's design note).
+omaseed_add_test(tst_skinreader
+    SOURCES tst_skinreader.cpp
+    LIBRARIES omaseed::integration
+)
+
 omaseed_add_test(tst_themeresolver
     SOURCES tst_themeresolver.cpp
     LIBRARIES omaseed::integration

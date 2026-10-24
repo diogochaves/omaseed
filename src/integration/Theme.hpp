@@ -6,6 +6,7 @@
 #include <QProcess>
 #include <QString>
 
+#include "integration/SkinReader.hpp"
 #include "integration/ThemeInk.hpp"
 
 #include <functional>
@@ -162,6 +163,11 @@ class Theme : public QObject
     /// window's own roles above are `Theme.on.window`'s. See ThemeInk and ThemeGrounds.
     Q_PROPERTY(omaseed::integration::ThemeGrounds *on READ on CONSTANT FINAL)
 
+    // ---- the skin (#171, the console skin's design note) ------------------------------
+    /// The skin Theme draws: its tokens (`Theme.skin.n("titleBarHeight", …)`) and why it is
+    /// Omarchy's when another was asked for. Its grounds are already in `on`.
+    Q_PROPERTY(omaseed::integration::ThemeSkin *skin READ skin CONSTANT FINAL)
+
     // ---- identity and window -----------------------------------------------------------
     Q_PROPERTY(QString mode READ mode NOTIFY changed FINAL)
     Q_PROPERTY(QString themeName READ themeName NOTIFY changed FINAL)
@@ -241,7 +247,22 @@ public:
     static constexpr qreal warningTintAlpha() { return 0.08; }
     static constexpr qreal attentionTintAlpha() { return 0.07; }
     static constexpr qreal highlightAlpha() { return 0.35; }
+    /// A torrent picked among several in Omarchy's skin: board 46's `.sk-oma .row.picked`,
+    /// the accent at 9 % (`Theme.on.picked`).
+    static constexpr qreal pickedTintAlpha() { return 0.09; }
     ThemeGrounds *on() const { return m_on; }
+    ThemeSkin *skin() const { return m_skin; }
+
+    /// Draw the built-in skin `name` ("omarchy", "console"): its grounds are resolved at once
+    /// and changed() sent. A name that is no skin draws Omarchy's, with the reason in
+    /// `skin.reason`. Theme starts on SkinReader::requestedName() (`OMASEED_SKIN`).
+    void setSkin(const QString &name);
+    /// The alpha Omarchy's skin gives a ground, what a recipe's `"shell"` means: shell.toml's
+    /// fill (after C30 F6's cap) for a fill, the spec's for a tint, 0 for the panel.
+    qreal shellAlpha(const QString &ground) const;
+    /// A role a skin names, as this theme has it: a theme role (`lighterBackground`) or one of
+    /// the skin's (`signal`, through `skin.roles`). Invalid for no role.
+    QColor skinColor(const QString &role) const;
 
     QString mode() const { return m_mode; }
     QString themeName() const { return m_themeName; }
@@ -372,6 +393,7 @@ private:
     qreal m_fillSelectedCursor = kFillSelectedCursor;
     qreal m_fillCap = 1.0;
     ThemeGrounds *m_on = nullptr;
+    ThemeSkin *m_skin = nullptr;
 
     QString m_mode = QStringLiteral("dark");
     QString m_themeName = QStringLiteral("tokyo-night");
