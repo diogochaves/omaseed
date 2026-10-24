@@ -1241,6 +1241,9 @@ TestCase {
     // real launch; here TestTheme does, and the skin repaints at once.
     function test_the_skin_row_picks_the_skin() {
         compare(App.skinChoice, "omarchy");
+        // The suite's Console run pins OMASEED_SKIN, which wins over the choice: then the
+        // choice still saves, and the skin drawn stays the pinned one.
+        const pinned = Theme.skin.requested !== App.skinChoice;
         const modal = createTemporaryObject(modalComponent, testCase);
         modal.open();
         keyClick(Qt.Key_5);
@@ -1269,15 +1272,17 @@ TestCase {
         const selected = Theme.on.selected.fill.a;
         TestTheme.setSkinChoice(App.skinChoice);
         compare(Theme.skin.name, "console");
-        verify(Theme.on.selected.fill.a !== selected, "selected kept Omarchy's ground");
+        if (!pinned)
+            verify(Theme.on.selected.fill.a !== selected, "selected kept Omarchy's ground");
 
         // Follow the desktop: the harness's desktop has no console skin, so Omarchy, and
         // the line says so.
         mouseClick(testCase.childNamed(modal, "skinChip-desktop"));
         compare(App.skinChoice, "desktop");
         TestTheme.setSkinChoice(App.skinChoice);
-        compare(Theme.skin.name, "omarchy");
-        verify(row.description.indexOf("Now: Omarchy") >= 0, row.description);
+        compare(Theme.skin.name, pinned ? "console" : "omarchy");
+        verify(row.description.indexOf(pinned ? "Now: Console" : "Now: Omarchy") >= 0,
+               row.description);
 
         modal.activateRow(); // wraps round to Omarchy
         compare(App.skinChoice, "omarchy");

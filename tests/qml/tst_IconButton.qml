@@ -53,7 +53,7 @@ TestCase {
                                                  "glyph": "+",
                                                  "hasCursor": true
                                              });
-        fuzzyCompare(button.color.a, Theme.fill(Theme.fillHover).a, 0.01);
+        fuzzyCompare(button.color.a, Theme.on.hover.fill.a, 0.01);
     }
 
     function test_selected_fills_at_the_selected_alpha() {
@@ -61,7 +61,7 @@ TestCase {
                                                  "glyph": "+",
                                                  "selected": true
                                              });
-        fuzzyCompare(button.color.a, Theme.fill(Theme.fillSelected).a, 0.01);
+        fuzzyCompare(button.color.a, Theme.on.selected.fill.a, 0.01);
     }
 
     function test_primary_border_is_accent() {

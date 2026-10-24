@@ -231,7 +231,9 @@ TestCase {
         const bar = makeBar();
         waitForRendering(bar);
         compare(Theme.actionBarHeight, Theme.statusLineHeight);
-        compare(bar.color, Theme.fill(Theme.actionBarFill));
+        compare(bar.color, Theme.actionBarGround.fill);
+        if (Theme.skin.name === "omarchy")
+            compare(bar.color, Theme.fill(Theme.actionBarFill));
         compare(bar.radius, 0);
         compare(bar.border.width, 0);
         const count = findChild(bar, "selectionCount");

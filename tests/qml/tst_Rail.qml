@@ -570,8 +570,11 @@ TestCase {
 
     function test_width_is_the_spec_column() {
         const rail = createTemporaryObject(railComponent, testCase);
-        compare(rail.width, Theme.space(200));
-        compare(rail.implicitWidth, Theme.space(200));
+        // The skin's rail (#171): Omarchy's is the spec's 200 px.
+        compare(rail.width, Theme.railWidth);
+        compare(rail.implicitWidth, Theme.railWidth);
+        if (Theme.skin.name === "omarchy")
+            compare(rail.width, Theme.space(200));
     }
 
     function test_row_height_is_the_rail_row_height() {

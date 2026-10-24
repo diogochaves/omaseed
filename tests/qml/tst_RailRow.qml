@@ -45,7 +45,7 @@ TestCase {
                                               "text": "downloading",
                                               "selected": true
                                           });
-        fuzzyCompare(row.color.a, Theme.fill(Theme.fillSelected).a, 0.01);
+        fuzzyCompare(row.color.a, Theme.on.selected.fill.a, 0.01);
     }
 
     function test_has_cursor_fills_at_the_hover_alpha() {
@@ -53,7 +53,7 @@ TestCase {
                                               "text": "downloading",
                                               "hasCursor": true
                                           });
-        fuzzyCompare(row.color.a, Theme.fill(Theme.fillHover).a, 0.01);
+        fuzzyCompare(row.color.a, Theme.on.hover.fill.a, 0.01);
     }
 
     function test_count_of_minus_one_hides_the_count() {

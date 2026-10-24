@@ -37,7 +37,7 @@ TestCase {
         // Still a caption: not the row's main text.
         verify(!Qt.colorEqual(ink.dimForeground, Theme.on.selected.brightForeground));
         compare(ink.stateStopped, Theme.on.selected.dimForeground);
-        compare(ink.fill, Theme.fill(Theme.fillSelected));
+        compare(ink.fill, Theme.on.selected.fill);
     }
 
     // C30 F4: the colours move with the fill's own 120 ms change, not at once.

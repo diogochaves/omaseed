@@ -35,7 +35,7 @@ TestCase {
         const row = createTemporaryObject(rowComponent, testCase, {
                                               "selected": true
                                           });
-        fuzzyCompare(row.color.a, Theme.fill(Theme.fillSelected).a, 0.01);
+        fuzzyCompare(row.color.a, Theme.on.selected.fill.a, 0.01);
         compare(row.textColor, Theme.on.selected.brightForeground);
     }
 
@@ -60,7 +60,7 @@ TestCase {
                                               "hovered": true
                                           });
         compare(row.ink.ground, Theme.on.hover);
-        fuzzyCompare(row.color.a, Theme.fill(Theme.fillHover).a, 0.01);
+        fuzzyCompare(row.color.a, Theme.on.hover.fill.a, 0.01);
         compare(row.ink.dimForeground, Theme.on.hover.dimForeground);
     }
 
@@ -68,8 +68,8 @@ TestCase {
         const row = createTemporaryObject(rowComponent, testCase, {
                                               "hasCursor": true
                                           });
-        fuzzyCompare(row.color.a, Theme.fill(Theme.fillHover).a, 0.01);
-        compare(row.border.width, 1);
+        fuzzyCompare(row.color.a, Theme.on.cursor.fill.a, 0.01);
+        compare(row.border.width, Theme.hairWidth);
     }
 
     function test_selected_and_cursor_together_use_the_24_percent_fill() {
@@ -77,7 +77,7 @@ TestCase {
                                               "selected": true,
                                               "hasCursor": true
                                           });
-        fuzzyCompare(row.color.a, Theme.fill(0.24).a, 0.01);
+        fuzzyCompare(row.color.a, Theme.on.selectedCursor.fill.a, 0.01);
     }
 
     function test_content_alias_accepts_cells() {

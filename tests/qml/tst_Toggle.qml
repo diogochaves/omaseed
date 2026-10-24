@@ -50,8 +50,12 @@ TestCase {
                                              });
         const track = findChild(toggle, "toggleTrack");
         verify(track);
-        const on = Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, Theme.fillPressed);
-        tryVerify(() => Qt.colorEqual(track.color, on));
+        // Omarchy's ticked ground; a skin may paint its own (#171).
+        if (Theme.skin.name === "omarchy") {
+            const on = Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, Theme.fillPressed);
+            verify(Qt.colorEqual(Theme.on.ticked.fill, on));
+        }
+        tryVerify(() => Qt.colorEqual(track.color, Theme.on.ticked.fill));
         toggle.checked = false;
         tryVerify(() => Qt.colorEqual(track.color, Theme.fill(Theme.fillIdle)));
     }
