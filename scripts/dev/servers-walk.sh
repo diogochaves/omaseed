@@ -362,7 +362,7 @@ keys l -s 300
 
 # ---- the add sheet names its server and switches (#72, D13, D14) ---------------------------
 keys a -s 1000 ctrl+a -t /home/sbx/sampler.torrent -s 1500
-step "Add sheet on private" "docs/33 A1: the head reads Add torrent to [● private ▾], Public Domain Sampler · … · its size; no server: NAME in the foot; the hints include ctrl+s server; save to's placeholder private's default."
+step "Add sheet on private" "docs/33 A1: the head reads Add torrent to [● private ▾], Public Domain Sampler · … · its size; no server: NAME and no key hints in the foot (C24 H10: ctrl+s is in the ? sheet); save to's placeholder private's default."
 keys ctrl+s -s 800
 step "Server palette over the sheet" "D14: the server palette over the add sheet, the cursor on public."
 keys Return -s 4000
@@ -405,11 +405,11 @@ check "public starts with its own queue limit" test "$(pref public max_active_do
 keys h -s 300 k -s 300 k -s 300 k -s 2500
 step "omaseed's Backup" "D1 a: the head reads Backup · omaseed · on this machine; first a line with an accent rule and an i: omaseed's own: its settings, your 2 servers (no passwords) and their seed history, with a copy of each server's qBittorrent settings. Torrents aren't in it: each server keeps its own. t qBittorrent › Backup › (the link in accent). Back up omaseed's caption ends with private's qBittorrent settings. The footer has t torrents: qBittorrent › Backup."
 keys t -s 1500
-step "t: qBittorrent's Backup, on private" "D1 a, D2 a: qBittorrent › Backup for private, the cursor on Export private's torrents. The scope line: private's own settings and torrents, read from and sent to private only. public has its own: s switch server. The rows: Export private's settings, Import settings into private, Copy settings from another server (public ▾, copy…), Export private's torrents, Import torrents into private. The footer ends in s next server."
+step "t: qBittorrent's Backup, on private" "D1 a, D2 a: qBittorrent › Backup for private, the cursor on Export private's torrents. The scope line: private's own settings and torrents, read from and sent to private only. public has its own: s switch server. The rows: Export private's settings, Import settings into private, Copy settings from another server (public ▾, copy…), Export private's torrents, Import torrents into private. No footer hints (C24 H10 supersedes C11 D4's s next server; the ? sheet has it)."
 
 # The select: `h` to the nav, `1` Speed, `k` onto it.
 keys h -s 300 1 -s 300 k -s 600
-step "The server select" "D3 a: under QBITTORRENT, a bordered select ● private 5.2.3 · s ▾ with the accent edge (the nav's cursor); no section row lit with the cursor. The footer: j k move, tab pane, enter servers, s next server."
+step "The server select" "D3 a: under QBITTORRENT, a bordered select ● private 5.2.3 · s ▾ with the accent edge (the nav's cursor); no section row lit with the cursor. No footer hints (C24 H10)."
 keys Return -s 2500
 step "The server list" "D3 a, D5 a: a list under the select: switch omaseed to; public with a green dot and 1 torrent (probed just now), the cursor on it; private, green, on it ✓; under a hairline, dim: The library and the tray follow, and it becomes the default."
 keys Return -s 2500
