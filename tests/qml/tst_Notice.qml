@@ -56,6 +56,28 @@ TestCase {
         compare(findChild(notice, "noticeRule").color, Theme.red);
     }
 
+    // #146 (board 49 `.notice .fchip`): something of the caller's under the line.
+    function test_an_extra_under_the_line() {
+        const notice = createTemporaryObject(noticeComponent, testCase);
+        verify(!findChild(notice, "noticeExtra").visible);
+        notice.extra = extraComponent;
+        const extra = findChild(notice, "noticeExtra");
+        verify(extra.visible);
+        verify(extra.item !== null);
+        compare(extra.item.objectName, "noticeExtraItem");
+        verify(notice.fullHeight > 0);
+    }
+
+    Component {
+        id: extraComponent
+
+        Rectangle {
+            implicitHeight: 20
+            implicitWidth: 120
+            objectName: "noticeExtraItem"
+        }
+    }
+
     // Board 42 (DECISIONS C15 M10, M16): a folder's move uses the band too.
     function test_a_move_draws_its_sign_progress_and_failures() {
         const notice = createTemporaryObject(noticeComponent, testCase);
