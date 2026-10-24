@@ -316,11 +316,23 @@ void Theme::resolveGrounds()
 void Theme::setSkin(const QString &name)
 {
     const Skin before = m_skin->skin();
+    const int radiusBefore = cornerRadius();
     m_skin->set(SkinReader::builtIn(name), name);
     if (m_skin->skin() == before)
         return;
     resolveGrounds();
     Q_EMIT changed();
+    if (cornerRadius() != radiusBefore)
+        Q_EMIT cornerRadiusChanged();
+}
+
+int Theme::cornerRadius() const
+{
+    // The skin's `radius`: a number of px, or "hyprland" (a string) for the compositor's.
+    const QVariant radius = m_skin->skin().tokens.value(QStringLiteral("radius"));
+    if (radius.typeId() == QMetaType::Int)
+        return radius.toInt();
+    return m_cornerRadius;
 }
 
 void Theme::followSkin()
@@ -464,8 +476,10 @@ void Theme::askHyprland(const QString &option, std::function<void(const QByteArr
 void Theme::applyCorners(const WindowCorners &corners)
 {
     if (corners.radius != m_cornerRadius) {
+        const int before = cornerRadius();
         m_cornerRadius = corners.radius;
-        Q_EMIT cornerRadiusChanged();
+        if (cornerRadius() != before)
+            Q_EMIT cornerRadiusChanged();
     }
     if (corners.edge != m_windowEdge) {
         m_windowEdge = corners.edge;
