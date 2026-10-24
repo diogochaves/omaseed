@@ -559,3 +559,13 @@ omaseed_add_test(tst_createplan
     SOURCES tst_createplan.cpp
     LIBRARIES omaseed::core
 )
+
+omaseed_add_test(tst_createtrackers
+    SOURCES tst_createtrackers.cpp
+    LIBRARIES omaseed::core
+)
+
+omaseed_add_test(tst_madehere
+    SOURCES tst_madehere.cpp
+    LIBRARIES omaseed::core
+)

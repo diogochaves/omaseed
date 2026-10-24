@@ -51,6 +51,8 @@ qt_add_library(omaseed-core STATIC
     LooseCarry.hpp
     LooseFiles.cpp
     LooseFiles.hpp
+    MadeHere.cpp
+    MadeHere.hpp
     MoveHistory.cpp
     MoveHistory.hpp
     MoveJob.cpp
@@ -103,6 +105,8 @@ qt_add_library(omaseed-core STATIC
     AnnounceMask.hpp
     CreatePlan.cpp
     CreatePlan.hpp
+    CreateTrackers.cpp
+    CreateTrackers.hpp
     SearchModel.cpp
     SearchModel.hpp
     SearchPlugins.cpp
