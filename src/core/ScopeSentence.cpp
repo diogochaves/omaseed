@@ -156,6 +156,44 @@ QString ScopeSentence::question(int question, const ScopeFacts &facts)
     }
 }
 
+QString ScopeSentence::groupLine(int question, const ScopeFacts &facts)
+{
+    switch (question) {
+    case TorrentFilterModel::NeedsYou:
+        if (facts.needsYou == 0)
+            return {};
+        return counted(facts.needsYou, "%1 fix waits", "%1 fixes wait");
+    case TorrentFilterModel::Arriving:
+        if (facts.nextEta >= 0)
+            return facts.arriving == 1 ? tr("ready in %1").arg(soon(facts.nextEta))
+                                       : tr("next ready in %1").arg(soon(facts.nextEta));
+        return facts.arrivingSpeed > 0 ? Format::speed(facts.arrivingSpeed) : QString();
+    case TorrentFilterModel::LandedToday:
+        return tr("since midnight");
+    case TorrentFilterModel::GivingBack: {
+        QStringList parts;
+        parts << (facts.givingSpeed > 0 ? Format::speed(facts.givingSpeed)
+                                        : tr("nobody asking now"));
+        if (facts.givenDown > 0)
+            parts
+                << tr("ratio %1").arg(ratioWords(double(facts.givenUp) / double(facts.givenDown)));
+        return parts.join(kApart);
+    }
+    case TorrentFilterModel::Resting:
+        return tr("not sharing");
+    default:
+        return {};
+    }
+}
+
+QString ScopeSentence::shelfLine(const ScopeFacts &facts)
+{
+    QString line = QString::number(facts.total);
+    if (facts.bytes > 0)
+        line += kApart + Format::size(facts.bytes);
+    return line;
+}
+
 QString ScopeSentence::category(const ScopeFacts &facts, const QString &savePath)
 {
     QStringList parts{torrents(facts.total)};

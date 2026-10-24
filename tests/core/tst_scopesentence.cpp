@@ -58,6 +58,8 @@ private slots:
     void movesSayWhatIsOnShow();
     void theFacesSayWhatTheyShow();
     void aLostServerSaysTheListsTime();
+    void groupHeadsSayTheShortLine();
+    void shelvesSayCountAndSize();
     void waitsAreRounded();
     void factsAreGatheredOverTheRailsScopeAlone();
 };
@@ -316,6 +318,49 @@ void TestScopeSentence::factsAreGatheredOverTheRailsScopeAlone()
     QCOMPARE(filtered.scopeFacts().arriving, 2);
     filtered.setQuestion(TorrentFilterModel::Resting);
     QCOMPARE(filtered.scopeFacts().total, 0);
+}
+
+// DECISIONS C24 H3: the rows display's group heads, board 46 `rows()`.
+void TestScopeSentence::groupHeadsSayTheShortLine()
+{
+    const ScopeFacts facts = boardFacts();
+    QCOMPARE(ScopeSentence::groupLine(TorrentFilterModel::NeedsYou, facts),
+             QStringLiteral("2 fixes wait"));
+    QCOMPARE(ScopeSentence::groupLine(TorrentFilterModel::Arriving, facts),
+             QStringLiteral("next ready in 3 min"));
+    QCOMPARE(ScopeSentence::groupLine(TorrentFilterModel::LandedToday, facts),
+             QStringLiteral("since midnight"));
+    QCOMPARE(ScopeSentence::groupLine(TorrentFilterModel::GivingBack, facts),
+             QStringLiteral("41 KB/s · ratio 1.6"));
+    QCOMPARE(ScopeSentence::groupLine(TorrentFilterModel::Resting, facts),
+             QStringLiteral("not sharing"));
+
+    ScopeFacts one;
+    one.needsYou = 1;
+    one.arriving = 1;
+    one.nextEta = 40;
+    QCOMPARE(ScopeSentence::groupLine(TorrentFilterModel::NeedsYou, one),
+             QStringLiteral("1 fix waits"));
+    QCOMPARE(ScopeSentence::groupLine(TorrentFilterModel::Arriving, one),
+             QStringLiteral("ready in 40 s"));
+    // Nothing known yet: no line, never a zero.
+    ScopeFacts quiet;
+    quiet.arriving = 2;
+    quiet.givingBack = 3;
+    QCOMPARE(ScopeSentence::groupLine(TorrentFilterModel::Arriving, quiet), QString());
+    QCOMPARE(ScopeSentence::groupLine(TorrentFilterModel::GivingBack, quiet),
+             QStringLiteral("nobody asking now"));
+    QCOMPARE(ScopeSentence::groupLine(TorrentFilterModel::AnyQuestion, quiet), QString());
+}
+
+void TestScopeSentence::shelvesSayCountAndSize()
+{
+    ScopeFacts facts;
+    facts.total = 49;
+    facts.bytes = 1384120;
+    QCOMPARE(ScopeSentence::shelfLine(facts), QStringLiteral("49 · 1.32 MB"));
+    facts.bytes = 0;
+    QCOMPARE(ScopeSentence::shelfLine(facts), QStringLiteral("49"));
 }
 
 QTEST_GUILESS_MAIN(TestScopeSentence)

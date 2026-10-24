@@ -61,6 +61,13 @@ public:
     /// #167 assumed 9: a tag's and a tracker's count and the kind of place.
     static QString tag(const ScopeFacts &facts);
     static QString tracker(const ScopeFacts &facts);
+    /// The rows display's group head (board 46 `rows()`, DECISIONS C24 H3): the short line
+    /// after a question's name and count, from the facts of the rows listed under it ("2
+    /// fixes wait", "next ready in 3 min", "since midnight", "41 KB/s · ratio 1.6", "not
+    /// sharing"); "" when there is nothing to say.
+    static QString groupLine(int question, const ScopeFacts &facts);
+    /// A shelf's head in the overview (board 46 `overview()`): "49 · 1.32 MB".
+    static QString shelfLine(const ScopeFacts &facts);
     /// The rail's word for a question ("arriving"), for a sentence a question narrows too;
     /// "" for the library.
     static QString questionWord(int question);

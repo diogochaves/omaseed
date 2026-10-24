@@ -23,6 +23,11 @@ omaseed_add_test(tst_librarymatch
     LIBRARIES omaseed::core
 )
 
+omaseed_add_test(tst_rowwords
+    SOURCES tst_rowwords.cpp
+    LIBRARIES omaseed::core
+)
+
 omaseed_add_test(tst_searchwords
     SOURCES tst_searchwords.cpp
     LIBRARIES omaseed::core
