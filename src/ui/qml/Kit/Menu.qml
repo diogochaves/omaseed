@@ -275,7 +275,7 @@ Item {
         }
     }
 
-    Rectangle {
+    Item {
         id: panel
 
         readonly property int padding: Theme.space(6)
@@ -284,15 +284,11 @@ Item {
         // says it first; since #91 the heading also comes before the rows in the tree.
         Accessible.name: [root.headingTitle, root.heading].filter(part => part.length > 0).join(" · ")
         Accessible.role: Accessible.PopupMenu
-        border.color: Theme.menuEdgeColor
-        border.width: Theme.menuEdgeWidth
-        color: Theme.background
         implicitHeight: heading.height + rows.implicitHeight + footerItem.height
                         + 2 * panel.padding
         // Never taller than the item it clamps itself in: the rows scroll instead.
         height: root.inline ? implicitHeight
                 : Math.min(implicitHeight, Math.max(0, root.height - 2 * root._edge))
-        radius: Theme.cornerRadius
         width: Math.min(root.menuWidth, root.inline ? root.menuWidth
                 : Math.max(0, root.width - 2 * root._edge))
         x: root.inline ? 0
@@ -300,6 +296,15 @@ Item {
         y: root.inline ? 0
                 : Math.max(root._edge, Math.min(root._up ? root.anchorY - height : root.anchorY,
                                                 root.height - height - root._edge))
+
+        // The menu's ground and edge (board 46 `.menu`), drawn by the skin's Plate face.
+        Plate {
+            anchors.fill: parent
+            edgeColor: Theme.menuEdgeColor
+            edgeWidth: Theme.menuEdgeWidth
+            fill: Theme.background
+            objectName: "menuPlate"
+        }
 
         // Before the rows in the tree (#91: a screen reader reads children in declaration
         // order, and the heading is said first), drawn above them all the same.
@@ -437,6 +442,14 @@ Item {
                             visible: menuRow.filled
                         }
 
+                        // The cursor's mark: none in Omarchy's face (the fill says it),
+                        // Console's brackets (board 46 `.mi.cur::after`).
+                        SelectionMark {
+                            anchors.fill: parent
+                            objectName: "menuRowMark"
+                            visible: menuRow.filled
+                        }
+
                         Label {
                             id: captionText
 
@@ -543,7 +556,7 @@ Item {
             objectName: "menuScrollBar"
             vertical: true
             width: Theme.space(4)
-            x: panel.width - width - panel.border.width - Theme.space(2)
+            x: panel.width - width - Theme.menuEdgeWidth - Theme.space(2)
             y: rowScroller.y
         }
 

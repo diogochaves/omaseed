@@ -140,31 +140,19 @@ Item {
         }
     }
 
-    // The box: its own fill, the kind's rule, the hairline where it meets the content.
-    Rectangle {
+    // The box (the skin's Plate face): its own fill, the kind's rule, the hairline where it
+    // meets the content.
+    Plate {
         anchors.fill: parent
-        color: root.opaque ? Theme.background : "transparent"
-    }
-
-    Rectangle {
-        anchors.fill: parent
-        color: Theme.on.idle.fill
-    }
-
-    Rectangle {
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.top: parent.top
-        color: root.kindColor
-        objectName: "noticeRule"
-        width: Theme.space(2)
-    }
-
-    Hairline {
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.right: parent.right
-        visible: root.edge !== "top"
+        base: root.opaque ? Theme.background : "transparent"
+        edgeColor: Theme.hairColor
+        edgeWidth: Theme.hairWidth
+        edges: (root.edge !== "top" ? Qt.BottomEdge : 0) | (root.edge !== "bottom" ? Qt.TopEdge : 0)
+        fill: Theme.on.idle.fill
+        objectName: "noticePlate"
+        radius: 0
+        rule: root.kindColor
+        ruleWidth: Theme.space(2)
     }
 
     Rectangle {
@@ -175,13 +163,6 @@ Item {
         objectName: "noticeProgress"
         visible: root.progress >= 0
         width: parent.width * Math.max(0, Math.min(1, root.progress))
-    }
-
-    Hairline {
-        anchors.left: parent.left
-        anchors.right: parent.right
-        anchors.top: parent.top
-        visible: root.edge !== "bottom"
     }
 
     ColumnLayout {

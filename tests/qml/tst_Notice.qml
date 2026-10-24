@@ -50,10 +50,10 @@ TestCase {
     function test_kinds_take_their_glyph_and_colour() {
         const notice = createTemporaryObject(noticeComponent, testCase);
         compare(findChild(notice, "noticeGlyph").text, "!");
-        compare(findChild(notice, "noticeRule").color, Theme.yellow);
+        compare(findChild(notice, "noticePlate").rule, Theme.yellow);
         notice.kind = "error";
         compare(findChild(notice, "noticeGlyph").text, Glyphs.close);
-        compare(findChild(notice, "noticeRule").color, Theme.red);
+        compare(findChild(notice, "noticePlate").rule, Theme.red);
     }
 
     // #146 (board 49 `.notice .fchip`): something of the caller's under the line.
@@ -84,7 +84,7 @@ TestCase {
         notice.kind = "info";
         notice.glyph = "↻";
         compare(findChild(notice, "noticeGlyph").text, "↻");
-        compare(findChild(notice, "noticeRule").color, Theme.accent);
+        compare(findChild(notice, "noticePlate").rule, Theme.accent);
         const line = findChild(notice, "noticeProgress");
         verify(!line.visible);
         notice.progress = 0.5;
@@ -100,7 +100,7 @@ TestCase {
         notice.kind = "success";
         notice.glyph = "";
         compare(findChild(notice, "noticeGlyph").text, Glyphs.check);
-        compare(findChild(notice, "noticeRule").color, Theme.green);
+        compare(findChild(notice, "noticePlate").rule, Theme.green);
     }
 
     function test_actions_beside_then_under_when_narrow() {

@@ -94,13 +94,18 @@ TestCase {
     function test_the_panel_is_two_hundred_and_eighty_wide_with_an_accent_edge() {
         const menu = createTemporaryObject(menuComponent, testCase);
         compare(menu.panel.width, Theme.space(280));
-        compare(menu.panel.color, Theme.background);
-        // The skin's menu edge (#171): Omarchy's is the accent's 1 px.
-        compare(menu.panel.border.color, Theme.menuEdgeColor);
-        compare(menu.panel.border.width, Theme.menuEdgeWidth);
+        // The ground and edge are the skin's Plate (#171): Omarchy's edge is the accent's 1 px.
+        const plate = findChild(menu, "menuPlate");
+        compare(plate.fill, Theme.background);
+        compare(plate.edgeColor, Theme.menuEdgeColor);
+        compare(plate.edgeWidth, Theme.menuEdgeWidth);
+        compare(plate.width, menu.panel.width);
         if (Theme.skin.name === "omarchy") {
-            compare(menu.panel.border.color, Theme.accent);
-            compare(menu.panel.border.width, 1);
+            compare(plate.edgeColor, Theme.accent);
+            compare(plate.edgeWidth, 1);
+            compare(plate.face.objectName, "plateFaceOmarchy");
+        } else {
+            compare(plate.face.objectName, "plateFaceConsole");
         }
         compare(menu.panel.padding, Theme.space(6));
     }
