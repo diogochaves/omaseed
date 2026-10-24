@@ -59,6 +59,16 @@
 // typed. While a query is typed the rows are ranked before the sort role: the whole query as
 // a phrase in the name first, then its words in order, then in any order. A hash prefix
 // ranks with the phrases. Clearing the query brings the plain sort back.
+//
+// The rows display groups the library under the five questions and the overview under the
+// categories (DECISIONS C24 H3, board 46): `groupBy` puts each group's rows in one run, the
+// groups in the rail's order (categories by name, "none" last), the sort above inside each.
+// `groups` lists the runs, each with its title, first row, count and short line
+// (ScopeSentence::groupLine()). A torrent whose group changes (a download lands, an error
+// comes) always ends in one sort, so a ListView's section heads never go stale, and its new
+// group is taken even under a held order (#51 D9). The proxy answers a row's question and
+// group, and the rows display's words (core/RowWords), as roles of its own; whenever a source
+// role of a row changes, a second dataChanged names those roles too.
 
 #include "core/ScopeSentence.hpp"
 #include "core/SearchWords.hpp"
@@ -101,6 +111,8 @@ class TorrentFilterModel : public QSortFilterProxyModel
     Q_PROPERTY(Qt::SortOrder sortOrder READ sortOrder WRITE setSortOrder NOTIFY sortOrderChanged)
     Q_PROPERTY(int count READ count NOTIFY countChanged)
     Q_PROPERTY(bool holdOrder READ holdOrder WRITE setHoldOrder NOTIFY holdOrderChanged)
+    Q_PROPERTY(GroupBy groupBy READ groupBy WRITE setGroupBy NOTIFY groupByChanged)
+    Q_PROPERTY(QVariantList groups READ groups NOTIFY groupsChanged)
 
 public:
     /// The rail's status rows (spec §1 Fig. 1), All first.
@@ -128,7 +140,33 @@ public:
     };
     Q_ENUM(Question)
 
+    /// DECISIONS C24 H3: the rows display groups by question, the overview by category, the
+    /// table not at all.
+    enum GroupBy {
+        NoGroups,
+        ByQuestion,
+        ByCategory,
+    };
+    Q_ENUM(GroupBy)
+
+    /// The roles the proxy answers itself, past TorrentModel's.
+    enum Role {
+        QuestionRole = Qt::UserRole + 500, ///< the Question the row answers, an int
+        GroupRole,                         ///< its group's key under groupBy ("" for none)
+        RowFactRole,                       ///< RowWords::fact
+        RowCaptionRole,                    ///< RowWords::caption
+        RowSentenceRole,                   ///< RowWords::sentence
+        RowMetaRole,                       ///< RowWords::meta
+        RowFixRole,                        ///< RowWords::fix
+        RowFixActionRole,                  ///< RowWords::fixAction
+        MonogramRole,                      ///< RowWords::monogram of the name
+    };
+    Q_ENUM(Role)
+
     explicit TorrentFilterModel(QObject *parent = nullptr);
+
+    QVariant data(const QModelIndex &index, int role = Qt::DisplayRole) const override;
+    QHash<int, QByteArray> roleNames() const override;
 
     StatusFilter statusFilter() const { return m_statusFilter; }
     void setStatusFilter(StatusFilter filter);
@@ -187,6 +225,15 @@ public:
     bool holdOrder() const { return m_holdOrder; }
     void setHoldOrder(bool hold);
 
+    GroupBy groupBy() const { return m_groupBy; }
+    void setGroupBy(GroupBy groupBy);
+    /// The groups in the rows' order, `[{key, title, first, count, line, question}]`; empty
+    /// while nothing groups. `question` is the group's Question (ByQuestion) or AnyQuestion.
+    QVariantList groups() const { return m_groups; }
+    /// The key GroupRole gives a question: "needsYou", "arriving", "landedToday",
+    /// "givingBack", "resting"; "" for AnyQuestion.
+    static QString questionKey(int question);
+
     /// What the rail's scope holds, for the title bar's sentence (core/ScopeSentence): every
     /// filter but the words (the text and its `is:`), so the sentence names the place and the
     /// filter tool counts what the words leave of it. One pass over the library.
@@ -235,6 +282,8 @@ Q_SIGNALS:
     void sortOrderChanged();
     void countChanged();
     void holdOrderChanged();
+    void groupByChanged();
+    void groupsChanged();
 
 private:
     void refilter();
@@ -274,6 +323,18 @@ private:
     int matchRank(int sourceRow) const;
     /// -1, 0 or 1: `left` against `right`, two values of the sort role.
     int compareValues(const QVariant &left, const QVariant &right) const;
+    /// Source row `sourceRow`'s group key under m_groupBy.
+    QString groupKeyOf(const Torrent &torrent, int question) const;
+    /// <0, 0 or >0: `left`'s group before, with or after `right`'s (two source indexes).
+    int compareGroups(const QModelIndex &left, const QModelIndex &right) const;
+    /// Re-reads the groups from the rows: m_groups (signalled when it changed) and each shown
+    /// torrent's key in m_groupOf.
+    void rebuildGroups();
+    /// Source rows `first` to `last` changed: a shown torrent whose group moved asks for a
+    /// sort, now or when the poll's runs end.
+    void noteGroupChanges(int first, int last);
+    /// Every row's question, group and words may have changed (a day, a problem).
+    void regroupAll();
     void dropNameRanks()
     {
         m_nameRanks.clear();
@@ -312,6 +373,11 @@ private:
     QSet<QString> m_heldLibrary;      ///< every torrent in the library when the hold began
     mutable QHash<QString, double> m_heldSlots; ///< new torrents' places, found on first use
     bool m_holdOrder = false;
+    GroupBy m_groupBy = NoGroups;
+    QVariantList m_groups;
+    QHash<QString, QString> m_groupOf; ///< each shown torrent's group key, by hash
+    bool m_inRuns = false;             ///< between runsAboutToBeAnnounced and runsAnnounced
+    bool m_regroupPending = false;
     bool m_sortHeld = false;
     bool m_refilterAfterHold = false;
 };
