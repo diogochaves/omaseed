@@ -66,52 +66,43 @@ Item {
     objectName: "cover_" + cover.coverRow
     width: Theme.coverWidth
 
-    Rectangle {
+    Item {
         id: art
 
-        border.color: cover.isSelected ? Theme.accent : cover.isCursor ? Theme.fill(Theme.borderHover)
-                                                                        : Theme.fill(Theme.hairlineAlpha)
-        border.width: cover.isSelected ? Theme.coverSelectedBorder : 1
-        color: cover.ink.ground === Theme.on.window ? Theme.fill(Theme.fillIdle) : cover.ink.ground.fill
         height: Theme.coverArtHeight
         width: parent.width
 
+        // The art's ground and edge (the skin's Plate face; Console's is a key plate, board 46
+        // `.card`): the accent's lit edge when selected.
+        Plate {
+            anchors.fill: parent
+            edgeColor: cover.isSelected ? Theme.accent : cover.isCursor ? Theme.fill(Theme.borderHover)
+                                                                         : Theme.fill(Theme.hairlineAlpha)
+            edgeWidth: cover.isSelected ? Theme.coverSelectedBorder : 1
+            fill: cover.ink.ground === Theme.on.window ? Theme.fill(Theme.fillIdle) : cover.ink.ground.fill
+            key: true
+            objectName: "coverPlate"
+            radius: 0
+        }
+
         // The grid: a mark, so it keeps the window's colours (C30 lifts words, not marks).
-        Canvas {
-            id: grid
-
-            readonly property color filled: Qt.alpha(Theme[cover.stateRole] ?? Theme.foreground,
-                                                     Theme.coverCellAlpha)
-            readonly property color track: Theme.fill(Theme.coverCellTrack)
-            readonly property int have: Math.floor(Math.max(0, Math.min(1, cover.progress))
-                                                   * Theme.coverGridColumns * Theme.coverGridRows)
-
+        Meter {
             anchors.left: parent.left
             anchors.leftMargin: Theme.coverGridInset
             anchors.right: parent.right
             anchors.rightMargin: Theme.coverGridInset
             anchors.top: parent.top
             anchors.topMargin: Theme.coverGridInset
+            cellGap: Theme.coverCellGap
+            cellHeight: Theme.coverCellHeight
+            color: Theme[cover.stateRole] ?? Theme.foreground
+            columns: Theme.coverGridColumns
+            fillAlpha: Theme.coverCellAlpha
             height: Theme.coverGridRows * (Theme.coverCellHeight + Theme.coverCellGap)
             objectName: "coverGrid"
-
-            onFilledChanged: grid.requestPaint()
-            onHaveChanged: grid.requestPaint()
-            onPaint: {
-                const context = grid.getContext("2d");
-                context.clearRect(0, 0, grid.width, grid.height);
-                const columns = Theme.coverGridColumns;
-                const gap = Theme.coverCellGap;
-                const cell = (grid.width - gap * (columns - 1)) / columns;
-                for (let i = 0; i < columns * Theme.coverGridRows; ++i) {
-                    context.fillStyle = i < grid.have ? grid.filled : grid.track;
-                    context.fillRect((i % columns) * (cell + gap),
-                                     Math.floor(i / columns) * (Theme.coverCellHeight + gap), cell,
-                                     Theme.coverCellHeight);
-                }
-            }
-            onTrackChanged: grid.requestPaint()
-            onWidthChanged: grid.requestPaint()
+            rows: Theme.coverGridRows
+            trackColor: Theme.fill(Theme.coverCellTrack)
+            value: cover.progress
         }
 
         Text {
@@ -126,6 +117,15 @@ Item {
             objectName: "coverMonogram"
             text: cover.monogram
             textFormat: Text.PlainText
+        }
+
+        // The selected cover's mark: none in Omarchy's face (the lit edge says it), Console's
+        // brackets (board 46 `.card.sel::after`).
+        SelectionMark {
+            anchors.fill: parent
+            cut: Theme.plateKeyCut
+            objectName: "coverMark"
+            visible: cover.isSelected
         }
     }
 

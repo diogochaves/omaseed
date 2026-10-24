@@ -284,15 +284,13 @@ Item {
                 anchors.verticalCenter: parent.verticalCenter
                 spacing: Theme.statusLineLaneGap
 
-                Rectangle {
+                Lamp {
                     id: dot
 
                     anchors.verticalCenter: parent.verticalCenter
                     color: root.dotColor
-                    height: Theme.statusLineDotSize
                     objectName: "statusDot"
-                    radius: width / 2
-                    width: Theme.statusLineDotSize
+                    size: Theme.statusLineDotSize
                 }
 
                 Text {

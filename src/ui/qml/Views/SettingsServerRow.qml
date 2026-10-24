@@ -86,12 +86,12 @@ Rectangle {
 
         // `.srv .it .dot` — green when the last test answered, red when it did not, dim
         // while nothing is known.
-        Rectangle {
+        Lamp {
             Layout.preferredHeight: Theme.space(7)
             Layout.preferredWidth: Theme.space(7)
             objectName: "serverDot"
             color: root.failing ? root.ink.red : root.untested ? root.ink.dimForeground : root.ink.green
-            radius: width / 2
+            size: Theme.space(7)
             visible: !root.dashed
         }
 

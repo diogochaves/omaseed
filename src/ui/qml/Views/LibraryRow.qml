@@ -114,13 +114,14 @@ Item {
         }
     }
 
-    // A selected row's edge (`.row.picked`).
-    Rectangle {
+    // A selected row's edge (`.row.picked`), drawn by the skin's SelectionMark face.
+    SelectionMark {
+        anchors.fill: parent
         color: Theme.accent
-        height: parent.height
         objectName: "libraryRowEdge_" + row.index
+        rule: true
+        ruleWidth: Theme.libraryRowSelectedEdge
         visible: row.isSelected
-        width: Theme.libraryRowSelectedEdge
     }
 
     Rectangle {
@@ -279,21 +280,18 @@ Item {
             width: parent.width
 
             // The progress line: a mark, so it keeps the window's colours (C30 lifts words).
-            Rectangle {
+            // The skin's Meter face draws it (Console's: board 46's segmented `.strip`).
+            Meter {
                 id: progressLine
 
                 anchors.verticalCenter: parent.verticalCenter
-                color: Theme.fill(Theme.libraryRowLineTrack)
+                color: row.question === TorrentFilterModel.Resting ? Theme.dimForeground
+                                                                   : Theme[row.stateRole] ?? Theme.foreground
                 height: Theme.libraryRowLineThickness
                 objectName: "libraryRowLine_" + row.index
+                trackColor: Theme.fill(Theme.libraryRowLineTrack)
+                value: row.progress
                 width: row.narrow >= 1 ? Theme.libraryRowLineWidthNarrow : Theme.libraryRowLineWidth
-
-                Rectangle {
-                    color: row.question === TorrentFilterModel.Resting ? Theme.dimForeground
-                                                                       : Theme[row.stateRole] ?? Theme.foreground
-                    height: parent.height
-                    width: Math.round(parent.width * Math.max(0, Math.min(1, row.progress)))
-                }
             }
 
             Text {

@@ -102,14 +102,15 @@ Rectangle {
         }
     }
 
-    Rectangle {
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.top: parent.top
+    // The current row's mark (the skin's SelectionMark face): Omarchy's leading rule,
+    // Console's brackets (board 46 `.ri.on::after`).
+    SelectionMark {
+        anchors.fill: parent
         color: Theme.accent
         objectName: "railRowCurrentEdge"
+        rule: true
+        ruleWidth: Theme.railCurrentEdge
         visible: root.current
-        width: Theme.railCurrentEdge
     }
 
     Row {
