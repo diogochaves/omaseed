@@ -499,6 +499,16 @@ gone_from_box() {
     return 1
 }
 check "the Sampler is off the box again" gone_from_box "$SAMPLER_HASH"
+# And off the app's list, before step 6 hides the window (a hidden window syncs less often): a
+# Sampler still listed would make its magnet a duplicate there.
+gone_from_app() {
+    for _ in $(seq 1 20); do
+        omabox tree -b "$BOX" --find "$PUBLIC" >/dev/null 2>&1 || return 0
+        sleep 0.5
+    done
+    return 1
+}
+check "and off the app's list" gone_from_app
 step "An add before the list" "The sheet is gone; Public Domain Sampler was a row, seeding, before the walk took it off again: the table is empty and the app is connected (the server is up)."
 
 # 6. The Sampler's magnet with the app in the tray: the window comes back with the sheet, and
