@@ -995,10 +995,14 @@ private:
     Q_PROPERTY(omaseed::core::AddFilesModel *addFiles READ addFiles CONSTANT)
     /// docs/29 (#44): the lookup of the magnet or link the add sheet shows (its Files row).
     Q_PROPERTY(omaseed::core::MetadataLookup *addLookup READ addLookup CONSTANT)
+    /// #193: an add pressed while `addLookup` was still asking qBittorrent for that magnet's
+    /// files waits for the answer (see holdAddForLookup); the sheet's Files row says so.
+    Q_PROPERTY(bool addWaitsForList READ addWaitsForList NOTIFY addWaitsForListChanged)
 
 public:
     omaseed::core::AddFilesModel *addFiles() const { return m_addFiles; }
     omaseed::core::MetadataLookup *addLookup() const { return m_addLookup; }
+    bool addWaitsForList() const { return !m_addAfterLookup.isEmpty(); }
 
     /// docs/29 D1: asks the current server for the metadata of the magnet or link in
     /// `addable` (parseAddable's map), on its own client so the session keeps the answer.
@@ -1155,6 +1159,7 @@ Q_SIGNALS:
     /// sheet holds, now with `token` (its files, for loadAddFiles and findFilesMatch, as a
     /// parsed .torrent's), `fileCount`, `totalSize`, `sizeText`, the info-hashes and `name`.
     void metadataFetched(QVariantMap addable);
+    void addWaitsForListChanged();
     void downloadsTorrentsChanged();
     void downloadsFolderChanged();
 
@@ -1265,6 +1270,17 @@ private:
                      const QVariantMap &request,
                      const QString &torrentId,
                      const QVariantList &laterPriorities);
+    /// #193: qBittorrent 5.3.0 crashes on its next sync once the metadata comes in for a
+    /// magnet that `torrents/add` took while a `torrents/fetchMetadata` lookup of the same
+    /// magnet was still running. The API can't end a lookup (docs/29 D6), so an add of the
+    /// magnet the lookup is asking about (quiet, fetching or slow) waits in
+    /// `m_addAfterLookup` for its answer. F4's minute is the way out its words already give
+    /// ("enter adds every file"): a magnet nobody seeds never answers, and never crashes it.
+    /// Kept for every version until a fixed qBittorrent ships. True when it held `request`.
+    bool holdAddForLookup(const QVariantMap &request);
+    /// The held add goes once the lookup has answered, reached F4, or let go of its magnet.
+    void releaseHeldAdd();
+    QVariantMap m_addAfterLookup;
     omaseed::core::MetadataLookup *m_addLookup = nullptr;
     /// C26 SR9: the search plugin that fetches the lookup's link (`downloader`), or "".
     QString m_lookupDownloader;

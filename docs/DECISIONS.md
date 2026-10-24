@@ -251,7 +251,12 @@ Board [29](29-magnet-files.html) (#44), D1–D11 as recommended:
   "Fetching" until 10 s, "still looking" until 60 s, then "may never come" in yellow. The polls
   go at 0, 0.25, 0.5 and 1 s, then every second, and every 5 s after a minute, one at a time; they
   never stop while the sheet is open.
-- **D4** `add` before the list is in adds every file, as before. **D5** "add stopped" before the
+- **D4** `add` before the list is in adds every file, as before. (#193: on qBittorrent 5.3.0 a
+  magnet added while its lookup still runs crashes the server once the metadata comes in, and the
+  API can't end a lookup (D6), so the add of a magnet the lookup is still asking about waits for
+  the answer, the sheet's line saying so; F4's minute is the way out, as its words already say
+  `enter` adds every file. Closing the sheet doesn't drop it, as an add already out goes on, C20.
+  Kept for every version until a fixed qBittorrent ships.) **D5** "add stopped" before the
   list is a started add with `stopCondition=MetadataReceived`: it stops as soon as its list
   arrives, with nothing downloaded (a plain stopped magnet never connects).
 - **D6** Closing the sheet, another source over it or a batch leaves an unanswered lookup running

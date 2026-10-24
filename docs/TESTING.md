@@ -24,7 +24,7 @@ follows. The commands themselves are listed in `CLAUDE.md`; `README.md` says how
    | `swarm-walk.sh` | every torrent state the swarm can produce, in the table and details, then in the rows display; it ends on the shelves |
    | `strict-walk.sh` | first run against `:8082`: cookie login and an API key |
    | `notify-walk.sh` | downloads finishing: one notice each, a click shows the torrent |
-   | `magnet-walk.sh` | a magnet or `.torrent` opened with `xdg-open`: closed, hidden, running; with `gio open` (D-Bus activation) while quit |
+   | `magnet-walk.sh` | a magnet or `.torrent` opened with `xdg-open`: closed, hidden, running; with `gio open` (D-Bus activation) while quit; a magnet added before its file list is in (#193) |
    | `actions-walk.sh` | renames, categories, tags, automatic management, the Move… sheet, delete, skipped files that hold space (free the space, add it again) |
    | `settings-walk.sh` | the qBittorrent settings pane, against a qBittorrent in the box |
    | `servers-walk.sh` | two qBittorrents: first run, add, switch, an action on each, remove |

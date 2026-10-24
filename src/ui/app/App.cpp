@@ -2117,6 +2117,9 @@ void App::addTorrent(const QVariantMap &request)
         return;
     }
 
+    if (!isFile && !hasList && holdAddForLookup(request))
+        return;
+
     QbtClient::AddOptions options = addOptionsFrom(request);
 
     const QVariantList filePriorities =
@@ -2625,6 +2628,7 @@ void App::setUpMetadataLookup()
     if (scale > 0)
         m_addLookup->setClockScale(scale);
     connect(m_addLookup, &MetadataLookup::fetched, this, &App::takeFetchedMetadata);
+    connect(m_addLookup, &MetadataLookup::changed, this, &App::releaseHeldAdd);
     connect(
         m_engine->globalState(), &GlobalState::connectedChanged, this, &App::updateLookupServer);
     connect(
@@ -2737,7 +2741,65 @@ void App::stopMetadataLookup()
 {
     m_lookupToken.clear();
     m_lookupAddable.clear();
+    // #193: an add pressed before the list waits on this lookup, and goes on after a close
+    // as an add already out does (DECISIONS C20): the polls go on until it can go.
+    if (!m_addAfterLookup.isEmpty())
+        return;
     m_addLookup->stop();
+}
+
+namespace {
+
+/// The phases in which qBittorrent is looking the magnet up for us: asked, and not yet at
+/// F4's "may never come".
+bool lookupAsking(MetadataLookup::Phase phase)
+{
+    return phase == MetadataLookup::Phase::Quiet || phase == MetadataLookup::Phase::Fetching ||
+           phase == MetadataLookup::Phase::Slow;
+}
+
+} // namespace
+
+bool App::holdAddForLookup(const QVariantMap &request)
+{
+    if (request.value(QStringLiteral("kind")).toString() != QLatin1String("magnet"))
+        return false;
+    const QString key =
+        TorrentFile::torrentIdFor(request.value(QStringLiteral("infoHashV1")).toString(),
+                                  request.value(QStringLiteral("infoHashV2")).toString());
+    if (key.isEmpty() || key != m_addLookup->key() || !lookupAsking(m_addLookup->phase()))
+        return false;
+    qInfo().noquote() << QStringLiteral("add: %1 waits for its file list first (#193)").arg(key);
+    m_addAfterLookup = request;
+    Q_EMIT addWaitsForListChanged();
+    return true;
+}
+
+void App::releaseHeldAdd()
+{
+    if (m_addAfterLookup.isEmpty())
+        return;
+    const QString key =
+        TorrentFile::torrentIdFor(m_addAfterLookup.value(QStringLiteral("infoHashV1")).toString(),
+                                  m_addAfterLookup.value(QStringLiteral("infoHashV2")).toString());
+    const MetadataLookup::Phase phase = m_addLookup->phase();
+    const bool sameMagnet = key == m_addLookup->key();
+    if (sameMagnet && lookupAsking(phase))
+        return;
+    QVariantMap request = std::exchange(m_addAfterLookup, {});
+    Q_EMIT addWaitsForListChanged();
+    // D5's stop condition is for a list that is not in yet. It is in now: "add stopped" is a
+    // plain stopped add.
+    if (sameMagnet && phase == MetadataLookup::Phase::Done)
+        request[QStringLiteral("untilMetadata")] = false;
+    qInfo().noquote() << QStringLiteral("add: %1 goes now, its lookup %2")
+                             .arg(key,
+                                  sameMagnet ? m_addLookup->phaseName()
+                                             : QStringLiteral("let go of it"));
+    // The sheet closed meanwhile: nothing else wants the lookup.
+    if (m_lookupAddable.isEmpty() && sameMagnet)
+        m_addLookup->stop();
+    addTorrent(request);
 }
 
 void App::setLookupTestClock(double ms)

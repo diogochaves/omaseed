@@ -70,6 +70,24 @@ TestCase {
         verify(line.lines[0].indexOf("usually in a few seconds") > 0);
     }
 
+    // #193: an add pressed before the list waits for it, and the line says why; at F4 it
+    // has gone, and a link never waits.
+    function test_an_add_waiting_for_the_list() {
+        for (const phase of ["fetching", "slow"]) {
+            const line = testCase.make(phase, 4);
+            line.addWaiting = true;
+            compare(line.lines.length, 1, phase);
+            verify(line.lines[0].indexOf("goes out as soon as the list is in") > 0, phase);
+            verify(line.lines[0].indexOf("qBittorrent 5.3") > 0, phase);
+        }
+        const never = testCase.make("never", 61);
+        never.addWaiting = true;
+        verify(never.lines[0].indexOf("goes out as soon as") < 0);
+        const link = testCase.make("fetching", 2, "url");
+        link.addWaiting = true;
+        verify(link.lines[0].indexOf("goes out as soon as") < 0);
+    }
+
     // F3: from 10 s, the two ways out.
     function test_still_looking() {
         const line = testCase.make("slow", 24);

@@ -25,7 +25,8 @@ import Omaseed.Kit
 // A magnet, or a link to a `.torrent`, has no file list until qBittorrent fetches its
 // metadata: the sheet asks for it as soon as one is in the field (docs/29 D1, `App.addLookup`),
 // the Files row says how the wait goes (`AddFetchLine`, F1-F8), and the 200 brings the same
-// tree, choices and renames as a `.torrent` (D9 a). `add` never waits for it (D4 a). No
+// tree, choices and renames as a `.torrent` (D9 a). `add` takes every file (D4 a), but App
+// holds a magnet's add until its lookup answers or reaches F4 (#193: qBittorrent 5.3.0). No
 // lookups in a batch (D10 a).
 //
 // The sheet never talks to the server itself: it emits `addRequested(request)` with the map
@@ -2006,6 +2007,7 @@ Sheet {
                             id: fetchLine
 
                             Layout.fillWidth: true
+                            addWaiting: App.addWaitsForList
                             kind: sheet.addable ? sheet.addable.kind : "magnet"
                             objectName: "addFetchLine"
                             phase: App.addLookup.phase
