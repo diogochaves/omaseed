@@ -160,6 +160,11 @@ omaseed_add_test(tst_qbtclient_actions_fake
     LIBRARIES omaseed::core
 )
 
+omaseed_add_test(tst_qbtclient_search_fake
+    SOURCES tst_qbtclient_search_fake.cpp FakeHttp.hpp
+    LIBRARIES omaseed::core
+)
+
 omaseed_add_test(tst_qbtclient_actions_live LIVE
     SOURCES tst_qbtclient_actions_live.cpp
     LIBRARIES omaseed::core
