@@ -636,6 +636,27 @@ int TorrentFilterModel::rowOfHash(const QString &hash) const
     return proxyIndex.isValid() ? proxyIndex.row() : -1;
 }
 
+int TorrentFilterModel::questionOfHash(const QString &hash) const
+{
+    const auto *source = qobject_cast<const TorrentModel *>(sourceModel());
+    if (source == nullptr)
+        return AnyQuestion;
+    const int sourceRow = source->indexOfHash(hash);
+    if (sourceRow < 0)
+        return AnyQuestion;
+    const Torrent &t = source->torrentAt(sourceRow);
+    return questionOf(t, source->hasLoggedTrouble(t.hash), dayStartMSecs());
+}
+
+bool TorrentFilterModel::hashInScope(const QString &hash) const
+{
+    const auto *source = qobject_cast<const TorrentModel *>(sourceModel());
+    if (source == nullptr)
+        return false;
+    const int sourceRow = source->indexOfHash(hash);
+    return sourceRow >= 0 && inScope(source->torrentAt(sourceRow), *source, dayStartMSecs());
+}
+
 QString TorrentFilterModel::hashAt(int row) const
 {
     if (row < 0 || row >= rowCount())

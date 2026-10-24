@@ -194,6 +194,12 @@ public:
 
     /// The proxy row showing `hash`, or -1.
     Q_INVOKABLE int rowOfHash(const QString &hash) const;
+    /// The question `hash` answers now, whatever the filters (AnyQuestion when the library
+    /// lacks it): the outcome strip's "show" names where its torrents went (DECISIONS C30 F9).
+    Q_INVOKABLE int questionOfHash(const QString &hash) const;
+    /// `hash` is in the rail's scope, the filter's words aside (inScope()): a row the words
+    /// alone hide. False when the library lacks it.
+    Q_INVOKABLE bool hashInScope(const QString &hash) const;
     /// The hash on proxy row `row`, or an empty string.
     Q_INVOKABLE QString hashAt(int row) const;
     /// Selects rows `from` to `to` (either order, clamped) in `selection`, a selection model

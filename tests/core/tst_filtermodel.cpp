@@ -1194,6 +1194,18 @@ void TestFilterModel::questionsSplitTheLibrary()
     expected.sort();
     QCOMPARE(shown, expected);
     QCOMPARE(counts.questionCount(question), int(expected.size()));
+    // C30 F9: each torrent's own question, whatever the proxy shows.
+    for (const QString &hash : expected)
+        QCOMPARE(proxy.questionOfHash(hash), question);
+    QCOMPARE(proxy.questionOfHash(QStringLiteral("not-in-the-library")),
+             int(TorrentFilterModel::AnyQuestion));
+    // The rail's scope, the words aside: words that hide every row leave each in scope.
+    proxy.setText(QStringLiteral("zzz-no-such-name"));
+    QCOMPARE(proxy.rowCount(), 0);
+    for (const QString &hash : questionLibrary().keys())
+        QCOMPARE(proxy.hashInScope(hash), expected.contains(hash));
+    QVERIFY(!proxy.hashInScope(QStringLiteral("not-in-the-library")));
+    proxy.setText(QString());
 
     int sum = 0;
     for (int q = TorrentFilterModel::NeedsYou; q <= TorrentFilterModel::Resting; ++q)
