@@ -282,6 +282,7 @@ App::App(QObject *parent)
     setUpScope();
     setUpLibraryDisplays();
     setUpSearch();
+    setUpCreate();
 }
 
 App::~App()
@@ -1406,6 +1407,12 @@ void App::onNotifierActionInvoked(const QString &eventClass,
     if (eventClass == QStringLiteral("move")) {
         Q_EMIT raiseRequested();
         Q_EMIT moveShowRequested();
+        return;
+    }
+
+    // #146: a creation's notice brings the window back on its band.
+    if (eventClass == QStringLiteral("create")) {
+        Q_EMIT raiseRequested();
         return;
     }
 

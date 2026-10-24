@@ -67,8 +67,9 @@ public:
     void setClock(std::function<qint64()> clock);
 
     void start(const Request &request);
-    /// Takes up a task already on the server (omaseed restarted while it ran): polls at once.
-    void resume(const Request &request, const QString &taskId, qint64 startedAtMs);
+    /// Takes up a task already on the server (omaseed restarted while it ran), which has run
+    /// `ranMs` so far: polls at once.
+    void resume(const Request &request, const QString &taskId, qint64 ranMs);
     /// Stops it: deleteTask once the id is known.
     void cancel();
 

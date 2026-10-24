@@ -335,7 +335,7 @@ void TestCreateJobFake::aRunningTaskIsTakenUpAgain()
     qint64 clock = 50000;
     job.setClock([&clock]() { return clock; });
     QSignalSpy finished(&job, &CreateJob::finished);
-    job.resume(request(false), QStringLiteral("t1"), 20000);
+    job.resume(request(false), QStringLiteral("t1"), 30000);
     QVERIFY(finished.wait(5000));
     QCOMPARE(job.state(), CreateJob::State::Done);
     QCOMPARE(job.taskId(), QStringLiteral("t1"));

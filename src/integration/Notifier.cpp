@@ -290,4 +290,18 @@ quint32 Notifier::notifyMove(const QString &serverId, const QString &summary, co
                       QStringLiteral("show"));
 }
 
+quint32 Notifier::notifyCreate(const QString &serverId, const QString &summary, const QString &body)
+{
+    const QStringList actions{QStringLiteral("show"), QStringLiteral("Show")};
+    return sendNotice(QStringLiteral("create|%1").arg(serverId),
+                      QStringLiteral("create"),
+                      serverId,
+                      summary,
+                      body,
+                      actions,
+                      kUrgencyNormal,
+                      QStringLiteral("transfer"),
+                      QStringLiteral("show"));
+}
+
 } // namespace omaseed::integration

@@ -111,7 +111,7 @@ void CreateJob::start(const Request &request)
         });
 }
 
-void CreateJob::resume(const Request &request, const QString &taskId, qint64 startedAtMs)
+void CreateJob::resume(const Request &request, const QString &taskId, qint64 ranMs)
 {
     ++m_generation;
     m_timer->stop();
@@ -125,7 +125,7 @@ void CreateJob::resume(const Request &request, const QString &taskId, qint64 sta
     m_pieceSize = 0;
     m_cancelAsked = false;
     m_inFlight = false;
-    m_startedAt = startedAtMs;
+    m_startedAt = now() - ranMs;
     setState(State::Queued);
     poll();
 }
