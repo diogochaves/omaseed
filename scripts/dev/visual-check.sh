@@ -129,6 +129,11 @@ key a
 omabox check point add --window "$APP" -g "$ADD_SHEET"
 # The first Escape clears the magnet field (which may change nothing), the second closes the sheet.
 key Escape Escape
+# Three rows selected (DECISIONS C24 H8): the status line is the action bar, its ledger and
+# buttons in the line's place; no free space shows there, so only the details' clock is left out.
+key g space j space j space
+omabox check point selection --window "$APP" --ignore "$ADDED" --ignore "$CREATED"
+key Escape
 
 # Settings: every section, j by j, the first (General) open.
 sections=(general servers notifications keybindings appearance backup about

@@ -2,8 +2,8 @@
 # omaseed — the risky actions, walked through the app's own UI: renames, categories, tags,
 # automatic torrent management, set location through the Move… sheet (board 43: also onto
 # another filesystem, a 2 GiB torrent, and onto a folder that already has its name),
-# recheck, the selection bar on two torrents, what each action came to in the strip in the
-# selection bar's place (board 45, DECISIONS C18: done, a refusal, two at once), picking rows
+# recheck, the action bar on two torrents (DECISIONS C24 H8), what each action came to in the
+# strip over the rows (board 45, DECISIONS C18: done, a refusal, two at once), picking rows
 # with the mouse's □ (C18 D6), the command palette (docs/30), delete with and
 # without files, and two torrents that share one file (#27: the twin goes in through the add
 # sheet's "save there"; #28: the delete confirm, the location sheet, a category change and
@@ -15,7 +15,7 @@
 # with Undo (#119). After each step it checks what qBittorrent says and
 # what is on disk, and stops at the first mismatch. OMASEED_ACTIONS_WALK_FROM=disk runs board
 # 44's steps alone.
-# Run it again after any change to an action, a sheet, a palette or the selection bar.
+# Run it again after any change to an action, a sheet, a palette or the action bar.
 #
 #   scripts/dev/actions-walk.sh [OUT_DIR]        # agents: a headless box, a shot per step,
 #                                                # OUT_DIR/index.md says what each shot shows
@@ -33,10 +33,9 @@
 # real bytes.
 #
 # The keys are the app's own: the jump palette's tab opens the actions menu on a torrent, and
-# esc from the menu leaves the keyboard on the table there. The selection bar is mouse only,
-# so it is clicked: its buttons' places are measured on a 1854x1056 window (see BAR_*), moved
-# to the window's real size before the first click (bar_fit), and the checks after each click
-# catch a button that moved.
+# esc from the menu leaves the keyboard on the table there. The action bar (the status line
+# while torrents are selected, DECISIONS C24 H8) is mouse only, so its buttons are clicked by
+# their accessible names, where the window's tree places them (bar_click).
 set -euo pipefail
 
 repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -55,21 +54,6 @@ case "${1:-}" in
 esac
 
 [ -x build/omaseed ] || { echo "build first: cmake --build build" >&2; exit 1; }
-
-# The selection bar's buttons, in omaseed's window coordinates, with two torrents selected,
-# the rail and the details pane open (docs/17 M9.3's order), for a BAR_W x BAR_H window (the
-# box's 1920x1080 screen with the bar Omarchy puts on the left). The bar is centred over the
-# table and sits a fixed height above the window's bottom: bar_fit moves the buttons by half
-# the width's change and all of the height's, so another bar layout (a top bar) still lands.
-# Measured again after #24 T7 put the selection's ledger (size, given, ratio) at the bar's start.
-BAR_W=1854
-BAR_H=1056
-BAR_Y=975
-BAR_START=775
-BAR_STOP=808
-BAR_CATEGORY=940
-BAR_TAGS=974
-BAR_DELETE=1175
 
 SEEDING="('uploading', 'stalledUP', 'queuedUP', 'forcedUP')"
 
@@ -99,30 +83,13 @@ in_box() { omabox run -b "$BOX" -- "$@" >/dev/null 2>&1; }
 
 # The outcome strip's line runs down for 6 s at the table's bottom (DECISIONS C18 D3): a wait
 # for the window to be still would wait it out, and the strip with it. Its band of the screen
-# (the selection bar's too) is left out of every wait; it is wide and tall enough to hold
+# (the action bar's too) is left out of every wait; it is wide and tall enough to hold
 # whether omabox reads it in the screen's or the window's coordinates.
 STRIP_IGNORE="0,920 1920,110"
 keys() { omabox keys -b "$BOX" --window omaseed --wait --ignore "$STRIP_IGNORE" "$@" >/dev/null 2>&1 || true; }
 # keys_now KEY...: the same without waiting for the screen to settle, for while something on it
 # keeps moving (the hold band's countdown, #119) and the 3 s matter.
 keys_now() { omabox keys -b "$BOX" --window omaseed "$@" >/dev/null 2>&1 || true; }
-# bar_fit: move BAR_* from the BAR_W x BAR_H window they were measured on to omaseed's own.
-bar_fit() {
-    local w h dx dy
-    read -r w h < <(omabox windows -b "$BOX" --json | python3 -c '
-import json, sys
-print(*next(x["size"] for x in json.load(sys.stdin) if "omaseed" in x["class"]))')
-    dx=$(((w - BAR_W) / 2))
-    dy=$((h - BAR_H))
-    BAR_Y=$((BAR_Y + dy))
-    BAR_START=$((BAR_START + dx))
-    BAR_STOP=$((BAR_STOP + dx))
-    BAR_CATEGORY=$((BAR_CATEGORY + dx))
-    BAR_TAGS=$((BAR_TAGS + dx))
-    BAR_DELETE=$((BAR_DELETE + dx))
-    BAR_W=$w
-    BAR_H=$h
-}
 click() { omabox click -b "$BOX" --window omaseed --wait --ignore "$STRIP_IGNORE" "$1" "$2" >/dev/null 2>&1 || true; }
 
 # row_tick NAME: click the □ at the start of the row whose torrent is NAME (C18 D6), where the
@@ -346,6 +313,21 @@ for node in json.load(sys.stdin):
         print(node["x"] + node["w"] // 2, node["y"] + node["h"] // 2)
         break' "$1")"
     [ -n "$at" ] || fail "no \"$1\" to click in the window"
+    # shellcheck disable=SC2086 # "X Y"
+    click $at
+}
+
+# bar_click NAME: the action bar's button named NAME exactly ("stop", "category", "delete"),
+# the lowest such node in the window: the bar is its foot (C24 H8).
+bar_click() {
+    local at
+    at="$(omabox tree -b "$BOX" --window omaseed --json 2>/dev/null | python3 -c '
+import json, sys
+nodes = [n for n in json.load(sys.stdin) if (n.get("name") or "") == sys.argv[1] and n.get("w", 0) > 0]
+if nodes:
+    n = max(nodes, key=lambda n: n["y"])
+    print(n["x"] + n["w"] // 2, n["y"] + n["h"] // 2)' "$1")"
+    [ -n "$at" ] || fail "no \"$1\" button on the action bar"
     # shellcheck disable=SC2086 # "X Y"
     click $at
 }
@@ -742,7 +724,7 @@ api torrents/tags | python3 -c 'import json, sys; sys.exit(0 if "walk-tag" in js
     fail "the tag walk-tag itself was deleted (the app never deletes tags)"
 pass "the tag itself stays on the server"
 
-step "Set location, same disk" "Nested Library Sampler, the menu's move… (m), ~/Moved, enter. 113 files in 26 folders move; it lands within 3 s, so no band, and the strip in the selection bar's place says so, its row's status \"✓ moved · Moved\" (C18 D1)."
+step "Set location, same disk" "Nested Library Sampler, the menu's move… (m), ~/Moved, enter. 113 files in 26 folders move; it lands within 3 s, so no band, and the strip over the rows says so, its row's status \"✓ moved · Moved\" (C18 D1)."
 menu_on "Nested Library"
 keys m
 expect_text "the Move… sheet is open" "new path on" 10
@@ -752,7 +734,7 @@ shot "The Move… sheet: ~/Moved, one green line (L3)." sheet
 keys Return
 expect "the save path is ~/Moved" "$NESTED" "t['save_path'] == '$BOX_HOME/Moved'" 30
 expect_text "the strip says it moved" "Nested Library Sampler (2026) moved to $BOX_HOME/Moved" 20
-shot "The green strip at the table's bottom middle: ✓ Nested Library Sampler (2026) moved to ~/Moved, show, ×; the row reads ✓ moved · Moved." strip
+shot "The green strip at the rows' bottom middle: ✓ Nested Library Sampler (2026) moved to ~/Moved and ×, no show: it is the cursor's row, in view (C30 F8); the row reads ✓ moved · Moved." strip
 expect_disk "the files are in ~/Moved" -f "$BOX_HOME/Moved/Nested Library Sampler (2026)/Docs/README.md" 30
 expect_disk "…and gone from ~/Torrents" ! "$TORRENTS_DIR/Nested Library Sampler (2026)"
 expect "it still seeds, complete" "$NESTED" "t['state'] in $SEEDING and t['progress'] == 1" 30
@@ -802,26 +784,25 @@ rm -f "$seen"
 expect "…and finds it whole" "$BIGH" "t['state'] in $SEEDING and t['progress'] == 1" 120
 shot "$BIG seeding again after the check." after
 
-step "Select two, stop them from the bar" "space on Field Recordings and Nested Library Sampler; a jump + tab onto a third shows the menu says \"2 selected\" (esc); then the selection bar's stop button."
+step "Select two, stop them from the bar" "space on Field Recordings and Nested Library Sampler; a jump + tab onto a third shows the menu says \"2 selected\" (esc); then the action bar's stop button."
 table_on "Field Recordings"
 keys space
 table_on "Nested Library"
 keys space
-shot "Two rows selected; the selection bar reads \"2 selected\"." bar
+shot "Two rows selected; the status line is the action bar and reads \"2 selected\" (C24 H8)." bar
 # Q24: a jump + tab onto a third torrent opens the menu there, but its rows act on the two.
 menu_on "tiny notes"
 shot "The actions menu on tiny notes (renamed).txt, headed by a dim \"2 selected\" line above stop." menu
 keys Escape
-bar_fit
-click "$BAR_STOP" "$BAR_Y"
+bar_click stop
 expect "Field Recordings is stopped" "$FIELD" 't["state"] == "stoppedUP"'
 expect "Nested Library Sampler is stopped" "$NESTED" 't["state"] == "stoppedUP"'
 expect "no other torrent is" "$FIELD" 'all(not x["state"].startswith("stopped") for x in every if x["hash"] not in ("'"$FIELD"'", "'"$NESTED"'"))'
 expect_text "the strip counts them: 2 stopped" "2 stopped" 10
-shot "Both rows read stopped; the others still seed. The strip, \"✓ 2 stopped\", sits just above the selection bar (C18 D1, O3)."
+shot "Both rows read stopped; the others still seed. The strip, \"✓ 2 stopped\", floats over the rows just above the action bar, with no show: both are in view and selected (C24 H8, C30 F8)."
 
 step "Category from the bar" "The bar's category button, \"walk\", enter. Field Recordings is managed, so it moves to ~/Torrents/walk; Nested Library is not (set location turned management off), so it stays in ~/Moved."
-click "$BAR_CATEGORY" "$BAR_Y"
+bar_click category
 keys -t walk
 shot "The category palette for 2 torrents, walk under the cursor." palette
 keys Return
@@ -832,14 +813,14 @@ expect "Nested Library Sampler stayed in ~/Moved" "$NESTED" "t['save_path'] == '
 expect_disk "…on disk too" -f "$BOX_HOME/Moved/Nested Library Sampler (2026)/Docs/README.md"
 
 step "Tag from the bar" "The bar's tags button, \"bulk\", enter on create \"bulk\"."
-click "$BAR_TAGS" "$BAR_Y"
+bar_click tags
 keys -t bulk
 keys Return
 expect "both are tagged bulk" "$FIELD" 'all(x["tags"] == "bulk" for x in every if x["hash"] in ("'"$FIELD"'", "'"$NESTED"'"))'
 expect "no other torrent is" "$FIELD" 'all(x["tags"] == "" for x in every if x["hash"] not in ("'"$FIELD"'", "'"$NESTED"'"))'
 
 step "Start them from the bar" "The bar's start button."
-click "$BAR_START" "$BAR_Y"
+bar_click start
 expect "both seed again" "$FIELD" 'all(x["state"] in '"$SEEDING"' for x in every if x["hash"] in ("'"$FIELD"'", "'"$NESTED"'"))' 30
 shot "Both rows seeding, still selected, walk and bulk on them."
 keys Escape # closes the strip
@@ -951,7 +932,7 @@ table_on "Field Recordings"
 keys space
 table_on "Nested Library"
 keys space
-click "$BAR_DELETE" "$BAR_Y"
+bar_click delete
 shot "Delete 2 torrents? both names, 226 MB; the toggle on." dialog
 keys l Return
 expect "Field Recordings is gone" "$FIELD" 't is None'
