@@ -1683,7 +1683,7 @@ Item {
                     readonly property bool onScreen: row.y + row.height > list.contentY
                                                      && row.y < list.contentY + list.height
 
-                    color: band.ink.stateSeeding
+                    color: Theme.stateSeeding
                     height: parent.height - 2 * pulseTick.y
                     objectName: "pulse_" + row.index
                     opacity: pulseTick.sending && root.pulseRunning && pulseTick.onScreen
@@ -1817,13 +1817,15 @@ Item {
                     width: root.columnLayout.progress.w
                     x: root.columnLayout.progress.x
 
+                    // The line, the pulse and the ratio tracks are marks, not words: they keep
+                    // the window's colours (DECISIONS C30 lifts text and glyphs only).
                     ProgressLine {
                         anchors.left: parent.left
                         anchors.leftMargin: Theme.space(8)
                         anchors.right: progressText.left
                         anchors.rightMargin: Theme.space(8)
                         anchors.verticalCenter: parent.verticalCenter
-                        color: row.stateColor
+                        color: Theme[row.stateRole]
                         height: Theme.rowHeight
                         objectName: "progressLine_" + row.index
                         showText: false
@@ -2051,7 +2053,7 @@ Item {
                         // T3: "only you" boxed in the rare colour.
                         Rectangle {
                             anchors.verticalCenter: parent.verticalCenter
-                            border.color: Qt.alpha(band.ink.yellow, 0.4)
+                            border.color: Qt.alpha(Theme.yellow, 0.4)
                             border.width: 1
                             color: "transparent"
                             height: Theme.font.body + Theme.space(4)
@@ -2079,7 +2081,7 @@ Item {
                                 width: Theme.space(20)
 
                                 Rectangle {
-                                    color: band.ink.foreground
+                                    color: Theme.foreground
                                     height: parent.height
                                     opacity: 0.45
                                     width: parent.width * Math.min(1, textCell.ratio)
@@ -2092,7 +2094,7 @@ Item {
                                 width: Theme.space(16)
 
                                 Rectangle {
-                                    color: band.ink.stateSeeding
+                                    color: Theme.stateSeeding
                                     height: parent.height
                                     width: parent.width * Math.max(0, Math.min(1, (textCell.ratio - 1)
                                                                                / (textCell.ratioGoal - 1)))
