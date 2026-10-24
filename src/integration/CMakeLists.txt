@@ -10,6 +10,8 @@ qt_add_library(omaseed-integration STATIC
     BarWidget.hpp
     BarWidgetInstaller.cpp
     BarWidgetInstaller.hpp
+    DesktopSkin.cpp
+    DesktopSkin.hpp
     HyprlandEvents.cpp
     HyprlandEvents.hpp
     MotionPreference.cpp

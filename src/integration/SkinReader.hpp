@@ -97,6 +97,14 @@ public:
     static QHash<QString, SkinGround> groundsOf(const Skin &skin);
     /// `grounds`' names, each after the ground it is painted over: the order to resolve them.
     static QStringList groundOrder(const QHash<QString, SkinGround> &grounds);
+
+    /// The families a skin names (`font.label`, `.value`, `.kana`, `.icons`, in that order),
+    /// "" (fontconfig's monospace) left out.
+    static QStringList fontFamilies(const Skin &skin);
+    /// Those of `skin`'s families that aren't in `installed` (QFontDatabase::families()),
+    /// compared without case. omaseed bundles no font (the console skin's note, question 1),
+    /// so Appearance names what is missing and the Kit falls back per family.
+    static QStringList missingFonts(const Skin &skin, const QStringList &installed);
 };
 
 /// `Theme.skin`: the skin Theme draws, for QML. Its tokens change only with the skin (the
@@ -117,6 +125,13 @@ class ThemeSkin : public QObject
     Q_PROPERTY(QVariantMap roles READ roles NOTIFY changed FINAL)
     /// Every token the skin set, by group (Skin::tokens), grounds and roles aside.
     Q_PROPERTY(QVariantMap tokens READ tokens NOTIFY changed FINAL)
+    /// The desktop asks for the shell's font everywhere (omarchy-console's `fx.fonts =
+    /// system`), while omaseed follows the desktop's skin: the skin's font tokens give way to
+    /// Theme.fontFamily. Always false for a skin chosen by hand.
+    Q_PROPERTY(bool systemFonts READ systemFonts NOTIFY changed FINAL)
+    /// The skin's font families that are not installed (SkinReader::missingFonts); empty
+    /// while systemFonts holds, since then none is used. Read when the skin changes.
+    Q_PROPERTY(QStringList missingFonts READ missingFonts NOTIFY changed FINAL)
 
 public:
     explicit ThemeSkin(QObject *parent = nullptr);
@@ -127,7 +142,13 @@ public:
     QString reason() const { return m_skin.reason; }
     QVariantMap roles() const;
     QVariantMap tokens() const { return m_skin.tokens; }
+    bool systemFonts() const { return m_systemFonts; }
+    QStringList missingFonts() const;
     const Skin &skin() const { return m_skin; }
+
+    /// A built-in skin's font families that are not installed, whichever skin is drawn:
+    /// Appearance's skin row names Console's before it is picked.
+    Q_INVOKABLE QStringList missingFontsOf(const QString &name) const;
 
     /// A density token in spec px (`"titleBarHeight": 54`), or `fallback`: Theme.qml's own
     /// value, which is Omarchy's (the design note's `skin.n("titleBarHeight", space(46))`).
@@ -142,6 +163,8 @@ public:
 
     /// Draw `skin`, asked for as `requested`. Emits changed() when anything moved.
     void set(const Skin &skin, const QString &requested);
+    /// Record the desktop's `fx.fonts = system` (see systemFonts). Emits changed() when it moved.
+    void setSystemFonts(bool system);
 
 Q_SIGNALS:
     void changed();
@@ -149,6 +172,7 @@ Q_SIGNALS:
 private:
     Skin m_skin;
     QString m_requested = QStringLiteral("omarchy");
+    bool m_systemFonts = false;
 };
 
 } // namespace omaseed::integration

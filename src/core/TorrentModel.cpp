@@ -111,7 +111,9 @@ QList<int> TorrentModel::dayRelativeRoles()
 
 qint64 TorrentModel::msecsToNextMidnight(const QDateTime &now)
 {
-    const QDateTime midnight(now.date().addDays(1), QTime(0, 0), now.timeZone());
+    // In now's own representation: now.timeZone() names the system zone, which is not
+    // the same clock as local time when TZ is unset or unknown (a bare container).
+    const QDateTime midnight = now.date().addDays(1).startOfDay(now.timeRepresentation());
     // A second late, so the new date is already current when the texts are recomputed.
     return std::max<qint64>(1000, now.msecsTo(midnight) + 1000);
 }

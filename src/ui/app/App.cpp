@@ -4533,6 +4533,9 @@ const QStringList kTrackerHostStyles{
     QStringLiteral("prefix"), QStringLiteral("left"), QStringLiteral("right")};
 const QStringList kTrayIconModes{
     QStringLiteral("auto"), QStringLiteral("always"), QStringLiteral("never")};
+// DECISIONS C24 H11: Omarchy (the default), Console, Follow the desktop.
+const QStringList kSkinChoices{
+    QStringLiteral("omarchy"), QStringLiteral("console"), QStringLiteral("desktop")};
 
 int tintStep(int percent)
 {
@@ -4540,6 +4543,24 @@ int tintStep(int percent)
 }
 
 } // namespace
+
+QString App::skinChoice() const
+{
+    const_cast<App *>(this)->loadSettings();
+    return m_skinChoice;
+}
+
+void App::setSkinChoice(const QString &choice)
+{
+    loadSettings();
+    const QString wanted = oneOf(choice, kSkinChoices);
+    if (m_skinChoice == wanted)
+        return;
+    m_skinChoice = wanted;
+    saveSettings();
+    applyAppearance();
+    Q_EMIT settingsChanged();
+}
 
 QString App::railScrollHint() const
 {
@@ -4723,6 +4744,7 @@ void App::loadSettings()
     m_followOmarchyTheme = appearance.value(QStringLiteral("followOmarchyTheme")).toBool(true);
     m_baseSizeOverride = appearance.value(QStringLiteral("baseSizeOverride")).toInt(0);
     m_windowAlphaOverride = appearance.value(QStringLiteral("windowAlphaOverride")).toInt(0);
+    m_skinChoice = oneOf(appearance.value(QStringLiteral("skin")).toString(), kSkinChoices);
     // DECISIONS C24 H13: opaque by default. Before the choice existed, a transparency set by
     // hand was the only way to ask for a ground of one's own, so it reads as translucent.
     const QJsonValue ground = appearance.value(QStringLiteral("windowGround"));
@@ -4766,6 +4788,7 @@ void App::saveSettings()
     appearance[QStringLiteral("baseSizeOverride")] = m_baseSizeOverride;
     appearance[QStringLiteral("windowAlphaOverride")] = m_windowAlphaOverride;
     appearance[QStringLiteral("windowGround")] = m_windowGround;
+    appearance[QStringLiteral("skin")] = m_skinChoice;
     appearance[QStringLiteral("trayIconMode")] = m_trayIconMode;
     appearance[QStringLiteral("speedsAlignment")] = m_speedsAlignment;
     appearance[QStringLiteral("uploadTrend")] = m_uploadTrend;
@@ -4785,6 +4808,7 @@ void App::applyAppearance()
         return;
     m_themeReader->setFollowOmarchy(m_followOmarchyTheme);
     m_themeReader->setBaseSizeOverride(m_baseSizeOverride);
+    m_themeReader->setSkinChoice(m_skinChoice);
 }
 
 // --- end T4.5 --------------------------------------------------------------------------------

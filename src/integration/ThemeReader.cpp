@@ -1,6 +1,7 @@
 #include "integration/ThemeReader.hpp"
 
 #include "integration/AppIdentity.hpp"
+#include "integration/DesktopSkin.hpp"
 
 #include <QCryptographicHash>
 #include <QDBusAbstractAdaptor>
@@ -141,6 +142,15 @@ ThemeReader::ThemeReader(Paths paths, QObject *parent)
     connect(&m_debounce, &QTimer::timeout, this, &ThemeReader::reload);
     connectWatcher();
     reload();
+    // What a walk reads to know which skin is drawn (scripts/dev/settings-walk.sh).
+    connect(this, &ThemeReader::skinChanged, this, [this]() {
+        qCInfo(lcTheme).noquote() << QStringLiteral("skin: %1 (choice %2, fonts %3)")
+                                         .arg(skinName(),
+                                              skinChoiceInForce(),
+                                              skinSystemFonts() ? QStringLiteral("system")
+                                                                : QStringLiteral("the skin's"));
+    });
+    followDesktopSkin();
 }
 
 void ThemeReader::connectWatcher()
@@ -194,6 +204,61 @@ void ThemeReader::setBaseSizeOverride(int pixels)
         return;
     m_baseSizeOverride = clamped;
     reload();
+}
+
+void ThemeReader::setSkinChoice(const QString &choice)
+{
+    const QString wanted = choice == QLatin1String("console") || choice == QLatin1String("desktop")
+                               ? choice
+                               : QStringLiteral("omarchy");
+    if (m_skinChoice == wanted)
+        return;
+    const QString name = skinName();
+    const bool systemFonts = skinSystemFonts();
+    m_skinChoice = wanted;
+    followDesktopSkin();
+    if (skinName() != name || skinSystemFonts() != systemFonts)
+        Q_EMIT skinChanged();
+}
+
+QString ThemeReader::skinChoiceInForce() const
+{
+    const QString pinned = qEnvironmentVariable("OMASEED_SKIN").trimmed();
+    return pinned.isEmpty() ? m_skinChoice : pinned;
+}
+
+QString ThemeReader::skinName() const
+{
+    const QString choice = skinChoiceInForce();
+    if (choice != QLatin1String("desktop"))
+        return choice;
+    return desktopSkinOn() ? QStringLiteral("console") : QStringLiteral("omarchy");
+}
+
+bool ThemeReader::skinSystemFonts() const
+{
+    return m_desktopSkin && m_desktopSkin->on() && m_desktopSkin->systemFonts();
+}
+
+bool ThemeReader::desktopSkinOn() const
+{
+    return m_desktopSkin && m_desktopSkin->on();
+}
+
+void ThemeReader::followDesktopSkin()
+{
+    const bool following = skinChoiceInForce() == QLatin1String("desktop");
+    if (following == (m_desktopSkin != nullptr))
+        return;
+    if (!following) {
+        delete m_desktopSkin;
+        m_desktopSkin = nullptr;
+        return;
+    }
+    m_desktopSkin = new DesktopSkin(m_paths, this);
+    connect(m_desktopSkin, &DesktopSkin::changed, this, &ThemeReader::skinChanged);
+    // omarchy-theme-set renames the whole theme folder; the reader sees that first.
+    connect(this, &ThemeReader::changed, m_desktopSkin, &DesktopSkin::refresh);
 }
 
 QString ThemeReader::findColorsFile(bool *lightModeFile) const

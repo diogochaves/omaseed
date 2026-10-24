@@ -119,6 +119,8 @@ launch() {
     [ -n "${OMASEED_LOOKUP_CLOCK_SCALE:-}" ] && pass+=(--pass OMASEED_LOOKUP_CLOCK_SCALE)
     # A walk's display (DECISIONS C24 H4: a box is a new install, so rows unless it says).
     [ -n "${OMASEED_DISPLAY:-}" ] && pass+=(--pass OMASEED_DISPLAY)
+    # A pinned skin (#171): OMASEED_SKIN wins over Settings › Appearance's choice.
+    [ -n "${OMASEED_SKIN:-}" ] && pass+=(--pass OMASEED_SKIN)
     out="$(QT_FORCE_STDERR_LOGGING=1 omabox run -b "$BOX" "${pass[@]}" -d -- \
         "$binary" 2>&1)" || die "could not start $binary in the box: $out"
     log="$(sed -n 's/.*(log: \(.*\))$/\1/p' <<<"$out" | head -n 1)"
