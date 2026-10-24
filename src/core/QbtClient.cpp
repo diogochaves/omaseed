@@ -1588,6 +1588,76 @@ QbtReply<QJsonObject> *QbtClient::searchResults(int id, int limit, int offset)
                                [path](const QByteArray &body) { return parseObject(body, path); });
 }
 
+QbtReply<QString> *QbtClient::torrentCreatorAddTask(const CreateTask &task)
+{
+    RequestSpec spec;
+    spec.verb = QStringLiteral("POST");
+    spec.path = QStringLiteral("torrentcreator/addTask");
+    const auto flag = [](bool on) { return on ? QStringLiteral("true") : QStringLiteral("false"); };
+    addItem(spec.form, QStringLiteral("sourcePath"), task.sourcePath);
+    addItem(spec.form, QStringLiteral("format"), task.format);
+    addItem(spec.form, QStringLiteral("pieceSize"), QString::number(task.pieceSize));
+    addItem(spec.form, QStringLiteral("private"), flag(task.isPrivate));
+    addItem(spec.form, QStringLiteral("ignoreDotfiles"), flag(task.ignoreDotfiles));
+    addItem(spec.form, QStringLiteral("startSeeding"), flag(false));
+    addItem(spec.form, QStringLiteral("trackers"), task.trackers.join(QStringLiteral("||")));
+    addItem(spec.form, QStringLiteral("urlSeeds"), task.urlSeeds.join(QLatin1Char('|')));
+    addItem(spec.form, QStringLiteral("source"), task.source);
+    addItem(spec.form, QStringLiteral("comment"), task.comment);
+    spec.retryOnTransient = false;
+    const QString path = spec.path;
+    return submit<QString>(std::move(spec), [path](const QByteArray &body) -> QbtResult<QString> {
+        QbtResult<QJsonObject> object = parseObject(body, path);
+        if (object.isError())
+            return object.error();
+        const QString id = object.value().value(QStringLiteral("taskID")).toString();
+        if (id.isEmpty())
+            return ApiError(ApiError::Kind::Parse, QStringLiteral("%1: no taskID").arg(path));
+        return id;
+    });
+}
+
+QbtReply<QJsonObject> *QbtClient::torrentCreatorStatus(const QString &taskId)
+{
+    RequestSpec spec;
+    spec.path = QStringLiteral("torrentcreator/status");
+    addItem(spec.query, QStringLiteral("taskID"), taskId);
+    const QString path = spec.path;
+    return submit<QJsonObject>(
+        std::move(spec), [path](const QByteArray &body) -> QbtResult<QJsonObject> {
+            QbtResult<QJsonArray> array = parseArray(body, path);
+            if (array.isError())
+                return array.error();
+            if (array.value().isEmpty() || !array.value().at(0).isObject())
+                return ApiError(ApiError::Kind::Parse, QStringLiteral("%1: no task").arg(path));
+            return array.value().at(0).toObject();
+        });
+}
+
+QbtReply<QByteArray> *QbtClient::torrentCreatorTorrentFile(const QString &taskId)
+{
+    RequestSpec spec;
+    spec.path = QStringLiteral("torrentcreator/torrentFile");
+    addItem(spec.query, QStringLiteral("taskID"), taskId);
+    // 409's words: "Torrent creation is still unfinished." or "Torrent creation failed.".
+    spec.errorKeepsBody = true;
+    return submit<QByteArray>(std::move(spec),
+                              [](const QByteArray &body) { return QbtResult<QByteArray>(body); });
+}
+
+QbtReply<QByteArray> *QbtClient::torrentCreatorDeleteTask(const QString &taskId)
+{
+    QUrlQuery form;
+    addItem(form, QStringLiteral("taskID"), taskId);
+    return post(QStringLiteral("torrentcreator/deleteTask"), form);
+}
+
+bool QbtClient::supportsTorrentCreator(const QString &apiVersion)
+{
+    const QVersionNumber version = QVersionNumber::fromString(apiVersion);
+    return !version.isNull() && version >= QVersionNumber(2, 10, 4);
+}
+
 QbtReply<QByteArray> *QbtClient::searchStop(int id)
 {
     QUrlQuery form;
