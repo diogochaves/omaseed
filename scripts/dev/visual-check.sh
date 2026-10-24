@@ -130,8 +130,12 @@ omabox check point add --window "$APP" -g "$ADD_SHEET"
 # The first Escape clears the magnet field (which may change nothing), the second closes the sheet.
 key Escape Escape
 # Three rows selected (DECISIONS C24 H8): the status line is the action bar, its ledger and
-# buttons in the line's place; no free space shows there, so only the details' clock is left out.
-key g space j space j space
+# buttons in the line's place, and C18 D6's hint after them (a fresh box: the first plain
+# click); no free space shows there, so only the details' clock is left out. A click puts the
+# keyboard on the table, wherever the sheets left it; the pointer then leaves the row.
+click_text distro
+key j space j space
+omabox pointer --window "$APP" -- move 900 600 >/dev/null
 omabox check point selection --window "$APP" --ignore "$ADDED" --ignore "$CREATED"
 key Escape
 
