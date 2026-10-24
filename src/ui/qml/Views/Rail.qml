@@ -1401,7 +1401,7 @@ Item {
         // D16 a: a band of its own, the idle fill under a hairline. Opened over the filters
         // (D18) it is opaque, with an accent edge, like a menu.
         border.color: Theme.accent
-        border.width: root.serversOverlay ? 1 : 0
+        border.width: root.serversOverlay ? Theme.edgeWidth : 0
         color: root.serversOverlay ? Theme.background : "transparent"
         height: root.serversShownFolded ? root._serversFoldedHeight : root._serversOpenHeight
         objectName: "serversBlock"

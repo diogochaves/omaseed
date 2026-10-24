@@ -2141,7 +2141,7 @@ Item {
                                     anchors.verticalCenter: parent.verticalCenter
                                     border.color: helpKeyHover.hovered ? Theme.fill(Theme.borderHover)
                                                                        : Theme.fill(Theme.borderIdle)
-                                    border.width: 1
+                                    border.width: Theme.hairWidth
                                     // Its idle fill, the hover fill under the pointer; the
                                     // key on that ground (docs/DECISIONS.md C30 F1).
                                     color: helpKeyHover.hovered ? Theme.on.hover.fill

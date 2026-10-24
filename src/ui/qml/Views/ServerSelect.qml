@@ -155,7 +155,7 @@ Item {
                                       root.openList()
         anchors.fill: parent
         border.color: root.hot || list.opened ? Theme.accent : Theme.fill(Theme.borderIdle)
-        border.width: 1
+        border.width: Theme.hairWidth
         color: selectBox.ink.fill
         objectName: "serverSelectBox"
         radius: Theme.cornerRadius

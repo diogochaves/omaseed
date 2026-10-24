@@ -1445,7 +1445,7 @@ Sheet {
                             Accessible.onPressAction: if (serverChipBox.enabled)
                                                           sheet.serverPaletteRequested()
                             border.color: chipMouse.containsMouse ? Theme.fill(Theme.borderHover) : Theme.fill(Theme.borderIdle)
-                            border.width: 1
+                            border.width: Theme.hairWidth
                             color: chipMouse.containsMouse ? serverChipBox.ink.fill : "transparent"
                             implicitHeight: chipRow.implicitHeight + Theme.space(4)
                             implicitWidth: chipRow.implicitWidth + Theme.space(12)

@@ -106,7 +106,7 @@ Window {
         required property string caption
 
         border.color: Theme.muted
-        border.width: 1
+        border.width: Theme.hairWidth
         color: Theme.on.idle.fill
 
         ColumnLayout {

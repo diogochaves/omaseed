@@ -1483,7 +1483,7 @@ Item {
                                               ? root.columnLayout[internal.dragKey].w : 0
 
             border.color: Theme.accent
-            border.width: 1
+            border.width: Theme.edgeWidth
             color: Theme.background
             enabled: false
             height: parent.height
@@ -2098,7 +2098,7 @@ Item {
                         Rectangle {
                             anchors.verticalCenter: parent.verticalCenter
                             border.color: Qt.alpha(Theme.yellow, 0.4)
-                            border.width: 1
+                            border.width: Theme.hairWidth
                             color: "transparent"
                             height: Theme.font.body + Theme.space(4)
                             visible: textCell.isSwarm && textCell.complete && textCell.swarmSeeds === 1
@@ -2325,7 +2325,7 @@ Item {
 
         Rectangle {
             border.color: Theme.accent
-            border.width: 1
+            border.width: Theme.hairWidth
             color: Theme.background
             implicitWidth: editor.contentWidth + 2 * Theme.space(6) + Theme.space(12)
 

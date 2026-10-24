@@ -67,7 +67,7 @@ Sheet {
         Layout.fillWidth: true
         Layout.preferredHeight: Theme.space(220)
         border.color: editor.activeFocus ? Theme.accent : Theme.fill(Theme.borderIdle)
-        border.width: 1
+        border.width: Theme.hairWidth
         color: Theme.on.idle.fill
         radius: Theme.cornerRadius
 

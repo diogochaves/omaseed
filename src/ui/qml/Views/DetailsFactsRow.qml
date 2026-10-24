@@ -44,7 +44,7 @@ Rectangle {
                                   root.clicked()
 
     border.color: root.hasCursor ? Theme.fill(Theme.borderHover) : "transparent"
-    border.width: root.hasCursor ? 1 : 0
+    border.width: root.hasCursor ? Theme.hairWidth : 0
     color: root.hasCursor || mouse.containsMouse ? root.ink.fill : "transparent"
     implicitHeight: Math.max(Theme.space(26), rowLayout.implicitHeight + Theme.space(8))
 

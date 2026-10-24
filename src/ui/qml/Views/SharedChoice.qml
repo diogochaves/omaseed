@@ -77,7 +77,7 @@ FocusScope {
                 Layout.fillWidth: true
                 objectName: "sharedChoice_" + row.index
                 border.color: Qt.alpha(Theme.foreground, row.picked ? Theme.borderHover : 0)
-                border.width: 1
+                border.width: Theme.hairWidth
                 color: row.picked ? row.ink.fill : "transparent"
                 implicitHeight: rowLayout.implicitHeight + Theme.space(10)
                 radius: Theme.cornerRadius

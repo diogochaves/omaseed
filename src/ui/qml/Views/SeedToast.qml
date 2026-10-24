@@ -57,7 +57,7 @@ Rectangle {
 
     border.color: Qt.alpha(root.current !== null && root.current.kind === "lastSeed" ? Theme.yellow
                                                                                      : Theme.stateSeeding, 0.55)
-    border.width: 1
+    border.width: Theme.edgeWidth
     color: Theme.background
     implicitHeight: Theme.controlHeight + 2 * Theme.space(4)
     implicitWidth: row.implicitWidth + Theme.space(28)

@@ -74,7 +74,7 @@ Rectangle {
                                        + Theme.outcomeStripReasonGap
 
     border.color: Theme.fill(Theme.borderIdle)
-    border.width: 1
+    border.width: Theme.edgeWidth
     color: Theme.background
     implicitHeight: Theme.controlHeight + 2 * Theme.space(4)
                     + (reasonText.visible ? reasonText.implicitHeight + Theme.outcomeStripReasonGap : 0)

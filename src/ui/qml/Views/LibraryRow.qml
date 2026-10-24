@@ -104,7 +104,7 @@ Item {
     Rectangle {
         anchors.fill: parent
         border.color: row.isCursor && !row.isSelected ? Theme.fill(Theme.borderHover) : "transparent"
-        border.width: row.isCursor && !row.isSelected ? 1 : 0
+        border.width: row.isCursor && !row.isSelected ? Theme.hairWidth : 0
         color: row.ink.ground.fill
 
         Behavior on color {
@@ -321,7 +321,7 @@ Item {
                 Accessible.onPressAction: fixArea.activate()
                 anchors.verticalCenter: parent.verticalCenter
                 border.color: Qt.alpha(Theme.accent, Theme.libraryRowFixBorderAlpha)
-                border.width: 1
+                border.width: Theme.hairWidth
                 color: fixArea.containsMouse ? Theme.fill(Theme.fillHover) : "transparent"
                 height: fixText.implicitHeight
                 objectName: "libraryRowFix_" + row.index
@@ -416,7 +416,7 @@ Item {
 
         sourceComponent: Rectangle {
             border.color: Theme.accent
-            border.width: 1
+            border.width: Theme.hairWidth
             color: Theme.background
 
             Rectangle {

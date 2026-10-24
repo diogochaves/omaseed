@@ -111,7 +111,7 @@ Rectangle {
     activeFocusOnTab: true
     border.color: root.activeFocus ? Theme.accent : hover.hovered ? Theme.fill(Theme.borderHover)
                                                                   : Theme.fill(Theme.borderIdle)
-    border.width: 1
+    border.width: Theme.hairWidth
     clip: true
     color: Theme.on.idle.fill
     implicitHeight: root.count * Theme.railRowHeight + 2

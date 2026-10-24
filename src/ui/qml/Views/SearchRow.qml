@@ -69,7 +69,7 @@ Item {
     Rectangle {
         anchors.fill: parent
         border.color: row.isCursor ? Theme.fill(Theme.borderHover) : "transparent"
-        border.width: row.isCursor ? 1 : 0
+        border.width: row.isCursor ? Theme.hairWidth : 0
         color: row.ink.ground.fill
     }
 
@@ -226,7 +226,7 @@ Item {
                 Accessible.onPressAction: row.addClicked(row.index)
                 anchors.verticalCenter: parent.verticalCenter
                 border.color: Qt.alpha(Theme.accent, Theme.libraryRowFixBorderAlpha)
-                border.width: 1
+                border.width: Theme.hairWidth
                 color: addArea.containsMouse ? Theme.fill(Theme.fillHover) : "transparent"
                 height: addText.implicitHeight
                 objectName: "searchRowAdd_" + row.index

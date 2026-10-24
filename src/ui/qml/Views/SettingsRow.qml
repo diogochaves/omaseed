@@ -50,7 +50,7 @@ Rectangle {
     Accessible.role: Accessible.Grouping
 
     border.color: root.hasCursor ? Theme.accent : Theme.fill(Theme.hairlineAlpha)
-    border.width: 1
+    border.width: Theme.hairWidth
     color: root.hot ? root.ink.fill : "transparent"
     implicitHeight: Math.max(Theme.space(40), layout.implicitHeight + Theme.space(16))
     radius: Theme.cornerRadius

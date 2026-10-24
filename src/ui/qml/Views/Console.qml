@@ -330,7 +330,7 @@ Flickable {
 
                         border.color: rangeChip.on ? "transparent" : rangeHover.hovered ? Theme.fill(Theme.borderHover)
                                                                                         : Theme.fill(Theme.hairlineAlpha)
-                        border.width: 1
+                        border.width: Theme.hairWidth
                         // Kit Chip's hover fill, so the pointer says it is a choice.
                         color: rangeChip.on || rangeHover.hovered ? rangeChip.ground.fill : "transparent"
                         implicitHeight: chipText.implicitHeight + Theme.space(4)
@@ -388,7 +388,7 @@ Flickable {
                     readonly property var point: tide.hoveredIndex >= 0 ? (root.seed.tide.points[tide.hoveredIndex] ?? null) : null
 
                     border.color: Theme.fill(Theme.hairlineAlpha)
-                    border.width: 1
+                    border.width: Theme.hairWidth
                     color: Theme.background
                     height: readout.implicitHeight + Theme.space(10)
                     visible: point !== null
@@ -621,7 +621,7 @@ Flickable {
                     readonly property var point: ladder.hoveredIndex >= 0 ? (root.seed.ladderPoints[ladder.hoveredIndex] ?? null) : null
 
                     border.color: Theme.fill(Theme.hairlineAlpha)
-                    border.width: 1
+                    border.width: Theme.hairWidth
                     color: Theme.background
                     height: ladderTip.implicitHeight + Theme.space(10)
                     visible: point !== null

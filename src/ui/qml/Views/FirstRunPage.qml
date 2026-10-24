@@ -863,7 +863,7 @@ Flickable {
                         Rectangle {
                             color: "transparent"
                             border.color: Theme.fill(Theme.borderIdle)
-                            border.width: 1
+                            border.width: Theme.hairWidth
                             implicitHeight: Theme.space(28)
                             implicitWidth: Theme.space(28)
                             radius: Theme.cornerRadius

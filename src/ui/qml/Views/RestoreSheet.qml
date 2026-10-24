@@ -152,7 +152,7 @@ Sheet {
                     Layout.alignment: Qt.AlignTop
                     Layout.topMargin: Theme.space(2)
                     border.color: partRow.ticked ? Theme.accent : Theme.fill(Theme.borderIdle)
-                    border.width: 1
+                    border.width: Theme.hairWidth
                     // The ticked tint, its ✓ lifted against it (docs/DECISIONS.md C30 F5).
                     color: partRow.ticked ? Theme.on.ticked.fill : "transparent"
                     implicitHeight: Theme.space(14)

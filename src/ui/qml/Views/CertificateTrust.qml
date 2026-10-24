@@ -58,7 +58,7 @@ ColumnLayout {
 
         Layout.fillWidth: true
         border.color: Theme.fill(Theme.hairlineAlpha)
-        border.width: 1
+        border.width: Theme.hairWidth
         color: fingerprintBlock.ink.fill
         implicitHeight: fingerprintColumn.implicitHeight + Theme.space(16)
         radius: Theme.cornerRadius

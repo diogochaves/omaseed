@@ -601,7 +601,7 @@ FocusScope {
         anchors.bottomMargin: Theme.space(10)
         anchors.horizontalCenter: list.horizontalCenter
         border.color: Theme.accent
-        border.width: 1
+        border.width: Theme.edgeWidth
         color: Theme.background
         height: newerRow.implicitHeight + Theme.space(8)
         objectName: "newerPill"

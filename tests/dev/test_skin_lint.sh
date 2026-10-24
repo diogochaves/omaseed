@@ -4,9 +4,9 @@
 #      which skin is drawn (`Theme.skin.name === "console"`), so a skin is only its tokens.
 #      Settings' chooser compares the choice it saves (`App.skinChoice`); that is allowed
 #      there and nowhere else.
-#   2. No literal `border.width` in the Kit: an edge is a line token (`Theme.hairWidth`,
-#      `Theme.edgeWidth`…), so a skin can draw it. 0 (no edge) is not a width. Theme.qml,
-#      where the tokens are, is not checked.
+#   2. No literal `border.width` in the Kit or the Views: an edge is a line token
+#      (`Theme.hairWidth`, `Theme.edgeWidth`…), so a skin can draw it. 0 (no edge) is not a
+#      width. Theme.qml, where the tokens are, is not checked.
 # Prints each offending line and fails; reads only the source tree.
 set -euo pipefail
 
@@ -28,7 +28,7 @@ fi
 
 # 2. A `border.width:` whose value, once names are taken out, still has a number other than 0.
 # shellcheck disable=SC2016 # the single quotes hold a Perl program, not shell expansions
-literal=$(find "$qml/Kit" -name '*.qml' ! -name 'Theme.qml' -print0 | sort -z |
+literal=$(find "$qml/Kit" "$qml/Views" -name '*.qml' ! -name 'Theme.qml' -print0 | sort -z |
     xargs -0 perl -ne '
         if (/^\s*border\.width:\s*(.*)$/) {
             (my $value = $1) =~ s/[A-Za-z_][A-Za-z0-9_.]*//g;
@@ -37,7 +37,7 @@ literal=$(find "$qml/Kit" -name '*.qml' ! -name 'Theme.qml' -print0 | sort -z |
         close ARGV if eof;')
 if [ -n "$literal" ]; then
     printf '%s\n' "$literal"
-    echo "FAIL: a literal border.width in the Kit (use a Theme line token)"
+    echo "FAIL: a literal border.width in the Kit or the Views (use a Theme line token)"
     fail=1
 fi
 
