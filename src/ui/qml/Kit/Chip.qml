@@ -81,7 +81,7 @@ Rectangle {
     border.color: root.warn ? root.warnColor : root.accent ? Theme.accent : root.hot ? Theme.fill(
                                                                                           Theme.borderHover)
                                                                                     : Theme.fill(Theme.borderIdle)
-    border.width: root.selected && !root.accent ? 0 : 1
+    border.width: root.selected && !root.accent ? 0 : Theme.hairWidth
     color: root.selected ? Theme.fill(Theme.fillSelected) : root.hot ? Theme.fill(Theme.fillHover) :
                                                                        Theme.fill(Theme.fillIdle)
     height: Theme.space(22)

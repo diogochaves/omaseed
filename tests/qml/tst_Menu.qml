@@ -95,8 +95,13 @@ TestCase {
         const menu = createTemporaryObject(menuComponent, testCase);
         compare(menu.panel.width, Theme.space(280));
         compare(menu.panel.color, Theme.background);
-        compare(menu.panel.border.color, Theme.accent);
-        compare(menu.panel.border.width, 1);
+        // The skin's menu edge (#171): Omarchy's is the accent's 1 px.
+        compare(menu.panel.border.color, Theme.menuEdgeColor);
+        compare(menu.panel.border.width, Theme.menuEdgeWidth);
+        if (Theme.skin.name === "omarchy") {
+            compare(menu.panel.border.color, Theme.accent);
+            compare(menu.panel.border.width, 1);
+        }
         compare(menu.panel.padding, Theme.space(6));
     }
 

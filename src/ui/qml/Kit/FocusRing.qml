@@ -20,7 +20,7 @@ Rectangle {
     anchors.fill: parent
     anchors.margins: -Theme.focusExtent
     border.color: Theme.accent
-    border.width: 1
+    border.width: Theme.hairWidth
     color: "transparent"
     // Found by name in the tests, which have no other way into a control's children.
     objectName: "focusRing"

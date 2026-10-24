@@ -71,7 +71,7 @@ Rectangle {
 
     activeFocusOnTab: root.enabled
     border.color: root._borderColor
-    border.width: (root.primary || root.hot || root.bordered || root.selected) ? 1 : 0
+    border.width: (root.primary || root.hot || root.bordered || root.selected) ? Theme.hairWidth : 0
     // The ground's own fill; resting in a block, nothing: the block's is under it already.
     color: root.ground === root.block ? "transparent" : root.ground.fill
     // Implicit, not fixed: a layout (the hero's `room`) reads `implicitWidth`, and a fixed

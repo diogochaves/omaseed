@@ -10,8 +10,8 @@ import Omaseed.Kit
 // `Theme.space(…)` alone follows a base-size change live, with no call site changed.
 //
 // The frame's form (DECISIONS C24, board 46) comes from the named tokens below, the way its
-// colours come from roles: a skin made later sets these, and no part of the frame carries a
-// size, weight or inset of its own.
+// colours come from roles: a skin sets these (see "the skin" below), and no part of the
+// frame carries a size, weight or inset of its own.
 ThemeBase {
     /// Spacing in spec pixels, scaled by `[spacing] scale` and the base size.
     function space(px: real): int {
@@ -76,36 +76,176 @@ ThemeBase {
     /// with it (C30 F4).
     readonly property int fillChangeDuration: 120
 
+    // ---- the skin (#171, the console skin's design note "The shape") -----------------------
+    // Every named token below is Omarchy's value beside its citation, unless the skin drawn
+    // (`skin`, src/integration/SkinReader.hpp) sets it. Omarchy's skin sets nothing, so under
+    // it every token comes out as it always has. Each reads `skinTokens`, a copy of the
+    // skin's notifying `tokens`, never the C++ invokables (`skin.n()`), which a binding can't
+    // follow: a skin switch repaints live (rule 8).
+
+    /// Every token the skin set, by group (`density`, `line`, `font`, `label`, `glyphs`…).
+    readonly property var skinTokens: skin.tokens
+    /// A form token in spec px: the skin's `density[name]`, else `px` (Omarchy's), through
+    /// space(), so a skin's sizes follow `base-size` like the kit's (design note, "Later").
+    function n(name: string, px: real): int {
+        const density = skinTokens.density;
+        return space(density !== undefined && density[name] !== undefined ? density[name] : px);
+    }
+    /// Any other token, `token("line", "edge", 1)`: the skin's, else `fallback` (Omarchy's).
+    function token(group: string, key: string, fallback: var): var {
+        const values = skinTokens[group];
+        return values !== undefined && values[key] !== undefined ? values[key] : fallback;
+    }
+    /// A colour a skin names, as this theme has it: one of the skin's roles (`signal`,
+    /// `alert`, `warn`, `accent`, through `skin.roles`) or a theme role (`lighterBackground`).
+    /// The window's own colour for any other name. Read here rather than through
+    /// `skinColor()`, so a binding follows the theme and the skin.
+    function roleColor(role: string): color {
+        const name = skin.roles[role] ?? role;
+        switch (name) {
+        case "foreground":
+            return foreground;
+        case "dimForeground":
+            return dimForeground;
+        case "brightForeground":
+            return brightForeground;
+        case "accent":
+            return accent;
+        case "muted":
+            return muted;
+        case "selection":
+            return selection;
+        case "red":
+            return red;
+        case "yellow":
+            return yellow;
+        case "orange":
+            return orange;
+        case "green":
+            return green;
+        case "cyan":
+            return cyan;
+        case "blue":
+            return blue;
+        case "magenta":
+            return magenta;
+        case "brown":
+            return brown;
+        case "darkBackground":
+            return darkBackground;
+        case "darkerBackground":
+            return darkerBackground;
+        case "lighterBackground":
+            return lighterBackground;
+        }
+        return background;
+    }
+    /// The colour a line's role names: the skin's own `hair` or `faint`, else roleColor().
+    function lineColor(role: string): color {
+        if (role === "hair")
+            return hairColor;
+        if (role === "faint")
+            return faintColor;
+        return roleColor(role);
+    }
+
+    // ---- the skin's lines (design note `line`; rules 2 and 5) -------------------------------
+    /// A hairline: 1 px of the foreground at the shell's hairline alpha (rule 2, 12 %). Also
+    /// the width of a control's outline (a field's, a button's, a chip's) and of a focus ring.
+    readonly property int hairWidth: token("line", "hair", 1)
+    readonly property color hairColor: Qt.alpha(roleColor(token("line", "hairRole", "foreground")),
+                                                token("line", "hairAlpha", hairlineAlpha))
+    /// The faintest rule, between rows (`.tbl .r`, 5 %): what a skin's `faint` line names.
+    readonly property color faintColor: Qt.alpha(roleColor(token("line", "hairRole", "foreground")),
+                                                 token("line", "faintAlpha", rowRuleAlpha))
+    /// A lit line, what marks the current or the selected (2 px of the accent).
+    readonly property int litWidth: token("line", "lit", 2)
+    readonly property color litColor: lineColor(token("line", "litRole", "accent"))
+    /// The edge of a popup, a sheet, a palette or a dialog (rule 5: 1 px of the accent).
+    readonly property int edgeWidth: token("line", "edge", 1)
+    readonly property color edgeColor: lineColor(token("line", "edgeRole", "accent"))
+    /// A menu's edge: the accent's, like every popup's (board 46 `.menu`); a skin may draw it
+    /// apart (Console's is the hair, `.sk-con .menu { --pc: var(--hair) }`).
+    readonly property int menuEdgeWidth: token("line", "menuEdge", 1)
+    readonly property color menuEdgeColor: lineColor(token("line", "menuEdgeRole", "accent"))
+    /// The ring round today's cell in the year's grid (docs/22 `renderYear`, 1.5 px).
+    readonly property real dayTodayEdge: 1.5
+
+    // ---- the skin's type (design note `font`, `label`, `numerals`; rule 7) -----------------
+    // A family the skin names is used only while it is installed and the desktop doesn't ask
+    // for the shell's font (`skin.systemFonts`); otherwise it falls back on its own, to
+    // fontconfig's monospace (`fontFamily`), so a missing font degrades instead of drawing
+    // tofu (#171 ruling 1). Omarchy names none: every family is `fontFamily`.
+    function _family(role: string, fallback: string): string {
+        const family = token("font", role, "");
+        if (family === "" || skin.systemFonts || skin.missingFonts.indexOf(family) >= 0)
+            return fallback;
+        return family;
+    }
+    /// The words that name things: captions, heads, buttons (board 46 `--fl`).
+    readonly property string labelFamily: _family("label", fontFamily)
+    /// The values: names, numbers, sentences (board 46 `--fv`).
+    readonly property string valueFamily: _family("value", fontFamily)
+    /// The kana word beside a label (board 46 `--fk`).
+    readonly property string kanaFamily: _family("kana", fontFamily)
+    /// The icon font whose ligatures an `ms:` glyph draws (Kit/Glyphs.qml), "" when there is
+    /// none to draw with: then every glyph is Omarchy's.
+    readonly property string iconsFamily: _family("icons", "")
+    /// A caption's voice (Kit/Label `tracked`): its case, its tracking in em, its weight. The
+    /// spec's `.lbl` by default: upper case, 0.08 em, the plain weight.
+    readonly property bool labelUpper: token("label", "case", "upper") === "upper"
+    readonly property real labelTrack: token("label", "track", 0.08)
+    readonly property real labelTrackTitle: token("label", "trackTitle", 0)
+    readonly property int labelWeight: token("label", "weight", Font.Normal)
+    /// Whether a label that names itself (Kit/Label `labelId`) carries the skin's kana word,
+    /// and the role it is drawn in (board 46 `.kn`: the signal).
+    readonly property bool labelKana: token("label", "kana", false)
+    readonly property string kanaRole: skin.roles.signal ?? "cyan"
+    /// The skin's kana word for a label id (`library`, `appearance`…), "" when it has none or
+    /// draws no kana.
+    function kana(id: string): string {
+        if (!labelKana || id === "")
+            return "";
+        return token("labels", id, "");
+    }
+    /// Whether small counts are padded to two digits (board 46's server count "02").
+    readonly property bool padNumerals: (skinTokens.numerals ?? "plain") === "pad"
+    /// `count` as the skin writes a small count: "02" when it pads, "2" when it doesn't. Only
+    /// whole numbers from 0 to 9 gain a digit; anything else is written as it is.
+    function numeral(count: int): string {
+        return padNumerals && count >= 0 && count < 10 ? "0" + count : String(count);
+    }
+
     // ---- the frame's form: the rail (board 46 `rail()`, `.mark`, `.views`) --------------
     /// The rail open, and folded to its glyphs (board 46: 214 and 48 px at its 13 px type).
-    readonly property int railWidth: space(200)
-    readonly property int railFoldedWidth: space(46)
+    readonly property int railWidth: n("railWidth", 200)
+    readonly property int railFoldedWidth: n("railFoldedWidth", 46)
     /// The mark's block before the host gives it the title bar's height.
-    readonly property int railHeadHeight: space(46)
+    readonly property int railHeadHeight: n("railHeadHeight", 46)
     /// The mark: its glyph, the inset before it, the gap to the name, the name's weight.
-    readonly property int railMarkSize: space(20)
-    readonly property int railMarkInset: space(14)
-    readonly property int railMarkGap: space(9)
+    readonly property int railMarkSize: n("railMarkSize", 20)
+    readonly property int railMarkInset: n("railMarkInset", 14)
+    readonly property int railMarkGap: n("railMarkGap", 9)
     readonly property int railMarkWeight: Font.DemiBold
     /// Above and below the views' rows.
-    readonly property int railViewsPadding: space(8)
+    readonly property int railViewsPadding: n("railViewsPadding", 8)
     /// The current view's edge (board 46 `.views .ri.on`, an inset 2 px accent rule).
-    readonly property int railCurrentEdge: space(2)
+    readonly property int railCurrentEdge: n("railCurrentEdge", 2)
     /// From the mark to the menu it opens.
-    readonly property int railMenuGap: space(4)
+    readonly property int railMenuGap: n("railMenuGap", 4)
     /// From a folded row to its name's tooltip.
-    readonly property int railTipGap: space(2)
+    readonly property int railTipGap: n("railTipGap", 2)
 
     // ---- the frame's form: the title bar (board 46 `titleBar()`, `.top`, `.tool`) ----------
     /// Its height, which the rail's mark block takes too so their rules meet (board 46: 54 px
     /// at 13 px type).
-    readonly property int titleBarHeight: space(46)
+    readonly property int titleBarHeight: n("titleBarHeight", 46)
     /// Before the title and after the last tool (board 46: 18 and 14 px), between the parts
     /// (12 px), and between the title and its sentence.
-    readonly property int titleBarInsetStart: space(16)
-    readonly property int titleBarInsetEnd: space(13)
-    readonly property int titleBarGap: space(11)
-    readonly property int titleBarLineGap: space(1)
+    readonly property int titleBarInsetStart: n("titleBarInsetStart", 16)
+    readonly property int titleBarInsetEnd: n("titleBarInsetEnd", 13)
+    readonly property int titleBarGap: n("titleBarGap", 11)
+    readonly property int titleBarLineGap: n("titleBarLineGap", 1)
     /// The title (board 46: 15 px, 600, bright) and its sentence (11.5 px, dim).
     readonly property int titleBarTitleSize: font.title
     readonly property int titleBarTitleWeight: Font.DemiBold
@@ -113,7 +253,7 @@ ThemeBase {
     /// A tool's height (board 46 `.tool`, 28 px: the kit's control, as the filter field's),
     /// and the filter tool's width (176 px).
     readonly property int titleBarToolHeight: controlHeight
-    readonly property int titleBarFindWidth: space(164)
+    readonly property int titleBarFindWidth: n("titleBarFindWidth", 164)
     /// The widths its steps start at, widest first: from step 1 the tools keep their glyph
     /// alone (their words in the tooltip), from step 2 the filter folds into its `/` tool and
     /// opens over the title.
@@ -127,15 +267,15 @@ ThemeBase {
     readonly property int statusLineFontSize: font.small
     readonly property int statusLineNameWeight: Font.Medium
     /// Before its first part and after its last (board 46: 18 and 14 px at 13 px type).
-    readonly property int statusLineInsetStart: space(16)
-    readonly property int statusLineInsetEnd: space(13)
+    readonly property int statusLineInsetStart: n("statusLineInsetStart", 16)
+    readonly property int statusLineInsetEnd: n("statusLineInsetEnd", 13)
     /// Between its parts (board 46's 12 px), and inside the server lane (dot, name, ▾: 7 px).
-    readonly property int statusLineGap: space(11)
-    readonly property int statusLineLaneGap: space(6)
+    readonly property int statusLineGap: n("statusLineGap", 11)
+    readonly property int statusLineLaneGap: n("statusLineLaneGap", 6)
     /// The server's dot.
-    readonly property int statusLineDotSize: space(7)
+    readonly property int statusLineDotSize: n("statusLineDotSize", 7)
     /// How far the server lane's hover fill reaches past its words.
-    readonly property int statusLineHoverInset: space(3)
+    readonly property int statusLineHoverInset: n("statusLineHoverInset", 3)
     /// The widths its steps start at, widest first (step 0 at the first, step 4 below the
     /// last): from step 1 the lane is the name alone and the alt-speed limits are short, from
     /// 2 the facts' words shorten, from 3 the speeds are short and the count loses its word,
@@ -156,29 +296,29 @@ ThemeBase {
     /// A button's height: inside the line with a little room above and below it.
     readonly property int actionBarButtonSize: statusLineHeight - space(4)
     /// Between two of its parts (board 46 `.status.sel`: 4 px).
-    readonly property int actionBarGap: space(4)
+    readonly property int actionBarGap: n("actionBarGap", 4)
     /// A word button (board 46 `.status.sel .ab`: 8 px either side of its word, the status
     /// line's type), and the room before the end's "all actions" and "esc".
-    readonly property int actionBarWordPadding: space(8)
+    readonly property int actionBarWordPadding: n("actionBarWordPadding", 8)
     readonly property int actionBarFontSize: statusLineFontSize
-    readonly property int actionBarEndGap: space(12)
+    readonly property int actionBarEndGap: n("actionBarEndGap", 12)
 
     // ---- the sheets' form (board 46 `.sheet`, `.shh`, `.shb`, `.shf`, DECISIONS C24 H7) ------
     /// From the window's edge to a sheet that would be wider than the window.
-    readonly property int sheetMargin: space(16)
+    readonly property int sheetMargin: n("sheetMargin", 16)
     /// Its edge (`.sheet`: 1 px of the accent) and its corners (the kit's).
-    readonly property int sheetEdge: 1
+    readonly property int sheetEdge: edgeWidth
     readonly property int sheetRadius: cornerRadius
     /// The head, the rows and the foot share one inset at the sides (16 px); the head has 12 px
     /// over and under it, the rows 12 px, the foot 10 px (`.shh`, `.shb`, `.shf`).
-    readonly property int sheetInset: space(16)
-    readonly property int sheetHeadPadding: space(12)
-    readonly property int sheetBodyPadding: space(12)
-    readonly property int sheetFootPadding: space(10)
+    readonly property int sheetInset: n("sheetInset", 16)
+    readonly property int sheetHeadPadding: n("sheetHeadPadding", 12)
+    readonly property int sheetBodyPadding: n("sheetBodyPadding", 12)
+    readonly property int sheetFootPadding: n("sheetFootPadding", 10)
     /// Between the head's parts (10 px), the rows (12 px), and the foot's buttons (10 px).
-    readonly property int sheetHeadGap: space(10)
-    readonly property int sheetRowGap: space(12)
-    readonly property int sheetButtonGap: space(8)
+    readonly property int sheetHeadGap: n("sheetHeadGap", 10)
+    readonly property int sheetRowGap: n("sheetRowGap", 12)
+    readonly property int sheetButtonGap: n("sheetButtonGap", 8)
     /// The title (14 px, 600, bright) and the dim words beside or under it (11.5 px).
     readonly property int sheetTitleSize: font.body
     readonly property int sheetTitleWeight: Font.DemiBold
@@ -188,8 +328,8 @@ ThemeBase {
     readonly property int sheetNoteLines: 2
     /// A foot button: the room either side of its words (`.btn`: 12 px), and the least width
     /// it takes, so "ok" is still a target.
-    readonly property int sheetButtonPadding: space(12)
-    readonly property int sheetButtonMinWidth: space(64)
+    readonly property int sheetButtonPadding: n("sheetButtonPadding", 12)
+    readonly property int sheetButtonMinWidth: n("sheetButtonMinWidth", 64)
     /// The primary is filled with the accent, its words in the window's ground (`.btn.pri`);
     /// false draws the kit's accent outline.
     readonly property bool sheetPrimaryFilled: true
@@ -199,32 +339,32 @@ ThemeBase {
     // ---- the menus' form (board 46 `.menu .mh`, DECISIONS C24 H9) -------------------------
     /// A menu's head: its inset at the sides (12 px), the room over and under it (4 px), the
     /// gap between the bright title's line and the dim words under it, and the title's weight.
-    readonly property int menuHeadInset: space(14)
-    readonly property int menuHeadPadding: space(4)
-    readonly property int menuHeadLineGap: space(1)
+    readonly property int menuHeadInset: n("menuHeadInset", 14)
+    readonly property int menuHeadPadding: n("menuHeadPadding", 4)
+    readonly property int menuHeadLineGap: n("menuHeadLineGap", 1)
     readonly property int menuHeadTitleWeight: Font.DemiBold
 
     // ---- the frame's form: the app menu (board 46 `menuHtml("app")`, DECISIONS C24 H9) ---
     /// Its width: board 46's `.menu` is 268 px at least at 13 px type; the head's version and
     /// server line ("0.5.0 · public · qBittorrent 5.3.0") want more than the kit's 280.
-    readonly property int appMenuWidth: space(340)
+    readonly property int appMenuWidth: n("appMenuWidth", 340)
 
     // ---- the frame's form: keys on demand (board 46 `.kb`, DECISIONS C24 H10) ------------
     /// A key's badge while alt is held: its height, the room either side of the key, its type
     /// (board 46: a 14 px line, 4 px each side, 10 px bold at 13 px type) and its corners
     /// (board 46: square).
-    readonly property int keyBadgeHeight: space(14)
-    readonly property int keyBadgePadding: space(4)
+    readonly property int keyBadgeHeight: n("keyBadgeHeight", 14)
+    readonly property int keyBadgePadding: n("keyBadgePadding", 4)
     readonly property int keyBadgeFontSize: font.caption
     readonly property int keyBadgeWeight: Font.Bold
     readonly property int keyBadgeRadius: 0
     /// How far it hangs past its control's top-right corner (board 46: 6 px right, 9 px up).
-    readonly property int keyBadgeOverhangX: space(6)
-    readonly property int keyBadgeOverhangY: space(9)
+    readonly property int keyBadgeOverhangX: n("keyBadgeOverhangX", 6)
+    readonly property int keyBadgeOverhangY: n("keyBadgeOverhangY", 9)
     /// Placed inside a control rather than over its corner (a rail row, the mark): the gap to
     /// the row's count, and the room to an edge where nothing else is (the folded rail).
-    readonly property int keyBadgeRowGap: space(6)
-    readonly property int keyBadgeEdge: space(3)
+    readonly property int keyBadgeRowGap: n("keyBadgeRowGap", 6)
+    readonly property int keyBadgeEdge: n("keyBadgeEdge", 3)
     /// How long alt is held alone before the badges show, in ms: the alt of alt+j never shows
     /// them, even for a frame.
     readonly property int keyBadgeDelay: 200
@@ -232,22 +372,22 @@ ThemeBase {
     // ---- the frame's form: the outcome strip (board 46 `.ostrip`, board 50 §2) -------------
     /// How far over the rows' bottom it floats (board 46's 12 px): with a selection on, the
     /// action bar is just under that edge.
-    readonly property int outcomeStripLift: space(12)
+    readonly property int outcomeStripLift: n("outcomeStripLift", 12)
     /// Between its words and the dim line under them that says why "show" is there
     /// (DECISIONS C30 F10).
-    readonly property int outcomeStripReasonGap: space(1)
+    readonly property int outcomeStripReasonGap: n("outcomeStripReasonGap", 1)
 
     // ---- the library's form: the rows display (board 46 `rows()`, `.row`, `.gh`, C24 H3) --
     /// A row: two lines, the name's and the sentence's (board 46: 50 px at 13 px type).
-    readonly property int libraryRowHeight: space(46)
+    readonly property int libraryRowHeight: n("libraryRowHeight", 46)
     /// Before the state glyph and after the fact (board 46: 14 and 18 px).
-    readonly property int libraryRowInsetStart: space(13)
-    readonly property int libraryRowInsetEnd: space(16)
+    readonly property int libraryRowInsetStart: n("libraryRowInsetStart", 13)
+    readonly property int libraryRowInsetEnd: n("libraryRowInsetEnd", 16)
     /// The state glyph's column (20 px), and the gap between the columns (10 px).
-    readonly property int libraryRowGlyphWidth: space(18)
-    readonly property int libraryRowGap: space(9)
+    readonly property int libraryRowGlyphWidth: n("libraryRowGlyphWidth", 18)
+    readonly property int libraryRowGap: n("libraryRowGap", 9)
     /// Between the name's line and the sentence's.
-    readonly property int libraryRowLineGap: space(1)
+    readonly property int libraryRowLineGap: n("libraryRowLineGap", 1)
     /// The name (13.5 px, 600, bright), the meta beside it and the sentence (11.5 px, dim).
     readonly property int libraryRowNameSize: font.body
     readonly property int libraryRowNameWeight: Font.DemiBold
@@ -259,153 +399,153 @@ ThemeBase {
     readonly property int libraryRowFactWeight: Font.Medium
     readonly property int libraryRowCaptionSize: font.caption
     readonly property real libraryRowCaptionTracking: font.caption * 0.12
-    readonly property int libraryRowFactWidth: space(85)
+    readonly property int libraryRowFactWidth: n("libraryRowFactWidth", 85)
     /// The progress line before the sentence (board 46 `.strip`: 168 × 4 px on an 8 % track).
-    readonly property int libraryRowLineWidth: space(155)
-    readonly property int libraryRowLineThickness: space(4)
+    readonly property int libraryRowLineWidth: n("libraryRowLineWidth", 155)
+    readonly property int libraryRowLineThickness: n("libraryRowLineThickness", 4)
     readonly property real libraryRowLineTrack: fillHover
     /// The fix (`.fix`): its room either side and its border's accent alpha.
-    readonly property int libraryRowFixPadding: space(6)
+    readonly property int libraryRowFixPadding: n("libraryRowFixPadding", 6)
     readonly property real libraryRowFixBorderAlpha: 0.45
     /// A selected row's edge (`.row.picked`, an inset 2 px accent rule).
-    readonly property int libraryRowSelectedEdge: space(2)
+    readonly property int libraryRowSelectedEdge: n("libraryRowSelectedEdge", 2)
     /// A group's head (`.gh`): its height, its inset, its words (10.5 px, upper case, tracked
     /// .12em; the count in the foreground; the line 11.5 px at the right).
-    readonly property int libraryGroupHeadHeight: space(30)
-    readonly property int libraryGroupHeadInset: space(16)
-    readonly property int libraryGroupHeadPaddingBottom: space(4)
+    readonly property int libraryGroupHeadHeight: n("libraryGroupHeadHeight", 30)
+    readonly property int libraryGroupHeadInset: n("libraryGroupHeadInset", 16)
+    readonly property int libraryGroupHeadPaddingBottom: n("libraryGroupHeadPaddingBottom", 4)
     readonly property int libraryGroupHeadSize: font.caption
     readonly property real libraryGroupHeadTracking: font.caption * 0.12
     readonly property int libraryGroupLineSize: font.small
     /// The widths its steps start at, widest first: from step 1 a group's line goes and the
     /// progress line shortens, from step 2 the meta beside the name goes too.
     readonly property var libraryRowsSteps: [space(620), space(440)]
-    readonly property int libraryRowLineWidthNarrow: space(90)
+    readonly property int libraryRowLineWidthNarrow: n("libraryRowLineWidthNarrow", 90)
     /// The inline rename's field over a row's name (the table's `.ren`): the room inside it
     /// and how far it rises past the name's line above and below.
-    readonly property int libraryRenamePadding: space(6)
-    readonly property int libraryRenameRise: space(3)
+    readonly property int libraryRenamePadding: n("libraryRenamePadding", 6)
+    readonly property int libraryRenameRise: n("libraryRenameRise", 3)
     /// From a row's start to where `enter`'s menu opens under it (the table's 24 u).
-    readonly property int libraryMenuInset: space(24)
+    readonly property int libraryMenuInset: n("libraryMenuInset", 24)
 
     /// The display tool's menu: its width.
-    readonly property int displayMenuWidth: space(240)
+    readonly property int displayMenuWidth: n("displayMenuWidth", 240)
 
     // ---- create's form (board 49 `publicSheet()`, `.chk`, `.fchip`, `.rtnote`, C27) -------
     /// The create sheet's width (board 49's 680, the Move sheet's folder width here).
-    readonly property int createSheetWidth: space(640)
+    readonly property int createSheetWidth: n("createSheetWidth", 640)
     /// A fact's mark column (`.chk`: 16 px) and the gap after it (8 px).
-    readonly property int createFactMark: space(16)
-    readonly property int createFactGap: space(8)
+    readonly property int createFactMark: n("createFactMark", 16)
+    readonly property int createFactGap: n("createFactGap", 8)
     /// How far past its words a fact's link takes a click.
-    readonly property int createLinkReach: space(4)
+    readonly property int createLinkReach: n("createLinkReach", 4)
     /// The round-trip note's padding, the gap after its mark, its edge and its corners
     /// (`.rtnote`: 7 / 12 px, 10, a 12 % hairline).
-    readonly property int createNotePadding: space(9)
-    readonly property int createNoteGap: space(10)
-    readonly property int createNoteEdge: 1
+    readonly property int createNotePadding: n("createNotePadding", 9)
+    readonly property int createNoteGap: n("createNoteGap", 10)
+    readonly property int createNoteEdge: hairWidth
     readonly property int createNoteRadius: cornerRadius
     /// Between the trackers' chips (6 px), between format and pieces side by side (`.frow2`:
     /// 18 px), and between the private facts (`.facts2`: 6 px).
-    readonly property int createChipsGap: space(6)
-    readonly property int createPairGap: space(16)
-    readonly property int createFactsGap: space(6)
+    readonly property int createChipsGap: n("createChipsGap", 6)
+    readonly property int createPairGap: n("createPairGap", 16)
+    readonly property int createFactsGap: n("createFactsGap", 6)
     /// The saved .torrent's chip (`.fchip`: 3 / 10 px, 8 px between its parts, a 1 px green
     /// edge), and how far it sits under the band's line.
-    readonly property int createChipPaddingX: space(10)
-    readonly property int createChipPaddingY: space(3)
-    readonly property int createChipGap: space(8)
-    readonly property int createChipEdge: 1
+    readonly property int createChipPaddingX: n("createChipPaddingX", 10)
+    readonly property int createChipPaddingY: n("createChipPaddingY", 3)
+    readonly property int createChipGap: n("createChipGap", 8)
+    readonly property int createChipEdge: hairWidth
     readonly property int createChipRadius: cornerRadius
-    readonly property int createChipTop: space(4)
+    readonly property int createChipTop: n("createChipTop", 4)
     /// The "+ add ▾" menu's width (board 49's 356 px).
-    readonly property int addMenuWidth: space(330)
+    readonly property int addMenuWidth: n("addMenuWidth", 330)
 
     // ---- search's form (board 48 `search()`, `.sbar`, `.sline`, `.pill`, `.empty`, C26) ----
     /// The bar over the results (`.sbar`: 12 / 18 / 8 px, 10 px between its parts) and the
     /// field's least width (200 px).
-    readonly property int searchBarInset: space(16)
-    readonly property int searchBarInsetTop: space(11)
-    readonly property int searchBarInsetBottom: space(7)
-    readonly property int searchBarGap: space(9)
-    readonly property int searchFieldMinWidth: space(185)
-    readonly property int searchFieldNarrowWidth: space(110)
+    readonly property int searchBarInset: n("searchBarInset", 16)
+    readonly property int searchBarInsetTop: n("searchBarInsetTop", 11)
+    readonly property int searchBarInsetBottom: n("searchBarInsetBottom", 7)
+    readonly property int searchBarGap: n("searchBarGap", 9)
+    readonly property int searchFieldMinWidth: n("searchFieldMinWidth", 185)
+    readonly property int searchFieldNarrowWidth: n("searchFieldNarrowWidth", 110)
     /// The plugins' line under it (`.sline`: 11.5 px, 12 px between its parts, 6 px under).
     readonly property int searchLineSize: font.small
-    readonly property int searchLineGap: space(11)
-    readonly property int searchLineInsetBottom: space(6)
+    readonly property int searchLineGap: n("searchLineGap", 11)
+    readonly property int searchLineInsetBottom: n("searchLineInsetBottom", 6)
     /// A plugin's pill (`.pill`): its dot, the room after it, and its least width (90 px).
-    readonly property int searchPillDot: space(6)
-    readonly property int searchPillGap: space(6)
-    readonly property int searchPillMinWidth: space(84)
+    readonly property int searchPillDot: n("searchPillDot", 6)
+    readonly property int searchPillGap: n("searchPillGap", 6)
+    readonly property int searchPillMinWidth: n("searchPillMinWidth", 84)
     /// A plugin still asked pulses its dot (`pulse48`, 1.3 s a beat), down to this opacity.
     readonly property int searchPulseDuration: 1300
     readonly property real searchPulseLow: 0.35
     /// The lines between the bar and the rows (`.newabove`, `.hid`: 11 and 11.5 px).
     readonly property int searchNoteSize: font.caption
-    readonly property int searchNoteInset: space(4)
+    readonly property int searchNoteInset: n("searchNoteInset", 4)
     /// The empty states (`.empty`: at most 440 px wide, 40 px down, 8 px between the lines,
     /// the title 14 px bright, the place 11 px).
-    readonly property int searchEmptyWidth: space(410)
-    readonly property int searchEmptyTop: space(37)
-    readonly property int searchEmptyGap: space(7)
+    readonly property int searchEmptyWidth: n("searchEmptyWidth", 410)
+    readonly property int searchEmptyTop: n("searchEmptyTop", 37)
+    readonly property int searchEmptyGap: n("searchEmptyGap", 7)
     readonly property int searchEmptyTitleSize: font.heading
     readonly property int searchEmptyWordsSize: font.body
     /// The result on the right (`.det`, `.dhero`: the fact 22 px over its caption, 16 px in).
-    readonly property int searchPaneWidth: space(380)
-    readonly property int searchPaneInset: space(16)
-    readonly property int searchPaneGap: space(9)
+    readonly property int searchPaneWidth: n("searchPaneWidth", 380)
+    readonly property int searchPaneInset: n("searchPaneInset", 16)
+    readonly property int searchPaneGap: n("searchPaneGap", 9)
     readonly property int searchPaneFactSize: font.heading
     /// A list kept while its server isn't answering (Fig. 23's 45 %): search's rows too.
     readonly property real staleOpacity: 0.45
     /// Below this window width the bar's three filters fold into "filters ▾" (SR6's 720 px).
-    readonly property int searchFoldWidth: space(720)
+    readonly property int searchFoldWidth: n("searchFoldWidth", 720)
     /// The plugins' answers (`.menu.pop`, 392 px) and the bar's menus.
-    readonly property int searchAnswersWidth: space(392)
-    readonly property int searchMenuWidth: space(240)
+    readonly property int searchAnswersWidth: n("searchAnswersWidth", 392)
+    readonly property int searchMenuWidth: n("searchMenuWidth", 240)
     /// Settings › qBittorrent › Search plugins (`.plg`, `.inst`): a plugin's row, the room
     /// inside it, its version's column and the gap between the install field's parts.
-    readonly property int searchPluginRowHeight: space(36)
-    readonly property int searchPluginInset: space(10)
-    readonly property int searchPluginVersionWidth: space(40)
-    readonly property int searchPluginNameWidth: space(110)
-    readonly property int searchPluginGap: space(9)
+    readonly property int searchPluginRowHeight: n("searchPluginRowHeight", 36)
+    readonly property int searchPluginInset: n("searchPluginInset", 10)
+    readonly property int searchPluginVersionWidth: n("searchPluginVersionWidth", 40)
+    readonly property int searchPluginNameWidth: n("searchPluginNameWidth", 110)
+    readonly property int searchPluginGap: n("searchPluginGap", 9)
 
     // ---- the library's form: the overview's shelves (board 46 `overview()`, `.shelf`) -----
     /// The shelves' inset (6 / 18 px) and the room between two shelves (14 px).
-    readonly property int shelfInset: space(16)
-    readonly property int shelfInsetTop: space(6)
-    readonly property int shelfGap: space(13)
+    readonly property int shelfInset: n("shelfInset", 16)
+    readonly property int shelfInsetTop: n("shelfInsetTop", 6)
+    readonly property int shelfGap: n("shelfGap", 13)
     /// A shelf's head (`.shelf h5`): the name (13 px, 600, bright), its count and size (11 px,
     /// dim, upper case, tracked), and the room under it.
     readonly property int shelfNameSize: font.body
     readonly property int shelfNameWeight: Font.DemiBold
     readonly property int shelfLineSize: font.caption
     readonly property real shelfLineTracking: font.caption * 0.12
-    readonly property int shelfHeadGap: space(6)
+    readonly property int shelfHeadGap: n("shelfHeadGap", 6)
     /// A cover (`.cover`, 92 px wide, its art 118 px tall) and the room between covers.
-    readonly property int coverWidth: space(85)
-    readonly property int coverArtHeight: space(109)
-    readonly property int coverGap: space(9)
+    readonly property int coverWidth: n("coverWidth", 85)
+    readonly property int coverArtHeight: n("coverArtHeight", 109)
+    readonly property int coverGap: n("coverGap", 9)
     /// The piece grid inside the art (`.grid`: 6 px in, 10 cells across, 6 px tall, 1 px
     /// apart), at 55 % of the state colour over an 8 % cell.
-    readonly property int coverGridInset: space(6)
+    readonly property int coverGridInset: n("coverGridInset", 6)
     readonly property int coverGridColumns: 10
     readonly property int coverGridRows: 6
-    readonly property int coverCellHeight: space(6)
+    readonly property int coverCellHeight: n("coverCellHeight", 6)
     readonly property int coverCellGap: 1
     readonly property real coverCellAlpha: 0.55
     readonly property real coverCellTrack: fillHover
     /// The two letters (`.ab2`: 30 px, 700, bright, 8 px in from the art's bottom left).
-    readonly property int coverMonogramSize: space(28)
+    readonly property int coverMonogramSize: n("coverMonogramSize", 28)
     readonly property int coverMonogramWeight: Font.Bold
-    readonly property int coverMonogramInset: space(7)
+    readonly property int coverMonogramInset: n("coverMonogramInset", 7)
     /// The name and the fact under the art (11 and 10.5 px), and the room between the parts.
     readonly property int coverNameSize: font.caption
     readonly property int coverFactSize: font.caption
-    readonly property int coverLineGap: space(4)
+    readonly property int coverLineGap: n("coverLineGap", 4)
     /// A selected cover's border, and the cursor's.
-    readonly property int coverSelectedBorder: 2
+    readonly property int coverSelectedBorder: litWidth
 
     // ---- the details' form: the story (board 46 `details()`, `.dhero`, `.tl`, `.tb h5`) -------
     /// The head's one fact (`.dhero .big`: 22 px at 13 px type, 500, in the state's colour), its
@@ -418,28 +558,28 @@ ThemeBase {
     readonly property int detailsSentenceLines: 2
     /// Around the fact and the sentence (`.dhero`: 10 px over, 16 px in, 12 px under), between
     /// them (3 px), and from the fact to its caption (8 px).
-    readonly property int detailsHeroInset: space(16)
-    readonly property int detailsHeroPaddingTop: space(8)
-    readonly property int detailsHeroPaddingBottom: space(12)
-    readonly property int detailsHeroGap: space(3)
-    readonly property int detailsCaptionGap: space(8)
+    readonly property int detailsHeroInset: n("detailsHeroInset", 16)
+    readonly property int detailsHeroPaddingTop: n("detailsHeroPaddingTop", 8)
+    readonly property int detailsHeroPaddingBottom: n("detailsHeroPaddingBottom", 12)
+    readonly property int detailsHeroGap: n("detailsHeroGap", 3)
+    readonly property int detailsCaptionGap: n("detailsCaptionGap", 8)
     /// A tab's body (`.tb`: 12 px over, 16 px in, 12 px between its blocks).
-    readonly property int detailsBodyInset: space(16)
-    readonly property int detailsBodyPaddingTop: space(12)
-    readonly property int detailsBodyGap: space(12)
+    readonly property int detailsBodyInset: n("detailsBodyInset", 16)
+    readonly property int detailsBodyPaddingTop: n("detailsBodyPaddingTop", 12)
+    readonly property int detailsBodyGap: n("detailsBodyGap", 12)
     /// A block's heading (`.tb h5`: 10.5 px, upper case, tracked, dim) and the room under it.
     readonly property int detailsHeadingSize: font.caption
     readonly property real detailsHeadingTracking: font.caption * 0.12
-    readonly property int detailsHeadingGap: space(6)
+    readonly property int detailsHeadingGap: n("detailsHeadingGap", 6)
     /// The story's timeline (`.tl`): the time's column (42 px), the marker's (10 px) with its
     /// square (7 px, 6 px down), the room between columns (8 px) and between lines (7 px); the
     /// event (12 px, the foreground) over its dim line (11 px).
-    readonly property int detailsEventTimeWidth: space(70)
-    readonly property int detailsEventMarkWidth: space(10)
-    readonly property int detailsEventMarkSize: space(7)
-    readonly property int detailsEventMarkTop: space(5)
-    readonly property int detailsEventGap: space(8)
-    readonly property int detailsEventSpacing: space(7)
+    readonly property int detailsEventTimeWidth: n("detailsEventTimeWidth", 70)
+    readonly property int detailsEventMarkWidth: n("detailsEventMarkWidth", 10)
+    readonly property int detailsEventMarkSize: n("detailsEventMarkSize", 7)
+    readonly property int detailsEventMarkTop: n("detailsEventMarkTop", 5)
+    readonly property int detailsEventGap: n("detailsEventGap", 8)
+    readonly property int detailsEventSpacing: n("detailsEventSpacing", 7)
     readonly property int detailsEventTitleSize: font.small
     readonly property int detailsEventDetailSize: font.caption
 }

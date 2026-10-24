@@ -5,6 +5,8 @@ import Omaseed.Kit
 // The test runner points XDG at an empty directory, so Theme resolves the bundled Tokyo
 // Night at base size 12 — the spec's reference — no matter which theme this machine runs.
 TestCase {
+    id: testCase
+
     name: "Theme"
 
     function test_colour_roles_are_valid() {
@@ -62,6 +64,7 @@ TestCase {
 
     function cleanup() {
         TestTheme.setBaseSize(0); // qmllint disable unqualified
+        TestTheme.setSkinChoice("omarchy"); // qmllint disable unqualified
     }
 
     // #156 (docs/DECISIONS.md C28): Theme.space() reads spaceScale, so a binding of nothing
@@ -169,5 +172,92 @@ TestCase {
                        "stateQueued", "stateStalled"];
         for (const name of roles)
             verify(contrast(Theme[name], Theme.background) >= 4.5, name);
+    }
+
+    // #171: Omarchy is the skin with no overrides, so every token the skin could set comes
+    // out as the kit's own value.
+    function test_omarchy_s_skin_tokens_are_the_kit_s_own() {
+        if (Theme.skin.name !== "omarchy")
+            skip("the suite's run under another skin");
+        compare(Theme.railWidth, Theme.space(200));
+        compare(Theme.titleBarHeight, Theme.space(46));
+        compare(Theme.sheetEdge, 1);
+        compare(Theme.hairWidth, 1);
+        compare(Theme.edgeWidth, 1);
+        compare(Theme.menuEdgeWidth, 1);
+        compare(Theme.litWidth, 2);
+        verify(Qt.colorEqual(Theme.hairColor, Theme.fill(Theme.hairlineAlpha)));
+        verify(Qt.colorEqual(Theme.faintColor, Theme.fill(Theme.rowRuleAlpha)));
+        verify(Qt.colorEqual(Theme.edgeColor, Theme.accent));
+        verify(Qt.colorEqual(Theme.menuEdgeColor, Theme.accent));
+        compare(Theme.labelFamily, Theme.fontFamily);
+        compare(Theme.valueFamily, Theme.fontFamily);
+        compare(Theme.kanaFamily, Theme.fontFamily);
+        compare(Theme.iconsFamily, "");
+        compare(Theme.labelUpper, true);
+        compare(Theme.labelTrack, 0.08);
+        compare(Theme.labelWeight, Font.Normal);
+        compare(Theme.kana("library"), "");
+        compare(Theme.numeral(2), "2");
+    }
+
+    // #171: Console's skin sets the tokens board 46 pins; one it leaves out is Omarchy's.
+    function test_the_console_skin_sets_what_it_names() {
+        TestTheme.setSkinChoice("console");
+        compare(Theme.skin.name, "console");
+        compare(Theme.railWidth, Theme.space(222));
+        compare(Theme.titleBarHeight, Theme.space(58));
+        compare(Theme.titleBarLineGap, Theme.space(1));
+        compare(Theme.cornerRadius, 0);
+        verify(Qt.colorEqual(Theme.hairColor, Qt.alpha(Theme.foreground, 0.21)));
+        verify(Qt.colorEqual(Theme.faintColor, Qt.alpha(Theme.foreground, 0.1)));
+        verify(Qt.colorEqual(Theme.menuEdgeColor, Theme.hairColor));
+        verify(Qt.colorEqual(Theme.edgeColor, Theme.accent));
+        compare(Theme.labelTrack, 0.16);
+        compare(Theme.labelTrackTitle, 0.22);
+        compare(Theme.labelWeight, 600);
+        compare(Theme.kana("library"), "ライブラリ");
+        compare(Theme.kana("no-such-label"), "");
+        compare(Theme.kana(""), "");
+        compare(Theme.kanaRole, "cyan");
+        compare(Theme.numeral(2), "02");
+        compare(Theme.numeral(12), "12");
+        // Each family is the skin's while installed, else fontconfig's monospace (the icons:
+        // none, and every glyph is Omarchy's): never a family that isn't there.
+        const missing = Theme.skin.missingFonts;
+        const families = [["labelFamily", "Chakra Petch", Theme.fontFamily],
+                          ["valueFamily", "Share Tech Mono", Theme.fontFamily],
+                          ["kanaFamily", "Noto Sans CJK JP", Theme.fontFamily],
+                          ["iconsFamily", "Material Symbols Sharp", ""]];
+        for (const [property, family, fallback] of families)
+            compare(Theme[property], missing.indexOf(family) >= 0 ? fallback : family, property);
+        TestTheme.setSkinChoice("omarchy");
+    }
+
+    Component {
+        id: boundComponent
+
+        Item {
+            height: Theme.hairWidth
+            width: Theme.railWidth
+        }
+    }
+
+    // Rule 8: a binding made of a token follows a skin switch, both ways.
+    function test_a_token_binding_follows_the_skin() {
+        const item = createTemporaryObject(boundComponent, testCase);
+        TestTheme.setSkinChoice("console");
+        compare(item.width, Theme.space(222));
+        TestTheme.setSkinChoice("omarchy");
+        const pinned = Theme.skin.name !== "omarchy";
+        compare(item.width, Theme.space(pinned ? 222 : 200));
+    }
+
+    // A skin's radius in px wins over Hyprland's; "hyprland" or none keeps it.
+    function test_corner_radius_is_the_skins_when_it_sets_one() {
+        TestTheme.setSkinChoice("console");
+        compare(Theme.cornerRadius, 0);
+        TestTheme.setSkinChoice("omarchy");
+        verify(Theme.cornerRadius >= 0);
     }
 }

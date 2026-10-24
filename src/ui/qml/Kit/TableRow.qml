@@ -46,7 +46,7 @@ Rectangle {
                                   root.clicked(Qt.NoModifier)
 
     border.color: root.hasCursor && !root.both ? Theme.fill(Theme.borderHover) : "transparent"
-    border.width: root.hasCursor && !root.both ? 1 : 0
+    border.width: root.hasCursor && !root.both ? Theme.hairWidth : 0
     color: root.ink.ground.fill
     height: Theme.rowHeight
     implicitHeight: Theme.rowHeight

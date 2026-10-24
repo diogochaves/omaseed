@@ -234,8 +234,8 @@ Item {
 
         Accessible.name: root.message
         Accessible.role: Accessible.AlertMessage
-        border.color: Theme.accent
-        border.width: 1
+        border.color: Theme.edgeColor
+        border.width: Theme.edgeWidth
         color: Theme.background
         implicitHeight: layout.implicitHeight + 2 * panel.padding
         radius: Theme.cornerRadius

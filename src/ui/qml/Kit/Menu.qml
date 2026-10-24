@@ -284,8 +284,8 @@ Item {
         // says it first; since #91 the heading also comes before the rows in the tree.
         Accessible.name: [root.headingTitle, root.heading].filter(part => part.length > 0).join(" · ")
         Accessible.role: Accessible.PopupMenu
-        border.color: Theme.accent
-        border.width: 1
+        border.color: Theme.menuEdgeColor
+        border.width: Theme.menuEdgeWidth
         color: Theme.background
         implicitHeight: heading.height + rows.implicitHeight + footerItem.height
                         + 2 * panel.padding

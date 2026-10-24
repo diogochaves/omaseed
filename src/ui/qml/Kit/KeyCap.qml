@@ -12,7 +12,7 @@ Rectangle {
     property Ink ink: null
 
     border.color: Theme.fill(Theme.borderIdle)
-    border.width: 1
+    border.width: Theme.hairWidth
     color: "transparent"
     implicitHeight: label.implicitHeight
     implicitWidth: label.implicitWidth + Theme.space(10)

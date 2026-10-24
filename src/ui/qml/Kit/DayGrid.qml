@@ -187,7 +187,7 @@ Item {
             readonly property bool today: cell.index === root.days.length - 1
 
             border.color: cell.today ? Theme.accent : Theme.fill(Theme.hairlineAlpha)
-            border.width: cell.today ? 1.5 : (cell.level < 0 ? 1 : 0)
+            border.width: cell.today ? Theme.dayTodayEdge : (cell.level < 0 ? Theme.hairWidth : 0)
             color: root._levelColor(cell.level)
             height: root.cellSize
             width: root.cellSize

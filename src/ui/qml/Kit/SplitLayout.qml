@@ -382,7 +382,7 @@ Item {
         id: sizeTip
 
         border.color: root.snapped ? Theme.accent : Theme.fill(Theme.hairlineAlpha)
-        border.width: 1
+        border.width: Theme.hairWidth
         color: Theme.background
         height: tipText.implicitHeight + Theme.space(6)
         objectName: "sizeTip"

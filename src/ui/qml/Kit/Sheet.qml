@@ -434,7 +434,7 @@ Item {
 
         Accessible.name: root.accessibleName
         Accessible.role: Accessible.Dialog
-        border.color: Theme.accent
+        border.color: Theme.edgeColor
         border.width: Theme.sheetEdge
         color: Theme.background
         height: root.inline ? implicitHeight
@@ -476,7 +476,7 @@ Item {
                         Layout.preferredHeight: Theme.space(30)
                         Layout.preferredWidth: Theme.space(30)
                         border.color: Theme.fill(Theme.borderIdle)
-                        border.width: 1
+                        border.width: Theme.hairWidth
                         color: "transparent"
                         objectName: "sheetGlyph"
                         radius: Theme.cornerRadius

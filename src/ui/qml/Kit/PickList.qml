@@ -48,7 +48,7 @@ Rectangle {
     }
 
     border.color: Theme.fill(Theme.hairlineAlpha)
-    border.width: 1
+    border.width: Theme.hairWidth
     color: root.ink.fill
     implicitHeight: column.implicitHeight + 2 * Theme.space(4)
     objectName: "pickList"

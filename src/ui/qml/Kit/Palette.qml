@@ -596,8 +596,8 @@ Item {
     Rectangle {
         id: panel
 
-        border.color: Theme.accent
-        border.width: 1
+        border.color: Theme.edgeColor
+        border.width: Theme.edgeWidth
         color: Theme.background
         implicitHeight: layout.implicitHeight
         radius: Theme.cornerRadius
@@ -778,7 +778,7 @@ Item {
                     Rectangle {
                         anchors.fill: parent
                         border.color: Theme.fill(Theme.borderHover)
-                        border.width: 1
+                        border.width: Theme.hairWidth
                         color: "transparent"
                         visible: row.current
                     }

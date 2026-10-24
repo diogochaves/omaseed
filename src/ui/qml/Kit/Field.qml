@@ -173,7 +173,7 @@ Rectangle {
 
     border.color: input.activeFocus ? Theme.accent : root.hot ? Theme.fill(Theme.borderHover) :
                                                                 Theme.fill(Theme.borderIdle)
-    border.width: 1
+    border.width: Theme.hairWidth
     color: root.ink.ground.fill
     height: Theme.controlHeight
     implicitWidth: Theme.space(220)
