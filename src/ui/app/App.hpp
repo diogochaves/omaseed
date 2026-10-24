@@ -2078,6 +2078,7 @@ public:
     /// F2's sheet: reads the files, pieces and open files now and answers with
     /// `freeSkippedPlanned(plan)`: `{hash, name, folder, hybrid, version ("v1", "v2" or
     /// "hybrid", C29), running, freed, freedText, deletes, recheck, leftWithPieces, leftText,
+    /// allText (freed and left together, C30 F15),
     /// kept, items: [{name, holdsText, verdict, openBy}], more, error}`. `verdict` is "delete",
     /// "open", "pieces", "shared" or "outside".
     Q_INVOKABLE void planFreeSkipped(const QString &hash);

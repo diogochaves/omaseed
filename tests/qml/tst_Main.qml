@@ -455,6 +455,46 @@ TestCase {
         view.footerNote = "";
     }
 
+    // DECISIONS C30 F13: shift+f (and the band's action) goes straight to the add-again confirm
+    // while the reading says only adding it again frees them; otherwise to the free sheet.
+    function test_free_the_space_goes_straight_to_the_confirm_when_only_readd_frees() {
+        App.loadDemo(16);
+        const hash = App.filtered.hashAt(0);
+        view.freeSpaceFor(hash, {
+                              "hash": hash,
+                              "name": "Prairie Sky",
+                              "outlook": "readd",
+                              "version": "hybrid",
+                              "readdFiles": 2,
+                              "readdText": "1.03 GB"
+                          });
+        tryVerify(() => view.addAgainConfirm.opened, 1000, "no confirm");
+        verify(!view.freeSpaceSheet.opened);
+        compare(view.addAgainConfirm.files, 2);
+        compare(view.addAgainConfirm.version, "hybrid");
+        verify(view.addAgainConfirm.subtitle.indexOf("(1.03 GB)") > 0, view.addAgainConfirm.subtitle);
+        view.addAgainConfirm.close();
+        tryVerify(() => !view.addAgainConfirm.opened, 1000);
+
+        view.freeSpaceFor(hash, {
+                              "hash": hash,
+                              "outlook": "mixed"
+                          });
+        tryVerify(() => view.freeSpaceSheet.opened, 1000, "no sheet");
+        verify(!view.addAgainConfirm.opened);
+        view.freeSpaceSheet.close();
+        tryVerify(() => !view.freeSpaceSheet.opened, 1000);
+
+        // Another torrent's reading: the sheet, which reads this one's first (F16).
+        view.freeSpaceFor(hash, {
+                              "hash": "other",
+                              "outlook": "readd"
+                          });
+        tryVerify(() => view.freeSpaceSheet.opened, 1000, "no sheet for another torrent's reading");
+        view.freeSpaceSheet.close();
+        tryVerify(() => !view.freeSpaceSheet.opened, 1000);
+    }
+
     function rowOf(name) {
         for (let row = 0; row < App.filtered.count; ++row) {
             if (App.torrentRow(App.filtered.hashAt(row)).name === name)

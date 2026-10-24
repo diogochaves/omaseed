@@ -911,6 +911,94 @@ TestCase {
         return view;
     }
 
+    SignalSpy {
+        id: freeSpy
+
+        signalName: "freeSpaceRequested"
+    }
+
+    /// A reading of Big Buck Bunny's two skipped subtitles as App.skippedOnDisk gives it.
+    function heldReading(outlook, version) {
+        return {
+            "hash": App.details.hash,
+            "seen": true,
+            "holding": 2,
+            "held": 1105954816,
+            "heldText": "1.03 GB",
+            "band": true,
+            "where": "/data",
+            "fileSystem": "ext4",
+            "outlook": outlook,
+            "version": version,
+            "readdText": "1.03 GB",
+            "readdFiles": outlook === "readd" ? 2 : 1,
+            "stillText": "1.03 GB still on disk",
+            "busy": false
+        };
+    }
+
+    // DECISIONS C30 F12: on a hybrid whose space-holding skipped files all have downloaded
+    // pieces, the band keeps its title, says only adding it again frees them, and offers that;
+    // Why? says hybrid. F17: the summary says what they still hold.
+    function test_the_band_says_add_it_again_when_nothing_else_frees_them() {
+        const view = testCase.filesView();
+        const tab = findChild(view, "filesTab");
+        tab.skipped = testCase.heldReading("readd", "hybrid");
+        const band = findChild(view, "filesHeldBand");
+        verify(band.shown);
+        compare(band.title, "2 skipped files hold 1.03 GB on /data");
+        compare(band.body, "They were written while wanted, and pieces of them were downloaded. qBittorrent "
+                + "keeps them; on this torrent only adding it again frees them.");
+        compare(band.actions.map(action => action.label), ["Add it again…  F"]);
+        verify(band.details.startsWith("This torrent is hybrid (v1 and v2)."), band.details);
+        compare(band.detailsLabel, "Why?");
+        compare(findChild(view, "filesSkippedText").text, "2 skipped, 1.03 GB still on disk");
+        verify(!findChild(view, "filesSkippedKey").visible, "the key cap sits inside the words");
+
+        // v2-only says v2 (C29).
+        tab.skipped = testCase.heldReading("readd", "v2");
+        verify(band.details.startsWith("This torrent is v2."), band.details);
+
+        // Its action and shift+f both go up; the window picks the confirm (MainView).
+        freeSpy.target = view;
+        freeSpy.clear();
+        band.actionTriggered("free");
+        compare(freeSpy.count, 1);
+        keyClick(Qt.Key_F, Qt.ShiftModifier);
+        compare(freeSpy.count, 2);
+    }
+
+    // F15's case keeps the band's "Free the space…" (the sheet says the rest), as does a plain
+    // one; their body is C17's.
+    function test_the_band_keeps_free_the_space_when_some_can_go() {
+        const view = testCase.filesView();
+        const tab = findChild(view, "filesTab");
+        const band = findChild(view, "filesHeldBand");
+        for (const outlook of ["mixed", "free"]) {
+            tab.skipped = testCase.heldReading(outlook, outlook === "mixed" ? "hybrid" : "v1");
+            compare(band.actions.map(action => action.label), ["Free the space…"], outlook);
+            compare(band.body, "They were written while wanted. qBittorrent keeps them; it never deletes a "
+                    + "skipped file.");
+            verify(band.details.startsWith("Wanting a file makes qBittorrent create it"), band.details);
+        }
+        // Nothing held on a disk it sees: no tail, the key cap back.
+        tab.skipped = {};
+        compare(findChild(view, "filesSkippedText").text, "2 skipped");
+    }
+
+    // C30 F16: shift+f before the reading is this torrent's goes up anyway, so the sheet reads
+    // first; with no skipped file at all it does nothing.
+    function test_shift_f_before_the_reading_asks_for_the_sheet() {
+        const view = testCase.filesView();
+        const tab = findChild(view, "filesTab");
+        tab.skipped = {};
+        verify(view.canFree);
+        freeSpy.target = view;
+        freeSpy.clear();
+        keyClick(Qt.Key_F, Qt.ShiftModifier);
+        compare(freeSpy.count, 1);
+    }
+
     function test_slash_filters_the_files_and_esc_clears_it() {
         const view = testCase.filesView();
         const files = App.details.files;

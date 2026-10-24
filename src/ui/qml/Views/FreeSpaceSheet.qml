@@ -16,6 +16,12 @@ import Omaseed.Kit
 //
 // The plan is App.planFreeSkipped()'s, read when the sheet opens; App.freeSkippedSpace() reads
 // the files again at delete time, so a file wanted or opened since stays.
+//
+// DECISIONS C30 F14–F15: when the plan finds that only adding it again frees anything (shift+f
+// before the Files tab's reading, or a reading that changed), the sheet is titled "Only adding
+// it again frees this" and its main button is the re-add ("Re-add to delete them…"); when some
+// can go and some only that way, the main button frees what it can and "re-add to free all
+// SIZE…" sits beside it.
 Sheet {
     id: root
 
@@ -26,9 +32,20 @@ Sheet {
     readonly property int deletes: root.plan.deletes || 0
     readonly property var items: root.plan.items || []
     readonly property bool anyOpen: root.items.some(item => item.verdict === "open")
+    /// C30 F14–F15: the files only adding it again frees (a hybrid's or a v2-only torrent's
+    /// with downloaded pieces).
+    readonly property int readdFiles: root.plan.leftWithPieces || 0
+    /// F14: nothing to free but by adding it again.
+    readonly property bool readdOnly: root.ready && root.deletes === 0 && root.readdFiles > 0
+    /// F15: some to free, some only by adding it again.
+    readonly property bool mixed: root.ready && root.deletes > 0 && root.readdFiles > 0
+    readonly property string readdText: root.readdOnly ? (root.readdFiles === 1 ? qsTr("Re-add to delete it…")
+                                                                               : qsTr("Re-add to delete them…"))
+                                                       : qsTr("re-add to free all %1…").arg(root.plan.allText || "")
 
-    /// A hybrid's or a v2-only torrent's "add it again" (C29), with what it costs.
-    signal addAgainRequested(string hash, string name, int files)
+    /// A hybrid's or a v2-only torrent's "add it again" (C29), with what it costs: the files
+    /// and what they hold, and the version for the confirm's one line why (C30 F13).
+    signal addAgainRequested(string hash, string name, int files, string bytesText, string version)
     /// "Show in folder": the torrent's folder.
     signal showFolderRequested(string hash)
 
@@ -52,27 +69,49 @@ Sheet {
         return qsTr("outside its folder · stays");
     }
 
-    actions: [
-        {
-            "text": qsTr("cancel"),
-            "cancel": true
-        },
-        {
-            "text": qsTr("show in folder")
-        },
-        {
-            "text": root.deletes > 0 ? qsTr("free %1").arg(root.plan.freedText) : qsTr("nothing to free"),
-            "primary": true,
-            "disabled": !root.ready || root.deletes === 0 || App.skippedOnDisk.busy === true
-        }
-    ]
+    actions: {
+        const list = [
+            {
+                "text": qsTr("cancel"),
+                "cancel": true
+            },
+            {
+                "text": qsTr("show in folder")
+            }
+        ];
+        // F15: beside the main button, the re-add that frees all of it.
+        if (root.mixed)
+            list.push({
+                          "text": root.readdText,
+                          "disabled": App.skippedOnDisk.busy === true
+                      });
+        list.push({
+                      "text": root.readdOnly ? root.readdText : root.deletes > 0 ? qsTr("free %1").arg(root.plan.freedText)
+                                                                                : qsTr("nothing to free"),
+                      "primary": true,
+                      "disabled": !root.ready || (root.deletes === 0 && !root.readdOnly) || App.skippedOnDisk.busy === true
+                  });
+        return list;
+    }
     glyph: Glyphs.trash
     sheetWidth: Theme.space(600)
     subtitle: root.ready ? (root.plan.name || "") + " · " + (root.plan.folder || "") : ""
     title: !root.ready ? qsTr("Free the space") : root.deletes > 0 ? qsTr("Free %1").arg(root.plan.freedText)
-                                                                   : qsTr("Nothing to free")
+                                                                   : root.readdOnly ? qsTr("Only adding it again frees this")
+                                                                                    : qsTr("Nothing to free")
+
+    /// The re-add, with what it costs named first (AddAgainConfirm).
+    function readd(): void {
+        root.close();
+        root.addAgainRequested(root.hash, root.plan.name || "", root.readdFiles + root.deletes,
+                               root.plan.allText || "", root.plan.version === "v1" ? "" : (root.plan.version || ""));
+    }
 
     onAccepted: {
+        if (root.readdOnly) {
+            root.readd();
+            return;
+        }
         if (!root.ready || root.deletes === 0)
             return;
         App.freeSkippedSpace(root.hash);
@@ -81,6 +120,8 @@ Sheet {
     onActionTriggered: text => {
         if (text === qsTr("show in folder"))
             root.showFolderRequested(root.hash);
+        else if (text === root.readdText)
+            root.readd();
     }
 
     Connections {
@@ -90,7 +131,7 @@ Sheet {
             root.plan = plan;
             // `enter` frees, as the sheet's primary: the keyboard on it once it can.
             const primary = root.primaryButton();
-            if (primary && root.deletes > 0)
+            if (primary && (root.deletes > 0 || root.readdOnly))
                 Qt.callLater(() => primary.forceActiveFocus());
         }
 
@@ -255,16 +296,19 @@ Sheet {
             wrapMode: Text.Wrap
         }
 
-        Button {
-            objectName: "freeSpaceAddAgain"
-            text: (root.plan.leftWithPieces || 0) === 1 ? qsTr("Free it too by adding the torrent again…")
-                                                         : qsTr("Free them too by adding the torrent again…")
-
-            onClicked: {
-                root.close();
-                root.addAgainRequested(root.hash, root.plan.name || "",
-                                       (root.plan.leftWithPieces || 0) + root.deletes);
-            }
+        // F14: what the re-add does, before its confirm says it again.
+        Label {
+            Accessible.name: text
+            Accessible.role: Accessible.StaticText
+            Layout.fillWidth: true
+            dim: true
+            objectName: "freeSpaceReaddNote"
+            size: "small"
+            text: root.readdFiles === 1
+                  ? qsTr("It is removed keeping its files, the file is deleted, and it comes back from its own .torrent with the same files ticked, names, category, tags and limits. It loses its ratio, seeding time and added date.")
+                  : qsTr("It is removed keeping its files, the %1 files are deleted, and it comes back from its own .torrent with the same files ticked, names, category, tags and limits. It loses its ratio, seeding time and added date.").arg(root.readdFiles)
+            visible: root.readdOnly
+            wrapMode: Text.Wrap
         }
     }
 }

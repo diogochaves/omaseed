@@ -313,6 +313,9 @@ void App::makeFreePlan(const QString &hash, const std::function<void(QVariantMap
                             {QStringLiteral("recheck"), plan.recheck},
                             {QStringLiteral("leftWithPieces"), plan.leftWithPieces},
                             {QStringLiteral("leftText"), Format::size(plan.leftWithPiecesBytes)},
+                            // C30 F15: what adding it again frees, all of it.
+                            {QStringLiteral("allText"),
+                             Format::size(plan.freed + plan.leftWithPiecesBytes)},
                             {QStringLiteral("kept"), int(plan.items.size()) - plan.deletes},
                             {QStringLiteral("items"), items},
                             {QStringLiteral("more"), int(plan.items.size()) - int(items.size())}});

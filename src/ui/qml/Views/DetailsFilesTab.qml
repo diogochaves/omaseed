@@ -79,7 +79,8 @@ Item {
     signal tickClicked(int row, int wanted)
     /// A click on the header's tick, for every file the filter shows (docs/27 D1/D4).
     signal headTickClicked
-    /// C17 D3: the band's "Free the space…".
+    /// C17 D3: the band's "Free the space…"; C30 F12: its "Add it again…" when only that
+    /// frees them (the pane goes straight to the confirm).
     signal freeSpaceRequested
     /// C17 D4: the hint's "Path maps…".
     signal pathMapsRequested
@@ -145,6 +146,11 @@ Item {
     /// #160: shift+f and the palette's "free the space…": some skipped file holds space on a
     /// disk omaseed sees, with or without the band (the band waits for 1 GiB or 5 %).
     readonly property bool freeable: root.skipped.seen === true && (root.skipped.holding || 0) > 0
+    /// DECISIONS C30 F12: every skipped file that holds space has downloaded pieces on a hybrid
+    /// or v2-only torrent, so only adding it again frees any of it (SkippedOutlook's "readd").
+    readonly property bool readdOnly: root.freeable && root.skipped.outlook === "readd"
+    /// C30 F17: ", 16.0 MB still on disk" after the summary's "N skipped".
+    readonly property string stillText: root.freeable ? (root.skipped.stillText || "") : ""
     /// C17 D5: a change waits before it is sent.
     readonly property bool holdShown: root.held.waiting === true
     readonly property real holdLeftMs: root.holdShown ? Math.max(0, root.held.deadlineMs - root._now) : 0
@@ -349,7 +355,8 @@ Item {
                     font.family: Theme.fontFamily
                     font.pixelSize: Theme.font.small
                     objectName: "filesSkippedText"
-                    text: root.skippedText
+                    // DECISIONS C30 F17: "2 skipped, 16.0 MB still on disk".
+                    text: root.skippedText + (root.stillText.length > 0 ? ", " + root.stillText : "")
                 }
 
                 KeyCap {
@@ -358,7 +365,8 @@ Item {
                     anchors.verticalCenter: parent.verticalCenter
                     objectName: "filesSkippedKey"
                     text: "X"
-                    visible: skippedToggle.keyFits
+                    // Not between the count and what it holds: the line reads as one.
+                    visible: skippedToggle.keyFits && root.stillText.length === 0
                 }
             }
 
@@ -566,12 +574,24 @@ Item {
             id: heldBand
 
             animated: false
-            body: root.skipped.busy === true ? root._stepText(root.skipped.step || "")
-                                             : (root.skipped.holding || 0) === 1
-                                               ? qsTr("It was written while wanted. qBittorrent keeps it; it never deletes a skipped file.")
-                                               : qsTr("They were written while wanted. qBittorrent keeps them; it never deletes a skipped file.")
+            body: {
+                const one = (root.skipped.holding || 0) === 1;
+                if (root.skipped.busy === true)
+                    return root._stepText(root.skipped.step || "");
+                // DECISIONS C30 F12: only adding it again frees them, said up front.
+                if (root.readdOnly)
+                    return one ? qsTr("It was written while wanted, and pieces of it were downloaded. qBittorrent keeps it; on this torrent only adding it again frees it.")
+                               : qsTr("They were written while wanted, and pieces of them were downloaded. qBittorrent keeps them; on this torrent only adding it again frees them.");
+                return one ? qsTr("It was written while wanted. qBittorrent keeps it; it never deletes a skipped file.")
+                           : qsTr("They were written while wanted. qBittorrent keeps them; it never deletes a skipped file.");
+            }
             copyable: false
             details: {
+                // C30 F12's Why?: the torrent's version, in board 50's words.
+                if (root.readdOnly)
+                    return root.skipped.version === "v2"
+                           ? qsTr("This torrent is v2. Deleting a file that holds downloaded pieces needs a recheck, and on a v2 torrent a recheck leaves it short of 100 % for good, a libtorrent bug. Adding it again from its own .torrent, with those files gone, checks it from scratch.")
+                           : qsTr("This torrent is hybrid (v1 and v2). Deleting a file that holds downloaded pieces needs a recheck, and a recheck on a hybrid hits a libtorrent bug that errors the torrent. Adding it again from its own .torrent, with those files gone, checks it from scratch.");
                 const fs = root.skipped.fileSystem || "";
                 const sparse = ["ext4", "btrfs", "ntfs", "xfs"].indexOf(fs) >= 0;
                 const lead = qsTr("Wanting a file makes qBittorrent create it at its full size, even on a stopped torrent, before anything downloads.");
@@ -596,7 +616,7 @@ Item {
             width: parent.width
             actions: root.skipped.busy === true ? [] : [
                                                       {
-                                                          "label": qsTr("Free the space…"),
+                                                          "label": root.readdOnly ? qsTr("Add it again…  F") : qsTr("Free the space…"),
                                                           "key": "free"
                                                       }
                                                   ]

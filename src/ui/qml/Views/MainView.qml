@@ -57,6 +57,8 @@ Item {
     readonly property alias footerNoticeItem: footerNotice
     readonly property alias deleteConfirmPanel: deleteConfirmPanel
     readonly property alias moveSheet: moveSheet
+    readonly property alias freeSpaceSheet: freeSpaceSheet
+    readonly property alias addAgainConfirm: addAgainConfirm
     readonly property alias moveBand: moveBand
     readonly property alias moveQuitConfirm: moveQuitConfirm
     readonly property alias sharedMoveConfirm: sharedMoveConfirm
@@ -2274,7 +2276,7 @@ Item {
             // docs/28: the error block acts on the torrent it explains, never on a selection.
             onProblemActionRequested: action => root.runProblemAction(root.cursorHash, action)
             // Board 44 F1 (C17 D3): the Files tab's band, or shift+f there.
-            onFreeSpaceRequested: freeSpaceSheet.openFor(App.details.hash)
+            onFreeSpaceRequested: root.freeSpaceFor(App.details.hash)
             // C17 D4: Settings › Servers, on this server, where its path maps are.
             onPathMapsRequested: settingsModal.showServer(App.serverId)
             // docs/32 F1–F3: the failure block, on the torrent it is about. `m` tries the
@@ -2575,6 +2577,21 @@ Item {
         const top = outcomeStrip.mapToItem(statusLine.parent, 0, 0).y;
         root._outcomeBandLift = Math.max(0, statusLine.y - top + Theme.space(6));
         root.footerNoticeOpen = true;
+    }
+
+    /// C17 D3, C30 F12–F16: "Free the space…" (the band), shift+f and the palette. While the
+    /// Files tab's reading says only adding it again frees them, straight to that confirm
+    /// (F13), which plans again before the add; otherwise, and before the reading is this
+    /// torrent's, the sheet, whose plan reads the files and pieces and takes F14's form when
+    /// only adding it again frees anything.
+    function freeSpaceFor(hash: string, given: var): void {
+        // `given`: the tests' reading in place of App's.
+        const reading = given ?? App.skippedOnDisk;
+        if (reading.hash === hash && reading.outlook === "readd")
+            addAgainConfirm.openWhy(hash, reading.name || "", reading.readdFiles || 0,
+                                    reading.readdText || "", reading.version || "hybrid");
+        else
+            freeSpaceSheet.openFor(hash);
     }
 
     // --- the error and failure blocks' actions, from details or a row's fix (#168) ---
@@ -3050,7 +3067,7 @@ Item {
         anchors.fill: parent
         z: 9
 
-        onAddAgainRequested: (hash, name, files) => addAgainConfirm.openFor(hash, name, files)
+        onAddAgainRequested: (hash, name, files, bytesText, version) => addAgainConfirm.openWhy(hash, name, files, bytesText, version)
         onShowFolderRequested: hash => App.openFolder(hash)
     }
 

@@ -194,6 +194,12 @@ Item {
         rowCount: root.details.webSeeds.count
     }
 
+    /// shift+f and the palette's row can run: some skipped file holds space on a disk omaseed
+    /// sees, or the torrent has skipped files and their reading isn't in yet, which the free
+    /// sheet's plan then makes (DECISIONS C30 F16).
+    readonly property bool canFree: filesTab.freeable || (filesTab.skipped.hash === undefined
+                                                          && root.details.files.skippedCount > 0)
+
     readonly property bool hasTrackerError: (root.torrent && root.torrent.hasTrackerError === true)
                                             || root.details.hasTrackerError
 
@@ -740,7 +746,7 @@ Item {
             root.toggleHideSkipped();
             break;
         case "freeSpace":
-            if (filesTab.freeable)
+            if (root.canFree)
                 root.freeSpaceRequested();
             break;
         }
@@ -817,8 +823,8 @@ Item {
             return true;
         case Qt.Key_F:
             // Board 44 F1: shift+f frees what skipped files hold (#160: whenever some do, as
-            // the palette offers it).
-            if (!shift || !filesTab.freeable)
+            // the palette offers it); C30 F16: before the reading is in, the sheet reads first.
+            if (!shift || !root.canFree)
                 return false;
             root.freeSpaceRequested();
             return true;
