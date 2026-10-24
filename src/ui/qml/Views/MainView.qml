@@ -2699,6 +2699,8 @@ Item {
             return;
         if (present.length > 1 || table.selectedCount > 0)
             table.selectHashes(present);
+        // The last first, then the cursor's: as many of them in view as fit, the first always.
+        table.scrollToRow(Math.max(...rows));
         table.moveCursorTo(Math.min(...rows));
         root.focusHome();
     }

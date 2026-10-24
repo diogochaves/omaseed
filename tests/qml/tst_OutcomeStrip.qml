@@ -362,6 +362,8 @@ TestCase {
         showCase.clickShow();
         compare(view.table.cursorHash, hashes[0]);
         verify(view.table.hashInView(hashes[0]));
+        verify(view.table.hashInView(hashes[1]), "show left the second out of view, with room for both");
+        compare(view.outcomeShowReason, "");
         compare(view.table.selectedHashes().sort(), hashes.slice().sort());
     }
 

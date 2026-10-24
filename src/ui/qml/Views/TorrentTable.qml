@@ -947,6 +947,12 @@ Item {
         return top >= list.contentY - 1 && top + Theme.rowHeight <= list.contentY + list.height + 1;
     }
 
+    /// Scroll just enough for row `row` to be wholly in view; the cursor stays.
+    function scrollToRow(row: int): void {
+        if (row >= 0 && row < root.filtered.count)
+            list.positionViewAtIndex(row, ListView.Contain);
+    }
+
     /// `hash` is shown and selected.
     function hashSelected(hash: string): bool {
         const row = root.filtered.rowOfHash(hash);
