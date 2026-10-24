@@ -52,6 +52,7 @@ TestCase {
         App.logLines.clearMarks();
         testCase.logView.filterField.text = "";
         App.filtered.statusFilter = TorrentFilterModel.All;
+        App.filtered.question = TorrentFilterModel.AnyQuestion;
         view.footerNote = "";
         view.table.moveCursorTo(0);
         view.table.forceActiveFocus();
@@ -94,9 +95,11 @@ TestCase {
         verify(view.logShown);
         verify(testCase.logView.visible);
         verify(testCase.logView.list.activeFocus, "the lines did not take the keys");
-        verify(!view.rail.visible, "the rail is about torrents");
+        // C24 H2: the rail stays, its views and servers; its filters are about torrents.
+        verify(view.rail.visible);
+        verify(view.rail.serversOnly, "the rail's filters show on the log");
+        verify(findChild(view.rail, "railView-log").current);
         verify(!view.split.visible);
-        compare(view.hero.currentView, "log");
         verify(App.serverLog.active, "the face on screen reads the log");
         compare(view.focusArea, "log");
 
@@ -193,7 +196,6 @@ TestCase {
         verify(findChild(testCase.logView, "newerPill").visible);
         compare(findChild(testCase.logView, "newerText").text, "3 new lines below · follow is paused");
         compare(list.contentY, top, "new lines pulled a paused view down");
-        compare(view.hintModel.hints.map(hint => hint.key).indexOf("G") >= 0, true);
 
         keyClick(Qt.Key_G, Qt.ShiftModifier);
         verify(testCase.logView.following);
@@ -241,7 +243,6 @@ TestCase {
         keyClick("j");
         keyClick(Qt.Key_Space);
         compare(App.logLines.markedCount, 2);
-        compare(view.hintModel.hints[0].label, "copy 2 marked lines");
         keyClick("y");
         const two = copySpy.signalArguments[1][0].split("\n");
         compare(two.length, 2);
@@ -260,7 +261,7 @@ TestCase {
     }
 
     // D13 (F1, L2): a torrent's block opens its lines; `enter` on a line shows its torrent in
-    // the library with General open; `t` narrows to the cursor line's torrent, `esc` widens.
+    // the library with its story open (C24 H6); `t` narrows to the cursor line's torrent, `esc` widens.
     function test_a_block_opens_its_lines_and_enter_goes_back() {
         const row = testCase.rowOf("Spring (2019) 4K (CC-BY)");
         verify(row >= 0);
@@ -285,7 +286,7 @@ TestCase {
         keyClick(Qt.Key_Return);
         compare(view.view, "library");
         compare(view.cursorHash, hash);
-        compare(view.details.currentTab, 0);
+        compare(view.details.currentTab, view.details.tabStory);
         verify(!view.details.collapsed);
 
         // Back, and wider again with `esc`.

@@ -31,6 +31,11 @@ Rectangle {
     signal menuRequested(real x, real y)
 
     readonly property bool hot: root.hasCursor || mouseArea.containsMouse
+    /// The row's words on its ground, the hover fill while it is hot, eased with the fill
+    /// (docs/DECISIONS.md C30 F1, F4).
+    readonly property Ink ink: Ink {
+        ground: Theme.ground(false, false, root.hot, false)
+    }
 
     // #77: a button named by the server (or "add a server"), its line and status the
     // description; its press is a left click, and does nothing while disabled.
@@ -43,13 +48,13 @@ Rectangle {
 
     border.color: root.hasCursor ? Theme.accent : Theme.fill(Theme.hairlineAlpha)
     border.width: 1
-    color: root.hot ? Theme.fill(Theme.fillHover) : "transparent"
+    color: root.hot ? root.ink.fill : "transparent"
     implicitHeight: Math.max(Theme.space(40), layout.implicitHeight + Theme.space(16))
     radius: Theme.cornerRadius
 
     Behavior on color {
         ColorAnimation {
-            duration: 120
+            duration: Theme.fillChangeDuration
         }
     }
 
@@ -85,13 +90,13 @@ Rectangle {
             Layout.preferredHeight: Theme.space(7)
             Layout.preferredWidth: Theme.space(7)
             objectName: "serverDot"
-            color: root.failing ? Theme.red : root.untested ? Theme.dimForeground : Theme.green
+            color: root.failing ? root.ink.red : root.untested ? root.ink.dimForeground : root.ink.green
             radius: width / 2
             visible: !root.dashed
         }
 
         Glyph {
-            color: Theme.dimForeground
+            color: root.ink.dimForeground
             text: root.glyph
             visible: root.dashed && root.glyph.length > 0
         }
@@ -106,6 +111,7 @@ Rectangle {
                 dim: root.dashed
                 elide: Text.ElideRight
                 font.weight: root.dashed ? Font.Normal : Font.Medium
+                ink: root.ink
                 text: root.title
             }
 
@@ -115,6 +121,7 @@ Rectangle {
                 Layout.fillWidth: true
                 dim: true
                 elide: Text.ElideRight
+                ink: root.ink
                 objectName: "serverRowDescription"
                 size: "small"
                 text: root.description
@@ -142,7 +149,7 @@ Rectangle {
         }
 
         Text {
-            color: root.failing ? Theme.red : Theme.dimForeground
+            color: root.failing ? root.ink.red : root.ink.dimForeground
             font.family: Theme.fontFamily
             font.pixelSize: Theme.font.small
             text: root.status

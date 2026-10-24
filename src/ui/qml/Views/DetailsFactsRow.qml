@@ -3,9 +3,10 @@ import QtQuick
 import QtQuick.Layouts
 import Omaseed.Kit
 
-// One key/value row of the details pane's General tab (spec v2 §3 Fig. 9 `.kv`, grouped by
-// docs/12 G1): a fixed key column and a flexible value column, closed by a row hairline, the
-// same measures as Kit's KeyValue. `entry` is one of DetailsGeneralTab's rows,
+// One key/value row of the details pane's facts tab (General's until DECISIONS C24 H6; spec v2
+// §3 Fig. 9 `.kv`, grouped by docs/12 G1): a fixed key column and a flexible value column,
+// closed by a row hairline, the same measures as Kit's KeyValue. `entry` is one of
+// DetailsFactsTab's rows,
 // `{key, value, color?, dim?, halves?, tail?}`; `tail` follows the value in the dim
 // colour (docs/28: the Status row's "error · no access"). A `halves` value that does not fit on one line breaks
 // at its middle (20 + 20 for a hash v1) instead of leaving two characters on a line of their
@@ -22,9 +23,17 @@ Rectangle {
     signal clicked
 
     readonly property bool hasTail: (root.entry.tail || "").length > 0
-    readonly property color valueColor: root.entry.color ? root.entry.color : root.entry.dim
-                                                                               ? Theme.dimForeground :
-                                                                                 Theme.foreground
+    /// docs/DECISIONS.md C30 F1: the row's words on its ground, the cursor's fill or the
+    /// pointer's 4 %; they change at once, as the fill does. An entry's `color` is a window
+    /// role: the ground's of the same (C30 F3).
+    readonly property Ink ink: Ink {
+        animated: false
+        ground: root.hasCursor ? Theme.on.cursor : mouse.containsMouse ? Theme.on.idle
+                                                                         : Theme.on.window
+    }
+    readonly property color valueColor: root.entry.color ? root.ink.of(root.entry.color)
+                                                         : root.entry.dim ? root.ink.dimForeground
+                                                                          : root.ink.foreground
 
     // #77: a list item named by its key, the value (live, some of them) the description; its
     // press is the click, and does nothing while disabled.
@@ -36,9 +45,7 @@ Rectangle {
 
     border.color: root.hasCursor ? Theme.fill(Theme.borderHover) : "transparent"
     border.width: root.hasCursor ? 1 : 0
-    color: root.hasCursor ? Theme.fill(Theme.fillHover) : mouse.containsMouse ? Theme.fill(
-                                                                                    Theme.fillIdle) :
-                                                                                "transparent"
+    color: root.hasCursor || mouse.containsMouse ? root.ink.fill : "transparent"
     implicitHeight: Math.max(Theme.space(26), rowLayout.implicitHeight + Theme.space(8))
 
     RowLayout {
@@ -55,6 +62,7 @@ Rectangle {
             Layout.alignment: Qt.AlignTop
             Layout.preferredWidth: root.keyWidth
             elide: Text.ElideRight
+            ink: root.ink
             text: root.entry.key
             tracked: true
         }
@@ -71,7 +79,7 @@ Rectangle {
             color: root.valueColor
             font.family: Theme.fontFamily
             font.pixelSize: Theme.font.small
-            objectName: "generalValue"
+            objectName: "factsValue"
             text: valueText.split ? valueText.value.slice(0, valueText.middle) + "\n"
                                     + valueText.value.slice(valueText.middle) : valueText.value
             textFormat: Text.PlainText
@@ -88,10 +96,10 @@ Rectangle {
         Text {
             Layout.alignment: Qt.AlignTop
             Layout.fillWidth: true
-            color: Theme.dimForeground
+            color: root.ink.dimForeground
             font.family: Theme.fontFamily
             font.pixelSize: Theme.font.small
-            objectName: "generalTail"
+            objectName: "factsTail"
             text: "· " + (root.entry.tail || "")
             textFormat: Text.PlainText
             visible: root.hasTail

@@ -78,7 +78,7 @@ scripts/dev/settings-walk.sh [OUT] | --interactive  # qBittorrent settings pane 
 scripts/dev/servers-walk.sh [OUT] | --interactive # two qBittorrents: first run, add, switch three ways, an action each side, remove
 scripts/dev/backup-walk.sh [OUT] | --interactive  # a qBittorrent's torrents exported and imported through the app, checked on both servers
 scripts/dev/error-walk.sh [OUT] | --interactive   # a torrent goes into error: the row's cause, the error block, one notice
-scripts/dev/menu-walk.sh [OUT] | --interactive    # the one menu: tray and bar widget ⋯, server switches, quit
+scripts/dev/menu-walk.sh [OUT] | --interactive    # the one menu: tray, bar widget ⋯ and the window's mark (ctrl+.), server switches, quit
 scripts/dev/stuck-walk.sh [OUT] | --interactive   # finished into a full disk (a udisks loop image): the stuck move's red block, then a recheck moves it
 scripts/dev/move-walk.sh [OUT] | --interactive    # folder and selection moves, queue, places, partial pack, move back, recheck (~12 min; OMASEED_MOVE_WALK_FROM=selection|sheet|history|big|music|remote)
 omabox check run [--approve] --base .local/visual --plugin plugin -- scripts/dev/visual-check.sh  # the walks' screens against a baseline: same, or what changed
@@ -92,6 +92,11 @@ scripts/dev/app-box.sh api [-b NAME] [--server public|private] [-X M] PATH [CURL
 `docs/TESTING.md` is the guide: the layers, the order (automated first, then a person's pass from
 `docs/manual-tests/`), and the rules (test scripts committed and re-runnable, research repros in
 `scripts/dev/research/`, `scripts/dev/fastresume.py` to read what qBittorrent saved).
+
+A box is a new install, so omaseed starts on the rows display there (DECISIONS C24 H4). Every
+walk pins its display with `OMASEED_DISPLAY=rows|table|overview` (each scope starts on it;
+app-box.sh passes it through): the walks that read the table pin the table, the swarm walk adds a
+rows pass and ends on the shelves, and ctest pins the table for every test.
 
 Anything that can open a window, reach the session D-Bus or the keyring runs in an omabox or
 through `ctest`, never straight on the desktop. Test binaries force Qt's offscreen platform

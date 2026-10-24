@@ -18,6 +18,7 @@
 #include "core/StateFile.hpp"
 #include "core/TorrentFile.hpp"
 #include "core/TorrentFolderScan.hpp"
+#include "core/TorrentStory.hpp"
 #include "core/TrackerMerge.hpp"
 #include "core/Version.hpp"
 #include "core/WeeklyRecap.hpp"
@@ -127,6 +128,8 @@ App::App(QObject *parent)
     m_filtered->setSourceModel(m_engine->torrents());
     // A tracker row lists what the rail counts for it: every torrent on that host.
     m_filtered->setTrackerModel(m_engine->trackers());
+    // DECISIONS C24 H2: "landed today" turns over at the same midnight as the counts.
+    m_filtered->setDay(m_engine->day());
     // The add sheet's "in library" follows the library, not the moment of the last scan: a
     // torrent added from the bar widget while the sheet is up is marked at the next sync.
     // `updated` comes after the model's own bookkeeping (rowsRemoved comes before it).
@@ -276,6 +279,8 @@ App::App(QObject *parent)
     setUpBarMenu();
     setUpMove();
     setUpSkipped();
+    setUpScope();
+    setUpLibraryDisplays();
 }
 
 App::~App()
@@ -368,6 +373,8 @@ void App::start()
     // #9: a real run keeps the Files tab's per-torrent filter and hide-skipped in state.json
     // (demos and QML tests never call start(), so they never write it).
     m_details->setRememberViewState(true);
+    // DECISIONS C24 H4: a real run writes the display it decided (or was told) at once.
+    saveDisplaysFirst();
 
     // #31: a copy when one is due, a minute in (the ledger has its first polls by then), then
     // a check every hour.
@@ -951,6 +958,9 @@ QVariantMap App::torrentRow(const QString &hash) const
     row.insert(QStringLiteral("category"), torrent.category);
     row.insert(QStringLiteral("tagsText"), torrent.tags.join(QStringLiteral(" · ")));
     row.insert(QStringLiteral("addedOnText"), Format::added(torrent.addedOn));
+    // DECISIONS C24 H6: facts' Added row, "today 10:41" (its key says "added").
+    row.insert(QStringLiteral("addedText"),
+               torrent.addedOn.isValid() ? Format::relativeTime(torrent.addedOn) : QString());
     // T4.3: the raw byte count, for the delete/location sheets' "N on disk" line — every
     // other field above is already text, this is the one a caller sums across a selection.
     row.insert(QStringLiteral("size"), torrent.size);
@@ -996,7 +1006,47 @@ QVariantMap App::torrentRow(const QString &hash) const
     row.insert(QStringLiteral("firstLastPiecePrio"), torrent.firstLastPiecePrio);
     row.insert(QStringLiteral("superSeeding"), torrent.superSeeding);
     row.insert(QStringLiteral("autoTmm"), torrent.autoTmm);
+    // DECISIONS C24 H6: the details' head says the rows display's fact and sentence.
+    const RowWords words = m_filtered->wordsOfHash(hash);
+    row.insert(QStringLiteral("rowFact"), words.fact);
+    row.insert(QStringLiteral("rowCaption"), words.caption);
+    row.insert(QStringLiteral("rowSentence"), words.sentence);
+    row.insert(QStringLiteral("hashVersion"),
+               torrent.isHybrid()   ? QStringLiteral("hybrid")
+               : torrent.isV2Only() ? QStringLiteral("v2")
+                                    : QStringLiteral("v1"));
     return row;
+}
+
+QVariantList App::torrentStory(const QString &hash) const
+{
+    if (hash.isEmpty() || m_engine->torrents()->indexOfHash(hash) < 0)
+        return {};
+    StoryInput input;
+    input.torrent = m_engine->torrents()->torrent(hash);
+    input.now = QDateTime::currentDateTime();
+    // C18 D8: the moves the history keeps for it, whatever moved with it.
+    for (const MoveRecord &record : m_move->history().records()) {
+        if (!record.from.contains(hash) || !record.finishedAt.isValid())
+            continue;
+        input.moves.append({record.finishedAt,
+                            record.to.value(hash),
+                            int(record.from.size()) - 1,
+                            record.kind == QLatin1String("folder") ? record.title : QString()});
+    }
+    const QVariantMap problem = m_engine->torrents()->problem(hash);
+    input.problem = problem.value(QStringLiteral("headline")).toString();
+    input.problemAt = problem.value(QStringLiteral("loggedAt")).toDateTime();
+    const QVariantMap failure = m_engine->torrents()->failure(hash);
+    input.failure = failure.value(QStringLiteral("headline")).toString();
+    input.failureAt = failure.value(QStringLiteral("loggedAt")).toDateTime();
+    QVariantList out;
+    for (const StoryEvent &event : TorrentStory::events(input))
+        out.append(QVariantMap{{QStringLiteral("time"), event.time},
+                               {QStringLiteral("kind"), TorrentStory::kindName(event.kind)},
+                               {QStringLiteral("title"), event.title},
+                               {QStringLiteral("detail"), event.detail}});
+    return out;
 }
 
 QString App::demoTab() const
@@ -4254,6 +4304,24 @@ void App::setBaseSizeOverride(int pixels)
     Q_EMIT settingsChanged();
 }
 
+QString App::windowGround() const
+{
+    const_cast<App *>(this)->loadSettings();
+    return m_windowGround;
+}
+
+void App::setWindowGround(const QString &ground)
+{
+    loadSettings();
+    const QString wanted = ground == QLatin1String("translucent") ? QStringLiteral("translucent")
+                                                                  : QStringLiteral("opaque");
+    if (m_windowGround == wanted)
+        return;
+    m_windowGround = wanted;
+    saveSettings();
+    Q_EMIT settingsChanged();
+}
+
 int App::windowAlphaOverride() const
 {
     const_cast<App *>(this)->loadSettings();
@@ -4529,6 +4597,9 @@ void App::writeStateSection(const QString &key, const QJsonObject &value)
         m_demoState.insert(key, value);
         return;
     }
+    // DECISIONS C24 H4: the display this run decided goes with its first write (AppLibrary).
+    if (key != QLatin1String("displays"))
+        saveDisplaysFirst();
     StateFile::writeSection(key, value);
 }
 
@@ -4548,6 +4619,16 @@ void App::loadSettings()
     m_followOmarchyTheme = appearance.value(QStringLiteral("followOmarchyTheme")).toBool(true);
     m_baseSizeOverride = appearance.value(QStringLiteral("baseSizeOverride")).toInt(0);
     m_windowAlphaOverride = appearance.value(QStringLiteral("windowAlphaOverride")).toInt(0);
+    // DECISIONS C24 H13: opaque by default. Before the choice existed, a transparency set by
+    // hand was the only way to ask for a ground of one's own, so it reads as translucent.
+    const QJsonValue ground = appearance.value(QStringLiteral("windowGround"));
+    if (ground.isString())
+        m_windowGround = ground.toString() == QLatin1String("translucent")
+                             ? QStringLiteral("translucent")
+                             : QStringLiteral("opaque");
+    else
+        m_windowGround =
+            m_windowAlphaOverride > 0 ? QStringLiteral("translucent") : QStringLiteral("opaque");
     m_trayIconMode =
         oneOf(appearance.value(QStringLiteral("trayIconMode")).toString(), kTrayIconModes);
     m_speedsAlignment =
@@ -4580,6 +4661,7 @@ void App::saveSettings()
     appearance[QStringLiteral("followOmarchyTheme")] = m_followOmarchyTheme;
     appearance[QStringLiteral("baseSizeOverride")] = m_baseSizeOverride;
     appearance[QStringLiteral("windowAlphaOverride")] = m_windowAlphaOverride;
+    appearance[QStringLiteral("windowGround")] = m_windowGround;
     appearance[QStringLiteral("trayIconMode")] = m_trayIconMode;
     appearance[QStringLiteral("speedsAlignment")] = m_speedsAlignment;
     appearance[QStringLiteral("uploadTrend")] = m_uploadTrend;

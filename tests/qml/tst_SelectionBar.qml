@@ -3,9 +3,10 @@ import QtTest
 import Omaseed.Kit
 import Omaseed.Views
 
-// docs/17 M9: the selection bar on its own. What it draws at a width (M9.3, M9.5), what a
-// click on each button says (M9.3), and that it never takes the keyboard (M9.4). Where it
-// sits and when it shows are MainView's (tst_Main).
+// docs/17 M9 in the action bar (DECISIONS C24 H8): the bar on its own. What it draws at a
+// width (M9.3, M9.5), its form from `Theme.actionBar*`, what a click on each button says
+// (M9.3), the note in the hint's place, and that it never takes the keyboard (M9.4). Where
+// it docks and when it shows are MainView's (tst_Main).
 TestCase {
     id: testCase
 
@@ -80,7 +81,7 @@ TestCase {
         const last = button(bar, "delete");
         verify(hint.mapToItem(bar, 0, 0).x > last.mapToItem(bar, 0, 0).x, "the hint is not after the buttons");
         // Just too narrow for the hint: it goes, and every button stays.
-        bar.availableWidth = plain.implicitWidth + 1;
+        bar.availableWidth = plain.contentWidth + 1;
         verify(!bar.showHint);
         compare(bar.folded, []);
         compare(bar.implicitWidth, plain.implicitWidth);
@@ -144,7 +145,7 @@ TestCase {
                 verify(bar.items.indexOf(action) < 0, action + " should have folded");
             for (const action of ["start", "stop", "more", "delete"])
                 verify(bar.items.indexOf(action) >= 0, action + " must always stay");
-            compare(bar.implicitWidth, bar.availableWidth);
+            compare(bar.contentWidth, bar.availableWidth);
         }
     }
 
@@ -162,7 +163,7 @@ TestCase {
         bar.availableWidth = bar.widthOf(bar.itemsFor(7), true) - 1;
         verify(!bar.fit.word);
         compare(bar.folded.length, 7);
-        verify(bar.implicitWidth < bar.widthOf(bar.itemsFor(7), true));
+        verify(bar.contentWidth < bar.widthOf(bar.itemsFor(7), true));
     }
 
     function test_the_bar_never_wraps() {
@@ -172,7 +173,47 @@ TestCase {
         // Nothing left to fold: it keeps its one row and is simply wider than asked.
         compare(bar.items, ["start", "stop", "|", "more", "|", "delete"]);
         compare(bar.height, bar.implicitHeight);
-        compare(bar.implicitHeight, Theme.controlHeight + 2 * Theme.space(4));
+        compare(bar.implicitHeight, Theme.actionBarHeight);
+    }
+
+    // C24 H8: the status line's own height and insets, a fill for its ground, square buttons
+    // inside the line: the bar is the line, acting, and nothing above it moves.
+    function test_its_form_is_the_status_lines() {
+        const bar = makeBar();
+        waitForRendering(bar);
+        compare(Theme.actionBarHeight, Theme.statusLineHeight);
+        compare(bar.color, Theme.fill(Theme.actionBarFill));
+        compare(bar.radius, 0);
+        compare(bar.border.width, 0);
+        const count = findChild(bar, "selectionCount");
+        compare(Math.round(count.mapToItem(bar, 0, 0).x), Theme.actionBarInsetStart);
+        const start = button(bar, "start");
+        compare(start.width, Theme.actionBarButtonSize);
+        compare(start.height, Theme.actionBarButtonSize);
+        verify(start.mapToItem(bar, 0, 0).y >= 0 && start.mapToItem(bar, 0, start.height).y <= bar.height,
+               "a button sticks out of the line");
+        compare(bar.implicitWidth, Theme.actionBarInsetStart + bar.contentWidth + Theme.actionBarInsetEnd);
+    }
+
+    // The status line's note ("copied", a failure) takes the hint's place while the bar hides
+    // the line, in the line's colours; it goes when there is no room, as the hint does.
+    function test_the_note_takes_the_hints_place() {
+        const bar = makeBar({
+                                "hint": "ctrl+click add · shift+click range",
+                                "note": "copied"
+                            });
+        verify(bar.showHint);
+        verify(!findChild(bar, "bar_hint"), "the hint showed beside the note");
+        const note = findChild(bar, "bar_note");
+        compare(note.text, "copied");
+        // The bar's words on its own ground, the hover fill (DECISIONS C30 F1).
+        compare(note.color, Theme.actionBarGround.accent);
+        compare(note.Accessible.role, Accessible.AlertMessage);
+        bar.noteWarn = true;
+        compare(note.color, Theme.actionBarGround.yellow);
+        bar.note = "";
+        compare(findChild(bar, "bar_hint").text, "ctrl+click add · shift+click range");
+        compare(findChild(bar, "bar_hint").color, Theme.actionBarGround.dimForeground);
     }
 
     // ---- what a click says -----------------------------------------------------------------
@@ -266,7 +307,7 @@ TestCase {
         verify(!bar.fit.word);
         waitForRendering(bar);
         verify(button(bar, "clear").visible);
-        compare(bar.implicitWidth, bar.widthOf(bar.items, false));
+        compare(bar.contentWidth, bar.widthOf(bar.items, false));
     }
 
     Component {
@@ -297,5 +338,30 @@ TestCase {
         bar.enabled = false;
         summary.Accessible.pressAction();
         compare(clicks, 1, "a disabled bar took the press");
+    }
+
+    // DECISIONS C24 H10: alt held, each button but ⋯ and the ✕ show their keys over their corner;
+    // the bar's room and its folds don't move.
+    function test_alt_badges_every_buttons_key_and_moves_nothing() {
+        const bar = createTemporaryObject(barComponent, testCase, {
+                                              "availableWidth": 400
+                                          });
+        const items = bar.items.join();
+        const stopX = button(bar, "stop").mapToItem(bar, 0, 0).x;
+        verify(!findChild(bar, "barKey_stop").visible);
+        bar.keysShown = true;
+        compare(bar.items.join(), items);
+        compare(button(bar, "stop").mapToItem(bar, 0, 0).x, stopX);
+        // ⋯ has none: its "enter" would cover open folder's (board 46's "all actions" has none).
+        verify(!findChild(bar, "barKey_more").visible);
+        for (const action of bar.items) {
+            if (action === "|" || action === "more")
+                continue;
+            const badge = findChild(bar, "barKey_" + action);
+            verify(badge.visible, action);
+            compare(badge.key, bar.buttons[action].key, action);
+        }
+        compare(findChild(bar, "barKey_clear").key, "esc");
+        verify(findChild(bar, "barKey_clear").visible);
     }
 }

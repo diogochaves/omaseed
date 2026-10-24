@@ -1490,6 +1490,11 @@ Sheet {
                         Rectangle {
                             id: serverChipBox
 
+                            /// docs/DECISIONS.md C30 F1: the chip's words on its hover fill.
+                            readonly property Ink ink: Ink {
+                                ground: chipMouse.containsMouse ? Theme.on.hover : Theme.on.window
+                            }
+
                             // #77: a "switch server" button, as the hero's server line; the
                             // server is its description. Its press is the click.
                             Accessible.description: App.serverName
@@ -1499,7 +1504,7 @@ Sheet {
                                                           sheet.serverPaletteRequested()
                             border.color: chipMouse.containsMouse ? Theme.fill(Theme.borderHover) : Theme.fill(Theme.borderIdle)
                             border.width: 1
-                            color: chipMouse.containsMouse ? Theme.fill(Theme.fillHover) : "transparent"
+                            color: chipMouse.containsMouse ? serverChipBox.ink.fill : "transparent"
                             implicitHeight: chipRow.implicitHeight + Theme.space(4)
                             implicitWidth: chipRow.implicitWidth + Theme.space(12)
                             objectName: "addServerChip"
@@ -1515,7 +1520,9 @@ Sheet {
                                     anchors.verticalCenter: parent.verticalCenter
                                     // docs/35 N3, docs/44 D11: yellow while it isn't answering, red when nothing
                                     // is there or it needs you.
-                                    color: !sheet.serverDown ? Theme.green : App.serverWaiting ? Theme.yellow : Theme.red
+                                    color: !sheet.serverDown ? serverChipBox.ink.green
+                                           : App.serverWaiting ? serverChipBox.ink.yellow
+                                                               : serverChipBox.ink.red
                                     height: Theme.space(7)
                                     radius: width / 2
                                     width: Theme.space(7)
@@ -1524,12 +1531,14 @@ Sheet {
                                 Label {
                                     bright: true
                                     font.weight: Font.DemiBold
+                                    ink: serverChipBox.ink
                                     objectName: "addServerName"
                                     text: App.serverName
                                 }
 
                                 Label {
                                     dim: true
+                                    ink: serverChipBox.ink
                                     size: "caption"
                                     text: Glyphs.chevronDown
                                 }

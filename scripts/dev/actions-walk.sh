@@ -2,20 +2,21 @@
 # omaseed — the risky actions, walked through the app's own UI: renames, categories, tags,
 # automatic torrent management, set location through the Move… sheet (board 43: also onto
 # another filesystem, a 2 GiB torrent, and onto a folder that already has its name),
-# recheck, the selection bar on two torrents, what each action came to in the strip in the
-# selection bar's place (board 45, DECISIONS C18: done, a refusal, two at once), picking rows
+# recheck, the action bar on two torrents (DECISIONS C24 H8), what each action came to in the
+# strip over the rows (board 45, DECISIONS C18: done, a refusal, two at once), picking rows
 # with the mouse's □ (C18 D6), the command palette (docs/30), delete with and
 # without files, and two torrents that share one file (#27: the twin goes in through the add
 # sheet's "save there"; #28: the delete confirm, the location sheet, a category change and
 # turning automatic management on (#65) ask), and board 44's skipped files that still hold space
 # (#118): the On disk column and band (also after an `x` skip and tick back in the app, #180),
 # free the space (taught by the ? sheet and the palette,
-# #160) on a v1-only torrent (with its recheck), on a hybrid (left, then added again) and on a
-# v2-only torrent (left too, DECISIONS C29, #182, then added again); and a big tick that waits
-# with Undo (#119). After each step it checks what qBittorrent says and
+# #160) on a v1-only torrent (with its recheck), on a hybrid and a v2-only torrent where only
+# adding it again frees them (DECISIONS C29, C30 F12-F17: said up front by the band, the palette
+# and shift+f, straight to the confirm, then added again), on a hybrid with some to free and
+# some not (F15); and a big tick that waits with Undo (#119). After each step it checks what qBittorrent says and
 # what is on disk, and stops at the first mismatch. OMASEED_ACTIONS_WALK_FROM=disk runs board
 # 44's steps alone.
-# Run it again after any change to an action, a sheet, a palette or the selection bar.
+# Run it again after any change to an action, a sheet, a palette or the action bar.
 #
 #   scripts/dev/actions-walk.sh [OUT_DIR]        # agents: a headless box, a shot per step,
 #                                                # OUT_DIR/index.md says what each shot shows
@@ -33,13 +34,16 @@
 # real bytes.
 #
 # The keys are the app's own: the jump palette's tab opens the actions menu on a torrent, and
-# esc from the menu leaves the keyboard on the table there. The selection bar is mouse only,
-# so it is clicked: its buttons' places are measured on a 1854x1056 window (see BAR_*), moved
-# to the window's real size before the first click (bar_fit), and the checks after each click
-# catch a button that moved.
+# esc from the menu leaves the keyboard on the table there. The action bar (the status line
+# while torrents are selected, DECISIONS C24 H8) is mouse only, so its buttons are clicked by
+# their accessible names, where the window's tree places them (bar_click).
 set -euo pipefail
 
 repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+# DECISIONS C24 H4: a new install shows the rows display, and a box is a new install. This
+# walk reads the table (its columns, its rows' order), so it pins the table: every scope starts
+# on it (App's OMASEED_DISPLAY), passed to each launch here and by app-box.sh.
+export OMASEED_DISPLAY="${OMASEED_DISPLAY:-table}"
 cd "$repo"
 APP_BOX="$repo/scripts/dev/app-box.sh"
 BOX="${OMASEED_ACTIONS_BOX:-actions-walk}"
@@ -55,21 +59,6 @@ case "${1:-}" in
 esac
 
 [ -x build/omaseed ] || { echo "build first: cmake --build build" >&2; exit 1; }
-
-# The selection bar's buttons, in omaseed's window coordinates, with two torrents selected,
-# the rail and the details pane open (docs/17 M9.3's order), for a BAR_W x BAR_H window (the
-# box's 1920x1080 screen with the bar Omarchy puts on the left). The bar is centred over the
-# table and sits a fixed height above the window's bottom: bar_fit moves the buttons by half
-# the width's change and all of the height's, so another bar layout (a top bar) still lands.
-# Measured again after #24 T7 put the selection's ledger (size, given, ratio) at the bar's start.
-BAR_W=1854
-BAR_H=1056
-BAR_Y=975
-BAR_START=775
-BAR_STOP=808
-BAR_CATEGORY=940
-BAR_TAGS=974
-BAR_DELETE=1175
 
 SEEDING="('uploading', 'stalledUP', 'queuedUP', 'forcedUP')"
 
@@ -99,30 +88,13 @@ in_box() { omabox run -b "$BOX" -- "$@" >/dev/null 2>&1; }
 
 # The outcome strip's line runs down for 6 s at the table's bottom (DECISIONS C18 D3): a wait
 # for the window to be still would wait it out, and the strip with it. Its band of the screen
-# (the selection bar's too) is left out of every wait; it is wide and tall enough to hold
+# (the action bar's too) is left out of every wait; it is wide and tall enough to hold
 # whether omabox reads it in the screen's or the window's coordinates.
 STRIP_IGNORE="0,920 1920,110"
 keys() { omabox keys -b "$BOX" --window omaseed --wait --ignore "$STRIP_IGNORE" "$@" >/dev/null 2>&1 || true; }
 # keys_now KEY...: the same without waiting for the screen to settle, for while something on it
 # keeps moving (the hold band's countdown, #119) and the 3 s matter.
 keys_now() { omabox keys -b "$BOX" --window omaseed "$@" >/dev/null 2>&1 || true; }
-# bar_fit: move BAR_* from the BAR_W x BAR_H window they were measured on to omaseed's own.
-bar_fit() {
-    local w h dx dy
-    read -r w h < <(omabox windows -b "$BOX" --json | python3 -c '
-import json, sys
-print(*next(x["size"] for x in json.load(sys.stdin) if "omaseed" in x["class"]))')
-    dx=$(((w - BAR_W) / 2))
-    dy=$((h - BAR_H))
-    BAR_Y=$((BAR_Y + dy))
-    BAR_START=$((BAR_START + dx))
-    BAR_STOP=$((BAR_STOP + dx))
-    BAR_CATEGORY=$((BAR_CATEGORY + dx))
-    BAR_TAGS=$((BAR_TAGS + dx))
-    BAR_DELETE=$((BAR_DELETE + dx))
-    BAR_W=$w
-    BAR_H=$h
-}
 click() { omabox click -b "$BOX" --window omaseed --wait --ignore "$STRIP_IGNORE" "$1" "$2" >/dev/null 2>&1 || true; }
 
 # row_tick NAME: click the □ at the start of the row whose torrent is NAME (C18 D6), where the
@@ -350,6 +322,21 @@ for node in json.load(sys.stdin):
     click $at
 }
 
+# bar_click NAME: the action bar's button named NAME exactly ("stop", "category", "delete"),
+# the lowest such node in the window: the bar is its foot (C24 H8).
+bar_click() {
+    local at
+    at="$(omabox tree -b "$BOX" --window omaseed --json 2>/dev/null | python3 -c '
+import json, sys
+nodes = [n for n in json.load(sys.stdin) if (n.get("name") or "") == sys.argv[1] and n.get("w", 0) > 0]
+if nodes:
+    n = max(nodes, key=lambda n: n["y"])
+    print(n["x"] + n["w"] // 2, n["y"] + n["h"] // 2)' "$1")"
+    [ -n "$at" ] || fail "no \"$1\" button on the action bar"
+    # shellcheck disable=SC2086 # "X Y"
+    click $at
+}
+
 # make_disk_torrent NAME FORMAT [SIZES]: four files of random bytes in ~/Torrents/NAME, a.bin to
 # d.bin (8 MiB each, or the four byte counts SIZES lists), and a torrent of them (FORMAT v1, v2
 # or hybrid) that the box's qBittorrent makes and seeds from there.
@@ -369,6 +356,42 @@ sys.exit(0 if any(t["name"] == sys.argv[1] and t["progress"] == 1 for t in json.
         sleep 0.5
     done
     api -X POST torrentcreator/deleteTask -d "taskID=$task" >/dev/null 2>&1 || true
+}
+
+# make_mixed_torrent NAME: a hybrid of four 8 MiB files whose c.bin is skipped after it was
+# all there (it holds downloaded pieces) and whose d.bin was missing when the torrent was added,
+# so qBittorrent knows no piece of it, then is skipped and written here: it holds space and no
+# piece (DECISIONS C30 F15's "some to free, some not"). Made with startSeeding off, so nothing
+# is ever rechecked after a delete (#115).
+make_mixed_torrent() {
+    local name="$1" i task file="$BOX_HOME/$1.torrent"
+    mkdir -p "$home/Torrents/$name"
+    for i in a b c d; do
+        head -c 8388608 /dev/urandom >"$home/Torrents/$name/$i.bin"
+    done
+    task="$(api torrentcreator/addTask -d "sourcePath=$TORRENTS_DIR/$name" -d format=hybrid \
+        -d startSeeding=false --data-urlencode "torrentFilePath=$file" |
+        python3 -c 'import json, sys; print(json.load(sys.stdin)["taskID"])')"
+    for _ in $(seq 1 120); do
+        [ -s "$home/$name.torrent" ] && break
+        sleep 0.5
+    done
+    api -X POST torrentcreator/deleteTask -d "taskID=$task" >/dev/null 2>&1 || true
+    rm -f -- "$home/Torrents/$name/d.bin"
+    api torrents/add -F "torrents=@$file" -F "savepath=$TORRENTS_DIR" -F stopped=true >/dev/null
+    for _ in $(seq 1 120); do
+        api torrents/info | python3 -c '
+import json, sys
+sys.exit(0 if any(t["name"] == sys.argv[1] and t["state"] in ("stoppedDL", "stoppedUP", "pausedDL", "pausedUP")
+                  and 0.7 < t["progress"] < 0.8 for t in json.load(sys.stdin)) else 1)' "$name" && break
+        sleep 0.5
+    done
+    local hash
+    hash="$(hash_of "$name")"
+    api torrents/filePrio -d "hash=$hash" -d "id=2|3" -d priority=0 >/dev/null
+    head -c 8388608 /dev/urandom >"$home/Torrents/$name/d.bin"
+    api torrents/start -d "hashes=$hash" >/dev/null
+    expect "b44-mix seeds its two wanted files" "$hash" "t['state'] in $SEEDING and t['progress'] == 1" 60
 }
 
 # priorities HASH: the torrent's file priorities, in file order ("1 1 0 0").
@@ -432,17 +455,17 @@ disk_walk() {
     expect_no_text "the band is gone" "skipped file holds" 10
     shot "Every file normal again: no band, and no On disk column (nothing skipped holds space)." ticked
 
-    step "Skipped files that hold space" "b44-v1, its Files tab: c.bin and d.bin are skipped but still hold their 8 MiB each. The On disk column shows it, and the yellow band says what they hold (16.8 MB, half the torrent: past 5 %)."
+    step "Skipped files that hold space" "b44-v1, its Files tab: c.bin and d.bin are skipped but still hold their 8 MiB each. The On disk column shows it, and the yellow band says what they hold (16.0 MB, half the torrent: past 5 %)."
     table_on "b44-v1"
     keys l 2
     expect_text "the band says 2 skipped files hold space" "2 skipped files hold"
     expect_text "the On disk column is there" "On disk"
     shot "The Files tab: On disk after Size, \"—\" on the wanted files, 8.4 MB on the skipped; the yellow band with Free the space… and Why?."
 
-    step "Free the space is taught" "#160: the ? sheet has F, free the space, among the acts; the : palette, from the Files tab, offers free the space… with its key F."
+    step "Free the space is taught" "#160: the ? sheet has F, free the space, or add it again (C30 F13), among the acts; the : palette, from the Files tab, offers free the space… with its key F."
     keys -t "?"
-    expect_text "the ? sheet teaches F" "In the Files tab: delete the skipped files that still hold space" 10
-    shot "The ? sheet: F, free the space, after O o r." help
+    expect_text "the ? sheet teaches F" "In the files tab: free the space, or add it again" 10
+    shot "The ? sheet: F, free the space, or add it again, after O o r." help
     keys Escape
     keys -t ":free"
     expect_text "the palette offers free the space…" "free the space…" 10
@@ -451,7 +474,7 @@ disk_walk() {
     step "Free the space, v1-only" "From the palette, enter (shift+f does the same: the hybrid's step presses it): the sheet deletes c.bin and d.bin; they hold downloaded pieces, so on this v1-only torrent it says it rechecks after the start. enter."
     keys Return
     expect_text "the sheet says it rechecks after the start" "Start it again, then recheck it"
-    shot "Free 16.8 MB: stop, delete 2 skipped files (some holding downloaded pieces), start and recheck; both files marked delete." sheet
+    shot "Free 16.0 MB: stop, delete 2 skipped files (some holding downloaded pieces), start and recheck; both files marked delete." sheet
     keys Return
     expect_disk "c.bin is gone" ! "$TORRENTS_DIR/b44-v1/c.bin" 30
     expect_disk "d.bin is gone" ! "$TORRENTS_DIR/b44-v1/d.bin"
@@ -460,21 +483,46 @@ disk_walk() {
     expect "rechecked, it seeds the wanted files, complete" "$D_V1" "t['state'] in $SEEDING and t['progress'] == 1" 60
     expect_text "the footer says what was freed" "freed"
     expect_no_text "the band is gone" "skipped files hold"
-    shot "The band is gone; the footer: freed 16.8 MB, 2 skipped files deleted, rechecking."
+    shot "The band is gone; the footer: freed 16.0 MB, 2 skipped files deleted, rechecking."
 
-    step "Free the space, hybrid" "b44-hybrid, its Files tab, shift+f: its skipped files hold downloaded pieces, and a recheck on a hybrid hits libtorrent's bug (#115), so they stay; nothing to free, and the sheet offers adding it again."
+    # DECISIONS C30 F12-F17: on a hybrid whose space-holding skipped files all have downloaded
+    # pieces, only adding it again frees them, and the band, the palette and shift+f say so up
+    # front; the size says what is still on disk.
+    step "Only adding it again frees them, hybrid" "b44-hybrid, its Files tab: c.bin and d.bin hold downloaded pieces, and a recheck on a hybrid hits libtorrent's bug (#115). The band keeps its title, says only adding it again frees them, and offers Add it again… F; Why? says hybrid. The files head: 2 skipped, 16.0 MB still on disk."
     table_on "b44-hybrid"
     keys l 2
     expect_text "the band shows on the hybrid" "2 skipped files hold"
-    keys shift+f
-    expect_text "the sheet says why they stay" "because this torrent is hybrid"
-    expect_text "and offers adding it again" "Free them too by adding the torrent again"
-    shot "Nothing to free: c.bin and d.bin have downloaded pieces and stay; the hybrid note and \"Free them too by adding the torrent again…\"." sheet
+    expect_read "the band says only adding it again frees them (F12)" "They were written while wanted, and pieces of them" "only adding it again frees them"
+    expect_text "its action is Add it again (F12)" "Add it again…"
+    expect_read "the files head says what is still on disk (F17)" "hide skipped files" "MB still on disk"
+    click_text "Why?"
+    expect_text "Why? says hybrid" "This torrent is hybrid (v1 and v2)"
+    shot "The band: 2 skipped files hold 16.0 MB, only adding it again frees them, Add it again… F, Why? open on hybrid; the files head 2 skipped, 16.0 MB still on disk." band
+    click_text "Why?"
 
-    step "Add it again" "Its button: the confirm names the cost (ratio, seeding time, added date). l, enter: removed keeping its files, c.bin and d.bin deleted, added back with the same selection, category and tag, and started."
-    click_text "Free them too by adding the torrent again"
+    step "The size in facts" "5: facts, its Size row: 32.0 MB · 2 skipped, 16.0 MB still on disk (F17)."
+    keys 5
+    expect_read "facts' size says what is still on disk (F17)" "Size" "still on disk"
+    shot "Facts: Size 32.0 MB · 2 skipped, 16.0 MB still on disk; Done, Ratio, then Status." facts
+    keys 2
+
+    step "The palette and the ? sheet say add it again" "The : palette from the Files tab offers add it again to free 16.0 MB… with F (F13); the ? sheet's F reads free the space, or add it again."
+    keys -t ":add it again"
+    expect_text "the palette row says add it again (F13)" "add it again to free 16.0 MB…"
+    shot "The palette: add it again to free 16.0 MB…, F." palette
+    keys Escape Escape
+    keys -t "?"
+    expect_text "the ? sheet's F (F13)" "In the files tab: free the space, or add it again"
+    keys Escape
+
+    step "shift+f goes straight to the confirm" "shift+f: no sheet, the add-again confirm at once (F13): Add b44-hybrid again?, 2 skipped files are deleted (16.0 MB), what it loses, and one dim line: Nothing else frees them: this torrent is hybrid, and pieces of them were downloaded. why? opens the longer words. l, enter: with no sheet's plan in hand it plans first (F16), then removes it keeping its files, deletes c.bin and d.bin, adds it back with the same selection, category and tag, and starts it."
+    keys shift+f
     expect_text "the confirm asks first" "Add b44-hybrid again?"
-    shot "Add b44-hybrid again? The two files go, and what it loses." dialog
+    expect_read "the confirm names the size" "It is removed from qBittorrent keeping its files, 2 skipped" "files are deleted (16"
+    expect_text "and says why in one line" "Nothing else frees them: this torrent is hybrid"
+    click_text "why?"
+    expect_read "why? opens the longer words" "Deleting a file that holds downloaded pieces" "on a hybrid hits a libtorrent bug"
+    shot "Add b44-hybrid again? 2 skipped files are deleted (16.0 MB); Nothing else frees them: this torrent is hybrid, …; why? open." dialog
     keys l Return
     expect_disk "c.bin is gone" ! "$TORRENTS_DIR/b44-hybrid/c.bin" 30
     expect_disk "d.bin is gone" ! "$TORRENTS_DIR/b44-hybrid/d.bin"
@@ -484,31 +532,52 @@ disk_walk() {
     expect_no_text "the band is gone" "skipped files hold" 30
     shot "b44-hybrid is back; the footer: added again."
 
+    # F15: a hybrid with one skipped file that holds pieces and one that holds space but no
+    # piece (written here after qBittorrent checked it missing): some can go.
+    step "Some to free, some not" "b44-mix, a hybrid: c.bin skipped after it was all there (pieces), d.bin skipped and missing when added, then written here (space, no piece). The band keeps Free the space…; shift+f: the sheet frees 8.00 MB (d.bin) and offers re-add to free all 16.0 MB… beside it (F15). enter: d.bin goes, no recheck, c.bin stays."
+    make_mixed_torrent b44-mix
+    D_MX="$(hash_of b44-mix)"
+    table_on "b44-mix"
+    keys l 2
+    expect_text "the band shows on the mixed hybrid" "2 skipped files hold"
+    expect_text "its action is still Free the space (F15)" "Free the space…"
+    keys shift+f
+    expect_text "the sheet frees what it can" "Free 8.00 MB"
+    expect_text "and offers the re-add of all of it beside (F15)" "re-add to free all 16.0 MB…"
+    expect_text "c.bin is marked as staying" "has downloaded pieces · stays"
+    shot "Free 8.00 MB: d.bin delete, c.bin has downloaded pieces · stays; buttons cancel, show in folder, re-add to free all 16.0 MB…, free 8.00 MB." sheet
+    keys Return
+    expect_disk "d.bin is gone" ! "$TORRENTS_DIR/b44-mix/d.bin" 30
+    expect_disk "c.bin, with pieces, stays" -f "$TORRENTS_DIR/b44-mix/c.bin"
+    expect "it seeds, not rechecked, not in error" "$D_MX" "t['state'] in $SEEDING and t['progress'] == 1" 30
+    expect_read "now only adding it again frees the one left (F12)" "It was written while wanted, and pieces of it" "only adding it again frees it" 30
+    shot "After the free: the band for c.bin alone, 1 skipped file holds 8.00 MB, only adding it again frees it." mixed
+
     # DECISIONS C29 (#182): deleting c.bin and rechecking would leave b44-v2 short of 100 % for
-    # good, so the sheet keeps it, as on a hybrid, and says why in its own words.
-    step "Free the space, v2-only" "b44-v2, a v2-only torrent, its Files tab: c.bin (2 MiB, no piece multiple) was skipped after it was all there. shift+f: it holds downloaded pieces, and on a v2-only torrent deleting it and rechecking leaves the torrent short of 100 % for good, so it stays; nothing to free, the sheet says why and offers adding it again. esc: nothing changed, still 100 %."
+    # good, so only adding it again frees it, said up front in v2's words (C30 F12-F13).
+    step "Only adding it again frees it, v2-only" "b44-v2, a v2-only torrent, its Files tab: c.bin (2 MiB, no piece multiple) was skipped after it was all there. The band: only adding it again frees it, Add it again… F; Why? says v2 (short of 100 % for good). shift+f: straight to the confirm, in v2's words. esc: nothing changed, still 100 %."
     expect_priorities "c.bin is skipped" "$D_V2" "1 1 0 1"
     table_on "b44-v2"
     keys l 2
     expect_text "the band shows on the v2-only torrent" "1 skipped file holds"
+    expect_read "the band says only adding it again frees it (F12)" "It was written while wanted, and pieces of it" "only adding it again frees it"
+    click_text "Why?"
+    expect_read "Why? says v2, short of 100 % for good" "This torrent is v2" "short of 100"
+    shot "The band on b44-v2: 1 skipped file holds, only adding it again frees it, Why? open on v2." band
+    click_text "Why?"
     keys shift+f
-    expect_text "the sheet has nothing to free" "Nothing to free"
-    expect_text "the sheet says why c.bin stays" "because this torrent is v2 and pieces of it"
-    expect_read "and that deleting it leaves it short of 100 % for good" "because this torrent is v2" "short of 100 % for good"
-    expect_text "c.bin is marked as staying" "has downloaded pieces · stays"
-    expect_text "and it offers adding it again" "Free it too by adding the torrent again"
-    shot "Nothing to free: c.bin has downloaded pieces and stays; the v2 note (short of 100 % for good) and \"Free it too by adding the torrent again…\"." sheet
+    expect_text "the confirm asks first" "Add b44-v2 again?"
+    expect_text "in v2's words (F13)" "Nothing else frees it: this torrent is v2"
+    expect_text "and names the one file that goes" "1 skipped file is deleted"
+    shot "Add b44-v2 again? 1 skipped file is deleted (…); Nothing else frees it: this torrent is v2, and pieces of it were downloaded." dialog
     keys Escape
-    expect_no_text "the sheet is closed" "Nothing to free" 5
+    expect_no_text "the confirm is closed" "Add b44-v2 again?" 5
     expect_disk "c.bin is still there" -f "$TORRENTS_DIR/b44-v2/c.bin"
     expect "nothing rechecked: it seeds, 100 %" "$D_V2" "t['state'] in $SEEDING and t['progress'] == 1"
 
-    step "Add it again, v2-only" "shift+f again, its button: removed keeping its files, c.bin deleted, added back from its own .torrent with the same selection, and started. Checked from scratch with c.bin gone, it reads 100 % (C29: adding it again is sound on v2)."
-    keys shift+f
-    expect_text "the sheet offers adding it again" "Free it too by adding the torrent again"
-    click_text "Free it too by adding the torrent again"
+    step "Add it again, v2-only" "The band's Add it again…: the same confirm; l, enter: it plans first (F16), removes it keeping its files, deletes c.bin, adds it back from its own .torrent with the same selection, and starts it. Checked from scratch with c.bin gone, it reads 100 % (C29: adding it again is sound on v2)."
+    click_text "Add it again…"
     expect_text "the confirm asks first" "Add b44-v2 again?"
-    expect_text "and names the one file that goes" "1 skipped file is deleted"
     keys l Return
     expect_disk "c.bin is gone" ! "$TORRENTS_DIR/b44-v2/c.bin" 30
     expect_disk "d.bin, wanted, is still there" -f "$TORRENTS_DIR/b44-v2/d.bin"
@@ -524,7 +593,7 @@ disk_walk() {
     keys ctrl+a
     keys_now -t "+"
     expect_text "the band says what waits" "Wanting 2 more files" 3
-    shot "Wanting 2 more files · 16.8 MB, Undo u, Send now ⏎, its line running down; the rows already read high." hold
+    shot "Wanting 2 more files · 16.0 MB, Undo u, Send now ⏎, its line running down; the rows already read high." hold
     keys_now u
     expect_no_text "the band is gone" "Wanting 2 more files" 5
     sleep 4
@@ -742,7 +811,7 @@ api torrents/tags | python3 -c 'import json, sys; sys.exit(0 if "walk-tag" in js
     fail "the tag walk-tag itself was deleted (the app never deletes tags)"
 pass "the tag itself stays on the server"
 
-step "Set location, same disk" "Nested Library Sampler, the menu's move… (m), ~/Moved, enter. 113 files in 26 folders move; it lands within 3 s, so no band, and the strip in the selection bar's place says so, its row's status \"✓ moved · Moved\" (C18 D1)."
+step "Set location, same disk" "Nested Library Sampler, the menu's move… (m), ~/Moved, enter. 113 files in 26 folders move; it lands within 3 s, so no band, and the strip over the rows says so, its row's status \"✓ moved · Moved\" (C18 D1)."
 menu_on "Nested Library"
 keys m
 expect_text "the Move… sheet is open" "new path on" 10
@@ -752,7 +821,7 @@ shot "The Move… sheet: ~/Moved, one green line (L3)." sheet
 keys Return
 expect "the save path is ~/Moved" "$NESTED" "t['save_path'] == '$BOX_HOME/Moved'" 30
 expect_text "the strip says it moved" "Nested Library Sampler (2026) moved to $BOX_HOME/Moved" 20
-shot "The green strip at the table's bottom middle: ✓ Nested Library Sampler (2026) moved to ~/Moved, show, ×; the row reads ✓ moved · Moved." strip
+shot "The green strip at the rows' bottom middle: ✓ Nested Library Sampler (2026) moved to ~/Moved and ×, no show: it is the cursor's row, in view (C30 F8); the row reads ✓ moved · Moved." strip
 expect_disk "the files are in ~/Moved" -f "$BOX_HOME/Moved/Nested Library Sampler (2026)/Docs/README.md" 30
 expect_disk "…and gone from ~/Torrents" ! "$TORRENTS_DIR/Nested Library Sampler (2026)"
 expect "it still seeds, complete" "$NESTED" "t['state'] in $SEEDING and t['progress'] == 1" 30
@@ -802,26 +871,25 @@ rm -f "$seen"
 expect "…and finds it whole" "$BIGH" "t['state'] in $SEEDING and t['progress'] == 1" 120
 shot "$BIG seeding again after the check." after
 
-step "Select two, stop them from the bar" "space on Field Recordings and Nested Library Sampler; a jump + tab onto a third shows the menu says \"2 selected\" (esc); then the selection bar's stop button."
+step "Select two, stop them from the bar" "space on Field Recordings and Nested Library Sampler; a jump + tab onto a third shows the menu says \"2 selected\" (esc); then the action bar's stop button."
 table_on "Field Recordings"
 keys space
 table_on "Nested Library"
 keys space
-shot "Two rows selected; the selection bar reads \"2 selected\"." bar
+shot "Two rows selected; the status line is the action bar and reads \"2 selected\" (C24 H8)." bar
 # Q24: a jump + tab onto a third torrent opens the menu there, but its rows act on the two.
 menu_on "tiny notes"
 shot "The actions menu on tiny notes (renamed).txt, headed by a dim \"2 selected\" line above stop." menu
 keys Escape
-bar_fit
-click "$BAR_STOP" "$BAR_Y"
+bar_click stop
 expect "Field Recordings is stopped" "$FIELD" 't["state"] == "stoppedUP"'
 expect "Nested Library Sampler is stopped" "$NESTED" 't["state"] == "stoppedUP"'
 expect "no other torrent is" "$FIELD" 'all(not x["state"].startswith("stopped") for x in every if x["hash"] not in ("'"$FIELD"'", "'"$NESTED"'"))'
 expect_text "the strip counts them: 2 stopped" "2 stopped" 10
-shot "Both rows read stopped; the others still seed. The strip, \"✓ 2 stopped\", sits just above the selection bar (C18 D1, O3)."
+shot "Both rows read stopped; the others still seed. The strip, \"✓ 2 stopped\", floats over the rows just above the action bar, with no show: both are in view and selected (C24 H8, C30 F8)."
 
 step "Category from the bar" "The bar's category button, \"walk\", enter. Field Recordings is managed, so it moves to ~/Torrents/walk; Nested Library is not (set location turned management off), so it stays in ~/Moved."
-click "$BAR_CATEGORY" "$BAR_Y"
+bar_click category
 keys -t walk
 shot "The category palette for 2 torrents, walk under the cursor." palette
 keys Return
@@ -832,14 +900,14 @@ expect "Nested Library Sampler stayed in ~/Moved" "$NESTED" "t['save_path'] == '
 expect_disk "…on disk too" -f "$BOX_HOME/Moved/Nested Library Sampler (2026)/Docs/README.md"
 
 step "Tag from the bar" "The bar's tags button, \"bulk\", enter on create \"bulk\"."
-click "$BAR_TAGS" "$BAR_Y"
+bar_click tags
 keys -t bulk
 keys Return
 expect "both are tagged bulk" "$FIELD" 'all(x["tags"] == "bulk" for x in every if x["hash"] in ("'"$FIELD"'", "'"$NESTED"'"))'
 expect "no other torrent is" "$FIELD" 'all(x["tags"] == "" for x in every if x["hash"] not in ("'"$FIELD"'", "'"$NESTED"'"))'
 
 step "Start them from the bar" "The bar's start button."
-click "$BAR_START" "$BAR_Y"
+bar_click start
 expect "both seed again" "$FIELD" 'all(x["state"] in '"$SEEDING"' for x in every if x["hash"] in ("'"$FIELD"'", "'"$NESTED"'"))' 30
 shot "Both rows seeding, still selected, walk and bulk on them."
 keys Escape # closes the strip
@@ -951,7 +1019,7 @@ table_on "Field Recordings"
 keys space
 table_on "Nested Library"
 keys space
-click "$BAR_DELETE" "$BAR_Y"
+bar_click delete
 shot "Delete 2 torrents? both names, 226 MB; the toggle on." dialog
 keys l Return
 expect "Field Recordings is gone" "$FIELD" 't is None'

@@ -19,6 +19,7 @@ qt_add_qml_module(omaseed-views
         AddFreeLine.qml
         AddMatchLine.qml
         AddSheet.qml
+        AppMenu.qml
         BanPeerConfirm.qml
         BrowsedPathLine.qml
         CategoryPalette.qml
@@ -44,8 +45,11 @@ qt_add_qml_module(omaseed-views
         DetailsErrorBlock.qml
         DetailsMoveBlock.qml
         DetailsFilesTab.qml
-        DetailsGeneralRow.qml
-        DetailsGeneralTab.qml
+        DetailsFactsRow.qml
+        DetailsFactsTab.qml
+        DetailsHero.qml
+        DetailsStoryEvent.qml
+        DetailsStoryTab.qml
         DetailsHeader.qml
         DetailsPeersTab.qml
         DetailsPiecesBar.qml
@@ -54,6 +58,7 @@ qt_add_qml_module(omaseed-views
         DetailsTrackersTab.qml
         DetailsWebSeedsTab.qml
         DimmedOverlay.qml
+        DisplayMenu.qml
         DisconnectedBanner.qml
         DropOverlay.qml
         DuplicateSheet.qml
@@ -63,12 +68,16 @@ qt_add_qml_module(omaseed-views
         GlobalLimitsSheet.qml
         HelpSheet.qml
         JumpPalette.qml
+        LibraryCover.qml
+        LibraryGroupHead.qml
+        LibraryRow.qml
+        LibraryRows.qml
+        LibraryShelves.qml
         LimitsSheet.qml
         LoadingState.qml
         LogRow.qml
         LogView.qml
         MainView.qml
-        MoreMenu.qml
         MoveBand.qml
         MoveCheckLine.qml
         MoveLooseList.qml
@@ -100,8 +109,10 @@ qt_add_qml_module(omaseed-views
         SharedDataLine.qml
         SharedMoveConfirm.qml
         SortPalette.qml
+        StatusLine.qml
         TagPalette.qml
         ThemeGallery.qml
+        TitleBar.qml
         TorrentTable.qml
         TorrentsImportSheet.qml
 )

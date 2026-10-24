@@ -178,6 +178,9 @@ Item {
                     required property var modelData
 
                     readonly property bool hot: mouseArea.containsMouse
+                    /// The row's ground, the hover fill under the pointer (docs/DECISIONS.md
+                    /// C30 F1).
+                    readonly property ThemeInk ground: Theme.ground(false, false, row.hot, false)
 
                     // #77: each way in is a button named by what it does, its key the
                     // description; its press is the click.
@@ -187,7 +190,7 @@ Item {
                     Accessible.onPressAction: if (row.enabled)
                                                   root.triggerRow(row.index)
                     objectName: "emptyRow_" + row.index
-                    color: row.hot ? Theme.fill(Theme.fillHover) : "transparent"
+                    color: row.hot ? row.ground.fill : "transparent"
                     height: keyValueRow.implicitHeight + Theme.space(6)
                     width: keyValueRow.implicitWidth + Theme.space(16)
 
@@ -199,7 +202,7 @@ Item {
                         x: Theme.space(8)
 
                         Text {
-                            color: Theme.brightForeground
+                            color: row.ground.brightForeground
                             font.family: Theme.fontFamily
                             font.pixelSize: Theme.font.small
                             horizontalAlignment: Text.AlignRight
@@ -208,7 +211,7 @@ Item {
                         }
 
                         Text {
-                            color: Theme.dimForeground
+                            color: row.ground.dimForeground
                             font.family: Theme.fontFamily
                             font.pixelSize: Theme.font.small
                             text: row.modelData.label

@@ -78,7 +78,7 @@ Sheet {
         Layout.preferredHeight: Theme.space(220)
         border.color: editor.activeFocus ? Theme.accent : Theme.fill(Theme.borderIdle)
         border.width: 1
-        color: Theme.fill(Theme.fillIdle)
+        color: Theme.on.idle.fill
         radius: Theme.cornerRadius
 
         // The box's padding: a click there puts the caret at the end, as below the text does.
@@ -134,13 +134,15 @@ Sheet {
                 // #91: the box by the lines it holds ("tracker URLs").
                 Accessible.name: root.what.length > 0 ? root.what : root.title
                 Accessible.role: Accessible.EditableText
-                color: Theme.foreground
+                // The lines on the box's 4 % fill, a selection on the selected fill
+                // (docs/DECISIONS.md C30 F1).
+                color: Theme.on.idle.foreground
                 font.family: Theme.fontFamily
                 font.pixelSize: Theme.font.body
                 objectName: "listEditor"
                 selectByMouse: true
-                selectedTextColor: Theme.brightForeground
-                selectionColor: Theme.fill(Theme.fillSelected)
+                selectedTextColor: Theme.on.selected.brightForeground
+                selectionColor: Theme.on.selected.fill
                 width: scroller.width - (listBar.needed ? listBar.width + Theme.space(4) : 0)
                 wrapMode: TextEdit.WrapAnywhere
 

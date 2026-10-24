@@ -21,6 +21,10 @@
 set -euo pipefail
 
 repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+# DECISIONS C24 H4: a new install shows the rows display, and a box is a new install. This
+# walk reads the table (its columns, its rows' order), so it pins the table: every scope starts
+# on it (App's OMASEED_DISPLAY), passed to each launch here and by app-box.sh.
+export OMASEED_DISPLAY="${OMASEED_DISPLAY:-table}"
 cd "$repo"
 SWARM="$repo/scripts/dev/swarm.sh"
 # shellcheck source=scripts/dev/home-guard.sh
@@ -65,7 +69,7 @@ for t in json.load(sys.stdin):
 launch() {
     omabox run -b "$BOX" -- pkill -x omaseed >/dev/null 2>&1 || true
     sleep 0.5
-    omabox run -b "$BOX" -d -- ./build/omaseed >/dev/null
+    omabox run -b "$BOX" --pass OMASEED_DISPLAY -d -- ./build/omaseed >/dev/null
     for _ in $(seq 1 40); do
         window_shown && break
         sleep 0.25

@@ -197,6 +197,76 @@ TestCase {
         SignalSpy {}
     }
 
+    // Board 46's app menu (DECISIONS C24 H9): a bright title leads the heading, captions sit
+    // between the rows and are never rows, a check row shows ✓ while on and says it is
+    // checkable, and a note can take a state's colour.
+    function test_a_title_captions_and_check_rows() {
+        const menu = createTemporaryObject(menuComponent, testCase, {
+                                               "items": [{
+                                                       "caption": true,
+                                                       "text": "servers"
+                                                   }, {
+                                                       "text": "public",
+                                                       "checked": true,
+                                                       "note": "4 torrents",
+                                                       "action": "server:a"
+                                                   }, {
+                                                       "text": "private",
+                                                       "checked": false,
+                                                       "note": "sign-in refused",
+                                                       "noteColor": Theme.red,
+                                                       "action": "server:b"
+                                                   }, {
+                                                       "separator": true
+                                                   }, {
+                                                       "caption": true,
+                                                       "text": "this window"
+                                                   }, {
+                                                       "text": "log",
+                                                       "key": "~",
+                                                       "action": "toggleLog"
+                                                   }]
+                                           });
+        menu.headingTitle = "omaseed";
+        menu.open();
+        const heading = findChild(menu, "menuHeading");
+        verify(heading.visible);
+        const title = findChild(menu, "menuHeadingTitle");
+        verify(title.visible);
+        compare(title.text, "omaseed");
+        compare(title.color, Theme.brightForeground);
+        compare(menu.panel.Accessible.name, "omaseed");
+        menu.heading = "0.5.0 · public";
+        compare(menu.panel.Accessible.name, "omaseed · 0.5.0 · public");
+        verify(heading.children[0].x >= title.x + title.width);
+
+        // The cursor opens on the first row, past the caption, and never lands on one.
+        compare(menu.cursorIndex, 1);
+        const rows = menu.rowsLayout.children;
+        compare(findChild(rows[0], "menuRowCaption").text, "servers");
+        verify(findChild(rows[0], "menuRowCaption").visible);
+        compare(rows[0].Accessible.role, Accessible.StaticText);
+        verify(rows[0].height < Theme.railRowHeight);
+        verify(findChild(rows[1], "menuRowCheck").visible);
+        verify(!findChild(rows[2], "menuRowCheck").visible);
+        verify(!findChild(rows[5], "menuRowCheck").visible);
+        compare(rows[1].Accessible.checkable, true);
+        compare(rows[1].Accessible.checked, true);
+        compare(rows[5].Accessible.checkable, false);
+        compare(findChild(rows[2], "menuRowNote").color, Theme.red);
+        // The cursor's row: its words on the cursor's fill (DECISIONS C30 F1).
+        compare(findChild(rows[1], "menuRowNote").color, Theme.on.cursor.dimForeground);
+        keyClick(Qt.Key_J);
+        keyClick(Qt.Key_J);
+        compare(menu.cursorIndex, 5);
+        keyClick(Qt.Key_K);
+        keyClick(Qt.Key_K);
+        keyClick(Qt.Key_K);
+        compare(menu.cursorIndex, 1);
+        verify(!menu.selectable(0));
+        verify(!menu.selectable(4));
+    }
+
     function test_it_opens_where_the_caller_anchors_it() {
         const menu = createTemporaryObject(menuComponent, testCase);
         menu.openAt(120, 200);
@@ -386,6 +456,23 @@ TestCase {
         keyClick("P", Qt.ShiftModifier);
         compare(activated.count, 0, "a disabled row ran");
         compare(menu.opened, true);
+    }
+
+    // A key with no text (alt alone, held for the badges) runs no row, even one whose key is
+    // empty.
+    function test_a_modifier_alone_runs_nothing() {
+        const menu = createTemporaryObject(menuComponent, testCase, {
+                                               "items": [{
+                                                       "text": "stop all",
+                                                       "key": "",
+                                                       "action": "stop-all"
+                                                   }]
+                                           });
+        menu.open();
+        compare(menu.indexOfKey(""), -1);
+        keyPress(Qt.Key_Alt);
+        keyRelease(Qt.Key_Alt);
+        verify(menu.opened);
     }
 
     function test_the_index_of_a_key_skips_what_cannot_be_run() {

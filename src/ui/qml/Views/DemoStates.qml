@@ -21,6 +21,13 @@ Window {
     visible: true
     width: Theme.space(1360)
 
+    // Opens at that size and keeps it, as Main.qml does: Theme.space() follows the base size
+    // live (#156), and a demo window left bound resized itself on a change (#184).
+    Component.onCompleted: {
+        root.width = root.width;
+        root.height = root.height;
+    }
+
     // ---- shared bits reused across the four figures ---------------------------------
     component HeroLine: RowLayout {
         id: heroLine
@@ -100,7 +107,7 @@ Window {
 
         border.color: Theme.muted
         border.width: 1
-        color: Theme.fill(Theme.fillIdle)
+        color: Theme.on.idle.fill
 
         ColumnLayout {
             anchors.fill: parent
@@ -116,7 +123,8 @@ Window {
             Text {
                 Layout.alignment: Qt.AlignLeft
                 Layout.leftMargin: Theme.space(4)
-                color: Theme.dimForeground
+                // docs/DECISIONS.md C30 F1: the caption is on the figure's idle fill.
+                color: Theme.on.idle.dimForeground
                 font.family: Theme.fontFamily
                 font.pixelSize: Theme.font.caption
                 text: figure.caption

@@ -745,6 +745,13 @@ Item {
                     /// This row is the one being dragged: it keeps the selected fill until
                     /// it lands.
                     readonly property bool lifted: row.index === root._dragFrom
+                    /// docs/DECISIONS.md C30 F1: the row's words on its ground, the selected
+                    /// fill while it is dragged, the cursor's on the current row.
+                    readonly property Ink ink: Ink {
+                        animated: false
+                        ground: row.lifted ? Theme.on.selected : row.current ? Theme.on.cursor
+                                                                             : Theme.on.window
+                    }
 
                     // #79: the row's second line ("linux · 2.34 GB · 12.4 %") is its
                     // description, after its meta where that is words (`metaSpoken`).
@@ -757,8 +764,7 @@ Item {
                     // as the pointer.
                     Accessible.onPressAction: if (row.enabled)
                                                   root._clickRow(row.index)
-                    color: row.lifted ? Theme.fill(Theme.fillSelected) : row.current
-                            ? Theme.fill(Theme.fillHover) : "transparent"
+                    color: row.lifted || row.current ? row.ink.fill : "transparent"
                     height: rowColumn.implicitHeight + 2 * Theme.space(6)
                     width: ListView.view.width
 
@@ -799,6 +805,7 @@ Item {
                             bright: row.modelData.checked === true
                             dim: row.modelData.checked !== true
                             horizontalAlignment: Text.AlignHCenter
+                            ink: row.ink
                             text: row.modelData.checked === true ? Glyphs.check : Glyphs.middot
                             visible: root.multi
                         }
@@ -819,12 +826,13 @@ Item {
                                     dim: row.disabled
                                     elide: Text.ElideRight
                                     font.weight: row.disabled ? Font.Normal : Font.Medium
+                                    ink: row.ink
                                     objectName: "paletteRowTitle"
                                     text: row.modelData.title ?? ""
                                 }
 
                                 Label {
-                                    color: row.disabled ? row.faint : Theme.dimForeground
+                                    color: row.disabled ? row.faint : row.ink.dimForeground
                                     objectName: "paletteRowVia"
                                     size: "small"
                                     text: qsTr("via")
@@ -832,7 +840,7 @@ Item {
                                 }
 
                                 Label {
-                                    color: row.disabled ? row.faint : Theme.dimForeground
+                                    color: row.disabled ? row.faint : row.ink.dimForeground
                                     objectName: "paletteRowMeta"
                                     size: "small"
                                     text: (row.modelData.via ?? "").length > 0 ? row.modelData.via
@@ -843,7 +851,7 @@ Item {
 
                             Label {
                                 Layout.fillWidth: true
-                                color: row.disabled ? row.faint : Theme.dimForeground
+                                color: row.disabled ? row.faint : row.ink.dimForeground
                                 elide: Text.ElideRight
                                 objectName: "paletteRowDetail"
                                 size: "small"

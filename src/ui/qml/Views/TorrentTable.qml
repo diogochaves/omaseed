@@ -32,6 +32,12 @@ import Omaseed.Kit
 // (`.tbl .r.sel.cur`). The cursor is kept on its torrent by hash across a re-sort or a
 // removal, and clamps when that hash is gone.
 //
+// DECISIONS C24 H3 (#168): the rows display and the overview are faces of this table. While
+// `face` is set, it draws the rows and the table hides its header and list but keeps
+// everything else: the cursor, the selection, the anchor, the keys, the rename, and every
+// function the window and the outcome strip call (revealHash, selectHashes, hashInView,
+// scrollToRow…), which ask the face where its rows are. One brain, three faces.
+//
 // This view never talks to the network. `r` opens the inline editor and emits
 // `renameRequested`; `enter` and right-click emit `actionsRequested`; phase 4 wires both to
 // `QbtClient`.
@@ -453,7 +459,23 @@ Item {
     /// torrent it was aimed at.
     property bool holdOrder: false
     /// Whether the rows' order is held now (TorrentFilterModel::holdOrder).
-    readonly property bool orderHeld: rowsHover.hovered || root.holdOrder
+    readonly property bool orderHeld: (root.face !== null ? root.face.hovered : rowsHover.hovered)
+                                      || root.holdOrder
+
+    /// Moves whenever the selection does: a binding that asks isRowSelected() or
+    /// hashSelected() reads it, as the rows do.
+    readonly property alias selectionRevision: internal.revision
+    /// How far the rows are scrolled, for a binding that asks hashInView().
+    readonly property real scrollY: root.face !== null ? root.face.scrollY : list.contentY
+
+    /// DECISIONS C24 H3: the display drawing the rows instead of the table's own header and
+    /// list (LibraryRows, LibraryShelves), or null. A face is an Item with `scrollY`,
+    /// `hovered` (the pointer is over its rows), `inlineRename` (it draws the rename editor
+    /// itself) and four functions: `positionAt(row)` scrolls just enough for the row to be
+    /// wholly in view, `rowInView(row)` says whether it is, `rowAnchor(row)` is the point
+    /// under the row a menu opens at and `rowAt(x, y)` the row there or -1 (both in the face's
+    /// own coordinates).
+    property Item face: null
 
     /// The filled band of `.tbl .r.sel`, exposed so the details pane can follow it.
     readonly property ItemSelectionModel selection: ItemSelectionModel {
@@ -471,6 +493,9 @@ Item {
     signal plainClicked(bool hadSelection)
     /// A right-click on a header cell (#51 D6): the host opens the columns palette.
     signal columnsRequested
+    /// `r` while a face with no inline editor draws the rows (#168 assumed 9): the host opens
+    /// the rename sheet on `hash`.
+    signal renameSheetRequested(string hash)
 
     // ---- derived -------------------------------------------------------------------------
     /// `columns` in `columnOrder`.
@@ -837,7 +862,10 @@ Item {
         const last = root.filtered.count - 1;
         const wanted = last < 0 ? 0 : Math.max(0, Math.min(index, last));
         root.cursorIndex = wanted;
-        list.positionViewAtIndex(wanted, ListView.Contain);
+        if (root.face !== null)
+            root.face.positionAt(wanted);
+        else
+            list.positionViewAtIndex(wanted, ListView.Contain);
     }
 
     /// Put the cursor on `hash`, first clearing every filter that hides it (text, status,
@@ -931,6 +959,34 @@ Item {
         internal.refreshSelection();
     }
 
+    /// DECISIONS C30 F8: `hash`'s row is wholly inside the visible part of the list. A
+    /// binding reads `scrollY` beside it; rows all have the one height.
+    function hashInView(hash: string): bool {
+        const row = root.filtered.rowOfHash(hash);
+        if (row < 0)
+            return false;
+        if (root.face !== null)
+            return root.face.rowInView(row);
+        const top = list.originY + row * Theme.rowHeight;
+        return top >= list.contentY - 1 && top + Theme.rowHeight <= list.contentY + list.height + 1;
+    }
+
+    /// Scroll just enough for row `row` to be wholly in view; the cursor stays.
+    function scrollToRow(row: int): void {
+        if (row < 0 || row >= root.filtered.count)
+            return;
+        if (root.face !== null)
+            root.face.positionAt(row);
+        else
+            list.positionViewAtIndex(row, ListView.Contain);
+    }
+
+    /// `hash` is shown and selected.
+    function hashSelected(hash: string): bool {
+        const row = root.filtered.rowOfHash(hash);
+        return row >= 0 && root.isRowSelected(row);
+    }
+
     function isRowSelected(index: int): bool {
         // `internal.revision` is what makes this a live binding: the selection model's own
         // signal fires once per selected row, which would otherwise re-run every delegate
@@ -944,6 +1000,10 @@ Item {
     function startRename(): void {
         if (root.filtered.count <= 0)
             return;
+        if (root.face !== null && !root.face.inlineRename) {
+            root.renameSheetRequested(root.filtered.hashAt(root.cursorIndex));
+            return;
+        }
         // The text first: writing `renameIndex` is what loads the editor, and the editor
         // selects whatever `renameText` holds at that moment.
         const at = root.filtered.index(root.cursorIndex, 0);
@@ -985,6 +1045,10 @@ Item {
 
     /// The row under `x`, `y` (this item's coordinates), or -1 off the rows.
     function rowAt(x: real, y: real): int {
+        if (root.face !== null) {
+            const onFace = root.mapToItem(root.face, x, y);
+            return root.face.rowAt(onFace.x, onFace.y);
+        }
         const at = root.mapToItem(list.contentItem, x, y);
         if (x < list.x || x >= list.x + list.width || y < list.y || y >= list.y + list.height)
             return -1;
@@ -1006,6 +1070,12 @@ Item {
     function requestActions(): void {
         if (root.cursorHash.length === 0)
             return;
+        if (root.face !== null) {
+            const under = root.face.rowAnchor(root.cursorIndex);
+            const point = root.face.mapToItem(root, under.x, under.y);
+            root.actionsRequested(root.cursorHash, point.x, point.y);
+            return;
+        }
         const top = header.height + (root.cursorIndex * Theme.rowHeight);
         const y = top - list.contentY + Theme.rowHeight;
         root.actionsRequested(root.cursorHash, Theme.space(24), y);
@@ -1230,6 +1300,7 @@ Item {
         anchors.top: parent.top
         clip: true
         height: header.height
+        visible: root.face === null
     }
 
     Item {
@@ -1258,6 +1329,12 @@ Item {
                 elides: true
                 descending: root.filtered.sortOrder === Qt.DescendingOrder
                 dragging: internal.dragKey.length > 0
+                // The column being dragged: its caption on the selected fill below.
+                ink: Ink {
+                    animated: false
+                    ground: internal.dragKey === headerCell.modelData.key ? Theme.on.selected
+                                                                          : Theme.on.window
+                }
                 objectName: "header_" + headerCell.modelData.key
                 sorted: root.sortRoleName === headerCell.modelData.role
                 text: headerCell.modelData.title
@@ -1298,7 +1375,7 @@ Item {
                 // The column being dragged.
                 Rectangle {
                     anchors.fill: parent
-                    color: Theme.fill(Theme.fillSelected)
+                    color: Theme.on.selected.fill
                     visible: internal.dragKey === headerCell.modelData.key
                 }
             }
@@ -1449,6 +1526,7 @@ Item {
         model: root.filtered
         objectName: "rows"
         reuseItems: true
+        visible: root.face === null
 
         // #77: the rows' list, for a screen reader; each row is the `TableRow` band in it.
         Accessible.name: qsTr("torrents")
@@ -1493,7 +1571,7 @@ Item {
             readonly property bool editing: root.renaming && row.index === internal.renameIndex
             readonly property bool isCursor: row.index === root.cursorIndex
             readonly property bool isSelected: root.isRowSelected(row.index)
-            readonly property color stateColor: Theme[row.stateRole]
+            readonly property color stateColor: band.ink[row.stateRole]
             readonly property string statusGlyph: {
                 const glyph = root.statusGlyphs[row.stateText];
                 return glyph !== undefined ? glyph : Glyphs.dot;
@@ -1513,8 +1591,8 @@ Item {
                              "kind": "failed"
                          } : null;
             }
-            readonly property color markColor: row.mark !== null && row.mark.kind === "failed" ? Theme.red
-                                                                                              : Theme.green
+            readonly property color markColor: row.mark !== null && row.mark.kind === "failed" ? band.ink.red
+                                                                                              : band.ink.green
 
             /// A left click on the row with `modifiers`: the pointer's, and a screen reader's
             /// press (#77), which is a plain one.
@@ -1632,16 +1710,12 @@ Item {
                 Accessible.ignored: true
                 anchors.fill: parent
                 hasCursor: row.isCursor
+                // The hover fill of `.tbl .r:hover`. `TableRow`'s own MouseArea never sees these
+                // events (the delegate's one is on top), so the hover state comes from here; it
+                // is a ground like the others, and every cell's words take `band.ink`
+                // (docs/DECISIONS.md C30 F1, F4).
+                hovered: pointer.containsMouse
                 selected: row.isSelected
-
-                // The hover fill of `.tbl .r:hover`. `TableRow` carries the cursor and
-                // selection bands only, and its own MouseArea never sees these events (the
-                // delegate's one is on top), so the hover state lives here.
-                Rectangle {
-                    anchors.fill: parent
-                    color: Theme.fill(Theme.fillHover)
-                    visible: pointer.containsMouse && !row.isSelected && !row.isCursor
-                }
 
                 // #24 T5 (docs/22 §6 `.pulse`): the row is sending. Opacity .25 → 1 → .25 over
                 // a breath, on the table's clock; still (and whole) when the clock is off or
@@ -1674,7 +1748,7 @@ Item {
 
                     readonly property bool onTick: pointer.containsMouse && pointer.mouseX < root.tickWidth
 
-                    color: row.isSelected || tick.onTick ? Theme.accent : Theme.foreground
+                    color: row.isSelected || tick.onTick ? band.ink.accent : band.ink.foreground
                     font.family: Theme.fontFamily
                     font.pixelSize: Theme.font.small
                     height: parent.height
@@ -1728,7 +1802,7 @@ Item {
                         anchors.left: nameText.right
                         anchors.leftMargin: Theme.space(8)
                         anchors.verticalCenter: parent.verticalCenter
-                        color: Theme.dimForeground
+                        color: band.ink.dimForeground
                         font.family: Theme.fontFamily
                         font.pixelSize: Theme.font.small
                         objectName: "category_" + row.index
@@ -1744,7 +1818,7 @@ Item {
                         anchors.left: categoryText.visible ? categoryText.right : nameText.right
                         anchors.leftMargin: Theme.space(8)
                         anchors.verticalCenter: parent.verticalCenter
-                        color: Theme.magenta
+                        color: band.ink.magenta
                         font.family: Theme.fontFamily
                         font.pixelSize: Theme.font.small
                         objectName: "private_" + row.index
@@ -1787,13 +1861,15 @@ Item {
                     width: root.columnLayout.progress.w
                     x: root.columnLayout.progress.x
 
+                    // The line, the pulse and the ratio tracks are marks, not words: they keep
+                    // the window's colours (DECISIONS C30 lifts text and glyphs only).
                     ProgressLine {
                         anchors.left: parent.left
                         anchors.leftMargin: Theme.space(8)
                         anchors.right: progressText.left
                         anchors.rightMargin: Theme.space(8)
                         anchors.verticalCenter: parent.verticalCenter
-                        color: row.stateColor
+                        color: Theme[row.stateRole]
                         height: Theme.rowHeight
                         objectName: "progressLine_" + row.index
                         showText: false
@@ -1806,7 +1882,7 @@ Item {
                         anchors.right: parent.right
                         anchors.rightMargin: Theme.space(8)
                         anchors.verticalCenter: parent.verticalCenter
-                        color: Theme.dimForeground
+                        color: band.ink.dimForeground
                         font.family: Theme.fontFamily
                         font.features: ({
                                 "tnum": 1
@@ -1821,11 +1897,10 @@ Item {
 
                 // Status (`.tbl .st`): the glyph in the state colour, the word in the row's
                 // own text colour.
-                // #74: its glyph and word are placed by spacing alone, and a binding that only
-                // calls Theme.space() never runs again (a call is nothing it can follow). A row
-                // built before the theme had read the shell's base size kept the default's
-                // 8 / 12 / 6 px: the glyph 2 px and the word 4 px left, until a restart. They
-                // read Theme.spaceScale, so they follow the theme whenever it settles.
+                // #74: its glyph and word are placed by spacing alone. A row built before the
+                // theme had read the shell's base size kept the default's 8 / 12 / 6 px while
+                // Theme.space() was a C++ call no binding could follow; it reads
+                // Theme.spaceScale now (#156), so they follow the theme whenever it settles.
                 Item {
                     id: statusCell
 
@@ -1839,27 +1914,27 @@ Item {
                         id: statusGlyphText
 
                         anchors.left: parent.left
-                        anchors.leftMargin: Theme.spaceAt(8, Theme.spaceScale)
+                        anchors.leftMargin: Theme.space(8)
                         anchors.verticalCenter: parent.verticalCenter
-                        color: row.mark !== null ? row.markColor : row.stuckMove ? Theme.stateError
+                        color: row.mark !== null ? row.markColor : row.stuckMove ? band.ink.stateError
                                                                                  : row.stateColor
                         height: Theme.font.body
                         objectName: "statusGlyph_" + row.index
                         pixelSize: Theme.font.body
                         text: row.mark !== null ? (row.mark.kind === "failed" ? "✕" : "✓")
                                                 : row.stuckMove ? Glyphs.close : row.statusGlyph
-                        width: Theme.spaceAt(12, Theme.spaceScale)
+                        width: Theme.space(12)
                     }
 
                     Text {
                         id: statusWord
 
                         anchors.left: statusGlyphText.right
-                        anchors.leftMargin: Theme.spaceAt(6, Theme.spaceScale)
+                        anchors.leftMargin: Theme.space(6)
                         anchors.right: parent.right
-                        anchors.rightMargin: Theme.spaceAt(8, Theme.spaceScale)
+                        anchors.rightMargin: Theme.space(8)
                         anchors.verticalCenter: parent.verticalCenter
-                        color: row.mark !== null ? row.markColor : row.stuckMove ? Theme.stateError
+                        color: row.mark !== null ? row.markColor : row.stuckMove ? band.ink.stateError
                                                                                  : row.errorStopped ? row.stateColor
                                                                                                     : band.textColor
                         elide: Text.ElideRight
@@ -1990,12 +2065,12 @@ Item {
                         }
 
                         color: textCell.step !== null && textCell.step !== undefined
-                               ? (textCell.step.kind === "ok" ? Theme.green : textCell.step.kind === "bad"
-                                                                ? Theme.red : textCell.step.kind === "busy"
-                                                                  ? Theme.accent : Theme.dimForeground)
-                               : textCell.rare ? Theme.yellow
+                               ? (textCell.step.kind === "ok" ? band.ink.green : textCell.step.kind === "bad"
+                                                                ? band.ink.red : textCell.step.kind === "busy"
+                                                                  ? band.ink.accent : band.ink.dimForeground)
+                               : textCell.rare ? band.ink.yellow
                                                : textCell.isRatio && textCell.ratio >= textCell.ratioGoal
-                                                 ? Theme.stateSeeding : band.textColor
+                                                 ? band.ink.stateSeeding : band.textColor
                         // Board 42 M3: a save path is cut from the left, so the folder that
                         // differs stays in sight.
                         elide: textCell.modelData.key === "savePath" ? Text.ElideLeft : Text.ElideRight
@@ -2133,7 +2208,8 @@ Item {
                 /// The right edge of the table's visible part, in the row's coordinates.
                 readonly property real room: list.contentX + list.width - Theme.space(8) - x
 
-                active: row.editing
+                // A face draws its own editor, or none (#168).
+                active: row.editing && root.face === null
                 anchors.verticalCenter: parent.verticalCenter
                 height: Theme.rowHeight - Theme.space(8)
                 objectName: "renameEditor"
@@ -2158,6 +2234,7 @@ Item {
         height: Math.max(0, list.y + list.height - emptySpace.y)
         objectName: "emptySpace"
         width: list.width
+        visible: root.face === null
         x: list.x
         y: list.y + Math.max(0, Math.min(list.height, emptySpace.rowsEnd))
         z: 1
@@ -2177,11 +2254,13 @@ Item {
         anchors.right: parent.right
         flickable: list
         objectName: "sideways"
+        visible: root.face === null && sideways.needed
     }
 
     // A wheel notch moves three rows, and quick notches add up (Kit/WheelScroll).
     WheelScroll {
         anchors.fill: list
+        enabled: root.face === null
         flickable: list
         objectName: "tableWheel"
         z: 2
@@ -2214,6 +2293,7 @@ Item {
         objectName: "tableScrollHint"
         revealOnHover: false
         style: "scrollbar"
+        visible: root.face === null
         z: 3
     }
 
@@ -2252,14 +2332,15 @@ Item {
             Rectangle {
                 anchors.fill: parent
                 anchors.margins: 1
-                color: Theme.fill(Theme.fillIdle)
+                color: Theme.on.idle.fill
             }
 
+            // The name on the field's idle fill, its selected part on the 35 % accent
+            // highlight over that (docs/DECISIONS.md C30 F1, F5).
             TextInput {
                 id: editor
 
-                readonly property color accent: Theme.accent
-                readonly property color highlight: Qt.rgba(editor.accent.r, editor.accent.g, editor.accent.b, 0.35)
+                readonly property color highlight: Theme.on.highlight.fill
 
                 // #91: the inline rename's field, by what it edits.
                 Accessible.name: qsTr("torrent name")
@@ -2269,11 +2350,11 @@ Item {
                 anchors.leftMargin: Theme.space(6)
                 anchors.rightMargin: Theme.space(6)
                 clip: true
-                color: Theme.brightForeground
+                color: Theme.on.idle.brightForeground
                 font.family: Theme.fontFamily
                 font.pixelSize: Theme.font.body
                 selectByMouse: true
-                selectedTextColor: Theme.brightForeground
+                selectedTextColor: Theme.on.highlight.brightForeground
                 selectionColor: editor.highlight
                 text: root.renameText
                 verticalAlignment: TextInput.AlignVCenter

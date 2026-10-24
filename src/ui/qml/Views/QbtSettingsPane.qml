@@ -189,7 +189,14 @@ ColumnLayout {
                 // docs/16's banners: a fact about the section, in the kit Banner's look (a
                 // 1 px rule in the kind's colour), but wrapping: these run to two lines.
                 Rectangle {
-                    color: Theme.fill(Theme.fillIdle)
+                    id: noteBlock
+
+                    /// Its words on its 4 % fill (docs/DECISIONS.md C30 F1).
+                    readonly property Ink ink: Ink {
+                        ground: Theme.on.idle
+                    }
+
+                    color: noteBlock.ink.fill
                     implicitHeight: noteText.implicitHeight + Theme.space(14)
                     radius: Theme.cornerRadius
 
@@ -209,6 +216,7 @@ ColumnLayout {
                         anchors.right: parent.right
                         anchors.rightMargin: Theme.space(12)
                         anchors.verticalCenter: parent.verticalCenter
+                        ink: noteBlock.ink
                         size: "small"
                         text: holder.modelData.note
                         wrapMode: Text.Wrap
@@ -240,8 +248,13 @@ ColumnLayout {
                         return Theme.fill(Theme.hairlineAlpha);
                     }
                     readonly property bool plain: line.tone !== Theme.green && line.tone !== Theme.yellow
+                    /// Its words on its 4 % fill; `tone` is a window role, painted as that
+                    /// ground's of the same (docs/DECISIONS.md C30 F1, F3).
+                    readonly property Ink ink: Ink {
+                        ground: Theme.on.idle
+                    }
 
-                    color: Theme.fill(Theme.fillIdle)
+                    color: line.ink.fill
                     implicitHeight: lineText.implicitHeight + Theme.space(12)
                     objectName: "qbtLine-" + holder.modelData.line
                     // The schedule's line reads dim while the schedule is off, as its rows do.
@@ -263,7 +276,7 @@ ColumnLayout {
                         anchors.left: parent.left
                         anchors.leftMargin: Theme.space(12)
                         anchors.top: lineText.top
-                        color: line.plain ? Theme.dimForeground : line.tone
+                        color: line.plain ? line.ink.dimForeground : line.ink.of(line.tone)
                         objectName: "qbtLineGlyph"
                         size: "small"
                         text: line.isSet ? App.altSpeed.setGlyph : line.warn ? "!" : "◷"
@@ -284,6 +297,7 @@ ColumnLayout {
                         Label {
                             Accessible.name: text
                             Accessible.role: line.warn ? Accessible.AlertMessage : Accessible.StaticText
+                            ink: line.ink
                             objectName: "qbtLineText"
                             size: "small"
                             text: line.text
@@ -295,6 +309,7 @@ ColumnLayout {
                             Accessible.name: text
                             Accessible.role: Accessible.StaticText
                             dim: true
+                            ink: line.ink
                             objectName: "qbtLineNote"
                             size: "caption"
                             text: line.note

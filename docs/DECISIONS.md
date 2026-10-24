@@ -11,6 +11,9 @@ The window's ground defaults to the shell's `[launcher] background-alpha` from `
 (0.95 on a stock Omarchy), so omaseed sits on the wallpaper the way the launcher does.
 Settings → Appearance overrides it. Sheets, palettes and popups stay opaque.
 
+Changed by C24 H13 (v0.5.0): the ground is opaque by default; this alpha is Appearance's
+"translucent" choice.
+
 ## Q16 — Formatting, states and notices
 
 - Sizes and speeds print three significant digits everywhere (`641 MB`).
@@ -61,6 +64,14 @@ as recommended). The floor is **4.5:1**, WCAG 2.2 AA for normal-size text
   red on red at `fillSelected`; the warning and attention bands at 7–8 %) reads at least as
   well as before in every theme but is still under 4.5:1 in some: board 38 §4 lists them, and
   they are not ruled yet.
+
+**Changed by C30** (2026-10-23, #90, board [50](50-frame-and-details-notes.html) F1–F7): the
+floor holds against the ground each text is painted on, not only the window. The roles above
+stay the window's; `Theme.on` resolves every role again on each fill and tint (the least lift
+towards the foreground, only where it sits on that fill), so the "not against the row fills"
+bullet and the tints left open above are settled there: a caption on a selected row sits a
+median 1.91:1 under the row's main text (board 50 §1). A theme whose text reads on nothing at a
+fill's alpha has that fill held lower (everforest 0.215).
 
 ## Q23 — A server tested before it is saved keeps its result
 
@@ -113,7 +124,7 @@ a move or rename that then fails, and a dead web seed or a .torrent copy it can'
 the torrent looking fine: the reason is in `log/main` only. D9–D15 (the log as a face of its
 own) are #56, ruled as C3.
 
-- **D1** A move, rename or part file that failed gets #54's block at the top of General, in
+- **D1** A move, rename or part file that failed gets #54's block at the top of General (the story since C24 H6), in
   yellow (the torrent still works), under the red one when it is also errored. Two failures on
   one torrent show the newest. The block's actions: set location (the sheet holds the
   destination), open folder, rename in Files (the cursor on that file), copy the line, dismiss.
@@ -161,7 +172,7 @@ Board [32](32-log-and-failures.html) (#56), D9–D15 as recommended:
   footer says "● following" or "○ paused". The face opens on its newest line, following.
 - **D13** "its lines in the log" on #54's red block and #55's yellow one opens the face narrowed
   to that torrent (a chip, `esc` clears it); `t` does the same for the cursor line's torrent and
-  `enter` shows it in the library with General open. A line is about a torrent when a quoted
+  `enter` shows it in the library with General open (its story since C24 H6). A line is about a torrent when a quoted
   part is its name, or starts with libtorrent's hash prefix (or its name, on libtorrent 2.0) and
   a space. In a narrow pane the block's actions that don't fit go to a second line, so the
   keyless link is never dropped.
@@ -555,6 +566,9 @@ more a way to the others is always on screen; with one, nothing offers to switch
   lone dot at step 4); its tooltip adds "switch server · ctrl+s". `:` lists "switch server…" and
   one "switch to NAME" per other server (`switchTo:<id>`), and both run while the server is lost
   (`Keymap.isOffline`). The read-only guard lets `ctrl+s` through.
+  *Changed by C24 H15 (v0.5.0): the server line, its ▾, hover and click are the status line's
+  server lane (`MainView.serverLaneText()`), the same words; the footer's "last sync HH:MM" is
+  "list from HH:MM", as the notice says it, and a live server's line ends in "synced now".*
 - **One server (D19 a):** no block, no ▾, no `:` rows, no hint; `ctrl+s` answers in the footer
   "one server · add another in Settings › Servers"; the `?` sheet lists it dim as "Switch
   server, with two servers or more".
@@ -671,6 +685,16 @@ status file's contract as built.
   one choice in Settings.
 - **The manifest version** stays: the contract changes within v2 and the widget ships with the
   app.
+- **The window, a third place (C24 H9, v0.5.0, as built):** the rail's mark and `ctrl+.` open
+  the omaseed menu (`Views/AppMenu`) under the mark. Its rows are these, in this order, from
+  the same `BarMenu` (`App.appMenuRows`, in the tray's words; a pick goes through
+  `App.invokeAppMenu`, the tray's and the widget's invoke), with a head (omaseed, its version,
+  the status line's server words) and, before quit's rule, a "this window only" block of the
+  window's own rows: seed console `` ` ``, log `~`, commands `:`, keys and help `?`, hide window
+  `q`. Each row teaches its key (alternative limits `A`, add `a`, settings `,`, quit
+  `ctrl+q`); quit reads "quit omaseed" and asks first while a move runs, as `ctrl+q` does, and
+  alternative limits leaves `A`'s note. The old ⋯ menu's other rows (speed limits…, alt-speed
+  limits…, columns…, select all, fold rail) are `:` rows and keys.
 
 ## C15 — Move a folder (board 42, ruled 2026-10-18)
 
@@ -692,6 +716,13 @@ job's whole life, not 30 s. Set location keeps D2.
   paths and loose files go in the scope line and the row's tooltip. The scope line offers
   "move this folder…"; so do `shift+m`, the row's menu and `:` "move folder…" (`m` stays set
   location). The Save path column cuts from the left.
+  *Changed by C24 H5 (v0.5.0): the scope line is the title bar's: the folder's name is the
+  title, and its sentence takes the facts in board 46's order, "49 torrents · 1.32 MB on disk ·
+  2 loose files · PATH" ("loose files" for "files no torrent owns", the save paths when there
+  are several); while that folder moves, "moving to PATH · 17 of 49 landed". "move this
+  folder…" is a title-bar tool. A move's "show" (M10) is the title too ("The move of NAME",
+  "From the move sheet"), the line's link a tool beside it: "all torrents", or "back to the
+  sheet" with esc.*
 - **The field (M4):** the folder's new path, prefilled with its current one; browse picks a
   parent and the sheet adds the folder's name. Each torrent's new save path is the new path
   plus its save path below the folder.
@@ -967,8 +998,8 @@ C15 M1's "the row's menu" as the rail's folder row (T3).**
   all stop it, so the keyboard and the bar agree. "retry" stays first on the error block and is
   its own row in the actions menu. Once omaseed has stopped it, the row reads "error · stopped"
   (qBittorrent reports only `error`). Ruled after the build: the row reads "stopped" in the
-  error colour with the ! glyph, since "error · stopped" doesn't fit the column; General keeps
-  "error · stopped · CAUSE". Whether it is stopped comes from qBittorrent (its `stopped`
+  error colour with the ! glyph, since "error · stopped" doesn't fit the column; General (facts since C24
+  H6) keeps "error · stopped · CAUSE". Whether it is stopped comes from qBittorrent (its `stopped`
   filter lists an errored torrent only while it is stopped), so it survives a restart and
   counts a stop sent from elsewhere (#142).
 - **The widget's server line (#127):** at the popup's width, the engine's version gives way
@@ -1067,11 +1098,32 @@ the call says so.
 - **The library (H3–H4):** grouped under the questions in the rows display; the table stays one
   sorted list. Rows is the default for new installs; an existing install keeps the table until
   it picks another. The display is remembered per scope, folders included.
+  Built in v0.5.0's library step (#168), with its assumed answers: inside a question the
+  library's sort; a scope without a display of its own shows the library's; an install is
+  existing when its state.json holds anything besides `version` as the build first finds it; a
+  scope's key is its folder, else its category, tag or tracker, else its question; a move's
+  torrents on show stay the table; the overview is board 46's shelves (one per category, "no
+  category" last), covers and rows drawing progress, not pieces; no display key (the title
+  bar's tool, its menu, three palette rows). Rows and shelves are faces of the table, which
+  keeps the cursor, the selection and the keys (core/RowWords has a row's words).
 - **A folder picked (H5):** the title becomes the folder, its sentence takes the scope line's
   facts, "move this folder…" is a title-bar button; shift+m, the row's menu and `:` keep it.
 - **Details (H6):** 41's story: one fact, a sentence, then story · files · swarm · trackers ·
   facts. The error block and the last move open the story; C17's on-disk column and band sit in
   files. N1 unchanged.
+  Built in v0.5.0's details step (#169), with its assumed answers: inside the details `1`–`5`
+  pick the tabs (elsewhere the questions), web seeds stay a tab of their own on `6` while a
+  torrent has any; the pane opens on the story wherever it opened on General; the head keeps
+  the name and its meta line, then the rows display's fact (in the state's colour) and its
+  caption, then its sentence (core/RowWords, the library's words), in place of the four-up
+  strip, beside the name under the table; swarm is the Peers list, trackers the Trackers list,
+  unchanged; facts is General's three groups led by the strip's size, done, ratio and ETA,
+  with category, tags and added in Information; the story is the error block, the failure
+  block, the last move, the pieces bar, then what happened (core/TorrentStory: added, each
+  move the history keeps, finished downloading, the error and the failure at their logged
+  times; no record of alternative limits is kept, so board 46's "slowed by" line is not
+  drawn) and "its lines in the log". The palette's and `?` sheet's groups read "swarm" and
+  "web seeds".
 - **The add sheet (H7):** today's sheet in the new skins. 39's additions (type bar, guessed
   category, ready time, program check) wait for the add sheet's own board.
 - **Acting on a selection (H8):** the status line becomes the action bar; C18's outcome strip
@@ -1307,6 +1359,77 @@ there reads 100 %, and so does a v1-only torrent, whose missing pieces it downlo
   real bytes, and the torrent reads 100 % (the research's `readd-after` and `readd-at`, and
   the actions walk's disk stage, `b44-v2`).
 
+## C30 — Fills, show and free (board 50, ruled 2026-10-23)
+
+Board [50](50-frame-and-details-notes.html) F1–F19, all as recommended. #90's call, which C28
+left for the frame step, and the drawings of the v0.4.0 manual pass's notes on #167 (the
+outcome strip's "show") and #169 (nothing to free; the size of a skipped file still on disk).
+
+**This entry amends** Q19 (the floor holds on every ground, not only the window), C18 O3's
+"show" (offered only when it brings something back) and C17's band and free sheet (the words
+when only adding the torrent again frees the space).
+
+- **The floor (F1–F7, #90):** 4.5:1 against the ground each text is painted on: the window and
+  every fill (idle, hover, cursor, selected, selected + cursor, pressed, tints). Every role, dim
+  text and state colours included, gets the least lift against that fill, only where it sits on
+  it, so captions stay distinct (1.91:1 under the main text on a selected row, median over 28
+  themes; #90's full strength would have made them 1.00:1). Hover and pressed follow the same
+  rule, the lift following the fill's 120 ms change. On a tinted band the tint's colour and its
+  dim words are lifted against the tint. A theme whose palette reads on nothing at a fill's
+  alpha gets that fill capped (everforest 0.215). Theme resolves each role on each fill once
+  per theme change and the Kit asks for the ground it paints on; `tst_themecontrast` and
+  `contrast-board.py` cover every pair, so a theme that fails is a failing test.
+  Built in v0.5.0's frame (S7) as `Theme.on.<ground>` and `Kit/Ink` (ARCHITECTURE's theme rule
+  3). Read as the board reads it: the lift ends at the better of the foreground and the bright
+  foreground, never past the palette (F6 a); a tint is capped the same way against its own
+  colour; a fill inside a 4 % block (a picker's hovered row, a notice's details, the selected
+  text of a rename) is a ground of its own, over the block's. Over the 28 installed themes,
+  board 50's measure finds 1722 of 4648 pairs (15 grounds, 11 roles, and the key badge's
+  background on its accent) under 4.5:1 before and none after; the ctest `contrast_board_check`
+  and `tst_themecontrast` hold Omarchy's 23 at none, under three shell fill sets.
+- **"show" (F8–F11, #167):** offered only when one of the strip's torrents is out of view, out
+  of the scope (folder, question, category, tag, filter) or not selected, and live while the
+  strip is up. It selects them, puts the cursor on the first and scrolls to it; when one left
+  the scope, the rail goes where they all are (their folder, their question), else library, and
+  the filter clears. Never a filter of its own (42 J1). A dim line under the strip's words says
+  why it is there ("they are out of view, under giving back").
+  Built with the action bar (C24 H8, #167), as the board reads it: "in view" is the row wholly
+  inside the list's visible part, the strip over it aside; one torrent acted on alone counts as
+  selected while it is the cursor's row and nothing is selected. The line names the first reason
+  that holds, in the order scope, view, selection: "they are resting now, out of giving back"
+  (a question picked, all in one question now), "it is in keep now, out of films" (a folder),
+  "they are out of the filter" (the words alone hide them), "they are out of keep" (a category,
+  tag or tracker), "they are out of view" (", under giving back" while no question is picked
+  and they share one), "it is not selected"; "1 of them is …" when only some are.
+  The rail goes to a question only when a question was picked, to a folder only when a folder
+  was; else the library. The table keeps room for the strip with its line, so the line coming
+  and going never scrolls the rows it is read from.
+- **Nothing to free (F12–F16, #169):** on a hybrid (or v2-only, C29) torrent whose space-holding
+  skipped files all have downloaded pieces, the band keeps its title, says "They were written
+  while wanted, and pieces of them were downloaded. qBittorrent keeps them; on this torrent only
+  adding it again frees them.", and offers Add it again… (F) · Why? ›. shift+f goes to the
+  add-again confirm, which says why in one line; the palette row reads "add it again to free
+  SIZE…", the ? sheet's F "free the space, or add it again". The free sheet, when its plan finds
+  nothing after all, is titled "Only adding it again frees this" with "Re-add to delete them…"
+  ("…it…" for one) as its main button; when some can be freed, the main button frees them and
+  "re-add to free all SIZE…" sits beside it. The Files tab's reading decides (hashes, each
+  file's progress, pieceStates as it reads now); shift+f from the table reads the files first,
+  and the plan at delete time checks again and falls back to the "only adding it again" sheet.
+- **The size (F17–F19, #169):** the size fact and the files head say "· 2 skipped, 16.0 MB still
+  on disk"; on a disk omaseed can't see, "2.43 GB · 1.03 GB of it in skipped files", from
+  torrents/files' progress. Ships with the details step (#169), in the new details only.
+- **Built (F12–F18, #169),** as the board reads it: core/SkippedOutlook decides from the Files
+  tab's reading (free, mixed, readd); the band's action reads "Add it again…  F", its Why?
+  board 50's hybrid or v2 words; shift+f and the band go straight to the confirm while the
+  reading says readd, and to the sheet otherwise, also before the reading is this torrent's
+  (the sheet's plan reads first); the confirm's line is "Nothing else frees them: this
+  torrent is hybrid, and pieces of them were downloaded." (v2's words on a v2-only torrent),
+  its "why?" opening the band's longer words in place, its sentence naming the size; "add it
+  again" with no plan in hand reads the plan first, so the leftovers still go. The `?` sheet's
+  F row reads "In the files tab: free the space, or add it again. …". F17's count is every
+  skipped file, its bytes what they hold on disk (shown while files or facts reads them); F18
+  is the size fact only, the files head keeping "N skipped" where D4's hint speaks.
+
 ## M8 — A click leaves the keyboard focus where it was
 
 Buttons and toggles do not take the focus when clicked. Otherwise an overlay gives the focus
@@ -1347,10 +1470,17 @@ folders.
 Changed by C17 D5: a priority change that adds more than 1 GiB (or the whole torrent) still
 changes the rows at once, but waits 3 s before it is sent, with Undo.
 
+Named "files" since C24 H6 (v0.5.0): the second of story · files · swarm · trackers · facts,
+on `2` as before; what it does is unchanged.
+
 ## S1 — The status keys are `0`–`8`
 
 The rail has nine status rows, `0` (all) to `8` (errored), so the help sheet and the rail's
 footer print `0–8`. The approved design's figure prints `0–9`; `9` does nothing.
+
+Changed by C24 H2 (v0.5.0): the rail's five questions take `1`–`5`, `0` is the library and
+`6`–`9` do nothing; the states are `is:` words in the filter. Inside the details `1`–`5` pick
+its tabs and `6` web seeds (C24 H6).
 
 ## The click rules every list follows
 

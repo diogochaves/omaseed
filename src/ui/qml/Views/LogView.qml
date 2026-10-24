@@ -445,30 +445,22 @@ FocusScope {
         height: Theme.space(26)
 
         Repeater {
-            model: [
-                {
-                    "text": qsTr("time"),
-                    "x": Theme.space(16)
-                },
-                {
-                    "text": qsTr("level"),
-                    "x": Theme.space(16) + root.timeWidth + Theme.space(14)
-                },
-                {
-                    "text": qsTr("message"),
-                    "x": Theme.space(16) + root.timeWidth + root.levelWidth + 2 * Theme.space(14)
-                }
-            ]
+            model: [qsTr("time"), qsTr("level"), qsTr("message")]
 
             Label {
-                required property var modelData
+                required property int index
+                required property string modelData
 
                 anchors.bottom: parent.bottom
                 anchors.bottomMargin: Theme.space(4)
                 size: "caption"
-                text: modelData.text
+                text: modelData
                 tracked: true
-                x: modelData.x
+                // Over its column, as LogRow lays the line out. Placed here rather than in the
+                // model: Theme.space() follows the base size (#156), and a model made of it
+                // would be rebuilt, its heads made again, at every change.
+                x: Theme.space(16) + (index > 0 ? root.timeWidth + Theme.space(14) : 0) +
+                   (index > 1 ? root.levelWidth + Theme.space(14) : 0)
             }
         }
     }

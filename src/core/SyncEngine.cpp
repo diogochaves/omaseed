@@ -3,6 +3,7 @@
 #include "core/CategoryModel.hpp"
 #include "core/FilterCounts.hpp"
 #include "core/GlobalState.hpp"
+#include "core/LocalDay.hpp"
 #include "core/ProblemLog.hpp"
 #include "core/QbtClient.hpp"
 #include "core/ServerLog.hpp"
@@ -42,6 +43,7 @@ SyncEngine::SyncEngine(QObject *parent)
     , m_trackers(new TrackerModel(this))
     , m_globalState(new GlobalState(this))
     , m_counts(new FilterCounts(this))
+    , m_day(new LocalDay(this))
     , m_problemLog(new ProblemLog(this))
     , m_serverLog(new ServerLog(this))
     , m_pollTimer(new QTimer(this))
@@ -49,6 +51,7 @@ SyncEngine::SyncEngine(QObject *parent)
     , m_silenceTimer(new QTimer(this))
 {
     m_counts->setModel(m_torrents);
+    m_counts->setDay(m_day);
     m_problemLog->setTorrents(m_torrents);
     m_serverLog->setTorrents(m_torrents);
 

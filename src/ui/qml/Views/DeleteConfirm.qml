@@ -205,7 +205,9 @@ ConfirmDialog {
     // of the swarm; the sheet says so, with the peers waiting, and offers to stop instead.
     Rectangle {
         Layout.fillWidth: true
-        color: Qt.alpha(Theme.yellow, 0.08)
+        // The warning tint; its words, and its yellow, lifted against it (docs/DECISIONS.md
+        // C30 F5).
+        color: Theme.on.warning.fill
         implicitHeight: guardText.implicitHeight + Theme.space(12)
         visible: (root._guard.rare ?? 0) > 0
 
@@ -223,17 +225,17 @@ ConfirmDialog {
             anchors.right: parent.right
             anchors.rightMargin: Theme.space(10)
             anchors.verticalCenter: parent.verticalCenter
-            color: Theme.foreground
+            color: Theme.on.warning.foreground
             font.family: Theme.fontFamily
             font.pixelSize: Theme.font.small
             text: {
                 const r = root._guard;
                 const waiting = (r.waiting ?? 0) > 0 ? qsTr(" %1 waiting for it.").arg(r.waiting) : "";
                 if (root._effective.length === 1 && r.onlyYou === 1)
-                    return qsTr("<font color='%1'>You are its only seed.</font>%2 Deleting it takes it out of the swarm.").arg(Theme.yellow).arg(waiting);
+                    return qsTr("<font color='%1'>You are its only seed.</font>%2 Deleting it takes it out of the swarm.").arg(Theme.on.warning.yellow).arg(waiting);
                 if (root._effective.length === 1)
-                    return qsTr("<font color='%1'>It has %2 seeds in the swarm, you included.</font>%3").arg(Theme.yellow).arg(r.seeds).arg(waiting);
-                return qsTr("<font color='%1'>%2 of these are rare</font>, %3 with you as the only seed.%4").arg(Theme.yellow).arg(r.rare).arg(r.onlyYou ?? 0).arg(waiting);
+                    return qsTr("<font color='%1'>It has %2 seeds in the swarm, you included.</font>%3").arg(Theme.on.warning.yellow).arg(r.seeds).arg(waiting);
+                return qsTr("<font color='%1'>%2 of these are rare</font>, %3 with you as the only seed.%4").arg(Theme.on.warning.yellow).arg(r.rare).arg(r.onlyYou ?? 0).arg(waiting);
             }
             textFormat: Text.StyledText
             wrapMode: Text.Wrap

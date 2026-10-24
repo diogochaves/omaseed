@@ -1,11 +1,11 @@
 # Module Omaseed.Kit: themed components that take only Theme tokens.
-# Keep QML_FILES one per line and alphabetical. Theme itself is the C++ singleton from
-# omaseed-integration, registered into this module by ThemeForeign.hpp.
+# Keep QML_FILES one per line and alphabetical. Theme is Theme.qml, a singleton over the C++
+# theme from omaseed-integration (registered into this module as ThemeBase by ThemeForeign.hpp).
 qt_add_library(omaseed-kit STATIC)
 
 # `pragma Singleton` alone builds fine, but qmllint only trusts the type if qmldir says so too;
 # this must be set before qt_add_qml_module reads the source list.
-set_source_files_properties(Glyphs.qml Fuzzy.qml PROPERTIES QT_QML_SINGLETON_TYPE true)
+set_source_files_properties(Glyphs.qml Fuzzy.qml Theme.qml PROPERTIES QT_QML_SINGLETON_TYPE true)
 
 qt_add_qml_module(omaseed-kit
     URI Omaseed.Kit
@@ -26,7 +26,6 @@ qt_add_qml_module(omaseed-kit
         ConfirmDialog.qml
         DayGrid.qml
         Field.qml
-        FilterMenu.qml
         FocusRing.qml
         FormRow.qml
         Fuzzy.qml
@@ -34,10 +33,11 @@ qt_add_qml_module(omaseed-kit
         Glyphs.qml
         Hairline.qml
         Hatch.qml
-        Hero.qml
         Icon.qml
         IconButton.qml
+        Ink.qml
         InputMouseArea.qml
+        KeyBadge.qml
         KeyCap.qml
         KeyHints.qml
         KeyValue.qml
@@ -61,6 +61,7 @@ qt_add_qml_module(omaseed-kit
         TableHeader.qml
         TableRow.qml
         Tabs.qml
+        Theme.qml
         Toggle.qml
         Tooltip.qml
         WheelScroll.qml

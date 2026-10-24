@@ -31,8 +31,11 @@ function(omaseed_add_test name)
     add_test(NAME ${name} COMMAND ${name})
     # XDG_DATA_HOME: an App that start()s opens its seed ledger and makes automatic backups
     # (#31) under the data home; a test must never write into the real one.
+    # OMASEED_DISPLAY: every App starts on the table (DECISIONS C24 H4 would give a new
+    # install's state.json the rows), so a test sees the table's one sorted list unless it
+    # picks another display; tst_app unsets it to test the default itself.
     set_tests_properties(${name} PROPERTIES
-        ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_LOGGING_RULES=qt.qml.*=false;XDG_DATA_HOME=${CMAKE_BINARY_DIR}/tests/data-home"
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_LOGGING_RULES=qt.qml.*=false;XDG_DATA_HOME=${CMAKE_BINARY_DIR}/tests/data-home;OMASEED_DISPLAY=table"
     )
     if(arg_LIVE)
         set_tests_properties(${name} PROPERTIES RESOURCE_LOCK test-servers LABELS "live")

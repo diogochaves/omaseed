@@ -28,13 +28,13 @@ local class = "io.github.diogochaves.omaseed"
 -- Omarchy 4.0.x tags every window `+default-opacity` and then applies `opacity 0.985 0.96`
 -- to whatever still carries that tag once every app-specific file has had a chance to remove
 -- it (see /usr/share/omarchy/default/hypr/windows.lua, loaded before this file). omaseed
--- paints its own translucent "ground" panel per the approved spec (docs/05-ui-spec-v2.html:
--- the base surface reads as ~90% of the theme background colour over the wallpaper, via
--- Theme.windowAlpha in QML). Compositor-level opacity multiplies on top of window content,
--- so leaving the tag in place would double the effect (the ground would read closer to 86%,
--- not 90%) and any fully-opaque chrome (menus, the tray icon, notifications) would also pick
--- up an unwanted 1.5-4% translucency. omaseed is the only source of its own translucency:
--- drop the tag and force the window itself to full opacity.
+-- paints its own ground panel (Theme.windowAlpha in QML): opaque by default, like every
+-- Omarchy 4.5 app (docs/DECISIONS.md C24 H13), or, when Settings > Appearance > Window says
+-- translucent, the shell launcher's alpha (Q1). Compositor-level opacity multiplies on top
+-- of window content, so leaving the tag in place would double a translucent ground and give
+-- any fully-opaque chrome (menus, the tray icon, notifications) an unwanted 1.5-4%
+-- translucency. omaseed is the only source of its own translucency: drop the tag and force
+-- the window itself to full opacity.
 --
 -- Omarchy 4.5 has no `default-opacity` tag: apps are opaque unless they opt in
 -- (`o.transparent_window`), so there the tag removal does nothing and `opacity "1 1"` only

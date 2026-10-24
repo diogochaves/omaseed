@@ -19,6 +19,10 @@
 set -euo pipefail
 
 repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+# DECISIONS C24 H4: a new install shows the rows display, and a box is a new install. This
+# walk reads the table (its columns, its rows' order), so it pins the table: every scope starts
+# on it (App's OMASEED_DISPLAY), passed to each launch here and by app-box.sh.
+export OMASEED_DISPLAY="${OMASEED_DISPLAY:-table}"
 cd "$repo"
 # shellcheck source=scripts/dev/home-guard.sh
 . "$repo/scripts/dev/home-guard.sh"
@@ -63,7 +67,7 @@ bearer() {
 launch() {
     omabox run -b "$BOX" -- pkill -x omaseed >/dev/null 2>&1 || true
     sleep 0.5
-    omabox run -b "$BOX" -d -- ./build/omaseed >/dev/null
+    omabox run -b "$BOX" --pass OMASEED_DISPLAY -d -- ./build/omaseed >/dev/null
     for _ in $(seq 1 40); do
         omabox hyprctl -b "$BOX" -j clients | grep -q '"class": "io.github.diogochaves.omaseed"' && break
         sleep 0.25
@@ -209,7 +213,7 @@ step "Done" "✓ ✓ ✓ ✓. You're connected to strict. qBittorrent 5.2.3 · 3
 
 keys Return -s 2500
 check "after setup the window tiles like any other launch" window_is tiled
-step "Signed in with a cookie" "The library, tiled full size, with its top bar back: fixture-one, -two, -three (stopped); the hero says STRICT · QBITTORRENT 5.2.3; no banner."
+step "Signed in with a cookie" "The library, tiled full size, with its top bar back: fixture-one, -two, -three (stopped); the status line names strict · qBittorrent at its left (the box's isolated network may add port N not reachable in yellow after the speeds); no banner."
 
 check "servers.json keeps the user but not the password" \
     servers_json_is "$config/servers.json" cookie QBT_STRICT_PASS
@@ -239,7 +243,7 @@ step "API key test passes" "The pasted key (dots) tests fine: qBittorrent 5.2.3 
 
 keys Tab Tab Return -s 1500 Tab Return -s 1500 Tab Return -s 1500 Return -s 3000
 omabox run -b "$BOX" -- wl-copy --clear >/dev/null 2>&1 || true
-step "Signed in with an API key" "The same three fixtures; the hero says STRICT-KEY · QBITTORRENT 5.2.3."
+step "Signed in with an API key" "The same three fixtures; the status line says strict-key · qBittorrent."
 
 check "servers.json has the API key mode and not the key" \
     servers_json_is "$config/servers.json" apiKey QBT_STRICT_API_KEY

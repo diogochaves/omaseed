@@ -113,14 +113,15 @@ Sheet {
         root.replan();
     }
 
-    /// `name` as StyledText with the replaced parts (`marks`, [[start, length]…]) in accent.
-    function markedName(name: string, marks: var): string {
+    /// `name` as StyledText with the replaced parts (`marks`, [[start, length]…]) in `accent`,
+    /// the row's on its ground (docs/DECISIONS.md C30 F1).
+    function markedName(name: string, marks: var, accent: color): string {
         const escape = text => text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
         let out = "";
         let at = 0;
         for (const mark of marks) {
             out += escape(name.slice(at, mark[0]));
-            out += "<font color=\"" + Theme.accent + "\">" + escape(name.slice(mark[0], mark[0] + mark[1])) + "</font>";
+            out += "<font color=\"" + accent + "\">" + escape(name.slice(mark[0], mark[0] + mark[1])) + "</font>";
             at = mark[0] + mark[1];
         }
         return out + escape(name.slice(at));
@@ -324,13 +325,19 @@ Sheet {
             readonly property bool changed: previewRow.modelData.status !== "unchanged"
             readonly property bool bad: previewRow.modelData.status === "collides"
                                         || previewRow.modelData.status === "invalid"
+            /// docs/DECISIONS.md C30 F1: every other row is striped with the 4 % fill, and its
+            /// words are on it.
+            readonly property Ink ink: Ink {
+                animated: false
+                ground: previewRow.index % 2 === 0 ? Theme.on.idle : Theme.on.window
+            }
 
             height: Theme.rowHeight
             width: ListView.view.width
 
             Rectangle {
                 anchors.fill: parent
-                color: Theme.fill(Theme.fillIdle)
+                color: previewRow.ink.fill
                 visible: previewRow.index % 2 === 0
             }
 
@@ -345,6 +352,7 @@ Sheet {
                     Layout.preferredWidth: 1
                     dim: true
                     elide: Text.ElideMiddle
+                    ink: previewRow.ink
                     text: previewRow.modelData.name
                 }
 
@@ -352,14 +360,16 @@ Sheet {
                     Layout.preferredWidth: Theme.space(14)
                     dim: true
                     horizontalAlignment: Text.AlignHCenter
+                    ink: previewRow.ink
                     text: previewRow.changed ? "→" : ""
                 }
 
                 Text {
                     Layout.fillWidth: true
                     Layout.preferredWidth: 1
-                    color: previewRow.bad ? Theme.red : previewRow.changed ? Theme.brightForeground
-                                                                          : Theme.dimForeground
+                    color: previewRow.bad ? previewRow.ink.red : previewRow.changed
+                                                                 ? previewRow.ink.brightForeground
+                                                                 : previewRow.ink.dimForeground
                     elide: Text.ElideMiddle
                     font.family: Theme.fontFamily
                     font.pixelSize: Theme.font.body
@@ -368,7 +378,8 @@ Sheet {
                             : previewRow.bad ? previewRow.modelData.newName
                                                + (previewRow.modelData.status === "collides" ? qsTr(" · collides")
                                                                                              : qsTr(" · not a valid name"))
-                            : root.markedName(previewRow.modelData.newName, previewRow.modelData.marks)
+                            : root.markedName(previewRow.modelData.newName, previewRow.modelData.marks,
+                                              previewRow.ink.accent)
                     textFormat: previewRow.changed && !previewRow.bad ? Text.StyledText : Text.PlainText
                 }
             }

@@ -9,7 +9,7 @@
 # switch (checked on both servers), the same copy when private stops answering, and how the
 # box's file tools name omaseed's archives. And docs/33 (#69, #72) with docs/35's notice: public
 # starts empty, so the empty library keeps the rail's pinned servers block; one server offers no
-# switch; ctrl+s, the hero's server line and `:` switch; `z` folds the block; the add sheet
+# switch; ctrl+s, the status line's server lane and `:` switch; `z` folds the block; the add sheet
 # names its server and switches from inside (the sampler goes to public that way); private
 # stops answering: the notice band, folded and with its details, and the palette that still
 # switches.
@@ -32,6 +32,10 @@
 set -euo pipefail
 
 repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+# DECISIONS C24 H4: a new install shows the rows display, and a box is a new install. This
+# walk reads the table (its columns, its rows' order), so it pins the table: every scope starts
+# on it (App's OMASEED_DISPLAY), passed to each launch here and by app-box.sh.
+export OMASEED_DISPLAY="${OMASEED_DISPLAY:-table}"
 cd "$repo"
 APP_BOX="$repo/scripts/dev/app-box.sh"
 TORRENTS="${OMASEED_SWARM_PROFILE:-$HOME/.local/share/omaseed-swarm}/torrents"
@@ -163,7 +167,7 @@ print(seen.get("torrents", "none"))' \
 }
 
 # click_text TEXT: a click in the middle of the app's accessible node whose name starts with
-# TEXT (the notice's "details ▸", the hero's server line), from the window's own tree.
+# TEXT (the notice's "details ▸", the status line's "switch server"), from the window's own tree.
 click_text() {
     local at
     at="$(omabox tree -b "$BOX" --window "$APP_ID" --json 2>/dev/null | python3 -c '
@@ -266,10 +270,10 @@ step "Done, another running" "You're connected to public. Under the magnet line,
 # Open the library.
 keys Return -s 3000
 check "after setup the window tiles" window_is tiled
-step "Library: public, empty, one server" "docs/33 O1, D19: Fig. 22 as built: No torrents yet (no server name), the rows a, , and ?, no ctrl+s row, no rail. The hero says PUBLIC · QBITTORRENT 5.2.3 with no ▾."
-# D19: ctrl+s by habit answers in the footer.
+step "Library: public, empty, one server" "docs/33 O1, D19: Fig. 22 as built: No torrents yet (no server name), the rows a, , and ?, no ctrl+s row. The rail is its mark and its views (library · seed · log), with no filters and no servers block. The status line names the server at its left, ● public · qBittorrent and its version, with no ▾ (C24 H15), and ends in ? keys."
+# D19: ctrl+s by habit answers in the status line's note.
 keys ctrl+s -s 600
-step "ctrl+s, one server" "D19: no palette; the footer's note reads one server · add another in Settings › Servers."
+step "ctrl+s, one server" "D19: no palette; the status line's note reads one server · add another in Settings › Servers."
 check "servers.json: public only, default, no password in it" servers_are "public" public
 public_id="$(server_id public)"
 check "the box's keyring holds public's password" keyring_has "$public_id"
@@ -314,13 +318,13 @@ check "the box's keyring holds private's password" keyring_has "$private_id"
 
 # ---- docs/33 E1: the empty library with two servers ----------------------------------------
 keys Escape -s 1500
-step "Empty public, two servers" "docs/33 E1, D6: the rail is the servers block alone, pinned at its bottom on its band (servers · 2 ▾, ● public selected, ● private faint, never seen); the body: No torrents on public yet, then a, ctrl+s switch server, , and ?. The hero reads PUBLIC · QBITTORRENT 5.2.3 ▾. The footer: a add · ctrl+s server."
+step "Empty public, two servers" "docs/33 E1, D6: the rail is its mark and views, no filters, and the servers block pinned at its bottom on its band (servers · 2 ▾, ● public selected, ● private faint, never seen); the body: No torrents on public yet, then a, ctrl+s switch server, , and ?. The status line's lane reads ● public · qBittorrent and its version, then ▾; no key hints in the line, only ? keys at its right (C24 H10)."
 
 # ---- switch: ctrl+s, the server palette (D2) -----------------------------------------------
 keys ctrl+s -s 800
 step "The server palette" "docs/33 S1: switch server · 2 servers; public first, on it now, 127.0.0.1:8090 · 0 torrents · qBittorrent 5.2.3; private under it with the cursor, 127.0.0.1:8091 · not seen yet. Hints: ↑↓ move, enter switch, , manage servers, esc close."
 keys Return -s 2500
-step "Switched to private" "The hero says PRIVATE ▾; the table has private's five torrents (tiny-notes, Ünïcødé, Field Recordings, Nested Library Sampler, Sketchbook Scans (v1)); the rail's filters above, its servers block pinned below with private selected and its count, public 0 (seen just now)."
+step "Switched to private" "The status line's lane says private · qBittorrent and its version, then ▾; the table has private's five torrents (tiny-notes, Ünïcødé, Field Recordings, Nested Library Sampler, Sketchbook Scans (v1)); the rail's filters above, its servers block pinned below with private selected and its count, public 0 (seen just now)."
 check "servers.json: private is the default" servers_are "public private" private
 check "state.json remembers public's count, seen before the switch (D5)" test "$(seen_count public)" = 0
 
@@ -328,20 +332,20 @@ check "state.json remembers public's count, seen before the switch (D5)" test "$
 keys ctrl+k -s 400 -t tiny -s 300 Return -s 600 p -s 2000
 check "p stopped tiny-notes on private" stopped private "$TINY"
 check "public still has no torrent" test "$(count public)" = 0
-step "Stopped on private" "tiny-notes.txt reads completed (a finished torrent, stopped; the rail counts it under stopped); the other four still run."
+step "Stopped on private" "tiny-notes.txt reads completed (a finished torrent, stopped; the rail counts it under resting); the other four still run."
 
 # A restart while on private: its password has to come back from the keyring.
 "$APP_BOX" restart -b "$BOX" >/dev/null
-step "Private after a restart" "Straight back to private's five torrents (tiny-notes still completed, stopped 1 in the rail), signed in from the keyring: no first run, no banner, the hero says PRIVATE."
+step "Private after a restart" "Straight back to private's five torrents (tiny-notes still completed, resting 1 in the rail), signed in from the keyring: no first run, no banner, the status line says private."
 
-# ---- the hero's server line (D3), the command palette (D4) ---------------------------------
+# ---- the status line's server lane (D3, C24 H15), the command palette (D4) ------------------
 if click_text "switch server"; then
-    step "The hero's server line" "docs/33 S2: a click on PRIVATE · QBITTORRENT 5.2.3 ▾ opened the server palette, the cursor on public."
+    step "The status line's server lane" "docs/33 S2, C24 H15: a click on private · qBittorrent … ▾ at the status line's left opened the server palette, the cursor on public."
     keys Escape -s 600
-    # The pointer off the hero, so its tooltip stays out of the next shots.
+    # The pointer off the status line, so its tooltip stays out of the next shots.
     omabox pointer -b "$BOX" -- move 960 1000 >/dev/null
 else
-    check "the hero's server line is in the window's accessibility tree" false
+    check "the status line's server lane is in the window's accessibility tree" false
 fi
 keys colon -s 600 -t switch -s 800
 step "Command palette: switch" "docs/33 S3: switch server… (ctrl+s, app · 2 servers) and switch to public (app · 0 torrents last time)."
@@ -362,7 +366,7 @@ step "Add sheet on private" "docs/33 A1: the head reads Add torrent to [● priv
 keys ctrl+s -s 800
 step "Server palette over the sheet" "D14: the server palette over the add sheet, the cursor on public."
 keys Return -s 4000
-step "Sheet moved to public" "D14 (A2): the sheet is still open with the same file; its head reads Add torrent to [● public ▾]; a yellow line: Moved to public: save path back to its default. The hero behind says PUBLIC."
+step "Sheet moved to public" "D14 (A2): the sheet is still open with the same file; its head reads Add torrent to [● public ▾]; a yellow line: Moved to public: save path back to its default. The status line behind says public."
 check "servers.json: the sheet moved the app to public" servers_are "public private" public
 keys Return -s 3000
 check "the sampler went to public" test "$(count public)" = 1
@@ -373,7 +377,7 @@ check "private still has its five" test "$(count private)" = 5
 keys h -s 300 G -s 300 Return -s 2500
 check "the rail moved the app to private" servers_are "public private" private
 keys h -s 300 G -s 300 k -s 300 Return -s 2500
-step "Back to public, from the rail" "The hero says PUBLIC ▾; one row, the sampler; the servers block has public selected, private 5."
+step "Back to public, from the rail" "The status line says public ▾; one row, the sampler; the servers block has public selected, private 5."
 check "servers.json: public is the default again" servers_are "public private" public
 
 # The rail hands the keyboard back to the table once it has switched.
@@ -381,13 +385,13 @@ keys ctrl+k -s 400 -t sampler -s 300 Return -s 600 p -s 2000
 check "p stopped the sampler on public" stopped public "$SAMPLER"
 check "private's tiny-notes is still stopped" stopped private "$TINY"
 check "private's other torrents still run" running private "Field Recordings"
-step "Stopped on public" "Public Domain Sampler reads completed; the rail counts 1 stopped."
+step "Stopped on public" "Public Domain Sampler reads completed; the rail counts 1 resting."
 
 # ---- switch: the qBittorrent group's `s` ---------------------------------------------------
 keys ctrl+shift+comma -s 1500
 step "qBittorrent settings: public" "Settings opens on the qBittorrent group, its heading public 5.2.3, Speed's rows read from public."
 keys s -s 2500
-step "qBittorrent settings: private" "After s: the heading reads private 5.2.3 and the rows are private's; the hero behind says PRIVATE."
+step "qBittorrent settings: private" "After s: the heading reads private 5.2.3 and the rows are private's; the status line behind says private."
 check "servers.json: s moved the default to private" servers_are "public private" private
 
 # ---- docs/34 (#70): whose settings, the server select, copy from another server ------------
@@ -409,7 +413,7 @@ step "The server select" "D3 a: under QBITTORRENT, a bordered select ● private
 keys Return -s 2500
 step "The server list" "D3 a, D5 a: a list under the select: switch omaseed to; public with a green dot and 1 torrent (probed just now), the cursor on it; private, green, on it ✓; under a hairline, dim: The library and the tray follow, and it becomes the default."
 keys Return -s 2500
-step "Switched from the list" "D5 a: the select reads public; the panes are public's; the footer's right end says omaseed is on public now · the library too. Behind the modal the hero says PUBLIC."
+step "Switched from the list" "D5 a: the select reads public; the panes are public's; the footer's right end says omaseed is on public now · the library too. Behind the modal the status line says public."
 check "servers.json: the list moved the default to public" servers_are "public private" public
 
 # qBittorrent › Backup on public, then the copy row: `0`, tab to the rows, `j j`.
@@ -456,14 +460,14 @@ keys Escape -s 1000
 omabox run -b "$BOX" -- pkill -STOP -f qbittorrent-private >/dev/null
 # A stopped process still takes the connection: the poll waits out the client's 15 s first.
 sleep 30
-step "Private down: the notice" "docs/35 N1–N3, docs/44 W1 (a stopped process is a timeout): a band the window's width under the hero, its own fill, a 2 px yellow rule, a hairline under it: ! private isn't answering · retry now · switch server · details ▸; under it qBittorrent is running but hasn't replied for N s. It may be busy writing to its disk. omaseed keeps asking. The list below is from HH:MM. waiting · N s. The rail and the table start under its line, the list dimmed; the servers block's private row reads waiting in yellow. The hero says private · isn't answering, its dot yellow."
+step "Private down: the notice" "docs/35 N1–N3, docs/44 W1 (a stopped process is a timeout): a band across the content under the title bar (the rail beside it, usable: C24 H14), whose sentence says the list is from HH:MM · private isn't answering, its own fill, a 2 px yellow rule, a hairline under it: ! private isn't answering · retry now · switch server · details ▸; under it qBittorrent is running but hasn't replied for N s. It may be busy writing to its disk. omaseed keeps asking. The list below is from HH:MM. waiting · N s. The table starts under its line, the list dimmed; the servers block's private row reads waiting in yellow. The status line says private · isn't answering, its dot yellow, and list from HH:MM."
 if click_text "details"; then
     step "The notice's details" "docs/35 N4: the band grew: under the line a darker block, timeout · GET sync/maindata · no reply within 15000 ms · 127.0.0.1:8091, copy at its right."
 else
     check "the notice's details link is in the window's accessibility tree" false
 fi
 keys p -s 800
-step "The guard says why" "D23, docs/44 D11: p did nothing, and the footer says private isn't answering: p waits until it answers."
+step "The guard says why" "D23, docs/44 D11: p did nothing, and the status line's note says private isn't answering: p waits until it answers."
 keys ctrl+s -s 800
 step "Switching away while down" "D4: ctrl+s went through the read-only guard: the server palette, private on it now with isn't answering, the cursor on public, 1 torrent."
 keys Escape -s 600
@@ -481,7 +485,7 @@ step "Remove private?" "The confirm card: Remove the server private? · http://1
 keys l Return -s 2500
 step "One server left" "Settings › Servers: public only, now the default."
 keys Escape -s 1500
-step "Library after the removal" "The app moved to public on its own: the hero says PUBLIC, the sampler (completed, stopped), no SERVERS group in the rail."
+step "Library after the removal" "The app moved to public on its own: the status line says public, the sampler (completed, stopped), no SERVERS group in the rail."
 check "servers.json: public only, the default" servers_are "public" public
 check "private's password left the keyring" keyring_lacks "$private_id"
 check "public's password is still there" keyring_has "$public_id"

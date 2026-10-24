@@ -63,6 +63,11 @@ TestCase {
         compare(line.visible, true);
         verify(line.text.indexOf("/home/me/Videos is outside the folders mapped for home.") >= 0);
         verify(line.text.indexOf("qBittorrent may not see it. Mapped: /mnt/media/downloads → /downloads.") >= 0);
-        verify(line.text.indexOf(String(Theme.yellow)) >= 0, "the headline is not yellow");
+        verify(line.text.indexOf(String(Theme.on.warning.yellow)) >= 0, "the headline is not yellow");
+        // DECISIONS C30 F5: on the yellow band, its dim words are lifted against the tint.
+        verify(line.text.indexOf(String(Theme.on.warning.dimForeground)) >= 0,
+               "the dim words are not the warning ground's");
+        verify(!Qt.colorEqual(Theme.on.warning.dimForeground, Theme.dimForeground));
+        compare(findChild(line, "browsedPathText").color, Theme.on.warning.dimForeground);
     }
 }

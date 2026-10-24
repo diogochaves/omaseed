@@ -120,7 +120,7 @@ Item {
                 anchors.left: parent.left
                 anchors.leftMargin: Theme.space(8)
                 anchors.verticalCenter: urlCell.verticalCenter
-                color: row.statusError.length > 0 ? Theme.red : Theme.muted
+                color: row.statusError.length > 0 ? row.ink.red : Theme.muted
                 height: Theme.space(6)
                 objectName: "webSeedDot_" + row.index
                 radius: width / 2
@@ -153,7 +153,7 @@ Item {
                 Text {
                     id: errorText
 
-                    color: Theme.red
+                    color: row.ink.red
                     font.family: Theme.fontFamily
                     font.pixelSize: Theme.font.small
                     objectName: "webSeedError_" + row.index
@@ -162,7 +162,7 @@ Item {
                 }
 
                 Text {
-                    color: Theme.dimForeground
+                    color: row.ink.dimForeground
                     elide: Text.ElideRight
                     font.family: Theme.fontFamily
                     font.pixelSize: Theme.font.small

@@ -62,6 +62,7 @@ private Q_SLOTS:
     void a_local_rename_moves_the_subtree();
     void the_server_path_follows_the_content_path();
     void the_summary_counts_files_folders_size_and_skips();
+    void skipped_downloaded_is_size_times_progress();
     void select_all_files_takes_what_the_filter_shows();
     void the_filter_takes_wildcards_and_alternatives_data();
     void the_filter_takes_wildcards_and_alternatives();
@@ -751,6 +752,31 @@ void TestTorrentFilesModel::the_summary_counts_files_folders_size_and_skips()
     QCOMPARE(model.skippedCount(), 0);
     QCOMPARE(model.totalSize(), 0);
     QCOMPARE(summary.count(), 1);
+}
+
+// DECISIONS C30 F18: on a disk omaseed can't see, the size line says what the skipped files
+// were downloaded to, from each one's size × progress.
+void TestTorrentFilesModel::skipped_downloaded_is_size_times_progress()
+{
+    TorrentFilesModel model;
+    QJsonArray files;
+    const auto file = [](int index, const char *name, qint64 size, double progress, int priority) {
+        return QJsonObject{{QStringLiteral("index"), index},
+                           {QStringLiteral("name"), QString::fromLatin1(name)},
+                           {QStringLiteral("size"), size},
+                           {QStringLiteral("progress"), progress},
+                           {QStringLiteral("priority"), priority}};
+    };
+    files.append(file(0, "t/a.bin", 1000, 1.0, 1));
+    files.append(file(1, "t/b.bin", 1000, 1.0, 0));
+    files.append(file(2, "t/c.bin", 400, 0.5, 0));
+    files.append(file(3, "t/d.bin", 400, 0.0, 0));
+    model.applyFiles(files);
+    QCOMPARE(model.skippedCount(), 3);
+    QCOMPARE(model.skippedDownloaded(), 1200);
+    // Ticked again, it is no longer counted.
+    model.setLocalPriority({1}, int(FilePriority::Normal));
+    QCOMPARE(model.skippedDownloaded(), 200);
 }
 
 // docs/12 F3: `ctrl+a` selects the files the filter shows, and a priority then acts on them.

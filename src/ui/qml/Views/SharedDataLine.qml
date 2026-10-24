@@ -54,7 +54,8 @@ Rectangle {
     /// The lines under the headline: one per sharer (one torrent selected) or one per
     /// selected torrent that shares (a selection), each as StyledText.
     function _lines(): var {
-    const dim = String(Theme.dimForeground);
+    // On the band's warning tint (docs/DECISIONS.md C30 F5).
+    const dim = String(Theme.on.warning.dimForeground);
     const out = [];
     if (root.selectionCount === 1) {
         const sharers = root._sharing.length > 0 ? root._sharing[0].sharers : [];
@@ -103,7 +104,8 @@ Rectangle {
                         readonly property alias text: lineText.text
 
                         Layout.fillWidth: true
-                        color: Qt.alpha(Theme.yellow, 0.08)
+                        // The warning tint; its words lifted against it (docs/DECISIONS.md C30 F5).
+                        color: Theme.on.warning.fill
                         implicitHeight: lineText.implicitHeight + Theme.space(12)
                         visible: root._outside.length > 0
 
@@ -121,13 +123,13 @@ Rectangle {
                             anchors.right: parent.right
                             anchors.rightMargin: Theme.space(10)
                             anchors.verticalCenter: parent.verticalCenter
-                            color: Theme.foreground
+                            color: Theme.on.warning.foreground
                             font.family: Theme.fontFamily
                             font.pixelSize: Theme.font.small
                             lineHeight: 1.3
                             text: {
                                 void root.shared;
-                                return ["<font color='%1'>%2</font>".arg(Theme.yellow).arg(
+                                return ["<font color='%1'>%2</font>".arg(Theme.on.warning.yellow).arg(
                                             root._headline())].concat(root._lines()).join("<br>");
                             }
                             textFormat: Text.StyledText

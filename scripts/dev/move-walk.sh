@@ -42,6 +42,10 @@
 set -euo pipefail
 
 repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+# DECISIONS C24 H4: a new install shows the rows display, and a box is a new install. This
+# walk reads the table (its columns, its rows' order), so it pins the table: every scope starts
+# on it (App's OMASEED_DISPLAY), passed to each launch here and by app-box.sh.
+export OMASEED_DISPLAY="${OMASEED_DISPLAY:-table}"
 cd "$repo"
 APP_BOX="$repo/scripts/dev/app-box.sh"
 BOX="${OMASEED_MOVE_BOX:-move-walk}"
@@ -247,6 +251,30 @@ expect_checked() {
     fail "$what (after ${limit}s \"$name\" is not a checked radio button)"
 }
 
+# hold_strip TEXT: the pointer rests on the outcome strip's words TEXT, which holds a done
+# strip's 6 s (DECISIONS C18) while the walk looks at it.
+hold_strip() {
+    local at
+    at="$(omabox tree -b "$BOX" --window omaseed --json 2>/dev/null | python3 -c '
+import json, sys
+for node in json.load(sys.stdin):
+    if sys.argv[1] in (node.get("name") or "") and node.get("w", 0) > 0:
+        print(node["x"] + node["w"] // 2, node["y"] + node["h"] // 2)
+        break' "$1")"
+    [ -n "$at" ] || fail "no \"$1\" to rest the pointer on"
+    # shellcheck disable=SC2086 # "X Y"
+    omabox pointer -b "$BOX" --window omaseed -- move $at >/dev/null 2>&1 || true
+}
+
+# no_tree "WHAT" STRING: the window's tree, as text, doesn't hold STRING.
+no_tree() {
+    if omabox tree -b "$BOX" --window omaseed 2>/dev/null | grep -qF -- "$2"; then
+        fail "$1 ($2 is in the window's tree)"
+    else
+        pass "$1"
+    fi
+}
+
 # no_text "WHAT" TEXT: the window doesn't show TEXT.
 no_text() {
     if find_text "$2"; then fail "$1 (\"$2\" is in the window)"; else pass "$1"; fi
@@ -342,6 +370,10 @@ else
     "$APP_BOX" up --qbt -b "$BOX" >/dev/null
 fi
 home="$(omabox path -b "$BOX")/home"
+# The desktop's do-not-disturb: "Download complete" toasts come every few seconds while the
+# library downloads, and under the title bar (DECISIONS C24 H5) the move band's links sit where
+# a toast covers them, so a press there hit the toast. Nothing here checks a toast.
+in_box omarchy-shell -q notifications setDnd on >/dev/null || true
 echo "box $BOX is up; making $((GAMES + FILMS + MUSIC)) torrents and their files"
 
 # The library: each torrent a folder with one file, its .torrent beside the walk's own files.
@@ -554,7 +586,7 @@ fi
 if [ "$FROM" = games ] || [ "$FROM" = selection ]; then
 SEL="$BOX_HOME/sel"
 
-step "One torrent, a quick move" "The cursor on Handheld Pack 040, m: the Move… sheet on that torrent. ~/sel/one typed over the field: one green line (L3). enter: it lands within 3 s, so no band; the strip in the selection bar's place says it moved, and the row's status reads ✓ moved · one (C18 D1). esc closes the strip."
+step "One torrent, a quick move" "The cursor on Handheld Pack 040, m: the Move… sheet on that torrent. ~/sel/one typed over the field: one green line (L3). enter: it lands within 3 s, so no band; the strip over the rows says it moved, and the row's status reads ✓ moved · one (C18 D1). No show: it is the cursor's row, in view (C30 F8). With the pointer holding the strip, j takes the cursor off it and show comes, saying why (F10, F11); show puts the cursor back and goes. esc closes the strip."
 table_on "Handheld Pack 040"
 keys m
 expect_text "the Move… sheet is open" "Move Handheld Pack 040" 10
@@ -566,7 +598,17 @@ expect_at "Handheld Pack 040 saves at ~/sel/one" "Handheld Pack 040" "$SEL/one"
 expect_disk "its file is there" -f "$SEL/one/Handheld Pack 040/data.bin"
 expect_text "the strip says it moved" "Handheld Pack 040 moved to $SEL/one" 20
 no_text "no band for it" "Moving Handheld Pack 040"
-shot "The strip at the table's bottom middle: ✓ Handheld Pack 040 moved to ~/sel/one, show, ×, its green line running down; the row's status reads ✓ moved · one in green; the footer has only its counts and keys." strip
+hold_strip "Handheld Pack 040 moved to $SEL/one"
+no_tree "no show for the cursor's own row" 'button "show"'
+shot "The strip at the rows' bottom middle: ✓ Handheld Pack 040 moved to ~/sel/one and ×, no show, its green line held under the pointer; the row's status reads ✓ moved · one in green." strip
+keys j
+expect_tree "j: show comes" 'button "show"' 5
+expect_text "…and says why" "it is not selected" 5
+shot "The cursor one row down: the strip offers show, a dim line under its words, \"it is not selected\" (C30 F8, F10)." show
+press show
+expect_text "show put the cursor back on it" "Handheld Pack 040" 5
+for _ in $(seq 1 10); do omabox tree -b "$BOX" --window omaseed 2>/dev/null | grep -qF 'button "show"' || break; sleep 0.5; done
+no_tree "…and show went (F11)" 'button "show"'
 keys Escape
 no_text "esc closed the strip" "Handheld Pack 040 moved to $SEL/one"
 
@@ -620,7 +662,7 @@ press "move 3 torrents"
 # one (a busy machine) gets the band and its summary ("3 torrents moved to …"). Either is right.
 # Looked for first: the note lasts 6 s, and the server checks below take seconds.
 expect_text "the strip or the band says 3 moved" "moved to $SEL/keep" 30
-shot "With the three still selected, the strip (3 moved to ~/sel/keep, or the band's summary when it ran past 3 s) sits just above the selection bar (C18 D1, O3)." strip
+shot "With the three still selected, the status line is the action bar, and the strip (3 moved to ~/sel/keep, or the band's summary when it ran past 3 s) floats over the rows just above it, with no show: they are in view and selected (C24 H8, C30 F8)." strip
 expect_at "Arcade Set 002 is at ~/sel/keep$arcade_rel" "Arcade Set 002" "$SEL/keep$arcade_rel"
 expect_at "Handheld Pack 002 at ~/sel/keep$handheld_rel" "Handheld Pack 002" "$SEL/keep$handheld_rel"
 expect_at "Short Film 002 at ~/sel/keep$film_rel" "Short Film 002" "$SEL/keep$film_rel"
@@ -743,7 +785,7 @@ expect_at "still nothing moved" "Short Film 020" "$places_from" 3
 keys Return
 expect_at "the next enter moves it to the place filled in" "Short Film 020" "$second" 30
 
-step "The names" "The : palette finds move… when set location is typed; the actions menu (enter) and the selection bar (space) say move…; the actions menu has no move folder… (C19 T3: that is the rail folder row's)."
+step "The names" "The : palette finds move… when set location is typed; the actions menu (enter) and the action bar (space) say move…; the actions menu has no move folder… (C19 T3: that is the rail folder row's)."
 keys colon
 keys -t "set location"
 expect_tree "the palette finds move… for \"set location\"" 'list item "move…"' 10
@@ -763,8 +805,8 @@ shot "The actions menu: move…, no move folder…." actions
 keys Escape
 table_on "Short Film 021"
 keys space
-expect_tree "the selection bar says move…" 'button "move…"' 10
-shot "The selection bar: move…." bar
+expect_tree "the action bar says move…" 'button "move…"' 10
+shot "The action bar, in the status line's place: move…." bar
 keys space
 keys Escape
 
@@ -850,7 +892,7 @@ expect_prios "x on the half-ticked Disc 1 unticks it" 000000
 shot "The Files tab: Disc 1 unticked by one x on its half tick." files
 keys x
 expect_prios "x again brings back parts 0 and 1 only" 110000
-# The details back on General and hidden, as the steps after this one expect them.
+# The details back on the story and hidden, as the steps after this one expect them.
 keys 1 i
 keys Escape
 table_on "Big Collection 1"
@@ -925,10 +967,10 @@ expect_text "and the second's" "omaseed moved 3 torrents to $SEL/hist2" 5
 shot "The log: a line for each move, with move back… at its end." log
 keys asciitilde
 
-step "The first move back, from a torrent's details" "Short Film 023's General tab shows its last move (B1). move back…: the sheet for the four; 3 were moved again since, by the move to ~/sel/hist2, with move that one back first; the button reads move 1 back · 3 stay. move that one back first opens the second move's sheet: move 3 back, and they land on ~/sel/hist. Short Film 023's move back… again: move 4 back, whole again; they all land where they were."
+step "The first move back, from a torrent's details" "Short Film 023's story shows its last move (B1). move back…: the sheet for the four; 3 were moved again since, by the move to ~/sel/hist2, with move that one back first; the button reads move 1 back · 3 stay. move that one back first opens the second move's sheet: move 3 back, and they land on ~/sel/hist. Short Film 023's move back… again: move 4 back, whole again; they all land where they were."
 table_on "Short Film 023"
 find_text "Moved today" || keys i
-expect_text "General shows its last move" "Moved today" 20
+expect_text "the story shows its last move" "Moved today" 20
 expect_text "from where it was" "from ${hist_from[023]} to $SEL/hist" 5
 shot "Short Film 023's details: its last move, move back…, this one only, show the move." details
 press "move back…"
@@ -1318,7 +1360,7 @@ shot "The paused band: the drive is full, the move is paused." full
 
 # The rail's fast/games exists only once the games step moved it there.
 if [ "$FROM" = games ]; then
-step "A folder picked in the rail" "A click on fast/games in the rail's folders group: the table narrows to it and the folder line above it keeps \"move this folder…\" on its one line, the text cut short instead. A right-click on the row opens its menu, \"move this folder…\" (C19 T3); esc closes it."
+step "A folder picked in the rail" "A click on fast/games in the rail's folders group: the table narrows to it, the title bar's title is games and its sentence the folder's facts (N torrents · bytes on disk · its path, cut short at the end when the bar is short), and \"move this folder…\" is a title-bar tool (C24 H5). A right-click on the row opens its menu, \"move this folder…\" (C19 T3); esc closes it."
 where="$(omabox tree -b "$BOX" --window omaseed --find "fast/games" 2>/dev/null | python3 -c '
 import re, sys
 for line in sys.stdin:
@@ -1330,8 +1372,8 @@ for line in sys.stdin:
 [ -n "$where" ] || fail "no fast/games row in the rail"
 # shellcheck disable=SC2086 # two numbers
 omabox click -b "$BOX" --window omaseed --wait $where >/dev/null 2>&1 || true
-expect_text "the folder line offers to move it" "move this folder…" 10
-shot "The folder line: one line, its text cut short, \"shift+m move this folder…\" whole at its end."
+expect_text "the title bar offers to move it" "move this folder…" 10
+shot "The title bar: games, its sentence on one line, the move this folder… tool whole before the filter."
 # shellcheck disable=SC2086 # two numbers
 omabox click -b "$BOX" --window omaseed --wait $where right >/dev/null 2>&1 || true
 expect_tree "a right-click on the folder row opens its menu" 'menu item "move this folder…"' 10

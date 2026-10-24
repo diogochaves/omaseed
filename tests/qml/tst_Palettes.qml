@@ -85,6 +85,7 @@ TestCase {
             App.loadDemo(16);
         App.filtered.text = "";
         App.filtered.statusFilter = TorrentFilterModel.All;
+        App.filtered.question = TorrentFilterModel.AnyQuestion;
         App.filtered.clearCategory();
         App.filtered.clearTag();
         App.filtered.clearTracker();

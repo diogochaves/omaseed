@@ -49,6 +49,9 @@ public:
     QString hash = QStringLiteral("5eed5eed5eed5eed5eed5eed5eed5eed5eed5eed");
     QString dir;
     QList<int> priorities{1, 1};
+    /// The hashes the list gives (DECISIONS C29: v1-only, v2-only or hybrid).
+    QString infohashV1 = QStringLiteral("5eed5eed5eed5eed5eed5eed5eed5eed5eed5eed");
+    QString infohashV2;
     int polls = 0;
     int fileReads = 0;
     QStringList prioritySends; ///< "id=priority" per torrents/filePrio
@@ -123,7 +126,11 @@ private:
                 {QStringLiteral("size"), kBig + kSmall},
                 {QStringLiteral("total_size"), kBig + kSmall},
                 {QStringLiteral("save_path"), dir},
-                {QStringLiteral("content_path"), dir + QStringLiteral("/Pack")}};
+                {QStringLiteral("content_path"), dir + QStringLiteral("/Pack")},
+                {QStringLiteral("category"), QStringLiteral("films")},
+                {QStringLiteral("added_on"), 1761292800},
+                {QStringLiteral("infohash_v1"), infohashV1},
+                {QStringLiteral("infohash_v2"), infohashV2}};
             reply(socket,
                   json({{QStringLiteral("rid"), polls},
                         {QStringLiteral("full_update"), true},
@@ -197,6 +204,9 @@ private slots:
     void aTickBackHidesTheBandOnceTheHoldIsSent();
     void aChangeFromElsewhereIsRead();
     void aPollThatChangesNothingReadsNothing();
+    void aV1TorrentFreesWhatHasPieces();
+    void aHybridOnlyFreesByAddingItAgain();
+    void theRowSaysItsWordsAndItsStory();
 
 private:
     /// Starts `app` on `server`, the torrent on show with its Files tab open, and waits for the
@@ -321,6 +331,78 @@ void TestAppSkipped::aPollThatChangesNothingReadsNothing()
     QTRY_VERIFY_WITH_TIMEOUT(server.fileReads >= before + 5, 5000);
     QCOMPARE(readings.count(), 0);
     QVERIFY(band(app));
+    app.engine()->stop();
+}
+
+// DECISIONS C30 F16: the outlook comes from the reading alone. big.bin is skipped after it was
+// downloaded (progress 1): on a v1-only torrent the free deletes it, with a recheck.
+void TestAppSkipped::aV1TorrentFreesWhatHasPieces()
+{
+    SkippedServer server;
+    server.priorities = {0, 1};
+    App app;
+    QVERIFY(openFilesTab(app, server));
+    QTRY_VERIFY_WITH_TIMEOUT(band(app), 3000);
+    const QVariantMap reading = app.skippedOnDiskMap();
+    QCOMPARE(reading.value(QStringLiteral("outlook")).toString(), QStringLiteral("free"));
+    QCOMPARE(reading.value(QStringLiteral("version")).toString(), QStringLiteral("v1"));
+    // F17: the size line and the files head say what it still holds.
+    QCOMPARE(reading.value(QStringLiteral("sizeTail")).toString(),
+             QStringLiteral("1 skipped, 1.00 MB still on disk"));
+    QCOMPARE(reading.value(QStringLiteral("stillText")).toString(),
+             QStringLiteral("1.00 MB still on disk"));
+    app.engine()->stop();
+}
+
+// F12: on a hybrid, a skipped file with downloaded pieces is freed only by adding it again.
+void TestAppSkipped::aHybridOnlyFreesByAddingItAgain()
+{
+    SkippedServer server;
+    server.priorities = {0, 1};
+    server.infohashV2 = QStringLiteral("ab").repeated(32);
+    App app;
+    QVERIFY(openFilesTab(app, server));
+    QTRY_VERIFY_WITH_TIMEOUT(band(app), 3000);
+    QVariantMap reading = app.skippedOnDiskMap();
+    QCOMPARE(reading.value(QStringLiteral("outlook")).toString(), QStringLiteral("readd"));
+    QCOMPARE(reading.value(QStringLiteral("version")).toString(), QStringLiteral("hybrid"));
+    QCOMPARE(reading.value(QStringLiteral("readdText")).toString(), QStringLiteral("1.00 MB"));
+    QCOMPARE(reading.value(QStringLiteral("readdFiles")).toInt(), 1);
+    QCOMPARE(app.torrentRow(server.hash).value(QStringLiteral("hashVersion")).toString(),
+             QStringLiteral("hybrid"));
+
+    // C29: v2-only reads the same, in its own version.
+    server.infohashV1.clear();
+    QTRY_COMPARE_WITH_TIMEOUT(
+        app.torrentRow(server.hash).value(QStringLiteral("hashVersion")).toString(),
+        QStringLiteral("v2"),
+        3000);
+    QTRY_COMPARE_WITH_TIMEOUT(app.skippedOnDiskMap().value(QStringLiteral("version")).toString(),
+                              QStringLiteral("v2"),
+                              3000);
+    QCOMPARE(app.skippedOnDiskMap().value(QStringLiteral("outlook")).toString(),
+             QStringLiteral("readd"));
+    app.engine()->stop();
+}
+
+// DECISIONS C24 H6: the details' head says the rows display's words; the story starts with
+// the add.
+void TestAppSkipped::theRowSaysItsWordsAndItsStory()
+{
+    SkippedServer server;
+    App app;
+    QVERIFY(openFilesTab(app, server));
+    const QVariantMap row = app.torrentRow(server.hash);
+    QCOMPARE(row.value(QStringLiteral("rowCaption")).toString(), QStringLiteral("given"));
+    QVERIFY(!row.value(QStringLiteral("rowFact")).toString().isEmpty());
+    QVERIFY(!row.value(QStringLiteral("rowSentence")).toString().isEmpty());
+    const QVariantList story = app.torrentStory(server.hash);
+    QCOMPARE(story.size(), 1);
+    const QVariantMap added = story.first().toMap();
+    QCOMPARE(added.value(QStringLiteral("title")).toString(), QStringLiteral("Added"));
+    QCOMPARE(added.value(QStringLiteral("detail")).toString(), QStringLiteral("into films"));
+    QCOMPARE(added.value(QStringLiteral("kind")).toString(), QStringLiteral("plain"));
+    QVERIFY(app.torrentStory(QStringLiteral("nothere")).isEmpty());
     app.engine()->stop();
 }
 

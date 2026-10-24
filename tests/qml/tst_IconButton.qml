@@ -108,8 +108,8 @@ TestCase {
     }
 
     // M8: a click leaves the keyboard where it was, so no ring stays behind and the tip is
-    // the hover's alone (tst_Main checks it goes once settings closes over the hero's gear;
-    // this runner never delivers the hover leaving a lone button).
+    // the hover's alone (tst_Main checks it with the title bar's + add; this runner never
+    // delivers the hover leaving a lone button).
     function test_a_click_does_not_take_the_focus() {
         const holder = createTemporaryQmlObject("import QtQuick; Item { width: 10; height: 10 }",
                                                 testCase);

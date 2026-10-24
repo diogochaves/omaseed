@@ -287,8 +287,7 @@ private slots:
         const QVariantMap games = m_move->folders()->figures(QStringLiteral("/mnt/archive/games"));
         QCOMPARE(games.value(QStringLiteral("count")).toInt(), 3);
         QCOMPARE(m_move->folderLine(QStringLiteral("/mnt/archive/games")),
-                 QStringLiteral(
-                     "games · /mnt/archive/games · 3 torrents · 600 B on disk · 2 save paths"));
+                 QStringLiteral("3 torrents · 600 B on disk · 2 save paths · /mnt/archive/games"));
         QCOMPARE(m_move->folderOf(QStringLiteral("c3")),
                  QStringLiteral("/mnt/archive/games/handheld"));
         // Without a server (a demo) the rows stay, and there is no job to start.

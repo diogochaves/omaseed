@@ -52,6 +52,47 @@ TestCase {
         compare(Theme.space(1), 1);
     }
 
+    // #156: a binding made of `Theme.space()` alone, which reads no property of its own.
+    Item {
+        id: spaced
+
+        width: Theme.space(10)
+        height: Theme.space(24)
+    }
+
+    function cleanup() {
+        TestTheme.setBaseSize(0); // qmllint disable unqualified
+    }
+
+    // #156 (docs/DECISIONS.md C28): Theme.space() reads spaceScale, so a binding of nothing
+    // but Theme.space(n) follows the base size live, both ways, as the shell's or the
+    // Appearance pane's base size moves 12 → 18 → 12.
+    function test_a_bare_space_binding_follows_the_base_size() {
+        compare(Theme.font.baseSize, 12);
+        compare(spaced.width, 10);
+        compare(spaced.height, 24);
+
+        TestTheme.setBaseSize(18); // qmllint disable unqualified
+        compare(Theme.font.baseSize, 18);
+        fuzzyCompare(Theme.spaceScale, 1.5, 0.0001);
+        compare(spaced.width, 15);
+        compare(spaced.height, 36);
+
+        TestTheme.setBaseSize(0); // qmllint disable unqualified
+        compare(Theme.font.baseSize, 12);
+        compare(spaced.width, 10);
+        compare(spaced.height, 24);
+    }
+
+    // #74's form and the bare call agree at every scale, rounding included.
+    function test_space_is_space_at_the_current_scale() {
+        for (const size of [12, 14, 17, 20]) {
+            TestTheme.setBaseSize(size); // qmllint disable unqualified
+            for (const px of [0, 1, 2, 3, 6, 8, 12, 40])
+                compare(Theme.space(px), Theme.spaceAt(px, Theme.spaceScale), size + "/" + px);
+        }
+    }
+
     function test_focus_ring_sits_outside_the_edge() {
         compare(Theme.focusGap, Theme.space(2));
         compare(Theme.focusExtent, Theme.focusGap + 1);

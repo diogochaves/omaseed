@@ -24,15 +24,31 @@ Rectangle {
     // Debug-only override so the ThemeGallery can show the pressed fill without a held mouse
     // button; a real press (mouseArea.pressed) always wins over this.
     property bool pressed: false
+    /// What the button sits on while it paints nothing (docs/DECISIONS.md C30 F1), as Button's.
+    property ThemeInk block: Theme.on.window
 
     signal clicked
 
     readonly property bool hot: root.hasCursor || mouseArea.containsMouse
     /// The button's tooltip, which lives on the window's content item (the tests read it).
     readonly property alias tooltipItem: tip
-    readonly property color _glyphColor: root.danger ? Theme.red : (root.primary || root.selected
-                                                                    || root.accent) ? Theme.accent :
-                                                                                      Theme.dimForeground
+    /// The ground under the glyph in each state, as `color` paints it (C30 F1, F4).
+    readonly property ThemeInk ground: {
+        if (mouseArea.pressed || root.pressed)
+            return Theme.on.pressed;
+        if (root.activeFocus || root.hot)
+            return root.block === Theme.on.idle ? Theme.on.blockHover : Theme.on.hover;
+        if (root.selected)
+            return Theme.on.selected;
+        return root.bordered && root.block === Theme.on.window ? Theme.on.idle : root.block;
+    }
+    /// The glyph's colours on that ground, eased with the fill.
+    readonly property Ink ink: Ink {
+        ground: root.ground
+    }
+    readonly property color _glyphColor: root.danger ? root.ink.red : (root.primary || root.selected
+                                                                       || root.accent) ? root.ink.accent :
+                                                                                         root.ink.dimForeground
     readonly property color _borderColor: (root.danger && (root.selected || root.primary))
                                           ? Theme.red : root.primary ? Theme.accent : root.hot
                                                                        ? Theme.fill(
@@ -56,11 +72,8 @@ Rectangle {
     activeFocusOnTab: root.enabled
     border.color: root._borderColor
     border.width: (root.primary || root.hot || root.bordered || root.selected) ? 1 : 0
-    color: (mouseArea.pressed || root.pressed) ? Theme.fill(Theme.fillPressed) : (root.activeFocus
-                                                                                  || root.hot)
-                                                 ? Theme.fill(Theme.fillHover) : root.selected
-                                                   ? Theme.fill(Theme.fillSelected) : root.bordered
-                                                     ? Theme.fill(Theme.fillIdle) : "transparent"
+    // The ground's own fill; resting in a block, nothing: the block's is under it already.
+    color: root.ground === root.block ? "transparent" : root.ground.fill
     // Implicit, not fixed: a layout (the hero's `room`) reads `implicitWidth`, and a fixed
     // `width` left it at 0.
     implicitHeight: Theme.controlHeight
@@ -70,7 +83,7 @@ Rectangle {
 
     Behavior on color {
         ColorAnimation {
-            duration: 120
+            duration: Theme.fillChangeDuration
         }
     }
 

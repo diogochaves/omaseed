@@ -53,15 +53,16 @@ Item {
         anchors.verticalCenter: parent.verticalCenter
         border.color: root.hot ? Theme.fill(Theme.borderHover) : Theme.fill(Theme.borderIdle)
         border.width: root.checked ? 0 : 1
-        color: root.checked ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, Theme.fillPressed) :
-                              Theme.fill(Theme.fillIdle)
+        // The ticked tint and the idle fill (docs/DECISIONS.md C30 F5); the knob is no text,
+        // but takes the ground's colour so it reads as the ✓ on a ticked box does.
+        color: root.checked ? Theme.on.ticked.fill : Theme.on.idle.fill
         height: root.trackHeight
         radius: Theme.cornerRadius
         width: root.trackWidth
 
         Behavior on color {
             ColorAnimation {
-                duration: 120
+                duration: Theme.fillChangeDuration
             }
         }
 
@@ -69,7 +70,7 @@ Item {
             id: knob
 
             anchors.verticalCenter: parent.verticalCenter
-            color: root.checked ? Theme.brightForeground : Theme.dimForeground
+            color: root.checked ? Theme.on.ticked.brightForeground : Theme.on.idle.dimForeground
             height: root.knobSize
             radius: Theme.cornerRadius
             width: root.knobSize

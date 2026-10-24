@@ -7,6 +7,7 @@
 #include "core/Format.hpp"
 #include "core/PieceStates.hpp"
 #include "core/ProblemLog.hpp"
+#include "core/SkippedOutlook.hpp"
 #include "core/TorrentFilesModel.hpp"
 
 #include <QCoreApplication>
@@ -50,6 +51,14 @@ QString versionName(HashVersion version)
         break;
     }
     return QStringLiteral("v1");
+}
+
+/// C17 D3, C29: what a skipped file with downloaded pieces may come to on `torrent`.
+HashVersion hashVersionOf(const Torrent &torrent)
+{
+    return torrent.isHybrid()   ? HashVersion::Hybrid
+           : torrent.isV2Only() ? HashVersion::V2
+                                : HashVersion::V1;
 }
 
 QString verdictName(FreeItem::Verdict verdict)
@@ -146,6 +155,23 @@ QVariantMap App::skippedOnDiskMap() const
         map.insert(QStringLiteral("where"), answer.where);
         map.insert(QStringLiteral("fileSystem"), answer.fileSystem);
         map.insert(QStringLiteral("name"), torrent.name);
+        // DECISIONS C30 F12–F16: what freeing it can do, from this reading alone.
+        const SkippedOutlook outlook = SkippedOutlook::of(reading, hashVersionOf(torrent));
+        map.insert(QStringLiteral("outlook"), SkippedOutlook::kindName(outlook.kind));
+        map.insert(QStringLiteral("version"), versionName(outlook.version));
+        map.insert(QStringLiteral("freeableText"), Format::size(outlook.freeable));
+        map.insert(QStringLiteral("readdText"), Format::size(outlook.readdOnly));
+        map.insert(QStringLiteral("readdFiles"), outlook.readdFiles);
+        // F17–F18: the size fact's tail and the files head's words.
+        const TorrentFilesModel *files = m_details->files();
+        const bool current = reading.hash == m_details->hash();
+        map.insert(QStringLiteral("stillText"), SkippedOutlook::stillOnDisk(reading.held));
+        map.insert(QStringLiteral("sizeTail"),
+                   current ? SkippedOutlook::sizeTail(files->skippedCount(),
+                                                      reading.held,
+                                                      reading.seen,
+                                                      files->skippedDownloaded())
+                           : QString());
     }
     return map;
 }
@@ -189,8 +215,10 @@ void App::refreshSkippedOnDisk()
     m_skippedPriorities = serverPrioritiesOf(files);
     const SkippedOnDisk::LocalPathOf localPathOf = localPathOfFiles(torrent);
     const qint64 size = torrent.totalSize > 0 ? torrent.totalSize : torrent.size;
-    // The pieces only matter to the plan; the column and the band need the disk alone.
-    m_skipped->refresh(hash, files, QByteArray(), size, localPathOf);
+    // The column and the band need the disk alone; the outlook (C30 F16) takes the pieces as
+    // the details last read them, when the story asked (a file at progress 0 that shares a
+    // downloaded piece), and the plan at delete time reads them again.
+    m_skipped->refresh(hash, files, m_details->pieceStates(), size, localPathOf);
 }
 
 FreeSkippedJob::Input App::freeInputFor(const Torrent &torrent) const
@@ -200,9 +228,7 @@ FreeSkippedJob::Input App::freeInputFor(const Torrent &torrent) const
     input.name = torrent.name;
     input.running = isRunning(torrent.state);
     // C17 D3 and C29: what a skipped file with downloaded pieces may come to.
-    input.version = torrent.isHybrid()   ? HashVersion::Hybrid
-                    : torrent.isV2Only() ? HashVersion::V2
-                                         : HashVersion::V1;
+    input.version = hashVersionOf(torrent);
     input.torrentSize = torrent.totalSize > 0 ? torrent.totalSize : torrent.size;
     input.localPathOf = localPathOfFiles(torrent);
     input.contentLocal = m_freeSpace.localPathFor(torrent.contentPath);
@@ -221,13 +247,18 @@ FreeSkippedJob::Input App::freeInputFor(const Torrent &torrent) const
 
 void App::planFreeSkipped(const QString &hash)
 {
+    makeFreePlan(hash, [this](const QVariantMap &plan) { Q_EMIT freeSkippedPlanned(plan); });
+}
+
+void App::makeFreePlan(const QString &hash, const std::function<void(QVariantMap)> &done)
+{
     if (hash.isEmpty() || m_demoMode || !m_hasServer || m_engine->torrents()->indexOfHash(hash) < 0)
         return;
     const Torrent torrent = m_engine->torrents()->torrent(hash);
     const FreeSkippedJob::Input input = freeInputFor(torrent);
-    auto answer = [this, hash](QVariantMap plan) {
+    auto answer = [hash, done](QVariantMap plan) {
         plan.insert(QStringLiteral("hash"), hash);
-        Q_EMIT freeSkippedPlanned(plan);
+        done(plan);
     };
     m_client->torrentsFiles(hash)->then(
         this, [this, input, answer](const QbtResult<QJsonArray> &files) {
@@ -282,6 +313,9 @@ void App::planFreeSkipped(const QString &hash)
                             {QStringLiteral("recheck"), plan.recheck},
                             {QStringLiteral("leftWithPieces"), plan.leftWithPieces},
                             {QStringLiteral("leftText"), Format::size(plan.leftWithPiecesBytes)},
+                            // C30 F15: what adding it again frees, all of it.
+                            {QStringLiteral("allText"),
+                             Format::size(plan.freed + plan.leftWithPiecesBytes)},
                             {QStringLiteral("kept"), int(plan.items.size()) - plan.deletes},
                             {QStringLiteral("items"), items},
                             {QStringLiteral("more"), int(plan.items.size()) - int(items.size())}});
@@ -331,6 +365,28 @@ void App::addTorrentAgain(const QString &hash, bool freeLeftovers)
     if (hash.isEmpty() || demoGuard(QStringLiteral("addTorrentAgain"), 1) || !m_hasServer ||
         !m_skippedStep.isEmpty() || m_engine->torrents()->indexOfHash(hash) < 0)
         return;
+    // DECISIONS C30 F13, F16: shift+f went straight to the confirm, so no sheet planned it.
+    // The plan is read now (files and pieces again), then the add goes as from the sheet.
+    if (freeLeftovers && m_lastFreePlanHash != hash) {
+        m_skippedStep = QStringLiteral("reading");
+        Q_EMIT skippedOnDiskChanged();
+        makeFreePlan(hash, [this, hash](const QVariantMap &plan) {
+            m_skippedStep.clear();
+            const QString error = plan.value(QStringLiteral("error")).toString();
+            if (!error.isEmpty() || m_lastFreePlanHash != hash) {
+                Q_EMIT skippedOnDiskChanged();
+                Q_EMIT torrentAddedAgain(
+                    {{QStringLiteral("hash"), hash},
+                     {QStringLiteral("ok"), false},
+                     {QStringLiteral("error"), error},
+                     {QStringLiteral("name"), plan.value(QStringLiteral("name"))},
+                     {QStringLiteral("deleted"), 0}});
+                return;
+            }
+            addTorrentAgain(hash, true);
+        });
+        return;
+    }
     const QString name = m_engine->torrents()->torrent(hash).name;
     AddAgainJob::Input input;
     input.hash = hash;

@@ -162,9 +162,12 @@ TestCase {
         compare(key.text, "3");
         verify(count.visible);
         compare(count.text, "10");
-        compare(count.color, Theme.dimForeground);
-        // On, the word takes the level's colour.
-        compare(findChild(chip, "chipLabel").color, Theme.yellow);
+        // DECISIONS C30 F1, F3: on the selected fill, its roles lifted against that fill.
+        compare(chip.ground, Theme.on.selected);
+        tryCompare(count, "color", Theme.on.selected.dimForeground);
+        // On, the word takes the level's colour, as it reads on the fill.
+        tryCompare(findChild(chip, "chipLabel"), "color", Theme.on.selected.yellow);
+        verify(!Qt.colorEqual(Theme.on.selected.dimForeground, Theme.dimForeground));
         // Wider than the word alone.
         const plain = createTemporaryObject(chipComponent, testCase, {
                                                 "text": "warning"
@@ -179,18 +182,20 @@ TestCase {
                                               "text": "normal",
                                               "toggle": true
                                           });
-        compare(findChild(off, "chipLabel").color, Theme.dimForeground);
+        // Off, the chip's idle fill is its ground (DECISIONS C30 F1).
+        compare(off.ground, Theme.on.idle);
+        compare(findChild(off, "chipLabel").color, Theme.on.idle.dimForeground);
         const on = createTemporaryObject(chipComponent, testCase, {
                                              "text": "normal",
                                              "toggle": true,
                                              "selected": true
                                          });
-        compare(findChild(on, "chipLabel").color, Theme.brightForeground);
+        compare(findChild(on, "chipLabel").color, Theme.on.selected.brightForeground);
         // A label chip, not a switch, keeps the foreground when off.
         const label = createTemporaryObject(chipComponent, testCase, {
                                                 "text": "linux"
                                             });
-        compare(findChild(label, "chipLabel").color, Theme.foreground);
+        compare(findChild(label, "chipLabel").color, Theme.on.idle.foreground);
     }
 
     // docs/32 L2: the torrent chip, an accent edge, selected or not.

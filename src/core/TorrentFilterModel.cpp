@@ -1,8 +1,12 @@
 #include "core/TorrentFilterModel.hpp"
 
+#include "core/LocalDay.hpp"
+#include "core/RowWords.hpp"
 #include "core/SharedData.hpp"
 #include "core/TorrentModel.hpp"
 #include "core/TrackerModel.hpp"
+
+#include <QCoreApplication>
 
 #include <algorithm>
 #include <limits>
@@ -26,6 +30,38 @@ TorrentFilterModel::TorrentFilterModel(QObject *parent)
     connect(this, &QAbstractItemModel::rowsRemoved, this, emitCount);
     connect(this, &QAbstractItemModel::modelReset, this, emitCount);
     connect(this, &QAbstractItemModel::layoutChanged, this, emitCount);
+
+    // C24 H3: the groups follow the rows. A poll's runs rebuild them once, in releaseSort().
+    const auto regroup = [this]() {
+        if (m_groupBy != NoGroups && !m_inRuns)
+            rebuildGroups();
+    };
+    connect(this, &QAbstractItemModel::rowsInserted, this, regroup);
+    connect(this, &QAbstractItemModel::rowsRemoved, this, regroup);
+    connect(this, &QAbstractItemModel::modelReset, this, regroup);
+    connect(this, &QAbstractItemModel::layoutChanged, this, regroup);
+    // The roles the proxy answers itself are made of the source's: a change to any of a
+    // row's roles names them too, so a delegate bound to `rowSentence` follows the speed.
+    connect(this,
+            &QAbstractItemModel::dataChanged,
+            this,
+            [this](const QModelIndex &topLeft,
+                   const QModelIndex &bottomRight,
+                   const QList<int> &roles) {
+                if (roles.isEmpty() || roles.contains(RowFactRole))
+                    return;
+                Q_EMIT dataChanged(topLeft,
+                                   bottomRight,
+                                   {QuestionRole,
+                                    GroupRole,
+                                    RowFactRole,
+                                    RowCaptionRole,
+                                    RowSentenceRole,
+                                    RowMetaRole,
+                                    RowFixRole,
+                                    RowFixActionRole,
+                                    MonogramRole});
+            });
 }
 
 StatusGroup TorrentFilterModel::groupFor(StatusFilter filter)
@@ -51,6 +87,101 @@ StatusGroup TorrentFilterModel::groupFor(StatusFilter filter)
         break;
     }
     return StatusGroup::NoGroup;
+}
+
+TorrentFilterModel::Question
+TorrentFilterModel::questionOf(const Torrent &torrent, bool logged, qint64 dayStartMSecs)
+{
+    // DECISIONS C24 H2, #167's assumed answers: disjoint, the first that holds.
+    const StatusGroups groups = torrent.statusGroups();
+    if (logged || groups.testFlag(StatusGroup::Errored))
+        return NeedsYou;
+    const bool complete = groups.testFlag(StatusGroup::Completed);
+    if (complete && torrent.completionOn.isValid() &&
+        torrent.completionOn.toMSecsSinceEpoch() >= dayStartMSecs)
+        return LandedToday;
+    if (groups.testFlag(StatusGroup::Stopped))
+        return Resting;
+    return complete ? GivingBack : Arriving;
+}
+
+namespace {
+
+/// The StatusFilter rows' words, in the enum's order after All.
+const QStringList &statusWords()
+{
+    static const QStringList words{QStringLiteral("downloading"),
+                                   QStringLiteral("seeding"),
+                                   QStringLiteral("completed"),
+                                   QStringLiteral("stopped"),
+                                   QStringLiteral("active"),
+                                   QStringLiteral("stalled"),
+                                   QStringLiteral("checking"),
+                                   QStringLiteral("errored")};
+    return words;
+}
+
+const QLatin1StringView kIsPrefix("is:");
+
+} // namespace
+
+QStringList TorrentFilterModel::isWords()
+{
+    return statusWords();
+}
+
+TorrentFilterModel::StatusFilter TorrentFilterModel::statusFilterForWord(QStringView word)
+{
+    if (word.isEmpty())
+        return All;
+    int found = -1;
+    for (int i = 0; i < statusWords().size(); ++i) {
+        const QString &name = statusWords().at(i);
+        if (name.compare(word, Qt::CaseInsensitive) == 0)
+            return StatusFilter(i + 1);
+        if (name.startsWith(word, Qt::CaseInsensitive)) {
+            if (found >= 0)
+                return All; // a prefix two words share
+            found = i;
+        }
+    }
+    return found >= 0 ? StatusFilter(found + 1) : All;
+}
+
+void TorrentFilterModel::setQuestion(Question question)
+{
+    if (m_question == question)
+        return;
+    m_question = question;
+    applyFilterChange();
+    Q_EMIT questionChanged();
+    Q_EMIT countChanged();
+}
+
+void TorrentFilterModel::setDay(LocalDay *day)
+{
+    if (m_day == day)
+        return;
+    if (m_day != nullptr)
+        disconnect(m_day, nullptr, this, nullptr);
+    m_day = day;
+    if (m_day != nullptr) {
+        connect(m_day, &LocalDay::dayChanged, this, [this]() {
+            // A new day: what landed yesterday is giving back or resting now.
+            regroupAll();
+            if (m_question == AnyQuestion)
+                return;
+            refilter();
+            Q_EMIT countChanged();
+        });
+    }
+}
+
+qint64 TorrentFilterModel::dayStartMSecs() const
+{
+    if (m_day != nullptr)
+        return m_day->startMSecs();
+    return QDateTime(QDate::currentDate(), QTime(0, 0)).toMSecsSinceEpoch();
 }
 
 void TorrentFilterModel::setStatusFilter(StatusFilter filter)
@@ -201,11 +332,31 @@ void TorrentFilterModel::setSourceModel(QAbstractItemModel *model)
                 this,
                 &TorrentFilterModel::holdSortFor),
         connect(torrents, &TorrentModel::runsAnnounced, this, &TorrentFilterModel::releaseSort),
+        // C24 H2: a problem or failure in the log makes a torrent need you, or stop needing
+        // you, with no poll.
+        connect(torrents,
+                &TorrentModel::problemsChanged,
+                this,
+                [this]() {
+                    if (m_question == AnyQuestion)
+                        return;
+                    refilter();
+                    Q_EMIT countChanged();
+                }),
+        // C24 H3: after Qt's own handling (connected first, in the base class), a shown
+        // torrent whose group moved without a re-sort asks for one.
+        connect(torrents,
+                &QAbstractItemModel::dataChanged,
+                this,
+                [this](const QModelIndex &topLeft, const QModelIndex &bottomRight) {
+                    noteGroupChanges(topLeft.row(), bottomRight.row());
+                }),
     };
 }
 
 void TorrentFilterModel::holdSortFor(const QList<int> &rows, const QList<int> &roles)
 {
+    m_inRuns = true;
     if (roles.contains(TorrentModel::NameRole))
         dropNameRanks();
     if (!dynamicSortFilter() || !roles.contains(m_sortRole))
@@ -235,14 +386,22 @@ void TorrentFilterModel::holdSortFor(const QList<int> &rows, const QList<int> &r
 
 void TorrentFilterModel::releaseSort()
 {
-    if (!m_sortHeld)
-        return;
-    m_sortHeld = false;
-    sortNow();
-    if (m_refilterAfterHold) {
-        m_refilterAfterHold = false;
-        refilter();
+    m_inRuns = false;
+    const bool regroup = m_regroupPending;
+    m_regroupPending = false;
+    if (m_sortHeld) {
+        m_sortHeld = false;
+        sortNow();
+        if (m_refilterAfterHold) {
+            m_refilterAfterHold = false;
+            refilter();
+        }
+    } else if (regroup) {
+        sortNow();
     }
+    // The runs moved speeds and counts the groups' lines say, if nothing else.
+    if (m_groupBy != NoGroups)
+        rebuildGroups();
 }
 
 void TorrentFilterModel::sortNow()
@@ -412,7 +571,28 @@ void TorrentFilterModel::setText(const QString &text)
     if (m_text == next)
         return;
     m_text = next;
-    m_query = SearchWords::parse(next);
+    // C24 H2: `is:` words name states; the rest is the query.
+    StatusGroups groups;
+    QStringList rest;
+    for (const QString &word : next.split(QLatin1Char(' '), Qt::SkipEmptyParts)) {
+        if (word.startsWith(kIsPrefix, Qt::CaseInsensitive)) {
+            const QStringView named = QStringView(word).mid(kIsPrefix.size());
+            const StatusFilter filter = statusFilterForWord(named);
+            if (filter != All) {
+                groups |= groupFor(filter);
+                continue;
+            }
+            bool partOfOne = named.isEmpty();
+            for (const QString &state : statusWords())
+                partOfOne = partOfOne || state.startsWith(named, Qt::CaseInsensitive);
+            if (partOfOne)
+                continue; // still being typed: narrows nothing yet
+        }
+        rest.append(word);
+    }
+    m_isGroups = groups;
+    m_queryText = rest.join(QLatin1Char(' '));
+    m_query = SearchWords::parse(m_queryText);
     m_matchRanks.clear();
     applyFilterChange();
     // C22: the ranks came or went with the query, so every row sorts again (a held order
@@ -509,6 +689,59 @@ int TorrentFilterModel::rowOfHash(const QString &hash) const
     return proxyIndex.isValid() ? proxyIndex.row() : -1;
 }
 
+RowWords
+TorrentFilterModel::wordsAt(const TorrentModel &source, const QModelIndex &at, int question) const
+{
+    RowTrouble trouble;
+    if (question == NeedsYou) {
+        const QVariantMap problem = source.data(at, TorrentModel::ProblemRole).toMap();
+        const QVariantMap failure = source.data(at, TorrentModel::FailureRole).toMap();
+        trouble.cause = source.data(at, TorrentModel::StatusCauseRole).toString();
+        trouble.headline = problem.value(QStringLiteral("headline")).toString();
+        trouble.actions = problem.value(QStringLiteral("actions")).toStringList();
+        trouble.missingFiles = problem.value(QStringLiteral("missingFiles")).toBool();
+        trouble.stuckMove = problem.value(QStringLiteral("stuckMove")).toBool();
+        trouble.failureKind = failure.value(QStringLiteral("kind")).toString();
+        trouble.failureHeadline = failure.value(QStringLiteral("headline")).toString();
+        trouble.failureActions = failure.value(QStringLiteral("actions")).toStringList();
+    }
+    return RowWords::of(source.torrentAt(at.row()), question, trouble);
+}
+
+RowWords TorrentFilterModel::wordsOfHash(const QString &hash) const
+{
+    const auto *source = qobject_cast<const TorrentModel *>(sourceModel());
+    if (source == nullptr)
+        return {};
+    const int sourceRow = source->indexOfHash(hash);
+    if (sourceRow < 0)
+        return {};
+    const Torrent &t = source->torrentAt(sourceRow);
+    const int question = questionOf(t, source->hasLoggedTrouble(t.hash), dayStartMSecs());
+    return wordsAt(*source, source->index(sourceRow, 0), question);
+}
+
+int TorrentFilterModel::questionOfHash(const QString &hash) const
+{
+    const auto *source = qobject_cast<const TorrentModel *>(sourceModel());
+    if (source == nullptr)
+        return AnyQuestion;
+    const int sourceRow = source->indexOfHash(hash);
+    if (sourceRow < 0)
+        return AnyQuestion;
+    const Torrent &t = source->torrentAt(sourceRow);
+    return questionOf(t, source->hasLoggedTrouble(t.hash), dayStartMSecs());
+}
+
+bool TorrentFilterModel::hashInScope(const QString &hash) const
+{
+    const auto *source = qobject_cast<const TorrentModel *>(sourceModel());
+    if (source == nullptr)
+        return false;
+    const int sourceRow = source->indexOfHash(hash);
+    return sourceRow >= 0 && inScope(source->torrentAt(sourceRow), *source, dayStartMSecs());
+}
+
 QString TorrentFilterModel::hashAt(int row) const
 {
     if (row < 0 || row >= rowCount())
@@ -526,7 +759,35 @@ bool TorrentFilterModel::filterAcceptsRow(int sourceRow, const QModelIndex &sour
     if (t.hash.isEmpty())
         return false;
 
+    if (m_isGroups != StatusGroup::NoGroup && (t.statusGroups() & m_isGroups) != m_isGroups)
+        return false;
+
+    if (!inScope(t, *source, dayStartMSecs()))
+        return false;
+
+    if (!m_queryText.isEmpty() && !t.hash.startsWith(m_queryText, Qt::CaseInsensitive)) {
+        // C22: every word somewhere in the name, the category or a tag. The parts are joined
+        // with a character no fold keeps, so a word never spans two of them.
+        const QChar apart(0x1f);
+        QString haystack = SearchWords::fold(t.name) + apart + SearchWords::fold(t.category);
+        for (const QString &tag : t.tags)
+            haystack += apart + SearchWords::fold(tag);
+        if (!SearchWords::matches(m_query, haystack))
+            return false;
+    }
+
+    return true;
+}
+
+bool TorrentFilterModel::inScope(const Torrent &t,
+                                 const TorrentModel &source,
+                                 qint64 dayStart) const
+{
     if (m_statusFilter != All && !t.statusGroups().testFlag(groupFor(m_statusFilter)))
+        return false;
+
+    if (m_question != AnyQuestion &&
+        questionOf(t, source.hasLoggedTrouble(t.hash), dayStart) != m_question)
         return false;
 
     if (!m_onlyHashSet.isEmpty() && !m_onlyHashSet.contains(t.hash))
@@ -564,18 +825,23 @@ bool TorrentFilterModel::filterAcceptsRow(int sourceRow, const QModelIndex &sour
         }
     }
 
-    if (!m_text.isEmpty() && !t.hash.startsWith(m_text, Qt::CaseInsensitive)) {
-        // C22: every word somewhere in the name, the category or a tag. The parts are joined
-        // with a character no fold keeps, so a word never spans two of them.
-        const QChar apart(0x1f);
-        QString haystack = SearchWords::fold(t.name) + apart + SearchWords::fold(t.category);
-        for (const QString &tag : t.tags)
-            haystack += apart + SearchWords::fold(tag);
-        if (!SearchWords::matches(m_query, haystack))
-            return false;
-    }
-
     return true;
+}
+
+ScopeFacts TorrentFilterModel::scopeFacts() const
+{
+    ScopeFacts facts;
+    const auto *source = qobject_cast<const TorrentModel *>(sourceModel());
+    if (source == nullptr)
+        return facts;
+    const qint64 dayStart = dayStartMSecs();
+    for (int row = 0, count = source->rowCount(); row < count; ++row) {
+        const Torrent &t = source->torrentAt(row);
+        if (t.hash.isEmpty() || !inScope(t, *source, dayStart))
+            continue;
+        facts.add(t, questionOf(t, source->hasLoggedTrouble(t.hash), dayStart));
+    }
+    return facts;
 }
 
 bool TorrentFilterModel::lessThan(const QModelIndex &left, const QModelIndex &right) const
@@ -583,6 +849,14 @@ bool TorrentFilterModel::lessThan(const QModelIndex &left, const QModelIndex &ri
     const auto *source = qobject_cast<const TorrentModel *>(sourceModel());
     if (source == nullptr)
         return false;
+
+    // C24 H3: the group first, in its own order whichever way the column sorts (the proxy
+    // reverses lessThan() for a descending sort, so this is reversed first), then the rest.
+    if (m_groupBy != NoGroups) {
+        const int compared = compareGroups(left, right);
+        if (compared != 0)
+            return sortOrder() == Qt::DescendingOrder ? compared > 0 : compared < 0;
+    }
 
     if (!m_heldPlaces.isEmpty()) {
         // The held order: the places the rows had, new torrents in their slots among them,
@@ -681,6 +955,221 @@ int TorrentFilterModel::nameRank(int sourceRow) const
             m_nameRanks[order.at(rank)] = rank;
     }
     return sourceRow >= 0 && sourceRow < count ? m_nameRanks.at(sourceRow) : 0;
+}
+
+} // namespace omaseed::core
+
+namespace omaseed::core {
+
+// --- DECISIONS C24 H3: groups, and the rows display's words -------------------------------
+
+namespace {
+
+QString trGroups(const char *text)
+{
+    return QCoreApplication::translate("TorrentFilterModel", text);
+}
+
+} // namespace
+
+QString TorrentFilterModel::questionKey(int question)
+{
+    switch (question) {
+    case NeedsYou:
+        return QStringLiteral("needsYou");
+    case Arriving:
+        return QStringLiteral("arriving");
+    case LandedToday:
+        return QStringLiteral("landedToday");
+    case GivingBack:
+        return QStringLiteral("givingBack");
+    case Resting:
+        return QStringLiteral("resting");
+    default:
+        return {};
+    }
+}
+
+void TorrentFilterModel::setGroupBy(GroupBy groupBy)
+{
+    if (m_groupBy == groupBy)
+        return;
+    m_groupBy = groupBy;
+    // As a new sort role: a held order lets go for it, and holds again from the new order.
+    dropHeldOrder();
+    sortNow();
+    if (m_holdOrder)
+        freezeOrder();
+    rebuildGroups();
+    Q_EMIT groupByChanged();
+}
+
+QString TorrentFilterModel::groupKeyOf(const Torrent &torrent, int question) const
+{
+    switch (m_groupBy) {
+    case ByQuestion:
+        return questionKey(question);
+    case ByCategory:
+        return torrent.category;
+    case NoGroups:
+        break;
+    }
+    return {};
+}
+
+int TorrentFilterModel::compareGroups(const QModelIndex &left, const QModelIndex &right) const
+{
+    const auto *source = qobject_cast<const TorrentModel *>(sourceModel());
+    const Torrent &l = source->torrentAt(left.row());
+    const Torrent &r = source->torrentAt(right.row());
+    if (m_groupBy == ByQuestion) {
+        const qint64 dayStart = dayStartMSecs();
+        return int(questionOf(l, source->hasLoggedTrouble(l.hash), dayStart)) -
+               int(questionOf(r, source->hasLoggedTrouble(r.hash), dayStart));
+    }
+    // By category: by name, the torrents with none last.
+    if (l.category == r.category)
+        return 0;
+    if (l.category.isEmpty())
+        return 1;
+    if (r.category.isEmpty())
+        return -1;
+    const int compared = m_collator.compare(l.category, r.category);
+    return compared != 0 ? compared : QString::compare(l.category, r.category);
+}
+
+void TorrentFilterModel::rebuildGroups()
+{
+    QVariantList next;
+    QHash<QString, QString> keys;
+    const auto *source = qobject_cast<const TorrentModel *>(sourceModel());
+    if (m_groupBy != NoGroups && source != nullptr) {
+        const qint64 dayStart = dayStartMSecs();
+        const int count = rowCount();
+        keys.reserve(count);
+        QString current;
+        int first = 0;
+        int question = AnyQuestion;
+        ScopeFacts facts;
+        const auto close = [&](int end) {
+            const QString title = m_groupBy == ByQuestion ? ScopeSentence::questionWord(question)
+                                  : current.isEmpty()     ? trGroups("no category")
+                                                          : current;
+            const QString line = m_groupBy == ByQuestion ? ScopeSentence::groupLine(question, facts)
+                                                         : ScopeSentence::shelfLine(facts);
+            next.append(QVariantMap{
+                {QStringLiteral("key"), current},
+                {QStringLiteral("title"), title},
+                {QStringLiteral("first"), first},
+                {QStringLiteral("count"), end - first},
+                {QStringLiteral("line"), line},
+                {QStringLiteral("question"), m_groupBy == ByQuestion ? question : int(AnyQuestion)},
+            });
+        };
+        for (int row = 0; row < count; ++row) {
+            const Torrent &t = source->torrentAt(mapToSource(index(row, 0)).row());
+            const int q = questionOf(t, source->hasLoggedTrouble(t.hash), dayStart);
+            const QString key = groupKeyOf(t, q);
+            keys.insert(t.hash, key);
+            if (row == 0 || key != current) {
+                if (row > 0)
+                    close(row);
+                current = key;
+                first = row;
+                question = q;
+                facts = ScopeFacts();
+            }
+            facts.add(t, q);
+        }
+        if (count > 0)
+            close(count);
+    }
+    m_groupOf = std::move(keys);
+    if (next != m_groups) {
+        m_groups = std::move(next);
+        Q_EMIT groupsChanged();
+    }
+}
+
+void TorrentFilterModel::noteGroupChanges(int first, int last)
+{
+    const auto *source = qobject_cast<const TorrentModel *>(sourceModel());
+    if (m_groupBy == NoGroups || source == nullptr || m_groupOf.isEmpty())
+        return;
+    const qint64 dayStart = dayStartMSecs();
+    for (int row = std::max(0, first); row <= last && row < source->rowCount(); ++row) {
+        const Torrent &t = source->torrentAt(row);
+        const auto known = m_groupOf.constFind(t.hash);
+        if (known == m_groupOf.cend())
+            continue;
+        if (groupKeyOf(t, questionOf(t, source->hasLoggedTrouble(t.hash), dayStart)) != *known) {
+            m_regroupPending = true;
+            break;
+        }
+    }
+    if (m_regroupPending && !m_inRuns) {
+        m_regroupPending = false;
+        sortNow();
+    }
+}
+
+void TorrentFilterModel::regroupAll()
+{
+    if (rowCount() > 0)
+        Q_EMIT dataChanged(index(0, 0), index(rowCount() - 1, 0), {});
+    if (m_groupBy == ByQuestion && !m_inRuns)
+        sortNow();
+}
+
+QVariant TorrentFilterModel::data(const QModelIndex &index, int role) const
+{
+    if (role < QuestionRole || role > MonogramRole)
+        return QSortFilterProxyModel::data(index, role);
+    const auto *source = qobject_cast<const TorrentModel *>(sourceModel());
+    if (source == nullptr || !index.isValid())
+        return {};
+    const QModelIndex at = mapToSource(index);
+    const Torrent &t = source->torrentAt(at.row());
+    if (role == MonogramRole)
+        return RowWords::monogram(t.name);
+    const int question = questionOf(t, source->hasLoggedTrouble(t.hash), dayStartMSecs());
+    if (role == QuestionRole)
+        return question;
+    if (role == GroupRole)
+        return groupKeyOf(t, question);
+
+    const RowWords words = wordsAt(*source, at, question);
+    switch (role) {
+    case RowFactRole:
+        return words.fact;
+    case RowCaptionRole:
+        return words.caption;
+    case RowSentenceRole:
+        return words.sentence;
+    case RowMetaRole:
+        return words.meta;
+    case RowFixRole:
+        return words.fix;
+    case RowFixActionRole:
+        return words.fixAction;
+    default:
+        return {};
+    }
+}
+
+QHash<int, QByteArray> TorrentFilterModel::roleNames() const
+{
+    QHash<int, QByteArray> names = QSortFilterProxyModel::roleNames();
+    names.insert(QuestionRole, "question");
+    names.insert(GroupRole, "group");
+    names.insert(RowFactRole, "rowFact");
+    names.insert(RowCaptionRole, "rowCaption");
+    names.insert(RowSentenceRole, "rowSentence");
+    names.insert(RowMetaRole, "rowMeta");
+    names.insert(RowFixRole, "rowFix");
+    names.insert(RowFixActionRole, "rowFixAction");
+    names.insert(MonogramRole, "monogram");
+    return names;
 }
 
 } // namespace omaseed::core

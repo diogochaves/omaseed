@@ -54,6 +54,7 @@ private slots:
     void hexColor();
     void rolesAreThoseThemeResolved();
     void everyColourAndAlphaRoleIsThere();
+    void groundsAreThoseThemeResolved();
 
 private:
     void writeFile(const QString &path, const QByteArray &text) const;
@@ -171,11 +172,37 @@ void TestThemeRoles::everyColourAndAlphaRoleIsThere()
             QVERIFY2(alphas.contains(name), qPrintable(name));
         }
     }
-    // 18 palette roles and 7 state roles; the shell's 7 alphas, the spec's 4, the ground's 2.
+    // 18 palette roles and 7 state roles; the shell's 7 alphas, the spec's 4, the ground's 2,
+    // C30's cap and three tints.
     QCOMPARE(colourRoles, 25);
     QCOMPARE(colors.size(), colourRoles);
-    QCOMPARE(alphaRoles, 13);
+    QCOMPARE(alphaRoles, 17);
     QCOMPARE(alphas.size(), alphaRoles);
+}
+
+/// docs/DECISIONS.md C30 F7: every role on every ground, as `Theme.on` resolved them, so
+/// contrast-board.py --check measures the app's colours, not its own idea of them.
+void TestThemeRoles::groundsAreThoseThemeResolved()
+{
+    ThemeReader reader;
+    Theme theme(&reader, noHyprland());
+    const QJsonObject grounds = Theme::rolesJson(theme).value(QStringLiteral("grounds")).toObject();
+    QCOMPARE(grounds.size(), theme.on()->all().size());
+    for (const auto *ink : theme.on()->all()) {
+        const QJsonObject ground = grounds.value(ink->name()).toObject();
+        QCOMPARE(ground.value(QStringLiteral("alpha")).toDouble(), ink->alpha());
+        QCOMPARE(ground.value(QStringLiteral("ground")).toString(), Theme::hexColor(ink->ground()));
+        QCOMPARE(ground.value(QStringLiteral("fill")).toString(), Theme::hexColor(ink->fill()));
+        const QJsonObject colors = ground.value(QStringLiteral("colors")).toObject();
+        QCOMPARE(colors.size(), int(omaseed::integration::ThemeInk::RoleCount));
+        QCOMPARE(colors.value(QStringLiteral("dimForeground")).toString(),
+                 Theme::hexColor(ink->dimForeground()));
+    }
+    // The fixture's hover fill is the shell's 0.1, and the cursor's ground is the same one.
+    QCOMPARE(grounds.value(QStringLiteral("hover")).toObject().value(QStringLiteral("alpha")),
+             QJsonValue(0.1));
+    QCOMPARE(grounds.value(QStringLiteral("cursor")).toObject().value(QStringLiteral("ground")),
+             grounds.value(QStringLiteral("hover")).toObject().value(QStringLiteral("ground")));
 }
 
 QTEST_MAIN(TestThemeRoles)

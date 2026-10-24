@@ -168,7 +168,8 @@ public:
     Q_INVOKABLE QVariantList carryRows() const;
     /// The same, as text for the clipboard.
     Q_INVOKABLE QString carryText() const;
-    /// The scope line's words for a picked folder (F1).
+    /// A picked folder's sentence under the title (C24 H5, board 46; C15 M1's scope line was
+    /// F1's): count, bytes on disk, save paths, loose files, its path; while it moves, the move.
     Q_INVOKABLE QString folderLine(const QString &path) const;
     /// The folder a move starts from when nothing is picked: the save path of `hash`.
     Q_INVOKABLE QString folderOf(const QString &hash) const;

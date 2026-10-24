@@ -12,8 +12,8 @@ TestCase {
     name: "Keymap"
 
     /// Every key of Fig. 26, in the figure's reading order. One deviation, logged in
-    /// docs/DECISIONS.md S1: the figure prints `0–9`, the app `0–8` (batch-2 S1).
-    readonly property list<string> figureKeys: ["j", "k", "g", "G", "h", "l", "/", "0–8", "i", "1–4",
+    /// DECISIONS C24 H2 (supersedes S1): the figure's `0–9` became the five questions, `1–5`.
+    readonly property list<string> figureKeys: ["j", "k", "g", "G", "h", "l", "/", "1–5", "i", "1–4",
         "ctrl+k", "space", "v", "ctrl+a", "esc", "a", "enter", "p", "P", "d", "D", "c", "R", "C",
         "t", "m", "L", "r", "[", "]", "o", "y", "Y", "s", "A", ",", "ctrl+,", "|", "q", "ctrl+q", "?"]
 
@@ -105,7 +105,7 @@ TestCase {
         compare(Keymap.columns, ["navigate", "select", "view", "act", "app"]);
 
         const navigate = Keymap.helpRows("navigate");
-        compare(navigate.map(row => row.helpKeys), ["j k", "g G", "h l", "/", "0–8", "ctrl+k",
+        compare(navigate.map(row => row.helpKeys), ["j k", "g G", "h l", "/", "1–5 0", "ctrl+k",
                                                   "ctrl+h ctrl+l"]);
 
         const select = Keymap.helpRows("select");
@@ -113,7 +113,7 @@ TestCase {
 
         const act = Keymap.helpRows("act");
         // Then the Files tab's two (N1) and the details pane's copy (docs/12 G5).
-        // #160: shift+f, free the space, after them.
+        // #160: shift+f, free the space, after them (C30 F13: "or add it again").
         compare(act.map(row => row.helpKeys), ["a", "enter", "p P e", "d D", "c R", "C t m L r", "[ ]",
                                                "o", "y Y n", "p + - x", "O o r", "F", "y enter"]);
         compare(act.map(row => row.help), ["add", "actions", "stop/start · force · retry",
@@ -121,12 +121,13 @@ TestCase {
                                            "category · tags · location · limits · rename", "queue",
                                            "open folder", "copy magnet · hash · name",
                                            "file priority", "open · folder · rename",
-                                           "free the space", "copy value · change option"]);
+                                           "free the space, or add it again",
+                                           "copy value · change option"]);
 
         const view = Keymap.helpRows("view");
         // #24 puts the seed console's ` first, docs/32 the log's ~ after it, and the log
         // face's own keys last.
-        compare(view.map(row => row.helpKeys), ["`", "~", "i", "1–4", "s", "|", "alt+↑ alt+↓", "ctrl+b", "I",
+        compare(view.map(row => row.helpKeys), ["`", "~", "i", "1–5", "s", "|", "alt+↑ alt+↓", "ctrl+b", "I",
                                                 "< >", "H L", "X", "1–4 / w f t"]);
 
         const application = Keymap.helpRows("app");
@@ -230,37 +231,38 @@ TestCase {
         compare(row.helpKeys, ": ctrl+shift+p");
     }
 
-    // §5: 45 rows from the table (docs/32 added `~`, board 42 "move folder…"), plus the focused area's own: Files 15,
+    // §5: 56 rows from the table (docs/32 added `~`, board 42 "move folder…", C24 H2 a "show
+    // STATE…" per `is:` word, C24 H3 three displays), plus the focused area's own: Files 15,
     // Trackers 4, Peers 3, HTTP sources 3, the seed console 3, the log 14.
     function test_the_rows_from_each_area() {
-        compare(Keymap.commandRows(testCase._context({})).length, 45);
+        compare(Keymap.commandRows(testCase._context({})).length, 56);
         compare(Keymap.commandRows(testCase._context({
                                                          "area": "rail"
-                                                     })).length, 45);
+                                                     })).length, 56);
         compare(Keymap.commandRows(testCase._context({
                                                          "area": "files"
-                                                     })).length, 60);
+                                                     })).length, 71);
         compare(Keymap.commandRows(testCase._context({
                                                          "area": "trackers"
-                                                     })).length, 49);
+                                                     })).length, 60);
         compare(Keymap.commandRows(testCase._context({
                                                          "area": "peers"
-                                                     })).length, 48);
+                                                     })).length, 59);
         compare(Keymap.commandRows(testCase._context({
                                                          "area": "webseeds"
-                                                     })).length, 48);
+                                                     })).length, 59);
         compare(Keymap.commandRows(testCase._context({
                                                          "area": "console"
-                                                     })).length, 48);
+                                                     })).length, 59);
         compare(Keymap.commandRows(testCase._context({
                                                          "area": "log"
-                                                     })).length, 59);
+                                                     })).length, 70);
         // Every action id is listed once, and movements never.
         const actions = Keymap.commandRows(testCase._context({})).map(row => row.action);
         for (const action of actions)
             compare(actions.filter(other => other === action).length, 1, "listed twice: " + action);
         for (const movement of ["moveDown", "first", "focusRail", "toggleSelection", "selectRange",
-                                "statusFilter", "escape", "actions", "more", "stopStart", "commands",
+                                "question", "escape", "actions", "appMenu", "stopStart", "commands",
                                 "hyprlandBind"])
             verify(actions.indexOf(movement) < 0, "not a command: " + movement);
     }
@@ -355,6 +357,25 @@ TestCase {
         compare(rows[0].action, "selectAll", "a row that can run did not come first");
     }
 
+    // DECISIONS C24 H2: the states the rail no longer lists, one "show STATE…" row each after
+    // "filter", which types `is:STATE`; none while the filter can't run.
+    function test_the_states_have_palette_rows() {
+        const rows = Keymap.commandRows(testCase._context({}));
+        const at = rows.findIndex(row => row.action === "filter");
+        verify(at >= 0);
+        const states = rows.slice(at + 1, at + 9);
+        compare(states.map(row => row.title), ["show downloading…", "show seeding…", "show completed…",
+                                               "show stopped…", "show active…", "show stalled…",
+                                               "show checking…", "show errored…"]);
+        compare(states[5].action, Keymap.showStatePrefix + "stalled");
+        compare(states[5].detail, "library · is:stalled");
+        verify(states.every(row => !row.disabled));
+        const lost = Keymap.commandRows(testCase._context({
+                                                              "serverLost": true
+                                                          }));
+        compare(lost.filter(row => row.action.startsWith(Keymap.showStatePrefix)).length, 0);
+    }
+
     // P6, Fig. 23: only settings, shortcuts, hide and quit run; the rest is read-only.
     function test_a_lost_server() {
         const rows = Keymap.commandRows(testCase._context({
@@ -421,6 +442,16 @@ TestCase {
         // Not a command of the library's own palette.
         const library = Keymap.commandRows(testCase._context({"freeable": true}));
         compare(testCase._row(library, "freeSpace"), null);
+
+        // DECISIONS C30 F13: when only adding it again frees them, the row says so.
+        const readd = Keymap.commandRows(testCase._context({
+                                                               "area": "files",
+                                                               "row": "a.bin",
+                                                               "freeable": true,
+                                                               "readdText": "1.03 GB"
+                                                           }));
+        compare(testCase._row(readd, "freeSpace").title, "add it again to free 1.03 GB…");
+        compare(testCase._row(readd, "freeSpace").meta, "F");
     }
 
     function test_the_trackers_and_peers_tabs() {
@@ -440,7 +471,8 @@ TestCase {
         compare(peers.slice(0, 3).map(row => row.title), ["add peers", "ban peers",
                                                           "copy peer addresses"]);
         compare(peers[1].meta, "b");
-        compare(peers[1].detail, "peers · 2 marked");
+        // DECISIONS C24 H6: the peers are the details' swarm tab.
+        compare(peers[1].detail, "swarm · 2 marked");
     }
 
     // An option row reads like the actions menu's: the cursor torrent decides on or off.
@@ -464,14 +496,14 @@ TestCase {
         compare(testCase._row(rows, "sequential").detail, "torrents · Field Recordings · now on");
         compare(testCase._row(rows, "toggleDetails").title, "show details");
         compare(testCase._row(rows, "altSpeed").title, "alt-speed off");
-        compare(testCase._row(rows, "toggleRail").title, "show the rail");
+        compare(testCase._row(rows, "toggleRail").title, "open the rail");
         // The `details` need: smaller and larger only while the pane shows.
         compare(testCase._row(rows, "detailsSmaller").detail, "view · details hidden · i shows them");
     }
 
     function test_the_limit_sheets_show_their_path() {
         const rows = Keymap.commandRows(testCase._context({}));
-        compare(testCase._row(rows, "globalLimits").via, "ctrl+.");
+        compare(testCase._row(rows, "globalLimits").via, ":");
         compare(testCase._row(rows, "altLimits").title, "alt-speed limits…");
     }
 
@@ -574,11 +606,9 @@ TestCase {
     }
 
     Component {
-        id: moreMenuComponent
+        id: appMenuComponent
 
-        MoreMenu {
-            appRows: true
-        }
+        AppMenu {}
     }
 
     function test_the_menus_rows_are_in_the_keymap() {
@@ -593,17 +623,19 @@ TestCase {
             else
                 compare(entry.via, "enter " + item.key, item.action);
         }
-        const more = createTemporaryObject(moreMenuComponent, testCase);
-        for (const item of more.items) {
-            if (item.separator === true)
-                continue;
-            const entry = Keymap.entries.find(e => e.action === item.action && (e.area === "global"
-                                                                                 || e.area === "table"));
-            verify(entry !== undefined, "a ⋯ menu row not in the Keymap: " + item.action);
-            if (entry.key.length > 0)
-                compare(entry.key, item.key, item.action);
-            else
-                compare(entry.via, "ctrl+.", item.action);
+        // C24 H9: the omaseed menu's window rows are Keymap actions with their keys, and each
+        // C13 row it gives a key has that key in the Keymap.
+        const app = createTemporaryObject(appMenuComponent, testCase);
+        for (const row of app.windowRows) {
+            const entry = Keymap.entries.find(e => e.action === row.action && e.area === "global"
+                                              && e.key === row.key);
+            verify(entry !== undefined, "an omaseed menu row not in the Keymap: " + row.action);
+        }
+        for (const id of Object.keys(app.sharedKeys)) {
+            const action = app.sharedKeymapActions[id];
+            const entry = Keymap.entries.find(e => e.action === action && e.area === "global"
+                                              && e.key === app.sharedKeys[id]);
+            verify(entry !== undefined, "an omaseed menu key not in the Keymap: " + id);
         }
     }
 

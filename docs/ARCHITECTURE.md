@@ -35,7 +35,7 @@ Three static libraries and the executable. Each layer only depends on the ones a
   the technical text for "details" ([DECISIONS.md](DECISIONS.md) C12).
 - `ActionOutcome` words what a quick action on torrents came to ("3 stopped", "NAME didn't
   move", "2 moved to PATH, 1 didn't"), and `ActionOutcomes` holds the one strip on show and
-  each row's mark, for the strip in the selection bar's place (C18 D1–D3).
+  each row's mark, for the strip over the rows' foot (C18 D1–D3, C24 H8).
 - Servers and settings: `Server`, `ServerStore` (`servers.json`), `SecretStore` (the keyring
   through qtkeychain, a 0600 file under `secrets/` when there is none), `StateFile`,
   `ServerPreferences` (qBittorrent's own settings), `CertificatePin` (trust on first use).
@@ -70,7 +70,10 @@ Three static libraries and the executable. Each layer only depends on the ones a
 
 - `ThemeReader` and `Theme`: read the current Omarchy theme's `colors.toml` and `shell.toml`
   (the bundled Tokyo Night when Omarchy is absent), watch them, and repaint live. A theme hook
-  can also ask for a reload over D-Bus.
+  can also ask for a reload over D-Bus. QML never sees `Theme` by that name: `Omaseed.Kit`
+  registers it as `ThemeBase`, and its `Theme` singleton is `Kit/Theme.qml`, which derives from
+  it and adds the one thing C++ can't give a binding, a `space(px)` that reads `spaceScale`
+  ([DECISIONS.md](DECISIONS.md) C28, #156).
 - `SingleInstance`: `org.freedesktop.Application` on `io.github.diogochaves.omaseed`; a second
   launch hands its magnets and `.torrent` files to the first one and raises it, and
   `omaseed --quit` asks it to quit. `QuitSignals` turns SIGTERM, SIGINT and SIGHUP into the
@@ -93,7 +96,8 @@ sync engine and the models, and turns key presses and clicks into API calls.
   take only `Theme` tokens and each has a `tests/qml/tst_<Name>.qml`.
 - `qml/Views/`: the screens, built from the kit; views take models. The window has three
   faces: the library, the seed console (`Console`) and qBittorrent's log (`LogView`).
-- `Keymap.qml` maps keys to actions per focus area and feeds the key hints.
+- `Keymap.qml` maps keys to actions per focus area and feeds the command palette and the `?`
+  sheet.
 
 **`plugin/`** is the bar widget itself, a Quickshell plugin (`chaves.omaseed`). It never talks
 to qBittorrent: it reads the status file and sends commands over D-Bus.
@@ -112,17 +116,38 @@ theme changes.
 1. Colours only through `Theme.<role>`: `background`, `foreground`, `dimForeground`,
    `brightForeground`, `accent`, `muted`, `red`, `yellow`, `orange`, `green`, `cyan`, `blue`,
    `magenta`, and the torrent states (`stateDownloading`, `stateSeeding`, `stateStopped`,
-   `stateError`, `stateChecking`, `stateQueued`, `stateStalled`). No hex colours in QML.
-2. Fills through `Theme.fill(alpha)`: 0.04 idle, 0.08 hover or cursor, 0.18 selected, 0.22
-   pressed. Borders 0.40 idle, 0.25 hover. Hairlines 0.12.
-3. Sizes from the shell's `base-size`: `Theme.font.caption|small|body|subtitle|title|heading|display`
-   (× 0.833 / 0.917 / 1 / 1.083 / 1.167 / 1.333 / 2), spacing through `Theme.space(px)`.
-4. The window is `Theme.background` at `Theme.windowAlpha` with a 1 px edge, `accent` when
-   active and `muted` when not. Popups, sheets and palettes are opaque with an `accent` edge.
-5. Corner radius comes from Hyprland, 0 by default. Never hardcode rounding.
-6. The font is fontconfig's `monospace`; icons are Nerd Font glyphs chosen once in
+   `stateError`, `stateChecking`, `stateQueued`, `stateStalled`). No hex colours in QML. These
+   are the colours on the window's own ground.
+2. Fills through `Theme.fill(alpha)`: 0.04 idle, 0.08 hover or cursor, 0.18 selected, 0.24
+   selected under the cursor, 0.22 pressed. Borders 0.40 idle, 0.25 hover. Hairlines 0.12. A
+   theme whose text reads on nothing at a fill's alpha has that fill held lower
+   (`Theme.fillCap`; everforest 0.215, DECISIONS C30 F6).
+3. Text on a fill takes its colour from the ground it is painted on, never from rule 1
+   (DECISIONS C30 F1–F7). `Theme.on.<ground>` holds every text role (`foreground`,
+   `dimForeground`, `brightForeground`, the palette, the states) resolved on that ground at
+   4.5:1 with the least lift, once per theme change, and the ground's `fill`, which is what
+   to paint: `window`, `idle`, `hover`, `cursor`, `selected`, `selectedCursor`, `pressed`; the
+   tints `warning` (the yellow bands), `attention`, `danger` (a selected danger button),
+   `ticked`, `accentIdle`; and fills inside a 4 % block, `blockIdle`, `blockHover`,
+   `highlight`. A control with states keeps a `Kit/Ink` on `Theme.ground(selected, cursor,
+   hovered, pressed)` (`Theme.groundIn(block, …)` inside a block), which eases the colours with
+   the fill's 120 ms change; its words read `ink.dimForeground`, `ink[stateRole]`, and a
+   colour handed in by a caller goes through `ink.of(colour)`. A static band reads
+   `Theme.on.warning.dimForeground` and paints `Theme.on.warning.fill`. Kit text (`Label`,
+   `KeyHints`, `KeyCap`, `TableHeader`) takes the `ink` it sits on; `Button`, `IconButton`,
+   `Chip` and `RailRow` take the `block` they rest on. A new ground is a ThemeInk in
+   `ThemeGrounds`, which `tst_themecontrast` and `contrast-board.py --check` then cover.
+4. Sizes from the shell's `base-size`: `Theme.font.caption|small|body|subtitle|title|heading|display`
+   (× 0.833 / 0.917 / 1 / 1.083 / 1.167 / 1.333 / 2), spacing through `Theme.space(px)`. A
+   binding of `Theme.space(…)` alone follows a base-size change like one of `Theme.font.*`.
+5. The window is `Theme.background` at `Theme.windowAlpha` with a 1 px edge, `accent` when
+   active and `muted` when not. The ground is opaque (`windowAlpha` 1) unless Settings ›
+   Appearance › Window is translucent, which takes the launcher's alpha or the transparency
+   set there (DECISIONS C24 H13). Popups, sheets and palettes are opaque with an `accent` edge.
+6. Corner radius comes from Hyprland, 0 by default. Never hardcode rounding.
+7. The font is fontconfig's `monospace`; icons are Nerd Font glyphs chosen once in
    `Kit/Glyphs.qml`.
-7. Every colour is a binding, never a copy: a theme change repaints without a restart.
+8. Every colour is a binding, never a copy: a theme change repaints without a restart.
 
 ## Design
 

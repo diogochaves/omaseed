@@ -42,6 +42,20 @@ omaseed_add_test(tst_printonly
 )
 add_dependencies(tst_printonly omaseed)
 
+# docs/DECISIONS.md C30 F7: every text role on every ground, in every theme of
+# tests/fixtures/themes, as the built omaseed resolves them (`--theme-roles`, offscreen, no
+# window). A theme that puts one pair under 4.5:1 fails here.
+find_package(Python3 COMPONENTS Interpreter)
+if(Python3_FOUND)
+    add_test(
+        NAME contrast_board_check
+        COMMAND ${Python3_EXECUTABLE} "${PROJECT_SOURCE_DIR}/scripts/dev/contrast-board.py"
+                --check "$<TARGET_FILE:omaseed>"
+                --themes-root "${PROJECT_SOURCE_DIR}/tests/fixtures/themes"
+    )
+    set_tests_properties(contrast_board_check PROPERTIES TIMEOUT 120)
+endif()
+
 # docs/DECISIONS.md C20 (#107): `p` stops an errored torrent and omaseed remembers the stop.
 omaseed_add_test(tst_app_errored
     SOURCES tst_app_errored.cpp

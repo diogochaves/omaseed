@@ -79,7 +79,8 @@ Item {
     signal tickClicked(int row, int wanted)
     /// A click on the header's tick, for every file the filter shows (docs/27 D1/D4).
     signal headTickClicked
-    /// C17 D3: the band's "Free the space…".
+    /// C17 D3: the band's "Free the space…"; C30 F12: its "Add it again…" when only that
+    /// frees them (the pane goes straight to the confirm).
     signal freeSpaceRequested
     /// C17 D4: the hint's "Path maps…".
     signal pathMapsRequested
@@ -145,6 +146,11 @@ Item {
     /// #160: shift+f and the palette's "free the space…": some skipped file holds space on a
     /// disk omaseed sees, with or without the band (the band waits for 1 GiB or 5 %).
     readonly property bool freeable: root.skipped.seen === true && (root.skipped.holding || 0) > 0
+    /// DECISIONS C30 F12: every skipped file that holds space has downloaded pieces on a hybrid
+    /// or v2-only torrent, so only adding it again frees any of it (SkippedOutlook's "readd").
+    readonly property bool readdOnly: root.freeable && root.skipped.outlook === "readd"
+    /// C30 F17: ", 16.0 MB still on disk" after the summary's "N skipped".
+    readonly property string stillText: root.freeable ? (root.skipped.stillText || "") : ""
     /// C17 D5: a change waits before it is sent.
     readonly property bool holdShown: root.held.waiting === true
     readonly property real holdLeftMs: root.holdShown ? Math.max(0, root.held.deadlineMs - root._now) : 0
@@ -349,7 +355,8 @@ Item {
                     font.family: Theme.fontFamily
                     font.pixelSize: Theme.font.small
                     objectName: "filesSkippedText"
-                    text: root.skippedText
+                    // DECISIONS C30 F17: "2 skipped, 16.0 MB still on disk".
+                    text: root.skippedText + (root.stillText.length > 0 ? ", " + root.stillText : "")
                 }
 
                 KeyCap {
@@ -358,7 +365,8 @@ Item {
                     anchors.verticalCenter: parent.verticalCenter
                     objectName: "filesSkippedKey"
                     text: "X"
-                    visible: skippedToggle.keyFits
+                    // Not between the count and what it holds: the line reads as one.
+                    visible: skippedToggle.keyFits && root.stillText.length === 0
                 }
             }
 
@@ -418,7 +426,7 @@ Item {
                 // description. Its toggle and its press are both the click.
                 Accessible.checkable: true
                 Accessible.checked: root.model !== null && root.model.hideSkipped
-                Accessible.description: root.skippedText
+                Accessible.description: skippedText.text
                 Accessible.name: qsTr("hide skipped files")
                 Accessible.role: Accessible.CheckBox
                 Accessible.onPressAction: skippedArea.toggle()
@@ -566,12 +574,24 @@ Item {
             id: heldBand
 
             animated: false
-            body: root.skipped.busy === true ? root._stepText(root.skipped.step || "")
-                                             : (root.skipped.holding || 0) === 1
-                                               ? qsTr("It was written while wanted. qBittorrent keeps it; it never deletes a skipped file.")
-                                               : qsTr("They were written while wanted. qBittorrent keeps them; it never deletes a skipped file.")
+            body: {
+                const one = (root.skipped.holding || 0) === 1;
+                if (root.skipped.busy === true)
+                    return root._stepText(root.skipped.step || "");
+                // DECISIONS C30 F12: only adding it again frees them, said up front.
+                if (root.readdOnly)
+                    return one ? qsTr("It was written while wanted, and pieces of it were downloaded. qBittorrent keeps it; on this torrent only adding it again frees it.")
+                               : qsTr("They were written while wanted, and pieces of them were downloaded. qBittorrent keeps them; on this torrent only adding it again frees them.");
+                return one ? qsTr("It was written while wanted. qBittorrent keeps it; it never deletes a skipped file.")
+                           : qsTr("They were written while wanted. qBittorrent keeps them; it never deletes a skipped file.");
+            }
             copyable: false
             details: {
+                // C30 F12's Why?: the torrent's version, in board 50's words.
+                if (root.readdOnly)
+                    return root.skipped.version === "v2"
+                           ? qsTr("This torrent is v2. Deleting a file that holds downloaded pieces needs a recheck, and on a v2 torrent a recheck leaves it short of 100 % for good, a libtorrent bug. Adding it again from its own .torrent, with those files gone, checks it from scratch.")
+                           : qsTr("This torrent is hybrid (v1 and v2). Deleting a file that holds downloaded pieces needs a recheck, and a recheck on a hybrid hits a libtorrent bug that errors the torrent. Adding it again from its own .torrent, with those files gone, checks it from scratch.");
                 const fs = root.skipped.fileSystem || "";
                 const sparse = ["ext4", "btrfs", "ntfs", "xfs"].indexOf(fs) >= 0;
                 const lead = qsTr("Wanting a file makes qBittorrent create it at its full size, even on a stopped torrent, before anything downloads.");
@@ -596,7 +616,7 @@ Item {
             width: parent.width
             actions: root.skipped.busy === true ? [] : [
                                                       {
-                                                          "label": qsTr("Free the space…"),
+                                                          "label": root.readdOnly ? qsTr("Add it again…  F") : qsTr("Free the space…"),
                                                           "key": "free"
                                                       }
                                                   ]
@@ -812,9 +832,10 @@ Item {
             required property bool rowSelected
             required property int wanted
 
+            // Every cell's words are the row's ground's (docs/DECISIONS.md C30 F1): `row.ink`.
             readonly property color priorityColor: row.priority === 6 || row.priority === 7
-                                                   ? Theme.yellow : row.selected
-                                                     ? row.textColor : Theme.dimForeground
+                                                   ? row.ink.yellow : row.selected
+                                                     ? row.textColor : row.ink.dimForeground
             // A delegate on its way out of a reset reads index -1 for a moment; without the
             // first test it would open the editor, which takes the keyboard as it is built.
             readonly property bool editing: root.renamingRow >= 0 && root.renamingRow === row.index
@@ -858,6 +879,7 @@ Item {
                 FileTick {
                     Layout.preferredHeight: Theme.railRowHeight
                     Layout.preferredWidth: root.tickWidth
+                    ink: row.ink
                     objectName: "fileTick_" + row.index
                     // What a click does, as the header's tick says it for every file.
                     tip: row.wanted === 2 ? (row.isFolder ? qsTr("skip this folder · x")
@@ -892,7 +914,8 @@ Item {
 
                         anchors.left: parent.left
                         anchors.verticalCenter: parent.verticalCenter
-                        color: foldMouse.containsMouse ? Theme.brightForeground : Theme.dimForeground
+                        color: foldMouse.containsMouse ? row.ink.brightForeground
+                                                       : row.ink.dimForeground
                         font.family: Theme.fontFamily
                         font.pixelSize: Theme.font.small
                         text: row.expanded ? Glyphs.chevronDown : Glyphs.chevronRight
@@ -967,7 +990,7 @@ Item {
 
                 DetailsCell {
                     Layout.preferredWidth: root.sizeWidth
-                    color: row.onDiskText === "—" ? Theme.dimForeground : row.textColor
+                    color: row.onDiskText === "—" ? row.ink.dimForeground : row.textColor
                     horizontalAlignment: Text.AlignRight
                     objectName: "fileOnDisk_" + row.index
                     text: row.onDiskText
@@ -986,7 +1009,7 @@ Item {
                         // Complete in the seeding colour, where the percent reads "100 %":
                         // exactly 1, as Format::percentCompact has it (a folder's progress
                         // leaves out what it skips, so a folder that is done is exactly 1).
-                        color: row.progress >= 1 ? Theme.stateSeeding : Theme.accent
+                        color: row.progress >= 1 ? row.ink.stateSeeding : row.ink.accent
                         showText: false
                         value: row.progress
                         visible: !root.compact
@@ -1035,7 +1058,7 @@ Item {
 
                 DetailsCell {
                     Layout.preferredWidth: root.piecesWidth
-                    color: Theme.dimForeground
+                    color: row.ink.dimForeground
                     horizontalAlignment: Text.AlignRight
                     text: row.piecesText
                     tip: nameTip
@@ -1126,14 +1149,14 @@ Item {
         Rectangle {
             border.color: Theme.accent
             border.width: 1
-            color: Theme.fill(Theme.fillIdle)
+            color: Theme.on.idle.fill
 
+            // The name on the field's idle fill, its selected part on the 35 % accent
+            // highlight over that (docs/DECISIONS.md C30 F1, F5).
             TextInput {
                 id: editor
 
-                readonly property color accent: Theme.accent
-                readonly property color highlight: Qt.rgba(editor.accent.r, editor.accent.g,
-                                                           editor.accent.b, 0.35)
+                readonly property color highlight: Theme.on.highlight.fill
 
                 // #91: the inline rename's field, by what it edits.
                 Accessible.name: qsTr("file name")
@@ -1143,12 +1166,12 @@ Item {
                 anchors.leftMargin: Theme.space(4)
                 anchors.rightMargin: Theme.space(4)
                 clip: true
-                color: Theme.brightForeground
+                color: Theme.on.idle.brightForeground
                 font.family: Theme.fontFamily
                 font.pixelSize: Theme.font.small
                 objectName: "fileRenameEditor"
                 selectByMouse: true
-                selectedTextColor: Theme.brightForeground
+                selectedTextColor: Theme.on.highlight.brightForeground
                 selectionColor: editor.highlight
                 text: root.renameText
                 verticalAlignment: TextInput.AlignVCenter

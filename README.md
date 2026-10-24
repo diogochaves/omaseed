@@ -22,6 +22,9 @@ omaseed has no torrent engine of its own: qBittorrent, local or remote, does the
 transferring, and omaseed is the window you see it through. Built for Omarchy, it runs on any
 Linux, with a bundled theme when Omarchy is not there.
 
+- **Five questions, not columns**: the library grouped under needs you, arriving, landed
+  today, giving back and resting, each torrent saying in words what matters now; or the
+  classic table, or shelves of covers, remembered for each place you look
 - **The seed console**: what you give back, from the last hour to the last year, kept by
   omaseed itself
 - **Knows your library before you add**: your newest downloads waiting, files already on disk
@@ -164,8 +167,8 @@ server is replaced.
 
 qBittorrent's API only says a torrent is in error, never why. omaseed reads qBittorrent's own
 log, ties each line to its torrent and says it in plain words: the table's status reads the
-short cause ("disk full", "no access"), and General opens with what went wrong, the folder,
-and the keys that fix it. A notice says so too, with its own switch in Settings ›
+short cause ("disk full", "no access"), and the torrent's story opens with what went wrong,
+the folder, and the keys that fix it. A notice says so too, with its own switch in Settings ›
 Notifications.
 
 ## Keys
@@ -183,8 +186,8 @@ it. A capital letter is the stronger variant of its lower-case neighbour (`p` st
 | `j` `k` | move down / up |
 | `g` `G` | first / last row |
 | `h` `l` | rail · table · details |
-| `/` | filter |
-| `0`–`8` | status filter |
+| `/` | filter (`is:stalled` and the like for any state) |
+| `1`–`5`, `0` | needs you, arriving, landed today, giving back, resting; the library |
 | `ctrl+k` | jump to a torrent by name, hash or tracker |
 | `ctrl+h` `ctrl+l` | scroll sideways |
 
@@ -203,10 +206,11 @@ it. A capital letter is the stronger variant of its lower-case neighbour (`p` st
 |---|---|
 | `` ` `` | seed console |
 | `i` | details |
-| `1`–`4` | details tab (in the details pane) |
+| `1`–`5` | story · files · swarm · trackers · facts (in the details pane; `6` web seeds) |
 | `s` | sort |
+| `:` show as … | rows, table or shelves, for the place on show (also the title bar's tool) |
 | `\|` | columns (`alt+↑` `alt+↓` reorder them) |
-| `ctrl+b` | rail |
+| `ctrl+b` | fold the rail to its glyphs |
 | `I` | details right · bottom · auto |
 | `<` `>` | details smaller · larger |
 | `H` `L` | fold / unfold every folder (Files tab) |
@@ -227,7 +231,8 @@ it. A capital letter is the stronger variant of its lower-case neighbour (`p` st
 | `y` `Y` `n` | copy magnet · hash · name |
 | `p` `+` `-` `x` | file priority (Files tab) |
 | `O` `o` `r` | open · folder · rename a file (Files tab) |
-| `y` `enter` | copy a value · change an option (General tab) |
+| `F` | free the space, or add it again (Files tab) |
+| `y` `enter` | copy a value · change an option (facts tab) |
 
 **App**
 
@@ -236,7 +241,8 @@ it. A capital letter is the stronger variant of its lower-case neighbour (`p` st
 | `A` | alternative speed limits |
 | `,` `ctrl+,` | settings |
 | `ctrl+shift+,` | qBittorrent's settings |
-| `ctrl+.` | more actions |
+| `ctrl+.` | the omaseed menu (the mark): servers, limits, add, settings, quit |
+| hold `alt` | show the keys of what is on screen |
 | `q` | hide to the tray |
 | `ctrl+q` | quit |
 | `?` `F1` | every key |
@@ -258,9 +264,10 @@ repaints as soon as `omarchy-theme-set` runs, on every bundled theme. Text size 
 `shell.toml`'s `[font] base-size`, and window corners follow Hyprland's rounding. Without
 Omarchy it uses a bundled Tokyo Night at base size 12.
 
-Settings › Appearance has: follow the Omarchy theme, base size, window transparency, tray
-icon (`auto` hides it while the bar widget runs), bar widget, speed figures and trends,
-surface tint, tracker hosts, and where the details panel sits.
+Settings › Appearance has: follow the Omarchy theme, base size, the window's ground (opaque, or
+translucent with its transparency), tray icon (`auto` hides it while the bar widget runs), bar
+widget, the scroll hint, tracker hosts, where the details panel sits, and the sending rows'
+pulse.
 
 ## Servers
 

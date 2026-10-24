@@ -1,6 +1,8 @@
 // TorrentFilterModel: the rail's five filters, the hero's search box, and sorting — natural
 // for names, total so a speed tick never shuffles the table (spec §1).
 
+#include "core/FilterCounts.hpp"
+#include "core/LocalDay.hpp"
 #include "core/Torrent.hpp"
 #include "core/TorrentFilterModel.hpp"
 #include "core/TorrentModel.hpp"
@@ -111,6 +113,70 @@ QStringList visibleHashes(const TorrentFilterModel &proxy)
     return list;
 }
 
+/// The clock the question tests stand on: a Friday afternoon, local time.
+QDateTime questionNow()
+{
+    return QDateTime(QDate(2026, 10, 23), QTime(15, 0));
+}
+
+QJsonObject questionJson(const QString &state, double progress, const QDateTime &completed)
+{
+    return QJsonObject{
+        {QStringLiteral("name"), state},
+        {QStringLiteral("state"), state},
+        {QStringLiteral("progress"), progress},
+        {QStringLiteral("completion_on"),
+         completed.isValid() ? completed.toSecsSinceEpoch() : qint64(-1)},
+    };
+}
+
+/// One torrent per way into each question (DECISIONS C24 H2, #167's assumed answers), keyed
+/// by the question it answers at questionNow(); "failed" also gets a logged failure.
+QJsonObject questionLibrary()
+{
+    const QDateTime today = QDateTime(QDate(2026, 10, 23), QTime(9, 0));
+    const QDateTime yesterday = QDateTime(QDate(2026, 10, 22), QTime(23, 30));
+    const QDateTime none;
+    return QJsonObject{
+        {QStringLiteral("needs-error"), questionJson(QStringLiteral("error"), 0.4, none)},
+        {QStringLiteral("needs-missing"),
+         questionJson(QStringLiteral("missingFiles"), 1.0, yesterday)},
+        {QStringLiteral("needs-failed"), questionJson(QStringLiteral("uploading"), 1.0, yesterday)},
+        {QStringLiteral("arriving-down"), questionJson(QStringLiteral("downloading"), 0.5, none)},
+        {QStringLiteral("arriving-meta"), questionJson(QStringLiteral("metaDL"), 0.0, none)},
+        {QStringLiteral("arriving-queued"), questionJson(QStringLiteral("queuedDL"), 0.2, none)},
+        {QStringLiteral("arriving-checking"),
+         questionJson(QStringLiteral("checkingDL"), 0.3, none)},
+        {QStringLiteral("landed-seeding"), questionJson(QStringLiteral("stalledUP"), 1.0, today)},
+        {QStringLiteral("landed-stopped"), questionJson(QStringLiteral("stoppedUP"), 1.0, today)},
+        {QStringLiteral("giving-seeding"),
+         questionJson(QStringLiteral("uploading"), 1.0, yesterday)},
+        {QStringLiteral("giving-checking"),
+         questionJson(QStringLiteral("checkingUP"), 1.0, yesterday)},
+        {QStringLiteral("resting-done"), questionJson(QStringLiteral("stoppedUP"), 1.0, yesterday)},
+        {QStringLiteral("resting-half"), questionJson(QStringLiteral("stoppedDL"), 0.4, none)},
+    };
+}
+
+QString questionPrefix(TorrentFilterModel::Question question)
+{
+    switch (question) {
+    case TorrentFilterModel::NeedsYou:
+        return QStringLiteral("needs-");
+    case TorrentFilterModel::Arriving:
+        return QStringLiteral("arriving-");
+    case TorrentFilterModel::LandedToday:
+        return QStringLiteral("landed-");
+    case TorrentFilterModel::GivingBack:
+        return QStringLiteral("giving-");
+    case TorrentFilterModel::Resting:
+        return QStringLiteral("resting-");
+    case TorrentFilterModel::AnyQuestion:
+        break;
+    }
+    return {};
+}
+
 /// `count` idle seeds, "torrent-000" up, in hash order a shuffle of their name order so a
 /// poll's rows are scattered in the proxy. Speeds start at `speedStep` times the name's number.
 QJsonObject seedLibrary(int count, qint64 speedStep = 0)
@@ -200,6 +266,19 @@ private slots:
     void heldOrderPlacesAddsAtOnce();
     void explicitChangesApplyWhileHeld();
     void heldOrderOutlastsAPollBracket();
+    void questionsSplitTheLibrary_data();
+    void questionsSplitTheLibrary();
+    void landedTodayTurnsOverAtMidnight();
+    void aLoggedFailureNeedsYouAtOnce();
+    void isWordsNameStates_data();
+    void isWordsNameStates();
+    void groupsRunUnderTheQuestions();
+    void groupsByCategoryPutNoneLast();
+    void aTorrentThatChangesGroupMoves();
+    void aHeldOrderStillRegroups();
+    void aLoggedFailureRegroupsAtOnce();
+    void midnightRegroups();
+    void rowWordsAreRolesThatFollowTheSource();
 
 private:
     TorrentModel m_source;
@@ -1077,6 +1156,461 @@ void TestFilterModel::heldOrderOutlastsAPollBracket()
     QCOMPARE(layouts.count(), 1);
     QVERIFY(sortedBySpeedDescending(proxy));
     QCOMPARE(selectedHashes(selection), selected);
+}
+
+void TestFilterModel::questionsSplitTheLibrary_data()
+{
+    QTest::addColumn<int>("question");
+    QTest::newRow("needs you") << int(TorrentFilterModel::NeedsYou);
+    QTest::newRow("arriving") << int(TorrentFilterModel::Arriving);
+    QTest::newRow("landed today") << int(TorrentFilterModel::LandedToday);
+    QTest::newRow("giving back") << int(TorrentFilterModel::GivingBack);
+    QTest::newRow("resting") << int(TorrentFilterModel::Resting);
+}
+
+// DECISIONS C24 H2: each torrent answers one question, the rail's count is the rows the
+// question shows, and the five together are the library.
+void TestFilterModel::questionsSplitTheLibrary()
+{
+    QFETCH(int, question);
+    LocalDay day;
+    day.setClock(questionNow);
+    TorrentModel source;
+    source.applyFullUpdate(questionLibrary());
+    source.setFailure(QStringLiteral("needs-failed"),
+                      {{QStringLiteral("headline"), QStringLiteral("didn't move")}});
+    TorrentFilterModel proxy;
+    proxy.setSourceModel(&source);
+    proxy.setDay(&day);
+    FilterCounts counts;
+    counts.setDay(&day);
+    counts.setModel(&source);
+
+    const auto asked = TorrentFilterModel::Question(question);
+    QSignalSpy changed(&proxy, &TorrentFilterModel::questionChanged);
+    proxy.setQuestion(asked);
+    QCOMPARE(changed.count(), 1);
+    QCOMPARE(proxy.question(), asked);
+    QStringList shown = visibleHashes(proxy);
+    shown.sort();
+    QStringList expected;
+    for (const QString &hash : questionLibrary().keys()) {
+        if (hash.startsWith(questionPrefix(asked)))
+            expected.append(hash);
+    }
+    expected.sort();
+    QCOMPARE(shown, expected);
+    QCOMPARE(counts.questionCount(question), int(expected.size()));
+    // C30 F9: each torrent's own question, whatever the proxy shows.
+    for (const QString &hash : expected)
+        QCOMPARE(proxy.questionOfHash(hash), question);
+    QCOMPARE(proxy.questionOfHash(QStringLiteral("not-in-the-library")),
+             int(TorrentFilterModel::AnyQuestion));
+    // The rail's scope, the words aside: words that hide every row leave each in scope.
+    proxy.setText(QStringLiteral("zzz-no-such-name"));
+    QCOMPARE(proxy.rowCount(), 0);
+    for (const QString &hash : questionLibrary().keys())
+        QCOMPARE(proxy.hashInScope(hash), expected.contains(hash));
+    QVERIFY(!proxy.hashInScope(QStringLiteral("not-in-the-library")));
+    proxy.setText(QString());
+
+    int sum = 0;
+    for (int q = TorrentFilterModel::NeedsYou; q <= TorrentFilterModel::Resting; ++q)
+        sum += counts.questionCount(q);
+    QCOMPARE(sum, counts.total());
+    QCOMPARE(counts.questionCount(TorrentFilterModel::AnyQuestion), counts.total());
+    QCOMPARE(counts.needsYou(), 3);
+    QCOMPARE(counts.arriving(), 4);
+    QCOMPARE(counts.landedToday(), 2);
+    QCOMPARE(counts.givingBack(), 2);
+    QCOMPARE(counts.resting(), 2);
+
+    proxy.setQuestion(TorrentFilterModel::AnyQuestion);
+    QCOMPARE(proxy.rowCount(), int(questionLibrary().size()));
+}
+
+// "Landed today" is since local midnight: past it, with no poll, yesterday's arrivals are
+// giving back or resting, in the rows and in the count.
+void TestFilterModel::landedTodayTurnsOverAtMidnight()
+{
+    QDateTime now(QDate(2026, 10, 23), QTime(23, 59, 30));
+    LocalDay day;
+    day.setClock([&now]() { return now; });
+    TorrentModel source;
+    source.applyFullUpdate(QJsonObject{
+        {QStringLiteral("seeding"),
+         questionJson(
+             QStringLiteral("uploading"), 1.0, QDateTime(QDate(2026, 10, 23), QTime(8, 0)))},
+        {QStringLiteral("stopped"),
+         questionJson(
+             QStringLiteral("stoppedUP"), 1.0, QDateTime(QDate(2026, 10, 23), QTime(0, 0, 1)))},
+    });
+    TorrentFilterModel proxy;
+    proxy.setSourceModel(&source);
+    proxy.setDay(&day);
+    FilterCounts counts;
+    counts.setDay(&day);
+    counts.setModel(&source);
+    proxy.setQuestion(TorrentFilterModel::LandedToday);
+    QCOMPARE(proxy.rowCount(), 2);
+    QCOMPARE(counts.landedToday(), 2);
+
+    // Not a new day yet: nothing moves.
+    QSignalSpy turned(&day, &LocalDay::dayChanged);
+    day.check();
+    QCOMPARE(turned.count(), 0);
+    QCOMPARE(proxy.rowCount(), 2);
+
+    now = QDateTime(QDate(2026, 10, 24), QTime(0, 0, 1));
+    QSignalSpy countChanged(&proxy, &TorrentFilterModel::countChanged);
+    QSignalSpy countsChanged(&counts, &FilterCounts::changed);
+    day.check();
+    QCOMPARE(turned.count(), 1);
+    QCOMPARE(day.start(), QDateTime(QDate(2026, 10, 24), QTime(0, 0)));
+    QCOMPARE(proxy.rowCount(), 0);
+    QVERIFY(countChanged.count() >= 1);
+    QCOMPARE(countsChanged.count(), 1);
+    QCOMPARE(counts.landedToday(), 0);
+    QCOMPARE(counts.givingBack(), 1);
+    QCOMPARE(counts.resting(), 1);
+    proxy.setQuestion(TorrentFilterModel::GivingBack);
+    QCOMPARE(visibleHashes(proxy), QStringList{QStringLiteral("seeding")});
+
+    // The timer that calls check() aims a second past the next midnight.
+    QCOMPARE(LocalDay::msecsToNextMidnight(QDateTime(QDate(2026, 10, 24), QTime(23, 59, 0))),
+             qint64(61000));
+}
+
+// The log's word makes a working torrent need you, and dismissing it gives it back, with no
+// poll in between.
+void TestFilterModel::aLoggedFailureNeedsYouAtOnce()
+{
+    LocalDay day;
+    day.setClock(questionNow);
+    TorrentModel source;
+    source.applyFullUpdate(questionLibrary());
+    TorrentFilterModel proxy;
+    proxy.setSourceModel(&source);
+    proxy.setDay(&day);
+    FilterCounts counts;
+    counts.setDay(&day);
+    counts.setModel(&source);
+    proxy.setQuestion(TorrentFilterModel::NeedsYou);
+    QCOMPARE(proxy.rowCount(), 2);
+    QCOMPARE(counts.needsYou(), 2);
+
+    source.setFailure(QStringLiteral("giving-seeding"),
+                      {{QStringLiteral("headline"), QStringLiteral("didn't move")}});
+    QVERIFY(visibleHashes(proxy).contains(QStringLiteral("giving-seeding")));
+    QCOMPARE(counts.needsYou(), 3);
+    QCOMPARE(counts.givingBack(), 2); // "needs-failed" has no failure here: it gives back too
+
+    source.setFailure(QStringLiteral("giving-seeding"), {});
+    QVERIFY(!visibleHashes(proxy).contains(QStringLiteral("giving-seeding")));
+    QCOMPARE(counts.needsYou(), 2);
+}
+
+void TestFilterModel::isWordsNameStates_data()
+{
+    QTest::addColumn<QString>("text");
+    QTest::addColumn<QStringList>("hashes");
+
+    const QStringList all{QStringLiteral("1111"),
+                          QStringLiteral("2222"),
+                          QStringLiteral("3333"),
+                          QStringLiteral("4444"),
+                          QStringLiteral("5555"),
+                          QStringLiteral("6666")};
+    QTest::newRow("a state") << QStringLiteral("is:stalled") << QStringList{QStringLiteral("3333")};
+    QTest::newRow("any case") << QStringLiteral("IS:Errored")
+                              << QStringList{QStringLiteral("5555")};
+    QTest::newRow("a prefix only one has")
+        << QStringLiteral("is:sta") << QStringList{QStringLiteral("3333")};
+    QTest::newRow("two states, both")
+        << QStringLiteral("is:downloading is:active") << QStringList{QStringLiteral("1111")};
+    QTest::newRow("with words") << QStringLiteral("is:completed bunny")
+                                << QStringList{QStringLiteral("2222")};
+    QTest::newRow("words first") << QStringLiteral("bunny is:seeding")
+                                 << QStringList{QStringLiteral("2222")};
+    // While one is typed nothing empties: "is:" and a prefix two states share narrow nothing.
+    QTest::newRow("is: alone") << QStringLiteral("is:") << all;
+    QTest::newRow("a shared prefix") << QStringLiteral("is:s") << all;
+    // A word no state starts with is a word of the query, which nothing matches.
+    QTest::newRow("no such state") << QStringLiteral("is:sleeping") << QStringList();
+}
+
+// DECISIONS C24 H2: the rail lost its state rows; every state stays in the filter as `is:`.
+void TestFilterModel::isWordsNameStates()
+{
+    QFETCH(QString, text);
+    QFETCH(QStringList, hashes);
+    m_proxy.setText(text);
+    QStringList shown = visibleHashes(m_proxy);
+    shown.sort();
+    QCOMPARE(shown, hashes);
+    QCOMPARE(m_proxy.text(), text);
+    QCOMPARE(TorrentFilterModel::statusFilterForWord(u"stalled"), TorrentFilterModel::Stalled);
+    QCOMPARE(TorrentFilterModel::statusFilterForWord(u"st"), TorrentFilterModel::All);
+    QCOMPARE(TorrentFilterModel::isWords().size(), 8);
+}
+
+namespace {
+
+/// The question of each shown row, in order.
+QList<int> questionsShown(const TorrentFilterModel &proxy)
+{
+    QList<int> list;
+    for (int row = 0; row < proxy.rowCount(); ++row)
+        list.append(proxy.data(proxy.index(row, 0), TorrentFilterModel::QuestionRole).toInt());
+    return list;
+}
+
+QStringList groupKeys(const TorrentFilterModel &proxy)
+{
+    QStringList keys;
+    for (const QVariant &group : proxy.groups())
+        keys.append(group.toMap().value(QStringLiteral("key")).toString());
+    return keys;
+}
+
+} // namespace
+
+// DECISIONS C24 H3: the rows display lists each question's torrents together, in the rail's
+// order, the sort inside each whichever way it runs.
+void TestFilterModel::groupsRunUnderTheQuestions()
+{
+    LocalDay day;
+    day.setClock(questionNow);
+    TorrentModel source;
+    source.applyFullUpdate(questionLibrary());
+    source.setFailure(QStringLiteral("needs-failed"),
+                      {{QStringLiteral("headline"), QStringLiteral("didn't move")}});
+    TorrentFilterModel proxy;
+    proxy.setSourceModel(&source);
+    proxy.setDay(&day);
+    proxy.setSortByRoleName(QStringLiteral("name"));
+    QVERIFY(proxy.groups().isEmpty());
+
+    QSignalSpy groupsChanged(&proxy, &TorrentFilterModel::groupsChanged);
+    proxy.setGroupBy(TorrentFilterModel::ByQuestion);
+    QCOMPARE(groupsChanged.count(), 1);
+    for (const Qt::SortOrder order : {Qt::AscendingOrder, Qt::DescendingOrder}) {
+        proxy.setSortOrder(order);
+        const QList<int> shown = questionsShown(proxy);
+        QVERIFY(std::is_sorted(shown.cbegin(), shown.cend()));
+        QCOMPARE(groupKeys(proxy),
+                 (QStringList{QStringLiteral("needsYou"),
+                              QStringLiteral("arriving"),
+                              QStringLiteral("landedToday"),
+                              QStringLiteral("givingBack"),
+                              QStringLiteral("resting")}));
+        // Inside a group, the sort: arriving's four by name, either way.
+        const QVariantMap arriving = proxy.groups().at(1).toMap();
+        QCOMPARE(arriving.value(QStringLiteral("title")).toString(), QStringLiteral("arriving"));
+        QCOMPARE(arriving.value(QStringLiteral("first")).toInt(), 3);
+        QCOMPARE(arriving.value(QStringLiteral("count")).toInt(), 4);
+        QCOMPARE(arriving.value(QStringLiteral("question")).toInt(),
+                 int(TorrentFilterModel::Arriving));
+        QStringList names;
+        for (int row = 3; row < 7; ++row)
+            names.append(proxy.data(proxy.index(row, 0), TorrentModel::NameRole).toString());
+        QStringList sorted = names;
+        std::sort(sorted.begin(), sorted.end());
+        if (order == Qt::DescendingOrder)
+            std::reverse(sorted.begin(), sorted.end());
+        QCOMPARE(names, sorted);
+    }
+    QCOMPARE(proxy.groups().at(0).toMap().value(QStringLiteral("line")).toString(),
+             QStringLiteral("3 fixes wait"));
+    QCOMPARE(proxy.data(proxy.index(0, 0), TorrentFilterModel::GroupRole).toString(),
+             QStringLiteral("needsYou"));
+
+    // A question picked: one group. The table: none.
+    proxy.setQuestion(TorrentFilterModel::Resting);
+    QCOMPARE(groupKeys(proxy), QStringList{QStringLiteral("resting")});
+    proxy.setGroupBy(TorrentFilterModel::NoGroups);
+    QVERIFY(proxy.groups().isEmpty());
+    QCOMPARE(proxy.data(proxy.index(0, 0), TorrentFilterModel::GroupRole).toString(), QString());
+}
+
+// The overview's shelves: one per category, by name, the torrents with none last.
+void TestFilterModel::groupsByCategoryPutNoneLast()
+{
+    m_proxy.setGroupBy(TorrentFilterModel::ByCategory);
+    QCOMPARE(groupKeys(m_proxy),
+             (QStringList{QStringLiteral("linux"), QStringLiteral("movies"), QString()}));
+    QStringList titles;
+    QStringList lines;
+    for (const QVariant &group : m_proxy.groups()) {
+        titles.append(group.toMap().value(QStringLiteral("title")).toString());
+        lines.append(group.toMap().value(QStringLiteral("line")).toString());
+    }
+    QCOMPARE(titles,
+             (QStringList{QStringLiteral("linux"),
+                          QStringLiteral("movies"),
+                          QStringLiteral("no category")}));
+    QCOMPARE(lines.at(2), QStringLiteral("1 · 200 B"));
+    QCOMPARE(m_proxy.hashAt(5), QStringLiteral("4444"));
+    m_proxy.setGroupBy(TorrentFilterModel::NoGroups);
+}
+
+// A download that lands moves from arriving to landed today in one sort, even when the two
+// groups touch and its place in the order would not change.
+void TestFilterModel::aTorrentThatChangesGroupMoves()
+{
+    LocalDay day;
+    day.setClock(questionNow);
+    TorrentModel source;
+    const QDateTime none;
+    source.applyFullUpdate(QJsonObject{
+        {QStringLiteral("a"), questionJson(QStringLiteral("downloading"), 0.5, none)},
+        {QStringLiteral("b"), questionJson(QStringLiteral("downloading"), 0.9, none)},
+        {QStringLiteral("c"),
+         questionJson(
+             QStringLiteral("uploading"), 1.0, QDateTime(QDate(2026, 10, 23), QTime(8, 0)))},
+    });
+    TorrentFilterModel proxy;
+    proxy.setSourceModel(&source);
+    proxy.setDay(&day);
+    proxy.setSortByRoleName(QStringLiteral("name"));
+    proxy.setGroupBy(TorrentFilterModel::ByQuestion);
+    QCOMPARE(groupKeys(proxy),
+             (QStringList{QStringLiteral("arriving"), QStringLiteral("landedToday")}));
+    QCOMPARE(visibleHashes(proxy), (QStringList{"a", "b", "c"}));
+
+    QSignalSpy layout(&proxy, &QAbstractItemModel::layoutChanged);
+    QJsonObject landed = questionJson(
+        QStringLiteral("uploading"), 1.0, QDateTime(QDate(2026, 10, 23), QTime(14, 0)));
+    landed.remove(QStringLiteral("name"));
+    source.applyPartial(QJsonObject{{QStringLiteral("b"), landed}}, {});
+    QVERIFY(layout.count() >= 1);
+    QCOMPARE(visibleHashes(proxy), (QStringList{"a", "b", "c"}));
+    QCOMPARE(questionsShown(proxy),
+             (QList<int>{TorrentFilterModel::Arriving,
+                         TorrentFilterModel::LandedToday,
+                         TorrentFilterModel::LandedToday}));
+    QCOMPARE(proxy.groups().at(1).toMap().value(QStringLiteral("first")).toInt(), 1);
+    QCOMPARE(proxy.groups().at(1).toMap().value(QStringLiteral("count")).toInt(), 2);
+
+    // "a" lands too, past "b" and "c" in the name order of its new group.
+    QJsonObject aLanded = landed;
+    source.applyPartial(QJsonObject{{QStringLiteral("a"), aLanded}}, {});
+    QCOMPARE(groupKeys(proxy), QStringList{QStringLiteral("landedToday")});
+}
+
+// #51 D9: under the pointer the rows hold still, but a torrent that changes group goes to it.
+void TestFilterModel::aHeldOrderStillRegroups()
+{
+    LocalDay day;
+    day.setClock(questionNow);
+    TorrentModel source;
+    const QDateTime none;
+    const QDateTime yesterday(QDate(2026, 10, 22), QTime(10, 0));
+    source.applyFullUpdate(QJsonObject{
+        {QStringLiteral("a"), questionJson(QStringLiteral("downloading"), 0.5, none)},
+        {QStringLiteral("b"), questionJson(QStringLiteral("uploading"), 1.0, yesterday)},
+        {QStringLiteral("c"), questionJson(QStringLiteral("uploading"), 1.0, yesterday)},
+    });
+    TorrentFilterModel proxy;
+    proxy.setSourceModel(&source);
+    proxy.setDay(&day);
+    proxy.setSortByRoleName(QStringLiteral("name"));
+    proxy.setGroupBy(TorrentFilterModel::ByQuestion);
+    proxy.setHoldOrder(true);
+    source.applyPartial(QJsonObject{{QStringLiteral("c"), QJsonObject{{"state", "stoppedUP"}}}},
+                        {});
+    QCOMPARE(groupKeys(proxy),
+             (QStringList{QStringLiteral("arriving"),
+                          QStringLiteral("givingBack"),
+                          QStringLiteral("resting")}));
+    QCOMPARE(visibleHashes(proxy), (QStringList{"a", "b", "c"}));
+    source.applyPartial(QJsonObject{{QStringLiteral("a"), QJsonObject{{"state", "stoppedDL"}}}},
+                        {});
+    QCOMPARE(visibleHashes(proxy), (QStringList{"b", "a", "c"}));
+    QCOMPARE(groupKeys(proxy),
+             (QStringList{QStringLiteral("givingBack"), QStringLiteral("resting")}));
+    proxy.setHoldOrder(false);
+}
+
+// The log's word moves a torrent under needs you with no poll.
+void TestFilterModel::aLoggedFailureRegroupsAtOnce()
+{
+    LocalDay day;
+    day.setClock(questionNow);
+    TorrentModel source;
+    source.applyFullUpdate(questionLibrary());
+    TorrentFilterModel proxy;
+    proxy.setSourceModel(&source);
+    proxy.setDay(&day);
+    proxy.setGroupBy(TorrentFilterModel::ByQuestion);
+    QCOMPARE(proxy.groups().at(0).toMap().value(QStringLiteral("count")).toInt(), 2);
+    source.setFailure(QStringLiteral("giving-seeding"),
+                      {{QStringLiteral("headline"), QStringLiteral("didn't move")},
+                       {QStringLiteral("kind"), QStringLiteral("move")}});
+    QCOMPARE(proxy.groups().at(0).toMap().value(QStringLiteral("count")).toInt(), 3);
+    const int row = proxy.rowOfHash(QStringLiteral("giving-seeding"));
+    QVERIFY(row < 3);
+    QCOMPARE(proxy.data(proxy.index(row, 0), TorrentFilterModel::RowFactRole).toString(),
+             QStringLiteral("didn't move"));
+    source.setFailure(QStringLiteral("giving-seeding"), {});
+    QCOMPARE(proxy.groups().at(0).toMap().value(QStringLiteral("count")).toInt(), 2);
+}
+
+// What landed today gives back from midnight on, under its new head.
+void TestFilterModel::midnightRegroups()
+{
+    QDateTime now(QDate(2026, 10, 23), QTime(23, 59, 30));
+    LocalDay day;
+    day.setClock([&now]() { return now; });
+    TorrentModel source;
+    source.applyFullUpdate(QJsonObject{
+        {QStringLiteral("seeding"),
+         questionJson(
+             QStringLiteral("uploading"), 1.0, QDateTime(QDate(2026, 10, 23), QTime(8, 0)))},
+    });
+    TorrentFilterModel proxy;
+    proxy.setSourceModel(&source);
+    proxy.setDay(&day);
+    proxy.setGroupBy(TorrentFilterModel::ByQuestion);
+    QCOMPARE(groupKeys(proxy), QStringList{QStringLiteral("landedToday")});
+    now = QDateTime(QDate(2026, 10, 24), QTime(0, 0, 1));
+    day.check();
+    QCOMPARE(groupKeys(proxy), QStringList{QStringLiteral("givingBack")});
+}
+
+// The row's words are the proxy's roles, and a change to the torrent names them too.
+void TestFilterModel::rowWordsAreRolesThatFollowTheSource()
+{
+    const QHash<int, QByteArray> names = m_proxy.roleNames();
+    QCOMPARE(names.value(TorrentFilterModel::RowFactRole), QByteArray("rowFact"));
+    QCOMPARE(names.value(TorrentFilterModel::QuestionRole), QByteArray("question"));
+    QCOMPARE(names.value(TorrentFilterModel::MonogramRole), QByteArray("monogram"));
+    QCOMPARE(names.value(TorrentModel::NameRole), QByteArray("name"));
+
+    const int row = m_proxy.rowOfHash(QStringLiteral("2222"));
+    const QModelIndex at = m_proxy.index(row, 0);
+    QCOMPARE(m_proxy.data(at, TorrentFilterModel::RowCaptionRole).toString(),
+             QStringLiteral("given"));
+    QCOMPARE(m_proxy.data(at, TorrentFilterModel::MonogramRole).toString(), QStringLiteral("BB"));
+    QCOMPARE(m_proxy.data(at, TorrentFilterModel::RowSentenceRole).toString(),
+             QStringLiteral("nobody is asking now"));
+
+    QSignalSpy changed(&m_proxy, &QAbstractItemModel::dataChanged);
+    m_source.applyPartial(QJsonObject{{QStringLiteral("2222"),
+                                       QJsonObject{{QStringLiteral("upspeed"), 2048},
+                                                   {QStringLiteral("num_leechs"), 1}}}},
+                          {});
+    bool named = false;
+    for (const QList<QVariant> &args : std::as_const(changed)) {
+        const auto roles = args.at(2).value<QList<int>>();
+        named = named || roles.contains(TorrentFilterModel::RowSentenceRole);
+    }
+    QVERIFY(named);
+    QCOMPARE(m_proxy
+                 .data(m_proxy.index(m_proxy.rowOfHash(QStringLiteral("2222")), 0),
+                       TorrentFilterModel::RowSentenceRole)
+                 .toString(),
+             QStringLiteral("sending 2 KB/s to 1 peer"));
 }
 
 QTEST_MAIN(TestFilterModel)

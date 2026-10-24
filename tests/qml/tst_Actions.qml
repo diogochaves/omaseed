@@ -43,6 +43,7 @@ TestCase {
         view.table.clearSelection();
         App.filtered.text = "";
         App.filtered.statusFilter = TorrentFilterModel.All;
+        App.filtered.question = TorrentFilterModel.AnyQuestion;
         App.filtered.setSortByRoleName("dlspeed");
         App.filtered.sortOrder = Qt.DescendingOrder;
         view.table.moveCursorTo(0);
@@ -570,7 +571,8 @@ TestCase {
     }
 
     // DECISIONS C18 D1 (changes C16 L7): a move that landed before its band showed is said in
-    // the strip in the selection bar's place, and on its row; the footer keeps quiet.
+    // the strip over the rows, and on its row; the footer keeps quiet. Its torrent is the
+    // cursor's row, in view: no "show" (C30 F8).
     function test_a_landed_move_says_so_in_the_strip() {
         const hash = App.filtered.hashAt(0);
         const name = App.torrentRow(hash).name;
@@ -586,7 +588,8 @@ TestCase {
         compare(findChild(strip, "outcomeHeadline").text, name + " moved to /mnt/fast/films");
         compare(findChild(strip, "outcomeMark").text, "✓");
         compare(findChild(strip, "outcomeMark").color, Theme.green);
-        verify(findChild(strip, "outcomeShow").visible);
+        compare(view.table.cursorHash, hash);
+        verify(!findChild(strip, "outcomeShow").visible, "show for the row under the cursor");
         compare(view.footerNote, "");
         // The row says it in its status cell, in green.
         compare(findChild(view.table, "status_0").text, "moved · films");
@@ -643,7 +646,8 @@ TestCase {
         verify(!strip.visible);
     }
 
-    // C18 D3 (O3): several at once are counts, yellow when some failed; "show" selects them.
+    // C18 D3 (O3): several at once are counts, yellow when some failed; "show" selects them
+    // while they aren't (C30 F8), and goes once they are (F11).
     function test_several_are_counts_and_show_selects_them() {
         const hashes = [App.filtered.hashAt(0), App.filtered.hashAt(1), App.filtered.hashAt(2)];
         App.outcomes.reportMap({
@@ -658,11 +662,13 @@ TestCase {
         compare(findChild(strip, "outcomeHeadline").text, "2 moved to /mnt/fast/keep, 1 didn't");
         compare(findChild(strip, "outcomeMark").text, "!");
         compare(findChild(strip, "outcomeMark").color, Theme.yellow);
+        compare(findChild(strip, "outcomeShowReason").text, "they are not selected");
         stripLaidOut(strip);
         mouseClick(findChild(strip, "outcomeShow"));
         compare(view.table.selectedCount, 2);
         compare(view.table.selectedHashes().sort(), [hashes[0], hashes[1]].sort());
-        // With a selection on, the strip sits just above the selection bar.
+        verify(!findChild(strip, "outcomeShow").visible, "show stayed with them selected");
+        // With a selection on, the strip sits just above the action bar.
         verify(view.selectionBar.visible);
         verify(strip.mapToItem(view, 0, strip.height).y <= view.selectionBar.mapToItem(view, 0, 0).y,
                "the strip sits above the bar");
@@ -862,14 +868,14 @@ TestCase {
         App.setAutoManagement([tears], true);
     }
 
-    function test_generals_auto_manage_row_asks_too() {
+    function test_facts_auto_manage_row_asks_too() {
         const sintel = hashByName("Sintel 1080p (CC-BY)");
         const tears = hashByName("Tears of Steel 4K (CC-BY)");
         shareData(sintel, tears);
         unmanage(tears, "tv");
         view.table.moveCursorTo(App.filtered.rowOfHash(tears));
         tryCompare(App.details, "hash", tears, 1000);
-        const general = findChild(view.details, "generalTab");
+        const general = findChild(view.details, "factsTab");
         tryVerify(() => general.rows.some(row => row.option === "autoManagement" && row.on === false), 1000);
         const row = general.rows.findIndex(entry => entry.option === "autoManagement");
         verify(view.details.toggleGeneralOption(row));
@@ -881,7 +887,8 @@ TestCase {
 
     // ---- the location sheet (Fig. 7) -------------------------------------------------------
     // Board 42 F1 (DECISIONS C15 M1, M2): the folders group lists the library's save paths;
-    // picking one filters the table to it and the scope line offers the move.
+    // picking one filters the table to it, and the title bar names it and offers the move
+    // (C24 H5).
     function test_folders_in_the_rail_filter_and_offer_the_move() {
         const folders = App.move.folders;
         verify(folders.total > 0);
@@ -893,12 +900,14 @@ TestCase {
         compare(App.filtered.folder, path);
         for (let i = 0; i < App.filtered.count; ++i)
             verify(App.torrentRow(App.filtered.hashAt(i)).savePath.startsWith(path));
-        verify(view.moveScope.visible);
-        compare(view.moveScope.linkText, "move this folder…");
-        verify(view.moveScope.text.indexOf(path) >= 0, view.moveScope.text);
+        verify(view.titleBar.moveFolderTool.visible);
+        compare(view.titleBar.moveFolderTool.words, "move this folder…");
+        compare(view.titleBar.title, path.substring(path.lastIndexOf("/") + 1));
+        verify(view.titleBar.sentence.endsWith(path), view.titleBar.sentence);
         mouseClick(row); // picked again: the filter goes
         compare(App.filtered.folder, "");
-        verify(!view.moveScope.visible);
+        verify(!view.titleBar.moveFolderTool.visible);
+        compare(view.titleBar.title, "Library");
         // C19 T2 (#135): the keys stayed in the table, so the row keeps no cursor fill; they
         // come to the rail and the cursor shows on the row clicked.
         verify(!view.rail.activeFocus);
@@ -987,7 +996,13 @@ TestCase {
         sheet.close();
         compare(App.filtered.onlyHashes.length, sheet.plan.moveHashes.length);
         verify(view.moveShowing);
-        compare(view.moveScope.linkText, "back to the sheet");
+        // C15 M10 (J1): the show is the title, its way back a title tool.
+        compare(view.titleBar.title, "From the move sheet");
+        compare(view.titleBar.sentence, sheet.plan.moveHashes.length === 1 ? "1 torrent the move sheet listed"
+                                                                            : sheet.plan.moveHashes.length
+                                                                              + " torrents the move sheet listed");
+        compare(view.titleBar.backText, "back to the sheet");
+        compare(view.titleBar.backKey, "esc");
         view.handleEscape();
         compare(App.filtered.onlyHashes.length, 0);
         compare(sheet.opened, true);
@@ -1426,16 +1441,17 @@ TestCase {
         // not just "it did not crash": the text really is what `y` would have copied.
     }
 
-    // docs/12 G5: `y` on a General row says what it copied.
-    function test_y_in_general_says_what_it_copied() {
+    // docs/12 G5: `y` on a facts row (General's until DECISIONS C24 H6) says what it copied.
+    function test_y_in_facts_says_what_it_copied() {
         const hash = hashByName("archlinux-2026.09.01-x86_64.iso");
         view.table.moveCursorTo(App.filtered.rowOfHash(hash));
-        view.details.activateTab(0);
-        const general = findChild(view.details, "generalTab");
+        view.details.activateTab(view.details.tabFacts);
+        const general = findChild(view.details, "factsTab");
         const hashRow = general.rows.findIndex(row => row.key === "Hash v1");
         view.details.forceActiveFocus();
         view.details.moveCursor(hashRow - view.details.cursorIndex);
         keyClick("y");
         compare(view.footerNote, "copied hash v1");
+        view.details.activateTab(view.details.tabStory);
     }
 }

@@ -3,8 +3,9 @@ import QtQuick
 import Omaseed
 import Omaseed.Kit
 
-// The details pane (spec v2 §1 Fig. 1's right column and §2 Fig. 2-4): head, four-up strip,
-// tab strip, the current tab's body, and the tab's own key hints along the foot.
+// The details pane (spec v2 §1 Fig. 1's right column and §2 Fig. 2-4, redrawn by board 46 H6):
+// head, the one fact and its sentence (DetailsHero), the tabs (story · files · swarm · trackers ·
+// facts), the current tab's body, and the tab's own key hints along the foot.
 //
 // It fills whatever size it is given; the responsive move (docked right above 1100 px,
 // below the table under it) is SplitLayout's job in Main. `collapsed` is the `i` key: the
@@ -13,7 +14,7 @@ import Omaseed.Kit
 // Everything on screen comes from two properties: `details` (the controller and its three
 // models) and `torrent` (the table's cursor row, as a plain object with the roles named
 // below). Most actions leave as signals for MainView; the Files tab's priority and rename,
-// and General's option rows, call App directly.
+// and facts' option rows, call App directly.
 Item {
     id: root
 
@@ -24,28 +25,35 @@ Item {
     /// hasTrackerError. Null means "nothing selected".
     property var torrent: null
 
-    /// 0 General, 1 Files, 2 Trackers, 3 Peers — the `1`-`4` keys — and 4 HTTP sources
-    /// (#10), `5`, only while the torrent has web seeds.
-    property int currentTab: 0
+    /// DECISIONS C24 H6: 0 story, 1 files, 2 swarm (the peers), 3 trackers, 4 facts — the
+    /// `1`-`5` keys — and 5 web seeds (#10, qBittorrent's HTTP sources), `6`, only while the
+    /// torrent has any. Files keeps 1, as it had.
+    property int currentTab: root.tabStory
+    readonly property int tabStory: 0
+    readonly property int tabFiles: 1
+    readonly property int tabSwarm: 2
+    readonly property int tabTrackers: 3
+    readonly property int tabFacts: 4
+    readonly property int tabWebSeeds: 5
     /// `i` in Main: the pane folds away entirely.
     property bool collapsed: false
 
     /// The pane's own left border. Inside the main window `SplitLayout` already draws the
     /// divider between the table and the pane, so Main turns this off to avoid a 2 px rule.
     property bool showEdge: true
-    /// The tab's key hints along the pane's foot (Fig. 2-4). The main window teaches every
-    /// tab from its own footer (`HintModel`), so Main turns this off too; the standalone
-    /// figures keep it.
+    /// The tab's key hints along the pane's foot (Fig. 2-4). The main window teaches keys on
+    /// demand (DECISIONS C24 H10), so Main turns this off; the standalone figures keep it.
     property bool showHints: true
     /// docs/10 §5, reworked by docs/13: under the table the pane is wide and short, so the
     /// head and the strip share one band across the top (name on the left, the four facts on
-    /// the right) and the tabs get the whole width below it, General's rows in two columns.
+    /// the right) and the tabs get the whole width below it, facts' rows in two columns.
     property bool wide: false
-    /// #65: General's "Auto manage" row raises `autoManagementRequested` instead of applying,
+    /// #65: facts' "Auto manage" row raises `autoManagementRequested` instead of applying,
     /// so Main can ask first when turning it on moves files another torrent uses.
     property bool asksBeforeAutoManagement: false
-    /// docs/13: the strip's width in the band. Fixed, so the name does not shift as the ETA
-    /// changes length; never more than half the pane, so the name keeps room.
+    /// docs/13: the fact's width in the band (the four-up strip's, which it replaced, C24 H6).
+    /// Fixed, so the name does not shift as the fact changes length; never more than half the
+    /// pane, so the name keeps room.
     readonly property int bandStripWidth: Math.min(Theme.space(440), Math.floor(root.width / 2))
     /// The head and the strip share one line: `wide`, and at least 700 px at base 14
     /// (docs/15 Q2 A). Narrower, half the pane left every fact eliding, so the band stops
@@ -53,24 +61,44 @@ Item {
     /// then the tabs, as when the pane is docked at the side.
     readonly property bool band: root.wide && root.width >= Theme.space(600)
 
-    /// Where the cursor sits inside the current tab's list; General's rows are a list too (G5).
-    readonly property int cursorIndex: root.currentTab === 1 ? root.filesCursor : root.currentTab
-                                                               === 2 ? root.trackersCursor :
-                                                                       root.currentTab === 3
-                                                                       ? root.peersCursor : root.currentTab === 4
-                                                                         ? root.webSeedsCursor : root.generalCursor
-    readonly property int rowCount: root.currentTab === 1 ? filesTab.count : root.currentTab === 2 ? trackersTab.count :
-                                                                                                     root.currentTab
-                                                                                                     === 3 ? peersTab.count :
-                                                                                                             root.currentTab === 4
-                                                                                                             ? webSeedsTab.count :
-                                                                                                               generalTab.count
+    /// Where the cursor sits inside the current tab's list; facts' rows are a list too (docs/12
+    /// G5). The story has none: its blocks are buttons.
+    readonly property int cursorIndex: {
+        switch (root.currentTab) {
+        case root.tabFiles:
+            return root.filesCursor;
+        case root.tabSwarm:
+            return root.peersCursor;
+        case root.tabTrackers:
+            return root.trackersCursor;
+        case root.tabFacts:
+            return root.generalCursor;
+        case root.tabWebSeeds:
+            return root.webSeedsCursor;
+        }
+        return 0;
+    }
+    readonly property int rowCount: {
+        switch (root.currentTab) {
+        case root.tabFiles:
+            return filesTab.count;
+        case root.tabSwarm:
+            return peersTab.count;
+        case root.tabTrackers:
+            return trackersTab.count;
+        case root.tabFacts:
+            return factsTab.count;
+        case root.tabWebSeeds:
+            return webSeedsTab.count;
+        }
+        return 0;
+    }
     /// #10: the HTTP sources tab exists while the torrent has web seeds, and also while the
     /// next torrent's list is still on its way and that tab is the one on show, so moving the
     /// cursor between two web-seeded torrents does not drop it (the model clears on every
     /// selection change; `loaded` says when it has answered).
     readonly property bool hasWebSeeds: root.details.webSeeds.count > 0
-                                        || (!root.details.webSeeds.loaded && root.currentTab === 4)
+                                        || (!root.details.webSeeds.loaded && root.currentTab === root.tabWebSeeds)
 
     // One cursor per list, so switching tabs and coming back keeps the place.
     property int filesCursor: 0
@@ -108,14 +136,14 @@ Item {
     /// to rename (TorrentFilesModel::renameTargets()) and whether they are the selection.
     signal renameFilesRequested(var paths, bool fromSelection)
     signal copyRequested(string text)
-    /// docs/28: an action of General's error block on this torrent: "location", "start",
+    /// docs/28: an action of the story's error block on this torrent: "location", "start",
     /// "recheck" (MainView runs them); "rename" and "copy" are handled here.
     signal problemActionRequested(string action)
-    /// docs/32 (#55): an action of General's failure block on this torrent: "location",
+    /// docs/32 (#55): an action of the story's failure block on this torrent: "location",
     /// "folder", "dismiss" (MainView runs them); "rename" and "copy" are handled here. `x` on
-    /// General sends "dismiss" too.
+    /// the story sends "dismiss" too.
     signal failureActionRequested(string action)
-    /// Board 45 B1 (C18 D7): General's last-move block wants a move back of finished move `id`,
+    /// Board 45 B1 (C18 D7): the story's last-move block wants a move back of finished move `id`,
     /// `only` this torrent when given (MainView opens the Move sheet).
     signal moveBackRequested(string id, string only)
     /// Board 45 B1: "show the move", its torrents in the table.
@@ -127,10 +155,10 @@ Item {
     /// C17 D4: the hint's "Path maps…".
     signal pathMapsRequested
 
-    /// `y` or a click on a General row (docs/12 G5): the whole value, and the row's name for
+    /// `y` or a click on a facts row (docs/12 G5): the whole value, and the row's name for
     /// the footer's "copied hash v1".
     signal valueCopyRequested(string text, string name)
-    /// #65: `enter` on General's "Auto manage" row, when `asksBeforeAutoManagement`.
+    /// #65: `enter` on facts' "Auto manage" row, when `asksBeforeAutoManagement`.
     signal autoManagementRequested(var hashes, bool on)
 
     /// Something inside the pane holds the keyboard — the Files tab's filter, its inline
@@ -166,6 +194,12 @@ Item {
         rowCount: root.details.webSeeds.count
     }
 
+    /// shift+f and the palette's row can run: some skipped file holds space on a disk omaseed
+    /// sees, or the torrent has skipped files and their reading isn't in yet, which the free
+    /// sheet's plan then makes (DECISIONS C30 F16).
+    readonly property bool canFree: filesTab.freeable || (filesTab.skipped.hash === undefined
+                                                          && root.details.files.skippedCount > 0)
+
     readonly property bool hasTrackerError: (root.torrent && root.torrent.hasTrackerError === true)
                                             || root.details.hasTrackerError
 
@@ -179,10 +213,10 @@ Item {
         root._setCursor(next);
     }
 
-    /// `1`-`4`, and `5` for HTTP sources while there are any. Tells App whether the Peers tab
-    /// is the one on show, so sync/torrentPeers is only polled while somebody is looking at it.
+    /// `1`-`5`, and `6` for web seeds while there are any. Tells App whether swarm is the tab
+    /// on show, so sync/torrentPeers is only polled while somebody is looking at it.
     function activateTab(index: int) {
-        if (index < 0 || index > 4 || (index === 4 && !root.hasWebSeeds))
+        if (index < 0 || index > root.tabWebSeeds || (index === root.tabWebSeeds && !root.hasWebSeeds))
             return;
         root.currentTab = index;
         // Tabs writes its own currentIndex on a click, so the binding is set from here
@@ -203,9 +237,9 @@ Item {
             root.filesCursor = row;
     }
 
-    /// docs/32 D3: `x` on General, or the block's "dismiss": the failure goes for good.
+    /// docs/32 D3: `x` on the story, or the block's "dismiss": the failure goes for good.
     function dismissFailure(): bool {
-        if (root.currentTab !== 0 || !generalTab._hasFailure)
+        if (root.currentTab !== root.tabStory || !storyTab.hasFailure)
             return false;
         root.failureActionRequested("dismiss");
         return true;
@@ -271,32 +305,32 @@ Item {
         const selection = root._listSelection();
         if (selection !== null && selection.count > 0)
             root.copyRequested(selection.targets(root.cursorIndex).join("\n"));
-        else if (root.currentTab === 2)
+        else if (root.currentTab === root.tabTrackers)
             root.copyRequested(root.details.trackers.urlAt(root.trackersCursor));
-        else if (root.currentTab === 4)
+        else if (root.currentTab === root.tabWebSeeds)
             root.copyRequested(root.details.webSeeds.urlAt(root.webSeedsCursor));
-        else if (root.currentTab === 3)
+        else if (root.currentTab === root.tabSwarm)
             root.copyRequested(root.details.peers.addressAt(root.peersCursor));
-        else if (root.currentTab === 1 && root.details.files.count > 0)
+        else if (root.currentTab === root.tabFiles && root.details.files.count > 0)
             root.copyRequested(root.details.files.pathAt(root.filesCursor));
-        else if (root.currentTab === 0)
+        else if (root.currentTab === root.tabFacts)
             root.copyGeneralRow(root.generalCursor);
     }
 
-    // --- the General tab (docs/12 G5) ------------------------------------------------------
+    // --- the facts tab (docs/12 G5; General's rows, DECISIONS C24 H6) ------------------------
 
-    /// `y`, or a click on a General row: its whole value (the full magnet or hash, not the
+    /// `y`, or a click on a facts row: its whole value (the full magnet or hash, not the
     /// shortened text), named for the footer.
     function copyGeneralRow(row: int) {
-        const entry = generalTab.rows[row];
+        const entry = factsTab.rows[row];
         if (entry && entry.copy.length > 0)
             root.valueCopyRequested(entry.copy, entry.name);
     }
 
-    /// `enter`, or a click, on one of General's option rows (docs/12 G4): turns it the other
+    /// `enter`, or a click, on one of facts' option rows (docs/12 G4): turns it the other
     /// way for this torrent. False when the row is not an option.
     function toggleGeneralOption(row: int): bool {
-        const entry = generalTab.rows[row];
+        const entry = factsTab.rows[row];
         if (!entry || !entry.option || root.details.hash.length === 0)
             return false;
         const hashes = [root.details.hash];
@@ -576,8 +610,8 @@ Item {
     /// A right click on a Trackers, Peers or HTTP sources row (the cursor already moved
     /// there): that tab's menu, at `x`, `y` in the pane's coordinates.
     function openRowMenu(x: real, y: real): void {
-        const menu = root.currentTab === 2 ? trackerMenu : root.currentTab === 3
-                                                           ? peerMenu : root.currentTab === 4 ? webSeedMenu : null;
+        const menu = root.currentTab === root.tabTrackers ? trackerMenu : root.currentTab === root.tabSwarm
+                                                                       ? peerMenu : root.currentTab === root.tabWebSeeds ? webSeedMenu : null;
         if (menu === null || root.rowCount === 0)
             return;
         const at = root.mapToItem(menuHost, x, y);
@@ -598,9 +632,9 @@ Item {
         const values = action === "add" || action === "reannounce" ? [] : selection.targets(root.cursorIndex);
         if ((action === "remove" || action === "ban") && values.length === 0)
             return;
-        if (root.currentTab === 2)
+        if (root.currentTab === root.tabTrackers)
             root.trackerAction(action, values);
-        else if (root.currentTab === 3)
+        else if (root.currentTab === root.tabSwarm)
             root.peerAction(action, values);
         else
             root.webSeedAction(action, values);
@@ -608,9 +642,9 @@ Item {
 
     /// The selection of the tab on show, when it is Trackers, Peers or HTTP sources.
     function _listSelection(): DetailsSelection {
-        return root.currentTab === 2 ? root.trackersSelection : root.currentTab === 3
-                                                                ? root.peersSelection : root.currentTab === 4
-                                                                  ? root.webSeedsSelection : null;
+        return root.currentTab === root.tabTrackers ? root.trackersSelection : root.currentTab === root.tabSwarm
+                                                                            ? root.peersSelection : root.currentTab === root.tabWebSeeds
+                                                                              ? root.webSeedsSelection : null;
     }
 
     /// A click on Trackers, Peers or HTTP sources row `row`, by the click rules the table
@@ -712,7 +746,7 @@ Item {
             root.toggleHideSkipped();
             break;
         case "freeSpace":
-            if (filesTab.freeable)
+            if (root.canFree)
                 root.freeSpaceRequested();
             break;
         }
@@ -789,8 +823,8 @@ Item {
             return true;
         case Qt.Key_F:
             // Board 44 F1: shift+f frees what skipped files hold (#160: whenever some do, as
-            // the palette offers it).
-            if (!shift || !filesTab.freeable)
+            // the palette offers it); C30 F16: before the reading is in, the sheet reads first.
+            if (!shift || !root.canFree)
                 return false;
             root.freeSpaceRequested();
             return true;
@@ -814,18 +848,18 @@ Item {
         if (root.currentTab === 1) {
             root.filesCursor = row;
             filesTab.ensureVisible();
-        } else if (root.currentTab === 2) {
+        } else if (root.currentTab === root.tabTrackers) {
             root.trackersCursor = row;
             trackersTab.ensureVisible();
-        } else if (root.currentTab === 3) {
+        } else if (root.currentTab === root.tabSwarm) {
             root.peersCursor = row;
             peersTab.ensureVisible();
-        } else if (root.currentTab === 4) {
+        } else if (root.currentTab === root.tabWebSeeds) {
             root.webSeedsCursor = row;
             webSeedsTab.ensureVisible();
-        } else if (root.currentTab === 0) {
+        } else if (root.currentTab === root.tabFacts) {
             root.generalCursor = row;
-            generalTab.ensureVisible();
+            factsTab.ensureVisible();
         }
     }
 
@@ -881,24 +915,28 @@ Item {
             if (root.rowCount > 0)
                 root._setCursor((event.modifiers & Qt.ShiftModifier) ? root.rowCount - 1 : 0);
             break;
+        // DECISIONS C24 H6: story · files · swarm · trackers · facts.
         case Qt.Key_1:
-            root.activateTab(0);
+            root.activateTab(root.tabStory);
             break;
         case Qt.Key_2:
-            root.activateTab(1);
+            root.activateTab(root.tabFiles);
             break;
         case Qt.Key_3:
-            root.activateTab(2);
+            root.activateTab(root.tabSwarm);
             break;
         case Qt.Key_4:
-            root.activateTab(3);
+            root.activateTab(root.tabTrackers);
             break;
-        // #10: `5` is the HTTP sources tab while the torrent has web seeds; otherwise it goes
-        // on to the window, which picks status 5 as it does from anywhere.
         case Qt.Key_5:
+            root.activateTab(root.tabFacts);
+            break;
+        // #10: `6` is the web seeds tab while the torrent has any; otherwise it goes on to
+        // the window, where it does nothing (S1's note).
+        case Qt.Key_6:
             if (!root.hasWebSeeds)
                 return;
-            root.activateTab(4);
+            root.activateTab(root.tabWebSeeds);
             break;
         case Qt.Key_J:
         case Qt.Key_Down:
@@ -924,7 +962,7 @@ Item {
             root.setPriority("lower");
             break;
         case Qt.Key_X:
-            // docs/32: on General, `x` dismisses the failure; on Files it still skips a file.
+            // docs/32: on the story, `x` dismisses the failure; on files it still skips a file.
             if (!root.dismissFailure())
                 root.toggleSkip();
             break;
@@ -947,29 +985,29 @@ Item {
             break;
         case Qt.Key_Return:
         case Qt.Key_Enter:
-            // G4: General's option rows; anything else goes on to the window.
-            if (root.currentTab !== 0 || !root.toggleGeneralOption(root.generalCursor))
+            // G4: facts' option rows; anything else goes on to the window.
+            if (root.currentTab !== root.tabFacts || !root.toggleGeneralOption(root.generalCursor))
                 return;
             break;
         // The Trackers and Peers keys (Fig. 3/4) belong to those tabs only: anywhere else the
-        // key goes on to the window, so `a` still adds a torrent from General or Files.
+        // key goes on to the window, so `a` still adds a torrent from the story or files.
         case Qt.Key_A:
             if (root._listSelection() === null)
                 return;
             root.rowMenuAction("add");
             break;
         case Qt.Key_D:
-            if (root.currentTab !== 2 && root.currentTab !== 4)
+            if (root.currentTab !== root.tabTrackers && root.currentTab !== root.tabWebSeeds)
                 return;
             root.rowMenuAction("remove");
             break;
         case Qt.Key_R:
-            if (root.currentTab !== 2 || !(event.modifiers & Qt.ShiftModifier))
+            if (root.currentTab !== root.tabTrackers || !(event.modifiers & Qt.ShiftModifier))
                 return;
             root.rowMenuAction("reannounce");
             break;
         case Qt.Key_B:
-            if (root.currentTab !== 3)
+            if (root.currentTab !== root.tabSwarm)
                 return;
             root.rowMenuAction("ban");
             break;
@@ -997,7 +1035,9 @@ Item {
         // Never negative: at the window's narrowest a negative width let the texts draw
         // unclipped over the rail (review RUN-6).
         width: Math.max(0, (root.band ? root.width - root.bandStripWidth : root.width) - Theme.space(32))
-        height: headColumn.implicitHeight + Theme.space(12) + Theme.space(8)
+        // In the band the fact and the sentence beside it may be taller than the name.
+        height: Math.max(headColumn.implicitHeight + Theme.space(12) + Theme.space(8),
+                         root.band ? hero.implicitHeight : 0)
         clip: true
 
         Column {
@@ -1136,39 +1176,17 @@ Item {
         }
     }
 
-    Strip {
-        id: strip
+    // DECISIONS C24 H6 (board 46 `.dhero`): the one fact and the sentence, under the name. In
+    // the band (docs/13) they sit beside the name, at the strip's old width, and the band's
+    // own rule closes them.
+    DetailsHero {
+        id: hero
 
-        // docs/13: in the band the strip sits beside the head, centred on its two lines, and
-        // the band's own rule closes it.
         anchors.right: parent.right
-        objectName: "strip"
         rule: !root.band
+        torrent: root.torrent
         width: root.band ? root.bandStripWidth : root.width
-        // A y binding rather than anchors: swapping anchors.top for anchors.verticalCenter
-        // when `wide` flips leaves the strip where it was. Centred, the head's text sits 2
-        // below its middle (12 over, 8 under) and the strip's 2 above its own (6 over, 10
-        // under).
-        y: root.band ? head.y + (head.height - height) / 2 + Theme.space(2) + Theme.space(2)
-                     : head.y + head.height
-        items: [
-            {
-                "label": qsTr("size"),
-                "value": root.torrent ? root.torrent.sizeText : "—"
-            },
-            {
-                "label": qsTr("done"),
-                "value": root.torrent ? root.torrent.progressText : "—"
-            },
-            {
-                "label": qsTr("ratio"),
-                "value": root.torrent ? root.torrent.ratioText : "—"
-            },
-            {
-                "label": qsTr("eta"),
-                "value": root.torrent ? root.torrent.etaLongText : "—"
-            }
-        ]
+        y: root.band ? head.y : head.y + head.height
     }
 
     // docs/13: the rule under the band, across the whole pane, while wide.
@@ -1186,15 +1204,15 @@ Item {
 
         anchors.left: parent.left
         anchors.right: parent.right
-        anchors.top: root.band ? bandRule.bottom : strip.bottom
+        anchors.top: root.band ? bandRule.bottom : hero.bottom
         currentIndex: root.currentTab
         objectName: "detailsTabs"
-        // activateTab() keeps currentIndex in step. HTTP sources comes and goes with the
-        // torrent's web seeds; it is last, so the other tabs keep their indexes.
+        // activateTab() keeps currentIndex in step. Web seeds come and go with the torrent's
+        // own; the tab is last, so the other tabs keep their indexes.
         model: root.hasWebSeeds ? root._tabs.concat([
                                                        {
-                                                           "text": qsTr("HTTP sources"),
-                                                           "key": "5"
+                                                           "text": qsTr("web seeds"),
+                                                           "key": "6"
                                                        }
                                                    ]) : root._tabs
 
@@ -1204,24 +1222,29 @@ Item {
         }
     }
 
-    // The four tabs every torrent has (spec §2 Fig. 1).
+    // The five tabs every torrent has (DECISIONS C24 H6: story · files · swarm · trackers ·
+    // facts), in board 46's words.
     readonly property var _tabs: [
         {
-            "text": qsTr("General"),
+            "text": qsTr("story"),
             "key": "1"
         },
         {
-            "text": qsTr("Files"),
+            "text": qsTr("files"),
             "key": "2"
         },
         {
-            "text": qsTr("Trackers"),
-            "key": "3",
+            "text": qsTr("swarm"),
+            "key": "3"
+        },
+        {
+            "text": qsTr("trackers"),
+            "key": "4",
             "badge": root.hasTrackerError
         },
         {
-            "text": qsTr("Peers"),
-            "key": "4"
+            "text": qsTr("facts"),
+            "key": "5"
         }
     ]
 
@@ -1234,18 +1257,15 @@ Item {
         anchors.top: tabs.bottom
         clip: true
 
-        DetailsGeneralTab {
-            id: generalTab
+        // DECISIONS C24 H6: the error block and the last move open the story.
+        DetailsStoryTab {
+            id: storyTab
 
             anchors.fill: parent
             details: root.details
-            objectName: "generalTab"
-            // Two columns only with room for them: narrower, the values would wrap instead.
-            columns: root.wide && body.width >= Theme.space(620) ? 2 : 1
-            cursorIndex: root.generalCursor
-            properties: root.details.properties
+            objectName: "storyTab"
             torrent: root.torrent
-            visible: root.currentTab === 0
+            visible: root.currentTab === root.tabStory
             // docs/28 G2: how much room the full disk has left, read as the add sheet does.
             freeText: {
                 const problem = root.torrent && root.torrent.problem ? root.torrent.problem : ({});
@@ -1271,9 +1291,16 @@ Item {
                 return root.torrent && revision >= 0 && savePath !== undefined
                        ? App.move.lastMoveOf(root.torrent.hash) : ({});
             }
+            // core/TorrentStory: again on every sync (the torrent row is a new map each time)
+            // and when the history of moves changes.
+            story: {
+                const revision = App.move.historyRevision;
+                return root.torrent && revision >= 0 ? App.torrentStory(root.torrent.hash ?? "") : [];
+            }
 
+            onLogRequested: root.problemActionRequested("log")
             onMoveAction: action => {
-                const move = generalTab.lastMove;
+                const move = storyTab.lastMove;
                 if (action === "show")
                     root.moveShowRequested(move.hashes ?? []);
                 else
@@ -1281,27 +1308,43 @@ Item {
             }
             onProblemAction: action => {
                 if (action === "rename") {
-                    root.currentTab = 1;
+                    root.activateTab(root.tabFiles);
                 } else if (action === "copy") {
-                    root.valueCopyRequested(generalTab.problem.line || "", qsTr("the log line"));
+                    root.valueCopyRequested(storyTab.problem.line || "", qsTr("the log line"));
                 } else {
                     root.problemActionRequested(action);
                 }
             }
-            // docs/32 F2: `2` opens Files with the cursor on the file that kept its name.
+            // docs/32 F2: files, with the cursor on the file that kept its name.
             onFailureAction: action => {
                 if (action === "rename") {
-                    root.showFile(generalTab.failure.torrentFile || "");
+                    root.showFile(storyTab.failure.torrentFile || "");
                 } else if (action === "copy") {
-                    root.valueCopyRequested(generalTab.failure.line || "", qsTr("the log line"));
+                    root.valueCopyRequested(storyTab.failure.line || "", qsTr("the log line"));
                 } else {
                     root.failureActionRequested(action);
                 }
             }
+        }
+
+        // DECISIONS C24 H6: General's rows, with the strip's facts.
+        DetailsFactsTab {
+            id: factsTab
+
+            anchors.fill: parent
+            objectName: "factsTab"
+            // Two columns only with room for them: narrower, the values would wrap instead.
+            columns: root.wide && body.width >= Theme.space(620) ? 2 : 1
+            cursorIndex: root.generalCursor
+            properties: root.details.properties
+            // C30 F17–F18, while the reading is this torrent's.
+            sizeTail: App.skippedOnDisk.hash === root.details.hash ? (App.skippedOnDisk.sizeTail || "") : ""
+            torrent: root.torrent
+            visible: root.currentTab === root.tabFacts
 
             // Another torrent may have fewer rows: keep the cursor on one.
             onCountChanged: root.generalCursor = Math.max(0, Math.min(root.generalCursor,
-                                                                      generalTab.count - 1))
+                                                                      factsTab.count - 1))
             onRowClicked: row => {
                 root.takeKeys();
                 root.generalCursor = row;
@@ -1374,7 +1417,7 @@ Item {
             anchors.fill: parent
             cursorIndex: root.trackersCursor
             model: root.details.trackers
-            visible: root.currentTab === 2
+            visible: root.currentTab === root.tabTrackers
 
             selectedKeys: root.trackersSelection.keys
 
@@ -1403,7 +1446,7 @@ Item {
             anchors.fill: parent
             cursorIndex: root.peersCursor
             model: root.details.peers
-            visible: root.currentTab === 3
+            visible: root.currentTab === root.tabSwarm
 
             selectedKeys: root.peersSelection.keys
 
@@ -1433,7 +1476,7 @@ Item {
             cursorIndex: root.webSeedsCursor
             model: root.details.webSeeds
             objectName: "webSeedsTab"
-            visible: root.currentTab === 4
+            visible: root.currentTab === root.tabWebSeeds
 
             selectedKeys: root.webSeedsSelection.keys
 
@@ -1458,8 +1501,8 @@ Item {
     }
 
     // The tab's own hints (spec §2 Fig. 2-4 `.foot .hints`), and since docs/12 G5 General's
-    // (`j k` move, `y` copy value, `enter` change an option). Inside the window Main's footer teaches
-    // them instead (HintModel), so this row only shows in the standalone figures.
+    // (`j k` move, `y` copy value, `enter` change an option). Inside the window keys are taught on
+    // demand (DECISIONS C24 H10), so this row only shows in the standalone figures.
     Item {
         id: footer
 
@@ -1483,7 +1526,9 @@ Item {
             anchors.verticalCenter: parent.verticalCenter
             objectName: "detailsHints"
             model: {
-                if (root.currentTab === 0)
+                if (root.currentTab === root.tabStory)
+                    return [];
+                if (root.currentTab === root.tabFacts)
                     return [
                                 {
                                     "key": "j k",
@@ -1517,7 +1562,7 @@ Item {
                                     "label": Keymap.labelOf("details", "/")
                                 }
                             ];
-                if (root.currentTab === 2)
+                if (root.currentTab === root.tabTrackers)
                     return [
                                 {
                                     "key": "a",
@@ -1544,7 +1589,7 @@ Item {
                                     "label": Keymap.labelOf("details", "ctrl+a")
                                 }
                             ];
-                if (root.currentTab === 4)
+                if (root.currentTab === root.tabWebSeeds)
                     return [
                                 {
                                     "key": "a",
@@ -1978,26 +2023,25 @@ Item {
         target: root.details.peers
     }
 
-    // The Peers tab is the only one whose poll costs the server real work, so App is told
-    // when it comes and goes (spec §2: peers refresh every 2 s while the tab is on show).
-    // The pane's overall visibility is Main's to report, through App.setDetailsVisible().
-    onCurrentTabChanged: {
-        App.setPeersTabActive(!root.collapsed && root.currentTab === 3);
-        App.setGeneralTabActive(!root.collapsed && root.currentTab === 0); // G3's pieces bar
-        App.setWebSeedsTabActive(!root.collapsed && root.currentTab === 4); // #10
-        App.setFilesTabActive(!root.collapsed && root.currentTab === 1); // C17 D1
+    // Swarm is the only tab whose poll costs the server real work, so App is told when it
+    // comes and goes (spec §2: peers refresh every 2 s while the tab is on show). The pane's
+    // overall visibility is Main's to report, through App.setDetailsVisible().
+    function _tellApp(): void {
+        App.setPeersTabActive(!root.collapsed && root.currentTab === root.tabSwarm);
+        // docs/12 G3: the pieces bar is the story's now (C24 H6).
+        App.setGeneralTabActive(!root.collapsed && root.currentTab === root.tabStory);
+        App.setWebSeedsTabActive(!root.collapsed && root.currentTab === root.tabWebSeeds); // #10
+        // C17 D1, and C30 F17: facts' size line says what the skipped files hold.
+        App.setFilesTabActive(!root.collapsed && (root.currentTab === root.tabFiles
+                                                  || root.currentTab === root.tabFacts));
     }
-    onCollapsedChanged: {
-        App.setPeersTabActive(!root.collapsed && root.currentTab === 3);
-        App.setGeneralTabActive(!root.collapsed && root.currentTab === 0);
-        App.setWebSeedsTabActive(!root.collapsed && root.currentTab === 4);
-        App.setFilesTabActive(!root.collapsed && root.currentTab === 1);
-    }
+    onCurrentTabChanged: root._tellApp()
+    onCollapsedChanged: root._tellApp()
     // #10: the torrent has no web seeds (another torrent, or the last one removed) while
-    // their tab is on show: Trackers, its neighbour, takes over.
+    // their tab is on show: trackers takes over.
     onHasWebSeedsChanged: {
-        if (!root.hasWebSeeds && root.currentTab === 4)
-            root.activateTab(2);
+        if (!root.hasWebSeeds && root.currentTab === root.tabWebSeeds)
+            root.activateTab(root.tabTrackers);
     }
     onPeersCursorChanged: root.peersCursorAddress = root.details.peers.addressAt(root.peersCursor)
 }

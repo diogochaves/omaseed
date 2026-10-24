@@ -41,8 +41,12 @@ qt_add_library(omaseed-core STATIC
     GlobalState.cpp
     GlobalState.hpp
     HomeGuard.hpp
+    LibraryDisplays.cpp
+    LibraryDisplays.hpp
     LibraryMatch.cpp
     LibraryMatch.hpp
+    LocalDay.cpp
+    LocalDay.hpp
     LooseCarry.cpp
     LooseCarry.hpp
     LooseFiles.cpp
@@ -91,6 +95,10 @@ qt_add_library(omaseed-core STATIC
     RenameDisk.hpp
     RenamePlan.cpp
     RenamePlan.hpp
+    RowWords.cpp
+    RowWords.hpp
+    ScopeSentence.cpp
+    ScopeSentence.hpp
     SearchWords.cpp
     SearchWords.hpp
     SecretStore.cpp
@@ -123,6 +131,8 @@ qt_add_library(omaseed-core STATIC
     SkippedJobs.hpp
     SkippedOnDisk.cpp
     SkippedOnDisk.hpp
+    SkippedOutlook.cpp
+    SkippedOutlook.hpp
     StateFile.cpp
     StateFile.hpp
     StatusDigest.cpp
@@ -153,6 +163,8 @@ qt_add_library(omaseed-core STATIC
     TorrentPeersModel.hpp
     TorrentProblem.cpp
     TorrentProblem.hpp
+    TorrentStory.cpp
+    TorrentStory.hpp
     TorrentsBackup.cpp
     TorrentsBackup.hpp
     TorrentsExport.cpp

@@ -216,10 +216,10 @@ QtObject {
                 {
                     "altGlyph": true,
                     "title": qsTr("Alt-speed download"),
-                    "desc": qsTr("In force while alt-speed is on: A, the hero's chip, or the schedule below."),
+                    "desc": qsTr("In force while alt-speed is on: A, the status line's chip, or the schedule below."),
                     "descFor": {
-                        "burst": qsTr("In force while burst is on: A, the hero's chip, or the schedule below."),
-                        "turtle": qsTr("In force while turtle is on: A, the hero's chip, or the schedule below.")
+                        "burst": qsTr("In force while burst is on: A, the status line's chip, or the schedule below."),
+                        "turtle": qsTr("In force while turtle is on: A, the status line's chip, or the schedule below.")
                     },
                     "fields": [root.speed("alt_dl_limit")]
                 },

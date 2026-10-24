@@ -806,11 +806,12 @@ TestCase {
         waitForRendering(palette.listView);
         const faint = Theme.fill(Theme.faintAlpha);
 
+        // The first row is the cursor's: its words on the cursor's fill (DECISIONS C30 F1).
         const runs = palette.listView.itemAtIndex(0);
-        compare(findChild(runs, "paletteRowTitle").color, Theme.brightForeground);
+        compare(findChild(runs, "paletteRowTitle").color, Theme.on.cursor.brightForeground);
         compare(findChild(runs, "paletteRowTitle").font.weight, Font.Medium);
         compare(findChild(runs, "paletteRowMeta").text, "p");
-        compare(findChild(runs, "paletteRowMeta").color, Theme.dimForeground);
+        compare(findChild(runs, "paletteRowMeta").color, Theme.on.cursor.dimForeground);
         compare(findChild(runs, "paletteRowVia").visible, false);
 
         const dim = palette.listView.itemAtIndex(3);

@@ -17,6 +17,10 @@
 set -euo pipefail
 
 repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+# DECISIONS C24 H4: a new install shows the rows display, and a box is a new install. This
+# walk reads the table (its columns, its rows' order), so it pins the table: every scope starts
+# on it (App's OMASEED_DISPLAY), passed to each launch here and by app-box.sh.
+export OMASEED_DISPLAY="${OMASEED_DISPLAY:-table}"
 APP="class:io.github.diogochaves.omaseed"
 BUILD="${OMASEED_BUILD:-$repo/build}"
 TORRENTS="${OMASEED_SWARM_PROFILE:-$HOME/.local/share/omaseed-swarm}/torrents"
@@ -59,34 +63,59 @@ chmod 700 "$home/.config/omaseed"
 chmod 600 "$home/.config/omaseed/servers.json"
 
 # ---- the app ----------------------------------------------------------------------------------
-omabox run -d --wait -- "$BUILD/omaseed"
+omabox run --pass OMASEED_DISPLAY -d --wait -- "$BUILD/omaseed"
 omabox wait --timeout 20s window "$APP"
 
 # Window coordinates of what follows the real clock or the disk: the selected torrent's
-# "added today HH:MM", its "Created on" value, the footer's free space.
-ADDED="1500,86 396x22"
-CREATED="1600,712 296x26"
-FREE="10,1004 200x24"
+# "added today HH:MM", the time of the first line of its story's "what happened" (DECISIONS
+# C24 H6: the details open on the story, where General's "Created on" was), the status line's
+# free space (and "synced now" after it, which moves with its width).
+ADDED="1500,72 396x22"
+CREATED="1500,252 140x26"
+FREE="750,1006 190x24"
 # A sheet over the dimmed window: its own region only (settings and help; the add sheet is smaller).
+# Settings is as tall as its head and its tallest pane, so shorter than help, and taller on the
+# qBittorrent sections (their head) than on omaseed's: the region is the tallest it can be.
 SHEET="568,78 760x875"
 ADD_SHEET="648,275 600x481"
 # Settings sections that show today's date or the clock, in window coordinates (every --ignore
 # with --window is, crop or not): the alt-speed schedule's "Next: off at 20:00", omaseed's backup
 # "seed history since <date>", qBittorrent's backup file names "…-<date>.json" (settings, torrents).
 declare -A SECTION_IGNORE=(
-    [qbt-speed]="792,619 512x38"
-    [backup]="798,224 425x52"
-    [qbt-backup]="798,208 430x52|798,479 430x52"
+    [qbt-speed]="792,673 512x38"
+    [backup]="798,293 425x52"
+    [qbt-backup]="798,262 430x52|798,533 430x52"
 )
 
 # key KEY...: into the app, returning once the window has settled; what the wait saw goes to the
 # run's log, so a 124 there says what it waited on.
 key() { omabox keys --window "$APP" --wait "$@"; }
+# click_text NAME: a click on the middle of the first node of the app's accessibility tree whose
+# name starts with NAME (a rail row), waiting for the window to settle.
+click_text() {
+    local at
+    at="$(omabox tree --window "$APP" --json 2>/dev/null | python3 -c '
+import json, sys
+for node in json.load(sys.stdin):
+    if (node.get("name") or "").startswith(sys.argv[1]) and node.get("w", 0) > 0:
+        print(node["x"] + node["w"] // 2, node["y"] + node["h"] // 2)
+        break' "$1")"
+    [ -n "$at" ] || die "no \"$1\" to click in the window"
+    # shellcheck disable=SC2086 # "X Y"
+    omabox click --window "$APP" --wait $at
+}
 
 omabox check point bar -g "0,0 1920x30"
 omabox check point library --window "$APP" --ignore "$ADDED" --ignore "$CREATED" --ignore "$FREE"
-key 4
-omabox check point library-stopped --window "$APP" --ignore "$ADDED" --ignore "$CREATED" --ignore "$FREE"
+key 5 # resting (DECISIONS C24 H2), where these stopped torrents are
+omabox check point library-resting --window "$APP" --ignore "$ADDED" --ignore "$CREATED" --ignore "$FREE"
+# A folder picked in the rail (DECISIONS C24 H5): its name the title, the scope line's facts its
+# sentence, "move this folder…" a title-bar tool. The pointer leaves the row, so its path's
+# tooltip is not in the shot.
+key 0
+click_text Torrents
+omabox pointer --window "$APP" -- move 900 600 >/dev/null
+omabox check point folder --window "$APP" --ignore "$ADDED" --ignore "$CREATED" --ignore "$FREE"
 key 0 j j
 omabox check point library-third --window "$APP" --ignore "$ADDED" --ignore "$CREATED" --ignore "$FREE"
 key l 2
@@ -98,6 +127,14 @@ key Escape
 key colon
 omabox check point palette --window "$APP" --ignore "$ADDED" --ignore "$CREATED" --ignore "$FREE"
 key Escape
+# The omaseed menu under the mark (DECISIONS C24 H9): C13's rows, then this window's, quit last.
+key ctrl+period
+omabox check point app-menu --window "$APP" --ignore "$ADDED" --ignore "$CREATED" --ignore "$FREE"
+key Escape
+# Alt held alone (C24 H10): the frame's keys in badges, over the rail, the title bar's tools.
+key down:alt
+omabox check point alt-keys --window "$APP" --ignore "$ADDED" --ignore "$CREATED" --ignore "$FREE"
+omabox keys --window "$APP" up:alt >/dev/null
 key question
 omabox check point help --window "$APP" -g "$SHEET"
 key Escape
@@ -105,6 +142,34 @@ key a
 omabox check point add --window "$APP" -g "$ADD_SHEET"
 # The first Escape clears the magnet field (which may change nothing), the second closes the sheet.
 key Escape Escape
+# Three rows selected (DECISIONS C24 H8): the status line is the action bar, its ledger and
+# buttons in the line's place, and C18 D6's hint after them (a fresh box: the first plain
+# click); no free space shows there, so only the details' clock is left out. A click puts the
+# keyboard on the table, wherever the sheets left it; the pointer then leaves the row.
+click_text distro
+key j space j space
+omabox pointer --window "$APP" -- move 900 600 >/dev/null
+omabox check point selection --window "$APP" --ignore "$ADDED" --ignore "$CREATED"
+# Alt held over the action bar: each button's key over its corner, no button moved.
+key down:alt
+omabox check point selection-alt-keys --window "$APP" --ignore "$ADDED" --ignore "$CREATED"
+omabox keys --window "$APP" up:alt >/dev/null
+key Escape
+
+# The library's other displays (DECISIONS C24 H3–H4), picked from the palette: the rows grouped
+# under the five questions (every torrent here is stopped: resting), then the overview's shelves,
+# then the table again for what follows.
+display() {
+    key colon
+    omabox keys --window "$APP" --wait -t "show as $1" >/dev/null
+    key Return
+    omabox pointer --window "$APP" -- move 900 600 >/dev/null
+}
+display rows
+omabox check point rows --window "$APP" --ignore "$ADDED" --ignore "$CREATED" --ignore "$FREE"
+display shelves
+omabox check point overview --window "$APP" --ignore "$ADDED" --ignore "$CREATED" --ignore "$FREE"
+display table
 
 # Settings: every section, j by j, the first (General) open.
 sections=(general servers notifications keybindings appearance backup about

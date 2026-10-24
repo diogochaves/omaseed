@@ -41,12 +41,23 @@ Window {
         window.requestActivate();
     }
 
-    Component.onCompleted: window.setup = window.setup // latch: drop the binding
+    Component.onCompleted: {
+        window.setup = window.setup; // latch: drop the binding
+        // A launch past setup opens at 1360 × 800 spec pixels and then keeps the size it has,
+        // as leaveSetup() does by assigning. Theme.space() follows the base size live (#156):
+        // left bound, a base-size change would resize the window itself, and a tiled one would
+        // ask for more than its tile and draw cut off.
+        if (!window.setup) {
+            window.width = window.width;
+            window.height = window.height;
+        }
+    }
 
     width: window.setup ? window.setupSize.width : Theme.space(1360)
     height: window.setup ? window.setupSize.height : Theme.space(800)
-    // docs/10 §2: a floor at the narrowest width the hero was drawn for, 560 px at base 14.
-    // Hyprland still sizes a tiled window to its tile; the hero's ladder is what covers that.
+    // docs/10 §2: a floor at the narrowest width the frame was drawn for, 560 px at base 14.
+    // Hyprland still sizes a tiled window to its tile; the title bar's and the status line's
+    // steps (Theme.titleBarSteps, statusLineSteps) are what cover that.
     minimumWidth: window.setup ? window.setupSize.width : Theme.space(480)
     minimumHeight: window.setup ? window.setupSize.height : 0
     maximumWidth: window.setup ? window.setupSize.width : 16777215

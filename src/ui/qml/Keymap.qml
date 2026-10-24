@@ -2,8 +2,8 @@ pragma Singleton
 import QtQuick
 
 // The one table of keys (spec v2 §7 Fig. 26, "the same map as v1"). Everything that binds a
-// key in omaseed reads it from here: `MainView` routes presses through it, `HintModel`
-// derives the footer's hints from it, and `HelpSheet` draws the `?` sheet from it. Nothing
+// key in omaseed reads it from here: `MainView` routes presses through it, the command
+// palette lists it, and `HelpSheet` draws the `?` sheet from it. Nothing
 // else may invent a window key. A menu's own row letters (Fig. 11's actions menu, the Files
 // tab's menus) are part of that menu's rows and live with it.
 //
@@ -16,7 +16,7 @@ import QtQuick
 //             "global" entry for the same key — that is how `a` adds a tracker inside the
 //             details pane and a torrent everywhere else.
 //   key       the key as the spec writes it: "j", "G", "ctrl+q", "esc", "enter", "space",
-//             "0–8", "1–4" (en dashes, like the figure).
+//             "1–5", "1–4" (en dashes, like the figure).
 //   action    the verb `MainView` switches on.
 //   label     the short word the footer hints print after the key.
 //   column    the help-sheet section: "navigate", "select", "act", "view", "app" — set
@@ -46,8 +46,8 @@ import QtQuick
 //             cursor's), "row" (the cursor's row), "rows" (any row), "file" (a file, not a
 //             folder, under the cursor), "lastMove" a finished move that can go back
 //             (board 45 D7), "freeable" skipped files that hold space here (#160).
-//   via       a menu-only action has no key ("key": ""): the path to it ("enter s",
-//             "ctrl+."), printed in the key's place (D3). Key routing, the footer and the `?`
+//   via       a menu-only action has no key ("key": ""): the path to it ("enter s", or
+//             ":" for the palette's own), printed in the key's place (D3). Key routing, the footer and the `?`
 //             sheet never see an entry with no key.
 //   sharesKey start and stop have no key of their own: `p` runs one or the other (D5), and
 //             the palette prints it on the one it would run now.
@@ -356,7 +356,7 @@ QtObject {
             "rank": 2.5,
             "helpKeys": "ctrl+s",
             "help": qsTr("switch server"),
-            "about": qsTr("Switch to another server; the hero's server line and the rail's servers do too"),
+            "about": qsTr("Switch to another server; the status line's server and the rail's servers do too"),
             "aboutOne": qsTr("Switch server, with two servers or more")
         },
         // `ctrl+,` is where the rest of the desktop keeps settings (GTK, macOS, VS Code,
@@ -386,13 +386,14 @@ QtObject {
             "help": qsTr("qBittorrent settings"),
             "about": qsTr("Settings, open on the server's own: speed, discovery, port, seeding, queue…")
         },
-        // docs/08 §5: hide or show the rail (the sidebar key of most editors).
+        // docs/08 §5: fold the rail to its glyphs or open it (#167 assumed 4; the sidebar key
+        // of most editors).
         {
             "area": "global",
             "key": "ctrl+b",
             "action": "toggleRail",
-            "title": qsTr("show the rail"),
-            "titleOn": qsTr("hide the rail"),
+            "title": qsTr("open the rail"),
+            "titleOn": qsTr("fold the rail"),
             "state": "railShown",
             "needs": "",
             "label": qsTr("rail"),
@@ -400,19 +401,20 @@ QtObject {
             "rank": 5,
             "helpKeys": "ctrl+b",
             "help": qsTr("rail"),
-            "about": qsTr("Hide or show the rail")
+            "about": qsTr("Fold the rail to its glyphs, or open it")
         },
-        // The hero's ⋯ menu (docs/08 §3).
+        // The window's menu (docs/08 §3), under the rail's mark since the hero's ⋯ went (C24
+        // H9); S6 makes it the app menu.
         {
             "area": "global",
             "key": "ctrl+.",
-            "action": "more",
-            "label": qsTr("more"),
+            "action": "appMenu",
+            "label": qsTr("omaseed menu"),
             "column": "app",
             "rank": 3,
             "helpKeys": "ctrl+.",
-            "help": qsTr("more actions"),
-            "about": qsTr("The ⋯ menu: speed limits, columns, select all")
+            "help": qsTr("omaseed menu"),
+            "about": qsTr("The mark's menu: servers, alternative limits, stop and start all, add, settings, this window's keys, quit")
         },
         {
             "area": "global",
@@ -518,12 +520,12 @@ QtObject {
             "helpKeys": "",
             "help": ""
         },
-        // docs/30 D3: the ⋯ menu's two limit sheets have no key; the palette lists them with
-        // the path to them.
+        // docs/30 D3: the two limit sheets have no key. The ⋯ menu that held them went with
+        // the app menu (DECISIONS C24 H9), so the palette is their one way in.
         {
             "area": "global",
             "key": "",
-            "via": "ctrl+.",
+            "via": ":",
             "action": "globalLimits",
             "title": qsTr("speed limits…"),
             "needs": "",
@@ -533,10 +535,50 @@ QtObject {
             "helpKeys": "",
             "help": ""
         },
+        // DECISIONS C24 H3–H4: the display tool's three rows; no key (#168 assumed 8).
         {
             "area": "global",
             "key": "",
-            "via": "ctrl+.",
+            "via": ":",
+            "action": "displayRows",
+            "title": qsTr("show as rows"),
+            "needs": "",
+            "label": qsTr("rows"),
+            "column": "",
+            "rank": 0,
+            "helpKeys": "",
+            "help": ""
+        },
+        {
+            "area": "global",
+            "key": "",
+            "via": ":",
+            "action": "displayTable",
+            "title": qsTr("show as table"),
+            "needs": "",
+            "label": qsTr("table"),
+            "column": "",
+            "rank": 0,
+            "helpKeys": "",
+            "help": ""
+        },
+        {
+            "area": "global",
+            "key": "",
+            "via": ":",
+            "action": "displayShelves",
+            "title": qsTr("show as shelves"),
+            "needs": "",
+            "label": qsTr("shelves"),
+            "column": "",
+            "rank": 0,
+            "helpKeys": "",
+            "help": ""
+        },
+        {
+            "area": "global",
+            "key": "",
+            "via": ":",
             "action": "altLimits",
             "title": qsTr("alt-speed limits…"),
             "needs": "",
@@ -998,7 +1040,7 @@ QtObject {
             "help": qsTr("open folder"),
             "about": qsTr("Open the cursor row's folder in the file manager")
         },
-        // docs/32 D3 (#55): the failure block's `x`, while the pane shows it on General. A
+        // docs/32 D3 (#55): the failure block's `x`, while the pane shows it on the story. A
         // gesture on that block rather than a command: no title, no palette row.
         {
             "area": "table",
@@ -1135,16 +1177,16 @@ QtObject {
         },
         {
             "area": "global", // handled by the window from the table, rail and details alike
-            // Fig. 26 prints 0–9, but the rail has nine status rows, 0 (all) to 8 (errored),
-            // so `9` does nothing; the sheet prints the keys that work (batch-2 S1, REVIEW §9).
-            "key": "0–8",
-            "action": "statusFilter",
-            "label": qsTr("status"),
+            // DECISIONS C24 H2: the rail's five questions, and 0 the library; 6–9 do nothing.
+            // Every state stays in the filter (`is:stalled`) and the palette.
+            "key": "1–5",
+            "action": "question",
+            "label": qsTr("question"),
             "column": "navigate",
             "rank": 5,
-            "helpKeys": "0–8",
-            "help": qsTr("status filter"),
-            "about": qsTr("Filter by status: 0 all, 1 downloading, 2 seeding…")
+            "helpKeys": "1–5 0",
+            "help": qsTr("questions · library"),
+            "about": qsTr("1 needs you, 2 arriving, 3 landed today, 4 giving back, 5 resting; 0 the library. Type is:stalled in the filter for any other state")
         },
 
         // details (spec §2 Fig. 2-4 add the file/tracker/peer keys) -------------------
@@ -1190,14 +1232,14 @@ QtObject {
         },
         {
             "area": "details",
-            "key": "1–4",
+            "key": "1–5",
             "action": "detailsTab",
             "label": qsTr("tab"),
             "column": "view",
             "rank": 2,
-            "helpKeys": "1–4",
+            "helpKeys": "1–5",
             "help": qsTr("details tab"),
-            "about": qsTr("In the details: general, files, trackers, peers tab, and 5 for HTTP sources when the torrent has any; 0 and 5–8 pick a status otherwise")
+            "about": qsTr("In the details: the story, files, swarm, trackers, facts tab, and 6 for web seeds when the torrent has any; elsewhere 1–5 pick a question")
         },
         {
             "area": "details",
@@ -1247,8 +1289,8 @@ QtObject {
             "helpKeys": "",
             "help": ""
         },
-        // docs/12 G5/G4: the sheet row for the details pane's `y`, which General's rows share,
-        // and General's `enter` on an option row.
+        // docs/12 G5/G4: the sheet row for the details pane's `y`, which facts' rows share,
+        // and facts' `enter` on an option row (General's until DECISIONS C24 H6).
         {
             "area": "details",
             "key": "y",
@@ -1260,7 +1302,7 @@ QtObject {
             "rank": 12,
             "helpKeys": "y enter",
             "help": qsTr("copy value · change option"),
-            "about": qsTr("In the details: copy the row under the cursor; in General, its whole value (the full hash or magnet). enter turns a General option on or off; a click does either")
+            "about": qsTr("In the details: copy the row under the cursor; in facts, its whole value (the full hash or magnet). enter turns a facts option on or off; a click does either")
         },
         {
             "area": "details",
@@ -1745,7 +1787,8 @@ QtObject {
             "about": qsTr("In the Files tab: hide the files set to skip, or show them again")
         },
         // Board 44 F1 (DECISIONS C17 D3, #160): shift+f, the band's "Free the space…". The
-        // palette offers it only on a torrent whose skipped files hold space here.
+        // palette offers it only on a torrent whose skipped files hold space here; C30 F13:
+        // when only adding it again frees them, it says so (commandRows' `readdText`).
         {
             "area": "details",
             "key": "F",
@@ -1756,8 +1799,8 @@ QtObject {
             "column": "act",
             "rank": 11.5,
             "helpKeys": "F",
-            "help": qsTr("free the space"),
-            "about": qsTr("In the Files tab: delete the skipped files that still hold space on this machine's disk, when omaseed can see it")
+            "help": qsTr("free the space, or add it again"),
+            "about": qsTr("In the files tab: free the space, or add it again. Deletes the skipped files that still hold space on this machine's disk, when omaseed can see it; on a hybrid or v2 torrent whose skipped files hold downloaded pieces, only adding it again frees them")
         },
 
         // the log face (docs/32 §6, D10–D13): LogView takes these while it is on show. The
@@ -2071,7 +2114,8 @@ QtObject {
         {
             "group": "view",
             "word": qsTr("view"),
-            "actions": ["columns", "toggleDetails", "cycleDetailsPlacement", "toggleRail",
+            "actions": ["displayRows", "displayTable", "displayShelves", "columns", "toggleDetails",
+                "cycleDetailsPlacement", "toggleRail",
                 "toggleConsole", "toggleLog", "detailsSmaller", "detailsLarger"]
         },
         {
@@ -2101,13 +2145,13 @@ QtObject {
         {
             "group": "peers",
             "area": "peers",
-            "word": qsTr("peers"),
+            "word": qsTr("swarm"),
             "actions": ["addRow", "ban", "copy"]
         },
         {
             "group": "webseeds",
             "area": "webseeds",
-            "word": qsTr("HTTP sources"),
+            "word": qsTr("web seeds"),
             "actions": ["addRow", "removeRow", "copy"]
         },
         {
@@ -2134,6 +2178,12 @@ QtObject {
 
     /// docs/33 D4: one "switch to NAME" row per other server, its action "switchTo:<id>".
     readonly property string switchToPrefix: "switchTo:"
+    /// DECISIONS C24 H2: one "show STATE…" row per state the rail no longer lists, its action
+    /// "showState:<word>"; the window types `is:<word>` into the filter.
+    readonly property string showStatePrefix: "showState:"
+    /// The words `is:` takes (TorrentFilterModel::isWords()).
+    readonly property var stateWords: ["downloading", "seeding", "completed", "stopped", "active",
+        "stalled", "checking", "errored"]
 
     /// Whether `action` runs while the server is lost.
     function isOffline(action: string): bool {
@@ -2288,8 +2338,8 @@ QtObject {
     /// the focused area's own commands when it is not the table (P5), the last ones run
     /// (D7), the rest in the `?` sheet's order, then every row that can't run (D4).
     ///
-    /// `context` is plain data: `{area: "table" | "rail" | "general" | "files" | "trackers" |
-    /// "peers" | "webseeds" | "console" | "log", selected: 2, cursor: "<the cursor torrent's name>",
+    /// `context` is plain data: `{area: "table" | "rail" | "story" | "files" | "peers" |
+    /// "trackers" | "facts" | "webseeds" | "console" | "log", selected: 2, cursor: "<the cursor torrent's name>",
     /// stopped: 0, running: 2, errored: 0 (of the targets), firstStopped: false (`p` starts),
     /// marked: 3, row: "<the focused tab's cursor row>", rowIsFolder: false,
     /// serverLost: false, recent: ["stop", …], altKind: "burst" (docs/31, A's words),
@@ -2323,10 +2373,19 @@ QtObject {
                 // #160 (C17 D3): "free the space…" only while skipped files hold space here.
                 if (found.needs === "freeable" && ctx.freeable !== true)
                     continue;
-                // D4: the per-server rows follow "switch server…".
-                const servers = found.action === "switchServer" ? root.serverRows(ctx, group) : [];
-                const entry = root.worded(found, ctx.altKind);
+                let entry = root.worded(found, ctx.altKind);
+                // DECISIONS C30 F13: only adding it again frees this torrent's skipped files.
+                if (found.action === "freeSpace" && (ctx.readdText || "").length > 0)
+                    entry = Object.assign({}, entry, {
+                                              "titles": {
+                                                  "files": qsTr("add it again to free %1…").arg(ctx.readdText)
+                                              }
+                                          });
                 const row = root._commandRow(entry, group, ctx);
+                // D4: the per-server rows follow "switch server…"; C24 H2: the states' rows
+                // follow "filter", while it can run.
+                const servers = found.action === "switchServer" ? root.serverRows(ctx, group) :
+                                found.action === "filter" && !row.disabled ? root.stateRows(ctx, group) : [];
                 if (row.disabled)
                     off.push(row);
                 else if (group.area !== undefined)
@@ -2375,8 +2434,25 @@ QtObject {
         return rows;
     }
 
+    /// DECISIONS C24 H2: "show stalled…" and the like, one per `is:` word, after "filter".
+    function stateRows(context: var, group: var): var {
+        const ctx = context || {};
+        return root.stateWords.map(word => ({
+                                                "action": root.showStatePrefix + word,
+                                                "key": root.showStatePrefix + word,
+                                                "title": qsTr("show %1…").arg(word),
+                                                "meta": "",
+                                                "via": "",
+                                                "detail": [group.word, "is:" + word].join(" · "),
+                                                "disabled": false,
+                                                "group": group.group,
+                                                "word": group.word,
+                                                "recent": (ctx.recent || []).indexOf(root.showStatePrefix + word)
+                                            }));
+    }
+
     /// `label` of (area, key), falling back to the global entry and then to the key itself,
-    /// so `HintModel` never has to repeat a word the map already holds.
+    /// so a caller never has to repeat a word the map already holds.
     function labelOf(area, key) {
         const own = root.find(area, key);
         if (own)

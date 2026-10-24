@@ -17,8 +17,12 @@ import Omaseed.Kit
 // when set, is a dim line above the rows, never a row itself (Q24: "2 selected"); `footer` a
 // dim caption under them, wrapped, under a hairline. A row may also carry `glyphColor` (its
 // glyph's colour: the server list's state dots, docs/34 D3 a), `note` (a dim word at the
-// right, where a key would be, that no key press matches) and `dim` (its text dim, though it
-// can still be picked).
+// right, where a key would be, that no key press matches), `noteColor` (that word's colour, a
+// failing server's red or yellow), `dim` (its text dim, though it can still be picked) and
+// `checked` (a check or radio row: a ✓ before its key while true, and a screen reader hears
+// it checkable). `{caption: true, text}` is a dim small line between the rows that is never
+// a row (the app menu's "servers", "this window"). `headingTitle`, when set, leads the
+// heading in bright demi-bold ("omaseed" before "0.5.0 · public", board 46).
 //
 // Keys: `j`/`k` and up/down move over the rows (separators and disabled rows are skipped),
 // `enter` runs the row under the cursor, a row's own key letter runs it straight away
@@ -39,6 +43,8 @@ Item {
     property int menuWidth: Theme.space(280)
     /// A dim line above the rows saying what they act on; empty draws none.
     property string heading: ""
+    /// A bright word before the heading (board 46's app menu: "omaseed"); empty draws none.
+    property string headingTitle: ""
     /// A dim caption under the rows, wrapped (docs/34 D5 a); empty draws none.
     property string footer: ""
     property int cursorIndex: 0
@@ -163,7 +169,7 @@ Item {
         if (index < 0 || index >= root.items.length)
             return false;
         const item = root.items[index];
-        return item.separator !== true && item.disabled !== true;
+        return item.separator !== true && item.caption !== true && item.disabled !== true;
     }
 
     /// Run row `index`, if it can be run.
@@ -177,6 +183,8 @@ Item {
 
     /// The row whose own key chip is exactly `text`, or -1.
     function indexOfKey(text: string): int {
+        if (text.length === 0) // a modifier alone (alt, held for the badges) is no row's key
+            return -1;
         for (let i = 0; i < root.items.length; ++i) {
             if (root.selectable(i) && root.items[i].key === text)
                 return i;
@@ -274,7 +282,7 @@ Item {
 
         // #79: a menu with a heading ("switch omaseed to") is named by it, so a screen reader
         // says it first; since #91 the heading also comes before the rows in the tree.
-        Accessible.name: root.heading
+        Accessible.name: [root.headingTitle, root.heading].filter(part => part.length > 0).join(" · ")
         Accessible.role: Accessible.PopupMenu
         border.color: Theme.accent
         border.width: 1
@@ -302,14 +310,16 @@ Item {
             anchors.right: parent.right
             anchors.top: parent.top
             anchors.topMargin: panel.padding
-            height: root.heading.length > 0 ? Theme.railRowHeight + 2 * Theme.space(4) + 1 : 0
+            readonly property bool shown: root.heading.length > 0 || root.headingTitle.length > 0
+
+            height: heading.shown ? Theme.railRowHeight + 2 * Theme.space(4) + 1 : 0
             objectName: "menuHeading"
-            visible: root.heading.length > 0
+            visible: heading.shown
             z: 1
 
             Label {
-                anchors.left: parent.left
-                anchors.leftMargin: Theme.space(14)
+                anchors.left: headingTitle.visible ? headingTitle.right : parent.left
+                anchors.leftMargin: headingTitle.visible ? Theme.space(8) : Theme.space(14)
                 anchors.right: parent.right
                 anchors.rightMargin: Theme.space(14)
                 dim: true
@@ -317,6 +327,20 @@ Item {
                 height: Theme.railRowHeight
                 text: root.heading
                 verticalAlignment: Text.AlignVCenter
+            }
+
+            Label {
+                id: headingTitle
+
+                anchors.left: parent.left
+                anchors.leftMargin: Theme.space(14)
+                bright: true
+                font.weight: Font.DemiBold
+                height: Theme.railRowHeight
+                objectName: "menuHeadingTitle"
+                text: root.headingTitle
+                verticalAlignment: Text.AlignVCenter
+                visible: root.headingTitle.length > 0
             }
 
             Hairline {
@@ -363,10 +387,25 @@ Item {
                         readonly property bool current: menuRow.index === root.cursorIndex
                         readonly property bool disabled: menuRow.modelData.disabled === true
                         readonly property bool separator: menuRow.modelData.separator === true
+                        readonly property bool caption: menuRow.modelData.caption === true
+                        readonly property bool checkable: menuRow.modelData.checked !== undefined
+                        readonly property bool filled: menuRow.current && !menuRow.separator
+                                                       && !menuRow.caption
+                        /// docs/DECISIONS.md C30 F1: the row's words on its ground, the cursor's
+                        /// fill on the current row. The fill comes and goes at once, so do they.
+                        /// A row's `glyphColor` and `noteColor` are window roles: the ground's of
+                        /// the same (C30 F3).
+                        readonly property Ink ink: Ink {
+                            animated: false
+                            ground: menuRow.filled ? Theme.on.cursor : Theme.on.window
+                        }
 
+                        Accessible.checkable: menuRow.checkable
+                        Accessible.checked: menuRow.modelData.checked === true
                         Accessible.name: menuRow.modelData.text ?? ""
                         Accessible.role: menuRow.separator ? Accessible.Separator
-                                                           : Accessible.MenuItem
+                                       : menuRow.caption ? Accessible.StaticText
+                                       : Accessible.MenuItem
                         // A screen reader's press is the click (#75): not on a separator, a
                         // disabled row or a disabled menu, which take no click either. A
                         // MouseArea's own `enabled` is its flag alone, so the row's says
@@ -375,12 +414,29 @@ Item {
                                                       root.activate(menuRow.index)
                         Layout.fillWidth: true
                         Layout.preferredHeight: menuRow.separator ? 2 * Theme.space(4) + 1
+                                : menuRow.caption ? captionText.implicitHeight + Theme.space(6)
                                 : Theme.railRowHeight
 
                         Rectangle {
                             anchors.fill: parent
-                            color: Theme.fill(Theme.fillHover)
-                            visible: menuRow.current && !menuRow.separator
+                            color: Theme.on.cursor.fill
+                            visible: menuRow.filled
+                        }
+
+                        Label {
+                            id: captionText
+
+                            anchors.bottom: parent.bottom
+                            anchors.left: parent.left
+                            anchors.leftMargin: Theme.space(14)
+                            anchors.right: parent.right
+                            anchors.rightMargin: Theme.space(14)
+                            dim: true
+                            elide: Text.ElideRight
+                            objectName: "menuRowCaption"
+                            size: "caption"
+                            text: menuRow.caption ? (menuRow.modelData.text ?? "") : ""
+                            visible: menuRow.caption
                         }
 
                         Hairline {
@@ -397,12 +453,12 @@ Item {
                             anchors.leftMargin: Theme.space(14)
                             anchors.rightMargin: Theme.space(14)
                             spacing: Theme.space(8)
-                            visible: !menuRow.separator
+                            visible: !menuRow.separator && !menuRow.caption
 
                             Glyph {
                                 Layout.preferredHeight: Theme.font.body
                                 Layout.preferredWidth: Theme.space(14)
-                                color: menuRow.modelData.glyphColor ?? Theme.dimForeground
+                                color: menuRow.ink.of(menuRow.modelData.glyphColor ?? Theme.dimForeground)
                                 objectName: "menuRowGlyph"
                                 text: menuRow.modelData.glyph ?? ""
                                 visible: text.length > 0
@@ -410,19 +466,29 @@ Item {
 
                             Label {
                                 Layout.fillWidth: true
-                                color: menuRow.disabled ? Theme.dimForeground
-                                        : menuRow.modelData.danger === true ? Theme.red
-                                        : menuRow.current ? Theme.accent
-                                        : menuRow.modelData.dim === true ? Theme.dimForeground
-                                        : Theme.foreground
+                                color: menuRow.disabled ? menuRow.ink.dimForeground
+                                        : menuRow.modelData.danger === true ? menuRow.ink.red
+                                        : menuRow.current ? menuRow.ink.accent
+                                        : menuRow.modelData.dim === true ? menuRow.ink.dimForeground
+                                        : menuRow.ink.foreground
                                 elide: Text.ElideRight
                                 objectName: "menuRowText"
                                 text: menuRow.modelData.text !== undefined
                                       ? menuRow.modelData.text : ""
                             }
 
+                            Glyph {
+                                Layout.preferredHeight: Theme.font.caption
+                                Layout.preferredWidth: Theme.font.caption
+                                color: menuRow.ink.accent
+                                objectName: "menuRowCheck"
+                                pixelSize: Theme.font.caption
+                                text: Glyphs.check
+                                visible: menuRow.modelData.checked === true
+                            }
+
                             Label {
-                                dim: true
+                                color: menuRow.ink.of(menuRow.modelData.noteColor ?? Theme.dimForeground)
                                 objectName: "menuRowNote"
                                 size: "caption"
                                 text: menuRow.modelData.key !== undefined
@@ -436,7 +502,7 @@ Item {
 
                             anchors.fill: parent
                             cursorShape: Qt.PointingHandCursor
-                            enabled: !menuRow.separator && !menuRow.disabled
+                            enabled: !menuRow.separator && !menuRow.caption && !menuRow.disabled
                             hoverEnabled: true
 
                             onClicked: root.activate(menuRow.index)

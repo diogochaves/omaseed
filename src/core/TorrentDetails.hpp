@@ -125,6 +125,9 @@ public:
     void refreshWebSeeds();
 
     int pieceCount() const { return int(m_pieceStates.size()); }
+    /// The last torrents/pieceStates answer, one PieceStates::State per piece; empty while
+    /// the story tab has not asked (the skipped files' reading takes it when it is there).
+    QByteArray pieceStates() const { return m_pieceStates; }
     int piecesHaveCount() const;
     /// The pieces bar's cells for a bar `buckets` pixels wide: PieceStates::bucket().
     Q_INVOKABLE QList<int> pieceBuckets(int buckets) const;

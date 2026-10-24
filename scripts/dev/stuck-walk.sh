@@ -3,7 +3,7 @@
 # running downloads in an incomplete folder finishes a torrent into a destination that is
 # full. qBittorrent logs "Failed to move torrent … No space left on device", leaves partial
 # copies in the destination and keeps the torrent stalledUP, seeding from the incomplete folder,
-# with no error. omaseed says so: the row's status reads "move failed", General opens with a
+# with no error. omaseed says so: the row's status reads "move failed", The story opens with a
 # red block naming the destination, the log's reason, where it is seeding from and the partial
 # copies when it can see them, "show both folders", "c recheck" and "set location…". Then room
 # is made and the block's `c recheck` moves it (DECISIONS C28, #158;
@@ -31,6 +31,10 @@
 set -euo pipefail
 
 repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+# DECISIONS C24 H4: a new install shows the rows display, and a box is a new install. This
+# walk reads the table (its columns, its rows' order), so it pins the table: every scope starts
+# on it (App's OMASEED_DISPLAY), passed to each launch here and by app-box.sh.
+export OMASEED_DISPLAY="${OMASEED_DISPLAY:-table}"
 cd "$repo"
 # shellcheck source=scripts/dev/home-guard.sh
 . "$repo/scripts/dev/home-guard.sh"
@@ -239,15 +243,15 @@ mkdir -p "$home/.config/omaseed" && chmod 700 "$home/.config/omaseed"
 printf '{"version":1,"defaultId":"stuck","servers":[{"id":"stuck","name":"stuck","url":"http://127.0.0.1:%s","authMode":"none","username":"","pathMap":[],"isDefault":true,"addedAt":"2026-10-22T00:00:00Z"}]}' "$PORT" \
     >"$home/.config/omaseed/servers.json"
 chmod 600 "$home/.config/omaseed/servers.json"
-omabox run -b "$BOX" -d --wait -- ./build/omaseed >/dev/null
+omabox run -b "$BOX" --pass OMASEED_DISPLAY -d --wait -- ./build/omaseed >/dev/null
 omabox wait -b "$BOX" window "$APP_ID" >/dev/null
 check "the app shows the torrent" wait_for "the torrent in the table" 30 in_tree "$NAME"
 
 # ---- the walk -----------------------------------------------------------------------------
 omabox keys -b "$BOX" --window "$APP_ID" --wait ctrl+k -t "$NAME" Return >/dev/null || true
-check "General opens with the stuck move's block" \
+check "The story opens with the stuck move's block" \
     wait_for "the block's headline" 20 in_tree "Finished, but its files never reached $MOUNT"
-step "Finished, never arrived" "docs/44 M1: the row's status reads ✕ move failed, both in red; General's Status row seeding · move failed. General opens with the red-ruled block: ✕ Finished, but its files never reached $MOUNT; qBittorrent couldn't move them: No space left on device. It's seeding from $INCOMPLETE. Once there is room, a recheck moves it there.; Partial copies may be left in the destination. (the box can't see it); qBittorrent's log · today HH:MM; then show both folders · c recheck · m set location… · copy the line · its lines in the log. No yellow \"move didn't happen\" block under it."
+step "Finished, never arrived" "docs/44 M1: the row's status reads ✕ move failed, both in red; facts' Status row seeding · move failed. The story opens with the red-ruled block: ✕ Finished, but its files never reached $MOUNT; qBittorrent couldn't move them: No space left on device. It's seeding from $INCOMPLETE. Once there is room, a recheck moves it there.; Partial copies may be left in the destination. (the box can't see it); qBittorrent's log · today HH:MM; then show both folders · c recheck · m set location… · copy the line · its lines in the log. No yellow \"move didn't happen\" block under it."
 check "unseen, the partial copies may be left: nothing guessed" in_tree "Partial copies may be left in the destination."
 check "the block offers c recheck (C28)" in_tree "recheck"
 
@@ -269,7 +273,7 @@ arrived() { [[ "$(torrent_info content_path)" == "$MOUNT"/* ]]; }
 check "after c recheck with room made, it moved into the destination" wait_for "the move" 60 arrived
 block_gone() { ! in_tree "Finished, but its files never reached"; }
 check "the block went with it" wait_for "the block to go" 20 block_gone
-step "Arrived" "The row reads seeding again (no move failed), General has no red block, its save path $MOUNT."
+step "Arrived" "The row reads seeding again (no move failed), the story has no red block, its save path $MOUNT."
 
 if [ "$INTERACTIVE" = 0 ]; then
     printf '\n## Checks\n\n%s' "$CHECKS" >>"$OUT/index.md"

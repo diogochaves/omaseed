@@ -380,7 +380,7 @@ TestCase {
         const schedule = testCase.childNamed(modal, "qbtRow-scheduler_enabled");
         compare(schedule.title, "Schedule turtle");
         compare(testCase.childNamed(modal, "qbtRow-alt_dl_limit").description,
-                "In force while turtle is on: A, the hero's chip, or the schedule below.");
+                "In force while turtle is on: A, the status line's chip, or the schedule below.");
         compare(testCase.childNamed(modal, "qbtRow-alt_dl_limit").glyph, Glyphs.altSpeed);
 
         // A daytime upload cap with the alternative set open: burst, as it is typed.

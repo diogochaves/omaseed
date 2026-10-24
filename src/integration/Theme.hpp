@@ -6,11 +6,12 @@
 #include <QProcess>
 #include <QString>
 
+#include "integration/ThemeInk.hpp"
+
 #include <functional>
 
 QT_BEGIN_NAMESPACE
 class QJsonObject;
-class QQmlEngine;
 QT_END_NAMESPACE
 
 namespace omaseed::integration {
@@ -68,9 +69,10 @@ private:
     int m_icon = 13;
 };
 
-/// The one source of every colour, size and alpha in the QML. Imported as `Omaseed.Kit`'s
-/// `Theme` singleton; every value is a binding target, so a theme change repaints without a
-/// restart. No QML file outside this class may hold a colour literal or a pixel size.
+/// The one source of every colour, size and alpha in the QML. QML reads it as `Omaseed.Kit`'s
+/// `Theme` singleton, `Theme.qml`, which derives from it (#156); every value is a binding
+/// target, so a theme change repaints without a restart. No QML file outside this class may
+/// hold a colour literal or a pixel size.
 class Theme : public QObject
 {
     Q_OBJECT
@@ -119,10 +121,12 @@ class Theme : public QObject
     /// `focusExtent` is how far the ring reaches past the edge; a parent that clips leaves
     /// that much room around its focusable children.
     Q_PROPERTY(int focusGap READ focusGap NOTIFY changed FINAL)
-    /// What `space()` multiplies by (#74): a binding that calls `space()` alone never
-    /// re-evaluates, since a call is not a property it can follow. One that must follow a
-    /// base size read late, or changed, reads this: `Theme.spaceAt(8, Theme.spaceScale)`.
-    Q_PROPERTY(qreal spaceScale READ spaceScale NOTIFY changed FINAL)
+    /// What `space()` multiplies by (#74). A binding follows the properties it reads, and a
+    /// call to a C++ method reads none, so QML's `Theme.space()` is not this class's: it is
+    /// the `Theme.qml` wrapper's, which reads this (#156, docs/DECISIONS.md C28). Its own
+    /// signal, sent only when the scale moves: the ~1,300 bindings of `Theme.space()` follow
+    /// it, and a colour theme switch must not run them all again.
+    Q_PROPERTY(qreal spaceScale READ spaceScale NOTIFY spaceScaleChanged FINAL)
     Q_PROPERTY(int focusExtent READ focusExtent NOTIFY changed FINAL)
     Q_PROPERTY(qreal fillIdle READ fillIdle NOTIFY changed FINAL)
     Q_PROPERTY(qreal fillHover READ fillHover NOTIFY changed FINAL)
@@ -137,9 +141,26 @@ class Theme : public QObject
     /// (`.kv`, 6 %), and faint text (docs/30 `--t-faint`, 40 %): only for what is disabled, a
     /// palette row that can't run (Q19 amended, #89: the "via" before a path is dim, not faint).
     Q_PROPERTY(qreal rowRuleAlpha READ rowRuleAlpha CONSTANT FINAL)
-    Q_PROPERTY(qreal fillSelectedCursor READ fillSelectedCursor CONSTANT FINAL)
+    Q_PROPERTY(qreal fillSelectedCursor READ fillSelectedCursor NOTIFY changed FINAL)
     Q_PROPERTY(qreal keyValueRuleAlpha READ keyValueRuleAlpha CONSTANT FINAL)
     Q_PROPERTY(qreal faintAlpha READ faintAlpha CONSTANT FINAL)
+    /// The highest fill alpha at which the theme's text still reads (docs/DECISIONS.md C30
+    /// F6): every fill above is held at it, so the foreground keeps 4.5:1 on the strongest
+    /// fill. Of the installed themes only everforest's (0.215) is under a fill it paints; 1
+    /// for a theme whose text doesn't read on its own window either.
+    Q_PROPERTY(qreal fillCap READ fillCap NOTIFY changed FINAL)
+    /// The tinted bands' alphas (C30 F5): a yellow warning band (docs/38 §4, 8 %) and the
+    /// console's attention block (7 %). `Theme.on.warning` and `Theme.on.attention` paint them.
+    Q_PROPERTY(qreal warningTintAlpha READ warningTintAlpha CONSTANT FINAL)
+    Q_PROPERTY(qreal attentionTintAlpha READ attentionTintAlpha CONSTANT FINAL)
+    /// The selected text of a rename in place (`.tbl .rn .ren`, a 35 % accent highlight):
+    /// `Theme.on.highlight`.
+    Q_PROPERTY(qreal highlightAlpha READ highlightAlpha CONSTANT FINAL)
+
+    // ---- text on a ground (docs/DECISIONS.md C30 F7) -----------------------------------
+    /// Every text role as it reads on each ground: `Theme.on.selected.dimForeground`. The
+    /// window's own roles above are `Theme.on.window`'s. See ThemeInk and ThemeGrounds.
+    Q_PROPERTY(omaseed::integration::ThemeGrounds *on READ on CONSTANT FINAL)
 
     // ---- identity and window -----------------------------------------------------------
     Q_PROPERTY(QString mode READ mode NOTIFY changed FINAL)
@@ -169,6 +190,9 @@ public:
     /// The session's event socket, "" when not under Hyprland.
     static QString defaultEventSocket();
 
+    /// What QML creates: `Theme.qml` derives from this class (`ThemeBase` in Omaseed.Kit), so
+    /// each engine's one Theme is built here, on setDefaultReader()'s reader.
+    Theme();
     explicit Theme(ThemeReader *reader, QObject *parent = nullptr);
     Theme(ThemeReader *reader, const Hyprland &hyprland, QObject *parent = nullptr);
     ~Theme() override;
@@ -176,8 +200,6 @@ public:
     /// The reader a QML-engine-created Theme binds to. main() sets this before the engine
     /// exists; anything else (the QML tests, a tool) gets a reader on the default paths.
     static void setDefaultReader(ThemeReader *reader);
-    /// Factory for the QML singleton registration. The engine takes ownership.
-    static Theme *createForEngine(QQmlEngine *engine);
 
     QColor background() const { return m_background; }
     QColor foreground() const { return m_foreground; }
@@ -212,9 +234,14 @@ public:
     qreal borderHover() const { return m_borderHover; }
     qreal hairlineAlpha() const { return m_hairlineAlpha; }
     static constexpr qreal rowRuleAlpha() { return 0.05; }
-    static constexpr qreal fillSelectedCursor() { return 0.24; }
+    qreal fillSelectedCursor() const { return m_fillSelectedCursor; }
     static constexpr qreal keyValueRuleAlpha() { return 0.06; }
     static constexpr qreal faintAlpha() { return 0.40; }
+    qreal fillCap() const { return m_fillCap; }
+    static constexpr qreal warningTintAlpha() { return 0.08; }
+    static constexpr qreal attentionTintAlpha() { return 0.07; }
+    static constexpr qreal highlightAlpha() { return 0.35; }
+    ThemeGrounds *on() const { return m_on; }
 
     QString mode() const { return m_mode; }
     QString themeName() const { return m_themeName; }
@@ -225,20 +252,35 @@ public:
     qreal windowAlpha() const { return m_windowAlpha; }
     void setWindowAlpha(qreal alpha);
 
-    /// Spacing in spec pixels, scaled by `[spacing] scale` and the base size.
-    Q_INVOKABLE int space(qreal px) const;
+    /// Spacing in spec pixels, scaled by `[spacing] scale` and the base size. Not invokable:
+    /// QML's `Theme.space()` is `Theme.qml`'s, which a binding follows (#156).
+    int space(qreal px) const;
     qreal spaceScale() const;
-    /// `px` at `scale`, rounded as `space()` rounds: `spaceAt(px, spaceScale)` is `space(px)`,
-    /// in a form a binding follows.
+    /// `px` at `scale`, rounded as `space()` rounds: `spaceAt(px, spaceScale)` is `space(px)`.
+    /// `Theme.qml`'s `space()` is this at `spaceScale`, a form a binding follows (#156).
     Q_INVOKABLE static int spaceAt(qreal px, qreal scale);
     /// The foreground at an alpha: 0.04 idle, 0.08 hover, 0.18 selected, 0.22 pressed.
     Q_INVOKABLE QColor fill(qreal alpha) const;
 
-    /// The contrast every colour omaseed paints text with reaches against the window
-    /// background: WCAG 2.2 AA for normal-size text, 4.5:1 (docs/DECISIONS.md Q19, amended
-    /// 2026-10-16 in #89; it was 3:1, on dimForeground only). Measured against `background`
-    /// alone, not the row fills: lifting against those too flattens captions into body text.
+    /// The contrast every colour omaseed paints text with reaches against the ground it is
+    /// painted on: WCAG 2.2 AA for normal-size text, 4.5:1 (docs/DECISIONS.md Q19, amended
+    /// 2026-10-16 in #89; it was 3:1, on dimForeground only). The roles above reach it on the
+    /// window's background; `on` resolves them on every fill and tint (C30 F1), each with the
+    /// least lift, so a caption on a selected row stays a caption.
     static constexpr qreal kTextContrastFloor = 4.5;
+    /// The selected fill under the cursor as the spec has it (`.tbl .r.sel.cur`, 24 %), before
+    /// C30 F6's cap.
+    static constexpr qreal kFillSelectedCursor = 0.24;
+
+    /// C30 F6: the highest alpha, in 0.005 steps, at which the better reading of `foreground`
+    /// and `bright` keeps kTextContrastFloor against `tint` at that alpha over `background`.
+    /// 1 when it reads at every alpha, and when it doesn't read on `background` itself (a
+    /// palette with nothing to save: Q19's degenerate case). The foreground's fills are held
+    /// at it with `tint` the foreground; a tinted ground, with its own colour.
+    static qreal fillCapFor(const QColor &tint,
+                            const QColor &foreground,
+                            const QColor &bright,
+                            const QColor &background);
 
     /// WCAG 2 contrast ratio of two opaque colours, 1 to 21: relative luminance from the
     /// sRGB-linearised channels, then (lighter + 0.05) / (darker + 0.05).
@@ -278,6 +320,7 @@ public:
 
 Q_SIGNALS:
     void changed();
+    void spaceScaleChanged();
     void windowAlphaChanged();
     void cornerRadiusChanged();
     void windowEdgeChanged();
@@ -287,6 +330,8 @@ private:
     void readCornerRadius();
     void askHyprland(const QString &option, std::function<void(const QByteArray &)> done);
     void applyCorners(const WindowCorners &corners);
+
+    void resolveGrounds();
 
     ThemeReader *m_reader = nullptr;
     ThemeFont *m_font = nullptr;
@@ -324,6 +369,9 @@ private:
     qreal m_borderIdle = 0.40;
     qreal m_borderHover = 0.25;
     qreal m_hairlineAlpha = 0.12;
+    qreal m_fillSelectedCursor = kFillSelectedCursor;
+    qreal m_fillCap = 1.0;
+    ThemeGrounds *m_on = nullptr;
 
     QString m_mode = QStringLiteral("dark");
     QString m_themeName = QStringLiteral("tokyo-night");

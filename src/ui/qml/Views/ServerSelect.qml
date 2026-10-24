@@ -140,6 +140,12 @@ Item {
     Rectangle {
         id: selectBox
 
+        /// Its words on its fill, idle or hot (docs/DECISIONS.md C30 F1).
+        readonly property Ink ink: Ink {
+            animated: false
+            ground: root.hot || list.opened ? Theme.on.hover : Theme.on.idle
+        }
+
         // #77: a "switch server" button, the server it edits its description; its press
         // opens the list, as the click does.
         Accessible.description: root.currentName
@@ -150,7 +156,7 @@ Item {
         anchors.fill: parent
         border.color: root.hot || list.opened ? Theme.accent : Theme.fill(Theme.borderIdle)
         border.width: 1
-        color: root.hot || list.opened ? Theme.fill(Theme.fillHover) : Theme.fill(Theme.fillIdle)
+        color: selectBox.ink.fill
         objectName: "serverSelectBox"
         radius: Theme.cornerRadius
         visible: root.switches
@@ -168,7 +174,7 @@ Item {
             Rectangle {
                 Layout.preferredHeight: Theme.space(7)
                 Layout.preferredWidth: Theme.space(7)
-                color: root.connected ? Theme.green : Theme.red
+                color: root.connected ? selectBox.ink.green : selectBox.ink.red
                 objectName: "serverSelectDot"
                 radius: width / 2
             }
@@ -178,6 +184,7 @@ Item {
                 Layout.minimumWidth: Theme.space(24)
                 bright: true
                 elide: Text.ElideRight
+                ink: selectBox.ink
                 objectName: "serverSelectName"
                 size: "small"
                 text: root.currentName
@@ -185,6 +192,7 @@ Item {
 
             Label {
                 dim: true
+                ink: selectBox.ink
                 size: "small"
                 text: root.version
                 visible: root.version.length > 0
@@ -192,6 +200,7 @@ Item {
 
             Label {
                 dim: true
+                ink: selectBox.ink
                 objectName: "serverSelectKey"
                 size: "caption"
                 text: "s " + Glyphs.chevronDown

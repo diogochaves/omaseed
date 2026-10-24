@@ -18,8 +18,18 @@ omaseed_add_test(tst_bencode
     LIBRARIES omaseed::core
 )
 
+omaseed_add_test(tst_librarydisplays
+    SOURCES tst_librarydisplays.cpp
+    LIBRARIES omaseed::core
+)
+
 omaseed_add_test(tst_librarymatch
     SOURCES tst_librarymatch.cpp
+    LIBRARIES omaseed::core
+)
+
+omaseed_add_test(tst_rowwords
+    SOURCES tst_rowwords.cpp
     LIBRARIES omaseed::core
 )
 
@@ -210,6 +220,11 @@ omaseed_add_test(tst_globalstate
 
 omaseed_add_test(tst_filtermodel
     SOURCES tst_filtermodel.cpp
+    LIBRARIES omaseed::core
+)
+
+omaseed_add_test(tst_scopesentence
+    SOURCES tst_scopesentence.cpp
     LIBRARIES omaseed::core
 )
 
@@ -492,5 +507,15 @@ omaseed_add_test(tst_skipped_ntfs3_live LIVE
 
 omaseed_add_test(tst_selectionhold
     SOURCES tst_selectionhold.cpp
+    LIBRARIES omaseed::core
+)
+
+omaseed_add_test(tst_torrentstory
+    SOURCES tst_torrentstory.cpp
+    LIBRARIES omaseed::core
+)
+
+omaseed_add_test(tst_skippedoutlook
+    SOURCES tst_skippedoutlook.cpp
     LIBRARIES omaseed::core
 )

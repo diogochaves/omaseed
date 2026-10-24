@@ -38,6 +38,19 @@ Rectangle {
     /// The row has a menu (DECISIONS C19 T3: a folder row's "move this folder…"): a
     /// right-click sends `menuRequested` instead of selecting it.
     property bool hasMenu: false
+    /// DECISIONS C24 H2 (board 46 `.views .ri.on`): the view on show, the hover fill with an
+    /// accent edge on the left, so a view and the filter it shows never look alike.
+    property bool current: false
+    /// The folded rail (board 46's narrow `rail()`): the glyph alone; the name goes into the
+    /// tooltip the rail shows.
+    property bool compact: false
+    /// DECISIONS C24 H10: the row's key ("1", "`"), badged while `keysShown` (alt held), just
+    /// before the count, or at the folded row's edge. "" for a row with no key of its own.
+    property string keyText: ""
+    property bool keysShown: false
+    /// What the row sits on while it paints nothing (docs/DECISIONS.md C30 F1): the window,
+    /// or the block it is in (the rail's servers, `Theme.on.idle`).
+    property ThemeInk block: Theme.on.window
 
     signal clicked
     /// A right-click on the row, while `hasMenu`, at `x`, `y` in the row's coordinates.
@@ -55,6 +68,14 @@ Rectangle {
     /// the name's width is computed clear of it rather than by clipping after the fact.
     readonly property bool truncated: nameText.truncated
     readonly property real countRight: countText.x + countText.width
+    /// The ground under the row's words, as `color` paints it (C30 F1, F4).
+    readonly property ThemeInk ground: Theme.groundIn(root.block, root.selected, false,
+                                                      root.hot || root.current, false)
+    /// The words' colours on that ground, eased with the fill. `countColor` and `glyphColor`
+    /// are window roles; the row paints that ground's of the same (C30 F3).
+    readonly property Ink ink: Ink {
+        ground: root.ground
+    }
 
     // #79: the count at the row's right ("8") is its description.
     Accessible.description: root.countText.length > 0 ? root.countText : root.count >= 0 ? String(
@@ -70,15 +91,25 @@ Rectangle {
     Accessible.onPressAction: if (root.enabled)
                                   root.clicked()
 
-    color: root.selected ? Theme.fill(Theme.fillSelected) : root.hot ? Theme.fill(Theme.fillHover) :
-                                                                       "transparent"
+    // The ground's own fill; resting in a block, nothing: the block's is under it already.
+    color: root.ground === root.block ? "transparent" : root.ground.fill
     height: Theme.railRowHeight
     implicitHeight: Theme.railRowHeight
 
     Behavior on color {
         ColorAnimation {
-            duration: 120
+            duration: Theme.fillChangeDuration
         }
+    }
+
+    Rectangle {
+        anchors.bottom: parent.bottom
+        anchors.left: parent.left
+        anchors.top: parent.top
+        color: Theme.accent
+        objectName: "railRowCurrentEdge"
+        visible: root.current
+        width: Theme.railCurrentEdge
     }
 
     Row {
@@ -96,7 +127,7 @@ Rectangle {
             id: glyphText
 
             anchors.verticalCenter: parent.verticalCenter
-            color: root.glyphColor
+            color: root.ink.of(root.glyphColor)
             height: Theme.font.small
             pixelSize: Theme.font.small
             text: root.glyph
@@ -107,13 +138,15 @@ Rectangle {
             id: nameText
 
             anchors.verticalCenter: parent.verticalCenter
-            color: root.selected ? Theme.brightForeground : root.dimText ? Theme.dimForeground :
-                                                                           Theme.foreground
+            color: root.selected || root.current ? root.ink.brightForeground : root.dimText
+                                                                               ? root.ink.dimForeground
+                                                                               : root.ink.foreground
 
             elide: root.elideLeft ? Text.ElideLeft : Text.ElideRight
             font.family: Theme.fontFamily
             font.pixelSize: Theme.font.body
             text: root.text
+            visible: !root.compact
             width: Math.max(0, label.width - glyphText.width - label.spacing)
         }
     }
@@ -124,12 +157,23 @@ Rectangle {
         anchors.right: parent.right
         anchors.rightMargin: Theme.space(16)
         anchors.verticalCenter: parent.verticalCenter
-        color: root.countColor
+        color: root.ink.of(root.countColor)
         font.family: Theme.fontFamily
         font.pixelSize: Theme.font.small
         objectName: "railRowCount"
         text: root.countText.length > 0 ? root.countText : String(root.count)
-        visible: root.countText.length > 0 || root.count >= 0
+        visible: !root.compact && (root.countText.length > 0 || root.count >= 0)
+    }
+
+    KeyBadge {
+        anchors.right: countText.visible ? countText.left : parent.right
+        anchors.rightMargin: countText.visible ? Theme.keyBadgeRowGap : root.compact ? Theme.keyBadgeEdge
+                                                                                     : Theme.space(16)
+        anchors.verticalCenter: parent.verticalCenter
+        corner: false
+        key: root.keyText
+        objectName: "railRowKey"
+        shown: root.keysShown
     }
 
     MouseArea {

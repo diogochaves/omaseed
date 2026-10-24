@@ -54,6 +54,56 @@ Item {
     property int defaultSideHeight: Theme.space(260)
     property int sideWidth: root.defaultSideWidth
     property int sideHeight: root.defaultSideHeight
+
+    // #184: the sizes follow the shell's base size. Whatever sets `sideWidth`/`sideHeight` (a
+    // drag, `<` `>`, the caller restoring a saved size) sets pixels, which no binding follows,
+    // so each is also kept in spec pixels, and a scale change sets it again from those: a
+    // dragged 400 at base 12 is 667 at base 20 and 400 again at 12, never a pixel off. One that
+    // is the default goes back to following `defaultSideWidth`/`defaultSideHeight`.
+    property real _sideWidthUnits: 0
+    property real _sideHeightUnits: 0
+    property bool _sideWidthDefault: true
+    property bool _sideHeightDefault: true
+    property bool _rescaling: false
+
+    function _noteSideWidth(): void {
+        if (root._rescaling)
+            return;
+        root._sideWidthDefault = root.sideWidth === root.defaultSideWidth;
+        root._sideWidthUnits = root.sideWidth / Theme.spaceScale;
+    }
+    function _noteSideHeight(): void {
+        if (root._rescaling)
+            return;
+        root._sideHeightDefault = root.sideHeight === root.defaultSideHeight;
+        root._sideHeightUnits = root.sideHeight / Theme.spaceScale;
+    }
+    function _rescale(): void {
+        root._rescaling = true;
+        root.sideWidth = root._sideWidthDefault ? Qt.binding(() => root.defaultSideWidth)
+                                                : Theme.spaceAt(root._sideWidthUnits,
+                                                                Theme.spaceScale);
+        root.sideHeight = root._sideHeightDefault ? Qt.binding(() => root.defaultSideHeight)
+                                                  : Theme.spaceAt(root._sideHeightUnits,
+                                                                  Theme.spaceScale);
+        root._rescaling = false;
+    }
+
+    onSideWidthChanged: root._noteSideWidth()
+    onSideHeightChanged: root._noteSideHeight()
+    Component.onCompleted: {
+        root._noteSideWidth();
+        root._noteSideHeight();
+    }
+
+    Connections {
+        function onSpaceScaleChanged(): void {
+            root._rescale();
+        }
+
+        target: Theme
+    }
+
     /// How close a drag has to come to the default size to land on it (docs/17 M10.2).
     property int snapDistance: Theme.space(16)
 
@@ -216,7 +266,7 @@ Item {
         Accessible.onPressAction: if (foldedColumn.enabled)
                                       root.toggleFold()
 
-        color: foldedMouse.containsMouse ? Theme.fill(Theme.fillHover) : "transparent"
+        color: foldedMouse.containsMouse ? Theme.on.hover.fill : "transparent"
         height: root.docked ? root.height : root.foldedExtent
         objectName: "foldedColumn"
         visible: root._shut && (root.docked || root.foldedBar === null)
@@ -232,10 +282,19 @@ Item {
             width: root.docked ? Theme.space(3) : Theme.space(28)
         }
 
+        // docs/DECISIONS.md C30 F1: the chevron on the hover fill while the pointer is on the
+        // column; the fill comes and goes at once, so does it.
+        Ink {
+            id: foldedInk
+
+            animated: false
+            ground: foldedMouse.containsMouse ? Theme.on.hover : Theme.on.window
+        }
+
         // Placed by x/y, not anchors: anchors switched by `docked` kept the old ones and drew
         // the chevron in the middle of the table after a placement change.
         Label {
-            color: Theme.accent
+            color: foldedInk.accent
             objectName: "foldedChevron"
             size: "small"
             text: root.docked ? Glyphs.chevronLeft : Glyphs.chevronUp

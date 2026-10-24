@@ -814,6 +814,12 @@ Flickable {
                     // Q20: the install row under a found server. Only the ink dims; cursor,
                     // hover, enter and click work as on the other rows.
                     readonly property bool dimmed: optionRow.modelData.dimmed
+                    /// The row's words on its ground, the hover fill while it is hot
+                    /// (docs/DECISIONS.md C30 F1).
+                    readonly property Ink ink: Ink {
+                        animated: false
+                        ground: Theme.ground(false, false, optionRow.hot, false)
+                    }
 
                     /// Choose this row: a click, or a screen reader's press.
                     function choose(): void {
@@ -830,7 +836,7 @@ Flickable {
                                                   optionRow.choose()
                     Layout.fillWidth: true
                     objectName: "setupOption" + optionRow.index
-                    color: optionRow.hot ? Theme.fill(Theme.fillHover) : "transparent"
+                    color: optionRow.hot ? optionRow.ink.fill : "transparent"
                     implicitHeight: rowLayout.implicitHeight + Theme.space(16)
                     radius: Theme.cornerRadius
 
@@ -864,7 +870,7 @@ Flickable {
 
                             Text {
                                 anchors.centerIn: parent
-                                color: optionRow.dimmed ? Theme.dimForeground : Theme.accent
+                                color: optionRow.dimmed ? optionRow.ink.dimForeground : optionRow.ink.accent
                                 font.family: Theme.fontFamily
                                 font.pixelSize: Theme.font.body
                                 text: optionRow.modelData.glyph
@@ -879,12 +885,14 @@ Flickable {
                                 Layout.fillWidth: true
                                 bright: !optionRow.dimmed
                                 dim: optionRow.dimmed
+                                ink: optionRow.ink
                                 text: optionRow.modelData.title
                             }
 
                             Label {
                                 Layout.fillWidth: true
                                 dim: true
+                                ink: optionRow.ink
                                 size: "small"
                                 text: optionRow.modelData.detail
                                 wrapMode: Text.WordWrap
@@ -896,6 +904,7 @@ Flickable {
                             // case is meaningful in every key chip (T3.5/T3.6), and `tracked`
                             // would print it as "ENTER".
                             dim: true
+                            ink: optionRow.ink
                             size: "caption"
                             text: qsTr("enter")
                             visible: optionRow.hasCursor

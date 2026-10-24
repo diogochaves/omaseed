@@ -44,9 +44,12 @@ omaseed_add_test(tst_tray
     LIBRARIES omaseed::integration Qt6::Svg Qt6::Widgets
 )
 
+# tests/fixtures/themes: Omarchy's own themes' colors.toml (MIT), every one checked on every
+# ground (docs/DECISIONS.md C30 F7).
 omaseed_add_test(tst_themecontrast
     SOURCES tst_themecontrast.cpp
     LIBRARIES omaseed::integration
+    DEFINES OMASEED_FIXTURES_DIR="${CMAKE_SOURCE_DIR}/tests/fixtures"
 )
 
 # #76: `omaseed --theme-roles`, the roles as Theme resolved them, as JSON.

@@ -13,6 +13,7 @@
 #include "core/Paths.hpp"
 #include "core/ServerListModel.hpp"
 #include "core/ServerStore.hpp"
+#include "core/StateFile.hpp"
 #include "core/SyncEngine.hpp"
 #include "core/TorrentDetails.hpp"
 #include "core/TorrentFilesModel.hpp"
@@ -101,6 +102,7 @@ private slots:
     void demoDataReproducesTheSpecsSixteenRows();
     void demoListsItsServerAndPersistsNothing();
     void demoDataScalesWithUniqueHashes();
+    void theScopeSentenceFollowsTheRail();
     void qmlSeesAppAndTheCoreTypes();
     void trayStateFollowsTheWorld();
     void environmentOverrideReachesThePlayground();
@@ -109,10 +111,19 @@ private slots:
     void filesWantedRemembersThePriority();
     void halfTickUnticksThenRestores();
     void manyFilesRenameLocallyInDemo();
+    void theGroundIsOpaqueByDefault();
+    void theGroundIsRemembered();
+    void aTransparencySetBeforeTheGroundReadsAsTranslucent();
+    void aNewInstallShowsRows();
+    void anExistingInstallKeepsTheTable();
+    void theDisplayIsRememberedPerScope();
+    void aMovesShowIsTheTable();
+    void theWalksPickTheirDisplay();
 
 private:
     QTemporaryDir m_config;
     QByteArray m_savedConfigHome;
+    QByteArray m_savedDisplay;
 };
 
 void TestApp::init()
@@ -120,12 +131,17 @@ void TestApp::init()
     QVERIFY(m_config.isValid());
     m_savedConfigHome = qgetenv("XDG_CONFIG_HOME");
     qputenv("XDG_CONFIG_HOME", m_config.path().toUtf8());
+    // ctest pins every App to the table (tests/CMakeLists.txt); these cases test the default.
+    m_savedDisplay = qgetenv("OMASEED_DISPLAY");
+    qunsetenv("OMASEED_DISPLAY");
     clearServerEnvironment();
 }
 
 void TestApp::cleanup()
 {
     clearServerEnvironment();
+    if (!m_savedDisplay.isEmpty())
+        qputenv("OMASEED_DISPLAY", m_savedDisplay);
     if (m_savedConfigHome.isEmpty())
         qunsetenv("XDG_CONFIG_HOME");
     else
@@ -182,6 +198,43 @@ void TestApp::demoListsItsServerAndPersistsNothing()
     // A second demo in the same process does not list "home" twice.
     app.startDemo(16);
     QCOMPARE(app.serverCount(), 1);
+}
+
+// DECISIONS C24 H5 (board 46 `titleBar()`): the title bar's sentence names the rail's scope,
+// read again on every pick; the filter's words narrow the rows, not the sentence.
+void TestApp::theScopeSentenceFollowsTheRail()
+{
+    App app;
+    QSignalSpy changed(&app, &App::scopeSentenceChanged);
+    app.startDemo(16);
+    const QString library = app.scopeSentence();
+    QVERIFY2(library.contains(QStringLiteral(" arriving")), qPrintable(library));
+    QVERIFY2(library.contains(QStringLiteral("giving back ")), qPrintable(library));
+    QVERIFY(changed.count() > 0);
+
+    app.filtered()->setText(QStringLiteral("ubuntu"));
+    QCOMPARE(app.scopeSentence(), library);
+    app.filtered()->setText(QString());
+
+    app.filtered()->setQuestion(TorrentFilterModel::Resting);
+    QVERIFY2(app.scopeSentence().endsWith(QStringLiteral(" · not sharing")) ||
+                 app.scopeSentence() == QStringLiteral("nothing resting"),
+             qPrintable(app.scopeSentence()));
+    app.filtered()->setQuestion(TorrentFilterModel::AnyQuestion);
+
+    app.filtered()->setCategory(QStringLiteral("linux"));
+    const int linux = app.counts()->categoryCount(QStringLiteral("linux"));
+    QVERIFY2(app.scopeSentence().startsWith(QStringLiteral("%1 torrents · ").arg(linux)),
+             qPrintable(app.scopeSentence()));
+    app.filtered()->setQuestion(TorrentFilterModel::Arriving);
+    QVERIFY2(app.scopeSentence().startsWith(QStringLiteral("arriving · ")),
+             qPrintable(app.scopeSentence()));
+    app.filtered()->clearCategory();
+    app.filtered()->setQuestion(TorrentFilterModel::AnyQuestion);
+    app.filtered()->setTag(QStringLiteral("x"));
+    QCOMPARE(app.scopeSentence(), QStringLiteral("0 torrents · tag"));
+    app.filtered()->clearTag();
+    QCOMPARE(app.scopeSentence(), library);
 }
 
 void TestApp::demoDataReproducesTheSpecsSixteenRows()
@@ -704,4 +757,184 @@ void TestApp::manyFilesRenameLocallyInDemo()
 }
 
 QTEST_MAIN(TestApp)
+// DECISIONS C24 H13 (#113): the ground is opaque by default, like every Omarchy 4.5 app.
+void TestApp::theGroundIsOpaqueByDefault()
+{
+    QFile::remove(omaseed::core::StateFile::path()); // the directory is shared between cases
+    App app;
+    QCOMPARE(app.windowGround(), QStringLiteral("opaque"));
+    QCOMPARE(app.windowAlphaOverride(), 0);
+    // Anything but "translucent" is opaque.
+    app.setWindowGround(QStringLiteral("glass"));
+    QCOMPARE(app.windowGround(), QStringLiteral("opaque"));
+}
+
+void TestApp::theGroundIsRemembered()
+{
+    QFile::remove(omaseed::core::StateFile::path());
+    {
+        App app;
+        QSignalSpy changed(&app, &App::settingsChanged);
+        app.setWindowGround(QStringLiteral("translucent"));
+        QCOMPARE(changed.count(), 1);
+        app.setWindowGround(QStringLiteral("translucent"));
+        QCOMPARE(changed.count(), 1);
+    }
+    {
+        App app;
+        QCOMPARE(app.windowGround(), QStringLiteral("translucent"));
+        // A chosen opaque stays opaque, a transparency kept for later or not.
+        app.setWindowAlphaOverride(80);
+        app.setWindowGround(QStringLiteral("opaque"));
+    }
+    App app;
+    QCOMPARE(app.windowGround(), QStringLiteral("opaque"));
+    QCOMPARE(app.windowAlphaOverride(), 80);
+}
+
+// Before the choice, a transparency set by hand was the only way to ask for a ground of one's
+// own: such a state.json reads as translucent, and one without an override as opaque.
+void TestApp::aTransparencySetBeforeTheGroundReadsAsTranslucent()
+{
+    QFile::remove(omaseed::core::StateFile::path());
+    omaseed::core::StateFile::writeSection(
+        QStringLiteral("appearance"), QJsonObject{{QStringLiteral("windowAlphaOverride"), 85}});
+    {
+        App app;
+        QCOMPARE(app.windowGround(), QStringLiteral("translucent"));
+        QCOMPARE(app.windowAlphaOverride(), 85);
+    }
+    omaseed::core::StateFile::writeSection(QStringLiteral("appearance"),
+                                           QJsonObject{{QStringLiteral("windowAlphaOverride"), 0}});
+    App app;
+    QCOMPARE(app.windowGround(), QStringLiteral("opaque"));
+}
+
+// DECISIONS C24 H4: rows for a new install, decided at the first read and written at once.
+void TestApp::aNewInstallShowsRows()
+{
+    QFile::remove(omaseed::core::StateFile::path());
+    {
+        App app;
+        QCOMPARE(app.display(), QStringLiteral("rows"));
+        QCOMPARE(app.filtered()->groupBy(), TorrentFilterModel::ByQuestion);
+        QCOMPARE(app.displayScope(), QStringLiteral("library"));
+        // Nothing written yet: the decision goes with the run's first write.
+        QVERIFY(!QFile::exists(omaseed::core::StateFile::path()));
+        app.setRailHidden(true);
+        QCOMPARE(omaseed::core::StateFile::readSection(QStringLiteral("displays"))
+                     .value(QStringLiteral("library"))
+                     .toString(),
+                 QStringLiteral("rows"));
+    }
+    // What the first run wrote (a setting) makes it no older.
+    App app;
+    QCOMPARE(app.display(), QStringLiteral("rows"));
+    // A state.json with its version alone is a new install too.
+    QFile::remove(omaseed::core::StateFile::path());
+    omaseed::core::StateFile::write(QJsonObject{{QStringLiteral("version"), 1}});
+    App fresh;
+    QCOMPARE(fresh.display(), QStringLiteral("rows"));
+}
+
+// H4: an install whose state.json predates this build keeps the table until it picks another.
+void TestApp::anExistingInstallKeepsTheTable()
+{
+    QFile::remove(omaseed::core::StateFile::path());
+    omaseed::core::StateFile::writeSection(QStringLiteral("appearance"),
+                                           QJsonObject{{QStringLiteral("pulseRows"), true}});
+    {
+        App app;
+        QCOMPARE(app.display(), QStringLiteral("table"));
+        QCOMPARE(app.filtered()->groupBy(), TorrentFilterModel::NoGroups);
+        QSignalSpy changed(&app, &App::displayChanged);
+        app.setDisplay(QStringLiteral("rows"));
+        QCOMPARE(changed.count(), 1);
+        QCOMPARE(app.display(), QStringLiteral("rows"));
+    }
+    App app;
+    QCOMPARE(app.display(), QStringLiteral("rows"));
+}
+
+// H4: remembered per scope, folders included; a scope with none of its own shows the
+// library's (#168 assumed 2, 4).
+void TestApp::theDisplayIsRememberedPerScope()
+{
+    QFile::remove(omaseed::core::StateFile::path());
+    {
+        App app;
+        app.filtered()->setFolder(QStringLiteral("/data/films"));
+        QCOMPARE(app.displayScope(), QStringLiteral("folder:/data/films"));
+        QCOMPARE(app.display(), QStringLiteral("rows"));
+        app.setDisplay(QStringLiteral("overview"));
+        QCOMPARE(app.filtered()->groupBy(), TorrentFilterModel::ByCategory);
+        app.filtered()->setFolder(QString());
+        app.filtered()->setQuestion(TorrentFilterModel::Arriving);
+        QCOMPARE(app.display(), QStringLiteral("rows"));
+        app.setDisplay(QStringLiteral("table"));
+        app.filtered()->setQuestion(TorrentFilterModel::AnyQuestion);
+        QCOMPARE(app.display(), QStringLiteral("rows"));
+        // The library's pick reaches every scope with none of its own.
+        app.setDisplay(QStringLiteral("table"));
+        app.filtered()->setCategory(QStringLiteral("films"));
+        QCOMPARE(app.display(), QStringLiteral("table"));
+        app.filtered()->clearCategory();
+    }
+    App app;
+    QCOMPARE(app.display(), QStringLiteral("table"));
+    QCOMPARE(app.displayFor(QStringLiteral("folder:/data/films")), QStringLiteral("overview"));
+    QCOMPARE(app.displayFor(QStringLiteral("question:arriving")), QStringLiteral("table"));
+    app.filtered()->setFolder(QStringLiteral("/data/films"));
+    QCOMPARE(app.display(), QStringLiteral("overview"));
+    app.filtered()->setFolder(QString());
+    // The test seam starts over.
+    app.resetDisplays(false);
+    QCOMPARE(app.display(), QStringLiteral("rows"));
+    QCOMPARE(app.displayFor(QStringLiteral("folder:/data/films")), QStringLiteral("rows"));
+    app.resetDisplays(true);
+    QCOMPARE(app.display(), QStringLiteral("table"));
+}
+
+// #168 assumed 5: a move's torrents on show are the table, and the tool changes nothing then.
+void TestApp::aMovesShowIsTheTable()
+{
+    QFile::remove(omaseed::core::StateFile::path());
+    App app;
+    QCOMPARE(app.display(), QStringLiteral("rows"));
+    app.filtered()->setOnlyHashes({QStringLiteral("aa")});
+    QCOMPARE(app.display(), QStringLiteral("table"));
+    QCOMPARE(app.filtered()->groupBy(), TorrentFilterModel::NoGroups);
+    app.setDisplay(QStringLiteral("overview"));
+    QCOMPARE(app.display(), QStringLiteral("table"));
+    app.filtered()->setOnlyHashes({});
+    QCOMPARE(app.display(), QStringLiteral("rows"));
+}
+
+// The walks pin a display (OMASEED_DISPLAY): every scope starts on it, and it is saved.
+void TestApp::theWalksPickTheirDisplay()
+{
+    QFile::remove(omaseed::core::StateFile::path());
+    qputenv("OMASEED_DISPLAY", QByteArrayLiteral("table"));
+    {
+        App app;
+        app.filtered()->setFolder(QStringLiteral("/data/films"));
+        QCOMPARE(app.display(), QStringLiteral("table"));
+        app.filtered()->setFolder(QString());
+    }
+    // Never started, it wrote nothing: the next run decides again.
+    QVERIFY(!QFile::exists(omaseed::core::StateFile::path()));
+    {
+        App app;
+        QCOMPARE(app.display(), QStringLiteral("table"));
+        app.start(); // a real run writes it at once
+    }
+    qunsetenv("OMASEED_DISPLAY");
+    App app;
+    QCOMPARE(app.display(), QStringLiteral("table"));
+    qputenv("OMASEED_DISPLAY", QByteArrayLiteral("cards"));
+    App ignored;
+    QCOMPARE(ignored.display(), QStringLiteral("table"));
+    qunsetenv("OMASEED_DISPLAY");
+}
+
 #include "tst_app.moc"

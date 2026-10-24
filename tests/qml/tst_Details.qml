@@ -126,23 +126,51 @@ TestCase {
         return view;
     }
 
-    function test_head_and_strip_come_from_the_cursor_row() {
+    // DECISIONS C24 H6: the head is the name, its meta line, then the rows display's one fact
+    // in its state's colour, its caption, and the sentence; the pane opens on the story.
+    function test_head_and_hero_come_from_the_cursor_row() {
         const view = testCase.select(testCase.archName);
 
         compare(view.torrent.name, testCase.archName);
         compare(view.torrent.category, "linux");
-        // Spec §1 Fig. 1's strip: size, done, ratio, eta.
-        compare(view.torrent.sizeText, "1.31 GB");
-        compare(view.torrent.progressText, "48.9 %");
-        compare(view.torrent.etaLongText, "2 min 40 s");
-        compare(view.currentTab, 0);
-        // docs/12 G5: General's rows are a list too, and the cursor starts on the first.
+        compare(findChild(view, "detailsFact").text, view.torrent.rowFact);
+        compare(findChild(view, "detailsFact").text, "3 min");
+        compare(findChild(view, "detailsFact").color, Theme.stateDownloading);
+        compare(findChild(view, "detailsCaption").text, "to ready");
+        const sentence = findChild(view, "detailsSentence").text;
+        verify(sentence.startsWith("48.9 % of 1.31 GB"), sentence);
+        verify(sentence.endsWith("."), sentence);
+        compare(view.currentTab, view.tabStory);
+        // The story has no list: the cursor waits for one.
+        compare(view.rowCount, 0);
+        // docs/12 G5: facts' rows are a list, and the cursor starts on the first.
+        view.activateTab(view.tabFacts);
         compare(view.cursorIndex, 0);
-        compare(view.rowCount, findChild(view, "generalTab").count);
+        compare(view.rowCount, findChild(view, "factsTab").count);
+        view.activateTab(view.tabStory);
+    }
+
+    // DECISIONS C24 H6: the four facts the strip had are in facts now, Size first; the head's
+    // meta joins Information.
+    function test_facts_lead_with_what_the_strip_had() {
+        const view = testCase.select(testCase.archName);
+        const facts = findChild(view, "factsTab");
+        const transfer = facts.groups[0].rows;
+        compare(transfer.slice(0, 5).map(row => row.key), ["Size", "Done", "Ratio", "ETA", "Status"]);
+        compare(transfer[0].value, "1.31 GB");
+        compare(transfer[1].value, "48.9 %");
+        compare(transfer[3].value, "2 min 40 s");
+        const information = facts.groups[1].rows.map(row => row.key);
+        compare(information.slice(0, 3), ["Category", "Tags", "Added"].filter(
+                    key => key !== "Tags" || view.torrent.tagsText.length > 0));
+        // C30 F17: the size's tail, when the reading has one.
+        facts.sizeTail = "2 skipped, 16.0 MB still on disk";
+        compare(facts.groups[0].rows[0].tail, "2 skipped, 16.0 MB still on disk");
+        facts.sizeTail = "";
     }
 
     // #79: a screen reader hears the head (the name as the heading, the line under it whole),
-    // the strip's figures, the pieces line and General's group headings; an error block is an
+    // the fact and its sentence, the pieces line and facts' group headings; an error block is an
     // alert named by its headline, its lines text.
     function test_a_screen_reader_hears_the_head_and_the_figures() {
         const view = testCase.select(testCase.archName);
@@ -153,13 +181,13 @@ TestCase {
         compare(meta.Accessible.role, Accessible.StaticText);
         verify(meta.Accessible.name.startsWith("linux · "), meta.Accessible.name);
         verify(meta.Accessible.name.indexOf("added ") >= 0, meta.Accessible.name);
-        const cell = findChild(view, "stripCell");
-        compare(cell.Accessible.name, "size");
-        compare(cell.Accessible.description, "1.31 GB");
+        const hero = findChild(view, "detailsHero");
+        compare(hero.Accessible.name, "3 min to ready");
+        verify(hero.Accessible.description.startsWith("48.9 % of 1.31 GB"), hero.Accessible.description);
         const pieces = findChild(view, "piecesLabel");
         compare(pieces.Accessible.name, "pieces");
         compare(pieces.Accessible.description, "617 of 1 264 · 48.9 %");
-        const transfer = findChild(view, "generalHeading_Transfer");
+        const transfer = findChild(view, "factsHeading_Transfer");
         compare(transfer.Accessible.role, Accessible.Heading);
         compare(transfer.Accessible.name, "Transfer");
 
@@ -172,8 +200,8 @@ TestCase {
         compare(detail.Accessible.name, detail.text);
     }
 
-    // docs/28 G2: an errored torrent says why at the top of General, and its Status row
-    // carries the short cause; a healthy one shows neither.
+    // docs/28 G2: an errored torrent says why at the top of the story (C24 H6), and facts'
+    // Status row carries the short cause; a healthy one shows neither.
     function test_an_errored_torrent_says_why() {
         const view = testCase.select(testCase.elephantsName);
         const block = findChild(view, "errorBlock");
@@ -188,7 +216,9 @@ TestCase {
         // DECISIONS C20 (#107): `p` stops an errored torrent; the block's retry is `e`.
         compare(block.hints.map(hint => (hint.key + " " + hint.label).trim()),
                 ["m move…", "e retry", "copy the line", "its lines in the log"]);
-        compare(findChild(view, "generalTail").text, "· disk full");
+        const facts = findChild(view, "factsTab");
+        const status = facts.rows.findIndex(row => row.key === "Status");
+        compare(findChild(findChild(view, "factsRow_" + status), "factsTail").text, "· disk full");
 
         const healthy = testCase.select(testCase.archName);
         verify(!findChild(healthy, "errorBlock").visible);
@@ -201,8 +231,90 @@ TestCase {
         signalName: "failureActionRequested"
     }
 
-    // docs/32 F1 (#55): the demo's move of Spring to /mnt/archive/movies didn't happen. General
-    // opens with #54's block in yellow: what didn't happen, why, where the files still are,
+    SignalSpy {
+        id: problemSpy
+
+        signalName: "problemActionRequested"
+    }
+
+    SignalSpy {
+        id: moveBackSpy
+
+        signalName: "moveBackRequested"
+    }
+
+    // DECISIONS C24 H6: the story reads in order: the error block, the last move, the pieces,
+    // what happened, then its lines in the log.
+    function test_the_story_reads_in_order() {
+        const view = testCase.select(testCase.elephantsName);
+        const story = findChild(view, "storyTab");
+        verify(story.visible);
+        story.lastMove = {
+            "id": "m1",
+            "title": "films",
+            "when": "16:24",
+            "today": true,
+            "from": "/data/a",
+            "to": "/data/b",
+            "others": 2,
+            "hashes": [App.details.hash],
+            "canBack": true,
+            "canBackThis": true
+        };
+        wait(0);
+        const order = ["errorBlock", "moveBlock", "piecesBar", "storyEvents", "storyLogLink"].map(
+                    name => findChild(story, name));
+        for (const item of order)
+            verify(item.visible, item.objectName + " is not shown");
+        for (let at = 1; at < order.length; ++at)
+            verify(order[at].mapToItem(story, 0, 0).y > order[at - 1].mapToItem(story, 0, 0).y,
+                   order[at].objectName + " is not under " + order[at - 1].objectName);
+
+        // What happened starts with the add, in the torrent's state colour, and ends with the
+        // error the log timed.
+        const first = findChild(story, "storyEvent_0");
+        compare(findChild(first, "storyEventTitle").text, "Added");
+        const events = story.story;
+        verify(events.length >= 1);
+        compare(events[0].kind, "plain");
+        const last = events[events.length - 1];
+        if (last.kind === "error")
+            compare(last.title, "The disk is full");
+
+        // The last move's actions and the log link go up as before (C18 D7, docs/32 D13).
+        moveBackSpy.target = view;
+        moveBackSpy.clear();
+        findChild(story, "moveBlock").actionTriggered("backThis");
+        compare(moveBackSpy.count, 1);
+        compare(moveBackSpy.signalArguments[0][0], "m1");
+        compare(moveBackSpy.signalArguments[0][1], App.details.hash);
+        problemSpy.target = view;
+        problemSpy.clear();
+        story.logRequested();
+        compare(problemSpy.count, 1);
+        compare(problemSpy.signalArguments[0][0], "log");
+        // "rename" on the error block opens files; "copy" copies the line.
+        findChild(story, "errorBlock").actionTriggered("rename");
+        compare(view.currentTab, view.tabFiles);
+        view.activateTab(view.tabStory);
+    }
+
+    // A healthy torrent's story has no blocks: the pieces and what happened.
+    function test_a_quiet_story_has_no_blocks() {
+        const view = testCase.select(testCase.bbbName);
+        const story = findChild(view, "storyTab");
+        verify(!findChild(story, "errorBlock").visible);
+        verify(!findChild(story, "failureBlock").visible);
+        verify(!findChild(story, "moveBlock").visible);
+        verify(findChild(story, "storyEvents").visible);
+        compare(findChild(story, "storyHeading").text, "what happened");
+        // Finished: added, then finished downloading.
+        const titles = story.story.map(event => event.title);
+        compare(titles.slice(0, 2), ["Added", "Finished downloading"]);
+    }
+
+    // docs/32 F1 (#55): the demo's move of Spring to /mnt/archive/movies didn't happen. The
+    // story opens with #54's block in yellow: what didn't happen, why, where the files still are,
     // and set location, open folder, copy the line, dismiss. No red block: it isn't an error.
     function test_a_move_that_did_not_happen_says_so_in_yellow() {
         const view = testCase.select("Spring (2019) 4K (CC-BY)");
@@ -217,7 +329,7 @@ TestCase {
         compare(block.hints.map(hint => (hint.key + " " + hint.label).trim()),
                 ["m move…", "o open folder", "copy the line", "its lines in the log", "x dismiss"]);
 
-        // `x` on General asks for the dismissal; on Files it would skip a file instead.
+        // `x` on the story asks for the dismissal; on files it would skip a file instead.
         failureSpy.target = view;
         failureSpy.clear();
         view.forceActiveFocus();
@@ -246,14 +358,14 @@ TestCase {
         compare(view.currentTab, 1);
         compare(view.filesCursor, 2);
         compare(view.filesCursorPath, path);
-        view.activateTab(0);
+        view.activateTab(view.tabStory);
     }
 
     // docs/32 W1: under each URL, what the log says: the demo's geo mirror doesn't resolve,
     // twice; nothing was logged about the others.
     function test_each_http_source_says_what_the_log_says() {
         const view = testCase.select(testCase.archName);
-        view.activateTab(4);
+        view.activateTab(view.tabWebSeeds);
         waitForRendering(view, 500);
         compare(findChild(view, "webSeedError_1").text, "host not found");
         verify(findChild(view, "webSeedStatus_1").text.startsWith(" · 2 times, last "),
@@ -262,7 +374,7 @@ TestCase {
         verify(!findChild(view, "webSeedError_0").visible);
         compare(findChild(view, "webSeedStatus_0").text, "no errors logged");
         compare(findChild(view, "webSeedDot_0").color, Theme.muted);
-        view.activateTab(0);
+        view.activateTab(view.tabStory);
     }
 
     function test_the_tracker_badge_follows_the_torrent() {
@@ -293,28 +405,29 @@ TestCase {
     // docs/12 G1: Transfer, Information, Options, in that order, each row in its group.
     function test_general_is_grouped_transfer_information_options() {
         const view = testCase.select(testCase.archName);
-        const general = findChild(view, "generalTab");
+        const general = findChild(view, "factsTab");
         verify(general !== null);
 
         const groups = general.groups;
         compare(groups.map(group => group.label), ["Transfer", "Information", "Options"]);
         const keys = groups.map(group => group.rows.map(row => row.key));
-        compare(keys[0], ["Status", "Downloaded", "Uploaded", "Wasted", "Seeds", "Peers",
-                          "Connections", "Availability", "Avg speed", "Time active",
-                          "Last seen full", "Reannounce"]);
+        compare(keys[0], ["Size", "Done", "Ratio", "ETA", "Status", "Downloaded", "Uploaded",
+                          "Wasted", "Seeds", "Peers", "Connections", "Availability", "Avg speed",
+                          "Time active", "Last seen full", "Reannounce"]);
         // No hash v2, no creation or completion date in the demo's arch row.
-        compare(keys[1], ["Save path", "Pieces", "Hash v1", "Magnet", "Private", "Created by",
-                          "Comment"]);
+        compare(keys[1].filter(key => ["Category", "Tags", "Added"].indexOf(key) < 0),
+                ["Save path", "Pieces", "Hash v1", "Magnet", "Private", "Created by", "Comment"]);
         compare(keys[2][0], "Share limit");
 
         // Each group has its heading on screen.
+        view.activateTab(view.tabFacts);
         for (const label of ["Transfer", "Information", "Options"]) {
-            const heading = findChild(view, "generalHeading_" + label);
+            const heading = findChild(view, "factsHeading_" + label);
             verify(heading !== null && heading.visible, "no heading for " + label);
         }
 
         // The magnet is shown short; its row is dim.
-        const magnet = groups[1].rows[3];
+        const magnet = groups[1].rows.find(row => row.key === "Magnet");
         verify(magnet.value.endsWith("…"));
         compare(magnet.dim, true);
     }
@@ -325,84 +438,84 @@ TestCase {
         view.width = 1100;
         view.wide = true;
         wait(0); // let the columns lay out
-        const general = findChild(view, "generalTab");
+        const general = findChild(view, "factsTab");
         compare(general.columns, 2);
-        const transfer = findChild(view, "generalGroup_Transfer");
-        const information = findChild(view, "generalGroup_Information");
-        const options = findChild(view, "generalGroup_Options");
+        const transfer = findChild(view, "factsGroup_Transfer");
+        const information = findChild(view, "factsGroup_Information");
+        const options = findChild(view, "factsGroup_Options");
         verify(transfer.mapToItem(general, 0, 0).x < information.mapToItem(general, 0, 0).x);
         compare(information.mapToItem(general, 0, 0).x, options.mapToItem(general, 0, 0).x);
         verify(options.mapToItem(general, 0, 0).y > information.mapToItem(general, 0, 0).y);
     }
 
-    // docs/13: under the table the head and the strip share one band, and the tabs and
-    // their body take the pane's whole width below it.
-    function test_wide_puts_the_head_and_strip_in_one_band_over_full_width_tabs() {
+    // docs/13: under the table the head and the fact share one band (the fact where the strip
+    // was, DECISIONS C24 H6), and the tabs and their body take the pane's whole width below it.
+    function test_wide_puts_the_head_and_fact_in_one_band_over_full_width_tabs() {
         const view = testCase.select(testCase.archName);
         view.width = 1100;
         view.wide = true;
         wait(0);
-        const strip = findChild(view, "strip");
-        const general = findChild(view, "generalTab");
-        const stripAt = strip.mapToItem(view, 0, 0);
-        compare(stripAt.x + strip.width, view.width);
-        compare(strip.width, Theme.space(440));
-        compare(strip.rule, false);
-        const generalAt = general.mapToItem(view, 0, 0);
-        compare(generalAt.x, 0);
-        compare(general.width, view.width);
-        verify(generalAt.y >= stripAt.y + strip.height, "the tabs overlap the band");
+        const hero = findChild(view, "detailsHero");
+        const story = findChild(view, "storyTab");
+        const heroAt = hero.mapToItem(view, 0, 0);
+        compare(heroAt.x + hero.width, view.width);
+        compare(hero.width, Theme.space(440));
+        compare(hero.rule, false);
+        const storyAt = story.mapToItem(view, 0, 0);
+        compare(storyAt.x, 0);
+        compare(story.width, view.width);
+        verify(storyAt.y >= heroAt.y + hero.height, "the tabs overlap the band");
         const tabs = findChild(view, "detailsTabs");
-        verify(tabs.mapToItem(view, 0, 0).y >= stripAt.y + strip.height, "the strip is not in the band");
+        verify(tabs.mapToItem(view, 0, 0).y >= heroAt.y + hero.height, "the fact is not in the band");
 
-        // Narrow, the strip gives the name half the pane at least.
+        // Narrow, the fact gives the name half the pane at least.
         view.width = 600;
         wait(0);
-        compare(strip.width, 300);
+        compare(hero.width, 300);
 
-        // Docked at the side, the strip is back under the head, full width, with its rule.
+        // Docked at the side, the fact is back under the head, full width, with its rule.
         view.wide = false;
         wait(0);
-        compare(strip.width, view.width);
-        compare(strip.rule, true);
+        compare(hero.width, view.width);
+        compare(hero.rule, true);
     }
 
     // docs/15 Q2 A: below 700 px (base 14) the band stops sharing its line. The name goes on
-    // top at the full width, the four facts across the whole width under it, then the tabs.
-    function test_a_narrow_band_puts_the_facts_under_the_name() {
+    // top at the full width, the fact and its sentence across the whole width under it, then
+    // the tabs.
+    function test_a_narrow_band_puts_the_fact_under_the_name() {
         const view = testCase.select(testCase.archName);
         view.wide = true;
-        const strip = findChild(view, "strip");
+        const hero = findChild(view, "detailsHero");
         const tabs = findChild(view, "detailsTabs");
         const name = findChild(view, "headLabels").parent.parent; // the head's column
 
         view.width = Theme.space(600);
         wait(0);
         verify(view.band);
-        compare(strip.width, Math.floor(view.width / 2));
+        compare(hero.width, Math.floor(view.width / 2));
 
         view.width = Theme.space(599);
         wait(0);
         verify(!view.band);
-        compare(strip.width, view.width);
-        compare(strip.mapToItem(view, 0, 0).x, 0);
+        compare(hero.width, view.width);
+        compare(hero.mapToItem(view, 0, 0).x, 0);
         compare(name.width, view.width - 2 * Theme.space(16));
-        verify(strip.mapToItem(view, 0, 0).y >= name.mapToItem(view, 0, 0).y + name.height,
-               "the facts are not under the name");
-        verify(tabs.mapToItem(view, 0, 0).y >= strip.mapToItem(view, 0, 0).y + strip.height,
-               "the tabs overlap the facts");
-        compare(strip.rule, true);
-        compare(strip.items.length, 4);
+        verify(hero.mapToItem(view, 0, 0).y >= name.mapToItem(view, 0, 0).y + name.height,
+               "the fact is not under the name");
+        verify(tabs.mapToItem(view, 0, 0).y >= hero.mapToItem(view, 0, 0).y + hero.height,
+               "the tabs overlap the fact");
+        compare(hero.rule, true);
 
-        // And at the 560 px floor the facts keep the whole width.
+        // And at the 560 px floor the fact keeps the whole width.
         view.width = Theme.space(480);
         wait(0);
         verify(!view.band);
-        compare(strip.width, view.width);
+        compare(hero.width, view.width);
     }
 
-    // docs/12 G3: the pieces bar tops General, drawn from the demo's piece states.
-    function test_the_pieces_bar_tops_general() {
+    // docs/12 G3: the pieces bar is in the story (C24 H6), drawn from the demo's piece states.
+    function test_the_pieces_bar_is_in_the_story() {
         const view = testCase.select(testCase.archName);
         const bar = findChild(view, "piecesBar");
         verify(bar !== null);
@@ -412,11 +525,12 @@ TestCase {
         compare(findChild(view, "piecesLabel").text, "pieces · 617 of 1 264");
         compare(findChild(view, "piecesPercent").text, "48.9 %");
 
-        // Above the Transfer heading.
+        // In the story, above what happened.
         wait(0);
-        const transfer = findChild(view, "generalHeading_Transfer");
-        const general = findChild(view, "generalTab");
-        verify(bar.mapToItem(general, 0, 0).y < transfer.mapToItem(general, 0, 0).y);
+        const story = findChild(view, "storyTab");
+        verify(bar.parent.parent === story.contentItem, "the bar is not the story's");
+        const events = findChild(view, "storyEvents");
+        verify(bar.mapToItem(story, 0, 0).y < events.mapToItem(story, 0, 0).y);
 
         // The canvas painted one cell per pixel: some had, some in flight, some missing.
         const canvas = findChild(view, "piecesCanvas");
@@ -431,19 +545,20 @@ TestCase {
         compare(App.details.piecesHaveCount, App.details.pieceCount);
     }
 
-    // docs/12 G5: j k walk General's rows across the groups; y copies the whole value.
-    function test_general_rows_take_a_cursor_and_y_copies_the_whole_value() {
+    // docs/12 G5: j k walk facts' rows across the groups; y copies the whole value.
+    function test_facts_rows_take_a_cursor_and_y_copies_the_whole_value() {
         const view = testCase.select(testCase.archName);
-        const general = findChild(view, "generalTab");
+        const general = findChild(view, "factsTab");
+        view.activateTab(view.tabFacts);
         view.forceActiveFocus();
         valueSpy.target = view;
         valueSpy.clear();
 
         compare(view.cursorIndex, 0);
-        verify(findChild(view, "generalRow_0").hasCursor);
+        verify(findChild(view, "factsRow_0").hasCursor);
         // #77: a row is a list item named by its key, the value its description; a screen
         // reader's press is the click: the cursor goes there and the value is copied.
-        const second = findChild(view, "generalRow_1");
+        const second = findChild(view, "factsRow_1");
         compare(second.Accessible.role, Accessible.ListItem);
         compare(second.Accessible.name, second.entry.key);
         verify(second.Accessible.description.indexOf(second.entry.value) === 0);
@@ -455,8 +570,8 @@ TestCase {
         compare(view.cursorIndex, 0);
         keyClick("j");
         compare(view.cursorIndex, 1);
-        verify(findChild(view, "generalRow_1").hasCursor);
-        verify(!findChild(view, "generalRow_0").hasCursor);
+        verify(findChild(view, "factsRow_1").hasCursor);
+        verify(!findChild(view, "factsRow_0").hasCursor);
         keyClick("k");
         keyClick("k");
         compare(view.cursorIndex, 0); // clamped at the top
@@ -490,11 +605,11 @@ TestCase {
     // stays on one line. Either way y copies it whole (above).
     function test_a_hash_that_does_not_fit_breaks_in_half() {
         const view = testCase.select(testCase.archName);
-        const general = findChild(view, "generalTab");
+        const general = findChild(view, "factsTab");
         const hashRow = general.rows.findIndex(row => row.key === "Hash v1");
         const hash = App.details.properties.hashV1;
         compare(hash.length, 40);
-        const value = findChild(findChild(view, "generalRow_" + hashRow), "generalValue");
+        const value = findChild(findChild(view, "factsRow_" + hashRow), "factsValue");
         compare(value.text, hash.slice(0, 20) + "\n" + hash.slice(20));
 
         view.width = 1400;
@@ -502,15 +617,16 @@ TestCase {
     }
 
     // docs/12 G5: a click on a row moves the cursor there and copies the value.
-    function test_a_click_on_a_general_row_copies_it() {
+    function test_a_click_on_a_facts_row_copies_it() {
         const view = testCase.select(testCase.archName);
-        const general = findChild(view, "generalTab");
+        view.activateTab(view.tabFacts);
+        const general = findChild(view, "factsTab");
         valueSpy.target = view;
         valueSpy.clear();
 
         const pathRow = general.rows.findIndex(row => row.key === "Save path");
         // Offscreen delivers no mouse events: the row's own signal stands in for the click.
-        findChild(view, "generalRow_" + pathRow).clicked();
+        findChild(view, "factsRow_" + pathRow).clicked();
         compare(view.cursorIndex, pathRow);
         compare(valueSpy.count, 1);
         compare(valueSpy.signalArguments[0][0], "/data/torrents/linux/");
@@ -520,8 +636,9 @@ TestCase {
     // docs/12 G4: the Options group's on/off rows, and `enter` on one turns it over.
     function test_enter_toggles_an_option_row() {
         const view = testCase.select(testCase.archName);
+        view.activateTab(view.tabFacts);
         const hash = App.details.hash;
-        const general = findChild(view, "generalTab");
+        const general = findChild(view, "factsTab");
         const keys = general.groups[2].rows.map(row => row.key);
         compare(keys, ["Share limit", "Sequential", "First / last", "Super seed",
                        "Auto manage"]);
@@ -561,34 +678,37 @@ TestCase {
     // docs/12 G4: `enter` on a row that is not an option is not the pane's to take.
     function test_enter_on_a_plain_row_changes_nothing() {
         const view = testCase.select(testCase.archName);
-        compare(view.toggleGeneralOption(0), false); // Status
-        const general = findChild(view, "generalTab");
+        compare(view.toggleGeneralOption(0), false); // Size
+        const general = findChild(view, "factsTab");
         const shareLimit = general.rows.findIndex(row => row.key === "Share limit");
         compare(view.toggleGeneralOption(shareLimit), false);
     }
 
-    // docs/12 G5: the pane's own hint row teaches General too.
-    function test_general_has_hints_of_its_own() {
+    // docs/12 G5: the pane's own hint row teaches facts too; the story has no keys of its own.
+    function test_facts_has_hints_of_its_own() {
         const view = testCase.select(testCase.archName);
         const hints = findChild(view, "detailsHints");
         verify(hints !== null && hints.visible);
+        compare(hints.model.length, 0);
+        view.activateTab(view.tabFacts);
         compare(hints.model.map(hint => hint.key + " " + hint.label), ["j k move", "y copy value",
                                                                           "enter change"]);
+        view.activateTab(view.tabStory);
     }
 
     // Ruling Q4: Fig. 3/4's `a` add and `b` ban are built, so the pane teaches them again.
     function test_trackers_and_peers_teach_add_and_ban() {
         const view = testCase.select(testCase.archName);
         const hints = findChild(view, "detailsHints");
-        view.activateTab(2);
+        view.activateTab(view.tabTrackers);
         compare(hints.model.map(hint => hint.key + " " + hint.label), ["a add", "d remove",
                                                                           "R reannounce", "y copy",
                                                                           "space mark", "ctrl+a mark all"]);
-        view.activateTab(3);
+        view.activateTab(view.tabSwarm);
         compare(hints.model.map(hint => hint.key + " " + hint.label), ["b ban", "a add peer",
                                                                           "y copy", "space mark",
                                                                           "ctrl+a mark all"]);
-        view.activateTab(0);
+        view.activateTab(view.tabStory);
     }
 
     // docs/12 G2: the demo fills every new row, so `--demo` shows them all.
@@ -673,7 +793,7 @@ TestCase {
         compare(view.cursorIndex, 6);
 
         // Each tab keeps its own place.
-        view.activateTab(2);
+        view.activateTab(view.tabTrackers);
         compare(view.cursorIndex, 0);
         view.moveCursor(1);
         compare(view.cursorIndex, 1);
@@ -684,14 +804,14 @@ TestCase {
     function test_trackers_and_peers_tabs_are_figures_three_and_four() {
         const view = testCase.select(testCase.archName);
 
-        view.activateTab(2);
+        view.activateTab(view.tabTrackers);
         const trackers = App.details.trackers;
         compare(trackers.count, 5);
         compare(trackers.data(trackers.index(0, 0), TorrentTrackersModel.HostRole),
                 "tracker.example.net");
         compare(trackers.data(trackers.index(3, 0), TorrentTrackersModel.HostRole), "DHT");
 
-        view.activateTab(3);
+        view.activateTab(view.tabSwarm);
         const peers = App.details.peers;
         compare(peers.count, 4);
         // Spec §2 Fig. 4's first row, fastest first.
@@ -702,7 +822,7 @@ TestCase {
     // Review VIEW-13: a shorter list pulls the Trackers cursor back onto a row.
     function test_the_trackers_cursor_stays_on_a_row_when_the_list_shrinks() {
         const view = testCase.select(testCase.archName);
-        view.activateTab(2);
+        view.activateTab(view.tabTrackers);
         const trackers = App.details.trackers;
         view.moveCursor(trackers.count);
         compare(view.trackersCursor, trackers.count - 1);
@@ -723,12 +843,12 @@ TestCase {
         copySpy.target = view;
         copySpy.clear();
 
-        view.activateTab(2);
+        view.activateTab(view.tabTrackers);
         view.copyCurrent();
         compare(copySpy.count, 1);
         compare(copySpy.signalArguments[0][0], "https://tracker.example.net:443/announce");
 
-        view.activateTab(3);
+        view.activateTab(view.tabSwarm);
         view.copyCurrent();
         compare(copySpy.count, 2);
         compare(copySpy.signalArguments[1][0], "185.21.216.140:51413");
@@ -751,17 +871,22 @@ TestCase {
         const view = testCase.select(testCase.archName);
         view.forceActiveFocus();
 
+        // DECISIONS C24 H6: story · files · swarm · trackers · facts.
         keyClick(Qt.Key_2);
-        compare(view.currentTab, 1);
+        compare(view.currentTab, view.tabFiles);
         keyClick(Qt.Key_3);
-        compare(view.currentTab, 2);
+        compare(view.currentTab, view.tabSwarm);
         keyClick(Qt.Key_4);
-        compare(view.currentTab, 3);
+        compare(view.currentTab, view.tabTrackers);
+        keyClick(Qt.Key_5);
+        compare(view.currentTab, view.tabFacts);
         keyClick(Qt.Key_1);
-        compare(view.currentTab, 0);
+        compare(view.currentTab, view.tabStory);
+        compare(findChild(view, "detailsTabs").model.slice(0, 5).map(tab => tab.text),
+                ["story", "files", "swarm", "trackers", "facts"]);
 
         // j/k move the cursor of whichever list is on show.
-        keyClick(Qt.Key_3);
+        keyClick(Qt.Key_4);
         keyClick(Qt.Key_J);
         compare(view.cursorIndex, 1);
         keyClick(Qt.Key_K);
@@ -784,6 +909,94 @@ TestCase {
         view.activateTab(1);
         view.forceActiveFocus();
         return view;
+    }
+
+    SignalSpy {
+        id: freeSpy
+
+        signalName: "freeSpaceRequested"
+    }
+
+    /// A reading of Big Buck Bunny's two skipped subtitles as App.skippedOnDisk gives it.
+    function heldReading(outlook, version) {
+        return {
+            "hash": App.details.hash,
+            "seen": true,
+            "holding": 2,
+            "held": 1105954816,
+            "heldText": "1.03 GB",
+            "band": true,
+            "where": "/data",
+            "fileSystem": "ext4",
+            "outlook": outlook,
+            "version": version,
+            "readdText": "1.03 GB",
+            "readdFiles": outlook === "readd" ? 2 : 1,
+            "stillText": "1.03 GB still on disk",
+            "busy": false
+        };
+    }
+
+    // DECISIONS C30 F12: on a hybrid whose space-holding skipped files all have downloaded
+    // pieces, the band keeps its title, says only adding it again frees them, and offers that;
+    // Why? says hybrid. F17: the summary says what they still hold.
+    function test_the_band_says_add_it_again_when_nothing_else_frees_them() {
+        const view = testCase.filesView();
+        const tab = findChild(view, "filesTab");
+        tab.skipped = testCase.heldReading("readd", "hybrid");
+        const band = findChild(view, "filesHeldBand");
+        verify(band.shown);
+        compare(band.title, "2 skipped files hold 1.03 GB on /data");
+        compare(band.body, "They were written while wanted, and pieces of them were downloaded. qBittorrent "
+                + "keeps them; on this torrent only adding it again frees them.");
+        compare(band.actions.map(action => action.label), ["Add it again…  F"]);
+        verify(band.details.startsWith("This torrent is hybrid (v1 and v2)."), band.details);
+        compare(band.detailsLabel, "Why?");
+        compare(findChild(view, "filesSkippedText").text, "2 skipped, 1.03 GB still on disk");
+        verify(!findChild(view, "filesSkippedKey").visible, "the key cap sits inside the words");
+
+        // v2-only says v2 (C29).
+        tab.skipped = testCase.heldReading("readd", "v2");
+        verify(band.details.startsWith("This torrent is v2."), band.details);
+
+        // Its action and shift+f both go up; the window picks the confirm (MainView).
+        freeSpy.target = view;
+        freeSpy.clear();
+        band.actionTriggered("free");
+        compare(freeSpy.count, 1);
+        keyClick(Qt.Key_F, Qt.ShiftModifier);
+        compare(freeSpy.count, 2);
+    }
+
+    // F15's case keeps the band's "Free the space…" (the sheet says the rest), as does a plain
+    // one; their body is C17's.
+    function test_the_band_keeps_free_the_space_when_some_can_go() {
+        const view = testCase.filesView();
+        const tab = findChild(view, "filesTab");
+        const band = findChild(view, "filesHeldBand");
+        for (const outlook of ["mixed", "free"]) {
+            tab.skipped = testCase.heldReading(outlook, outlook === "mixed" ? "hybrid" : "v1");
+            compare(band.actions.map(action => action.label), ["Free the space…"], outlook);
+            compare(band.body, "They were written while wanted. qBittorrent keeps them; it never deletes a "
+                    + "skipped file.");
+            verify(band.details.startsWith("Wanting a file makes qBittorrent create it"), band.details);
+        }
+        // Nothing held on a disk it sees: no tail, the key cap back.
+        tab.skipped = {};
+        compare(findChild(view, "filesSkippedText").text, "2 skipped");
+    }
+
+    // C30 F16: shift+f before the reading is this torrent's goes up anyway, so the sheet reads
+    // first; with no skipped file at all it does nothing.
+    function test_shift_f_before_the_reading_asks_for_the_sheet() {
+        const view = testCase.filesView();
+        const tab = findChild(view, "filesTab");
+        tab.skipped = {};
+        verify(view.canFree);
+        freeSpy.target = view;
+        freeSpy.clear();
+        keyClick(Qt.Key_F, Qt.ShiftModifier);
+        compare(freeSpy.count, 1);
     }
 
     function test_slash_filters_the_files_and_esc_clears_it() {
@@ -1744,7 +1957,7 @@ TestCase {
     // tab's keys.
     function test_a_right_click_opens_the_trackers_menu() {
         const view = testCase.select(testCase.archName);
-        view.activateTab(2);
+        view.activateTab(view.tabTrackers);
         view.forceActiveFocus();
         waitForRendering(view);
         trackerSpy.target = view;
@@ -1779,7 +1992,7 @@ TestCase {
 
     function test_a_right_click_opens_the_peers_menu() {
         const view = testCase.select(testCase.archName);
-        view.activateTab(3);
+        view.activateTab(view.tabSwarm);
         view.forceActiveFocus();
         waitForRendering(view);
         peerSpy.target = view;
@@ -1804,7 +2017,7 @@ TestCase {
 
     function test_a_right_click_opens_the_http_sources_menu() {
         const view = testCase.select(testCase.archName);
-        view.activateTab(4);
+        view.activateTab(view.tabWebSeeds);
         view.forceActiveFocus();
         waitForRendering(view);
         webSeedSpy.target = view;
@@ -1838,7 +2051,7 @@ TestCase {
     // toggles, shift draws anchor..row, ctrl+shift adds it, a middle click toggles, a click
     // on the empty space clears. DHT, PeX and LSD never join.
     function test_trackers_select_by_the_click_rules() {
-        const view = testCase.listView(2);
+        const view = testCase.listView(3);
         const trackers = App.details.trackers;
         const selection = view.trackersSelection;
         compare(trackers.urlAt(3), "** [DHT] **");
@@ -1883,7 +2096,7 @@ TestCase {
     // The Files tab's keys: space, v, ctrl+a, esc; `d` removes every selected tracker in
     // one action, `y` copies their URLs a line each, and the menu names the count.
     function test_tracker_keys_select_and_d_removes_them_all() {
-        const view = testCase.listView(2);
+        const view = testCase.listView(3);
         const trackers = App.details.trackers;
         const selection = view.trackersSelection;
         trackerSpy.target = view;
@@ -1950,7 +2163,7 @@ TestCase {
 
     // Peers: kept by address, banned all at once, the menu naming how many.
     function test_peers_select_several_and_ban_them() {
-        const view = testCase.listView(3);
+        const view = testCase.listView(2);
         const peers = App.details.peers;
         const selection = view.peersSelection;
         peerSpy.target = view;
@@ -1991,7 +2204,7 @@ TestCase {
 
     // HTTP sources: the same rules; `d` removes the selection.
     function test_http_sources_select_several_and_remove_them() {
-        const view = testCase.listView(4);
+        const view = testCase.listView(5);
         const seeds = App.details.webSeeds;
         const selection = view.webSeedsSelection;
         webSeedSpy.target = view;
@@ -2077,16 +2290,16 @@ TestCase {
     // The demo's Arch ISO lists three mirrors as web seeds; Big Buck Bunny has none.
     function test_the_http_sources_tab_shows_only_with_web_seeds() {
         const bbb = testCase.select(testCase.bbbName);
-        compare(testCase.tabTexts(bbb), ["General", "Files", "Trackers", "Peers"]);
+        compare(testCase.tabTexts(bbb), ["story", "files", "swarm", "trackers", "facts"]);
         compare(bbb.hasWebSeeds, false);
-        bbb.activateTab(4);
-        compare(bbb.currentTab, 0);
+        bbb.activateTab(bbb.tabWebSeeds);
+        compare(bbb.currentTab, bbb.tabStory);
 
         const arch = testCase.select(testCase.archName);
-        compare(testCase.tabTexts(arch), ["General", "Files", "Trackers", "Peers", "HTTP sources"]);
-        compare(findChild(arch, "detailsTabs").model[4].key, "5");
-        arch.activateTab(4);
-        compare(arch.currentTab, 4);
+        compare(testCase.tabTexts(arch), ["story", "files", "swarm", "trackers", "facts", "web seeds"]);
+        compare(findChild(arch, "detailsTabs").model[5].key, "6");
+        arch.activateTab(arch.tabWebSeeds);
+        compare(arch.currentTab, arch.tabWebSeeds);
         compare(arch.rowCount, 3);
         verify(findChild(arch, "webSeedsTab").visible);
     }
@@ -2094,25 +2307,25 @@ TestCase {
     // `https://` is dropped from what the rows print; a plain http mirror keeps its scheme.
     function test_the_rows_print_the_url_without_https() {
         const view = testCase.select(testCase.archName);
-        view.activateTab(4);
+        view.activateTab(view.tabWebSeeds);
         waitForRendering(view, 500);
         compare(findChild(view, "webSeedUrl_0").text, "mirror.example.net/archlinux/iso/2026.09.01/");
         compare(findChild(view, "webSeedUrl_2").text,
                 "http://ftp.example.ac.uk/pub/archlinux/iso/2026.09.01/");
     }
 
-    // `5` is the tab while there are web seeds; without them it goes on to the window (a
-    // status filter there), so the pane leaves it unaccepted.
-    function test_five_opens_http_sources_only_when_there_are_any() {
+    // `6` is the tab while there are web seeds; without them it goes on to the window (where
+    // it does nothing, S1's note), so the pane leaves it unaccepted.
+    function test_six_opens_web_seeds_only_when_there_are_any() {
         const bbb = testCase.select(testCase.bbbName);
         bbb.forceActiveFocus();
-        keyClick(Qt.Key_5);
-        compare(bbb.currentTab, 0);
+        keyClick(Qt.Key_6);
+        compare(bbb.currentTab, bbb.tabStory);
 
         const arch = testCase.select(testCase.archName);
         arch.forceActiveFocus();
-        keyClick(Qt.Key_5);
-        compare(arch.currentTab, 4);
+        keyClick(Qt.Key_6);
+        compare(arch.currentTab, arch.tabWebSeeds);
         keyClick(Qt.Key_J);
         compare(arch.cursorIndex, 1);
     }
@@ -2123,7 +2336,7 @@ TestCase {
         webSeedSpy.clear();
         copySpy.target = view;
         copySpy.clear();
-        view.activateTab(4);
+        view.activateTab(view.tabWebSeeds);
         view.forceActiveFocus();
         keyClick(Qt.Key_J);
 
@@ -2144,31 +2357,31 @@ TestCase {
         compare(hints.model.map(hint => hint.key + " " + hint.label), ["a add", "d remove",
                                                                           "y copy", "space mark",
                                                                           "ctrl+a mark all"]);
-        view.activateTab(0);
+        view.activateTab(view.tabStory);
     }
 
     // Another torrent without web seeds while their tab is on show: Trackers takes over, and
     // a torrent with them keeps the tab while its list is fetched.
     function test_a_torrent_without_web_seeds_falls_back_to_trackers() {
         const view = testCase.select(testCase.archName);
-        view.activateTab(4);
-        compare(view.currentTab, 4);
+        view.activateTab(view.tabWebSeeds);
+        compare(view.currentTab, view.tabWebSeeds);
 
         App.selectTorrent(testCase.hashOf(testCase.bbbName));
         compare(view.hasWebSeeds, false);
-        compare(view.currentTab, 2);
-        compare(testCase.tabTexts(view).length, 4);
+        compare(view.currentTab, view.tabTrackers);
+        compare(testCase.tabTexts(view).length, 5);
 
         App.selectTorrent(testCase.hashOf(testCase.archName));
         compare(view.hasWebSeeds, true);
-        view.activateTab(4);
-        compare(view.currentTab, 4);
+        view.activateTab(view.tabWebSeeds);
+        compare(view.currentTab, view.tabWebSeeds);
     }
 
     // #77: each tab's rows are list items named by what identifies them: a tracker's URL (or
     // DHT's word, not selectable), a peer's address, a web seed's URL, a file's name.
     function test_the_tabs_rows_publish_list_items_named_by_what_they_are() {
-        let view = testCase.listView(2);
+        let view = testCase.listView(3);
         const trackers = App.details.trackers;
         let row = findChild(view, "trackerRow_0");
         compare(row.Accessible.role, Accessible.ListItem);
@@ -2179,12 +2392,12 @@ TestCase {
         compare(row.Accessible.name, findChild(view, "trackerHost_3").text);
         verify(!row.Accessible.selectable, "DHT can be selected");
 
-        view = testCase.listView(3);
+        view = testCase.listView(2);
         row = findChild(view, "peerRow_0");
         compare(row.Accessible.role, Accessible.ListItem);
         compare(row.Accessible.name, App.details.peers.addressAt(0));
 
-        view = testCase.listView(4);
+        view = testCase.listView(5);
         row = findChild(view, "webSeedRow_0");
         compare(row.Accessible.role, Accessible.ListItem);
         compare(row.Accessible.name, App.details.webSeeds.urlAt(0));
@@ -2200,7 +2413,7 @@ TestCase {
     // #77: a screen reader's press on a tab's row is a plain click: the cursor goes there
     // and the selection becomes that row (the Files tab lets it go, as its click does).
     function test_the_accessible_press_on_a_tabs_row_is_a_plain_click() {
-        let view = testCase.listView(3);
+        let view = testCase.listView(2);
         const peers = App.details.peers;
         mouseClick(findChild(view, "peerRow_0"), 120, 4, Qt.LeftButton, Qt.ControlModifier);
         mouseClick(findChild(view, "peerRow_2"), 120, 4, Qt.LeftButton, Qt.ControlModifier);
@@ -2208,7 +2421,7 @@ TestCase {
         findChild(view, "peerRow_1").Accessible.pressAction();
         compare(view.peersSelection.keys, [peers.addressAt(1)]);
 
-        view = testCase.listView(2);
+        view = testCase.listView(3);
         findChild(view, "trackerRow_1").Accessible.pressAction();
         compare(view.trackersSelection.keys, [App.details.trackers.urlAt(1)]);
         compare(view.trackersCursor, 1);

@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
 # omaseed — the shared-menu walkthrough (#73, docs/33 §11: D10, D24, D25). One menu, built once
-# in the app, shown by the tray and by the bar widget popup's ⋯: first run puts the widget in
-# the bar; with one server the ⋯ has no servers and the server line no ▾ (D19); "private" is
-# added; ctrl+. opens the menu and switches to private, ctrl+s opens the servers and a click
-# goes back to public; quit from the ⋯. Then "In the bar: both" (D25, read from the two old
+# in the app, shown by the tray, by the bar widget popup's ⋯ and by the window's mark (ctrl+.,
+# DECISIONS C24 H9): first run puts the widget in the bar; with one server the ⋯ and the
+# window's menu have no servers and the server line no ▾ (D19); "private" is added; the
+# window's menu switches to private and back, and opens settings… by its key; the widget's
+# ctrl+. opens its menu and switches to private, ctrl+s opens the servers and a click goes
+# back to public; quit from the ⋯. Then "In the bar: both" (D25, read from the two old
 # settings), the tray's menu with its servers block, a switch from it, and quit from it. What
 # each action must leave is checked in servers.json and the process list, not only in shots.
 #
@@ -19,6 +21,10 @@
 set -euo pipefail
 
 repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+# DECISIONS C24 H4: a new install shows the rows display, and a box is a new install. This
+# walk reads the table (its columns, its rows' order), so it pins the table: every scope starts
+# on it (App's OMASEED_DISPLAY), passed to each launch here and by app-box.sh.
+export OMASEED_DISPLAY="${OMASEED_DISPLAY:-table}"
 cd "$repo"
 APP_BOX="$repo/scripts/dev/app-box.sh"
 APP_ID=io.github.diogochaves.omaseed
@@ -407,6 +413,11 @@ keys ctrl+period -s 600
 step "One server, the menu" "W1 with one server (T0): ⋯ lit in the head, the server line with no ▾; the menu: Alternative Speed Limits (or Turtle/Burst) with A, Stop All, Start All, a hairline, Add Torrent… with m, omaseed Settings…, a hairline, Quit omaseed. No SERVERS." "$POPUP"
 keys ctrl+period -s 400 Escape -s 600
 
+# ---- the window: the mark's menu, C13's third place (DECISIONS C24 H9) ---------------------
+keys --window "$APP_ID" ctrl+period -s 600
+step "One server, the window's menu" "Under the rail's mark: omaseed, its version, public · qBittorrent …; turtle (or the alternative limits' word) with A, stop all, start all, a rule, add torrent… a, settings… comma, a rule, THIS WINDOW ONLY: seed console, log, commands, keys and help, hide window, each with its key, a rule, quit omaseed ctrl+q. No servers (D19)."
+keys Escape -s 400
+
 # ---- the second server ---------------------------------------------------------------------
 clip private
 keys --window "$APP_ID" comma -s 600 2 -s 300 a -s 800 -t private Tab -t http://127.0.0.1:8091 Tab Tab space Tab Tab \
@@ -415,6 +426,17 @@ unclip
 keys Escape -s 1500
 check "two servers in status.json, two server rows in the menu" \
     status_has 'len(s["servers"]) == 2 and sum(r["kind"] == "radio" for r in s["menu"]) == 2'
+
+# ---- the window's menu with two servers: a switch, back, and settings… ----------------------
+keys --window "$APP_ID" ctrl+period -s 600
+step "Two servers, the window's menu" "As the widget's: SERVERS, ● public ✓ (0 torrents) and ● private (its torrents, or nothing before its first sync), a rule, then the rows of the one-server shot. The cursor on public."
+keys j -s 300 Return -s 3000
+check "the window's menu switched to private" default_is private
+keys --window "$APP_ID" ctrl+period -s 600 Return -s 3000
+check "the window's menu switched back to public" default_is public
+keys --window "$APP_ID" ctrl+period -s 600 comma -s 1200
+step "Settings, from the window's menu" "settings… picked by its key (,): Settings open over the window, on the pane it was last on (Servers, from adding private)."
+keys Escape -s 800
 
 # ---- the widget: ⋯ and ▾ -------------------------------------------------------------------
 popup

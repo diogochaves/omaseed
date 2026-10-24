@@ -222,7 +222,8 @@ TestCase {
         mouseClick(text);
         compare(clicks, 0);
         compare(findChild(field, "fieldTrailingButton").enabled, false);
-        compare(text.color, Theme.dimForeground);
+        // On the field's idle fill (DECISIONS C30 F1).
+        compare(text.color, Theme.on.idle.dimForeground);
     }
 
     function test_a_clickable_trailing_lights_up_under_the_mouse() {
@@ -232,9 +233,10 @@ TestCase {
                                                 "trailingClickable": true
                                             });
         const text = findChild(field, "fieldTrailingText");
-        compare(text.color, Theme.dimForeground);
+        compare(text.color, Theme.on.idle.dimForeground);
         mouseMove(text, text.width / 2, text.height / 2);
-        tryCompare(text, "color", Theme.accent);
+        // The pointer brings the hover fill, and the accent as it reads there (C30 F4).
+        tryCompare(text, "color", Theme.on.hover.accent);
     }
 
     // #11: a key in `shortcuts` is handed on as shortcutPressed and typed nothing; others type.

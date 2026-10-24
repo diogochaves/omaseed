@@ -41,13 +41,37 @@
 // filter text, a rail scope) applies at once: the rows sort afresh and the hold starts again
 // from there.
 //
+// The rail's five questions (DECISIONS C24 H2, board 46) are the first filter: `question`
+// keeps the torrents that answer one, AnyQuestion all of them (the library). They are
+// disjoint, in this order: needs you (in error, missing files, or a problem or failure in the
+// log), landed today (complete, finished since local midnight), resting (stopped), then giving
+// back (complete) or arriving (not yet). "Today" is a LocalDay's; at its midnight the rows
+// are filtered again.
+//
+// Every state the rail used to list stays in the text (C24 H2): `is:stalled` keeps the
+// stalled torrents, `is:` taking the StatusFilter rows' words (isWords()) or a prefix only one
+// of them has. Several are ANDed. An empty or shared prefix narrows nothing yet, so the list
+// does not empty while one is typed; a word no state starts with stays a word of the query.
+//
 // The text is matched by words (DECISIONS C22, #125, through SearchWords): a torrent shows
 // when every word of the query appears in its name, category or tags, folded the same way
 // (`.`, `_`, `-` and spaces are one space), or when the query is a prefix of its hash, as
 // typed. While a query is typed the rows are ranked before the sort role: the whole query as
 // a phrase in the name first, then its words in order, then in any order. A hash prefix
 // ranks with the phrases. Clearing the query brings the plain sort back.
+//
+// The rows display groups the library under the five questions and the overview under the
+// categories (DECISIONS C24 H3, board 46): `groupBy` puts each group's rows in one run, the
+// groups in the rail's order (categories by name, "none" last), the sort above inside each.
+// `groups` lists the runs, each with its title, first row, count and short line
+// (ScopeSentence::groupLine()). A torrent whose group changes (a download lands, an error
+// comes) always ends in one sort, so a ListView's section heads never go stale, and its new
+// group is taken even under a held order (#51 D9). The proxy answers a row's question and
+// group, and the rows display's words (core/RowWords), as roles of its own; whenever a source
+// role of a row changes, a second dataChanged names those roles too.
 
+#include "core/RowWords.hpp"
+#include "core/ScopeSentence.hpp"
 #include "core/SearchWords.hpp"
 #include "core/Torrent.hpp"
 
@@ -64,6 +88,7 @@
 
 namespace omaseed::core {
 
+class LocalDay;
 class TorrentModel;
 class TrackerModel;
 
@@ -72,6 +97,7 @@ class TorrentFilterModel : public QSortFilterProxyModel
     Q_OBJECT
     Q_PROPERTY(StatusFilter statusFilter READ statusFilter WRITE setStatusFilter NOTIFY
                    statusFilterChanged)
+    Q_PROPERTY(Question question READ question WRITE setQuestion NOTIFY questionChanged)
     Q_PROPERTY(QVariant category READ category WRITE setCategory RESET clearCategory NOTIFY
                    categoryChanged)
     Q_PROPERTY(QVariant tag READ tag WRITE setTag RESET clearTag NOTIFY tagChanged)
@@ -86,6 +112,8 @@ class TorrentFilterModel : public QSortFilterProxyModel
     Q_PROPERTY(Qt::SortOrder sortOrder READ sortOrder WRITE setSortOrder NOTIFY sortOrderChanged)
     Q_PROPERTY(int count READ count NOTIFY countChanged)
     Q_PROPERTY(bool holdOrder READ holdOrder WRITE setHoldOrder NOTIFY holdOrderChanged)
+    Q_PROPERTY(GroupBy groupBy READ groupBy WRITE setGroupBy NOTIFY groupByChanged)
+    Q_PROPERTY(QVariantList groups READ groups NOTIFY groupsChanged)
 
 public:
     /// The rail's status rows (spec §1 Fig. 1), All first.
@@ -102,10 +130,63 @@ public:
     };
     Q_ENUM(StatusFilter)
 
+    /// DECISIONS C24 H2: the rail's questions, in its order; AnyQuestion is the library.
+    enum Question {
+        AnyQuestion,
+        NeedsYou,
+        Arriving,
+        LandedToday,
+        GivingBack,
+        Resting,
+    };
+    Q_ENUM(Question)
+
+    /// DECISIONS C24 H3: the rows display groups by question, the overview by category, the
+    /// table not at all.
+    enum GroupBy {
+        NoGroups,
+        ByQuestion,
+        ByCategory,
+    };
+    Q_ENUM(GroupBy)
+
+    /// The roles the proxy answers itself, past TorrentModel's.
+    enum Role {
+        QuestionRole = Qt::UserRole + 500, ///< the Question the row answers, an int
+        GroupRole,                         ///< its group's key under groupBy ("" for none)
+        RowFactRole,                       ///< RowWords::fact
+        RowCaptionRole,                    ///< RowWords::caption
+        RowSentenceRole,                   ///< RowWords::sentence
+        RowMetaRole,                       ///< RowWords::meta
+        RowFixRole,                        ///< RowWords::fix
+        RowFixActionRole,                  ///< RowWords::fixAction
+        MonogramRole,                      ///< RowWords::monogram of the name
+    };
+    Q_ENUM(Role)
+
     explicit TorrentFilterModel(QObject *parent = nullptr);
+
+    QVariant data(const QModelIndex &index, int role = Qt::DisplayRole) const override;
+    QHash<int, QByteArray> roleNames() const override;
 
     StatusFilter statusFilter() const { return m_statusFilter; }
     void setStatusFilter(StatusFilter filter);
+
+    Question question() const { return m_question; }
+    void setQuestion(Question question);
+
+    /// Where "today" comes from, for LandedToday; not owned. Without one, the system clock
+    /// at each pass, and nothing re-filters at midnight.
+    void setDay(LocalDay *day);
+
+    /// The question `torrent` answers. `logged`: the log holds a problem or a failure for it
+    /// (TorrentModel::hasLoggedTrouble()); `dayStartMSecs`: local midnight, today.
+    static Question questionOf(const Torrent &torrent, bool logged, qint64 dayStartMSecs);
+    /// The words `is:` takes: the StatusFilter rows', All's aside.
+    static QStringList isWords();
+    /// The StatusFilter `word` names, whole or by a prefix only it has (case-insensitive);
+    /// All when none or several do.
+    static StatusFilter statusFilterForWord(QStringView word);
 
     QVariant category() const;
     void setCategory(const QVariant &category);
@@ -145,8 +226,32 @@ public:
     bool holdOrder() const { return m_holdOrder; }
     void setHoldOrder(bool hold);
 
+    GroupBy groupBy() const { return m_groupBy; }
+    void setGroupBy(GroupBy groupBy);
+    /// The groups in the rows' order, `[{key, title, first, count, line, question}]`; empty
+    /// while nothing groups. `question` is the group's Question (ByQuestion) or AnyQuestion.
+    QVariantList groups() const { return m_groups; }
+    /// The key GroupRole gives a question: "needsYou", "arriving", "landedToday",
+    /// "givingBack", "resting"; "" for AnyQuestion.
+    static QString questionKey(int question);
+
+    /// What the rail's scope holds, for the title bar's sentence (core/ScopeSentence): every
+    /// filter but the words (the text and its `is:`), so the sentence names the place and the
+    /// filter tool counts what the words leave of it. One pass over the library.
+    ScopeFacts scopeFacts() const;
+
     /// The proxy row showing `hash`, or -1.
     Q_INVOKABLE int rowOfHash(const QString &hash) const;
+    /// The question `hash` answers now, whatever the filters (AnyQuestion when the library
+    /// lacks it): the outcome strip's "show" names where its torrents went (DECISIONS C30 F9).
+    Q_INVOKABLE int questionOfHash(const QString &hash) const;
+    /// The row's words for `hash` (RowWords, as the rows display says them), whatever the
+    /// filters: the details' head says the same fact and sentence (DECISIONS C24 H6). Empty
+    /// words when the library lacks it.
+    RowWords wordsOfHash(const QString &hash) const;
+    /// `hash` is in the rail's scope, the filter's words aside (inScope()): a row the words
+    /// alone hide. False when the library lacks it.
+    Q_INVOKABLE bool hashInScope(const QString &hash) const;
     /// The hash on proxy row `row`, or an empty string.
     Q_INVOKABLE QString hashAt(int row) const;
     /// Selects rows `from` to `to` (either order, clamped) in `selection`, a selection model
@@ -163,11 +268,15 @@ public:
     void setSourceModel(QAbstractItemModel *model) override;
 
 protected:
+    /// The rail's filters alone (status, question, a move's hashes, folder, category, tag,
+    /// tracker): what scopeFacts() counts, and filterAcceptsRow() narrows by the words.
+    bool inScope(const Torrent &torrent, const TorrentModel &source, qint64 dayStart) const;
     bool filterAcceptsRow(int sourceRow, const QModelIndex &sourceParent) const override;
     bool lessThan(const QModelIndex &left, const QModelIndex &right) const override;
 
 Q_SIGNALS:
     void statusFilterChanged();
+    void questionChanged();
     void categoryChanged();
     void tagChanged();
     void trackerChanged();
@@ -178,6 +287,8 @@ Q_SIGNALS:
     void sortOrderChanged();
     void countChanged();
     void holdOrderChanged();
+    void groupByChanged();
+    void groupsChanged();
 
 private:
     void refilter();
@@ -217,6 +328,18 @@ private:
     int matchRank(int sourceRow) const;
     /// -1, 0 or 1: `left` against `right`, two values of the sort role.
     int compareValues(const QVariant &left, const QVariant &right) const;
+    /// Source row `sourceRow`'s group key under m_groupBy.
+    QString groupKeyOf(const Torrent &torrent, int question) const;
+    /// <0, 0 or >0: `left`'s group before, with or after `right`'s (two source indexes).
+    int compareGroups(const QModelIndex &left, const QModelIndex &right) const;
+    /// Re-reads the groups from the rows: m_groups (signalled when it changed) and each shown
+    /// torrent's key in m_groupOf.
+    void rebuildGroups();
+    /// Source rows `first` to `last` changed: a shown torrent whose group moved asks for a
+    /// sort, now or when the poll's runs end.
+    void noteGroupChanges(int first, int last);
+    /// Every row's question, group and words may have changed (a day, a problem).
+    void regroupAll();
     void dropNameRanks()
     {
         m_nameRanks.clear();
@@ -224,6 +347,16 @@ private:
     }
 
     StatusFilter m_statusFilter = All;
+    Question m_question = AnyQuestion;
+    QPointer<LocalDay> m_day;
+    /// The text's `is:` words, as groups a row must all be in.
+    StatusGroups m_isGroups;
+    /// The text without its `is:` words: what the name, category, tags and hash meet.
+    QString m_queryText;
+    /// Local midnight in ms since the epoch, for one filter pass (m_day's, or the clock's).
+    qint64 dayStartMSecs() const;
+    /// The words of source row `at`, which answers `question`.
+    RowWords wordsAt(const TorrentModel &source, const QModelIndex &at, int question) const;
     std::optional<QString> m_category;
     std::optional<QString> m_tag;
     std::optional<QString> m_tracker;
@@ -247,6 +380,11 @@ private:
     QSet<QString> m_heldLibrary;      ///< every torrent in the library when the hold began
     mutable QHash<QString, double> m_heldSlots; ///< new torrents' places, found on first use
     bool m_holdOrder = false;
+    GroupBy m_groupBy = NoGroups;
+    QVariantList m_groups;
+    QHash<QString, QString> m_groupOf; ///< each shown torrent's group key, by hash
+    bool m_inRuns = false;             ///< between runsAboutToBeAnnounced and runsAnnounced
+    bool m_regroupPending = false;
     bool m_sortHeld = false;
     bool m_refilterAfterHold = false;
 };

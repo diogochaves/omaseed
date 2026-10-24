@@ -32,6 +32,7 @@
 #include "core/FilterCounts.hpp"
 #include "core/FreeSpace.hpp"
 #include "core/GlobalState.hpp"
+#include "core/LibraryDisplays.hpp"
 #include "core/LogFilterModel.hpp"
 #include "core/MetadataLookup.hpp"
 #include "core/OmaseedBackup.hpp"
@@ -287,9 +288,14 @@ public:
 
     /// The fields `Details.qml`'s `torrent` property expects, for one hash: name, category,
     /// tagsText, addedOnText, sizeText, progressText, ratioText, etaLongText, stateText,
-    /// stateRole, hasTrackerError. An unknown hash gives an empty map. It is a snapshot, not
-    /// a binding — rebind it on `App.torrents.updated` to follow a live torrent.
+    /// stateRole, hasTrackerError, and the rows display's words (rowFact, rowCaption,
+    /// rowSentence: the details' head, DECISIONS C24 H6). An unknown hash gives an empty map.
+    /// It is a snapshot, not a binding — rebind it on `App.torrents.updated` to follow a live
+    /// torrent.
     Q_INVOKABLE QVariantMap torrentRow(const QString &hash) const;
+    /// The details' story (board 46 H6, core::TorrentStory): what happened to `hash`, oldest
+    /// first, as `[{time, kind ("plain", "move", "warn", "error"), title, detail}]`.
+    Q_INVOKABLE QVariantList torrentStory(const QString &hash) const;
 
     /// `OMASEED_DEMO_TAB` — which tab `--demo details` opens on ("", "files", "trackers",
     /// "peers"). Only the demo host reads it.
@@ -497,9 +503,16 @@ public:
     int baseSizeOverride() const;
     void setBaseSizeOverride(int pixels);
 
-    /// Window transparency in percent, 50…100; 0 means "the default", which is
-    /// `Theme.defaultWindowAlpha` (docs/DECISIONS.md Q1: `shell.toml` `[launcher]
-    /// background-alpha`, 0.95 when missing); this is its override.
+    /// The window's ground (DECISIONS C24 H13, #113): "opaque", the default as for every
+    /// Omarchy 4.5 app, or "translucent", the launcher's alpha (Q1) or windowAlphaOverride.
+    /// A state.json from before it, with an override set, reads as translucent.
+    Q_PROPERTY(QString windowGround READ windowGround WRITE setWindowGround NOTIFY settingsChanged)
+    QString windowGround() const;
+    void setWindowGround(const QString &ground);
+
+    /// Window transparency in percent, 50…100, while the ground is translucent; 0 means "the
+    /// default", which is `Theme.defaultWindowAlpha` (docs/DECISIONS.md Q1: `shell.toml`
+    /// `[launcher] background-alpha`, 0.95 when missing); this is its override.
     Q_PROPERTY(int windowAlphaOverride READ windowAlphaOverride WRITE setWindowAlphaOverride NOTIFY
                    settingsChanged)
     int windowAlphaOverride() const;
@@ -507,7 +520,8 @@ public:
 
     /// Which side of the hero the download/upload pair sits on: "left" (the spec's own
     /// placement, beside the server name) or "right" (against the search field). Anything
-    /// else is read back as "left".
+    /// else is read back as "left". The hero went (DECISIONS C24 H5, #167 assumed 6): nothing
+    /// reads it or offers it any more; it is kept so state.json keeps the value.
     Q_PROPERTY(QString speedsAlignment READ speedsAlignment WRITE setSpeedsAlignment NOTIFY
                    settingsChanged)
     QString speedsAlignment() const;
@@ -515,6 +529,7 @@ public:
 
     /// #24 T2: the last 60 s of upload (and of download) drawn faintly behind the hero's ↑
     /// (↓) number. Both off by default: Diogo found them crowding the figures (2026-10-03).
+    /// Kept but read by nothing since the hero went (#167 assumed 6), as speedsAlignment.
     Q_PROPERTY(bool uploadTrend READ uploadTrend WRITE setUploadTrend NOTIFY settingsChanged)
     bool uploadTrend() const;
     void setUploadTrend(bool on);
@@ -545,6 +560,7 @@ public:
     void setRailScrollHint(const QString &hint);
     /// The fill the rail and details sit on, as a percentage of the foreground: 0 (none, the
     /// default), 4 or 8 — the plan's own fill steps, so every theme still holds together.
+    /// Kept but drawn by nothing since the hero went (#167 assumed 6), as speedsAlignment.
     Q_PROPERTY(int surfaceTint READ surfaceTint WRITE setSurfaceTint NOTIFY settingsChanged)
     int surfaceTint() const;
     void setSurfaceTint(int percent);
@@ -650,6 +666,7 @@ private:
     bool m_followOmarchyTheme = true;
     int m_baseSizeOverride = 0;
     int m_windowAlphaOverride = 0;
+    QString m_windowGround = QStringLiteral("opaque");
     QString m_trayIconMode = QStringLiteral("auto");
     bool m_launchHidden = false;
     QString m_speedsAlignment = QStringLiteral("left");
@@ -1983,9 +2000,19 @@ public:
     void setInTheBar(const QString &choice);
     /// The choice a widget in the bar (or not) and a tray icon mode read as (DECISIONS C13).
     static QString inTheBarFor(bool widgetInBar, const QString &trayIconMode);
+    /// The window's mark menu (DECISIONS C24 H9, C13's third place): the same rows, in the
+    /// same order, as the tray and the widget, `[{id, label, kind, checked, enabled, detail,
+    /// urgent, state}]`. `label` is the tray's lower-case words; `state` is a server row's
+    /// (status.json's `servers` state), "" for the others.
+    Q_PROPERTY(QVariantList appMenuRows READ appMenuRows NOTIFY appMenuRowsChanged)
+    QVariantList appMenuRows() const;
+    /// A row of it picked in the window: the tray's and the widget's `invoke`. False for an
+    /// unknown id, a disabled row, a caption or a separator.
+    Q_INVOKABLE bool invokeAppMenu(const QString &id);
 
 Q_SIGNALS:
     void inTheBarChanged();
+    void appMenuRowsChanged();
     /// The menu's "add torrent…" from the tray or the widget: main.cpp brings the window up
     /// (MainView opens the sheet on addRequested).
     void raiseRequested();
@@ -2043,14 +2070,15 @@ public:
     /// machine can't see); `band` is D2; `busy` while a free or an add-again runs.
     Q_PROPERTY(QVariantMap skippedOnDisk READ skippedOnDiskMap NOTIFY skippedOnDiskChanged)
     QVariantMap skippedOnDiskMap() const;
-    /// The Files tab is the one on show: its skipped files are read now, and after every
-    /// priority change while it shows.
+    /// The Files tab, or facts (whose size line says what they hold, C30 F17), is the one on
+    /// show: the skipped files are read now, and after every priority change while it shows.
     Q_INVOKABLE void setFilesTabActive(bool active);
     /// Reads the details torrent's skipped files again (after a free, or on demand).
     Q_INVOKABLE void refreshSkippedOnDisk();
     /// F2's sheet: reads the files, pieces and open files now and answers with
     /// `freeSkippedPlanned(plan)`: `{hash, name, folder, hybrid, version ("v1", "v2" or
     /// "hybrid", C29), running, freed, freedText, deletes, recheck, leftWithPieces, leftText,
+    /// allText (freed and left together, C30 F15),
     /// kept, items: [{name, holdsText, verdict, openBy}], more, error}`. `verdict` is "delete",
     /// "open", "pieces", "shared" or "outside".
     Q_INVOKABLE void planFreeSkipped(const QString &hash);
@@ -2061,7 +2089,8 @@ public:
     /// D3's "add it again": remove `hash` keeping its files, add it back stopped with the same
     /// selection, names, category, tags and limits, start it if it was started. With
     /// `freeLeftovers`, the files the last plan would delete and the leftovers with pieces (a
-    /// hybrid's or a v2-only torrent's, C29) go while it is away. Answers with
+    /// hybrid's or a v2-only torrent's, C29) go while it is away; with no plan for `hash` in
+    /// hand (shift+f straight to the confirm, C30 F13), it is read first. Answers with
     /// `torrentAddedAgain({hash, ok, error, name, deleted})`.
     Q_INVOKABLE void addTorrentAgain(const QString &hash, bool freeLeftovers);
 
@@ -2076,6 +2105,9 @@ private:
     /// What the free and the plan need about `torrent` on this machine.
     core::FreeSkippedJob::Input freeInputFor(const core::Torrent &torrent) const;
     core::SkippedOnDisk::LocalPathOf localPathOfFiles(const core::Torrent &torrent) const;
+    /// Reads `hash`'s files, pieces and open files now, keeps the plan (m_lastFreePlan) and
+    /// answers `done` with planFreeSkipped()'s map.
+    void makeFreePlan(const QString &hash, const std::function<void(QVariantMap)> &done);
     /// #180: the file list just came in; while the Files tab shows, reads the disk again if
     /// m_skippedAfterRefresh asks, or if its priorities are not m_skippedPriorities.
     void readSkippedIfDue();
@@ -2123,6 +2155,72 @@ private:
     void sendFilePriority(const QString &hash, const QList<int> &ids, int priority);
     core::SelectionHold *m_hold = new core::SelectionHold(this);
     // --- end #119 -----------------------------------------------------------------------------
+
+    // --- #167: the title bar's sentence ---------------------------------------------------------
+    // Board 46 `titleBar()` (DECISIONS C24 H5): under the title, one sentence for the scope the
+    // rail picked, from core/ScopeSentence over TorrentFilterModel::scopeFacts() (the rail's
+    // filters, not the filter's words). A folder's is MoveController::folderLine(); a move's
+    // "show", the seed console's and the log's are the window's (they know its faces).
+    // AppScope.cpp.
+public:
+    Q_PROPERTY(QString scopeSentence READ scopeSentence NOTIFY scopeSentenceChanged)
+    QString scopeSentence() const { return m_scopeSentence; }
+    /// The sentences the window words from what it knows (core/ScopeSentence's): a lost
+    /// server's, the log's, the seed console's, a move's torrents on show from its band or
+    /// from the move sheet.
+    Q_INVOKABLE QString lostSentence(const QString &listTime, const QString &headline) const;
+    Q_INVOKABLE QString logSentence(const QString &server, int lines, const QString &since) const;
+    Q_INVOKABLE QString seedSentence(const QString &upSpeed,
+                                     const QString &today,
+                                     const QString &scope) const;
+    Q_INVOKABLE QString moveJobSentence(int torrents, int withServer) const;
+    Q_INVOKABLE QString moveSheetSentence(int torrents) const;
+
+Q_SIGNALS:
+    void scopeSentenceChanged();
+
+private:
+    void setUpScope();
+    void updateScopeSentence();
+    QString m_scopeSentence;
+    // --- end #167 -----------------------------------------------------------------------------
+
+    // --- #168: the library's displays -------------------------------------------------------
+    // Board 46 H3–H4 (DECISIONS C24): rows grouped under the questions, the table, or the
+    // overview's shelves, remembered per scope (core/LibraryDisplays) in state.json's
+    // `displays`, and `filtered`'s grouping set to match. AppLibrary.cpp.
+public:
+    /// The display the rail's scope shows now: "rows", "table" or "overview". A move's
+    /// torrents on show (C15 M10) are always the table (#168 assumed 5).
+    Q_PROPERTY(QString display READ display NOTIFY displayChanged)
+    QString display() const { return m_display; }
+    /// The scope's key (LibraryDisplays::scopeKey) the display is remembered under.
+    Q_PROPERTY(QString displayScope READ displayScope NOTIFY displayChanged)
+    QString displayScope() const { return m_displayScope; }
+    /// The display tool's pick: `display` for the scope shown now (the library's is every
+    /// scope's that has none of its own). A move's show changes nothing.
+    Q_INVOKABLE void setDisplay(const QString &display);
+    /// What `scopeKey` shows.
+    Q_INVOKABLE QString displayFor(const QString &scopeKey) const;
+    /// A test seam: forget every scope's pick and start the library on the display a new
+    /// (false) or an existing (true) install gets, as if this build read state.json first now.
+    Q_INVOKABLE void resetDisplays(bool existingInstall);
+
+Q_SIGNALS:
+    void displayChanged();
+
+private:
+    void setUpLibraryDisplays();
+    void updateDisplay();
+    void saveDisplays();
+    /// Writes the displays when this run decided them and has not written them yet: the first
+    /// write to state.json takes them along (writeStateSection()).
+    void saveDisplaysFirst();
+    core::LibraryDisplays m_displays;
+    bool m_displaysUnsaved = false;
+    QString m_display = QStringLiteral("rows");
+    QString m_displayScope = core::LibraryDisplays::libraryKey();
+    // --- end #168 -----------------------------------------------------------------------------
 };
 
 } // namespace omaseed::app

@@ -197,4 +197,40 @@ TestCase {
 
         App.saveTableState("demo", original);
     }
+
+    // #184: the details pane's saved width follows a live base-size change, both ways, and
+    // the change writes nothing over what state.json keeps (base-12 units).
+    function test_the_details_width_follows_the_base_size() {
+        const original = App.tableState("demo");
+        App.saveTableState("demo", {
+                               "detailsWidth": 450,
+                               "detailsHeight": 300
+                           });
+        const view = createTemporaryObject(viewComponent, testCase);
+        tryCompare(view, "_stateKey", "demo");
+        compare(view.split.sideWidth, Theme.space(450));
+        compare(view.split.sideHeight, Theme.space(300));
+
+        TestTheme.setBaseSize(20); // qmllint disable unqualified
+        compare(view.split.sideWidth, Theme.space(450));
+        compare(view.split.sideHeight, Theme.space(300));
+        TestTheme.setBaseSize(0); // qmllint disable unqualified
+        compare(view.split.sideWidth, 450);
+        compare(view.split.sideHeight, 300);
+        compare(App.tableState("demo").detailsWidth, 450);
+
+        // The default, restored by assignment, keeps following the default.
+        App.saveTableState("demo", {});
+        view.reloadTableState();
+        compare(view.split.sideWidth, view.split.defaultSideWidth);
+        TestTheme.setBaseSize(18); // qmllint disable unqualified
+        compare(view.split.sideWidth, Theme.space(400));
+        compare(view.split.sideWidth, view.split.defaultSideWidth);
+
+        App.saveTableState("demo", original);
+    }
+
+    function cleanup() {
+        TestTheme.setBaseSize(0); // qmllint disable unqualified
+    }
 }
