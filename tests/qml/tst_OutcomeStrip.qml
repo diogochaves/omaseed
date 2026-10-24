@@ -154,6 +154,43 @@ TestCase {
         compare(expiredSpy.count, 0, "a failure has no timer");
     }
 
+    // #146 (board 49 §7): a creation cancelled is a dim strip with its own action, no timer.
+    function test_a_cancel_is_dim_with_its_own_action() {
+        strip.outcome = {
+            "kind": "dim",
+            "mark": "×",
+            "headline": "photo-walks wasn't made: cancelled at 61 %",
+            "line": "nothing saved, nothing added, the folder is as it was",
+            "more": {
+                "id": "createAgain",
+                "text": "create again…"
+            },
+            "serial": 7
+        };
+        compare(findChild(strip, "outcomeMark").color, Theme.dimForeground);
+        verify(!findChild(strip, "outcomeTimeLine").visible);
+        verify(!findChild(strip, "outcomeShow").visible);
+        const more = findChild(strip, "outcomeMore");
+        compare(more.text, "create again…");
+        verify(more.visible);
+        laidOut();
+        const spy = createTemporaryObject(moreSpyComponent, testCase);
+        mouseClick(more);
+        compare(spy.count, 1);
+        compare(spy.signalArguments[0][0], "createAgain");
+        strip.outcome = testCase.failed;
+        verify(!findChild(strip, "outcomeMore").visible);
+    }
+
+    Component {
+        id: moreSpyComponent
+
+        SignalSpy {
+            signalName: "moreRequested"
+            target: strip
+        }
+    }
+
     function test_some_failed_is_yellow() {
         const mixed = Object.assign({}, testCase.failed, {
                                         "kind": "mixed",

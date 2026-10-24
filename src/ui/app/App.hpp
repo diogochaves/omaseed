@@ -28,12 +28,15 @@
 #include "core/AltSpeed.hpp"
 #include "core/AutoBackup.hpp"
 #include "core/CategoryModel.hpp"
+#include "core/CreateJob.hpp"
+#include "core/CreateTrackers.hpp"
 #include "core/ErrorWords.hpp"
 #include "core/FilterCounts.hpp"
 #include "core/FreeSpace.hpp"
 #include "core/GlobalState.hpp"
 #include "core/LibraryDisplays.hpp"
 #include "core/LogFilterModel.hpp"
+#include "core/MadeHere.hpp"
 #include "core/MetadataLookup.hpp"
 #include "core/OmaseedBackup.hpp"
 #include "core/PrivateTrackers.hpp"
@@ -995,10 +998,14 @@ private:
     Q_PROPERTY(omaseed::core::AddFilesModel *addFiles READ addFiles CONSTANT)
     /// docs/29 (#44): the lookup of the magnet or link the add sheet shows (its Files row).
     Q_PROPERTY(omaseed::core::MetadataLookup *addLookup READ addLookup CONSTANT)
+    /// #193: an add pressed while `addLookup` was still asking qBittorrent for that magnet's
+    /// files waits for the answer (see holdAddForLookup); the sheet's Files row says so.
+    Q_PROPERTY(bool addWaitsForList READ addWaitsForList NOTIFY addWaitsForListChanged)
 
 public:
     omaseed::core::AddFilesModel *addFiles() const { return m_addFiles; }
     omaseed::core::MetadataLookup *addLookup() const { return m_addLookup; }
+    bool addWaitsForList() const { return !m_addAfterLookup.isEmpty(); }
 
     /// docs/29 D1: asks the current server for the metadata of the magnet or link in
     /// `addable` (parseAddable's map), on its own client so the session keeps the answer.
@@ -1155,6 +1162,7 @@ Q_SIGNALS:
     /// sheet holds, now with `token` (its files, for loadAddFiles and findFilesMatch, as a
     /// parsed .torrent's), `fileCount`, `totalSize`, `sizeText`, the info-hashes and `name`.
     void metadataFetched(QVariantMap addable);
+    void addWaitsForListChanged();
     void downloadsTorrentsChanged();
     void downloadsFolderChanged();
 
@@ -1265,6 +1273,17 @@ private:
                      const QVariantMap &request,
                      const QString &torrentId,
                      const QVariantList &laterPriorities);
+    /// #193: qBittorrent 5.3.0 crashes on its next sync once the metadata comes in for a
+    /// magnet that `torrents/add` took while a `torrents/fetchMetadata` lookup of the same
+    /// magnet was still running. The API can't end a lookup (docs/29 D6), so an add of the
+    /// magnet the lookup is asking about (quiet, fetching or slow) waits in
+    /// `m_addAfterLookup` for its answer. F4's minute is the way out its words already give
+    /// ("enter adds every file"): a magnet nobody seeds never answers, and never crashes it.
+    /// Kept for every version until a fixed qBittorrent ships. True when it held `request`.
+    bool holdAddForLookup(const QVariantMap &request);
+    /// The held add goes once the lookup has answered, reached F4, or let go of its magnet.
+    void releaseHeldAdd();
+    QVariantMap m_addAfterLookup;
     omaseed::core::MetadataLookup *m_addLookup = nullptr;
     /// C26 SR9: the search plugin that fetches the lookup's link (`downloader`), or "".
     QString m_lookupDownloader;
@@ -2291,6 +2310,117 @@ private:
     QHash<QString, core::SearchModel::LibraryMatch> m_searchByHash;
     QHash<QString, QString> m_searchByNameSize;
     // --- end #145 -----------------------------------------------------------------------------
+    // --- #146: create a torrent from a folder ---------------------------------------------------
+    // Board 49 (DECISIONS C27): the server's qBittorrent hashes a folder (core/CreateJob); a
+    // public torrent then seeds from where its files are and its magnet is on the clipboard, a
+    // private one is saved as "NAME [HOST].torrent" in Downloads and remembered (core/MadeHere)
+    // for the round trip. The sheet's lists come from the library (core/CreateTrackers); the
+    // band is the move's (C24 H14); a quick one, or a cancel, is the outcome strip. A passkey
+    // never reaches QML, a log line or state.json (C27 CR5). AppCreate.cpp.
+public:
+    /// This server can create: a qBittorrent with Web API 2.10.4 or later (C27: no create
+    /// entry otherwise), or the demo.
+    Q_PROPERTY(bool createOffered READ createOffered NOTIFY createChanged)
+    /// The creation's band: `{kind (accent, green, yellow, red), glyph, headline, line,
+    /// progress (0–1 or -1), actions [{id, text}], file {path, name, sizeText} (a private
+    /// one's saved .torrent, to drag)}`; {} for none.
+    Q_PROPERTY(QVariantMap createBand READ createBand NOTIFY createChanged)
+    /// The band shows: a creation that has run 3 s (CR13), or its summary until closed.
+    Q_PROPERTY(bool createShown READ createShown NOTIFY createChanged)
+    /// The name of the creation running on this server, "" for none: one at a time (CR13).
+    Q_PROPERTY(QString createRunning READ createRunning NOTIFY createChanged)
+    bool createOffered() const;
+    QVariantMap createBand() const { return m_createBand; }
+    bool createShown() const { return !m_createBand.isEmpty(); }
+    QString createRunning() const;
+
+    /// What the sheet offers on this server: `publicTrackers` [{url, count}] (the library's top
+    /// 3, CR4), `lastTrackers` (the last public creation's), `privateHosts` [{host, count,
+    /// newestName, newestText, masked, otherKeys}] (CR5: the announce URL only as
+    /// AnnounceMask shows it), `forWhom` ("anyone" or "private", per server), `host` (the last
+    /// private one), `seesDisks` (this machine reads the server's folders), `downloads`.
+    Q_INVOKABLE QVariantMap createSheet() const;
+    /// Reads `path` before anything is hashed (CR17): on this machine when it sees the
+    /// server's disks, else through qBittorrent (app/getDirectoryContent). Answered through
+    /// `createFolderChecked(path, check)`, `check` = `{state (ok, missing, unreadable, empty,
+    /// hidden, unknown), isFile, sized, files, bytes, hidden, hiddenNames, line, blocking}`.
+    Q_INVOKABLE void checkCreateFolder(const QString &path, bool ignoreDotfiles);
+    /// The piece size's list for `bytes` in `files` files (board 49 §5): [{size, text,
+    /// countText, torrentText, automatic}].
+    Q_INVOKABLE QVariantList createPieceRows(double bytes, int files) const;
+    /// "512 KiB", "1 MiB": a piece size's words.
+    Q_INVOKABLE QString pieceSizeText(double bytes) const;
+    /// Browse on a server whose disks omaseed can't see (C27 CR3, C16 L13): `path`'s entries
+    /// as qBittorrent lists them (names only), through `serverFolderListed(path, entries,
+    /// found)`.
+    Q_INVOKABLE void listServerFolder(const QString &path);
+    /// CR6: the source tag for private `host`: the last typed for it on this server, else the
+    /// newest torrent's from that host (its .torrent read through torrents/export). Answered
+    /// through `createSourceLoaded(host, source)`.
+    Q_INVOKABLE void loadCreateSource(const QString &host);
+    /// CR5: `url` as the sheet may show it (AnnounceMask).
+    Q_INVOKABLE QString maskAnnounce(const QString &url) const;
+    /// The folder a drop holds, as the server writes it (CR1: a dropped folder opens Create);
+    /// "" when the drop is not one folder (or one file) of this machine's.
+    Q_INVOKABLE QString droppedFolder(const QList<QUrl> &urls) const;
+    /// Starts a creation: `folder`, `forWhom` ("anyone" | "private"), `trackers` (public),
+    /// `host` and `announce` (private: a pasted URL, used for this creation only; empty takes
+    /// the library's newest for the host), `format`, `pieceSize` (0 automatic), `source`,
+    /// `comment`, `webSeeds`, `ignoreDotfiles`, `category`, `totalBytes`, `files`. False when
+    /// one already runs on this server or nothing can be sent.
+    Q_INVOKABLE bool startCreate(const QVariantMap &request);
+    /// A band or strip action: cancel, copyMagnet, saveTorrent, show, showFile, copyPath,
+    /// again, close.
+    Q_INVOKABLE void createAction(const QString &id);
+    /// Test seam: the status poll's interval and how long before the band shows (CR13's 3 s).
+    Q_INVOKABLE void setCreateTimings(int pollMs, int bandMs);
+    /// The round trip (CR8, CR9, board 49 §4) for the `.torrent` parsed under `token`: `{kind
+    /// ("made": the file saved here itself; "same": the site's copy, the same info hash;
+    /// "files": another hash, every file matching), name, folder, host, madeText ("made here
+    /// today 14:20"), savePath and layout (where the files are), check (false: seed mode),
+    /// madeHash and madeName (the made one, when it is in the library)}`; {} for none.
+    Q_INVOKABLE QVariantMap madeHereFor(const QString &token) const;
+
+Q_SIGNALS:
+    void createChanged();
+    void createFolderChecked(const QString &path, const QVariantMap &check);
+    void serverFolderListed(const QString &path, const QStringList &entries, bool found);
+    void createSourceLoaded(const QString &host, const QString &source);
+    /// "create again…" / "try again": the sheet opens on these choices again.
+    void createAgainRequested(const QVariantMap &request);
+
+private:
+    void setUpCreate();
+    void switchCreateServer();
+    void resumeStoredCreate();
+    void createJobChanged();
+    void createJobFinished();
+    void updateCreateBand();
+    void finishPrivateCreate();
+    QString saveCreatedTorrent(const QString &fileName, QString *error) const;
+    core::CreateTrackers createTrackers() const;
+    QJsonObject createState() const;
+    void writeCreateState(const QJsonObject &server);
+    core::MadeHere madeHere() const;
+    void writeMadeHere(const core::MadeHere &made);
+    /// The records the `.torrent` in `bytes` matches go: the site's copy was added.
+    void forgetMadeHere(const QByteArray &bytes);
+    core::CreateJob *m_createJob = nullptr;
+    QTimer *m_createBandTimer = nullptr;
+    QVariantMap m_createBand;
+    /// The request the job runs, as the sheet sent it (no announce URL: it is in the job).
+    QVariantMap m_createRequest;
+    /// The server the job belongs to.
+    QString m_createServerId;
+    /// The band showed for this job (it ran past CR13's 3 s).
+    bool m_createBandShown = false;
+    /// The summary's facts once it ended: the saved file's path, the magnet, the made id.
+    QString m_createSavedPath;
+    QString m_createMagnet;
+    QString m_createHash;
+    QString m_createSaveError;
+    int m_createBandMs = 3000;
+    // --- end #146 -----------------------------------------------------------------------------
 };
 
 } // namespace omaseed::app

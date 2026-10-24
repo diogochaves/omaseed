@@ -11,6 +11,7 @@ import Omaseed.Kit
 //   failed  red, ✕, "Short Film 07 didn't move" · the cause            details  move…  ×
 //           no timer: it stays until × / esc or the next action
 //   mixed   yellow, !, "2 moved to /mnt/fast/keep, 1 didn't" · "NAME: why"   details  show  ×
+//   dim     dim, ×, "photo-walks wasn't made: cancelled at 61 %"   create again…  × (#146)
 //
 // C30 F8–F11 (board 50 §2): "show" is there only when it brings something back, and a dim
 // line under the words says why ("they are out of view, under giving back"). The host works
@@ -37,8 +38,9 @@ Rectangle {
 
     readonly property string kind: root.outcome.kind ?? ""
     readonly property bool shown: root.kind.length > 0
+    // #146: "dim", a creation cancelled (board 49 §7's dim strip).
     readonly property color tone: root.kind === "failed" ? Theme.red : root.kind === "mixed" ? Theme.yellow
-                                                                                            : Theme.green
+                                                       : root.kind === "dim" ? Theme.dimForeground : Theme.green
     /// "show" for what landed, while there is something left to show (never after a delete)
     /// and something it would bring back (C30 F8).
     readonly property bool canShow: root.kind !== "failed" && (root.outcome.doneRow ?? "").length > 0
@@ -54,6 +56,8 @@ Rectangle {
     signal detailsRequested
     /// "move…": the move sheet again, on the ones that didn't move.
     signal moveRequested(var hashes, string target)
+    /// #146: the outcome's own action (`outcome.more`: {id, text}, "create again…").
+    signal moreRequested(string id)
     /// ×: the strip goes.
     signal closeRequested
     /// A done strip's time ran out.
@@ -186,6 +190,14 @@ Rectangle {
                 visible: root.canMove
 
                 onActivated: root.moveRequested(root.outcome.failedHashes, root.outcome.target ?? "")
+            }
+
+            StripLink {
+                objectName: "outcomeMore"
+                text: root.outcome.more?.text ?? ""
+                visible: text.length > 0
+
+                onActivated: root.moreRequested(root.outcome.more?.id ?? "")
             }
 
             StripLink {

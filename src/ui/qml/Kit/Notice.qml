@@ -38,6 +38,8 @@ Item {
 
     /// "error" | "warning" | "info" | "success".
     property string kind: "error"
+    /// Drawn under the line (#146: a creation's file chip). Null draws nothing.
+    property Component extra: null
     /// The sign at the left; "" draws the kind's own.
     property string glyph: ""
     /// 0–1 draws the progress line on the bottom edge; below 0 draws none.
@@ -256,6 +258,17 @@ Item {
             textFormat: root.bodyAlert.length === 0 ? Text.PlainText : Text.StyledText
             visible: text.length > 0
             wrapMode: Text.Wrap
+        }
+
+        // #146 (board 49 `.notice .fchip`): something of the caller's under the line, from the
+        // headline's first letter (a creation's saved .torrent, to drag). Null draws nothing.
+        Loader {
+            Layout.leftMargin: glyph.Layout.preferredWidth + Theme.space(8)
+            Layout.maximumWidth: content.width - Layout.leftMargin
+            active: root.extra !== null
+            objectName: "noticeExtra"
+            sourceComponent: root.extra
+            visible: active
         }
 
         Item {

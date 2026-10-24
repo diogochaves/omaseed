@@ -81,6 +81,8 @@ TestCase {
         view.commandPalette.close();
         view.appMenu.close();
         view.globalLimitsSheet.close();
+        view.createSheet.close();
+        view.addMenu.close();
         testCase.width = 1360;
         App.filtered.clearCategory();
         App.filtered.clearTag();
@@ -1221,14 +1223,16 @@ TestCase {
                                       "the settings modal");
     }
 
-    // M8: the title bar's "+ add" opens the add sheet with the mouse and leaves the keyboard
-    // where it was, so closing the sheet gives it back to the table: no ring or tip left on
-    // the tool, and `j` moves the cursor.
+    // M8: the title bar's "+ add ▾" (its menu's add row, #146) opens the add sheet with the
+    // mouse and leaves the keyboard where it was, so closing the sheet gives it back to the
+    // table: no ring or tip left on the tool, and `j` moves the cursor.
     function test_a_click_on_add_gives_the_keyboard_back_to_the_table() {
         const add = view.titleBar.addTool;
         verify(add && add.visible, "no + add in the title bar");
         const row = view.table.cursorIndex;
         mouseClick(add);
+        verify(view.addMenu.opened, "+ add ▾ did not open its menu");
+        view.addMenu.activate(0);
         compare(view.addSheet.opened, true, "+ add did not open the add sheet");
         keyClick(Qt.Key_Escape);
         if (view.addSheet.opened)
@@ -2360,6 +2364,44 @@ TestCase {
         keyClick(Qt.Key_Escape);
         compare(view.view, "library");
         App.loadDemoSearch("off");
+    }
+
+    // #146 (C24 H17, C27 CR1): ctrl+n opens the create sheet; "+ add ▾" has add, create and
+    // search; `:` has "create torrent…" and, on a picked folder, "create torrent from NAME…";
+    // a folder row's menu opens it on that folder.
+    function test_ctrl_n_and_add_menu_open_create() {
+        verify(App.createOffered);
+        keyClick(Qt.Key_N, Qt.ControlModifier);
+        verify(view.createSheet.opened);
+        compare(view.activeOverlay, view.createSheet);
+        compare(view.createSheet.folder, "");
+        view.createSheet.close();
+
+        compare(view.titleBar.addTool.text, "add ▾");
+        mouseClick(view.titleBar.addTool);
+        verify(view.addMenu.opened);
+        compare(view.addMenu.items.map(row => row.action ?? "-"), ["add", "create", "-", "search"]);
+        view.addMenu.activate(1);
+        verify(view.createSheet.opened);
+        view.createSheet.close();
+
+        const path = App.torrentRow(view.table.cursorHash).savePath.replace(/\/+$/, "");
+        App.filtered.folder = path;
+        const rows = Keymap.commandRows(view.commandContext()).map(row => row.title);
+        verify(rows.indexOf("create torrent…") >= 0, rows);
+        const name = path.substring(path.lastIndexOf("/") + 1);
+        verify(rows.indexOf("create torrent from " + name + "…") >= 0, rows);
+        view.runCommand("createFromFolder");
+        verify(view.createSheet.opened);
+        compare(view.createSheet.folder, path);
+        view.createSheet.close();
+
+        view.folderMenuPanel.folder = path;
+        view.folderMenuPanel.openAt(100, 100);
+        view.folderMenuPanel.activate(1);
+        verify(view.createSheet.opened);
+        compare(view.createSheet.folderField.text, path + "/");
+        view.createSheet.close();
     }
 
     // C26 SR14: the palette's "search…" row and the no-match row reach search.

@@ -168,6 +168,12 @@ omaseed_add_test(tst_app_magnet
     LIBRARIES omaseed::app omaseed::core omaseed::integration Qt6::Network
 )
 
+# #146: creating a torrent from a folder, against a fake qBittorrent.
+omaseed_add_test(tst_app_create
+    SOURCES tst_app_create.cpp
+    LIBRARIES omaseed::app omaseed::core omaseed::integration Qt6::Network Qt6::Gui
+)
+
 # #145: search, against a fake qBittorrent with invented plugins.
 omaseed_add_test(tst_app_search
     SOURCES tst_app_search.cpp

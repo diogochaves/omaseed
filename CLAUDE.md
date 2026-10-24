@@ -72,7 +72,7 @@ invisible Omarchy desktop, so nothing opens on the real one:
 scripts/dev/swarm-walk.sh [OUT] | --interactive   # every torrent state, shown in the app in an omabox
 scripts/dev/strict-walk.sh [OUT] | --interactive  # first run + cookie / API key login against :8082, in an omabox
 scripts/dev/notify-walk.sh [OUT] | --interactive  # downloads finish: one notice each, a click shows the torrent
-scripts/dev/magnet-walk.sh [OUT] | --interactive  # xdg-open a magnet / .torrent: the add sheet, closed, in the tray, duplicate; gio open (D-Bus) while quit
+scripts/dev/magnet-walk.sh [OUT] | --interactive  # xdg-open a magnet / .torrent: the add sheet, closed, in the tray, duplicate; gio open (D-Bus) while quit; add before the list
 scripts/dev/actions-walk.sh [OUT] | --interactive # renames, categories, tags, auto-TMM, set location, bar, outcome strip, mouse picks, delete, skipped files on disk: checked on server and disk (OMASEED_ACTIONS_WALK_FROM=disk)
 scripts/dev/settings-walk.sh [OUT] | --interactive  # qBittorrent settings pane on a box-owned qBittorrent: sections, switches, Web UI port and API key confirms
 scripts/dev/servers-walk.sh [OUT] | --interactive # two qBittorrents: first run, add, switch three ways, an action each side, remove
@@ -82,6 +82,7 @@ scripts/dev/menu-walk.sh [OUT] | --interactive    # the one menu: tray, bar widg
 scripts/dev/stuck-walk.sh [OUT] | --interactive   # finished into a full disk (a udisks loop image): the stuck move's red block, then a recheck moves it
 scripts/dev/search-walk.sh [OUT] | --interactive  # search: invented plugins installed in Settings, a search filling in, failed and slow plugins, a magnet and a link (through its plugin) added and downloaded, uninstall
 scripts/dev/search-plugins.py make DIR [--slow S] # four invented nova3 search plugins answering with the offline swarm's torrents (never a real site)
+scripts/dev/create-walk.sh [OUT] | --interactive  # create a torrent (#146): + add ▾, public (strip, seeding, the .torrent read back), the band, private (saved, passkey only as dots), the round trip both ways, errors, cancel
 scripts/dev/move-walk.sh [OUT] | --interactive    # folder and selection moves, queue, places, partial pack, move back, recheck (~12 min; OMASEED_MOVE_WALK_FROM=selection|sheet|history|big|music|remote)
 omabox check run [--approve] --base .local/visual --plugin plugin -- scripts/dev/visual-check.sh  # the walks' screens against a baseline: same, or what changed
 scripts/dev/manual-box.sh [--headless] | down          # throwaway desktop for manual tests: omaseed installed, two qBittorrents (public :8090, private :8091)

@@ -185,6 +185,11 @@ omaseed_add_test(tst_qbtclient_search_fake
     LIBRARIES omaseed::core
 )
 
+omaseed_add_test(tst_qbtclient_creator_fake
+    SOURCES tst_qbtclient_creator_fake.cpp FakeHttp.hpp
+    LIBRARIES omaseed::core
+)
+
 omaseed_add_test(tst_qbtclient_actions_live LIVE
     SOURCES tst_qbtclient_actions_live.cpp
     LIBRARIES omaseed::core
@@ -542,5 +547,30 @@ omaseed_add_test(tst_torrentstory
 
 omaseed_add_test(tst_skippedoutlook
     SOURCES tst_skippedoutlook.cpp
+    LIBRARIES omaseed::core
+)
+
+omaseed_add_test(tst_announcemask
+    SOURCES tst_announcemask.cpp
+    LIBRARIES omaseed::core
+)
+
+omaseed_add_test(tst_createplan
+    SOURCES tst_createplan.cpp
+    LIBRARIES omaseed::core
+)
+
+omaseed_add_test(tst_createtrackers
+    SOURCES tst_createtrackers.cpp
+    LIBRARIES omaseed::core
+)
+
+omaseed_add_test(tst_madehere
+    SOURCES tst_madehere.cpp
+    LIBRARIES omaseed::core
+)
+
+omaseed_add_test(tst_createjob_fake
+    SOURCES tst_createjob_fake.cpp FakeHttp.hpp
     LIBRARIES omaseed::core
 )

@@ -229,6 +229,16 @@ void ActionOutcomes::reportMap(const QVariantMap &map)
     report(ActionOutcome::fromMap(map));
 }
 
+void ActionOutcomes::reportWords(const QVariantMap &words)
+{
+    const int serial = ++m_serial;
+    m_marks.clear();
+    m_current = words;
+    m_current.insert(QStringLiteral("serial"), serial);
+    Q_EMIT currentChanged();
+    bumpRevision();
+}
+
 void ActionOutcomes::dismiss()
 {
     if (m_current.isEmpty())

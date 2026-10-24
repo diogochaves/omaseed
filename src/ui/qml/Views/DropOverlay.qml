@@ -12,6 +12,8 @@ Item {
 
     /// A drag is over the window.
     property bool shown: false
+    /// #146 (DECISIONS C27 CR1): the folder being dragged; "" for anything else.
+    property string folder: ""
 
     enabled: false
     visible: root.shown
@@ -45,7 +47,9 @@ Item {
             font.family: Theme.fontFamily
             font.pixelSize: Theme.font.title
             objectName: "dropLabel"
-            text: qsTr("drop to add")
+            text: root.folder.length > 0 ? qsTr("drop to create a torrent from %1").arg(
+                                               root.folder.substring(root.folder.lastIndexOf("/") + 1))
+                                         : qsTr("drop to add")
         }
     }
 }

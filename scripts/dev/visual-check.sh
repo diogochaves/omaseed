@@ -62,6 +62,10 @@ python3 -I "$repo/scripts/dev/search-plugins.py" make "$home/search-plugins" >/d
 omabox run -- curl -fs -o /dev/null "http://127.0.0.1:$QBT_PORT/api/v2/search/installPlugin" \
     --data-urlencode "sources=/home/sbx/search-plugins/omaseed_plugin_a.py|/home/sbx/search-plugins/omaseed_plugin_b.py|/home/sbx/search-plugins/omaseed_plugin_c.py"
 omabox wait --timeout 20s cmd -- sh -c "curl -fs http://127.0.0.1:$QBT_PORT/api/v2/search/plugins | grep -q omaseed_plugin_c"
+# #146: a folder of the box's to create a torrent from, the same bytes every run (sparse).
+mkdir -p "$home/share/photo-walks/harbour"
+for n in 1 2 3; do truncate -s 2M "$home/share/photo-walks/harbour/walk-0$n.jpg"; done
+printf 'notes\n' >"$home/share/photo-walks/notes.txt"
 printf '{"version":1,"defaultId":"box","servers":[{"id":"box","name":"box","url":"http://127.0.0.1:%s","authMode":"none","username":"","pathMap":[],"isDefault":true,"addedAt":"2026-09-23T00:00:00Z"}]}' \
     "$QBT_PORT" >"$home/.config/omaseed/servers.json"
 chmod 700 "$home/.config/omaseed"
@@ -146,6 +150,17 @@ key Escape
 key a
 omabox check point add --window "$APP" -g "$ADD_SHEET"
 # The first Escape clears the magnet field (which may change nothing), the second closes the sheet.
+key Escape Escape
+# Create a torrent (#146, board 49): ctrl+n, a folder of the box's typed in and read here.
+key ctrl+n
+omabox keys --window "$APP" --wait -t "/home/sbx/share/photo-walks" >/dev/null
+for _ in $(seq 1 10); do
+    omabox tree --window "$APP" --find "4 files" >/dev/null 2>&1 && break
+    sleep 1
+done
+omabox wait --timeout 10s still >/dev/null || true
+omabox check point create --window "$APP" --ignore "$ADDED" --ignore "$CREATED" --ignore "$FREE"
+# The sheet is guarded: the first Escape puts the keyboard on cancel, the second closes it.
 key Escape Escape
 # Three rows selected (DECISIONS C24 H8): the status line is the action bar, its ledger and
 # buttons in the line's place, and C18 D6's hint after them (a fresh box: the first plain

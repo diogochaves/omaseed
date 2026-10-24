@@ -47,8 +47,11 @@ Sheet {
     readonly property bool isPrivate: sheet.sourcePrivate || (sheet.row !== null && sheet.row.isPrivate === true)
     /// A magnet still fetching its metadata reads as public whatever it is: no merge yet.
     readonly property bool metadataPending: sheet.row !== null && sheet.row.hasMetadata === false
+    /// #146 (DECISIONS C27 CR9): the source is the site's copy of a torrent made here, the same
+    /// hash: its announce may go on the one in the library, private or not.
+    property bool sourceMadeHere: false
     /// Nothing may be merged, and the dim line says why.
-    readonly property bool mergeBlocked: sheet.isPrivate || sheet.metadataPending
+    readonly property bool mergeBlocked: (sheet.isPrivate && !sheet.sourceMadeHere) || sheet.metadataPending
     readonly property bool canMerge: !sheet.mergeBlocked && sheet.missingTrackers.length > 0
 
     /// "seeding since 12 Sep" — `torrentRow`'s `addedOnText` already reads "added <when>",
@@ -82,6 +85,7 @@ Sheet {
         sheet.row = duplicate;
         sheet.sourceTrackers = source && source.trackers ? source.trackers : [];
         sheet.sourcePrivate = source ? source.isPrivate === true : false;
+        sheet.sourceMadeHere = source ? source.madeHere === true : false;
         sheet.missingTrackers = [];
         sheet.existingTrackers = [];
         sheet.trackersLoaded = false;

@@ -956,8 +956,10 @@ TestCase {
         const menu = view.folderMenuPanel;
         compare(menu.opened, true);
         compare(menu.folder, path);
-        compare(menu.items.length, 1);
+        compare(menu.items.length, 2);
         compare(menu.items[0].text, "move this folder…");
+        // #146 (C27 CR1): create beside the move.
+        compare(menu.items[1].text, "create a torrent from a folder in it…");
         compare(App.filtered.folder, ""); // nothing picked: the menu acts on the row
         compare(view.rail.cursorIndex, row.globalIndex);
         menu.activate(0);

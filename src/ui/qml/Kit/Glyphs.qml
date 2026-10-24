@@ -126,4 +126,12 @@ QtObject {
     readonly property string sidebar: "icon:sidebar"
     readonly property string limits: "icon:limits"
     readonly property string selectAll: "icon:selectAll"
+
+    // ---- create a torrent, board 49 (DECISIONS C27) -------------------------------------
+    readonly property string create: "◇" // + add ▾'s row, the palette's, the band's mark
+    readonly property string roundTrip: "↺" // the private sheet's round-trip note
+    readonly property string dragHandle: "⠿" // the saved .torrent's chip, to drag
+    readonly property string factOk: "✓" // a fact that holds (private flag on, v1, source)
+    readonly property string factInfo: "i" // a fact said for the record (no source tag)
+    readonly property string factWarn: "!" // a fact to look at (no source tag yet)
 }

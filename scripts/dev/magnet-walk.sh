@@ -399,7 +399,7 @@ step "Three added" "The sheet is gone; the three $BATCH rows are in the table, f
 # the Sampler and the swarm's private torrents, stays put. That library starts empty, and the
 # Sampler (public, seeded) goes first: the swarm's private torrents announce to the same
 # 127.0.0.1 tracker, so once one is in the library the Sampler's magnet would read as a private
-# tracker's (F5). The lookup's clock runs 6 times faster (OMASEED_LOOKUP_CLOCK_SCALE), so the
+# tracker's (F5). First an add pressed before the Sampler's list is in (#193). The lookup's clock runs 6 times faster (OMASEED_LOOKUP_CLOCK_SCALE), so the
 # private magnet's "still looking" (10 s) and "may never come" (60 s) come in 2 and 10 s.
 SEEDER="http://127.0.0.1:8083/api/v2"
 # seeder_field NAME KEY: KEY of the seeder's torrent called NAME.
@@ -460,6 +460,56 @@ box_appears() {
 }
 no_mkv() { omabox run -b "$BOX" -- test ! -e "$SAMPLER_DIR/sampler.mkv"; }
 has_srt() { omabox run -b "$BOX" -- test -f "$SAMPLER_DIR/sampler.srt"; }
+
+# 5b. #193: add pressed before the list is in. qBittorrent 5.3.0 crashes on the next sync once
+# the metadata arrives for a magnet added while its lookup still runs, so the app holds the add
+# until the list is in. The Sampler's list takes about a second to come from the seeder; enter
+# goes as soon as the sheet shows its name. Then the Sampler comes off again (files too), so
+# step 6 finds an empty library.
+sheet_named() {
+    for _ in $(seq 1 40); do
+        omabox tree -b "$BOX" --find "$1" 2>/dev/null | grep -q '^dialog "Add torrent"' && return 0
+        sleep 0.25
+    done
+    return 1
+}
+box_up() { omabox run -b "$BOX" -- curl -fs "http://127.0.0.1:8090/api/v2/app/version" >/dev/null; }
+app_log() { cat "$(omabox path -b "$BOX")"/home/run-*.log 2>/dev/null; }
+open_in_box "$SAMPLER_MAGNET"
+check "the sheet came up for the Sampler's magnet" sheet_named "$PUBLIC"
+keys Return
+check "the early add went in" box_appears "$SAMPLER_HASH"
+check "and finished" box_finished "$SAMPLER_HASH"
+sleep 4 # a few more syncs: 5.3.0 fell over on the first one after the metadata came
+check "the box's qBittorrent is still up after an add before the list (#193)" box_up
+if app_log | grep -q "waits for its file list first"; then
+    check "the add waited for the list" true
+else
+    # The list came before enter: the step saw nothing to hold, and says so instead of failing.
+    CHECKS+="- skipped: the list came before enter, so the early add wasn't held this time"$'\n'
+    echo "  check skipped: the list came before enter"
+fi
+omabox run -b "$BOX" -- curl -fs -X POST "http://127.0.0.1:8090/api/v2/torrents/delete" \
+    -d "hashes=$SAMPLER_HASH" -d deleteFiles=true >/dev/null
+gone_from_box() {
+    for _ in $(seq 1 20); do
+        [ -z "$(box_progress "$1" 2>/dev/null)" ] && return 0
+        sleep 0.5
+    done
+    return 1
+}
+check "the Sampler is off the box again" gone_from_box "$SAMPLER_HASH"
+# And off the app's list, before step 6 hides the window (a hidden window syncs less often): a
+# Sampler still listed would make its magnet a duplicate there.
+gone_from_app() {
+    for _ in $(seq 1 20); do
+        omabox tree -b "$BOX" --find "$PUBLIC" >/dev/null 2>&1 || return 0
+        sleep 0.5
+    done
+    return 1
+}
+check "and off the app's list" gone_from_app
+step "An add before the list" "The sheet is gone; Public Domain Sampler was a row, seeding, before the walk took it off again: the table is empty and the app is connected (the server is up)."
 
 # 6. The Sampler's magnet with the app in the tray: the window comes back with the sheet, and
 # the tree arrives in it (F2).

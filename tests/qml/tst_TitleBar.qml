@@ -88,6 +88,23 @@ TestCase {
     // H5: a folder picked brings "move this folder…" before the filter.
     // DECISIONS C24 H3–H4: the display tool between the filter and "+ add", its word and ▾;
     // its glyph alone from step 1; none where there is no library (display "").
+    // #146 (C24 H17): "+ add ▾" once create or search sits under it; its click is the menu's.
+    function test_add_with_its_menu() {
+        const bar = make({
+                             "addMenuShown": true
+                         });
+        compare(bar.addTool.text, "add ▾");
+        compare(bar.addTool.Accessible.role, Accessible.ButtonMenu);
+        compare(bar.addTool.Accessible.name, "add");
+        const clicked = spy(bar, "addClicked");
+        mouseClick(bar.addTool);
+        compare(clicked.count, 1);
+        bar.width = 600; // narrow: the glyph alone
+        waitForItemPolished(bar);
+        verify(bar.level >= 1);
+        compare(bar.addTool.text, "");
+    }
+
     function test_the_display_tool() {
         const bar = make({
                              "display": "rows"

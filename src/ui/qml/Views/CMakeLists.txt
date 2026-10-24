@@ -17,7 +17,9 @@ qt_add_qml_module(omaseed-views
         AddFilesTree.qml
         FileTick.qml
         AddFreeLine.qml
+        AddMadeLine.qml
         AddMatchLine.qml
+        AddMenu.qml
         AddSheet.qml
         AppMenu.qml
         BanPeerConfirm.qml
@@ -32,6 +34,9 @@ qt_add_qml_module(omaseed-views
         ConsoleRow.qml
         ConsoleTotal.qml
         ConsoleTrackers.qml
+        CreateFact.qml
+        CreateFileChip.qml
+        CreateSheet.qml
         DeleteConfirm.qml
         DemoDetails.qml
         DemoOverlays.qml

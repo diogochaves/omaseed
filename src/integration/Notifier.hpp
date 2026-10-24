@@ -68,6 +68,11 @@ public:
     /// Action "show", also the click. Event class "move", subject the server id.
     quint32 notifyMove(const QString &serverId, const QString &summary, const QString &body);
 
+    /// #146 (DECISIONS C27 CR13): a creation, once, at its end when its band showed a minute
+    /// or the window was hidden ("photo-walks is made and seeds from /srv/share"). Action
+    /// "show", also the click. Event class "create", subject the server id.
+    quint32 notifyCreate(const QString &serverId, const QString &summary, const QString &body);
+
 signals:
     /// Fired when the shell reports ActionInvoked for a notice this Notifier sent.
     /// eventClass/subjectId are the values the corresponding notify*() call was made with;

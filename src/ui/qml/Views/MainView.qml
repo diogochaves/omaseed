@@ -60,6 +60,10 @@ Item {
     readonly property alias freeSpaceSheet: freeSpaceSheet
     readonly property alias addAgainConfirm: addAgainConfirm
     readonly property alias moveBand: moveBand
+    // #146: create a torrent, its band and "+ add ▾"'s menu.
+    readonly property alias createSheet: createSheet
+    readonly property alias createBand: createBand
+    readonly property alias addMenu: addMenu
     readonly property alias moveQuitConfirm: moveQuitConfirm
     readonly property alias sharedMoveConfirm: sharedMoveConfirm
     readonly property alias limitsSheetPanel: limitsSheetPanel
@@ -138,6 +142,8 @@ Item {
             return moveRecheckSheet;
         if (moveSheet.opened)
             return moveSheet;
+        if (createSheet.opened)
+            return createSheet;
         if (deleteConfirmPanel.opened)
             return deleteConfirmPanel;
         if (actionsMenuPanel.opened)
@@ -173,6 +179,35 @@ Item {
         if (App.filtered.folder.length > 0)
             return App.filtered.folder;
         return root.cursorHash.length > 0 ? App.move.folderOf(root.cursorHash) : "";
+    }
+
+    /// #146 (C27 CR1): ctrl+n, "+ add ▾", `:`, a folder row's menu and a dropped folder open
+    /// the create sheet, on `folder` when one is given. Not on a server that can't create.
+    function openCreate(folder: string): void {
+        if (root.firstRun || !App.createOffered)
+            return;
+        createSheet.openFor(folder);
+    }
+
+    /// "+ add ▾" (C24 H17): its menu under the tool, right edges together; with nothing but
+    /// "add" in it, the add sheet straight away.
+    function openAddMenu(): void {
+        if (!App.createOffered && !App.searchOffered) {
+            App.addRequested();
+            return;
+        }
+        const tool = titleBar.addTool;
+        const corner = tool.mapToItem(root, tool.width, tool.height);
+        addMenu.openAt(Math.round(corner.x - addMenu.menuWidth), Math.round(corner.y + Theme.railMenuGap));
+    }
+
+    /// A folder dropped on the window (C27 CR1): the create sheet on it.
+    function createDropped(folder: string): void {
+        if (root.firstRun || !App.createOffered) {
+            root.flashFooterNote(qsTr("nothing to add"));
+            return;
+        }
+        createSheet.openFor(folder);
     }
 
     /// `shift+m`, the palette's "move folder…", the title bar's tool (C24 H5); `newPath` for
@@ -1118,6 +1153,9 @@ Item {
             case Qt.Key_F: // #145 (C26 SR14): search, from anywhere
                 root.openSearch("");
                 break;
+            case Qt.Key_N: // #146 (C24 H17, C27 CR1): create a torrent from a folder
+                root.openCreate("");
+                break;
             default:
                 return;
             }
@@ -1353,6 +1391,8 @@ Item {
         "clearSelection": () => table.clearSelection(),
         // library
         "add": () => App.addRequested(),
+        "create": () => root.openCreate(""),
+        "createFromFolder": () => root.openCreate(App.filtered.folder),
         "filter": () => root.focusSearch(),
         "jump": () => jumpPalette.open(),
         "sort": () => sortPalette.openOnCurrent(),
@@ -1510,6 +1550,10 @@ Item {
             "serverLost": root.serverLost,
             // C26 SR14: the palette's "search…" rows, on a server with search.
             "searchOffered": App.searchOffered,
+            // #146 (C27 CR1): "create torrent…", and "create torrent from NAME…" on the folder
+            // picked in the rail.
+            "createOffered": App.createOffered,
+            "createFolder": App.filtered.folder,
             // docs/33 D4: the servers, for "switch server…" and one "switch to NAME" each.
             "servers": App.serverRows.map(row => ({
                                                       "id": row.key,
@@ -1700,6 +1744,12 @@ Item {
     // table's cursor moved twice for one notification click. One block also makes it plain
     // which signal is answered where.
     Connections {
+        /// #146: "create again…", "try again": the sheet on the choices it had.
+        function onCreateAgainRequested(request: var): void {
+            if (!root.firstRun)
+                createSheet.openWith(request);
+        }
+
         /// `a`, the title bar's "+ add", the tray.
         function onAddRequested(): void {
             if (root.firstRun) // the tray's `add…`: held like a hand-off (review REG-6)
@@ -1995,7 +2045,9 @@ Item {
         // table's step column, #168 assumed 5) or an empty library.
         display: root.view === "library" && !root.moveShowing && !root.libraryEmpty ? App.display : ""
 
-        onAddClicked: App.addRequested()
+        // C24 H17: "+ add ▾" with create and search under it (#146).
+        addMenuShown: App.createOffered || App.searchOffered
+        onAddClicked: root.openAddMenu()
         onDisplayClicked: root.openDisplayMenu()
         onBackClicked: root.leaveMoveShow()
         onMoveFolderClicked: root.openMoveFolder(App.filtered.folder, "")
@@ -2057,6 +2109,34 @@ Item {
         onCopyRequested: text => root.copyText(text, qsTr("copied"))
     }
 
+    // #146 (C24 H14, C27 CR13–CR14): a creation in the move's band, under it when both show.
+    MoveBand {
+        id: createBand
+
+        anchors.left: titleBar.left
+        anchors.right: parent.right
+        anchors.top: moveBand.bottom
+        animated: !App.reducedMotion
+        band: App.createBand
+        copyable: false
+        extra: (App.createBand.file ?? null) !== null ? createFileChip : null
+        objectName: "createBand"
+        shown: App.createShown && !root.firstRun
+        z: 1
+
+        onActionTriggered: key => App.createAction(key)
+    }
+
+    Component {
+        id: createFileChip
+
+        CreateFileChip {
+            name: App.createBand.file?.name ?? ""
+            path: App.createBand.file?.path ?? ""
+            sizeText: App.createBand.file?.sizeText ?? ""
+        }
+    }
+
     // body: table | details, beside the rail
     Item {
         id: body
@@ -2066,7 +2146,7 @@ Item {
         anchors.bottom: statusLine.top
         anchors.left: titleBar.left
         anchors.right: parent.right
-        anchors.top: moveBand.bottom
+        anchors.top: createBand.bottom
 
         SplitLayout {
             id: split
@@ -2334,6 +2414,7 @@ Item {
 
                 onCloseRequested: App.outcomes.dismiss()
                 onDetailsRequested: root.openOutcomeDetails()
+                onMoreRequested: id => App.createAction(id)
                 onExpired: serial => App.outcomes.expire(serial)
                 onMoveRequested: (hashes, target) => moveSheet.openSelection(hashes, target)
                 onShowRequested: hashes => root.showOutcome(hashes)
@@ -3079,6 +3160,35 @@ Item {
         onTriggered: root.footerNote = ""
     }
 
+    // #146 (C24 H17): "+ add ▾"'s menu.
+    AddMenu {
+        id: addMenu
+
+        anchors.fill: parent
+        createShown: App.createOffered
+        searchShown: App.searchOffered
+        z: 9
+
+        onActivated: action => {
+            if (action === "create")
+                root.openCreate("");
+            else if (action === "search")
+                root.openSearch("");
+            else
+                App.addRequested();
+        }
+    }
+
+    // #146 (board 49, C27): the create sheet.
+    CreateSheet {
+        id: createSheet
+
+        anchors.fill: parent
+        multiServer: root.multiServer
+        serverDown: root.serverLost
+        z: 9
+    }
+
     DisplayMenu {
         id: displayMenu
 
@@ -3137,20 +3247,31 @@ Item {
         anchors.fill: parent
         // The folder's own name: a whole path would be cut at its end, the part that tells.
         heading: folderMenuPanel.folder.substring(folderMenuPanel.folder.lastIndexOf("/") + 1)
-        items: [
-            {
-                "text": qsTr("move this folder…"),
-                "key": "M",
-                "action": "moveFolder"
-            }
-        ]
-        menuWidth: Theme.space(240)
+        items: {
+            const rows = [{
+                    "text": qsTr("move this folder…"),
+                    "key": "M",
+                    "action": "moveFolder"
+                }];
+            // #146 (C27 CR1): beside the move.
+            if (App.createOffered)
+                rows.push({
+                              "text": qsTr("create a torrent from a folder in it…"),
+                              "glyph": Glyphs.create,
+                              "key": "ctrl+n",
+                              "action": "createFrom"
+                          });
+            return rows;
+        }
+        menuWidth: Theme.addMenuWidth
         objectName: "folderMenu"
         z: 9
 
         onActivated: action => {
             if (action === "moveFolder")
                 root.openMoveFolder(folderMenuPanel.folder, "");
+            else if (action === "createFrom")
+                root.openCreate(folderMenuPanel.folder.replace(/\/*$/, "/"));
         }
     }
 

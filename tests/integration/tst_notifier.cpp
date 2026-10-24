@@ -29,6 +29,7 @@ private slots:
     void clickOnTheBodyActsAsTheMainButton();
     void notificationClosedForgetsTheKey();
     void aMoveIsOneNoticePerServer();
+    void aCreationIsOneNoticePerServer();
     void theMainActionIsTheClickAndNoButtonOfItsOwn(); // #111
     void aDaemonRestartForgetsTheLiveIds();            // INT-9
     void aServiceThatAppearsLaterIsUsed();             // INT-9
@@ -219,6 +220,21 @@ void TestNotifier::aMoveIsOneNoticePerServer()
     QCOMPARE(spy.first().at(0).toString(), QStringLiteral("move"));
     QCOMPARE(spy.first().at(1).toString(), QStringLiteral("home"));
     QCOMPARE(spy.first().at(2).toString(), QStringLiteral("show"));
+}
+
+// #146 (DECISIONS C27 CR13): a creation's notice, its own class, a click shows the window.
+void TestNotifier::aCreationIsOneNoticePerServer()
+{
+    const quint32 id = m_notifier->notifyCreate(QStringLiteral("home"),
+                                                QStringLiteral("photo-walks is made"),
+                                                QStringLiteral("212 files, 1.8 GB"));
+    QVERIFY(id != 0);
+    QCOMPARE(m_server->calls.at(0).summary, QStringLiteral("photo-walks is made"));
+    QSignalSpy spy(m_notifier, &Notifier::actionInvoked);
+    m_server->triggerActionInvoked(id, QStringLiteral("default"));
+    QVERIFY(spy.wait(2000));
+    QCOMPARE(spy.first().at(0).toString(), QStringLiteral("create"));
+    QCOMPARE(spy.first().at(1).toString(), QStringLiteral("home"));
 }
 
 // #111: Omarchy 4.5 draws a notice's actions as buttons, "default" aside (the click). The main

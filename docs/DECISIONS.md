@@ -251,7 +251,12 @@ Board [29](29-magnet-files.html) (#44), D1–D11 as recommended:
   "Fetching" until 10 s, "still looking" until 60 s, then "may never come" in yellow. The polls
   go at 0, 0.25, 0.5 and 1 s, then every second, and every 5 s after a minute, one at a time; they
   never stop while the sheet is open.
-- **D4** `add` before the list is in adds every file, as before. **D5** "add stopped" before the
+- **D4** `add` before the list is in adds every file, as before. (#193: on qBittorrent 5.3.0 a
+  magnet added while its lookup still runs crashes the server once the metadata comes in, and the
+  API can't end a lookup (D6), so the add of a magnet the lookup is still asking about waits for
+  the answer, the sheet's line saying so; F4's minute is the way out, as its words already say
+  `enter` adds every file. Closing the sheet doesn't drop it, as an add already out goes on, C20.
+  Kept for every version until a fixed qBittorrent ships.) **D5** "add stopped" before the
   list is a started add with `stopCondition=MetadataReceived`: it stops as soon as its list
   arrives, with nothing downloaded (a plain stopped magnet never connects).
 - **D6** Closing the sheet, another source over it or a batch leaves an unanswered lookup running
@@ -1373,6 +1378,52 @@ C15 M10's band and C16 L6–L8 (CR13), and §7's rows to C12's ErrorWords (CR17)
   the private flag and the source tag. Errors checked through the server first, in §7's words,
   qBittorrent's text under details. Transmission: no create entry; Deluge: no source row and no
   %, said once (C25). Built in 46's frame, in the sheets step.
+
+Built in v0.5.0 (#146) as core/CreateJob (one task, addTask to the `.torrent` in hand and a
+public one's add), core/CreatePlan (the piece size, the folder's check, the saved name),
+core/CreateTrackers (the library's public and private trackers), core/MadeHere (the record),
+core/AnnounceMask (the one masking function), App's create block (AppCreate.cpp), and
+Views/CreateSheet, AddMenu, AddMadeLine and CreateFileChip in `Theme.create*` tokens, with these
+assumed answers (recorded in #146):
+
+- **The automatic piece size**, measured on 5.3.0 at 17 sizes from 100 KB to 32 GiB, is the
+  smallest power of two from 16 KiB whose square over 100 is at least the content's size (about
+  ten times its square root, rounded up), at most 16 MiB; the sheet shows it exactly.
+- **Where it starts:** a folder row's menu says "create a torrent from a folder in it…" and opens
+  the sheet with that folder in the field (browse starts there); `:` has "create torrent…" and,
+  while a folder is picked in the rail, "create torrent from NAME…". ctrl+n works wherever `a`
+  does. A server below Web API 2.10.4 has no create entry anywhere, as C25's servers that can't.
+- **The sheet:** captions over the controls, as the app's other sheets; format and pieces side by
+  side while their words fit, one over the other when narrow. The tracker, format and pieces
+  lists take ↑↓, enter and esc. Where this machine sees the server's disks, browse is the
+  portal's folder picker; elsewhere a list of the server's own folders under the field (names
+  only): enter goes into a folder, ctrl+backspace up.
+- **Trackers:** last time's are the public trackers of the last public creation on that server;
+  while there are none, the library's three most used. **The source tag** comes from the newest
+  torrent of that host (its `.torrent` read through `torrents/export`); one typed for a host is
+  remembered per server and wins next time. The announce shows as the host and dots; "paste an
+  announce URL…" is the tracker list's last row, and a pasted URL shows in full only while typed.
+- **The folder's check** reads this machine's disk where it sees the server's, else the server's
+  list: qBittorrent answers 404 for a missing folder and for a file alike (the parent's list
+  tells a file) and [] for an empty folder and one closed to it alike ("lists nothing: empty, or
+  closed to SERVER's qBittorrent"). Hidden files are left out by default, the tick under more.
+- **When done:** public: a category picker (tags are the details' afterwards); "save .torrent"
+  writes NAME.torrent into Downloads straight away, then offers "show the file". Under 3 s a
+  public one is the outcome strip; a private one is always summed up in a band, which carries
+  its file chip; a cancel is a dim strip with "create again…". One creation per server at a time:
+  meanwhile the sheet's button reads "wait for NAME".
+- **The task's id** and the choices that end it (never a tracker URL) wait in state.json's
+  "create" while it runs; the next run (or the way back to that server) takes it up. A task the
+  server forgot (404) is "SERVER restarted while hashing".
+- **The private file** is "NAME [HOST].torrent" in the Downloads folder (Settings' downloads
+  folder when set), "NAME [HOST] (2).torrent" when taken. **The made-here record** keeps a
+  SHA-256 of the saved bytes (to know the made file itself) and the source tag it was made with
+  (to say what the site changed), never a passkey or an announce URL.
+- **The round trip** applies itself: Save to, the layout and the hash check are set as the line
+  says (seed mode for the same hash, a check for another), with no "use it" link. A made one in
+  the library under another hash is replaced by default (deleted, files kept, then the site's
+  copy added), or kept beside it; the same hash goes to the duplicate sheet, which may put the
+  site's announce on it although it is private (CR9's exception).
 
 ## C28 — What the v0.4.0 builds asked (ruled 2026-10-22)
 

@@ -25,7 +25,8 @@ import Omaseed.Kit
 // A magnet, or a link to a `.torrent`, has no file list until qBittorrent fetches its
 // metadata: the sheet asks for it as soon as one is in the field (docs/29 D1, `App.addLookup`),
 // the Files row says how the wait goes (`AddFetchLine`, F1-F8), and the 200 brings the same
-// tree, choices and renames as a `.torrent` (D9 a). `add` never waits for it (D4 a). No
+// tree, choices and renames as a `.torrent` (D9 a). `add` takes every file (D4 a), but App
+// holds a magnet's add until its lookup answers or reaches F4 (#193: qBittorrent 5.3.0). No
 // lookups in a batch (D10 a).
 //
 // The sheet never talks to the server itself: it emits `addRequested(request)` with the map
@@ -379,6 +380,8 @@ Sheet {
     /// (`App.filesMatchFound`), the copy picked, and whether `save there` was pressed, with
     /// what Save to, its automatic management and the layout were before it (for `undo`).
     property var filesMatches: []
+    /// #146 (C27 CR8, CR9): App.madeHereFor for the `.torrent` in the field; {} for none.
+    property var madeHere: ({})
     property int matchIndex: 0
     property bool savedThere: false
     property var _beforeSaveThere: null
@@ -689,6 +692,13 @@ Sheet {
     map["skipChecking"] = skipCheckToggle.checked;
     map["stopped"] = stopped;
     map["untilMetadata"] = stopped && sheet._untilMetadata;
+    // #146 (C27 CR7–CR9): the site's copy of a torrent made here forgets its record, and
+    // replaces the made one in the library when asked.
+    const made = sheet.madeHere.kind ?? "";
+    if (made === "same" || made === "files")
+        map["forgetMade"] = true;
+    if (madeLine.replace)
+        map["replaceHash"] = sheet.madeHere.madeHash;
     return map;
 }
 
@@ -1000,7 +1010,10 @@ Sheet {
                     sheet._duplicateUnknown = false;
                     sheet.duplicateFound(duplicate, {
                                              "trackers": addable.trackers || [],
-                                             "isPrivate": addable.isPrivate === true
+                                             "isPrivate": addable.isPrivate === true,
+                                             // C27 CR9: the site's copy of a torrent made here.
+                                             "madeHere": (addable.token || "").length > 0
+                                                         && App.madeHereFor(addable.token).kind === "same"
                                          });
                     if (sheet.queue.length > 0) {
                         const next = sheet.queue[0];
@@ -1029,8 +1042,25 @@ Sheet {
                     sheet.matchIndex = 0;
                     if (sheet.savedThere)
                         sheet.undoSaveThere();
+                    sheet._applyMadeHere(token.length > 0 ? App.madeHereFor(token) : ({}));
                     if (token.length > 0)
                         App.findFilesMatch(token);
+                }
+
+                /// #146 (C27 CR8): the site's copy of a torrent made here goes where its files are,
+                /// in seed mode when the hash is the same, checked when it isn't.
+                function _applyMadeHere(made) {
+                    sheet.madeHere = made;
+                    const kind = made.kind ?? "";
+                    if (kind !== "same" && kind !== "files")
+                        return;
+                    sheet._programmatic = true;
+                    savePathField.text = made.savePath;
+                    sheet._programmatic = false;
+                    sheet.autoTMM = false;
+                    sheet._savePathEdited = true;
+                    layoutChips.current = sheet._layoutOptions[Math.max(0, sheet._layoutValues.indexOf(made.layout))];
+                    skipCheckToggle.checked = made.check !== true;
                 }
 
                 /// `save there` (X2): Save to and the layout put the files where the match's are,
@@ -1603,11 +1633,21 @@ Sheet {
                         }
                     }
 
+                    // #146 (C27 CR8, CR9): a torrent made here, or the site's copy of one.
+                    AddMadeLine {
+                        id: madeLine
+
+                        Layout.fillWidth: true
+                        made: sheet.madeHere
+                    }
+
                     // docs/25 §3 (#27): these files are already on disk under another torrent.
                     AddMatchLine {
                         id: matchLine
 
                         Layout.fillWidth: true
+                        // The made-here line already says where the files are (C27 CR8).
+                        visible: matchLine.matches.length > 0 && madeLine.kind !== "same" && madeLine.kind !== "files"
                         index: sheet.matchIndex
                         matches: sheet.filesMatches
                         saved: sheet.savedThere
@@ -2006,6 +2046,7 @@ Sheet {
                             id: fetchLine
 
                             Layout.fillWidth: true
+                            addWaiting: App.addWaitsForList
                             kind: sheet.addable ? sheet.addable.kind : "magnet"
                             objectName: "addFetchLine"
                             phase: App.addLookup.phase

@@ -187,7 +187,10 @@ private slots:
     void aMagnetHandedOverBeforeTheFirstSyncWaitsForTheLibrary();
     void anOldServerKeepsTodaysSheet();
     void aReplacedSessionIsAskedAgain();
-    void aBareInfoHashIsReadAsItsMagnet(); // #147
+    void aBareInfoHashIsReadAsItsMagnet();   // #147
+    void anAddBeforeTheListWaitsForIt();     // #193
+    void aClosedSheetsWaitingAddStillGoes(); // #193
+    void aWaitingAddGoesAtTheMinute();       // #193
 
 private:
     bool startOn(App &app, MagnetServer &server);
@@ -502,6 +505,137 @@ void TestAppMagnet::aBareInfoHashIsReadAsItsMagnet()
              (QStringList{v1, magnet, v2}));
     QCOMPARE(app.splitAddables(v1 + magnet), (QStringList{v1, magnet}));
     QVERIFY(app.splitAddables(QStringLiteral("see %1 for the fix").arg(v1)).isEmpty());
+}
+
+namespace {
+
+/// Where `endpoint`'s requests sit in the order the server took them.
+QList<qsizetype> positions(const MagnetServer &server, const QByteArray &endpoint)
+{
+    QList<qsizetype> at;
+    for (qsizetype i = 0; i < server.requests.size(); ++i)
+        if (server.requests.at(i).target.startsWith("/api/v2/" + endpoint))
+            at.append(i);
+    return at;
+}
+
+} // namespace
+
+// #193: qBittorrent 5.3.0 crashes once the metadata comes in for a magnet `torrents/add` took
+// while its `torrents/fetchMetadata` lookup still ran. An add pressed before the list waits:
+// nothing goes to torrents/add until the lookup's 200, and then every file (D4 a).
+void TestAppMagnet::anAddBeforeTheListWaitsForIt()
+{
+    MagnetServer server;
+    server.lookingFor = 4; // 202 at 0, 0.25, 0.5 and 1 s; the 200 at 2 s
+    App app;
+    QVERIFY(startOn(app, server));
+    const QVariantMap addable = app.parseAddable(samplerMagnet());
+    app.lookUpMetadata(addable);
+    QTRY_VERIFY_WITH_TIMEOUT(server.count("torrents/fetchMetadata") > 0, 3000);
+    QVERIFY(app.addLookup()->isActive());
+
+    QSignalSpy waits(&app, &App::addWaitsForListChanged);
+    QSignalSpy finished(&app, &App::addFinished);
+    QVariantMap request = addable;
+    request[QStringLiteral("stopped")] = false;
+    app.addTorrent(request);
+    QVERIFY(app.addWaitsForList());
+    QCOMPARE(waits.count(), 1);
+    QTest::qWait(400);
+    QCOMPARE(server.count("torrents/add"), 0);
+
+    QVERIFY(finished.wait(6000));
+    QVERIFY2(finished.first().at(0).toBool(), qPrintable(finished.first().at(1).toString()));
+    QVERIFY(!app.addWaitsForList());
+    QCOMPARE(app.addLookup()->phase(), MetadataLookup::Phase::Done);
+    QCOMPARE(server.count("torrents/add"), 1);
+    QCOMPARE(server.count("torrents/fetchMetadata"), 5);
+    // The order: every lookup poll, the 200 last among them, before the add.
+    const qsizetype add = positions(server, "torrents/add").first();
+    for (const qsizetype poll : positions(server, "torrents/fetchMetadata"))
+        QVERIFY(poll < add);
+    const Request sent = server.last("torrents/add");
+    QCOMPARE(sent.form.queryItemValue(QStringLiteral("urls"), QUrl::FullyDecoded), samplerMagnet());
+    QVERIFY(!sent.form.hasQueryItem(QStringLiteral("filePriorities")));
+    QCOMPARE(sent.cookie, QByteArrayLiteral("QBT_SID_8081=session-one"));
+
+    // Once the list is in, an add goes at once.
+    finished.clear();
+    app.addTorrent(request);
+    QVERIFY(!app.addWaitsForList());
+    QVERIFY(finished.wait(5000));
+    QCOMPARE(server.count("torrents/add"), 2);
+    app.engine()->stop();
+}
+
+// #193 with D5 a and C20: "add stopped" pressed before the list, then the sheet closed. The
+// lookup goes on polling for the add; the list is in when it goes, so it is a plain stopped
+// add, not one with the stop condition.
+void TestAppMagnet::aClosedSheetsWaitingAddStillGoes()
+{
+    MagnetServer server;
+    server.lookingFor = 3;
+    App app;
+    QVERIFY(startOn(app, server));
+    const QVariantMap addable = app.parseAddable(samplerMagnet());
+    app.lookUpMetadata(addable);
+    QTRY_VERIFY_WITH_TIMEOUT(server.count("torrents/fetchMetadata") > 0, 3000);
+    QVariantMap request = addable;
+    request[QStringLiteral("stopped")] = true;
+    request[QStringLiteral("untilMetadata")] = true;
+    QSignalSpy finished(&app, &App::addFinished);
+    app.addTorrent(request);
+    QVERIFY(app.addWaitsForList());
+    app.stopMetadataLookup(); // the sheet closed
+    QVERIFY(app.addLookup()->isActive());
+
+    QVERIFY(finished.wait(6000));
+    QVERIFY(finished.first().at(0).toBool());
+    QCOMPARE(server.count("torrents/fetchMetadata"), 4);
+    QVERIFY(positions(server, "torrents/fetchMetadata").last() <
+            positions(server, "torrents/add").first());
+    const Request sent = server.last("torrents/add");
+    QCOMPARE(sent.form.queryItemValue(QStringLiteral("stopped")), QStringLiteral("true"));
+    QVERIFY(!sent.form.hasQueryItem(QStringLiteral("stopCondition")));
+    // Nothing else wants the lookup now.
+    QCOMPARE(app.addLookup()->phase(), MetadataLookup::Phase::Idle);
+    app.engine()->stop();
+}
+
+// #193's way out is F4's: at a minute with no list the magnet likely has no seeds, and the
+// waiting add goes as the line says enter does ("adds every file").
+void TestAppMagnet::aWaitingAddGoesAtTheMinute()
+{
+    MagnetServer server;
+    server.lookingFor = 1000;
+    App app;
+    QVERIFY(startOn(app, server));
+    app.setLookupTestClock(0);
+    const QVariantMap addable = app.parseAddable(samplerMagnet());
+    app.lookUpMetadata(addable);
+    QTRY_VERIFY_WITH_TIMEOUT(server.count("torrents/fetchMetadata") > 0, 3000);
+    QSignalSpy finished(&app, &App::addFinished);
+    app.addTorrent(addable);
+    QVERIFY(app.addWaitsForList());
+    app.setLookupTestClock(30000);
+    QCOMPARE(app.addLookup()->phase(), MetadataLookup::Phase::Slow);
+    QVERIFY(app.addWaitsForList());
+    QCOMPARE(server.count("torrents/add"), 0);
+
+    app.setLookupTestClock(61000);
+    QCOMPARE(app.addLookup()->phase(), MetadataLookup::Phase::Never);
+    QVERIFY(!app.addWaitsForList());
+    QVERIFY(finished.wait(5000));
+    QVERIFY(finished.first().at(0).toBool());
+    QCOMPARE(server.count("torrents/add"), 1);
+    // An add pressed in F4 goes at once.
+    finished.clear();
+    app.addTorrent(addable);
+    QVERIFY(!app.addWaitsForList());
+    QVERIFY(finished.wait(5000));
+    app.setLookupTestClock(-1);
+    app.engine()->stop();
 }
 
 QTEST_MAIN(TestAppMagnet)

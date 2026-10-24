@@ -117,6 +117,17 @@
 //   POST search/uninstallPlugin         searchUninstallPlugin(names)
 //   POST search/enablePlugin            searchEnablePlugin(names, enable)
 //   POST search/updatePlugins           searchUpdatePlugins()  -- the outcome is in log/main
+//
+// The torrent creator (#146, DECISIONS C27), checked on the 5.3.0 playground (Web API 2.16.2;
+// scripts/dev/research/146-torrent-creator):
+//   POST torrentcreator/addTask         torrentCreatorAddTask(task)  -- {taskID}
+//   GET  torrentcreator/status          torrentCreatorStatus(id)  -- [{status, progress, …}];
+//                                          404 for a task it doesn't know (a restart). Its
+//                                          reply echoes the trackers, passkeys included: it is
+//                                          never logged, and neither is any error's body
+//   GET  torrentcreator/torrentFile     torrentCreatorTorrentFile(id)  -- the bytes; 409 with
+//                                          qBittorrent's words while unfinished or failed
+//   POST torrentcreator/deleteTask      torrentCreatorDeleteTask(id)  -- a running one stops
 // Anything else goes through the generic get() / post().
 
 #include "core/ApiError.hpp"
@@ -480,6 +491,41 @@ public:
     QbtReply<QByteArray> *searchUninstallPlugin(const QStringList &names);
     QbtReply<QByteArray> *searchEnablePlugin(const QStringList &names, bool enable);
     QbtReply<QByteArray> *searchUpdatePlugins();
+
+    // --- the torrent creator (#146, DECISIONS C27) -------------------------------------------
+    /// Everything omaseed sends to addTask: always every field, so qBittorrent's defaults
+    /// (hybrid, startSeeding on, which loses the .torrent when the start fails) never apply.
+    struct CreateTask
+    {
+        QString sourcePath;
+        /// "v1", "v2" or "hybrid".
+        QString format = QStringLiteral("v1");
+        /// Bytes; 0 lets qBittorrent choose (CreatePlan::autoPieceSize says what it will).
+        qint64 pieceSize = 0;
+        bool isPrivate = false;
+        /// Hidden files (names starting with a dot) left out.
+        bool ignoreDotfiles = true;
+        /// One tier each, in order: joined with `||`, which starts a new tier (`|` would put
+        /// them in one).
+        QStringList trackers;
+        QStringList urlSeeds;
+        QString source;
+        QString comment;
+    };
+    /// POST torrentcreator/addTask (Web API 2.10.4): the new task's id. `startSeeding` is
+    /// always false and `torrentFilePath` never sent: omaseed fetches the file itself (C27
+    /// CR12).
+    QbtReply<QString> *torrentCreatorAddTask(const CreateTask &task);
+    /// GET torrentcreator/status for one task: its entry (`status` Queued, Running, Finished or
+    /// Failed, `progress`, `pieceSize`, `errorMessage`, …). 404 when the server doesn't know it.
+    /// The reply holds the trackers in full: never log it.
+    QbtReply<QJsonObject> *torrentCreatorStatus(const QString &taskId);
+    /// GET torrentcreator/torrentFile: the .torrent's bytes. 409 keeps qBittorrent's words.
+    QbtReply<QByteArray> *torrentCreatorTorrentFile(const QString &taskId);
+    /// POST torrentcreator/deleteTask: forgets a finished task, stops a running one.
+    QbtReply<QByteArray> *torrentCreatorDeleteTask(const QString &taskId);
+    /// True when a server with this app/webapiVersion has the torrent creator: 2.10.4 on.
+    static bool supportsTorrentCreator(const QString &apiVersion);
 
     /// A POST whose body is a multipart form (e.g. torrentsAddFile). `buildMultiPart` makes
     /// a fresh, unparented QHttpMultiPart for every attempt (the client parents it to the
