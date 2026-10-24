@@ -173,7 +173,8 @@ class Theme : public QObject
     Q_PROPERTY(QString themeName READ themeName NOTIFY changed FINAL)
     Q_PROPERTY(QString fontFamily READ fontFamily NOTIFY changed FINAL)
     /// Hyprland's `decoration:rounding` while it rounds corners; 0 while it cuts them
-    /// (`rounding_power` below 2) or is not there. See windowCorners().
+    /// (`rounding_power` below 2) or is not there. See windowCorners(). A skin whose `radius`
+    /// is a number of px draws that instead; `"hyprland"`, or none, keeps Hyprland's (#171).
     Q_PROPERTY(int cornerRadius READ cornerRadius NOTIFY cornerRadiusChanged FINAL)
     /// Whether omaseed draws its own 1 px window edge: only without Hyprland. Under Hyprland
     /// the compositor's border is the edge, and its corners are Hyprland's.
@@ -269,7 +270,7 @@ public:
     QString mode() const { return m_mode; }
     QString themeName() const { return m_themeName; }
     QString fontFamily() const { return m_fontFamily; }
-    int cornerRadius() const { return m_cornerRadius; }
+    int cornerRadius() const;
     bool windowEdge() const { return m_windowEdge; }
     qreal defaultWindowAlpha() const { return m_defaultWindowAlpha; }
     qreal windowAlpha() const { return m_windowAlpha; }

@@ -95,7 +95,7 @@ Rectangle {
 
     activeFocusOnTab: root.enabled
     border.color: root._borderColor
-    border.width: (root.primary || root.hot || root.bordered || root.selected) ? 1 : 0
+    border.width: (root.primary || root.hot || root.bordered || root.selected) ? Theme.hairWidth : 0
     // The ground's own fill; resting in a block, nothing: the block's is under it already.
     color: root._filled ? Theme.accent : root.ground === root.block ? "transparent" : root.ground.fill
     height: Theme.controlHeight

@@ -52,7 +52,7 @@ Item {
         objectName: "toggleTrack"
         anchors.verticalCenter: parent.verticalCenter
         border.color: root.hot ? Theme.fill(Theme.borderHover) : Theme.fill(Theme.borderIdle)
-        border.width: root.checked ? 0 : 1
+        border.width: root.checked ? 0 : Theme.hairWidth
         // The ticked tint and the idle fill (docs/DECISIONS.md C30 F5); the knob is no text,
         // but takes the ground's colour so it reads as the ✓ on a ticked box does.
         color: root.checked ? Theme.on.ticked.fill : Theme.on.idle.fill

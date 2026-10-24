@@ -63,7 +63,7 @@ TestCase {
                                                  "bordered": true
                                              });
         fuzzyCompare(button.color.a, Theme.fill(Theme.fillIdle).a, 0.01);
-        compare(button.border.width, 1);
+        compare(button.border.width, Theme.hairWidth);
     }
 
     function test_hover_or_cursor_fills_at_the_hover_alpha() {
@@ -71,7 +71,9 @@ TestCase {
                                                  "text": "Add",
                                                  "hasCursor": true
                                              });
-        const expected = Theme.fill(Theme.fillHover);
+        // A control's cursor is its hover ground (#171: Omarchy's is the hover alpha, a skin
+        // may paint another).
+        const expected = Theme.on.hover.fill;
         fuzzyCompare(button.color.a, expected.a, 0.01);
         compare(button.border.width, 1);
     }
@@ -81,7 +83,7 @@ TestCase {
                                                  "text": "Add",
                                                  "selected": true
                                              });
-        fuzzyCompare(button.color.a, Theme.fill(Theme.fillSelected).a, 0.01);
+        fuzzyCompare(button.color.a, Theme.on.selected.fill.a, 0.01);
     }
 
     function test_pressed_fills_at_the_pressed_alpha() {

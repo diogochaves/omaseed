@@ -138,8 +138,8 @@ Item {
                                       ? internal.itemY - panel.itemGap - panel.height
                                       : internal.wantY - panel.gap - panel.height
 
-        border.color: Theme.accent
-        border.width: 1
+        border.color: Theme.edgeColor
+        border.width: Theme.edgeWidth
         color: Theme.background
         implicitHeight: label.implicitHeight + 2 * panel.padding
         implicitWidth: label.implicitWidth + 2 * panel.padding

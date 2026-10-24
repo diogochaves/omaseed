@@ -344,7 +344,7 @@ Item {
                 Rectangle {
                     anchors.fill: parent
                     border.color: Theme.on.blockIdle.accent
-                    border.width: 1
+                    border.width: Theme.hairWidth
                     color: "transparent"
                     parent: detailsBlock
                     visible: detailsScroll.activeFocus

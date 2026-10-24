@@ -55,6 +55,7 @@ export PATH="/usr/lib/qt6/bin:$PATH"            # qmllint, qmlformat, qmlls, qml
 cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug
 cmake --build build
 ctest --test-dir build --output-on-failure        # unit + qml tests
+ctest --test-dir build -L skin-console            # the QML suite again, under the Console skin
 QT_QPA_PLATFORM=offscreen ./build/omaseed --help  # headless smoke
 ./build/omaseed                                   # real run under Hyprland
 qmllint src/ui/qml/**/*.qml && qmlformat -i <file>

@@ -12,7 +12,7 @@ Rectangle {
 
     property bool vertical: false
 
-    color: Theme.fill(Theme.hairlineAlpha)
-    height: root.vertical ? undefined : 1
-    width: root.vertical ? 1 : undefined
+    color: Theme.hairColor
+    height: root.vertical ? undefined : Theme.hairWidth
+    width: root.vertical ? Theme.hairWidth : undefined
 }
