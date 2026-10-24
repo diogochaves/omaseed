@@ -255,7 +255,9 @@ public:
 
     /// Draw the built-in skin `name` ("omarchy", "console"): its grounds are resolved at once
     /// and changed() sent. A name that is no skin draws Omarchy's, with the reason in
-    /// `skin.reason`. Theme starts on SkinReader::requestedName() (`OMASEED_SKIN`).
+    /// `skin.reason`. Theme starts on its reader's skin (ThemeReader::skinName(): the
+    /// Appearance choice, or `OMASEED_SKIN`) and follows it; without a reader, on
+    /// SkinReader::requestedName().
     void setSkin(const QString &name);
     /// The alpha Omarchy's skin gives a ground, what a recipe's `"shell"` means: shell.toml's
     /// fill (after C30 F6's cap) for a fill, the spec's for a tint, 0 for the panel.
@@ -348,6 +350,9 @@ Q_SIGNALS:
 
 private:
     void adopt();
+    /// Draw the skin the reader resolves (Settings' choice, or the desktop's), with its
+    /// `fx.fonts = system` (#171 step 2).
+    void followSkin();
     void readCornerRadius();
     void askHyprland(const QString &option, std::function<void(const QByteArray &)> done);
     void applyCorners(const WindowCorners &corners);

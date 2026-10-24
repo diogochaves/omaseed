@@ -164,11 +164,16 @@ Theme::Theme(ThemeReader *reader, const Hyprland &hyprland, QObject *parent)
     , m_on(new ThemeGrounds(this))
     , m_skin(new ThemeSkin(this))
 {
-    const QString skin = SkinReader::requestedName();
+    const QString skin = m_reader ? m_reader->skinName() : SkinReader::requestedName();
     m_skin->set(SkinReader::builtIn(skin), skin);
+    if (m_reader)
+        m_skin->setSystemFonts(m_reader->skinSystemFonts());
     resolveGrounds(); // the bundled palette's, until a reader gives one
     if (m_reader) {
         connect(m_reader, &ThemeReader::changed, this, &Theme::adopt);
+        // A switch in Settings, or the desktop's skin turning on or off, repaints at once
+        // (ARCHITECTURE theme rule 8), with no restart.
+        connect(m_reader, &ThemeReader::skinChanged, this, &Theme::followSkin);
         adopt();
     }
     // The ground starts at the shell's default; only setWindowAlpha() (the Appearance
@@ -316,6 +321,12 @@ void Theme::setSkin(const QString &name)
         return;
     resolveGrounds();
     Q_EMIT changed();
+}
+
+void Theme::followSkin()
+{
+    m_skin->setSystemFonts(m_reader->skinSystemFonts());
+    setSkin(m_reader->skinName());
 }
 
 qreal Theme::shellAlpha(const QString &ground) const

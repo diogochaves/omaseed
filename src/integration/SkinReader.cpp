@@ -1,6 +1,7 @@
 #include "integration/SkinReader.hpp"
 
 #include <QFile>
+#include <QFontDatabase>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -555,6 +556,48 @@ QString ThemeSkin::glyph(const QString &name, const QString &fallback) const
 QString ThemeSkin::label(const QString &id, const QString &fallback) const
 {
     return m_skin.tokens.value(QStringLiteral("labels")).toMap().value(id, fallback).toString();
+}
+
+QStringList SkinReader::fontFamilies(const Skin &skin)
+{
+    const QVariantMap font = skin.tokens.value(QStringLiteral("font")).toMap();
+    QStringList families;
+    for (const char *role : {"label", "value", "kana", "icons"}) {
+        const QString family = font.value(QLatin1String(role)).toString().trimmed();
+        if (!family.isEmpty() && !families.contains(family))
+            families.append(family);
+    }
+    return families;
+}
+
+QStringList SkinReader::missingFonts(const Skin &skin, const QStringList &installed)
+{
+    QStringList missing;
+    for (const QString &family : fontFamilies(skin)) {
+        if (!installed.contains(family, Qt::CaseInsensitive))
+            missing.append(family);
+    }
+    return missing;
+}
+
+QStringList ThemeSkin::missingFonts() const
+{
+    if (m_systemFonts)
+        return {};
+    return SkinReader::missingFonts(m_skin, QFontDatabase::families());
+}
+
+QStringList ThemeSkin::missingFontsOf(const QString &name) const
+{
+    return SkinReader::missingFonts(SkinReader::builtIn(name), QFontDatabase::families());
+}
+
+void ThemeSkin::setSystemFonts(bool system)
+{
+    if (m_systemFonts == system)
+        return;
+    m_systemFonts = system;
+    Q_EMIT changed();
 }
 
 void ThemeSkin::set(const Skin &skin, const QString &requested)

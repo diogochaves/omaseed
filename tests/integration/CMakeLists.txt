@@ -34,6 +34,12 @@ omaseed_add_test(tst_skinreader
     LIBRARIES omaseed::integration
 )
 
+# #171 step 2: Follow the desktop's rule and watcher, and the reader's skin choice.
+omaseed_add_test(tst_desktopskin
+    SOURCES tst_desktopskin.cpp
+    LIBRARIES omaseed::integration
+)
+
 omaseed_add_test(tst_themeresolver
     SOURCES tst_themeresolver.cpp
     LIBRARIES omaseed::integration
