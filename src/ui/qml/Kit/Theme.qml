@@ -291,6 +291,36 @@ ThemeBase {
     /// The display tool's menu: its width.
     readonly property int displayMenuWidth: space(240)
 
+    // ---- create's form (board 49 `publicSheet()`, `.chk`, `.fchip`, `.rtnote`, C27) -------
+    /// The create sheet's width (board 49's 680, the Move sheet's folder width here).
+    readonly property int createSheetWidth: space(640)
+    /// A fact's mark column (`.chk`: 16 px) and the gap after it (8 px).
+    readonly property int createFactMark: space(16)
+    readonly property int createFactGap: space(8)
+    /// How far past its words a fact's link takes a click.
+    readonly property int createLinkReach: space(4)
+    /// The round-trip note's padding, the gap after its mark, its edge and its corners
+    /// (`.rtnote`: 7 / 12 px, 10, a 12 % hairline).
+    readonly property int createNotePadding: space(9)
+    readonly property int createNoteGap: space(10)
+    readonly property int createNoteEdge: 1
+    readonly property int createNoteRadius: cornerRadius
+    /// Between the trackers' chips (6 px), between format and pieces side by side (`.frow2`:
+    /// 18 px), and between the private facts (`.facts2`: 6 px).
+    readonly property int createChipsGap: space(6)
+    readonly property int createPairGap: space(16)
+    readonly property int createFactsGap: space(6)
+    /// The saved .torrent's chip (`.fchip`: 3 / 10 px, 8 px between its parts, a 1 px green
+    /// edge), and how far it sits under the band's line.
+    readonly property int createChipPaddingX: space(10)
+    readonly property int createChipPaddingY: space(3)
+    readonly property int createChipGap: space(8)
+    readonly property int createChipEdge: 1
+    readonly property int createChipRadius: cornerRadius
+    readonly property int createChipTop: space(4)
+    /// The "+ add ▾" menu's width (board 49's 356 px).
+    readonly property int addMenuWidth: space(330)
+
     // ---- search's form (board 48 `search()`, `.sbar`, `.sline`, `.pill`, `.empty`, C26) ----
     /// The bar over the results (`.sbar`: 12 / 18 / 8 px, 10 px between its parts) and the
     /// field's least width (200 px).

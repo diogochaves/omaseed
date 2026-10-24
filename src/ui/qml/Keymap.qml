@@ -448,6 +448,34 @@ QtObject {
             "help": qsTr("add"),
             "about": qsTr("Add a torrent: magnet, file or URL")
         },
+        // #146 (C24 H17, DECISIONS C27 CR1): create a torrent from a folder, from anywhere; `:`
+        // also offers the folder picked in the rail. Not on a server that can't create.
+        {
+            "area": "global",
+            "key": "ctrl+n",
+            "action": "create",
+            "title": qsTr("create torrent…"),
+            "needs": "create",
+            "label": qsTr("create"),
+            "column": "act",
+            "rank": 1,
+            "helpKeys": "ctrl+n",
+            "help": qsTr("create a torrent"),
+            "about": qsTr("Make a torrent from a folder on the server: it seeds from where it is, or is saved for a private tracker")
+        },
+        {
+            "area": "global",
+            "key": "",
+            "via": ":",
+            "action": "createFromFolder",
+            "title": qsTr("create torrent from the folder…"),
+            "needs": "createFolder",
+            "label": qsTr("create"),
+            "column": "",
+            "rank": 0,
+            "helpKeys": "",
+            "help": ""
+        },
         {
             "area": "global",
             "key": "s",
@@ -2256,7 +2284,7 @@ QtObject {
         {
             "group": "library",
             "word": qsTr("library"),
-            "actions": ["add", "filter", "jump", "sort", "undoLastMove"]
+            "actions": ["add", "create", "createFromFolder", "filter", "jump", "sort", "undoLastMove"]
         },
         {
             "group": "view",
@@ -2524,10 +2552,20 @@ QtObject {
                 // C25 K30: no search where it can't be offered.
                 if (found.needs === "search" && ctx.searchOffered === false)
                     continue;
+                // #146 (C27): no create where the server can't, and "create torrent from NAME…"
+                // only while a folder is picked in the rail.
+                if ((found.needs === "create" || found.needs === "createFolder") && ctx.createOffered === false)
+                    continue;
+                if (found.needs === "createFolder" && (ctx.createFolder || "").length === 0)
+                    continue;
                 // #160 (C17 D3): "free the space…" only while skipped files hold space here.
                 if (found.needs === "freeable" && ctx.freeable !== true)
                     continue;
                 let entry = root.worded(found, ctx.altKind);
+                if (found.action === "createFromFolder")
+                    entry = Object.assign({}, entry, {
+                                              "title": qsTr("create torrent from %1…").arg(ctx.createFolder.replace(/\/+$/, "").split("/").pop())
+                                          });
                 // DECISIONS C30 F13: only adding it again frees this torrent's skipped files.
                 if (found.action === "freeSpace" && (ctx.readdText || "").length > 0)
                     entry = Object.assign({}, entry, {

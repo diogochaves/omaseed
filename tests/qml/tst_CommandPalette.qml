@@ -90,8 +90,8 @@ TestCase {
                                            "recent": ["stop", "location"]
                                        });
         compare(palette.title, "commands for 2 selected");
-        compare(palette.counter, "57 commands");
-        compare(palette.items.length, 57);
+        compare(palette.counter, "58 commands");
+        compare(palette.items.length, 58);
         compare(palette.items[0].title, "stop");
         compare(palette.items[1].title, "move…");
         compare(palette.cursorIndex, 0);
@@ -113,7 +113,7 @@ TestCase {
                                      "row": "03 - Dawn Chorus.flac"
                                  });
         compare(palette.title, "commands for 3 marked files");
-        compare(palette.counter, "72 commands");
+        compare(palette.counter, "73 commands");
         palette.close();
         palette = testCase._open({
                                      "serverLost": true
@@ -129,7 +129,7 @@ TestCase {
         compare(palette.items[0].title, "delete");
         compare(palette.items[1].title, "delete with files");
         verify(palette.items.length > 2);
-        compare(palette.counter, palette.items.length + " of 57");
+        compare(palette.counter, palette.items.length + " of 58");
         compare(palette.hints[2].label, "clear");
         palette.close();
     }
@@ -195,7 +195,7 @@ TestCase {
                                                 "target": palette
                                             });
         testCase._type("ubuntu");
-        compare(palette.counter, "0 of 57");
+        compare(palette.counter, "0 of 58");
         compare(palette.emptyText, "No command matches “ubuntu”.");
         compare(palette.items.length, 2);
         compare(palette.items[0].title, "find torrents matching “ubuntu”");

@@ -114,9 +114,10 @@ TestCase {
         const act = Keymap.helpRows("act");
         // Then the Files tab's two (N1) and the details pane's copy (docs/12 G5).
         // #160: shift+f, free the space, after them (C30 F13: "or add it again").
-        compare(act.map(row => row.helpKeys), ["a", "enter", "p P e", "d D", "c R", "C t m L r", "[ ]",
+        // #146: ctrl+n, create a torrent, after add.
+        compare(act.map(row => row.helpKeys), ["a", "ctrl+n", "enter", "p P e", "d D", "c R", "C t m L r", "[ ]",
                                                "o", "y Y n", "p + - x", "O o r", "F", "y enter"]);
-        compare(act.map(row => row.help), ["add", "actions", "stop/start · force · retry",
+        compare(act.map(row => row.help), ["add", "create a torrent", "actions", "stop/start · force · retry",
                                            "delete · with files", "recheck · reannounce",
                                            "category · tags · location · limits · rename", "queue",
                                            "open folder", "copy magnet · hash · name",
@@ -231,32 +232,32 @@ TestCase {
         compare(row.helpKeys, ": ctrl+shift+p");
     }
 
-    // §5: 57 rows from the table (docs/32 added `~`, board 42 "move folder…", C24 H2 a "show
-    // STATE…" per `is:` word, C24 H3 three displays, C26 "search…"), plus the focused area's own: Files 15,
+    // §5: 58 rows from the table (docs/32 added `~`, board 42 "move folder…", C24 H2 a "show
+    // STATE…" per `is:` word, C24 H3 three displays, C26 "search…", #146 "create torrent…"), plus the focused area's own: Files 15,
     // Trackers 4, Peers 3, HTTP sources 3, the seed console 3, the log 14.
     function test_the_rows_from_each_area() {
-        compare(Keymap.commandRows(testCase._context({})).length, 57);
+        compare(Keymap.commandRows(testCase._context({})).length, 58);
         compare(Keymap.commandRows(testCase._context({
                                                          "area": "rail"
-                                                     })).length, 57);
+                                                     })).length, 58);
         compare(Keymap.commandRows(testCase._context({
                                                          "area": "files"
-                                                     })).length, 72);
+                                                     })).length, 73);
         compare(Keymap.commandRows(testCase._context({
                                                          "area": "trackers"
-                                                     })).length, 61);
+                                                     })).length, 62);
         compare(Keymap.commandRows(testCase._context({
                                                          "area": "peers"
-                                                     })).length, 60);
+                                                     })).length, 61);
         compare(Keymap.commandRows(testCase._context({
                                                          "area": "webseeds"
-                                                     })).length, 60);
+                                                     })).length, 61);
         compare(Keymap.commandRows(testCase._context({
                                                          "area": "console"
-                                                     })).length, 60);
+                                                     })).length, 61);
         compare(Keymap.commandRows(testCase._context({
                                                          "area": "log"
-                                                     })).length, 71);
+                                                     })).length, 72);
         // Every action id is listed once, and movements never.
         const actions = Keymap.commandRows(testCase._context({})).map(row => row.action);
         for (const action of actions)
@@ -590,7 +591,8 @@ TestCase {
             if (entry.title === undefined && entry.titles === undefined)
                 continue;
             verify(["", "torrents", "cursor", "stopped", "running", "errored", "selection", "details", "marked",
-                    "row", "rows", "file", "servers", "folder", "lastMove", "freeable", "search"].indexOf(entry.needs) >= 0, "unknown needs: " + entry.needs);
+                    "row", "rows", "file", "servers", "folder", "lastMove", "freeable", "search", "create",
+                    "createFolder"].indexOf(entry.needs) >= 0, "unknown needs: " + entry.needs);
             const listed = Keymap.commandGroups.some(group => group.actions.indexOf(entry.action) >= 0
                                                      && Keymap.commandEntry(group.group, entry.action) === entry);
             verify(listed, "a titled entry in no group: " + entry.area + " " + entry.action);

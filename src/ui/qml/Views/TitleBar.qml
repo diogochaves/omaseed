@@ -8,8 +8,8 @@ import Omaseed.Kit
 // (where you are: Library, a question, a category, a folder, a face) with its one sentence
 // under it (core/ScopeSentence, what the scope holds), then the tools: "back to the sheet" or
 // "all torrents" while a move's torrents are on show (C15 M10, C18), "move this folder…" while
-// a folder is picked (H5; shift+m), the filter (`/`, with its count) and "+ add" (`a`; no ▾
-// until #146). The hero's settings, ?, ⋯ and chips are gone (H9): `,`, `?`, the mark and
+// a folder is picked (H5; shift+m), the filter (`/`, with its count) and "+ add ▾" (`a`; its
+// menu has create and search, H17, #146). The hero's settings, ?, ⋯ and chips are gone (H9): `,`, `?`, the mark and
 // ctrl+. reach them, and the title's sentence names the scope.
 //
 // Properties only: MainView feeds it the words and answers its signals. Its form (height,
@@ -47,6 +47,8 @@ Item {
     property string display: ""
     /// "+ add" (`a`).
     property bool addShown: true
+    /// "+ add ▾": a click opens the add menu (create, search; C24 H17, #146), not the sheet.
+    property bool addMenuShown: false
     /// "move this folder…" (shift+m): a folder is picked (H5).
     property bool moveFolderShown: false
     /// The way back from a move's torrents on show, its words and key ("back to the sheet",
@@ -304,10 +306,12 @@ Item {
         Tool {
             id: addTool
 
+            Accessible.role: root.addMenuShown ? Accessible.ButtonMenu : Accessible.Button
             glyph: Glyphs.add
             key: "a"
             objectName: "titleAdd"
             primary: true
+            text: root.level >= 1 ? "" : root.addMenuShown ? qsTr("%1 ▾").arg(addTool.words) : addTool.words
             visible: root.addShown
             words: qsTr("add")
 

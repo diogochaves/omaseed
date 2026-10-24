@@ -108,12 +108,24 @@ Window {
     DropArea {
         id: dropArea
 
+        /// #146 (DECISIONS C27 CR1): the folder being dragged, as the server writes it, or "".
+        property string folder: ""
+
         anchors.fill: parent
 
         onDropped: drop => {
+            // A folder opens Create; a .torrent or a magnet opens Add, as before.
+            const folder = App.droppedFolder(drop.urls);
+            dropArea.folder = "";
+            if (folder.length > 0) {
+                view.createDropped(folder);
+                return;
+            }
             const addables = Xdg.addablesFromDrop(drop.urls, drop.text);
             view.addDropped(addables.map(addable => addable.value));
         }
+        onEntered: drag => dropArea.folder = App.createOffered ? App.droppedFolder(drag.urls) : ""
+        onExited: dropArea.folder = ""
     }
 
     // #51 D7: while something is dragged over the window, an accent outline around the
@@ -121,6 +133,7 @@ Window {
     // area takes any drag (one with nothing to add says so when dropped), so it shows for any.
     DropOverlay {
         anchors.fill: parent
+        folder: dropArea.folder
         shown: dropArea.containsDrag
         z: 2
     }
