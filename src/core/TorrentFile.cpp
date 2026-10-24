@@ -96,6 +96,7 @@ TorrentFile TorrentFile::parse(const QByteArray &data, QString *errorMessage)
     result.name = utf8(infoValue.value("name").toString());
     result.pieceLength = infoValue.value("piece length").toInteger();
     result.isPrivate = infoValue.value("private").toInteger() != 0;
+    result.source = utf8(infoValue.value("source").toString());
 
     const Value filesValue = infoValue.value("files");
     if (filesValue.isList()) {

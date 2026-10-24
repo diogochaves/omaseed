@@ -549,3 +549,13 @@ omaseed_add_test(tst_skippedoutlook
     SOURCES tst_skippedoutlook.cpp
     LIBRARIES omaseed::core
 )
+
+omaseed_add_test(tst_announcemask
+    SOURCES tst_announcemask.cpp
+    LIBRARIES omaseed::core
+)
+
+omaseed_add_test(tst_createplan
+    SOURCES tst_createplan.cpp
+    LIBRARIES omaseed::core
+)

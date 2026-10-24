@@ -99,6 +99,10 @@ qt_add_library(omaseed-core STATIC
     RowWords.hpp
     ScopeSentence.cpp
     ScopeSentence.hpp
+    AnnounceMask.cpp
+    AnnounceMask.hpp
+    CreatePlan.cpp
+    CreatePlan.hpp
     SearchModel.cpp
     SearchModel.hpp
     SearchPlugins.cpp

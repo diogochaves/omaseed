@@ -49,6 +49,9 @@ public:
     qint64 creationDate = 0;
 
     bool isPrivate = false;
+    /// The info dict's `source`: the tag a private tracker asks for (#146, C27 CR6); "" when
+    /// absent. Inside the info, so it changes the info hash.
+    QString source;
     /// The files sit in a folder named `name` (a multi-file torrent), rather than the torrent
     /// being one file called `name`.
     bool multiFile = false;
