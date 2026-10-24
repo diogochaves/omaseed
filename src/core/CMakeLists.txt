@@ -103,6 +103,8 @@ qt_add_library(omaseed-core STATIC
     ScopeSentence.hpp
     AnnounceMask.cpp
     AnnounceMask.hpp
+    CreateJob.cpp
+    CreateJob.hpp
     CreatePlan.cpp
     CreatePlan.hpp
     CreateTrackers.cpp

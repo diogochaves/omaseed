@@ -569,3 +569,8 @@ omaseed_add_test(tst_madehere
     SOURCES tst_madehere.cpp
     LIBRARIES omaseed::core
 )
+
+omaseed_add_test(tst_createjob_fake
+    SOURCES tst_createjob_fake.cpp FakeHttp.hpp
+    LIBRARIES omaseed::core
+)
