@@ -1,12 +1,14 @@
-// App's #73 block (docs/33 §11, D10, D24, D25; DECISIONS C13): the one menu the tray and the
-// bar widget's ⋯ show, and Settings › Appearance's "In the bar". Kept out of App.cpp so it
-// reads as one piece; the declarations sit at the end of App.hpp.
+// App's #73 block (docs/33 §11, D10, D24, D25; DECISIONS C13): the one menu the tray, the
+// bar widget's ⋯ and the window's mark (C24 H9) show, and Settings › Appearance's "In the bar".
+// Kept out of App.cpp so it reads as one piece; the declarations sit at the end of App.hpp.
 #include "ui/app/App.hpp"
 
 #include "core/AltSpeed.hpp"
 #include "core/GlobalState.hpp"
 #include "core/ServerListModel.hpp"
 #include "core/SyncEngine.hpp"
+
+#include <QHash>
 
 namespace omaseed::app {
 
@@ -62,6 +64,9 @@ void App::setUpBarMenu()
                 Q_EMIT quitRequested();
         }
     });
+
+    // C24 H9: the window's mark menu reads the same rows.
+    connect(m_barMenu, &BarMenu::changed, this, &App::appMenuRowsChanged);
 
     // The servers block follows the list: its rows, the last-seen figures, the switch.
     connect(m_serverList, &QAbstractItemModel::dataChanged, this, &App::updateBarMenu);
@@ -138,6 +143,32 @@ void App::updateBarMenu()
     m_barMenu->setAltSpeed(state->useAltSpeedLimits(), label, title);
     m_barMenu->setServerAnswering(m_demoMode ||
                                   (m_hasServer && state->connected() && !m_serverLost));
+}
+
+QVariantList App::appMenuRows() const
+{
+    QHash<QString, QString> states;
+    for (const BarMenu::Server &server : m_barMenu->servers())
+        states.insert(QStringLiteral("server:") + server.id, server.state);
+    QVariantList out;
+    for (const BarMenu::Row &row : m_barMenu->rows()) {
+        out.append(QVariantMap{
+            {QStringLiteral("id"), row.id},
+            {QStringLiteral("label"), row.label},
+            {QStringLiteral("kind"), BarMenu::kindName(row.kind)},
+            {QStringLiteral("checked"), row.checked},
+            {QStringLiteral("enabled"), row.enabled},
+            {QStringLiteral("detail"), row.detail},
+            {QStringLiteral("urgent"), row.urgent},
+            {QStringLiteral("state"), states.value(row.id)},
+        });
+    }
+    return out;
+}
+
+bool App::invokeAppMenu(const QString &id)
+{
+    return m_barMenu->invoke(id);
 }
 
 // --- D25: "In the bar" ------------------------------------------------------------------------

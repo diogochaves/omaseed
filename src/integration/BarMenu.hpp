@@ -1,9 +1,11 @@
 #pragma once
 
 // BarMenu — the one menu the tray and the bar widget's ⋯ both show (docs/33 §11, D10, D24;
-// docs/DECISIONS.md C13). Built once in the app: the tray builds its QMenu from these rows,
-// StatusWriter writes them into status.json (`servers`, `menu`) for the widget, and
-// StatusBus's `Invoke`/`SwitchServer` come back here. A row added once shows in both.
+// docs/DECISIONS.md C13), and the window's mark menu too (C24 H9). Built once in the app: the
+// tray builds its QMenu from these rows, StatusWriter writes them into status.json (`servers`,
+// `menu`) for the widget, App hands them to the window as `appMenuRows`, and StatusBus's
+// `Invoke`/`SwitchServer` and App's `invokeAppMenu` come back here. A row added once shows in
+// all three.
 //
 // Rows, in order:
 //   servers         a caption and one radio row per server, then a separator; only with two
@@ -18,7 +20,8 @@
 //   quit            the app's last row (reverses docs/07 §1 "no quit", board 33 §11 change 2)
 //
 // The tray adds its own "show omaseed" and two figure rows above them; the widget has its head
-// and Now for those (board 33 T0).
+// and Now for those (board 33 T0). The window adds its head (version, server) and a block of
+// its own rows before quit, each with its key (board 46 `menuHtml("app")`).
 //
 // Each row has two labels: `label`, the tray's words (lower case, as the tray's menu always
 // was), and `title`, the shell's card style the widget draws (Title Case, docs/20 N2). A

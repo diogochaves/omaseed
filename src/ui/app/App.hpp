@@ -1994,9 +1994,19 @@ public:
     void setInTheBar(const QString &choice);
     /// The choice a widget in the bar (or not) and a tray icon mode read as (DECISIONS C13).
     static QString inTheBarFor(bool widgetInBar, const QString &trayIconMode);
+    /// The window's mark menu (DECISIONS C24 H9, C13's third place): the same rows, in the
+    /// same order, as the tray and the widget, `[{id, label, kind, checked, enabled, detail,
+    /// urgent, state}]`. `label` is the tray's lower-case words; `state` is a server row's
+    /// (status.json's `servers` state), "" for the others.
+    Q_PROPERTY(QVariantList appMenuRows READ appMenuRows NOTIFY appMenuRowsChanged)
+    QVariantList appMenuRows() const;
+    /// A row of it picked in the window: the tray's and the widget's `invoke`. False for an
+    /// unknown id, a disabled row, a caption or a separator.
+    Q_INVOKABLE bool invokeAppMenu(const QString &id);
 
 Q_SIGNALS:
     void inTheBarChanged();
+    void appMenuRowsChanged();
     /// The menu's "add torrent…" from the tray or the widget: main.cpp brings the window up
     /// (MainView opens the sheet on addRequested).
     void raiseRequested();

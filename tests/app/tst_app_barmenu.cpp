@@ -12,6 +12,7 @@
 #include "ui/app/StatusService.hpp"
 
 #include <QAction>
+#include <QJsonArray>
 #include <QJsonObject>
 #include <QMenu>
 #include <QSignalSpy>
@@ -47,6 +48,7 @@ private slots:
     void itsRowsReachTheApp();
     void theWidgetActsThroughStatusService();
     void theTrayShowsTheSameMenu();
+    void theWindowShowsTheSameMenu();
     void inTheBarReadsTheTwoOldSettings();
     void inTheBarWritesTheTrayIconMode();
 
@@ -191,6 +193,74 @@ void TestAppBarMenu::theTrayShowsTheSameMenu()
     QVERIFY(texts.contains(QStringLiteral("home · 4 torrents")));
     QVERIFY(texts.contains(QStringLiteral("seedbox")));
     QCOMPARE(texts.last(), QStringLiteral("quit"));
+}
+
+// C24 H9: the window's mark menu is C13's third place, the same rows in the same order, in the
+// tray's words; a pick goes through the same invoke.
+void TestAppBarMenu::theWindowShowsTheSameMenu()
+{
+    App app;
+    app.startDemo(4);
+    const BarMenu *menu = app.barMenu();
+    const auto windowIds = [&app]() {
+        QStringList ids;
+        for (const QVariant &row : app.appMenuRows())
+            ids << row.toMap().value(QStringLiteral("id")).toString();
+        return ids;
+    };
+    QCOMPARE(windowIds(), idsOf(menu));
+    QCOMPARE(windowIds(),
+             (QStringList{QStringLiteral("alt-speed"),
+                          QStringLiteral("stop-all"),
+                          QStringLiteral("start-all"),
+                          QStringLiteral("separator:actions"),
+                          QStringLiteral("add"),
+                          QStringLiteral("settings"),
+                          QStringLiteral("separator:quit"),
+                          QStringLiteral("quit")}));
+
+    QSignalSpy changed(&app, &App::appMenuRowsChanged);
+    const QString id = app.addServer(QVariantMap{
+        {QStringLiteral("name"), QStringLiteral("seedbox")},
+        {QStringLiteral("url"), QStringLiteral("http://127.0.0.1:9")},
+        {QStringLiteral("authMode"), QStringLiteral("none")},
+    });
+    QVERIFY(changed.size() > 0);
+    QCOMPARE(windowIds(), idsOf(menu));
+    // The status file's menu, the widget's, lists the same ids.
+    QStringList widgetIds;
+    for (const QJsonValue &row : menu->menuJson())
+        widgetIds << row.toObject().value(QStringLiteral("id")).toString();
+    QCOMPARE(windowIds(), widgetIds);
+
+    const QVariantList rows = app.appMenuRows();
+    const QList<BarMenu::Row> trayRows = menu->rows();
+    QCOMPARE(rows.size(), trayRows.size());
+    for (qsizetype i = 0; i < rows.size(); ++i) {
+        const QVariantMap row = rows.at(i).toMap();
+        const BarMenu::Row &tray = trayRows.at(i);
+        QCOMPARE(row.value(QStringLiteral("label")).toString(), tray.label);
+        QCOMPARE(row.value(QStringLiteral("kind")).toString(), BarMenu::kindName(tray.kind));
+        QCOMPARE(row.value(QStringLiteral("enabled")).toBool(), tray.enabled);
+        QCOMPARE(row.value(QStringLiteral("checked")).toBool(), tray.checked);
+        QCOMPARE(row.value(QStringLiteral("detail")).toString(), tray.detail);
+    }
+    const QVariantMap home = rows.at(1).toMap();
+    QCOMPARE(home.value(QStringLiteral("label")).toString(), QStringLiteral("home"));
+    QCOMPARE(home.value(QStringLiteral("state")).toString(), QStringLiteral("ok"));
+    QVERIFY(home.value(QStringLiteral("checked")).toBool());
+    QCOMPARE(rows.at(2).toMap().value(QStringLiteral("state")).toString(),
+             QStringLiteral("unknown"));
+    QCOMPARE(rows.last().toMap().value(QStringLiteral("state")).toString(), QString());
+
+    QSignalSpy settings(&app, &App::openSettings);
+    QVERIFY(app.invokeAppMenu(QStringLiteral("settings")));
+    QCOMPARE(settings.size(), 1);
+    QVERIFY(!app.invokeAppMenu(QStringLiteral("servers")));
+    QVERIFY(!app.invokeAppMenu(QStringLiteral("separator:quit")));
+    QVERIFY(!app.invokeAppMenu(QStringLiteral("nowhere")));
+    QVERIFY(app.invokeAppMenu(QStringLiteral("server:") + id));
+    QCOMPARE(app.servers()->defaultId(), id);
 }
 
 // D25 (DECISIONS C13): widget = in the bar + auto (or never); both = in the bar + always;
