@@ -110,7 +110,7 @@ QtObject {
     ]
 
     /// DECISIONS C24 H10 (keys on demand): the keys a sheet's foot printed until v0.5.0 (v2's
-    /// footer hints, C11 D4's "s next server"), in the `?` sheet's last block and Settings ›
+    /// footer hints, C11 D4's "s next server"), in a block of the `?` sheet after view, and Settings ›
     /// Keybindings. Not entries: each sheet routes its own keys, so the palette doesn't list
     /// them.
     readonly property string sheetTitle: qsTr("in a sheet")

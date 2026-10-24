@@ -60,12 +60,14 @@ TestCase {
     }
 
     // DECISIONS C24 H10: what sheets' feet printed (v2's hints, C11 D4's "s next server") is
-    // the last block, "in a sheet".
-    function test_the_sheets_keys_have_the_last_block() {
+    // a block of its own, "in a sheet", after view: the first column's last, so "act on
+    // torrents" still heads the second.
+    function test_the_sheets_keys_have_a_block_after_view() {
         const sheet = init();
         const keys = sheet.sections.map(section => section.key);
-        compare(keys[keys.length - 1], "sheet");
-        const block = sheet.sections[keys.length - 1];
+        compare(keys.indexOf("sheet"), keys.indexOf("view") + 1);
+        compare(sheet._columnSections(1)[0].key, "act");
+        const block = sheet.sections[keys.indexOf("sheet")];
         compare(block.title, "in a sheet");
         const helpKeys = block.rows.map(row => row.helpKeys);
         for (const key of ["enter", "shift+enter", "tab", "esc", "ctrl+o", "↓", "ctrl+s", "alt+s", "s"])

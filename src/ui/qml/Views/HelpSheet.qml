@@ -30,7 +30,7 @@ FocusScope {
     property string altKind: "alt"
     readonly property string query: filterField.text.trim().toLowerCase()
     /// The sections that still have rows, each `{key, title, about, rows}`. DECISIONS C18 D6:
-    /// the mouse's block follows the select keys; C24 H10: a sheet's block comes last.
+    /// the mouse's block follows the select keys; C24 H10: a sheet's block follows view.
     readonly property var sections: root._sectionKeys.map(column => ({
                                                                          "key": column,
                                                                          "title": column === "mouse" ? Keymap.mouseTitle
@@ -44,8 +44,9 @@ FocusScope {
     readonly property var _sectionKeys: {
         const keys = Keymap.columns.slice();
         keys.splice(keys.indexOf("select") + 1, 0, "mouse");
-        // DECISIONS C24 H10: the keys sheets' feet printed, last.
-        keys.push("sheet");
+        // DECISIONS C24 H10: the keys sheets' feet printed, after view: the first column's
+        // last block, so "act on torrents" still heads the second.
+        keys.splice(keys.indexOf("view") + 1, 0, "sheet");
         return keys;
     }
     /// Every row still shown, in reading order (left column first).
