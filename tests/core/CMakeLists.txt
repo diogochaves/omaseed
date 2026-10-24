@@ -509,3 +509,8 @@ omaseed_add_test(tst_selectionhold
     SOURCES tst_selectionhold.cpp
     LIBRARIES omaseed::core
 )
+
+omaseed_add_test(tst_torrentstory
+    SOURCES tst_torrentstory.cpp
+    LIBRARIES omaseed::core
+)
