@@ -171,6 +171,31 @@ ThemeBase {
     /// The ring round today's cell in the year's grid (docs/22 `renderYear`, 1.5 px).
     readonly property real dayTodayEdge: 1.5
 
+    // ---- the skin's seams (design note "Seams": Plate, SelectionMark, Meter, Lamp) ---------
+    /// The face a seam draws through: the skin's own file in its `faces/` when its `faces`
+    /// names one, else Omarchy's. Faces are compiled into this module under `skins/`, so the
+    /// URL resolves beside this file. Read through `skinTokens`, so a switch reloads them.
+    function face(seam: string): url {
+        const faces = skinTokens.faces;
+        const file = faces !== undefined ? faces[seam] : undefined;
+        return file !== undefined ? Qt.resolvedUrl("skins/" + skin.name + "/faces/" + file) : defaultFace(seam);
+    }
+    /// Omarchy's face for a seam: today's drawing, and what any face that fails falls back to.
+    function defaultFace(seam: string): url {
+        return Qt.resolvedUrl("skins/omarchy/faces/" + seam + ".qml");
+    }
+    /// A plate's cut corner, `cut.panel` or `cut.key` (board 46 `.pn`, `.pn.key`), in spec px
+    /// through space(); 0 draws square corners.
+    readonly property int plateCut: space(token("cut", "panel", 0))
+    readonly property int plateKeyCut: space(token("cut", "key", 0))
+    /// The arm of a corner bracket round the selected (board 46 `.row.sel::after`, 8 × 2 px);
+    /// its thickness is `litWidth`.
+    readonly property int selectionMarkArm: n("selectionMarkArm", 8)
+    /// One cell of a segmented meter drawn as a line (board 46 `.strip i`), and the gap between
+    /// cells (1 px, as the cover's grid).
+    readonly property int meterCellWidth: n("meterCellWidth", 3)
+    readonly property int meterCellGap: 1
+
     // ---- the skin's type (design note `font`, `label`, `numerals`; rule 7) -----------------
     // A family the skin names is used only while it is installed and the desktop doesn't ask
     // for the shell's font (`skin.systemFonts`); otherwise it falls back on its own, to
