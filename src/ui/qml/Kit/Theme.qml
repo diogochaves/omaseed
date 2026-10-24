@@ -100,6 +100,22 @@ ThemeBase {
     readonly property int actionBarRuleRoom: space(8)
     readonly property int actionBarRuleInset: space(7)
 
+    // ---- the frame's form: keys on demand (board 46 `.kb`, DECISIONS C24 H10) ------------
+    /// A key's badge while alt is held: its height, the room either side of the key, its type
+    /// (board 46: a 14 px line, 4 px each side, 10 px bold at 13 px type) and its corners
+    /// (board 46: square).
+    readonly property int keyBadgeHeight: space(14)
+    readonly property int keyBadgePadding: space(4)
+    readonly property int keyBadgeFontSize: font.caption
+    readonly property int keyBadgeWeight: Font.Bold
+    readonly property int keyBadgeRadius: 0
+    /// How far it hangs past its control's top-right corner (board 46: 6 px right, 9 px up).
+    readonly property int keyBadgeOverhangX: space(6)
+    readonly property int keyBadgeOverhangY: space(9)
+    /// How long alt is held alone before the badges show, in ms: the alt of alt+j never shows
+    /// them, even for a frame.
+    readonly property int keyBadgeDelay: 200
+
     // ---- the frame's form: the outcome strip (board 46 `.ostrip`, board 50 §2) -------------
     /// How far over the rows' bottom it floats (board 46's 12 px): with a selection on, the
     /// action bar is just under that edge.

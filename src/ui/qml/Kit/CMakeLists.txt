@@ -36,6 +36,7 @@ qt_add_qml_module(omaseed-kit
         Icon.qml
         IconButton.qml
         InputMouseArea.qml
+        KeyBadge.qml
         KeyCap.qml
         KeyHints.qml
         KeyValue.qml
