@@ -1098,6 +1098,14 @@ the call says so.
 - **The library (H3–H4):** grouped under the questions in the rows display; the table stays one
   sorted list. Rows is the default for new installs; an existing install keeps the table until
   it picks another. The display is remembered per scope, folders included.
+  Built in v0.5.0's library step (#168), with its assumed answers: inside a question the
+  library's sort; a scope without a display of its own shows the library's; an install is
+  existing when its state.json holds anything besides `version` as the build first finds it; a
+  scope's key is its folder, else its category, tag or tracker, else its question; a move's
+  torrents on show stay the table; the overview is board 46's shelves (one per category, "no
+  category" last), covers and rows drawing progress, not pieces; no display key (the title
+  bar's tool, its menu, three palette rows). Rows and shelves are faces of the table, which
+  keeps the cursor, the selection and the keys (core/RowWords has a row's words).
 - **A folder picked (H5):** the title becomes the folder, its sentence takes the scope line's
   facts, "move this folder…" is a title-bar button; shift+m, the row's menu and `:` keep it.
 - **Details (H6):** 41's story: one fact, a sentence, then story · files · swarm · trackers ·

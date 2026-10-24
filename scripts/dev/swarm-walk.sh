@@ -9,6 +9,10 @@
 #                                              # step sets the state up, says what to check, and
 #                                              # waits for enter
 #
+# Each state is seen twice: in the table (the details tab that tells it), then in the rows
+# display (DECISIONS C24 H3, the library grouped under the five questions), and the walk ends on
+# the shelves.
+#
 # It resets the swarm first (scripts/dev/swarm.sh reset + seed), so the downloads start from
 # zero, at 1 MiB/s so they are still running while the walk looks at them. The seeder's rate
 # goes back to 4 MiB/s at the end. Everything runs inside an omabox and against :8081 and
@@ -18,6 +22,10 @@
 set -euo pipefail
 
 repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+# DECISIONS C24 H4: a new install shows the rows display, and a box is a new install. This
+# walk reads the table (its columns, its rows' order), so it pins the table: every scope starts
+# on it (App's OMASEED_DISPLAY), passed to each launch here and by app-box.sh.
+export OMASEED_DISPLAY="${OMASEED_DISPLAY:-table}"
 cd "$repo"
 SWARM="$repo/scripts/dev/swarm.sh"
 # shellcheck source=scripts/dev/home-guard.sh
@@ -56,7 +64,7 @@ for t in json.load(sys.stdin):
 # launch: (re)start the app in the box and wait for its window and first sync.
 launch() {
     omabox run -b "$BOX" -- pkill -x omaseed >/dev/null 2>&1 || true
-    omabox run -b "$BOX" -d -- ./build/omaseed >/dev/null
+    omabox run -b "$BOX" --pass OMASEED_DISPLAY -d -- ./build/omaseed >/dev/null
     for _ in $(seq 1 40); do
         omabox hyprctl -b "$BOX" -j clients | grep -q '"class": "io.github.diogochaves.omaseed"' && break
         sleep 0.25
@@ -70,6 +78,13 @@ show() {
     launch
     omabox keys -b "$BOX" ctrl+k -t "$1" Return l "$2" >/dev/null
     sleep 1.5
+}
+
+# rows TITLE WHAT: the same moment in the rows display (C24 H3): the app again with every scope
+# on rows, the library on show; interactive, switch with the title bar's display tool.
+rows() {
+    [ "$INTERACTIVE" = 1 ] || OMASEED_DISPLAY=rows launch
+    step "$1 in rows" "$2"
 }
 
 STEP=0
@@ -126,6 +141,7 @@ launch
 wait_state "Open Movie" "^downloading 0\.0[2-9]|^downloading 0\.[1-9]" 90
 [ "$INTERACTIVE" = 1 ] || show "Open Movie" 1
 step "Downloading" "Open Movie Night: status downloading, a moving speed and ETA, the pieces bar partly filled, the status line's ↓ near 1 MiB/s. Two downloads run; the rest are queued."
+rows "Downloading" "The rows display, grouped: under ARRIVING the two downloads say their time to ready (\"to ready\") and \"N % of SIZE · from N seeds at SPEED\", the queued ones \"next\" or \"queued\" in line; heads in the rail's order, each with its count and a short line."
 [ "$INTERACTIVE" = 1 ] || show "Open Movie" 2
 step "Files tree" "Open Movie Night's Files tab: the film, extras/, subs/ (english, português (Brasil), 日本語) and sample/, with per-file progress."
 [ "$INTERACTIVE" = 1 ] || show "photo-archive" 2
@@ -133,6 +149,7 @@ step "Many files" "photo-archive: 1 208 files in 92 folders by year and month; s
 wait_state "tiny-notes" "UP|^uploading" 30
 [ "$INTERACTIVE" = 1 ] || show "tiny-notes" 1
 step "Seeding" "tiny-notes.txt: finished, seeding (also when nobody is downloading from it), done 100 %, ETA —, the rail counts it under landed today (giving back once local midnight has passed). Each finished download raises a \"Download complete\" notification in the box (often caught by the first shots)."
+rows "Seeding" "tiny-notes.txt under LANDED TODAY: the time it landed and \"landed\", \"in swarm · 4 KB · given back 0.0× so far\"; the head says \"since midnight\"."
 wait_state "Spaces & Symbols" "UP|^uploading" 60
 [ "$INTERACTIVE" = 1 ] || show "Spaces & Symbols" 1
 step "Long unicode name" "The v2-only torrent: its long unicode name elides in the table and the details head; General shows a v2 hash and no v1."
@@ -167,11 +184,13 @@ step "Dead tracker" "distro ISO's Trackers tab: 127.0.0.1:26996 working, 127.0.0
 wait_state "unwritable" "^error" 30
 [ "$INTERACTIVE" = 1 ] || show "unwritable" 1
 step "Error" "unwritable-fixture.bin: status error (its save path is read-only); the rail counts it under needs you, in red."
+rows "Error" "unwritable-fixture.bin first, under NEEDS YOU in red: its short cause on the right in red over \"needs you\", the long cause under the name, and its fix (\"retry\") as a button."
 
 "$SWARM" break stall >/dev/null
 sleep 8
 [ "$INTERACTIVE" = 1 ] || show "Open Movie" 1
 step "Stalled" "The seeder stopped: running downloads read stalled, speeds fall to 0, ETA ∞."
+rows "Stalled" "The stalled downloads under ARRIVING: \"waiting\" over \"no seed\", \"no seed online · …\"."
 
 "$SWARM" fix >/dev/null
 "$SWARM" break missing >/dev/null
@@ -179,11 +198,15 @@ wait_state "tiny-notes" "^missingFiles" 60
 sleep 4 # the app reconnects to the restarted playground
 [ "$INTERACTIVE" = 1 ] || show "tiny-notes" 1
 step "Missing files" "tiny-notes.txt: status missing files (red, counted under needs you), ETA —, after the playground restarted; the app reconnected on its own (no banner left)."
+rows "Missing files" "tiny-notes.txt under NEEDS YOU: \"files missing\" in red, and where its files were."
 
 "$SWARM" fix >/dev/null
 sleep 10
 [ "$INTERACTIVE" = 1 ] || show "Open Movie" 1
 step "Fixed" "After swarm.sh fix: no errored rows, nothing under needs you, downloads moving again (a stalled one can take a minute to reconnect)."
+rows "Fixed" "Every torrent back under its question: nothing under needs you, the downloads arriving, the rest landed today, giving back or resting."
+[ "$INTERACTIVE" = 1 ] || OMASEED_DISPLAY=overview launch
+step "Shelves" "The overview's shelves: one per category (swarm, fixtures…, no category last), a cover per torrent, its grid filled as far as it has arrived, two letters, the name and its fact under it."
 
 echo
 if [ "$INTERACTIVE" = 1 ]; then

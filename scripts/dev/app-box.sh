@@ -109,6 +109,7 @@ launch() {
     fi
     # Qt logs to journald when stderr is not a terminal, and a box has none: without this the
     # run log stays empty (omabox#26).
+    # OMASEED_DISPLAY (the display every scope starts on: the walks pin theirs),
     # OMASEED_LEDGER_DEMO (the seed console's made-up year, #24), OMASEED_RECAP_DUE (the weekly
     # recap at once, whatever the day, #24 T8) and OMASEED_LOOKUP_CLOCK_SCALE (the add sheet's
     # magnet lookup on a faster clock, docs/29, #44) go through when set.
@@ -116,6 +117,8 @@ launch() {
     [ -n "${OMASEED_LEDGER_DEMO:-}" ] && pass+=(--pass OMASEED_LEDGER_DEMO)
     [ -n "${OMASEED_RECAP_DUE:-}" ] && pass+=(--pass OMASEED_RECAP_DUE)
     [ -n "${OMASEED_LOOKUP_CLOCK_SCALE:-}" ] && pass+=(--pass OMASEED_LOOKUP_CLOCK_SCALE)
+    # A walk's display (DECISIONS C24 H4: a box is a new install, so rows unless it says).
+    [ -n "${OMASEED_DISPLAY:-}" ] && pass+=(--pass OMASEED_DISPLAY)
     out="$(QT_FORCE_STDERR_LOGGING=1 omabox run -b "$BOX" "${pass[@]}" -d -- \
         "$binary" 2>&1)" || die "could not start $binary in the box: $out"
     log="$(sed -n 's/.*(log: \(.*\))$/\1/p' <<<"$out" | head -n 1)"

@@ -93,6 +93,11 @@ scripts/dev/app-box.sh api [-b NAME] [--server public|private] [-X M] PATH [CURL
 `docs/manual-tests/`), and the rules (test scripts committed and re-runnable, research repros in
 `scripts/dev/research/`, `scripts/dev/fastresume.py` to read what qBittorrent saved).
 
+A box is a new install, so omaseed starts on the rows display there (DECISIONS C24 H4). Every
+walk pins its display with `OMASEED_DISPLAY=rows|table|overview` (each scope starts on it;
+app-box.sh passes it through): the walks that read the table pin the table, the swarm walk adds a
+rows pass and ends on the shelves, and ctest pins the table for every test.
+
 Anything that can open a window, reach the session D-Bus or the keyring runs in an omabox or
 through `ctest`, never straight on the desktop. Test binaries force Qt's offscreen platform
 even when run directly; `OMASEED_TEST_PLATFORM` overrides that, and only inside an omabox.

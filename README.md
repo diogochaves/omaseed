@@ -22,6 +22,9 @@ omaseed has no torrent engine of its own: qBittorrent, local or remote, does the
 transferring, and omaseed is the window you see it through. Built for Omarchy, it runs on any
 Linux, with a bundled theme when Omarchy is not there.
 
+- **Five questions, not columns**: the library grouped under needs you, arriving, landed
+  today, giving back and resting, each torrent saying in words what matters now; or the
+  classic table, or shelves of covers, remembered for each place you look
 - **The seed console**: what you give back, from the last hour to the last year, kept by
   omaseed itself
 - **Knows your library before you add**: your newest downloads waiting, files already on disk
@@ -205,6 +208,7 @@ it. A capital letter is the stronger variant of its lower-case neighbour (`p` st
 | `i` | details |
 | `1`–`4` | details tab (in the details pane) |
 | `s` | sort |
+| `:` show as … | rows, table or shelves, for the place on show (also the title bar's tool) |
 | `\|` | columns (`alt+↑` `alt+↓` reorder them) |
 | `ctrl+b` | fold the rail to its glyphs |
 | `I` | details right · bottom · auto |

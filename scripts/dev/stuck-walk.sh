@@ -31,6 +31,10 @@
 set -euo pipefail
 
 repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+# DECISIONS C24 H4: a new install shows the rows display, and a box is a new install. This
+# walk reads the table (its columns, its rows' order), so it pins the table: every scope starts
+# on it (App's OMASEED_DISPLAY), passed to each launch here and by app-box.sh.
+export OMASEED_DISPLAY="${OMASEED_DISPLAY:-table}"
 cd "$repo"
 # shellcheck source=scripts/dev/home-guard.sh
 . "$repo/scripts/dev/home-guard.sh"
@@ -239,7 +243,7 @@ mkdir -p "$home/.config/omaseed" && chmod 700 "$home/.config/omaseed"
 printf '{"version":1,"defaultId":"stuck","servers":[{"id":"stuck","name":"stuck","url":"http://127.0.0.1:%s","authMode":"none","username":"","pathMap":[],"isDefault":true,"addedAt":"2026-10-22T00:00:00Z"}]}' "$PORT" \
     >"$home/.config/omaseed/servers.json"
 chmod 600 "$home/.config/omaseed/servers.json"
-omabox run -b "$BOX" -d --wait -- ./build/omaseed >/dev/null
+omabox run -b "$BOX" --pass OMASEED_DISPLAY -d --wait -- ./build/omaseed >/dev/null
 omabox wait -b "$BOX" window "$APP_ID" >/dev/null
 check "the app shows the torrent" wait_for "the torrent in the table" 30 in_tree "$NAME"
 

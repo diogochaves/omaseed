@@ -17,6 +17,10 @@
 set -euo pipefail
 
 repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+# DECISIONS C24 H4: a new install shows the rows display, and a box is a new install. This
+# walk reads the table (its columns, its rows' order), so it pins the table: every scope starts
+# on it (App's OMASEED_DISPLAY), passed to each launch here and by app-box.sh.
+export OMASEED_DISPLAY="${OMASEED_DISPLAY:-table}"
 APP="class:io.github.diogochaves.omaseed"
 BUILD="${OMASEED_BUILD:-$repo/build}"
 TORRENTS="${OMASEED_SWARM_PROFILE:-$HOME/.local/share/omaseed-swarm}/torrents"
@@ -59,7 +63,7 @@ chmod 700 "$home/.config/omaseed"
 chmod 600 "$home/.config/omaseed/servers.json"
 
 # ---- the app ----------------------------------------------------------------------------------
-omabox run -d --wait -- "$BUILD/omaseed"
+omabox run --pass OMASEED_DISPLAY -d --wait -- "$BUILD/omaseed"
 omabox wait --timeout 20s window "$APP"
 
 # Window coordinates of what follows the real clock or the disk: the selected torrent's
@@ -150,6 +154,21 @@ key down:alt
 omabox check point selection-alt-keys --window "$APP" --ignore "$ADDED" --ignore "$CREATED"
 omabox keys --window "$APP" up:alt >/dev/null
 key Escape
+
+# The library's other displays (DECISIONS C24 H3–H4), picked from the palette: the rows grouped
+# under the five questions (every torrent here is stopped: resting), then the overview's shelves,
+# then the table again for what follows.
+display() {
+    key colon
+    omabox keys --window "$APP" --wait -t "show as $1" >/dev/null
+    key Return
+    omabox pointer --window "$APP" -- move 900 600 >/dev/null
+}
+display rows
+omabox check point rows --window "$APP" --ignore "$ADDED" --ignore "$CREATED" --ignore "$FREE"
+display shelves
+omabox check point overview --window "$APP" --ignore "$ADDED" --ignore "$CREATED" --ignore "$FREE"
+display table
 
 # Settings: every section, j by j, the first (General) open.
 sections=(general servers notifications keybindings appearance backup about
