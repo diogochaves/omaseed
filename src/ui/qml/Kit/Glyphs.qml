@@ -55,6 +55,10 @@ QtObject {
     readonly property string viewLibrary: "≡"
     readonly property string viewSeed: "↑"
     readonly property string viewLog: "~"
+    // DECISIONS C24 H3–H4: the library's displays (board 46's display tool).
+    readonly property string displayRows: "≡"
+    readonly property string displayTable: "▤"
+    readonly property string displayShelves: "▦"
     readonly property string questionNeedsYou: "!"
     readonly property string questionArriving: "↓"
     readonly property string questionLanded: "✓"

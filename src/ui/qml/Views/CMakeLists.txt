@@ -55,6 +55,7 @@ qt_add_qml_module(omaseed-views
         DetailsTrackersTab.qml
         DetailsWebSeedsTab.qml
         DimmedOverlay.qml
+        DisplayMenu.qml
         DisconnectedBanner.qml
         DropOverlay.qml
         DuplicateSheet.qml
@@ -64,6 +65,11 @@ qt_add_qml_module(omaseed-views
         GlobalLimitsSheet.qml
         HelpSheet.qml
         JumpPalette.qml
+        LibraryCover.qml
+        LibraryGroupHead.qml
+        LibraryRow.qml
+        LibraryRows.qml
+        LibraryShelves.qml
         LimitsSheet.qml
         LoadingState.qml
         LogRow.qml

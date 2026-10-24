@@ -535,6 +535,46 @@ QtObject {
             "helpKeys": "",
             "help": ""
         },
+        // DECISIONS C24 H3–H4: the display tool's three rows; no key (#168 assumed 8).
+        {
+            "area": "global",
+            "key": "",
+            "via": ":",
+            "action": "displayRows",
+            "title": qsTr("show as rows"),
+            "needs": "",
+            "label": qsTr("rows"),
+            "column": "",
+            "rank": 0,
+            "helpKeys": "",
+            "help": ""
+        },
+        {
+            "area": "global",
+            "key": "",
+            "via": ":",
+            "action": "displayTable",
+            "title": qsTr("show as table"),
+            "needs": "",
+            "label": qsTr("table"),
+            "column": "",
+            "rank": 0,
+            "helpKeys": "",
+            "help": ""
+        },
+        {
+            "area": "global",
+            "key": "",
+            "via": ":",
+            "action": "displayShelves",
+            "title": qsTr("show as shelves"),
+            "needs": "",
+            "label": qsTr("shelves"),
+            "column": "",
+            "rank": 0,
+            "helpKeys": "",
+            "help": ""
+        },
         {
             "area": "global",
             "key": "",
@@ -2073,7 +2113,8 @@ QtObject {
         {
             "group": "view",
             "word": qsTr("view"),
-            "actions": ["columns", "toggleDetails", "cycleDetailsPlacement", "toggleRail",
+            "actions": ["displayRows", "displayTable", "displayShelves", "columns", "toggleDetails",
+                "cycleDetailsPlacement", "toggleRail",
                 "toggleConsole", "toggleLog", "detailsSmaller", "detailsLarger"]
         },
         {

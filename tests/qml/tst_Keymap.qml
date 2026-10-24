@@ -230,32 +230,32 @@ TestCase {
         compare(row.helpKeys, ": ctrl+shift+p");
     }
 
-    // §5: 53 rows from the table (docs/32 added `~`, board 42 "move folder…", C24 H2 a "show
-    // STATE…" per `is:` word), plus the focused area's own: Files 15,
+    // §5: 56 rows from the table (docs/32 added `~`, board 42 "move folder…", C24 H2 a "show
+    // STATE…" per `is:` word, C24 H3 three displays), plus the focused area's own: Files 15,
     // Trackers 4, Peers 3, HTTP sources 3, the seed console 3, the log 14.
     function test_the_rows_from_each_area() {
-        compare(Keymap.commandRows(testCase._context({})).length, 53);
+        compare(Keymap.commandRows(testCase._context({})).length, 56);
         compare(Keymap.commandRows(testCase._context({
                                                          "area": "rail"
-                                                     })).length, 53);
+                                                     })).length, 56);
         compare(Keymap.commandRows(testCase._context({
                                                          "area": "files"
-                                                     })).length, 68);
+                                                     })).length, 71);
         compare(Keymap.commandRows(testCase._context({
                                                          "area": "trackers"
-                                                     })).length, 57);
+                                                     })).length, 60);
         compare(Keymap.commandRows(testCase._context({
                                                          "area": "peers"
-                                                     })).length, 56);
+                                                     })).length, 59);
         compare(Keymap.commandRows(testCase._context({
                                                          "area": "webseeds"
-                                                     })).length, 56);
+                                                     })).length, 59);
         compare(Keymap.commandRows(testCase._context({
                                                          "area": "console"
-                                                     })).length, 56);
+                                                     })).length, 59);
         compare(Keymap.commandRows(testCase._context({
                                                          "area": "log"
-                                                     })).length, 67);
+                                                     })).length, 70);
         // Every action id is listed once, and movements never.
         const actions = Keymap.commandRows(testCase._context({})).map(row => row.action);
         for (const action of actions)

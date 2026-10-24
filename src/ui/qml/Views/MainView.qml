@@ -40,6 +40,9 @@ Item {
     readonly property alias titleBar: titleBar
     readonly property alias rail: rail
     readonly property alias table: table
+    readonly property alias libraryRows: libraryRows
+    readonly property alias libraryShelves: libraryShelves
+    readonly property alias displayMenu: displayMenu
     readonly property alias details: details
     readonly property alias split: split
     readonly property alias statusLine: statusLine
@@ -694,6 +697,21 @@ Item {
 
     /// The mark and ctrl+. (DECISIONS C24 H9): the omaseed menu under the mark, left edges
     /// flush. First run holds it, as it holds `:`.
+    /// The display tool (C24 H3–H4): its menu under it, right edges together.
+    function openDisplayMenu(): void {
+        const tool = titleBar.displayTool;
+        const corner = tool.mapToItem(root, tool.width, tool.height);
+        displayMenu.openAt(Math.round(corner.x - displayMenu.menuWidth),
+                           Math.round(corner.y + Theme.railMenuGap));
+    }
+
+    /// The scope's display, from the tool's menu or the palette; the library on show.
+    function pickDisplay(display: string): void {
+        root.setView("library");
+        App.setDisplay(display);
+        root.focusHome();
+    }
+
     function openAppMenu(): void {
         if (root.firstRun)
             return;
@@ -1270,6 +1288,10 @@ Item {
         "altSpeed": () => root.toggleAltSpeed(),
         "globalLimits": () => globalLimitsSheet.openFor(false),
         "altLimits": () => globalLimitsSheet.openFor(true),
+        // DECISIONS C24 H3–H4: the display tool's three, from the palette.
+        "displayRows": () => root.pickDisplay("rows"),
+        "displayTable": () => root.pickDisplay("table"),
+        "displayShelves": () => root.pickDisplay("overview"),
         // app
         "settings": () => App.openSettings(),
         "switchServer": () => root.openServerPalette(),
@@ -1858,8 +1880,12 @@ Item {
         backText: !root.moveShowing || root.view !== "library" ? "" : root.moveShowingJob ? qsTr("all torrents")
                                                                                           : qsTr("back to the sheet")
         backKey: root.moveShowing ? "esc" : ""
+        // C24 H3–H4: the scope's display, in the library only, and not over a move's show (the
+        // table's step column, #168 assumed 5) or an empty library.
+        display: root.view === "library" && !root.moveShowing && !root.libraryEmpty ? App.display : ""
 
         onAddClicked: App.addRequested()
+        onDisplayClicked: root.openDisplayMenu()
         onBackClicked: root.leaveMoveShow()
         onMoveFolderClicked: root.openMoveFolder(App.filtered.folder, "")
         onSearchChanged: text => App.filtered.text = text
@@ -2051,6 +2077,9 @@ Item {
                 // never moves the rows it is read from.
                 bottomRoom: outcomeStrip.visible ? outcomeStrip.roomHeight + Theme.outcomeStripLift : 0
                 filtered: App.filtered
+                // C24 H3: the display the scope shows draws the rows; the table keeps the rest.
+                face: App.display === "rows" ? libraryRows : App.display === "overview" ? libraryShelves
+                                                                                      : null
                 // #51 D9: rows hold still under the open actions menu, for D17's right-click.
                 holdOrder: actionsMenuPanel.opened
                 // Fig. 23: the last list stays, dimmed and read-only.
@@ -2090,8 +2119,34 @@ Item {
                 }
                 onFocusRail: rail.forceActiveFocus() // folded or not (#167 assumed 4)
                 // The inline editor is the primary rename; the sheet (`renameSheetPanel`) is
-                // only the menu/multi-selection fallback.
+                // only the menu/multi-selection fallback, and shelves' `r` (#168 assumed 9).
                 onRenameRequested: (hash, name) => App.rename(hash, name)
+                onRenameSheetRequested: hash => renameSheetPanel.openFor(hash)
+            }
+
+            // DECISIONS C24 H3–H4 (#168): the rows display, a face of the table above (its
+            // `face`) in the same place: the table keeps the cursor, the selection and the keys.
+            LibraryRows {
+                id: libraryRows
+
+                anchors.fill: table
+                bottomRoom: table.bottomRoom
+                opacity: table.opacity
+                table: table
+                visible: table.visible && App.display === "rows"
+
+                onFixRequested: (hash, action) => root.runRowFix(hash, action)
+            }
+
+            // The overview's shelves (#168 assumed 6), the table's other face.
+            LibraryShelves {
+                id: libraryShelves
+
+                anchors.fill: table
+                bottomRoom: table.bottomRoom
+                opacity: table.opacity
+                table: table
+                visible: table.visible && App.display === "overview"
             }
 
             FilteredEmpty {
@@ -2214,45 +2269,14 @@ Item {
             // docs/12 G5: "copied hash v1".
             onValueCopyRequested: (text, name) => root.copyText(text, qsTr("copied %1").arg(name))
             // docs/28: the error block acts on the torrent it explains, never on a selection.
-            onProblemActionRequested: action => {
-                const hashes = root.cursorHash.length > 0 ? [root.cursorHash] : [];
-                if (hashes.length === 0)
-                    return;
-                if (action === "log")
-                    root.showTorrentLog(hashes[0]);
-                // docs/44 D13: a stuck move's sheet is not aimed at the destination it never
-                // reached: qBittorrent ignores a move to the save path it already has
-                // (scripts/dev/research/121-stuck-move), so the sheet starts as for any move.
-                else if (action === "location")
-                    moveSheet.openSelection(hashes, "");
-                else if (action === "bothFolders")
-                    App.showBothFolders(hashes[0]);
-                else if (action === "start") // DECISIONS C20: "retry", a start that forgets the stop
-                    App.retryTorrents(hashes);
-                else if (action === "recheck")
-                    App.recheck(hashes);
-                else if (action === "addAgain") // board 44 §2: libtorrent's hybrid error
-                    addAgainConfirm.openFor(hashes[0], App.torrentRow(hashes[0]).name || "", 0);
-            }
+            onProblemActionRequested: action => root.runProblemAction(root.cursorHash, action)
             // Board 44 F1 (C17 D3): the Files tab's band, or shift+f there.
             onFreeSpaceRequested: freeSpaceSheet.openFor(App.details.hash)
             // C17 D4: Settings › Servers, on this server, where its path maps are.
             onPathMapsRequested: settingsModal.showServer(App.serverId)
             // docs/32 F1–F3: the failure block, on the torrent it is about. `m` tries the
             // move again with the destination already in the sheet.
-            onFailureActionRequested: action => {
-                const hash = root.cursorHash;
-                if (hash.length === 0)
-                    return;
-                if (action === "log")
-                    root.showTorrentLog(hash);
-                else if (action === "location")
-                    moveSheet.openSelection([hash], (App.torrentRow(hash).failure || {}).destination || "");
-                else if (action === "folder")
-                    App.openFolder(hash);
-                else if (action === "dismiss")
-                    App.dismissFailure(hash);
-            }
+            onFailureActionRequested: action => root.runFailureAction(root.cursorHash, action)
             // Board 45 B1 (C18 D7): the last move's block.
             onMoveBackRequested: (id, only) => moveSheet.openBack(id, only)
             onMoveShowRequested: hashes => root.showMoveHashes(hashes, false)
@@ -2548,6 +2572,57 @@ Item {
         const top = outcomeStrip.mapToItem(statusLine.parent, 0, 0).y;
         root._outcomeBandLift = Math.max(0, statusLine.y - top + Theme.space(6));
         root.footerNoticeOpen = true;
+    }
+
+    // --- the error and failure blocks' actions, from details or a row's fix (#168) ---
+
+    /// docs/28's error block: `action` on `hash` (the cursor's, or a rows display row's fix).
+    function runProblemAction(hash: string, action: string): void {
+        if (hash.length === 0)
+            return;
+        const hashes = [hash];
+        if (action === "log")
+            root.showTorrentLog(hash);
+        // docs/44 D13: a stuck move's sheet is not aimed at the destination it never
+        // reached: qBittorrent ignores a move to the save path it already has
+        // (scripts/dev/research/121-stuck-move), so the sheet starts as for any move.
+        else if (action === "location")
+            moveSheet.openSelection(hashes, "");
+        else if (action === "bothFolders")
+            App.showBothFolders(hash);
+        else if (action === "start") // DECISIONS C20: "retry", a start that forgets the stop
+            App.retryTorrents(hashes);
+        else if (action === "recheck")
+            App.recheck(hashes);
+        else if (action === "addAgain") // board 44 §2: libtorrent's hybrid error
+            addAgainConfirm.openFor(hash, App.torrentRow(hash).name || "", 0);
+    }
+
+    /// docs/32's failure block: `action` on `hash`. `m` tries the move again with the
+    /// destination already in the sheet.
+    function runFailureAction(hash: string, action: string): void {
+        if (hash.length === 0)
+            return;
+        if (action === "log")
+            root.showTorrentLog(hash);
+        else if (action === "location")
+            moveSheet.openSelection([hash], (App.torrentRow(hash).failure || {}).destination || "");
+        else if (action === "folder")
+            App.openFolder(hash);
+        else if (action === "dismiss")
+            App.dismissFailure(hash);
+    }
+
+    /// C24 H3 (law 3): a needs-you row's fix, RowWords' "problem:<action>" or
+    /// "failure:<action>".
+    function runRowFix(hash: string, fix: string): void {
+        const at = fix.indexOf(":");
+        if (at < 0)
+            return;
+        if (fix.substring(0, at) === "failure")
+            root.runFailureAction(hash, fix.substring(at + 1));
+        else
+            root.runProblemAction(hash, fix.substring(at + 1));
     }
 
     // --- DECISIONS C30 F8–F11 (board 50 §2): "show" only when it brings something back ---
@@ -2861,6 +2936,16 @@ Item {
         interval: root._footerNoteSeconds * 1000
 
         onTriggered: root.footerNote = ""
+    }
+
+    DisplayMenu {
+        id: displayMenu
+
+        anchors.fill: parent
+        current: App.display
+        z: 9
+
+        onActivated: display => root.pickDisplay(display)
     }
 
     AppMenu {

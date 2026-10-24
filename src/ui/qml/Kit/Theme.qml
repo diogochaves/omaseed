@@ -193,4 +193,94 @@ ThemeBase {
     /// Between its words and the dim line under them that says why "show" is there
     /// (DECISIONS C30 F10).
     readonly property int outcomeStripReasonGap: space(1)
+
+    // ---- the library's form: the rows display (board 46 `rows()`, `.row`, `.gh`, C24 H3) --
+    /// A row: two lines, the name's and the sentence's (board 46: 50 px at 13 px type).
+    readonly property int libraryRowHeight: space(46)
+    /// Before the state glyph and after the fact (board 46: 14 and 18 px).
+    readonly property int libraryRowInsetStart: space(13)
+    readonly property int libraryRowInsetEnd: space(16)
+    /// The state glyph's column (20 px), and the gap between the columns (10 px).
+    readonly property int libraryRowGlyphWidth: space(18)
+    readonly property int libraryRowGap: space(9)
+    /// Between the name's line and the sentence's.
+    readonly property int libraryRowLineGap: space(1)
+    /// The name (13.5 px, 600, bright), the meta beside it and the sentence (11.5 px, dim).
+    readonly property int libraryRowNameSize: font.body
+    readonly property int libraryRowNameWeight: Font.DemiBold
+    readonly property int libraryRowMetaSize: font.small
+    readonly property int libraryRowSentenceSize: font.small
+    /// The fact (14 px, 500, bright) over its caption (10 px, upper case, tracked .12em), in a
+    /// column at least 92 px wide.
+    readonly property int libraryRowFactSize: font.body
+    readonly property int libraryRowFactWeight: Font.Medium
+    readonly property int libraryRowCaptionSize: font.caption
+    readonly property real libraryRowCaptionTracking: font.caption * 0.12
+    readonly property int libraryRowFactWidth: space(85)
+    /// The progress line before the sentence (board 46 `.strip`: 168 × 4 px on an 8 % track).
+    readonly property int libraryRowLineWidth: space(155)
+    readonly property int libraryRowLineThickness: space(4)
+    readonly property real libraryRowLineTrack: fillHover
+    /// The fix (`.fix`): its room either side and its border's accent alpha.
+    readonly property int libraryRowFixPadding: space(6)
+    readonly property real libraryRowFixBorderAlpha: 0.45
+    /// A selected row's edge (`.row.picked`, an inset 2 px accent rule).
+    readonly property int libraryRowSelectedEdge: space(2)
+    /// A group's head (`.gh`): its height, its inset, its words (10.5 px, upper case, tracked
+    /// .12em; the count in the foreground; the line 11.5 px at the right).
+    readonly property int libraryGroupHeadHeight: space(30)
+    readonly property int libraryGroupHeadInset: space(16)
+    readonly property int libraryGroupHeadPaddingBottom: space(4)
+    readonly property int libraryGroupHeadSize: font.caption
+    readonly property real libraryGroupHeadTracking: font.caption * 0.12
+    readonly property int libraryGroupLineSize: font.small
+    /// The widths its steps start at, widest first: from step 1 a group's line goes and the
+    /// progress line shortens, from step 2 the meta beside the name goes too.
+    readonly property var libraryRowsSteps: [space(620), space(440)]
+    readonly property int libraryRowLineWidthNarrow: space(90)
+    /// The inline rename's field over a row's name (the table's `.ren`): the room inside it
+    /// and how far it rises past the name's line above and below.
+    readonly property int libraryRenamePadding: space(6)
+    readonly property int libraryRenameRise: space(3)
+    /// From a row's start to where `enter`'s menu opens under it (the table's 24 u).
+    readonly property int libraryMenuInset: space(24)
+
+    /// The display tool's menu: its width.
+    readonly property int displayMenuWidth: space(240)
+
+    // ---- the library's form: the overview's shelves (board 46 `overview()`, `.shelf`) -----
+    /// The shelves' inset (6 / 18 px) and the room between two shelves (14 px).
+    readonly property int shelfInset: space(16)
+    readonly property int shelfInsetTop: space(6)
+    readonly property int shelfGap: space(13)
+    /// A shelf's head (`.shelf h5`): the name (13 px, 600, bright), its count and size (11 px,
+    /// dim, upper case, tracked), and the room under it.
+    readonly property int shelfNameSize: font.body
+    readonly property int shelfNameWeight: Font.DemiBold
+    readonly property int shelfLineSize: font.caption
+    readonly property real shelfLineTracking: font.caption * 0.12
+    readonly property int shelfHeadGap: space(6)
+    /// A cover (`.cover`, 92 px wide, its art 118 px tall) and the room between covers.
+    readonly property int coverWidth: space(85)
+    readonly property int coverArtHeight: space(109)
+    readonly property int coverGap: space(9)
+    /// The piece grid inside the art (`.grid`: 6 px in, 10 cells across, 6 px tall, 1 px
+    /// apart), at 55 % of the state colour over an 8 % cell.
+    readonly property int coverGridInset: space(6)
+    readonly property int coverGridColumns: 10
+    readonly property int coverGridRows: 6
+    readonly property int coverCellHeight: space(6)
+    readonly property int coverCellGap: 1
+    readonly property real coverCellAlpha: 0.55
+    readonly property real coverCellTrack: fillHover
+    /// The two letters (`.ab2`: 30 px, 700, bright, 8 px in from the art's bottom left).
+    readonly property int coverMonogramSize: space(28)
+    readonly property int coverMonogramWeight: Font.Bold
+    readonly property int coverMonogramInset: space(7)
+    /// The name and the fact under the art (11 and 10.5 px), and the room between the parts.
+    readonly property int coverNameSize: font.caption
+    readonly property int coverFactSize: font.caption
+    readonly property int coverLineGap: space(4)
+    /// A selected cover's border, and the cursor's.
+    readonly property int coverSelectedBorder: 2
 }

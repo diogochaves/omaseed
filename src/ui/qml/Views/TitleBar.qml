@@ -41,6 +41,10 @@ Item {
     readonly property bool searchFolded: root.level >= 2 && !root.searchOpen
 
     // ---- the other tools -----------------------------------------------------------------
+    /// The display tool (board 46 `.tool.disp`, DECISIONS C24 H3–H4): the scope's display,
+    /// "rows", "table" or "overview" (said "shelves", #168 assumed 6); "" hides it (the seed
+    /// console, the log). No key (#168 assumed 8): `:` has its rows.
+    property string display: ""
     /// "+ add" (`a`).
     property bool addShown: true
     /// "move this folder…" (shift+m): a folder is picked (H5).
@@ -56,6 +60,7 @@ Item {
 
     /// The parts tests and the walks read.
     readonly property alias addTool: addTool
+    readonly property alias displayTool: displayTool
     readonly property alias moveFolderTool: moveFolderTool
     readonly property alias backTool: backTool
     readonly property alias filterTool: filterTool
@@ -72,6 +77,8 @@ Item {
     }
 
     signal addClicked
+    /// The display tool: the window opens its menu under it.
+    signal displayClicked
     signal moveFolderClicked
     signal backClicked
     signal searchChanged(string text)
@@ -83,6 +90,12 @@ Item {
     function openSearch(): void {
         root.searchOpen = true;
         filterField.focusInput();
+    }
+
+    /// The display's word: rows, table, shelves.
+    function displayWord(display: string): string {
+        return display === "table" ? qsTr("table") : display === "overview" ? qsTr("shelves")
+                                                                             : qsTr("rows");
     }
 
     /// A tool's tooltip: its words (which narrow steps leave out) and its key.
@@ -272,6 +285,20 @@ Item {
                 overhangY: Math.max(0, Math.min(Theme.keyBadgeOverhangY, filterField.y))
                 shown: root.keysShown
             }
+        }
+
+        Tool {
+            id: displayTool
+
+            glyph: root.display === "table" ? Glyphs.displayTable : root.display === "overview"
+                                                                    ? Glyphs.displayShelves
+                                                                    : Glyphs.displayRows
+            objectName: "titleDisplay"
+            text: root.level >= 1 ? "" : qsTr("%1 ▾").arg(root.displayWord(root.display))
+            visible: root.display.length > 0
+            words: qsTr("display: %1").arg(root.displayWord(root.display))
+
+            onClicked: root.displayClicked()
         }
 
         Tool {
