@@ -920,7 +920,13 @@ void TestApp::theWalksPickTheirDisplay()
         app.filtered()->setFolder(QStringLiteral("/data/films"));
         QCOMPARE(app.display(), QStringLiteral("table"));
         app.filtered()->setFolder(QString());
-        app.setRailHidden(true); // the run's first write takes it along
+    }
+    // Never started, it wrote nothing: the next run decides again.
+    QVERIFY(!QFile::exists(omaseed::core::StateFile::path()));
+    {
+        App app;
+        QCOMPARE(app.display(), QStringLiteral("table"));
+        app.start(); // a real run writes it at once
     }
     qunsetenv("OMASEED_DISPLAY");
     App app;

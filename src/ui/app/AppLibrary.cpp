@@ -24,9 +24,9 @@ const QString kDisplaysKey = QStringLiteral("displays");
 void App::setUpLibraryDisplays()
 {
     // H4: rows for a new install, the table for one made before this build (#168 assumed 3).
-    // Decided from state.json as this run finds it, and written with the first thing this run
-    // writes there (writeStateSection()), so it never flips. An App that writes nothing (a
-    // demo, a test) leaves no state.json behind (APP-16).
+    // Decided from state.json as this run finds it, and written when a real run starts
+    // (start()) or with the first thing this run writes there (writeStateSection()), so it
+    // never flips. An App that writes nothing (a demo, a test) leaves no state.json (APP-16).
     const QJsonObject saved = stateSection(kDisplaysKey);
     if (saved.isEmpty()) {
         const bool exists = QFile::exists(core::StateFile::path());

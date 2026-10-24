@@ -39,6 +39,7 @@ Item {
     readonly property bool isCursor: row.index === row.table.cursorIndex
     readonly property bool isSelected: row.table.selectionRevision >= 0 && row.table.isRowSelected(row.index)
     readonly property bool editing: row.table.renaming && row.table.renameIndex === row.index
+                                    && row.table.face !== null && row.table.face.inlineRename
     readonly property bool needsYou: row.question === TorrentFilterModel.NeedsYou
     readonly property string glyph: {
         const glyph = row.table.statusGlyphs[row.stateText];
@@ -306,8 +307,11 @@ Item {
                 objectName: "libraryRowSentence_" + row.index
                 text: row.rowSentence
                 textFormat: Text.PlainText
-                width: Math.max(0, sentenceLine.width - progressLine.width - sentenceLine.spacing
-                                - (fixButton.visible ? fixButton.width + sentenceLine.spacing : 0))
+                // As long as its words, so the fix follows them (board 46 `.l2`).
+                width: Math.min(sentenceText.implicitWidth, Math.max(0, sentenceLine.width - progressLine.width
+                                                                     - sentenceLine.spacing
+                                                                     - (fixButton.visible ? fixButton.width
+                                                                                            + sentenceLine.spacing : 0)))
             }
 
             // The fix (`.fix`): the error or failure block's first action, here on the row.

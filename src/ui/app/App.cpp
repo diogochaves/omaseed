@@ -372,6 +372,8 @@ void App::start()
     // #9: a real run keeps the Files tab's per-torrent filter and hide-skipped in state.json
     // (demos and QML tests never call start(), so they never write it).
     m_details->setRememberViewState(true);
+    // DECISIONS C24 H4: a real run writes the display it decided (or was told) at once.
+    saveDisplaysFirst();
 
     // #31: a copy when one is due, a minute in (the ledger has its first polls by then), then
     // a check every hour.

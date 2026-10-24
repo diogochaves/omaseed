@@ -184,6 +184,13 @@ TestCase {
 
     // `r` renames inline on a row, and opens the sheet on a cover.
     function test_rename_inline_in_rows_and_the_sheet_on_shelves() {
+        // The table's own editor first: the faces leave it alone.
+        compare(view.table.face, null);
+        keyClick(Qt.Key_R);
+        verify(view.table.renaming);
+        tryVerify(() => findChild(view.table, "renameEditor") !== null && findChild(view.table, "renameEditor").active);
+        keyClick(Qt.Key_Escape);
+        verify(!view.table.renaming);
         testCase.rowsShown();
         keyClick(Qt.Key_R);
         verify(view.table.renaming);

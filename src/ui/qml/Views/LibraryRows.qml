@@ -105,7 +105,9 @@ Item {
         cacheBuffer: Theme.libraryRowHeight * 6
         clip: true
         keyNavigationEnabled: false
-        model: root.filtered
+        // Only while it is the display on show: hidden, it builds no rows (and no rename editor
+        // to fight the table's for the keyboard).
+        model: root.visible ? root.filtered : null
         objectName: "libraryRows"
         reuseItems: true
         section.criteria: ViewSection.FullString
