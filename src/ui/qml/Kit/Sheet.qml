@@ -713,6 +713,8 @@ Item {
                 visible: root.actions.length > 0 || root.note.length > 0
 
                 RowLayout {
+                    id: footRow
+
                     anchors.left: parent.left
                     anchors.leftMargin: Theme.sheetInset
                     anchors.right: parent.right
@@ -733,14 +735,32 @@ Item {
                         objectName: "sheetNote"
                         text: root.note
                         // Kept in the row while empty: it is the room that pushes the buttons
-                        // to the right.
+                        // to the right. Buttons that need the whole foot leave it none.
+                        visible: actionsRow.width < footRow.width
                         wrapMode: Text.WordWrap
                     }
 
-                    RowLayout {
+                    // One line at the right while the buttons fit; on a window too narrow for
+                    // them they wrap onto a second line rather than leave the panel (the mixed
+                    // free sheet's four at the window's narrowest, #169).
+                    Flow {
                         id: actionsRow
 
+                        /// The buttons' widths and the gaps between them on one line.
+                        readonly property real oneLine: {
+                            let width = 0;
+                            for (let i = 0; i < buttonRepeater.count; ++i) {
+                                const button = buttonRepeater.itemAt(i);
+                                if (button)
+                                    width += button.width;
+                            }
+                            return width + Math.max(0, buttonRepeater.count - 1) * Theme.sheetButtonGap;
+                        }
+
                         Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
+                        Layout.preferredHeight: actionsRow.implicitHeight
+                        Layout.preferredWidth: Math.min(actionsRow.oneLine, footRow.width)
+                        objectName: "sheetActions"
                         spacing: Theme.sheetButtonGap
                         visible: root.actions.length > 0
 
@@ -749,6 +769,8 @@ Item {
                         // the same buttons, so the keyboard stays on the one it was on. Only a
                         // change in the number of actions builds the row again.
                         Repeater {
+                            id: buttonRepeater
+
                             model: root.actions.length
 
                             Button {
@@ -757,10 +779,6 @@ Item {
                                 required property int index
                                 readonly property var modelData: root.actions[actionButton.index] ?? ({})
 
-                                // As wide as its words (board 46 `.btn`), never under the
-                                // least a target needs.
-                                Layout.preferredWidth: Math.max(Theme.sheetButtonMinWidth,
-                                                                actionButton.implicitWidth)
                                 // Spec §3 draws every sheet action as `.btn b`: a hairline
                                 // outline at idle. §8's "idle buttons have no chrome" is about
                                 // the hero's bare glyph buttons.
@@ -771,6 +789,10 @@ Item {
                                 primary: actionButton.modelData.primary === true
                                 sidePadding: Theme.sheetButtonPadding
                                 text: actionButton.modelData.text
+                                // As wide as its words (board 46 `.btn`), never under the
+                                // least a target needs, nor over the foot.
+                                width: Math.min(footRow.width, Math.max(Theme.sheetButtonMinWidth,
+                                                                        actionButton.implicitWidth))
 
                                 onClicked: root._trigger(actionButton.modelData)
                             }

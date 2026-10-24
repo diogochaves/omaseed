@@ -819,6 +819,7 @@ TestCase {
     function test_the_cancel_button_still_closes_it() {
         const sheet = createTemporaryObject(addSheetComponent, testCase);
         sheet.openWith(testCase.freshMagnet, "clipboard");
+        waitForRendering(sheet); // the foot's Flow places its buttons when it lays out
         mouseClick(sheet.cancelButton());
         compare(sheet.opened, false);
     }
