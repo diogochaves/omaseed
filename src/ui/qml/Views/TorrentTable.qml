@@ -2323,16 +2323,20 @@ Item {
     Component {
         id: renameEditor
 
-        Rectangle {
-            border.color: Theme.accent
-            border.width: Theme.hairWidth
-            color: Theme.background
+        // The field's fill over the window, edged in the accent: the skin's Plate (#171), with
+        // its small cut.
+        Item {
             implicitWidth: editor.contentWidth + 2 * Theme.space(6) + Theme.space(12)
 
-            Rectangle {
+            Plate {
                 anchors.fill: parent
-                anchors.margins: 1
-                color: Theme.on.idle.fill
+                base: Theme.background
+                edgeColor: Theme.accent
+                edgeWidth: Theme.hairWidth
+                fill: Theme.on.idle.fill
+                key: true
+                objectName: "renamePlate"
+                radius: 0
             }
 
             // The name on the field's idle fill, its selected part on the 35 % accent

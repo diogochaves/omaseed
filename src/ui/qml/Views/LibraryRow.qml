@@ -414,15 +414,18 @@ Item {
         y: words.y + nameLine.y - Theme.libraryRenameRise
         z: 3
 
-        sourceComponent: Rectangle {
-            border.color: Theme.accent
-            border.width: Theme.hairWidth
-            color: Theme.background
-
-            Rectangle {
+        // The field's fill over the window, edged in the accent: the skin's Plate (#171), with
+        // its small cut.
+        sourceComponent: Item {
+            Plate {
                 anchors.fill: parent
-                anchors.margins: 1
-                color: Theme.on.idle.fill
+                base: Theme.background
+                edgeColor: Theme.accent
+                edgeWidth: Theme.hairWidth
+                fill: Theme.on.idle.fill
+                key: true
+                objectName: "renamePlate"
+                radius: 0
             }
 
             TextInput {

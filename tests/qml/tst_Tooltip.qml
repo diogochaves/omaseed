@@ -55,8 +55,11 @@ TestCase {
     // Review Q8: one look, IconButton's: an accent edge and a 400 ms rest.
     function test_one_look_accent_edge_and_four_hundred_ms() {
         const item = createTemporaryObject(host, testCase);
-        compare(item.tip.panelItem.border.color, Theme.accent);
-        compare(item.tip.panelItem.border.width, 1);
+        // The skin's Plate draws the edge (#171), with the small cut.
+        const plate = findChild(item.tip, "tooltipPlate");
+        compare(plate.edgeColor, Theme.accent);
+        compare(plate.edgeWidth, 1);
+        verify(plate.key);
         const plain = createTemporaryObject(plainHost, testCase);
         compare(plain.tip.delay, 400);
     }

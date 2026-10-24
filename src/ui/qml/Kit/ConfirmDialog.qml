@@ -227,18 +227,16 @@ Item {
         onDismissed: root.cancel()
     }
 
-    Rectangle {
+    // The panel's ground and edge are the skin's Plate (#171): Omarchy's rounded edge,
+    // Console's cut plate.
+    Item {
         id: panel
 
         readonly property int padding: Theme.space(18)
 
         Accessible.name: root.message
         Accessible.role: Accessible.AlertMessage
-        border.color: Theme.edgeColor
-        border.width: Theme.edgeWidth
-        color: Theme.background
         implicitHeight: layout.implicitHeight + 2 * panel.padding
-        radius: Theme.cornerRadius
         width: Math.min(root.panelWidth, root.inline ? root.panelWidth
                 : Math.max(0, root.width - 2 * root._margin))
         x: root.inline ? 0 : Math.round((root.width - width) / 2)
@@ -336,6 +334,17 @@ Item {
             z: -1
 
             onWheel: wheel => wheel.accepted = true
+        }
+
+        // Declared last so `children[0]` stays the layout, and drawn first (z -2).
+        Plate {
+            anchors.fill: parent
+            edgeColor: Theme.edgeColor
+            edgeWidth: Theme.edgeWidth
+            fill: Theme.background
+            objectName: "confirmPlate"
+            radius: Theme.cornerRadius
+            z: -2
         }
     }
 }

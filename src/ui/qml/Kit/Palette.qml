@@ -593,14 +593,11 @@ Item {
         }
     }
 
-    Rectangle {
+    // The panel's ground and edge are the skin's Plate (#171), drawn under everything in it.
+    Item {
         id: panel
 
-        border.color: Theme.edgeColor
-        border.width: Theme.edgeWidth
-        color: Theme.background
         implicitHeight: layout.implicitHeight
-        radius: Theme.cornerRadius
         width: Math.min(root.paletteWidth, root.inline ? root.paletteWidth
                 : Math.max(0, root.width - 2 * root._margin))
         x: root.inline ? 0 : Math.round((root.width - width) / 2)
@@ -971,8 +968,8 @@ Item {
             objectName: "dropIndicator"
             visible: root.dropSlot >= 0 && dropIndicator.at >= 0
                      && dropIndicator.at <= list.height
-            width: list.width - 2 * panel.border.width
-            x: list.x + panel.border.width
+            width: list.width - 2 * Theme.edgeWidth
+            x: list.x + Theme.edgeWidth
             y: layout.y + list.y + Math.min(list.height - 1,
                     Math.max(0, Math.round(dropIndicator.at) - 1))
         }
@@ -991,8 +988,8 @@ Item {
             revealed: root._opened
             style: root.scrollHint
             topCover: root._topCover
-            width: list.width - 2 * panel.border.width
-            x: list.x + panel.border.width
+            width: list.width - 2 * Theme.edgeWidth
+            x: list.x + Theme.edgeWidth
             y: layout.y + list.y
         }
 
@@ -1006,6 +1003,17 @@ Item {
             z: -1
 
             onWheel: wheel => wheel.accepted = true
+        }
+
+        // Declared last so `children[0]` stays the layout, and drawn first (z -2).
+        Plate {
+            anchors.fill: parent
+            edgeColor: Theme.edgeColor
+            edgeWidth: Theme.edgeWidth
+            fill: Theme.background
+            objectName: "palettePlate"
+            radius: Theme.cornerRadius
+            z: -2
         }
     }
 }
