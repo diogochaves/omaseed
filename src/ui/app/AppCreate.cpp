@@ -922,7 +922,8 @@ QVariantMap App::madeHereFor(const QString &token) const
     const QDateTime at = record.madeAt.toLocalTime();
     const QString madeText =
         at.date() == QDate::currentDate()
-            ? tr("made here today %1").arg(QLocale::c().toString(at.time(), QStringLiteral("HH:mm")))
+            ? tr("made here today %1")
+                  .arg(QLocale::c().toString(at.time(), QStringLiteral("HH:mm")))
             : tr("made here %1").arg(QLocale::c().toString(at.date(), QStringLiteral("d MMM")));
     const QString madeId = core::TorrentFile::torrentIdFor(record.infoHashV1, record.infoHashV2);
     const bool inLibrary = m_engine->torrents()->indexOfHash(madeId) >= 0;
