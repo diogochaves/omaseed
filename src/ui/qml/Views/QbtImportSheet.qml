@@ -195,16 +195,6 @@ Sheet {
         }
     ]
     glyph: sheet.info.copy === true ? Glyphs.copyFrom : Glyphs.backup
-    hints: [
-        {
-            "key": "tab",
-            "label": qsTr("move")
-        },
-        {
-            "key": "space",
-            "label": qsTr("tick")
-        }
-    ]
     sheetWidth: Theme.space(680)
     subtitle: sheet.info.sub ?? ""
     subtitleLines: 3

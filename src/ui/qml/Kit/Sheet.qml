@@ -3,17 +3,21 @@ import QtQuick
 import QtQuick.Layouts
 import Omaseed.Kit
 
-// The centred sheet of spec v2 §3 (`.sheet`, Fig. 5, 7, 8, 9, 10 and the `?` sheet of
-// Fig. 26): an opaque panel with a 1 px accent edge over a 70 % scrim, a head of
-// icon-square / title / dim subtitle / `esc`, the caller's rows in the middle, equal-width
-// buttons along the foot (`.acts`, `grid-auto-flow:column; grid-auto-columns:1fr`) and an
-// optional hint line above a hairline (`.ft`).
+// The centred sheet (spec v2 §3 `.sheet`, in board 46's frame: `.sheet`, `.shh`, `.shb`, `.shf`,
+// DECISIONS C24 H7): an opaque panel with a 1 px accent edge over the scrim; a head on a
+// hairline (title, an optional trailer, the dim subtitle beside the title while it fits and
+// under it otherwise, `esc`); the caller's rows; a foot on a hairline, a dim note at its left
+// and the buttons at its right, each as wide as its words, the primary filled with the
+// accent. Its form is `Theme.sheet*` tokens (frame plan, "form in tokens").
+//
+// Keys on demand (C24 H10, law 4): the foot paints no key hints; the `?` sheet's block "in a
+// sheet" teaches them, and the note holds only words (C11 D4's "s next server" is gone).
 //
 // Usage — the sheet is an overlay, so the caller anchors it over the whole window:
 //
 //     Sheet {
 //         anchors.fill: parent
-//         glyph: Glyphs.folder; title: qsTr("Set location"); sheetWidth: Theme.space(420)
+//         title: qsTr("Set location"); sheetWidth: Theme.space(420)
 //         actions: [{ text: qsTr("cancel") }, { text: qsTr("move"), primary: true }]
 //         FormRow { Layout.fillWidth: true; label: "…"; Field { Layout.fillWidth: true } }
 //         onActionTriggered: text => …
@@ -45,7 +49,8 @@ import Omaseed.Kit
 Item {
     id: root
 
-    /// The glyph in the head's bordered square (`.hd .ic`). Empty hides the square.
+    /// The glyph in the head's bordered square (spec v2 `.hd .ic`), drawn only where the
+    /// skin draws one (`Theme.sheetHeadGlyph`; board 46 draws none). Empty hides the square.
     property string glyph: ""
     /// The head's title (`.hd .t b`) and the dim line under it (`.hd .t .m`).
     property string title: ""
@@ -65,14 +70,16 @@ Item {
     /// The panel's maximum width; it shrinks when the window is narrower. Fig. 5 is 600,
     /// Fig. 7/8 420, Fig. 26 760; the spec's own `.sheet` default is 520.
     property int sheetWidth: Theme.space(520)
-    /// `[{text, primary, secondary, danger, disabled, key}]`, drawn as equal-width buttons. A
+    /// `[{text, primary, secondary, danger, disabled, cancel}]`, drawn right-aligned in the
+    /// foot, each as wide as its words (board 46 `.shf .btn`; spec v2's equal widths made the
+    /// mixed free sheet 880 wide, #169). A
     /// `disabled` one is dimmed, skipped by `tab`, and `enter` does not run it (#11: the
     /// rename sheet's button while names collide). A new list of the same length relabels the
     /// buttons in place, so the one holding the keyboard keeps it.
     property var actions: []
-    /// `[{key, label}]` for the footer hint line, plus one dim string pushed to the right.
-    property var hints: []
-    property string footerRight: ""
+    /// A dim line at the foot's left, before the buttons (board 46's "waves of 3, smallest
+    /// first"): words, never keys (C24 H10). Empty draws none.
+    property string note: ""
     /// Draw the panel alone, with no scrim and no centring (the gallery).
     property bool inline: false
     /// While open, keys the sheet has no use for stop here instead of reaching the view
@@ -108,15 +115,13 @@ Item {
     /// the margins, padding, head, buttons and hint line. A row that should take what is left
     /// (the add sheet's file tree) sizes itself from this.
     readonly property real bodyRoom: {
-        let chrome = 2 * root._margin + 2 * panel.padding;
-        if (head.visible)
-            chrome += head.height + layout.spacing;
+        let chrome = 2 * root._margin + 2 * Theme.sheetEdge + 2 * Theme.sheetBodyPadding;
+        if (headBox.visible)
+            chrome += headBox.height + 1;
         if (headBandLoader.visible)
-            chrome += headBandLoader.height + layout.spacing;
-        if (actionsRow.visible)
-            chrome += actionsRow.height + actionsRow.Layout.topMargin + layout.spacing;
-        if (foot.visible)
-            chrome += foot.height + layout.spacing;
+            chrome += headBandLoader.height;
+        if (footBox.visible)
+            chrome += footBox.height + 1;
         return Math.max(0, root.height - chrome);
     }
 
@@ -132,7 +137,7 @@ Item {
     /// Everything `focusables()` has ever recognised (see its comment).
     property var _known: []
 
-    readonly property int _margin: Theme.space(16)
+    readonly property int _margin: Theme.sheetMargin
 
     /// Show the sheet, remembering what had the focus.
     function open(): void {
@@ -416,17 +421,26 @@ Item {
     Rectangle {
         id: panel
 
-        readonly property int padding: Theme.space(16)
+        /// The head's room for the title, its trailer and a subtitle beside them.
+        readonly property real _titleRoom: titleRow.width
+        /// The subtitle sits beside the title while the whole of it fits there (board 46's
+        /// move sheet, "Move 3 torrents  81 KB on disk · on public"); a long one goes under
+        /// the title, and one that wraps always does.
+        readonly property bool subtitleBeside: root.subtitle.length > 0 && !root.subtitleWraps
+                                               && Math.ceil(titleMetrics.advanceWidth)
+                                               + (trailerLoader.visible ? trailerLoader.width + titleRow.spacing : 0)
+                                               + Theme.sheetHeadGap + Math.ceil(subtitleMetrics.advanceWidth)
+                                               <= panel._titleRoom
 
         Accessible.name: root.accessibleName
         Accessible.role: Accessible.Dialog
         border.color: Theme.accent
-        border.width: 1
+        border.width: Theme.sheetEdge
         color: Theme.background
         height: root.inline ? implicitHeight
                 : Math.min(implicitHeight, Math.max(0, root.height - 2 * root._margin))
-        implicitHeight: layout.implicitHeight + 2 * panel.padding
-        radius: Theme.cornerRadius
+        implicitHeight: layout.implicitHeight + 2 * Theme.sheetEdge
+        radius: Theme.sheetRadius
         width: Math.min(root.sheetWidth, root.inline ? root.sheetWidth
                 : Math.max(0, root.width - 2 * root._margin))
         x: root.inline ? 0 : Math.round((root.width - width) / 2)
@@ -436,131 +450,188 @@ Item {
             id: layout
 
             anchors.fill: parent
-            anchors.margins: panel.padding
-            spacing: Theme.space(12)
+            anchors.margins: Theme.sheetEdge
+            spacing: 0
 
-            // head (`.sheet .hd`) ---------------------------------------------------
-            RowLayout {
-                id: head
+            // head (board 46 `.shh`) ------------------------------------------------
+            Item {
+                id: headBox
 
                 Layout.fillWidth: true
-                spacing: Theme.space(10)
-                visible: root.glyph.length > 0 || root.title.length > 0
+                Layout.preferredHeight: head.implicitHeight + 2 * Theme.sheetHeadPadding
+                visible: (Theme.sheetHeadGlyph && root.glyph.length > 0) || root.title.length > 0
 
-                Rectangle {
-                    Layout.alignment: Qt.AlignTop
-                    Layout.preferredHeight: Theme.space(30)
-                    Layout.preferredWidth: Theme.space(30)
-                    border.color: Theme.fill(Theme.borderIdle)
-                    border.width: 1
-                    color: "transparent"
-                    radius: Theme.cornerRadius
-                    visible: root.glyph.length > 0
+                RowLayout {
+                    id: head
 
-                    Glyph {
-                        anchors.centerIn: parent
-                        color: Theme.foreground
-                        pixelSize: Theme.font.subtitle
-                        text: root.glyph
+                    anchors.left: parent.left
+                    anchors.leftMargin: Theme.sheetInset
+                    anchors.right: parent.right
+                    anchors.rightMargin: Theme.sheetInset
+                    anchors.verticalCenter: parent.verticalCenter
+                    spacing: Theme.sheetHeadGap
+
+                    Rectangle {
+                        Layout.alignment: Qt.AlignTop
+                        Layout.preferredHeight: Theme.space(30)
+                        Layout.preferredWidth: Theme.space(30)
+                        border.color: Theme.fill(Theme.borderIdle)
+                        border.width: 1
+                        color: "transparent"
+                        objectName: "sheetGlyph"
+                        radius: Theme.cornerRadius
+                        visible: Theme.sheetHeadGlyph && root.glyph.length > 0
+
+                        Glyph {
+                            anchors.centerIn: parent
+                            color: Theme.foreground
+                            pixelSize: Theme.font.subtitle
+                            text: root.glyph
+                        }
                     }
-                }
 
-                ColumnLayout {
-                    Layout.fillWidth: true
-                    spacing: Theme.space(1)
-
-                    RowLayout {
+                    ColumnLayout {
                         Layout.fillWidth: true
-                        spacing: Theme.space(6)
+                        // The head's whole width, whatever its children allow: a layout's
+                        // maximum is otherwise its children's, and a title alone (its maximum
+                        // its own words) left no room to measure a subtitle against.
+                        Layout.maximumWidth: Number.POSITIVE_INFINITY
+                        spacing: Theme.space(1)
 
-                        Label {
-                            id: titleLabel
+                        RowLayout {
+                            id: titleRow
 
-                            // #79: the sheet's title is its heading; a plain Text publishes
-                            // nothing to a screen reader otherwise.
-                            Accessible.name: text
-                            Accessible.role: Accessible.Heading
-                            Layout.fillWidth: root.titleTrailer === null
-                            // The title's whole width, measured apart: an elided Text's own
-                            // implicitWidth can follow its elision, and a title that grew
-                            // (a move sheet's, read again as its plan changes) stayed cut.
-                            Layout.maximumWidth: Math.ceil(titleMetrics.advanceWidth) + 1
-                            Layout.minimumWidth: Math.min(Layout.maximumWidth, Theme.space(80))
-                            bright: true
-                            elide: Text.ElideRight
-                            font.weight: Font.DemiBold
-                            objectName: "sheetTitle"
-                            text: root.title
+                            Layout.fillWidth: true
+                            Layout.maximumWidth: Number.POSITIVE_INFINITY
+                            spacing: Theme.space(6)
 
-                            TextMetrics {
-                                id: titleMetrics
+                            Label {
+                                id: titleLabel
 
-                                font: titleLabel.font
-                                text: titleLabel.text
+                                // #79: the sheet's title is its heading; a plain Text
+                                // publishes nothing to a screen reader otherwise.
+                                Accessible.name: text
+                                Accessible.role: Accessible.Heading
+                                Layout.alignment: Qt.AlignLeft | Qt.AlignBaseline
+                                Layout.fillWidth: root.titleTrailer === null && !panel.subtitleBeside
+                                // The title's whole width, measured apart: an elided Text's
+                                // own implicitWidth can follow its elision, and a title that
+                                // grew (a move sheet's, read again as its plan changes)
+                                // stayed cut.
+                                Layout.maximumWidth: Math.ceil(titleMetrics.advanceWidth) + 1
+                                Layout.minimumWidth: Math.min(Layout.maximumWidth, Theme.space(80))
+                                bright: true
+                                elide: Text.ElideRight
+                                font.pixelSize: Theme.sheetTitleSize
+                                font.weight: Theme.sheetTitleWeight
+                                objectName: "sheetTitle"
+                                text: root.title
+
+                                TextMetrics {
+                                    id: titleMetrics
+
+                                    font: titleLabel.font
+                                    text: titleLabel.text
+                                }
+                            }
+
+                            Loader {
+                                id: trailerLoader
+
+                                active: root.titleTrailer !== null
+                                objectName: "sheetTitleTrailer"
+                                sourceComponent: root.titleTrailer
+                                visible: active
+                            }
+
+                            Label {
+                                id: subtitleBesideLabel
+
+                                // #79: what the sheet acts on, whole even when it elides.
+                                Accessible.name: text
+                                Accessible.role: Accessible.StaticText
+                                // On the title's baseline (board 46 `.shh`'s one line).
+                                Layout.alignment: Qt.AlignLeft | Qt.AlignBaseline
+                                Layout.fillWidth: true
+                                Layout.leftMargin: Theme.sheetHeadGap - titleRow.spacing
+                                dim: true
+                                elide: Text.ElideRight
+                                font.pixelSize: Theme.sheetSubtitleSize
+                                objectName: panel.subtitleBeside ? "sheetSubtitle" : "sheetSubtitleSpare"
+                                text: root.subtitle
+                                visible: panel.subtitleBeside
+
+                                TextMetrics {
+                                    id: subtitleMetrics
+
+                                    font: subtitleBesideLabel.font
+                                    text: root.subtitle
+                                }
+                            }
+
+                            Item {
+                                Layout.fillWidth: true
+                                visible: root.titleTrailer !== null && !panel.subtitleBeside
                             }
                         }
 
-                        Loader {
-                            active: root.titleTrailer !== null
-                            objectName: "sheetTitleTrailer"
-                            sourceComponent: root.titleTrailer
-                            visible: active
-                        }
-
-                        Item {
+                        Label {
+                            // #79: what the sheet acts on ("1 torrent · 1.31 GB moves with it"),
+                            // whole even when it elides.
+                            Accessible.name: text
+                            Accessible.role: Accessible.StaticText
                             Layout.fillWidth: true
-                            visible: root.titleTrailer !== null
+                            dim: true
+                            elide: Text.ElideRight
+                            font.pixelSize: Theme.sheetSubtitleSize
+                            maximumLineCount: root.subtitleWraps ? root.subtitleLines : 1
+                            objectName: panel.subtitleBeside ? "sheetSubtitleSpare" : "sheetSubtitle"
+                            text: root.subtitle
+                            visible: root.subtitle.length > 0 && !panel.subtitleBeside
+                            wrapMode: root.subtitleWraps ? Text.WordWrap : Text.NoWrap
                         }
                     }
 
+                    // It looks like a close control, so it is one: what `esc` does, by click
+                    // (board 46 `.btn.ghost`).
                     Label {
-                        // #79: what the sheet acts on ("1 torrent · 1.31 GB moves with it"),
-                        // whole even when it elides.
-                        Accessible.name: text
-                        Accessible.role: Accessible.StaticText
-                        Layout.fillWidth: true
-                        dim: true
-                        elide: Text.ElideRight
-                        maximumLineCount: root.subtitleWraps ? root.subtitleLines : 1
-                        objectName: "sheetSubtitle"
+                        id: escLabel
+
+                        Layout.alignment: Qt.AlignTop
+                        color: escArea.containsMouse ? Theme.accent : Theme.dimForeground
                         size: "small"
-                        text: root.subtitle
-                        visible: root.subtitle.length > 0
-                        wrapMode: root.subtitleWraps ? Text.WordWrap : Text.NoWrap
+                        text: root.escText
+                        visible: root.escText.length > 0
+
+                        MouseArea {
+                            id: escArea
+
+                            // #78: named by what it does, not by its key, which is the
+                            // description.
+                            Accessible.description: qsTr("shortcut %1").arg(root.escText)
+                            Accessible.name: qsTr("close")
+                            Accessible.role: Accessible.Button
+                            // A screen reader's press is the click (#75); disabled, it does
+                            // nothing, as the pointer. A MouseArea's own `enabled` is its flag
+                            // alone, so the label's says whether the sheet is disabled.
+                            Accessible.onPressAction: if (escLabel.enabled)
+                                                          root.pressEscape()
+                            anchors.fill: parent
+                            anchors.margins: -Theme.space(4)
+                            cursorShape: Qt.PointingHandCursor
+                            hoverEnabled: true
+                            objectName: "sheetEsc"
+
+                            onClicked: root.pressEscape()
+                        }
                     }
                 }
+            }
 
-                // It looks like a close control, so it is one: what `esc` does, by click.
-                Label {
-                    id: escLabel
-
-                    Layout.alignment: Qt.AlignTop
-                    color: escArea.containsMouse ? Theme.accent : Theme.dimForeground
-                    size: "caption"
-                    text: root.escText
-                    visible: root.escText.length > 0
-
-                    MouseArea {
-                        id: escArea
-
-                        // #78: named by what it does, not by its key, which is the description.
-                        Accessible.description: qsTr("shortcut %1").arg(root.escText)
-                        Accessible.name: qsTr("close")
-                        Accessible.role: Accessible.Button
-                        // A screen reader's press is the click (#75); disabled, it does
-                        // nothing, as the pointer. A MouseArea's own `enabled` is its flag
-                        // alone, so the label's says whether the sheet is disabled.
-                        Accessible.onPressAction: if (escLabel.enabled)
-                                                      root.pressEscape()
-                        anchors.fill: parent
-                        anchors.margins: -Theme.space(4)
-                        cursorShape: Qt.PointingHandCursor
-                        hoverEnabled: true
-                        objectName: "sheetEsc"
-
-                        onClicked: root.pressEscape()
-                    }
-                }
+            Hairline {
+                Layout.fillWidth: true
+                objectName: "sheetHeadRule"
+                visible: headBox.visible
             }
 
             // docs/35 N7: the sheet's notice, edge to edge under the head.
@@ -570,16 +641,14 @@ Item {
                 readonly property Item band: headBandLoader.item as Item
 
                 Layout.fillWidth: true
-                Layout.leftMargin: -panel.padding + panel.border.width
                 Layout.preferredHeight: headBandLoader.band ? headBandLoader.band.height : 0
-                Layout.rightMargin: -panel.padding + panel.border.width
                 active: root.headBand !== null
                 objectName: "sheetHeadBand"
                 sourceComponent: root.headBand
                 visible: active && headBandLoader.band !== null && headBandLoader.band.height > 0
             }
 
-            // the caller's rows ------------------------------------------------------
+            // the caller's rows (board 46 `.shb`) ------------------------------------
             // The Flickable clips, so it reaches `Theme.focusExtent` past the rows on every
             // side and insets them by as much: a row's FocusRing (review Q6) draws outside its
             // control, and a control flush with the edge would lose it. The rows stay where
@@ -587,14 +656,14 @@ Item {
             Flickable {
                 id: bodyScroller
 
-                Layout.bottomMargin: -Theme.focusExtent
+                Layout.bottomMargin: Theme.sheetBodyPadding - Theme.focusExtent
                 Layout.fillHeight: true
                 Layout.fillWidth: true
-                Layout.leftMargin: -Theme.focusExtent
+                Layout.leftMargin: Theme.sheetInset - Theme.focusExtent
                 Layout.maximumHeight: bodyColumn.implicitHeight + 2 * Theme.focusExtent
                 Layout.preferredHeight: bodyColumn.implicitHeight + 2 * Theme.focusExtent
-                Layout.rightMargin: -Theme.focusExtent
-                Layout.topMargin: -Theme.focusExtent
+                Layout.rightMargin: Theme.sheetInset - Theme.focusExtent
+                Layout.topMargin: Theme.sheetBodyPadding - Theme.focusExtent
                 boundsBehavior: Flickable.StopAtBounds
                 clip: true
                 contentHeight: bodyColumn.implicitHeight + 2 * Theme.focusExtent
@@ -605,7 +674,7 @@ Item {
                 ColumnLayout {
                     id: bodyColumn
 
-                    spacing: Theme.space(12)
+                    spacing: Theme.sheetRowGap
                     // Clear of the scroll bar while there is one.
                     width: bodyScroller.width - 2 * Theme.focusExtent
                            - (bodyScrollBar.needed ? bodyScrollBar.width + Theme.space(4) : 0)
@@ -628,70 +697,91 @@ Item {
                 }
             }
 
-            // the buttons (`.sheet .acts`) -------------------------------------------
-            RowLayout {
-                id: actionsRow
-
+            Hairline {
                 Layout.fillWidth: true
-                Layout.topMargin: Theme.space(4)
-                spacing: Theme.space(8)
-                visible: root.actions.length > 0
-
-                // One button per place, not per action: a sheet that relabels or dims its
-                // actions (the server sheet's `save` → `save anyway`, #68) keeps the same
-                // buttons, so the keyboard stays on the one it was on. Only a change in the
-                // number of actions builds the row again.
-                Repeater {
-                    model: root.actions.length
-
-                    Button {
-                        id: actionButton
-
-                        required property int index
-                        readonly property var modelData: root.actions[actionButton.index] ?? ({})
-
-                        Layout.fillWidth: true
-                        Layout.preferredWidth: 1
-                        // Spec §3 draws every sheet action as `.btn b`: a hairline
-                        // outline at idle. §8's "idle buttons have no chrome" is about
-                        // the hero's bare glyph buttons.
-                        bordered: true
-                        danger: actionButton.modelData.danger === true
-                        enabled: actionButton.modelData.disabled !== true
-                        primary: actionButton.modelData.primary === true
-                        text: actionButton.modelData.text
-
-                        onClicked: root._trigger(actionButton.modelData)
-                    }
-                }
+                objectName: "sheetFootRule"
+                visible: footBox.visible
             }
 
-            // the hint line (`.sheet .ft`) -------------------------------------------
-            ColumnLayout {
-                id: foot
+            // the foot (board 46 `.shf`): the note, then the buttons -----------------
+            Item {
+                id: footBox
 
                 Layout.fillWidth: true
-                spacing: Theme.space(8)
-                visible: root.hints.length > 0 || root.footerRight.length > 0
+                Layout.preferredHeight: Math.max(actionsRow.implicitHeight, noteLabel.implicitHeight)
+                                        + 2 * Theme.sheetFootPadding
+                visible: root.actions.length > 0 || root.note.length > 0
 
-                Hairline {
-                    Layout.fillWidth: true
-                }
+                RowLayout {
+                    anchors.left: parent.left
+                    anchors.leftMargin: Theme.sheetInset
+                    anchors.right: parent.right
+                    anchors.rightMargin: Theme.sheetInset
+                    anchors.verticalCenter: parent.verticalCenter
+                    spacing: Theme.sheetHeadGap
 
-                KeyHints {
-                    Layout.fillWidth: true
-                    model: root.hints
-                    pinned: root.footerRight.length > 0 ? {
-                        "key": "",
-                        "label": root.footerRight
-                    } : null
-                    size: "caption"
+                    Label {
+                        id: noteLabel
+
+                        Accessible.name: text
+                        Accessible.role: Accessible.StaticText
+                        Layout.fillWidth: true
+                        dim: true
+                        elide: Text.ElideRight
+                        font.pixelSize: Theme.sheetNoteSize
+                        maximumLineCount: Theme.sheetNoteLines
+                        objectName: "sheetNote"
+                        text: root.note
+                        // Kept in the row while empty: it is the room that pushes the buttons
+                        // to the right.
+                        wrapMode: Text.WordWrap
+                    }
+
+                    RowLayout {
+                        id: actionsRow
+
+                        Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
+                        spacing: Theme.sheetButtonGap
+                        visible: root.actions.length > 0
+
+                        // One button per place, not per action: a sheet that relabels or dims
+                        // its actions (the server sheet's `save` → `save anyway`, #68) keeps
+                        // the same buttons, so the keyboard stays on the one it was on. Only a
+                        // change in the number of actions builds the row again.
+                        Repeater {
+                            model: root.actions.length
+
+                            Button {
+                                id: actionButton
+
+                                required property int index
+                                readonly property var modelData: root.actions[actionButton.index] ?? ({})
+
+                                // As wide as its words (board 46 `.btn`), never under the
+                                // least a target needs.
+                                Layout.preferredWidth: Math.max(Theme.sheetButtonMinWidth,
+                                                                actionButton.implicitWidth)
+                                // Spec §3 draws every sheet action as `.btn b`: a hairline
+                                // outline at idle. §8's "idle buttons have no chrome" is about
+                                // the hero's bare glyph buttons.
+                                bordered: true
+                                danger: actionButton.modelData.danger === true
+                                enabled: actionButton.modelData.disabled !== true
+                                filled: Theme.sheetPrimaryFilled
+                                primary: actionButton.modelData.primary === true
+                                sidePadding: Theme.sheetButtonPadding
+                                text: actionButton.modelData.text
+
+                                onClicked: root._trigger(actionButton.modelData)
+                            }
+                        }
+                    }
                 }
             }
         }
 
         // The panel's own ground (its padding, the head, the gaps around the rows and the
-        // buttons, the hint line) takes the clicks nothing on it wanted. Without it they fell
+        // buttons, the note) takes the clicks nothing on it wanted. Without it they fell
         // through to the Scrim underneath, and a click inside the sheet closed it.
         MouseArea {
             // Last, at z -1: under the rows, and `children[0]` is still the layout.

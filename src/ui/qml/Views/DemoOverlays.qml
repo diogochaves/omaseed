@@ -55,18 +55,8 @@ Window {
             }
         ]
         anchors.fill: parent
-        footerRight: qsTr("server: home")
+        note: qsTr("server: home")
         glyph: Glyphs.folder
-        hints: [
-            {
-                "key": "tab",
-                "label": qsTr("fields")
-            },
-            {
-                "key": "enter",
-                "label": qsTr("move")
-            }
-        ]
         sheetWidth: Theme.space(420)
         subtitle: qsTr("1 torrent · 1.31 GB moves with it")
         title: qsTr("Set location")

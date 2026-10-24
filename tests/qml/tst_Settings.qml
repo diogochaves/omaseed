@@ -447,7 +447,7 @@ TestCase {
         verify(!select.listOpen);
         verify(serverChangedSpy.count > 0);
         compare(App.serverList.defaultId, second);
-        compare(modal.sheet.footerRight, "omaseed is on second now · the library too");
+        compare(modal.sheet.note, "omaseed is on second now · the library too");
         verify(modal.opened);
         verify(modal.inQbt);
     }
@@ -632,8 +632,7 @@ TestCase {
         compare(save.enabled, false);
         compare(save.primary, false);
         verify(testCase.sheetButton(sheet, "test").primary);
-        compare(sheet.footerRight, "test first");
-        compare(sheet.hints[1].label, "test");
+        compare(sheet.note, "test first");
         verify(sheet.actionButtons().indexOf(save) < 0, "a dimmed save is in the tab cycle");
 
         // Neither the button's signal nor `enter` saves it.
@@ -651,8 +650,7 @@ TestCase {
         verify(save.enabled);
         verify(save.primary);
         compare(testCase.sheetButton(sheet, "test").primary, false);
-        compare(sheet.footerRight, "");
-        compare(sheet.hints[1].label, "save");
+        compare(sheet.note, "");
 
         // A pass is for the address it tested: another one waits for its own test.
         sheet.editUrl = "http://127.0.0.1:8082";
@@ -689,7 +687,7 @@ TestCase {
         compare(anyway.primary, false);
         // `enter` tests again; the deliberate save is the button.
         verify(testCase.sheetButton(sheet, "test").primary);
-        compare(sheet.footerRight, "");
+        compare(sheet.note, "");
         verify(sheet.actionButtons().indexOf(anyway) >= 0);
 
         anyway.clicked();
@@ -748,12 +746,12 @@ TestCase {
         sheet.openFor(App.serverList.serverMap(id));
         sheet.actionTriggered("edit");
         compare(sheet.saveState, "save");
-        compare(sheet.footerRight, "");
+        compare(sheet.note, "");
 
         sheet.editUrl = "http://127.0.0.1:8082";
         compare(sheet.saveState, "wait");
         compare(testCase.sheetButton(sheet, "save").enabled, false);
-        compare(sheet.footerRight, "test first");
+        compare(sheet.note, "test first");
         sheet.editUrl = "http://127.0.0.1:8081";
         compare(sheet.saveState, "save");
 
@@ -991,21 +989,6 @@ TestCase {
         compare(modal.serverSheet.serverId, id);
         verify(modal.serverSheet.testing || modal.serverSheet.tested);
         modal.serverSheet.close();
-    }
-
-    // Review RUN-9: the footer's `enter` names the button the keyboard is on.
-    function test_the_enter_hint_follows_the_focused_button() {
-        const id = testCase.addTestServer("playground", "http://127.0.0.1:8081");
-        const modal = createTemporaryObject(modalComponent, testCase);
-        modal.open();
-        const sheet = modal.serverSheet;
-        sheet.openFor(App.serverList.serverMap(id));
-        const buttons = sheet.actionButtons();
-        buttons[0].forceActiveFocus(); // test
-        compare(sheet.hints[0].label, "test");
-        buttons[2].forceActiveFocus(); // edit
-        compare(sheet.hints[0].label, "edit");
-        sheet.close();
     }
 
     // #51 D4: the sheet of a server that is not the default has "switch to it", which does

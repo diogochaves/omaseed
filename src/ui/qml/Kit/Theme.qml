@@ -161,6 +161,44 @@ ThemeBase {
     readonly property int actionBarRuleRoom: space(8)
     readonly property int actionBarRuleInset: space(7)
 
+    /// A word button (board 46 `.status.sel .ab`: 8 px either side of its word), and the room
+    /// before the end's "all actions" and "esc".
+    readonly property int actionBarWordPadding: space(8)
+    readonly property int actionBarEndGap: space(12)
+
+    // ---- the sheets' form (board 46 `.sheet`, `.shh`, `.shb`, `.shf`, DECISIONS C24 H7) ------
+    /// From the window's edge to a sheet that would be wider than the window.
+    readonly property int sheetMargin: space(16)
+    /// Its edge (`.sheet`: 1 px of the accent) and its corners (the kit's).
+    readonly property int sheetEdge: 1
+    readonly property int sheetRadius: cornerRadius
+    /// The head, the rows and the foot share one inset at the sides (16 px); the head has 12 px
+    /// over and under it, the rows 12 px, the foot 10 px (`.shh`, `.shb`, `.shf`).
+    readonly property int sheetInset: space(16)
+    readonly property int sheetHeadPadding: space(12)
+    readonly property int sheetBodyPadding: space(12)
+    readonly property int sheetFootPadding: space(10)
+    /// Between the head's parts (10 px), the rows (12 px), and the foot's buttons (10 px).
+    readonly property int sheetHeadGap: space(10)
+    readonly property int sheetRowGap: space(12)
+    readonly property int sheetButtonGap: space(8)
+    /// The title (14 px, 600, bright) and the dim words beside or under it (11.5 px).
+    readonly property int sheetTitleSize: font.body
+    readonly property int sheetTitleWeight: Font.DemiBold
+    readonly property int sheetSubtitleSize: font.small
+    /// The foot's note at its left (11.5 px, dim) and the lines it may take.
+    readonly property int sheetNoteSize: font.small
+    readonly property int sheetNoteLines: 2
+    /// A foot button: the room either side of its words (`.btn`: 12 px), and the least width
+    /// it takes, so "ok" is still a target.
+    readonly property int sheetButtonPadding: space(12)
+    readonly property int sheetButtonMinWidth: space(64)
+    /// The primary is filled with the accent, its words in the window's ground (`.btn.pri`);
+    /// false draws the kit's accent outline.
+    readonly property bool sheetPrimaryFilled: true
+    /// The head's bordered glyph square (spec v2 `.hd .ic`): board 46 draws none.
+    readonly property bool sheetHeadGlyph: false
+
     // ---- the frame's form: the app menu (board 46 `menuHtml("app")`, DECISIONS C24 H9) ---
     /// Its width: board 46's `.menu` is 268 px at least at 13 px type; the head's version and
     /// server line ("0.5.0 · public · qBittorrent 5.3.0") want more than the kit's 280.

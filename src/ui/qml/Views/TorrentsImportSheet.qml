@@ -107,16 +107,6 @@ Sheet {
         }
     ]
     glyph: Glyphs.backup
-    hints: [
-        {
-            "key": "tab",
-            "label": qsTr("move")
-        },
-        {
-            "key": "space",
-            "label": qsTr("pick")
-        }
-    ]
     sheetWidth: Theme.space(640)
     subtitle: sheet.info.sub ?? ""
     subtitleWraps: true

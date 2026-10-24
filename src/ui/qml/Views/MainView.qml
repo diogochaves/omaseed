@@ -2486,21 +2486,6 @@ Item {
 
         onRejected: root.helpOpen = false
 
-        hints: [
-            {
-                "key": "↑↓",
-                "label": qsTr("move")
-            },
-            {
-                "key": "enter",
-                "label": qsTr("run")
-            },
-            {
-                "key": "esc",
-                "label": qsTr("clear, then close")
-            }
-        ]
-
         HelpSheet {
             id: helpSheet
 

@@ -50,16 +50,6 @@ Sheet {
         }
     ]
     glyph: Glyphs.settings
-    hints: [
-        {
-            "key": "ctrl+enter",
-            "label": qsTr("save")
-        },
-        {
-            "key": "enter",
-            "label": qsTr("new line")
-        }
-    ]
     sheetWidth: Theme.space(520)
     subtitle: qsTr("one per line · %1").arg(root.what)
 

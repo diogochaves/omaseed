@@ -40,6 +40,9 @@ Rectangle {
     property string trailing: ""
     /// A key drawn as a cap after `trailing` (docs/12 F1: the Files filter's `esc`); "" none.
     property string trailingKey: ""
+    /// Draw `trailingKey`'s cap. False keeps the key for a screen reader only (a sheet's
+    /// `browse`: keys on demand, DECISIONS C24 H10).
+    property bool trailingKeyShown: true
     /// The trailing text and cap act as a button (the add sheet's `browse`, manual box M6):
     /// a pointing hand and the accent under the mouse, and a click emits `trailingClicked`.
     /// The key it names still has to be handled by the caller.
@@ -301,7 +304,7 @@ Rectangle {
         ink: root.ink
         objectName: "fieldTrailingKey"
         text: root.trailingKey
-        visible: root.trailingKey.length > 0
+        visible: root.trailingKey.length > 0 && root.trailingKeyShown
     }
 
     Text {
