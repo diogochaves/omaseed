@@ -181,6 +181,37 @@ TestCase {
         compare(rail.collapsedGroups, []);
     }
 
+    // #187: an open group's heading is no cursor stop, so it paints nothing at rest, with or
+    // without the keys; a folded one shows the cursor only while the rail has the keys and the
+    // cursor is on it.
+    function test_headings_at_rest_paint_no_fill() {
+        const rail = createTemporaryObject(railComponent, testCase);
+        const names = ["now", "categories", "tags", "trackers"];
+        function verifyAtRest(why) {
+            for (const name of names) {
+                const group = findChild(rail, name);
+                verify(group !== null, name);
+                compare(group.hasCursor, false, name + ", " + why);
+                verify(group.ink.ground === group.block, name + " sits on a fill, " + why);
+                compare(group.header.color, Qt.color("transparent"), name + ", " + why);
+            }
+        }
+        verifyAtRest("without the keys");
+
+        rail.cursorIndex = rail.categoriesBase + 1;
+        rail.forceActiveFocus();
+        verify(rail.activeFocus);
+        verifyAtRest("with the cursor on a row");
+
+        rail.collapsedGroups = ["categories"];
+        rail.cursorIndex = rail.categoriesBase;
+        const categories = findChild(rail, "categories");
+        compare(categories.hasCursor, true);
+        verify(categories.ink.ground !== categories.block, "the cursor's heading has no fill");
+        rail.focus = false;
+        compare(categories.hasCursor, false);
+    }
+
     // docs/08 §5: a folded group hides its rows and leaves one cursor stop, its heading;
     // `z` folds the group the cursor is in, and `enter` on the heading unfolds it.
     function test_a_folded_group_is_one_stop_and_z_folds_it() {
