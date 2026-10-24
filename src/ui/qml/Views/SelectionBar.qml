@@ -449,8 +449,10 @@ Rectangle {
                     }
                 }
 
+                // ⋯'s "enter" would hang over open folder's badge; board 46's "all actions"
+                // has none either, its tooltip says it.
                 KeyBadge {
-                    key: slot.button ? slot.button.key : ""
+                    key: slot.button && slot.modelData !== "more" ? slot.button.key : ""
                     objectName: "barKey_" + slot.modelData
                     shown: root.keysShown && !slot.rule
                 }

@@ -21,6 +21,9 @@ Rectangle {
     property bool shown: false
     /// Hang over the parent's top-right corner; false, the parent places it.
     property bool corner: true
+    /// How far it hangs above the corner: less where the window's edge is nearer (the title
+    /// bar's tools).
+    property int overhangY: Theme.keyBadgeOverhangY
 
     readonly property alias label: keyText
 
@@ -28,7 +31,7 @@ Rectangle {
     anchors.right: root.corner && root.parent ? root.parent.right : undefined
     anchors.rightMargin: root.corner ? -Theme.keyBadgeOverhangX : 0
     anchors.top: root.corner && root.parent ? root.parent.top : undefined
-    anchors.topMargin: root.corner ? -Theme.keyBadgeOverhangY : 0
+    anchors.topMargin: root.corner ? -root.overhangY : 0
     color: Theme.accent
     implicitHeight: Theme.keyBadgeHeight
     implicitWidth: Math.max(Theme.keyBadgeHeight, Math.ceil(keyText.implicitWidth) + 2

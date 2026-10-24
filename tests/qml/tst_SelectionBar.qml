@@ -339,7 +339,7 @@ TestCase {
         compare(clicks, 1, "a disabled bar took the press");
     }
 
-    // DECISIONS C24 H10: alt held, each button and the ✕ show their keys over their corner;
+    // DECISIONS C24 H10: alt held, each button but ⋯ and the ✕ show their keys over their corner;
     // the bar's room and its folds don't move.
     function test_alt_badges_every_buttons_key_and_moves_nothing() {
         const bar = createTemporaryObject(barComponent, testCase, {
@@ -351,8 +351,10 @@ TestCase {
         bar.keysShown = true;
         compare(bar.items.join(), items);
         compare(button(bar, "stop").mapToItem(bar, 0, 0).x, stopX);
+        // ⋯ has none: its "enter" would cover open folder's (board 46's "all actions" has none).
+        verify(!findChild(bar, "barKey_more").visible);
         for (const action of bar.items) {
-            if (action === "|")
+            if (action === "|" || action === "more")
                 continue;
             const badge = findChild(bar, "barKey_" + action);
             verify(badge.visible, action);

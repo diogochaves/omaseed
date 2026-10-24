@@ -102,8 +102,8 @@ ThemeBase {
 
     // ---- the frame's form: the app menu (board 46 `menuHtml("app")`, DECISIONS C24 H9) ---
     /// Its width: board 46's `.menu` is 268 px at least at 13 px type; the head's version and
-    /// server line want a little more than the kit's 280.
-    readonly property int appMenuWidth: space(300)
+    /// server line ("0.5.0 · public · qBittorrent 5.3.0") want more than the kit's 280.
+    readonly property int appMenuWidth: space(340)
 
     // ---- the frame's form: keys on demand (board 46 `.kb`, DECISIONS C24 H10) ------------
     /// A key's badge while alt is held: its height, the room either side of the key, its type

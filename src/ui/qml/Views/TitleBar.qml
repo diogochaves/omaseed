@@ -109,8 +109,10 @@ Item {
         height: Theme.titleBarToolHeight
         text: root.level >= 1 ? "" : tool.words
 
+        // Over the corner, but inside the window: the bar is the window's top.
         KeyBadge {
             key: tool.key
+            overhangY: Math.max(0, Math.min(Theme.keyBadgeOverhangY, tool.y))
             shown: root.keysShown && tool.visible
         }
 
@@ -267,6 +269,7 @@ Item {
             KeyBadge {
                 key: "/"
                 objectName: "titleFilterKey"
+                overhangY: Math.max(0, Math.min(Theme.keyBadgeOverhangY, filterField.y))
                 shown: root.keysShown
             }
         }

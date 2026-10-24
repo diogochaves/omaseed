@@ -204,7 +204,9 @@ TestCase {
         verify(findChild(bar, "titleFilterKey").visible);
         // A hidden tool's badge stays hidden.
         verify(!badge(bar.backTool).visible);
-        compare(badge(bar.addTool).y, -Theme.keyBadgeOverhangY);
+        // Over the corner, never above the bar, which is the window's top.
+        compare(badge(bar.addTool).y, -Math.min(Theme.keyBadgeOverhangY, bar.addTool.y));
+        verify(badge(bar.addTool).mapToItem(bar, 0, 0).y >= 0);
         compare([bar.addTool.x, bar.addTool.width, bar.moveFolderTool.x, bar.searchField.x], before);
     }
 }
