@@ -14,6 +14,9 @@
 #
 # The box comes from `scripts/dev/app-box.sh up --qbt`: qbittorrent-nox inside the box on its
 # 127.0.0.1:8090, no login from there, omaseed pointed at it. The steps:
+#   - Appearance › Skin (#171): Omarchy, Console, Follow the desktop, each saved and drawn at
+#     once; following a fixture console-skin.json written inside the box (never this
+#     machine's), turned off by console.json's fx.skin, fx.fonts = system recorded, and gone;
 #   - the nine sections, one shot each;
 #   - Downloads › Send an email on: the encryption type's chips on a 5.3 server (enter picks
 #     the next, and back), Use SSL on 5.2; then off again;
@@ -36,6 +39,8 @@ repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 # walk reads the table (its columns, its rows' order), so it pins the table: every scope starts
 # on it (App's OMASEED_DISPLAY), passed to each launch here and by app-box.sh.
 export OMASEED_DISPLAY="${OMASEED_DISPLAY:-table}"
+# The walk picks the skin in Settings (#171): a pinned one would win over the choice.
+unset OMASEED_SKIN
 cd "$repo"
 APP_BOX="$repo/scripts/dev/app-box.sh"
 # shellcheck source=scripts/dev/home-guard.sh
@@ -75,6 +80,46 @@ saved_url() {
 saved_pin() {
     python3 -c 'import json, sys; print(json.load(open(sys.argv[1]))["servers"][0].get("certificateSha256", ""))' \
         "$(omabox path -b "$BOX")/home/.config/omaseed/servers.json"
+}
+
+# saved_skin: Appearance's skin choice in omaseed's state.json.
+saved_skin() {
+    jq -r '.appearance.skin // "omarchy"' "$(omabox path -b "$BOX")/home/.config/omaseed/state.json" 2>/dev/null
+}
+
+# drawn_skin: what the app last logged drawing ("console (choice desktop, fonts system)"), or
+# "omarchy" before any switch.
+drawn_skin() {
+    local line
+    line="$(grep -a 'skin: [a-z]* (choice ' "$APP_LOG" 2>/dev/null | tail -n 1 || true)"
+    [ -n "$line" ] && echo "${line##*skin: }" || echo omarchy
+}
+
+# wait_skin EXPECTED: until drawn_skin starts with EXPECTED (10 s).
+wait_skin() {
+    for _ in $(seq 1 40); do
+        case "$(drawn_skin)" in "$1"*) return 0 ;; esac
+        sleep 0.25
+    done
+    return 0
+}
+
+# THEME_SKIN: the box's own copy of its theme's console-skin.json (a box starts on a copy of
+# this machine's theme, which may carry one); the walk sets it aside while it follows the
+# desktop, and puts it back.
+THEME_SKIN=/home/sbx/.local/state/omarchy/current/theme/console-skin.json
+
+# desktop_file NAME [JSON]: write ~/.config/omarchy/NAME inside the box by rename, as
+# omarchy-console's panel writes console.json; with no JSON, remove it. Only the box's.
+desktop_file() {
+    if [ $# -lt 2 ]; then
+        omabox run -b "$BOX" -- rm -f "/home/sbx/.config/omarchy/$1"
+        return
+    fi
+    # shellcheck disable=SC2016 # expanded by the box's shell, from its own HOME and the args
+    omabox run -b "$BOX" -- sh -c 'mkdir -p "$HOME/.config/omarchy" &&
+        printf "%s\n" "$2" >"$HOME/.config/omarchy/$1.next" &&
+        mv "$HOME/.config/omarchy/$1.next" "$HOME/.config/omarchy/$1"' sh "$1" "$2"
 }
 
 # set_prefs JSON: straight to the box's qBittorrent (what is not under test).
@@ -159,11 +204,63 @@ if [ "$INTERACTIVE" = 0 ]; then
 fi
 echo "starting the box (omaseed on a qBittorrent of the box's own)"
 if [ "$INTERACTIVE" = 1 ]; then
-    "$APP_BOX" up --qbt --interactive -b "$BOX" --build "$BUILD" >/dev/null
+    up="$("$APP_BOX" up --qbt --interactive -b "$BOX" --build "$BUILD")"
 else
-    "$APP_BOX" up --qbt -b "$BOX" --build "$BUILD" >/dev/null
+    up="$("$APP_BOX" up --qbt -b "$BOX" --build "$BUILD")"
 fi
+# The app's own output, where it says which skin it draws.
+APP_LOG="$(sed -n 's/.*(log: \(.*\))$/\1/p' <<<"$up" | tail -n 1)"
 omabox pointer -b "$BOX" -- move 5 5 >/dev/null 2>&1 || true
+
+# ---- Appearance › Skin (DECISIONS C24 H11, #171) ---------------------------------------------
+# omaseed's own settings (,), Appearance (5), the keyboard on its first row, the skin; enter
+# steps Omarchy → Console → Follow the desktop → Omarchy. Console differs in grounds only for
+# now (#171 step 2): the rows behind the modal and the pane's cursor row show it.
+# shellcheck disable=SC2016 # expanded by the box's shell, from its argument
+omabox run -b "$BOX" -- sh -c '[ ! -e "$1" ] || mv "$1" "$1.walk"' sh "$THEME_SKIN"
+keys comma 5 l
+check "Omarchy by default" "$(saved_skin)" omarchy
+step "Skin Omarchy" "Appearance: Skin is the first row, Omarchy lit, 'Quiet and monospace, in any theme. The default.'; no yellow line."
+keys Return
+wait_skin console
+check "Console saved" "$(saved_skin)" console
+check "Console drawn at once" "$(drawn_skin)" "console (choice console, fonts the skin's)"
+step "Skin Console" "Console lit, 'BASELINE's plates, labels and lamps, in any theme.'; a yellow line naming any Console font the box lacks (none when all four are installed). The cursor row's ground is Console's, solid."
+keys Return
+wait_skin omarchy
+check "Follow the desktop saved" "$(saved_skin)" desktop
+check "no desktop skin: Omarchy" "$(drawn_skin)" "omarchy (choice desktop, fonts the skin's)"
+step "Follow the desktop, off" "follow the desktop lit; the line ends 'Now: Omarchy.'; the grounds are Omarchy's again."
+
+desktop_file console-skin.json '{"skin": "walk", "version": 1}'
+wait_skin console
+check "a console-skin.json turns it on" "$(drawn_skin)" "console (choice desktop, fonts the skin's)"
+step "Follow the desktop, on" "The line ends 'Now: Console.'; Console's grounds, with no restart."
+desktop_file console.json '{"fx": {"skin": "off"}}'
+wait_skin omarchy
+check "fx.skin off turns it off" "$(drawn_skin)" "omarchy (choice desktop, fonts the skin's)"
+desktop_file console.json '{"fx": {"skin": "on", "fonts": "system"}}'
+wait_skin "console (choice desktop, fonts system)"
+check "fx.fonts system recorded" "$(drawn_skin)" "console (choice desktop, fonts system)"
+step "Follow the desktop, system fonts" "'Now: Console.' and no yellow line: the desktop asks for the shell's font, so no Console font is missing."
+desktop_file console-skin.json
+desktop_file console.json
+wait_skin omarchy
+check "the file gone: Omarchy" "$(drawn_skin)" "omarchy (choice desktop, fonts the skin's)"
+# The theme's own file comes first, as omarchy-console's kit reads it.
+desktop_file console-skin.json '{"version": "none"}'
+desktop_file console.json '{}'
+# shellcheck disable=SC2016 # expanded by the box's shell, from its argument
+omabox run -b "$BOX" -- sh -c 'printf "%s\n" "{\"version\": 1}" >"$1.next" && mv "$1.next" "$1"' sh "$THEME_SKIN"
+wait_skin console
+check "the theme's file first" "$(drawn_skin)" "console (choice desktop, fonts the skin's)"
+# shellcheck disable=SC2016 # expanded by the box's shell, from its argument
+omabox run -b "$BOX" -- sh -c 'rm -f "$1"; [ ! -e "$1.walk" ] || mv "$1.walk" "$1"' sh "$THEME_SKIN"
+desktop_file console-skin.json
+desktop_file console.json
+keys Return
+check "back to Omarchy" "$(saved_skin)" omarchy
+keys Escape Escape
 
 # ---- the nine sections ----------------------------------------------------------------------
 keys ctrl+shift+comma
@@ -172,6 +269,7 @@ for i in $(seq 1 9); do
     section "$i"
     step "Section $i ${names[$((i - 1))]}" "qBittorrent › ${names[$((i - 1))]}: every row filled from the box's qBittorrent (its defaults), none empty or reading undefined; the nav's qBittorrent group has the section lit."
 done
+
 
 # ---- Downloads › email (#150) ---------------------------------------------------------------
 # The mail rows close the section: from row 0, k wraps to the last one, and six up is "Send an

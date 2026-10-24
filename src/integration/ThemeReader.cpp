@@ -142,6 +142,14 @@ ThemeReader::ThemeReader(Paths paths, QObject *parent)
     connect(&m_debounce, &QTimer::timeout, this, &ThemeReader::reload);
     connectWatcher();
     reload();
+    // What a walk reads to know which skin is drawn (scripts/dev/settings-walk.sh).
+    connect(this, &ThemeReader::skinChanged, this, [this]() {
+        qCInfo(lcTheme).noquote() << QStringLiteral("skin: %1 (choice %2, fonts %3)")
+                                         .arg(skinName(),
+                                              skinChoiceInForce(),
+                                              skinSystemFonts() ? QStringLiteral("system")
+                                                                : QStringLiteral("the skin's"));
+    });
     followDesktopSkin();
 }
 
