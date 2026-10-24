@@ -50,6 +50,7 @@ QJsonObject MadeHere::Record::toJson() const
             {QStringLiteral("multiFile"), multiFile},
             {QStringLiteral("folder"), folder},
             {QStringLiteral("host"), host},
+            {QStringLiteral("source"), source},
             {QStringLiteral("digest"), digest},
             {QStringLiteral("madeAt"), madeAt.toUTC().toString(Qt::ISODate)}};
 }
@@ -68,6 +69,7 @@ MadeHere::Record MadeHere::Record::fromJson(const QJsonObject &object)
     record.multiFile = object.value(QStringLiteral("multiFile")).toBool();
     record.folder = object.value(QStringLiteral("folder")).toString();
     record.host = object.value(QStringLiteral("host")).toString();
+    record.source = object.value(QStringLiteral("source")).toString();
     record.digest = object.value(QStringLiteral("digest")).toString();
     record.madeAt =
         QDateTime::fromString(object.value(QStringLiteral("madeAt")).toString(), Qt::ISODate);
@@ -88,6 +90,7 @@ MadeHere::Record MadeHere::Record::of(const TorrentFile &file,
     record.multiFile = file.multiFile;
     record.folder = folder;
     record.host = host;
+    record.source = file.source;
     record.digest = digestOf(bytes);
     record.madeAt = madeAt;
     return record;

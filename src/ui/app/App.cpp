@@ -2085,6 +2085,22 @@ void App::addTorrent(const QVariantMap &request)
         addBatch(request);
         return;
     }
+    // #146 (C27 CR9): the site's copy replaces the torrent made here, which goes first, its
+    // files kept.
+    const QString replaceHash = request.value(QStringLiteral("replaceHash")).toString();
+    if (!replaceHash.isEmpty() && !m_demoMode && m_hasServer) {
+        QVariantMap next = request;
+        next.remove(QStringLiteral("replaceHash"));
+        m_client->torrentsDelete({replaceHash}, false)
+            ->then(this, [this, next](const QbtResult<QByteArray> &result) {
+                if (result.isError()) {
+                    failAdd(result.error(), next.value(QStringLiteral("name")).toString());
+                    return;
+                }
+                addTorrent(next);
+            });
+        return;
+    }
     const QString kind = request.value(QStringLiteral("kind")).toString();
     const QString value = request.value(QStringLiteral("value")).toString();
     const QString token = request.value(QStringLiteral("token")).toString();
@@ -2201,6 +2217,9 @@ void App::addTorrent(const QVariantMap &request)
             afterUrlAdd(result.value(), request, torrentId, {});
             return;
         }
+        // #146 (C27 CR7): the site's copy is in: the made-here record has done its work.
+        if (request.value(QStringLiteral("forgetMade")).toBool())
+            forgetMadeHere(m_pendingTorrentFiles.value(token).bytes);
         if (!token.isEmpty())
             forgetTorrentFile(token);
         watchForAddedHash(torrentId);

@@ -18,6 +18,7 @@ TorrentFile made()
     TorrentFile file;
     file.name = QStringLiteral("field-recordings-2026");
     file.infoHashV1 = QString(40, QLatin1Char('a'));
+    file.source = QStringLiteral("TA");
     file.multiFile = true;
     file.files = {{QStringLiteral("01 dawn chorus.flac"), 512},
                   {QStringLiteral("02 river at night.flac"), 498}};
@@ -64,6 +65,7 @@ void TestMadeHere::theRecordRoundTripsWithoutAKey()
     QVERIFY(record.multiFile);
     QCOMPARE(record.folder, QStringLiteral("/mnt/media/share/field-recordings-2026"));
     QCOMPARE(record.host, QStringLiteral("tracker-a.example"));
+    QCOMPARE(record.source, QStringLiteral("TA"));
     QCOMPARE(record.digest, MadeHere::digestOf(QByteArrayLiteral("d8:announce…e")));
     QCOMPARE(record.madeAt, at);
     QCOMPARE(record.totalSize(), qint64(1010));

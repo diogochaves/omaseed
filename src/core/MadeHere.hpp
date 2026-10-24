@@ -39,6 +39,9 @@ public:
         /// The folder (or the one file) it was made from, as the server writes it.
         QString folder;
         QString host;
+        /// The info's source tag it was made with ("" for none): the round trip says what the
+        /// site changed.
+        QString source;
         /// Lowercase hex SHA-256 of the saved .torrent's bytes.
         QString digest;
         QDateTime madeAt;

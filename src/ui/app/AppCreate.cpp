@@ -161,6 +161,15 @@ void App::writeMadeHere(const core::MadeHere &made)
     writeCreateState(server);
 }
 
+void App::forgetMadeHere(const QByteArray &bytes)
+{
+    core::MadeHere made = madeHere();
+    if (made.isEmpty() || bytes.isEmpty())
+        return;
+    made.forgetMatching(core::TorrentFile::parse(bytes), core::MadeHere::digestOf(bytes));
+    writeMadeHere(made);
+}
+
 core::CreateTrackers App::createTrackers() const
 {
     QList<core::CreateTrackers::Torrent> torrents;
@@ -884,6 +893,63 @@ void App::createAction(const QString &id)
         m_createBand.clear();
         Q_EMIT createChanged();
     }
+}
+
+QVariantMap App::madeHereFor(const QString &token) const
+{
+    const PendingTorrentFile pending = m_pendingTorrentFiles.value(token);
+    if (pending.bytes.isEmpty() || !m_hasServer)
+        return {};
+    const core::MadeHere made = madeHere();
+    if (made.isEmpty())
+        return {};
+    const core::TorrentFile file = core::TorrentFile::parse(pending.bytes);
+    if (!file.isValid())
+        return {};
+    const core::MadeHere::Match match = made.match(file, core::MadeHere::digestOf(pending.bytes));
+    if (match.kind == core::MadeHere::Kind::None)
+        return {};
+    const core::MadeHere::Record &record = match.record;
+    // Where the files are: the folder's parent holds a folder of the torrent's name; a site
+    // that renamed the torrent gets the folder itself, without a subfolder.
+    QString savePath = core::CreatePlan::parentOf(record.folder);
+    QString layout = QStringLiteral("Original");
+    if (record.multiFile && file.multiFile &&
+        file.name != core::CreatePlan::nameOf(record.folder)) {
+        savePath = record.folder;
+        layout = QStringLiteral("NoSubfolder");
+    }
+    const QDateTime at = record.madeAt.toLocalTime();
+    const QString madeText =
+        at.date() == QDate::currentDate()
+            ? tr("made here today %1").arg(QLocale().toString(at.time(), QStringLiteral("HH:mm")))
+            : tr("made here %1").arg(QLocale().toString(at.date(), QStringLiteral("d MMM")));
+    const QString madeId = core::TorrentFile::torrentIdFor(record.infoHashV1, record.infoHashV2);
+    const bool inLibrary = m_engine->torrents()->indexOfHash(madeId) >= 0;
+    const QString kind = match.kind == core::MadeHere::Kind::TheMadeFile ? QStringLiteral("made")
+                         : match.kind == core::MadeHere::Kind::SameHash  ? QStringLiteral("same")
+                                                                         : QStringLiteral("files");
+    return {
+        {QStringLiteral("kind"), kind},
+        {QStringLiteral("name"), record.name},
+        {QStringLiteral("folder"), record.folder},
+        {QStringLiteral("host"), record.host},
+        {QStringLiteral("madeText"), madeText},
+        {QStringLiteral("fileCount"), int(record.files.size())},
+        {QStringLiteral("savePath"), savePath},
+        {QStringLiteral("layout"), layout},
+        {QStringLiteral("check"), match.kind != core::MadeHere::Kind::SameHash},
+        // What the site changed inside the torrent, when another hash says it did.
+        {QStringLiteral("changedText"),
+         match.kind != core::MadeHere::Kind::SameFiles || record.source == file.source ? QString()
+         : record.source.isEmpty() ? tr("the site added the source tag %1").arg(file.source)
+         : file.source.isEmpty()
+             ? tr("the site took the source tag %1 out").arg(record.source)
+             : tr("its source tag %1 became %2").arg(record.source, file.source)},
+        {QStringLiteral("madeHash"), inLibrary ? madeId : QString()},
+        {QStringLiteral("madeName"),
+         inLibrary ? m_engine->torrents()->torrent(madeId).name : QString()},
+    };
 }
 
 } // namespace omaseed::app

@@ -35,7 +35,10 @@ namespace {
 const QString kKey = QStringLiteral("k3y5SECRETk3y5");
 const QString kPrivateAnnounce = QStringLiteral("https://tracker-a.example/announce/") + kKey;
 
-QByteArray torrentBytes(const QString &name, const QString &announce, bool isPrivate)
+QByteArray torrentBytes(const QString &name,
+                        const QString &announce,
+                        bool isPrivate,
+                        const QByteArray &source = QByteArrayLiteral("TA"))
 {
     bencode::Dict info{{"length", qint64(3)},
                        {"name", name.toUtf8()},
@@ -43,7 +46,7 @@ QByteArray torrentBytes(const QString &name, const QString &announce, bool isPri
                        {"pieces", QByteArray(20, 'a')}};
     if (isPrivate) {
         info.append({"private", qint64(1)});
-        info.append({"source", QByteArrayLiteral("TA")});
+        info.append({"source", source});
     }
     bencode::Dict top{{"announce", announce.toUtf8()},
                       {"created by", QByteArrayLiteral("qBittorrent v5.3.0")},
@@ -194,6 +197,7 @@ private slots:
     void aPrivateOneIsSavedAndRemembered();
     void theBandAndACancel();
     void aRunningTaskIsTakenUpByTheNextRun();
+    void theSiteCopyComesBack();
 
 private:
     bool startOn(App &app, CreateServer &server);
@@ -491,6 +495,98 @@ void TestAppCreate::aRunningTaskIsTakenUpByTheNextRun()
     QCOMPARE(next.createBand().value(QStringLiteral("kind")).toString(), QStringLiteral("green"));
     QCOMPARE(server.count("torrentcreator/addTask"), 1);
     next.engine()->stop();
+}
+
+// CR8, CR9 (board 49 §4): the add sheet's round trip, through App.madeHereFor on a parsed
+// .torrent: the saved file itself, the site's copy with only the announce changed (seed mode at
+// the folder's parent), and with its source tag changed (checked there); its add forgets the
+// record, and a made one in the library is deleted first when it is replaced.
+void TestAppCreate::theSiteCopyComesBack()
+{
+    CreateServer server;
+    server.made = torrentBytes(QStringLiteral("field-recordings"), kPrivateAnnounce, true);
+    App app;
+    QVERIFY(startOn(app, server));
+    QVERIFY(
+        app.startCreate({{QStringLiteral("folder"), QStringLiteral("/srv/share/field-recordings")},
+                         {QStringLiteral("forWhom"), QStringLiteral("private")},
+                         {QStringLiteral("host"), QStringLiteral("tracker-a.example")}}));
+    QTRY_VERIFY_WITH_TIMEOUT(app.createRunning().isEmpty(), 5000);
+    const QString saved = app.createBand()
+                              .value(QStringLiteral("file"))
+                              .toMap()
+                              .value(QStringLiteral("path"))
+                              .toString();
+
+    const auto parse = [&app](const QString &path) {
+        QSignalSpy parsed(&app, &App::addableParsed);
+        app.parseAddable(path);
+        if (!parsed.wait(5000))
+            return QVariantMap();
+        return parsed.first().first().toMap();
+    };
+    const auto write = [this](const QString &name, const QByteArray &bytes) {
+        const QString path = m_home->filePath(name);
+        QFile file(path);
+        if (file.open(QIODevice::WriteOnly))
+            file.write(bytes);
+        return path;
+    };
+
+    // The saved file itself.
+    QVariantMap made = app.madeHereFor(parse(saved).value(QStringLiteral("token")).toString());
+    QCOMPARE(made.value(QStringLiteral("kind")).toString(), QStringLiteral("made"));
+    QCOMPARE(made.value(QStringLiteral("host")).toString(), QStringLiteral("tracker-a.example"));
+
+    // The site put its own announce on it: the same hash, seed mode at the parent.
+    const QString site =
+        write(QStringLiteral("site.torrent"),
+              torrentBytes(QStringLiteral("field-recordings"),
+                           QStringLiteral("https://tracker-a.example/announce/s1te"),
+                           true));
+    made = app.madeHereFor(parse(site).value(QStringLiteral("token")).toString());
+    QCOMPARE(made.value(QStringLiteral("kind")).toString(), QStringLiteral("same"));
+    QCOMPARE(made.value(QStringLiteral("savePath")).toString(), QStringLiteral("/srv/share"));
+    QCOMPARE(made.value(QStringLiteral("layout")).toString(), QStringLiteral("Original"));
+    QVERIFY(!made.value(QStringLiteral("check")).toBool());
+    QVERIFY(
+        made.value(QStringLiteral("madeText")).toString().startsWith(QStringLiteral("made here")));
+
+    // The site changed the source tag: another hash, the same files, checked there.
+    const QString changed = write(QStringLiteral("changed.torrent"),
+                                  torrentBytes(QStringLiteral("field-recordings"),
+                                               kPrivateAnnounce,
+                                               true,
+                                               QByteArrayLiteral("TA-site")));
+    QVariantMap request = parse(changed);
+    made = app.madeHereFor(request.value(QStringLiteral("token")).toString());
+    QCOMPARE(made.value(QStringLiteral("kind")).toString(), QStringLiteral("files"));
+    QVERIFY(made.value(QStringLiteral("check")).toBool());
+    QCOMPARE(made.value(QStringLiteral("changedText")).toString(),
+             QStringLiteral("its source tag TA became TA-site"));
+
+    // Added (replacing a made one in the library): the delete first, then the add, and the
+    // record goes.
+    request[QStringLiteral("savePath")] = made.value(QStringLiteral("savePath"));
+    request[QStringLiteral("forgetMade")] = true;
+    request[QStringLiteral("replaceHash")] = QString(40, QLatin1Char('9'));
+    QSignalSpy finished(&app, &App::addFinished);
+    app.addTorrent(request);
+    QVERIFY(finished.wait(5000));
+    QVERIFY(finished.first().at(0).toBool());
+    QCOMPARE(server.count("torrents/delete"), 1);
+    QVERIFY(QUrlQuery(QString::fromUtf8(server.last("torrents/delete").body))
+                .queryItemValue(QStringLiteral("deleteFiles")) == QLatin1String("false"));
+    qsizetype deleted = -1, added = -1;
+    for (qsizetype i = 0; i < server.requests.size(); ++i) {
+        if (server.requests.at(i).target.startsWith("/api/v2/torrents/delete"))
+            deleted = i;
+        if (server.requests.at(i).target.startsWith("/api/v2/torrents/add"))
+            added = i;
+    }
+    QVERIFY(deleted >= 0 && deleted < added);
+    QVERIFY(app.madeHereFor(parse(site).value(QStringLiteral("token")).toString()).isEmpty());
+    app.engine()->stop();
 }
 
 QTEST_MAIN(TestAppCreate)

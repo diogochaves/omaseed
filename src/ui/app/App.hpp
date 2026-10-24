@@ -2374,6 +2374,12 @@ public:
     Q_INVOKABLE void createAction(const QString &id);
     /// Test seam: the status poll's interval and how long before the band shows (CR13's 3 s).
     Q_INVOKABLE void setCreateTimings(int pollMs, int bandMs);
+    /// The round trip (CR8, CR9, board 49 §4) for the `.torrent` parsed under `token`: `{kind
+    /// ("made": the file saved here itself; "same": the site's copy, the same info hash;
+    /// "files": another hash, every file matching), name, folder, host, madeText ("made here
+    /// today 14:20"), savePath and layout (where the files are), check (false: seed mode),
+    /// madeHash and madeName (the made one, when it is in the library)}`; {} for none.
+    Q_INVOKABLE QVariantMap madeHereFor(const QString &token) const;
 
 Q_SIGNALS:
     void createChanged();
@@ -2397,6 +2403,8 @@ private:
     void writeCreateState(const QJsonObject &server);
     core::MadeHere madeHere() const;
     void writeMadeHere(const core::MadeHere &made);
+    /// The records the `.torrent` in `bytes` matches go: the site's copy was added.
+    void forgetMadeHere(const QByteArray &bytes);
     core::CreateJob *m_createJob = nullptr;
     QTimer *m_createBandTimer = nullptr;
     QVariantMap m_createBand;
