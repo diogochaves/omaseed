@@ -958,6 +958,9 @@ QVariantMap App::torrentRow(const QString &hash) const
     row.insert(QStringLiteral("category"), torrent.category);
     row.insert(QStringLiteral("tagsText"), torrent.tags.join(QStringLiteral(" · ")));
     row.insert(QStringLiteral("addedOnText"), Format::added(torrent.addedOn));
+    // DECISIONS C24 H6: facts' Added row, "today 10:41" (its key says "added").
+    row.insert(QStringLiteral("addedText"),
+               torrent.addedOn.isValid() ? Format::relativeTime(torrent.addedOn) : QString());
     // T4.3: the raw byte count, for the delete/location sheets' "N on disk" line — every
     // other field above is already text, this is the one a caller sums across a selection.
     row.insert(QStringLiteral("size"), torrent.size);

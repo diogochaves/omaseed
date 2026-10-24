@@ -122,7 +122,7 @@ Flickable {
         if (row) {
             add(information, qsTr("Category"), row.category);
             add(information, qsTr("Tags"), row.tagsText);
-            add(information, qsTr("Added"), row.addedOnText);
+            add(information, qsTr("Added"), row.addedText);
         }
         add(information, qsTr("Save path"), map.savePath);
         add(information, qsTr("Pieces"), map.pieces);

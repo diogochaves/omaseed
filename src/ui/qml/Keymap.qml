@@ -1800,7 +1800,7 @@ QtObject {
             "rank": 11.5,
             "helpKeys": "F",
             "help": qsTr("free the space, or add it again"),
-            "about": qsTr("In the files tab: delete the skipped files that still hold space on this machine's disk, when omaseed can see it; on a hybrid or v2 torrent whose skipped files hold downloaded pieces, add it again to free them")
+            "about": qsTr("In the files tab: free the space, or add it again. Deletes the skipped files that still hold space on this machine's disk, when omaseed can see it; on a hybrid or v2 torrent whose skipped files hold downloaded pieces, only adding it again frees them")
         },
 
         // the log face (docs/32 §6, D10–D13): LogView takes these while it is on show. The

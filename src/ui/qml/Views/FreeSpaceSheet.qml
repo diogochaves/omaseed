@@ -94,7 +94,8 @@ Sheet {
         return list;
     }
     glyph: Glyphs.trash
-    sheetWidth: Theme.space(600)
+    // C30 F15: four equal buttons, the re-add's words among them, need the room.
+    sheetWidth: root.mixed ? Theme.space(880) : Theme.space(600)
     subtitle: root.ready ? (root.plan.name || "") + " · " + (root.plan.folder || "") : ""
     title: !root.ready ? qsTr("Free the space") : root.deletes > 0 ? qsTr("Free %1").arg(root.plan.freedText)
                                                                    : root.readdOnly ? qsTr("Only adding it again frees this")

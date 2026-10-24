@@ -426,7 +426,7 @@ Item {
                 // description. Its toggle and its press are both the click.
                 Accessible.checkable: true
                 Accessible.checked: root.model !== null && root.model.hideSkipped
-                Accessible.description: root.skippedText
+                Accessible.description: skippedText.text
                 Accessible.name: qsTr("hide skipped files")
                 Accessible.role: Accessible.CheckBox
                 Accessible.onPressAction: skippedArea.toggle()
