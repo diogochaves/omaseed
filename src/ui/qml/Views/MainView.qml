@@ -330,6 +330,29 @@ Item {
     readonly property bool logShown: root.view === "log" && App.hasServer && !root.firstRun
     /// The face `~` and `esc` go back to from the log ("back to where you were").
     property string _viewBeforeLog: "library"
+    /// #145 (DECISIONS C26, C24 H16): search, a face of its own after log (ctrl+f). Only on a
+    /// server that has search plugins to offer (C25 K30).
+    readonly property bool searchShown: root.view === "search" && App.hasServer && !root.firstRun
+    /// The face esc goes back to from search's empty field (SR14).
+    property string _viewBeforeSearch: "library"
+
+    /// ctrl+f (SR14), `:` "search…" and "search plugins for ‘…’", the add sheet's empty state:
+    /// the search face, its field focused with the last words selected; `text`, when given,
+    /// asked for at once.
+    function openSearch(text: string): void {
+        if (root.firstRun)
+            return;
+        if (!App.searchOffered) {
+            root.flashFooterNote(qsTr("%1 has no search").arg(App.serverName));
+            return;
+        }
+        root.setView("search");
+        searchView.focusField();
+        if (text.length > 0) {
+            searchView.field.text = text;
+            searchView.ask();
+        }
+    }
 
     /// `` ` ``, `~` and the rail's views. With a selection, the console opens on it (D2 a).
     function setView(next: string): void {
@@ -341,11 +364,19 @@ Item {
             App.console.setScopeHashes([]);
         if (next === "log")
             root._viewBeforeLog = root.view;
+        if (next === "search" && root.view !== "search") {
+            root._viewBeforeSearch = root.view;
+            App.refreshSearchPlugins();
+        }
+        // `/` filters the face on show: the library's torrents, or search's results (SR14).
+        const leavingSearch = root.view === "search";
         // docs/32 §6: the lines are kept only while the log is open. A demo's stay: no server
         // would read them again.
         if (root.view === "log" && !App.demoMode)
             App.serverLog.release();
         root.view = next;
+        if (leavingSearch || next === "search")
+            titleBar.searchField.text = next === "search" ? App.searchResults.filterText : App.filtered.text;
         if (next === "seed")
             seedConsole.forceActiveFocus();
         else
@@ -447,6 +478,8 @@ Item {
             return "search";
         if (root.logShown)
             return "log";
+        if (root.searchShown && !rail.activeFocus)
+            return "searchView";
         if (root.consoleShown && !rail.activeFocus)
             return "console";
         if (rail.activeFocus)
@@ -568,7 +601,10 @@ Item {
     /// table.
     function clearFilter(): void {
         titleBar.searchField.text = "";
-        App.filtered.text = "";
+        if (root.searchShown)
+            App.searchResults.filterText = "";
+        else
+            App.filtered.text = "";
         root.focusHome();
     }
 
@@ -581,6 +617,8 @@ Item {
             return;
         if (root.logShown) // read-only already: the lines stay with the server lost
             logView.focusLines();
+        else if (root.searchShown)
+            searchView.focusHome();
         else if (root.serverLost)
             dimmed.forceActiveFocus();
         else
@@ -595,6 +633,7 @@ Item {
             return;
         const item = root.Window.activeFocusItem;
         const wrong = root.logShown ? !logView.activeFocus
+                                    : root.searchShown ? !searchView.activeFocus && !titleBar.searchField.editing
                                     : root.serverLost ? !dimmed.activeFocus
                                                       : (dimmed.activeFocus || !item || !item.visible);
         if (wrong)
@@ -1047,8 +1086,9 @@ Item {
                 root.requestQuit();
                 break;
             case Qt.Key_K:
-                // The jump palette moves the library's cursor: from the log, the library first.
-                if (root.logShown)
+                // The jump palette moves the library's cursor: from the log or search, the
+                // library first.
+                if (root.logShown || root.searchShown)
                     root.setView("library");
                 jumpPalette.open();
                 break;
@@ -1074,6 +1114,9 @@ Item {
                 break;
             case Qt.Key_S: // docs/33 D2: the server palette, app-level like ctrl+k
                 root.openServerPalette();
+                break;
+            case Qt.Key_F: // #145 (C26 SR14): search, from anywhere
+                root.openSearch("");
                 break;
             default:
                 return;
@@ -1120,8 +1163,14 @@ Item {
         }
 
         // docs/32 §6: the log face takes its own keys (LogView). Of what it leaves, the keys
-        // about the library's table, rail and details do nothing there.
-        if (root.logShown) {
+        // about the library's table, rail and details do nothing there; nor on search's face,
+        // which takes its own (SearchView), but for `/`, which filters its results (SR14).
+        if (root.searchShown && event.key === Qt.Key_Slash) {
+            root.focusSearch();
+            event.accepted = true;
+            return;
+        }
+        if (root.logShown || root.searchShown) {
             switch (event.key) {
             case Qt.Key_I:
             case Qt.Key_Less:
@@ -1315,6 +1364,7 @@ Item {
         "toggleRail": () => root.toggleRail(),
         "toggleConsole": () => root.setView(root.view === "seed" ? "library" : "seed"),
         "toggleLog": () => root.toggleLog(),
+        "search": () => root.openSearch(""),
         "detailsSmaller": () => {
             if (details.collapsed)
                 root.toggleDetails();
@@ -1458,6 +1508,8 @@ Item {
             "row": row,
             "rowIsFolder": rowIsFolder,
             "serverLost": root.serverLost,
+            // C26 SR14: the palette's "search…" rows, on a server with search.
+            "searchOffered": App.searchOffered,
             // docs/33 D4: the servers, for "switch server…" and one "switch to NAME" each.
             "servers": App.serverRows.map(row => ({
                                                       "id": row.key,
@@ -1473,6 +1525,7 @@ Item {
                 "railShown": !App.railHidden,
                 "consoleShown": root.view === "seed",
                 "logShown": root.view === "log",
+                "searchShown": root.view === "search",
                 "logFollowing": logView.following,
                 "logNormal": (App.logLines.levels & ServerLog.Normal) !== 0,
                 "logInfo": (App.logLines.levels & ServerLog.Info) !== 0,
@@ -1492,6 +1545,11 @@ Item {
 
     /// The palette's `enter`. Its last five run come first next time (D7).
     function runCommand(action: string): void {
+        // C26 SR14: "search plugins for ‘…’", the palette's second no-match row.
+        if (action.startsWith(Keymap.searchForPrefix)) {
+            root.openSearch(action.slice(Keymap.searchForPrefix.length));
+            return;
+        }
         // C24 H2: "show stalled…" types `is:stalled` into the filter and leaves the caret there.
         if (action.startsWith(Keymap.showStatePrefix)) {
             root.showState(action.slice(Keymap.showStatePrefix.length));
@@ -1804,7 +1862,8 @@ Item {
         view: root.view
         // docs/14 A1: setup has no library chrome.
         visible: !root.firstRun
-        serversOnly: root.libraryEmpty || root.firstSync || root.noList || root.logShown
+        serversOnly: root.libraryEmpty || root.firstSync || root.noList || root.logShown || root.searchShown
+        searchOffered: App.searchOffered
         serversFolded: App.serversFolded
         serverRetrying: root.serverRetrying
 
@@ -1851,6 +1910,8 @@ Item {
     readonly property string scopeTitle: {
         if (root.logShown)
             return qsTr("Log");
+        if (root.searchShown)
+            return qsTr("Search");
         if (root.consoleShown)
             return qsTr("Seed console");
         if (root.moveShowingJob)
@@ -1876,8 +1937,10 @@ Item {
     /// Its sentence (core/ScopeSentence): App's for the rail's scope; the faces', a move's
     /// show and a lost server's from what the window knows.
     readonly property string scopeSentence: {
-        if (root.firstRun || root.libraryEmpty && !root.logShown)
+        if (root.firstRun || root.libraryEmpty && !root.logShown && !root.searchShown)
             return "";
+        if (root.searchShown)
+            return searchView.sentence;
         if (root.serverLost)
             return App.lostSentence(App.torrents.count > 0 ? App.globalState.lastSyncText : "",
                                     root.serverProblem.headline ?? "");
@@ -1910,11 +1973,15 @@ Item {
         anchors.top: parent.top
         title: root.scopeTitle
         sentence: root.scopeSentence
-        // The log filters its own lines (docs/32 D11).
-        filterShown: !root.logShown
+        // The log filters its own lines (docs/32 D11); search's `/` filters its results
+        // (C26 SR14), while there are some.
+        filterShown: !root.logShown && (!root.searchShown || App.searchResults.torrentCount > 0)
         keysShown: root.keysShown
-        searchCountText: App.filtered.text.length > 0 ? qsTr("%1 of %2").arg(App.filtered.count).arg(
-                                                            App.counts.total) : String(App.filtered.count)
+        searchCountText: root.searchShown ? (App.searchResults.filterText.length > 0 ? qsTr("%1 of %2").arg(
+                                                                                         App.searchResults.count).arg(App.searchResults.torrentCount)
+                                                                                   : String(App.searchResults.count))
+                                          : App.filtered.text.length > 0 ? qsTr("%1 of %2").arg(App.filtered.count).arg(
+                                                                               App.counts.total) : String(App.filtered.count)
         // H5: "move this folder…" while a folder is picked (shift+m, the row's menu and `:`
         // keep it).
         moveFolderShown: root.view === "library" && !root.moveShowing && App.filtered.folder.length > 0
@@ -1932,7 +1999,12 @@ Item {
         onDisplayClicked: root.openDisplayMenu()
         onBackClicked: root.leaveMoveShow()
         onMoveFolderClicked: root.openMoveFolder(App.filtered.folder, "")
-        onSearchChanged: text => App.filtered.text = text
+        onSearchChanged: text => {
+            if (root.searchShown)
+                App.searchResults.filterText = text;
+            else
+                App.filtered.text = text;
+        }
         // Review RUN-12: enter keeps the filter and gives the table back its keys, as `/`
         // then enter does in vim or less.
         onSearchAccepted: root.focusHome()
@@ -2022,7 +2094,7 @@ Item {
             // #77: what a screen reader calls the folded column on the right.
             foldedName: qsTr("show details")
             visible: !root.libraryEmpty && !root.firstSync && !root.noList && !root.consoleShown
-                     && !root.logShown
+                     && !root.logShown && !root.searchShown
 
             onFoldToggled: root.saveTableState()
             onFoldedChanged: root._detailsFoldChanged()
@@ -2080,6 +2152,27 @@ Item {
             onMoveBackRequested: id => moveSheet.openBack(id, "")
             onNoteRequested: text => root.flashFooterNote(text)
             onShowTorrent: hash => root.showLogTorrent(hash)
+        }
+
+        // #145 (C24 H16, DECISIONS C26): search, the fourth face, over the body's whole width.
+        SearchView {
+            id: searchView
+
+            anchors.fill: parent
+            objectName: "searchView"
+            focus: root.searchShown
+            multiServer: root.multiServer
+            serverLost: root.serverLost
+            serverName: App.serverName
+            visible: root.searchShown
+            windowWidth: root.width
+
+            onAddRequested: key => addSheet.openFromSearch(App.searchAddable(key))
+            onCopyRequested: (text, note) => root.copyText(text, note)
+            onLeaveRequested: root.setView(root._viewBeforeSearch === "search" ? "library" : root._viewBeforeSearch)
+            onLogRequested: root.setView("log")
+            onNoteRequested: text => root.flashFooterNote(text)
+            onPluginsPaneRequested: settingsModal.openSearchPlugins()
         }
 
         DetailsStrip {
@@ -2349,7 +2442,7 @@ Item {
             // C28: another engine's server says so in its problem's words.
             problem: root.serverProblem
             variant: !root.noList ? "empty" : root.serverProblem.kind === "engine" ? "engine" : App.serverRefused ? "refused" : "noList"
-            visible: (root.libraryEmpty || root.noList) && !root.firstRun && !root.logShown // T4.6: first run replaces this state
+            visible: (root.libraryEmpty || root.noList) && !root.firstRun && !root.logShown && !root.searchShown // T4.6: first run replaces this state
             width: Math.min(parent.width, Theme.space(520))
 
             onAddRequested: App.addRequested()
@@ -2367,7 +2460,7 @@ Item {
             anchors.topMargin: Theme.space(12)
             receivedText: App.sizeText(App.globalState.dlInfoData)
             torrentCount: App.torrents.count
-            visible: root.firstSync && !root.logShown
+            visible: root.firstSync && !root.logShown && !root.searchShown
         }
     }
 
@@ -3338,6 +3431,8 @@ Item {
             jumpPalette.query = text;
         }
         onRunRequested: action => root.runCommand(action)
+        // C26 SR14: the second no-match row.
+        onSearchRequested: text => root.openSearch(text)
     }
 
     Connections {
@@ -3510,6 +3605,8 @@ Item {
 
         onAddRequested: request => App.addTorrent(request)
         onDuplicateFound: (duplicate, source) => duplicateSheet.openFor(duplicate, source)
+        // C24 H16: the empty state's "search your plugins…", and typed words no add takes.
+        onSearchRequested: text => root.openSearch(text)
         // The `…` chips: T4.4's palettes, asked to answer instead of to act.
         onCategoryPaletteRequested: categoryPalette.openForChoice()
         onTagPaletteRequested: tagPalette.openForChoice(addSheet.tagChips.selected)
@@ -3526,6 +3623,9 @@ Item {
         // `show it` gives up on the add: the sheet behind this one goes away with it.
         onShowRequested: hash => {
             addSheet.dismiss();
+            // From search's add… too (C26 SR9): `show it` is the library's torrent.
+            if (root.searchShown)
+                root.setView("library");
             root.showTorrent(hash);
         }
         // docs/25 D3 a: `trackersMerged` then moves to the torrent's Trackers tab.

@@ -97,6 +97,15 @@ qt_add_qml_module(omaseed-views
         RenameSheet.qml
         RestoreSheet.qml
         ScopeLine.qml
+        SearchAnswers.qml
+        SearchBar.qml
+        SearchBarMenu.qml
+        SearchEmpty.qml
+        SearchLine.qml
+        SearchPluginsPane.qml
+        SearchResultPane.qml
+        SearchRow.qml
+        SearchView.qml
         SeedToast.qml
         SelectionBar.qml
         ServerPalette.qml

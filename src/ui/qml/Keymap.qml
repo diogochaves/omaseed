@@ -196,6 +196,50 @@ QtObject {
         }
     ]
 
+    /// #145 (DECISIONS C26 SR14): search's own keys, a block of the `?` sheet after app (and
+    /// Settings › Keybindings). Not entries: SearchView routes them, so the palette doesn't
+    /// list them.
+    readonly property string searchTitle: qsTr("in search")
+    readonly property string searchAbout: qsTr("The search face: its field, its filters and its results.")
+    readonly property var searchRows: [
+        {
+            "action": "search:ask",
+            "helpKeys": qsTr("enter · ↓"),
+            "help": qsTr("ask · the results"),
+            "about": qsTr("In the field: ask every plugin that is on; then down into the results")
+        },
+        {
+            "action": "search:filters",
+            "helpKeys": qsTr("tab"),
+            "help": qsTr("the filters"),
+            "about": qsTr("plugins, type, hide dead, sort: space opens one; a change of plugins or type asks again")
+        },
+        {
+            "action": "search:add",
+            "helpKeys": qsTr("enter · space"),
+            "help": qsTr("add… · the result"),
+            "about": qsTr("In the results: the add sheet with its magnet or link; space shows the result on the right")
+        },
+        {
+            "action": "search:copy",
+            "helpKeys": qsTr("c · o"),
+            "help": qsTr("copy magnet · its page"),
+            "about": qsTr("Copy the result's magnet (every folded tracker in it); open its page in the browser")
+        },
+        {
+            "action": "search:filter",
+            "helpKeys": "/",
+            "help": qsTr("filter the results"),
+            "about": qsTr("Narrow the results by name without asking again")
+        },
+        {
+            "action": "search:esc",
+            "helpKeys": qsTr("esc"),
+            "help": qsTr("back out"),
+            "about": qsTr("The result, the results, the words, then where you were; the results are kept")
+        }
+    ]
+
     readonly property var entries: [
         // global: routed by MainView wherever the focus is -------------------------
         // #24 (docs/22): the window's second face.
@@ -229,6 +273,22 @@ QtObject {
             "helpKeys": "~",
             "help": qsTr("qBittorrent's log"),
             "about": qsTr("Flip to qBittorrent's log and back; it is read from the server only while it shows")
+        },
+        // #145 (C24 H16, DECISIONS C26 SR14): the window's fourth face, search, from anywhere.
+        {
+            "area": "global",
+            "key": "ctrl+f",
+            "action": "search",
+            "title": qsTr("search…"),
+            "titleOn": qsTr("search again…"),
+            "state": "searchShown",
+            "needs": "search",
+            "label": qsTr("search"),
+            "column": "view",
+            "rank": 0,
+            "helpKeys": "ctrl+f",
+            "help": qsTr("search plugins"),
+            "about": qsTr("Search through the server's own search plugins; the field focused, the last words selected")
         },
         // console: MainView routes these while the seed console is on show (#24)
         {
@@ -2203,7 +2263,7 @@ QtObject {
             "word": qsTr("view"),
             "actions": ["displayRows", "displayTable", "displayShelves", "columns", "toggleDetails",
                 "cycleDetailsPlacement", "toggleRail",
-                "toggleConsole", "toggleLog", "detailsSmaller", "detailsLarger"]
+                "toggleConsole", "toggleLog", "search", "detailsSmaller", "detailsLarger"]
         },
         {
             "group": "speed",
@@ -2262,6 +2322,10 @@ QtObject {
     /// what the guard should let through, so the server palette and its "switch to NAME" rows
     /// run too (`isOffline()`).
     readonly property var offlineActions: ["settings", "help", "hide", "quit", "commands", "switchServer"]
+
+    /// C26 SR14: the palette's second no-match row, "search plugins for ‘…’", its action
+    /// "searchFor:<text>".
+    readonly property string searchForPrefix: "searchFor:"
 
     /// docs/33 D4: one "switch to NAME" row per other server, its action "switchTo:<id>".
     readonly property string switchToPrefix: "switchTo:"
@@ -2456,6 +2520,9 @@ QtObject {
                     continue;
                 // DECISIONS C20: "retry" only while a target is in error.
                 if (found.needs === "errored" && (ctx.errored || 0) === 0)
+                    continue;
+                // C25 K30: no search where it can't be offered.
+                if (found.needs === "search" && ctx.searchOffered === false)
                     continue;
                 // #160 (C17 D3): "free the space…" only while skipped files hold space here.
                 if (found.needs === "freeable" && ctx.freeable !== true)

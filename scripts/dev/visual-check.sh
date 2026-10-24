@@ -57,6 +57,11 @@ omabox wait --timeout 20s cmd -- curl -fs -o /dev/null "http://127.0.0.1:$QBT_PO
 omabox run -- sh -c 'for t in "$HOME"/torrents/*.torrent; do
     curl -fs -F "torrents=@$t" -F stopped=true "http://127.0.0.1:$1/api/v2/torrents/add" >/dev/null
 done' sh "$QBT_PORT"
+# #145: the invented search plugins (scripts/dev/search-plugins.py), installed from the box's HOME.
+python3 -I "$repo/scripts/dev/search-plugins.py" make "$home/search-plugins" >/dev/null
+omabox run -- curl -fs -o /dev/null "http://127.0.0.1:$QBT_PORT/api/v2/search/installPlugin" \
+    --data-urlencode "sources=/home/sbx/search-plugins/omaseed_plugin_a.py|/home/sbx/search-plugins/omaseed_plugin_b.py|/home/sbx/search-plugins/omaseed_plugin_c.py"
+omabox wait --timeout 20s cmd -- sh -c "curl -fs http://127.0.0.1:$QBT_PORT/api/v2/search/plugins | grep -q omaseed_plugin_c"
 printf '{"version":1,"defaultId":"box","servers":[{"id":"box","name":"box","url":"http://127.0.0.1:%s","authMode":"none","username":"","pathMap":[],"isDefault":true,"addedAt":"2026-09-23T00:00:00Z"}]}' \
     "$QBT_PORT" >"$home/.config/omaseed/servers.json"
 chmod 700 "$home/.config/omaseed"
@@ -171,10 +176,31 @@ display shelves
 omabox check point overview --window "$APP" --ignore "$ADDED" --ignore "$CREATED" --ignore "$FREE"
 display table
 
+# Search (#145, DECISIONS C26): "sampler" asked of plugins a, b and c; b fails, c answers after 4 s.
+# The shot waits for the line that says who didn't answer, then for the "new" marks to fade.
+key ctrl+f
+omabox keys --window "$APP" --wait -t "sampler" >/dev/null
+key Return
+for _ in $(seq 1 20); do
+    omabox tree --window "$APP" --find "1 of 3 plugins didn't answer" >/dev/null 2>&1 && break
+    sleep 1
+done
+# "new" and "+1 copy" fade 4 s after plugin c's answer.
+for _ in $(seq 1 15); do
+    omabox tree --window "$APP" --json 2>/dev/null | python3 -c '
+import json, sys
+sys.exit(1 if any((n.get("name") or "") in ("new", "+1 copy") for n in json.load(sys.stdin)) else 0)' && break
+    sleep 1
+done
+omabox wait --timeout 10s still >/dev/null || true
+omabox check point search --window "$APP" --ignore "$FREE"
+# esc clears the words, esc again goes back to the library (SR14).
+key Escape Escape
+
 # Settings: every section, j by j, the first (General) open.
 sections=(general servers notifications keybindings appearance backup about
     qbt-speed qbt-discovery qbt-connection qbt-proxy qbt-seeding qbt-queue qbt-downloads qbt-webui
-    qbt-advanced qbt-backup)
+    qbt-advanced qbt-search qbt-backup)
 key comma
 for i in "${!sections[@]}"; do
     [ "$i" = 0 ] || key j

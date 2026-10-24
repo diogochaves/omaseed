@@ -33,6 +33,7 @@ follows. The commands themselves are listed in `CLAUDE.md`; `README.md` says how
    | `menu-walk.sh` | the one menu shown by the tray and the bar widget |
    | `stuck-walk.sh` | a finished torrent whose move into a full disk failed (a loop image), and a recheck once room is made |
    | `move-walk.sh` | moving folders and selections: queue, places, partial packs, move back, recheck |
+   | `search-walk.sh` | search through invented plugins (`scripts/dev/search-plugins.py`, whose rows are the offline swarm's): install from Settings, a failed install, a plugin off and on; a search filling in, a failed and a slow plugin and their answers; a folded magnet and a link (through its plugin) added and arriving; hide dead, `/`, uninstall |
 
    A box is a new install, so omaseed starts on the rows display there (DECISIONS C24 H4). Each
    walk pins the display it reads with `OMASEED_DISPLAY` (`table`, `rows` or `overview`: every

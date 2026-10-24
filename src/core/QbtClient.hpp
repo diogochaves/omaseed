@@ -102,8 +102,21 @@
 //   POST torrents/add (urls=)           torrentsAddUrls(urls, options)
 //   POST torrents/add (multipart file)  torrentsAddFile(fileName, bytes, options)
 //   POST torrents/add (multipart, many) torrentsAddMany(files, urls, options)
-//   POST torrents/fetchMetadata         torrentsFetchMetadata(source)  -- 202 still looking,
-//                                          200 the metadata; kept per Web UI session (#44)
+//   POST torrents/fetchMetadata         torrentsFetchMetadata(source, downloader)  -- 202 still
+//                                          looking, 200 the metadata; kept per Web UI session (#44)
+//
+// Search (#145, DECISIONS C26), checked on the 5.3.0 playground (Web API 2.16.2) with invented
+// local plugins (scripts/dev/search-plugins.py):
+//   POST search/start                   searchStart(pattern, category, plugins) -- {id}; 409
+//                                          "Python must be installed…" or at five running
+//   GET  search/status                  searchStatus(id)  -- [{id, status, total, …}]
+//   GET  search/results                 searchResults(id, limit, offset)
+//   POST search/stop, search/delete     searchStop(id), searchDelete(id)
+//   GET  search/plugins                 searchPlugins()
+//   POST search/installPlugin           searchInstallPlugin(sources)  -- 200 whatever happens
+//   POST search/uninstallPlugin         searchUninstallPlugin(names)
+//   POST search/enablePlugin            searchEnablePlugin(names, enable)
+//   POST search/updatePlugins           searchUpdatePlugins()  -- the outcome is in log/main
 // Anything else goes through the generic get() / post().
 
 #include "core/ApiError.hpp"
@@ -382,6 +395,9 @@ public:
         /// session already fetched (torrentsFetchMetadata); qBittorrent answers 400 otherwise,
         /// and with a file upload (docs/11 D1). Empty leaves it off.
         QList<int> filePriorities;
+        /// Web API 2.13.1's `downloader`: the search plugin that fetches a link to a `.torrent`
+        /// (a search result's, DECISIONS C26 SR9). Unset leaves it off.
+        std::optional<QString> downloader;
         /// qBittorrent's `stopCondition`: "MetadataReceived" stops the torrent as soon as its
         /// metadata is in (docs/29 D5), "FilesChecked" after the check. Unset leaves it off.
         std::optional<QString> stopCondition;
@@ -407,7 +423,10 @@ public:
     /// (docs/29 §3). The result is kept in the Web UI session, so every poll and the add that
     /// follows must go through this one client. A 404 is a server
     /// without the endpoint.
-    QbtReply<FetchedMetadata> *torrentsFetchMetadata(const QString &source);
+    /// `downloader` (a search plugin's name, C26 SR9) fetches a link through that plugin; empty
+    /// leaves it off.
+    QbtReply<FetchedMetadata> *torrentsFetchMetadata(const QString &source,
+                                                     const QString &downloader = QString());
     /// True when a server with this app/webapiVersion has torrents/fetchMetadata and takes
     /// `filePriorities` on an add: 2.11.9 and later.
     static bool supportsFetchMetadata(const QString &apiVersion);
@@ -440,6 +459,27 @@ public:
 
     QbtReply<QByteArray> *transferSetDownloadLimit(qint64 bytesPerSec);
     QbtReply<QByteArray> *transferSetUploadLimit(qint64 bytesPerSec);
+
+    // --- search (#145, DECISIONS C26) ------------------------------------------------------
+    /// POST search/start: `category` "all" or a type's id, `plugins` names (or "enabled",
+    /// "all"), joined with '|'. Resolves to the job's id. Its 409 keeps qBittorrent's words:
+    /// "Python must be installed to use the Search Engine." or "Unable to create more than 5
+    /// concurrent searches.".
+    QbtReply<int> *
+    searchStart(const QString &pattern, const QString &category, const QStringList &plugins);
+    /// GET search/status: every job's, or job `id`'s (-1: all). 404 for an unknown id.
+    QbtReply<QJsonArray> *searchStatus(int id = -1);
+    /// GET search/results: `{results, status, total}` from `offset`, at most `limit` (0: all).
+    QbtReply<QJsonObject> *searchResults(int id, int limit = 0, int offset = 0);
+    QbtReply<QByteArray> *searchStop(int id);   ///< POST search/stop
+    QbtReply<QByteArray> *searchDelete(int id); ///< POST search/delete
+    /// GET search/plugins: `[{name, fullName, version, url, enabled, supportedCategories}]`.
+    QbtReply<QJsonArray> *searchPlugins();
+    /// POST search/installPlugin: URLs, or paths on the server's own machine, joined with '|'.
+    QbtReply<QByteArray> *searchInstallPlugin(const QStringList &sources);
+    QbtReply<QByteArray> *searchUninstallPlugin(const QStringList &names);
+    QbtReply<QByteArray> *searchEnablePlugin(const QStringList &names, bool enable);
+    QbtReply<QByteArray> *searchUpdatePlugins();
 
     /// A POST whose body is a multipart form (e.g. torrentsAddFile). `buildMultiPart` makes
     /// a fresh, unparented QHttpMultiPart for every attempt (the client parents it to the

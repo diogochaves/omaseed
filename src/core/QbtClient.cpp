@@ -193,6 +193,8 @@ void applyAddOptions(QUrlQuery &form, const QbtClient::AddOptions &options)
     }
     if (options.stopCondition)
         addItem(form, QStringLiteral("stopCondition"), *options.stopCondition);
+    if (options.downloader)
+        addItem(form, QStringLiteral("downloader"), *options.downloader);
 }
 
 bool isNetworkFailure(QNetworkReply::NetworkError error)
@@ -1426,12 +1428,15 @@ bool QbtClient::supportsSeedMode(const QString &apiVersion)
     return !version.isNull() && version >= QVersionNumber(2, 16, 0);
 }
 
-QbtReply<QbtClient::FetchedMetadata> *QbtClient::torrentsFetchMetadata(const QString &source)
+QbtReply<QbtClient::FetchedMetadata> *QbtClient::torrentsFetchMetadata(const QString &source,
+                                                                       const QString &downloader)
 {
     RequestSpec spec;
     spec.verb = QStringLiteral("POST");
     spec.path = QStringLiteral("torrents/fetchMetadata");
     addItem(spec.form, QStringLiteral("source"), source);
+    if (!downloader.isEmpty())
+        addItem(spec.form, QStringLiteral("downloader"), downloader);
     // Asking again is how this call is used, so a lost answer is simply the next poll's job.
     spec.retryOnTransient = false;
     return submit<FetchedMetadata>(
@@ -1533,6 +1538,104 @@ QbtReply<QByteArray> *QbtClient::transferSetUploadLimit(qint64 bytesPerSec)
     QUrlQuery form;
     addItem(form, QStringLiteral("limit"), QString::number(bytesPerSec));
     return post(QStringLiteral("transfer/setUploadLimit"), form);
+}
+
+QbtReply<int> *
+QbtClient::searchStart(const QString &pattern, const QString &category, const QStringList &plugins)
+{
+    RequestSpec spec;
+    spec.verb = QStringLiteral("POST");
+    spec.path = QStringLiteral("search/start");
+    addItem(spec.form, QStringLiteral("pattern"), pattern);
+    addItem(spec.form, QStringLiteral("category"), category);
+    addItem(spec.form, QStringLiteral("plugins"), plugins.join(QLatin1Char('|')));
+    spec.retryOnTransient = false;
+    spec.errorKeepsBody = true;
+    const QString path = spec.path;
+    return submit<int>(std::move(spec), [path](const QByteArray &body) -> QbtResult<int> {
+        QbtResult<QJsonObject> object = parseObject(body, path);
+        if (object.isError())
+            return object.error();
+        const QJsonValue id = object.value().value(QStringLiteral("id"));
+        if (!id.isDouble())
+            return ApiError(ApiError::Kind::Parse, QStringLiteral("%1: no id").arg(path));
+        return id.toInt();
+    });
+}
+
+QbtReply<QJsonArray> *QbtClient::searchStatus(int id)
+{
+    RequestSpec spec;
+    spec.path = QStringLiteral("search/status");
+    if (id >= 0)
+        addItem(spec.query, QStringLiteral("id"), QString::number(id));
+    const QString path = spec.path;
+    return submit<QJsonArray>(std::move(spec),
+                              [path](const QByteArray &body) { return parseArray(body, path); });
+}
+
+QbtReply<QJsonObject> *QbtClient::searchResults(int id, int limit, int offset)
+{
+    RequestSpec spec;
+    spec.path = QStringLiteral("search/results");
+    addItem(spec.query, QStringLiteral("id"), QString::number(id));
+    if (limit > 0)
+        addItem(spec.query, QStringLiteral("limit"), QString::number(limit));
+    if (offset > 0)
+        addItem(spec.query, QStringLiteral("offset"), QString::number(offset));
+    const QString path = spec.path;
+    return submit<QJsonObject>(std::move(spec),
+                               [path](const QByteArray &body) { return parseObject(body, path); });
+}
+
+QbtReply<QByteArray> *QbtClient::searchStop(int id)
+{
+    QUrlQuery form;
+    addItem(form, QStringLiteral("id"), QString::number(id));
+    return post(QStringLiteral("search/stop"), form);
+}
+
+QbtReply<QByteArray> *QbtClient::searchDelete(int id)
+{
+    QUrlQuery form;
+    addItem(form, QStringLiteral("id"), QString::number(id));
+    return post(QStringLiteral("search/delete"), form);
+}
+
+QbtReply<QJsonArray> *QbtClient::searchPlugins()
+{
+    RequestSpec spec;
+    spec.path = QStringLiteral("search/plugins");
+    const QString path = spec.path;
+    return submit<QJsonArray>(std::move(spec),
+                              [path](const QByteArray &body) { return parseArray(body, path); });
+}
+
+QbtReply<QByteArray> *QbtClient::searchInstallPlugin(const QStringList &sources)
+{
+    QUrlQuery form;
+    addItem(form, QStringLiteral("sources"), sources.join(QLatin1Char('|')));
+    return post(QStringLiteral("search/installPlugin"), form);
+}
+
+QbtReply<QByteArray> *QbtClient::searchUninstallPlugin(const QStringList &names)
+{
+    QUrlQuery form;
+    addItem(form, QStringLiteral("names"), names.join(QLatin1Char('|')));
+    return post(QStringLiteral("search/uninstallPlugin"), form);
+}
+
+QbtReply<QByteArray> *QbtClient::searchEnablePlugin(const QStringList &names, bool enable)
+{
+    QUrlQuery form;
+    addItem(form, QStringLiteral("names"), names.join(QLatin1Char('|')));
+    addBoolItem(form, QStringLiteral("enable"), enable);
+    return post(QStringLiteral("search/enablePlugin"), form);
+}
+
+QbtReply<QByteArray> *QbtClient::searchUpdatePlugins()
+{
+    return post(QStringLiteral("search/updatePlugins"), QUrlQuery());
 }
 
 QbtReply<QByteArray> *QbtClient::postMultipart(const QString &path,

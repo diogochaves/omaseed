@@ -38,6 +38,26 @@ omaseed_add_test(tst_searchwords
     LIBRARIES omaseed::core
 )
 
+omaseed_add_test(tst_searchresults
+    SOURCES tst_searchresults.cpp
+    LIBRARIES omaseed::core
+)
+
+omaseed_add_test(tst_searchsession_fake
+    SOURCES tst_searchsession_fake.cpp FakeHttp.hpp
+    LIBRARIES omaseed::core
+)
+
+omaseed_add_test(tst_searchmodel
+    SOURCES tst_searchmodel.cpp
+    LIBRARIES omaseed::core
+)
+
+omaseed_add_test(tst_searchplugins_fake
+    SOURCES tst_searchplugins_fake.cpp FakeHttp.hpp
+    LIBRARIES omaseed::core
+)
+
 omaseed_add_test(tst_metadatalookup
     SOURCES tst_metadatalookup.cpp
     LIBRARIES omaseed::core
@@ -157,6 +177,11 @@ omaseed_add_test(tst_secretstore
 
 omaseed_add_test(tst_qbtclient_actions_fake
     SOURCES tst_qbtclient_actions_fake.cpp
+    LIBRARIES omaseed::core
+)
+
+omaseed_add_test(tst_qbtclient_search_fake
+    SOURCES tst_qbtclient_search_fake.cpp FakeHttp.hpp
     LIBRARIES omaseed::core
 )
 

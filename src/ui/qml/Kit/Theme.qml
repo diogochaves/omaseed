@@ -291,6 +291,56 @@ ThemeBase {
     /// The display tool's menu: its width.
     readonly property int displayMenuWidth: space(240)
 
+    // ---- search's form (board 48 `search()`, `.sbar`, `.sline`, `.pill`, `.empty`, C26) ----
+    /// The bar over the results (`.sbar`: 12 / 18 / 8 px, 10 px between its parts) and the
+    /// field's least width (200 px).
+    readonly property int searchBarInset: space(16)
+    readonly property int searchBarInsetTop: space(11)
+    readonly property int searchBarInsetBottom: space(7)
+    readonly property int searchBarGap: space(9)
+    readonly property int searchFieldMinWidth: space(185)
+    readonly property int searchFieldNarrowWidth: space(110)
+    /// The plugins' line under it (`.sline`: 11.5 px, 12 px between its parts, 6 px under).
+    readonly property int searchLineSize: font.small
+    readonly property int searchLineGap: space(11)
+    readonly property int searchLineInsetBottom: space(6)
+    /// A plugin's pill (`.pill`): its dot, the room after it, and its least width (90 px).
+    readonly property int searchPillDot: space(6)
+    readonly property int searchPillGap: space(6)
+    readonly property int searchPillMinWidth: space(84)
+    /// A plugin still asked pulses its dot (`pulse48`, 1.3 s a beat), down to this opacity.
+    readonly property int searchPulseDuration: 1300
+    readonly property real searchPulseLow: 0.35
+    /// The lines between the bar and the rows (`.newabove`, `.hid`: 11 and 11.5 px).
+    readonly property int searchNoteSize: font.caption
+    readonly property int searchNoteInset: space(4)
+    /// The empty states (`.empty`: at most 440 px wide, 40 px down, 8 px between the lines,
+    /// the title 14 px bright, the place 11 px).
+    readonly property int searchEmptyWidth: space(410)
+    readonly property int searchEmptyTop: space(37)
+    readonly property int searchEmptyGap: space(7)
+    readonly property int searchEmptyTitleSize: font.heading
+    readonly property int searchEmptyWordsSize: font.body
+    /// The result on the right (`.det`, `.dhero`: the fact 22 px over its caption, 16 px in).
+    readonly property int searchPaneWidth: space(380)
+    readonly property int searchPaneInset: space(16)
+    readonly property int searchPaneGap: space(9)
+    readonly property int searchPaneFactSize: font.heading
+    /// A list kept while its server isn't answering (Fig. 23's 45 %): search's rows too.
+    readonly property real staleOpacity: 0.45
+    /// Below this window width the bar's three filters fold into "filters ▾" (SR6's 720 px).
+    readonly property int searchFoldWidth: space(720)
+    /// The plugins' answers (`.menu.pop`, 392 px) and the bar's menus.
+    readonly property int searchAnswersWidth: space(392)
+    readonly property int searchMenuWidth: space(240)
+    /// Settings › qBittorrent › Search plugins (`.plg`, `.inst`): a plugin's row, the room
+    /// inside it, its version's column and the gap between the install field's parts.
+    readonly property int searchPluginRowHeight: space(36)
+    readonly property int searchPluginInset: space(10)
+    readonly property int searchPluginVersionWidth: space(40)
+    readonly property int searchPluginNameWidth: space(110)
+    readonly property int searchPluginGap: space(9)
+
     // ---- the library's form: the overview's shelves (board 46 `overview()`, `.shelf`) -----
     /// The shelves' inset (6 / 18 px) and the room between two shelves (14 px).
     readonly property int shelfInset: space(16)

@@ -36,10 +36,14 @@
 #include "core/LogFilterModel.hpp"
 #include "core/MetadataLookup.hpp"
 #include "core/OmaseedBackup.hpp"
+#include "core/PrivateTrackers.hpp"
 #include "core/QbtClient.hpp"
 #include "core/QbtSettingsExport.hpp"
 #include "core/QbtSettingsFetch.hpp"
 #include "core/RenameDisk.hpp"
+#include "core/SearchModel.hpp"
+#include "core/SearchPlugins.hpp"
+#include "core/SearchSession.hpp"
 #include "core/SecretStore.hpp"
 #include "core/SeedConsole.hpp"
 #include "core/SeedLedger.hpp"
@@ -1245,6 +1249,8 @@ private:
     void updateLookupServer();
     /// The library's private tracker hosts, read from the torrents and the tracker model.
     QString privateTrackerOf(const QStringList &trackers) const;
+    /// The same hosts, once, for a search's many results (C26 SR3).
+    core::PrivateTrackers libraryPrivateTrackers() const;
     /// #44: torrents/add answered 400 to `filePriorities`: the session that fetched the
     /// metadata was replaced (a re-login). Asks for the metadata once more (quick: the peers
     /// are known) and adds again; failing that, adds the magnet to stop once its metadata is in
@@ -1260,6 +1266,8 @@ private:
                      const QString &torrentId,
                      const QVariantList &laterPriorities);
     omaseed::core::MetadataLookup *m_addLookup = nullptr;
+    /// C26 SR9: the search plugin that fetches the lookup's link (`downloader`), or "".
+    QString m_lookupDownloader;
     /// The addable the lookup was started for, and the token its files were kept under.
     QVariantMap m_lookupAddable;
     QString m_lookupToken;
@@ -2221,6 +2229,68 @@ private:
     QString m_display = QStringLiteral("rows");
     QString m_displayScope = core::LibraryDisplays::libraryKey();
     // --- end #168 -----------------------------------------------------------------------------
+    // --- #145: search ------------------------------------------------------------------------
+    // Board 48 (DECISIONS C26): search through the server's own search plugins, a view in the
+    // rail (C24 H16). core/SearchSession asks, core/SearchModel lists, core/SearchPlugins is
+    // Settings › qBittorrent › Search plugins. Each server's last search is kept for the
+    // session (SR12); the jobs a search started are deleted when it is replaced and on quit.
+    // AppSearch.cpp.
+public:
+    Q_PROPERTY(omaseed::core::SearchSession *search READ search CONSTANT)
+    Q_PROPERTY(omaseed::core::SearchModel *searchResults READ searchResults CONSTANT)
+    Q_PROPERTY(omaseed::core::SearchPlugins *searchPlugins READ searchPlugins CONSTANT)
+    /// The server has search plugins to offer: a qBittorrent (C25 K30), or the demo.
+    Q_PROPERTY(bool searchOffered READ searchOffered NOTIFY serverChanged)
+    /// SR10: the server is this computer, so a plugin file here reaches it.
+    Q_PROPERTY(bool searchServerLocal READ searchServerLocal NOTIFY serverChanged)
+    core::SearchSession *search() const { return m_search; }
+    core::SearchModel *searchResults() const { return m_searchModel; }
+    core::SearchPlugins *searchPlugins() const { return m_searchPlugins; }
+    bool searchOffered() const;
+    bool searchServerLocal() const;
+
+    /// enter in the field (SR14): asks `plugins` (names; empty: every plugin that is on) for
+    /// `pattern` in `category` ("all" or a type's id). Replaces the last search.
+    Q_INVOKABLE void startSearch(const QString &pattern,
+                                 const QString &category = QStringLiteral("all"),
+                                 const QStringList &plugins = {});
+    /// The plugins' list again (the view or the pane opened).
+    Q_INVOKABLE void refreshSearchPlugins();
+    /// SR9: what add… hands the add sheet for row `key`: `{text, downloader, fromLine, key,
+    /// libraryHash}`; `fromLine` is "from search · plugin a and plugin c · a magnet with 5
+    /// trackers" (the sheet's head adds the name and size).
+    Q_INVOKABLE QVariantMap searchAddable(const QString &key) const;
+    /// The add sheet sent row `key`'s torrent: the row says "added" (SR7).
+    Q_INVOKABLE void searchAdded(const QString &key);
+    /// SR2's "turn it off…": the plugin off, its row in the pane saying why.
+    Q_INVOKABLE void turnOffSearchPlugin(const QString &name);
+    /// SR10's browse…: a search plugin file on this computer (the portal's picker); its path,
+    /// or "" when cancelled.
+    Q_INVOKABLE QString pickSearchPluginFile();
+    /// Test seam: the session's poll, deadline and how many jobs run at once.
+    Q_INVOKABLE void setSearchTimings(int pollMs, int deadlineMs, int maxRunning);
+    /// The demo's search (board 48's invented plugins and rows), for the QML tests and
+    /// `--demo` shots: `stage` "none" (no plugins), "off" (all off), "nopython", "asking"
+    /// (nothing yet), "one" (plugin a answered), "done" (plugin b failed).
+    Q_INVOKABLE void loadDemoSearch(const QString &stage);
+
+private:
+    void setUpSearch();
+    void switchSearchServer();
+    void shutdownSearch();
+    core::SearchModel::LibraryMatch searchLibraryMatch(const core::SearchRow &row) const;
+    void rebuildSearchIndex();
+    core::SearchSession *m_search = nullptr;
+    core::SearchModel *m_searchModel = nullptr;
+    core::SearchPlugins *m_searchPlugins = nullptr;
+    QString m_searchServerId;
+    QHash<QString, core::SearchSession::Snapshot> m_searchKept;
+    QHash<QString, QList<int>> m_searchLeftJobs;
+    QTimer *m_searchMarksTimer = nullptr;
+    /// The library by hash ({hash, words}) and by folded name and size ({name}).
+    QHash<QString, core::SearchModel::LibraryMatch> m_searchByHash;
+    QHash<QString, QString> m_searchByNameSize;
+    // --- end #145 -----------------------------------------------------------------------------
 };
 
 } // namespace omaseed::app

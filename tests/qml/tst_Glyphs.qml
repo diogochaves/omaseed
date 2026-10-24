@@ -13,7 +13,8 @@ TestCase {
                        "statusStalled", "statusChecking", "statusErrored", "statusQueued",
                        "category", "tag", "tracker", "chevronRight", "chevronDown", "check", "close",
                        "dot", "scrollHint", "host", "lookup", "lookupSlow", "lookupNever",
-                       "privateTracker", "copyFrom", "viewLibrary", "viewSeed", "viewLog",
+                       "privateTracker", "copyFrom", "viewLibrary", "viewSeed", "viewLog", "viewSearch",
+                       "searchLink", "searchMagnet",
                        "questionNeedsYou", "questionArriving", "questionLanded",
                        "questionGivingBack", "questionResting", "railGroups"];
         for (let i = 0; i < names.length; ++i) {

@@ -60,15 +60,16 @@ TestCase {
         return modal;
     }
 
-    // Nine sections of settings, then Backup (#32, docs/24 §4 D1 a) closing the group.
-    function test_the_nav_has_a_qbittorrent_group_of_ten() {
+    // Nine sections of settings, Search plugins (#145, C26 SR10), then Backup (#32, docs/24 §4
+    // D1 a) closing the group.
+    function test_the_nav_has_a_qbittorrent_group_of_eleven() {
         const modal = createTemporaryObject(modalComponent, testCase);
-        compare(modal.qbtSections.length, 10);
+        compare(modal.qbtSections.length, 11);
         compare(modal.qbtSections.map(section => section.id), ["speed", "discovery", "connection",
                                                                "proxy", "seeding", "queue",
                                                                "downloads", "webui", "advanced",
-                                                               "backup"]);
-        for (let i = 0; i < 10; ++i)
+                                                               "search", "backup"]);
+        for (let i = 0; i < 11; ++i)
             verify(testCase.childNamed(modal, "qbtNavRow" + i) !== null);
         compare(testCase.childNamed(modal, "qbtNavHead").text, "qbittorrent");
         const server = testCase.childNamed(modal, "qbtNavServer");
@@ -716,9 +717,9 @@ TestCase {
         const groups = testCase.childNamed(modal, "settingsGroupTabs");
         const sections = testCase.childNamed(modal, "settingsTabs");
         compare(groups.currentIndex, 1);
-        compare(sections.model.length, 10);
+        compare(sections.model.length, 11);
         keyClick(Qt.Key_0);
-        compare(sections.currentIndex, 9);
+        compare(sections.currentIndex, 10);
         verify(sections._shift > 0, "the Backup tab is out of view");
         keyClick(Qt.Key_L); // wraps to omaseed's General
         compare(modal.paneIndex, 0);
@@ -737,5 +738,33 @@ TestCase {
             height: 800
             width: Theme.space(480)
         }
+    }
+
+    // #145 (DECISIONS C26 SR10, SR11): Search plugins, between Advanced and Backup: the scope
+    // line, the install field (URLs only for a server that isn't this computer), a switch per
+    // plugin with its own name, version and types, and check for updates.
+    function test_the_search_plugins_pane() {
+        App.loadDemoSearch("done");
+        const modal = createTemporaryObject(modalComponent, testCase);
+        modal.openQbt();
+        modal.showPane(modal.qbtStart + 9);
+        verify(modal.inQbtSearch);
+        const pane = testCase.childNamed(modal, "searchPluginsPane");
+        verify(pane.visible);
+        verify(!testCase.childNamed(modal, "qbtPane").visible);
+        verify(testCase.childNamed(pane, "searchScopeLine").text.indexOf("home's plugins: installed on home's machine") === 0);
+        compare(pane.cursorCount, 5);
+        verify(testCase.childNamed(pane, "searchInstallRemote").visible);
+        compare(pane.field.placeholder, "a URL home can reach");
+        verify(testCase.childNamed(pane, "searchPlugin_plugin_a") !== null);
+        verify(testCase.childNamed(pane, "searchPlugin_plugin_c") !== null);
+        // space on a plugin's row turns it off; the switch shows it at once (M12).
+        keyClick(Qt.Key_Tab);
+        keyClick(Qt.Key_J);
+        keyClick(Qt.Key_J);
+        compare(modal.paneCursor, 2);
+        keyClick(Qt.Key_Space);
+        compare(App.searchPlugins.enabledCount, 2);
+        App.loadDemoSearch("off");
     }
 }
