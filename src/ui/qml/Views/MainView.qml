@@ -1984,6 +1984,26 @@ Item {
         return question.length > 0 ? question : qsTr("Library");
     }
 
+    /// What the title names, for its kana word (#171, board 46 `titleBar()`'s `kana`): the
+    /// place's kind, the question, or the library; "" where the skin has no word (the log, a
+    /// move's show, a tag).
+    readonly property string scopeTitleId: {
+        if (root.logShown || root.consoleShown || root.moveShowingJob || root.moveShowing)
+            return "";
+        if (root.searchShown)
+            return "search";
+        if (App.filtered.folder.length > 0)
+            return "folders";
+        if (App.filtered.category !== undefined)
+            return "categories";
+        if (App.filtered.tag !== undefined)
+            return "";
+        if (App.filtered.tracker !== undefined)
+            return "trackers";
+        const row = rail.questionRow(App.filtered.question);
+        return row === null ? "library" : row.key === "landedToday" ? "landed" : row.key;
+    }
+
     /// Its sentence (core/ScopeSentence): App's for the rail's scope; the faces', a move's
     /// show and a lost server's from what the window knows.
     readonly property string scopeSentence: {
@@ -2022,6 +2042,7 @@ Item {
         anchors.right: parent.right
         anchors.top: parent.top
         title: root.scopeTitle
+        titleId: root.scopeTitleId
         sentence: root.scopeSentence
         // The log filters its own lines (docs/32 D11); search's `/` filters its results
         // (C26 SR14), while there are some.
@@ -2119,6 +2140,8 @@ Item {
         animated: !App.reducedMotion
         band: App.createBand
         copyable: false
+        doingTag: qsTr("creating")
+        doneTag: qsTr("made")
         extra: (App.createBand.file ?? null) !== null ? createFileChip : null
         objectName: "createBand"
         shown: App.createShown && !root.firstRun

@@ -43,7 +43,7 @@ Rectangle {
     property int sidePadding: Theme.space(10)
     // The label's type size. Body everywhere (spec `.btn`), except the confirm dialog's two
     // buttons, which the spec prints at caption (`.confirm .bts .btn`).
-    property int fontSize: Theme.font.body
+    property int fontSize: Theme.controlFontSize
     // Debug-only override so the ThemeGallery can show the pressed fill without a held mouse
     // button; a real press (mouseArea.pressed) always wins over this.
     property bool pressed: false
@@ -131,8 +131,12 @@ Rectangle {
 
             anchors.verticalCenter: parent.verticalCenter
             color: root._textColor
-            font.family: Theme.fontFamily
+            // The skin's control voice (board 46 `.btn`, `.tool .pi`, `.status.sel .ab`).
+            font.capitalization: Theme.controlUpper ? Font.AllUppercase : Font.MixedCase
+            font.family: Theme.labelFamily
+            font.letterSpacing: root.fontSize * Theme.controlTrack
             font.pixelSize: root.fontSize
+            font.weight: Theme.controlWeight
             text: root.text
             visible: root.text.length > 0
         }

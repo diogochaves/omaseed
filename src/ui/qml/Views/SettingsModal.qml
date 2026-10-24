@@ -91,7 +91,9 @@ Item {
         },
         {
             "glyph": Glyphs.appearance,
-            "text": qsTr("Appearance")
+            "text": qsTr("Appearance"),
+            // Its own kana word (board 46 `.shh h4 .kn`); every other pane's is settings'.
+            "labelId": "appearance"
         },
         {
             // #31, docs/24 §3: omaseed's own backup, after Appearance.
@@ -138,7 +140,8 @@ Item {
     readonly property var allRows: root.navRows.concat(root.qbtSections.map(section => ({
                                                                                           "glyph": section.glyph,
                                                                                           "text": section.name,
-                                                                                          "shortText": section.shortName
+                                                                                          "shortText": section.shortName,
+                                                                                          "labelId": section.id === "search" ? "search" : "settings"
                                                                                       })))
     /// The qBittorrent group's head: "playground 5.2.3".
     readonly property string qbtServerText: {
@@ -1540,10 +1543,12 @@ Item {
                             Layout.fillWidth: true
                             bright: true
                             elide: Text.ElideRight
-                            font.weight: Font.DemiBold
+                            font.weight: Theme.sheetTitleWeight
+                            labelId: root.allRows[root.paneIndex].labelId ?? "settings"
                             objectName: "paneTitle"
                             size: "subtitle"
                             text: root.allRows[root.paneIndex].text
+                            voice: "title"
                         }
 
                         // docs/16 §3: which server this is, and that a change is saved as it

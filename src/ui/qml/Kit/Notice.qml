@@ -42,6 +42,12 @@ Item {
     property Component extra: null
     /// The sign at the left; "" draws the kind's own.
     property string glyph: ""
+    /// The kind in a word ("no signal", "moving"), drawn in the sign's place where the skin
+    /// names outcomes by words (Theme.labelTags, board 46 `.notice .stl`); "" is the kind's.
+    property string tag: ""
+    /// A band under the title bar (board 46 `bands()`): the skin's band insets hold its plate
+    /// off the rule and the content's sides (Omarchy's are 0).
+    property bool banded: false
     /// 0–1 draws the progress line on the bottom edge; below 0 draws none.
     property real progress: -1
     /// Red, after the line and its tail: "2 failed".
@@ -88,6 +94,13 @@ Item {
                                                                                   === "success"
                                                                                   ? Glyphs.check :
                                                                                     Glyphs.middot
+    readonly property string kindTag: root.tag.length > 0 ? root.tag : root.kind === "error"
+                                                                  ? qsTr("error") : root.kind === "warning"
+                                                                                    ? qsTr("warning") : root.kind === "success"
+                                                                                                        ? qsTr("done") : qsTr("note")
+    readonly property int _insetTop: root.banded ? Theme.noticeBandInsetTop : 0
+    readonly property int _insetStart: root.banded ? Theme.noticeBandInsetStart : 0
+    readonly property int _insetEnd: root.banded ? Theme.noticeBandInsetEnd : 0
     /// The line as drawn: `body`, then the tail in its fixed slot.
     readonly property string lineText: {
         if (root.bodyTail.length === 0)
@@ -98,7 +111,8 @@ Item {
         return root.body.length > 0 ? root.body + " " + tail : tail;
     }
     /// The full height the band takes while shown.
-    readonly property real fullHeight: content.implicitHeight + Theme.space(9) + Theme.space(10)
+    readonly property real fullHeight: root._insetTop + content.implicitHeight + Theme.space(9)
+                                       + Theme.space(10)
     readonly property alias detailsBlock: detailsBlock
     readonly property alias detailsScroll: detailsScroll
 
@@ -144,11 +158,16 @@ Item {
     // meets the content.
     Plate {
         anchors.fill: parent
+        anchors.leftMargin: root._insetStart
+        anchors.rightMargin: root._insetEnd
+        anchors.topMargin: root._insetTop
         base: root.opaque ? Theme.background : "transparent"
         edgeColor: Theme.hairColor
         edgeWidth: Theme.hairWidth
         edges: (root.edge !== "top" ? Qt.BottomEdge : 0) | (root.edge !== "bottom" ? Qt.TopEdge : 0)
-        fill: Theme.on.idle.fill
+        // The idle fill, or the kind's own tint where the skin gives one (`.notice .pi`).
+        fill: Theme.noticeTint > 0 ? Qt.tint(Theme.background, Qt.alpha(root.kindColor, Theme.noticeTint))
+                                   : Theme.on.idle.fill
         objectName: "noticePlate"
         radius: 0
         rule: root.kindColor
@@ -158,22 +177,23 @@ Item {
     Rectangle {
         anchors.bottom: parent.bottom
         anchors.left: parent.left
+        anchors.leftMargin: root._insetStart
         color: root.kindColor
         height: Theme.space(2)
         objectName: "noticeProgress"
         visible: root.progress >= 0
-        width: parent.width * Math.max(0, Math.min(1, root.progress))
+        width: (parent.width - root._insetStart - root._insetEnd) * Math.max(0, Math.min(1, root.progress))
     }
 
     ColumnLayout {
         id: content
 
         anchors.left: parent.left
-        anchors.leftMargin: Theme.space(2) + Theme.space(16)
+        anchors.leftMargin: root._insetStart + Theme.space(2) + Theme.space(16)
         anchors.right: parent.right
-        anchors.rightMargin: Theme.space(16)
+        anchors.rightMargin: root._insetEnd + Theme.space(16)
         anchors.top: parent.top
-        anchors.topMargin: Theme.space(9)
+        anchors.topMargin: root._insetTop + Theme.space(9)
         spacing: Theme.space(3)
 
         RowLayout {
@@ -182,18 +202,23 @@ Item {
             Layout.fillWidth: true
             spacing: Theme.space(8)
 
+            // The kind's sign, or its word in the label voice where the skin names kinds by
+            // words (board 46 `.notice .stl`), set down to the headline's baseline.
             Text {
                 id: glyph
 
                 Layout.alignment: Qt.AlignTop
-                Layout.preferredWidth: Theme.space(12)
+                Layout.preferredWidth: Theme.labelTags ? glyph.implicitWidth : Theme.space(12)
+                Layout.topMargin: Theme.labelTags ? Math.round((Theme.font.body - Theme.font.caption) * 0.8) : 0
                 color: root.kindColor
-                font.family: Theme.fontFamily
-                font.pixelSize: Theme.font.body
-                font.weight: Font.DemiBold
+                font.capitalization: Theme.labelTags && Theme.labelUpper ? Font.AllUppercase : Font.MixedCase
+                font.family: Theme.labelTags ? Theme.labelFamily : Theme.fontFamily
+                font.letterSpacing: Theme.labelTags ? Math.max(1, Math.round(Theme.font.caption * Theme.labelTrack)) : 0
+                font.pixelSize: Theme.labelTags ? Theme.font.caption : Theme.font.body
+                font.weight: Theme.labelTags ? Theme.labelWeight : Font.DemiBold
                 horizontalAlignment: Text.AlignHCenter
                 objectName: "noticeGlyph"
-                text: root.kindGlyph
+                text: Theme.labelTags ? root.kindTag : root.kindGlyph
             }
 
             Text {

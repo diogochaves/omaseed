@@ -301,7 +301,9 @@ Item {
                     anchors.verticalCenter: parent.verticalCenter
                     color: laneInk.foreground
                     elide: Text.ElideRight
-                    font.family: Theme.fontFamily
+                    font.capitalization: Theme.statusUpper ? Font.AllUppercase : Font.MixedCase
+                    font.family: Theme.valueFamily
+                    font.letterSpacing: Theme.statusLineFontSize * Theme.statusTrack
                     font.pixelSize: Theme.statusLineFontSize
                     font.weight: Theme.statusLineNameWeight
                     objectName: "statusServerName"
@@ -354,7 +356,9 @@ Item {
             Layout.alignment: Qt.AlignVCenter
             Layout.minimumWidth: downText.implicitWidth
             color: Theme.stateDownloading
-            font.family: Theme.fontFamily
+            font.capitalization: Theme.statusUpper ? Font.AllUppercase : Font.MixedCase
+            font.family: Theme.valueFamily
+            font.letterSpacing: Theme.statusLineFontSize * Theme.statusTrack
             font.pixelSize: Theme.statusLineFontSize
             objectName: "statusDown"
             text: root.level >= 3 ? Glyphs.arrowDown + root.downSpeedShort : Glyphs.arrowDown + " " + root.downSpeed
@@ -373,7 +377,9 @@ Item {
             Layout.alignment: Qt.AlignVCenter
             Layout.minimumWidth: upText.implicitWidth
             color: upMouse.containsMouse && root.upOpensSeed ? Theme.accent : Theme.stateSeeding
-            font.family: Theme.fontFamily
+            font.capitalization: Theme.statusUpper ? Font.AllUppercase : Font.MixedCase
+            font.family: Theme.valueFamily
+            font.letterSpacing: Theme.statusLineFontSize * Theme.statusTrack
             font.pixelSize: Theme.statusLineFontSize
             objectName: "statusUp"
             text: root.level >= 3 ? Glyphs.arrowUp + root.upSpeedShort : Glyphs.arrowUp + " " + root.upSpeed
@@ -443,7 +449,9 @@ Item {
                 Text {
                     anchors.verticalCenter: parent.verticalCenter
                     color: altChip.tone
-                    font.family: Theme.fontFamily
+                    font.capitalization: Theme.statusUpper ? Font.AllUppercase : Font.MixedCase
+                    font.family: Theme.valueFamily
+                    font.letterSpacing: Theme.statusLineFontSize * Theme.statusTrack
                     font.pixelSize: Theme.statusLineFontSize
                     objectName: "statusAltText"
                     text: altChip.text
@@ -453,7 +461,9 @@ Item {
                 Text {
                     anchors.verticalCenter: parent.verticalCenter
                     color: Theme.dimForeground
-                    font.family: Theme.fontFamily
+                    font.capitalization: Theme.statusUpper ? Font.AllUppercase : Font.MixedCase
+                    font.family: Theme.valueFamily
+                    font.letterSpacing: Theme.statusLineFontSize * Theme.statusTrack
                     font.pixelSize: Theme.statusLineFontSize
                     text: altChip.suffix
                     visible: altChip.suffix.length > 0
@@ -490,7 +500,9 @@ Item {
             Layout.minimumWidth: networkLabel.minimumWidth
             color: root.networkWarning === "disconnected" ? Theme.red : Theme.yellow
             elide: Text.ElideRight
-            font.family: Theme.fontFamily
+            font.capitalization: Theme.statusUpper ? Font.AllUppercase : Font.MixedCase
+            font.family: Theme.valueFamily
+            font.letterSpacing: Theme.statusLineFontSize * Theme.statusTrack
             font.pixelSize: Theme.statusLineFontSize
             objectName: "statusNetwork"
             text: root.networkText
@@ -540,7 +552,9 @@ Item {
                         Text {
                             Accessible.ignored: true
                             color: Theme.dimForeground
-                            font.family: Theme.fontFamily
+                            font.capitalization: Theme.statusUpper ? Font.AllUppercase : Font.MixedCase
+                            font.family: Theme.valueFamily
+                            font.letterSpacing: Theme.statusLineFontSize * Theme.statusTrack
                             font.pixelSize: Theme.statusLineFontSize
                             text: "·"
                         }
@@ -551,7 +565,9 @@ Item {
                             Text {
                                 Accessible.ignored: true
                                 color: Theme.foreground
-                                font.family: Theme.fontFamily
+                                font.capitalization: Theme.statusUpper ? Font.AllUppercase : Font.MixedCase
+                                font.family: Theme.valueFamily
+                                font.letterSpacing: Theme.statusLineFontSize * Theme.statusTrack
                                 font.pixelSize: Theme.statusLineFontSize
                                 text: factRow.modelData.value
                                 visible: factRow.modelData.value.length > 0
@@ -560,7 +576,9 @@ Item {
                             Text {
                                 Accessible.ignored: true
                                 color: Theme.dimForeground
-                                font.family: Theme.fontFamily
+                                font.capitalization: Theme.statusUpper ? Font.AllUppercase : Font.MixedCase
+                                font.family: Theme.valueFamily
+                                font.letterSpacing: Theme.statusLineFontSize * Theme.statusTrack
                                 font.pixelSize: Theme.statusLineFontSize
                                 text: factRow.modelData.label
                                 visible: factRow.modelData.label.length > 0
@@ -578,7 +596,9 @@ Item {
             Layout.alignment: Qt.AlignVCenter
             color: root.noteMark === "▲" || root.noteMark === "✓" ? Theme.green
                                                                    : root.noteMark === "✕" ? Theme.red : Theme.yellow
-            font.family: Theme.fontFamily
+            font.capitalization: Theme.statusUpper ? Font.AllUppercase : Font.MixedCase
+            font.family: Theme.valueFamily
+            font.letterSpacing: Theme.statusLineFontSize * Theme.statusTrack
             font.pixelSize: Theme.statusLineFontSize
             objectName: "footerNoteMark"
             text: root.noteMark
@@ -601,7 +621,9 @@ Item {
             // docs/32 N1: a failure the log told of is yellow, as its block is.
             color: root.noteWarn ? Theme.yellow : root.noteSticky ? Theme.foreground : Theme.accent
             elide: Text.ElideRight
-            font.family: Theme.fontFamily
+            font.capitalization: Theme.statusUpper ? Font.AllUppercase : Font.MixedCase
+            font.family: Theme.valueFamily
+            font.letterSpacing: Theme.statusLineFontSize * Theme.statusTrack
             font.pixelSize: Theme.statusLineFontSize
             objectName: "footerNote"
             text: root.noteText
@@ -620,7 +642,9 @@ Item {
             Layout.alignment: Qt.AlignVCenter
             Layout.minimumWidth: detailsLink.implicitWidth
             color: detailsMouse.containsMouse ? Theme.accent : Theme.dimForeground
-            font.family: Theme.fontFamily
+            font.capitalization: Theme.statusUpper ? Font.AllUppercase : Font.MixedCase
+            font.family: Theme.valueFamily
+            font.letterSpacing: Theme.statusLineFontSize * Theme.statusTrack
             font.pixelSize: Theme.statusLineFontSize
             objectName: "footerFailureDetails"
             // The narrowest step keeps its chevron; the name stays "details".
@@ -653,7 +677,9 @@ Item {
             Layout.alignment: Qt.AlignVCenter
             Layout.minimumWidth: noteHint.implicitWidth
             color: noteHintMouse.containsMouse ? Theme.accent : Theme.dimForeground
-            font.family: Theme.fontFamily
+            font.capitalization: Theme.statusUpper ? Font.AllUppercase : Font.MixedCase
+            font.family: Theme.valueFamily
+            font.letterSpacing: Theme.statusLineFontSize * Theme.statusTrack
             font.pixelSize: Theme.statusLineFontSize
             objectName: "footerNoteHint"
             text: "· i " + qsTr("details")
@@ -685,7 +711,9 @@ Item {
             Layout.alignment: Qt.AlignVCenter
             Layout.minimumWidth: implicitWidth
             color: root.logFollowing ? Theme.green : Theme.dimForeground
-            font.family: Theme.fontFamily
+            font.capitalization: Theme.statusUpper ? Font.AllUppercase : Font.MixedCase
+            font.family: Theme.valueFamily
+            font.letterSpacing: Theme.statusLineFontSize * Theme.statusTrack
             font.pixelSize: Theme.statusLineFontSize
             objectName: "logFollowState"
             text: root.logFollowing ? qsTr("● following") : qsTr("○ paused")
@@ -704,7 +732,9 @@ Item {
             Layout.alignment: Qt.AlignVCenter
             Layout.minimumWidth: keys.implicitWidth
             color: keysMouse.containsMouse ? Theme.accent : Theme.dimForeground
-            font.family: Theme.fontFamily
+            font.capitalization: Theme.statusUpper ? Font.AllUppercase : Font.MixedCase
+            font.family: Theme.valueFamily
+            font.letterSpacing: Theme.statusLineFontSize * Theme.statusTrack
             font.pixelSize: Theme.statusLineFontSize
             objectName: "statusKeys"
             text: root.level >= 3 ? "?" : qsTr("? keys")

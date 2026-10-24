@@ -1211,6 +1211,7 @@ Sheet {
                 title: sheet.multiServer ? (sheet.batchMode ? qsTr("Add %1 torrents to").arg(sheet.batchCount)
                                                             : qsTr("Add torrent to"))
                                          : sheet.batchMode ? qsTr("Add %1 torrents").arg(sheet.batchCount) : qsTr("Add torrent")
+                titleId: "add"
 
                 onAddableChanged: {
                     sheet._syncFiles();

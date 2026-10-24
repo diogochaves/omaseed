@@ -926,6 +926,7 @@ Item {
                 count: root.categoriesNamedCount
                 hasCursor: root.cursorOn(categoriesGroup.globalIndex)
                 label: qsTr("categories")
+                labelId: "categories"
                 visible: !root.compact
                 width: content.width
 
@@ -1026,6 +1027,7 @@ Item {
                 count: root.foldersRowCount
                 hasCursor: root.cursorOn(foldersGroup.globalIndex)
                 label: qsTr("folders")
+                labelId: "folders"
                 visible: root.foldersRowCount > 0 && !root.compact
                 width: content.width
 
@@ -1202,6 +1204,7 @@ Item {
                 count: root.trackersNamedCount
                 hasCursor: root.cursorOn(trackersGroup.globalIndex)
                 label: qsTr("trackers")
+                labelId: "trackers"
                 visible: !root.compact
                 width: content.width
 
@@ -1447,7 +1450,8 @@ Item {
                 accessibleName: qsTr("servers")
                 block: Theme.on.idle
                 collapsed: false
-                label: qsTr("servers · %1").arg(root.serversRowCount)
+                label: qsTr("servers · %1").arg(Theme.numeral(root.serversRowCount))
+                labelId: "servers"
                 objectName: "serversHeading"
                 visible: !root.serversShownFolded && !root.compact
                 width: parent.width
@@ -1598,6 +1602,7 @@ Item {
             anchors.left: parent.left
             anchors.leftMargin: Theme.space(16)
             anchors.verticalCenter: parent.verticalCenter
+            labelId: root.stuckGroup ? root.stuckGroup.labelId : ""
             text: root.stuckGroup ? root.stuckGroup.label : ""
             tracked: true
         }

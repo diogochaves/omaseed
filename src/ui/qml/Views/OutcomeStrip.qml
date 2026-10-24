@@ -41,6 +41,12 @@ Rectangle {
     // #146: "dim", a creation cancelled (board 49 §7's dim strip).
     readonly property color tone: root.kind === "failed" ? Theme.red : root.kind === "mixed" ? Theme.yellow
                                                        : root.kind === "dim" ? Theme.dimForeground : Theme.green
+    /// The outcome in a word, where the skin names outcomes by words (Theme.labelTags, board
+    /// 46 `.ostrip .g`): done, failed, how many of how many landed, cancelled.
+    readonly property string tag: root.kind === "failed" ? qsTr("failed") : root.kind === "mixed"
+                                  ? qsTr("%1 of %2").arg((root.outcome.doneHashes ?? []).length).arg(
+                                        (root.outcome.hashes ?? []).length) : root.kind === "dim"
+                                  ? qsTr("cancelled") : qsTr("done")
     /// "show" for what landed, while there is something left to show (never after a delete)
     /// and something it would bring back (C30 F8).
     readonly property bool canShow: root.kind !== "failed" && (root.outcome.doneRow ?? "").length > 0
@@ -133,13 +139,16 @@ Rectangle {
         /// What the headline and the line share, the headline first.
         readonly property real textRoom: Math.max(0, root.width - root._frameWidth - content.fixedWidth)
 
+        // The outcome's sign, or its word where the skin names outcomes by words (board 46
+        // `.ostrip .g`: "moved", "failed", "2 of 3"), in the label voice.
         Label {
             id: markText
 
             anchors.baseline: headline.baseline
             color: root.tone
             objectName: "outcomeMark"
-            text: root.outcome.mark ?? ""
+            text: Theme.labelTags ? root.tag : root.outcome.mark ?? ""
+            tracked: Theme.labelTags
         }
 
         Label {

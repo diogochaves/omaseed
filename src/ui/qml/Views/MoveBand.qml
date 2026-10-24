@@ -18,6 +18,10 @@ Notice {
     /// Board 43 J3 (C16 L12): the moves waiting behind this one (App.move.queued), listed in
     /// "details" each with "cancel" (`dropRequested`).
     property var queued: []
+    /// The band in a word, where the skin names kinds by words (board 46 `bands()`: "moving",
+    /// "moved"): while it runs, and once it has landed.
+    property string doingTag: qsTr("moving")
+    property string doneTag: qsTr("moved")
 
     /// "cancel" on the `index`th move waiting.
     signal dropRequested(int index)
@@ -40,8 +44,10 @@ Notice {
     }))
     details: root.record
     glyph: root.band.glyph ?? ""
+    banded: true
     objectName: "moveBand"
     progress: root.band.progress ?? -1
+    tag: root.progress >= 0 ? root.doingTag : root.bandKind === "green" ? root.doneTag : ""
     title: root.band.headline ?? ""
 
     onDetailRowTriggered: index => root.dropRequested(index)

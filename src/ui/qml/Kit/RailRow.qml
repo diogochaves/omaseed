@@ -144,7 +144,8 @@ Rectangle {
                                                                                : root.ink.foreground
 
             elide: root.elideLeft ? Text.ElideLeft : Text.ElideRight
-            font.family: Theme.fontFamily
+            // Board 46 `.ri`: a place's name in the label family, its count a value.
+            font.family: Theme.labelFamily
             font.pixelSize: Theme.font.body
             text: root.text
             visible: !root.compact
@@ -159,10 +160,10 @@ Rectangle {
         anchors.rightMargin: Theme.space(16)
         anchors.verticalCenter: parent.verticalCenter
         color: root.ink.of(root.countColor)
-        font.family: Theme.fontFamily
+        font.family: Theme.valueFamily
         font.pixelSize: Theme.font.small
         objectName: "railRowCount"
-        text: root.countText.length > 0 ? root.countText : String(root.count)
+        text: root.countText.length > 0 ? root.countText : Theme.numeral(root.count)
         visible: !root.compact && (root.countText.length > 0 || root.count >= 0)
     }
 

@@ -610,7 +610,7 @@ TestCase {
         const strip = view.outcomeStrip;
         verify(strip.visible);
         compare(findChild(strip, "outcomeHeadline").text, name + " moved to /mnt/fast/films");
-        compare(findChild(strip, "outcomeMark").text, "✓");
+        compare(findChild(strip, "outcomeMark").text, Theme.labelTags ? "done" : "✓");
         compare(findChild(strip, "outcomeMark").color, Theme.green);
         compare(view.table.cursorHash, hash);
         verify(!findChild(strip, "outcomeShow").visible, "show for the row under the cursor");
@@ -684,7 +684,7 @@ TestCase {
                                });
         const strip = view.outcomeStrip;
         compare(findChild(strip, "outcomeHeadline").text, "2 moved to /mnt/fast/keep, 1 didn't");
-        compare(findChild(strip, "outcomeMark").text, "!");
+        compare(findChild(strip, "outcomeMark").text, Theme.labelTags ? "2 of 3" : "!");
         compare(findChild(strip, "outcomeMark").color, Theme.yellow);
         compare(findChild(strip, "outcomeShowReason").text, "they are not selected");
         stripLaidOut(strip);

@@ -358,6 +358,8 @@ Item {
                 height: Theme.railRowHeight
                 objectName: "menuHeadingTitle"
                 text: root.headingTitle
+                // Board 46 `.menu .mh b`: the skin's heading voice.
+                voice: "title"
                 verticalAlignment: Text.AlignVCenter
                 visible: root.headingTitle.length > 0
             }

@@ -54,6 +54,9 @@ Item {
     property string glyph: ""
     /// The head's title (`.hd .t b`) and the dim line under it (`.hd .t .m`).
     property string title: ""
+    /// What the sheet is, as the skin's `labels` know it ("add", "move"): its kana word
+    /// follows the title where the skin draws one (board 46 `.shh h4 .kn`, #171).
+    property string titleId: ""
     property string subtitle: ""
     /// What a screen reader calls the dialog: the title, or words of the caller's when the
     /// head has none (#79: Settings draws its titles in the pane).
@@ -523,15 +526,18 @@ Item {
                                 // The title's whole width, measured apart: an elided Text's
                                 // own implicitWidth can follow its elision, and a title that
                                 // grew (a move sheet's, read again as its plan changes)
-                                // stayed cut.
+                                // stayed cut. The kana's room is the label's padding.
                                 Layout.maximumWidth: Math.ceil(titleMetrics.advanceWidth) + 1
+                                                     + titleLabel.rightPadding
                                 Layout.minimumWidth: Math.min(Layout.maximumWidth, Theme.space(80))
                                 bright: true
                                 elide: Text.ElideRight
                                 font.pixelSize: Theme.sheetTitleSize
                                 font.weight: Theme.sheetTitleWeight
+                                labelId: root.titleId
                                 objectName: "sheetTitle"
                                 text: root.title
+                                voice: "title"
 
                                 TextMetrics {
                                     id: titleMetrics
