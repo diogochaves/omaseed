@@ -196,6 +196,14 @@ ThemeBase {
     /// The head's bordered glyph square (spec v2 `.hd .ic`): board 46 draws none.
     readonly property bool sheetHeadGlyph: false
 
+    // ---- the menus' form (board 46 `.menu .mh`, DECISIONS C24 H9) -------------------------
+    /// A menu's head: its inset at the sides (12 px), the room over and under it (4 px), the
+    /// gap between the bright title's line and the dim words under it, and the title's weight.
+    readonly property int menuHeadInset: space(14)
+    readonly property int menuHeadPadding: space(4)
+    readonly property int menuHeadLineGap: space(1)
+    readonly property int menuHeadTitleWeight: Font.DemiBold
+
     // ---- the frame's form: the app menu (board 46 `menuHtml("app")`, DECISIONS C24 H9) ---
     /// Its width: board 46's `.menu` is 268 px at least at 13 px type; the head's version and
     /// server line ("0.5.0 · public · qBittorrent 5.3.0") want more than the kit's 280.

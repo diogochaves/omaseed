@@ -6,6 +6,13 @@ import Omaseed.Kit
 // caller supplies which hashes the menu acts on and whether the cursor torrent is stopped
 // (so the first row reads "start" or "stop"), MainView's `torrentAction()` gets the result
 // through `activated`.
+//
+// DECISIONS C24 H9 (board 46 `menuHtml()`, #170): verbs grouped, keys right, delete last. The
+// groups are board 46's: run (stop, retry, force start, recheck, reannounce) · place (move…,
+// category, tags, rename) · transfer (limits, the four options, the queue) · reach (open
+// folder, copy) · delete. Board 46's "transfer ›", "queue ›" and "copy ›" are drawn as their
+// groups' rows: Kit/Menu has no submenus. The head (the name over its state, or Q24's "N
+// selected") is MainView's.
 Menu {
     id: root
 
@@ -74,9 +81,6 @@ Menu {
             "action": "forceStart"
         },
         {
-            "separator": true
-        },
-        {
             "text": qsTr("recheck"),
             "key": "c",
             "action": "recheck"
@@ -90,6 +94,11 @@ Menu {
             "separator": true
         },
         {
+            "text": qsTr("move…"),
+            "key": "m",
+            "action": "location"
+        },
+        {
             "text": qsTr("category"),
             "key": "C",
             "action": "category"
@@ -100,16 +109,6 @@ Menu {
             "action": "tags"
         },
         {
-            "text": qsTr("move…"),
-            "key": "m",
-            "action": "location"
-        },
-        {
-            "text": qsTr("limits"),
-            "key": "L",
-            "action": "limits"
-        },
-        {
             "text": qsTr("rename"),
             "key": "r",
             "action": "rename"
@@ -117,15 +116,17 @@ Menu {
         {
             "separator": true
         },
+        {
+            "text": qsTr("limits"),
+            "key": "L",
+            "action": "limits"
+        },
         root._option(qsTr("sequential download"), "s", "sequential", root.cursorRow.seqDl === true),
         root._option(qsTr("first / last pieces first"), "f", "firstLast", root.cursorRow.firstLastPiecePrio
                      === true),
         root._option(qsTr("super seeding"), "S", "superSeeding", root.cursorRow.superSeeding === true),
         root._option(qsTr("automatic management"), "a", "autoManagement", root.cursorRow.autoTmm
                      === true),
-        {
-            "separator": true
-        },
         {
             "text": qsTr("queue up"),
             "key": "[",
@@ -135,6 +136,14 @@ Menu {
             "text": qsTr("queue down"),
             "key": "]",
             "action": "queueDown"
+        },
+        {
+            "separator": true
+        },
+        {
+            "text": qsTr("open folder"),
+            "key": "o",
+            "action": "openFolder"
         },
         {
             "text": qsTr("copy magnet"),
@@ -150,11 +159,6 @@ Menu {
             "text": qsTr("copy name"),
             "key": "n",
             "action": "copyName"
-        },
-        {
-            "text": qsTr("open folder"),
-            "key": "o",
-            "action": "openFolder"
         },
         {
             "separator": true

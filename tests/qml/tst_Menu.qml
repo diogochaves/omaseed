@@ -122,8 +122,8 @@ TestCase {
         compare(heading.visible, true);
         compare(menu.panel.height, plain + Theme.railRowHeight + 2 * Theme.space(4) + 1);
         compare(menu.rowsScroller.y, heading.y + heading.height);
-        compare(heading.children[0].text, "2 selected");
-        compare(heading.children[0].dim, true);
+        compare(findChild(menu, "menuHeadingLine").text, "2 selected");
+        compare(findChild(menu, "menuHeadingLine").dim, true);
         // #91: before the rows in the tree (declaration order), drawn above them.
         const panel = heading.parent;
         let headingAt = -1;
@@ -238,7 +238,17 @@ TestCase {
         compare(menu.panel.Accessible.name, "omaseed");
         menu.heading = "0.5.0 · public";
         compare(menu.panel.Accessible.name, "omaseed · 0.5.0 · public");
-        verify(heading.children[0].x >= title.x + title.width);
+        // Board 46 `.menu .mh`: the dim words under the title, smaller, the title's line kept.
+        const line = findChild(menu, "menuHeadingLine");
+        verify(line.y >= title.y + title.height, "the words are beside the title");
+        compare(line.x, title.x);
+        compare(line.font.pixelSize, Theme.font.small);
+        compare(heading.height, Theme.railRowHeight + Theme.menuHeadLineGap + line.implicitHeight
+                + 2 * Theme.menuHeadPadding + 1);
+        // A long title elides inside the menu instead of running past it (a torrent's name).
+        menu.headingTitle = "a torrent whose name is far longer than any menu is wide, and then some more words";
+        verify(title.truncated);
+        verify(title.x + title.width <= menu.panel.width);
 
         // The cursor opens on the first row, past the caption, and never lands on one.
         compare(menu.cursorIndex, 1);
