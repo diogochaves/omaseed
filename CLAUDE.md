@@ -74,7 +74,7 @@ scripts/dev/strict-walk.sh [OUT] | --interactive  # first run + cookie / API key
 scripts/dev/notify-walk.sh [OUT] | --interactive  # downloads finish: one notice each, a click shows the torrent
 scripts/dev/magnet-walk.sh [OUT] | --interactive  # xdg-open a magnet / .torrent: the add sheet, closed, in the tray, duplicate; gio open (D-Bus) while quit; add before the list
 scripts/dev/actions-walk.sh [OUT] | --interactive # renames, categories, tags, auto-TMM, set location, bar, outcome strip, mouse picks, delete, skipped files on disk: checked on server and disk (OMASEED_ACTIONS_WALK_FROM=disk)
-scripts/dev/settings-walk.sh [OUT] | --interactive  # qBittorrent settings pane on a box-owned qBittorrent: sections, switches, Web UI port and API key confirms
+scripts/dev/settings-walk.sh [OUT] | --interactive  # Appearance › Skin (Omarchy, Console, following a fixture console-skin.json in the box), then the qBittorrent settings pane on a box-owned qBittorrent: sections, switches, Web UI port and API key confirms
 scripts/dev/servers-walk.sh [OUT] | --interactive # two qBittorrents: first run, add, switch three ways, an action each side, remove
 scripts/dev/backup-walk.sh [OUT] | --interactive  # a qBittorrent's torrents exported and imported through the app, checked on both servers
 scripts/dev/error-walk.sh [OUT] | --interactive   # a torrent goes into error: the row's cause, the error block, one notice
