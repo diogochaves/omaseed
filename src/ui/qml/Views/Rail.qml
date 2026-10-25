@@ -1363,6 +1363,7 @@ Item {
         case "certificate":
         case "failed":
             return Theme.red;
+        case "connecting": // #201 F4: a switch under way is neutral; red only on a failure
         default:
             return Theme.fill(Theme.faintAlpha);
         }

@@ -2630,6 +2630,7 @@ Item {
         serverConfigured: App.hasServer
         connected: !root.serverLost
         syncing: root.firstSync
+        connecting: App.serverConnecting && !root.serverLost
         retrying: root.serverRetrying
         connectionStatus: App.globalState.connectionStatus
         // docs/16 §5: the port behind "not reachable", and anonymous mode with private
@@ -3543,6 +3544,8 @@ Item {
             return qsTr("%1 · isn't answering").arg(App.serverName);
         if (root.serverLost)
             return qsTr("%1 · unreachable").arg(App.serverName);
+        if (App.serverConnecting && !root.firstSync) // #201 F4
+            return qsTr("%1 · connecting").arg(App.serverName);
         if (root.firstSync)
             return qsTr("%1 · first sync").arg(App.serverName);
         // The API answers "v5.2.3"; the line prints "qBittorrent 5.2.3".

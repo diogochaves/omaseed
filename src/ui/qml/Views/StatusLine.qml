@@ -38,6 +38,9 @@ Item {
     property bool connected: true
     /// The first sync has not landed yet: the dot is yellow.
     property bool syncing: false
+    /// #201 F4: on the way to a server (a switch, the launch) before it answers or fails: the
+    /// dot is neutral and the network isn't read, so a switch never flashes red.
+    property bool connecting: false
     /// docs/35 N3: the server is gone and omaseed retries on its own: yellow, not red.
     property bool retrying: false
 
@@ -50,7 +53,8 @@ Item {
     property bool anonymousWarning: false
     /// What is wrong with the network, "firewalled", "disconnected" or "": only read while
     /// the API itself answers, after the first sync.
-    readonly property bool _networkRead: root.connected && !root.syncing && root.serverConfigured
+    readonly property bool _networkRead: root.connected && !root.syncing && !root.connecting
+                                         && root.serverConfigured
     readonly property string networkWarning: root._networkRead && (root.connectionStatus === "firewalled"
                                                                    || root.connectionStatus === "disconnected")
                                              ? root.connectionStatus : ""
@@ -76,9 +80,10 @@ Item {
             lines.push(qsTr("Anonymous mode hides which client you use, and most private trackers refuse clients they cannot name. Settings › Discovery and privacy."));
         return lines.join("\n");
     }
-    /// The dot's colour: none dim, first sync yellow, lost red (yellow while retried), the
-    /// network's warning in its colour, else green.
+    /// The dot's colour: none dim, connecting neutral, first sync yellow, lost red (yellow
+    /// while retried), the network's warning in its colour, else green.
     readonly property color dotColor: !root.serverConfigured ? Theme.dimForeground
+                                    : root.connecting ? Theme.fill(Theme.faintAlpha)
                                     : root.syncing ? Theme.yellow
                                     : !root.connected ? (root.retrying ? Theme.yellow : Theme.red)
                                     : root.networkWarning === "disconnected" ? Theme.red

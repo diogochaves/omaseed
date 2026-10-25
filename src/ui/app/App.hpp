@@ -194,6 +194,9 @@ public:
     bool isDemoMode() const { return m_demoMode; }
     /// True after serverLost/authRequired until a sync succeeds again (drives the tray).
     bool isServerLost() const { return m_serverLost; }
+    /// #201 F4: a server is being reached (a switch, or the launch) and has neither answered
+    /// nor failed yet: its dots are neutral, never red.
+    bool serverConnecting() const { return m_serverConnecting; }
 
     /// The tray's icon state for a given world (spec §6 Fig. 17). Highest priority first:
     /// disconnected, error, alt-speed, downloading, idle. Static and pure so the mapping is
@@ -246,6 +249,8 @@ private:
     bool m_hasServer = false;
     bool m_demoMode = false;
     bool m_serverLost = false;
+    bool m_serverConnecting = false; ///< #201 F4: see serverConnecting()
+    void setServerConnecting(bool connecting);
     /// Bumped whenever the live server changes; late keychain answers compare against it.
     quint64 m_serverGeneration = 0;
 
@@ -1911,6 +1916,9 @@ public:
     /// unreachable (red).
     Q_PROPERTY(bool serverWaiting READ serverWaiting NOTIFY serverStateChanged)
     bool serverWaiting() const;
+    /// #201 F4: on the way to a server (a switch or the launch) until its first answer or a
+    /// failure: the rail's dot and the status line's read "connecting", neutral, not red.
+    Q_PROPERTY(bool serverConnecting READ serverConnecting NOTIFY serverStateChanged)
     /// D23: what the read-only guard says when it stops `key`: "private is unreachable: p
     /// waits until it answers".
     Q_INVOKABLE QString guardNote(const QString &key) const;

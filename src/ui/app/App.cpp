@@ -190,6 +190,7 @@ App::App(QObject *parent)
     });
     connect(m_engine, &SyncEngine::serverLost, this, [this](const ApiError &error) {
         m_serverLost = true;
+        setServerConnecting(false); // #201 F4: a real failure, now red
         // docs/44 D11: a timeout is a server there but silent, not a lost one.
         qWarning().noquote() << (error.kind() == ApiError::Kind::Timeout
                                      ? QStringLiteral("server isn't answering: %1")
@@ -206,12 +207,14 @@ App::App(QObject *parent)
     });
     connect(m_engine, &SyncEngine::authRequired, this, [this](const ApiError &error) {
         m_serverLost = true;
+        setServerConnecting(false);
         qWarning().noquote() << QStringLiteral("authentication required: %1").arg(error.toString());
         updateTray();
     });
     // serverBack only follows serverLost; after authRequired (a retry, a fixed password) the
     // first good sync is what says the server is back.
     connect(m_engine, &SyncEngine::synced, this, [this]() {
+        setServerConnecting(false); // #201 F4: it answered
         if (!m_serverLost)
             return;
         m_serverLost = false;
@@ -485,9 +488,13 @@ void App::applyServer(const Server &server)
                                  .arg(server.name, server.engine());
         m_client->setBaseUrl(QUrl());
         m_serverLost = true;
+        setServerConnecting(false);
         Q_EMIT serverStateChanged();
         return;
     }
+    // #201 F4: until it answers or fails, the dots say "connecting", not "down".
+    if (!m_demoMode)
+        setServerConnecting(true);
     m_client->setBaseUrl(server.url);
 
     // The secret is a keychain round trip, so the engine starts in the callback: polling
@@ -4137,10 +4144,23 @@ QString App::addServer(const QVariantMap &fields, const QString &secret)
     qInfo().noquote() << QStringLiteral("server added: %1").arg(id);
     // The first server ever added is made default by the model, and there is no engine
     // running yet: move onto it so the table fills without a restart.
-    if (!m_hasServer && m_servers->defaultId() == id)
+    if (!m_hasServer && m_servers->defaultId() == id) {
         setDefaultServer(id);
-    else
+    } else {
         Q_EMIT serverChanged();
+        // #201 F5: count what the new server holds, so the rail's row has a number at once
+        // (ServerListModel::setProbeResult keeps it as last seen).
+        const std::optional<Server> added = m_servers->byId(id);
+        if (!m_demoMode && added && added->isQbittorrent() && !m_probing.contains(id)) {
+            m_probing.insert(id);
+            if (!secret.isEmpty())
+                runServerTest(*added, secret, false);
+            else
+                withStoredSecret(*added, [this, server = *added](const QString &stored) {
+                    runServerTest(server, stored, false);
+                });
+        }
+    }
     return id;
 }
 
@@ -4177,6 +4197,7 @@ bool App::removeServer(const QString &id)
         m_prefs->reset();
         m_engine->globalState()->setServerName(QString());
         m_serverLost = false;
+        setServerConnecting(false);
         m_hasServer = false;
         m_server = Server();
         updateTray();

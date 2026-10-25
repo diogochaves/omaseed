@@ -157,6 +157,8 @@ void App::updateServerState()
             word = QStringLiteral("certificate");
         else if (serverWaiting())
             word = QStringLiteral("waiting"); // docs/44 D11: a timeout
+        else if (m_serverConnecting && !m_serverLost)
+            word = QStringLiteral("connecting"); // #201 F4: a switch under way, not a loss
         else if (m_serverLost || (!state->connected() && !state->syncing()))
             word = QStringLiteral("down");
         else if (!state->connected())
@@ -197,6 +199,15 @@ ErrorWords::Subject App::errorSubject() const
     subject.authMode = m_server.authMode;
     subject.pinnedCertificate = m_server.certificateSha256;
     return subject;
+}
+
+void App::setServerConnecting(bool connecting)
+{
+    if (m_serverConnecting == connecting)
+        return;
+    m_serverConnecting = connecting;
+    Q_EMIT serverStateChanged();
+    updateServerState();
 }
 
 bool App::serverWaiting() const
@@ -337,6 +348,8 @@ QVariantList App::serverRows() const
                 detail << tr("certificate refused");
             else if (state == QLatin1String("syncing"))
                 detail << tr("first sync");
+            else if (state == QLatin1String("connecting"))
+                detail << tr("connecting");
             else
                 detail << torrentsText(m_engine->torrents()->count());
             const QString version = m_engine->globalState()->serverVersion();

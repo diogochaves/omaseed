@@ -150,6 +150,21 @@ TestCase {
         compare(dot.color, Theme.dimForeground, "no server still drew a live dot");
     }
 
+    // #201 F4: on the way to a server, after a switch's reset (qBittorrent's network reads
+    // "disconnected" then), the dot is neutral and no warning is read; red only on a loss.
+    function test_a_switch_under_way_is_neutral() {
+        const line = make();
+        const dot = findChild(line, "statusDot");
+        line.connectionStatus = "disconnected";
+        line.connecting = true;
+        verify(Qt.colorEqual(dot.color, Theme.fill(Theme.faintAlpha)), "a switch drew " + dot.color);
+        compare(line.networkWarning, "");
+        line.connecting = false;
+        compare(dot.color, Theme.red);
+        line.connectionStatus = "connected";
+        compare(dot.color, Theme.green);
+    }
+
     // docs/08 §3, docs/16 §5 (#167 assumed 5): silent while connected; firewalled and
     // disconnected are named after the speeds in colour, anonymous mode too, with the advice
     // as a screen reader's description; never while the API itself is down.
