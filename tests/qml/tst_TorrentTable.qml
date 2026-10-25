@@ -180,14 +180,18 @@ TestCase {
         // `grid-template-columns: minmax(0,1fr) 72px 118px 104px 62px 84px 84px 62px`, status widened to 116 (Q17).
         compare(header("size").width, Theme.space(72));
         compare(header("progress").width, Theme.space(118));
-        compare(header("status").width, Theme.space(116));
+        // #171: wider where the skin's verb voice needs it to hold "downloading" whole.
+        compare(header("status").width, Theme.space(table.defaultWidthOf("status")));
+        verify(table.defaultWidthOf("status") >= 116);
+        if (!Theme.verbCaption)
+            compare(table.defaultWidthOf("status"), 116);
         compare(header("seedsPeers").width, Theme.space(62));
         compare(header("dlspeed").width, Theme.space(84));
         compare(header("upspeed").width, Theme.space(84));
         compare(header("eta").width, Theme.space(62));
         // The Name column takes the rest. Each column is rounded on its own, so the sum is
         // of the rounded widths, not `Theme.space()` of the sum.
-        const fixed = testCase.fixedWidth([72, 118, 116, 62, 84, 84, 62]);
+        const fixed = testCase.fixedWidth([72, 118, table.defaultWidthOf("status"), 62, 84, 84, 62]);
         compare(header("name").width, table.width - table.tickWidth - fixed);
     }
 
@@ -206,7 +210,7 @@ TestCase {
     // docs/10 §4 (Diogo's ruling): a table too narrow for its columns keeps every one of them
     // and scrolls sideways; Name never goes under `minimumNameWidth`.
     function test_a_narrow_table_scrolls_instead_of_squeezing() {
-        const fixed = testCase.fixedWidth([72, 118, 116, 62, 84, 84, 62]);
+        const fixed = testCase.fixedWidth([72, 118, table.defaultWidthOf("status"), 62, 84, 84, 62]);
         table.anchors.fill = undefined;
         table.width = 600;
         table.height = 400;
@@ -280,6 +284,9 @@ TestCase {
         compare(Theme.verbCaption, Theme.skin.name === "console");
         compare(word.font.family, Theme.verbCaption ? Theme.labelFamily : Theme.valueFamily);
         compare(word.font.pixelSize, Theme.verbCaption ? Theme.font.caption : Theme.font.body);
+        // Its column's default holds "downloading" whole in either voice (Q17).
+        compare(word.text, "downloading");
+        verify(!word.truncated, "the status word elides at the column's default width");
         if (Theme.verbCaption) {
             compare(word.font.capitalization, Font.AllUppercase);
             compare(word.color, findChild(table, "statusGlyph_0").color);
@@ -579,7 +586,7 @@ TestCase {
         testCase.cellProbe = findChild(table, "eta_0");
         compare(testCase.cellProbe.visible, false);
         // The Name column grows by the hidden column's width.
-        const fixed = testCase.fixedWidth([72, 118, 116, 62, 84, 84]);
+        const fixed = testCase.fixedWidth([72, 118, table.defaultWidthOf("status"), 62, 84, 84]);
         compare(header("name").width, table.width - table.tickWidth - fixed);
     }
 
@@ -877,7 +884,7 @@ TestCase {
                                   "size": 90,
                                   "bogus": 50,
                                   "eta": "wide",
-                                  "status": 116,
+                                  "status": table.defaultWidthOf("status"),
                                   "dlspeed": 3,
                                   "name": 40
                               });
