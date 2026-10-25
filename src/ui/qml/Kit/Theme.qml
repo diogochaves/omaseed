@@ -197,6 +197,18 @@ ThemeBase {
     readonly property int meterCellGap: 1
     /// The table's progress line (spec v2 `.tbl .pg`: 2 px; board 46 `.pbar i`: 7 px cells).
     readonly property int progressLineThickness: n("progressLineThickness", 2)
+    /// The details' pieces bar as a grid (board 46 `.pmap`: 34 columns of square cells, at most
+    /// 7 rows); 0 columns draws it as a line, Omarchy's.
+    readonly property int piecesColumns: token("meter", "piecesColumns", 0)
+    readonly property int piecesRows: Math.max(1, token("meter", "piecesRows", 1))
+    /// The widest a grid cell grows (the board's are about 9 px in a 360 px pane): a wider bar
+    /// (the pane docked under the list) takes more columns rather than taller rows.
+    readonly property int piecesCellMax: n("piecesCellMax", 10)
+    /// The current tab's underline (board 46 `.tab.on`): the lit line where the skin says so,
+    /// else Omarchy's 1 px in the bright foreground.
+    readonly property bool tabLit: token("line", "tabLit", false)
+    readonly property int tabLineWidth: tabLit ? litWidth : hairWidth
+    readonly property color tabLineColor: tabLit ? litColor : brightForeground
 
     // ---- the skin's type (design note `font`, `label`, `numerals`; rule 7) -----------------
     // A family the skin names is used only while it is installed and the desktop doesn't ask
@@ -274,6 +286,9 @@ ThemeBase {
     function captionWeight(fallbackWeight: int): int {
         return token("label", "captionWeight", fallbackWeight);
     }
+    /// The table's status word in the caption voice (board 46 `.verb`: the label family at
+    /// the caption size, its case, tracking and weight) rather than the body's value voice.
+    readonly property bool verbCaption: token("label", "verb", false)
     // What marks the cursor and the picked (#171 step 6; board 46 `.row.sel`, `.row.picked`).
     /// The cursor's row is marked by the SelectionMark (Console's brackets) rather than by a
     /// hairline round it.
@@ -461,6 +476,9 @@ ThemeBase {
     /// A notice's ground: its kind's colour at this alpha over the window (`.notice .pi`'s
     /// 9 %); 0 keeps the idle fill under every kind.
     readonly property real noticeTint: token("tint", "notice", 0)
+    /// A plated block's ground (board 46 `.blk .pi`): its kind's colour at this alpha over the
+    /// panel.
+    readonly property real blockTint: token("tint", "block", 0)
 
     // ---- the frame's form: the outcome strip (board 46 `.ostrip`, board 50 §2) -------------
     /// How far over the rows' bottom it floats (board 46's 12 px): with a selection on, the
@@ -488,7 +506,7 @@ ThemeBase {
     readonly property int libraryRowSentenceSize: font.small
     /// The fact (14 px, 500, bright) over its caption (10 px, upper case, tracked .12em), in a
     /// column at least 92 px wide.
-    readonly property int libraryRowFactSize: font.body
+    readonly property int libraryRowFactSize: font[token("label", "rowFactSize", "body")] ?? font.body
     readonly property int libraryRowFactWeight: Font.Medium
     readonly property int libraryRowCaptionSize: font.caption
     readonly property real libraryRowCaptionTracking: font.caption * captionTrack(0.12)
@@ -501,6 +519,9 @@ ThemeBase {
     /// The fix (`.fix`): its room either side and its border's accent alpha.
     readonly property int libraryRowFixPadding: n("libraryRowFixPadding", 6)
     readonly property real libraryRowFixBorderAlpha: 0.45
+    /// The fix as a filled tag (Console's `.row .fix`: the accent's ground, the window's
+    /// colour, the caption voice) rather than words in an accent outline.
+    readonly property bool libraryRowFixTag: token("label", "fixTag", false)
     /// A selected row's edge (`.row.picked`, an inset 2 px accent rule).
     readonly property int libraryRowSelectedEdge: n("libraryRowSelectedEdge", 2)
     /// A group's head (`.gh`): its height, its inset, its words (10.5 px, upper case, tracked
@@ -512,6 +533,11 @@ ThemeBase {
     readonly property real libraryGroupHeadTracking: font.caption * token("label", "track", 0.12)
     readonly property int libraryGroupHeadWeight: token("label", "weight", Font.Normal)
     readonly property int libraryGroupLineSize: font.small
+    /// The bar before a group's words (Console's `.gh::before`: 3 × 11 px, 8 px in, the hair,
+    /// the accent for needs you); 0 wide draws none (Omarchy's).
+    readonly property int libraryGroupHeadBar: n("libraryGroupHeadBar", 0)
+    readonly property int libraryGroupHeadBarHeight: n("libraryGroupHeadBarHeight", 11)
+    readonly property int libraryGroupHeadBarInset: n("libraryGroupHeadBarInset", 8)
     /// The widths its steps start at, widest first: from step 1 a group's line goes and the
     /// progress line shortens, from step 2 the meta beside the name goes too.
     readonly property var libraryRowsSteps: [space(620), space(440)]
@@ -642,6 +668,9 @@ ThemeBase {
     /// A selected cover's border, and the cursor's (Console: the plate's 1 px edge in the
     /// accent, board 46 `.card.sel`).
     readonly property int coverSelectedBorder: token("line", "card", litWidth)
+    /// A cover that needs you takes that edge in the accent, and its fact the accent (board 46
+    /// `.card.needs`); Omarchy's says it by the fact's red alone.
+    readonly property bool coverNeedsEdge: token("line", "needsEdge", false)
 
     // ---- the details' form: the story (board 46 `details()`, `.dhero`, `.tl`, `.tb h5`) -------
     /// The head's one fact (`.dhero .big`: 22 px at 13 px type, 500, in the state's colour), its
