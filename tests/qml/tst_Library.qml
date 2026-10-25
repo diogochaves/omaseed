@@ -332,6 +332,41 @@ TestCase {
         App.filtered.folder = "";
     }
 
+    // #201 F17 (C32 "Questions"): a question from the rail or 1–5 replaces the place, as the
+    // library does, and keeps a display of its own; a place picked leaves the question. The
+    // place's display never changes through the question.
+    function test_a_question_replaces_the_place() {
+        App.setDisplay("rows");
+        const folder = App.torrentRow(App.filtered.hashAt(0)).savePath;
+        view.rail._pickFolder(folder, false);
+        compare(App.filtered.folder, folder);
+        App.setDisplay("table");
+        compare(App.displayScope, "folder:" + folder);
+
+        keyClick("4"); // giving back, from the folder
+        compare(App.filtered.question, TorrentFilterModel.GivingBack);
+        compare(App.filtered.folder, "");
+        compare(App.displayScope, "question:givingBack");
+        compare(App.display, "rows", "the question took the folder's display");
+        App.setDisplay("overview");
+        compare(App.displayFor("folder:" + folder), "table");
+
+        // A category picked leaves the question; the question asked again leaves the category.
+        view.rail._rowMap[view.rail.categoriesBase + 1].select(); // the first named category
+        compare(App.filtered.question, TorrentFilterModel.AnyQuestion);
+        verify(App.filtered.category !== undefined);
+        view.rail.selectQuestion(TorrentFilterModel.GivingBack);
+        compare(App.filtered.category, undefined);
+        compare(App.display, "overview");
+
+        view.rail._pickFolder(folder, false);
+        compare(App.filtered.question, TorrentFilterModel.AnyQuestion);
+        compare(App.filtered.folder, folder);
+        compare(App.display, "table");
+        App.filtered.folder = "";
+        compare(App.display, "rows");
+    }
+
     // The tool's menu: the three, the scope's checked; a pick sets it.
     function test_the_display_tool_opens_its_menu() {
         verify(view.titleBar.displayTool.visible);

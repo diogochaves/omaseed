@@ -479,6 +479,7 @@ Item {
             root.folderFoldToggled();
             return;
         }
+        root._leaveQuestion();
         root.filtered.folder = root.filtered.folder === path ? "" : path;
     }
 
@@ -496,7 +497,10 @@ Item {
     }
 
     /// `1`–`5` and the question rows: that question (C24 H2); `0` and AnyQuestion, the
-    /// library.
+    /// library. A question replaces the place, as the library does (DECISIONS C32,
+    /// "Questions", #201 F17): it leaves any folder, category, tag or tracker and asks across
+    /// the whole library, under its own display. Narrowing a place by state is the filter's
+    /// (`is:<state>`).
     function selectQuestion(question: int): void {
         if (question === TorrentFilterModel.AnyQuestion) {
             root.pickLibrary();
@@ -504,7 +508,17 @@ Item {
         }
         if (root.questionRow(question) === null)
             return;
+        root.filtered.clearCategory();
+        root.filtered.clearTag();
+        root.filtered.clearTracker();
+        root.filtered.folder = "";
         root.filtered.question = question;
+    }
+
+    /// A place picked (a folder, category, tag or tracker): it leaves the question, which
+    /// would otherwise narrow it (C32 "Questions", #201 F17).
+    function _leaveQuestion(): void {
+        root.filtered.question = TorrentFilterModel.AnyQuestion;
     }
 
     /// The library row and `0`: every torrent, so each filter the rail sets goes (board 46's
@@ -999,6 +1013,7 @@ Item {
                         onHoverChanged: hovering => root._nameTip(categoryDelegate, hovering, categoryDelegate.name)
 
                         Component.onCompleted: root._registerRow(categoryDelegate, () => {
+                                                                     root._leaveQuestion();
                                                                      root.filtered.category
                                                                              = categoryDelegate.name;
                                                                  })
@@ -1026,6 +1041,7 @@ Item {
                     onClicked: root.clickRow(categoriesNone.globalIndex)
 
                     Component.onCompleted: root._registerRow(categoriesNone, () => {
+                                                                 root._leaveQuestion();
                                                                  root.filtered.category = "";
                                                              })
                     Component.onDestruction: root._unregisterRow(categoriesNone)
@@ -1179,6 +1195,7 @@ Item {
                         onHoverChanged: hovering => root._nameTip(tagDelegate, hovering, tagDelegate.name)
 
                         Component.onCompleted: root._registerRow(tagDelegate, () => {
+                                                                     root._leaveQuestion();
                                                                      root.filtered.tag
                                                                              = tagDelegate.name;
                                                                  })
@@ -1203,6 +1220,7 @@ Item {
                     onClicked: root.clickRow(tagsUntagged.globalIndex)
 
                     Component.onCompleted: root._registerRow(tagsUntagged, () => {
+                                                                 root._leaveQuestion();
                                                                  root.filtered.tag = "";
                                                              })
                     Component.onDestruction: root._unregisterRow(tagsUntagged)
@@ -1284,6 +1302,7 @@ Item {
                         onClicked: root.clickRow(trackerDelegate.globalIndex)
 
                         Component.onCompleted: root._registerRow(trackerDelegate, () => {
+                                                                     root._leaveQuestion();
                                                                      root.filtered.tracker
                                                                              = trackerDelegate.host;
                                                                  })

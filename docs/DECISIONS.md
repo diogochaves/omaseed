@@ -1783,6 +1783,12 @@ place: D2), docs/31 D5 (D6), C4 D1–D2 and C13's alternative-limits row (D8) an
 - **The library.** D12 a: the third display is "space", a size map by folder then torrent,
   in place of shelves. D13 a: a sort block in the display tool's menu; its word reads
   "rows · added".
+- **Questions (F17, ruled in the pass).** A question picked from the rail or by 1–5
+  replaces the place, as the library does: it leaves any folder, category, tag or tracker and
+  asks across the whole library, under its own remembered display. Narrowing a place by state
+  stays with the filter (`is:<state>`). This replaces #168's assumed "a question inside a
+  place shares the place's display" (C24 H4). Built with the reverse, assumed: a place picked
+  from the rail leaves the question.
 - **Details.** D15 a: the story's "what happened" newest first.
 - **Settings.** D7 a: a › at each server row's end, the row lit under the pointer. D10 a: tab
   walks the modal as any form; j/k and enter stay for rows.
