@@ -37,19 +37,34 @@ Item {
     Accessible.role: Accessible.StaticText
     height: implicitHeight
     implicitHeight: root.hasTorrent ? column.implicitHeight + Theme.detailsHeroPaddingTop
-                                      + Theme.detailsHeroPaddingBottom : 0
+                                      + Theme.detailsHeroPaddingBottom + Theme.detailsHeroMarginTop
+                                      + Theme.detailsHeroMarginBottom : 0
     objectName: "detailsHero"
     visible: root.hasTorrent
+
+    // Its plate, where the skin stands blocks on one (board 46 `.dhero.pn`).
+    Plate {
+        anchors.bottomMargin: Theme.detailsHeroMarginBottom
+        anchors.fill: parent
+        anchors.leftMargin: Theme.detailsHeroMarginSide
+        anchors.rightMargin: Theme.detailsHeroMarginSide
+        anchors.topMargin: Theme.detailsHeroMarginTop
+        edgeColor: Theme.hairColor
+        edgeWidth: Theme.hairWidth
+        fill: Theme.on.panel.fill
+        objectName: "detailsHeroPlate"
+        visible: Theme.platedBlocks && root.hasTorrent
+    }
 
     Column {
         id: column
 
         anchors.left: parent.left
-        anchors.leftMargin: Theme.detailsHeroInset
+        anchors.leftMargin: Theme.detailsHeroInset + Theme.detailsHeroMarginSide
         anchors.right: parent.right
-        anchors.rightMargin: Theme.detailsHeroInset
+        anchors.rightMargin: Theme.detailsHeroInset + Theme.detailsHeroMarginSide
         anchors.top: parent.top
-        anchors.topMargin: Theme.detailsHeroPaddingTop
+        anchors.topMargin: Theme.detailsHeroPaddingTop + Theme.detailsHeroMarginTop
         spacing: Theme.detailsHeroGap
 
         Item {
@@ -62,7 +77,7 @@ Item {
                 color: root.hasTorrent ? Theme[root.torrent.stateRole] ?? Theme.foreground :
                                          Theme.foreground
                 elide: Text.ElideRight
-                font.family: Theme.fontFamily
+                font.family: Theme.valueFamily
                 font.features: ({
                                     "tnum": 1
                                 })
@@ -80,8 +95,12 @@ Item {
                 anchors.leftMargin: Theme.detailsCaptionGap
                 color: Theme.dimForeground
                 elide: Text.ElideRight
-                font.family: Theme.fontFamily
+                // Board 46 `.dhero .big span`: the skin's caption voice.
+                font.capitalization: Theme.captionUpper ? Font.AllUppercase : Font.MixedCase
+                font.family: Theme.labelFamily
+                font.letterSpacing: Theme.detailsCaptionSize * Theme.captionTrack(0)
                 font.pixelSize: Theme.detailsCaptionSize
+                font.weight: Theme.captionWeight(Font.Normal)
                 objectName: "detailsCaption"
                 text: root.captionText
                 textFormat: Text.PlainText
@@ -92,7 +111,7 @@ Item {
         Text {
             color: Theme.foreground
             elide: Text.ElideRight
-            font.family: Theme.fontFamily
+            font.family: Theme.valueFamily
             font.pixelSize: Theme.detailsSentenceSize
             maximumLineCount: Theme.detailsSentenceLines
             objectName: "detailsSentence"
@@ -108,6 +127,6 @@ Item {
         anchors.bottom: parent.bottom
         anchors.left: parent.left
         anchors.right: parent.right
-        visible: root.rule && root.hasTorrent
+        visible: root.rule && root.hasTorrent && !Theme.platedBlocks
     }
 }

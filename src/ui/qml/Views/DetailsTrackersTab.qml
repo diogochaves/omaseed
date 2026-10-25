@@ -161,13 +161,12 @@ Item {
                     Layout.preferredHeight: Theme.space(6)
                     Layout.preferredWidth: root.dotWidth
 
-                    Rectangle {
+                    // The skin's lamp (Console's square, board 46 `.trk .dot`).
+                    Lamp {
                         anchors.left: parent.left
                         anchors.verticalCenter: parent.verticalCenter
                         color: row.ink[row.dotRole]
-                        height: Theme.space(6)
-                        radius: width / 2
-                        width: Theme.space(6)
+                        size: Theme.space(6)
                     }
                 }
 

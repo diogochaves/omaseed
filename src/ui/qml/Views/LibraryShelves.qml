@@ -164,7 +164,10 @@ Item {
                     Accessible.name: shelfName.text
                     Accessible.role: Accessible.Heading
                     color: Theme.brightForeground
-                    font.family: Theme.fontFamily
+                    // Board 46 `.plate .pname`: the label voice, upper case, tracked.
+                    font.capitalization: Theme.captionUpper ? Font.AllUppercase : Font.MixedCase
+                    font.family: Theme.labelFamily
+                    font.letterSpacing: Theme.shelfNameSize * Theme.token("label", "track", 0)
                     font.pixelSize: Theme.shelfNameSize
                     font.weight: Theme.shelfNameWeight
                     objectName: "shelfName"
@@ -176,7 +179,7 @@ Item {
                     anchors.baseline: shelfName.baseline
                     color: Theme.dimForeground
                     font.capitalization: Font.AllUppercase
-                    font.family: Theme.fontFamily
+                    font.family: Theme.valueFamily
                     font.letterSpacing: Theme.shelfLineTracking
                     font.pixelSize: Theme.shelfLineSize
                     objectName: "shelfLine"

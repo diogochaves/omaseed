@@ -109,6 +109,9 @@ Item {
     }
 
     implicitHeight: Theme.titleBarHeight
+    /// The tools' chevron is the skin's icon (Console's `ms:expand_more`), drawn after their
+    /// words in a Glyph; Omarchy's ▾ stays in the words.
+    readonly property bool chevronDrawn: Glyphs.chevronDownGlyph !== Glyphs.chevronDown
     implicitWidth: Theme.space(900)
 
     // The tools: a kit Button whose words go at step 1, with a tooltip that keeps them and
@@ -175,6 +178,7 @@ Item {
                 elide: Text.ElideRight
                 font.pixelSize: Theme.titleBarTitleSize
                 font.weight: Theme.titleBarTitleWeight
+                kanaRise: 0.25
                 labelId: root.titleId
                 objectName: "titleText"
                 size: "title"
@@ -301,7 +305,9 @@ Item {
                                                                     ? Glyphs.displayShelves
                                                                     : Glyphs.displayRows
             objectName: "titleDisplay"
-            text: root.level >= 1 ? "" : qsTr("%1 ▾").arg(root.displayWord(root.display))
+            text: root.level >= 1 ? "" : root.chevronDrawn ? root.displayWord(root.display)
+                                                           : qsTr("%1 ▾").arg(root.displayWord(root.display))
+            trailingGlyph: root.level >= 1 || !root.chevronDrawn ? "" : Glyphs.chevronDownGlyph
             visible: root.display.length > 0
             words: qsTr("display: %1").arg(root.displayWord(root.display))
 
@@ -316,7 +322,9 @@ Item {
             key: "a"
             objectName: "titleAdd"
             primary: true
-            text: root.level >= 1 ? "" : root.addMenuShown ? qsTr("%1 ▾").arg(addTool.words) : addTool.words
+            text: root.level >= 1 ? "" : root.addMenuShown && !root.chevronDrawn ? qsTr("%1 ▾").arg(addTool.words)
+                                                                               : addTool.words
+            trailingGlyph: root.level >= 1 || !root.addMenuShown || !root.chevronDrawn ? "" : Glyphs.chevronDownGlyph
             visible: root.addShown
             words: qsTr("add")
 

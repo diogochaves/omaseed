@@ -17,6 +17,9 @@ Column {
     /// follows the head where the skin draws one (board 46 `.rg h6`, #171).
     property string labelId: ""
     property bool collapsed: false
+    /// The count at the right even while open (board 46 `.srv h6`: the servers' head in two
+    /// parts, the word and its kana, then the count).
+    property bool countShown: false
     /// The entries a folded group hides; -1 prints none.
     property int count: -1
     /// The rail's keyboard cursor is on this heading (only a folded group's heading is a stop).
@@ -95,8 +98,9 @@ Column {
             dim: true
             ink: root.ink
             size: "caption"
-            text: String(root.count)
-            visible: root.collapsed && root.count >= 0
+            objectName: "railGroupCount"
+            text: Theme.numeral(root.count)
+            visible: (root.collapsed || root.countShown) && root.count >= 0
         }
 
         MouseArea {

@@ -9,8 +9,9 @@ import Omaseed.Kit
 // and missing ones left empty over the track's 4 % fill.
 //
 // With more pieces than pixels, TorrentDetails::pieceBuckets() folds them into one cell per
-// pixel (a cell is green only when every piece in it is had). The canvas paints one
-// rectangle per run of equal cells, so a 50 000-piece torrent is still a handful of fills.
+// pixel (a cell is green only when every piece in it is had), or one per cell of a skin that
+// draws cells. Omarchy's Meter paints one rectangle per run of equal cells, so a 50 000-piece
+// torrent is still a handful of fills.
 Item {
     id: root
 
@@ -27,8 +28,7 @@ Item {
     implicitHeight: labels.height + Theme.space(4) + track.height
     visible: root.hasPieces
 
-    onDownloadingColorChanged: canvas.requestPaint()
-    onHaveColorChanged: canvas.requestPaint()
+    onHasPiecesChanged: track.refresh()
 
     Item {
         id: labels
@@ -44,6 +44,7 @@ Item {
             Accessible.description: [root.haveText, root.percentText].filter(part => part.length > 0).join(" · ")
             Accessible.name: qsTr("pieces")
             Accessible.role: Accessible.StaticText
+            labelId: "pieces"
             objectName: "piecesLabel"
             text: root.haveText.length > 0 ? qsTr("pieces · %1").arg(root.haveText) : qsTr(
                                                                                           "pieces")
@@ -58,55 +59,31 @@ Item {
         }
     }
 
-    Rectangle {
+    // The skin's Meter draws it (#171 step 6): a slot per pixel in Omarchy's face, a cell
+    // each in Console's (board 46 `.pmap`). `cells` keeps what was asked for last, for the
+    // tests.
+    Meter {
         id: track
+
+        function refresh(): void {
+            track.cells = root.hasPieces && track.slots > 0 ? root.details.pieceBuckets(track.slots) : [];
+        }
 
         anchors.top: labels.bottom
         anchors.topMargin: Theme.space(4)
-        color: Theme.on.idle.fill
+        arrivingColor: root.downloadingColor
+        color: root.haveColor
         height: Theme.space(10)
+        objectName: "piecesCanvas"
+        trackColor: Theme.on.idle.fill
         width: parent.width
 
-        Canvas {
-            id: canvas
-
-            /// What was painted last, for the tests.
-            property var cells: []
-
-            anchors.fill: parent
-            objectName: "piecesCanvas"
-
-            onHeightChanged: canvas.requestPaint()
-            onPaint: {
-                const ctx = canvas.getContext("2d");
-                ctx.clearRect(0, 0, canvas.width, canvas.height);
-                const cells = root.hasPieces ? root.details.pieceBuckets(Math.floor(canvas.width))
-                                             : [];
-                canvas.cells = cells;
-                const n = cells.length;
-                if (n === 0)
-                    return;
-                const step = canvas.width / n;
-                let start = 0;
-                for (let i = 1; i <= n; ++i) {
-                    if (i < n && cells[i] === cells[start])
-                        continue;
-                    const state = cells[start];
-                    if (state !== 0) {
-                        ctx.fillStyle = state === 2 ? root.haveColor : root.downloadingColor;
-                        const x = Math.round(start * step);
-                        ctx.fillRect(x, 0, Math.round(i * step) - x, canvas.height);
-                    }
-                    start = i;
-                }
-            }
-            onWidthChanged: canvas.requestPaint()
-        }
+        onSlotsChanged: track.refresh()
     }
 
     Connections {
         function onPieceStatesChanged(): void {
-            canvas.requestPaint();
+            track.refresh();
         }
 
         target: root.details

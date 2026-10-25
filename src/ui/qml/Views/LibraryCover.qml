@@ -78,7 +78,7 @@ Item {
             anchors.fill: parent
             edgeColor: cover.isSelected ? Theme.accent : cover.isCursor ? Theme.fill(Theme.borderHover)
                                                                          : Theme.fill(Theme.hairlineAlpha)
-            edgeWidth: cover.isSelected ? Theme.coverSelectedBorder : 1
+            edgeWidth: cover.isSelected ? Theme.coverSelectedBorder : Theme.hairWidth
             fill: cover.ink.ground === Theme.on.window ? Theme.fill(Theme.fillIdle) : cover.ink.ground.fill
             key: true
             objectName: "coverPlate"
@@ -111,7 +111,9 @@ Item {
             anchors.left: parent.left
             anchors.leftMargin: Theme.coverMonogramInset
             color: cover.ink.brightForeground
-            font.family: Theme.fontFamily
+            // Board 46 `.card .two`: the label family, tracked.
+            font.family: Theme.labelFamily
+            font.letterSpacing: Theme.coverMonogramSize * Theme.nameTrack
             font.pixelSize: Theme.coverMonogramSize
             font.weight: Theme.coverMonogramWeight
             objectName: "coverMonogram"
@@ -136,7 +138,7 @@ Item {
         anchors.topMargin: Theme.coverLineGap
         color: Theme.foreground
         elide: Text.ElideRight
-        font.family: Theme.fontFamily
+        font.family: Theme.valueFamily
         font.pixelSize: Theme.coverNameSize
         objectName: "coverName"
         text: cover.name
@@ -150,7 +152,7 @@ Item {
         anchors.top: nameText.bottom
         color: cover.needsYou ? Theme.red : Theme.dimForeground
         elide: Text.ElideRight
-        font.family: Theme.fontFamily
+        font.family: Theme.valueFamily
         font.pixelSize: Theme.coverFactSize
         objectName: "coverFact"
         text: cover.fact

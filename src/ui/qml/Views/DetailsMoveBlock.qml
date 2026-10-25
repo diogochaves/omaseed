@@ -90,7 +90,9 @@ Rectangle {
 
         Text {
             color: root.ink.brightForeground
-            font.family: Theme.fontFamily
+            // Board 46 `.blk b`: the label family, the name's tracking.
+            font.family: Theme.labelFamily
+            font.letterSpacing: Theme.font.body * Theme.nameTrack
             font.pixelSize: Theme.font.body
             font.weight: Font.Medium
             objectName: "moveHeadline"
@@ -104,7 +106,7 @@ Rectangle {
             Accessible.name: text
             Accessible.role: Accessible.StaticText
             color: root.ink.foreground
-            font.family: Theme.fontFamily
+            font.family: Theme.valueFamily
             font.pixelSize: Theme.font.small
             objectName: "movePaths"
             text: qsTr("from %1 to %2").arg(root.move.from ?? "").arg(root.move.to ?? "")
@@ -117,7 +119,7 @@ Rectangle {
             Accessible.name: text
             Accessible.role: Accessible.StaticText
             color: root.ink.dimForeground
-            font.family: Theme.fontFamily
+            font.family: Theme.valueFamily
             font.pixelSize: Theme.font.small
             objectName: "moveMeta"
             text: root.metaText

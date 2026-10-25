@@ -53,7 +53,7 @@ Item {
     }
     /// The text roles on this row's ground (C30 F7).
     readonly property Ink ink: Ink {
-        ground: Theme.ground(row.isSelected, row.isCursor, pointer.containsMouse, false)
+        ground: Theme.rowGround(row.isSelected, row.isCursor, pointer.containsMouse, false)
     }
 
     /// The fix's button was clicked; the cursor and the selection are on this row already.
@@ -100,11 +100,14 @@ Item {
     height: Theme.libraryRowHeight
     objectName: "libraryRow_" + row.index
 
-    // The ground: the window's, the pointer's, the cursor's, selected (C30), as a table row's.
+    // The ground: the window's, the pointer's, the cursor's, selected (C30), as a table row's;
+    // the cursor's hairline where the skin doesn't mark the cursor (board 46 `.row.sel`).
     Rectangle {
+        readonly property bool edged: row.isCursor && !row.isSelected && !Theme.cursorMarked
+
         anchors.fill: parent
-        border.color: row.isCursor && !row.isSelected ? Theme.fill(Theme.borderHover) : "transparent"
-        border.width: row.isCursor && !row.isSelected ? Theme.hairWidth : 0
+        border.color: edged ? Theme.fill(Theme.borderHover) : "transparent"
+        border.width: edged ? Theme.hairWidth : 0
         color: row.ink.ground.fill
 
         Behavior on color {
@@ -114,14 +117,24 @@ Item {
         }
     }
 
-    // A selected row's edge (`.row.picked`), drawn by the skin's SelectionMark face.
+    // A selected row's edge (`.row.picked`), drawn by the skin's SelectionMark face; none
+    // where the skin says a pick by its ground alone.
     SelectionMark {
         anchors.fill: parent
         color: Theme.accent
         objectName: "libraryRowEdge_" + row.index
         rule: true
         ruleWidth: Theme.libraryRowSelectedEdge
-        visible: row.isSelected
+        visible: row.isSelected && !Theme.pickedGround
+    }
+
+    // The cursor's mark (board 46 `.row.sel::after`): nothing in Omarchy's face, whose
+    // cursor is the hairline above; Console's brackets.
+    SelectionMark {
+        anchors.fill: parent
+        color: Theme.accent
+        objectName: "libraryRowCursor_" + row.index
+        visible: row.isCursor
     }
 
     Rectangle {
@@ -196,10 +209,10 @@ Item {
         Text {
             anchors.centerIn: parent
             color: row.isSelected || glyphColumn.onTick ? row.ink.accent : row.ink.foreground
-            font.family: Theme.fontFamily
+            font.family: Theme.valueFamily
             font.pixelSize: Theme.font.small
             objectName: "libraryRowTick_" + row.index
-            text: row.isSelected ? "■" : "□"
+            text: row.isSelected ? Glyphs.picked : Glyphs.unpicked
             visible: row.isSelected || glyphColumn.onTick
         }
     }
@@ -226,7 +239,10 @@ Item {
 
                 color: row.ink.brightForeground
                 elide: Text.ElideRight
-                font.family: Theme.fontFamily
+                // Board 46 `.row .nm`: the label family, tracked, in the rows' case.
+                font.capitalization: Theme.rowNameUpper ? Font.AllUppercase : Font.MixedCase
+                font.family: Theme.labelFamily
+                font.letterSpacing: Theme.libraryRowNameSize * Theme.nameTrack
                 font.pixelSize: Theme.libraryRowNameSize
                 font.weight: Theme.libraryRowNameWeight
                 objectName: "libraryRowName_" + row.index
@@ -247,7 +263,7 @@ Item {
                 anchors.baseline: nameText.baseline
                 color: row.ink.dimForeground
                 elide: Text.ElideRight
-                font.family: Theme.fontFamily
+                font.family: Theme.valueFamily
                 font.pixelSize: Theme.libraryRowMetaSize
                 objectName: "libraryRowMeta_" + row.index
                 text: row.rowMeta
@@ -264,7 +280,7 @@ Item {
 
                 anchors.baseline: nameText.baseline
                 color: row.mark !== null && row.mark.kind === "failed" ? row.ink.red : row.ink.green
-                font.family: Theme.fontFamily
+                font.family: Theme.valueFamily
                 font.pixelSize: Theme.libraryRowMetaSize
                 objectName: "libraryRowMark_" + row.index
                 text: row.mark !== null ? row.mark.text : ""
@@ -300,7 +316,7 @@ Item {
                 anchors.verticalCenter: parent.verticalCenter
                 color: row.ink.dimForeground
                 elide: Text.ElideRight
-                font.family: Theme.fontFamily
+                font.family: Theme.valueFamily
                 font.pixelSize: Theme.libraryRowSentenceSize
                 objectName: "libraryRowSentence_" + row.index
                 text: row.rowSentence
@@ -333,7 +349,7 @@ Item {
 
                     anchors.centerIn: parent
                     color: Theme.inkOf(Theme.accent, fixArea.containsMouse ? Theme.on.hover : row.ink.ground)
-                    font.family: Theme.fontFamily
+                    font.family: Theme.valueFamily
                     font.pixelSize: Theme.libraryRowSentenceSize
                     text: row.rowFix
                     textFormat: Text.PlainText
@@ -375,7 +391,7 @@ Item {
 
             color: row.needsYou ? row.ink.red : row.ink.brightForeground
             elide: Text.ElideLeft
-            font.family: Theme.fontFamily
+            font.family: Theme.valueFamily
             font.features: ({
                     "tnum": 1
                 })
@@ -393,9 +409,11 @@ Item {
 
             color: row.ink.dimForeground
             font.capitalization: Font.AllUppercase
-            font.family: Theme.fontFamily
+            // Board 46 `.row .fact span`: the label family, the skin's caption tracking.
+            font.family: Theme.labelFamily
             font.letterSpacing: Theme.libraryRowCaptionTracking
             font.pixelSize: Theme.libraryRowCaptionSize
+            font.weight: Theme.libraryRowCaptionWeight
             horizontalAlignment: Text.AlignRight
             objectName: "libraryRowCaption_" + row.index
             text: row.rowCaption
@@ -438,7 +456,7 @@ Item {
                 anchors.rightMargin: Theme.libraryRenamePadding
                 clip: true
                 color: Theme.on.idle.brightForeground
-                font.family: Theme.fontFamily
+                font.family: Theme.valueFamily
                 font.pixelSize: Theme.libraryRowNameSize
                 selectByMouse: true
                 selectedTextColor: Theme.on.highlight.brightForeground

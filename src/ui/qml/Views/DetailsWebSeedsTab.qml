@@ -116,15 +116,14 @@ Item {
                 onClicked: root.rowMiddleClicked(row.index)
             }
 
-            Rectangle {
+            // The skin's lamp (Console's square, board 46 `.trk .dot`).
+            Lamp {
                 anchors.left: parent.left
                 anchors.leftMargin: Theme.space(8)
                 anchors.verticalCenter: urlCell.verticalCenter
                 color: row.statusError.length > 0 ? row.ink.red : Theme.muted
-                height: Theme.space(6)
                 objectName: "webSeedDot_" + row.index
-                radius: width / 2
-                width: Theme.space(6)
+                size: Theme.space(6)
             }
 
             DetailsCell {
@@ -154,7 +153,7 @@ Item {
                     id: errorText
 
                     color: row.ink.red
-                    font.family: Theme.fontFamily
+                    font.family: Theme.valueFamily
                     font.pixelSize: Theme.font.small
                     objectName: "webSeedError_" + row.index
                     text: row.statusError
@@ -164,7 +163,7 @@ Item {
                 Text {
                     color: row.ink.dimForeground
                     elide: Text.ElideRight
-                    font.family: Theme.fontFamily
+                    font.family: Theme.valueFamily
                     font.pixelSize: Theme.font.small
                     objectName: "webSeedStatus_" + row.index
                     text: row.statusError.length > 0 ? " · " + row.statusMeta : row.statusMeta

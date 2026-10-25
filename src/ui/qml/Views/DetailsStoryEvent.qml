@@ -31,7 +31,7 @@ Item {
 
         color: Theme.dimForeground
         elide: Text.ElideRight
-        font.family: Theme.fontFamily
+        font.family: Theme.valueFamily
         font.features: ({
                             "tnum": 1
                         })
@@ -58,8 +58,11 @@ Item {
 
         Text {
             color: Theme.foreground
-            font.family: Theme.fontFamily
+            // Board 46 `.tl b`: the skin's name voice.
+            font.family: Theme.labelFamily
+            font.letterSpacing: Theme.detailsEventTitleSize * Theme.nameTrack
             font.pixelSize: Theme.detailsEventTitleSize
+            font.weight: Theme.nameWeight
             objectName: "storyEventTitle"
             text: root.event.title ?? ""
             textFormat: Text.PlainText
@@ -69,7 +72,7 @@ Item {
 
         Text {
             color: Theme.dimForeground
-            font.family: Theme.fontFamily
+            font.family: Theme.valueFamily
             font.pixelSize: Theme.detailsEventDetailSize
             text: root.event.detail ?? ""
             textFormat: Text.PlainText

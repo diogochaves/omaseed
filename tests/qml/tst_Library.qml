@@ -137,7 +137,11 @@ TestCase {
         compare(view.table.selectedCount, 2);
         verify(view.selectionBar.visible, "the action bar while a selection is on");
         verify(view.libraryRows.rowInView(starts[1]));
-        verify(findChild(testCase.rowItem(starts[1]), "libraryRowEdge_" + starts[1]).visible);
+        // The picked row's rule, or the picked ground alone where the skin says (#171 step 6);
+        // the cursor's mark is on the cursor's row.
+        compare(findChild(testCase.rowItem(starts[1]), "libraryRowEdge_" + starts[1]).visible, !Theme.pickedGround);
+        compare(testCase.rowItem(starts[1]).ink.ground, Theme.rowGround(true, true, false, false));
+        verify(findChild(testCase.rowItem(starts[1]), "libraryRowCursor_" + starts[1]).visible);
         keyClick(Qt.Key_K);
         compare(view.table.cursorIndex, starts[1] - 1);
         // G to the end: the last row is scrolled into view.

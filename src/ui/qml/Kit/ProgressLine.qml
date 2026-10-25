@@ -5,7 +5,9 @@ import Omaseed.Kit
 // track, a filled bar in `color` (defaults `Theme.accent`, the caller passes a state colour
 // such as `Theme.stateSeeding`), and an optional right-aligned percent. `value` is 0..1; the
 // percent reads "100%" only when complete and one decimal place, truncated, below it (e.g.
-// "48.9%"), as the spec's percent column does (`.tbl .pg span`).
+// "48.9%"), as the spec's percent column does (`.tbl .pg span`). The line is the skin's Meter
+// (#171 step 6): Omarchy's track and bar, Console's cells (board 46 `.pbar i`), as thick as
+// `Theme.progressLineThickness`.
 Item {
     id: root
 
@@ -26,23 +28,19 @@ Item {
     implicitWidth: Theme.space(120)
     width: implicitWidth
 
-    Rectangle {
+    Meter {
         id: track
 
         anchors.left: parent.left
         anchors.right: percentText.visible ? percentText.left : parent.right
         anchors.rightMargin: percentText.visible ? Theme.space(8) : 0
         anchors.verticalCenter: parent.verticalCenter
-        color: Theme.fill(Theme.hairlineAlpha)
-        height: Theme.space(2)
-
-        Rectangle {
-            anchors.bottom: parent.bottom
-            anchors.left: parent.left
-            anchors.top: parent.top
-            color: root.color
-            width: track.width * root._clamped
-        }
+        color: root.color
+        height: Theme.progressLineThickness
+        objectName: "progressLineMeter"
+        snap: false
+        trackColor: Theme.fill(Theme.hairlineAlpha)
+        value: root._clamped
     }
 
     Text {
@@ -51,7 +49,7 @@ Item {
         anchors.right: parent.right
         anchors.verticalCenter: parent.verticalCenter
         color: Theme.dimForeground
-        font.family: Theme.fontFamily
+        font.family: Theme.valueFamily
         font.pixelSize: Theme.font.small
         horizontalAlignment: Text.AlignRight
         text: root._percentText

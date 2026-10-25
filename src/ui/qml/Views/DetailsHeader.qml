@@ -36,6 +36,9 @@ Item {
         alignRight: root.alignRight
         clickable: root.clickable
         descending: root.descending
+        // A skin's wider caption voice (upper case, tracked) elides rather than running into
+        // the next column's.
+        elides: true
         height: parent.height
         sorted: root.sorted
         text: root.text

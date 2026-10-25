@@ -374,7 +374,7 @@ FocusScope {
         anchors.leftMargin: Theme.searchBarInset
         anchors.top: searchLine.visible ? searchLine.bottom : searchBar.bottom
         color: Theme.accent
-        font.family: Theme.fontFamily
+        font.family: Theme.valueFamily
         font.pixelSize: Theme.searchNoteSize
         height: landedLine.visible ? implicitHeight + 2 * Theme.searchNoteInset : 0
         objectName: "searchLanded"
@@ -525,7 +525,7 @@ FocusScope {
                         anchors.leftMargin: Theme.searchBarInset
                         anchors.verticalCenter: parent.verticalCenter
                         color: Theme.dimForeground
-                        font.family: Theme.fontFamily
+                        font.family: Theme.valueFamily
                         font.pixelSize: Theme.searchLineSize
                         Accessible.name: text
                         Accessible.role: Accessible.StaticText
@@ -556,7 +556,7 @@ FocusScope {
 
                 Text {
                     color: Theme.dimForeground
-                    font.family: Theme.fontFamily
+                    font.family: Theme.valueFamily
                     font.pixelSize: Theme.searchLineSize
                     text: qsTr("Rows appear as each plugin answers; nothing waits for the slowest.")
                 }
@@ -575,7 +575,7 @@ FocusScope {
 
                 Text {
                     color: Theme.brightForeground
-                    font.family: Theme.fontFamily
+                    font.family: Theme.valueFamily
                     font.pixelSize: Theme.searchEmptyTitleSize
                     font.weight: Font.DemiBold
                     horizontalAlignment: Text.AlignHCenter
@@ -585,7 +585,7 @@ FocusScope {
 
                 Text {
                     color: Theme.dimForeground
-                    font.family: Theme.fontFamily
+                    font.family: Theme.valueFamily
                     font.pixelSize: Theme.searchEmptyWordsSize
                     horizontalAlignment: Text.AlignHCenter
                     text: qsTr(
@@ -605,7 +605,7 @@ FocusScope {
                 anchors.top: parent.top
                 anchors.topMargin: Theme.searchBarInsetTop
                 color: Theme.dimForeground
-                font.family: Theme.fontFamily
+                font.family: Theme.valueFamily
                 font.pixelSize: Theme.searchLineSize
                 Accessible.name: text
                 Accessible.role: Accessible.StaticText

@@ -781,6 +781,7 @@ Item {
                 keysShown: root.keysShown
                 objectName: "railView-" + viewDelegate.modelData.key
                 text: viewDelegate.modelData.text
+                view: true
                 width: viewsBlock.width
 
                 onClicked: root.clickRow(viewDelegate.globalIndex)
@@ -1450,7 +1451,11 @@ Item {
                 accessibleName: qsTr("servers")
                 block: Theme.on.idle
                 collapsed: false
-                label: qsTr("servers · %1").arg(Theme.numeral(root.serversRowCount))
+                // Where the head carries kana, in two parts (board 46 `.srv h6`): the word and
+                // its kana, then the count at the right.
+                count: root.serversRowCount
+                countShown: Theme.labelKana
+                label: Theme.labelKana ? qsTr("servers") : qsTr("servers · %1").arg(Theme.numeral(root.serversRowCount))
                 labelId: "servers"
                 objectName: "serversHeading"
                 visible: !root.serversShownFolded && !root.compact

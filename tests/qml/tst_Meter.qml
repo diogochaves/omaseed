@@ -52,6 +52,17 @@ TestCase {
         compare(track.children[0].color, Qt.color("red"));
     }
 
+    // The table's progress cell drew its bar to the fraction (#171 step 6): `snap: false`.
+    function test_omarchys_line_unsnapped_ends_on_the_fraction() {
+        if (Theme.skin.name !== "omarchy")
+            skip("Omarchy's face is drawn under Omarchy's skin only");
+        const meter = createTemporaryObject(meterComponent, testCase, {
+                                                "value": 0.333,
+                                                "snap": false
+                                            });
+        compare(meter.face.children[0].children[0].width, 155 * 0.333);
+    }
+
     function test_omarchys_grid_is_cells() {
         if (Theme.skin.name !== "omarchy")
             skip("Omarchy's face is drawn under Omarchy's skin only");

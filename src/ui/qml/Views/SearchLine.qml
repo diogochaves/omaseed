@@ -113,7 +113,7 @@ Item {
         anchors.top: parent.top
         color: Theme.dimForeground
         elide: Text.ElideRight
-        font.family: Theme.fontFamily
+        font.family: Theme.valueFamily
         font.pixelSize: Theme.searchLineSize
         Accessible.name: text
         Accessible.role: Accessible.StaticText
@@ -145,12 +145,11 @@ Item {
                 objectName: "searchPill_" + pill.modelData.name
                 spacing: Theme.searchPillGap
 
-                Rectangle {
+                // The skin's lamp (Console's square, board 46 `.dot`).
+                Lamp {
                     anchors.verticalCenter: parent.verticalCenter
                     color: root.pillColor(pill.modelData)
-                    height: Theme.searchPillDot
-                    radius: Theme.searchPillDot / 2
-                    width: Theme.searchPillDot
+                    size: Theme.searchPillDot
 
                     SequentialAnimation on opacity {
                         loops: Animation.Infinite
@@ -173,7 +172,7 @@ Item {
                     color: pill.modelData.state === "slow" || pill.modelData.state === "failed"
                            ? Theme.yellow : pill.modelData.state === "answered" ? Theme.foreground :
                                                                                   Theme.dimForeground
-                    font.family: Theme.fontFamily
+                    font.family: Theme.valueFamily
                     font.pixelSize: Theme.searchLineSize
                     text: root.pillText(pill.modelData)
                     textFormat: Text.PlainText
@@ -184,7 +183,7 @@ Item {
         // Narrow: one pill for all of them.
         Text {
             color: Theme.dimForeground
-            font.family: Theme.fontFamily
+            font.family: Theme.valueFamily
             font.pixelSize: Theme.searchLineSize
             objectName: "searchPillsFolded"
             text: qsTr("%1 of %2 answered").arg(root._answered).arg(root._asked.length)
@@ -200,7 +199,7 @@ Item {
             Accessible.onPressAction: root.answersRequested(missingLink.x, missingLink.y
                                                             + missingLink.height)
             color: Theme.yellow
-            font.family: Theme.fontFamily
+            font.family: Theme.valueFamily
             font.pixelSize: Theme.searchLineSize
             font.underline: true
 

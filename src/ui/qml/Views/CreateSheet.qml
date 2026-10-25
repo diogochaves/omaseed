@@ -1037,24 +1037,34 @@ Sheet {
         }
     }
 
-    // CR7: why it isn't added, and what happens when the site's copy comes back.
+    // CR7: why it isn't added, and what happens when the site's copy comes back. Where the
+    // skin stands blocks on plates it is board 49's `.rtnote` plate, tagged "round trip".
     Rectangle {
         id: roundTripNote
 
-        /// The note's words on its own 4 % fill (DECISIONS C30 F1).
+        /// The note's words on its own 4 % fill (DECISIONS C30 F1), or on its plate's.
         readonly property Ink ink: Ink {
             animated: false
-            ground: Theme.on.idle
+            ground: Theme.platedBlocks ? Theme.on.panel : Theme.on.idle
         }
 
         Layout.fillWidth: true
         border.color: Theme.fill(Theme.hairlineAlpha)
-        border.width: Theme.createNoteEdge
-        color: roundTripNote.ink.ground.fill
+        border.width: Theme.platedBlocks ? 0 : Theme.createNoteEdge
+        color: Theme.platedBlocks ? "transparent" : roundTripNote.ink.ground.fill
         implicitHeight: noteRow.implicitHeight + 2 * Theme.createNotePadding
         objectName: "createRoundTripNote"
         radius: Theme.createNoteRadius
         visible: root.isPrivate && root.listOpen === ""
+
+        Plate {
+            anchors.fill: parent
+            edgeColor: Theme.hairColor
+            edgeWidth: Theme.hairWidth
+            fill: roundTripNote.ink.ground.fill
+            objectName: "createRoundTripPlate"
+            visible: Theme.platedBlocks
+        }
 
         RowLayout {
             id: noteRow
@@ -1068,8 +1078,11 @@ Sheet {
 
             Label {
                 Layout.alignment: Qt.AlignTop
-                color: roundTripNote.ink.accent
-                text: Glyphs.roundTrip
+                color: Theme.labelTags ? roundTripNote.ink.of(Theme.roleColor(Theme.kanaRole))
+                                       : roundTripNote.ink.accent
+                objectName: "createRoundTripTag"
+                text: Theme.labelTags ? qsTr("round trip") : Glyphs.roundTrip
+                tracked: Theme.labelTags
             }
 
             Label {

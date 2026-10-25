@@ -19,7 +19,7 @@ import Omaseed.Kit
 //
 // `outcome` is App.outcomes.current (core::ActionOutcome::words()). It runs nothing itself:
 // the host answers its signals. Hand-formatted to qmlformat's own style (typed functions).
-Rectangle {
+Item {
     id: root
 
     /// The outcome on show; {} for none.
@@ -79,9 +79,6 @@ Rectangle {
     readonly property real roomHeight: Theme.controlHeight + 2 * Theme.space(4) + reasonText.implicitHeight
                                        + Theme.outcomeStripReasonGap
 
-    border.color: Theme.fill(Theme.borderIdle)
-    border.width: Theme.edgeWidth
-    color: Theme.background
     implicitHeight: Theme.controlHeight + 2 * Theme.space(4)
                     + (reasonText.visible ? reasonText.implicitHeight + Theme.outcomeStripReasonGap : 0)
     implicitWidth: Math.min(root.availableWidth > 0 ? root.availableWidth : Infinity,
@@ -91,7 +88,6 @@ Rectangle {
                                      root.canShow ? root._frameWidth + markText.implicitWidth + root._spacing
                                                     + reasonText.implicitWidth : 0))
     objectName: "outcomeStrip"
-    radius: Theme.cornerRadius
     visible: root.shown
 
     // A new outcome starts its own time, the line full again.
@@ -106,21 +102,27 @@ Rectangle {
         }
     }
 
+    // Its ground, edge and the outcome's colour at its start, on the skin's Plate (#171 step
+    // 6): Omarchy's rectangle with `.strip { box-shadow: inset 2px 0 0 var(--k) }`, Console's
+    // cut plate edged in that colour on the panel (board 46 `.ostrip`).
+    Plate {
+        anchors.fill: parent
+        base: Theme.platedBlocks ? Theme.background : "transparent"
+        edgeColor: Theme.fill(Theme.borderIdle)
+        edgeWidth: Theme.edgeWidth
+        fill: Theme.platedBlocks ? Theme.on.panel.fill : Theme.background
+        objectName: "outcomePlate"
+        radius: Theme.cornerRadius
+        rule: root.tone
+        ruleWidth: Math.max(1, Math.round(Theme.space(2)))
+    }
+
     // The strip floats over the rows: a click on its own ground must not reach the row
     // under it. The wheel still scrolls the table.
     // a11y-ignore A2: the strip's ground, not a control
     MouseArea {
         acceptedButtons: Qt.AllButtons
         anchors.fill: parent
-    }
-
-    // `.strip { box-shadow: inset 2px 0 0 var(--k) }`: the outcome's colour at its start.
-    Rectangle {
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.top: parent.top
-        color: root.tone
-        width: Math.max(1, Math.round(Theme.space(2)))
     }
 
     Row {

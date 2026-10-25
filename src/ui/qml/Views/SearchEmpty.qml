@@ -79,9 +79,12 @@ Item {
 
         Text {
             color: Theme.brightForeground
-            font.family: Theme.fontFamily
+            // The skin's heading voice (board 46 `.dh b`, board 48 `.empty b`).
+            font.capitalization: Theme.titleUpper ? Font.AllUppercase : Font.MixedCase
+            font.family: Theme.labelFamily
+            font.letterSpacing: Theme.searchEmptyTitleSize * Theme.labelTrackTitle
             font.pixelSize: Theme.searchEmptyTitleSize
-            font.weight: Font.DemiBold
+            font.weight: Theme.titleWeight
             horizontalAlignment: Text.AlignHCenter
             Accessible.name: text
             Accessible.role: Accessible.StaticText
@@ -94,7 +97,7 @@ Item {
 
         Text {
             color: Theme.dimForeground
-            font.family: Theme.fontFamily
+            font.family: Theme.valueFamily
             font.pixelSize: Theme.searchEmptyWordsSize
             horizontalAlignment: Text.AlignHCenter
             Accessible.name: text
@@ -119,7 +122,7 @@ Item {
 
         Text {
             color: Theme.dimForeground
-            font.family: Theme.fontFamily
+            font.family: Theme.valueFamily
             font.pixelSize: Theme.searchNoteSize
             horizontalAlignment: Text.AlignHCenter
             text: qsTr("Settings › qBittorrent › Search plugins")

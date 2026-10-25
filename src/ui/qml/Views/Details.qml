@@ -1057,9 +1057,12 @@ Item {
                 Accessible.role: Accessible.Heading
                 color: Theme.brightForeground
                 elide: Text.ElideRight
-                font.family: Theme.fontFamily
+                // The skin's heading voice (board 46 `.dh b`, board 48 `.empty b`).
+                font.capitalization: Theme.titleUpper ? Font.AllUppercase : Font.MixedCase
+                font.family: Theme.labelFamily
+                font.letterSpacing: Theme.font.body * Theme.labelTrackTitle
                 font.pixelSize: Theme.font.body
-                font.weight: Font.DemiBold
+                font.weight: Theme.titleWeight
                 objectName: "headName"
                 text: root.torrent ? root.torrent.name : qsTr("no torrent selected")
                 width: parent.width
@@ -1117,7 +1120,7 @@ Item {
 
                     color: Theme.dimForeground
                     elide: Text.ElideRight
-                    font.family: Theme.fontFamily
+                    font.family: Theme.valueFamily
                     font.pixelSize: Theme.font.small
                     objectName: "headLabels"
                     text: !root.torrent ? qsTr("pick a row in the table") : metaLine.labels
@@ -1143,7 +1146,7 @@ Item {
                 TextMetrics {
                     id: joinedMetrics
 
-                    font.family: Theme.fontFamily
+                    font.family: Theme.valueFamily
                     font.pixelSize: Theme.font.small
                     text: metaLine.added.length > 0 ? " · " + metaLine.added : ""
                 }
@@ -1154,7 +1157,7 @@ Item {
                     anchors.left: labelsText.visible ? labelsText.right : parent.left
                     color: Theme.dimForeground
                     elide: Text.ElideRight
-                    font.family: Theme.fontFamily
+                    font.family: Theme.valueFamily
                     font.pixelSize: Theme.font.small
                     objectName: "headAdded"
                     // The separator travels with the date, so it survives the labels' cut,

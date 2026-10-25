@@ -35,8 +35,10 @@ TestCase {
         const row = createTemporaryObject(rowComponent, testCase, {
                                               "selected": true
                                           });
-        fuzzyCompare(row.color.a, Theme.on.selected.fill.a, 0.01);
-        compare(row.textColor, Theme.on.selected.brightForeground);
+        // A skin may show a pick on the picked ground (#171 step 6, Theme.rowGround).
+        const ground = Theme.rowGround(true, false, false, false);
+        fuzzyCompare(row.color.a, ground.fill.a, 0.01);
+        compare(row.textColor, ground.brightForeground);
     }
 
     // DECISIONS C30 F1, F2: a selected row's caption and state colours are the selected
@@ -45,13 +47,15 @@ TestCase {
         const row = createTemporaryObject(rowComponent, testCase, {
                                               "selected": true
                                           });
-        compare(row.ink.ground, Theme.on.selected);
-        compare(row.ink.dimForeground, Theme.on.selected.dimForeground);
+        const picked = Theme.rowGround(true, false, false, false);
+        compare(row.ink.ground, picked);
+        compare(row.ink.dimForeground, picked.dimForeground);
         verify(!Qt.colorEqual(row.ink.dimForeground, Theme.dimForeground));
-        compare(row.ink.stateQueued, Theme.on.selected.magenta);
+        compare(row.ink.stateQueued, picked.magenta);
         row.hasCursor = true;
-        compare(row.ink.ground, Theme.on.selectedCursor);
-        tryCompare(row.ink, "dimForeground", Theme.on.selectedCursor.dimForeground, 1000);
+        const both = Theme.rowGround(true, true, false, false);
+        compare(row.ink.ground, both);
+        tryCompare(row.ink, "dimForeground", both.dimForeground, 1000);
     }
 
     // C30 F4: the pointer's hover is a ground too.
@@ -69,7 +73,11 @@ TestCase {
                                               "hasCursor": true
                                           });
         fuzzyCompare(row.color.a, Theme.on.cursor.fill.a, 0.01);
-        compare(row.border.width, Theme.hairWidth);
+        // The hairline, or the skin's mark on the cursor (#171 step 6, board 46 `.row.sel`).
+        compare(row.border.width, Theme.cursorMarked ? 0 : Theme.hairWidth);
+        verify(findChild(row, "tableRowCursor").visible);
+        row.hasCursor = false;
+        verify(!findChild(row, "tableRowCursor").visible);
     }
 
     function test_selected_and_cursor_together_use_the_24_percent_fill() {
@@ -77,7 +85,7 @@ TestCase {
                                               "selected": true,
                                               "hasCursor": true
                                           });
-        fuzzyCompare(row.color.a, Theme.on.selectedCursor.fill.a, 0.01);
+        fuzzyCompare(row.color.a, Theme.rowGround(true, true, false, false).fill.a, 0.01);
     }
 
     function test_content_alias_accepts_cells() {

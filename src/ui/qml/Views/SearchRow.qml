@@ -68,9 +68,17 @@ Item {
 
     Rectangle {
         anchors.fill: parent
-        border.color: row.isCursor ? Theme.fill(Theme.borderHover) : "transparent"
-        border.width: row.isCursor ? Theme.hairWidth : 0
+        border.color: row.isCursor && !Theme.cursorMarked ? Theme.fill(Theme.borderHover) : "transparent"
+        border.width: row.isCursor && !Theme.cursorMarked ? Theme.hairWidth : 0
         color: row.ink.ground.fill
+    }
+
+    // The cursor's mark, as a library row's (board 46 `.row.sel::after`).
+    SelectionMark {
+        anchors.fill: parent
+        color: Theme.accent
+        objectName: "searchRowCursor_" + row.index
+        visible: row.isCursor
     }
 
     Rectangle {
@@ -138,7 +146,10 @@ Item {
 
                 color: row.ink.brightForeground
                 elide: Text.ElideRight
-                font.family: Theme.fontFamily
+                // Board 48 `.srcn`, as the library's `.row .nm`.
+                font.capitalization: Theme.rowNameUpper ? Font.AllUppercase : Font.MixedCase
+                font.family: Theme.labelFamily
+                font.letterSpacing: Theme.libraryRowNameSize * Theme.nameTrack
                 font.pixelSize: Theme.libraryRowNameSize
                 font.weight: Theme.libraryRowNameWeight
                 objectName: "searchRowName_" + row.index
@@ -153,7 +164,7 @@ Item {
                 anchors.baseline: nameText.baseline
                 color: row.ink.dimForeground
                 elide: Text.ElideRight
-                font.family: Theme.fontFamily
+                font.family: Theme.valueFamily
                 font.pixelSize: Theme.libraryRowMetaSize
                 objectName: "searchRowMeta_" + row.index
                 text: row.meta
@@ -167,7 +178,7 @@ Item {
 
                 anchors.baseline: nameText.baseline
                 color: row.ink.accent
-                font.family: Theme.fontFamily
+                font.family: Theme.valueFamily
                 font.pixelSize: Theme.libraryRowMetaSize
                 Accessible.name: text
                 Accessible.role: Accessible.StaticText
@@ -182,7 +193,7 @@ Item {
 
                 anchors.baseline: nameText.baseline
                 color: row.mark === "disk" ? row.ink.yellow : row.ink.green
-                font.family: Theme.fontFamily
+                font.family: Theme.valueFamily
                 font.pixelSize: Theme.libraryRowMetaSize
                 Accessible.name: text
                 Accessible.role: Accessible.StaticText
@@ -205,7 +216,7 @@ Item {
                 anchors.verticalCenter: parent.verticalCenter
                 color: row.ink.dimForeground
                 elide: Text.ElideRight
-                font.family: Theme.fontFamily
+                font.family: Theme.valueFamily
                 font.pixelSize: Theme.libraryRowSentenceSize
                 objectName: "searchRowSentence_" + row.index
                 text: row.narrow >= 1 ? row.sentenceShort : row.sentence
@@ -239,7 +250,7 @@ Item {
                     anchors.centerIn: parent
                     color: Theme.inkOf(Theme.accent, addArea.containsMouse ? Theme.on.hover :
                                                                              row.ink.ground)
-                    font.family: Theme.fontFamily
+                    font.family: Theme.valueFamily
                     font.pixelSize: Theme.libraryRowSentenceSize
                     text: row.addWord
                     textFormat: Text.PlainText
@@ -273,7 +284,7 @@ Item {
 
             color: row.health === "few" ? row.ink.yellow : row.health === "good"
                                           ? row.ink.brightForeground : row.ink.dimForeground
-            font.family: Theme.fontFamily
+            font.family: Theme.valueFamily
             font.features: ({
                                 "tnum": 1
                             })
@@ -291,9 +302,10 @@ Item {
 
             color: row.ink.dimForeground
             font.capitalization: Font.AllUppercase
-            font.family: Theme.fontFamily
+            font.family: Theme.labelFamily
             font.letterSpacing: Theme.libraryRowCaptionTracking
             font.pixelSize: Theme.libraryRowCaptionSize
+            font.weight: Theme.libraryRowCaptionWeight
             horizontalAlignment: Text.AlignRight
             objectName: "searchRowCaption_" + row.index
             text: row.seedsCaption

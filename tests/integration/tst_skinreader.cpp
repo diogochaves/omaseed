@@ -68,6 +68,7 @@ void TestSkinReader::consoleReadsWhole()
                               "density",
                               "glyphs",
                               "labels",
+                              "select",
                               "glow"})
         QVERIFY2(skin.tokens.contains(QLatin1String(group)), group);
     QCOMPARE(skin.tokens.value(QStringLiteral("glow")).toString(), QStringLiteral("clean"));
@@ -187,6 +188,12 @@ void TestSkinReader::malformedTokensAreOmarchys_data()
                                   << "label.controlSize";
     QTest::newRow("tint") << QByteArray(R"("tint": {"notice": 2})") << "tint.notice";
     QTest::newRow("tags not bool") << QByteArray(R"("label": {"tags": 1})") << "label.tags";
+    QTest::newRow("caption track")
+        << QByteArray(R"("label": {"captionTrack": 3})") << "label.captionTrack";
+    QTest::newRow("row case") << QByteArray(R"("label": {"rowCase": "lower"})") << "label.rowCase";
+    QTest::newRow("card edge") << QByteArray(R"("line": {"card": 12})") << "line.card";
+    QTest::newRow("cursor mark not bool")
+        << QByteArray(R"("select": {"cursorMark": "yes"})") << "select.cursorMark";
     QTest::newRow("numerals") << QByteArray(R"("numerals": 2)") << "numerals";
     QTest::newRow("density text") << QByteArray(R"("density": {"railWidth": "wide"})")
                                   << "density.railWidth";

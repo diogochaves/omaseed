@@ -292,14 +292,17 @@ TestCase {
         table.selectOnly(2);
         const row = findChild(table, "row_2");
         const band = row.children.find(child => child.ink !== undefined);
-        compare(band.ink.ground, Theme.on.selectedCursor);
-        tryCompare(findChild(table, "category_2"), "color", Theme.on.selectedCursor.dimForeground);
-        verify(!Qt.colorEqual(Theme.on.selectedCursor.dimForeground, Theme.dimForeground));
-        tryCompare(band.ink, "stateSeeding", Theme.on.selectedCursor.green);
+        // The picked ground where the skin says (#171 step 6, Theme.rowGround).
+        const both = Theme.rowGround(true, true, false, false);
+        const picked = Theme.rowGround(true, false, false, false);
+        compare(band.ink.ground, both);
+        tryCompare(findChild(table, "category_2"), "color", both.dimForeground);
+        verify(!Qt.colorEqual(both.dimForeground, Theme.dimForeground));
+        tryCompare(band.ink, "stateSeeding", both.green);
         compare(row.stateColor, band.ink[row.stateRole]);
         table.moveCursorTo(3);
-        compare(band.ink.ground, Theme.on.selected);
-        tryCompare(findChild(table, "category_2"), "color", Theme.on.selected.dimForeground);
+        compare(band.ink.ground, picked);
+        tryCompare(findChild(table, "category_2"), "color", picked.dimForeground);
         // The row beside it is not selected: its words are its own ground's (the window's,
         // or the hover fill's while the pointer is on it).
         const other = findChild(table, "row_1").children.find(child => child.ink !== undefined);

@@ -122,27 +122,30 @@ Item {
                     Text {
                         anchors.verticalCenter: parent.verticalCenter
                         color: tab.current ? Theme.brightForeground : Theme.dimForeground
-                        font.family: Theme.fontFamily
+                        // Board 46 `.tab`: the skin's caption voice.
+                        font.capitalization: Theme.captionUpper ? Font.AllUppercase : Font.MixedCase
+                        font.family: Theme.labelFamily
+                        font.letterSpacing: Theme.font.small * Theme.captionTrack(0)
                         font.pixelSize: Theme.font.small
+                        font.weight: Theme.captionWeight(Font.Normal)
                         text: tab.modelData.text
                     }
 
                     Text {
                         anchors.verticalCenter: parent.verticalCenter
                         color: tab.current ? Theme.brightForeground : Theme.dimForeground
-                        font.family: Theme.fontFamily
+                        font.family: Theme.valueFamily
                         font.pixelSize: Theme.font.caption
                         text: tab.modelData.key ? tab.modelData.key : ""
                         visible: !!tab.modelData.key
                     }
 
-                    Rectangle {
+                    // The skin's lamp (Console's square, board 46 `.dot`).
+                    Lamp {
                         anchors.verticalCenter: parent.verticalCenter
                         color: Theme.yellow
-                        height: Theme.space(6)
-                        radius: width / 2
+                        size: Theme.space(6)
                         visible: !!tab.modelData.badge
-                        width: Theme.space(6)
                     }
                 }
 
