@@ -238,7 +238,14 @@ ColumnLayout {
                                                               : App.altSpeed.scheduleSummary
                     readonly property string note: line.isSet ? "" : App.altSpeed.scheduleNote
                     readonly property bool warn: !line.isSet && App.altSpeed.scheduleWarn
+                    /// The schedule's line while the schedule is off: it reads dim, as its rows
+                    /// do, in the ground's dim role and the hairline's rule. It was the whole
+                    /// line at 0.6, which put its words under C30's floor (#188).
+                    readonly property bool off: !line.isSet && root.prefs !== null
+                                                && !root.prefs.values.scheduler_enabled
                     readonly property color tone: {
+                        if (line.off)
+                            return Theme.fill(Theme.hairlineAlpha);
                         if (line.warn)
                             return Theme.yellow;
                         if (line.isSet && App.altSpeed.setKind === "burst")
@@ -257,8 +264,6 @@ ColumnLayout {
                     color: line.ink.fill
                     implicitHeight: lineText.implicitHeight + Theme.space(12)
                     objectName: "qbtLine-" + holder.modelData.line
-                    // The schedule's line reads dim while the schedule is off, as its rows do.
-                    opacity: !line.isSet && root.prefs && !root.prefs.values.scheduler_enabled ? 0.6 : 1
                     radius: Theme.cornerRadius
                     visible: root.loaded && line.text.length > 0
 
@@ -297,6 +302,7 @@ ColumnLayout {
                         Label {
                             Accessible.name: text
                             Accessible.role: line.warn ? Accessible.AlertMessage : Accessible.StaticText
+                            dim: line.off
                             ink: line.ink
                             objectName: "qbtLineText"
                             size: "small"

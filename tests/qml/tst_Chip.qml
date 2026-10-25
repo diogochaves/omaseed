@@ -165,6 +165,9 @@ TestCase {
         // DECISIONS C30 F1, F3: on the selected fill, its roles lifted against that fill.
         compare(chip.ground, Theme.on.selected);
         tryCompare(count, "color", Theme.on.selected.dimForeground);
+        // The key is the dim role at full strength: fainter, it read under the floor (#188).
+        tryCompare(key, "color", Theme.on.selected.dimForeground);
+        compare(key.opacity, 1);
         // On, the word takes the level's colour, as it reads on the fill.
         tryCompare(findChild(chip, "chipLabel"), "color", Theme.on.selected.yellow);
         verify(!Qt.colorEqual(Theme.on.selected.dimForeground, Theme.dimForeground));
@@ -210,8 +213,8 @@ TestCase {
         compare(chip.border.width, 1);
     }
 
-    // docs/31 D3, D5: the hero's burst warns in green, and "until" follows the limits a
-    // little fainter, in the same colour.
+    // docs/31 D3, D5: the hero's burst warns in green, and "until" follows the limits in the
+    // same colour, at full strength: fainter, it read under C30's floor (#188).
     function test_a_warning_chip_takes_its_colour_and_a_suffix() {
         const chip = createTemporaryObject(chipComponent, testCase, {
                                                "text": "burst ↓∞ ↑∞",
@@ -225,7 +228,7 @@ TestCase {
         compare(label.color, Theme.green);
         compare(suffix.color, Theme.green);
         verify(suffix.visible);
-        verify(suffix.opacity < 1);
+        compare(suffix.opacity, 1);
         compare(chip.Accessible.name, "burst ↓∞ ↑∞ · until 07:00");
         // Without a suffix nothing is drawn after the text, and warn is yellow by default.
         const plain = createTemporaryObject(chipComponent, testCase, {
