@@ -33,6 +33,7 @@ enum class Kind {
     LineRole, ///< a theme role, a skin role, or the skin's own `hair` or `faint` line
     Family,   ///< a font family; "" is fontconfig's monospace
     Case,     ///< "none" or "upper"
+    Step,     ///< a step of the type scale: "caption", "small" or "body"
     Glyph,    ///< a glyph, `ms:<ligature>` or `icon:<name>`
     Word,     ///< a label's word
     Face,     ///< a QML file in the skin's faces/
@@ -55,6 +56,9 @@ const QHash<QString, QHash<QString, Kind>> &fixedGroups()
           {QStringLiteral("faintAlpha"), Kind::Alpha}}},
         {QStringLiteral("cut"),
          {{QStringLiteral("panel"), Kind::Px}, {QStringLiteral("key"), Kind::Px}}},
+        // A kind's own tint under its words (#171 step 5): a notice's ground is its kind's
+        // colour at this alpha over the window (board 46 `.notice .pi`); 0 is the idle fill.
+        {QStringLiteral("tint"), {{QStringLiteral("notice"), Kind::Alpha}}},
         {QStringLiteral("font"),
          {{QStringLiteral("label"), Kind::Family},
           {QStringLiteral("value"), Kind::Family},
@@ -65,7 +69,19 @@ const QHash<QString, QHash<QString, Kind>> &fixedGroups()
           {QStringLiteral("track"), Kind::Em},
           {QStringLiteral("trackTitle"), Kind::Em},
           {QStringLiteral("weight"), Kind::Weight},
-          {QStringLiteral("kana"), Kind::Bool}}},
+          {QStringLiteral("kana"), Kind::Bool},
+          // The other voices (#171 step 5): a heading's (the title bar's title, a sheet's and
+          // a menu's head), a control's words (a button, a tool), the status line's; and
+          // whether a strip or band names its outcome by a word instead of a sign.
+          {QStringLiteral("titleCase"), Kind::Case},
+          {QStringLiteral("titleWeight"), Kind::Weight},
+          {QStringLiteral("controlCase"), Kind::Case},
+          {QStringLiteral("controlTrack"), Kind::Em},
+          {QStringLiteral("controlWeight"), Kind::Weight},
+          {QStringLiteral("controlSize"), Kind::Step},
+          {QStringLiteral("statusCase"), Kind::Case},
+          {QStringLiteral("statusTrack"), Kind::Em},
+          {QStringLiteral("tags"), Kind::Bool}}},
     };
     return groups;
 }
@@ -155,6 +171,13 @@ QVariant check(const QJsonValue &value, Kind kind)
         const QString text = value.toString();
         return text == QLatin1String("none") || text == QLatin1String("upper") ? QVariant(text)
                                                                                : QVariant();
+    }
+    case Kind::Step: {
+        const QString text = value.toString();
+        return text == QLatin1String("caption") || text == QLatin1String("small") ||
+                       text == QLatin1String("body")
+                   ? QVariant(text)
+                   : QVariant();
     }
     case Kind::Glyph: {
         static const QRegularExpression ligature(QStringLiteral("^ms:[a-z0-9_]+$"));

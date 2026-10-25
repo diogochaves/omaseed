@@ -453,6 +453,7 @@ Sheet {
     sheetWidth: Theme.createSheetWidth
     subtitle: root.multiServer ? qsTr("on %1").arg(App.serverName) : ""
     title: qsTr("Create a torrent")
+    titleId: "create"
 
     onAccepted: root.create()
     onServerDownChanged: {

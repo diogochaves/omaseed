@@ -163,7 +163,7 @@ Rectangle {
     activeFocusOnTab: true
     border.color: root.activeFocus ? Theme.accent : hover.hovered ? Theme.fill(Theme.borderHover)
                                                                   : Theme.fill(Theme.borderIdle)
-    border.width: 1
+    border.width: Theme.hairWidth
     clip: true
     color: Theme.on.idle.fill
     implicitHeight: Math.min((root.count + 1) * Theme.railRowHeight + 2, root.maximumHeight)
@@ -511,7 +511,7 @@ Rectangle {
                         anchors.right: parent.right
                         anchors.verticalCenter: parent.verticalCenter
                         border.color: root.renameError.length > 0 ? Theme.red : Theme.accent
-                        border.width: 1
+                        border.width: Theme.hairWidth
                         color: Theme.background
                         height: Theme.railRowHeight - Theme.space(4)
                         radius: Theme.cornerRadius

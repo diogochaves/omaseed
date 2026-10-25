@@ -19,6 +19,7 @@
     "menuEdge": 1, "menuEdgeRole": "hair"
   },
   "cut": { "panel": 16, "key": 10 },
+  "tint": { "notice": 0.09 },
   "radius": 0,
   "font": {
     "label": "Chakra Petch",
@@ -26,7 +27,13 @@
     "kana": "Noto Sans CJK JP",
     "icons": "Material Symbols Sharp"
   },
-  "label": { "case": "upper", "track": 0.16, "trackTitle": 0.22, "weight": 600, "kana": true },
+  "label": {
+    "case": "upper", "track": 0.16, "trackTitle": 0.22, "weight": 600, "kana": true,
+    "titleCase": "upper", "titleWeight": 700,
+    "controlCase": "upper", "controlTrack": 0.16, "controlWeight": 600, "controlSize": "caption",
+    "statusCase": "upper", "statusTrack": 0.04,
+    "tags": true
+  },
   "numerals": "pad",
   "density": {
     "railWidth": 222,
@@ -38,7 +45,10 @@
     "titleBarInsetStart": 18,
     "titleBarInsetEnd": 14,
     "titleBarGap": 10,
-    "titleBarFindWidth": 188
+    "titleBarFindWidth": 188,
+    "noticeBandInsetTop": 10,
+    "noticeBandInsetStart": 18,
+    "noticeBandInsetEnd": 14
   },
   "glyphs": {
     "questionNeedsYou": "ms:error",
@@ -70,6 +80,8 @@
     "station": "ステーション",
     "add": "追加",
     "move": "移動",
+    "create": "作成",
+    "browse": "参照",
     "settings": "設定",
     "appearance": "外観",
     "pieces": "ピース",

@@ -46,7 +46,7 @@ Sheet {
             "primary": true
         }
     ]
-    glyph: "▱"
+    glyph: Glyphs.move
     keyHandler: event => {
         if (event.key === Qt.Key_C && (event.modifiers & (Qt.ControlModifier | Qt.AltModifier))
                 === 0) {

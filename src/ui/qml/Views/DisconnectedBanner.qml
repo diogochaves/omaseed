@@ -28,7 +28,12 @@ Notice {
 
     // docs/35 N3 as docs/44 D11 changed it: yellow while the server is there but not
     // answering (a timeout), red when nothing is there or it needs you.
+    banded: true
     kind: root.problemKind === "waiting" || root.problemKind === "" ? "warning" : "error"
+    // Board 46 `bands()`: the problem in a word, where the skin names kinds by words.
+    tag: root.problemKind === "waiting" || root.problemKind === "" ? qsTr("no signal") : root.problemKind
+                                                                                          === "refused" || root.problemKind === "banned"
+                                                                                          ? qsTr("refused") : ""
     title: root.problem.headline || ""
     body: {
         const base = root.problem.lineBase || "";

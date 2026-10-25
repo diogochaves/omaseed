@@ -13,6 +13,9 @@ Column {
     id: root
 
     property string label: ""
+    /// What the group is, as the skin's `labels` know it ("categories"): its kana word
+    /// follows the head where the skin draws one (board 46 `.rg h6`, #171).
+    property string labelId: ""
     property bool collapsed: false
     /// The entries a folded group hides; -1 prints none.
     property int count: -1
@@ -61,16 +64,15 @@ Column {
         visible: root.headed
         width: parent.width
 
-        Label {
+        Glyph {
             id: chevron
 
             anchors.left: parent.left
             anchors.leftMargin: Theme.space(4)
             anchors.top: parent.top
-            dim: true
-            ink: root.ink
-            size: "caption"
-            text: root.collapsed ? Glyphs.chevronRight : Glyphs.chevronDown
+            color: root.ink.dimForeground
+            pixelSize: Theme.font.caption
+            text: root.collapsed ? Glyphs.chevronRight : Glyphs.chevronDownGlyph
             visible: headerMouse.containsMouse || root.collapsed || root.hasCursor
         }
 
@@ -81,6 +83,7 @@ Column {
             anchors.leftMargin: Theme.space(16)
             anchors.top: parent.top
             ink: root.ink
+            labelId: root.labelId
             tracked: true
             text: root.label
         }

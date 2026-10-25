@@ -1148,7 +1148,7 @@ Item {
 
         Rectangle {
             border.color: Theme.accent
-            border.width: 1
+            border.width: Theme.hairWidth
             color: Theme.on.idle.fill
 
             // The name on the field's idle fill, its selected part on the 35 % accent

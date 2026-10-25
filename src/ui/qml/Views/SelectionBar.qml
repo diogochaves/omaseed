@@ -125,7 +125,9 @@ Rectangle {
 
     /// A word button's width: its word, measured, and the room either side.
     function wordWidth(action: string): real {
-        return Math.ceil(wordMetrics.advanceWidth(root.buttons[action].text)) + 2 * Theme.actionBarWordPadding;
+        const text = root.buttons[action].text;
+        return Math.ceil(wordMetrics.advanceWidth(Theme.controlUpper ? text.toUpperCase() : text))
+                + 2 * Theme.actionBarWordPadding;
     }
 
     /// The middle group once `folds` of `foldOrder` have gone.
@@ -237,8 +239,11 @@ Rectangle {
     FontMetrics {
         id: wordMetrics
 
-        font.family: Theme.fontFamily
+        // A word button's own type: the skin's control voice (Kit/Button).
+        font.family: Theme.labelFamily
+        font.letterSpacing: Theme.actionBarFontSize * Theme.controlTrack
         font.pixelSize: Theme.actionBarFontSize
+        font.weight: Theme.controlWeight
     }
 
     // Its ground is no row: a click there selects nothing and goes no further.

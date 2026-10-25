@@ -57,7 +57,7 @@ Sheet {
             "disabled": !root.plan.canRun
         }
     ]
-    glyph: "✎" // ✎
+    glyph: Glyphs.rename
     sheetWidth: Theme.space(640)
     subtitle: {
         const row = App.torrentRow(root.hash);
@@ -343,7 +343,7 @@ Sheet {
                     dim: true
                     horizontalAlignment: Text.AlignHCenter
                     ink: previewRow.ink
-                    text: previewRow.changed ? "→" : ""
+                    text: previewRow.changed ? Glyphs.arrowRight : ""
                 }
 
                 Text {

@@ -22,7 +22,7 @@ Item {
         anchors.fill: parent
         anchors.margins: Theme.space(6)
         border.color: Theme.accent
-        border.width: 1
+        border.width: Theme.edgeWidth
         // The accent's idle tint, a token a skin can move; the words sit on the opaque
         // label below, not on it (docs/DECISIONS.md C30 F5).
         color: Theme.on.accentIdle.fill
@@ -33,7 +33,7 @@ Item {
     Rectangle {
         anchors.centerIn: parent
         border.color: Theme.accent
-        border.width: 1
+        border.width: Theme.edgeWidth
         color: Theme.background
         height: label.implicitHeight + 2 * Theme.space(12)
         radius: Theme.cornerRadius

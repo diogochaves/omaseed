@@ -100,7 +100,7 @@ TestCase {
         tryCompare(tip, "shown", true);
         compare(tip.text, "add torrent");
         const panel = tip.panelItem;
-        compare(panel.border.color, Theme.accent);
+        compare(findChild(tip, "tooltipPlate").edgeColor, Theme.accent);
         const under = button.mapToItem(tip, 0, button.height);
         verify(panel.y >= under.y, "the tip is not under the button");
         button.focus = false;

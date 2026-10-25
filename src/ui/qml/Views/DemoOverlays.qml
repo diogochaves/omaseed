@@ -30,7 +30,7 @@ Window {
     Rectangle {
         anchors.fill: parent
         border.color: Theme.accent
-        border.width: 1
+        border.width: Theme.edgeWidth
         color: "transparent"
         z: 100
     }

@@ -308,7 +308,7 @@ Item {
                 Accessible.role: Accessible.ListItem
                 Layout.fillWidth: true
                 border.color: Theme.fill(Theme.hairlineAlpha)
-                border.width: 1
+                border.width: Theme.hairWidth
                 color: plugin.ink.ground.fill
                 implicitHeight: pluginColumn.implicitHeight + 2 * Theme.searchPluginInset
                 objectName: "searchPlugin_" + plugin.name

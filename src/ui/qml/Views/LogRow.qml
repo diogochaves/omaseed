@@ -76,7 +76,7 @@ Item {
     Rectangle {
         anchors.fill: parent
         border.color: Theme.fill(Theme.fillSelected)
-        border.width: root.current ? 1 : 0
+        border.width: root.current ? Theme.hairWidth : 0
         color: root.ink.ground.fill
         objectName: "logRowFill"
     }

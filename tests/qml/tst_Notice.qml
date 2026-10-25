@@ -49,10 +49,10 @@ TestCase {
 
     function test_kinds_take_their_glyph_and_colour() {
         const notice = createTemporaryObject(noticeComponent, testCase);
-        compare(findChild(notice, "noticeGlyph").text, "!");
+        compare(findChild(notice, "noticeGlyph").text, Theme.labelTags ? "warning" : "!");
         compare(findChild(notice, "noticePlate").rule, Theme.yellow);
         notice.kind = "error";
-        compare(findChild(notice, "noticeGlyph").text, Glyphs.close);
+        compare(findChild(notice, "noticeGlyph").text, Theme.labelTags ? "error" : Glyphs.close);
         compare(findChild(notice, "noticePlate").rule, Theme.red);
     }
 
@@ -83,7 +83,7 @@ TestCase {
         const notice = createTemporaryObject(noticeComponent, testCase);
         notice.kind = "info";
         notice.glyph = "↻";
-        compare(findChild(notice, "noticeGlyph").text, "↻");
+        compare(findChild(notice, "noticeGlyph").text, Theme.labelTags ? "note" : "↻");
         compare(findChild(notice, "noticePlate").rule, Theme.accent);
         const line = findChild(notice, "noticeProgress");
         verify(!line.visible);
@@ -99,8 +99,31 @@ TestCase {
         compare(text.textFormat, Text.PlainText);
         notice.kind = "success";
         notice.glyph = "";
-        compare(findChild(notice, "noticeGlyph").text, Glyphs.check);
+        compare(findChild(notice, "noticeGlyph").text, Theme.labelTags ? "done" : Glyphs.check);
         compare(findChild(notice, "noticePlate").rule, Theme.green);
+    }
+
+    // #171 (board 46 `.notice`): a skin may name the kind by a word, tint the plate in the
+    // kind's colour and hold a band off the title's rule; Omarchy does none of it.
+    function test_the_skins_tag_tint_and_band_insets() {
+        const notice = createTemporaryObject(noticeComponent, testCase);
+        notice.tag = "no signal";
+        compare(findChild(notice, "noticeGlyph").text, Theme.labelTags ? "no signal" : "!");
+        const plate = findChild(notice, "noticePlate");
+        if (Theme.noticeTint > 0)
+            compare(plate.fill, Qt.tint(Theme.background, Qt.alpha(Theme.yellow, Theme.noticeTint)));
+        else
+            compare(plate.fill, Theme.on.idle.fill);
+        const flat = notice.fullHeight;
+        notice.banded = true;
+        compare(notice.fullHeight, flat + Theme.noticeBandInsetTop);
+        compare(plate.x, Theme.noticeBandInsetStart);
+        compare(plate.width, notice.width - Theme.noticeBandInsetStart - Theme.noticeBandInsetEnd);
+        if (Theme.skin.name === "omarchy") {
+            compare(Theme.noticeBandInsetTop, 0);
+            compare(Theme.noticeTint, 0);
+            verify(!Theme.labelTags);
+        }
     }
 
     function test_actions_beside_then_under_when_narrow() {

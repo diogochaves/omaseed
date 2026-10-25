@@ -1483,7 +1483,7 @@ Item {
                                               ? root.columnLayout[internal.dragKey].w : 0
 
             border.color: Theme.accent
-            border.width: 1
+            border.width: Theme.edgeWidth
             color: Theme.background
             enabled: false
             height: parent.height
@@ -2098,7 +2098,7 @@ Item {
                         Rectangle {
                             anchors.verticalCenter: parent.verticalCenter
                             border.color: Qt.alpha(Theme.yellow, 0.4)
-                            border.width: 1
+                            border.width: Theme.hairWidth
                             color: "transparent"
                             height: Theme.font.body + Theme.space(4)
                             visible: textCell.isSwarm && textCell.complete && textCell.swarmSeeds === 1
@@ -2323,16 +2323,20 @@ Item {
     Component {
         id: renameEditor
 
-        Rectangle {
-            border.color: Theme.accent
-            border.width: 1
-            color: Theme.background
+        // The field's fill over the window, edged in the accent: the skin's Plate (#171), with
+        // its small cut.
+        Item {
             implicitWidth: editor.contentWidth + 2 * Theme.space(6) + Theme.space(12)
 
-            Rectangle {
+            Plate {
                 anchors.fill: parent
-                anchors.margins: 1
-                color: Theme.on.idle.fill
+                base: Theme.background
+                edgeColor: Theme.accent
+                edgeWidth: Theme.hairWidth
+                fill: Theme.on.idle.fill
+                key: true
+                objectName: "renamePlate"
+                radius: 0
             }
 
             // The name on the field's idle fill, its selected part on the 35 % accent

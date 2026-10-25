@@ -234,6 +234,25 @@ ThemeBase {
         return token("labels", id, "");
     }
     /// Whether small counts are padded to two digits (board 46's server count "02").
+    // The other voices (#171 step 5, board 46 `.sk-con`). Omarchy's answers are today's: a
+    // heading, a control's words and the status line in the UI font, mixed case, untracked.
+    /// A heading (the title bar's `.top h1`, a sheet's `.shh h4`, a menu's `.mh b`): the label
+    /// family, this case, `labelTrackTitle`'s tracking and this weight.
+    readonly property bool titleUpper: token("label", "titleCase", "none") === "upper"
+    readonly property int titleWeight: token("label", "titleWeight", Font.DemiBold)
+    /// A control's words (`.tool .pi`, `.btn`, `.status.sel .ab`): the label family.
+    readonly property bool controlUpper: token("label", "controlCase", "none") === "upper"
+    readonly property real controlTrack: token("label", "controlTrack", 0)
+    readonly property int controlWeight: token("label", "controlWeight", Font.Normal)
+    /// Their size, a step of the type scale (board 46 `.btn`: 10.5 px at 13 px type, where
+    /// Omarchy's `.btn` is the body).
+    readonly property int controlFontSize: font[token("label", "controlSize", "body")] ?? font.body
+    /// The status line (`.status`): the value family, this case and tracking.
+    readonly property bool statusUpper: token("label", "statusCase", "none") === "upper"
+    readonly property real statusTrack: token("label", "statusTrack", 0)
+    /// A strip or band names its outcome by a word ("moved", `.ostrip .g`, `.notice .stl`)
+    /// where Omarchy draws its sign (✓, !).
+    readonly property bool labelTags: token("label", "tags", false)
     readonly property bool padNumerals: (skinTokens.numerals ?? "plain") === "pad"
     /// `count` as the skin writes a small count: "02" when it pads, "2" when it doesn't. Only
     /// whole numbers from 0 to 9 gain a digit; anything else is written as it is.
@@ -273,7 +292,7 @@ ThemeBase {
     readonly property int titleBarLineGap: n("titleBarLineGap", 1)
     /// The title (board 46: 15 px, 600, bright) and its sentence (11.5 px, dim).
     readonly property int titleBarTitleSize: font.title
-    readonly property int titleBarTitleWeight: Font.DemiBold
+    readonly property int titleBarTitleWeight: titleWeight
     readonly property int titleBarSentenceSize: font.small
     /// A tool's height (board 46 `.tool`, 28 px: the kit's control, as the filter field's),
     /// and the filter tool's width (176 px).
@@ -325,7 +344,7 @@ ThemeBase {
     /// A word button (board 46 `.status.sel .ab`: 8 px either side of its word, the status
     /// line's type), and the room before the end's "all actions" and "esc".
     readonly property int actionBarWordPadding: n("actionBarWordPadding", 8)
-    readonly property int actionBarFontSize: statusLineFontSize
+    readonly property int actionBarFontSize: Math.min(statusLineFontSize, controlFontSize)
     readonly property int actionBarEndGap: n("actionBarEndGap", 12)
 
     // ---- the sheets' form (board 46 `.sheet`, `.shh`, `.shb`, `.shf`, DECISIONS C24 H7) ------
@@ -346,7 +365,7 @@ ThemeBase {
     readonly property int sheetButtonGap: n("sheetButtonGap", 8)
     /// The title (14 px, 600, bright) and the dim words beside or under it (11.5 px).
     readonly property int sheetTitleSize: font.body
-    readonly property int sheetTitleWeight: Font.DemiBold
+    readonly property int sheetTitleWeight: titleWeight
     readonly property int sheetSubtitleSize: font.small
     /// The foot's note at its left (11.5 px, dim) and the lines it may take.
     readonly property int sheetNoteSize: font.small
@@ -367,7 +386,7 @@ ThemeBase {
     readonly property int menuHeadInset: n("menuHeadInset", 14)
     readonly property int menuHeadPadding: n("menuHeadPadding", 4)
     readonly property int menuHeadLineGap: n("menuHeadLineGap", 1)
-    readonly property int menuHeadTitleWeight: Font.DemiBold
+    readonly property int menuHeadTitleWeight: titleWeight
 
     // ---- the frame's form: the app menu (board 46 `menuHtml("app")`, DECISIONS C24 H9) ---
     /// Its width: board 46's `.menu` is 268 px at least at 13 px type; the head's version and
@@ -393,6 +412,16 @@ ThemeBase {
     /// How long alt is held alone before the badges show, in ms: the alt of alt+j never shows
     /// them, even for a frame.
     readonly property int keyBadgeDelay: 200
+
+    // ---- the frame's form: the bands under the title (board 46 `bands()`, `.notice`) -------
+    /// From the title bar's rule and the content's sides to a band's plate (board 46: 10, 18
+    /// and 14 px); Omarchy's band runs edge to edge under the rule.
+    readonly property int noticeBandInsetTop: n("noticeBandInsetTop", 0)
+    readonly property int noticeBandInsetStart: n("noticeBandInsetStart", 0)
+    readonly property int noticeBandInsetEnd: n("noticeBandInsetEnd", 0)
+    /// A notice's ground: its kind's colour at this alpha over the window (`.notice .pi`'s
+    /// 9 %); 0 keeps the idle fill under every kind.
+    readonly property real noticeTint: token("tint", "notice", 0)
 
     // ---- the frame's form: the outcome strip (board 46 `.ostrip`, board 50 §2) -------------
     /// How far over the rows' bottom it floats (board 46's 12 px): with a selection on, the

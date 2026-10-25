@@ -196,7 +196,7 @@ Window {
     Rectangle {
         anchors.fill: parent
         border.color: root.active ? Theme.accent : Theme.muted
-        border.width: 1
+        border.width: Theme.hairWidth
         color: "transparent"
         radius: Theme.cornerRadius
         z: 1
@@ -852,7 +852,7 @@ Window {
 
                     Rectangle {
                         border.color: Theme.accent
-                        border.width: 1
+                        border.width: Theme.hairWidth
                         color: Theme.background
                         height: titleSample.implicitHeight
                         width: parent.width
@@ -886,7 +886,7 @@ Window {
 
                             Rectangle {
                                 border.color: Theme.fill(Theme.hairlineAlpha)
-                                border.width: 1
+                                border.width: Theme.hairWidth
                                 color: Theme.background
                                 height: railIdle.implicitHeight
                                 width: Theme.space(180)
@@ -907,7 +907,7 @@ Window {
 
                             Rectangle {
                                 border.color: Theme.fill(Theme.hairlineAlpha)
-                                border.width: 1
+                                border.width: Theme.hairWidth
                                 color: Theme.background
                                 height: railCursor.implicitHeight
                                 width: Theme.space(180)
@@ -929,7 +929,7 @@ Window {
 
                             Rectangle {
                                 border.color: Theme.fill(Theme.hairlineAlpha)
-                                border.width: 1
+                                border.width: Theme.hairWidth
                                 color: Theme.background
                                 height: railSelected.implicitHeight
                                 width: Theme.space(180)
@@ -951,7 +951,7 @@ Window {
 
                             Rectangle {
                                 border.color: Theme.fill(Theme.hairlineAlpha)
-                                border.width: 1
+                                border.width: Theme.hairWidth
                                 color: Theme.background
                                 height: railBoth.implicitHeight
                                 width: Theme.space(180)
@@ -1131,7 +1131,7 @@ Window {
 
                     Rectangle {
                         border.color: Theme.fill(Theme.hairlineAlpha)
-                        border.width: 1
+                        border.width: Theme.hairWidth
                         color: Theme.background
                         height: stripSample.implicitHeight
                         width: Theme.space(420)
@@ -1173,7 +1173,7 @@ Window {
 
                     Rectangle {
                         border.color: Theme.fill(Theme.hairlineAlpha)
-                        border.width: 1
+                        border.width: Theme.hairWidth
                         color: Theme.background
                         height: keyValueSample.implicitHeight
                         width: Theme.space(340)
@@ -1212,7 +1212,7 @@ Window {
 
                     Rectangle {
                         border.color: Theme.fill(Theme.hairlineAlpha)
-                        border.width: 1
+                        border.width: Theme.hairWidth
                         color: Theme.background
                         height: tabsSample.implicitHeight
                         width: Theme.space(340)
@@ -1264,7 +1264,7 @@ Window {
 
                             Rectangle {
                                 border.color: Theme.accent
-                                border.width: 1
+                                border.width: Theme.hairWidth
                                 color: Theme.background
                                 height: Theme.space(160)
                                 width: Theme.space(1105)
@@ -1313,7 +1313,7 @@ Window {
 
                             Rectangle {
                                 border.color: Theme.accent
-                                border.width: 1
+                                border.width: Theme.hairWidth
                                 color: Theme.background
                                 height: Theme.space(260)
                                 width: Theme.space(480)
@@ -1646,7 +1646,7 @@ Window {
                             required property var modelData
 
                             border.color: Theme.fill(stateBox.modelData.border)
-                            border.width: stateBox.modelData.border > 0 ? 1 : 0
+                            border.width: stateBox.modelData.border > 0 ? Theme.hairWidth : 0
                             color: Theme.fill(stateBox.modelData.fill)
                             height: Theme.controlHeight
                             radius: Theme.cornerRadius
@@ -1825,7 +1825,7 @@ Window {
 
         Rectangle {
             border.color: Theme.fill(Theme.hairlineAlpha)
-            border.width: 1
+            border.width: Theme.hairWidth
             color: swatch.value
             height: Theme.space(46)
             radius: Theme.cornerRadius
@@ -1858,7 +1858,7 @@ Window {
 
         Rectangle {
             border.color: Theme.fill(Theme.borderIdle)
-            border.width: 1
+            border.width: Theme.hairWidth
             color: Theme.fill(Theme.fillIdle)
             height: box.boxHeight
             radius: Theme.cornerRadius

@@ -25,7 +25,7 @@ Window {
     Rectangle {
         anchors.fill: parent
         border.color: root.active ? Theme.accent : Theme.muted
-        border.width: 1
+        border.width: Theme.edgeWidth
         color: "transparent"
         radius: Theme.cornerRadius
         z: 1

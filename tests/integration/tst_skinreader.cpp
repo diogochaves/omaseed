@@ -181,6 +181,12 @@ void TestSkinReader::malformedTokensAreOmarchys_data()
     QTest::newRow("case") << QByteArray(R"("label": {"case": "title"})") << "label.case";
     QTest::newRow("weight") << QByteArray(R"("label": {"weight": 950})") << "label.weight";
     QTest::newRow("kana not bool") << QByteArray(R"("label": {"kana": "yes"})") << "label.kana";
+    QTest::newRow("title case") << QByteArray(R"("label": {"titleCase": "lower"})")
+                                << "label.titleCase";
+    QTest::newRow("control size") << QByteArray(R"("label": {"controlSize": "huge"})")
+                                  << "label.controlSize";
+    QTest::newRow("tint") << QByteArray(R"("tint": {"notice": 2})") << "tint.notice";
+    QTest::newRow("tags not bool") << QByteArray(R"("label": {"tags": 1})") << "label.tags";
     QTest::newRow("numerals") << QByteArray(R"("numerals": 2)") << "numerals";
     QTest::newRow("density text") << QByteArray(R"("density": {"railWidth": "wide"})")
                                   << "density.railWidth";

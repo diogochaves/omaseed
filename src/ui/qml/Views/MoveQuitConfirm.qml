@@ -25,7 +25,7 @@ Sheet {
             "primary": true
         }
     ]
-    glyph: "↻"
+    glyph: Glyphs.moveQuit
     sheetWidth: Theme.space(560)
     title: qsTr("A move is running on %1").arg(App.serverName)
 

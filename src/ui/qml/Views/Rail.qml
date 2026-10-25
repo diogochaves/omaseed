@@ -713,12 +713,11 @@ Item {
                 visible: !root.compact
             }
 
-            Text {
+            Glyph {
                 anchors.verticalCenter: parent.verticalCenter
                 color: markInk.dimForeground
-                font.family: Theme.fontFamily
-                font.pixelSize: Theme.font.small
-                text: Glyphs.chevronDown
+                pixelSize: Theme.font.small
+                text: Glyphs.chevronDownGlyph
                 visible: !root.compact
             }
         }
@@ -927,6 +926,7 @@ Item {
                 count: root.categoriesNamedCount
                 hasCursor: root.cursorOn(categoriesGroup.globalIndex)
                 label: qsTr("categories")
+                labelId: "categories"
                 visible: !root.compact
                 width: content.width
 
@@ -1027,6 +1027,7 @@ Item {
                 count: root.foldersRowCount
                 hasCursor: root.cursorOn(foldersGroup.globalIndex)
                 label: qsTr("folders")
+                labelId: "folders"
                 visible: root.foldersRowCount > 0 && !root.compact
                 width: content.width
 
@@ -1065,7 +1066,7 @@ Item {
                         // A path below its parent row: the end tells two apart (M3).
                         elideLeft: true
                         glyph: folderDelegate.hasChildren ? (folderDelegate.folded ? Glyphs.chevronRight
-                                                                                   : Glyphs.chevronDown)
+                                                                                   : Glyphs.chevronDownGlyph)
                                                           : Glyphs.middot
                         glyphClickable: folderDelegate.hasChildren
                         hasCursor: root.cursorOn(folderDelegate.globalIndex)
@@ -1203,6 +1204,7 @@ Item {
                 count: root.trackersNamedCount
                 hasCursor: root.cursorOn(trackersGroup.globalIndex)
                 label: qsTr("trackers")
+                labelId: "trackers"
                 visible: !root.compact
                 width: content.width
 
@@ -1401,7 +1403,7 @@ Item {
         // D16 a: a band of its own, the idle fill under a hairline. Opened over the filters
         // (D18) it is opaque, with an accent edge, like a menu.
         border.color: Theme.accent
-        border.width: root.serversOverlay ? 1 : 0
+        border.width: root.serversOverlay ? Theme.edgeWidth : 0
         color: root.serversOverlay ? Theme.background : "transparent"
         height: root.serversShownFolded ? root._serversFoldedHeight : root._serversOpenHeight
         objectName: "serversBlock"
@@ -1448,7 +1450,8 @@ Item {
                 accessibleName: qsTr("servers")
                 block: Theme.on.idle
                 collapsed: false
-                label: qsTr("servers · %1").arg(root.serversRowCount)
+                label: qsTr("servers · %1").arg(Theme.numeral(root.serversRowCount))
+                labelId: "servers"
                 objectName: "serversHeading"
                 visible: !root.serversShownFolded && !root.compact
                 width: parent.width
@@ -1599,6 +1602,7 @@ Item {
             anchors.left: parent.left
             anchors.leftMargin: Theme.space(16)
             anchors.verticalCenter: parent.verticalCenter
+            labelId: root.stuckGroup ? root.stuckGroup.labelId : ""
             text: root.stuckGroup ? root.stuckGroup.label : ""
             tracked: true
         }

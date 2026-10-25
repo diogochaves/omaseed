@@ -1211,6 +1211,7 @@ Sheet {
                 title: sheet.multiServer ? (sheet.batchMode ? qsTr("Add %1 torrents to").arg(sheet.batchCount)
                                                             : qsTr("Add torrent to"))
                                          : sheet.batchMode ? qsTr("Add %1 torrents").arg(sheet.batchCount) : qsTr("Add torrent")
+                titleId: "add"
 
                 onAddableChanged: {
                     sheet._syncFiles();
@@ -1445,7 +1446,7 @@ Sheet {
                             Accessible.onPressAction: if (serverChipBox.enabled)
                                                           sheet.serverPaletteRequested()
                             border.color: chipMouse.containsMouse ? Theme.fill(Theme.borderHover) : Theme.fill(Theme.borderIdle)
-                            border.width: 1
+                            border.width: Theme.hairWidth
                             color: chipMouse.containsMouse ? serverChipBox.ink.fill : "transparent"
                             implicitHeight: chipRow.implicitHeight + Theme.space(4)
                             implicitWidth: chipRow.implicitWidth + Theme.space(12)

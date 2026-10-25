@@ -46,7 +46,7 @@ Item {
     Rectangle {
         anchors.fill: parent
         border.color: root.current ? Theme.fill(0.25) : "transparent"
-        border.width: 1
+        border.width: Theme.hairWidth
         color: root.ground === Theme.on.window ? "transparent" : root.ground.fill
     }
 

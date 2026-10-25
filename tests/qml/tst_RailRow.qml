@@ -89,7 +89,7 @@ TestCase {
         compare(count.color, Theme.red);
         row.countText = "";
         row.count = 4;
-        compare(count.text, "4");
+        compare(count.text, Theme.numeral(4)); // "04" where the skin pads (#171)
         compare(count.color, Theme.red);
     }
 

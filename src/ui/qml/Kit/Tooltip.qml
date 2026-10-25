@@ -120,7 +120,9 @@ Item {
         onTriggered: root._open = true
     }
 
-    Rectangle {
+    // Its ground and edge are the skin's Plate (#171), with the small (key) cut: a tooltip
+    // is one line high.
+    Item {
         id: panel
 
         /// From the pointer (`showAt`), clear of the cursor's own shape.
@@ -138,12 +140,8 @@ Item {
                                       ? internal.itemY - panel.itemGap - panel.height
                                       : internal.wantY - panel.gap - panel.height
 
-        border.color: Theme.edgeColor
-        border.width: Theme.edgeWidth
-        color: Theme.background
         implicitHeight: label.implicitHeight + 2 * panel.padding
         implicitWidth: label.implicitWidth + 2 * panel.padding
-        radius: Theme.cornerRadius
         visible: root._open
         // Below the pointer or the item, pulled back inside the view at either edge; above it
         // when there is no room below (or the other way round for `above`).
@@ -152,6 +150,16 @@ Item {
                       ? (panel.overY >= 0 ? panel.overY : panel.underY)
                       : panel.underY + panel.height <= root.height ? panel.underY
                                                                    : Math.max(0, panel.overY))
+
+        Plate {
+            anchors.fill: parent
+            edgeColor: Theme.edgeColor
+            edgeWidth: Theme.edgeWidth
+            fill: Theme.background
+            key: true
+            objectName: "tooltipPlate"
+            radius: Theme.cornerRadius
+        }
 
         Text {
             id: label

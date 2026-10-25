@@ -344,7 +344,7 @@ Sheet {
                 // A tick box drawn from the theme, as the restore sheet's.
                 Rectangle {
                     border.color: importRow.ticked ? Theme.accent : Theme.fill(Theme.borderIdle)
-                    border.width: 1
+                    border.width: Theme.hairWidth
                     // The ticked tint, its ✓ lifted against it (docs/DECISIONS.md C30 F5).
                     color: importRow.ticked ? Theme.on.ticked.fill : "transparent"
                     implicitHeight: Theme.space(14)

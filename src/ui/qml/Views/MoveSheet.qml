@@ -298,10 +298,11 @@ Sheet {
                   });
         return list;
     }
-    glyph: root.mode === "back" ? "↺" : "▱"
+    glyph: root.mode === "back" ? Glyphs.moveBack : Glyphs.move
     sheetWidth: root.mode === "folder" ? Theme.space(640) : root.asking ? Theme.space(600) : Theme.space(560)
     subtitle: root.plan.header ?? ""
     title: root.plan.title ?? (root.selection ? qsTr("Move…") : qsTr("Move a folder"))
+    titleId: "move"
 
     onAccepted: {
         if (root.plan.canMove !== true)
@@ -542,7 +543,7 @@ Sheet {
                 Label {
                     dim: true
                     size: "small"
-                    text: "→"
+                    text: Glyphs.arrowRight
                 }
 
                 Label {

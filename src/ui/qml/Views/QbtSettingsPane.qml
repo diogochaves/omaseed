@@ -279,7 +279,7 @@ ColumnLayout {
                         color: line.plain ? line.ink.dimForeground : line.ink.of(line.tone)
                         objectName: "qbtLineGlyph"
                         size: "small"
-                        text: line.isSet ? App.altSpeed.setGlyph : line.warn ? "!" : "◷"
+                        text: line.isSet ? App.altSpeed.setGlyph : line.warn ? Glyphs.settingWarn : Glyphs.settingPending
                     }
 
                     Column {

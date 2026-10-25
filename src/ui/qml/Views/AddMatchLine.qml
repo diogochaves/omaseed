@@ -85,7 +85,7 @@ RowLayout {
         Layout.alignment: Qt.AlignTop
         color: Theme.accent
         size: "small"
-        text: root.saved ? "✓" : "◆"
+        text: root.saved ? Glyphs.check : Glyphs.diamond
     }
 
     ColumnLayout {

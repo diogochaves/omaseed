@@ -241,7 +241,7 @@ Sheet {
 
             Label {
                 dim: true
-                text: "→"
+                text: Glyphs.arrowRight
             }
 
             Field {

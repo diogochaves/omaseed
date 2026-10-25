@@ -72,14 +72,14 @@ Item {
         if (root.hasLocal)
             rows.push({
                           "kind": "local",
-                          "glyph": "⛁",
+                          "glyph": Glyphs.serverLocal,
                           "title": qsTr("Use the server on this machine"),
                           "detail": root._localCandidate.detail || "",
                           "dimmed": false
                       });
         rows.push({
                       "kind": "remote",
-                      "glyph": "⇢",
+                      "glyph": Glyphs.serverRemote,
                       "title": qsTr("Connect to a remote server"),
                       // docs/14's wording: an API key is only one of the ways to sign in (M1).
                       "detail": qsTr("A seedbox, a NAS, or qui's proxy."),
@@ -863,7 +863,7 @@ Flickable {
                         Rectangle {
                             color: "transparent"
                             border.color: Theme.fill(Theme.borderIdle)
-                            border.width: 1
+                            border.width: Theme.hairWidth
                             implicitHeight: Theme.space(28)
                             implicitWidth: Theme.space(28)
                             radius: Theme.cornerRadius

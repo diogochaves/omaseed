@@ -25,6 +25,9 @@ Item {
 
     /// Where the window is: "Library", "Arriving", a category's or folder's name, a face.
     property string title: ""
+    /// What the title names, as the skin's `labels` know it ("library", "folders"): its kana
+    /// word follows the title where the skin draws one (board 46 `.top h1 .kn`).
+    property string titleId: ""
     /// The scope in one sentence.
     property string sentence: ""
 
@@ -161,20 +164,22 @@ Item {
             spacing: Theme.titleBarLineGap
             visible: !(root.level >= 2 && root.searchOpen)
 
-            Text {
+            // Board 46 `.top h1`: the skin's heading voice, and its kana word.
+            Label {
                 id: titleText
 
                 Accessible.name: titleText.text
                 Accessible.role: Accessible.Heading
                 Layout.fillWidth: true
-                color: Theme.brightForeground
+                bright: true
                 elide: Text.ElideRight
-                font.family: Theme.fontFamily
                 font.pixelSize: Theme.titleBarTitleSize
                 font.weight: Theme.titleBarTitleWeight
+                labelId: root.titleId
                 objectName: "titleText"
+                size: "title"
                 text: root.title
-                textFormat: Text.PlainText
+                voice: "title"
             }
 
             Text {
@@ -185,7 +190,7 @@ Item {
                 Layout.fillWidth: true
                 color: Theme.dimForeground
                 elide: Text.ElideRight
-                font.family: Theme.fontFamily
+                font.family: Theme.valueFamily
                 font.pixelSize: Theme.titleBarSentenceSize
                 objectName: "titleSentence"
                 text: root.sentence

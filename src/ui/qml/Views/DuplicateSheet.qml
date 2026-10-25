@@ -284,7 +284,7 @@ Sheet {
             Layout.alignment: Qt.AlignTop
             dim: true
             size: "small"
-            text: "◆"
+            text: Glyphs.diamond
         }
 
         Label {
