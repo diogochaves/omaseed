@@ -355,6 +355,13 @@ qreal Theme::shellAlpha(const QString &ground) const
         {QStringLiteral("accentIdle"), &Theme::m_fillIdle},
         {QStringLiteral("blockIdle"), &Theme::m_fillIdle},
         {QStringLiteral("blockHover"), &Theme::m_fillHover},
+        {QStringLiteral("blockSelected"), &Theme::m_fillSelected},
+        {QStringLiteral("blockSelectedCursor"), &Theme::m_fillSelectedCursor},
+        {QStringLiteral("blockPressed"), &Theme::m_fillPressed},
+        {QStringLiteral("hoverIdle"), &Theme::m_fillIdle},
+        {QStringLiteral("hoverHover"), &Theme::m_fillHover},
+        {QStringLiteral("hoverSelected"), &Theme::m_fillSelected},
+        {QStringLiteral("hoverPressed"), &Theme::m_fillPressed},
     };
     if (const auto fill = fills.constFind(ground); fill != fills.constEnd())
         return this->**fill;
