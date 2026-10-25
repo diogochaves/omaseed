@@ -397,7 +397,8 @@ OUT_ROWS="$(mktemp -d "${TMPDIR:-/tmp}/omaseed-menu-walk-tray-XXXX")/tray"
 "$APP_BOX" restart -b "$BOX" >/dev/null
 keys Return -s 800
 clip public
-keys Return -s 600 Tab ctrl+a -t public Tab Tab space Tab Tab -t admin Tab ctrl+v Tab Return -s 2500
+# space on the cookie chip puts the caret in Username (#201 F1).
+keys Return -s 600 Tab ctrl+a -t public Tab Tab space -t admin Tab ctrl+v Tab Return -s 2500
 unclip
 # continue, "not now" on links, then the bar step's own focus: "add to the bar".
 keys Tab Tab Return -s 1500 Tab Return -s 1500 Return -s 4000
@@ -420,7 +421,7 @@ keys Escape -s 400
 
 # ---- the second server ---------------------------------------------------------------------
 clip private
-keys --window "$APP_ID" comma -s 600 2 -s 300 a -s 800 -t private Tab -t http://127.0.0.1:8091 Tab Tab space Tab Tab \
+keys --window "$APP_ID" comma -s 600 2 -s 300 a -s 800 -t private Tab -t http://127.0.0.1:8091 Tab Tab space \
     -t admin Tab ctrl+v Tab Tab Tab Tab -s 800 Tab Return -s 2500 Return -s 1200
 unclip
 keys Escape -s 1500

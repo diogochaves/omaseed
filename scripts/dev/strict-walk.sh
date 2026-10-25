@@ -177,7 +177,8 @@ config="$home/.config/omaseed"
 # First run opens on the welcome (enter sets up). In step 1 the rows are [this machine?],
 # remote, install: j to the bottom and one k up lands on "remote" whether or not a local
 # server was found. In step 2 the tab order is URL, name, the three auth chips, the chosen
-# mode's field(s), then test, open web UI, save anyway (after a failed test), continue.
+# mode's field(s), then test, open web UI, save anyway (after a failed test), continue. Picking
+# a chip (space) puts the caret in its first field (#201 F1).
 REMOTE="Return -s 500 j j j k Return"
 
 # ---- cookie ---------------------------------------------------------------------------------
@@ -194,9 +195,10 @@ check "esc on step 1 quits, as the footer says" \
 clip QBT_STRICT_PASS
 launch
 
-# URL, name, the cookie chip (API key, cookie, none are three tab stops), user, password, test.
+# URL, name, the cookie chip (the second of three tab stops; space on it puts the caret in
+# Username), user, password, test.
 # shellcheck disable=SC2086 # $REMOTE is a list of keys: split on purpose
-keys $REMOTE -s 500 -t "$STRICT" Tab -t strict Tab Tab space Tab Tab -t "$QBT_STRICT_USER" \
+keys $REMOTE -s 500 -t "$STRICT" Tab -t strict Tab Tab space -t "$QBT_STRICT_USER" \
     Tab -t "not-the-password" Tab Return -s 3000
 step "Wrong password" "✓ server · 2 sign in. URL and name on one row; cookie shows Username and Password. A red dot and wrong username or password, the raw 401 dim underneath, then test / open web UI / save anyway / continue (off)."
 
@@ -232,9 +234,9 @@ omabox run -b "$BOX" -- pkill -x omaseed >/dev/null 2>&1 || true
 rm -f "$config/servers.json"
 clip QBT_STRICT_API_KEY
 launch
-# URL, name, the API key chip, then three tabs (cookie, none, Key) and a wrong key first.
+# URL, name, the API key chip (space on it puts the caret in Key) and a wrong key first.
 # shellcheck disable=SC2086 # $REMOTE is a list of keys: split on purpose
-keys $REMOTE -s 500 -t "$STRICT" Tab -t strict-key Tab space Tab Tab Tab -t "not-a-real-key" \
+keys $REMOTE -s 500 -t "$STRICT" Tab -t strict-key Tab space -t "not-a-real-key" \
     Tab Return -s 3000
 step "Wrong API key" "API key chosen: one Key field (no Username / Password). Red: the server refused this API key, the raw 403 dim underneath; continue stays off."
 

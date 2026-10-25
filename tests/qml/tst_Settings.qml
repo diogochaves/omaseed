@@ -867,6 +867,28 @@ TestCase {
         sheet.close();
     }
 
+    // #201 F1: in the server sheet, picking a credential puts the caret in its first field.
+    function test_picking_a_credential_in_the_server_sheet_puts_the_caret_in_its_field() {
+        const modal = createTemporaryObject(modalComponent, testCase);
+        modal.open();
+        const sheet = modal.serverSheet;
+        sheet.openNew();
+        verify(sheet.editing);
+        const cookie = testCase.childNamed(sheet, "authChip-cookie");
+        const apiKey = testCase.childNamed(sheet, "authChip-apiKey");
+        cookie.clicked();
+        compare(sheet.editAuthMode, "cookie");
+        tryVerify(() => testCase.childNamed(sheet, "serverUserField").editing);
+        // F2: the one picked carries an accent edge.
+        verify(cookie.accent && cookie.border.width > 0);
+        verify(!apiKey.accent);
+        apiKey.forceActiveFocus();
+        keyClick(Qt.Key_Space);
+        compare(sheet.editAuthMode, "apiKey");
+        tryVerify(() => testCase.childNamed(sheet, "serverKeyField").editing);
+        sheet.close();
+    }
+
     function test_the_server_sheet_masks_the_key_and_switches_to_the_fields() {
         const id = testCase.addTestServer("playground", "http://127.0.0.1:8081");
         const modal = createTemporaryObject(modalComponent, testCase);

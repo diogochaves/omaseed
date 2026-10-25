@@ -125,6 +125,39 @@ TestCase {
         compare(page.editSecret, "");
     }
 
+    // #201 F1: picking a credential puts the caret in its first field, by the pointer or by
+    // space on the chip; "none" has no field and leaves the keyboard on the chip.
+    function test_picking_a_credential_puts_the_caret_in_its_first_field() {
+        const page = createTemporaryObject(pageComponent, testCase, {
+                                               "candidates": []
+                                           });
+        page.chooseCursor();
+        compare(page.page, "apikey");
+        const key = findChild(page, "keyField");
+        const user = findChild(page, "userField");
+        const chips = page._apiKeyTabOrder().filter(item => item.checkable === true);
+        compare(chips.length, 3);
+
+        chips[1].clicked(); // the pointer's click
+        compare(page.editAuthMode, "cookie");
+        tryVerify(() => user.editing);
+        // F2: the one picked carries an accent edge; the others don't.
+        verify(chips[1].accent && chips[1].border.width > 0);
+        verify(!chips[0].accent && !chips[2].accent);
+        chips[0].clicked();
+        compare(page.editAuthMode, "apiKey");
+        tryVerify(() => key.editing);
+
+        chips[2].forceActiveFocus();
+        keyClick(Qt.Key_Space);
+        compare(page.editAuthMode, "none");
+        wait(0);
+        verify(chips[2].activeFocus);
+        chips[1].forceActiveFocus();
+        keyClick(Qt.Key_Space);
+        tryVerify(() => user.editing);
+    }
+
     // A turned-down credential reads in words, in red, with the raw error dim underneath.
     function test_a_refused_login_says_so_with_the_raw_error_under_it() {
         const page = createTemporaryObject(pageComponent, testCase, {
