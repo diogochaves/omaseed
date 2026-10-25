@@ -128,9 +128,12 @@ add_group() { # add_group DIR SAVE_PATH [CURL ARGS]: every .torrent in DIR not t
     [ ${#args[@]} = 0 ] || api torrents/add "${args[@]}" -F "savepath=$save" "$@" >/dev/null
 }
 echo "adding 105 complete torrents"
-add_group games "$LIB/games" -F skip_checking=true
-add_group games-handheld "$LIB/games/handheld" -F skip_checking=true
-add_group films "$LIB/films" -F skip_checking=true
+# Web API 2.16 (qBittorrent 5.3) renamed skip_checking to seedMode and ignores the old name: send
+# both, as QbtClient does for a server it can't place, or every torrent is checked first.
+skip=(-F skip_checking=true -F seedMode=true)
+add_group games "$LIB/games" "${skip[@]}"
+add_group games-handheld "$LIB/games/handheld" "${skip[@]}"
+add_group films "$LIB/films" "${skip[@]}"
 
 # The packs exist on disk under library/packs; save them in games, where the plan looks.
 mkdir -p "$home/library/games"
