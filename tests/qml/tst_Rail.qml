@@ -758,6 +758,21 @@ TestCase {
         tryCompare(now, "y", Theme.space(10));
     }
 
+    // #201 F10: ctrl+b folds the rail around the mark: its glyph stays where it was.
+    function test_the_mark_stays_put_when_the_rail_folds() {
+        const rail = createTemporaryObject(railComponent, testCase, {
+                                               "height": 900
+                                           });
+        const glyph = findChild(rail, "railMarkGlyph");
+        const open = glyph.mapToItem(rail, 0, 0);
+        rail.compact = true;
+        waitForRendering(rail);
+        const folded = glyph.mapToItem(rail, 0, 0);
+        compare(folded.x, open.x);
+        compare(folded.y, open.y);
+        verify(folded.x + glyph.width < rail.width, "the folded rail cut the mark");
+    }
+
     // #201 F6: the servers block's rows meet its hairline: the heading's fill and the folded
     // line's start at the block's top, the words where they were.
     function test_the_servers_rows_fill_from_the_hairline() {

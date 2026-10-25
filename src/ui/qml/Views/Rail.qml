@@ -695,16 +695,18 @@ Item {
             ground: markMouse.containsMouse ? Theme.on.hover : Theme.on.window
         }
 
+        // #201 F10: the same inset folded and open, so ctrl+b never moves the mark (centring it
+        // in the folded rail put it a pixel or two to the left).
         Row {
             anchors.left: parent.left
-            anchors.leftMargin: root.compact ? Math.round((markButton.width - markGlyph.width) / 2)
-                                             : Theme.railMarkInset
+            anchors.leftMargin: Theme.railMarkInset
             anchors.verticalCenter: parent.verticalCenter
             spacing: Theme.railMarkGap
 
             Glyph {
                 id: markGlyph
 
+                objectName: "railMarkGlyph"
                 anchors.verticalCenter: parent.verticalCenter
                 color: root.markAlert ? markInk.red : markInk.accent
                 height: Theme.railMarkSize
