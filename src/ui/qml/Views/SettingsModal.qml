@@ -1499,6 +1499,7 @@ Item {
                             Layout.leftMargin: Theme.space(4)
                             Layout.preferredHeight: implicitHeight
                             connected: App.globalState.connected
+                            connecting: App.serverConnecting
                             // Re-read on a switch (serverName) and a new default.
                             currentId: App.serverName.length >= 0 && App.serverList.defaultId.length >= 0
                                        ? root._currentServerId() : ""

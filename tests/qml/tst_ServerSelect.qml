@@ -182,5 +182,12 @@ TestCase {
         App.serverList.setProbeResult(pub, true, "5.2.3", "2.15.1", 1, 3, "");
         compare(select.list.items[0].note, "1 torrent");
         keyClick(Qt.Key_Escape);
+        // #201 F4: on the way to it, neither answering nor lost: neutral, not red.
+        select.connecting = true;
+        const dot = findChild(select, "serverSelectDot").color;
+        verify(!Qt.colorEqual(dot, Theme.red) && !Qt.colorEqual(dot, Theme.green), "a switch drew " + dot);
+        select.openList();
+        compare(select.list.items[1].glyphColor, Theme.dimForeground);
+        keyClick(Qt.Key_Escape);
     }
 }
