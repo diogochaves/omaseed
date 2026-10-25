@@ -55,7 +55,9 @@ TestCase {
         modal.openQbt();
         keyClick(Qt.Key_1 + index);
         compare(modal.paneIndex, modal.qbtStart + index);
-        keyClick(Qt.Key_Tab);
+        // l hands the keyboard to the pane's rows; tab would put the caret in a first field
+        // (C32 D10 a).
+        keyClick(Qt.Key_L);
         compare(modal.area, "pane");
         return modal;
     }
@@ -359,6 +361,58 @@ TestCase {
         verify(!field.editing);
         // The alt limit shows the server's 10240 as 10.
         compare(testCase.childNamed(modal, "field-alt_dl_limit").text, "10");
+    }
+
+    // C32 D10 a (board 51): tab walks the pane as any form: a row of fields one stop per field,
+    // the caret in it; a switch or a choice one stop; a value typed is sent as tab leaves it;
+    // shift+tab walks back; after the last row, the sections again.
+    function test_tab_walks_a_qbittorrent_section_as_a_form() {
+        const modal = createTemporaryObject(modalComponent, testCase);
+        modal.openQbt();
+        keyClick(Qt.Key_3); // Connection
+        compare(modal.area, "nav");
+        const port = testCase.childNamed(modal, "field-listen_port");
+        const total = testCase.childNamed(modal, "field-max_connec");
+        const perTorrent = testCase.childNamed(modal, "field-max_connec_per_torrent");
+
+        keyClick(Qt.Key_Tab);
+        compare(modal.area, "pane");
+        compare(modal.paneCursor, 0);
+        verify(port.editing);
+        keyClick(Qt.Key_Tab); // the random port switch: a stop, no caret anywhere
+        compare(modal.paneCursor, 1);
+        verify(!port.editing);
+        keyClick(Qt.Key_Tab); // UPnP
+        keyClick(Qt.Key_Tab); // Protocol
+        compare(modal.paneCursor, 3);
+        // Off a field, j and k still walk the rows.
+        keyClick(Qt.Key_K);
+        compare(modal.paneCursor, 2);
+        keyClick(Qt.Key_J);
+        keyClick(Qt.Key_Tab); // Connections: its first field
+        compare(modal.paneCursor, 4);
+        verify(total.editing);
+        keyClick(Qt.Key_3);
+        keyClick(Qt.Key_0);
+        keyClick(Qt.Key_0);
+        keyClick(Qt.Key_Tab); // the same row's second field; the first one's value is sent
+        compare(modal.paneCursor, 4);
+        verify(perTorrent.editing);
+        compare(App.serverPrefs.values.max_connec, 300);
+        keyClick(Qt.Key_Tab, Qt.ShiftModifier);
+        verify(total.editing);
+        keyClick(Qt.Key_Backtab, Qt.ShiftModifier);
+        compare(modal.paneCursor, 3);
+        verify(!total.editing);
+
+        // Past the last row, the keyboard goes back to the sections, and shift+tab from there
+        // lands on the last row.
+        for (let i = 0; i < 3 * modal.paneRowCount && modal.area === "pane"; ++i)
+            keyClick(Qt.Key_Tab);
+        compare(modal.area, "nav");
+        keyClick(Qt.Key_Backtab, Qt.ShiftModifier);
+        compare(modal.area, "pane");
+        compare(modal.paneCursor, modal.paneRowCount - 1);
     }
 
     // docs/31 §5 P1, P3: a line under the four limits says which way the set goes, and the rows

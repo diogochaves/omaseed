@@ -186,7 +186,13 @@ QtObject {
             "action": "sheet:settings",
             "helpKeys": qsTr("j k · h l"),
             "help": qsTr("settings"),
-            "about": qsTr("In Settings: move, and between the sections and the pane (tab too); space toggles, enter edits or acts, d its default")
+            "about": qsTr("In Settings: move through the rows, and between the sections and the pane; space toggles, enter edits or acts, d its default")
+        },
+        {
+            "action": "sheet:settingsTab",
+            "helpKeys": qsTr("tab"),
+            "help": qsTr("next in settings"),
+            "about": qsTr("In Settings, as in any form: the sections, then every field, switch and button in order; shift+tab back")
         },
         {
             "action": "sheet:nextServer",

@@ -293,6 +293,17 @@ SettingsRow {
         return fieldRepeater.itemAt(index);
     }
 
+    /// The row's text fields, in order: Settings' tab stops (docs/DECISIONS.md C32 D10).
+    function fieldItems(): var {
+        const out = [];
+        for (let i = 0; i < fieldRepeater.count; ++i) {
+            const cell = row._cell(i);
+            if (cell)
+                out.push(cell.field);
+        }
+        return out;
+    }
+
     /// The caret into field `index`, at the end of its text (shown from the start at rest).
     function _editField(index: int): void {
         const field = row._cell(index).field;

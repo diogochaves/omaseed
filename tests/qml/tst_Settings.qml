@@ -196,6 +196,33 @@ TestCase {
         compare(modal.paneIndex, 0);
     }
 
+    // C32 D10 a: tab walks omaseed's own panes too: the sections one stop, then each row, the
+    // low disk threshold's caret in its field, the sections again after the last row.
+    function test_tab_walks_the_notifications_pane_as_a_form() {
+        const modal = createTemporaryObject(modalComponent, testCase);
+        modal.open();
+        keyClick(Qt.Key_3);
+        compare(modal.paneIndex, 2);
+        const field = testCase.childNamed(modal, "lowDiskThresholdField");
+        keyClick(Qt.Key_Tab);
+        compare(modal.area, "pane");
+        compare(modal.paneCursor, 0);
+        for (let i = 0; i < 4; ++i)
+            keyClick(Qt.Key_Tab);
+        compare(modal.paneCursor, 4);
+        verify(field.editing);
+        keyClick(Qt.Key_Tab);
+        compare(modal.paneCursor, 5);
+        verify(!field.editing);
+        keyClick(Qt.Key_Backtab, Qt.ShiftModifier);
+        compare(modal.paneCursor, 4);
+        verify(field.editing);
+        keyClick(Qt.Key_Tab);
+        keyClick(Qt.Key_Tab);
+        compare(modal.area, "nav");
+        compare(modal.paneIndex, 2);
+    }
+
     // #31, docs/24 §3: back up, restore, automatic copies.
     function test_the_backup_pane() {
         const modal = createTemporaryObject(modalComponent, testCase);
@@ -1418,7 +1445,11 @@ TestCase {
         compare(modal.paneIndex, 3);
         // Read-only in v1: no cursor rows at all.
         compare(modal.paneRowCount, 0);
+        // Nothing in it takes the keyboard: tab stays on the sections (C32 D10 a).
         keyClick(Qt.Key_Tab);
+        compare(modal.area, "nav");
+        compare(modal.paneIndex, 3);
+        keyClick(Qt.Key_L);
         keyClick(Qt.Key_J);
         compare(modal.paneCursor, 0);
 

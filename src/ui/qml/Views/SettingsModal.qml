@@ -14,10 +14,13 @@ import Omaseed.Kit
 //
 // Keyboard (Fig. 16's own footer):
 //   j k / 1–7   move the nav
-//   tab         hand the keyboard to the pane, and back
+//   tab         as in any form (C32 D10 a): the nav one stop, then every row of the pane, a
+//               row's text fields one stop each with the caret in them; shift+tab back
+//   h l         hand the keyboard to the nav, or to the pane
 //   j k         inside a pane, move the row cursor
 //   enter space act on the cursor row (toggle, open the server sheet, copy)
-//   a x d       Servers pane only: add, remove (confirmed), switch to it (docs/33 D11)
+//   a x d e     Servers pane only: add, remove (confirmed), switch to it (docs/33 D11), edit
+//               (the server's form straight away, #201 F9)
 //   esc         close — or, while the server sheet is up, close that first, because the
 //               sheet has the keyboard and traps the key itself.
 //
@@ -993,12 +996,87 @@ Item {
         root.paneCursor = (root.paneCursor + delta + root.paneRowCount) % root.paneRowCount;
     }
 
+    /// The text fields of the pane's row `cursor`, in order; [] for a row without one (a
+    /// switch, a choice, a button) or one that is greyed out.
+    function _rowFields(cursor: int): var {
+        if (root.inQbtSearch || root.inQbtBackup)
+            return [];
+        if (root.inQbt) {
+            const item = qbtPane.rowItem(cursor);
+            return item && item.enabled && typeof item.fieldItems === "function" ? item.fieldItems() : [];
+        }
+        if (root.paneIndex === 2 && cursor === 4)
+            return [thresholdField];
+        if (root.paneIndex === 4 && cursor === 2)
+            return [baseSizeField];
+        if (root.paneIndex === 4 && cursor === 4 && root._groundShift > 0)
+            return [alphaField];
+        return [];
+    }
+
+    /// The caret into `field`, its text selected, as tab into a form's field does.
+    function _tabInto(field: var): void {
+        field.focusInput();
+        field.selectAll();
+    }
+
+    /// docs/DECISIONS.md C32 D10 a: tab walks the modal as any form. The section list is one
+    /// stop; then every row of the pane in order, a row of text fields one stop per field with
+    /// the caret in it (what a field holds is sent as it loses the caret, as before); after the
+    /// last row, the section list again. shift+tab walks back. Folded, there is no list: the
+    /// walk wraps within the pane. j/k and enter still move and act on rows.
+    function _tabStep(forward: bool): void {
+        root.navOnServer = false;
+        const step = forward ? 1 : -1;
+        if (root.area === "pane") {
+            const fields = root._rowFields(root.paneCursor);
+            const at = fields.findIndex(field => field.editing);
+            if (at >= 0) {
+                const next = at + step;
+                if (next >= 0 && next < fields.length) {
+                    root._tabInto(fields[next]);
+                    return;
+                }
+                bodyItem.forceActiveFocus();
+            }
+        }
+        if (root.paneRowCount <= 0) {
+            if (!root.folded)
+                root.area = "nav";
+            return;
+        }
+        let cursor;
+        if (root.area === "nav") {
+            cursor = forward ? 0 : root.paneRowCount - 1;
+        } else {
+            cursor = root.paneCursor + step;
+            if (cursor < 0 || cursor >= root.paneRowCount) {
+                if (!root.folded) {
+                    root.area = "nav";
+                    return;
+                }
+                cursor = (cursor + root.paneRowCount) % root.paneRowCount;
+            }
+        }
+        root.area = "pane";
+        root.paneCursor = cursor;
+        const fields = root._rowFields(cursor);
+        if (fields.length > 0)
+            root._tabInto(fields[forward ? 0 : fields.length - 1]);
+    }
+
     /// Every key the modal owns. `esc` is deliberately left alone — the Sheet closes on it —
     /// and everything else is swallowed, so nothing typed over the modal reaches the window
     /// behind it.
     function _onKey(event: var): void {
         if (event.key === Qt.Key_Escape)
             return;
+        // C32 D10 a: before anything else, so tab from a field with the caret walks on too.
+        if (event.key === Qt.Key_Tab || event.key === Qt.Key_Backtab) {
+            root._tabStep(event.key === Qt.Key_Tab && !(event.modifiers & Qt.ShiftModifier));
+            event.accepted = true;
+            return;
+        }
         // Folded, there is no nav to hand the keyboard to: the sideways keys move the tabs.
         if (root.folded) {
             switch (event.key) {
@@ -1014,21 +1092,9 @@ Item {
                 root._moveNav(1);
                 event.accepted = true;
                 return;
-            case Qt.Key_Tab:
-            case Qt.Key_Backtab:
-                event.accepted = true;
-                return;
             default:
                 break;
             }
-        }
-        if (event.key === Qt.Key_Tab || event.key === Qt.Key_Backtab) {
-            root.navOnServer = false;
-            root.area = root.area === "nav" ? "pane" : "nav";
-            if (root.area === "pane" && root.paneCursor < 0)
-                root.paneCursor = 0;
-            event.accepted = true;
-            return;
         }
         // The digits pick a section of the group on show: 1–7 in omaseed's, 1–9 and 0 for the
         // last (Backup, #32) in the qBittorrent group's; Search plugins (#145), before it, has
