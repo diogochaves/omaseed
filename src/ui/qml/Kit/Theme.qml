@@ -195,6 +195,8 @@ ThemeBase {
     /// cells (1 px, as the cover's grid).
     readonly property int meterCellWidth: n("meterCellWidth", 3)
     readonly property int meterCellGap: 1
+    /// The table's progress line (spec v2 `.tbl .pg`: 2 px; board 46 `.pbar i`: 7 px cells).
+    readonly property int progressLineThickness: n("progressLineThickness", 2)
 
     // ---- the skin's type (design note `font`, `label`, `numerals`; rule 7) -----------------
     // A family the skin names is used only while it is installed and the desktop doesn't ask
@@ -253,6 +255,43 @@ ThemeBase {
     /// A strip or band names its outcome by a word ("moved", `.ostrip .g`, `.notice .stl`)
     /// where Omarchy draws its sign (✓, !).
     readonly property bool labelTags: token("label", "tags", false)
+    // The Views' voices (#171 step 6). Omarchy's are today's: names untracked in the UI font,
+    // the rows' names as typed, captions at each caption's own tracking and weight.
+    /// A thing's name (a rail row `.ri`, a table's name cell `.tbl td.nm2`, a strip's and a
+    /// note's words `.ostrip b`): the label family at this tracking (`Kit/Label` voice "name").
+    readonly property real nameTrack: token("label", "nameTrack", 0)
+    readonly property int nameWeight: token("label", "nameWeight", Font.Normal)
+    /// The rows' names (`.row .nm`, a search result's): upper case, or as typed.
+    readonly property bool rowNameUpper: token("label", "rowCase", "none") === "upper"
+    /// A small caption over or beside a value (`.row .fact span`, `.tbl th`, `.kv dt`, `.tab`,
+    /// `.dhero .eb`): the label family, upper case where the skin says (Omarchy's table heads
+    /// and tabs are as typed); its tracking and weight where the skin sets them, else the
+    /// caption's own (`fallbackTrack`, `fallbackWeight`).
+    readonly property bool captionUpper: token("label", "captionCase", "none") === "upper"
+    function captionTrack(fallbackTrack: real): real {
+        return token("label", "captionTrack", fallbackTrack);
+    }
+    function captionWeight(fallbackWeight: int): int {
+        return token("label", "captionWeight", fallbackWeight);
+    }
+    // What marks the cursor and the picked (#171 step 6; board 46 `.row.sel`, `.row.picked`).
+    /// The cursor's row is marked by the SelectionMark (Console's brackets) rather than by a
+    /// hairline round it.
+    readonly property bool cursorMarked: token("select", "cursorMark", false)
+    /// A picked torrent's row is on the `picked` ground (the accent at 20 %) with no rule,
+    /// rather than on the selected ground with the accent rule down its edge.
+    readonly property bool pickedGround: token("select", "pickedGround", false)
+    /// The blocks inside a view (the details' head, create's round-trip note) stand on their
+    /// own Plate, its edge the hair (board 46 `.dhero.pn`, board 49 `.rtnote`), rather than on
+    /// the view's ground with a rule.
+    readonly property bool platedBlocks: token("plates", "blocks", false)
+    /// A torrent row's ground (the rows', the table's): `ground()`, with a picked row on the
+    /// `picked` ground where the skin says so (the cursor's mark still says which is current).
+    function rowGround(selected: bool, cursor: bool, hovered: bool, pressed: bool): ThemeInk {
+        if (selected && pickedGround && !pressed)
+            return on.picked;
+        return ground(selected, cursor, hovered, pressed);
+    }
     readonly property bool padNumerals: (skinTokens.numerals ?? "plain") === "pad"
     /// `count` as the skin writes a small count: "02" when it pads, "2" when it doesn't. Only
     /// whole numbers from 0 to 9 gain a digit; anything else is written as it is.
@@ -452,7 +491,8 @@ ThemeBase {
     readonly property int libraryRowFactSize: font.body
     readonly property int libraryRowFactWeight: Font.Medium
     readonly property int libraryRowCaptionSize: font.caption
-    readonly property real libraryRowCaptionTracking: font.caption * 0.12
+    readonly property real libraryRowCaptionTracking: font.caption * captionTrack(0.12)
+    readonly property int libraryRowCaptionWeight: captionWeight(Font.Normal)
     readonly property int libraryRowFactWidth: n("libraryRowFactWidth", 85)
     /// The progress line before the sentence (board 46 `.strip`: 168 × 4 px on an 8 % track).
     readonly property int libraryRowLineWidth: n("libraryRowLineWidth", 155)
@@ -469,7 +509,8 @@ ThemeBase {
     readonly property int libraryGroupHeadInset: n("libraryGroupHeadInset", 16)
     readonly property int libraryGroupHeadPaddingBottom: n("libraryGroupHeadPaddingBottom", 4)
     readonly property int libraryGroupHeadSize: font.caption
-    readonly property real libraryGroupHeadTracking: font.caption * 0.12
+    readonly property real libraryGroupHeadTracking: font.caption * token("label", "track", 0.12)
+    readonly property int libraryGroupHeadWeight: token("label", "weight", Font.Normal)
     readonly property int libraryGroupLineSize: font.small
     /// The widths its steps start at, widest first: from step 1 a group's line goes and the
     /// progress line shortens, from step 2 the meta beside the name goes too.
@@ -598,8 +639,9 @@ ThemeBase {
     readonly property int coverNameSize: font.caption
     readonly property int coverFactSize: font.caption
     readonly property int coverLineGap: n("coverLineGap", 4)
-    /// A selected cover's border, and the cursor's.
-    readonly property int coverSelectedBorder: litWidth
+    /// A selected cover's border, and the cursor's (Console: the plate's 1 px edge in the
+    /// accent, board 46 `.card.sel`).
+    readonly property int coverSelectedBorder: token("line", "card", litWidth)
 
     // ---- the details' form: the story (board 46 `details()`, `.dhero`, `.tl`, `.tb h5`) -------
     /// The head's one fact (`.dhero .big`: 22 px at 13 px type, 500, in the state's colour), its
@@ -616,6 +658,10 @@ ThemeBase {
     readonly property int detailsHeroPaddingTop: n("detailsHeroPaddingTop", 8)
     readonly property int detailsHeroPaddingBottom: n("detailsHeroPaddingBottom", 12)
     readonly property int detailsHeroGap: n("detailsHeroGap", 3)
+    /// Round the head's plate where the skin draws one (`.dhero { margin: 12px 14px 4px }`).
+    readonly property int detailsHeroMarginTop: n("detailsHeroMarginTop", 0)
+    readonly property int detailsHeroMarginSide: n("detailsHeroMarginSide", 0)
+    readonly property int detailsHeroMarginBottom: n("detailsHeroMarginBottom", 0)
     readonly property int detailsCaptionGap: n("detailsCaptionGap", 8)
     /// A tab's body (`.tb`: 12 px over, 16 px in, 12 px between its blocks).
     readonly property int detailsBodyInset: n("detailsBodyInset", 16)

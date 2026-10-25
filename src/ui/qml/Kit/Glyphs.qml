@@ -190,4 +190,13 @@ QtObject {
     // a fact said for the record (no source tag)
     readonly property string factInfo: g("factInfo", "i")
     readonly property string factWarn: t("factWarn", "!") // a fact to look at (no source tag yet)
+    /// The same name for create's fact mark, drawn in a `Glyph` (Console's `ms:warning`).
+    readonly property string factWarnGlyph: g("factWarn", "!")
+
+    // ---- picks and files (#171 step 6) -------------------------------------------------
+    // a picked torrent's tick in the rows and the table, and an unpicked one's under the pointer
+    readonly property string picked: t("picked", "■")
+    readonly property string unpicked: t("unpicked", "□")
+    // skipped files that hold space on a server whose disks omaseed can't see (the files tab)
+    readonly property string skippedOnDisk: g("skippedOnDisk", "◇")
 }

@@ -16,7 +16,8 @@ import Omaseed.Kit
 // label its value family. A label that names itself with `labelId` carries the skin's kana
 // word after its words while the skin draws kana (board 46 `.kn`); nothing else gets one.
 // `voice` gives a label one of the skin's other voices instead (Theme's `title*`, `control*`,
-// `status*`): Omarchy's are the plain label's, so under Omarchy a voice changes nothing.
+// `status*`, `nameTrack`): Omarchy's are the plain label's, so under Omarchy a voice changes
+// nothing.
 Text {
     id: root
 
@@ -30,9 +31,12 @@ Text {
     /// names nothing, and draws no kana.
     property string labelId: ""
     /// "title" (a heading: the title bar's, a sheet's, a menu's head), "control" (a
-    /// control's words) or "status" (the status line); "" is the plain label's, or the
-    /// tracked caption's.
+    /// control's words), "status" (the status line) or "name" (a thing's name: a rail row, a
+    /// strip's words; `Theme.nameTrack`); "" is the plain label's, or the tracked caption's.
     property string voice: ""
+    /// How far the kana rises over the words' baseline, in ems of its own size (board 46
+    /// `.top h1 .kn { vertical-align: .25em }`); 0 sits it on the baseline.
+    property real kanaRise: 0
 
     readonly property int _pixelSize: Theme.font[root.tracked ? "caption" : root.size]
     /// The skin's kana word for `labelId`, "" when it draws none.
@@ -53,15 +57,17 @@ Text {
                           : root.voice === "control" ? Theme.controlUpper : root.voice === "status"
                                                        && Theme.statusUpper) ? Font.AllUppercase
                                                                              : Font.MixedCase
-    font.family: root.tracked || root.voice === "title" || root.voice === "control"
+    font.family: root.tracked || root.voice === "title" || root.voice === "control" || root.voice === "name"
                  ? Theme.labelFamily : Theme.valueFamily
     font.letterSpacing: root.tracked ? Math.max(1, Math.round(root._pixelSize * Theme.labelTrack))
                                      : root._pixelSize * (root.voice === "title" ? Theme.labelTrackTitle
                                                           : root.voice === "control" ? Theme.controlTrack
-                                                          : root.voice === "status" ? Theme.statusTrack : 0)
+                                                          : root.voice === "status" ? Theme.statusTrack
+                                                          : root.voice === "name" ? Theme.nameTrack : 0)
     font.pixelSize: root._pixelSize
     font.weight: root.tracked ? Theme.labelWeight : root.voice === "title" ? Theme.titleWeight
-                 : root.voice === "control" ? Theme.controlWeight : Font.Normal
+                 : root.voice === "control" ? Theme.controlWeight : root.voice === "name" ? Theme.nameWeight
+                 : Font.Normal
     // The kana's room is the label's own, so a layout gives it its width.
     rightPadding: root.kana.length > 0 ? kanaText.gap + kanaText.implicitWidth : 0
     textFormat: Text.PlainText
@@ -74,6 +80,7 @@ Text {
         readonly property int gap: Math.round(kanaText.font.pixelSize * 0.8)
 
         anchors.baseline: root.baseline
+        anchors.baselineOffset: -Math.round(kanaText.font.pixelSize * root.kanaRise)
         color: root._kanaColor()
         font.family: Theme.kanaFamily
         font.letterSpacing: kanaText.font.pixelSize * 0.06

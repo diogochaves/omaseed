@@ -53,7 +53,10 @@ const QHash<QString, QHash<QString, Kind>> &fixedGroups()
           {QStringLiteral("edgeRole"), Kind::LineRole},
           {QStringLiteral("menuEdgeRole"), Kind::LineRole},
           {QStringLiteral("hairAlpha"), Kind::Alpha},
-          {QStringLiteral("faintAlpha"), Kind::Alpha}}},
+          {QStringLiteral("faintAlpha"), Kind::Alpha},
+          // A cover's edge while it is selected or needs you (#171 step 6; board 46
+          // `.card.sel`, `.card.needs`: the plate's own 1 px edge in the accent).
+          {QStringLiteral("card"), Kind::Width}}},
         {QStringLiteral("cut"),
          {{QStringLiteral("panel"), Kind::Px}, {QStringLiteral("key"), Kind::Px}}},
         // A kind's own tint under its words (#171 step 5): a notice's ground is its kind's
@@ -81,7 +84,26 @@ const QHash<QString, QHash<QString, Kind>> &fixedGroups()
           {QStringLiteral("controlSize"), Kind::Step},
           {QStringLiteral("statusCase"), Kind::Case},
           {QStringLiteral("statusTrack"), Kind::Em},
-          {QStringLiteral("tags"), Kind::Bool}}},
+          {QStringLiteral("tags"), Kind::Bool},
+          // The Views' voices (#171 step 6): a thing's name (a rail row, a table's name
+          // cell, a strip's words: `.ri`, `.tbl td.nm2`), the rows' names' case (`.row .nm`),
+          // and the small captions over or beside a value (`.row .fact span`, `.tbl th`,
+          // `.kv dt`, `.tab`).
+          {QStringLiteral("nameTrack"), Kind::Em},
+          {QStringLiteral("nameWeight"), Kind::Weight},
+          {QStringLiteral("rowCase"), Kind::Case},
+          {QStringLiteral("captionCase"), Kind::Case},
+          {QStringLiteral("captionTrack"), Kind::Em},
+          {QStringLiteral("captionWeight"), Kind::Weight}}},
+        // What marks the cursor's row and a picked one (#171 step 6; board 46 `.row.sel`,
+        // `.row.picked`): the SelectionMark on the cursor instead of a hairline round it,
+        // and the `picked` ground instead of the selected ground with a rule.
+        // Whether the blocks inside a view stand on their own plates (#171 step 6; board 46
+        // `.dhero.pn`, `.blk`, board 49 `.rtnote`): Omarchy's sit on the view's ground.
+        {QStringLiteral("plates"), {{QStringLiteral("blocks"), Kind::Bool}}},
+        {QStringLiteral("select"),
+         {{QStringLiteral("cursorMark"), Kind::Bool},
+          {QStringLiteral("pickedGround"), Kind::Bool}}},
     };
     return groups;
 }

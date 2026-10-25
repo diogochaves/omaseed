@@ -16,7 +16,8 @@
     "hair": 1, "hairRole": "foreground", "hairAlpha": 0.21, "faintAlpha": 0.1,
     "lit": 2, "litRole": "accent",
     "edge": 1, "edgeRole": "accent",
-    "menuEdge": 1, "menuEdgeRole": "hair"
+    "menuEdge": 1, "menuEdgeRole": "hair",
+    "card": 1
   },
   "cut": { "panel": 16, "key": 10 },
   "tint": { "notice": 0.09 },
@@ -32,8 +33,12 @@
     "titleCase": "upper", "titleWeight": 700,
     "controlCase": "upper", "controlTrack": 0.16, "controlWeight": 600, "controlSize": "caption",
     "statusCase": "upper", "statusTrack": 0.04,
-    "tags": true
+    "tags": true,
+    "nameTrack": 0.05, "nameWeight": 600, "rowCase": "upper",
+    "captionCase": "upper", "captionTrack": 0.18, "captionWeight": 600
   },
+  "select": { "cursorMark": true, "pickedGround": true },
+  "plates": { "blocks": true },
   "numerals": "pad",
   "density": {
     "railWidth": 222,
@@ -48,7 +53,11 @@
     "titleBarFindWidth": 188,
     "noticeBandInsetTop": 10,
     "noticeBandInsetStart": 18,
-    "noticeBandInsetEnd": 14
+    "noticeBandInsetEnd": 14,
+    "progressLineThickness": 7,
+    "detailsHeroMarginTop": 12,
+    "detailsHeroMarginSide": 14,
+    "detailsHeroMarginBottom": 4
   },
   "glyphs": {
     "questionNeedsYou": "ms:error",
