@@ -519,6 +519,16 @@ TestCase {
         compare(addRow.status, "a");
         verify(addRow.dashed);
 
+        // C32 D7 a: a › at each row's end, dim at rest, bright while the row is lit.
+        const chevron = testCase.childNamed(row, "serverRowChevron");
+        verify(chevron !== null && chevron.visible);
+        verify(testCase.childNamed(addRow, "serverRowChevron").visible);
+        verify(Qt.colorEqual(chevron.color, row.ink.dimForeground));
+        row.hasCursor = true;
+        verify(Qt.colorEqual(chevron.color, row.ink.brightForeground));
+        row.hasCursor = false;
+        verify(chevron.mapToItem(row, chevron.width, 0).x > row.width - Theme.space(16));
+
         // #77: each row is a button named by its server, its line and status the description.
         compare(row.Accessible.role, Accessible.Button);
         compare(row.Accessible.name, "playground");
@@ -1065,7 +1075,7 @@ TestCase {
         verify(!modal.serverSheet.opened, "a right-click opened the sheet");
         compare(menu.items.filter(entry => !entry.separator).map(entry => entry.text),
                 ["edit", "test", "switch to it", "remove"]);
-        compare(item("edit").key, "enter");
+        compare(item("edit").key, "e");
         compare(item("default").key, "d");
         compare(item("remove").key, "x");
         verify(item("default").disabled, "make default on the default server");
@@ -1090,11 +1100,22 @@ TestCase {
         compare(row1.status, "in use");
         waitForItemPolished(row1.parent);
 
-        // edit opens the row's sheet; remove asks first, as `x` does.
+        // edit opens the row's sheet on its form, not its page (#201 F9), the keyboard in
+        // the first field; remove asks first, as `x` does.
         mouseClick(row0, row0.width / 2, row0.height / 2, Qt.RightButton);
         keyClick(Qt.Key_Return);
         verify(modal.serverSheet.opened);
         compare(modal.serverSheet.serverId, first);
+        verify(modal.serverSheet.editing, "edit opened the server's page");
+        modal.serverSheet.close();
+        // `e` on the row does the same; enter opens the page.
+        keyClick(Qt.Key_E);
+        verify(modal.serverSheet.opened);
+        verify(modal.serverSheet.editing);
+        modal.serverSheet.close();
+        keyClick(Qt.Key_Return);
+        verify(modal.serverSheet.opened);
+        verify(!modal.serverSheet.editing);
         modal.serverSheet.close();
         mouseClick(row0, row0.width / 2, row0.height / 2, Qt.RightButton);
         keyClick("x");

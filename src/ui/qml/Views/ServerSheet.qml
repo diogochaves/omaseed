@@ -139,6 +139,14 @@ Sheet {
         root.open();
     }
 
+    /// Show an existing server straight in edit mode, the keyboard on its first field: the
+    /// Servers pane's right-click "edit" (#201 F9), which opened the view before.
+    function openEditFor(map: var): void {
+        root.openFor(map);
+        root.editing = true;
+        root.focusFirst();
+    }
+
     /// Show an existing server and test it at once: the lost banner's "review certificate".
     function reviewFor(map: var): void {
         root.openFor(map);

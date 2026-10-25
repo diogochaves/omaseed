@@ -752,6 +752,15 @@ Item {
         confirm.open();
     }
 
+    /// `e`, or the row menu's "edit": the server's form straight away, the keyboard on its
+    /// first field (#201 F9); a click or `enter` on the row opens its page.
+    function editCursorServer(): void {
+        const id = root.cursorServerId();
+        const map = id.length > 0 ? App.serverList.serverMap(id) : ({});
+        if (map.id !== undefined)
+            serverSheet.openEditFor(map);
+    }
+
     /// A right-click on a server row (the cursor already moved there): its menu at `x`, `y`
     /// in the modal's coordinates, the mouse's way to what `enter`, `d` and `x` do (#51 D4).
     function openServerMenu(x: int, y: int): void {
@@ -768,7 +777,7 @@ Item {
         const id = serverMenu.serverId;
         root.paneCursor = Math.max(0, App.serverList.indexOfId(id));
         if (action === "edit") {
-            root.activateRow();
+            root.editCursorServer();
         } else if (action === "test") {
             const map = App.serverList.serverMap(id);
             if (map.id !== undefined)
@@ -1118,6 +1127,10 @@ Item {
         case Qt.Key_Delete:
             if (root.paneIndex === 1)
                 root.removeCursorServer();
+            break;
+        case Qt.Key_E:
+            if (root.paneIndex === 1)
+                root.editCursorServer();
             break;
         case Qt.Key_D:
             if (root.paneIndex === 1)
@@ -3432,7 +3445,7 @@ Item {
         items: [
             {
                 "text": qsTr("edit"),
-                "key": "enter",
+                "key": "e",
                 "action": "edit"
             },
             {
