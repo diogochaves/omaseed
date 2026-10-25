@@ -738,6 +738,47 @@ TestCase {
         rail._markTip(false);
     }
 
+    // #201 F8: a fold heading has room above its words inside its fill and its click, taken
+    // out of the space above the group, so the words stay where they were.
+    function test_a_heading_has_room_above_its_words() {
+        const rail = createTemporaryObject(railComponent, testCase, {
+                                               "height": 900
+                                           });
+        const now = findChild(rail, "now");
+        const categories = findChild(rail, "categories");
+        verify(now.headPadding > 0);
+        tryCompare(now, "y", Theme.space(10) - now.headPadding);
+        compare(categories.y + categories.headPadding - (now.y + now.height), Theme.space(14));
+        compare(now.header.height, now.headPadding + categories.header.height - categories.headPadding);
+        // The click covers the room too.
+        const area = now.header.children[now.header.children.length - 1];
+        compare(area.height, now.header.height);
+        // Folded, the rail has no headings and keeps its spacing.
+        rail.compact = true;
+        tryCompare(now, "y", Theme.space(10));
+    }
+
+    // #201 F6: the servers block's rows meet its hairline: the heading's fill and the folded
+    // line's start at the block's top, the words where they were.
+    function test_the_servers_rows_fill_from_the_hairline() {
+        const rail = railWithServers(["public", "private"]);
+        const block = findChild(rail, "serversBlock");
+        const heading = findChild(rail, "serversHeading");
+        waitForPolish(block);
+        compare(heading.mapToItem(block, 0, 0).y, 0);
+        compare(heading.headPadding, Theme.space(6));
+        const first = rail._rowMap[rail.serversBase].item;
+        tryVerify(() => first.mapToItem(block, 0, 0).y === heading.header.height, 1000,
+                  "the first row is at %1".arg(first.mapToItem(block, 0, 0).y));
+        compare(block.height, heading.header.height + 2 * Theme.railRowHeight + Theme.space(6));
+
+        rail.serversFolded = true;
+        const line = findChild(rail, "serversFoldedLine");
+        verify(line.visible);
+        tryCompare(line, "height", block.height);
+        compare(line.mapToItem(block, 0, 0).y, 0);
+    }
+
     // #201 F7: the rail's tip is on the window's content item, over the servers block and
     // whatever a name wider than the rail runs over.
     function test_the_rails_tip_is_over_the_window() {

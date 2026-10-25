@@ -834,8 +834,10 @@ Item {
             id: content
 
             bottomPadding: Theme.space(10)
-            spacing: Theme.space(14)
-            topPadding: Theme.space(10)
+            // #201 F8: the headings' own room above their words comes out of these, so the
+            // words stay put; folded, the rail has no headings.
+            spacing: Theme.space(14) - (root.compact ? 0 : statusGroup.headPadding)
+            topPadding: Theme.space(10) - (root.compact ? 0 : statusGroup.headPadding)
             width: flick.width
 
             // ---- now: the five questions (DECISIONS C24 H2) ---------------------------
@@ -1339,7 +1341,10 @@ Item {
     // ---- the servers block (docs/33 §9: D12, D16–D18) ----------------------------------
     /// The block's height open and folded, for the short-window rule (D18).
     readonly property real _serversFoldedHeight: Theme.railRowHeight + Theme.space(12)
-    readonly property real _serversOpenHeight: (root.compact ? 0 : serversHeading.implicitHeight) + Theme.space(12)
+    /// The heading carries the block's top room in its own padding (#201 F6, F8); folded, the
+    /// rows have it above them.
+    readonly property real _serversOpenHeight: (root.compact ? Theme.space(6) : serversHeading.implicitHeight)
+                                               + Theme.space(6)
                                                + (root.serversListed + (root.serversMore ? 1 : 0))
                                                * Theme.railRowHeight
 
@@ -1433,10 +1438,12 @@ Item {
             color: Theme.on.idle.fill
         }
 
+        // Over the rows: their hover fill starts right under it (#201 F6).
         Hairline {
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.top: parent.top
+            z: 1
         }
 
         // C24 H10: ctrl+s, the server palette, on the block's top edge while alt is held.
@@ -1450,11 +1457,15 @@ Item {
             shown: root.keysShown
         }
 
+        // #201 F6: from the block's top, so a row's hover fill (the heading's, the folded
+        // line's) meets the hairline; the room above the words is inside them. Folded, the
+        // rail has no heading and its rows keep the room above them.
         Column {
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.top: parent.top
-            anchors.topMargin: Theme.space(6)
+            anchors.topMargin: serversBlock.border.width
+            topPadding: root.compact && !root.serversShownFolded ? Theme.space(6) : 0
 
             // The heading: "servers · 3" and the fold chevron (D16 a). A click folds.
             RailGroup {
@@ -1469,6 +1480,7 @@ Item {
                 // its kana, then the count at the right.
                 count: root.serversRowCount
                 countShown: Theme.labelKana
+                headPadding: Theme.space(6)
                 label: Theme.labelKana ? qsTr("servers") : qsTr("servers · %1").arg(Theme.numeral(root.serversRowCount))
                 labelId: "servers"
                 objectName: "serversHeading"
@@ -1498,6 +1510,9 @@ Item {
                 glyph: Glyphs.dot
                 glyphColor: root._serverDotColor(root._currentServer.serverState || "")
                 hasCursor: root.cursorOn(serversFoldedLine.globalIndex)
+                // The whole block under the hairline, its words in the middle as before (#201 F6).
+                height: root._serversFoldedHeight
+                implicitHeight: root._serversFoldedHeight
                 objectName: "serversFoldedLine"
                 text: (root._currentServer.name || "") + " " + Glyphs.chevronUp
                 visible: root.serversShownFolded
