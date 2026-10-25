@@ -83,7 +83,9 @@ Text {
         anchors.baselineOffset: -Math.round(kanaText.font.pixelSize * root.kanaRise)
         color: root._kanaColor()
         font.family: Theme.kanaFamily
-        font.letterSpacing: kanaText.font.pixelSize * 0.06
+        // From the size's own terms: reading `kanaText.font` here reads the letter spacing
+        // too, a binding loop.
+        font.letterSpacing: Math.min(root._pixelSize, Theme.font.caption) * 0.06
         font.pixelSize: Math.min(root._pixelSize, Theme.font.caption)
         font.weight: Font.Medium
         objectName: "labelKana"
