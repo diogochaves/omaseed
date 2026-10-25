@@ -5,6 +5,76 @@ All notable changes to omaseed are logged here, newest first. Loosely follows
 versioning stability (pre-1.0). `scripts/release.sh` requires a `## v<version>` section here
 before it will tag a release.
 
+## v0.5.0 (unreleased)
+
+### Added
+
+- **The window answers five questions.** The rail now lists what needs you, what is arriving,
+  what landed today, what is giving back and what is resting, keys `1`–`5` (`0` is the whole
+  library), under the views library, seed, log and search, with the servers at its foot.
+  `ctrl+b` folds it to a column of icons. Every state is still in the filter (`is:stalled`)
+  and the `:` palette. (#167)
+- **Rows, table or shelves.** The library can show rows grouped under the five questions, in
+  words before numbers ("waiting · no seed", "ready in 3 min"), the table as one sorted list,
+  or shelves of covers by category. The display tool in the title bar or `:` "show as…" picks
+  one, and each folder, category, tag and question remembers its own. New installs start on
+  rows; an existing install keeps the table. (#168)
+- **Details tell the story.** The pane opens on one fact and a sentence, then story · files ·
+  swarm · trackers · facts (`1`–`5` while the pane has the keys). The story starts with what
+  went wrong or the last move, then what happened to the torrent and its lines in the log.
+  The size says what skipped files still hold on disk. (#169)
+- **Search through your qBittorrent's search plugins.** `ctrl+f` searches with the plugins you
+  install on your server (Settings › qBittorrent › Search plugins); omaseed names, ships and
+  scrapes no site. Results arrive as each plugin answers, one row per torrent with the other
+  copies' trackers folded in, unknown seed counts shown as "?", and a plugin that fails or is
+  slow named with the reason. Rows you already have read "in your library" or "likely on
+  disk"; adding goes through the add sheet. (#145)
+- **Create a torrent from a folder.** "+ add ▾" › create (`ctrl+n`), also from `:` and a
+  folder's menu. For anyone, it seeds at once from where the files are and copies the magnet.
+  For a private tracker, it fills in the announce from your library (the passkey only ever
+  shown as dots), sets the private flag, v1 and the source tag, and saves the `.torrent` for
+  the upload without adding it; when you add the site's copy back, omaseed recognises the
+  files and seeds it in place without downloading. (#146)
+- **A second skin, Console.** Settings › Appearance › Skin: Omarchy, Console, or follow the
+  desktop (Console while the console desktop's skin is on). The whole window repaints at
+  once, no restart. (#171)
+
+### Changed
+
+- **The status line is the action bar.** Select torrents and the bottom line turns into their
+  actions, in words (stop or start, recheck, move…, category, tags, limits, delete), with "all
+  actions" and esc; narrow, the less used ones fold into all actions. The outcome strip's
+  "show" appears only when it brings something back into view, and says why. (#167, #170)
+- **A title bar instead of the hero.** The title and a sentence name what you are looking at
+  ("2 need you · 7 arriving, the next in 3 min"); a picked folder gets "move this folder…".
+  Notices, moves and creations sit in bands under it, beside a rail you can still use. (#167)
+- **Keys when you ask for them.** Hold alt for badges on every control, read them in tooltips,
+  menus, the palette and `?`. Sheets no longer print key lines at their foot; `?` has an "in a
+  sheet" block. (#167, #170)
+- **The omaseed menu** (`ctrl+.` or the mark): the tray's rows plus the window's own (seed
+  console, log, commands, keys and help, hide). (#167, #170)
+- **One look for every sheet and menu.** Sheets share one head and foot, the main button
+  filled; the torrent menu groups its verbs (run, place, transfer, reach, delete) with keys on
+  the right and the torrent's state in its head. (#170)
+- **Opaque by default,** like the other apps; Settings › Appearance › Window keeps
+  "translucent". (#167)
+- **Text reads on every fill.** Selected, hovered, pressed and tinted rows lift their dim and
+  coloured words just enough to read at 4.5:1 in every theme, without flattening captions into
+  the main text; also inside blocks, on the action bar's buttons and on hovered settings rows.
+  (#90, #188)
+- **When only adding it again frees the space,** on a hybrid or v2-only torrent, the band, `F`
+  and the free sheet say so up front and offer "Add it again…" instead of a free that frees
+  nothing. (#169)
+
+### Fixed
+
+- **Adding a magnet before its file list arrives no longer crashes qBittorrent 5.3.0.** The add
+  sheet holds the add until the list is in, or a minute has passed, and says so. (#193)
+- **A base-size change applies at once.** Spacing, column widths, the details pane and the
+  rail's "N below" hint follow the shell's base size (or Appearance's) without a restart.
+  (#156, #184)
+- **The rail's group headings** no longer show the hover fill when nothing hovers them. (#187)
+
 ## v0.4.0 — 2026-10-23
 
 ### Added
