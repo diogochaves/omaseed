@@ -395,14 +395,14 @@ OUT_ROWS="$(mktemp -d "${TMPDIR:-/tmp}/omaseed-menu-walk-tray-XXXX")/tray"
 
 # ---- first run, the widget put in the bar ----------------------------------------------------
 "$APP_BOX" restart -b "$BOX" >/dev/null
-keys Return -s 800
+keys Return -s 800ms
 clip public
 # space on the cookie chip puts the caret in Username (#201 F1).
-keys Return -s 600 Tab ctrl+a -t public Tab Tab space -t admin Tab ctrl+v Tab Return -s 2500
+keys Return -s 600ms Tab ctrl+a -t public Tab Tab space -t admin Tab ctrl+v Tab Return -s 2500ms
 unclip
 # continue, "not now" on links, then the bar step's own focus: "add to the bar".
-keys Tab Tab Return -s 1500 Tab Return -s 1500 Return -s 4000
-keys Return -s 3000
+keys Tab Tab Return -s 1500ms Tab Return -s 1500ms Return -s 4000ms
+keys Return -s 3000ms
 check "the widget is in the bar: its plugin is linked" test -L "$home/.config/omarchy/plugins/chaves.omaseed"
 check "status.json lists one server and the menu (v stays 2)" \
     status_has 's["v"] == 2 and len(s["servers"]) == 1 and s["menu"][-1]["id"] == "quit"'
@@ -410,47 +410,47 @@ check "one server: no servers rows in the menu (D19)" \
     status_has 'not any(r["id"].startswith("server:") for r in s["menu"])'
 
 popup
-keys ctrl+period -s 600
+keys ctrl+period -s 600ms
 step "One server, the menu" "W1 with one server (T0): ⋯ lit in the head, the server line with no ▾; the menu: Alternative Speed Limits (or Turtle/Burst) with A, Stop All, Start All, a hairline, Add Torrent… with m, omaseed Settings…, a hairline, Quit omaseed. No SERVERS." "$POPUP"
-keys ctrl+period -s 400 Escape -s 600
+keys ctrl+period -s 400ms Escape -s 600ms
 
 # ---- the window: the mark's menu, C13's third place (DECISIONS C24 H9) ---------------------
-keys --window "$APP_ID" ctrl+period -s 600
+keys --window "$APP_ID" ctrl+period -s 600ms
 step "One server, the window's menu" "Under the rail's mark: omaseed, its version, public · qBittorrent …; turtle (or the alternative limits' word) with A, stop all, start all, a rule, add torrent… a, settings… comma, a rule, THIS WINDOW ONLY: seed console, log, commands, keys and help, hide window, each with its key, a rule, quit omaseed ctrl+q. No servers (D19)."
-keys Escape -s 400
+keys Escape -s 400ms
 
 # ---- the second server ---------------------------------------------------------------------
 clip private
-keys --window "$APP_ID" comma -s 600 2 -s 300 a -s 800 -t private Tab -t http://127.0.0.1:8091 Tab Tab space \
-    -t admin Tab ctrl+v Tab Tab Tab Tab -s 800 Tab Return -s 2500 Return -s 1200
+keys --window "$APP_ID" comma -s 600ms 2 -s 300ms a -s 800ms -t private Tab -t http://127.0.0.1:8091 Tab Tab space \
+    -t admin Tab ctrl+v Tab Tab Tab Tab -s 800ms Tab Return -s 2500ms Return -s 1200ms
 unclip
-keys Escape -s 1500
+keys Escape -s 1500ms
 check "two servers in status.json, two server rows in the menu" \
     status_has 'len(s["servers"]) == 2 and sum(r["kind"] == "radio" for r in s["menu"]) == 2'
 
 # ---- the window's menu with two servers: a switch, back, and settings… ----------------------
-keys --window "$APP_ID" ctrl+period -s 600
+keys --window "$APP_ID" ctrl+period -s 600ms
 step "Two servers, the window's menu" "As the widget's: SERVERS, ● public ✓ (0 torrents) and ● private (its torrents, or nothing before its first sync), a rule, then the rows of the one-server shot. The cursor on public."
-keys j -s 300 Return -s 3000
+keys j -s 300ms Return -s 3000ms
 check "the window's menu switched to private" default_is private
-keys --window "$APP_ID" ctrl+period -s 600 Return -s 3000
+keys --window "$APP_ID" ctrl+period -s 600ms Return -s 3000ms
 check "the window's menu switched back to public" default_is public
-keys --window "$APP_ID" ctrl+period -s 600 comma -s 1200
+keys --window "$APP_ID" ctrl+period -s 600ms comma -s 1200ms
 step "Settings, from the window's menu" "settings… picked by its key (,): Settings open over the window, on the pane it was last on (Servers, from adding private)."
-keys Escape -s 800
+keys Escape -s 800ms
 
 # ---- the widget: ⋯ and ▾ -------------------------------------------------------------------
 popup
-keys ctrl+period -s 600
+keys ctrl+period -s 600ms
 step "Two servers, the menu" "W1: SERVERS, ● public (0 torrents) and ○ private, a hairline, then the rows of the last shot. The server line ends in ▾. The cursor on public." "$POPUP"
-keys j -s 300 Return -s 3000
+keys j -s 300ms Return -s 3000ms
 check "the ⋯ menu switched to private" default_is private
 step "Switched from the widget" "The popup stayed open and refilled: PRIVATE · QBITTORRENT in the head, the menu closed, Add lists the Downloads files with \"already on private\"." "$POPUP"
-keys ctrl+s -s 600
+keys ctrl+s -s 600ms
 step "The server line's ▾" "W2: just the servers, ○ public 0 torrents, ● private 5 torrents (the cursor on it); the ▾ turned ▴ in the accent." "$POPUP"
-keys k -s 300 Return -s 3000
+keys k -s 300ms Return -s 3000ms
 check "the servers part switched back to public" default_is public
-keys ctrl+period -s 600 j j j j j j j -s 400
+keys ctrl+period -s 600ms j j j j j j j -s 400ms
 step "Quit, from the widget" "The cursor on Quit omaseed, the menu's last row after a hairline (§11 change 2)." "$POPUP"
 keys Return
 omabox wait -b "$BOX" --timeout 10s window "$APP_ID" --gone >/dev/null 2>&1 || true
@@ -467,9 +467,9 @@ state.setdefault("appearance", {})["trayIconMode"] = "always"
 json.dump(state, open(path, "w", encoding="utf-8"))
 PY
 "$APP_BOX" restart -b "$BOX" >/dev/null
-keys --window "$APP_ID" comma -s 700 5 -s 700
+keys --window "$APP_ID" comma -s 700ms 5 -s 700ms
 step "In the bar: both" "D25 (W3): Settings › Appearance, \"In the bar\" with both selected (widget in the bar, tray icon always), its line naming what both carry; then Widget with customize."
-keys Escape -s 800
+keys Escape -s 800ms
 
 # ---- the tray ------------------------------------------------------------------------------
 # Found from the bar, its menu's rows from the menu: no coordinates of one Omarchy's bar (#139).
@@ -491,11 +491,11 @@ if [ -n "${TRAY_X:-}" ]; then
     fi
 fi
 check "the tray switched to private" default_is private
-keys Escape -s 400
+keys Escape -s 400ms
 if [ -n "${TRAY_X:-}" ]; then
     tray_menu_open
     step "The tray on private" "✓ private · 5 torrents now; public · 0 torrents (last seen)." "$TRAY_MENU"
-    keys Escape -s 400
+    keys Escape -s 400ms
 fi
 check "the tray's exported menu has private checked" tray_checked "${PRIVATE_ROW:-private}"
 check "the tray's exported menu ends with quit" tray_ends_with_quit

@@ -252,27 +252,27 @@ check "both qBittorrents answer: public has no torrent, private 5" \
 # ---- first run with two clients running ---------------------------------------------------
 "$APP_BOX" restart -b "$BOX" >/dev/null
 check "first run floats" window_is floating
-keys Return -s 800
+keys Return -s 800ms
 step "First run, two clients" "Step 1 with both qBittorrents running: one row, \"Use the server on this machine · 127.0.0.1:8090 · qbittorrent-nox running\" (the detector reads ~/.config/qBittorrent only; the --profile one on :8091 is not offered), then remote and install."
 
 # Step 2: URL (filled), name, the three auth chips (cookie is the second; space on it puts the
 # caret in Username, #201 F1), username, password, then test.
 clip public
-keys Return -s 600 Tab ctrl+a -t public Tab Tab space -t admin Tab ctrl+v Tab Return -s 2500
+keys Return -s 600ms Tab ctrl+a -t public Tab Tab space -t admin Tab ctrl+v Tab Return -s 2500ms
 unclip
 step "Signed in to public" "Step 2: URL http://127.0.0.1:8090, name public, username and password chosen, a green dot: signed in · qBittorrent 5.2.3 · API 2.15.1 · 1 torrent."
 
 # continue, "not now" on the links step, "not now" on the bar step (#17; the widget is not
 # what this walk is about): the done screen.
-keys Tab Tab Return -s 1500 Tab Return -s 1500 Tab Return -s 2000
+keys Tab Tab Return -s 1500ms Tab Return -s 1500ms Tab Return -s 2000ms
 step "Done, another running" "You're connected to public. Under the magnet line, dim: \"Another qBittorrent is running here; add it later in Settings › Servers.\" (Q26: two qbittorrent-nox processes, one candidate)."
 
 # Open the library.
-keys Return -s 3000
+keys Return -s 3000ms
 check "after setup the window tiles" window_is tiled
 step "Library: public, empty, one server" "docs/33 O1, D19: Fig. 22 as built: No torrents yet (no server name), the rows a, , and ?, no ctrl+s row. The rail is its mark and its views (library · seed · log), with no filters and no servers block. The status line names the server at its left, ● public · qBittorrent and its version, with no ▾ (C24 H15), and ends in ? keys."
 # D19: ctrl+s by habit answers in the status line's note.
-keys ctrl+s -s 600
+keys ctrl+s -s 600ms
 step "ctrl+s, one server" "D19: no palette; the status line's note reads one server · add another in Settings › Servers."
 check "servers.json: public only, default, no password in it" servers_are "public" public
 public_id="$(server_id public)"
@@ -281,7 +281,7 @@ check "the box's keyring holds public's password" keyring_has "$public_id"
 # ---- a test that fails: docs/35 N7 (#126) --------------------------------------------------
 # `,` settings, `2` Servers, `a` a new server at a port nothing in the box listens on; enter in
 # the URL field tests.
-keys comma -s 600 2 -s 300 a -s 800 -t seedbox Tab -t http://127.0.0.1:8095 Return -s 2500
+keys comma -s 600ms 2 -s 300ms a -s 800ms -t seedbox Tab -t http://127.0.0.1:8095 Return -s 2500ms
 step "A failed test" "docs/33 N5 in docs/35 N7's band: under the sheet's head, edge to edge, its own fill and a 2 px red rule: ✕ Nothing answered at 127.0.0.1:8095 · details ▸; under it Check the address and port, and that qBittorrent's Web UI is on (Tools › Options › Web UI). No line under the fields any more. The buttons cancel · test · save anyway, test the primary."
 check "the failed test is the sheet's notice" in_tree "Nothing answered at 127.0.0.1:8095"
 if click_text "details"; then
@@ -290,26 +290,26 @@ else
     check "the failed test's details link is in the window's accessibility tree" false
 fi
 # esc: the sheet goes, nothing saved; Settings › Servers keeps the keyboard.
-keys Escape -s 800
+keys Escape -s 800ms
 check "the failed test saved nothing" servers_are "public" public
 
 # ---- add the second server ----------------------------------------------------------------
 # `a` a new server: name, URL, the chips (space on cookie puts the caret in Username, #201
 # F1), username, password, then path map remote, local, cancel, and the keyboard on test.
 clip private
-keys a -s 800 -t private Tab -t http://127.0.0.1:8091 Tab Tab space \
-    -t admin Tab ctrl+v Tab Tab Tab Tab -s 800
+keys a -s 800ms -t private Tab -t http://127.0.0.1:8091 Tab Tab space \
+    -t admin Tab ctrl+v Tab Tab Tab Tab -s 800ms
 unclip
 step "Save waits for a test" "#68, as first run: the New server sheet filled in (private, cookie login as admin), the keyboard on test, which is the primary; save dimmed beside it and \"test first\" at the right of the footer, which says enter test."
 
 # The dimmed save is out of the tab cycle: `tab` from test wraps to the Name field, and enter
 # there runs the primary, the test, not a save.
-keys Tab Return -s 2500
+keys Tab Return -s 2500ms
 check "a dimmed save is not reached: nothing saved before the test" servers_are "public" public
 step "Adding private" "The New server sheet, now titled private: cookie login as admin, the password as dots; under it reached http://127.0.0.1:8091 · qBittorrent 5.2.3 · API 2.15.1 · 5 torrents. save is the primary now, no \"test first\"."
 
 # The test passed, so save is the primary: enter in the Name field saves.
-keys Return -s 1200
+keys Return -s 1200ms
 step "Two servers" "Settings › Servers (D11): public in use and private, both green, private with 5 torrents; add a server below. The footer names d switch to it and a add."
 check "servers.json: public and private, public still the default, no password in it" \
     servers_are "public private" public
@@ -317,19 +317,19 @@ private_id="$(server_id private)"
 check "the box's keyring holds private's password" keyring_has "$private_id"
 
 # ---- docs/33 E1: the empty library with two servers ----------------------------------------
-keys Escape -s 1500
+keys Escape -s 1500ms
 step "Empty public, two servers" "docs/33 E1, D6: the rail is its mark and views, no filters, and the servers block pinned at its bottom on its band (servers · 2 ▾, ● public selected, ● private faint, never seen); the body: No torrents on public yet, then a, ctrl+s switch server, , and ?. The status line's lane reads ● public · qBittorrent and its version, then ▾; no key hints in the line, only ? keys at its right (C24 H10)."
 
 # ---- switch: ctrl+s, the server palette (D2) -----------------------------------------------
-keys ctrl+s -s 800
+keys ctrl+s -s 800ms
 step "The server palette" "docs/33 S1: switch server · 2 servers; public first, on it now, 127.0.0.1:8090 · 0 torrents · qBittorrent 5.2.3; private under it with the cursor, 127.0.0.1:8091 · not seen yet. Hints: ↑↓ move, enter switch, , manage servers, esc close."
-keys Return -s 2500
+keys Return -s 2500ms
 step "Switched to private" "The status line's lane says private · qBittorrent and its version, then ▾; the table has private's five torrents (tiny-notes, Ünïcødé, Field Recordings, Nested Library Sampler, Sketchbook Scans (v1)); the rail's filters above, its servers block pinned below with private selected and its count, public 0 (seen just now)."
 check "servers.json: private is the default" servers_are "public private" private
 check "state.json remembers public's count, seen before the switch (D5)" test "$(seen_count public)" = 0
 
 # An action right after the switch: stop tiny-notes, picked by name.
-keys ctrl+k -s 400 -t tiny -s 300 Return -s 600 p -s 2000
+keys ctrl+k -s 400ms -t tiny -s 300ms Return -s 600ms p -s 2000ms
 check "p stopped tiny-notes on private" stopped private "$TINY"
 check "public still has no torrent" test "$(count public)" = 0
 step "Stopped on private" "tiny-notes.txt reads completed (a finished torrent, stopped; the rail counts it under resting); the other four still run."
@@ -341,56 +341,56 @@ step "Private after a restart" "Straight back to private's five torrents (tiny-n
 # ---- the status line's server lane (D3, C24 H15), the command palette (D4) ------------------
 if click_text "switch server"; then
     step "The status line's server lane" "docs/33 S2, C24 H15: a click on private · qBittorrent … ▾ at the status line's left opened the server palette, the cursor on public."
-    keys Escape -s 600
+    keys Escape -s 600ms
     # The pointer off the status line, so its tooltip stays out of the next shots.
     omabox pointer -b "$BOX" -- move 960 1000 >/dev/null
 else
     check "the status line's server lane is in the window's accessibility tree" false
 fi
-keys colon -s 600 -t switch -s 800
+keys colon -s 600ms -t switch -s 800ms
 step "Command palette: switch" "docs/33 S3: switch server… (ctrl+s, app · 2 servers) and switch to public (app · 0 torrents last time)."
-keys Escape -s 300 Escape -s 600
+keys Escape -s 300ms Escape -s 600ms
 
 # ---- fold the servers block (D17) ----------------------------------------------------------
 # `h` to the rail, `G` to the last server, `z` folds; app-wide, in state.json.
-keys h -s 300 G -s 300 z -s 800
+keys h -s 300ms G -s 300ms z -s 800ms
 step "Servers folded" "docs/33 R3: the block is one line, ● private ▴ · 2 servers, pinned at the rail's bottom; the filters take the room."
 check "state.json: the block is folded app-wide" test "$(general_flag serversFolded)" = True
-keys z -s 800
+keys z -s 800ms
 check "state.json: open again" test "$(general_flag serversFolded)" = False
-keys l -s 300
+keys l -s 300ms
 
 # ---- the add sheet names its server and switches (#72, D13, D14) ---------------------------
-keys a -s 1000 ctrl+a -t /home/sbx/sampler.torrent -s 1500
+keys a -s 1000ms ctrl+a -t /home/sbx/sampler.torrent -s 1500ms
 step "Add sheet on private" "docs/33 A1: the head reads Add torrent to [● private ▾], Public Domain Sampler · … · its size; no server: NAME and no key hints in the foot (C24 H10: ctrl+s is in the ? sheet); save to's placeholder private's default."
-keys ctrl+s -s 800
+keys ctrl+s -s 800ms
 step "Server palette over the sheet" "D14: the server palette over the add sheet, the cursor on public."
-keys Return -s 4000
+keys Return -s 4000ms
 step "Sheet moved to public" "D14 (A2): the sheet is still open with the same file; its head reads Add torrent to [● public ▾]; a yellow line: Moved to public: save path back to its default. The status line behind says public."
 check "servers.json: the sheet moved the app to public" servers_are "public private" public
-keys Return -s 3000
+keys Return -s 3000ms
 check "the sampler went to public" test "$(count public)" = 1
 check "private still has its five" test "$(count private)" = 5
 
 # ---- switch: the rail's servers block ------------------------------------------------------
 # `h` to the rail, `G` to its last row (private), enter; then `G`, `k` to public, enter.
-keys h -s 300 G -s 300 Return -s 2500
+keys h -s 300ms G -s 300ms Return -s 2500ms
 check "the rail moved the app to private" servers_are "public private" private
-keys h -s 300 G -s 300 k -s 300 Return -s 2500
+keys h -s 300ms G -s 300ms k -s 300ms Return -s 2500ms
 step "Back to public, from the rail" "The status line says public ▾; one row, the sampler; the servers block has public selected, private 5."
 check "servers.json: public is the default again" servers_are "public private" public
 
 # The rail hands the keyboard back to the table once it has switched.
-keys ctrl+k -s 400 -t sampler -s 300 Return -s 600 p -s 2000
+keys ctrl+k -s 400ms -t sampler -s 300ms Return -s 600ms p -s 2000ms
 check "p stopped the sampler on public" stopped public "$SAMPLER"
 check "private's tiny-notes is still stopped" stopped private "$TINY"
 check "private's other torrents still run" running private "Field Recordings"
 step "Stopped on public" "Public Domain Sampler reads completed; the rail counts 1 resting."
 
 # ---- switch: the qBittorrent group's `s` ---------------------------------------------------
-keys ctrl+shift+comma -s 1500
+keys ctrl+shift+comma -s 1500ms
 step "qBittorrent settings: public" "Settings opens on the qBittorrent group, its heading public 5.2.3, Speed's rows read from public."
-keys s -s 2500
+keys s -s 2500ms
 step "qBittorrent settings: private" "After s: the heading reads private 5.2.3 and the rows are private's; the status line behind says private."
 check "servers.json: s moved the default to private" servers_are "public private" private
 
@@ -402,27 +402,27 @@ check "public starts with its own queue limit" test "$(pref public max_active_do
 
 # omaseed's Backup, still on private: `h` to the nav, `k` onto the select (between Speed and
 # About), `k` About, `k` Backup.
-keys h -s 300 k -s 300 k -s 300 k -s 2500
+keys h -s 300ms k -s 300ms k -s 300ms k -s 2500ms
 step "omaseed's Backup" "D1 a: the head reads Backup · omaseed · on this machine; first a line with an accent rule and an i: omaseed's own: its settings, your 2 servers (no passwords) and their seed history, with a copy of each server's qBittorrent settings. Torrents aren't in it: each server keeps its own. t qBittorrent › Backup › (the link in accent). Back up omaseed's caption ends with private's qBittorrent settings. The footer has t torrents: qBittorrent › Backup."
-keys t -s 1500
+keys t -s 1500ms
 step "t: qBittorrent's Backup, on private" "D1 a, D2 a: qBittorrent › Backup for private, the cursor on Export private's torrents. The scope line: private's own settings and torrents, read from and sent to private only. public has its own: s switch server. The rows: Export private's settings, Import settings into private, Copy settings from another server (public ▾, copy…), Export private's torrents, Import torrents into private. No footer hints (C24 H10 supersedes C11 D4's s next server; the ? sheet has it)."
 
 # The select: `h` to the nav, `1` Speed, `k` onto it.
-keys h -s 300 1 -s 300 k -s 600
+keys h -s 300ms 1 -s 300ms k -s 600ms
 step "The server select" "D3 a: under QBITTORRENT, a bordered select ● private 5.2.3 · s ▾ with the accent edge (the nav's cursor); no section row lit with the cursor. No footer hints (C24 H10)."
-keys Return -s 2500
+keys Return -s 2500ms
 step "The server list" "D3 a, D5 a: a list under the select: switch omaseed to; public with a green dot and 1 torrent (probed just now), the cursor on it; private, green, on it ✓; under a hairline, dim: The library and the tray follow, and it becomes the default."
-keys Return -s 2500
+keys Return -s 2500ms
 step "Switched from the list" "D5 a: the select reads public; the panes are public's; the footer's right end says omaseed is on public now · the library too. Behind the modal the status line says public."
 check "servers.json: the list moved the default to public" servers_are "public private" public
 
 # qBittorrent › Backup on public, then the copy row: `0`, tab to the rows, `j j`.
-keys 0 -s 1500 Tab -s 300 j -s 300 j -s 600
+keys 0 -s 1500ms Tab -s 300ms j -s 300ms j -s 600ms
 step "Copy row on public" "D2 a, D6 a: the scope line names public and says private has its own; the cursor on Copy settings from another server: Read from that server just now, then shown as an import into public. Nothing changes on the other server. Its select reads private ▾."
-keys Return -s 4000
+keys Return -s 4000ms
 step "Copy settings from private" "D6 a: a sheet with the ⇣ glyph: Copy settings from private into public; Read from private just now (qBittorrent 5.2.3). N settings differ from what public has now; … private is not changed. Columns setting · public now · private; max active downloads 3 → 7 ticked, categories + from-private ticked; under this machine only, unticked: the listening port, the default save path, the Web UI port. Buttons cancel · export public first · apply 2 changes."
 check "the copy read private: the app logged it" log_has "qBittorrent settings: read private to copy"
-keys Return -s 3000
+keys Return -s 3000ms
 step "Copied into public" "Under the rows, in green: Imported into public: 1 setting, 1 category. The select still reads public."
 check "public now has private's queue limit" test "$(pref public max_active_downloads)" = 7
 check "public now has private's category" has_category public from-private
@@ -433,10 +433,10 @@ check "servers.json: the copy never moved the app off public" servers_are "publi
 
 # private stops answering (frozen, not killed): the copy falls back to what omaseed kept.
 omabox run -b "$BOX" -- pkill -STOP -f qbittorrent-private >/dev/null
-keys Return -s 12000
+keys Return -s 12000ms
 step "Copy from a private that doesn't answer" "D6 a's fallback: the same sheet, its line now private didn't answer (no answer in time). These are its settings as omaseed last kept them, on <today, the copy's time> (qBittorrent 5.2.3). … private is not changed. (Nothing much differs any more: the copy above took them.)"
 check "the fallback was taken: the app logged why" log_has "qBittorrent settings: private not read"
-keys Escape -s 800
+keys Escape -s 800ms
 omabox run -b "$BOX" -- pkill -CONT -f qbittorrent-private >/dev/null
 check "private answers again" test "$(pref private web_ui_port)" = 8091
 
@@ -452,11 +452,11 @@ check "omaseed does not open backups on a double click" \
     test "$(omabox run -b "$BOX" -- xdg-mime query default application/x-omaseed-backup 2>/dev/null)" != "$APP_ID.desktop"
 
 # Back on private, on Speed, as the next part expects: `1` Speed, `s`.
-keys 1 -s 300 s -s 2500
+keys 1 -s 300ms s -s 2500ms
 check "servers.json: s moved the default to private again" servers_are "public private" private
 
 # ---- private stops answering: docs/33 D8 in docs/35's band ---------------------------------
-keys Escape -s 1000
+keys Escape -s 1000ms
 omabox run -b "$BOX" -- pkill -STOP -f qbittorrent-private >/dev/null
 # A stopped process still takes the connection: the poll waits out the client's 15 s first.
 sleep 30
@@ -466,11 +466,11 @@ if click_text "details"; then
 else
     check "the notice's details link is in the window's accessibility tree" false
 fi
-keys p -s 800
+keys p -s 800ms
 step "The guard says why" "D23, docs/44 D11: p did nothing, and the status line's note says private isn't answering: p waits until it answers."
-keys ctrl+s -s 800
+keys ctrl+s -s 800ms
 step "Switching away while down" "D4: ctrl+s went through the read-only guard: the server palette, private on it now with isn't answering, the cursor on public, 1 torrent."
-keys Escape -s 600
+keys Escape -s 600ms
 omabox run -b "$BOX" -- pkill -CONT -f qbittorrent-private >/dev/null
 sleep 15
 step "Private back" "The band slid away; the table is private's, live again."
@@ -480,11 +480,11 @@ step "Private back" "The band slid away; the table is private's, live again."
 # qBittorrent sections: `h` gives the nav the keyboard, seven `k` walk up to Servers (the
 # server select, About, Backup, Appearance, Keybindings, Notifications, Servers), `tab` to its
 # rows (the cursor on public), `j` to private, `x` asks.
-keys Escape -s 600 comma -s 600 h -s 200 k k k k k k k -s 300 Tab -s 300 j -s 300 x -s 800
+keys Escape -s 600ms comma -s 600ms h -s 200ms k k k k k k k -s 300ms Tab -s 300ms j -s 300ms x -s 800ms
 step "Remove private?" "The confirm card: Remove the server private? · http://127.0.0.1:8091 · the stored secret goes with it. Nothing on the server is touched. The cursor on cancel, remove in red."
-keys l Return -s 2500
+keys l Return -s 2500ms
 step "One server left" "Settings › Servers: public only, now the default."
-keys Escape -s 1500
+keys Escape -s 1500ms
 step "Library after the removal" "The app moved to public on its own: the status line says public, the sampler (completed, stopped), no SERVERS group in the rail."
 check "servers.json: public only, the default" servers_are "public" public
 check "private's password left the keyring" keyring_lacks "$private_id"
