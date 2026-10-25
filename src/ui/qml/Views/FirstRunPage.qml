@@ -1368,7 +1368,11 @@ Flickable {
 
                     activeFocusOnTab: false // the page cycles tab itself (see _cycleApiKeyFocus)
 
-                    text: qsTr("not now")
+                    objectName: "notNowButton"
+                    // #201 F3: when omaseed already opens them (the system's own default, with
+                    // no line of ours in mimeapps.list), this button changes nothing, and
+                    // "not now" read as turning it down.
+                    text: root.alreadyHandler ? qsTr("leave it as is") : qsTr("not now")
 
                     onClicked: root.skipHandler()
                 }

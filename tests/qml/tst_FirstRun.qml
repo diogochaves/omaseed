@@ -567,6 +567,8 @@ TestCase {
         compare(page.alreadyHandler, true);
         compare(page.heading, "Magnet links and .torrent files already open with omaseed.");
         compare(findChild(page, "registerButton").text, "keep omaseed");
+        // #201 F3: the other button changes nothing, and says so.
+        compare(findChild(page, "notNowButton").text, "leave it as is");
         verify(findChild(page, "handlerText").text.startsWith("Keep it that way"));
 
         page.skipHandler();
@@ -584,6 +586,7 @@ TestCase {
         compare(page.alreadyHandler, false);
         compare(page.heading, "Open magnet links and .torrent files with omaseed?");
         compare(findChild(page, "registerButton").text, "open them with omaseed");
+        compare(findChild(page, "notNowButton").text, "not now");
         page.skipHandler();
         compare(findChild(page, "doneHandler").text,
                 "Magnet links still open elsewhere; Settings can change that.");
