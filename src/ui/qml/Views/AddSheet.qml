@@ -1459,16 +1459,15 @@ Sheet {
                                 anchors.centerIn: parent
                                 spacing: Theme.space(6)
 
-                                Rectangle {
+                                // The skin's lamp (Console's square, board 46 `.dot`).
+                                Lamp {
                                     anchors.verticalCenter: parent.verticalCenter
                                     // docs/35 N3, docs/44 D11: yellow while it isn't answering, red when nothing
                                     // is there or it needs you.
                                     color: !sheet.serverDown ? serverChipBox.ink.green
                                            : App.serverWaiting ? serverChipBox.ink.yellow
                                                                : serverChipBox.ink.red
-                                    height: Theme.space(7)
-                                    radius: width / 2
-                                    width: Theme.space(7)
+                                    size: Theme.space(7)
                                 }
 
                                 Label {

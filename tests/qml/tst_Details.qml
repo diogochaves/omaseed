@@ -532,10 +532,12 @@ TestCase {
         const events = findChild(view, "storyEvents");
         verify(bar.mapToItem(story, 0, 0).y < events.mapToItem(story, 0, 0).y);
 
-        // The canvas painted one cell per pixel: some had, some in flight, some missing.
+        // The Meter asked for one cell per slot it draws (a pixel each in Omarchy's face, a
+        // cell each in Console's, #171 step 6): some had, some in flight, some missing.
         const canvas = findChild(view, "piecesCanvas");
         tryVerify(() => canvas.cells.length > 0);
-        compare(canvas.cells.length, Math.min(1264, Math.floor(canvas.width)));
+        compare(canvas.slots, Theme.skin.name === "console" ? canvas.face.columns : Math.floor(canvas.width));
+        compare(canvas.cells.length, Math.min(1264, canvas.slots));
         verify(canvas.cells.indexOf(2) >= 0);
         verify(canvas.cells.indexOf(1) >= 0);
         verify(canvas.cells.indexOf(0) >= 0);
