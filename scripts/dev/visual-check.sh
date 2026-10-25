@@ -59,7 +59,7 @@ WebUI\\LocalHostAuth=false
 CONF
 cp "$TORRENTS"/*.torrent "$home/torrents/"
 omabox run -d -- qbittorrent-nox >/dev/null
-omabox wait --timeout 20s cmd -- curl -fs -o /dev/null "http://127.0.0.1:$QBT_PORT/api/v2/app/version"
+omabox wait --timeout 20s until -- curl -fs -o /dev/null "http://127.0.0.1:$QBT_PORT/api/v2/app/version"
 # One at a time and in name order, so the table's order is the same in every run.
 # shellcheck disable=SC2016 # expanded by the box's sh
 omabox run -- sh -c 'for t in "$HOME"/torrents/*.torrent; do
@@ -69,7 +69,7 @@ done' sh "$QBT_PORT"
 python3 -I "$repo/scripts/dev/search-plugins.py" make "$home/search-plugins" >/dev/null
 omabox run -- curl -fs -o /dev/null "http://127.0.0.1:$QBT_PORT/api/v2/search/installPlugin" \
     --data-urlencode "sources=/home/sbx/search-plugins/omaseed_plugin_a.py|/home/sbx/search-plugins/omaseed_plugin_b.py|/home/sbx/search-plugins/omaseed_plugin_c.py"
-omabox wait --timeout 20s cmd -- sh -c "curl -fs http://127.0.0.1:$QBT_PORT/api/v2/search/plugins | grep -q omaseed_plugin_c"
+omabox wait --timeout 20s until -- sh -c "curl -fs http://127.0.0.1:$QBT_PORT/api/v2/search/plugins | grep -q omaseed_plugin_c"
 # #146: a folder of the box's to create a torrent from, the same bytes every run (sparse).
 mkdir -p "$home/share/photo-walks/harbour"
 for n in 1 2 3; do truncate -s 2M "$home/share/photo-walks/harbour/walk-0$n.jpg"; done
