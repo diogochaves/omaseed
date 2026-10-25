@@ -413,6 +413,8 @@ Item {
 
     onTotalRowCountChanged: if (root.cursorIndex >= root.totalRowCount)
                                 root.cursorIndex = Math.max(0, root.totalRowCount - 1)
+    // #201 F11: a tip up when the rail folds or unfolds is for a row that moved under it.
+    onCompactChanged: root._hideTips()
 
     // ---- public keyboard/selection surface ------------------------------------------
     function moveCursor(delta) {
@@ -443,17 +445,25 @@ Item {
     /// shows less (elided, or a tracker host shortened), hidden otherwise.
     function _nameTip(row: RailRow, hovering: bool, full: string): void {
         if (hovering && (row.truncated || row.text !== full)) {
-            const point = row.mapToItem(root, Theme.space(16), row.height);
+            const point = row.mapToItem(hostTip, Theme.space(16), row.height);
             hostTip.showAt(point.x, point.y, full);
         } else {
-            hostTip.hide();
+            root._hideTips();
         }
+    }
+
+    /// Both tips down. A pointer that leaves a row after the rail folded or unfolded under it
+    /// asks the other tip to go: the one up would stay for good (#201 F11, ctrl+b while the
+    /// mark's tip showed).
+    function _hideTips(): void {
+        hostTip.hide();
+        compactTip.hide();
     }
 
     /// F2's hover: "4 here, 405 with the folders below" on a save path with others under it.
     function _folderTip(row: RailRow, hovering: bool, here: int, all: int, full: string): void {
         if (hovering && here !== all) {
-            const point = row.mapToItem(root, Theme.space(16), row.height);
+            const point = row.mapToItem(hostTip, Theme.space(16), row.height);
             hostTip.showAt(point.x, point.y, qsTr("%1: %2 here, %3 with the folders below").arg(full).arg(here).arg(
                                all));
         } else {
@@ -531,10 +541,10 @@ Item {
         if (root.compact) {
             root._compactTip(markButton, hovering, text);
         } else if (hovering) {
-            const point = markButton.mapToItem(root, Theme.railMarkInset, markButton.height);
+            const point = markButton.mapToItem(hostTip, Theme.railMarkInset, markButton.height);
             hostTip.showAt(point.x, point.y, text);
         } else {
-            hostTip.hide();
+            root._hideTips();
         }
     }
 
@@ -547,7 +557,7 @@ Item {
                                         (row.height - compactTip.panelItem.height) / 2 - gap);
             compactTip.showAt(point.x, point.y, text);
         } else {
-            compactTip.hide();
+            root._hideTips();
         }
     }
 
@@ -1305,21 +1315,25 @@ Item {
         z: 3
     }
 
+    // On the window's content item (as the hero's server line's, KIT-8), over everything: a
+    // name wider than the rail runs over the list and the title bar, and the servers block
+    // (z 5) sits over the rail's own children; under either, the tip read as translucent
+    // (#201 F7).
     Tooltip {
         id: hostTip
 
         objectName: "railTip"
-        z: 4
+        parent: root.Window.window ? root.Window.window.contentItem : root
+        z: 1000
     }
 
-    // Folded, a row's name shows beside the 46 px column, over the window's content, so this
-    // one lives on the window's content item (as the hero's server line's, KIT-8).
+    // Folded, a row's name shows beside the 46 px column, over the window's content.
     Tooltip {
         id: compactTip
 
         objectName: "railCompactTip"
         parent: root.Window.window ? root.Window.window.contentItem : root
-        z: 5
+        z: 1000
     }
 
     // ---- the servers block (docs/33 §9: D12, D16–D18) ----------------------------------

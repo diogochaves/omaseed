@@ -737,4 +737,49 @@ TestCase {
         compare(findChild(rail, "railTip").text, "omaseed menu · ctrl+.");
         rail._markTip(false);
     }
+
+    // #201 F7: the rail's tip is on the window's content item, over the servers block and
+    // whatever a name wider than the rail runs over.
+    function test_the_rails_tip_is_over_the_window() {
+        const rail = railWithServers(["public", "a server with a name far wider than the rail"]);
+        const tip = findChild(rail, "railTip");
+        verify(tip.parent === rail.Window.window.contentItem, "the tip is on %1".arg(tip.parent));
+        verify(tip.z > findChild(rail, "serversBlock").z);
+        const row = rail._rowMap[rail.serversBase + 1].item;
+        row.hoverChanged(true);
+        tryCompare(tip, "shown", true);
+        compare(tip.text, "a server with a name far wider than the rail · 10.99.0.11:8080");
+        row.hoverChanged(false);
+        compare(tip.shown, false);
+    }
+
+    // #201 F11: ctrl+b while a tip shows takes it down, and leaving the row after takes down
+    // whichever tip is up.
+    function test_folding_the_rail_takes_its_tip_down() {
+        const rail = createTemporaryObject(railComponent, testCase, {
+                                               "height": 900
+                                           });
+        const tip = findChild(rail, "railTip");
+        const compactTip = findChild(rail, "railCompactTip");
+        rail._markTip(true);
+        tryCompare(tip, "shown", true);
+        rail.compact = true;
+        compare(tip.shown, false);
+        rail._markTip(true);
+        tryCompare(compactTip, "shown", true);
+        rail.compact = false;
+        compare(compactTip.shown, false);
+
+        // A tip that came up the other way round still goes when the pointer leaves.
+        const search = findChild(rail, "railView-seed");
+        rail._keyTip(search, true);
+        tryCompare(tip, "shown", true);
+        rail.compact = true;
+        rail._keyTip(search, true);
+        tryCompare(compactTip, "shown", true);
+        tip.showAt(0, 0, "left up by hand");
+        rail._keyTip(search, false);
+        compare(tip.shown, false);
+        compare(compactTip.shown, false);
+    }
 }
