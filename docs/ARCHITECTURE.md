@@ -128,14 +128,18 @@ theme changes.
    4.5:1 with the least lift, once per theme change, and the ground's `fill`, which is what
    to paint: `window`, `idle`, `hover`, `cursor`, `selected`, `selectedCursor`, `pressed`; the
    tints `warning` (the yellow bands), `attention`, `danger` (a selected danger button),
-   `ticked`, `accentIdle`; and fills inside a 4 % block, `blockIdle`, `blockHover`,
-   `highlight`. A control with states keeps a `Kit/Ink` on `Theme.ground(selected, cursor,
-   hovered, pressed)` (`Theme.groundIn(block, …)` inside a block), which eases the colours with
+   `ticked`, `accentIdle`; fills inside a 4 % block, `blockIdle`, `blockHover`,
+   `blockSelected`, `blockSelectedCursor`, `blockPressed`, `highlight`; and fills over the
+   hover fill (the action bar, a hovered settings row), `hoverIdle`, `hoverHover`,
+   `hoverSelected`, `hoverPressed` (#188). A control with states keeps a `Kit/Ink` on
+   `Theme.ground(selected, cursor, hovered, pressed)` (`Theme.groundIn(block, …)` inside a
+   block; `Theme.within(block, plain)` nests any plain ground), which eases the colours with
    the fill's 120 ms change; its words read `ink.dimForeground`, `ink[stateRole]`, and a
    colour handed in by a caller goes through `ink.of(colour)`. A static band reads
    `Theme.on.warning.dimForeground` and paints `Theme.on.warning.fill`. Kit text (`Label`,
    `KeyHints`, `KeyCap`, `TableHeader`) takes the `ink` it sits on; `Button`, `IconButton`,
-   `Chip` and `RailRow` take the `block` they rest on. A new ground is a ThemeInk in
+   `Chip`, `Field`, `Toggle` and `RailRow` take the `block` they rest on (a settings row's control,
+   `block: row.ground`). A new ground is a ThemeInk in
    `ThemeGrounds`, which `tst_themecontrast` and `contrast-board.py --check` then cover.
 4. Sizes from the shell's `base-size`: `Theme.font.caption|small|body|subtitle|title|heading|display`
    (× 0.833 / 0.917 / 1 / 1.083 / 1.167 / 1.333 / 2), spacing through `Theme.space(px)`. A

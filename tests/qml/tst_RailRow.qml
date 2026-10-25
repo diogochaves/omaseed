@@ -48,6 +48,18 @@ TestCase {
         fuzzyCompare(row.color.a, Theme.on.selected.fill.a, 0.01);
     }
 
+    // #188: the servers block's selected row is the selected fill over the block's 4 %, its
+    // words lifted against that.
+    function test_selected_in_a_block_is_the_blocks_selected_ground() {
+        const row = createTemporaryObject(railRowComponent, testCase, {
+                                              "text": "home",
+                                              "selected": true,
+                                              "block": Theme.on.idle
+                                          });
+        compare(row.ground, Theme.on.blockSelected);
+        compare(row.color, Theme.on.blockSelected.fill);
+    }
+
     function test_has_cursor_fills_at_the_hover_alpha() {
         const row = createTemporaryObject(railRowComponent, testCase, {
                                               "text": "downloading",

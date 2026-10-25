@@ -51,7 +51,8 @@ Rectangle {
     // button; a real press (mouseArea.pressed) always wins over this.
     property bool pressed: false
     /// What the button sits on while it paints nothing (docs/DECISIONS.md C30 F1): the window,
-    /// or the block it is in (`Theme.on.idle` for a notice's or a sheet block's 4 %).
+    /// or the block it is in (`Theme.on.idle` for a notice's or a sheet block's 4 %, the hover
+    /// fill on the action bar or a hovered row); its fills nest over it (`Theme.within`).
     property ThemeInk block: Theme.on.window
 
     signal clicked
@@ -61,11 +62,11 @@ Rectangle {
     /// The ground under the label in each state, as `color` paints it (C30 F1, F4).
     readonly property ThemeInk ground: {
         if (mouseArea.pressed || root.pressed)
-            return Theme.on.pressed;
+            return Theme.within(root.block, Theme.on.pressed);
         if (root.activeFocus || root.hot)
-            return root.block === Theme.on.idle ? Theme.on.blockHover : Theme.on.hover;
+            return Theme.within(root.block, Theme.on.hover);
         if (root.selected)
-            return root.danger ? Theme.on.danger : Theme.on.selected;
+            return root.danger ? Theme.on.danger : Theme.within(root.block, Theme.on.selected);
         return root.bordered && root.block === Theme.on.window ? Theme.on.idle : root.block;
     }
     /// The label's colours on that ground, eased with the fill.

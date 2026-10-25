@@ -86,6 +86,32 @@ TestCase {
         fuzzyCompare(button.color.a, Theme.on.selected.fill.a, 0.01);
     }
 
+    // #188: on the action bar (its block the hover fill) a hovered or pressed button's fill
+    // sits over the bar's, and its words take that nested ground's colours; in a 4 % block,
+    // a pressed or selected one the block's.
+    function test_its_fills_nest_over_its_block() {
+        const bar = createTemporaryObject(buttonComponent, testCase, {
+                                              "text": "pause",
+                                              "block": Theme.on.hover
+                                          });
+        compare(bar.ground, Theme.on.hover);
+        compare(bar.color.a, 0);
+        bar.hasCursor = true;
+        compare(bar.ground, Theme.on.hoverHover);
+        tryCompare(bar, "color", Theme.on.hoverHover.fill);
+        bar.pressed = true;
+        compare(bar.ground, Theme.on.hoverPressed);
+        const inBlock = createTemporaryObject(buttonComponent, testCase, {
+                                                  "text": "retry",
+                                                  "block": Theme.on.idle,
+                                                  "pressed": true
+                                              });
+        compare(inBlock.ground, Theme.on.blockPressed);
+        inBlock.pressed = false;
+        inBlock.selected = true;
+        compare(inBlock.ground, Theme.on.blockSelected);
+    }
+
     function test_pressed_fills_at_the_pressed_alpha() {
         const button = createTemporaryObject(buttonComponent, testCase, {
                                                  "text": "Add",

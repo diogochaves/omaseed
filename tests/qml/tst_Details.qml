@@ -1651,6 +1651,9 @@ TestCase {
         verify(editor);
         compare(editor.selectedText, files.nameAt(view.cursorIndex));
         compare(editor.cursorPosition, 0);
+        // #188: the field paints the idle ground itself, not the idle fill over the cursor's
+        // row, so the name and its highlight read on the grounds they were resolved on.
+        compare(editor.parent.color, Theme.on.idle.ground);
         keyClick(Qt.Key_Escape);
         verify(!view.editing);
 

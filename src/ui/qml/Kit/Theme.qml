@@ -33,15 +33,42 @@ ThemeBase {
         return hovered ? on.hover : on.window;
     }
     /// The same inside a block that paints `block` (a notice's or a picker's 4 % fill, which is
-    /// `on.idle`): resting, the text is on the block; under the pointer or the cursor, on the
-    /// hover fill over it. The stronger fills are taken as they are over the window.
+    /// `on.idle`; the action bar's or a hovered row's hover fill, `on.hover`): resting, the
+    /// text is on the block; in any other state, on that state's fill over it (`within`).
     function groundIn(block: ThemeInk, selected: bool, cursor: bool, hovered: bool,
                       pressed: bool): ThemeInk {
-        const plain = ground(selected, cursor, hovered, pressed);
+        return within(block, ground(selected, cursor, hovered, pressed));
+    }
+    /// `plain`, a ground as it lies over the window (`ground()`'s answer, `on.idle`), as it lies
+    /// inside `block`: the block itself for the window, the nested ground where the fill sits
+    /// over the 4 % block (`on.blockSelected`) or over the hover fill (`on.hoverPressed`), so
+    /// its text is lifted against what is under it (DECISIONS C30, #188). Over the window, or a
+    /// fill with no nested ground (a tint), `plain` as it is.
+    function within(block: ThemeInk, plain: ThemeInk): ThemeInk {
         if (plain === on.window)
             return block;
-        return block === on.idle && (plain === on.hover || plain === on.cursor) ? on.blockHover
-                                                                                 : plain;
+        if (block === on.idle) {
+            if (plain === on.idle)
+                return on.blockIdle;
+            if (plain === on.hover || plain === on.cursor)
+                return on.blockHover;
+            if (plain === on.selected)
+                return on.blockSelected;
+            if (plain === on.selectedCursor)
+                return on.blockSelectedCursor;
+            if (plain === on.pressed)
+                return on.blockPressed;
+        } else if (block === on.hover) {
+            if (plain === on.idle)
+                return on.hoverIdle;
+            if (plain === on.hover || plain === on.cursor)
+                return on.hoverHover;
+            if (plain === on.selected || plain === on.selectedCursor)
+                return on.hoverSelected;
+            if (plain === on.pressed)
+                return on.hoverPressed;
+        }
+        return plain;
     }
     /// `colour`, one of the window's text roles (`Theme.yellow`, a caller's `tone`), as it reads
     /// on `ground`: that ground's role of the same colour, resolved with the rest (C30 F3). A

@@ -46,7 +46,7 @@ TestCase {
                                                "selected": true
                                            });
         compare(chip.border.width, 0);
-        fuzzyCompare(chip.color.a, Theme.fill(Theme.fillSelected).a, 0.01);
+        fuzzyCompare(chip.color.a, Theme.on.selected.fill.a, 0.01);
     }
 
     function test_hover_or_cursor_fills_at_the_hover_alpha() {
@@ -54,7 +54,7 @@ TestCase {
                                                "text": "linux",
                                                "hasCursor": true
                                            });
-        fuzzyCompare(chip.color.a, Theme.fill(Theme.fillHover).a, 0.01);
+        fuzzyCompare(chip.color.a, Theme.on.hover.fill.a, 0.01);
     }
 
     function test_click_emits_clicked() {

@@ -53,13 +53,9 @@ Rectangle {
     readonly property bool hot: root.hasCursor || mouseArea.containsMouse
     /// The ground under the words in each state, as `color` paints it (C30 F1, F4): the
     /// chip's idle fill resting; in a block, its fills sit over the block's.
-    readonly property ThemeInk ground: {
-        if (root.selected)
-            return Theme.on.selected;
-        if (root.block === Theme.on.idle)
-            return root.hot ? Theme.on.blockHover : Theme.on.blockIdle;
-        return root.hot ? Theme.on.hover : Theme.on.idle;
-    }
+    readonly property ThemeInk ground: Theme.within(root.block, root.selected ? Theme.on.selected
+                                                                              : root.hot ? Theme.on.hover
+                                                                                         : Theme.on.idle)
     /// The words' colours on that ground, eased with the fill.
     readonly property Ink ink: Ink {
         ground: root.ground
@@ -82,8 +78,9 @@ Rectangle {
                                                                                           Theme.borderHover)
                                                                                     : Theme.fill(Theme.borderIdle)
     border.width: root.selected && !root.accent ? 0 : Theme.hairWidth
-    color: root.selected ? Theme.fill(Theme.fillSelected) : root.hot ? Theme.fill(Theme.fillHover) :
-                                                                       Theme.fill(Theme.fillIdle)
+    // The ground's own fill, so the words are lifted against what is painted (a skin's tier,
+    // a fill nested in a block or on a hovered row: #188).
+    color: root.ground.fill
     height: Theme.space(22)
     implicitWidth: content.implicitWidth + Theme.space(16)
     radius: Theme.cornerRadius

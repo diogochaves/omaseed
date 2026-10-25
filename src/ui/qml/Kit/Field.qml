@@ -70,6 +70,9 @@ Rectangle {
     readonly property string spokenName: root.accessibleName.length > 0 ? root.accessibleName :
                                          root._rowCaption.length > 0 ? root._rowCaption : root.placeholder
     property bool hasCursor: false
+    /// What the field lies on (docs/DECISIONS.md C30 F1): the window, or a block or hovered
+    /// row whose fill its own fills nest over (`Theme.within`, #188).
+    property ThemeInk block: Theme.on.window
     /// `TextInput.Password` for a secret (spec §3 Fig. 9's `Key` field). Normal by default.
     property int echoMode: TextInput.Normal
     /// Whether `esc` clears the text first. A filter wants that (the escape ladder); a form
@@ -168,7 +171,7 @@ Rectangle {
     readonly property bool hot: root.hasCursor || hoverHandler.hovered || input.activeFocus
     /// docs/DECISIONS.md C30 F1: the field's words on its fill, idle or hot, eased with it.
     readonly property Ink ink: Ink {
-        ground: root.hot ? Theme.on.hover : Theme.on.idle
+        ground: Theme.within(root.block, root.hot ? Theme.on.hover : Theme.on.idle)
     }
 
     border.color: input.activeFocus ? Theme.accent : root.hot ? Theme.fill(Theme.borderHover) :
