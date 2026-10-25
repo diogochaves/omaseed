@@ -34,6 +34,8 @@ Linux, with a bundled theme when Omarchy is not there.
 - **Keyboard first**: every action has a key, and `?` lists them all; the mouse works
   everywhere too
 - **Every Omarchy theme, live**, the light ones included
+- **Two skins**: Omarchy's own look, or Console's cut plates, brackets and kana, by hand or
+  following the desktop's console skin
 - **Any server**: an API key, a username and password, or none; secrets in the system keyring
 - **Careful with your data**: deleting files another torrent still seeds, or the last copy
   anyone has, asks first
@@ -306,10 +308,17 @@ o.bind("SUPER + SHIFT + T", "omaseed", { launch = "omaseed" })
 
 omaseed reads the same `colors.toml` and `shell.toml` as the rest of the Omarchy shell and
 repaints as soon as `omarchy-theme-set` runs, on every bundled theme. Text size follows
-`shell.toml`'s `[font] base-size`, and window corners follow Hyprland's rounding. Without
-Omarchy it uses a bundled Tokyo Night at base size 12.
+`shell.toml`'s `[font] base-size`, and in the Omarchy skin window corners follow Hyprland's
+rounding. Without Omarchy it uses a bundled Tokyo Night at base size 12.
 
-Settings › Appearance has: follow the Omarchy theme, base size, the window's ground (opaque, or
+The skin is the form the colours are drawn in. **Omarchy** (the default) is the shell's own;
+**Console** draws omarchy-console's look: cut corners, brackets on the cursor's row, square
+lamps, tracked upper-case labels with kana. **Follow the desktop** draws Console while
+omarchy-console's skin is on, and honours its `fx.fonts = system`. Console's fonts are optional
+(Chakra Petch, Share Tech Mono, Noto Sans CJK JP, Material Symbols Sharp); a missing one is
+drawn in a stand-in, and Appearance says which.
+
+Settings › Appearance has: the skin, follow the Omarchy theme, base size, the window's ground (opaque, or
 translucent with its transparency), tray icon (`auto` hides it while the bar widget runs), bar
 widget, the scroll hint, tracker hosts, where the details panel sits, and the sending rows'
 pulse.

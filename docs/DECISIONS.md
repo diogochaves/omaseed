@@ -1176,7 +1176,7 @@ the call says so.
   list's own lines, the error and move blocks' actions and first run.
 - **Skins (H11–H12):** Settings › Appearance › skin: Omarchy (the default), Console, Follow the
   desktop (the console when omarchy-console's skin is on). Clean glow only. How the console skin
-  is built is decided at its build step.
+  is built is decided at its build step: C31.
 - **The ground (H13, #113):** opaque by default in both skins; super+backspace works as for any
   app; Appearance keeps "translucent" (the launcher's alpha).
 - **Bands (H14):** a server's notice, a job, a creation: under the title, across the content
@@ -1552,6 +1552,94 @@ when only adding the torrent again frees the space).
   F row reads "In the files tab: free the space, or add it again. …". F17's count is every
   skipped file, its bytes what they hold on disk (shown while files or facts reads them); F18
   is the size fact only, the files head keeping "N skipped" where D4's hint speaks.
+
+## C31 — How a skin is built (#171, boards 46 and 49, ruled 2026-10-24)
+
+The three questions of the console skin's design note, all as recommended, and the mechanism
+as built in #171's six steps. C24 H11–H12 said there would be two skins and left how to the
+build; this is how. **This entry amends** ARCHITECTURE's theme rules 6 and 7: rounding and the
+font are the skin's, and Omarchy's skin keeps today's answers.
+
+- **A skin is data:** a versioned `skin.json` of form tokens (`roles`, `grounds`, `line`, `cut`,
+  `radius`, `font`, `label`, `numerals`, `density`, `glyphs`, `labels`, `tint`, `plates`,
+  `select`, `meter`, `glow`, `faces`), names borrowed from omarchy-console's
+  `console-skin.json` so a later mapping is cheap. `integration/SkinReader` (pure Qt, beside
+  ThemeReader) reads and checks it, all or nothing at the file: one that doesn't parse, has no
+  integer `version`, is newer than omaseed or names an unknown skin is drawn whole as Omarchy,
+  with the reason logged. Inside a file that reads, each malformed token is Omarchy's (named in
+  `dropped`) and the rest stand. Colours stay theme roles: a skin picks which role and alpha
+  over which ground (C30's recipe), never a hex, and C30's floor covers every ground it sets.
+- **Omarchy is the skin with no overrides** (`{"skin": "omarchy", "version": 1}`): every
+  default stays in `Kit/Theme.qml` and `Kit/Glyphs.qml` beside its board citation, so under
+  Omarchy nothing moved in any of the six steps. **Console** is the same kind of file with
+  values, and its values come from board [46](46-the-whole-app-on-v03.html)'s `.sk-con` pass
+  (and board [49](49-create-a-torrent.html)'s plate facts for create). Two instances, one
+  mechanism.
+- **Four seams with faces:** `Plate` (a panel's ground and edge), `SelectionMark` (the cursor's
+  mark), `Meter` (a progress line or a grid of cells) and `Lamp` (a server's or a tracker's
+  dot). Each is a Kit component with a fixed API that loads its body, a whole QML file, from the
+  skin's `faces/` (else Omarchy's, today's drawing moved verbatim). More seams only when a skin
+  needs one.
+- **No file selectors and no Style singleton.** A `+console/` selector is fixed per engine, so
+  switching would rebuild the window (sheets, scroll and drags lost) and a skin outside the
+  module could never use it; a second singleton beside Theme would have to branch on the skin
+  or be swapped by a selector, the two things ruled out.
+- **No branching on a skin's name:** a component may read a token's value
+  (`Theme.token(group, key, fallback)`), never ask which skin is drawn. The ctest `skin_lint`
+  fails on `skin ===` in `src/ui/qml` (Settings' chooser, which compares the saved choice,
+  aside) and on a literal `border.width` in the Kit and the Views.
+- **The switch (H11):** Settings › Appearance › Skin: Omarchy, Console, follow the desktop,
+  saved as `appearance.skin` in state.json; `OMASEED_SKIN` pins it for a run. Everything is a
+  binding, so a switch repaints live, as a theme change does. **Follow the desktop** draws
+  Console while omarchy-console's skin is on: the theme's `console-skin.json`
+  (`~/.local/state/omarchy/current/theme/`), else `~/.config/omarchy/console-skin.json`, the
+  first that exists parsing with a positive integer `version`, and `~/.config/omarchy/
+  console.json`'s `fx.skin` not `off`. `fx.fonts = system` sends every family back to the
+  system's (icons too) while following, and only then. In v0.5.0 it switches to omaseed's
+  built-in Console only; the desktop file's own values (cuts, tracking, roles) are not read.
+- **Fonts are not bundled:** Chakra Petch, Share Tech Mono, Noto Sans CJK JP and Material
+  Symbols Sharp are the PKGBUILD's `optdepends`. A missing family falls back on its own
+  (fontconfig's monospace; Omarchy's glyph for a missing icon font), and Appearance's Skin row
+  names what is missing.
+- **User skins later:** from `~/.config/omaseed/skins/<name>/skin.json`, listed in Appearance,
+  under the same version rule. The first user-skin version is data only; faces from a user
+  folder are code (QML runs JavaScript) and need their own ruling. Nothing in v0.5.0 depends on
+  it.
+- **Not in the skin:** board 46's Console overview, numbered plates and a specials column, is
+  another arrangement of the view, not its form; a skin must not fork View layout, so it waits
+  for a board of its own (#199).
+
+**Assumed, to confirm in the manual pass** (each recorded on #171 as its step was built; the
+manual page `docs/manual-tests/skins.md` has a box for each):
+
+- Grounds: only the tiers board 46 states are Console's (panel `lighterBackground` 45 %, the
+  cursor and selected `lighterBackground`, picked the accent at 20 %, the warning band the warn
+  role at 9 %); two new grounds, `panel` and `picked`; no `band` ground.
+- Lines: Console's menu edge is the hair; line widths and a numeric radius are px as written,
+  densities and cuts are spec px through `space()`; a skin's `density` reaches every Theme.qml
+  token of the form `space(N)`.
+- Voices: one heading track (.22 em) for the title bar, sheet heads, panes and menu heads;
+  buttons at the caption size; names tracked .05 at 600, the rows' names upper case, captions
+  .18 at 600; the views' and menu rows in the control voice.
+- Kana: "Noto Sans CJK JP"; on the title bar for questions, places' kinds, search and the
+  library; sheets add, move, create (作成); panes 外観, 検索, else 設定; none on menu heads; the
+  servers head in two parts.
+- Tags: a notice's word by kind (error, warning, note, done; "no signal", "refused"; moving or
+  moved, creating or made); the outcome strip's done, failed, "N of M", cancelled; the fix a
+  filled accent tag.
+- The cursor is marked with Console's brackets in every list, the table and the details' lists
+  included (board 46 draws none on the table); a pick is the `picked` ground with no rule.
+- Plates: the details' hero, create's round-trip note, the outcome strip, the confirm, the
+  palette and the error and move blocks on cut plates; the tooltip and inline renames on the
+  small cut. The error and move blocks' ground is their colour at 8 % over the panel.
+- Meters: the line meter in 3 spec px cells; the pieces in 34 columns of square cells, as many
+  rows as the pieces fill (at most 10 spec px a cell), in the app's own colours.
+- The Status column 120 u under Console (Q17's 116 stays Omarchy's); its word in the caption
+  voice. The current tab on the lit line (2 px accent); Omarchy keeps its 1 px bright line.
+- Follow the desktop: any positive integer `version` turns it on; the watcher runs only while
+  following; `OMASEED_SKIN` may also be `desktop`; anything else in state.json reads as Omarchy.
+- optdepends: `ttf-chakra-petch` and `ttf-share-gf` (AUR), `noto-fonts-cjk`,
+  `ttf-material-symbols-variable`.
 
 ## M8 — A click leaves the keyboard focus where it was
 

@@ -144,10 +144,33 @@ theme changes.
    active and `muted` when not. The ground is opaque (`windowAlpha` 1) unless Settings ›
    Appearance › Window is translucent, which takes the launcher's alpha or the transparency
    set there (DECISIONS C24 H13). Popups, sheets and palettes are opaque with an `accent` edge.
-6. Corner radius comes from Hyprland, 0 by default. Never hardcode rounding.
-7. The font is fontconfig's `monospace`; icons are Nerd Font glyphs chosen once in
-   `Kit/Glyphs.qml`.
-8. Every colour is a binding, never a copy: a theme change repaints without a restart.
+6. Corner radius is the skin's (`Theme.cornerRadius`): Omarchy's skin takes Hyprland's
+   rounding, 0 by default; a skin may set px or keep `"hyprland"` (DECISIONS C31). Never
+   hardcode rounding.
+7. The font is the skin's: `Theme.valueFamily` for values and `Theme.labelFamily` for labels,
+   both fontconfig's `monospace` in Omarchy's skin. Icons are glyphs named once in
+   `Kit/Glyphs.qml`, Nerd Font glyphs in Omarchy's skin; a skin may map a name to its own
+   glyph or an icon font's ligature (`ms:<name>`), with Omarchy's glyph as the fallback.
+8. Every colour is a binding, never a copy: a theme change repaints without a restart. A skin
+   change does too.
+
+## Skins
+
+A skin is the form, never the colours (DECISIONS C31): which roles and alphas paint which
+grounds, line widths, cuts, rounding, fonts, the voices of labels, densities, glyphs and kana.
+Each built-in skin is `src/ui/skins/<name>/skin.json`, with its faces in
+`src/ui/skins/<name>/faces/<Seam>.qml`, compiled into `Omaseed.Kit` (kept out of qmldir).
+Omarchy's file sets nothing: its values are Theme.qml's and Glyphs.qml's defaults, its faces
+today's drawing. `integration/SkinReader` reads a file into `Theme.skin` (name, version, what
+it dropped, the missing fonts); QML reads tokens through `Theme.skinTokens`, `Theme.token(group,
+key, fallback)` and `Theme.n(name, px)` for a density, always with Omarchy's value as the
+fallback, and a component branches on a token's value, never on the skin's name (the ctest
+`skin_lint`). Four seams draw what is not a value: `Plate`, `SelectionMark`, `Meter`, `Lamp`,
+each a Kit component with a fixed API whose body `Kit/FaceLoader` loads from `Theme.face(seam)`.
+The choice is Settings › Appearance › Skin (state.json's `appearance.skin`); `OMASEED_SKIN`
+(`omarchy`, `console`, `desktop`) pins it for a run, as tests and walks do. The QML suite runs
+once per skin, ctest labels `skin-omarchy` (`tst_qml`) and `skin-console` (`tst_qml_console`);
+`scripts/dev/visual-check.sh` has a pass per skin, each with its own baseline.
 
 ## Design
 
