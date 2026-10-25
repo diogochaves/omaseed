@@ -41,6 +41,9 @@ Rectangle {
     /// DECISIONS C24 H2 (board 46 `.views .ri.on`): the view on show, the hover fill with an
     /// accent edge on the left, so a view and the filter it shows never look alike.
     property bool current: false
+    /// A view's row (board 46 `.views .ri`): its name in the skin's control voice (Console:
+    /// upper case, tracked .16 em), where a place's is a name (`.ri`, `Theme.nameTrack`).
+    property bool view: false
     /// The folded rail (board 46's narrow `rail()`): the glyph alone; the name goes into the
     /// tooltip the rail shows.
     property bool compact: false
@@ -144,9 +147,13 @@ Rectangle {
                                                                                : root.ink.foreground
 
             elide: root.elideLeft ? Text.ElideLeft : Text.ElideRight
-            // Board 46 `.ri`: a place's name in the label family, its count a value.
+            // Board 46 `.ri`: a place's name in the label family, its count a value; a view's
+            // in the control voice (`.views .ri`).
+            font.capitalization: root.view && Theme.controlUpper ? Font.AllUppercase : Font.MixedCase
             font.family: Theme.labelFamily
+            font.letterSpacing: Theme.font.body * (root.view ? Theme.controlTrack : Theme.nameTrack)
             font.pixelSize: Theme.font.body
+            font.weight: root.view ? Theme.controlWeight : Font.Normal
             text: root.text
             visible: !root.compact
             width: Math.max(0, label.width - glyphText.width - label.spacing)

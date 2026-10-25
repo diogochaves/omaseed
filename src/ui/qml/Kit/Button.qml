@@ -26,6 +26,9 @@ Rectangle {
 
     property string text: ""
     property string glyph: ""
+    /// A glyph after the words, dim (board 46 `.tool .c`: a menu's chevron drawn in the skin's
+    /// icon font); "" draws none.
+    property string trailingGlyph: ""
     property bool primary: false
     property bool danger: false
     property bool hasCursor: false
@@ -103,6 +106,7 @@ Rectangle {
                                                                                        > 0 && root.text.length
                                                                                        > 0 ? Theme.space(
                                                                                                  6) : 0)
+                   + (trailing.visible ? trailing.implicitWidth + Theme.space(6) : 0)
     opacity: root.enabled ? 1.0 : 0.4
     radius: Theme.cornerRadius
 
@@ -139,6 +143,17 @@ Rectangle {
             font.weight: Theme.controlWeight
             text: root.text
             visible: root.text.length > 0
+        }
+
+        Glyph {
+            id: trailing
+
+            anchors.verticalCenter: parent.verticalCenter
+            color: root._filled ? root._textColor : root.ink.dimForeground
+            objectName: "buttonTrailingGlyph"
+            pixelSize: Theme.font.icon
+            text: root.trailingGlyph
+            visible: root.trailingGlyph.length > 0
         }
     }
 

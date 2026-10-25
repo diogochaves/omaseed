@@ -165,7 +165,7 @@ Item {
     TextMetrics {
         id: sizeMetrics
 
-        font.family: Theme.fontFamily
+        font.family: Theme.valueFamily
         font.pixelSize: Theme.font.small
         text: "999.9 MB"
     }
@@ -173,7 +173,7 @@ Item {
     TextMetrics {
         id: doneMetrics
 
-        font.family: Theme.fontFamily
+        font.family: Theme.valueFamily
         font.pixelSize: Theme.font.small
         text: "100 %"
     }
@@ -181,7 +181,7 @@ Item {
     TextMetrics {
         id: priorityMetrics
 
-        font.family: Theme.fontFamily
+        font.family: Theme.valueFamily
         font.pixelSize: Theme.font.small
         text: "maximal"
     }
@@ -189,7 +189,7 @@ Item {
     TextMetrics {
         id: piecesMetrics
 
-        font.family: Theme.fontFamily
+        font.family: Theme.valueFamily
         font.pixelSize: Theme.font.small
         text: "3860–3911"
     }
@@ -293,7 +293,7 @@ Item {
                 anchors.left: parent.left
                 anchors.verticalCenter: parent.verticalCenter
                 color: Theme.foreground
-                font.family: Theme.fontFamily
+                font.family: Theme.valueFamily
                 font.pixelSize: Theme.font.small
                 objectName: "filesSummaryCount"
                 text: root.summaryCountText
@@ -306,7 +306,7 @@ Item {
                 anchors.verticalCenter: parent.verticalCenter
                 color: Theme.dimForeground
                 elide: Text.ElideRight
-                font.family: Theme.fontFamily
+                font.family: Theme.valueFamily
                 font.pixelSize: Theme.font.small
                 objectName: "filesSummaryFacts"
                 text: root.summaryFactsText
@@ -341,7 +341,7 @@ Item {
 
                     anchors.verticalCenter: parent.verticalCenter
                     color: Theme.dimForeground
-                    font.family: Theme.fontFamily
+                    font.family: Theme.valueFamily
                     font.pixelSize: Theme.font.small
                     text: " ·"
                 }
@@ -352,7 +352,7 @@ Item {
                     anchors.verticalCenter: parent.verticalCenter
                     color: root.model !== null && root.model.hideSkipped ? Theme.foreground
                                                                          : Theme.dimForeground
-                    font.family: Theme.fontFamily
+                    font.family: Theme.valueFamily
                     font.pixelSize: Theme.font.small
                     objectName: "filesSkippedText"
                     // DECISIONS C30 F17: "2 skipped, 16.0 MB still on disk".
@@ -389,7 +389,7 @@ Item {
                 Text {
                     anchors.verticalCenter: parent.verticalCenter
                     color: Theme.dimForeground
-                    font.family: Theme.fontFamily
+                    font.family: Theme.valueFamily
                     font.pixelSize: Theme.font.small
                     text: qsTr("filter")
                 }
@@ -632,7 +632,7 @@ Item {
             body: qsTr("omaseed can't see %1's disks, so it can't tell how much space they hold or delete them. Mount its download folder here and add a path map to see and free that space.").arg(
                       root.serverName)
             edge: "bottom"
-            glyph: "◇"
+            glyph: Glyphs.skippedOnDisk
             kind: "info"
             objectName: "filesPartlyWritten"
             shown: root.hintShown
@@ -916,7 +916,7 @@ Item {
                         anchors.verticalCenter: parent.verticalCenter
                         color: foldMouse.containsMouse ? row.ink.brightForeground
                                                        : row.ink.dimForeground
-                        font.family: Theme.fontFamily
+                        font.family: Theme.valueFamily
                         font.pixelSize: Theme.font.small
                         text: row.expanded ? Glyphs.chevronDown : Glyphs.chevronRight
                         visible: row.isFolder
@@ -1021,7 +1021,7 @@ Item {
                         anchors.right: parent.right
                         anchors.verticalCenter: parent.verticalCenter
                         color: row.textColor
-                        font.family: Theme.fontFamily
+                        font.family: Theme.valueFamily
                         font.pixelSize: Theme.font.small
                         horizontalAlignment: Text.AlignRight
                         text: row.progressText
@@ -1041,7 +1041,7 @@ Item {
                     Layout.preferredWidth: root.priorityWidth
                     color: row.priorityColor
                     elide: Text.ElideRight
-                    font.family: Theme.fontFamily
+                    font.family: Theme.valueFamily
                     font.pixelSize: Theme.font.small
                     // `.pri.skip { text-decoration: line-through }`.
                     font.strikeout: row.priority === 0
@@ -1115,7 +1115,7 @@ Item {
         anchors.top: header.bottom
         anchors.topMargin: Theme.space(16)
         color: Theme.dimForeground
-        font.family: Theme.fontFamily
+        font.family: Theme.valueFamily
         font.pixelSize: Theme.font.small
         text: qsTr("no file matches · esc clears")
         visible: root.count === 0 && root.model !== null && root.model.filterText.length > 0
@@ -1130,7 +1130,7 @@ Item {
         anchors.top: header.bottom
         anchors.topMargin: Theme.space(16)
         color: Theme.dimForeground
-        font.family: Theme.fontFamily
+        font.family: Theme.valueFamily
         font.pixelSize: Theme.font.small
         objectName: "filesAllSkipped"
         text: qsTr("every file is skipped · X shows them")
@@ -1167,7 +1167,7 @@ Item {
                 anchors.rightMargin: Theme.space(4)
                 clip: true
                 color: Theme.on.idle.brightForeground
-                font.family: Theme.fontFamily
+                font.family: Theme.valueFamily
                 font.pixelSize: Theme.font.small
                 objectName: "fileRenameEditor"
                 selectByMouse: true

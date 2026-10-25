@@ -64,9 +64,12 @@ Item {
             color: root.ink !== null ? (root.sorted ? root.ink.foreground : root.ink.dimForeground)
                                      : (root.sorted ? Theme.foreground : Theme.dimForeground)
             elide: root.elides ? Text.ElideRight : Text.ElideNone
-            font.family: Theme.fontFamily
-            font.letterSpacing: root._pixelSize * 0.04
+            // Board 46 `.tbl th`: the skin's caption voice.
+            font.capitalization: Theme.captionUpper ? Font.AllUppercase : Font.MixedCase
+            font.family: Theme.labelFamily
+            font.letterSpacing: root._pixelSize * Theme.captionTrack(0.04)
             font.pixelSize: root._pixelSize
+            font.weight: Theme.captionWeight(Font.Normal)
             objectName: "caption"
             text: root.text
             width: root.elides ? Math.max(0, Math.min(caption.implicitWidth, root.width - 2

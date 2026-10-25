@@ -130,6 +130,13 @@ Item {
             count: group.count ?? 0
             line: root.level >= 1 ? "" : (group.line ?? "")
             needsYou: (group.question ?? 0) === TorrentFilterModel.NeedsYou
+            labelId: ({
+                    [TorrentFilterModel.NeedsYou]: "needsYou",
+                    [TorrentFilterModel.Arriving]: "arriving",
+                    [TorrentFilterModel.LandedToday]: "landed",
+                    [TorrentFilterModel.GivingBack]: "givingBack",
+                    [TorrentFilterModel.Resting]: "resting"
+                })[group.question ?? -1] ?? ""
             title: group.title ?? ""
             width: ListView.view.width
         }

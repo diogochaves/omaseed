@@ -22,6 +22,16 @@ RowLayout {
     spacing: Theme.createFactGap
 
     Label {
+        id: mark
+
+        /// The mark's glyph; a skin's icon (Console's `ms:warning`) is drawn by the Glyph in it.
+        readonly property string glyph: root.kind === "ok" ? Glyphs.factOk : root.kind === "warn"
+                                                                             ? Glyphs.factWarnGlyph
+                                                                             : root.kind === "bad"
+                                                                               ? Glyphs.close :
+                                                                                 Glyphs.factInfo
+        readonly property bool drawn: mark.glyph.startsWith("ms:") || mark.glyph.startsWith("icon:")
+
         Layout.alignment: Qt.AlignTop
         Layout.preferredWidth: Theme.createFactMark
         color: root.kind === "ok" ? Theme.green : root.kind === "warn" ? Theme.yellow : root.kind
@@ -30,10 +40,16 @@ RowLayout {
         horizontalAlignment: Text.AlignHCenter
         objectName: "createFactMark"
         size: "small"
-        text: root.kind === "ok" ? Glyphs.factOk : root.kind === "warn" ? Glyphs.factWarn :
-                                                                          root.kind === "bad"
-                                                                          ? Glyphs.close :
-                                                                            Glyphs.factInfo
+        text: mark.drawn ? "" : mark.glyph
+
+        Glyph {
+            anchors.fill: parent
+            color: mark.color
+            objectName: "createFactGlyph"
+            pixelSize: mark.font.pixelSize
+            text: mark.glyph
+            visible: mark.drawn
+        }
     }
 
     ColumnLayout {

@@ -12,6 +12,8 @@ Item {
     property int count: 0
     property string line: ""
     property bool needsYou: false
+    /// The question, as the skin's `labels` know it ("arriving"), for its kana; "" for none.
+    property string labelId: ""
 
     // #77: a heading for a screen reader, its count and line in the name.
     Accessible.name: [root.title, String(root.count), root.line].filter(part => part.length > 0).join(
@@ -29,26 +31,28 @@ Item {
         anchors.leftMargin: Theme.libraryGroupHeadInset
         spacing: Theme.libraryRowGap
 
-        Text {
+        // Board 46 `.gh`: the question in the label voice with its kana, the count padded.
+        Label {
             id: titleText
 
             color: root.needsYou ? Theme.red : Theme.dimForeground
             font.capitalization: Font.AllUppercase
-            font.family: Theme.fontFamily
+            font.family: Theme.labelFamily
             font.letterSpacing: Theme.libraryGroupHeadTracking
             font.pixelSize: Theme.libraryGroupHeadSize
+            font.weight: Theme.libraryGroupHeadWeight
+            labelId: root.labelId
             objectName: "groupTitle"
             text: root.title
-            textFormat: Text.PlainText
         }
 
         Text {
             anchors.baseline: titleText.baseline
             color: root.needsYou ? Theme.red : Theme.foreground
-            font.family: Theme.fontFamily
+            font.family: Theme.valueFamily
             font.pixelSize: Theme.libraryGroupHeadSize
             objectName: "groupCount"
-            text: String(root.count)
+            text: Theme.numeral(root.count)
             textFormat: Text.PlainText
         }
     }
@@ -62,7 +66,7 @@ Item {
         anchors.rightMargin: Theme.libraryRowInsetEnd
         color: Theme.dimForeground
         elide: Text.ElideRight
-        font.family: Theme.fontFamily
+        font.family: Theme.valueFamily
         font.pixelSize: Theme.libraryGroupLineSize
         horizontalAlignment: Text.AlignRight
         objectName: "groupLine"

@@ -117,7 +117,10 @@ Rectangle {
                         Layout.fillWidth: true
                         color: Theme.brightForeground
                         elide: Text.ElideRight
-                        font.family: Theme.fontFamily
+                        // The skin's heading voice (board 46 `.dh b`, board 48 `.empty b`).
+                        font.capitalization: Theme.titleUpper ? Font.AllUppercase : Font.MixedCase
+                        font.family: Theme.labelFamily
+                        font.letterSpacing: Theme.libraryRowNameSize * Theme.labelTrackTitle
                         font.pixelSize: Theme.libraryRowNameSize
                         font.weight: Theme.libraryRowNameWeight
                         Accessible.name: text
@@ -131,7 +134,7 @@ Rectangle {
                         Layout.fillWidth: true
                         color: Theme.dimForeground
                         elide: Text.ElideRight
-                        font.family: Theme.fontFamily
+                        font.family: Theme.valueFamily
                         font.pixelSize: Theme.libraryRowMetaSize
                         text: [root.details.sizeText ?? "", root.details.plugins ?? ""].filter(part
                                                                                                => part.length
@@ -160,7 +163,7 @@ Rectangle {
 
                 Text {
                     color: root.factColor
-                    font.family: Theme.fontFamily
+                    font.family: Theme.valueFamily
                     font.pixelSize: Theme.searchPaneFactSize
                     font.weight: Theme.libraryRowFactWeight
                     Accessible.name: text
@@ -173,7 +176,7 @@ Rectangle {
                 Text {
                     anchors.baseline: parent.children[0].baseline
                     color: Theme.dimForeground
-                    font.family: Theme.fontFamily
+                    font.family: Theme.valueFamily
                     font.pixelSize: Theme.libraryRowSentenceSize
                     text: root.details.seedsCaption ?? ""
                     textFormat: Text.PlainText
@@ -183,7 +186,7 @@ Rectangle {
             Text {
                 Layout.fillWidth: true
                 color: Theme.foreground
-                font.family: Theme.fontFamily
+                font.family: Theme.valueFamily
                 font.pixelSize: Theme.libraryRowSentenceSize
                 Accessible.name: text
                 Accessible.role: Accessible.StaticText
@@ -208,7 +211,7 @@ Rectangle {
             Text {
                 Layout.fillWidth: true
                 color: Theme.foreground
-                font.family: Theme.fontFamily
+                font.family: Theme.valueFamily
                 font.pixelSize: Theme.libraryRowSentenceSize
                 text: qsTr(
                           "%1 gives a link to a .torrent, not a magnet, so its info hash is unknown until it is fetched. add… asks %2 to fetch it through %1, the add sheet reads it, and if it is a torrent already in your library it says so there.").arg(
@@ -234,7 +237,7 @@ Rectangle {
                         Layout.fillWidth: true
                         color: copy.modelData.naming ? Theme.brightForeground : Theme.foreground
                         elide: Text.ElideRight
-                        font.family: Theme.fontFamily
+                        font.family: Theme.valueFamily
                         font.pixelSize: Theme.libraryRowSentenceSize
                         text: qsTr("%1 · %2").arg(copy.modelData.plugin).arg(copy.modelData.name)
                         textFormat: Text.PlainText
@@ -243,7 +246,7 @@ Rectangle {
                     Text {
                         Layout.fillWidth: true
                         color: Theme.dimForeground
-                        font.family: Theme.fontFamily
+                        font.family: Theme.valueFamily
                         font.pixelSize: Theme.searchNoteSize
                         text: {
                             const trackers = copy.modelData.trackers === 1 ? qsTr("1 tracker") :
@@ -278,7 +281,7 @@ Rectangle {
                     Layout.fillWidth: true
                     color: Theme.foreground
                     elide: Text.ElideMiddle
-                    font.family: Theme.fontFamily
+                    font.family: Theme.valueFamily
                     font.pixelSize: Theme.searchNoteSize
                     text: modelData.from.length > 0 ? qsTr("%1 · from %2").arg(modelData.url).arg(
                                                           modelData.from) : modelData.url
@@ -289,7 +292,7 @@ Rectangle {
             Text {
                 Layout.fillWidth: true
                 color: Theme.dimForeground
-                font.family: Theme.fontFamily
+                font.family: Theme.valueFamily
                 font.pixelSize: Theme.searchNoteSize
                 text: qsTr(
                           "A copy whose tracker your library knows as private is never folded and never gets another's trackers: it keeps its own row.")
@@ -319,7 +322,7 @@ Rectangle {
                         Layout.fillWidth: index % 2 === 1
                         color: index % 2 === 0 ? Theme.dimForeground : Theme.foreground
                         elide: Text.ElideRight
-                        font.family: Theme.fontFamily
+                        font.family: Theme.valueFamily
                         font.pixelSize: Theme.libraryRowSentenceSize
                         text: modelData
                         textFormat: Text.PlainText

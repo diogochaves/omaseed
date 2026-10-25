@@ -1749,12 +1749,12 @@ Item {
                     readonly property bool onTick: pointer.containsMouse && pointer.mouseX < root.tickWidth
 
                     color: row.isSelected || tick.onTick ? band.ink.accent : band.ink.foreground
-                    font.family: Theme.fontFamily
+                    font.family: Theme.valueFamily
                     font.pixelSize: Theme.font.small
                     height: parent.height
                     horizontalAlignment: Text.AlignHCenter
                     objectName: "tick_" + row.index
-                    text: row.isSelected ? "■" : "□"
+                    text: row.isSelected ? Glyphs.picked : Glyphs.unpicked
                     verticalAlignment: Text.AlignVCenter
                     visible: (row.isSelected || pointer.containsMouse) && !row.editing
                     width: root.tickWidth
@@ -1788,8 +1788,11 @@ Item {
                         anchors.verticalCenter: parent.verticalCenter
                         color: band.textColor
                         elide: Text.ElideRight
-                        font.family: Theme.fontFamily
+                        // Board 46 `.tbl td.nm2`: the skin's name voice.
+                        font.family: Theme.labelFamily
+                        font.letterSpacing: Theme.font.body * Theme.nameTrack
                         font.pixelSize: Theme.font.body
+                        font.weight: Theme.nameWeight
                         objectName: "name_" + row.index
                         text: row.name
                         visible: !row.editing
@@ -1803,7 +1806,7 @@ Item {
                         anchors.leftMargin: Theme.space(8)
                         anchors.verticalCenter: parent.verticalCenter
                         color: band.ink.dimForeground
-                        font.family: Theme.fontFamily
+                        font.family: Theme.valueFamily
                         font.pixelSize: Theme.font.small
                         objectName: "category_" + row.index
                         text: row.category
@@ -1819,7 +1822,7 @@ Item {
                         anchors.leftMargin: Theme.space(8)
                         anchors.verticalCenter: parent.verticalCenter
                         color: band.ink.magenta
-                        font.family: Theme.fontFamily
+                        font.family: Theme.valueFamily
                         font.pixelSize: Theme.font.small
                         objectName: "private_" + row.index
                         text: qsTr("private")
@@ -1832,7 +1835,7 @@ Item {
 
                     color: band.textColor
                     elide: Text.ElideRight
-                    font.family: Theme.fontFamily
+                    font.family: Theme.valueFamily
                     font.features: ({
                             "tnum": 1
                         })
@@ -1883,7 +1886,7 @@ Item {
                         anchors.rightMargin: Theme.space(8)
                         anchors.verticalCenter: parent.verticalCenter
                         color: band.ink.dimForeground
-                        font.family: Theme.fontFamily
+                        font.family: Theme.valueFamily
                         font.features: ({
                                 "tnum": 1
                             })
@@ -1938,7 +1941,7 @@ Item {
                                                                                  : row.errorStopped ? row.stateColor
                                                                                                     : band.textColor
                         elide: Text.ElideRight
-                        font.family: Theme.fontFamily
+                        font.family: Theme.valueFamily
                         font.pixelSize: Theme.font.body
                         objectName: "status_" + row.index
                         text: row.mark !== null ? row.mark.text
@@ -1951,7 +1954,7 @@ Item {
 
                     color: band.textColor
                     elide: Text.ElideRight
-                    font.family: Theme.fontFamily
+                    font.family: Theme.valueFamily
                     font.features: ({
                             "tnum": 1
                         })
@@ -1973,7 +1976,7 @@ Item {
 
                     color: band.textColor
                     elide: Text.ElideRight
-                    font.family: Theme.fontFamily
+                    font.family: Theme.valueFamily
                     font.features: ({
                             "tnum": 1
                         })
@@ -1995,7 +1998,7 @@ Item {
 
                     color: band.textColor
                     elide: Text.ElideRight
-                    font.family: Theme.fontFamily
+                    font.family: Theme.valueFamily
                     font.features: ({
                             "tnum": 1
                         })
@@ -2017,7 +2020,7 @@ Item {
 
                     color: band.textColor
                     elide: Text.ElideRight
-                    font.family: Theme.fontFamily
+                    font.family: Theme.valueFamily
                     font.features: ({
                             "tnum": 1
                         })
@@ -2074,7 +2077,7 @@ Item {
                         // Board 42 M3: a save path is cut from the left, so the folder that
                         // differs stays in sight.
                         elide: textCell.modelData.key === "savePath" ? Text.ElideLeft : Text.ElideRight
-                        font.family: Theme.fontFamily
+                        font.family: Theme.valueFamily
                         font.features: ({
                                 "tnum": 1
                             })
@@ -2355,7 +2358,7 @@ Item {
                 anchors.rightMargin: Theme.space(6)
                 clip: true
                 color: Theme.on.idle.brightForeground
-                font.family: Theme.fontFamily
+                font.family: Theme.valueFamily
                 font.pixelSize: Theme.font.body
                 selectByMouse: true
                 selectedTextColor: Theme.on.highlight.brightForeground

@@ -140,7 +140,7 @@ Rectangle {
         anchors.leftMargin: Theme.space(12)
         anchors.top: column.top
         color: root.kindColor
-        font.family: Theme.fontFamily
+        font.family: Theme.valueFamily
         font.pixelSize: Theme.font.body
         text: root.missingFiles || root.failure ? Glyphs.statusErrored : Glyphs.close
     }
@@ -157,7 +157,9 @@ Rectangle {
 
         Text {
             color: root.ink.brightForeground
-            font.family: Theme.fontFamily
+            // Board 46 `.blk b`: the label family, the name's tracking.
+            font.family: Theme.labelFamily
+            font.letterSpacing: Theme.font.body * Theme.nameTrack
             font.pixelSize: Theme.font.body
             font.weight: Font.Medium
             objectName: "errorHeadline"
@@ -171,7 +173,7 @@ Rectangle {
             Accessible.name: text
             Accessible.role: Accessible.StaticText
             color: root.ink.foreground
-            font.family: Theme.fontFamily
+            font.family: Theme.valueFamily
             font.pixelSize: Theme.font.small
             objectName: "errorDetail"
             text: root.problem.detail || ""
@@ -186,7 +188,7 @@ Rectangle {
             Accessible.name: text
             Accessible.role: Accessible.StaticText
             color: root.ink.foreground
-            font.family: Theme.fontFamily
+            font.family: Theme.valueFamily
             font.pixelSize: Theme.font.small
             objectName: "errorAdvice"
             text: root.partialText.length > 0 ? root.partialText : root.problem.advice || ""
@@ -200,7 +202,7 @@ Rectangle {
             Accessible.name: text
             Accessible.role: Accessible.StaticText
             color: root.ink.dimForeground
-            font.family: Theme.fontFamily
+            font.family: Theme.valueFamily
             font.pixelSize: Theme.font.small
             objectName: "errorFolder"
             text: root.folderText
@@ -214,7 +216,7 @@ Rectangle {
             Accessible.name: text
             Accessible.role: Accessible.StaticText
             color: root.ink.dimForeground
-            font.family: Theme.fontFamily
+            font.family: Theme.valueFamily
             font.pixelSize: Theme.font.small
             objectName: "errorMeta"
             text: root.metaText

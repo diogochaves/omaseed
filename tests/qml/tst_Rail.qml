@@ -601,7 +601,12 @@ TestCase {
         // At the rail's bottom, whatever the scroll.
         compare(block.y + block.height, rail.height);
         compare(rail._rowMap[rail.serversBase].item.pinned, true);
-        compare(findChild(rail, "serversHeading").label, "servers · " + Theme.numeral(2));
+        // With kana, the head is in two parts: the word, then the count at the right.
+        const heading = findChild(rail, "serversHeading");
+        compare(heading.label, Theme.labelKana ? "servers" : "servers · " + Theme.numeral(2));
+        const count = findChild(heading, "railGroupCount");
+        compare(count.visible, Theme.labelKana);
+        compare(count.text, Theme.numeral(2));
         // #78: a screen reader hears "servers"; the count goes in the description.
         const header = findChild(rail, "serversHeading").header;
         compare(header.Accessible.name, "servers");

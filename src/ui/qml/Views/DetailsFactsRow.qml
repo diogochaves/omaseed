@@ -77,7 +77,7 @@ Rectangle {
 
             Layout.fillWidth: !root.hasTail
             color: root.valueColor
-            font.family: Theme.fontFamily
+            font.family: Theme.valueFamily
             font.pixelSize: Theme.font.small
             objectName: "factsValue"
             text: valueText.split ? valueText.value.slice(0, valueText.middle) + "\n"
@@ -97,7 +97,7 @@ Rectangle {
             Layout.alignment: Qt.AlignTop
             Layout.fillWidth: true
             color: root.ink.dimForeground
-            font.family: Theme.fontFamily
+            font.family: Theme.valueFamily
             font.pixelSize: Theme.font.small
             objectName: "factsTail"
             text: "· " + (root.entry.tail || "")

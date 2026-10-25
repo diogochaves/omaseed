@@ -502,8 +502,11 @@ Item {
                                         : menuRow.ink.foreground
                                 elide: Text.ElideRight
                                 objectName: "menuRowText"
+                                // Board 46 `.mi`: the skin's control voice, at its size.
+                                size: Theme.token("label", "controlSize", "body")
                                 text: menuRow.modelData.text !== undefined
                                       ? menuRow.modelData.text : ""
+                                voice: "control"
                             }
 
                             Glyph {
