@@ -80,6 +80,20 @@ TestCase {
         verify(!findChild(row, "tableRowCursor").visible);
     }
 
+    // #201 F16: in a list that hasn't the keys the cursor keeps its fill, not its edge.
+    function test_a_cursor_without_the_keys_keeps_its_fill_alone() {
+        const row = createTemporaryObject(rowComponent, testCase, {
+                                              "hasCursor": true,
+                                              "keysHere": false
+                                          });
+        fuzzyCompare(row.color.a, Theme.on.cursor.fill.a, 0.01);
+        compare(row.border.width, 0);
+        verify(!findChild(row, "tableRowCursor").visible);
+        row.keysHere = true;
+        compare(row.border.width, Theme.cursorMarked ? 0 : Theme.hairWidth);
+        verify(findChild(row, "tableRowCursor").visible);
+    }
+
     function test_selected_and_cursor_together_use_the_24_percent_fill() {
         const row = createTemporaryObject(rowComponent, testCase, {
                                               "selected": true,

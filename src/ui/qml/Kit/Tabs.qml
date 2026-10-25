@@ -13,6 +13,12 @@ Item {
 
     property var model: []
     property int currentIndex: 0
+    /// #201 F16: a strip that heads one of the window's columns (the details pane's) says
+    /// with its current tab's line whether that column has the keys: the lit line (2 px of
+    /// the accent) while it has them (`keysHere`), a dim hairline while another column does.
+    /// Off (Settings' strips), the line is the skin's.
+    property bool keysShown: false
+    property bool keysHere: true
 
     /// The wheel over the strip moves the current tab, a notch a tab, as a click would
     /// (Settings' folded sections, which clip at the right edge and only slide to keep the
@@ -153,9 +159,12 @@ Item {
                     anchors.bottom: parent.bottom
                     anchors.left: parent.left
                     anchors.right: parent.right
-                    // Board 46 `.tab.on`: the skin's underline (Console's lit line).
-                    color: Theme.tabLineColor
-                    height: Theme.tabLineWidth
+                    // Board 46 `.tab.on`: the skin's underline (Console's lit line); with
+                    // keysShown, lit while the keys are here and dim while they aren't (F16).
+                    color: !root.keysShown ? Theme.tabLineColor
+                                           : root.keysHere ? Theme.litColor : Theme.fill(Theme.borderHover)
+                    height: !root.keysShown ? Theme.tabLineWidth
+                                            : root.keysHere ? Theme.litWidth : Theme.hairWidth
                     objectName: "tabLine"
                     visible: tab.current
                 }

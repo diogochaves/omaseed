@@ -103,7 +103,9 @@ Item {
     // The ground: the window's, the pointer's, the cursor's, selected (C30), as a table row's;
     // the cursor's hairline where the skin doesn't mark the cursor (board 46 `.row.sel`).
     Rectangle {
-        readonly property bool edged: row.isCursor && !row.isSelected && !Theme.cursorMarked
+        // #201 F16: the edge only while the list has the keys; the fill stays.
+        readonly property bool edged: row.isCursor && row.table.keysHere && !row.isSelected
+                                      && !Theme.cursorMarked
 
         anchors.fill: parent
         border.color: edged ? Theme.fill(Theme.borderHover) : "transparent"
@@ -134,7 +136,7 @@ Item {
         anchors.fill: parent
         color: Theme.accent
         objectName: "libraryRowCursor_" + row.index
-        visible: row.isCursor
+        visible: row.isCursor && row.table.keysHere
     }
 
     Rectangle {

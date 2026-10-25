@@ -37,6 +37,10 @@ Item {
     readonly property int tabWebSeeds: 5
     /// `i` in Main: the pane folds away entirely.
     property bool collapsed: false
+    /// #201 F16: Main tells its columns apart (h / l move the keys across them): the current
+    /// tab's line is lit while this pane has the keys (`keysHere`) and dim while it hasn't.
+    property bool keysShown: false
+    property bool keysHere: false
 
     /// The pane's own left border. Inside the main window `SplitLayout` already draws the
     /// divider between the table and the pane, so Main turns this off to avoid a 2 px rule.
@@ -1209,6 +1213,8 @@ Item {
         anchors.right: parent.right
         anchors.top: root.band ? bandRule.bottom : hero.bottom
         currentIndex: root.currentTab
+        keysHere: root.keysHere
+        keysShown: root.keysShown
         objectName: "detailsTabs"
         // activateTab() keeps currentIndex in step. Web seeds come and go with the torrent's
         // own; the tab is last, so the other tabs keep their indexes.

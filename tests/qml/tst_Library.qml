@@ -267,6 +267,50 @@ TestCase {
                                           cover.mapToItem(view.libraryShelves, 4, 4).y), 0);
     }
 
+    // #201 F16: h / l move the keys across rail, list and details; the list's cursor keeps its
+    // fill but shows its edge only while the list has them, and the details' tab line is lit
+    // only while the pane has them. The same in rows, table and shelves.
+    function test_h_and_l_show_where_the_keys_are() {
+        const tabLine = () => findChild(findChild(findChild(view.details, "detailsTabs"),
+                                                  "tab_" + view.details.currentTab), "tabLine");
+        const edges = {
+            "rows": () => findChild(testCase.rowItem(view.table.cursorIndex),
+                                    "libraryRowCursor_" + view.table.cursorIndex).visible,
+            "table": () => findChild(findChild(view.table, "row_" + view.table.cursorIndex),
+                                     "tableRowCursor").visible,
+            "overview": () => Qt.colorEqual(findChild(findChild(view.libraryShelves,
+                                                                "cover_" + view.table.cursorIndex),
+                                                      "coverPlate").edgeColor, Theme.fill(Theme.borderHover))
+        };
+        for (const display of ["rows", "table", "overview"]) {
+            App.setDisplay(display);
+            view.table.clearSelection();
+            view.table.moveCursorTo(1);
+            view.table.forceActiveFocus();
+            waitForRendering(view);
+            verify(view.table.keysHere, display);
+            verify(edges[display](), display + ": the cursor had no edge with the keys");
+            compare(tabLine().height, Theme.hairWidth);
+
+            keyClick("l");
+            compare(view.focusArea, "details");
+            verify(!view.table.keysHere);
+            verify(!edges[display](), display + ": the cursor kept its edge without the keys");
+            compare(tabLine().height, Theme.litWidth);
+            compare(tabLine().color, Theme.litColor);
+
+            keyClick("h");
+            compare(view.focusArea, "table");
+            verify(edges[display](), display + ": h from details left no sign on the list");
+            verify(!Qt.colorEqual(tabLine().color, Theme.litColor));
+
+            keyClick("h");
+            compare(view.focusArea, "rail");
+            verify(!edges[display](), display + ": the rail has the keys, not the list");
+            keyClick("l");
+        }
+    }
+
     // H4: remembered per scope, folders included; a scope without its own shows the
     // library's.
     function test_the_display_is_remembered_per_scope() {

@@ -28,6 +28,9 @@ Rectangle {
     default property alias content: cells.data
     property bool selected: false
     property bool hasCursor: false
+    /// #201 F16: the list this row is in has the keys. Without them the cursor keeps its fill
+    /// and drops its edge (the hairline, or the skin's mark), so h / l show where they went.
+    property bool keysHere: true
     property bool hovered: false
 
     /// `modifiers` is the click's Qt.KeyboardModifiers, for a list that selects on ctrl / shift.
@@ -36,6 +39,8 @@ Rectangle {
     signal doubleClicked
 
     readonly property bool both: root.selected && root.hasCursor
+    /// The cursor's hairline, where the skin doesn't mark the cursor and the keys are here.
+    readonly property bool _edged: root.hasCursor && root.keysHere && !root.both && !Theme.cursorMarked
     /// The text roles on this row's ground (C30 F7).
     readonly property Ink ink: Ink {
         ground: Theme.rowGround(root.selected, root.hasCursor, root.hovered, false)
@@ -49,9 +54,8 @@ Rectangle {
     Accessible.onPressAction: if (root.enabled)
                                   root.clicked(Qt.NoModifier)
 
-    border.color: root.hasCursor && !root.both && !Theme.cursorMarked ? Theme.fill(Theme.borderHover)
-                                                                       : "transparent"
-    border.width: root.hasCursor && !root.both && !Theme.cursorMarked ? Theme.hairWidth : 0
+    border.color: root._edged ? Theme.fill(Theme.borderHover) : "transparent"
+    border.width: root._edged ? Theme.hairWidth : 0
     color: root.ink.ground.fill
     height: Theme.rowHeight
     implicitHeight: Theme.rowHeight
@@ -81,7 +85,7 @@ Rectangle {
         anchors.fill: parent
         color: Theme.accent
         objectName: "tableRowCursor"
-        visible: root.hasCursor
+        visible: root.hasCursor && root.keysHere
     }
 
     MouseArea {

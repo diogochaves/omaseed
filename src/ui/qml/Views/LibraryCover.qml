@@ -79,8 +79,10 @@ Item {
         // says (`.card.needs`).
         Plate {
             anchors.fill: parent
-            edgeColor: cover.isSelected || cover.needsEdge ? Theme.accent : cover.isCursor ? Theme.fill(Theme.borderHover)
-                                                                                          : Theme.fill(Theme.hairlineAlpha)
+            // #201 F16: the cursor's edge only while the list has the keys.
+            edgeColor: cover.isSelected || cover.needsEdge ? Theme.accent
+                                                          : cover.isCursor && cover.table.keysHere ? Theme.fill(Theme.borderHover)
+                                                                                                   : Theme.fill(Theme.hairlineAlpha)
             edgeWidth: cover.isSelected || cover.needsEdge ? Theme.coverSelectedBorder : Theme.hairWidth
             fill: cover.ink.ground === Theme.on.window ? Theme.fill(Theme.fillIdle) : cover.ink.ground.fill
             key: true

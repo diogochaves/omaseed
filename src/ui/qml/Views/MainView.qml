@@ -2303,6 +2303,8 @@ Item {
                 anchors.rightMargin: Theme.space(16)
                 anchors.top: parent.top
                 anchors.topMargin: Theme.space(12)
+                // #201 F16: the cursor's edge only while the list has the keys (h / l).
+                keysHere: root.focusArea !== "rail" && root.focusArea !== "details"
                 // Board 42 J1: the job's step for each of its torrents.
                 showMoveColumn: root.moveShowingJob
                 moveRevision: App.move.revision
@@ -2494,6 +2496,9 @@ Item {
             // docs/17 M10: `i`, the divider and the strip fold it, all through the split.
             collapsed: split.folded
             details: App.details
+            // #201 F16: the tab's line says whether h / l left the keys here.
+            keysHere: root.focusArea === "details"
+            keysShown: true
             // Keys are taught on demand in the window (DECISIONS C24 H10: menus, tooltips,
             // the palette, `?`), so the pane draws no hint row inside it.
             showHints: false

@@ -48,6 +48,26 @@ TestCase {
         compare(tabs.implicitHeight, Math.round(Theme.font.body * 2.2));
     }
 
+    // #201 F16: a strip that heads a column says whether the column has the keys: lit with
+    // them, a dim hairline without; Settings' strips keep the skin's line.
+    function test_a_column_strip_lights_while_it_has_the_keys() {
+        const tabs = createTemporaryObject(tabsComponent, testCase, {
+                                               "model": testCase.sampleModel,
+                                               "currentIndex": 1,
+                                               "keysShown": true,
+                                               "keysHere": false
+                                           });
+        const line = findChild(findChild(tabs, "tab_1"), "tabLine");
+        compare(line.height, Theme.hairWidth);
+        verify(Qt.colorEqual(line.color, Theme.fill(Theme.borderHover)));
+        tabs.keysHere = true;
+        compare(line.height, Theme.litWidth);
+        compare(line.color, Theme.litColor);
+        tabs.keysShown = false;
+        compare(line.height, Theme.tabLineWidth);
+        compare(line.color, Theme.tabLineColor);
+    }
+
     // #171: the current tab's underline is the skin's: Omarchy's 1 px in the bright
     // foreground, Console's lit line (board 46 `.tab.on`: 2 px of the accent).
     function test_the_current_tab_is_underlined_by_the_skins_line() {

@@ -444,6 +444,10 @@ Item {
 
     // ---- cursor, selection, rename ------------------------------------------------------
     property int cursorIndex: 0
+    /// #201 F16: the list has the keys. While the rail or the details pane has them, the
+    /// cursor row keeps its fill (the pane still follows it) and drops its edge: the hairline,
+    /// or the skin's mark. The same in every face: table, rows and shelves.
+    property bool keysHere: true
     readonly property string cursorHash: internal.cursorHash
     readonly property alias selectedCount: internal.selectedCount
     readonly property bool renaming: internal.renameIndex >= 0
@@ -1732,6 +1736,7 @@ Item {
                 Accessible.ignored: true
                 anchors.fill: parent
                 hasCursor: row.isCursor
+                keysHere: root.keysHere
                 // The hover fill of `.tbl .r:hover`. `TableRow`'s own MouseArea never sees these
                 // events (the delegate's one is on top), so the hover state comes from here; it
                 // is a ground like the others, and every cell's words take `band.ink`
