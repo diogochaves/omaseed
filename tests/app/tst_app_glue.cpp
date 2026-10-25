@@ -652,8 +652,10 @@ void TestAppGlue::aSwitchReadsConnectingNeverDown()
     QCOMPARE(field(one, ServerListModel::StateRole), QStringLiteral("live"));
 
     // F5: a server added beside it is counted at once, before omaseed has been on it.
-    const QString two = app.addServer(fields(QStringLiteral("two"), second.serverPort()), QString());
-    QTRY_COMPARE_WITH_TIMEOUT(field(two, ServerListModel::CountTextRole), QStringLiteral("1"), 5000);
+    const QString two =
+        app.addServer(fields(QStringLiteral("two"), second.serverPort()), QString());
+    QTRY_COMPARE_WITH_TIMEOUT(
+        field(two, ServerListModel::CountTextRole), QStringLiteral("1"), 5000);
     QCOMPARE(field(two, ServerListModel::StateRole), QStringLiteral("seen"));
 
     // F4: every state the row goes through on a switch; "down" is never one of them.
@@ -673,7 +675,8 @@ void TestAppGlue::aSwitchReadsConnectingNeverDown()
     const QString dead = app.addServer(fields(QStringLiteral("dead"), deadPort), QString());
     QVERIFY(app.switchServer(dead));
     QCOMPARE(field(dead, ServerListModel::StateRole), QStringLiteral("connecting"));
-    QTRY_COMPARE_WITH_TIMEOUT(field(dead, ServerListModel::StateRole), QStringLiteral("down"), 15000);
+    QTRY_COMPARE_WITH_TIMEOUT(
+        field(dead, ServerListModel::StateRole), QStringLiteral("down"), 15000);
     QVERIFY(!app.serverConnecting());
     app.engine()->stop();
 }
