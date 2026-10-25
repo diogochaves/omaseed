@@ -86,6 +86,7 @@ scripts/dev/search-plugins.py make DIR [--slow S] # four invented nova3 search p
 scripts/dev/create-walk.sh [OUT] | --interactive  # create a torrent (#146): + add ▾, public (strip, seeding, the .torrent read back), the band, private (saved, passkey only as dots), the round trip both ways, errors, cancel
 scripts/dev/move-walk.sh [OUT] | --interactive    # folder and selection moves, queue, places, partial pack, move back, recheck (~12 min; OMASEED_MOVE_WALK_FROM=selection|sheet|history|big|music|remote)
 omabox check run [--approve] --base .local/visual --plugin plugin -- scripts/dev/visual-check.sh  # the walks' screens against a baseline: same, or what changed
+OMASEED_SKIN=console omabox check run [--approve] --keep fonts --base .local/visual-console --plugin plugin -- scripts/dev/visual-check.sh  # the same in the Console skin, its own baseline
 scripts/dev/manual-box.sh [--headless] | down          # throwaway desktop for manual tests: omaseed installed, two qBittorrents (public :8090, private :8091)
 scripts/dev/move-library.sh [-b BOX] [--server S]  # the move test library in a box's qBittorrent: 109 torrents (4 partial packs), /tmp/fast, a clash, a read-only dest
 scripts/dev/app-box.sh up [-b NAME] [--build DIR] [--handlers] [--qbt]  # agents: build/omaseed in a box on :8081 (--qbt: the box's own qBittorrent), swarm .torrents in ~/Downloads

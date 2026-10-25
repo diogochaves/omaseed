@@ -52,9 +52,13 @@ follows. The commands themselves are listed in `CLAUDE.md`; `README.md` says how
 
 4. **Visual check** (`omabox check run … -- scripts/dev/visual-check.sh`). The screens the walks
    reach (library, details, menus, palette, help, the add sheet, the rows display and the shelves,
-   every Settings page, the bar widget) compared with a baseline: "same", or which region changed and which elements moved.
+   every Settings page, the bar widget, and last a torrent that needs you, the pieces, the
+   trackers, picked rows, a refused action's strip and two servers) compared with a baseline:
+   "same", or which region changed and which elements moved.
    The baseline is per machine and GPU, in `.local/visual` (not committed): make it once with
-   `--approve` (three runs, about 6 minutes); a check takes about 90 s.
+   `--approve` (three runs, about 8 minutes); a check takes about 3 minutes. Each skin has its
+   own pass and baseline: `OMASEED_SKIN=console … --keep fonts --base .local/visual-console`
+   (DECISIONS C31).
 5. **A person's pass** (`docs/manual-tests/*.md`). What tests can't judge: whether it reads well,
    looks right and feels right. Each plan names its setup, its steps and what each should show.
    `scripts/dev/manual-box.sh` makes a throwaway desktop with omaseed built from the checkout and
