@@ -22,6 +22,18 @@ Item {
     height: Theme.libraryGroupHeadHeight
     implicitHeight: Theme.libraryGroupHeadHeight
 
+    // Board 46 `.gh::before`, where the skin draws it: a short bar before the words, the hair,
+    // the accent for needs you.
+    Rectangle {
+        anchors.verticalCenter: words.verticalCenter
+        color: root.needsYou ? Theme.accent : Theme.hairColor
+        height: Theme.libraryGroupHeadBarHeight
+        objectName: "groupBar"
+        visible: Theme.libraryGroupHeadBar > 0
+        width: Theme.libraryGroupHeadBar
+        x: Theme.libraryGroupHeadBarInset
+    }
+
     Row {
         id: words
 

@@ -31,6 +31,8 @@ Item {
     readonly property string stateRole: cover.filtered.data(cover.at, TorrentModel.StateColorRoleRole) ?? "stateStopped"
     readonly property bool needsYou: (cover.filtered.data(cover.at, TorrentFilterModel.QuestionRole) ?? 0)
                                      === TorrentFilterModel.NeedsYou
+    /// It needs you and the skin marks that with the accent edge (board 46 `.card.needs`).
+    readonly property bool needsEdge: cover.needsYou && Theme.coverNeedsEdge
 
     readonly property bool isCursor: cover.coverRow === cover.table.cursorIndex
     readonly property bool isSelected: cover.table.selectionRevision >= 0 && cover.table.isRowSelected(
@@ -73,12 +75,13 @@ Item {
         width: parent.width
 
         // The art's ground and edge (the skin's Plate face; Console's is a key plate, board 46
-        // `.card`): the accent's lit edge when selected.
+        // `.card`): the accent's lit edge when selected, and when it needs you where the skin
+        // says (`.card.needs`).
         Plate {
             anchors.fill: parent
-            edgeColor: cover.isSelected ? Theme.accent : cover.isCursor ? Theme.fill(Theme.borderHover)
-                                                                         : Theme.fill(Theme.hairlineAlpha)
-            edgeWidth: cover.isSelected ? Theme.coverSelectedBorder : Theme.hairWidth
+            edgeColor: cover.isSelected || cover.needsEdge ? Theme.accent : cover.isCursor ? Theme.fill(Theme.borderHover)
+                                                                                          : Theme.fill(Theme.hairlineAlpha)
+            edgeWidth: cover.isSelected || cover.needsEdge ? Theme.coverSelectedBorder : Theme.hairWidth
             fill: cover.ink.ground === Theme.on.window ? Theme.fill(Theme.fillIdle) : cover.ink.ground.fill
             key: true
             objectName: "coverPlate"
@@ -150,7 +153,7 @@ Item {
         id: factText
 
         anchors.top: nameText.bottom
-        color: cover.needsYou ? Theme.red : Theme.dimForeground
+        color: cover.needsEdge ? Theme.accent : cover.needsYou ? Theme.red : Theme.dimForeground
         elide: Text.ElideRight
         font.family: Theme.valueFamily
         font.pixelSize: Theme.coverFactSize

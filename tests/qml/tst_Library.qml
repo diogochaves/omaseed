@@ -113,11 +113,23 @@ TestCase {
         const head = findChild(view.libraryRows, "groupTitle");
         verify(head !== null);
         compare(head.text, groups[0].title);
+        // #171: the bar before the words (board 46 `.gh::before`) where the skin draws one,
+        // the accent for needs you.
+        const bar = findChild(view.libraryRows, "groupBar");
+        compare(bar.visible, Theme.libraryGroupHeadBar > 0);
+        compare(bar.color, groups[0].question === TorrentFilterModel.NeedsYou ? Theme.accent
+                                                                             : Theme.hairColor);
+        if (Theme.skin.name === "console")
+            compare(bar.width, Theme.space(3));
         const row = testCase.rowItem(0);
         verify(row !== null);
         compare(findChild(row, "libraryRowName_0").text, App.filtered.data(App.filtered.index(0, 0),
                                                                              TorrentModel.NameRole));
         verify(findChild(row, "libraryRowFact_0").text.length > 0);
+        // Board 46 `.row .fact b`: Console's fact is a step up the type scale (18 px at 13).
+        compare(findChild(row, "libraryRowFact_0").font.pixelSize, Theme.libraryRowFactSize);
+        compare(Theme.libraryRowFactSize, Theme.skin.name === "console" ? Theme.font.heading
+                                                                        : Theme.font.body);
         verify(findChild(row, "libraryRowSentence_0").text.length > 0);
         App.setDisplay("table");
         compare(App.filtered.groups.length, 0);
@@ -228,6 +240,21 @@ TestCase {
         compare(findChild(cover, "coverName").text, App.filtered.data(App.filtered.index(0, 0),
                                                                        TorrentModel.NameRole));
         verify(findChild(cover, "coverMonogram").text.length > 0);
+        // #171: a cover that needs you takes the accent edge and fact where the skin says
+        // (board 46 `.card.needs`), its fact red otherwise.
+        for (let i = 0; i < App.filtered.count; ++i) {
+            const each = findChild(view.libraryShelves, "cover_" + i);
+            if (each === null || !each.needsYou || each.isSelected)
+                continue;
+            const plate = findChild(each, "coverPlate");
+            compare(each.needsEdge, Theme.coverNeedsEdge);
+            compare(findChild(each, "coverFact").color, Theme.coverNeedsEdge ? Theme.accent : Theme.red);
+            if (Theme.coverNeedsEdge) {
+                compare(plate.edgeColor, Theme.accent);
+                compare(plate.edgeWidth, Theme.coverSelectedBorder);
+            }
+        }
+        compare(Theme.coverNeedsEdge, Theme.skin.name === "console");
         const next = groups[1].first;
         view.table.moveCursorTo(next - 1);
         keyClick(Qt.Key_J);
@@ -319,6 +346,17 @@ TestCase {
         const fix = findChild(testCase.rowItem(0), "libraryRowFix_0");
         verify(fix !== null);
         compare(fix.visible, App.filtered.data(App.filtered.index(0, 0), TorrentFilterModel.RowFixRole).length > 0);
+        // #171: Console's fix is a filled accent tag in the control voice (board 46 `.row
+        // .fix`); Omarchy's its words in an accent outline.
+        const words = findChild(testCase.rowItem(0), "libraryRowFixText_0");
+        compare(fix.border.width, Theme.libraryRowFixTag ? 0 : Theme.hairWidth);
+        compare(words.font.family, Theme.libraryRowFixTag ? Theme.labelFamily : Theme.valueFamily);
+        if (Theme.libraryRowFixTag) {
+            compare(fix.color, Theme.accent);
+            compare(words.color, Theme.background);
+            compare(words.font.pixelSize, Theme.font.caption);
+        }
+        compare(Theme.libraryRowFixTag, Theme.skin.name === "console");
         compare(findChild(testCase.rowItem(0), "libraryRowCaption_0").text, "needs you");
     }
 

@@ -1937,12 +1937,19 @@ Item {
                         anchors.right: parent.right
                         anchors.rightMargin: Theme.space(8)
                         anchors.verticalCenter: parent.verticalCenter
+                        // Board 46 `.verb`, where the skin says: the caption voice in the
+                        // state's colour (the cell's `color: col(t)`).
                         color: row.mark !== null ? row.markColor : row.stuckMove ? band.ink.stateError
-                                                                                 : row.errorStopped ? row.stateColor
-                                                                                                    : band.textColor
+                                                                                 : row.errorStopped
+                                                                                   || Theme.verbCaption ? row.stateColor
+                                                                                                        : band.textColor
                         elide: Text.ElideRight
-                        font.family: Theme.valueFamily
-                        font.pixelSize: Theme.font.body
+                        font.capitalization: Theme.verbCaption && Theme.captionUpper ? Font.AllUppercase
+                                                                                     : Font.MixedCase
+                        font.family: Theme.verbCaption ? Theme.labelFamily : Theme.valueFamily
+                        font.letterSpacing: Theme.verbCaption ? Theme.font.caption * Theme.captionTrack(0) : 0
+                        font.pixelSize: Theme.verbCaption ? Theme.font.caption : Theme.font.body
+                        font.weight: Theme.verbCaption ? Theme.captionWeight(Font.Normal) : Font.Normal
                         objectName: "status_" + row.index
                         text: row.mark !== null ? row.mark.text
                                                 : root.statusWord(row.statusCause.length > 0 ? row.statusCause : row.stateText)

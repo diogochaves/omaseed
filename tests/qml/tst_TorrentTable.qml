@@ -273,6 +273,19 @@ TestCase {
         verify(!findChild(table, "sideways").needed);
     }
 
+    // #171: the status word in the skin's verb voice (board 46 `.verb`: Console's caption
+    // voice in the state's colour), Omarchy's body text otherwise.
+    function test_the_status_word_takes_the_skins_verb_voice() {
+        const word = findChild(table, "status_0");
+        compare(Theme.verbCaption, Theme.skin.name === "console");
+        compare(word.font.family, Theme.verbCaption ? Theme.labelFamily : Theme.valueFamily);
+        compare(word.font.pixelSize, Theme.verbCaption ? Theme.font.caption : Theme.font.body);
+        if (Theme.verbCaption) {
+            compare(word.font.capitalization, Font.AllUppercase);
+            compare(word.color, findChild(table, "statusGlyph_0").color);
+        }
+    }
+
     function test_first_row_shows_the_figure_texts() {
         compare(cellText("name_0"), "archlinux-2026.09.01-x86_64.iso");
         compare(cellText("category_0"), "linux");
