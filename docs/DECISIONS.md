@@ -1739,3 +1739,52 @@ From the mouse pass (#51 D6, #52). What the issue left open:
   accent mark, as the split's grip has. While a column is being moved, the grips are away.
 - The columns palette's "default order" row (and `ctrl+r`) puts back the widths too, and shows
   whenever the order or a width differs.
+
+## C32 — What the v0.5.0 pass asked (board 51, ruled 2026-10-25)
+
+Board [51](51-the-v050-pass.html) D1–D19 (#201's ids), all as recommended except D9, which
+takes c moved to the top. From Diogo's manual pass of v0.5.0 (#201); built into v0.5.0 with
+#201's fixes before the release. D11 (#172, the add sheet's own board) was not drawn.
+
+**This entry supersedes** C24 H8 (the status line turning into the action bar: D17), C24 H3–H4's
+shelves (D12), #167's assumed 4 (ctrl+b the only fold: D9) and 6 (the surface tint gone: D16),
+docs/32 L1 (the log's rail: D5) and Fig. 16's tab keys (D10). It **amends** C24 H2 (the rail
+gets a foot: D1), H6 (the story's order: D15), H9 (the mark's menu head: D14), H15 (the speeds'
+place: D2), docs/31 D5 (D6), C4 D1–D2 and C13's alternative-limits row (D8) and C16 L11 (D19).
+
+- **The mark and its menu.** D1 a: a settings row at the rail's foot, the gear alone when
+  folded. D14 b: the menu grows from the lit mark inside one accent outline (292 px), no head
+  of its own, the version line first, then servers and the rest.
+- **The rail.** D3 a: its edge drags between 160 and 360 px; let go under 120 and it folds;
+  double-click goes back to 214; the width is the window's, not a server's. D9 c, **moved**:
+  the fold toggle is board 51's tab on the rail's edge (‹, shown on hover, tooltip "fold the
+  rail · ctrl+b"), placed at the top, within the title bar's height and centred on it, not
+  halfway down the rail. The rail folds by itself when the list would get narrower than
+  520 px (the open details pane counted) and unfolds when there is room, unless folded or
+  unfolded by hand, which holds until the next hand one (answers F13). D4 a: right-click on a
+  server: on the current one, its alternative speeds, stop all, start all; on another,
+  "switch to it" first; both then edit…, test the connection, open its web UI, copy its
+  address, remove… (asks first). D5 a: on the log the rail holds the four levels (normal,
+  info, warning, critical) ticked with counts, the torrents the lines are about and since
+  when; the title bar's / filter as for torrents; "export log…" in + add's place. Search's
+  rail waits for the pass's section 5. D16 a: a surface tint on the rail only, off · 4 % · 8 %,
+  its rows on C30's nested grounds.
+- **Title bar and status line.** D2 a: the speeds' place is a setting, the title bar by default
+  (a line each); the status line keeps count, free and sync. D6 a: alternative speeds on show
+  as a chip tinted 18 % in the state's colour, each speed against its cap. D8 a: two presets,
+  turtle and burst; turtle stays qBittorrent's alternative set at rest (the schedule keeps
+  meaning turtle), burst is written over it while on and turtle written back after (also when
+  omaseed quits mid-burst); the chip opens a picker. D18 a: the filter field takes the title
+  bar's free room, the title kept, tokens as chips, the count and "× esc".
+- **Acting on a selection (D17).** 1 a: a floating action bar over the list, bottom middle, from
+  the torrent menu's groups (F15), icons and words, category › and more › opening upward; the
+  outcome strip floats above it. 2 a: at narrow widths the words go before the icons. 3 a: the
+  status line stays on the server's status while a selection is on.
+- **The library.** D12 a: the third display is "space", a size map by folder then torrent,
+  in place of shelves. D13 a: a sort block in the display tool's menu; its word reads
+  "rows · added".
+- **Details.** D15 a: the story's "what happened" newest first.
+- **Settings.** D7 a: a › at each server row's end, the row lit under the pointer. D10 a: tab
+  walks the modal as any form; j/k and enter stay for rows.
+- **Moves.** D19 a: move back carries back the loose files the move carried (the list it kept,
+  #98), under the same tick; a file changed at the target since stays, and is named.
