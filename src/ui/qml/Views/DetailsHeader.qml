@@ -22,6 +22,10 @@ Item {
     /// What a screen reader calls the column when `text` is a glyph (the Peers tab's ↓ and
     /// ↑): words, never the arrow (#78).
     property string accessibleName: root.text
+    /// How wide the column must be to show its whole caption: the lists take the larger of
+    /// this and their own width, so a skin's wider caption voice (upper case, tracked) gets
+    /// the room it needs instead of eliding or running into the next caption.
+    readonly property int fitWidth: Math.ceil(header.captionWidth)
 
     /// A click on the caption: the Files tab sorts by the column.
     signal clicked
