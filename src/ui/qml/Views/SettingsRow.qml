@@ -11,8 +11,9 @@ import Omaseed.Kit
 // The control is the default content, so a row reads like the figure's markup:
 //
 //     SettingsRow {
+//         id: row
 //         glyph: Glyphs.mark; title: "…"; description: "…"
-//         Toggle { checked: … }
+//         Field { block: row.ground; text: … }
 //     }
 //
 // `warning` (docs/32 E1, #55) is a fault in what the row sets, found elsewhere (qBittorrent's
@@ -32,10 +33,13 @@ Rectangle {
     signal clicked
 
     readonly property bool hot: root.hasCursor || mouseArea.containsMouse
-    /// The row's words on its ground, the hover fill while it is hot, eased with the fill
-    /// (docs/DECISIONS.md C30 F1, F4).
+    /// The row's ground: the hover fill while it is hot, else the window. Its control lies on
+    /// it, so a control's `block` is this (`block: row.ground`): a Field's, a Chip's or a
+    /// Button's fills then nest over the hover fill (docs/DECISIONS.md C30, #188).
+    readonly property ThemeInk ground: Theme.ground(false, false, root.hot, false)
+    /// The row's words on its ground, eased with the fill (docs/DECISIONS.md C30 F1, F4).
     readonly property Ink ink: Ink {
-        ground: Theme.ground(false, false, root.hot, false)
+        ground: root.ground
     }
     /// docs/15 Q3 A: a row under about 380 px (base 14) has no room for the text beside the
     /// control, and the description broke one word per line; the control moves under the

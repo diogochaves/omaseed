@@ -124,15 +124,15 @@ Sheet {
                 // #91: the box by the lines it holds ("tracker URLs").
                 Accessible.name: root.what.length > 0 ? root.what : root.title
                 Accessible.role: Accessible.EditableText
-                // The lines on the box's 4 % fill, a selection on the selected fill
-                // (docs/DECISIONS.md C30 F1).
+                // The lines on the box's 4 % fill, a selection on the selected fill over it
+                // (docs/DECISIONS.md C30 F1, #188).
                 color: Theme.on.idle.foreground
                 font.family: Theme.fontFamily
                 font.pixelSize: Theme.font.body
                 objectName: "listEditor"
                 selectByMouse: true
-                selectedTextColor: Theme.on.selected.brightForeground
-                selectionColor: Theme.on.selected.fill
+                selectedTextColor: Theme.on.blockSelected.brightForeground
+                selectionColor: Theme.on.blockSelected.fill
                 width: scroller.width - (listBar.needed ? listBar.width + Theme.space(4) : 0)
                 wrapMode: TextEdit.WrapAnywhere
 

@@ -142,6 +142,8 @@ private slots:
     void omarchysSkinPaintsTheGroundsAsBefore();
     void consolesGroundsAreItsOwn();
     void aSkinChangeRepaintsTheGrounds();
+    void nestedFillsLeftOnTheirGroundRead_data();
+    void nestedFillsLeftOnTheirGroundRead();
 };
 
 void TestThemeContrast::theFloorIsWcagAaForNormalText()
@@ -482,6 +484,16 @@ void TestThemeContrast::omarchysSkinPaintsTheGroundsAsBefore()
     expect(on->blockIdle(), t.foreground(), t.fillIdle(), block);
     expect(on->blockHover(), t.foreground(), t.fillHover(), block);
     expect(on->highlight(), t.accent(), Theme::highlightAlpha(), block);
+    // #188: the stronger fills in a block, and every fill over the hover fill, are the same
+    // fills over the ground they lie in.
+    expect(on->blockSelected(), t.foreground(), t.fillSelected(), block);
+    expect(on->blockSelectedCursor(), t.foreground(), t.fillSelectedCursor(), block);
+    expect(on->blockPressed(), t.foreground(), t.fillPressed(), block);
+    const QColor hover = on->hover()->ground();
+    expect(on->hoverIdle(), t.foreground(), t.fillIdle(), hover);
+    expect(on->hoverHover(), t.foreground(), t.fillHover(), hover);
+    expect(on->hoverSelected(), t.foreground(), t.fillSelected(), hover);
+    expect(on->hoverPressed(), t.foreground(), t.fillPressed(), hover);
     expect(on->panel(), t.foreground(), 0, bg);
     expect(on->picked(), t.accent(), Theme::pickedTintAlpha(), bg);
     QCOMPARE(on->panel()->ground(), bg);
@@ -505,6 +517,15 @@ void TestThemeContrast::consolesGroundsAreItsOwn()
     QCOMPARE(t.on()->pressed()->ground(), omarchy.theme().on()->pressed()->ground());
     QCOMPARE(t.on()->idle()->ground(), omarchy.theme().on()->idle()->ground());
     QVERIFY(t.on()->selected()->ground() != omarchy.theme().on()->selected()->ground());
+    // #188: panel2 in the servers block and on the action bar; the pressed and idle fills
+    // nest as Omarchy's do, over Console's grounds.
+    QCOMPARE(t.on()->blockSelected()->ground(), t.lighterBackground());
+    QCOMPARE(t.on()->blockSelectedCursor()->ground(), t.lighterBackground());
+    QCOMPARE(t.on()->hoverHover()->ground(), t.lighterBackground());
+    QCOMPARE(t.on()->hoverSelected()->ground(), t.lighterBackground());
+    QCOMPARE(t.on()->blockPressed()->ground(), omarchy.theme().on()->blockPressed()->ground());
+    QCOMPARE(t.on()->hoverIdle()->ground(),
+             ThemeInk::over(t.foreground(), t.on()->hover()->ground(), t.fillIdle()));
 }
 
 void TestThemeContrast::aSkinChangeRepaintsTheGrounds()
@@ -531,6 +552,29 @@ void TestThemeContrast::aSkinChangeRepaintsTheGrounds()
     QCOMPARE(theme.skin()->reason(), QStringLiteral("unknown skin"));
     QCOMPARE(panel->ground(), theme.background());
     QCOMPARE(themeChanged.count(), 2);
+}
+
+void TestThemeContrast::nestedFillsLeftOnTheirGroundRead_data()
+{
+    addFixtureRows();
+}
+
+/// #188: a Toggle's knob, on, keeps the ticked tint's colours on a hovered settings row,
+/// because the tint over the hover fill still shows it in every skin, theme and fill set at
+/// WCAG 1.4.11's 3:1 (the knob is no text). Off, the track is `hoverIdle`, a ground like the
+/// rest; QbtListSheet's selection, `blockSelected` (under the heavy fill set the plain
+/// selected fill's text read 3.86:1 there).
+void TestThemeContrast::nestedFillsLeftOnTheirGroundRead()
+{
+    QFETCH(QString, skin);
+    QFETCH(QString, name);
+    QFETCH(QByteArray, shell);
+    FixtureTheme fixture(name, shell, skin);
+    const auto *on = fixture.theme().on();
+    const QColor ticked =
+        ThemeInk::over(on->ticked()->fill(), on->hover()->ground(), on->ticked()->alpha());
+    const qreal knobOn = Theme::contrastRatio(on->ticked()->brightForeground(), ticked);
+    QVERIFY2(knobOn >= 3.0, qPrintable(QString::number(knobOn, 'f', 2)));
 }
 
 QTEST_MAIN(TestThemeContrast)

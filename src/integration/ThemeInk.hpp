@@ -141,8 +141,15 @@ private:
 ///   target).
 /// - A fill inside a filled block, over that block's ground: `blockIdle` (fillIdle over
 ///   `idle`: a notice's details, a chip in a block), `blockHover` (fillHover over `idle`: a
-///   picker's row under the pointer or the keyboard), `highlight` (accent at highlightAlpha
-///   over `idle`: the selected text of a rename in place).
+///   picker's row under the pointer or the keyboard), `blockSelected`, `blockSelectedCursor`
+///   and `blockPressed` (fillSelected, fillSelectedCursor and fillPressed over `idle`: the
+///   add sheet's selected rows, the rail's selected server, a button pressed in a notice),
+///   `highlight` (accent at highlightAlpha over `idle`: the selected text of a rename in
+///   place).
+/// - A fill over the hover fill (#188): `hoverIdle`, `hoverHover`, `hoverSelected` and
+///   `hoverPressed` (fillIdle, fillHover, fillSelected and fillPressed over `hover`): a button
+///   on the action bar, whose own ground is the hover fill, and the controls on a hovered
+///   settings row. `Theme.within(block, plain)` (Kit/Theme.qml) picks the nested ground.
 /// - The skin's own (#171, the console skin's design note): `panel` (a plate's ground: a
 ///   sheet, a menu; the window's own in Omarchy's skin) and `picked` (a torrent picked among
 ///   several). A skin may paint any ground but the window its own way, as a recipe of tint,
@@ -165,7 +172,15 @@ class ThemeGrounds : public QObject
     Q_PROPERTY(omaseed::integration::ThemeInk *accentIdle READ accentIdle CONSTANT FINAL)
     Q_PROPERTY(omaseed::integration::ThemeInk *blockIdle READ blockIdle CONSTANT FINAL)
     Q_PROPERTY(omaseed::integration::ThemeInk *blockHover READ blockHover CONSTANT FINAL)
+    Q_PROPERTY(omaseed::integration::ThemeInk *blockSelected READ blockSelected CONSTANT FINAL)
+    Q_PROPERTY(
+        omaseed::integration::ThemeInk *blockSelectedCursor READ blockSelectedCursor CONSTANT FINAL)
+    Q_PROPERTY(omaseed::integration::ThemeInk *blockPressed READ blockPressed CONSTANT FINAL)
     Q_PROPERTY(omaseed::integration::ThemeInk *highlight READ highlight CONSTANT FINAL)
+    Q_PROPERTY(omaseed::integration::ThemeInk *hoverIdle READ hoverIdle CONSTANT FINAL)
+    Q_PROPERTY(omaseed::integration::ThemeInk *hoverHover READ hoverHover CONSTANT FINAL)
+    Q_PROPERTY(omaseed::integration::ThemeInk *hoverSelected READ hoverSelected CONSTANT FINAL)
+    Q_PROPERTY(omaseed::integration::ThemeInk *hoverPressed READ hoverPressed CONSTANT FINAL)
     Q_PROPERTY(omaseed::integration::ThemeInk *panel READ panel CONSTANT FINAL)
     Q_PROPERTY(omaseed::integration::ThemeInk *picked READ picked CONSTANT FINAL)
 
@@ -186,7 +201,14 @@ public:
     ThemeInk *accentIdle() const { return m_accentIdle; }
     ThemeInk *blockIdle() const { return m_blockIdle; }
     ThemeInk *blockHover() const { return m_blockHover; }
+    ThemeInk *blockSelected() const { return m_blockSelected; }
+    ThemeInk *blockSelectedCursor() const { return m_blockSelectedCursor; }
+    ThemeInk *blockPressed() const { return m_blockPressed; }
     ThemeInk *highlight() const { return m_highlight; }
+    ThemeInk *hoverIdle() const { return m_hoverIdle; }
+    ThemeInk *hoverHover() const { return m_hoverHover; }
+    ThemeInk *hoverSelected() const { return m_hoverSelected; }
+    ThemeInk *hoverPressed() const { return m_hoverPressed; }
     ThemeInk *panel() const { return m_panel; }
     ThemeInk *picked() const { return m_picked; }
 
@@ -210,7 +232,14 @@ private:
     ThemeInk *m_accentIdle;
     ThemeInk *m_blockIdle;
     ThemeInk *m_blockHover;
+    ThemeInk *m_blockSelected;
+    ThemeInk *m_blockSelectedCursor;
+    ThemeInk *m_blockPressed;
     ThemeInk *m_highlight;
+    ThemeInk *m_hoverIdle;
+    ThemeInk *m_hoverHover;
+    ThemeInk *m_hoverSelected;
+    ThemeInk *m_hoverPressed;
     ThemeInk *m_panel;
     ThemeInk *m_picked;
 };

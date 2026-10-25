@@ -406,14 +406,17 @@ TestCase {
     function test_nights_and_the_summary_under_days() {
         const modal = openOn(0);
         const summary = testCase.childNamed(modal, "qbtLine-schedule");
-        verify(summary.visible); // what it would do, dimmed while the schedule is off
-        verify(summary.opacity < 1);
+        verify(summary.visible); // what it would do, dim while the schedule is off
+        // Dim words, not a faded line: at 0.6 its words read under C30's floor (#188).
+        verify(summary.off);
+        compare(summary.opacity, 1);
+        tryCompare(testCase.childNamed(summary, "qbtLineText"), "color", Theme.on.idle.dimForeground);
         // While the schedule is off its rows (and the preset) do nothing.
         keyClick(Qt.Key_N);
         compare(App.serverPrefs.values.schedule_from_hour, 8);
         testCase.childNamed(modal, "qbtRow-scheduler_enabled").activate("space");
         compare(App.serverPrefs.values.scheduler_enabled, true);
-        compare(summary.opacity, 1);
+        verify(!summary.off);
         const preset = testCase.childNamed(testCase.childNamed(modal, "qbtRow-schedule_from_hour"),
                                            "presetChip");
         verify(preset.visible);

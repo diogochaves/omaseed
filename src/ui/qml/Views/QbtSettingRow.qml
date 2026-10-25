@@ -351,6 +351,7 @@ SettingsRow {
 
         // docs/16 §5: qBittorrent's own word on whether peers can reach the port.
         Chip {
+            block: row.ground
             objectName: "reachChip"
             text: App.globalState.connectionStatus === "firewalled" ? qsTr("not reachable")
                                                                      : App.globalState.connectionStatus
@@ -365,6 +366,7 @@ SettingsRow {
 
             // #78: named by the row, whose title is a sibling text.
             Accessible.name: row.title
+            block: row.ground
             checked: !!row.values[row.spec.toggle]
             objectName: "rowToggle"
             visible: !!row.spec.toggle
@@ -378,6 +380,7 @@ SettingsRow {
 
         // docs/31 P1: "nights" before From and To, its key drawn faint before it.
         Chip {
+            block: row.ground
             keyText: row.spec.preset ? row.spec.preset.key : ""
             objectName: "presetChip"
             text: row.spec.preset ? row.spec.preset.text : ""
@@ -421,6 +424,7 @@ SettingsRow {
                 Field {
                     id: input
 
+                    block: row.ground
                     /// The text last sent (or shown from the server), so enter and the blur
                     /// that follows it send once.
                     property string lastSent: ""
@@ -466,6 +470,7 @@ SettingsRow {
 
                 required property var modelData
 
+                block: row.ground
                 checkable: true
                 selected: row.values[row.spec.choice.key] === choiceChip.modelData[0]
                 text: choiceChip.modelData[1]
@@ -477,6 +482,7 @@ SettingsRow {
         Button {
             id: pickButton
 
+            block: row.ground
             /// The value it shows, in words; the ▾ after it is drawn only.
             readonly property string valueText: {
                 const pick = row.spec.pick;
@@ -520,6 +526,7 @@ SettingsRow {
         }
 
         Button {
+            block: row.ground
             bordered: true
             objectName: "listButton"
             text: qsTr("edit…")
@@ -529,6 +536,7 @@ SettingsRow {
         }
 
         Button {
+            block: row.ground
             bordered: true
             objectName: "actionButton"
             text: row.spec.button ? row.spec.button.text : ""
@@ -538,6 +546,7 @@ SettingsRow {
         }
 
         Button {
+            block: row.ground
             objectName: "defaultButton"
             text: qsTr("default")
             visible: row.changedDefaults !== null

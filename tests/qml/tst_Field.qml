@@ -68,6 +68,18 @@ TestCase {
         fuzzyCompare(field.color.a, Theme.fill(Theme.fillIdle).a, 0.01);
     }
 
+    // #188: on a hovered settings row (`block: row.ground`) the field's fills nest over the
+    // hover fill, and its words are lifted against that.
+    function test_on_a_hovered_row_its_fills_nest_over_the_hover_fill() {
+        const field = createTemporaryObject(fieldComponent, testCase, {
+                                                "block": Theme.on.hover
+                                            });
+        compare(field.ink.ground, Theme.on.hoverIdle);
+        compare(field.color, Theme.on.hoverIdle.fill);
+        field.hasCursor = true;
+        compare(field.ink.ground, Theme.on.hoverHover);
+    }
+
     function test_escape_clears_and_emits_cleared() {
         const field = createTemporaryObject(fieldComponent, testCase, {
                                                 "text": "fedora 45"

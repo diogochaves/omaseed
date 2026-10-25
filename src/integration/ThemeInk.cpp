@@ -104,30 +104,26 @@ ThemeGrounds::ThemeGrounds(QObject *parent)
     , m_accentIdle(new ThemeInk(QStringLiteral("accentIdle"), this))
     , m_blockIdle(new ThemeInk(QStringLiteral("blockIdle"), this))
     , m_blockHover(new ThemeInk(QStringLiteral("blockHover"), this))
+    , m_blockSelected(new ThemeInk(QStringLiteral("blockSelected"), this))
+    , m_blockSelectedCursor(new ThemeInk(QStringLiteral("blockSelectedCursor"), this))
+    , m_blockPressed(new ThemeInk(QStringLiteral("blockPressed"), this))
     , m_highlight(new ThemeInk(QStringLiteral("highlight"), this))
+    , m_hoverIdle(new ThemeInk(QStringLiteral("hoverIdle"), this))
+    , m_hoverHover(new ThemeInk(QStringLiteral("hoverHover"), this))
+    , m_hoverSelected(new ThemeInk(QStringLiteral("hoverSelected"), this))
+    , m_hoverPressed(new ThemeInk(QStringLiteral("hoverPressed"), this))
     , m_panel(new ThemeInk(QStringLiteral("panel"), this))
     , m_picked(new ThemeInk(QStringLiteral("picked"), this))
 {}
 
 QList<ThemeInk *> ThemeGrounds::all() const
 {
-    return {m_window,
-            m_idle,
-            m_hover,
-            m_cursor,
-            m_selected,
-            m_selectedCursor,
-            m_pressed,
-            m_warning,
-            m_attention,
-            m_danger,
-            m_ticked,
-            m_accentIdle,
-            m_blockIdle,
-            m_blockHover,
-            m_highlight,
-            m_panel,
-            m_picked};
+    return {m_window,        m_idle,           m_hover,         m_cursor,
+            m_selected,      m_selectedCursor, m_pressed,       m_warning,
+            m_attention,     m_danger,         m_ticked,        m_accentIdle,
+            m_blockIdle,     m_blockHover,     m_blockSelected, m_blockSelectedCursor,
+            m_blockPressed,  m_highlight,      m_hoverIdle,     m_hoverHover,
+            m_hoverSelected, m_hoverPressed,   m_panel,         m_picked};
 }
 
 ThemeInk *ThemeGrounds::byName(const QString &name) const

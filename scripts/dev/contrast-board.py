@@ -12,7 +12,10 @@ every ground it is painted on (docs/DECISIONS.md C30 F7).
 --check reads each theme's `grounds` (Theme.on: the window, every fill, every tint) from
 `BIN --theme-roles --skin SKIN`, once per skin in --skins (default omarchy,console: #171, so a
 skin's ground that fails in one theme fails the check), and measures each text role on each ground, plus the key badge's
-background on accent; it prints the failing pairs and exits 1 when there is one. A build from
+background on accent and the fills nested in a block that keep their plain ground's colours
+(#188, NESTED_KEPT); it prints the failing pairs and exits 1 when there is one. The nested
+grounds (blockSelected, hoverPressed, …) are grounds like the rest, so every role is measured
+on them too. A build from
 before C30 prints no grounds: the check then paints its window roles on each fill, as that
 build did, which is board 50's "today".
 
@@ -463,6 +466,24 @@ OLD_GROUNDS = {"window": ("foreground", 0.0), "idle": ("foreground", "fillIdle")
                "highlight": ("accent", 0.35, "fillIdle")}
 
 
+# #188: a fill nested in a block that keeps its plain ground's colours, measured on what is
+# painted there, its fill over the block's ground: (what, role, fill's ground, block, needs).
+NESTED_KEPT = [
+    ("a Toggle's knob, on, on a hovered row", "brightForeground", "ticked", "hover", NON_TEXT),
+]
+
+
+def nested_kept(roles):
+    """[(what, role, ratio, needs)] for NESTED_KEPT, from a build that prints its grounds."""
+    out = []
+    for what, role, fill, block, need in NESTED_KEPT:
+        top, under = roles["grounds"][fill], roles["grounds"][block]
+        g = tuple(round(v) for v in over(parse(top["fill"][:7]), parse(under["ground"]),
+                                         top["alpha"]))
+        out.append((what, role, ratio(parse(top["colors"][role]), g), need))
+    return out
+
+
 def grounds_of(roles):
     """{ground: (opaque ground, {role: colour})}, as the build resolved them, or as a build
     from before C30 painted them (its window roles on every fill)."""
@@ -493,6 +514,11 @@ def check(data):
                 q = ratio(cols[role], g)
                 if q < FLOOR:
                     fails.append((theme, ground, role, q))
+        if "grounds" in roles:
+            for what, role, q, need in nested_kept(roles):
+                pairs += 1
+                if q < need:
+                    fails.append((theme, what, role, q))
         # Kit/KeyBadge: background on a solid accent.
         c = roles["colors"]
         pairs += 1

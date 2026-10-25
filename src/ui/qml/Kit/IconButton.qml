@@ -35,11 +35,11 @@ Rectangle {
     /// The ground under the glyph in each state, as `color` paints it (C30 F1, F4).
     readonly property ThemeInk ground: {
         if (mouseArea.pressed || root.pressed)
-            return Theme.on.pressed;
+            return Theme.within(root.block, Theme.on.pressed);
         if (root.activeFocus || root.hot)
-            return root.block === Theme.on.idle ? Theme.on.blockHover : Theme.on.hover;
+            return Theme.within(root.block, Theme.on.hover);
         if (root.selected)
-            return Theme.on.selected;
+            return Theme.within(root.block, Theme.on.selected);
         return root.bordered && root.block === Theme.on.window ? Theme.on.idle : root.block;
     }
     /// The glyph's colours on that ground, eased with the fill.

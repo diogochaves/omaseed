@@ -1164,10 +1164,13 @@ Item {
     Component {
         id: renameEditor
 
+        // The field's own ground, the idle fill over the window's background as the table's
+        // rename plate paints it, not over the row: the row under it is the cursor's (or
+        // selected), and the name and its highlight are resolved on `idle` (#188).
         Rectangle {
             border.color: Theme.accent
             border.width: Theme.hairWidth
-            color: Theme.on.idle.fill
+            color: Theme.on.idle.ground
 
             // The name on the field's idle fill, its selected part on the 35 % accent
             // highlight over that (docs/DECISIONS.md C30 F1, F5).

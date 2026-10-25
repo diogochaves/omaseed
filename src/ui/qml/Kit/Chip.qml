@@ -15,8 +15,9 @@ Rectangle {
     property bool warn: false
     /// The role `warn` draws in: the warning colour, or the hero's burst green (docs/31 D3).
     property color warnColor: Theme.yellow
-    /// Words after the text in the same colour, a little fainter ("· until 07:00", docs/31
-    /// D5); "" draws none.
+    /// Words after the text in the same colour ("· until 07:00", docs/31 D5); "" draws none.
+    /// D5's "a little fainter" (0.72) read under 4.5:1 on most themes, so C30's floor wins and
+    /// the "·" alone sets them apart (#188).
     property string suffix: ""
     property bool selected: false
     /// #91: the chip is a choice (an option of a few, a switch), so a screen reader hears
@@ -25,7 +26,8 @@ Rectangle {
     property bool hasCursor: false
     /// A switch rather than a label (docs/32 L1's level chips): off, its text reads dim.
     property bool toggle: false
-    /// A key drawn faint before the text (the level chips' `1`–`4`); "" draws none.
+    /// A key drawn dim before the text (the level chips' `1`–`4`); "" draws none. It was the
+    /// dim role at 0.8, under C30's floor on most themes; the dim role alone reads (#188).
     property string keyText: ""
     /// A number drawn dim after the text (a level's lines); "" draws none.
     property string count: ""
@@ -53,13 +55,9 @@ Rectangle {
     readonly property bool hot: root.hasCursor || mouseArea.containsMouse
     /// The ground under the words in each state, as `color` paints it (C30 F1, F4): the
     /// chip's idle fill resting; in a block, its fills sit over the block's.
-    readonly property ThemeInk ground: {
-        if (root.selected)
-            return Theme.on.selected;
-        if (root.block === Theme.on.idle)
-            return root.hot ? Theme.on.blockHover : Theme.on.blockIdle;
-        return root.hot ? Theme.on.hover : Theme.on.idle;
-    }
+    readonly property ThemeInk ground: Theme.within(root.block, root.selected ? Theme.on.selected
+                                                                              : root.hot ? Theme.on.hover
+                                                                                         : Theme.on.idle)
     /// The words' colours on that ground, eased with the fill.
     readonly property Ink ink: Ink {
         ground: root.ground
@@ -82,8 +80,9 @@ Rectangle {
                                                                                           Theme.borderHover)
                                                                                     : Theme.fill(Theme.borderIdle)
     border.width: root.selected && !root.accent ? 0 : Theme.hairWidth
-    color: root.selected ? Theme.fill(Theme.fillSelected) : root.hot ? Theme.fill(Theme.fillHover) :
-                                                                       Theme.fill(Theme.fillIdle)
+    // The ground's own fill, so the words are lifted against what is painted (a skin's tier,
+    // a fill nested in a block or on a hovered row: #188).
+    color: root.ground.fill
     height: Theme.space(22)
     implicitWidth: content.implicitWidth + Theme.space(16)
     radius: Theme.cornerRadius
@@ -116,7 +115,6 @@ Rectangle {
             font.family: Theme.fontFamily
             font.pixelSize: Theme.font.caption
             objectName: "chipKey"
-            opacity: 0.8
             text: root.keyText
             visible: root.keyText.length > 0
         }
@@ -146,7 +144,6 @@ Rectangle {
             font.family: Theme.fontFamily
             font.pixelSize: Theme.font.small
             objectName: "chipSuffix"
-            opacity: 0.72
             text: root.suffix
             visible: root.suffix.length > 0
         }

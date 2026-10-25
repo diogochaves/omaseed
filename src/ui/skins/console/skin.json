@@ -8,6 +8,10 @@
     "cursor": { "tint": "lighterBackground", "alpha": 1, "over": "window" },
     "selected": { "tint": "lighterBackground", "alpha": 1, "over": "window" },
     "selectedCursor": { "tint": "lighterBackground", "alpha": 1, "over": "window" },
+    "blockSelected": { "tint": "lighterBackground", "alpha": 1, "over": "idle" },
+    "blockSelectedCursor": { "tint": "lighterBackground", "alpha": 1, "over": "idle" },
+    "hoverHover": { "tint": "lighterBackground", "alpha": 1, "over": "hover" },
+    "hoverSelected": { "tint": "lighterBackground", "alpha": 1, "over": "hover" },
     "picked": { "tint": "accent", "alpha": 0.2, "over": "window" },
     "ticked": { "tint": "accent", "alpha": 0.2, "over": "window" },
     "warning": { "tint": "warn", "alpha": 0.09, "over": "window" }

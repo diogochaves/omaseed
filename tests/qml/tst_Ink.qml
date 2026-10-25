@@ -69,17 +69,41 @@ TestCase {
         compare(Theme.ground(true, false, true, false), Theme.on.selected);
         compare(Theme.ground(true, true, false, false), Theme.on.selectedCursor);
         compare(Theme.ground(true, true, true, true), Theme.on.pressed);
-        // In a 4 % block: resting on the block, hovered on the hover fill over it.
+        // In a 4 % block: resting on the block, every other state on its fill over it (#188).
         compare(Theme.groundIn(Theme.on.idle, false, false, false, false), Theme.on.idle);
         compare(Theme.groundIn(Theme.on.idle, false, false, true, false), Theme.on.blockHover);
-        compare(Theme.groundIn(Theme.on.idle, true, false, false, false), Theme.on.selected);
+        compare(Theme.groundIn(Theme.on.idle, false, true, false, false), Theme.on.blockHover);
+        compare(Theme.groundIn(Theme.on.idle, true, false, false, false), Theme.on.blockSelected);
+        compare(Theme.groundIn(Theme.on.idle, true, true, false, false),
+                Theme.on.blockSelectedCursor);
+        compare(Theme.groundIn(Theme.on.idle, false, false, false, true), Theme.on.blockPressed);
+        // Over the window, as `ground` says.
+        compare(Theme.groundIn(Theme.on.window, true, false, false, false), Theme.on.selected);
+    }
+
+    // #188: a fill inside a block, or over the hover fill (the action bar, a hovered row), is
+    // the nested ground; a tint, or a fill over the window, stays as it is.
+    function test_within_nests_a_fill_over_its_block() {
+        compare(Theme.within(Theme.on.idle, Theme.on.window), Theme.on.idle);
+        compare(Theme.within(Theme.on.idle, Theme.on.idle), Theme.on.blockIdle);
+        compare(Theme.within(Theme.on.idle, Theme.on.pressed), Theme.on.blockPressed);
+        compare(Theme.within(Theme.on.hover, Theme.on.window), Theme.on.hover);
+        compare(Theme.within(Theme.on.hover, Theme.on.idle), Theme.on.hoverIdle);
+        compare(Theme.within(Theme.on.hover, Theme.on.hover), Theme.on.hoverHover);
+        compare(Theme.within(Theme.on.hover, Theme.on.cursor), Theme.on.hoverHover);
+        compare(Theme.within(Theme.on.hover, Theme.on.selected), Theme.on.hoverSelected);
+        compare(Theme.within(Theme.on.hover, Theme.on.pressed), Theme.on.hoverPressed);
+        compare(Theme.within(Theme.on.window, Theme.on.pressed), Theme.on.pressed);
+        compare(Theme.within(Theme.on.hover, Theme.on.danger), Theme.on.danger);
     }
 
     // Each ground paints its own fill over the window, and its text reads on it.
     function test_every_ground_reads() {
         const grounds = ["window", "idle", "hover", "cursor", "selected", "selectedCursor",
                          "pressed", "warning", "attention", "danger", "ticked", "accentIdle",
-                         "blockIdle", "blockHover", "highlight"];
+                         "blockIdle", "blockHover", "blockSelected", "blockSelectedCursor",
+                         "blockPressed", "highlight", "hoverIdle", "hoverHover", "hoverSelected",
+                         "hoverPressed"];
         for (const name of grounds) {
             const ground = Theme.on[name];
             verify(ground !== null, name);

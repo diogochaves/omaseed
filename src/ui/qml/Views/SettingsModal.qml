@@ -1677,6 +1677,7 @@ Item {
                                 Toggle {
                                     // #78: named by its row, whose title is a sibling text.
                                     Accessible.name: serversRailRow.title
+                                    block: serversRailRow.ground
                                     checked: App.showServersGroup
 
                                     onToggled: App.showServersGroup = checked
@@ -1701,6 +1702,7 @@ Item {
                                 Toggle {
                                     // #78: named by its row, whose title is a sibling text.
                                     Accessible.name: pathMapRow.title
+                                    block: pathMapRow.ground
                                     checked: App.pathMapEnabled
 
                                     onToggled: App.pathMapEnabled = checked
@@ -1729,6 +1731,7 @@ Item {
                                 Toggle {
                                     // #78: named by its row, whose title is a sibling text.
                                     Accessible.name: deleteFilesRow.title
+                                    block: deleteFilesRow.ground
                                     checked: App.deleteFilesDefault
 
                                     onToggled: App.deleteFilesDefault = checked
@@ -1756,6 +1759,7 @@ Item {
                                 }
 
                                 Button {
+                                    block: handlerRow.ground
                                     enabled: !handlerRow.isDefault
                                     text: qsTr("register")
 
@@ -1783,6 +1787,8 @@ Item {
                             // (integration/Autostart), so the chips show what the next login
                             // will do. Off by default (charter §2, opt-in).
                             SettingsRow {
+                                id: startAtLoginRow
+
                                 Layout.fillWidth: true
                                 description: App.startAtLogin === "tray" ? qsTr("omaseed starts in the tray, without its window, and keeps the seed history going. Launch it to open the window.") : App.startAtLogin
                                                                            === "window" ? qsTr("omaseed opens its window when you log in.") : qsTr("The seed history only grows while omaseed runs. Start it at login, in the tray or with its window.")
@@ -1808,6 +1814,7 @@ Item {
 
                                             required property var modelData
 
+                                            block: startAtLoginRow.ground
                                             checkable: true
                                             selected: App.startAtLogin === loginChip.modelData[0]
                                             text: loginChip.modelData[1]
@@ -2025,6 +2032,7 @@ Item {
                                     Toggle {
                                         // #78: named by its row, whose title is a sibling text.
                                         Accessible.name: notifyRow.title
+                                        block: notifyRow.ground
                                         checked: App.notificationsEnabled[notifyRow.modelData.key] === true
 
                                         onToggled: App.setNotificationEnabled(notifyRow.modelData.key, checked)
@@ -2036,6 +2044,8 @@ Item {
                             // the fixed 2 GiB of T4.7. The same row + field shape as the
                             // Appearance pane's overrides.
                             SettingsRow {
+                                id: lowDiskThresholdRow
+
                                 Layout.fillWidth: true
                                 description: qsTr("The notice fires once when the free space drops below this.")
                                 glyph: Glyphs.altSpeed
@@ -2052,6 +2062,7 @@ Item {
                                 Field {
                                     id: thresholdField
 
+                                    block: lowDiskThresholdRow.ground
                                     implicitWidth: Theme.space(110)
                                     minimum: 1
                                     numeric: true
@@ -2096,6 +2107,7 @@ Item {
                                 Toggle {
                                     // #78: named by its row, whose title is a sibling text.
                                     Accessible.name: weeklyRow.title
+                                    block: weeklyRow.ground
                                     checked: App.notificationsEnabled.weekly === true
 
                                     onToggled: App.setNotificationEnabled("weekly", checked)
@@ -2219,6 +2231,8 @@ Item {
                             // Follow the desktop switches to the built-in Console while
                             // omarchy-console's skin is on (the skin note, ruled).
                             SettingsRow {
+                                id: skinRow
+
                                 Layout.fillWidth: true
                                 description: root._skinDescription
                                 glyph: Glyphs.appearance
@@ -2244,6 +2258,7 @@ Item {
 
                                             required property var modelData
 
+                                            block: skinRow.ground
                                             checkable: true
                                             objectName: "skinChip-" + skinChip.modelData[0]
                                             selected: App.skinChoice === skinChip.modelData[0]
@@ -2273,6 +2288,7 @@ Item {
                                 Toggle {
                                     // #78: named by its row, whose title is a sibling text.
                                     Accessible.name: followThemeRow.title
+                                    block: followThemeRow.ground
                                     checked: App.followOmarchyTheme
 
                                     onToggled: App.followOmarchyTheme = checked
@@ -2280,6 +2296,8 @@ Item {
                             }
 
                             SettingsRow {
+                                id: baseSizeRow
+
                                 Layout.fillWidth: true
                                 description: qsTr("Everything scales from it. Empty follows shell.toml.")
                                 glyph: Glyphs.mark
@@ -2295,6 +2313,7 @@ Item {
                                 Field {
                                     id: baseSizeField
 
+                                    block: baseSizeRow.ground
                                     emptyValue: Theme.font.baseSize
                                     maximum: 32
                                     minimum: 8
@@ -2323,6 +2342,8 @@ Item {
                             // app; translucent takes the launcher's alpha (Q1), or the
                             // transparency the next row sets.
                             SettingsRow {
+                                id: windowGroundRow
+
                                 Layout.fillWidth: true
                                 description: qsTr("Opaque like the other apps, or translucent: the launcher's wallpaper alpha.")
                                 glyph: Glyphs.appearance
@@ -2347,6 +2368,7 @@ Item {
 
                                             required property string modelData
 
+                                            block: windowGroundRow.ground
                                             checkable: true
                                             objectName: "groundChip-" + groundChip.modelData
                                             selected: App.windowGround === groundChip.modelData
@@ -2359,6 +2381,8 @@ Item {
                             }
 
                             SettingsRow {
+                                id: windowAlphaRow
+
                                 Layout.fillWidth: true
                                 description: qsTr("How much wallpaper shows through the window, 50–100. Empty follows shell.toml.")
                                 glyph: Glyphs.altSpeed
@@ -2376,6 +2400,7 @@ Item {
                                 Field {
                                     id: alphaField
 
+                                    block: windowAlphaRow.ground
                                     maximum: 100
                                     minimum: 50
                                     numeric: true
@@ -2403,6 +2428,8 @@ Item {
                             // choice, since both carry the same menu (D24). Replaces the
                             // "Tray icon" and "Bar widget" rows.
                             SettingsRow {
+                                id: inTheBarRow
+
                                 Layout.fillWidth: true
                                 description: root._inTheBarText()
                                 glyph: Glyphs.mark
@@ -2427,6 +2454,7 @@ Item {
 
                                             required property var modelData
 
+                                            block: inTheBarRow.ground
                                             enabled: root._inTheBarOffered(barChip.modelData) && !App.barWidget.busy
                                             objectName: "inTheBar_" + barChip.modelData.key
                                             opacity: enabled ? 1 : 0.45
@@ -2441,6 +2469,8 @@ Item {
                             }
 
                             SettingsRow {
+                                id: barWidgetRow
+
                                 Layout.fillWidth: true
                                 description: App.barWidget.inBar ? qsTr("what it shows and what its clicks do: the gear in its popup.") : qsTr("in the bar with widget or both.")
                                 glyph: Glyphs.settings
@@ -2455,6 +2485,7 @@ Item {
                                 }
 
                                 Chip {
+                                    block: barWidgetRow.ground
                                     enabled: App.barWidget.inBar && !App.barWidget.busy
                                     objectName: "barWidgetCustomize"
                                     opacity: enabled ? 1 : 0.45
@@ -2465,6 +2496,8 @@ Item {
                             }
 
                             SettingsRow {
+                                id: scrollHintRow
+
                                 Layout.fillWidth: true
                                 description: qsTr("how lists say there is more above or below: the rail and every palette.")
                                 glyph: Glyphs.scrollHint
@@ -2488,6 +2521,7 @@ Item {
 
                                             required property var modelData
 
+                                            block: scrollHintRow.ground
                                             checkable: true
                                             selected: App.railScrollHint === hintChip.modelData[0]
                                             text: hintChip.modelData[1]
@@ -2499,6 +2533,8 @@ Item {
                             }
 
                             SettingsRow {
+                                id: trackerHostsRow
+
                                 Layout.fillWidth: true
                                 description: qsTr("how a long tracker host fits the rail.")
                                 glyph: Glyphs.host
@@ -2522,6 +2558,7 @@ Item {
 
                                             required property var modelData
 
+                                            block: trackerHostsRow.ground
                                             checkable: true
                                             selected: App.trackerHostStyle === hostChip.modelData[0]
                                             text: hostChip.modelData[1]
@@ -2533,6 +2570,8 @@ Item {
                             }
 
                             SettingsRow {
+                                id: detailsPanelRow
+
                                 Layout.fillWidth: true
                                 description: qsTr("auto puts it right when the window is 16:10 or wider, else at the bottom. I cycles it.")
                                 glyph: Glyphs.sidebar
@@ -2556,6 +2595,7 @@ Item {
 
                                             required property var modelData
 
+                                            block: detailsPanelRow.ground
                                             checkable: true
                                             selected: App.detailsPlacement === placementChip.modelData[0]
                                             text: placementChip.modelData[1]
@@ -2586,6 +2626,7 @@ Item {
                                 Toggle {
                                     // #78: named by its row, whose title is a sibling text.
                                     Accessible.name: pulseRow.title
+                                    block: pulseRow.ground
                                     checked: App.pulseRows
 
                                     onToggled: App.pulseRows = checked
@@ -2687,6 +2728,8 @@ Item {
                             }
 
                             SettingsRow {
+                                id: qbtExportRow
+
                                 Layout.fillWidth: true
                                 description: App.globalState.connected ? App.qbtExportSummary
                                                                        : qsTr("Connect to %1 to export.").arg(qbtBackupPane.name)
@@ -2703,6 +2746,7 @@ Item {
                                 }
 
                                 Button {
+                                    block: qbtExportRow.ground
                                     bordered: true
                                     enabled: qbtBackupPane.ready
                                     primary: true
@@ -2716,6 +2760,8 @@ Item {
                             }
 
                             SettingsRow {
+                                id: qbtImportRow
+
                                 Layout.fillWidth: true
                                 description: App.globalState.connected
                                              ? qsTr("From a qBittorrent export or an omaseed backup. Every change is shown first; paths, ports and the Web UI login stay as they are unless you tick them.")
@@ -2733,6 +2779,7 @@ Item {
                                 }
 
                                 Button {
+                                    block: qbtImportRow.ground
                                     bordered: true
                                     enabled: qbtBackupPane.ready
                                     text: qsTr("import…")
@@ -2747,6 +2794,8 @@ Item {
                             // docs/34 D6 a: another server's settings, read just now through a
                             // client of their own, shown as an import into this one.
                             SettingsRow {
+                                id: qbtCopyRow
+
                                 Layout.fillWidth: true
                                 description: !App.globalState.connected
                                              ? qsTr("Connect to %1 to copy into it.").arg(qbtBackupPane.name)
@@ -2775,6 +2824,7 @@ Item {
                                         // the description, and the ▾ neither.
                                         Accessible.description: root.copySourceName
                                         Accessible.name: qsTr("copy from")
+                                        block: qbtCopyRow.ground
                                         bordered: true
                                         objectName: "copySourceButton"
                                         text: root.copySourceName + "  " + Glyphs.chevronDown
@@ -2787,6 +2837,7 @@ Item {
                                     }
 
                                     Button {
+                                        block: qbtCopyRow.ground
                                         bordered: true
                                         enabled: qbtBackupPane.copyReady
                                         objectName: "qbtCopyButton"
@@ -2833,6 +2884,7 @@ Item {
                                 }
 
                                 Button {
+                                    block: torrentsExportRow.ground
                                     bordered: true
                                     enabled: torrentsExportRow.running || qbtBackupPane.torrentsReady
                                     objectName: "torrentsExportButton"
@@ -2847,6 +2899,8 @@ Item {
                             }
 
                             SettingsRow {
+                                id: torrentsImportRow
+
                                 readonly property bool running: App.torrentsBackupRunning === "import"
                                                                 || App.torrentsBackupRunning === "read"
 
@@ -2868,6 +2922,7 @@ Item {
                                 }
 
                                 Button {
+                                    block: torrentsImportRow.ground
                                     bordered: true
                                     enabled: App.torrentsBackupRunning === "import" || qbtBackupPane.torrentsReady
                                     objectName: "torrentsImportButton"
@@ -2947,6 +3002,8 @@ Item {
                             }
 
                             SettingsRow {
+                                id: backupRow
+
                                 Layout.fillWidth: true
                                 description: App.backupSummary
                                 glyph: Glyphs.arrowDown
@@ -2961,6 +3018,7 @@ Item {
                                 }
 
                                 Button {
+                                    block: backupRow.ground
                                     bordered: true
                                     primary: true
                                     text: qsTr("back up…")
@@ -2973,6 +3031,8 @@ Item {
                             }
 
                             SettingsRow {
+                                id: restoreRow
+
                                 Layout.fillWidth: true
                                 description: qsTr("From an omaseed backup. You pick the parts; what is here now is copied aside first.")
                                 glyph: Glyphs.arrowUp
@@ -2987,6 +3047,7 @@ Item {
                                 }
 
                                 Button {
+                                    block: restoreRow.ground
                                     bordered: true
                                     text: qsTr("restore…")
 
@@ -2998,6 +3059,8 @@ Item {
                             }
 
                             SettingsRow {
+                                id: autoBackupRow
+
                                 Layout.fillWidth: true
                                 description: {
                                     // D3 a (#32): each server's qBittorrent settings go with them, which
@@ -3023,6 +3086,7 @@ Item {
                                     spacing: Theme.space(6)
 
                                     Button {
+                                        block: autoBackupRow.ground
                                         text: qsTr("open folder")
 
                                         onClicked: App.openBackupsFolder()
@@ -3036,6 +3100,7 @@ Item {
 
                                             required property var modelData
 
+                                            block: autoBackupRow.ground
                                             checkable: true
                                             selected: App.autoBackupMode === backupModeChip.modelData[0]
                                             text: backupModeChip.modelData[1]

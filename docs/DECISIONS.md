@@ -1510,6 +1510,18 @@ when only adding the torrent again frees the space).
   board 50's measure finds 1722 of 4648 pairs (15 grounds, 11 roles, and the key badge's
   background on its accent) under 4.5:1 before and none after; the ctest `contrast_board_check`
   and `tst_themecontrast` hold Omarchy's 23 at none, under three shell fill sets.
+  **Nested fills (#188):** the stronger fills inside a 4 % block (`blockSelected`,
+  `blockSelectedCursor`, `blockPressed`: the add sheet's ticked rows, the rail's selected
+  server, QbtListSheet's text selection, a button pressed in a notice) and every fill over the hover fill (`hoverIdle`,
+  `hoverHover`, `hoverSelected`, `hoverPressed`: a button on the action bar, the controls on a
+  hovered settings row) are grounds of their own as well, each over the ground it lies in:
+  taken over the window, their text read as low as 3.5:1. Console paints the selected and
+  hovered ones board 46's panel2 (`.srv .ri.on`, `.status.sel .ab:hover`, `.chip.on`), the
+  rest by Omarchy's recipe over its own grounds. The Files tab's rename field paints the idle
+  ground itself, as the table's plate does; a Toggle's knob, on, keeps the ticked tint's
+  colours (no text, at 3:1 over the hover fill). Chip's key (0.8) and suffix (0.72) and the schedule
+  line (0.6) lost their opacities, which read under the floor: the floor wins over docs/31
+  D5's "a little fainter", and the schedule line, while the schedule is off, reads dim instead.
 - **"show" (F8–F11, #167):** offered only when one of the strip's torrents is out of view, out
   of the scope (folder, question, category, tag, filter) or not selected, and live while the
   strip is up. It selects them, puts the cursor on the first and scrolls to it; when one left

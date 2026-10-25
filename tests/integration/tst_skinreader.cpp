@@ -96,6 +96,19 @@ void TestSkinReader::consolesGroundsAreBoard46s()
     QCOMPARE(ground("cursor"), ground("selected"));
     QCOMPARE(ground("picked").tint, QStringLiteral("accent"));
     QCOMPARE(ground("picked").alpha, 0.2);
+    // #188: a selected row in a block (`.srv .ri.on`) and a button hovered on the action bar
+    // (`.status.sel .ab:hover`) or a chip on (`.chip.on`) are board 46's panel2, the lighter
+    // background itself, over the ground they lie in.
+    const SkinGround panel2InBlock{
+        QStringLiteral("lighterBackground"), 1.0, false, QStringLiteral("idle")};
+    const SkinGround panel2OnHover{
+        QStringLiteral("lighterBackground"), 1.0, false, QStringLiteral("hover")};
+    QCOMPARE(ground("blockSelected"), panel2InBlock);
+    QCOMPARE(ground("blockSelectedCursor"), panel2InBlock);
+    QCOMPARE(ground("hoverHover"), panel2OnHover);
+    QCOMPARE(ground("hoverSelected"), panel2OnHover);
+    QVERIFY(!skin.grounds.contains(QStringLiteral("blockPressed"))); // Omarchy's, as pressed
+    QVERIFY(!skin.grounds.contains(QStringLiteral("hoverIdle")));
     const QVariantMap line = skin.tokens.value(QStringLiteral("line")).toMap();
     QCOMPARE(line.value(QStringLiteral("hairAlpha")).toDouble(), 0.21);
     QCOMPARE(line.value(QStringLiteral("menuEdgeRole")).toString(), QStringLiteral("hair"));
