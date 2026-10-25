@@ -8,10 +8,11 @@ import Omaseed.Kit
 // reading order (the cover's grid). Omarchy draws the fill in `color` at `fillAlpha` over
 // `trackColor`; Console draws the board's: the fill at full strength over the faint line.
 //
-// A line may be drawn from `cells` instead of `value` (the details' pieces bar, #171 step 6):
-// one state per slot, 0 missing, 1 arriving (`arrivingColor`), 2 had (`color`). The face says
-// how many slots it draws (`slots`: a pixel each in Omarchy's, a cell each in Console's), so
-// the caller folds its states into that many.
+// A line or a grid may be drawn from `cells` instead of `value` (the details' pieces bar,
+// #171 step 6): one state per slot, 0 missing, 1 arriving (`arrivingColor`), 2 had (`color`).
+// The face says how many slots it draws (`slots`: a pixel each in Omarchy's line, a cell each
+// in Console's line and grid), so the caller folds its states into that many. Only Console's
+// face draws a grid of states; a skin asks for one by `meter.piecesColumns`.
 Item {
     id: root
 

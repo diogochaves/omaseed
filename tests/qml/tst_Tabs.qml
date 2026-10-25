@@ -48,6 +48,26 @@ TestCase {
         compare(tabs.implicitHeight, Math.round(Theme.font.body * 2.2));
     }
 
+    // #171: the current tab's underline is the skin's: Omarchy's 1 px in the bright
+    // foreground, Console's lit line (board 46 `.tab.on`: 2 px of the accent).
+    function test_the_current_tab_is_underlined_by_the_skins_line() {
+        const tabs = createTemporaryObject(tabsComponent, testCase, {
+                                               "model": testCase.sampleModel,
+                                               "currentIndex": 1
+                                           });
+        const line = findChild(findChild(tabs, "tab_1"), "tabLine");
+        verify(findChild(tabs, "tab_1").current);
+        compare(line.height, Theme.tabLineWidth);
+        compare(line.color, Theme.tabLineColor);
+        if (Theme.skin.name === "console") {
+            compare(line.height, Theme.litWidth);
+            compare(line.color, Theme.litColor);
+        } else {
+            compare(line.height, 1);
+            compare(line.color, Theme.brightForeground);
+        }
+    }
+
     function test_current_index_defaults_to_zero() {
         const tabs = createTemporaryObject(tabsComponent, testCase, {
                                                "model": testCase.sampleModel

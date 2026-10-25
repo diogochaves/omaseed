@@ -153,8 +153,10 @@ Item {
                     anchors.bottom: parent.bottom
                     anchors.left: parent.left
                     anchors.right: parent.right
-                    color: Theme.brightForeground
-                    height: 1
+                    // Board 46 `.tab.on`: the skin's underline (Console's lit line).
+                    color: Theme.tabLineColor
+                    height: Theme.tabLineWidth
+                    objectName: "tabLine"
                     visible: tab.current
                 }
 

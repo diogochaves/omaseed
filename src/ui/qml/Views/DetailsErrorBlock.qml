@@ -37,10 +37,11 @@ Rectangle {
     /// docs/44 D13 (#121): finished, but its files never left the incomplete folder. Red, in
     /// board 28's place, on a torrent that still seeds.
     readonly property bool stuckMove: root.problem.stuckMove === true
-    /// docs/DECISIONS.md C30 F1: the block's words on its own 4 % fill.
+    /// docs/DECISIONS.md C30 F1: the block's words on its own 4 % fill, or on the panel where
+    /// the skin plates the blocks.
     readonly property Ink ink: Ink {
         animated: false
-        ground: Theme.on.idle
+        ground: Theme.platedBlocks ? Theme.on.panel : Theme.on.idle
     }
     readonly property color kindColor: root.missingFiles || root.failure ? root.ink.yellow
                                                                          : root.ink.red
@@ -121,15 +122,27 @@ Rectangle {
     // kind's glyph stays out.
     Accessible.name: root.problem.headline || ""
     Accessible.role: Accessible.AlertMessage
-    color: root.ink.fill
+    color: Theme.platedBlocks ? "transparent" : root.ink.fill
     implicitHeight: column.implicitHeight + Theme.space(12)
     objectName: "errorBlock"
+
+    // Its plate, where the skin stands blocks on one (board 46 `.blk.pn`): the panel tinted by
+    // the kind's colour, edged in it all round.
+    Plate {
+        anchors.fill: parent
+        edgeColor: root.kindColor
+        edgeWidth: Theme.hairWidth
+        fill: Qt.tint(Theme.on.panel.fill, Qt.alpha(root.kindColor, Theme.blockTint))
+        objectName: "errorBlockPlate"
+        visible: Theme.platedBlocks
+    }
 
     Rectangle {
         anchors.bottom: parent.bottom
         anchors.left: parent.left
         anchors.top: parent.top
         color: root.kindColor
+        visible: !Theme.platedBlocks
         width: 1
     }
 

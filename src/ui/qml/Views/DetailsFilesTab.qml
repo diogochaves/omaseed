@@ -130,14 +130,20 @@ Item {
     // widest value ("81.4 GB", "100 %", "maximal", "3860–3911"). The spacing scale need not
     // follow the font (shell.toml), so each is also at least its widest value as measured in
     // the font on screen: at base 18 a fixed 60 u cut "84.0 MB" to "84.0 …" (review RUN-6).
-    readonly property int sizeWidth: Math.max(Theme.space(60), root._measured(sizeMetrics))
+    // A column is also at least its caption's whole width (DetailsHeader.fitWidth), so a
+    // skin's wider caption voice is not cut or run into its neighbour (#171).
+    readonly property int sizeWidth: Math.max(Theme.space(60), root._measured(sizeMetrics),
+                                              sizeHead.fitWidth, root.showOnDisk
+                                              ? onDiskHead.fitWidth : 0)
     readonly property int doneTextWidth: Math.max(Theme.space(40), root._measured(doneMetrics))
     readonly property int doneWidth: root.compact ? Math.max(Theme.space(46), root.doneTextWidth + Theme.space(6))
                                                   : Math.max(Theme.space(86), root.doneTextWidth + Theme.space(46))
-    readonly property int priorityWidth: Math.max(Theme.space(58), root._measured(priorityMetrics))
-    readonly property int remainingWidth: root.sizeWidth
-    readonly property int availabilityWidth: Theme.space(50)
-    readonly property int piecesWidth: Math.max(Theme.space(78), root._measured(piecesMetrics))
+    readonly property int priorityWidth: Math.max(Theme.space(58), root._measured(priorityMetrics),
+                                                  priorityHead.fitWidth)
+    readonly property int remainingWidth: Math.max(root.sizeWidth, remainingHead.fitWidth)
+    readonly property int availabilityWidth: Math.max(Theme.space(50), availabilityHead.fitWidth)
+    readonly property int piecesWidth: Math.max(Theme.space(78), root._measured(piecesMetrics),
+                                                piecesHead.fitWidth)
     readonly property int tickWidth: Theme.space(14)
     /// C17 D1: only while some skipped file holds space.
     readonly property bool showOnDisk: root.model !== null && root.model.showOnDisk
@@ -719,6 +725,8 @@ Item {
         }
 
         DetailsHeader {
+            id: sizeHead
+
             Layout.preferredWidth: root.sizeWidth
             alignRight: true
             descending: root.model !== null && root.model.sortDescending
@@ -731,6 +739,8 @@ Item {
 
         // C17 D1: not a sort key; what skipped files hold, read when the tab opens.
         DetailsHeader {
+            id: onDiskHead
+
             Layout.preferredWidth: root.sizeWidth
             alignRight: true
             clickable: false
@@ -751,6 +761,8 @@ Item {
         }
 
         DetailsHeader {
+            id: remainingHead
+
             Layout.preferredWidth: root.remainingWidth
             alignRight: true
             descending: root.model !== null && root.model.sortDescending
@@ -763,6 +775,8 @@ Item {
         }
 
         DetailsHeader {
+            id: priorityHead
+
             Layout.preferredWidth: root.priorityWidth
             descending: root.model !== null && root.model.sortDescending
             objectName: "fileHeader_priority"
@@ -773,6 +787,8 @@ Item {
         }
 
         DetailsHeader {
+            id: availabilityHead
+
             Layout.preferredWidth: root.availabilityWidth
             alignRight: true
             descending: root.model !== null && root.model.sortDescending
@@ -785,6 +801,8 @@ Item {
         }
 
         DetailsHeader {
+            id: piecesHead
+
             Layout.preferredWidth: root.piecesWidth
             alignRight: true
             descending: root.model !== null && root.model.sortDescending

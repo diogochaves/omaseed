@@ -337,8 +337,10 @@ Item {
                 Accessible.onPressAction: fixArea.activate()
                 anchors.verticalCenter: parent.verticalCenter
                 border.color: Qt.alpha(Theme.accent, Theme.libraryRowFixBorderAlpha)
-                border.width: Theme.hairWidth
-                color: fixArea.containsMouse ? Theme.fill(Theme.fillHover) : "transparent"
+                border.width: Theme.libraryRowFixTag ? 0 : Theme.hairWidth
+                // Console's is a filled tag (board 46 `.row .fix`): the accent's ground.
+                color: Theme.libraryRowFixTag ? Theme.accent : fixArea.containsMouse ? Theme.fill(Theme.fillHover)
+                                                                                    : "transparent"
                 height: fixText.implicitHeight
                 objectName: "libraryRowFix_" + row.index
                 visible: row.rowFix.length > 0
@@ -348,9 +350,18 @@ Item {
                     id: fixText
 
                     anchors.centerIn: parent
-                    color: Theme.inkOf(Theme.accent, fixArea.containsMouse ? Theme.on.hover : row.ink.ground)
-                    font.family: Theme.valueFamily
-                    font.pixelSize: Theme.libraryRowSentenceSize
+                    // On the tag, the window's colour in the control voice at the caption
+                    // size, as a filled button's words (Kit/Button `filled`).
+                    color: Theme.libraryRowFixTag ? Theme.background
+                                                  : Theme.inkOf(Theme.accent, fixArea.containsMouse ? Theme.on.hover
+                                                                                                    : row.ink.ground)
+                    font.capitalization: Theme.libraryRowFixTag && Theme.controlUpper ? Font.AllUppercase
+                                                                                      : Font.MixedCase
+                    font.family: Theme.libraryRowFixTag ? Theme.labelFamily : Theme.valueFamily
+                    font.letterSpacing: Theme.libraryRowFixTag ? Theme.font.caption * Theme.controlTrack : 0
+                    font.pixelSize: Theme.libraryRowFixTag ? Theme.font.caption : Theme.libraryRowSentenceSize
+                    font.weight: Theme.libraryRowFixTag ? Theme.controlWeight : Font.Normal
+                    objectName: "libraryRowFixText_" + row.index
                     text: row.rowFix
                     textFormat: Text.PlainText
                 }

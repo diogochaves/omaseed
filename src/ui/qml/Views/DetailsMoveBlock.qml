@@ -57,24 +57,36 @@ Rectangle {
         return parts.join(", ");
     }
 
-    /// docs/DECISIONS.md C30 F1: the block's words on its own 4 % fill.
+    /// docs/DECISIONS.md C30 F1: the block's words on its own 4 % fill, or on the panel where
+    /// the skin plates the blocks.
     readonly property Ink ink: Ink {
         animated: false
-        ground: Theme.on.idle
+        ground: Theme.platedBlocks ? Theme.on.panel : Theme.on.idle
     }
 
     // The block is a note named by its headline; its lines are text under it.
     Accessible.name: root.headline
     Accessible.role: Accessible.Note
-    color: root.ink.fill
+    color: Theme.platedBlocks ? "transparent" : root.ink.fill
     implicitHeight: column.implicitHeight + Theme.space(12)
     objectName: "moveBlock"
+
+    // Its plate, where the skin stands blocks on one (board 46 `.blk.pn`), in the accent.
+    Plate {
+        anchors.fill: parent
+        edgeColor: root.ink.accent
+        edgeWidth: Theme.hairWidth
+        fill: Qt.tint(Theme.on.panel.fill, Qt.alpha(root.ink.accent, Theme.blockTint))
+        objectName: "moveBlockPlate"
+        visible: Theme.platedBlocks
+    }
 
     Rectangle {
         anchors.bottom: parent.bottom
         anchors.left: parent.left
         anchors.top: parent.top
         color: root.ink.accent
+        visible: !Theme.platedBlocks
         width: 1
     }
 

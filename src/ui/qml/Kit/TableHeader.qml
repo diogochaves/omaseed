@@ -34,6 +34,9 @@ Item {
     /// How wide the cell must be to show its whole caption and a sort chevron (#52's fit).
     readonly property real fitWidth: 2 * Theme.space(8) + caption.implicitWidth + Theme.space(4)
                                      + chevron.implicitWidth
+    /// The caption's whole width in the skin's caption voice, padding left out: a column at
+    /// least this wide never elides it (the details lists size their fixed columns by it).
+    readonly property real captionWidth: caption.implicitWidth
 
     signal clicked
     signal rightClicked

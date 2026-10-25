@@ -425,6 +425,14 @@ Item {
     property int minimumColumnWidth: 32
     /// The widest any column can be dragged or fitted, in spec pixels.
     property int maximumColumnWidth: 1200
+    /// Where the skin speaks the status word in the caption voice (board 46 `.verb`: Console's
+    /// upper case, tracked), the Status column's default holds "downloading" whole beside its
+    /// glyph, in spec pixels; 0 under the body voice, whose 116 holds it (Q17).
+    readonly property int statusVerbUnits: Theme.verbCaption ? Math.ceil(root.unitsOf(
+                                                                             Theme.space(8) + Theme.space(12)
+                                                                             + Theme.space(6)
+                                                                             + statusVerbMetrics.advanceWidth
+                                                                             + Theme.space(8))) : 0
     /// False once a column has a width of its own.
     readonly property bool columnWidthsAreDefault: Object.keys(root.columnWidths).length === 0
     /// The columns palette's "default order" row puts back both (#52).
@@ -641,6 +649,18 @@ Item {
         return 2.6;
     }
 
+    // The status word's widest in the verb voice, for `statusVerbUnits`.
+    TextMetrics {
+        id: statusVerbMetrics
+
+        font.capitalization: Theme.captionUpper ? Font.AllUppercase : Font.MixedCase
+        font.family: Theme.labelFamily
+        font.letterSpacing: Theme.font.caption * Theme.captionTrack(0)
+        font.pixelSize: Theme.font.caption
+        font.weight: Theme.captionWeight(Font.Normal)
+        text: root.statusWord("downloading")
+    }
+
     Timer {
         interval: root.pulseStepMs
         repeat: true
@@ -763,6 +783,8 @@ Item {
         if (key === "move")
             return root._moveColumnSpec.width;
         const column = root.columns.find(other => other.key === key);
+        if (key === "status" && column !== undefined)
+            return Math.max(column.width, root.statusVerbUnits);
         return column !== undefined ? column.width : 0;
     }
 
@@ -1937,12 +1959,19 @@ Item {
                         anchors.right: parent.right
                         anchors.rightMargin: Theme.space(8)
                         anchors.verticalCenter: parent.verticalCenter
+                        // Board 46 `.verb`, where the skin says: the caption voice in the
+                        // state's colour (the cell's `color: col(t)`).
                         color: row.mark !== null ? row.markColor : row.stuckMove ? band.ink.stateError
-                                                                                 : row.errorStopped ? row.stateColor
-                                                                                                    : band.textColor
+                                                                                 : row.errorStopped
+                                                                                   || Theme.verbCaption ? row.stateColor
+                                                                                                        : band.textColor
                         elide: Text.ElideRight
-                        font.family: Theme.valueFamily
-                        font.pixelSize: Theme.font.body
+                        font.capitalization: Theme.verbCaption && Theme.captionUpper ? Font.AllUppercase
+                                                                                     : Font.MixedCase
+                        font.family: Theme.verbCaption ? Theme.labelFamily : Theme.valueFamily
+                        font.letterSpacing: Theme.verbCaption ? Theme.font.caption * Theme.captionTrack(0) : 0
+                        font.pixelSize: Theme.verbCaption ? Theme.font.caption : Theme.font.body
+                        font.weight: Theme.verbCaption ? Theme.captionWeight(Font.Normal) : Font.Normal
                         objectName: "status_" + row.index
                         text: row.mark !== null ? row.mark.text
                                                 : root.statusWord(row.statusCause.length > 0 ? row.statusCause : row.stateText)

@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Layouts
 import QtTest
 import Omaseed
 import Omaseed.Kit
@@ -76,6 +77,16 @@ TestCase {
                                                 "problem": problem
                                             });
         compare(block.kindColor, Theme.red);
+        // #171: on a plate edged in red where the skin plates the blocks (board 46 `.blk.pn`),
+        // else on its own fill with the red rule.
+        const plate = findChild(block, "errorBlockPlate");
+        compare(plate.visible, Theme.platedBlocks);
+        compare(block.ink.ground, Theme.platedBlocks ? Theme.on.panel : Theme.on.idle);
+        if (Theme.platedBlocks) {
+            compare(plate.edgeColor, Theme.red);
+            compare(block.color, Qt.rgba(0, 0, 0, 0));
+        }
+        compare(Theme.platedBlocks, Theme.skin.name === "console");
         compare(block.hints.map(hint => (hint.key + " " + hint.label).trim()),
                 ["show both folders", "c recheck", "m set location…", "copy the line",
                  "its lines in the log"]);
@@ -280,6 +291,12 @@ TestCase {
         const last = events[events.length - 1];
         if (last.kind === "error")
             compare(last.title, "The disk is full");
+
+        // #171: the move block stands on an accent-edged plate where the skin plates blocks.
+        const movePlate = findChild(findChild(story, "moveBlock"), "moveBlockPlate");
+        compare(movePlate.visible, Theme.platedBlocks);
+        if (Theme.platedBlocks)
+            compare(movePlate.edgeColor, findChild(story, "moveBlock").ink.accent);
 
         // The last move's actions and the log link go up as before (C18 D7, docs/32 D13).
         moveBackSpy.target = view;
@@ -532,11 +549,28 @@ TestCase {
         const events = findChild(view, "storyEvents");
         verify(bar.mapToItem(story, 0, 0).y < events.mapToItem(story, 0, 0).y);
 
-        // The Meter asked for one cell per slot it draws (a pixel each in Omarchy's face, a
-        // cell each in Console's, #171 step 6): some had, some in flight, some missing.
+        // The Meter asked for one cell per slot it draws (a pixel each in Omarchy's line, a
+        // cell each in Console's grid, #171 step 6): some had, some in flight, some missing.
         const canvas = findChild(view, "piecesCanvas");
         tryVerify(() => canvas.cells.length > 0);
-        compare(canvas.slots, Theme.skin.name === "console" ? canvas.face.columns : Math.floor(canvas.width));
+        if (Theme.piecesColumns > 0) {
+            // Board 46 `.pmap`: 34 columns of square cells (more once a cell would pass its
+            // most), 1 264 pieces fill all 7 rows.
+            verify(canvas.columns >= Theme.piecesColumns);
+            verify(canvas.cellHeight <= Theme.piecesCellMax + 0.01 || canvas.columns === Theme.piecesColumns);
+            compare(canvas.rows, Math.min(Theme.piecesRows, Math.ceil(1264 / canvas.columns)));
+            compare(canvas.slots, Theme.piecesColumns * canvas.rows);
+            fuzzyCompare(canvas.cellHeight, (canvas.width - canvas.cellGap * (canvas.columns - 1))
+                         / canvas.columns, 0.01);
+            fuzzyCompare(canvas.height, canvas.rows * canvas.cellHeight + (canvas.rows - 1)
+                         * canvas.cellGap, 0.01);
+        } else {
+            compare(canvas.columns, 0);
+            compare(canvas.slots, Math.floor(canvas.width));
+            compare(canvas.height, Theme.space(10));
+        }
+        if (Theme.skin.name === "console")
+            compare(canvas.rows, 7);
         compare(canvas.cells.length, Math.min(1264, canvas.slots));
         verify(canvas.cells.indexOf(2) >= 0);
         verify(canvas.cells.indexOf(1) >= 0);
@@ -1800,6 +1834,78 @@ TestCase {
         const headerX = header.mapToItem(view, 0, 0).x;
         const rowX = name.mapToItem(view, 0, 0).x - Theme.space(14);
         compare(Math.round(headerX), Math.round(rowX));
+    }
+
+    function columnHeaders(item, out) {
+        for (const child of item.children) {
+            if (child.visible && child.fitWidth !== undefined && child.accessibleName !== undefined)
+                out.push(child);
+            testCase.columnHeaders(child, out);
+        }
+        return out;
+    }
+
+    function test_column_captions_never_touch_data() {
+        return [{
+                tag: "files narrow",
+                tab: 1,
+                width: 340
+            }, {
+                tag: "swarm narrow",
+                tab: 2,
+                width: 340
+            }, {
+                tag: "trackers narrow",
+                tab: 3,
+                width: 340
+            }, {
+                tag: "files wide",
+                tab: 1,
+                width: 760
+            }, {
+                tag: "swarm wide",
+                tab: 2,
+                width: 760
+            }, {
+                tag: "trackers wide",
+                tab: 3,
+                width: 760
+            }];
+    }
+
+    // #171: a skin's caption voice (Console's upper case, tracked .18 em) is wider than
+    // Omarchy's. A fixed column is at least its caption's whole width, so no caption is cut,
+    // and no two captions touch: "Seeds" ran into "Peers" ("SEEDSPEERS") in Console.
+    function test_column_captions_never_touch(data) {
+        const view = testCase.select(data.tab === 1 ? testCase.bbbName : testCase.archName);
+        view.width = data.width;
+        view.activateTab(data.tab);
+        waitForRendering(view);
+        const heads = testCase.columnHeaders(view, []).filter(head => head.text.length > 0);
+        verify(heads.length >= 3, "only " + heads.length + " headers");
+        const byRow = new Map();
+        for (const head of heads) {
+            const caption = findChild(head, "caption");
+            if (!head.Layout.fillWidth) {
+                verify(head.width >= head.fitWidth, head.text + ": " + head.width + " < "
+                       + head.fitWidth);
+                verify(caption.width >= caption.implicitWidth - 0.5, head.text + " is cut");
+            }
+            const left = caption.mapToItem(view, 0, 0).x;
+            const row = byRow.get(head.parent) ?? [];
+            row.push({
+                         text: head.text,
+                         left: left,
+                         right: left + caption.width
+                     });
+            byRow.set(head.parent, row);
+        }
+        for (const row of byRow.values()) {
+            row.sort((a, b) => a.left - b.left);
+            for (let i = 1; i < row.length; ++i)
+                verify(row[i].left - row[i - 1].right >= Theme.space(4), row[i - 1].text + " touches "
+                       + row[i].text + " (" + row[i - 1].right + " → " + row[i].left + ")");
+        }
     }
 
     // A click away from an open rename commits it, as a file manager does: the pane is never

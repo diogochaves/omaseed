@@ -17,10 +17,12 @@
     "lit": 2, "litRole": "accent",
     "edge": 1, "edgeRole": "accent",
     "menuEdge": 1, "menuEdgeRole": "hair",
-    "card": 1
+    "card": 1,
+    "tabLit": true,
+    "needsEdge": true
   },
   "cut": { "panel": 16, "key": 10 },
-  "tint": { "notice": 0.09 },
+  "tint": { "notice": 0.09, "block": 0.08 },
   "radius": 0,
   "font": {
     "label": "Chakra Petch",
@@ -35,10 +37,12 @@
     "statusCase": "upper", "statusTrack": 0.04,
     "tags": true,
     "nameTrack": 0.05, "nameWeight": 600, "rowCase": "upper",
-    "captionCase": "upper", "captionTrack": 0.18, "captionWeight": 600
+    "captionCase": "upper", "captionTrack": 0.18, "captionWeight": 600,
+    "verb": true, "rowFactSize": "heading", "fixTag": true
   },
   "select": { "cursorMark": true, "pickedGround": true },
   "plates": { "blocks": true },
+  "meter": { "piecesColumns": 34, "piecesRows": 7 },
   "numerals": "pad",
   "density": {
     "railWidth": 222,
@@ -57,7 +61,11 @@
     "progressLineThickness": 7,
     "detailsHeroMarginTop": 12,
     "detailsHeroMarginSide": 14,
-    "detailsHeroMarginBottom": 4
+    "detailsHeroMarginBottom": 4,
+    "libraryGroupHeadBar": 3,
+    "libraryGroupHeadBarHeight": 11,
+    "libraryGroupHeadBarInset": 8,
+    "libraryRowFixPadding": 7
   },
   "glyphs": {
     "questionNeedsYou": "ms:error",

@@ -25,6 +25,7 @@ namespace {
 enum class Kind {
     Width,    ///< a line's width: an integer, 0 to 8 px
     Px,       ///< a cut or a radius: an integer, 0 to 64 px
+    Count,    ///< how many of something (a grid's columns): an integer, 0 to 256
     Spec,     ///< a density: a number of spec px, 0 to 4000
     Alpha,    ///< 0 to 1
     Em,       ///< a tracking in em, 0 to 1
@@ -33,7 +34,7 @@ enum class Kind {
     LineRole, ///< a theme role, a skin role, or the skin's own `hair` or `faint` line
     Family,   ///< a font family; "" is fontconfig's monospace
     Case,     ///< "none" or "upper"
-    Step,     ///< a step of the type scale: "caption", "small" or "body"
+    Step,     ///< a step of the type scale: "caption", "small", "body" or "heading"
     Glyph,    ///< a glyph, `ms:<ligature>` or `icon:<name>`
     Word,     ///< a label's word
     Face,     ///< a QML file in the skin's faces/
@@ -56,12 +57,20 @@ const QHash<QString, QHash<QString, Kind>> &fixedGroups()
           {QStringLiteral("faintAlpha"), Kind::Alpha},
           // A cover's edge while it is selected or needs you (#171 step 6; board 46
           // `.card.sel`, `.card.needs`: the plate's own 1 px edge in the accent).
-          {QStringLiteral("card"), Kind::Width}}},
+          {QStringLiteral("card"), Kind::Width},
+          // The current tab's underline is the lit line (board 46 `.tab.on`: 2 px of the
+          // accent) rather than a 1 px bright one; a cover that needs you takes the card's
+          // edge in the accent and its fact in the accent (`.card.needs`).
+          {QStringLiteral("tabLit"), Kind::Bool},
+          {QStringLiteral("needsEdge"), Kind::Bool}}},
         {QStringLiteral("cut"),
          {{QStringLiteral("panel"), Kind::Px}, {QStringLiteral("key"), Kind::Px}}},
         // A kind's own tint under its words (#171 step 5): a notice's ground is its kind's
         // colour at this alpha over the window (board 46 `.notice .pi`); 0 is the idle fill.
-        {QStringLiteral("tint"), {{QStringLiteral("notice"), Kind::Alpha}}},
+        // A block's ground inside a view (`.blk .pi`): its kind's colour at this alpha over
+        // the panel, when the blocks are plated.
+        {QStringLiteral("tint"),
+         {{QStringLiteral("notice"), Kind::Alpha}, {QStringLiteral("block"), Kind::Alpha}}},
         {QStringLiteral("font"),
          {{QStringLiteral("label"), Kind::Family},
           {QStringLiteral("value"), Kind::Family},
@@ -94,7 +103,18 @@ const QHash<QString, QHash<QString, Kind>> &fixedGroups()
           {QStringLiteral("rowCase"), Kind::Case},
           {QStringLiteral("captionCase"), Kind::Case},
           {QStringLiteral("captionTrack"), Kind::Em},
-          {QStringLiteral("captionWeight"), Kind::Weight}}},
+          {QStringLiteral("captionWeight"), Kind::Weight},
+          // The table's status word in the caption voice (`.verb`), the rows' fact at a step
+          // of the type scale (`.row .fact b`), and the rows' fix as a filled accent tag
+          // (`.row .fix`) rather than an outlined one.
+          {QStringLiteral("verb"), Kind::Bool},
+          {QStringLiteral("rowFactSize"), Kind::Step},
+          {QStringLiteral("fixTag"), Kind::Bool}}},
+        // The details' pieces bar as a grid of this many columns and at most this many rows
+        // (board 46 `.pmap`: 34 × 7); 0 columns draws it as a line.
+        {QStringLiteral("meter"),
+         {{QStringLiteral("piecesColumns"), Kind::Count},
+          {QStringLiteral("piecesRows"), Kind::Count}}},
         // What marks the cursor's row and a picked one (#171 step 6; board 46 `.row.sel`,
         // `.row.picked`): the SelectionMark on the cursor instead of a hairline round it,
         // and the `picked` ground instead of the selected ground with a rule.
@@ -169,6 +189,8 @@ QVariant check(const QJsonValue &value, Kind kind)
         return isInteger(value, 0, 8) ? QVariant(value.toInt()) : QVariant();
     case Kind::Px:
         return isInteger(value, 0, 64) ? QVariant(value.toInt()) : QVariant();
+    case Kind::Count:
+        return isInteger(value, 0, 256) ? QVariant(value.toInt()) : QVariant();
     case Kind::Spec:
         return isNumberIn(value, 0, 4000) ? QVariant(value.toDouble()) : QVariant();
     case Kind::Alpha:
@@ -197,7 +219,7 @@ QVariant check(const QJsonValue &value, Kind kind)
     case Kind::Step: {
         const QString text = value.toString();
         return text == QLatin1String("caption") || text == QLatin1String("small") ||
-                       text == QLatin1String("body")
+                       text == QLatin1String("body") || text == QLatin1String("heading")
                    ? QVariant(text)
                    : QVariant();
     }

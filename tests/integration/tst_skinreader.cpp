@@ -69,6 +69,7 @@ void TestSkinReader::consoleReadsWhole()
                               "glyphs",
                               "labels",
                               "select",
+                              "meter",
                               "glow"})
         QVERIFY2(skin.tokens.contains(QLatin1String(group)), group);
     QCOMPARE(skin.tokens.value(QStringLiteral("glow")).toString(), QStringLiteral("clean"));
@@ -192,6 +193,15 @@ void TestSkinReader::malformedTokensAreOmarchys_data()
         << QByteArray(R"("label": {"captionTrack": 3})") << "label.captionTrack";
     QTest::newRow("row case") << QByteArray(R"("label": {"rowCase": "lower"})") << "label.rowCase";
     QTest::newRow("card edge") << QByteArray(R"("line": {"card": 12})") << "line.card";
+    QTest::newRow("tab lit not bool") << QByteArray(R"("line": {"tabLit": 2})") << "line.tabLit";
+    QTest::newRow("block tint") << QByteArray(R"("tint": {"block": -1})") << "tint.block";
+    QTest::newRow("verb not bool") << QByteArray(R"("label": {"verb": "caption"})") << "label.verb";
+    QTest::newRow("row fact size")
+        << QByteArray(R"("label": {"rowFactSize": "display"})") << "label.rowFactSize";
+    QTest::newRow("pieces columns")
+        << QByteArray(R"("meter": {"piecesColumns": 300})") << "meter.piecesColumns";
+    QTest::newRow("pieces rows not integer")
+        << QByteArray(R"("meter": {"piecesRows": 2.5})") << "meter.piecesRows";
     QTest::newRow("cursor mark not bool")
         << QByteArray(R"("select": {"cursorMark": "yes"})") << "select.cursorMark";
     QTest::newRow("numerals") << QByteArray(R"("numerals": 2)") << "numerals";
