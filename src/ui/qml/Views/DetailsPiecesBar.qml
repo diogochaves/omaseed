@@ -59,11 +59,22 @@ Item {
         }
     }
 
-    // The skin's Meter draws it (#171 step 6): a slot per pixel in Omarchy's face, a cell
-    // each in Console's (board 46 `.pmap`). `cells` keeps what was asked for last, for the
-    // tests.
+    // The skin's Meter draws it (#171 step 6): a line with a slot per pixel in Omarchy's face,
+    // or, where the skin says, board 46's `.pmap`: a grid of `Theme.piecesColumns` square cells
+    // a row (more where the bar is wide enough that they would pass `Theme.piecesCellMax`), as
+    // many rows as the pieces fill up to `Theme.piecesRows`. `cells` keeps what was asked for
+    // last, for the tests.
     Meter {
         id: track
+
+        readonly property bool grid: Theme.piecesColumns > 0
+        readonly property int gridColumns: track.grid ? Math.max(Theme.piecesColumns, Math.floor(
+                                                                     (track.width + track.cellGap)
+                                                                     / (Theme.piecesCellMax + track.cellGap)))
+                                                      : 0
+        /// A grid cell's side: the width shared by the columns, less the gaps.
+        readonly property real cellSide: track.grid ? (track.width - track.cellGap * (track.gridColumns - 1))
+                                                      / track.gridColumns : 0
 
         function refresh(): void {
             track.cells = root.hasPieces && track.slots > 0 ? root.details.pieceBuckets(track.slots) : [];
@@ -72,8 +83,14 @@ Item {
         anchors.top: labels.bottom
         anchors.topMargin: Theme.space(4)
         arrivingColor: root.downloadingColor
+        cellHeight: track.cellSide
         color: root.haveColor
-        height: Theme.space(10)
+        columns: track.gridColumns
+        height: track.grid ? track.rows * track.cellSide + (track.rows - 1) * track.cellGap : Theme.space(10)
+        // A small torrent fills fewer rows than the most: no empty row stands for pieces it
+        // doesn't have.
+        rows: track.grid ? Math.max(1, Math.min(Theme.piecesRows, Math.ceil((root.details?.pieceCount ?? 0)
+                                                                              / track.gridColumns))) : 1
         objectName: "piecesCanvas"
         trackColor: Theme.on.idle.fill
         width: parent.width

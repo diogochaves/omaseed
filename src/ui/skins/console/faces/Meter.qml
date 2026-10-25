@@ -4,8 +4,9 @@ import Omaseed.Kit
 // Console's Meter (Kit/Meter.qml; board 46 `.strip i`, `.card .grid i`): cells, never a bar.
 // A line is one row of cells `Theme.meterCellWidth` wide (as many as its width holds); a grid
 // is the seam's `columns` × `rows`. Filled cells are the seam's colour at full strength, the
-// rest the skin's faint line; `trackColor` and `fillAlpha` are Omarchy's. A line of `cells`
-// is a slot per cell, had in the colour and arriving in `arrivingColor` (board 46 `.pmap i`).
+// rest the skin's faint line; `trackColor` and `fillAlpha` are Omarchy's. `cells` are a slot
+// per cell, had in the colour and arriving in `arrivingColor` (board 46 `.pmap i`); in a grid,
+// the cells past the last state are left out (a torrent with fewer pieces than cells).
 Canvas {
     id: face
 
@@ -22,7 +23,7 @@ Canvas {
     readonly property color track: Theme.faintColor
     readonly property color arriving: face.seam.arrivingColor
     readonly property var states: face.seam.cells
-    /// A line of states is a slot per cell.
+    /// A slot per cell.
     readonly property int slots: face.line ? face.columns : face.columns * face.rows
 
     objectName: "meterFaceConsole"
@@ -43,8 +44,10 @@ Canvas {
         const gap = face.seam.cellGap;
         const cell = (face.width - gap * (face.columns - 1)) / face.columns;
         const states = face.states;
-        const byState = face.line && states.length > 0;
+        const byState = states.length > 0;
         for (let i = 0; i < face.columns * face.rows; ++i) {
+            if (byState && !face.line && i >= states.length)
+                break;
             if (byState)
                 context.fillStyle = states[i] === 2 ? face.filled : states[i] === 1 ? face.arriving : face.track;
             else
