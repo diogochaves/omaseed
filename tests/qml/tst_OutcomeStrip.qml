@@ -308,8 +308,8 @@ TestCase {
         return rows.map(row => App.filtered.hashAt(row));
     }
 
-    // C24 H8: bottom middle of the rows, 12 u over their foot; with a selection on, that is
-    // just above the action bar, which is docked under the rows.
+    // C18 D1: bottom middle of the rows, 12 u over their foot; with a selection on, just
+    // above the action bar floating there (C32 D17.1 a), 8 u over it.
     function test_it_floats_bottom_middle_of_the_rows() {
         const table = view.table;
         const strip = view.outcomeStrip;
@@ -322,13 +322,18 @@ TestCase {
         // The last row can scroll clear of it, its reason line counted whether it shows.
         compare(table.bottomRoom, strip.roomHeight + Theme.outcomeStripLift);
         verify(strip.roomHeight >= strip.height);
-        // With a selection: the same place, the bar under it.
+        // With a selection: just above the bar, both in the middle; the rows clear both.
         table.toggleCursorSelection();
-        verify(view.selectionBar.visible);
-        compare(strip.mapToItem(view, 0, 0).y, at.y);
-        verify(strip.mapToItem(view, 0, strip.height).y <= view.selectionBar.mapToItem(view, 0, 0).y,
-               "the strip sits over the action bar");
+        const bar = view.selectionBar;
+        verify(bar.visible);
+        waitForRendering(view);
+        const barTop = bar.mapToItem(view, 0, 0).y;
+        compare(strip.mapToItem(view, 0, strip.height).y, barTop - Theme.actionBarStripGap);
+        fuzzyCompare(strip.mapToItem(view, 0, 0).x + strip.width / 2, bar.mapToItem(view, 0, 0).x + bar.width / 2, 1);
+        compare(table.bottomRoom, Theme.actionBarLift + bar.height + Theme.actionBarStripGap + strip.roomHeight);
         App.outcomes.dismiss();
+        compare(table.bottomRoom, Theme.actionBarLift + bar.height);
+        table.clearSelection();
         compare(table.bottomRoom, 0);
     }
 

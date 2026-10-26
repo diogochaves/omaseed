@@ -54,6 +54,8 @@ Item {
     readonly property alias folderMenuPanel: folderMenuPanel
     readonly property alias serverMenuPanel: serverMenuPanel
     readonly property alias selectionBar: selectionBar
+    /// C32 D17.1 a: the action bar's category › and tags › list.
+    readonly property alias barListMenu: barListMenu
     readonly property alias outcomeStrip: outcomeStrip
     readonly property alias footerNoticeItem: footerNotice
     readonly property alias deleteConfirmPanel: deleteConfirmPanel
@@ -1086,18 +1088,109 @@ Item {
         root.torrentAction(action);
     }
 
-    /// The selection bar's ⋯: the full actions menu hung over the button, right edges flush,
-    /// with the actions the bar folded away at this width listed first (docs/17 M9.5).
-    function openSelectionMore(button: Item, folded: var): void {
-        const corner = button.mapToItem(root, button.width, 0);
-        const hash = root.cursorHash;
-        actionsMenuPanel.cursorStopped = hash.length > 0 && App.torrentRow(hash).stopped === true;
-        actionsMenuPanel.cursorRow = hash.length > 0 ? App.torrentRow(hash) : ({});
-        actionsMenuPanel.leadActions = folded;
-        actionsMenuPanel.heading = root.actionsHeading(hash);
-        actionsMenuPanel.headingTitle = root.actionsHeadingTitle(hash);
-        actionsMenuPanel.openAbove(Math.round(corner.x - actionsMenuPanel.menuWidth),
-                                   Math.round(corner.y - Theme.space(4)));
+    /// The action bar's button whose list is open ("category", "tags", "more"), lit.
+    readonly property string barMenuOpen: barListMenu.opened ? barListMenu.kind
+                                                             : actionsMenuPanel.opened && actionsMenuPanel.leaveOut.length > 0
+                                                               ? "more" : ""
+
+    /// The action bar's lists (board 51 D17.1 a), each opening upward over the bar, its left
+    /// edge on the button's: more › the menu's rows the bar does not show (those it
+    /// folded at this width first, docs/17 M9.5), category › and tags › their lists for the
+    /// selection.
+    function openBarMenu(action: string, button: Item, folded: var): void {
+        const x = Math.round(button.mapToItem(root, 0, 0).x);
+        const y = Math.round(selectionBar.mapToItem(root, 0, 0).y - Theme.space(4));
+        if (action === "more") {
+            const hash = root.cursorHash;
+            actionsMenuPanel.cursorStopped = hash.length > 0 && App.torrentRow(hash).stopped === true;
+            actionsMenuPanel.cursorRow = hash.length > 0 ? App.torrentRow(hash) : ({});
+            actionsMenuPanel.leadActions = folded;
+            actionsMenuPanel.leaveOut = selectionBar.menuActionsShown;
+            actionsMenuPanel.heading = "";
+            actionsMenuPanel.headingTitle = "";
+            actionsMenuPanel.openAbove(x, y);
+            return;
+        }
+        barListMenu.kind = action;
+        barListMenu.hashes = root.actionHashes();
+        barListMenu.openAbove(x, y);
+    }
+
+    /// The category list for `hashes` (board 51 `subMenu("cat")`): its caption, each
+    /// category with how many of them have it, then a new one and none.
+    function barCategoryRows(hashes: var): var {
+        const rows = [{
+                "caption": true,
+                "text": qsTr("category for %n", "", hashes.length)
+            }];
+        const tally = name => hashes.filter(hash => (App.torrentRow(hash).category ?? "") === name).length;
+        for (const name of App.categories.names()) {
+            const have = tally(name);
+            rows.push({
+                          "text": name,
+                          "glyph": Glyphs.category,
+                          "action": "category:" + name,
+                          "checked": have === hashes.length,
+                          "note": have > 0 && have < hashes.length ? qsTr("%1 of %2").arg(have).arg(hashes.length) : ""
+                      });
+        }
+        rows.push({
+                      "separator": true
+                  }, {
+                      "text": qsTr("new category…"),
+                      "glyph": Glyphs.add,
+                      "key": "C",
+                      "action": "newCategory"
+                  }, {
+                      "text": qsTr("no category"),
+                      "glyph": Glyphs.middot,
+                      "action": "category:",
+                      "disabled": tally("") === hashes.length
+                  });
+        return rows;
+    }
+
+    /// The tags list for `hashes`: each tag ticked while every one has it; a row turns it to
+    /// the other side for all of them (as the palette's space, then enter).
+    function barTagRows(hashes: var): var {
+        const rows = [{
+                "caption": true,
+                "text": qsTr("tags for %n", "", hashes.length)
+            }];
+        for (const tag of App.tags.tags()) {
+            const have = hashes.filter(hash => App.tagsOf(hash).indexOf(tag) >= 0).length;
+            rows.push({
+                          "text": tag,
+                          "glyph": Glyphs.tag,
+                          "action": "tag:" + tag,
+                          "checked": have === hashes.length,
+                          "note": have > 0 && have < hashes.length ? qsTr("%1 of %2").arg(have).arg(hashes.length) : ""
+                      });
+        }
+        rows.push({
+                      "separator": true
+                  }, {
+                      "text": qsTr("new tag…"),
+                      "glyph": Glyphs.add,
+                      "key": "t",
+                      "action": "newTag"
+                  });
+        return rows;
+    }
+
+    /// A row of the bar's category or tags list ran.
+    function barListAction(hashes: var, action: string): void {
+        if (action === "newCategory") {
+            categoryPalette.openFor(hashes);
+        } else if (action === "newTag") {
+            tagPalette.openFor(hashes);
+        } else if (action.startsWith("category:")) {
+            categoryPalette.applyTo(hashes, action.slice("category:".length), false);
+        } else if (action.startsWith("tag:")) {
+            const tag = action.slice("tag:".length);
+            const every = hashes.every(hash => App.tagsOf(hash).indexOf(tag) >= 0);
+            App.applyTags(hashes, every ? [] : [tag], every ? [tag] : []);
+        }
     }
 
     /// The Trackers and Peers tabs' keys (Fig. 3/4). `R` reannounces the torrent (the API has
@@ -2424,11 +2517,12 @@ Item {
                 rowMarkRevision: App.outcomes.revision
                 rowMarkFor: hash => App.outcomes.rowMark(hash)
                 escapeTaken: outcomeStrip.visible
-                // docs/17 M9.6: the last row can always scroll clear of the outcome strip over
-                // it (C18 D1); the action bar is docked under the rows (C24 H8).
-                // Its tallest (C30 F10's reason line counted), so the reason coming and going
-                // never moves the rows it is read from.
-                bottomRoom: outcomeStrip.visible ? outcomeStrip.roomHeight + Theme.outcomeStripLift : 0
+                // docs/17 M9.6: the last row can always scroll clear of the action bar and the
+                // outcome strip floating over it (C32 D17.1 a, C18 D1). The strip's tallest
+                // (C30 F10's reason line counted), so the reason coming and going never moves
+                // the rows it is read from.
+                bottomRoom: outcomeStrip.visible ? outcomeStrip.anchors.bottomMargin + outcomeStrip.roomHeight
+                                                 : selectionBar.visible ? Theme.actionBarLift + selectionBar.height : 0
                 filtered: App.filtered
                 // C24 H3: the display the scope shows draws the rows; the table keeps the rest.
                 face: App.display === "rows" ? libraryRows : App.display === "overview" ? libraryShelves
@@ -2448,6 +2542,7 @@ Item {
                     actionsMenuPanel.cursorStopped = App.torrentRow(hash).stopped === true;
                     actionsMenuPanel.cursorRow = App.torrentRow(hash);
                     actionsMenuPanel.leadActions = [];
+                    actionsMenuPanel.leaveOut = [];
                     actionsMenuPanel.heading = root.actionsHeading(hash);
                     actionsMenuPanel.headingTitle = root.actionsHeadingTitle(hash);
                     actionsMenuPanel.openAt(point.x, point.y);
@@ -2528,14 +2623,16 @@ Item {
                 onClearRequested: root.handleEscape()
             }
 
-            // DECISIONS C18 D1–D3 (board 45 §2): what a quick action on torrents came to. C24
-            // H8 (supersedes D1's place): it floats bottom middle of the rows, so with a
-            // selection on it sits just above the action bar, and both read together.
+            // DECISIONS C18 D1–D3 (board 45 §2): what a quick action on torrents came to. It
+            // floats bottom middle of the rows; with a selection on, just above the action bar
+            // (C32 D17.1 a), so both read together.
             OutcomeStrip {
                 id: outcomeStrip
 
                 anchors.bottom: table.bottom
-                anchors.bottomMargin: Theme.outcomeStripLift
+                anchors.bottomMargin: selectionBar.visible ? Theme.actionBarLift + selectionBar.height
+                                                             + Theme.actionBarStripGap
+                                                           : Theme.outcomeStripLift
                 anchors.horizontalCenter: table.horizontalCenter
                 availableWidth: table.width - Theme.space(16)
                 height: implicitHeight
@@ -2554,6 +2651,42 @@ Item {
                 onExpired: serial => App.outcomes.expire(serial)
                 onMoveRequested: (hashes, target) => moveSheet.openSelection(hashes, target)
                 onShowRequested: hashes => root.showOutcome(hashes)
+            }
+
+            // The action bar (board 51 D17, DECISIONS C32; supersedes C24 H8's status line
+            // turned action bar): while torrents are selected it floats over the rows, bottom
+            // middle, built from the torrent menu's groups. Never while the server is lost
+            // (Fig. 23 is read-only) or with no rows on show.
+            SelectionBar {
+                id: selectionBar
+
+                anchors.bottom: table.bottom
+                anchors.bottomMargin: Theme.actionBarLift
+                anchors.horizontalCenter: table.horizontalCenter
+                availableWidth: table.width - 2 * Theme.actionBarLift
+                count: table.selectedCount
+                // The menu's groups as they stand for no torrent in particular: the open
+                // menu's own follow its cursor row, and would rebuild the bar under a click.
+                groups: barMenuRows.groups
+                height: implicitHeight
+                // #170: `p`'s word, as the selection needs it.
+                startable: root.selectionRunStates.stopped
+                stoppable: root.selectionRunStates.running
+                hint: root.selectionHint
+                keysShown: root.keysShown
+                openAction: root.barMenuOpen
+                // #24 T1: re-read when the selection or the library moves.
+                summary: {
+                    App.torrents.count; // the dependency: a sync that adds or drops a row
+                    return table.selectedCount > 0 ? App.console.selectionSummary(table.selectedHashes()) : ({});
+                }
+                visible: table.selectedCount > 0 && table.visible && !root.serverLost && !root.firstRun
+                width: implicitWidth
+
+                onClearRequested: table.clearSelection()
+                onMenuRequested: (action, button, folded) => root.openBarMenu(action, button, folded)
+                onSummaryClicked: root.setView("seed")
+                onTriggered: action => root.selectionBarAction(action)
             }
 
             // #24 T7: seeding moments in the bar's spot, while nothing is selected.
@@ -2733,8 +2866,9 @@ Item {
         anchors.bottom: parent.bottom
         anchors.left: titleBar.left
         anchors.right: parent.right
-        // While torrents are selected the action bar stands in its place (C24 H8).
-        visible: !root.firstRun && !selectionBar.visible
+        // C32 D17.3 a: it stays the server's while a selection is on; the action bar floats
+        // over the list (supersedes C24 H8).
+        visible: !root.firstRun
 
         serverText: root.serverLaneText()
         // docs/10 §2: from the first narrow step the lane drops the version (its tooltip keeps
@@ -2794,39 +2928,6 @@ Item {
         // docs/35 N8: the sentence's "details" open the band above the line.
         onDetailsToggled: root.footerNoticeOpen = !root.footerNoticeOpen
         onNoteHintClicked: root.toggleDetails()
-    }
-
-    // The action bar (board 46 `statusLine()` while selecting, DECISIONS C24 H8; supersedes
-    // docs/17's floating bar): while one or more torrents are selected the status line becomes
-    // it, docked in the line's place. Never while the server is lost (Fig. 23 is read-only) or
-    // with no rows on show: the status line stays then.
-    SelectionBar {
-        id: selectionBar
-
-        anchors.fill: statusLine
-        // The line's width, not the bar's own: while the bar is made, its width follows its
-        // implicit width for a moment, which follows its folds (a binding loop).
-        availableWidth: statusLine.width - Theme.actionBarInsetStart - Theme.actionBarInsetEnd
-        count: table.selectedCount
-        // #170: `p`'s word, as the selection needs it.
-        startable: root.selectionRunStates.stopped
-        stoppable: root.selectionRunStates.running
-        hint: root.selectionHint
-        keysShown: root.keysShown
-        // The line's note, while the bar hides the line.
-        note: root.footerNote
-        noteWarn: root.footerNoteWarn
-        // #24 T1: re-read when the selection or the library moves.
-        summary: {
-            App.torrents.count; // the dependency: a sync that adds or drops a row
-            return table.selectedCount > 0 ? App.console.selectionSummary(table.selectedHashes()) : ({});
-        }
-        visible: table.selectedCount > 0 && table.visible && !root.serverLost && !root.firstRun
-
-        onClearRequested: table.clearSelection()
-        onMoreRequested: (button, folded) => root.openSelectionMore(button, folded)
-        onSummaryClicked: root.setView("seed")
-        onTriggered: action => root.selectionBarAction(action)
     }
 
     // the `?` sheet (spec §7 Fig. 26: 760 wide, no buttons — a sheet may have none)
@@ -3426,6 +3527,31 @@ Item {
             const at = actionsMenuPanel.mapToItem(table, x, y);
             table.contextClickAt(at.x, at.y);
         }
+    }
+
+    // The torrent menu's rows, never opened: what the action bar is built from (C32 D17).
+    ActionsMenu {
+        id: barMenuRows
+
+        visible: false
+    }
+
+    // Board 51 D17.1 a: the action bar's category › and tags › lists, upward from the button.
+    Menu {
+        id: barListMenu
+
+        /// "category" or "tags", and the torrents it acts on.
+        property string kind: ""
+        property var hashes: []
+
+        anchors.fill: parent
+        items: barListMenu.kind === "tags" ? root.barTagRows(barListMenu.hashes)
+                                           : root.barCategoryRows(barListMenu.hashes)
+        menuWidth: Theme.space(240)
+        objectName: "barListMenu"
+        z: 9
+
+        onActivated: action => root.barListAction(barListMenu.hashes, action)
     }
 
     // DECISIONS C19 T3 (C15 M1's "the row's menu"): a rail folder row's menu. It moves that

@@ -416,26 +416,30 @@ ThemeBase {
     /// at 4 the downloading count and the free space go.
     readonly property var statusLineSteps: [space(880), space(740), space(600), space(460)]
 
-    // ---- the frame's form: the action bar (board 46 `statusLine()` while selecting, `.sel`) --
-    /// The status line's own height and insets: the bar takes its place, and nothing above it
-    /// moves when a selection starts or ends (DECISIONS C24 H8).
-    readonly property int actionBarHeight: statusLineHeight
-    readonly property int actionBarInsetStart: statusLineInsetStart
-    readonly property int actionBarInsetEnd: statusLineInsetEnd
-    /// Its ground, a fill over the window's (board 46 `.status.sel`: the 8 % fill).
-    readonly property real actionBarFill: fillHover
-    /// The same ground as `Theme.on`'s, which the bar paints and takes its words from
-    /// (DECISIONS C30 F1): a skin that moves the bar's fill moves its text with it.
-    readonly property ThemeInk actionBarGround: on.hover
-    /// A button's height: inside the line with a little room above and below it.
-    readonly property int actionBarButtonSize: statusLineHeight - space(4)
-    /// Between two of its parts (board 46 `.status.sel`: 4 px).
-    readonly property int actionBarGap: n("actionBarGap", 4)
-    /// A word button (board 46 `.status.sel .ab`: 8 px either side of its word, the status
-    /// line's type), and the room before the end's "all actions" and "esc".
-    readonly property int actionBarWordPadding: n("actionBarWordPadding", 8)
+    // ---- the frame's form: the action bar (board 51 D17 `.abar`, `.ab2`, DECISIONS C32) ----
+    /// It floats over the list, bottom middle, `actionBarLift` above the list's foot (board 51
+    /// `.fl51 { bottom: 12px }`), and the outcome strip `actionBarStripGap` above it.
+    readonly property int actionBarLift: n("actionBarLift", 12)
+    readonly property int actionBarStripGap: n("actionBarStripGap", 8)
+    /// Round its buttons, inside its edge (`.abar { padding: 4px }`).
+    readonly property int actionBarPadding: n("actionBarPadding", 4)
+    /// A button's height and an icon button's width (`.ab2 { height: 30px }`, `.ab2.ico`).
+    readonly property int actionBarButtonSize: n("actionBarButtonSize", 30)
+    /// The whole bar: its buttons, its padding and its edge.
+    readonly property int actionBarHeight: actionBarButtonSize + 2 * actionBarPadding + 2 * edgeWidth
+    /// Between two of its parts (`.abar { gap: 1px }`), and a group's rule's room either side
+    /// (`.sp { margin: 3px 4px }`).
+    readonly property int actionBarGap: n("actionBarGap", 1)
+    readonly property int actionBarRuleInset: n("actionBarRuleInset", 4)
+    /// A word button: 9 px either side (`.ab2 { padding: 0 9px }`), the status line's type.
+    readonly property int actionBarWordPadding: n("actionBarWordPadding", 9)
     readonly property int actionBarFontSize: Math.min(statusLineFontSize, controlFontSize)
-    readonly property int actionBarEndGap: n("actionBarEndGap", 12)
+    /// The count's room (`.cnt { padding: 0 12px 0 8px }`).
+    readonly property int actionBarCountStart: n("actionBarCountStart", 8)
+    readonly property int actionBarCountEnd: n("actionBarCountEnd", 12)
+    /// Its ground, the strip's: the window's, or the panel's on a skin that plates its blocks
+    /// (DECISIONS C30 F1: its words and buttons take their colours from it).
+    readonly property ThemeInk actionBarGround: platedBlocks ? on.panel : on.window
 
     // ---- the sheets' form (board 46 `.sheet`, `.shh`, `.shb`, `.shf`, DECISIONS C24 H7) ------
     /// From the window's edge to a sheet that would be wider than the window.

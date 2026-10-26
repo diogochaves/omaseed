@@ -25,10 +25,14 @@ Menu {
     /// each row turns its option to the other side of the cursor torrent's, on the whole
     /// selection.
     property var cursorRow: ({})
-    /// The selection bar's ⋯ (docs/17 M9.5): the actions whose buttons folded away at this
-    /// width come first, above a separator, and leave their usual place. Empty for `enter`
-    /// and right-click, which get the menu as Fig. 11 draws it.
+    /// The action bar's more › (docs/17 M9.5, board 51 D17): the rows its buttons folded
+    /// away at this width come first, above a separator, and leave their usual place. Empty
+    /// for `enter` and right-click, which get the menu as Fig. 11 draws it.
     property var leadActions: []
+    /// The action bar's more › (board 51 D17.1 a): the rows the bar shows as buttons, which
+    /// its list leaves out ("the menu's other rows"), out of their submenus too. Empty for
+    /// `enter` and right-click.
+    property var leaveOut: []
 
     /// A docs/12 G4 option: checked while the cursor torrent has it on.
     function _option(text: string, glyph: string, key: string, action: string, on: bool): var {
@@ -41,13 +45,15 @@ Menu {
         };
     }
 
-    /// `all` with `leadActions`' rows moved to the top, in the menu's own order (out of their
-    /// submenus too; a submenu left empty goes), and the separators they leave behind tidied
-    /// (none first, last or twice in a row).
+    /// `all` without `leaveOut`'s rows and with `leadActions`' rows moved to the top, in the
+    /// menu's own order (out of their submenus too; a submenu left empty goes), and the
+    /// separators they leave behind tidied (none first, last or twice in a row).
     function _arrange(all: var): var {
-        if (root.leadActions.length === 0)
+        if (root.leadActions.length === 0 && root.leaveOut.length === 0)
             return all;
-        const leads = item => item.action !== undefined && root.leadActions.indexOf(item.action) >= 0;
+        const named = (item, list) => item.action !== undefined && list.indexOf(item.action) >= 0;
+        const leads = item => named(item, root.leadActions);
+        const gone = item => named(item, root.leaveOut) && !leads(item);
         const lead = [];
         const rest = [];
         for (const item of all) {
@@ -55,8 +61,10 @@ Menu {
                 lead.push(item);
                 continue;
             }
+            if (gone(item))
+                continue;
             if (item.submenu !== undefined) {
-                const kept = item.submenu.filter(child => !leads(child));
+                const kept = item.submenu.filter(child => !leads(child) && !gone(child));
                 for (const child of item.submenu) {
                     if (leads(child))
                         lead.push(child);

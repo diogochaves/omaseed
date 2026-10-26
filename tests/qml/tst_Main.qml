@@ -76,6 +76,7 @@ TestCase {
         view.jumpPalette.close();
         view.categoryPalette.close();
         view.tagPalette.close();
+        view.barListMenu.close();
         view.sortPalette.close();
         view.columnsPalette.close();
         view.commandPalette.close();
@@ -1111,10 +1112,10 @@ TestCase {
         view.table.toggleCursorSelection();
         verify(view.selectionBar.visible);
         compare(view.selectionBar.count, 1);
-        // C24 H8: the status line becomes the bar, so the line itself goes, and the bar is
-        // docked under the rows: they need no room past the last one for it.
-        verify(!view.statusLine.visible, "the status line showed under the action bar");
-        compare(view.table.bottomRoom, 0);
+        // C32 D17.3 a: the status line stays the server's; the bar floats over the rows,
+        // which keep room past the last one for it (docs/17 M9.6).
+        verify(view.statusLine.visible, "the status line went under the action bar");
+        compare(view.table.bottomRoom, Theme.actionBarLift + view.selectionBar.height);
         view.table.clearSelection();
         verify(!view.selectionBar.visible);
         verify(view.statusLine.visible);
@@ -1146,9 +1147,9 @@ TestCase {
         view.table.clearSelection();
     }
 
-    // DECISIONS C24 H8 (supersedes docs/17's floating bar): the bar is docked in the status
-    // line's place, across the content beside the rail, and the rows above it don't move.
-    function test_the_action_bar_docks_in_the_status_lines_place() {
+    // Board 51 D17.1 a (supersedes C24 H8): the bar floats over the rows, bottom middle, the
+    // status line under them unchanged, and the rows above it don't move.
+    function test_the_action_bar_floats_over_the_rows_bottom_middle() {
         const table = view.table;
         const tableHeight = table.height;
         const line = view.statusLine;
@@ -1156,25 +1157,26 @@ TestCase {
         testCase.selectTwo();
         const bar = view.selectionBar;
         const barAt = bar.mapToItem(view, 0, 0);
-        compare(barAt.x, lineAt.x);
-        compare(barAt.y, lineAt.y);
-        compare(bar.width, line.width);
-        compare(bar.height, line.height);
-        compare(barAt.y + bar.height, view.height);
-        fuzzyCompare(barAt.x, view.contentLeft, 1);
+        const tableAt = table.mapToItem(view, 0, 0);
+        fuzzyCompare(barAt.x + bar.width / 2, tableAt.x + table.width / 2, 1);
+        compare(barAt.y + bar.height, tableAt.y + table.height - Theme.actionBarLift);
+        compare(bar.height, Theme.actionBarHeight);
+        verify(bar.width < table.width, "the bar runs the list's whole width");
+        compare(line.mapToItem(view, 0, 0).y, lineAt.y);
+        verify(line.visible);
+        verify(barAt.y + bar.height <= lineAt.y, "the bar sits on the status line");
         compare(table.height, tableHeight, "the rows moved when the bar came");
-        verify(table.mapToItem(view, 0, table.height).y <= barAt.y, "the rows run under the bar");
         compare(bar.folded, [], "at 1360 the whole bar fits");
-        // Its count is the line's facts' no more: the facts went with the line.
+        // D17.3 a: the line's facts hold no selection: the count is the bar's.
         verify(view.factsText.indexOf("selected") < 0);
     }
 
-    // The status line's note ("copied") shows in the bar while the bar hides the line.
-    function test_a_note_shows_in_the_action_bar() {
+    // D17.3 a: the status line's note ("copied") stays in the line, which stays.
+    function test_a_note_shows_in_the_status_line_under_the_bar() {
         testCase.selectTwo();
         view.flashFooterNote("copied");
-        compare(view.selectionBar.note, "copied");
-        compare(findChild(view.selectionBar, "bar_note").text, "copied");
+        verify(view.statusLine.visible);
+        compare(view.statusLine.noteText, "copied");
         view.footerNote = "";
     }
 
@@ -1189,26 +1191,35 @@ TestCase {
         verify(view.table.activeFocus, "the bar took the keyboard from the table (M9.4)");
     }
 
-    function test_the_bars_more_hangs_the_menu_over_it() {
+    // D17.1 a: more › opens the menu's other rows over the bar, none of the bar's own.
+    function test_the_bars_more_hangs_the_rest_of_the_menu_over_it() {
         testCase.selectTwo();
         waitForRendering(view);
         mouseClick(findChild(view.selectionBar, "bar_more"));
         compare(view.actionsMenuPanel.opened, true);
         compare(view.actionsMenuPanel.leadActions, []);
+        compare(view.actionsMenuPanel.leaveOut, view.selectionBar.menuActionsShown);
+        verify(findChild(view.selectionBar, "bar_more").selected, "more is lit while its list is open");
         const panel = view.actionsMenuPanel.panel;
         const bottom = panel.mapToItem(view, 0, panel.height).y;
         verify(bottom <= view.selectionBar.mapToItem(view, 0, 0).y,
                "the menu should open above the bar, not over it");
+        const actions = view.actionsMenuPanel.items.filter(item => item.action !== undefined).map(item => item.action);
+        for (const shown of ["stopStart", "recheck", "location", "category", "tags", "limits", "delete"])
+            verify(actions.indexOf(shown) < 0, shown + " is on the bar and in more");
+        for (const rest of ["reannounce", "rename", "transfer", "queue", "openFolder", "copy"])
+            verify(actions.indexOf(rest) >= 0, rest + " is in neither");
         view.actionsMenuPanel.close();
         verify(view.table.activeFocus);
     }
 
     function test_the_bars_more_lists_what_folded_first() {
-        testCase.width = 620;
+        testCase.width = 400;
         testCase.selectTwo();
         waitForRendering(view);
         const folded = view.selectionBar.folded;
-        verify(folded.length > 0, "at 620 some buttons should have folded");
+        verify(folded.length > 0, "at 400 some buttons should have folded");
+        verify(!view.selectionBar.showWords, "the words go before any row folds (D17.2 a)");
         mouseClick(findChild(view.selectionBar, "bar_more"));
         compare(view.actionsMenuPanel.opened, true);
         const items = view.actionsMenuPanel.items;
@@ -1224,7 +1235,54 @@ TestCase {
         view.table.requestActions();
         compare(view.actionsMenuPanel.opened, true);
         compare(view.actionsMenuPanel.leadActions, []);
+        compare(view.actionsMenuPanel.leaveOut, []);
         compare(view.actionsMenuPanel.items[0].action, "stopStart");
+    }
+
+    // D17.1 a: category › lists the categories for the selection, upward over the bar; a new
+    // one goes to the palette.
+    function test_the_bars_category_list() {
+        testCase.selectTwo();
+        const hashes = view.table.selectedHashes();
+        waitForRendering(view);
+        mouseClick(findChild(view.selectionBar, "bar_category"));
+        const menu = view.barListMenu;
+        verify(menu.opened);
+        verify(findChild(view.selectionBar, "bar_category").selected);
+        compare(menu.items[0].caption, true);
+        compare(menu.items[0].text, "category for 2");
+        const names = menu.items.filter(item => (item.action ?? "").startsWith("category:")
+                                        && item.action !== "category:").map(item => item.text);
+        compare(names, App.categories.names());
+        verify(menu.items.some(item => item.action === "newCategory"));
+        verify(menu.items.some(item => item.action === "category:"));
+        const panel = menu.panel;
+        verify(panel.mapToItem(view, 0, panel.height).y <= view.selectionBar.mapToItem(view, 0, 0).y,
+               "the list should open above the bar");
+        menu.activate(menu.items.findIndex(item => item.action === "newCategory"));
+        verify(!menu.opened);
+        verify(view.categoryPalette.opened);
+        compare(view.categoryPalette.hashes.slice().sort(), hashes.slice().sort());
+        view.categoryPalette.close();
+    }
+
+    // Tags › ticks the tags every one of them has; a new one goes to the palette.
+    function test_the_bars_tags_list() {
+        testCase.selectTwo();
+        waitForRendering(view);
+        mouseClick(findChild(view.selectionBar, "bar_tags"));
+        const menu = view.barListMenu;
+        verify(menu.opened);
+        compare(menu.kind, "tags");
+        compare(menu.items[0].text, "tags for 2");
+        const hashes = view.table.selectedHashes();
+        for (const item of menu.items.filter(row => (row.action ?? "").startsWith("tag:"))) {
+            const every = hashes.every(hash => App.tagsOf(hash).indexOf(item.text) >= 0);
+            compare(item.checked, every, item.text);
+        }
+        menu.activate(menu.items.findIndex(item => item.action === "newTag"));
+        verify(view.tagPalette.opened);
+        view.tagPalette.close();
     }
 
     // ---- overlays are modal, and give the keyboard back (T4.8) -------------------------------
