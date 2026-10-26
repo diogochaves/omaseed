@@ -219,8 +219,8 @@ it. A capital letter is the stronger variant of its lower-case neighbour (`p` st
 `P` force start; `d` delete, `D` delete with files). Keys are taught where you ask for them:
 menus and tooltips name them, holding `alt` badges the controls on screen, and the `?` sheet
 lists them all, one block the keys inside a sheet (add, move, settings). With torrents
-selected, the status line becomes the action bar: their verbs as words, "all actions" and
-"esc" at its end.
+selected, an action bar floats over the list: the torrent menu's verbs with their icons, more ›
+for the rest and "esc" at its end.
 
 <p align="center"><img src="docs/screenshots/shortcuts-tokyo-night.png" alt="The shortcuts sheet: a filter field, and the keys to move, select, view and act on torrents, each with what it does" width="560"></p>
 
@@ -256,7 +256,7 @@ selected, the status line becomes the action bar: their verbs as words, "all act
 | `s` | sort |
 | `:` show as … | rows, table or space, for the place on show (also the title bar's tool) |
 | `\|` | columns (`alt+↑` `alt+↓` reorder them) |
-| `ctrl+b` | fold the rail to its glyphs |
+| `ctrl+b` | fold the rail to its glyphs (or the tab on its edge; drag the edge to size it) |
 | `I` | details right · bottom · auto |
 | `<` `>` | details smaller · larger |
 | `H` `L` | fold / unfold every folder (Files tab) |
@@ -285,10 +285,10 @@ selected, the status line becomes the action bar: their verbs as words, "all act
 
 | Key | Does |
 |---|---|
-| `A` | alternative speed limits |
+| `A` | alternative speeds on or off (turtle, or the last preset picked; the status line's chip has both) |
 | `,` `ctrl+,` | settings |
 | `ctrl+shift+,` | qBittorrent's settings |
-| `ctrl+.` | the omaseed menu (the mark): servers, limits, add, settings, quit |
+| `ctrl+.` | the omaseed menu (the mark): servers, alternative speeds, add, settings, quit |
 | hold `alt` | show the keys of what is on screen |
 | `q` | hide to the tray |
 | `ctrl+q` | quit |
@@ -321,12 +321,14 @@ drawn in a stand-in, and Appearance says which.
 Settings › Appearance has: the skin, follow the Omarchy theme, base size, the window's ground (opaque, or
 translucent with its transparency), tray icon (`auto` hides it while the bar widget runs), bar
 widget, the scroll hint, the rail's surface tint (off, 4 % or 8 %), tracker hosts, where the
-details panel sits, and the sending rows' pulse.
+details panel sits, where the speeds are shown (the title bar or the status line), and the
+sending rows' pulse.
 
 ## Servers
 
 Settings › Servers lists every server, with **add**, **test**, **edit**, **remove** and
-**set as default**. Switch between them from the rail's Servers group or here. Passwords
+**set as default**. Switch between them from the rail's Servers group or here; a right-click
+on a server in the rail opens its menu. Passwords
 and API keys go to the system keyring through libsecret, or to a 0600 file under
 `~/.config/omaseed/secrets/` when there is no keyring.
 
