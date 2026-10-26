@@ -90,6 +90,62 @@ private:
     Handler m_handler;
 };
 
+/// Takes each request and answers none until release(): a qBittorrent that stopped (SIGSTOP)
+/// still takes the connection and never replies.
+class HoldingServer : public QTcpServer
+{
+public:
+    explicit HoldingServer(QObject *parent = nullptr)
+        : QTcpServer(parent)
+    {
+        [this]() { QVERIFY(listen(QHostAddress::LocalHost)); }();
+    }
+
+    QUrl url() const { return QUrl(QStringLiteral("http://127.0.0.1:%1").arg(serverPort())); }
+
+    /// Answers everything held, and everything after it at once.
+    void release()
+    {
+        m_holding = false;
+        for (QTcpSocket *socket : std::as_const(m_held))
+            answer(socket);
+        m_held.clear();
+    }
+
+    qsizetype targets = 0;
+
+protected:
+    void incomingConnection(qintptr socketDescriptor) override
+    {
+        auto *socket = new QTcpSocket(this);
+        socket->setSocketDescriptor(socketDescriptor);
+        connect(socket, &QTcpSocket::disconnected, socket, &QObject::deleteLater);
+        auto buffer = std::make_shared<QByteArray>();
+        connect(socket, &QTcpSocket::readyRead, socket, [this, socket, buffer]() {
+            buffer->append(socket->readAll());
+            if (buffer->indexOf("\r\n\r\n") < 0)
+                return;
+            buffer->clear();
+            ++targets;
+            if (m_holding)
+                m_held.append(socket);
+            else
+                answer(socket);
+        });
+    }
+
+private:
+    static void answer(QTcpSocket *socket)
+    {
+        socket->write(jsonResponse("[]"));
+        socket->flush();
+        socket->disconnectFromHost();
+    }
+
+    bool m_holding = true;
+    QList<QTcpSocket *> m_held;
+};
+
 template<class T>
 QbtResult<T> await(QObject *context, QbtReply<T> *reply, int timeoutMs = 10000)
 {
@@ -120,6 +176,7 @@ private Q_SLOTS:
     void aHashTheModelNoLongerHoldsIsNotAsked();
     void webSeedsSendsTheHashAndParsesTheList();
     void webSeedsAreAskedOnSelectionThenOneTickInTen();
+    void aServerThatStopsAnsweringIsNotSentARoundEachTick();
 };
 
 void TestQbtClientDetailsFake::syncTorrentPeersSendsHashAndRid()
@@ -242,6 +299,40 @@ void TestQbtClientDetailsFake::filePrioPostsTheIdList()
     QVERIFY2(!result.isError(), qPrintable(result.error().toString()));
     QCOMPARE(server.targets.size(), 1);
     QVERIFY(server.targets.first().endsWith("/api/v2/torrents/filePrio"));
+}
+
+// #201: a qBittorrent that stops answering (frozen, not gone) holds every request until the
+// client's 15 s run out. A tick that sent a new round anyway filled the client's six
+// connections with them, and sync/maindata, which is what finds out the server stopped,
+// queued behind: the "isn't answering" notice came 30 s late or more. A tick waits for the
+// last round instead; selecting a torrent (refreshNow) still asks at once.
+void TestQbtClientDetailsFake::aServerThatStopsAnsweringIsNotSentARoundEachTick()
+{
+    HoldingServer server;
+    QbtClient client;
+    client.setBaseUrl(server.url());
+
+    TorrentDetails details;
+    details.setPollInterval(20);
+    details.setClient(&client);
+    details.setHash(QStringLiteral("abc123"));
+    // The selection's round: properties, files, trackers, webseeds, pieceStates (the last may
+    // still be waiting in the client for a connection).
+    QTRY_VERIFY(server.targets >= 4);
+    QTest::qWait(400); // twenty ticks while the server holds them
+
+    // Stop the ticks, then let everything through: whatever the client still had queued
+    // reaches the server now.
+    details.setPollInterval(3600 * 1000);
+    server.release();
+    QTest::qWait(500);
+    QVERIFY2(
+        server.targets <= 5,
+        qPrintable(QStringLiteral("%1 requests for one unanswered round").arg(server.targets)));
+
+    // Answered, the next tick polls again.
+    details.setPollInterval(20);
+    QTRY_VERIFY(server.targets > 5);
 }
 
 QTEST_MAIN(TestQbtClientDetailsFake)

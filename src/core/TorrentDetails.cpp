@@ -17,6 +17,9 @@ namespace {
 
 constexpr int kDefaultPollInterval = 2000; ///< spec §2: the details pane refreshes every 2 s.
 constexpr int kFilterSaveDelay = 800;      ///< a typed Files filter is written once it rests
+/// A poll's requests still out after this long don't hold the next tick back any more: the
+/// client gives up on each after 15 s, so this is only a guard against one never answered.
+constexpr qint64 kPollStale = 30000;
 /// #10: away from the HTTP sources tab, its list is asked for on one tick in this many.
 constexpr int kWebSeedsIdleTicks = 10;
 
@@ -34,8 +37,8 @@ TorrentDetails::TorrentDetails(QObject *parent)
 {
     m_timer->setInterval(kDefaultPollInterval);
     m_peersTimer->setInterval(kDefaultPollInterval);
-    connect(m_timer, &QTimer::timeout, this, &TorrentDetails::poll);
-    connect(m_peersTimer, &QTimer::timeout, this, &TorrentDetails::pollPeers);
+    connect(m_timer, &QTimer::timeout, this, &TorrentDetails::pollTick);
+    connect(m_peersTimer, &QTimer::timeout, this, &TorrentDetails::pollPeersTick);
 
     m_filterSaveTimer->setSingleShot(true);
     m_filterSaveTimer->setInterval(kFilterSaveDelay);
@@ -123,6 +126,9 @@ void TorrentDetails::setPollInterval(int milliseconds)
 void TorrentDetails::setClient(QbtClient *client)
 {
     m_client = client;
+    // What the last client still owed is not waited for.
+    m_pollOut = Outstanding();
+    m_peersOut = Outstanding();
     m_demo = false;
     updateTimers();
 }
@@ -246,6 +252,35 @@ void TorrentDetails::refreshNow()
 
 // --- polling -----------------------------------------------------------------------------
 
+void TorrentDetails::Outstanding::sent()
+{
+    if (count++ == 0)
+        since.start();
+}
+
+void TorrentDetails::Outstanding::answered()
+{
+    if (count > 0 && --count == 0)
+        since.invalidate();
+}
+
+bool TorrentDetails::Outstanding::busy() const
+{
+    return count > 0 && since.isValid() && since.elapsed() < kPollStale;
+}
+
+void TorrentDetails::pollTick()
+{
+    if (!m_pollOut.busy())
+        poll();
+}
+
+void TorrentDetails::pollPeersTick()
+{
+    if (!m_peersOut.busy())
+        pollPeers();
+}
+
 bool TorrentDetails::torrentExists() const
 {
     if (m_gone)
@@ -263,8 +298,10 @@ void TorrentDetails::poll()
 
     const QString hash = m_hash;
 
+    m_pollOut.sent();
     m_client->torrentsProperties(hash)->then(
         this, [this, hash](const QbtResult<QJsonObject> &result) {
+            m_pollOut.answered();
             if (hash != m_hash)
                 return; // the selection moved on while this was in flight
             if (result.isError()) {
@@ -276,7 +313,9 @@ void TorrentDetails::poll()
             Q_EMIT refreshed();
         });
 
+    m_pollOut.sent();
     m_client->torrentsFiles(hash)->then(this, [this, hash](const QbtResult<QJsonArray> &result) {
+        m_pollOut.answered();
         if (hash != m_hash)
             return;
         if (result.isError()) {
@@ -287,7 +326,9 @@ void TorrentDetails::poll()
         m_files->applyFiles(result.value());
     });
 
+    m_pollOut.sent();
     m_client->torrentsTrackers(hash)->then(this, [this, hash](const QbtResult<QJsonArray> &result) {
+        m_pollOut.answered();
         if (hash != m_hash)
             return;
         if (result.isError()) {
@@ -312,7 +353,9 @@ void TorrentDetails::pollWebSeeds()
         return;
 
     const QString hash = m_hash;
+    m_pollOut.sent();
     m_client->torrentsWebSeeds(hash)->then(this, [this, hash](const QbtResult<QJsonArray> &result) {
+        m_pollOut.answered();
         if (hash != m_hash)
             return;
         if (result.isError()) {
@@ -330,8 +373,10 @@ void TorrentDetails::pollPieceStates()
         return;
 
     const QString hash = m_hash;
+    m_pollOut.sent();
     m_client->torrentsPieceStates(hash)->then(
         this, [this, hash](const QbtResult<QJsonArray> &result) {
+            m_pollOut.answered();
             if (hash != m_hash || !m_generalActive)
                 return;
             if (result.isError()) {
@@ -349,8 +394,10 @@ void TorrentDetails::pollPeers()
         return;
 
     const QString hash = m_hash;
+    m_peersOut.sent();
     m_client->torrentsPeers(hash, m_peers->rid())
         ->then(this, [this, hash](const QbtResult<QJsonObject> &result) {
+            m_peersOut.answered();
             if (hash != m_hash || !m_peersActive)
                 return;
             if (result.isError()) {
