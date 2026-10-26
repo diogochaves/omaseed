@@ -92,6 +92,13 @@ private Q_SLOTS:
         first.hadAutoTmm = {QStringLiteral("h2")};
         first.carried = 3;
         first.carriedTo = QStringLiteral("/fast/games");
+        // C32 D19: what move back carries back.
+        first.carriedFrom = QStringLiteral("/library/games");
+        omaseed::core::CarryFile manual;
+        manual.relative = QStringLiteral("manual.pdf");
+        manual.size = 18000;
+        manual.modified = kNow.addDays(-2);
+        first.carriedFiles = {manual};
         first.replaced = {QStringLiteral("/fast/games/h1.iso")}; // C28 (#176)
         history.add(first, kNow);
         history.add(record(QStringLiteral("one"), {QStringLiteral("h3")}, "/x", "/y"), kNow);
@@ -108,6 +115,8 @@ private Q_SLOTS:
         QCOMPARE(games->hadAutoTmm, QStringList{QStringLiteral("h2")});
         QCOMPARE(games->carried, 3);
         QCOMPARE(games->carriedTo, QStringLiteral("/fast/games"));
+        QCOMPARE(games->carriedFrom, QStringLiteral("/library/games"));
+        QCOMPARE(games->carriedFiles, first.carriedFiles);
         QCOMPARE(games->replaced, QStringList{QStringLiteral("/fast/games/h1.iso")});
         QCOMPARE(games->finishedAt, first.finishedAt);
     }
@@ -263,6 +272,34 @@ private Q_SLOTS:
         QVERIFY(a != nullptr);
         QCOMPARE(a->from.keys(), QStringList{QStringLiteral("h2")});
         QVERIFY(!history.backDone(QStringLiteral("unknown"), {QStringLiteral("h2")}));
+    }
+
+    // C32 D19: the loose files carried back leave the record with their torrents.
+    void backDoneTakesTheFilesCarriedBack()
+    {
+        MoveRecord games = record(
+            QStringLiteral("g"), {QStringLiteral("h1"), QStringLiteral("h2")}, "/lib", "/fast");
+        games.carried = 2;
+        games.carriedTo = QStringLiteral("/fast");
+        games.carriedFrom = QStringLiteral("/lib");
+        for (const char *name : {"manual.pdf", "notes/readme.txt"}) {
+            omaseed::core::CarryFile file;
+            file.relative = QString::fromLatin1(name);
+            file.size = 10;
+            games.carriedFiles << file;
+        }
+        MoveHistory history;
+        history.add(games, kNow);
+        QVERIFY(history.backDone(
+            QStringLiteral("g"), {QStringLiteral("h1")}, {QStringLiteral("manual.pdf")}));
+        const MoveRecord *left = history.find(QStringLiteral("g"));
+        QVERIFY(left != nullptr);
+        QCOMPARE(left->carried, 1);
+        QCOMPARE(left->carriedFiles.size(), 1);
+        QCOMPARE(left->carriedFiles.first().relative, QStringLiteral("notes/readme.txt"));
+        // A changed file stays where it is, and the record goes with its last torrent.
+        QVERIFY(history.backDone(QStringLiteral("g"), {QStringLiteral("h2")}));
+        QVERIFY(history.find(QStringLiteral("g")) == nullptr);
     }
 
     void anUnknownRecordChecksToNothing()
