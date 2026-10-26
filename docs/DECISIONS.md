@@ -1776,6 +1776,18 @@ place: D2), docs/31 D5 (D6), C4 D1–D2 and C13's alternative-limits row (D8) an
   meaning turtle), burst is written over it while on and turtle written back after (also when
   omaseed quits mid-burst); the chip opens a picker. D18 a: the filter field takes the title
   bar's free room, the title kept, tokens as chips, the count and "× esc".
+  Built as the board reads it, assumed where it is silent: the speeds give way from the
+  title bar's step 2 and the status line takes them back; ↑ opens the seed console in the
+  title bar too (#24); a cap shows whenever the set in force has one (burst's ↑ 2 MB/s as
+  well). `A` flips the last pick (it is shift+a, so burst has no key of its own; the choice
+  says so at its foot); the choice's burst length is three radio rows, Kit/Menu having no
+  chip row. A burst ends with the turtle written back and the limits as the schedule has
+  them (off with the schedule off); one found at start with no end ("until I stop it") is
+  ended then. A switch to another server leaves its burst to end when omaseed is next on
+  that server (the switch cancels the shared client's requests). The tray's and the bar
+  widget's row stays the flip (A); the window's menus open the choice. Settings › Speed
+  drops the set line (the presets name the set now). The filter's field is open while the
+  caret is in it or a filter is set.
 - **Acting on a selection (D17).** 1 a: a floating action bar over the list, bottom middle, from
   the torrent menu's groups (F15), icons and words, category › and more › opening upward; the
   outcome strip floats above it. 2 a: at narrow widths the words go before the icons. 3 a: the

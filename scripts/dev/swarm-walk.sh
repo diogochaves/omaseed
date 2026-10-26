@@ -141,7 +141,7 @@ launch
 # ---- the walk -----------------------------------------------------------------------------
 wait_state "Open Movie" "^downloading 0\.0[2-9]|^downloading 0\.[1-9]" 90
 [ "$INTERACTIVE" = 1 ] || show "Open Movie" 1
-step "Downloading" "Open Movie Night: status downloading, a moving speed and ETA; its details open on the story: the time to ready large in blue with \"to ready\", the sentence \"N % of SIZE · from N seeds at SPEED.\", the pieces bar partly filled, what happened (Added, into swarm). The status line's ↓ near 1 MiB/s. Two downloads run; the rest are queued."
+step "Downloading" "Open Movie Night: status downloading, a moving speed and ETA; its details open on the story: the time to ready large in blue with \"to ready\", the sentence \"N % of SIZE · from N seeds at SPEED.\", the pieces bar partly filled, what happened (Added, into swarm). The title bar's ↓ near 1 MiB/s. Two downloads run; the rest are queued."
 rows "Downloading" "The rows display, grouped: under ARRIVING the two downloads say their time to ready (\"to ready\") and \"N % of SIZE · from N seeds at SPEED\", the queued ones \"next\" or \"queued\" in line; heads in the rail's order, each with its count and a short line."
 [ "$INTERACTIVE" = 1 ] || show "Open Movie" 2
 step "Files tree" "Open Movie Night's Files tab: the film, extras/, subs/ (english, português (Brasil), 日本語) and sample/, with per-file progress."
