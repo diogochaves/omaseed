@@ -25,7 +25,9 @@ foreach(skin omarchy console)
         add_test(NAME ${qml_test} COMMAND tst_qml)
         set_tests_properties(${qml_test} PROPERTIES ENVIRONMENT "${qml_base_env}")
     endif()
-    set_tests_properties(${qml_test} PROPERTIES LABELS "qml;skin-${skin}")
+    # A layout loop (#201 F23) never hands the event loop back to a quick test, and quick
+    # tests have no function watchdog: the run ends at this, not ctest's 25 minutes.
+    set_tests_properties(${qml_test} PROPERTIES LABELS "qml;skin-${skin}" TIMEOUT 400)
 
     # Theme is the real reader, so the QML tests would otherwise assert against whatever
     # theme and base size this machine happens to run. Point XDG at an empty directory: the

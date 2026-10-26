@@ -128,6 +128,14 @@ Item {
         return Math.max(0, root.height - chrome);
     }
 
+    /// The rows are taller than the room the window leaves them, so the body scrolls and keeps
+    /// the bar's room beside them. It follows the rows' own height against that room, never the
+    /// body's laid-out height: that one lags a pass behind the rows, and a row a bar's width from
+    /// wrapping (the move sheet's "extras goes inside …", #201 F23) made room for the bar in that
+    /// pass, wrapped, gave it back in the next, and froze the window. Rows only grow when they
+    /// get narrower, so a body that fits at full width never needs the room.
+    readonly property bool bodyOverflows: !root.inline && bodyColumn.implicitHeight > root.bodyRoom
+
     /// The action the caller's text names, for a test or a caller that wants the payload.
     signal actionTriggered(string text)
     /// The `primary` action ran (`enter`, or its button).
@@ -687,9 +695,9 @@ Item {
                     id: bodyColumn
 
                     spacing: Theme.sheetRowGap
-                    // Clear of the scroll bar while there is one.
+                    // Clear of the scroll bar while the rows overflow (`bodyOverflows`).
                     width: bodyScroller.width - 2 * Theme.focusExtent
-                           - (bodyScrollBar.needed ? bodyScrollBar.width + Theme.space(4) : 0)
+                           - (root.bodyOverflows ? bodyScrollBar.width + Theme.space(4) : 0)
                     x: Theme.focusExtent
                     y: Theme.focusExtent
                 }
