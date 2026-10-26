@@ -196,9 +196,12 @@ public:
     /// reason goes out through note().
     Q_INVOKABLE bool
     startSelection(const QStringList &hashes, const QString &newPath, const QString &rule);
-    /// L11: the sheet for moving the last job's torrents back, each to where it was.
-    Q_INVOKABLE QVariantMap planBack();
-    Q_INVOKABLE bool startBack();
+    /// L11: the sheet for moving the last job's torrents back, each to where it was. With
+    /// `carry` (the sheet's tick, C32 D19), the loose files the move carried go back too: the
+    /// sheet's `carryBack` {text, note, rows [{name, detail, verdict, kind}], count, total}
+    /// says which, `moveText` counts them, `footNote` names the list.
+    Q_INVOKABLE QVariantMap planBack(bool carry = true);
+    Q_INVOKABLE bool startBack(bool carry = true);
 
     // ---- after the summary closes (board 45 D7–D8, C18, #133) --------------------------------
 
@@ -206,8 +209,12 @@ public:
     /// (the details' "this one only"). The sheet's words, as planBack()'s; a torrent not where
     /// that move put it stays, named with the later move that took it ("move that one back
     /// first": a check line's `backFirst`) or as moved outside omaseed.
-    Q_INVOKABLE QVariantMap planBackOf(const QString &id, const QString &only = QString());
-    Q_INVOKABLE bool startBackOf(const QString &id, const QString &only = QString());
+    /// `carry` as planBack()'s; "this one only" carries no loose files (C32 D19).
+    Q_INVOKABLE QVariantMap planBackOf(const QString &id,
+                                       const QString &only = QString(),
+                                       bool carry = true);
+    Q_INVOKABLE bool
+    startBackOf(const QString &id, const QString &only = QString(), bool carry = true);
     /// The torrent's last move while the history keeps it, for its details: id, title, when,
     /// from, to, others (the other torrents in it), carried ("loose files too" or ""), canBack
     /// (some of the move can go back), canBackThis (this one can); {} for none.
@@ -327,6 +334,15 @@ private:
     QJsonObject backSpec() const;
     /// C18 D7: a history record's move back, `only` one torrent when given.
     QJsonObject backSpecOf(const QString &id, const QString &only) const;
+    /// C32 D19: a move back of `record` carries back what it carried (`carryFrom`, `carryTo`,
+    /// `carryFiles`: LooseCarry::backList() now, `carry` when one can go), when this machine
+    /// sees the disks.
+    void addCarryBack(QJsonObject *spec, const core::MoveRecord &record) const;
+    /// The sheet's words for that (planBack()'s `carryBack`), {} when there is nothing to carry.
+    QVariantMap carryBackWords(const QJsonObject &spec);
+    /// Where the job's loose files are carried from and to (a move back's run the other way).
+    QString carrySource() const;
+    QString carryTarget() const;
     /// The library's save path by hash, for MoveHistory::check().
     QHash<QString, QString> savePaths() const;
     /// The record of the job that ran last (by its start), "" for none.

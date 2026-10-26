@@ -453,15 +453,19 @@ bool MoveController::startSelection(const QStringList &hashes,
     return startSpec(selectionSpec(hashes, newPath, rule));
 }
 
-bool MoveController::startBackOf(const QString &id, const QString &only)
+bool MoveController::startBackOf(const QString &id, const QString &only, bool carry)
 {
-    const QJsonObject spec = backSpecOf(id, only);
+    QJsonObject spec = backSpecOf(id, only);
+    if (!carry)
+        spec.insert(QStringLiteral("carry"), false);
     return !spec.isEmpty() && startSpec(spec);
 }
 
-bool MoveController::startBack()
+bool MoveController::startBack(bool carry)
 {
-    const QJsonObject spec = backSpec();
+    QJsonObject spec = backSpec();
+    if (!carry)
+        spec.insert(QStringLiteral("carry"), false);
     return !spec.isEmpty() && startSpec(spec);
 }
 
@@ -525,7 +529,25 @@ bool MoveController::startSpec(const QJsonObject &specIn)
     m_restoredAt = QDateTime();
     if (!plan.newPath().isEmpty())
         rememberDestination(plan.newPath());
-    m_job->start(plan, m_serverId, false, 0, spec);
+    // C32 D19: a move back carries back the loose files on the list its spec holds (the one
+    // the move kept), after the torrents, as a folder's move carries them (M17).
+    const bool carry =
+        kind == QLatin1String("back") && spec.value(QStringLiteral("carry")).toBool();
+    qint64 looseBytes = 0;
+    if (carry) {
+        for (const core::CarryFile &file :
+             core::LooseCarry::fromJson(spec.value(QStringLiteral("carryFiles")).toArray())) {
+            if (file.outcome == core::CarryFile::Outcome::ToDo)
+                looseBytes += file.size;
+        }
+    }
+    if (m_job->start(plan, m_serverId, carry, looseBytes, spec)) {
+        // Not queued: the last job's carry is over and done with.
+        QFile::remove(carryFilePath());
+        m_carryResult = {};
+        m_carryDone = false;
+        m_carryPaused = false;
+    }
     bump();
     return true;
 }
@@ -595,7 +617,15 @@ void MoveController::recordFinished()
         // A move back of a record: what went back leaves it. The move back itself isn't
         // recorded: its summary offers moving them again while it shows.
         const QString of = m_job->spec().value(QStringLiteral("historyId")).toString();
-        if (!of.isEmpty() && m_history.backDone(of, from.keys()))
+        // C32 D19: and the loose files it carried back.
+        QStringList filesBack;
+        if (m_job->carryLoose() && m_carryDone) {
+            for (const core::CarryFile &file : m_carryResult.files) {
+                if (file.carried())
+                    filesBack << file.relative;
+            }
+        }
+        if (!of.isEmpty() && m_history.backDone(of, from.keys(), filesBack))
             saveHistory();
         return;
     }
@@ -619,6 +649,12 @@ void MoveController::recordFinished()
     if (m_carryDone && m_carryResult.carried > 0) {
         record.carried = m_carryResult.carried;
         record.carriedTo = m_job->newPath();
+        // C32 D19: the list move back carries back, as each file lies at the new place now.
+        record.carriedFrom = m_job->root();
+        const QString at =
+            m_hooks.probe == nullptr ? QString() : m_hooks.probe->localPathFor(record.carriedTo);
+        if (!at.isEmpty())
+            record.carriedFiles = core::LooseCarry::asCarried(at, m_carryResult.files);
     }
     m_history.add(std::move(record), now());
     saveHistory();
@@ -1219,16 +1255,22 @@ QVariantMap MoveController::band() const
         }
         if (m_carryPaused) {
             glyph = QStringLiteral("‖");
-            headline = tr("Carrying the loose files to %1: paused").arg(job.newPath());
+            headline = back ? tr("Carrying the loose files back to %1: paused").arg(carryTarget())
+                            : tr("Carrying the loose files to %1: paused").arg(job.newPath());
             parts << tr("nothing is being copied");
             actions << action(QStringLiteral("resume"), tr("resume"));
         } else {
             glyph = QStringLiteral("↻");
-            headline = carry.total > 0 ? counted(carry.total,
-                                                 tr("Carrying %1 loose file to %2"),
-                                                 tr("Carrying %1 loose files to %2"))
-                                             .arg(job.newPath())
-                                       : tr("Carrying the loose files to %1").arg(job.newPath());
+            headline = back && carry.total > 0 ? counted(carry.total,
+                                                         tr("Carrying %1 loose file back to %2"),
+                                                         tr("Carrying %1 loose files back to %2"))
+                                                     .arg(carryTarget())
+                       : back ? tr("Carrying the loose files back to %1").arg(carryTarget())
+                       : carry.total > 0 ? counted(carry.total,
+                                                   tr("Carrying %1 loose file to %2"),
+                                                   tr("Carrying %1 loose files to %2"))
+                                               .arg(job.newPath())
+                                         : tr("Carrying the loose files to %1").arg(job.newPath());
             const qint64 seconds = m_carryStartedAt.isValid() ? m_carryStartedAt.secsTo(now()) : 0;
             const qint64 copied = m_carryStartBytes < 0 ? 0 : carry.bytesDone - m_carryStartBytes;
             if (seconds >= 5 && copied > 0 && carry.bytesTotal > carry.bytesDone) {
@@ -1263,23 +1305,28 @@ QVariantMap MoveController::band() const
         const bool carried = job.carryLoose() && m_carryDone &&
                              (m_carryResult.carried > 0 || m_carryResult.stayed > 0);
         if (carried) {
-            // L2: the end, with loose files.
-            headline = tr("%1 moved, loose files too").arg(name);
-            parts << tr("%1 torrents and %2 at %3")
+            // L2: the end, with loose files; a move back's are carried back (C32 D19).
+            headline = back ? tr("%1 moved back, loose files too").arg(name)
+                            : tr("%1 moved, loose files too").arg(name);
+            parts << (back ? tr("%1 torrents and %2 back at %3") : tr("%1 torrents and %2 at %3"))
                          .arg(summary.moved)
                          .arg(counted(m_carryResult.carried, tr("%1 file"), tr("%1 files")),
-                              job.newPath());
+                              carryTarget());
             if (m_carryResult.stayed > 0) {
                 int recent = 0;
                 int unreadable = 0;
                 int different = 0;
                 int noRoom = 0;
                 int other = 0;
+                QStringList changed; // a move back's: changed at the new place since the move
                 for (const core::CarryFile &file : m_carryResult.files) {
                     switch (file.outcome) {
                     case core::CarryFile::Outcome::Recent:
                     case core::CarryFile::Outcome::Changed:
-                        ++recent;
+                        if (back)
+                            changed << file.relative;
+                        else
+                            ++recent;
                         break;
                     case core::CarryFile::Outcome::Unknown:
                         ++unreadable;
@@ -1299,6 +1346,12 @@ QVariantMap MoveController::band() const
                     }
                 }
                 QStringList stayed;
+                // C32 D19: a file changed since the move stays, and is named.
+                if (changed.size() > 0 && changed.size() <= 3)
+                    stayed << tr("%1 (changed after the move)")
+                                  .arg(changed.join(QStringLiteral(", ")));
+                else if (changed.size() > 3)
+                    stayed << tr("%1 changed after the move").arg(changed.size());
                 if (recent > 0)
                     stayed << counted(recent, tr("%1 recent file"), tr("%1 recent files"));
                 if (unreadable > 0)
@@ -1309,7 +1362,8 @@ QVariantMap MoveController::band() const
                     stayed << tr("%1 for want of room").arg(noRoom);
                 if (other > 0)
                     stayed << tr("%1 other").arg(other);
-                parts << tr("stayed at %1: %2").arg(job.root(), stayed.join(QStringLiteral(", ")));
+                parts
+                    << tr("stayed at %1: %2").arg(carrySource(), stayed.join(QStringLiteral(", ")));
             }
             if (m_carryResult.foldersRemoved > 0)
                 parts << counted(m_carryResult.foldersRemoved,
@@ -1555,8 +1609,12 @@ void MoveController::onFinished()
     if (summary.endedEarly)
         parts << tr("%1 not moved").arg(summary.notMoved);
     if (m_carryDone && m_carryResult.carried > 0)
-        parts << counted(
-            m_carryResult.carried, tr("%1 loose file carried"), tr("%1 loose files carried"));
+        parts << (summary.kind == QLatin1String("back") ? counted(m_carryResult.carried,
+                                                                  tr("%1 loose file carried back"),
+                                                                  tr("%1 loose files carried back"))
+                                                        : counted(m_carryResult.carried,
+                                                                  tr("%1 loose file carried"),
+                                                                  tr("%1 loose files carried")));
     if (m_carryDone && m_carryResult.stayed > 0)
         parts << counted(m_carryResult.stayed, tr("%1 file stayed"), tr("%1 files stayed"));
     m_hooks.notify(summary.endedEarly ? tr("The move of %1 ended early").arg(name)
@@ -1590,8 +1648,18 @@ void MoveController::onCarryWanted()
     QString to;
     QList<core::CarryFile> files;
     QStringList owned;
-    const bool recorded = loadCarry(root, &from, &to, &files);
-    if (!recorded && m_hooks.probe != nullptr && m_hooks.probe->seesServerDisks()) {
+    bool recorded = loadCarry(root, &from, &to, &files);
+    if (!recorded && m_job->kind() == QLatin1String("back")) {
+        // C32 D19: a move back carries the list its spec holds, the other way; it never walks
+        // a folder, so nothing the move didn't carry goes.
+        const QJsonObject spec = m_job->spec();
+        if (m_hooks.probe != nullptr && m_hooks.probe->seesServerDisks()) {
+            from = m_hooks.probe->localPathFor(spec.value(QStringLiteral("carryFrom")).toString());
+            to = m_hooks.probe->localPathFor(spec.value(QStringLiteral("carryTo")).toString());
+        }
+        files = core::LooseCarry::fromJson(spec.value(QStringLiteral("carryFiles")).toArray());
+        recorded = true;
+    } else if (!recorded && m_hooks.probe != nullptr && m_hooks.probe->seesServerDisks()) {
         // No dry run kept (the job was queued behind another, or omaseed stopped before it
         // was written): walk the folder now. The torrents have left it, so only those still
         // there (failed, left out) own anything in it.
@@ -1715,6 +1783,24 @@ void MoveController::onCarryRan(const QString &serverId,
     m_job->finishCarry(result.carried, result.stayed);
 }
 
+QString MoveController::carrySource() const
+{
+    if (m_job == nullptr)
+        return {};
+    return m_job->kind() == QLatin1String("back")
+               ? m_job->spec().value(QStringLiteral("carryFrom")).toString()
+               : m_job->root();
+}
+
+QString MoveController::carryTarget() const
+{
+    if (m_job == nullptr)
+        return {};
+    return m_job->kind() == QLatin1String("back")
+               ? m_job->spec().value(QStringLiteral("carryTo")).toString()
+               : m_job->newPath();
+}
+
 QString MoveController::carryFilePath() const
 {
     if (m_job == nullptr || m_job->filePath().isEmpty())
@@ -1761,7 +1847,7 @@ QVariantList MoveController::carryRows() const
     QVariantList rows;
     if (m_job == nullptr)
         return rows;
-    const QString name = FolderTree::baseName(m_job->root());
+    const QString name = FolderTree::baseName(carrySource());
     QList<core::CarryFile> files = m_carryResult.files;
     std::stable_sort(files.begin(), files.end(), [](const auto &a, const auto &b) {
         return !a.carried() && b.carried();
