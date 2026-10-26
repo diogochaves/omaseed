@@ -277,7 +277,13 @@ Item {
         root.open();
     }
 
-    /// ctrl+shift+, (docs/16 §2): Settings, on the qBittorrent group.
+    /// C32 D8 a: the alternative speeds' choice's "edit the presets…": qBittorrent › Speed.
+    function openSpeed(): void {
+        root.showPane(root.qbtStart);
+        root.open();
+    }
+
+        /// ctrl+shift+, (docs/16 §2): Settings, on the qBittorrent group.
     function openQbt(): void {
         if (!root.inQbt)
             root.showPane(root.qbtStart);
@@ -307,7 +313,11 @@ Item {
     /// (docs/16 §3), straight to the server otherwise.
     function qbtRequest(changes: var, confirmKind: string, what: string): void {
         if (confirmKind.length === 0) {
-            App.serverPrefs.apply(changes);
+            // C32 D8 a: the turtle's and burst's keys go through the presets.
+            if (App.altPresets.owns(changes))
+                App.altPresets.apply(changes);
+            else
+                App.serverPrefs.apply(changes);
             return;
         }
         const first = Object.keys(changes)[0];

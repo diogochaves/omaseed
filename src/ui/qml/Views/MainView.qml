@@ -831,14 +831,14 @@ Item {
     }
 
     /// A row of the omaseed menu, which has closed and given the focus back. The window's own
-    /// rows and `A`'s row run as their keys do (alt-speed's note, docs/31 F1); quit asks
+    /// rows run as their keys do, `A`'s row opens the presets' choice (C32 D8 a); quit asks
     /// first while a move runs (J5); the rest are C13's, through the one invoke the tray and
     /// the widget use.
     function appMenuAction(id: string): void {
         if (id === "quit")
             root.requestQuit();
         else if (id === "alt-speed")
-            root.toggleAltSpeed();
+            root.openAltSpeedMenu(); // C32 D8 a: the menus' row opens the choice, as the chip
         else if (appMenu.windowActions.indexOf(id) >= 0)
             root.runAction(id);
         else
@@ -2788,7 +2788,8 @@ Item {
 
         onServerClicked: root.openServerPalette()
         onUpClicked: root.setView("seed")
-        onAltSpeedClicked: root.toggleAltSpeed()
+        // C32 D8 a: the chip opens the choice; A still flips the last one.
+        onAltSpeedClicked: root.openAltSpeedMenu()
         onKeysClicked: root.helpOpen = true
         // docs/35 N8: the sentence's "details" open the band above the line.
         onDetailsToggled: root.footerNoticeOpen = !root.footerNoticeOpen
@@ -3208,6 +3209,37 @@ Item {
         App.toggleAltSpeed();
     }
 
+    /// DECISIONS C32 D8 a: the choice of off, turtle and burst, over the status line's chip
+    /// (from the chip, or a menu's alternative speeds row).
+    function openAltSpeedMenu(): void {
+        if (!App.hasServer || root.serverLost)
+            return;
+        const chip = statusLine.altChip;
+        const corner = statusLine.visible && chip.visible ? chip.mapToItem(root, 0, 0)
+                                                          : Qt.point(statusLine.mapToItem(root, 0, 0).x
+                                                                     + Theme.statusLineInsetStart, root.height - statusLine.height);
+        altSpeedMenu.openAbove(Math.round(corner.x - Theme.space(40)), Math.round(corner.y - Theme.railMenuGap));
+        // The cursor on the one in force.
+        altSpeedMenu.cursorIndex = Math.max(0, ["off", "turtle", "burst"].indexOf(App.altPresets.current));
+    }
+
+    /// A row of the choice: a preset, how long a burst lasts, or Settings › Speed.
+    function altSpeedMenuAction(action: string): void {
+        if (action === "edit") {
+            settingsModal.openSpeed();
+            return;
+        }
+        if (action.startsWith("minutes:")) {
+            App.altPresets.burstMinutes = Number(action.slice(8));
+            return;
+        }
+        if (action === App.altPresets.current)
+            return;
+        root._altFlipFrom = App.globalState.useAltSpeedLimits === true;
+        altFlipTimer.restart();
+        App.pickAltSpeed(action);
+    }
+
     /// App.altSpeed moved. Once the server has flipped, the note shows as soon as AltSpeed
     /// has one: the flip itself re-reads the preferences (D13), so a schedule changed in the
     /// Web UI can turn the first reading's "by the schedule" into "by hand" a moment later.
@@ -3338,6 +3370,23 @@ Item {
         z: 9
 
         onActivated: display => root.pickDisplay(display)
+    }
+
+    AltSpeedMenu {
+        id: altSpeedMenu
+
+        anchors.fill: parent
+        objectName: "altSpeedMenu"
+        burstLimits: qsTr("↓%1 ↑%2").arg(App.limitShortText(App.altPresets.burstDl)).arg(App.limitShortText(
+                                                                                              App.altPresets.burstUp))
+        burstMinutes: App.altPresets.burstMinutes
+        current: App.altPresets.current
+        serverName: App.serverName
+        turtleLimits: qsTr("↓%1 ↑%2").arg(App.limitShortText(App.altPresets.turtleDl)).arg(App.limitShortText(
+                                                                                                App.altPresets.turtleUp))
+        z: 9
+
+        onActivated: action => root.altSpeedMenuAction(action)
     }
 
     AppMenu {

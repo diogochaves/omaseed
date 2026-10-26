@@ -20,7 +20,9 @@ SettingsRow {
 
     /// The row, as `QbtSettingsSections` describes it.
     property var spec: ({})
-    property ServerPreferences prefs: null
+    /// The server's preferences, or App.altPresets for the turtle and burst rows (DECISIONS
+    /// C32 D8 a), which answer the same `values`, `loaded`, `pendingKeys`.
+    property QtObject prefs: null
     /// What the section asks before any change ("webui"), on top of the row's own `confirm`.
     property string sectionConfirm: ""
 

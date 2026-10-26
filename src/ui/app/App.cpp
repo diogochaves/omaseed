@@ -187,7 +187,10 @@ App::App(QObject *parent)
     connect(m_prefs, &ServerPreferences::valuesChanged, this, &App::updateFreeSpace);
     connect(this, &App::serverChanged, this, &App::updateFreeSpace);
     connect(this, &App::serverChanged, this, [this]() {
-        m_altPresets->setServer(m_hasServer && !m_demoMode ? m_server.id : QString());
+        // The demo's presets are its own, in its state (they write nothing to a server).
+        m_altPresets->setServer(!m_hasServer ? QString()
+                                : m_demoMode ? QStringLiteral("demo")
+                                             : m_server.id);
     });
     connect(this, &App::settingsChanged, this, &App::updateFreeSpace);
     connect(m_engine->globalState(), &GlobalState::serverNameChanged, this, &App::updateTray);

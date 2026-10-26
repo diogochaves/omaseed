@@ -252,6 +252,20 @@ TestCase {
         view.footerNote = "";
     }
 
+    // DECISIONS C32 D8 a: the status line's chip opens the choice of presets, over the chip;
+    // esc closes it. A still flips the last one (the demo writes nothing).
+    function test_the_alt_chip_opens_the_presets() {
+        mouseClick(view.statusLine.altChip);
+        const menu = findChild(view, "altSpeedMenu");
+        verify(menu !== null && menu.opened);
+        compare(menu.current, "off");
+        verify(menu.panel.mapToItem(view, 0, 0).y + menu.panel.height
+               <= view.statusLine.altChip.mapToItem(view, 0, 0).y);
+        keyClick(Qt.Key_Escape);
+        verify(!menu.opened);
+        view.focusHome();
+    }
+
     // #24: the status line's ↑ opens the seed console, as the rail's "seed" does.
     function test_the_up_figure_opens_the_seed_console() {
         const up = findChild(view.statusLine, "statusUp");

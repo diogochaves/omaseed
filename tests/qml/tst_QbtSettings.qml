@@ -415,43 +415,37 @@ TestCase {
         compare(modal.paneCursor, modal.paneRowCount - 1);
     }
 
-    // docs/31 §5 P1, P3: a line under the four limits says which way the set goes, and the rows
-    // follow the word. The demo's set is qBittorrent's default turtle (10 KB/s, no normal
-    // limits); someone who uses it that way keeps today's rows, named "turtle".
-    function test_the_speed_page_names_the_set() {
+    // DECISIONS C32 D8 a (board 51 `speedPane()`): two presets under the normal limits. The
+    // turtle is qBittorrent's alternative set (the demo's 10 KB/s), its schedule the turtle's;
+    // burst is omaseed's own (↓ no limit, ↑ 2 MB/s, for an hour), written to App.altPresets and
+    // never to the server's preferences.
+    function test_the_speed_page_has_two_presets() {
         const modal = openOn(0);
-        const setLine = testCase.childNamed(modal, "qbtLine-set");
-        verify(setLine.visible);
-        compare(testCase.childNamed(setLine, "qbtLineText").text,
-                "Slower than your limits above, so omaseed calls this set turtle.");
-        compare(testCase.childNamed(setLine, "qbtLineGlyph").text, "▼");
+        verify(testCase.childNamed(modal, "qbtLine-set") === null);
         const schedule = testCase.childNamed(modal, "qbtRow-scheduler_enabled");
         compare(schedule.title, "Schedule turtle");
-        compare(testCase.childNamed(modal, "qbtRow-alt_dl_limit").description,
-                "In force while turtle is on: A, the status line's chip, or the schedule below.");
-        compare(testCase.childNamed(modal, "qbtRow-alt_dl_limit").glyph, Glyphs.altSpeed);
+        const turtle = testCase.childNamed(modal, "qbtRow-alt_dl_limit");
+        compare(turtle.title, "Turtle download");
+        compare(turtle.glyph, Glyphs.altSpeed);
+        compare(testCase.childNamed(modal, "field-alt_dl_limit").text, "10");
+        const burst = testCase.childNamed(modal, "qbtRow-burst_dl_limit");
+        compare(burst.title, "Burst download");
+        compare(burst.glyph, Glyphs.burst);
+        compare(testCase.childNamed(modal, "field-burst_dl_limit").text, "");
+        compare(testCase.childNamed(modal, "field-burst_up_limit").text, "2048");
+        verify(testCase.childNamed(modal, "qbtRow-burst_minutes") !== null);
 
-        // A daytime upload cap with the alternative set open: burst, as it is typed.
-        App.serverPrefs.apply({
-                                  "up_limit": 1200 * 1024,
-                                  "alt_dl_limit": 0,
-                                  "alt_up_limit": 0
-                              });
-        compare(testCase.childNamed(setLine, "qbtLineText").text,
-                "Faster than your limits above, so omaseed calls this set burst.");
-        compare(testCase.childNamed(setLine, "qbtLineGlyph").text, "▲");
-        compare(schedule.title, "Schedule burst");
-        compare(schedule.description,
-                "qBittorrent switches to burst by itself between two times, and back after.");
-        compare(testCase.childNamed(modal, "qbtRow-alt_up_limit").glyph, Glyphs.burst);
-
-        // The same both ways: switching changes nothing; the words go back to alt-speed.
-        App.serverPrefs.apply({
-                                  "alt_up_limit": 1200 * 1024
-                              });
-        compare(testCase.childNamed(setLine, "qbtLineText").text,
-                "The same as your limits above: switching changes nothing.");
-        compare(schedule.title, "Schedule alt-speed");
+        // A burst limit typed stays with omaseed.
+        const before = App.serverPrefs.values.alt_up_limit;
+        const field = testCase.childNamed(modal, "field-burst_up_limit");
+        field.focusInput();
+        field.text = "1024";
+        keyClick(Qt.Key_Return);
+        compare(App.altPresets.burstUp, 1024 * 1024);
+        compare(App.serverPrefs.values.alt_up_limit, before);
+        App.altPresets.apply({
+                                 "burst_up_limit": 2 * 1024 * 1024
+                             });
     }
 
     // docs/31 D8, D9 (P1, P2): `n` fills the schedule with nights in one press, every key at
