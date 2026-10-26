@@ -10,7 +10,7 @@ Console pass open beside the box (and [board 49](../49-create-a-torrent.html) fo
 ## Setup
 
 ```sh
-scripts/dev/manual-box.sh          # a throwaway desktop, a window on workspace 9, omaseed from main
+scripts/dev/manual-box.sh          # a throwaway desktop, a window on workspace 9, omaseed from this checkout
 ```
 
 In the box: click into the window, **SUPER+ALT+ESC** (SUPER keys go to the box; again to give them
