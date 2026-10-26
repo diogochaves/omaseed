@@ -28,6 +28,9 @@ import Omaseed.Kit
 // on its edge at the top, centred on the title bar's height (`headHeight`), folds or unfolds
 // it (`foldToggleRequested`); the drag answers along the rest of the edge.
 //
+// DECISIONS C32 D1 a: the rail's foot, under the servers, is a settings row (`settingsRequested`,
+// as `,`), the gear alone when folded. It is not a cursor stop: `,` is its key.
+//
 // docs/08 §5: groups fold. `collapsedGroups` names the folded ones (the host owns and persists
 // it, per server); a click on a heading or `z` on any row asks for a toggle through
 // `groupToggled`. A folded group leaves one cursor stop, its heading, where `enter`/`space`
@@ -194,6 +197,8 @@ Item {
     signal unfoldDragged
     /// D9 c: the edge tab, clicked: fold the rail, or unfold it.
     signal foldToggleRequested
+    /// D1 a: the foot's settings row, clicked: the host opens Settings, as `,` does.
+    signal settingsRequested
     /// A heading was clicked, or `z` pressed on one of the group's rows.
     signal groupToggled(string group)
     /// `enter` or a click on a server row: that server should become the default one. The
@@ -259,6 +264,7 @@ Item {
     property bool _serversForced: false
     readonly property bool serversShort: !root.serversOnly && root.serversRowCount > 0
                                          && root.height - root._topHeight - root._serversOpenHeight
+                                         - root._footHeight
                                          < 5 * Theme.railRowHeight + Theme.space(30)
     readonly property bool serversShownFolded: root.serversFolded
                                                || (root.serversShort && !root._serversForced)
@@ -665,7 +671,7 @@ Item {
 
     activeFocusOnTab: true
     implicitHeight: root._topHeight + (root.serversOnly ? 0 : content.implicitHeight)
-                    + (root.serversRowCount > 0 ? root._serversOpenHeight : 0)
+                    + (root.serversRowCount > 0 ? root._serversOpenHeight : 0) + root._footHeight
     implicitWidth: root.compact ? Theme.railFoldedWidth : root.resizing ? root._dragWidth
                                                                      : root.openWidth
     width: root.implicitWidth
@@ -917,7 +923,7 @@ Item {
 
         // D12: the filters scroll above the servers block, never under it. Opened over the
         // filters (D18), the block keeps only its folded line's room.
-        anchors.bottom: root.serversRowCount > 0 ? serversBlock.top : parent.bottom
+        anchors.bottom: root.serversRowCount > 0 ? serversBlock.top : footBlock.top
         anchors.bottomMargin: root.serversOverlay ? -(serversBlock.height - root._serversFoldedHeight) : 0
         anchors.left: parent.left
         anchors.right: hairline.left
@@ -1523,7 +1529,7 @@ Item {
     Rectangle {
         id: serversBlock
 
-        anchors.bottom: parent.bottom
+        anchors.bottom: footBlock.top
         anchors.left: parent.left
         anchors.right: hairline.left
         // D16 a: a band of its own, the idle fill under a hairline. Opened over the filters
@@ -1714,6 +1720,49 @@ Item {
                 Component.onCompleted: root._registerRow(serversMoreRow, () => root.moreServersRequested())
                 Component.onDestruction: root._unregisterRow(serversMoreRow)
             }
+        }
+    }
+
+    // ---- the foot (board 51 D1 a, DECISIONS C32) ---------------------------------------
+    /// Its height: the row and `.rfoot`'s room round it, under a hairline.
+    readonly property real _footHeight: Theme.railRowHeight + 2 * Theme.space(6) + Theme.hairWidth
+
+    Item {
+        id: footBlock
+
+        anchors.bottom: parent.bottom
+        anchors.left: parent.left
+        anchors.right: hairline.left
+        height: root._footHeight
+        objectName: "railFoot"
+        z: 5
+
+        Hairline {
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.top: parent.top
+        }
+
+        RailRow {
+            id: settingsRow
+
+            Accessible.description: qsTr("shortcut %1").arg(",")
+            anchors.bottom: parent.bottom
+            anchors.bottomMargin: Theme.space(6)
+            anchors.left: parent.left
+            anchors.right: parent.right
+            compact: root.compact
+            glyph: Glyphs.settings
+            keyText: ","
+            keysShown: root.keysShown
+            objectName: "railSettings"
+            text: qsTr("settings")
+
+            onClicked: {
+                root._hideTips();
+                root.settingsRequested();
+            }
+            onHoverChanged: hovering => root._keyTip(settingsRow, hovering)
         }
     }
 

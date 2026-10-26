@@ -606,8 +606,8 @@ TestCase {
         const rail = railWithServers(["public", "private"]);
         const block = findChild(rail, "serversBlock");
         verify(block.visible);
-        // At the rail's bottom, whatever the scroll.
-        compare(block.y + block.height, rail.height);
+        // At the rail's bottom over its foot (C32 D1 a), whatever the scroll.
+        compare(block.y + block.height, findChild(rail, "railFoot").y);
         compare(rail._rowMap[rail.serversBase].item.pinned, true);
         // With kana, the head is in two parts: the word, then the count at the right.
         const heading = findChild(rail, "serversHeading");
@@ -959,5 +959,34 @@ TestCase {
         tryCompare(findChild(rail, "railTip"), "shown", true);
         compare(findChild(rail, "railTip").text, "unfold the rail · ctrl+b");
         mouseMove(testCase, testCase.width - 2, testCase.height - 2);
+    }
+
+    // DECISIONS C32 D1 a: the rail's foot is a settings row under the servers, its key "," on
+    // alt and in its tip; folded, the gear alone. Not a cursor stop.
+    function test_the_foot_is_a_settings_row() {
+        const rail = railWithServers(["public", "private"]);
+        const asks = createTemporaryObject(spyComponent, testCase, {
+                                               "target": rail,
+                                               "signalName": "settingsRequested"
+                                           });
+        const foot = findChild(rail, "railFoot");
+        const row = findChild(rail, "railSettings");
+        compare(foot.y + foot.height, rail.height);
+        verify(findChild(rail, "railScroll").y + findChild(rail, "railScroll").height <= findChild(rail, "serversBlock").y);
+        compare(row.text, "settings");
+        compare(row.glyph, Glyphs.settings);
+        compare(row.keyText, ",");
+        verify(row.mapToItem(rail, 0, 0).y >= foot.y);
+        mouseClick(row, row.width / 2, row.height / 2);
+        compare(asks.count, 1);
+        rail._keyTip(row, true);
+        compare(findChild(rail, "railTip").text, "settings · ,");
+        rail._keyTip(row, false);
+        // The cursor never lands on it.
+        rail.cursorIndex = rail.totalRowCount - 1;
+        verify(rail._rowMap[rail.cursorIndex].item !== row);
+        rail.compact = true;
+        verify(row.compact);
+        compare(foot.width, Theme.railFoldedWidth - Theme.hairWidth);
     }
 }

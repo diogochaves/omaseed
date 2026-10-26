@@ -914,6 +914,14 @@ TestCase {
         App.detailsPlacement = placement;
     }
 
+    // C32 D1 a: the rail's foot opens Settings, as `,` does.
+    function test_the_rails_foot_opens_settings() {
+        const row = findChild(view.rail, "railSettings");
+        verify(row.visible);
+        mouseClick(row, row.width / 2, row.height / 2);
+        compare(settingsSpy.count, 1);
+    }
+
     // C32 D3 a: the dragged width is the window's (App.railWidth, in space units); the
     // title bar and the body follow it; a double-click's default stores 0; let go under 120,
     // the rail folds by hand.

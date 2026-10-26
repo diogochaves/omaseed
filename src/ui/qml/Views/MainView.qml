@@ -2021,6 +2021,8 @@ Item {
         }
         onUnfoldRequested: root.setRailFoldedByHand(false)
         onFoldToggleRequested: root.toggleRail()
+        // C32 D1 a: the foot's settings row, as `,`.
+        onSettingsRequested: App.openSettings()
         onFoldDragged: root.setRailFoldedByHand(true)
         onUnfoldDragged: root.setRailFoldedByHand(false)
         onWidthChosen: (width, isDefault) => App.railWidth = isDefault ? 0 : Math.round(width / Theme.spaceScale)
