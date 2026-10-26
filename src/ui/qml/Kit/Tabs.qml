@@ -162,10 +162,10 @@ Item {
                     }
                 }
 
-                // F18: the key on demand, over the tab's top-right corner.
+                // F18: the key on demand, over the tab's top-right corner, above its words so
+                // the next tab's stay clear.
                 KeyBadge {
                     key: root.keyBadges && tab.modelData.key ? tab.modelData.key : ""
-                    overhangY: 0
                     shown: root.badgesShown
                 }
 
