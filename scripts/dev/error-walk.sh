@@ -2,8 +2,8 @@
 # omaseed — the error walkthrough (docs/28, #54): a torrent goes into error while the app
 # runs, and the app says why, from qBittorrent's log. Its row shows the short cause, the story
 # (DECISIONS C24 H6) opens with the error block, and one notice carries the reason. Stopped, from the API and
-# then with `p`, the row reads "stopped" in red (DECISIONS C20, #142); then its folder is
-# made writable and `e` (retry) brings it back. Then (docs/32, #55) a move out of a
+# then with `p`, the row reads "stopped" in red (DECISIONS C20, #142); then it is moved to a
+# writable folder and `e` (retry) brings it back. Then (docs/32, #55) a move out of a
 # folder that can't be written fails: the story's yellow block, the footer's note when the app
 # asked for it, and the block gone once the move lands. Last, a torrent whose files are gone
 # after a restart shows the missing-files block.
@@ -35,9 +35,7 @@ PLAY_PORT="${OMASEED_TEST_PORT:-8081}"
 PLAY="http://127.0.0.1:$PLAY_PORT/api/v2"
 refuse_home "$PLAY"
 DOWNLOADS="${OMASEED_TEST_PROFILE:-$HOME/.local/share/omaseed-test}/downloads"
-# swarm.sh break error's read-only folder, which the broken fixture saves into: made writable
-# for its retry, then read-only again under it for the move that fails.
-FOLDER="$DOWNLOADS/swarm-readonly"
+WRITABLE="$DOWNLOADS/swarm-writable"
 MOVED="$DOWNLOADS/swarm-moved"
 APP_ID=io.github.diogochaves.omaseed
 BOX=error-walk
@@ -236,9 +234,9 @@ check() {
 }
 
 cleanup() {
-    chmod 755 "$FOLDER" 2>/dev/null || true
+    chmod 755 "$WRITABLE" 2>/dev/null || true
     "$SWARM" fix >/dev/null 2>&1 || true
-    rm -rf -- "$MOVED"
+    rm -rf -- "$WRITABLE" "$MOVED"
     [ "$INTERACTIVE" = 1 ] || omabox down -b "$BOX" >/dev/null 2>&1 || true
 }
 trap cleanup EXIT
@@ -300,20 +298,23 @@ check "the stopped errored torrent is still in error" wait_state "$BROKEN" "^err
 omabox keys -b "$BOX" --window "$APP_ID" p >/dev/null
 check "p on the row stopped elsewhere started it: the app knew it was stopped" broken_running
 sleep 4 # the app reads the filter again once the start is answered, and at its next poll
+# Started, it is in error again only once it writes a piece, which takes a peer: stopped
+# before that, it would be plainly stopped, with no error left for `e` to try again.
+check "started, it fails to write again" wait_state "$BROKEN" "^error" 60
 omabox keys -b "$BOX" --window "$APP_ID" p >/dev/null
 check "p on it running stopped it" broken_stopped
 sleep 4
 step "Stopped from omaseed" "After p, p: stopped again, from omaseed this time; the row reads \"! stopped\" in the error colour."
 
-# The fix: its folder made writable, then `e` on its row: retry. Not a move: qBittorrent 5.3
-# clears the error when a stopped torrent is moved, so the row would be plainly stopped (p
-# starts it) and `e`, which tries only errored torrents again (C20), would have nothing to do.
-chmod 755 "$FOLDER"
-check "made writable, it is still in error" wait_state "$BROKEN" "^error" 10
+# The fix: somewhere it can write (as the location sheet would), then `e` on its row: retry.
+mkdir -p "$WRITABLE"
+curl -fs -X POST "$PLAY/torrents/setLocation" -d "hashes=$(hash_of "$BROKEN")" \
+    --data-urlencode "location=$WRITABLE" >/dev/null
+wait_state "$BROKEN" "^error" 10 || true
 omabox keys -b "$BOX" --window "$APP_ID" e >/dev/null
 check "e on the errored row retries it, and it downloads from the new folder" broken_moves_again
 sleep 3
-step "Tried again" "$BROKEN downloads or seeds again from swarm-readonly: no block in the story, the status cell back to a plain state."
+step "Tried again" "$BROKEN downloads or seeds again from swarm-writable: no block in the story, the status cell back to a plain state."
 check "trying again sent no second notice" still_one_notice
 
 # docs/32 (#55): a move that answers "OK" and fails. Once the fixture is whole, its folder
@@ -322,28 +323,28 @@ check "trying again sent no second notice" still_one_notice
 wait_state "$BROKEN" "^(uploading|stalledUP|forcedUP)" 120 || true
 mkdir -p "$MOVED"
 MOVES_BEFORE=$(failed_moves)
-chmod 555 "$FOLDER"
+chmod 555 "$WRITABLE"
 curl -fs -X POST "$PLAY/torrents/setLocation" -d "hashes=$(hash_of "$BROKEN")" \
     --data-urlencode "location=$MOVED" >/dev/null
 moves_failed 1 20 || true
 show "$BROKEN"
 # Nobody watched this move: the app finds it at its next look at the log, every 15 s.
 sleep 16
-step "Move failed" "The story opens with a yellow-ruled block: ! The move to downloads/swarm-moved didn't happen; Permission denied, moving $BROKEN; Its files are still in …/swarm-readonly; qBittorrent's log · today HH:MM; m set location · o open folder · x dismiss. The row still reads seeding (the table is unchanged)."
+step "Move failed" "The story opens with a yellow-ruled block: ! The move to downloads/swarm-moved didn't happen; Permission denied, moving $BROKEN; Its files are still in …/swarm-writable; qBittorrent's log · today HH:MM; m set location · o open folder · x dismiss. The row still reads seeding (the table is unchanged)."
 check "the move failed, and qBittorrent said so in its log only" moves_failed 1 1
 move_from_app
 moves_failed 2 20 || true
 sleep 1.5
 step "Move failed again, from the app" "The footer's note, in yellow: \"$BROKEN didn't move: Permission denied\". The block now ends \"· 2 times\"."
 check "m, then enter, asked for the same destination again" moves_failed 2 1
-chmod 755 "$FOLDER"
+chmod 755 "$WRITABLE"
 move_from_app
 check "with the folder writable, the move landed" moved_to "$MOVED" 30
 sleep 2
 step "Moved" "$BROKEN is in swarm-moved: no block in the story, its save path ends in swarm-moved."
 
 "$SWARM" fix >/dev/null
-rm -rf -- "$MOVED"
+rm -rf -- "$WRITABLE" "$MOVED"
 "$SWARM" break missing >/dev/null
 wait_state "$MISSING" "^missingFiles" 60 || true
 check "the app reconnects to the restarted playground by itself" app_back 40
