@@ -21,10 +21,11 @@ import Omaseed.Kit
 // console a click on it opens); "esc" clears the selection (#51 D2).
 //
 // Mouse only (docs/17 M9.4): no button takes the focus, a click leaves the keyboard on the
-// list. It never wraps (M9.5): as the list narrows, C18 D6's mouse hint goes first, then the
-// ledger, then the words (D17.2 a: the icons stay, each word in its tooltip), then the count's
-// "selected", and last limits, tags, category and recheck fold into more one by one (H8's
-// narrow order), leaving stop, move…, more and delete. While alt is held each button shows
+// list. It never wraps (M9.5): as the list narrows, the ledger goes first, then the words
+// (D17.2 a: the icons stay, each word in its tooltip), then the count's "selected", and last
+// limits, tags, category and recheck fold into more one by one (H8's narrow order), leaving
+// stop, move…, more and delete. C18 D6's mouse hint, shown the first three times only, stays
+// while it fits: the ledger, then the words give way to it, and it goes before the icons do. While alt is held each button shows
 // its key over its corner (C24 H10).
 //
 // It runs nothing itself: `triggered(action)` names a row's action (the menu's names, with
@@ -85,7 +86,6 @@ Item {
         return {
             "action": action,
             "text": word,
-            "name": word.replace(/…$/, ""),
             "glyph": item.glyph ?? "",
             "key": item.key ?? "",
             "list": list,
@@ -183,8 +183,8 @@ Item {
     readonly property bool _hasLedger: root.summary.sizeText !== undefined
     readonly property bool _hasHint: root.hint.length > 0
 
-    /// What the bar draws at `availableWidth`: the hint goes first, then the ledger, the
-    /// words, the count's word, then the folds one by one.
+    /// What the bar draws at `availableWidth`: the ledger goes first, then the words, the
+    /// count's word, then the folds one by one; the hint is kept while it fits beside them.
     readonly property var fit: {
         const steps = [];
         const step = (folds, words, word, ledger, hint) => ({
@@ -194,8 +194,13 @@ Item {
                                                                  "ledger": ledger,
                                                                  "hint": hint
                                                              });
-        if (root._hasHint)
+        // C18 D6's hint shows the first three times only, so it is kept while it fits at all:
+        // the ledger gives way to it, then the words.
+        if (root._hasHint) {
             steps.push(step(0, true, true, root._hasLedger, true));
+            steps.push(step(0, true, true, false, true));
+            steps.push(step(0, false, true, false, true));
+        }
         if (root._hasLedger)
             steps.push(step(0, true, true, true, false));
         steps.push(step(0, true, true, false, false));
@@ -332,15 +337,16 @@ Item {
         property var entry: ({})
         readonly property string key: button.entry.key ?? ""
 
-        // #78: named by its word ("delete"), its key the description; an icon alone too.
+        // #78: named by its word ("delete…"), its key the description; an icon alone too.
         Accessible.description: button.key.length > 0 ? qsTr("shortcut %1").arg(button.key) : ""
-        Accessible.name: button.entry.name ?? ""
+        Accessible.name: button.entry.text ?? ""
         activeFocusOnTab: false
         block: Theme.actionBarGround
         danger: button.entry.danger === true
         fontSize: Theme.actionBarFontSize
         glyph: button.entry.glyph ?? ""
-        glyphDim: true
+        // Dim beside its word (board 51 `.ab2 .ic`); an icon alone is the word, in its colour.
+        glyphDim: root.showWords
         height: Theme.actionBarButtonSize
         objectName: "bar_" + (button.entry.action ?? "")
         selected: root.openAction.length > 0 && root.openAction === button.entry.action

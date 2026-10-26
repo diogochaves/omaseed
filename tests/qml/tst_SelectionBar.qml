@@ -165,8 +165,8 @@ TestCase {
                                 "startable": true
                             });
         const cases = [["recheck", "recheck", "shortcut c"], ["start", "start", "shortcut p"],
-                       ["location", "move", "shortcut m"], ["category", "category", "shortcut C"],
-                       ["more", "more", ""], ["delete", "delete", "shortcut d"],
+                       ["location", "move…", "shortcut m"], ["category", "category", "shortcut C"],
+                       ["more", "more", ""], ["delete", "delete…", "shortcut d"],
                        ["clear", "clear selection", ""]];
         for (const [action, name, description] of cases) {
             compare(button(bar, action).Accessible.name, name, action);
@@ -182,9 +182,10 @@ TestCase {
     }
 
     // ---- D17.2 a, M9.5: narrow --------------------------------------------------------------
-    // The hint goes first, then the ledger, then the words, then the count's word, then
-    // limits, tags, category and recheck fold into more.
-    function test_the_hint_goes_first_then_the_ledger() {
+    // The ledger goes first, then the words, then the count's word, then limits, tags,
+    // category and recheck fold into more. C18 D6's hint (the first three times only) stays
+    // while it fits: the ledger and then the words give way to it.
+    function test_the_hint_stays_while_it_fits() {
         const bar = makeBar({
                                 "hint": "ctrl+click add · shift+click range",
                                 "summary": {
@@ -199,11 +200,19 @@ TestCase {
         compare(hint.text, "ctrl+click add · shift+click range");
         verify(hint.mapToItem(bar, 0, 0).x > button(bar, "delete").mapToItem(bar, 0, 0).x,
                "the hint is not after the buttons");
+        bar.availableWidth = bar.widthOf(step(0, true, true, true, true)) - 1;
+        verify(bar.showHint && !bar.showSummary && bar.showWords, "the ledger gives way to the hint");
+        bar.availableWidth = bar.widthOf(step(0, true, true, false, true)) - 1;
+        verify(bar.showHint && !bar.showWords, "the words give way to the hint");
+        bar.availableWidth = bar.widthOf(step(0, false, true, false, true)) - 1;
+        verify(!bar.showHint, "the hint goes before the icons do");
+        compare(bar.folded, []);
+        // With no hint the ledger stays with the words, and goes first.
+        bar.hint = "";
         bar.availableWidth = bar.widthOf(step(0, true, true, true, false));
-        verify(!bar.showHint && bar.showSummary && bar.showWords);
+        verify(bar.showSummary && bar.showWords);
         bar.availableWidth -= 1;
         verify(!bar.showSummary && bar.showWords);
-        compare(bar.folded, []);
     }
 
     function test_the_words_go_before_any_fold_and_the_tooltip_keeps_them() {
@@ -218,8 +227,9 @@ TestCase {
         compare(move.text, "");
         compare(move.width, Theme.actionBarButtonSize);
         compare(move.tooltip, "move… · m");
-        compare(move.Accessible.name, "move");
+        compare(move.Accessible.name, "move…");
         compare(button(bar, "category").trailingGlyph, "");
+        verify(!move.glyphDim, "an icon alone rests dim");
     }
 
     // At 480 board 51 keeps only stop, move, more and delete.
