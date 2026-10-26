@@ -152,11 +152,29 @@ TestCase {
             ["o", "openFolder"],
             ["d", "delete"]
         ];
-        for (const [key, action] of expected)
-            verify(view.actionsMenuPanel.indexOfKey(key) >= 0, "missing row for key " + key);
+        // A key runs its row from the top, in a submenu too (#201 F15).
+        for (const [key, action] of expected) {
+            const row = view.actionsMenuPanel.itemOfKey(key);
+            verify(row !== null, "missing row for key " + key);
+            compare(row.action, action, key);
+        }
         compare(view.actionsMenuPanel.indexOfKey("d") >= 0, true);
         const deleteRow = view.actionsMenuPanel.items[view.actionsMenuPanel.indexOfKey("d")];
         compare(deleteRow.danger, true);
+    }
+
+    // #201 F15 (board 46 `menuHtml()`): every row has an icon, its submenus' rows too.
+    function test_every_row_of_the_menu_has_an_icon() {
+        const rows = [];
+        for (const item of view.actionsMenuPanel.items) {
+            if (item.separator === true)
+                continue;
+            rows.push(item);
+            for (const child of item.submenu ?? [])
+                rows.push(child);
+        }
+        for (const row of rows)
+            verify(typeof row.glyph === "string" && row.glyph.length > 0, row.text);
     }
 
     // DECISIONS C24 H9 (board 46 `menuHtml()`): verbs grouped, keys right, delete last: run ·
@@ -169,12 +187,21 @@ TestCase {
             else
                 groups[groups.length - 1].push(item.action);
         }
-        compare(groups, [["stopStart", "forceStart", "recheck", "reannounce"],
+        compare(groups, [["stopStart", "recheck", "reannounce"],
                          ["location", "category", "tags", "rename"],
-                         ["limits", "sequential", "firstLast", "superSeeding", "autoManagement",
-                          "queueUp", "queueDown"],
-                         ["openFolder", "copyMagnet", "copyHash", "copyName"],
+                         ["limits", "transfer", "queue"],
+                         ["openFolder", "copy"],
                          ["delete"]]);
+        // #201 F15: board 46's three submenus.
+        const submenu = action => view.actionsMenuPanel.items.find(item => item.action === action)
+                      .submenu.map(child => child.action);
+        compare(submenu("transfer"), ["forceStart", "sequential", "firstLast", "superSeeding",
+                                      "autoManagement"]);
+        compare(submenu("queue"), ["queueUp", "queueDown"]);
+        compare(submenu("copy"), ["copyMagnet", "copyHash", "copyName"]);
+        // The same groups as data, for the action bar (C32 D17).
+        compare(view.actionsMenuPanel.groups.map(group => group.name),
+                ["run", "place", "transfer", "reach", "delete"]);
     }
 
     // docs/12 G4: the four per-torrent options, checked for the cursor torrent.
@@ -185,14 +212,13 @@ TestCase {
         compare(view.actionsMenuPanel.opened, true);
         for (const [key, action] of [["s", "sequential"], ["f", "firstLast"],
                                      ["S", "superSeeding"], ["a", "autoManagement"]]) {
-            const index = view.actionsMenuPanel.indexOfKey(key);
-            verify(index >= 0, "missing row for key " + key);
-            compare(view.actionsMenuPanel.items[index].action, action);
+            const row = view.actionsMenuPanel.itemOfKey(key);
+            verify(row !== null, "missing row for key " + key);
+            compare(row.action, action);
         }
         // The demo's linux rows are automatically managed.
-        compare(view.actionsMenuPanel.items[view.actionsMenuPanel.indexOfKey("a")].glyph,
-                Glyphs.check);
-        compare(view.actionsMenuPanel.items[view.actionsMenuPanel.indexOfKey("s")].glyph, "");
+        compare(view.actionsMenuPanel.itemOfKey("a").checked, true);
+        compare(view.actionsMenuPanel.itemOfKey("s").checked, false);
         view.actionsMenuPanel.close();
     }
 

@@ -169,6 +169,24 @@ QtObject {
     readonly property string openFolder: g("openFolder", "icon:openFolder")
     readonly property string trash: g("trash", "icon:delete")
 
+    // ---- the torrent menu, board 46 `menuHtml()` (#201 F15): every row an icon ------------
+    readonly property string retry: g("retry", "icon:retry")
+    readonly property string renameRow: g("rename", "icon:rename") // `rename` stays a character
+    readonly property string queue: g("queue", "icon:queue") // queue ›
+    readonly property string copy: g("copy", "icon:copy") // copy ›
+    // transfer ›'s rows
+    readonly property string forceStart: g("forceStart", "icon:forceStart")
+    readonly property string sequential: g("sequential", "icon:sequential")
+    readonly property string firstLast: g("firstLast", "icon:firstLast")
+    readonly property string superSeeding: g("superSeeding", "icon:superSeeding")
+    readonly property string autoManagement: g("autoManagement", "icon:autoManagement")
+    // queue ›'s and copy ›'s rows
+    readonly property string queueUp: g("queueUp", "↑")
+    readonly property string queueDown: g("queueDown", "↓")
+    readonly property string copyMagnet: g("copyMagnet", "◇")
+    readonly property string copyHash: g("copyHash", "#")
+    readonly property string copyName: g("copyName", "icon:title")
+
     // ---- the app menu's window block, board 46 `menuHtml("app")` (DECISIONS C24 H9) -----
     readonly property string hideWindow: g("hideWindow", "–")
     readonly property string quit: g("quit", "×")

@@ -118,6 +118,51 @@ Item {
                                            "stroke": "M4 7 H20 M9 7 V4.5 H15 V7 M6.5 7 L7.5 20 H16.5 L17.5 7 M10 11 V16 M14 11 V16",
                                            "fill": ""
                                        },
+                                       // #201 F15, the torrent menu (board 46 `menuHtml()`): retry, checking's arrow turned back.
+                                       "retry": {
+                                           "stroke": "M5 12 A7 7 0 1 0 7.05 7.05 M5 4.5 V8 H8.5",
+                                           "fill": ""
+                                       },
+                                       "forceStart": {
+                                           "stroke": "M4 5.5 L11.5 12 L4 18.5 Z M12.5 5.5 L20 12 L12.5 18.5 Z",
+                                           "fill": ""
+                                       },
+                                       "rename": {
+                                           "stroke": "M4.5 19.5 L5.5 15 L15.5 5 L19 8.5 L9 18.5 Z M13.5 7 L17 10.5",
+                                           "fill": ""
+                                       },
+                                       "queue": {
+                                           "stroke": "M4 6.5 H20 M4 12 H15 M4 17.5 H10",
+                                           "fill": ""
+                                       },
+                                       "copy": {
+                                           "stroke": "M8.5 8.5 H19.5 V19.5 H8.5 Z M15.5 8.5 V4.5 H4.5 V15.5 H8.5",
+                                           "fill": ""
+                                       },
+                                       // Pieces in order: the first two had, the third next.
+                                       "sequential": {
+                                           "stroke": "M16.75 9.75 H20.25 V14.25 H16.75 Z",
+                                           "fill": "M3 9 H8 V15 H3 Z M9.5 9 H14.5 V15 H9.5 Z"
+                                       },
+                                       // The first and the last piece first.
+                                       "firstLast": {
+                                           "stroke": "M10.25 9.75 H13.75 V14.25 H10.25 Z",
+                                           "fill": "M3 9 H8 V15 H3 Z M16 9 H21 V15 H16 Z"
+                                       },
+                                       "superSeeding": {
+                                           "stroke": "M12 20 V7.5 M6.5 13 L12 7.5 L17.5 13 M5 3.5 H19",
+                                           "fill": ""
+                                       },
+                                       // Automatic management: the folder looks after itself.
+                                       "autoManagement": {
+                                           "stroke": "M3.5 6 H10 L12 8.2 H20.5 V18.5 H3.5 Z M8.5 13.5 L11 16 L15.5 11.5",
+                                           "fill": ""
+                                       },
+                                       // Copy name: a T.
+                                       "title": {
+                                           "stroke": "M5 8 V5.5 H19 V8 M12 5.5 V19 M9.5 19 H14.5",
+                                           "fill": ""
+                                       },
                                        // Batch-2 J8: a globe, for the tracker-host setting.
                                        "globe": {
                                            "stroke": "M20.5 12 A8.5 8.5 0 1 1 3.5 12 A8.5 8.5 0 1 1 20.5 12 Z M3.5 12 H20.5 M12 3.5 C8 7.5 8 16.5 12 20.5 M12 3.5 C16 7.5 16 16.5 12 20.5",
