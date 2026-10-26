@@ -29,6 +29,9 @@ Rectangle {
     /// A glyph after the words, dim (board 46 `.tool .c`: a menu's chevron drawn in the skin's
     /// icon font); "" draws none.
     property string trailingGlyph: ""
+    /// The leading glyph dim while the button rests, its words' colour under the pointer or
+    /// selected (board 51 `.ab2 .ic`, the action bar's icons). A danger glyph stays red.
+    property bool glyphDim: false
     property bool primary: false
     property bool danger: false
     property bool hasCursor: false
@@ -125,7 +128,9 @@ Rectangle {
             id: glyphLabel
 
             anchors.verticalCenter: parent.verticalCenter
-            color: root._textColor
+            color: root.glyphDim && !root.danger && !root.hot && !root.selected ? root.ink.dimForeground
+                                                                                : root._textColor
+            objectName: "buttonGlyph"
             pixelSize: Theme.font.icon
             text: root.glyph
             visible: root.glyph.length > 0

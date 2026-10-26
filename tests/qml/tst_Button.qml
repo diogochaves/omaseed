@@ -182,6 +182,26 @@ TestCase {
         compare(button._textColor, Theme.red);
     }
 
+    // Board 51 D17 (`.ab2 .ic`): the action bar's icons rest dim and light with the words.
+    function test_a_dim_glyph_rests_dim_and_lights_when_selected() {
+        const button = createTemporaryObject(buttonComponent, testCase, {
+                                                 "text": "move",
+                                                 "glyph": "+",
+                                                 "glyphDim": true
+                                             });
+        const glyph = findChild(button, "buttonGlyph");
+        compare(glyph.color, button.ink.dimForeground);
+        button.selected = true;
+        compare(glyph.color, button._textColor);
+        const danger = createTemporaryObject(buttonComponent, testCase, {
+                                                 "text": "delete",
+                                                 "glyph": "+",
+                                                 "glyphDim": true,
+                                                 "danger": true
+                                             });
+        compare(findChild(danger, "buttonGlyph").color, Theme.red);
+    }
+
     function test_danger_selected_border_is_red() {
         const button = createTemporaryObject(buttonComponent, testCase, {
                                                  "text": "Delete",
