@@ -30,7 +30,11 @@ struct ScopeFacts
     int resting = 0;
     /// Landed today and still sharing (not stopped).
     int landedSharing = 0;
-    /// Seconds to the soonest and the latest arriving torrent with an estimate; -1 for none.
+    /// Arriving torrents stalled with no seed online (the row's "waiting · no seed"): none
+    /// of them can finish, so none gives the soonest or latest estimate below (#201 F14).
+    int waitingSeed = 0;
+    /// Seconds to the soonest and the latest arriving torrent with an estimate, among those
+    /// that can finish; -1 for none.
     qint64 nextEta = -1;
     qint64 lastEta = -1;
     /// What the arriving torrents receive, and what the giving-back ones and every torrent
