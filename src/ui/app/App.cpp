@@ -4667,6 +4667,23 @@ void App::setRailHidden(bool hidden)
     Q_EMIT settingsChanged();
 }
 
+int App::railWidth() const
+{
+    const_cast<App *>(this)->loadSettings();
+    return m_railWidth;
+}
+
+void App::setRailWidth(int units)
+{
+    loadSettings();
+    const int wanted = qMax(0, units);
+    if (m_railWidth == wanted)
+        return;
+    m_railWidth = wanted;
+    saveSettings();
+    Q_EMIT settingsChanged();
+}
+
 void App::setLaunchHidden(bool hidden)
 {
     m_launchHidden = hidden;
@@ -4792,6 +4809,7 @@ void App::loadSettings()
     m_trackerHostStyle =
         oneOf(appearance.value(QStringLiteral("trackerHostStyle")).toString(), kTrackerHostStyles);
     m_railHidden = appearance.value(QStringLiteral("railHidden")).toBool(false);
+    m_railWidth = qMax(0, appearance.value(QStringLiteral("railWidth")).toInt(0));
     m_detailsPlacement =
         oneOf(appearance.value(QStringLiteral("detailsPlacement")).toString(), kDetailsPlacements);
 }
@@ -4819,6 +4837,7 @@ void App::saveSettings()
     appearance[QStringLiteral("surfaceTint")] = m_surfaceTint;
     appearance[QStringLiteral("trackerHostStyle")] = m_trackerHostStyle;
     appearance[QStringLiteral("railHidden")] = m_railHidden;
+    appearance[QStringLiteral("railWidth")] = m_railWidth;
     appearance[QStringLiteral("detailsPlacement")] = m_detailsPlacement;
     writeStateSection(QStringLiteral("appearance"), appearance);
 }

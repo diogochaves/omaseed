@@ -20,6 +20,14 @@ import Omaseed.Kit
 // the mark, the views, the questions, one row standing for the other groups, the servers' dots.
 // A row's name is then its tooltip. The views and the servers are pinned: they never scroll.
 //
+// DECISIONS C32 D3 a, D9 c: the rail's edge drags its open width (`openWidth`, the host's)
+// between `minimumOpenWidth` and `maximumOpenWidth`; let go under `foldBelowWidth` and it asks
+// to fold (`foldDragged`), and a drag out of the folded rail's edge asks to unfold
+// (`unfoldDragged`) and carries on as an open drag. A double-click on the edge goes back to
+// the default (`widthChosen(Theme.railWidth, true)`). While the pointer is on the rail, a tab
+// on its edge at the top, centred on the title bar's height (`headHeight`), folds or unfolds
+// it (`foldToggleRequested`); the drag answers along the rest of the edge.
+//
 // docs/08 §5: groups fold. `collapsedGroups` names the folded ones (the host owns and persists
 // it, per server); a click on a heading or `z` on any row asks for a toggle through
 // `groupToggled`. A folded group leaves one cursor stop, its heading, where `enter`/`space`
@@ -68,6 +76,21 @@ Item {
     property bool searchOffered: false
     /// #167 assumed 4: folded to its glyphs (ctrl+b).
     property bool compact: false
+    /// DECISIONS C32 D3 a: the width open, as the edge was last dragged (the host keeps it).
+    property int openWidth: Theme.railWidth
+    /// D3 a: the drag's bounds (board 51 at its 13 px type: 160–360, folding under 120).
+    readonly property int minimumOpenWidth: Theme.space(160)
+    readonly property int maximumOpenWidth: Theme.space(360)
+    readonly property int foldBelowWidth: Theme.space(120)
+    /// The edge is being dragged, past the drag distance.
+    readonly property bool resizing: edgeGrip.pressed && edgeGrip.moved
+    /// Where the drag would leave the rail: an open width, or under `foldBelowWidth` (fold).
+    readonly property bool _dragFolds: root.resizing && edgeGrip.wanted < root.foldBelowWidth
+    readonly property int _dragWidth: Math.max(root.minimumOpenWidth,
+                                               Math.min(root.maximumOpenWidth, edgeGrip.wanted))
+    /// D9 c: the pointer is on the rail or its edge, so the edge tab shows.
+    readonly property bool edgeHovered: railHover.hovered || edgeGrip.containsMouse
+                                        || edgeTabMouse.containsMouse
     /// DECISIONS C24 H10: alt is held: the mark, the views, the questions and the servers
     /// show their keys.
     property bool keysShown: false
@@ -162,6 +185,15 @@ Item {
     signal markClicked
     /// The folded rail's row for its other groups: the host unfolds the rail.
     signal unfoldRequested
+    /// D3 a: the edge let go at `width` (open, clamped), or double-clicked (`isDefault`, the
+    /// default width): the host keeps it.
+    signal widthChosen(int width, bool isDefault)
+    /// D3 a: the edge let go under `foldBelowWidth`: the host folds the rail, by hand.
+    signal foldDragged
+    /// D3 a: the folded rail's edge dragged out past `foldBelowWidth`: the host unfolds it.
+    signal unfoldDragged
+    /// D9 c: the edge tab, clicked: fold the rail, or unfold it.
+    signal foldToggleRequested
     /// A heading was clicked, or `z` pressed on one of the group's rows.
     signal groupToggled(string group)
     /// `enter` or a click on a server row: that server should become the default one. The
@@ -573,6 +605,18 @@ Item {
         }
     }
 
+    /// A tip beside `item`, level with it, open or folded (D9 c's edge tab).
+    function _besideTip(item: Item, hovering: bool, text: string): void {
+        if (hovering) {
+            const gap = hostTip.panelItem.gap;
+            const point = item.mapToItem(hostTip, item.width + Theme.railTipGap - gap,
+                                         (item.height - hostTip.panelItem.height) / 2 - gap);
+            hostTip.showAt(point.x, point.y, text);
+        } else {
+            root._hideTips();
+        }
+    }
+
     /// The folded rail's tooltip: a row's name beside it, since only its glyph shows.
     function _compactTip(row: Item, hovering: bool, text: string): void {
         if (hovering && root.compact) {
@@ -622,7 +666,8 @@ Item {
     activeFocusOnTab: true
     implicitHeight: root._topHeight + (root.serversOnly ? 0 : content.implicitHeight)
                     + (root.serversRowCount > 0 ? root._serversOpenHeight : 0)
-    implicitWidth: root.compact ? Theme.railFoldedWidth : Theme.railWidth
+    implicitWidth: root.compact ? Theme.railFoldedWidth : root.resizing ? root._dragWidth
+                                                                     : root.openWidth
     width: root.implicitWidth
 
     Keys.onPressed: event => {
@@ -1742,6 +1787,147 @@ Item {
         anchors.right: parent.right
         anchors.bottom: parent.bottom
         anchors.top: parent.top
+        // D3 a: the edge lights in the accent under the pointer, as the details' split does.
+        color: edgeGrip.containsMouse || edgeGrip.pressed ? Theme.accent : Theme.hairColor
         vertical: true
+    }
+
+    // D9 c: its hover reaches every row without taking their pointer.
+    HoverHandler {
+        id: railHover
+    }
+
+    // ---- the edge: D3 a's drag, D9 c's tab ------------------------------------------------
+    // The edge's handle, `Theme.space(6)` inside the rail along its whole height below the tab.
+    // a11y-ignore A2: a drag handle; ctrl+b folds the rail and the tab is its button (#77)
+    MouseArea {
+        id: edgeGrip
+
+        /// The width the pointer asks for, in rail coordinates (its x past the press, from
+        /// the width the drag started at).
+        property int wanted: root.width
+        property real pressedX: 0
+        property int startWidth: 0
+        property bool moved: false
+
+        anchors.bottom: parent.bottom
+        anchors.right: parent.right
+        anchors.top: parent.top
+        anchors.topMargin: edgeTab.y + edgeTab.height
+        cursorShape: Qt.SplitHCursor
+        hoverEnabled: true
+        objectName: "railEdge"
+        width: Theme.space(6)
+        z: 6
+
+        onDoubleClicked: {
+            if (root.compact)
+                root.unfoldDragged();
+            root.widthChosen(Theme.railWidth, true);
+        }
+        onPositionChanged: mouse => {
+            if (!edgeGrip.pressed)
+                return;
+            const along = edgeGrip.mapToItem(root, mouse.x, mouse.y).x - edgeGrip.pressedX;
+            if (!edgeGrip.moved) {
+                if (Math.abs(along) < Application.styleHints.startDragDistance)
+                    return;
+                edgeGrip.moved = true;
+            }
+            edgeGrip.wanted = Math.round(edgeGrip.startWidth + along);
+            // Out of the folded column: open, and the drag carries on as an open one.
+            if (root.compact && edgeGrip.wanted >= root.foldBelowWidth)
+                root.unfoldDragged();
+        }
+        onPressed: mouse => {
+            edgeGrip.pressedX = edgeGrip.mapToItem(root, mouse.x, mouse.y).x;
+            edgeGrip.startWidth = root.width;
+            edgeGrip.wanted = root.width;
+            edgeGrip.moved = false;
+        }
+        onReleased: {
+            const was = edgeGrip.moved;
+            const folds = root._dragFolds;
+            const width = root._dragWidth;
+            edgeGrip.moved = false;
+            if (!was || root.compact)
+                return;
+            if (folds)
+                root.foldDragged();
+            else
+                root.widthChosen(width, false);
+        }
+        onCanceled: edgeGrip.moved = false
+    }
+
+    // D3 a: the width while dragging, "fold" in the accent under `foldBelowWidth`.
+    Rectangle {
+        id: widthTip
+
+        border.color: root._dragFolds ? Theme.accent : Theme.fill(Theme.hairlineAlpha)
+        border.width: Theme.hairWidth
+        color: Theme.background
+        height: widthTipText.implicitHeight + Theme.space(6)
+        objectName: "railWidthTip"
+        radius: Theme.cornerRadius
+        visible: root.resizing
+        width: widthTipText.implicitWidth + Theme.space(16)
+        x: root.width + Theme.space(8)
+        y: Math.round(root.height * 0.46)
+        z: 7
+
+        Label {
+            id: widthTipText
+
+            anchors.centerIn: parent
+            color: root._dragFolds ? Theme.accent : Theme.foreground
+            size: "small"
+            text: root._dragFolds ? qsTr("fold") : qsTr("↔ %1").arg(root._dragWidth)
+        }
+    }
+
+    // D9 c (C32: moved to the top): ‹ on the edge while the pointer is on the rail, centred on
+    // the title bar's height; › on the folded rail. Over the title bar beside it: the host
+    // keeps the rail above the content.
+    Rectangle {
+        id: edgeTab
+
+        Accessible.name: root.compact ? qsTr("unfold the rail") : qsTr("fold the rail")
+        Accessible.role: Accessible.Button
+        Accessible.onPressAction: root.foldToggleRequested()
+
+        border.color: Theme.accent
+        border.width: Theme.edgeWidth
+        color: edgeTabMouse.containsMouse ? Qt.tint(Theme.background, Theme.on.hover.fill) : Theme.background
+        height: Math.min(Theme.space(44), Math.round(root.headHeight) - 2 * Theme.space(6))
+        objectName: "railEdgeTab"
+        opacity: root.edgeHovered && !root.resizing ? 1 : 0
+        width: Theme.space(14)
+        x: root.width - Math.round(width / 2)
+        y: Math.round((root.headHeight - height) / 2)
+        z: 8
+
+        Glyph {
+            anchors.centerIn: parent
+            color: Theme.accent
+            pixelSize: Theme.font.small
+            text: root.compact ? Glyphs.chevronRight : Glyphs.chevronLeft
+        }
+
+        MouseArea {
+            id: edgeTabMouse
+
+            anchors.fill: parent
+            cursorShape: Qt.PointingHandCursor
+            hoverEnabled: true
+
+            onClicked: {
+                root._hideTips();
+                root.foldToggleRequested();
+            }
+            onContainsMouseChanged: root._besideTip(edgeTab, edgeTabMouse.containsMouse,
+                                                    root.compact ? qsTr("unfold the rail · %1").arg("ctrl+b")
+                                                                 : qsTr("fold the rail · %1").arg("ctrl+b"))
+        }
     }
 }

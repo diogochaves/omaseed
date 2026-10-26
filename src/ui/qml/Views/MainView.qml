@@ -161,6 +161,34 @@ Item {
     /// The rail groups folded on this server (docs/08 §5), saved with the table's state.
     property var railFolded: []
 
+    // ---- the rail's width and fold (DECISIONS C32 D3 a, D9) -------------------------------
+    /// D3 a: the open rail's width, the window's (App.railWidth, in space units; 0 the
+    /// default), within the drag's bounds.
+    readonly property int railOpenWidth: App.railWidth > 0 ? Math.max(rail.minimumOpenWidth, Math.min(
+                                                                         rail.maximumOpenWidth,
+                                                                         Theme.space(App.railWidth)))
+                                                           : Theme.railWidth
+    /// D9: the list would get narrower than 520 with the rail open (the details pane counted
+    /// while it is open beside the list).
+    readonly property bool railCrowds: {
+        const docked = split.visible && split.docked && split.showSide;
+        const side = !docked ? 0 : split.folded ? split.foldedExtent + 1
+                                                : Math.max(split.minimumSideWidth, Math.min(Theme.space(560),
+                                                                                            split.sideWidth)) + 1;
+        return root.width - root.railOpenWidth - side < Theme.space(520);
+    }
+    /// D9: a hand unfold holds the rail open against `railCrowds` until the next hand fold.
+    /// A hand fold is App.railHidden, kept across runs; this hold is the session's.
+    property bool railHeldOpen: false
+    /// The rail as it shows: folded by hand, or by itself while it would crowd the list.
+    readonly property bool railCompact: App.railHidden || (!root.railHeldOpen && root.railCrowds)
+
+    /// D9: a fold or unfold by hand (ctrl+b, the edge tab, the edge dragged in or out).
+    function setRailFoldedByHand(folded: bool): void {
+        root.railHeldOpen = !folded;
+        App.railHidden = folded;
+    }
+
     /// DECISIONS C24 H10: the frame shows its keys (alt held alone a moment, see altWatch).
     readonly property bool keysShown: root._altLong && !root.overlayOpen && !root.firstRun
     property bool _altLong: false
@@ -1600,7 +1628,7 @@ Item {
             "recent": App.recentCommands(),
             "states": {
                 "detailsShown": !details.collapsed,
-                "railShown": !App.railHidden,
+                "railShown": !root.railCompact,
                 "consoleShown": root.view === "seed",
                 "logShown": root.view === "log",
                 "searchShown": root.view === "search",
@@ -1646,11 +1674,11 @@ Item {
         titleBar.searchField.text = "is:" + word + " ";
     }
 
-    /// `ctrl+b` (docs/08 §5): fold the rail to its glyphs or open it again (#167 assumed 4).
-    /// Folding it never hides a filter: the questions keep their glyphs, and the title bar's
-    /// title and sentence name the place picked (C24 H5).
+    /// `ctrl+b` (docs/08 §5): fold the rail to its glyphs or open it again (#167 assumed 4),
+    /// by hand (C32 D9), as the edge tab does. Folding it never hides a filter: the questions
+    /// keep their glyphs, and the title bar's title and sentence name the place picked (C24 H5).
     function toggleRail(): void {
-        App.railHidden = !App.railHidden;
+        root.setRailFoldedByHand(!root.railCompact);
     }
 
     /// ctrl+shift+, (docs/16 §2): Settings on the qBittorrent group. First run holds it like
@@ -1926,8 +1954,11 @@ Item {
         anchors.left: parent.left
         anchors.top: parent.top
         categories: App.categories
-        // #167 assumed 4: ctrl+b folds it to its glyphs.
-        compact: App.railHidden
+        // #167 assumed 4: ctrl+b folds it to its glyphs; C32 D9: so does a crowded window.
+        compact: root.railCompact
+        openWidth: root.railOpenWidth
+        // D9 c: the edge tab sits over the title bar's edge.
+        z: 2
         counts: App.counts
         filtered: App.filtered
         // Board 42 F1 (M1, M2): the library's folders, after the categories.
@@ -1988,7 +2019,11 @@ Item {
             serverMenuPanel.revision++;
             serverMenuPanel.openAt(Math.round(point.x), Math.round(point.y));
         }
-        onUnfoldRequested: App.railHidden = false
+        onUnfoldRequested: root.setRailFoldedByHand(false)
+        onFoldToggleRequested: root.toggleRail()
+        onFoldDragged: root.setRailFoldedByHand(true)
+        onUnfoldDragged: root.setRailFoldedByHand(false)
+        onWidthChosen: (width, isDefault) => App.railWidth = isDefault ? 0 : Math.round(width / Theme.spaceScale)
         onViewPicked: view => root.setView(view)
     }
 

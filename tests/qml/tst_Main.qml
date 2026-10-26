@@ -91,6 +91,8 @@ TestCase {
         view.helpOpen = false;
         view._testServerLost = false;
         App.railHidden = false;
+        App.railWidth = 0;
+        view.railHeldOpen = false;
         view.split.folded = false;
         view.details.activateTab(view.details.tabStory);
         view.table.cancelRename();
@@ -870,6 +872,69 @@ TestCase {
         compare(App.railHidden, false);
         verify(!view.rail.compact);
         compare(view.rail.width, Theme.railWidth);
+    }
+
+    // DECISIONS C32 D9: the rail folds by itself when the list would get narrower than 520
+    // (the details pane counted while open beside it) and opens again when there is room; a
+    // hand unfold or fold holds until the next hand one.
+    function test_the_rail_folds_by_itself_when_the_list_would_crowd() {
+        const placement = App.detailsPlacement;
+        App.detailsPlacement = "right";
+        testCase.width = Theme.space(1000);
+        verify(view.split.docked);
+        verify(view.rail.compact);
+        compare(App.railHidden, false);
+        compare(view.titleBar.x, Theme.railFoldedWidth);
+        // The details folded leave the list its room: open again.
+        view.split.folded = true;
+        verify(!view.rail.compact);
+        view.split.folded = false;
+        verify(view.rail.compact);
+        testCase.width = 1360;
+        verify(!view.rail.compact);
+
+        // A hand unfold in a crowded window holds, through a widen and a narrow.
+        testCase.width = Theme.space(1000);
+        verify(view.rail.compact);
+        keyClick(Qt.Key_B, Qt.ControlModifier);
+        verify(!view.rail.compact);
+        compare(App.railHidden, false);
+        testCase.width = 1360;
+        testCase.width = Theme.space(1000);
+        verify(!view.rail.compact);
+        // A hand fold holds too, with room again.
+        keyClick(Qt.Key_B, Qt.ControlModifier);
+        compare(App.railHidden, true);
+        testCase.width = 1360;
+        verify(view.rail.compact);
+        // The edge tab is the same hand.
+        view.rail.foldToggleRequested();
+        verify(!view.rail.compact);
+        compare(App.railHidden, false);
+        App.detailsPlacement = placement;
+    }
+
+    // C32 D3 a: the dragged width is the window's (App.railWidth, in space units); the
+    // title bar and the body follow it; a double-click's default stores 0; let go under 120,
+    // the rail folds by hand.
+    function test_the_rails_width_is_kept_and_a_drag_under_120_folds_it() {
+        view.rail.widthChosen(Theme.space(300), false);
+        verify(App.railWidth > 0);
+        verify(Math.abs(view.rail.width - Theme.space(300)) <= 1, view.rail.width);
+        compare(view.titleBar.x, view.rail.width);
+        compare(view.split.mapToItem(view, 0, 0).x, view.rail.width);
+        // Kept out of bounds by the host too.
+        App.railWidth = 9000;
+        compare(view.rail.width, view.rail.maximumOpenWidth);
+        view.rail.widthChosen(Theme.railWidth, true);
+        compare(App.railWidth, 0);
+        compare(view.rail.width, Theme.railWidth);
+        view.rail.foldDragged();
+        compare(App.railHidden, true);
+        verify(view.rail.compact);
+        view.rail.unfoldDragged();
+        compare(App.railHidden, false);
+        verify(!view.rail.compact);
     }
 
     // At the narrowest step the filter folds into its `/` tool; `/` opens it over the title,

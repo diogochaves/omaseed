@@ -321,6 +321,11 @@ void TestAppServers::appearanceOverridesReachTheTheme()
     app.setTrackerHostStyle(QStringLiteral("left"));
     QCOMPARE(app.railHidden(), false);
     app.setRailHidden(true);
+    // C32 D3: the dragged width, in space units; 0 is the default, never below it.
+    QCOMPARE(app.railWidth(), 0);
+    app.setRailWidth(-5);
+    QCOMPARE(app.railWidth(), 0);
+    app.setRailWidth(260);
     // docs/10 §5: where Details sits.
     QCOMPARE(app.detailsPlacement(), QStringLiteral("auto"));
     app.setDetailsPlacement(QStringLiteral("left"));
@@ -343,6 +348,7 @@ void TestAppServers::appearanceOverridesReachTheTheme()
     QCOMPARE(reopened.surfaceTint(), 8);
     QCOMPARE(reopened.trackerHostStyle(), QStringLiteral("left"));
     QCOMPARE(reopened.railHidden(), true);
+    QCOMPARE(reopened.railWidth(), 260);
     QCOMPARE(reopened.detailsPlacement(), QStringLiteral("bottom"));
     QCOMPARE(reopened.baseSizeOverride(), 0);
     QCOMPARE(reopened.followOmarchyTheme(), false);

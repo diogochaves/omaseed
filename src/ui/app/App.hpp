@@ -578,9 +578,8 @@ public:
         QString railScrollHint READ railScrollHint WRITE setRailScrollHint NOTIFY settingsChanged)
     QString railScrollHint() const;
     void setRailScrollHint(const QString &hint);
-    /// The fill the rail and details sit on, as a percentage of the foreground: 0 (none, the
-    /// default), 4 or 8 — the plan's own fill steps, so every theme still holds together.
-    /// Kept but drawn by nothing since the hero went (#167 assumed 6), as speedsAlignment.
+    /// The rail's own fill, as a percentage of the foreground: 0 (none, the default), 4 or 8
+    /// (DECISIONS C32 D16 a: the rail only, its rows on C30's nested grounds over it).
     Q_PROPERTY(int surfaceTint READ surfaceTint WRITE setSurfaceTint NOTIFY settingsChanged)
     int surfaceTint() const;
     void setSurfaceTint(int percent);
@@ -600,6 +599,12 @@ public:
     Q_PROPERTY(bool railHidden READ railHidden WRITE setRailHidden NOTIFY settingsChanged)
     bool railHidden() const;
     void setRailHidden(bool hidden);
+    /// DECISIONS C32 D3: the open rail's width as its edge was dragged, in Theme.space units
+    /// (so a base size change keeps the proportion); 0 is the default. The window's, not a
+    /// server's. Negative values read as 0.
+    Q_PROPERTY(int railWidth READ railWidth WRITE setRailWidth NOTIFY settingsChanged)
+    int railWidth() const;
+    void setRailWidth(int units);
 
     /// "auto" | "always" | "never" (plan Phase 6 T6.3). `auto` behaves as `always` until the
     /// companion widget exists; the row is here now because it is cheap.
@@ -700,6 +705,7 @@ private:
     int m_surfaceTint = 0;
     QString m_trackerHostStyle = QStringLiteral("prefix");
     bool m_railHidden = false;
+    int m_railWidth = 0;
     bool m_settingsLoaded = false;
     // --- end T4.5 --------------------------------------------------------------------------
     // --- T4.3: torrent actions ---

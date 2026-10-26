@@ -29,6 +29,13 @@ TestCase {
     }
 
     Component {
+        id: spyComponent
+
+        SignalSpy {
+        }
+    }
+
+    Component {
         id: serverActivatedSpy
 
         SignalSpy {
@@ -57,6 +64,7 @@ TestCase {
     }
 
     function cleanup() {
+        testCase.width = 400;
         TestTheme.setBaseSize(0); // qmllint disable unqualified
         // Leave no server behind: App is a singleton shared with every other test file.
         while (App.serverList.count > 0)
@@ -837,5 +845,119 @@ TestCase {
         rail._keyTip(search, false);
         compare(tip.shown, false);
         compare(compactTip.shown, false);
+    }
+
+    // DECISIONS C32 D3 a: the edge drags the open width between 160 and 360; let go under 120
+    // it asks to fold; a double-click asks for the default; the width shows while dragging.
+    function test_the_edge_drags_the_width_and_folds_under_120() {
+        testCase.width = 900;
+        const rail = createTemporaryObject(railComponent, testCase, {
+                                               "height": 600
+                                           });
+        const chosen = createTemporaryObject(spyComponent, testCase, {
+                                                 "target": rail,
+                                                 "signalName": "widthChosen"
+                                             });
+        const folds = createTemporaryObject(spyComponent, testCase, {
+                                                "target": rail,
+                                                "signalName": "foldDragged"
+                                            });
+        const edge = findChild(rail, "railEdge");
+        const tip = findChild(rail, "railWidthTip");
+        compare(rail.width, Theme.railWidth);
+        const y = edge.y + edge.height / 2;
+        const at = rail.width - Theme.space(3);
+        mousePress(rail, at, y);
+        mouseMove(rail, at + 20, y);
+        mouseMove(rail, at + 60, y);
+        verify(rail.resizing);
+        verify(tip.visible);
+        compare(rail.width, Theme.railWidth + 60);
+        // Never past the bounds while dragging.
+        mouseMove(rail, rail.maximumOpenWidth + 40, y);
+        compare(rail.width, rail.maximumOpenWidth);
+        mouseRelease(rail, rail.maximumOpenWidth + 40, y);
+        compare(chosen.count, 1);
+        compare(chosen.signalArguments[0][0], rail.maximumOpenWidth);
+        compare(chosen.signalArguments[0][1], false);
+        verify(!tip.visible);
+        // The host keeps it; under 160 the drag stops at 160, under 120 it reads "fold".
+        rail.openWidth = rail.maximumOpenWidth;
+        mousePress(rail, rail.width - 2, y);
+        mouseMove(rail, rail.width - 40, y);
+        mouseMove(rail, Theme.space(140), y);
+        compare(rail.width, rail.minimumOpenWidth);
+        mouseMove(rail, Theme.space(100), y);
+        verify(rail._dragFolds);
+        mouseRelease(rail, Theme.space(100), y);
+        compare(folds.count, 1);
+        compare(chosen.count, 1);
+        // Double-click: the default.
+        mouseDoubleClickSequence(rail, rail.width - Theme.space(3), y);
+        compare(chosen.count, 2);
+        compare(chosen.signalArguments[1][0], Theme.railWidth);
+        compare(chosen.signalArguments[1][1], true);
+    }
+
+    // D3 a: a drag out of the folded rail's edge asks to unfold once past 120.
+    function test_a_drag_out_of_the_folded_edge_unfolds() {
+        testCase.width = 900;
+        const rail = createTemporaryObject(railComponent, testCase, {
+                                               "height": 600,
+                                               "compact": true
+                                           });
+        const unfolds = createTemporaryObject(spyComponent, testCase, {
+                                                  "target": rail,
+                                                  "signalName": "unfoldDragged"
+                                              });
+        rail.unfoldDragged.connect(() => rail.compact = false);
+        const edge = findChild(rail, "railEdge");
+        compare(rail.width, Theme.railFoldedWidth);
+        const y = edge.y + edge.height / 2;
+        mousePress(rail, rail.width - 2, y);
+        mouseMove(rail, rail.width + 20, y);
+        mouseMove(rail, Theme.space(80), y);
+        compare(unfolds.count, 0);
+        compare(rail.width, Theme.railFoldedWidth);
+        mouseMove(rail, Theme.space(230), y);
+        compare(unfolds.count, 1);
+        verify(!rail.compact);
+        compare(rail.width, Theme.space(230) + 2);
+        mouseRelease(rail, Theme.space(230), y);
+    }
+
+    // D9 c (C32: moved to the top): the edge tab shows while the pointer is on the rail,
+    // within the title bar's height and centred on it, ‹ open and › folded, with its tip.
+    function test_the_edge_tab_sits_at_the_top_and_shows_on_hover() {
+        const rail = createTemporaryObject(railComponent, testCase, {
+                                               "height": 600,
+                                               "headHeight": Theme.titleBarHeight
+                                           });
+        const toggles = createTemporaryObject(spyComponent, testCase, {
+                                                  "target": rail,
+                                                  "signalName": "foldToggleRequested"
+                                              });
+        const tab = findChild(rail, "railEdgeTab");
+        mouseMove(testCase, testCase.width - 2, testCase.height - 2);
+        tryCompare(tab, "opacity", 0);
+        mouseMove(rail, rail.width / 2, 300);
+        tryCompare(tab, "opacity", 1);
+        // Straddles the edge, inside the title bar's height, centred on it.
+        compare(tab.x + tab.width / 2, rail.width);
+        verify(tab.y > 0 && tab.y + tab.height < rail.headHeight);
+        compare(Math.round(tab.y + tab.height / 2), Math.round(rail.headHeight / 2));
+        // The drag answers below it, not on it.
+        verify(findChild(rail, "railEdge").y >= tab.y + tab.height);
+        mouseMove(tab, tab.width / 2, tab.height / 2);
+        tryCompare(findChild(rail, "railTip"), "shown", true);
+        compare(findChild(rail, "railTip").text, "fold the rail · ctrl+b");
+        mouseClick(tab, tab.width / 2, tab.height / 2);
+        compare(toggles.count, 1);
+        rail.compact = true;
+        mouseMove(rail, rail.width / 2, 300);
+        mouseMove(tab, tab.width / 2, tab.height / 2);
+        tryCompare(findChild(rail, "railTip"), "shown", true);
+        compare(findChild(rail, "railTip").text, "unfold the rail · ctrl+b");
+        mouseMove(testCase, testCase.width - 2, testCase.height - 2);
     }
 }
