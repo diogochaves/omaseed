@@ -899,4 +899,26 @@ TestCase {
                 Theme.railRowHeight + 2 * Theme.menuHeadPadding + 1);
         menu.close();
     }
+
+    // Board 51 D14 b: a menu grown out of a control above it leaves its top side open under
+    // the control (`jointWidth`), and sits flush where it is told (`clampMargin` 0).
+    function test_a_grown_menu_opens_its_top_under_the_joint() {
+        const menu = createTemporaryObject(menuComponent, testCase);
+        menu.clampMargin = 0;
+        menu.jointWidth = 213;
+        menu.openAt(0, 54);
+        compare(menu.panel.x, 0);
+        compare(menu.panel.y, 54);
+        const plate = findChild(menu, "menuPlate");
+        compare(plate.edges, Qt.RightEdge | Qt.BottomEdge | Qt.LeftEdge);
+        const joint = findChild(menu, "menuJointEdge");
+        compare(joint.visible, true);
+        compare(joint.x, 213);
+        compare(joint.width, menu.panel.width - 213);
+        compare(joint.color, Theme.menuEdgeColor);
+        menu.jointWidth = -1;
+        compare(joint.visible, false);
+        compare(plate.edges, Qt.TopEdge | Qt.RightEdge | Qt.BottomEdge | Qt.LeftEdge);
+        menu.close();
+    }
 }

@@ -150,15 +150,20 @@ TestCase {
         verify(menu.items.every(item => !(item.action ?? "").startsWith("server:")));
     }
 
-    // The head: "omaseed", then the version and the status line's server words.
-    function test_the_head_names_omaseed_its_version_and_the_server() {
+    // Board 51 D14 b (DECISIONS C32): no head of its own, the mark says omaseed; the first
+    // line is the version, then the status line's server words, on one line.
+    function test_the_first_line_is_the_version_and_the_server() {
         const menu = createTemporaryObject(menuComponent, testCase);
-        compare(menu.headingTitle, "omaseed");
-        compare(menu.heading, "0.5.0 · public · qBittorrent 5.3.0");
+        compare(menu.headingTitle, "0.5.0");
+        compare(menu.heading, "public · qBittorrent 5.3.0");
+        compare(menu.headingOneLine, true);
         compare(menu.menuWidth, Theme.appMenuWidth);
+        compare(Theme.appMenuWidth, Theme.skin.name === "omarchy" ? 292 : Theme.appMenuWidth);
         menu.open();
-        compare(findChild(menu, "menuHeadingTitle").text, "omaseed");
-        compare(menu.panel.Accessible.name, "omaseed · 0.5.0 · public · qBittorrent 5.3.0");
+        compare(findChild(menu, "menuHeadingTitle").visible, false);
+        compare(findChild(menu, "menuHeadingVersion").text, "0.5.0");
+        compare(findChild(menu, "menuHeadingLine").text, " · public · qBittorrent 5.3.0");
+        compare(menu.panel.Accessible.name, "0.5.0 · public · qBittorrent 5.3.0");
     }
 
     // C12's colours: the current server's dot green with a ✓, a refused one's red, its words

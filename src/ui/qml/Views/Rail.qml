@@ -75,6 +75,9 @@ Item {
     property real headHeight: Theme.railHeadHeight
     /// The mark in red, as the hero's was: the server is lost and nothing retries.
     property bool markAlert: false
+    /// Board 51 D14 b (DECISIONS C32): the omaseed menu is open, grown out of the mark: the
+    /// mark lit, in the menu's outline on its left, top and right, its bottom open onto it.
+    property bool markLit: false
     readonly property alias markButton: markButton
     /// C24 H2: the library row is lit on the library face with nothing narrowing it.
     readonly property bool libraryShown: root.view === "library"
@@ -696,7 +699,7 @@ Item {
         anchors.left: parent.left
         anchors.right: hairline.left
         anchors.top: parent.top
-        color: markMouse.containsMouse ? markInk.fill : "transparent"
+        color: root.markLit || markMouse.containsMouse ? markInk.fill : "transparent"
         height: root.headHeight
         objectName: "railMark"
 
@@ -706,7 +709,34 @@ Item {
             id: markInk
 
             animated: false
-            ground: markMouse.containsMouse ? Theme.on.hover : Theme.on.window
+            ground: root.markLit ? Theme.on.selected : markMouse.containsMouse ? Theme.on.hover
+                                                                                : Theme.on.window
+        }
+
+        // D14 b `.mark.ring`: the menu's edge round the lit mark, open at the bottom.
+        Item {
+            anchors.fill: parent
+            objectName: "railMarkRing"
+            visible: root.markLit
+
+            Rectangle {
+                color: Theme.menuEdgeColor
+                height: parent.height
+                width: Theme.menuEdgeWidth
+            }
+
+            Rectangle {
+                color: Theme.menuEdgeColor
+                height: Theme.menuEdgeWidth
+                width: parent.width
+            }
+
+            Rectangle {
+                color: Theme.menuEdgeColor
+                height: parent.height
+                width: Theme.menuEdgeWidth
+                x: parent.width - width
+            }
         }
 
         // #201 F10: the same inset folded and open, so ctrl+b never moves the mark (centring it
@@ -752,6 +782,7 @@ Item {
             anchors.bottom: parent.bottom
             anchors.left: parent.left
             anchors.right: parent.right
+            visible: !root.markLit
         }
 
         MouseArea {

@@ -791,9 +791,12 @@ Item {
     function openAppMenu(): void {
         if (root.firstRun)
             return;
+        // Board 51 D14 b (DECISIONS C32): from the mark's bottom-left corner, its top side
+        // open under the mark, whose ring closes the shape (the rail lights it while open).
         const button = rail.markButton;
-        const corner = button.mapToItem(root, Theme.railMarkInset, button.height);
-        appMenu.openAt(Math.round(corner.x), Math.round(corner.y + Theme.railMenuGap));
+        const corner = button.mapToItem(root, 0, button.height);
+        appMenu.jointWidth = Math.round(button.width) - Theme.menuEdgeWidth;
+        appMenu.openAt(Math.round(corner.x), Math.round(corner.y));
     }
 
     /// A row of the omaseed menu, which has closed and given the focus back. The window's own
@@ -1902,6 +1905,7 @@ Item {
         headHeight: titleBar.height
         keysShown: root.keysShown
         markAlert: App.hasServer && root.serverLost && !root.firstSync
+        markLit: appMenu.opened
         servers: App.servers
         // T4.5: the SERVERS group is off unless the General pane asks for it.
         serverCount: App.showServersGroup ? App.serverCount : 0
@@ -3233,6 +3237,8 @@ Item {
 
         anchors.fill: parent
         altKind: App.altSpeed.kind
+        // D14 b: flush with the mark it grows from.
+        clampMargin: 0
         serverLine: root.serverLaneText()
         sharedRows: App.appMenuRows
         version: App.versionText.replace(/^omaseed /, "")

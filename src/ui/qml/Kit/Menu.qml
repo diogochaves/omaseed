@@ -59,6 +59,12 @@ Item {
     /// The title and the heading on one line (board 51 D14 b `.mver`), the title in the
     /// foreground, the rest dim, at the small size.
     property bool headingOneLine: false
+    /// How far from this item's edges the panel keeps itself.
+    property int clampMargin: Theme.space(8)
+    /// Board 51 D14 b: the panel grows out of a control above it (the rail's lit mark),
+    /// `jointWidth` wide from the panel's left edge. The edge's top side is left open there,
+    /// for the control's own outline to close the shape. -1: a whole outline.
+    property int jointWidth: -1
     /// A submenu's panel width (board 46 draws them narrower than the menu).
     property int submenuWidth: Theme.space(240)
     /// A dim caption under the rows, wrapped (docs/34 D5 a); empty draws none.
@@ -103,7 +109,7 @@ Item {
     /// The submenu's Menu, loaded (this file again: its own type cannot be named here).
     readonly property var _sub: subLoader.item
 
-    readonly property int _edge: Theme.space(8)
+    readonly property int _edge: root.clampMargin
     /// Where the pointer last put the cursor, in this item's coordinates.
     property point _pointer: Qt.point(-1, -1)
 
@@ -437,8 +443,20 @@ Item {
             anchors.fill: parent
             edgeColor: Theme.menuEdgeColor
             edgeWidth: Theme.menuEdgeWidth
+            edges: root.jointWidth >= 0 ? Qt.RightEdge | Qt.BottomEdge | Qt.LeftEdge
+                                        : Qt.TopEdge | Qt.RightEdge | Qt.BottomEdge | Qt.LeftEdge
             fill: Theme.background
             objectName: "menuPlate"
+        }
+
+        // D14 b's `.menu.g-b::before`: the top side, from the joint on.
+        Rectangle {
+            color: Theme.menuEdgeColor
+            height: Theme.menuEdgeWidth
+            objectName: "menuJointEdge"
+            visible: root.jointWidth >= 0
+            width: Math.max(0, panel.width - root.jointWidth)
+            x: root.jointWidth
         }
 
         // Before the rows in the tree (#91: a screen reader reads children in declaration

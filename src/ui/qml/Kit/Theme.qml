@@ -470,9 +470,8 @@ ThemeBase {
     readonly property int menuHeadTitleWeight: titleWeight
 
     // ---- the frame's form: the app menu (board 46 `menuHtml("app")`, DECISIONS C24 H9) ---
-    /// Its width: board 46's `.menu` is 268 px at least at 13 px type; the head's version and
-    /// server line ("0.5.0 · public · qBittorrent 5.3.0") want more than the kit's 280.
-    readonly property int appMenuWidth: n("appMenuWidth", 340)
+    /// Its width: board 51 D14 b's 292, wider than the rail it grows from (DECISIONS C32).
+    readonly property int appMenuWidth: n("appMenuWidth", 292)
 
     // ---- the frame's form: keys on demand (board 46 `.kb`, DECISIONS C24 H10) ------------
     /// A key's badge while alt is held: its height, the room either side of the key, its type

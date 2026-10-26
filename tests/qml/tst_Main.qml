@@ -660,9 +660,9 @@ TestCase {
                                                                                                  : item.action);
         compare(actions, ["alt-speed", "stop-all", "start-all", "|", "add", "settings", "|", "caption",
                           "toggleConsole", "toggleLog", "commands", "help", "hide", "|", "quit"]);
-        compare(view.appMenu.headingTitle, "omaseed");
-        verify(view.appMenu.heading.indexOf(App.serverName) > 0, view.appMenu.heading);
-        verify(/^\d+\.\d+/.test(view.appMenu.heading), view.appMenu.heading);
+        // D14 b: the version leads, the server after it; no "omaseed" head.
+        verify(/^\d+\.\d+/.test(view.appMenu.headingTitle), view.appMenu.headingTitle);
+        verify(view.appMenu.heading.indexOf(App.serverName) >= 0, view.appMenu.heading);
         const quit = view.appMenu.items[view.appMenu.items.length - 1];
         compare(quit.text, "quit omaseed");
         compare(quit.key, "ctrl+q");
@@ -708,11 +708,18 @@ TestCase {
         keyClick(Qt.Key_Period, Qt.ControlModifier);
         compare(view.appMenu.opened, true);
         compare(view.activeOverlay, view.appMenu);
+        // Board 51 D14 b: it grows out of the lit mark, flush with its bottom-left corner,
+        // its top side open under the mark, whose ring closes the outline.
         const mark = findChild(view.rail, "railMark");
-        const corner = mark.mapToItem(view, Theme.railMarkInset, mark.height);
-        compare(view.appMenu.anchorX, Math.round(corner.x));
-        compare(view.appMenu.anchorY, Math.round(corner.y + Theme.railMenuGap));
+        const corner = mark.mapToItem(view, 0, mark.height);
+        compare(view.appMenu.panel.x, Math.round(corner.x));
+        compare(view.appMenu.panel.y, Math.round(corner.y));
         compare(view.appMenu.panel.width, Theme.appMenuWidth);
+        compare(view.appMenu.jointWidth, Math.round(mark.width) - Theme.menuEdgeWidth);
+        compare(findChild(view.appMenu, "menuJointEdge").visible, true);
+        compare(view.rail.markLit, true);
+        compare(findChild(view.rail, "railMarkRing").visible, true);
+        compare(mark.color, Theme.on.selected.fill);
         keyClick(Qt.Key_Question, Qt.ShiftModifier);
         compare(view.appMenu.opened, false);
         compare(view.helpOpen, true);
