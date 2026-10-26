@@ -42,6 +42,10 @@ Item {
     /// From step 2 the filter is a tool; this is true while it is open over the title.
     property bool searchOpen: false
     readonly property bool searchFolded: root.level >= 2 && !root.searchOpen
+    /// Board 51 D18 a (F21): the field is in use, the caret in it or a filter set. It then
+    /// takes the bar's free room: the title stays, its sentence gives way.
+    readonly property bool filterOpen: root.filterShown && !root.searchFolded
+                                       && (filterField.editing || filterField.text.length > 0)
 
     // ---- the speeds (DECISIONS C32 D2 a, D6 a) ---------------------------------------------
     /// The speeds are drawn here (Settings › Appearance › Speeds: the title bar). From step 2
@@ -289,8 +293,11 @@ Item {
             id: heading
 
             Layout.alignment: Qt.AlignVCenter
-            Layout.fillWidth: true
-            Layout.minimumWidth: 0
+            // D18 a: while the filter is open the title keeps its own width, no more.
+            Layout.fillWidth: !root.filterOpen
+            Layout.maximumWidth: root.filterOpen ? Math.ceil(titleText.implicitWidth) : -1
+            Layout.minimumWidth: root.filterOpen ? Math.ceil(titleText.implicitWidth) : 0
+            Layout.preferredWidth: root.filterOpen ? Math.ceil(titleText.implicitWidth) : -1
             spacing: Theme.titleBarLineGap
             visible: !(root.level >= 2 && root.searchOpen)
 
@@ -326,7 +333,7 @@ Item {
                 objectName: "titleSentence"
                 text: root.sentence
                 textFormat: Text.PlainText
-                visible: root.sentence.length > 0
+                visible: root.sentence.length > 0 && !root.filterOpen
 
                 HoverHandler {
                     id: sentenceHover
@@ -430,15 +437,21 @@ Item {
             id: filterField
 
             Layout.alignment: Qt.AlignVCenter
-            Layout.fillWidth: root.level >= 2
+            // F21, D18 a: at rest the tool's width; in use, the bar's free room.
+            Layout.fillWidth: root.level >= 2 || root.filterOpen
             Layout.preferredWidth: Theme.titleBarFindWidth
             // #91: the same name at every width.
             accessibleName: qsTr("filter torrents")
             hint: Glyphs.search
             objectName: "titleFilter"
-            placeholder: qsTr("filter")
+            // D18 a: open, the hint names what it takes.
+            placeholder: root.filterOpen ? qsTr("words, or is:stalled, cat:films, tag:keep, tracker:…")
+                                         : qsTr("filter")
             text: root.searchText
+            tokenChips: true
             trailing: root.searchCountText
+            // D18 a: "× esc" clears what is typed; "esc" alone leaves the empty field.
+            trailingKey: !root.filterOpen ? "" : filterField.text.length > 0 ? qsTr("× esc") : qsTr("esc")
             // While it filters, the count clears it with a click, as `esc` does.
             trailingClickable: filterField.text.length > 0
             // #78: the count is no name for what its click does.

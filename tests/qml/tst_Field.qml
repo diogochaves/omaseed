@@ -58,6 +58,29 @@ TestCase {
         }
     }
 
+    // Board 51 D18 a: with `tokenChips`, each word:value token sits on the selected fill.
+    function test_tokens_as_chips() {
+        const field = createTemporaryObject(fieldComponent, testCase, {
+                                                "width": 400,
+                                                "text": "tag:keep arcade is:stalled"
+                                            });
+        compare(field.tokenSpans.length, 0);
+        verify(!findChild(field, "fieldChips").visible);
+        field.tokenChips = true;
+        compare(field.tokenSpans, [{
+                                       "start": 0,
+                                       "end": 8
+                                   }, {
+                                       "start": 16,
+                                       "end": 26
+                                   }]);
+        const chips = findChild(field, "fieldChips");
+        verify(chips.visible);
+        // Not a token: a colon with nothing after it, a path in the middle of a word.
+        field.text = "a: b/c:d";
+        compare(field.tokenSpans.length, 0);
+    }
+
     function test_height_is_control_height() {
         const field = createTemporaryObject(fieldComponent, testCase);
         compare(field.height, Theme.controlHeight);

@@ -182,6 +182,51 @@ TestCase {
         compare(cleared.count, 1);
     }
 
+    // Board 51 D18 a, #201 F21: in use, the field takes the bar's free room (it stayed 164 px
+    // and cut what was typed); the title stays and its sentence gives way; tokens sit on chips;
+    // the count and "× esc" at its end. Left empty, it goes back to the tool's width.
+    function test_the_filter_takes_the_free_room() {
+        const bar = make({
+                             "speedsShown": true
+                         });
+        const field = findChild(bar, "titleFilter");
+        const rest = field.width;
+        compare(rest, Theme.titleBarFindWidth);
+        verify(!bar.filterOpen);
+        compare(field.trailingKey, "");
+        bar.openSearch();
+        verify(bar.filterOpen);
+        tryVerify(() => field.width > 2 * rest, 1000, "the field kept its width");
+        verify(findChild(bar, "titleText").visible);
+        verify(!findChild(bar, "titleSentence").visible);
+        // Nothing pushed out: the speeds and the tools still in the bar.
+        verify(findChild(bar, "titleSpeeds").visible);
+        const add = findChild(bar, "titleAdd");
+        verify(add.mapToItem(bar, 0, 0).x + add.width <= bar.width);
+        compare(field.placeholder, "words, or is:stalled, cat:films, tag:keep, tracker:…");
+        compare(field.trailingKey, "esc");
+
+        bar.searchCountText = "2 of 117";
+        for (const key of "cat:games arcade")
+            keyClick(key);
+        compare(field.text, "cat:games arcade");
+        compare(field.tokenSpans.length, 1);
+        compare(field.tokenSpans[0].start, 0);
+        compare(field.tokenSpans[0].end, 9);
+        const chips = findChild(field, "fieldChips");
+        verify(chips.visible);
+        compare(field.trailing, "2 of 117");
+        compare(field.trailingKey, "× esc");
+
+        // Typed, the caret elsewhere: still open. Cleared and left: the tool again.
+        bar.forceActiveFocus();
+        verify(bar.filterOpen);
+        bar.searchField.trailingClicked();
+        verify(!bar.filterOpen);
+        tryCompare(field, "width", rest);
+        verify(findChild(bar, "titleSentence").visible);
+    }
+
     // The steps: words leave the tools first (their tooltip keeps them), then the filter folds
     // into its `/` tool and opens over the title.
     function test_narrow_steps() {
