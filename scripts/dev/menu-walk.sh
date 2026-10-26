@@ -416,7 +416,7 @@ keys ctrl+period -s 400ms Escape -s 600ms
 
 # ---- the window: the mark's menu, C13's third place (DECISIONS C24 H9) ---------------------
 keys --window "$APP_ID" ctrl+period -s 600ms
-step "One server, the window's menu" "Under the rail's mark: omaseed, its version, public · qBittorrent …; turtle (or the alternative limits' word) with A, stop all, start all, a rule, add torrent… a, settings… comma, a rule, THIS WINDOW ONLY: seed console, log, commands, keys and help, hide window, each with its key, a rule, quit omaseed ctrl+q. No servers (D19)."
+step "One server, the window's menu" "Grown out of the lit mark in one accent outline, 292 px, no head of its own (board 51 D14 b): its first line the version, public · qBittorrent …; turtle (or the alternative limits' word) with A, stop all, start all, a rule, add torrent… a, settings… comma, a rule, THIS WINDOW ONLY: seed console, log, commands, keys and help, hide window, each with its key, a rule, quit omaseed ctrl+q. No servers (D19)."
 keys Escape -s 400ms
 
 # ---- the second server ---------------------------------------------------------------------
@@ -435,6 +435,10 @@ keys j -s 300ms Return -s 3000ms
 check "the window's menu switched to private" default_is private
 keys --window "$APP_ID" ctrl+period -s 600ms Return -s 3000ms
 check "the window's menu switched back to public" default_is public
+# Board 51 D4 a: the rail's last row is private; the menu key there opens its menu.
+keys --window "$APP_ID" h -s 300ms shift+g -s 300ms Menu -s 600ms
+step "Another server's menu, from the rail" "private's menu under its row: private over 127.0.0.1:8091 and its torrents; switch to it (enter), a rule, edit…, test the connection, open its web UI, copy its address, a rule, remove… in red. Each row with its icon."
+keys Escape -s 300ms l -s 300ms
 keys --window "$APP_ID" ctrl+period -s 600ms comma -s 1200ms
 step "Settings, from the window's menu" "settings… picked by its key (,): Settings open over the window, on the pane it was last on (Servers, from adding private)."
 keys Escape -s 800ms
