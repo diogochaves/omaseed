@@ -125,6 +125,21 @@ App::App(QObject *parent)
     m_altSpeed = new AltSpeed(this);
     m_altSpeed->setGlobalState(m_engine->globalState());
     m_altSpeed->setPreferences(m_prefs);
+    // C32 D8 a: turtle and burst; burst ends (turtle written back) on quit, and a burst a
+    // crash left running is ended at its time once its server answers.
+    m_altPresets = new AltPresets(this);
+    m_altPresets->setClient(m_client);
+    m_altPresets->setPreferences(m_prefs);
+    m_altPresets->setGlobalState(m_engine->globalState());
+    m_altSpeed->setPresets(m_altPresets);
+    m_altPresets->setStore(StateFile::readSection(QStringLiteral("altPresets")));
+    connect(m_altPresets, &AltPresets::storeChanged, this, [this]() {
+        writeStateSection(QStringLiteral("altPresets"), m_altPresets->store());
+    });
+    if (QCoreApplication::instance() != nullptr)
+        connect(QCoreApplication::instance(), &QCoreApplication::aboutToQuit, this, [this]() {
+            m_altPresets->endBurstAndWait(2000);
+        });
     m_filtered->setSourceModel(m_engine->torrents());
     // A tracker row lists what the rail counts for it: every torrent on that host.
     m_filtered->setTrackerModel(m_engine->trackers());
@@ -171,6 +186,9 @@ App::App(QObject *parent)
         m_engine->globalState(), &GlobalState::freeSpaceOnDiskChanged, this, &App::updateFreeSpace);
     connect(m_prefs, &ServerPreferences::valuesChanged, this, &App::updateFreeSpace);
     connect(this, &App::serverChanged, this, &App::updateFreeSpace);
+    connect(this, &App::serverChanged, this, [this]() {
+        m_altPresets->setServer(m_hasServer && !m_demoMode ? m_server.id : QString());
+    });
     connect(this, &App::settingsChanged, this, &App::updateFreeSpace);
     connect(m_engine->globalState(), &GlobalState::serverNameChanged, this, &App::updateTray);
     connect(m_engine->counts(), &FilterCounts::changed, this, &App::updateTray);
@@ -718,12 +736,23 @@ void App::toggleAltSpeed()
 {
     if (m_demoMode || !m_hasServer)
         return;
+    // Before the presets can act (no server id yet): qBittorrent's own toggle, as before.
+    if (m_altPresets->toggle())
+        return;
     m_client->transferToggleSpeedLimitsMode()->then(
         this, [](const QbtResult<QByteArray> &result) {
             if (result.isError())
                 qWarning().noquote()
                     << QStringLiteral("alt-speed toggle failed: %1").arg(result.error().toString());
         });
+}
+
+void App::pickAltSpeed(const QString &kind)
+{
+    if (m_demoMode || !m_hasServer)
+        return;
+    if (!m_altPresets->pick(kind))
+        qWarning().noquote() << QStringLiteral("alt-speed: %1 can't be picked yet").arg(kind);
 }
 
 void App::stopAll()
@@ -3672,8 +3701,19 @@ void App::setGlobalLimits(qint64 dl, qint64 up, qint64 altDl, qint64 altUp)
     };
     put("dl_limit", dl);
     put("up_limit", up);
-    put("alt_dl_limit", altDl);
-    put("alt_up_limit", altUp);
+    // C32 D8 a: while omaseed's burst holds the set, the alternative limits typed here are the
+    // turtle's, saved to be written back when the burst ends.
+    if (m_altPresets->burstOn()) {
+        QVariantMap turtle;
+        if (altDl >= 0)
+            turtle.insert(QStringLiteral("alt_dl_limit"), altDl);
+        if (altUp >= 0)
+            turtle.insert(QStringLiteral("alt_up_limit"), altUp);
+        m_altPresets->apply(turtle);
+    } else {
+        put("alt_dl_limit", altDl);
+        put("alt_up_limit", altUp);
+    }
     if (changes.isEmpty())
         return;
     m_client->appSetPreferences(changes)->then(this, [this](const QbtResult<QByteArray> &result) {

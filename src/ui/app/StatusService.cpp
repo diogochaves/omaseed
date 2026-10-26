@@ -83,6 +83,11 @@ bool StatusService::setAltSpeed(bool on)
     const bool now = m_app->globalState()->useAltSpeedLimits();
     if (m_app->isDemoMode() || !m_app->hasServer())
         return now;
+    // DECISIONS C32 D8 a: through the presets, so "off" mid-burst writes the turtle back and
+    // "on" turns on the last one picked.
+    if (now != on &&
+        m_app->altPresets()->pick(on ? m_app->altPresets()->lastPick() : QStringLiteral("off")))
+        return on;
     QPointer<App> app(m_app);
     m_app->client()->transferSetSpeedLimitsMode(on)->then(
         this, [app, on](const QbtResult<QByteArray> &result) {

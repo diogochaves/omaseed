@@ -1,5 +1,7 @@
 #include "core/AltSpeed.hpp"
 
+#include "core/AltPresets.hpp"
+
 #include "core/GlobalState.hpp"
 #include "core/ServerPreferences.hpp"
 
@@ -59,6 +61,16 @@ void AltSpeed::setClock(std::function<QDateTime()> clock)
     refresh();
 }
 
+void AltSpeed::setPresets(AltPresets *presets)
+{
+    if (m_presets)
+        disconnect(m_presets, nullptr, this, nullptr);
+    m_presets = presets;
+    if (m_presets)
+        connect(m_presets, &AltPresets::changed, this, &AltSpeed::refresh);
+    refresh();
+}
+
 QDateTime AltSpeed::now() const
 {
     return m_clock ? m_clock() : QDateTime::currentDateTime();
@@ -90,6 +102,12 @@ void AltSpeed::refresh()
                                        : SpeedSets::Kind::Unknown;
     m_schedule = loaded ? AltSchedule::fromPreferences(values) : AltSchedule();
     m_reading = m_schedule.read(m_on, m_now);
+    m_presetBurst = m_presets && m_presets->burstOn();
+    if (m_presetBurst) {
+        m_kind = SpeedSets::Kind::Burst;
+        if (m_on)
+            m_reading = {true, m_presets->burstUntil()};
+    }
     m_summary = m_schedule.summary(word(), m_on, m_now);
 
     const QStringList after{kind(),
@@ -157,6 +175,9 @@ QString AltSpeed::chipTooltip() const
     const QString name = word();
     const bool alt = m_kind != SpeedSets::Kind::Burst && m_kind != SpeedSets::Kind::Turtle;
     const bool scheduled = isScheduled() && m_reading.until.isValid();
+    if (m_on && m_presetBurst)
+        return m_reading.until.isValid() ? tr("burst until %1, then turtle again · A").arg(when())
+                                         : tr("burst until you stop it · A");
     if (!m_on) {
         if (scheduled && m_reading.byHand)
             return tr("off by hand · the schedule starts %1 at %2 · A").arg(name, when());
@@ -177,6 +198,10 @@ QString AltSpeed::chipTooltip() const
 
 QString AltSpeed::footerNote() const
 {
+    if (m_on && m_presetBurst)
+        return m_reading.until.isValid()
+                   ? tr("burst until %1 · turtle is written back after").arg(when())
+                   : tr("burst until you stop it · turtle is written back after");
     if (!isScheduled() || !m_reading.byHand || !m_reading.until.isValid())
         return {};
     if (m_on)

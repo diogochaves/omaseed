@@ -27,6 +27,7 @@
 
 namespace omaseed::core {
 
+class AltPresets;
 class GlobalState;
 class ServerPreferences;
 
@@ -72,6 +73,9 @@ public:
 
     void setPreferences(ServerPreferences *preferences);
     void setGlobalState(GlobalState *state);
+    /// DECISIONS C32 D8 a: while omaseed's burst is written over the set, the set is burst
+    /// whatever its numbers say, and it lasts until the burst's own end.
+    void setPresets(AltPresets *presets);
     /// The time the state is worked out at; the system clock until set (tests).
     void setClock(std::function<QDateTime()> clock);
 
@@ -110,6 +114,7 @@ private:
 
     QPointer<ServerPreferences> m_preferences;
     QPointer<GlobalState> m_state;
+    QPointer<AltPresets> m_presets;
     std::function<QDateTime()> m_clock;
     QTimer m_timer;
 
@@ -119,6 +124,8 @@ private:
     AltSchedule::Summary m_summary;
     QDateTime m_now;
     bool m_on = false;
+    /// omaseed's burst runs (C32 D8 a).
+    bool m_presetBurst = false;
 };
 
 } // namespace omaseed::core

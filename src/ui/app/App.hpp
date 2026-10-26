@@ -25,6 +25,7 @@
 
 #include "core/ActionOutcome.hpp"
 #include "core/AddFilesModel.hpp"
+#include "core/AltPresets.hpp"
 #include "core/AltSpeed.hpp"
 #include "core/AutoBackup.hpp"
 #include "core/CategoryModel.hpp"
@@ -210,9 +211,12 @@ public Q_SLOTS:
     /// The window's visibility: the poll loop slows to 5 s while it is false.
     void setVisible(bool visible);
 
-    /// POST transfer/toggleSpeedLimitsMode. The tray's checkbox is not moved here — it
+    /// A: off while the alternative limits are on, else the last preset picked (turtle or
+    /// burst, DECISIONS C32 D8 a; AltPresets). The tray's checkbox is not moved here — it
     /// follows `globalState.useAltSpeedLimits`, which the next poll brings back.
     void toggleAltSpeed();
+    /// C32 D8 a: "off", "turtle" or "burst", picked from the chip's choice or a menu.
+    Q_INVOKABLE void pickAltSpeed(const QString &kind);
     /// POST torrents/stop with hashes=all.
     void stopAll();
     /// POST torrents/start with hashes=all.
@@ -1459,6 +1463,10 @@ public:
     /// server the app is on. The preferences are read again whenever they flip (D13).
     Q_PROPERTY(omaseed::core::AltSpeed *altSpeed READ altSpeed CONSTANT)
     omaseed::core::AltSpeed *altSpeed() const { return m_altSpeed; }
+    /// DECISIONS C32 D8 a: turtle and burst, two presets for the one alternative set, for the
+    /// server the app is on.
+    Q_PROPERTY(omaseed::core::AltPresets *altPresets READ altPresets CONSTANT)
+    omaseed::core::AltPresets *altPresets() const { return m_altPresets; }
 
 private:
     /// A change the server took may move omaseed's own way in (docs/16 §3): the Web UI's
@@ -1473,6 +1481,7 @@ private:
     void probeWebUi(const QUrl &base, std::function<void(bool)> done, int attempts);
     omaseed::core::ServerPreferences *m_prefs = nullptr;
     omaseed::core::AltSpeed *m_altSpeed = nullptr;
+    omaseed::core::AltPresets *m_altPresets = nullptr;
     QNetworkAccessManager *m_probeNam = nullptr;
 
 public:
