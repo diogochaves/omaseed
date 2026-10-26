@@ -73,7 +73,17 @@ esac
 api() { "$APP_BOX" api -b "$BOX" "$@"; }
 in_box() { omabox run -b "$BOX" -- "$@" >/dev/null 2>&1; }
 keys() { omabox keys -b "$BOX" --window omaseed --wait "$@" >/dev/null 2>&1 || true; }
-table_on() { keys ctrl+k -t "$1" Tab; keys Escape; }
+# The palette is waited for before the name: on a busy box it can open after keys typed into
+# it would have gone, and the next key then lands in it (a full run once typed m there).
+table_on() {
+    keys ctrl+k
+    for _ in $(seq 1 20); do
+        find_text "jump to a torrent" && break
+        sleep 0.25
+    done
+    keys -t "$1" Tab
+    keys Escape
+}
 
 # count_under PATH: how many torrents qBittorrent saves at PATH or below it.
 count_under() {
@@ -776,14 +786,17 @@ expect_at "Arcade Set 003 moved after them" "Arcade Set 003" "$SEL/after" 60
 expect_text "the films' summary is still there" "films moved" 5
 shot "The films summary, still there under the top bar after the queued move landed under it (C18 D4)." summary
 
-step "Move back" "The films summary's move back…: the sheet sends each of the $nfilms back to $films; move $nfilms back. Arcade Set 003, moved after it, stays."
+step "Move back" "The films summary's move back…: the sheet sends each of the $nfilms back to $films, and ticks carrying back poster.jpg, the loose file the folder's move carried (C32 D19); move $nfilms back · 1 file. Arcade Set 003, moved after it, stays."
 # The band's, not the details pane's: that one is the cursor torrent's own last move (C18 D7).
 press "move back…" top
-expect_text "the sheet moves the films back" "move $nfilms back" 30
-shot "Move back: each to where it was." sheet
-press "move $nfilms back"
+expect_text "the sheet moves the films back, and the loose file the move carried" \
+    "move $nfilms back · 1 file" 30
+shot "Move back: each to where it was, poster.jpg ticked to go back with them." sheet
+press "move $nfilms back · 1 file"
 expect_count "the films are back at $films" count_at "$films" -eq "$nfilms" 400
 expect_count "none left on ~/sel/films" count_at "$SEL/films" -eq 0 5
+expect_disk "poster.jpg is back at $films" -f "$films/poster.jpg" 60
+expect_disk "and gone from ~/sel/films" ! "$SEL/films/poster.jpg"
 expect_at "Arcade Set 003 stays at ~/sel/after" "Arcade Set 003" "$SEL/after" 1
 expect_text "the band says they moved back" "moved back" 60
 shot "The end of the move back." back
