@@ -43,12 +43,18 @@ Menu {
     headingTitle: root.server.name ?? ""
     heading: {
         const parts = [root.server.urlText ?? root.server.url ?? ""];
-        if (root.current && (root.server.versionText ?? "").length > 0)
-            parts.push(root.server.versionText);
+        // The API answers "v5.3.0"; board 51 prints "qBittorrent 5.3.0" for the current one.
+        const version = root.current ? App.globalState.serverVersion.replace(/^v/, "") : "";
+        if (version.length > 0)
+            parts.push(qsTr("qBittorrent %1").arg(version));
         else if (!root.current && (root.server.lastSeen ?? "").length > 0)
             parts.push(qsTr("last seen %1").arg(root.server.lastSeen));
-        if ((root.server.countLabel ?? "").length > 0)
-            parts.push(root.server.countLabel);
+        // The rail's count, "10", read out: "10 torrents".
+        const count = root.server.countLabel ?? "";
+        if (/^\d+$/.test(count))
+            parts.push(qsTr("%n torrents", "", parseInt(count, 10)));
+        else if (count.length > 0)
+            parts.push(count);
         return parts.filter(part => part.length > 0).join(" · ");
     }
     items: {
@@ -112,6 +118,7 @@ Menu {
                               }
                           ]);
     }
-    menuWidth: Theme.space(300)
+    // Board 51 draws 300; the head's "address · qBittorrent 5.3.0 · N torrents" wants more.
+    menuWidth: Theme.space(376)
     objectName: "serverMenu"
 }
