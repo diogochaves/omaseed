@@ -97,9 +97,9 @@ Each: what to do, then what you should see. Note OK, or what you saw instead.
    row in brackets, **space** on two other rows puts them on the picked ground, with no
    brackets; the group heads' bar, the needs-you head's accent bar and red title. The table
    (`show as table`): the status word in the caption voice, "downloading" whole in its column,
-   the same brackets on the cursor's row. The overview (`show as shelves`): the shelves in the
-   label voice, a selected cover's 1 px edge. The overview stays a shelf layout: board 46's
-   station layout is not built (#199).
+   the same brackets on the cursor's row. Space (`show as space`): the blocks as cut plates,
+   the cursor's 1 px accent edge, a selected block's brackets. Board 46's station layout is not
+   built (#199).
 7. **Console, a torrent that needs you.** Make one, by taking away a file it seeds:
 
    ```sh

@@ -221,7 +221,7 @@ omabox keys --window "$APP" up:alt >/dev/null
 key Escape
 
 # The library's other displays (DECISIONS C24 H3–H4), picked from the palette: the rows grouped
-# under the five questions (every torrent here is stopped: resting), then the overview's shelves,
+# under the five questions (every torrent here is stopped: resting), then space (board 51 D12 a),
 # then the table again for what follows.
 display() {
     key colon
@@ -231,8 +231,8 @@ display() {
 }
 display rows
 moving_point rows --ignore "$ADDED" --ignore "$CREATED" --ignore "$FREE"
-display shelves
-moving_point overview --ignore "$ADDED" --ignore "$CREATED" --ignore "$FREE"
+display space
+moving_point space --ignore "$ADDED" --ignore "$CREATED" --ignore "$FREE"
 display table
 
 # Search (#145, DECISIONS C26): "sampler" asked of plugins a, b and c; b fails, c answers after 4 s.

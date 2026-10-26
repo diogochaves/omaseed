@@ -99,9 +99,9 @@ scripts/dev/app-box.sh api [-b NAME] [--server public|private] [-X M] PATH [CURL
 `scripts/dev/research/`, `scripts/dev/fastresume.py` to read what qBittorrent saved).
 
 A box is a new install, so omaseed starts on the rows display there (DECISIONS C24 H4). Every
-walk pins its display with `OMASEED_DISPLAY=rows|table|overview` (each scope starts on it;
+walk pins its display with `OMASEED_DISPLAY=rows|table|space` (each scope starts on it;
 app-box.sh passes it through): the walks that read the table pin the table, the swarm walk adds a
-rows pass and ends on the shelves, and ctest pins the table for every test.
+rows pass and ends on space, and ctest pins the table for every test.
 `OMASEED_SKIN=omarchy|console` picks the skin the same way (Omarchy's when unset; #171), and
 `omaseed --theme-roles --skin NAME` prints the grounds as that skin paints them.
 

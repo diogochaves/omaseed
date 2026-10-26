@@ -24,7 +24,7 @@ Linux, with a bundled theme when Omarchy is not there.
 
 - **Five questions, not columns**: the library grouped under needs you, arriving, landed
   today, giving back and resting, each torrent saying in words what matters now; or the
-  classic table, or shelves of covers, remembered for each place you look
+  classic table, or a map of where the space goes, remembered for each place you look
 - **The seed console**: what you give back, from the last hour to the last year, kept by
   omaseed itself
 - **Knows your library before you add**: your newest downloads waiting, files already on disk
@@ -254,7 +254,7 @@ selected, the status line becomes the action bar: their verbs as words, "all act
 | `i` | details |
 | `1`–`5` | story · files · swarm · trackers · facts (in the details pane; `6` web seeds) |
 | `s` | sort |
-| `:` show as … | rows, table or shelves, for the place on show (also the title bar's tool) |
+| `:` show as … | rows, table or space, for the place on show (also the title bar's tool) |
 | `\|` | columns (`alt+↑` `alt+↓` reorder them) |
 | `ctrl+b` | fold the rail to its glyphs |
 | `I` | details right · bottom · auto |

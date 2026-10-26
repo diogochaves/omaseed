@@ -11,7 +11,7 @@
 #
 # Each state is seen twice: in the table (the details tab that tells it), then in the rows
 # display (DECISIONS C24 H3, the library grouped under the five questions), and the walk ends on
-# the shelves.
+# space (board 51 D12 a, C32).
 #
 # It resets the swarm first (scripts/dev/swarm.sh reset + seed), so the downloads start from
 # zero, at 1 MiB/s so they are still running while the walk looks at them. The seeder's rate
@@ -206,8 +206,8 @@ sleep 10
 [ "$INTERACTIVE" = 1 ] || show "Open Movie" 1
 step "Fixed" "After swarm.sh fix: no errored rows, nothing under needs you, downloads moving again (a stalled one can take a minute to reconnect)."
 rows "Fixed" "Every torrent back under its question: nothing under needs you, the downloads arriving, the rest landed today, giving back or resting."
-[ "$INTERACTIVE" = 1 ] || OMASEED_DISPLAY=overview launch
-step "Shelves" "The overview's shelves: one per category (swarm, fixtures…, no category last), a cover per torrent, its grid filled as far as it has arrived, two letters, the name and its fact under it."
+[ "$INTERACTIVE" = 1 ] || OMASEED_DISPLAY=space launch
+step "Space" "Where the space goes: a size map by folder, then torrent, the largest first; each torrent a block in its state's colour, its name, size and fact where they fit; the cursor's folder over the map with move this folder…; what is under 1 % in the line under it."
 
 echo
 if [ "$INTERACTIVE" = 1 ]; then

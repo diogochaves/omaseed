@@ -14,9 +14,9 @@ before it will tag a release.
   library), under the views library, seed, log and search, with the servers at its foot.
   `ctrl+b` folds it to a column of icons. Every state is still in the filter (`is:stalled`)
   and the `:` palette. (#167)
-- **Rows, table or shelves.** The library can show rows grouped under the five questions, in
+- **Rows, table or space.** The library can show rows grouped under the five questions, in
   words before numbers ("waiting · no seed", "ready in 3 min"), the table as one sorted list,
-  or shelves of covers by category. The display tool in the title bar or `:` "show as…" picks
+  or space: where the space goes, a size map by folder, then torrent. The display tool in the title bar or `:` "show as…" picks
   one, and each folder, category, tag and question remembers its own. New installs start on
   rows; an existing install keeps the table. (#168)
 - **Details tell the story.** The pane opens on one fact and a sentence, then story · files ·

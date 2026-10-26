@@ -21,7 +21,7 @@ follows. The commands themselves are listed in `CLAUDE.md`; `README.md` says how
 
    | Walk | What it covers |
    |---|---|
-   | `swarm-walk.sh` | every torrent state the swarm can produce, in the table and details, then in the rows display; it ends on the shelves |
+   | `swarm-walk.sh` | every torrent state the swarm can produce, in the table and details, then in the rows display; it ends on space |
    | `strict-walk.sh` | first run against `:8082`: cookie login and an API key |
    | `notify-walk.sh` | downloads finishing: one notice each, a click shows the torrent |
    | `magnet-walk.sh` | a magnet or `.torrent` opened with `xdg-open`: closed, hidden, running; with `gio open` (D-Bus activation) while quit; a magnet added before its file list is in (#193) |
@@ -37,7 +37,7 @@ follows. The commands themselves are listed in `CLAUDE.md`; `README.md` says how
    | `search-walk.sh` | search through invented plugins (`scripts/dev/search-plugins.py`, whose rows are the offline swarm's): install from Settings, a failed install, a plugin off and on; a search filling in, a failed and a slow plugin and their answers; a folded magnet and a link (through its plugin) added and arriving; hide dead, `/`, uninstall |
 
    A box is a new install, so omaseed starts on the rows display there (DECISIONS C24 H4). Each
-   walk pins the display it reads with `OMASEED_DISPLAY` (`table`, `rows` or `overview`: every
+   walk pins the display it reads with `OMASEED_DISPLAY` (`table`, `rows` or `space`, which also reads the shelves' old `overview`: every
    scope starts on it); all but the swarm walk's rows pass read the table.
 
    `OMASEED_ACTIONS_WALK_FROM=disk` runs only the actions walk's board 44 steps. Their ntfs3 side
@@ -51,7 +51,7 @@ follows. The commands themselves are listed in `CLAUDE.md`; `README.md` says how
    line's start is checked).
 
 4. **Visual check** (`omabox check run … -- scripts/dev/visual-check.sh`). The screens the walks
-   reach (library, details, menus, palette, help, the add sheet, the rows display and the shelves,
+   reach (library, details, menus, palette, help, the add sheet, the rows display and space,
    every Settings page, the bar widget, and last a torrent that needs you, the pieces, the
    trackers, picked rows, a refused action's strip and two servers) compared with a baseline:
    "same", or which region changed and which elements moved.
