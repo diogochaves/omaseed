@@ -73,15 +73,21 @@ esac
 api() { "$APP_BOX" api -b "$BOX" "$@"; }
 in_box() { omabox run -b "$BOX" -- "$@" >/dev/null 2>&1; }
 keys() { omabox keys -b "$BOX" --window omaseed --wait "$@" >/dev/null 2>&1 || true; }
-# The palette is waited for before the name: on a busy box it can open after keys typed into
-# it would have gone, and the next key then lands in it (a full run once typed m there).
+# The palette is waited for before the name, and the name for a match before tab: a torrent
+# just added reaches the app at its next sync, and with no match tab does nothing and esc only
+# clears the query, so the next key lands in the palette (a full run typed m there).
 table_on() {
     keys ctrl+k
     for _ in $(seq 1 20); do
         find_text "jump to a torrent" && break
         sleep 0.25
     done
-    keys -t "$1" Tab
+    keys -t "$1"
+    for _ in $(seq 1 60); do
+        omabox tree -b "$BOX" --window omaseed 2>/dev/null | grep -qE 'label "0 of [0-9]+"' || break
+        sleep 0.25
+    done
+    keys Tab
     keys Escape
 }
 
@@ -307,7 +313,14 @@ no_text() {
 open_move() {
     table_on "$1"
     keys shift+m
-    expect_text "the move sheet is open" "New path of the folder" 10
+    # Once more if it didn't open: right after the box's qBittorrent restarted, a full run lost
+    # the key while the app read the library again.
+    for _ in $(seq 1 20); do
+        find_text "new path of the folder" && break
+        sleep 0.5
+    done
+    find_text "new path of the folder" || { table_on "$1"; keys shift+m; }
+    expect_text "the move sheet is open" "new path of the folder" 10
     keys -t "$2"
     expect_text "the sheet offers \"move $3 torrents\"" "move $3 torrents" 30
 }
