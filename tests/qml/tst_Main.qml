@@ -785,6 +785,11 @@ TestCase {
         const arriving = key(findChild(view.rail, "railQuestion-arriving"), "railRowKey");
         const add = key(view.titleBar.addTool, "keyBadge");
         const filter = key(view.titleBar, "titleFilterKey");
+        // #201 F18: the details tabs carry no digits at rest, their keys come with alt.
+        const tabs = findChild(view.details, "detailsTabs");
+        const filesKey = key(findChild(tabs, "tab_1"), "keyBadge");
+        verify(tabs.keyBadges);
+        verify(!filesKey.shown);
         verify(!mark.visible && !arriving.visible && !add.visible);
 
         keyPress(Qt.Key_Alt);
@@ -801,6 +806,8 @@ TestCase {
         compare(add.key, "a");
         verify(filter.visible);
         compare(filter.key, "/");
+        verify(filesKey.shown);
+        compare(filesKey.key, "2");
         // One server: no lane badge, nothing to switch to (D19).
         verify(!key(view.statusLine, "statusServerKey").visible);
         keyRelease(Qt.Key_Alt);

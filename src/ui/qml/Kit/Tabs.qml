@@ -19,6 +19,12 @@ Item {
     /// Off (Settings' strips), the line is the skin's.
     property bool keysShown: false
     property bool keysHere: true
+    /// #201 F18: the window teaches keys on demand (frame step 9, DECISIONS C24 H10), so its
+    /// strips draw no digits at rest (board 46: "story · files · swarm …"); each tab's key
+    /// shows as an alt badge while `badgesShown` (the window's `keysShown`: alt is held).
+    /// Off (the standalone figures, Settings), the digit sits after the word.
+    property bool keyBadges: false
+    property bool badgesShown: false
 
     /// The wheel over the strip moves the current tab, a notch a tab, as a click would
     /// (Settings' folded sections, which clip at the right edge and only slide to keep the
@@ -142,8 +148,9 @@ Item {
                         color: tab.current ? Theme.brightForeground : Theme.dimForeground
                         font.family: Theme.valueFamily
                         font.pixelSize: Theme.font.caption
+                        objectName: "tabDigit"
                         text: tab.modelData.key ? tab.modelData.key : ""
-                        visible: !!tab.modelData.key
+                        visible: !!tab.modelData.key && !root.keyBadges
                     }
 
                     // The skin's lamp (Console's square, board 46 `.dot`).
@@ -153,6 +160,13 @@ Item {
                         size: Theme.space(6)
                         visible: !!tab.modelData.badge
                     }
+                }
+
+                // F18: the key on demand, over the tab's top-right corner.
+                KeyBadge {
+                    key: root.keyBadges && tab.modelData.key ? tab.modelData.key : ""
+                    overhangY: 0
+                    shown: root.badgesShown
                 }
 
                 Rectangle {

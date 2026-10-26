@@ -41,6 +41,10 @@ Item {
     /// tab's line is lit while this pane has the keys (`keysHere`) and dim while it hasn't.
     property bool keysShown: false
     property bool keysHere: false
+    /// #201 F18: the window teaches keys on demand, so its tabs carry their digits as alt
+    /// badges (`tabKeyBadges`), shown while alt is held (`altKeysShown`, Main's `keysShown`).
+    property bool tabKeyBadges: false
+    property bool altKeysShown: false
 
     /// The pane's own left border. Inside the main window `SplitLayout` already draws the
     /// divider between the table and the pane, so Main turns this off to avoid a 2 px rule.
@@ -1212,7 +1216,9 @@ Item {
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.top: root.band ? bandRule.bottom : hero.bottom
+        badgesShown: root.altKeysShown
         currentIndex: root.currentTab
+        keyBadges: root.tabKeyBadges
         keysHere: root.keysHere
         keysShown: root.keysShown
         objectName: "detailsTabs"

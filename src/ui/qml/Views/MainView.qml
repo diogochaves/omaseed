@@ -2760,6 +2760,9 @@ Item {
             // #201 F16: the tab's line says whether h / l left the keys here.
             keysHere: root.focusArea === "details"
             keysShown: true
+            // #201 F18: the tabs' digits are keys like any other, shown only on alt.
+            tabKeyBadges: true
+            altKeysShown: root.keysShown
             // Keys are taught on demand in the window (DECISIONS C24 H10: menus, tooltips,
             // the palette, `?`), so the pane draws no hint row inside it.
             showHints: false
