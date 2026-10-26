@@ -31,6 +31,9 @@ import Omaseed.Kit
 // DECISIONS C32 D1 a: the rail's foot, under the servers, is a settings row (`settingsRequested`,
 // as `,`), the gear alone when folded. It is not a cursor stop: `,` is its key.
 //
+// C32 D16 a: `tint` (Settings › Appearance, off · 4 · 8 %) fills the rail; its rows then sit on
+// C30's nested grounds over that fill (`ground` is every row's `block`).
+//
 // docs/08 §5: groups fold. `collapsedGroups` names the folded ones (the host owns and persists
 // it, per server); a click on a heading or `z` on any row asks for a toggle through
 // `groupToggled`. A folded group leaves one cursor stop, its heading, where `enter`/`space`
@@ -91,6 +94,19 @@ Item {
     readonly property bool _dragFolds: root.resizing && edgeGrip.wanted < root.foldBelowWidth
     readonly property int _dragWidth: Math.max(root.minimumOpenWidth,
                                                Math.min(root.maximumOpenWidth, edgeGrip.wanted))
+    /// C32 D16 a: the rail's own fill, in percent of the foreground: 0, 4 or 8.
+    property int tint: 0
+    /// The ground the rail's rows lie in: the window's, the 4 % block (`on.idle`) or the
+    /// hover fill (`on.hover`), so their fills and words take C30's nested grounds.
+    readonly property ThemeInk ground: root.tint === 8 ? Theme.on.hover : root.tint === 4 ? Theme.on.idle
+                                                                                          : Theme.on.window
+    /// The servers block's: its own 4 % on the window's ground, or opened over the filters
+    /// (D18); on a tinted rail, the rail's.
+    readonly property ThemeInk _serversGround: root.ground === Theme.on.window || root.serversOverlay
+                                               ? Theme.on.idle : root.ground
+    /// The rail's fill as one opaque colour, for what covers the scroll (the stuck heading,
+    /// the scroll hint's fade).
+    readonly property color _opaqueGround: Qt.tint(Theme.background, root.ground.fill)
     /// D9 c: the pointer is on the rail or its edge, so the edge tab shows.
     readonly property bool edgeHovered: railHover.hovered || edgeGrip.containsMouse
                                         || edgeTabMouse.containsMouse
@@ -746,6 +762,18 @@ Item {
     /// What sits above the scroll: the mark, the views, their rule.
     readonly property real _topHeight: root.headHeight + viewsBlock.height + 1
 
+    // C32 D16 a: the tint, under everything the rail draws.
+    Rectangle {
+        anchors.bottom: parent.bottom
+        anchors.left: parent.left
+        anchors.right: hairline.left
+        anchors.top: parent.top
+        color: root.ground.fill
+        objectName: "railTint"
+        visible: root.ground !== Theme.on.window
+        z: -1
+    }
+
     Rectangle {
         id: markButton
 
@@ -758,7 +786,7 @@ Item {
         anchors.left: parent.left
         anchors.right: hairline.left
         anchors.top: parent.top
-        color: root.markLit || markMouse.containsMouse ? markInk.fill : "transparent"
+        color: markInk.ground === root.ground ? "transparent" : markInk.fill
         height: root.headHeight
         objectName: "railMark"
 
@@ -768,8 +796,8 @@ Item {
             id: markInk
 
             animated: false
-            ground: root.markLit ? Theme.on.selected : markMouse.containsMouse ? Theme.on.hover
-                                                                                : Theme.on.window
+            ground: Theme.within(root.ground, root.markLit ? Theme.on.selected : markMouse.containsMouse
+                                                                                  ? Theme.on.hover : Theme.on.window)
         }
 
         // D14 b `.mark.ring`: the menu's edge round the lit mark, open at the bottom.
@@ -881,6 +909,7 @@ Item {
             RailRow {
                 id: viewDelegate
 
+                block: root.ground
                 required property int index
                 required property var modelData
 
@@ -950,6 +979,7 @@ Item {
             RailGroup {
                 id: statusGroup
 
+                block: root.ground
                 readonly property int globalIndex: root.statusFolded && !root.compact ? root.statusBase : -1
 
                 collapsed: root.statusFolded && !root.compact
@@ -971,6 +1001,7 @@ Item {
                     RailRow {
                         id: questionDelegate
 
+                        block: root.ground
                         required property int index
                         required property var modelData
 
@@ -1015,6 +1046,7 @@ Item {
             RailRow {
                 id: groupsRow
 
+                block: root.ground
                 readonly property int globalIndex: root.groupsRowSpan > 0 ? root.groupsRowBase : -1
                 readonly property bool compactStop: true
 
@@ -1039,6 +1071,7 @@ Item {
             RailGroup {
                 id: categoriesGroup
 
+                block: root.ground
                 readonly property int globalIndex: root.categoriesFolded ? root.categoriesBase : -1
 
                 collapsed: root.categoriesFolded
@@ -1058,6 +1091,7 @@ Item {
                 RailRow {
                     id: categoriesAll
 
+                    block: root.ground
                     readonly property int globalIndex: root.categoriesFolded ? -1 :
                                                                                root.categoriesBase
 
@@ -1082,6 +1116,7 @@ Item {
                     RailRow {
                         id: categoryDelegate
 
+                        block: root.ground
                         required property int index
                         required property string name
 
@@ -1114,6 +1149,7 @@ Item {
                 RailRow {
                     id: categoriesNone
 
+                    block: root.ground
                     readonly property int globalIndex: root.categoriesFolded
                                                        || !root.categoriesNoneVisible ? -1 :
                                                                                         root.categoriesBase
@@ -1142,6 +1178,7 @@ Item {
             RailGroup {
                 id: foldersGroup
 
+                block: root.ground
                 readonly property int globalIndex: root.foldersFolded ? root.foldersBase : -1
 
                 collapsed: root.foldersFolded
@@ -1163,6 +1200,7 @@ Item {
                     RailRow {
                         id: folderDelegate
 
+                        block: root.ground
                         required property int index
                         required property string path
                         required property string name
@@ -1228,6 +1266,7 @@ Item {
             RailGroup {
                 id: tagsGroup
 
+                block: root.ground
                 readonly property int globalIndex: root.tagsFolded ? root.tagsBase : -1
 
                 collapsed: root.tagsFolded
@@ -1245,6 +1284,7 @@ Item {
                 RailRow {
                     id: tagsAll
 
+                    block: root.ground
                     readonly property int globalIndex: root.tagsFolded ? -1 : root.tagsBase
 
                     count: root.counts.total
@@ -1266,6 +1306,7 @@ Item {
                     RailRow {
                         id: tagDelegate
 
+                        block: root.ground
                         required property int index
                         required property string name
 
@@ -1296,6 +1337,7 @@ Item {
                 RailRow {
                     id: tagsUntagged
 
+                    block: root.ground
                     readonly property int globalIndex: root.tagsFolded || !root.tagsUntaggedVisible
                                                        ? -1 : root.tagsBase + 1 + root.tagsNamedCount
 
@@ -1321,6 +1363,7 @@ Item {
             RailGroup {
                 id: trackersGroup
 
+                block: root.ground
                 readonly property int globalIndex: root.trackersFolded ? root.trackersBase : -1
 
                 collapsed: root.trackersFolded
@@ -1340,6 +1383,7 @@ Item {
                 RailRow {
                     id: trackersAll
 
+                    block: root.ground
                     readonly property int globalIndex: root.trackersFolded ? -1 : root.trackersBase
 
                     count: root.counts.total
@@ -1362,6 +1406,7 @@ Item {
                     RailRow {
                         id: trackerDelegate
 
+                        block: root.ground
                         required property int index
                         required property bool isTrackerless
                         required property string host
@@ -1423,6 +1468,7 @@ Item {
         countAbove: root.rowsAbove
         countBelow: root.rowsBelow
         flickable: flick
+        ground: root._opaqueGround
         revealed: root.activeFocus
         style: root.scrollHint
         z: 3
@@ -1543,11 +1589,14 @@ Item {
         z: 5
 
         // docs/DECISIONS.md C30 F1: the block's rows and heading are on this fill
-        // (`block: Theme.on.idle`), hovered on the hover fill over it.
+        // (`block: Theme.on.idle`), hovered on the hover fill over it. On a tinted rail (C32
+        // D16 a) the block takes no fill of its own: its rows are on the rail's, under its
+        // hairline, so they stay on grounds C30 measured.
         Rectangle {
             anchors.fill: parent
             anchors.margins: parent.border.width
             color: Theme.on.idle.fill
+            visible: root.ground === Theme.on.window || root.serversOverlay
         }
 
         // Over the rows: their hover fill starts right under it (#201 F6).
@@ -1586,7 +1635,7 @@ Item {
                 // #78: "servers", the count in the description.
                 accessibleDetail: qsTr("%n server(s)", "", root.serversRowCount)
                 accessibleName: qsTr("servers")
-                block: Theme.on.idle
+                block: root._serversGround
                 collapsed: false
                 // Where the head carries kana, in two parts (board 46 `.srv h6`): the word and
                 // its kana, then the count at the right.
@@ -1616,7 +1665,7 @@ Item {
                                          serversFoldedLine.countText, qsTr("folded")].filter(
                                             part => part.length > 0).join(" · ")
                 Accessible.name: qsTr("servers")
-                block: Theme.on.idle
+                block: root._serversGround
                 compact: root.compact
                 countText: qsTr("%n servers", "", root.serversRowCount)
                 glyph: Glyphs.dot
@@ -1660,7 +1709,7 @@ Item {
                     /// D4 a: the server this row's menu is about.
                     readonly property string menuServer: root.serverList.idAt(serverDelegate.index)
 
-                    block: Theme.on.idle
+                    block: root._serversGround
                     compact: root.compact
                     countColor: root._serverCountColor(serverDelegate.countLabel)
                     countText: serverDelegate.countLabel
@@ -1706,7 +1755,7 @@ Item {
                 Accessible.description: qsTr("%1 more · shortcut %2").arg(
                                             root.serversRowCount - root.serversListed).arg("ctrl+s")
                 Accessible.name: qsTr("more servers")
-                block: Theme.on.idle
+                block: root._serversGround
                 compact: root.compact
                 glyph: "…"
                 hasCursor: root.cursorOn(serversMoreRow.globalIndex)
@@ -1746,6 +1795,7 @@ Item {
         RailRow {
             id: settingsRow
 
+            block: root.ground
             Accessible.description: qsTr("shortcut %1").arg(",")
             anchors.bottom: parent.bottom
             anchors.bottomMargin: Theme.space(6)
@@ -1790,7 +1840,7 @@ Item {
         anchors.right: hairline.left
         anchors.top: flick.top
         anchors.topMargin: scrollHintOverlay.topInset
-        color: Theme.background
+        color: root._opaqueGround
         height: stuckLabel.implicitHeight + Theme.space(10)
         visible: root.stuckGroup !== null
         z: 2

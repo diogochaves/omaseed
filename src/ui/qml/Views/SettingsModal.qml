@@ -213,11 +213,11 @@ Item {
             return 6; // four toggles, the low-disk threshold field, the weekly recap (#24 T8)
         case 4:
             // the skin (C24 H11), theme, base size, the window's ground (C24 H13) and, while
-            // translucent, its transparency, tray icon, the bar widget (#17), then the rail's scroll hint and
-            // tracker hosts (docs/08 §5), then where Details sits (docs/10), then the rows'
-            // pulse (#24 T5). The hero's speed alignment and trends and the surface tint left
-            // with the hero (#167 assumed 6): their saved values are kept, and ignored.
-            return 10 + root._groundShift;
+            // translucent, its transparency, tray icon, the bar widget (#17), then the rail's scroll hint,
+            // its tint (C32 D16 a) and tracker hosts (docs/08 §5), then where Details sits
+            // (docs/10), then the rows' pulse (#24 T5). The hero's speed alignment and trends
+            // left with the hero (#167 assumed 6): their saved values are kept, and ignored.
+            return 11 + root._groundShift;
         case 5:
             return 3; // back up, restore, automatic copies (#31)
         case 6:
@@ -569,10 +569,12 @@ Item {
             else if (root.paneCursor === 6 + root._groundShift)
                 App.railScrollHint = root._next(root.scrollHints, App.railScrollHint);
             else if (root.paneCursor === 7 + root._groundShift)
-                App.trackerHostStyle = root._next(root.hostStyles, App.trackerHostStyle);
+                App.surfaceTint = root._next(root.tints, App.surfaceTint);
             else if (root.paneCursor === 8 + root._groundShift)
-                App.detailsPlacement = root._next(root.placements, App.detailsPlacement);
+                App.trackerHostStyle = root._next(root.hostStyles, App.trackerHostStyle);
             else if (root.paneCursor === 9 + root._groundShift)
+                App.detailsPlacement = root._next(root.placements, App.detailsPlacement);
+            else if (root.paneCursor === 10 + root._groundShift)
                 App.pulseRows = !App.pulseRows;
             return;
         }
@@ -695,6 +697,8 @@ Item {
     // Start at login (charter §2, opt-in): no entry, in the tray (`--hidden`), or the window.
     readonly property var loginStarts: [["off", qsTr("off")], ["tray", qsTr("in the tray")], ["window",
                                                                                           qsTr("window")]]
+    /// C32 D16 a: the rail's tint, as [percent, chip text].
+    readonly property var tints: [[0, qsTr("off")], [4, qsTr("4 %")], [8, qsTr("8 %")]]
     readonly property var hostStyles: [["prefix", qsTr("drop prefix")], ["left", qsTr("cut start")],
         ["right", qsTr("cut end")]]
     // docs/10 §5: where Details sits.
@@ -2622,17 +2626,57 @@ Item {
                                 }
                             }
 
+                            // C32 D16 a: the rail only; its rows on C30's nested grounds.
+                            SettingsRow {
+                                id: surfaceTintRow
+
+                                Layout.fillWidth: true
+                                description: qsTr("a light fill behind the rail.")
+                                glyph: Glyphs.sidebar
+                                hasCursor: root.area === "pane" && root.paneCursor === 7 + root._groundShift
+                                objectName: "surfaceTintRow"
+                                title: qsTr("Surface tint")
+
+                                onClicked: {
+                                    root.paneCursor = 7 + root._groundShift;
+                                    root.area = "pane";
+                                    App.surfaceTint = root._next(root.tints, App.surfaceTint);
+                                }
+
+                                RowLayout {
+                                    spacing: Theme.space(6)
+
+                                    Repeater {
+                                        model: root.tints
+
+                                        Chip {
+                                            id: tintChip
+
+                                            required property var modelData
+
+                                            block: surfaceTintRow.ground
+                                            checkable: true
+                                            objectName: "tintChip-" + tintChip.modelData[0]
+                                            selected: App.surfaceTint === tintChip.modelData[0]
+                                            text: tintChip.modelData[1]
+
+                                            onClicked: App.surfaceTint = tintChip.modelData[0]
+                                        }
+                                    }
+                                }
+                            }
+
                             SettingsRow {
                                 id: trackerHostsRow
 
                                 Layout.fillWidth: true
                                 description: qsTr("how a long tracker host fits the rail.")
                                 glyph: Glyphs.host
-                                hasCursor: root.area === "pane" && root.paneCursor === 7 + root._groundShift
+                                hasCursor: root.area === "pane" && root.paneCursor === 8 + root._groundShift
                                 title: qsTr("Tracker hosts")
 
                                 onClicked: {
-                                    root.paneCursor = 7 + root._groundShift;
+                                    root.paneCursor = 8 + root._groundShift;
                                     root.area = "pane";
                                     App.trackerHostStyle = root._next(root.hostStyles, App.trackerHostStyle);
                                 }
@@ -2665,11 +2709,11 @@ Item {
                                 Layout.fillWidth: true
                                 description: qsTr("auto puts it right when the window is 16:10 or wider, else at the bottom. I cycles it.")
                                 glyph: Glyphs.sidebar
-                                hasCursor: root.area === "pane" && root.paneCursor === 8 + root._groundShift
+                                hasCursor: root.area === "pane" && root.paneCursor === 9 + root._groundShift
                                 title: qsTr("Details panel")
 
                                 onClicked: {
-                                    root.paneCursor = 8 + root._groundShift;
+                                    root.paneCursor = 9 + root._groundShift;
                                     root.area = "pane";
                                     App.detailsPlacement = root._next(root.placements, App.detailsPlacement);
                                 }
@@ -2703,12 +2747,12 @@ Item {
                                 Layout.fillWidth: true
                                 description: qsTr("a green tick at the left of each row that is uploading, breathing faster the more it sends. Still when the desktop asks for less motion.")
                                 glyph: Glyphs.statusSeeding
-                                hasCursor: root.area === "pane" && root.paneCursor === 9 + root._groundShift
+                                hasCursor: root.area === "pane" && root.paneCursor === 10 + root._groundShift
                                 objectName: "pulseRowsRow"
                                 title: qsTr("Pulse sending rows")
 
                                 onClicked: {
-                                    root.paneCursor = 9 + root._groundShift;
+                                    root.paneCursor = 10 + root._groundShift;
                                     root.area = "pane";
                                     App.pulseRows = !App.pulseRows;
                                 }

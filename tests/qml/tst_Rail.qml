@@ -989,4 +989,36 @@ TestCase {
         verify(row.compact);
         compare(foot.width, Theme.railFoldedWidth - Theme.hairWidth);
     }
+
+    // DECISIONS C32 D16 a: the surface tint fills the rail only; its rows lie on C30's nested
+    // grounds over it (4 %: the block set, 8 %: the hover set), and the servers block takes
+    // no fill of its own there, so every ground stays one C30 measured.
+    function test_the_tint_fills_the_rail_and_its_rows_nest() {
+        const rail = railWithServers(["public", "private"]);
+        const fill = findChild(rail, "railTint");
+        const question = findChild(rail, "railQuestion-arriving");
+        compare(fill.visible, false);
+        compare(rail.ground, Theme.on.window);
+        App.filtered.question = TorrentFilterModel.Arriving;
+        verify(question.selected);
+        compare(question.ground, Theme.on.selected);
+
+        rail.tint = 4;
+        verify(fill.visible);
+        compare(fill.color, Theme.on.idle.fill);
+        compare(question.ground, Theme.on.blockSelected);
+        compare(findChild(rail, "railView-seed").ground, Theme.on.idle);
+        compare(findChild(rail, "railSettings").block, Theme.on.idle);
+        compare(rail._serversGround, Theme.on.idle);
+        compare(findChild(rail, "serversFoldedLine").block, Theme.on.idle);
+
+        rail.tint = 8;
+        compare(fill.color, Theme.on.hover.fill);
+        compare(question.ground, Theme.on.hoverSelected);
+        compare(rail._serversGround, Theme.on.hover);
+        // What covers the scroll is the tint, made opaque.
+        verify(Qt.colorEqual(rail._opaqueGround, Qt.tint(Theme.background, Theme.on.hover.fill)));
+        rail.tint = 0;
+        compare(question.ground, Theme.on.selected);
+    }
 }

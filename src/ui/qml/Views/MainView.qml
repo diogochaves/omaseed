@@ -1957,6 +1957,8 @@ Item {
         // #167 assumed 4: ctrl+b folds it to its glyphs; C32 D9: so does a crowded window.
         compact: root.railCompact
         openWidth: root.railOpenWidth
+        // C32 D16 a: Settings › Appearance's surface tint, on the rail only.
+        tint: App.surfaceTint
         // D9 c: the edge tab sits over the title bar's edge.
         z: 2
         counts: App.counts

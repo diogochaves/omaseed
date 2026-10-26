@@ -320,8 +320,8 @@ drawn in a stand-in, and Appearance says which.
 
 Settings › Appearance has: the skin, follow the Omarchy theme, base size, the window's ground (opaque, or
 translucent with its transparency), tray icon (`auto` hides it while the bar widget runs), bar
-widget, the scroll hint, tracker hosts, where the details panel sits, and the sending rows'
-pulse.
+widget, the scroll hint, the rail's surface tint (off, 4 % or 8 %), tracker hosts, where the
+details panel sits, and the sending rows' pulse.
 
 ## Servers
 
