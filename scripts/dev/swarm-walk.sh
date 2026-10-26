@@ -149,7 +149,7 @@ step "Files tree" "Open Movie Night's Files tab: the film, extras/, subs/ (engli
 step "Many files" "photo-archive: 1 208 files in 92 folders by year and month; scrolling and folding stay smooth."
 wait_state "tiny-notes" "UP|^uploading" 30
 [ "$INTERACTIVE" = 1 ] || show "tiny-notes" 1
-step "Seeding" "tiny-notes.txt: finished, seeding (also when nobody is downloading from it), done 100 %, ETA —, the rail counts it under landed today (giving back once local midnight has passed). Its story: the time it landed in green, \"landed\", and what happened: Added (Finished downloading under it once it took a second or more). Each finished download raises a \"Download complete\" notification in the box (often caught by the first shots)."
+step "Seeding" "tiny-notes.txt: finished, seeding (also when nobody is downloading from it), done 100 %, ETA —, the rail counts it under landed today (giving back once local midnight has passed). Its story: the time it landed in green, \"landed\", and what happened, newest first: Finished downloading (once it took a second or more) over Added, both marks neutral. Each finished download raises a \"Download complete\" notification in the box (often caught by the first shots)."
 rows "Seeding" "tiny-notes.txt under LANDED TODAY: the time it landed and \"landed\", \"in swarm · 4 KB · given back 0.0× so far\"; the head says \"since midnight\"."
 wait_state "Spaces & Symbols" "UP|^uploading" 60
 [ "$INTERACTIVE" = 1 ] || show "Spaces & Symbols" 5

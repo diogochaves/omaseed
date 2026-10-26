@@ -9,7 +9,7 @@ import Omaseed.Kit
 //   2. docs/32's failure block under it, a move, rename or part file that didn't happen;
 //   3. C18 D7's last move, while the history keeps it, with "move back…";
 //   4. the pieces bar (docs/12 G3), while the torrent has pieces;
-//   5. "what happened" (core/TorrentStory), oldest first;
+//   5. "what happened" (core/TorrentStory), newest first (C32 D15);
 //   6. "its lines in the log" (docs/32 D13), the whole of it in qBittorrent's words.
 //
 // The blocks are the ones General had (DECISIONS C24 supersedes docs/28's and C18 D7's "in
@@ -21,7 +21,7 @@ Flickable {
     /// The controller, for the pieces bar; null draws no bar.
     property TorrentDetails details: null
     property var torrent: null
-    /// `App.torrentStory(hash)`: `[{time, kind, title, detail}]`, oldest first.
+    /// `App.torrentStory(hash)`: `[{time, kind, title, detail}]`, newest first (C32 D15).
     property var story: []
     /// docs/28 G2: the free space on the torrent's disk, "0 B free", when its disk is full.
     property string freeText: ""
@@ -53,9 +53,6 @@ Flickable {
     readonly property bool hasFailure: (root.failure.headline || "").length > 0
     readonly property bool hasMove: (root.lastMove.id || "").length > 0
     readonly property bool hasBar: root.details !== null && root.details.pieceCount > 0
-    readonly property color stateColor: root.torrent && root.torrent.stateRole
-                                        ? Theme[root.torrent.stateRole] ?? Theme.foreground :
-                                          Theme.foreground
 
     boundsBehavior: Flickable.StopAtBounds
     clip: true
@@ -145,7 +142,6 @@ Flickable {
 
                     event: modelData
                     objectName: "storyEvent_" + index
-                    stateColor: root.stateColor
                     width: parent.width
                 }
             }

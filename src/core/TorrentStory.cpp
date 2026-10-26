@@ -99,10 +99,13 @@ QList<StoryEvent> TorrentStory::events(const StoryInput &input)
     if (!input.problem.isEmpty())
         add(input.problemAt, StoryEvent::Kind::Error, input.problem, tr("from qBittorrent's log"));
 
-    // Oldest first; two at the same second keep the order above (added before finished).
+    // Newest first (DECISIONS C32 D15, amending C24 H6's order): sorted by time with two at
+    // the same second in the order above (added before finished), then read backwards, so
+    // the later of the two leads as the later time does.
     std::stable_sort(out.begin(), out.end(), [](const StoryEvent &a, const StoryEvent &b) {
         return a.at < b.at;
     });
+    std::reverse(out.begin(), out.end());
     return out;
 }
 
