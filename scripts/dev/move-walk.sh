@@ -2,7 +2,8 @@
 # omaseed — moving a folder (board 42, DECISIONS C15), walked through the app's own UI on a
 # library of a few hundred small torrents: a folder with a nested save path and loose files
 # moved to another filesystem, omaseed killed mid-move and started again, the loose files
-# carried after the torrents; pause, end and "move the rest…"; three that fail and the
+# carried after the torrents; a small folder moved and moved back, the loose files it carried
+# going back with it but the one changed since (DECISIONS C32 D19); pause, end and "move the rest…"; three that fail and the
 # summary's recheck, which starts only the one that was running (#138) and leaves out the
 # hybrid, moved again instead (DECISIONS C21); a destination
 # qBittorrent can't write; a destination that fills up. Then a selection moved through the Move… sheet
@@ -20,6 +21,7 @@
 #                                             # lists every check
 #   scripts/dev/move-walk.sh --interactive    # Diogo: the box is a window on workspace 9; each
 #                                             # step says what it will do and waits for enter
+#   OMASEED_MOVE_WALK_FROM=loose …            # only bonus' loose files moved there and back (C32 D19)
 #   OMASEED_MOVE_WALK_FROM=selection …        # from the selections on (no folder moves first)
 #   OMASEED_MOVE_WALK_FROM=sheet …            # from the places, names and partial pack on
 #   OMASEED_MOVE_WALK_FROM=history …          # from move back after the summary (C18) on
@@ -425,6 +427,9 @@ for i in range(1, films + 1):
     make("films", "Short Film %03d" % i, 8192 + 983 * i, "f%d" % i)
 for i in range(1, music + 1):
     make("music", "Album %02d" % i, 600 * 1024 + i, "m%d" % i)
+# Move back and the loose files the move carried (DECISIONS C32 D19).
+for i in range(1, 4):
+    make("bonus", "Bonus Pack %02d" % i, 8192 + 977 * i, "x%d" % i)
 # The recheck after a move (#138): one that moves (the smallest, sent alone first) and three
 # below it that can't, the last a hybrid (v1+v2) that the recheck leaves out (DECISIONS C21).
 make("recheck", "Recheck One", 8192, "r1")
@@ -447,29 +452,34 @@ loose("games/handheld/saves/slot1.sav", 64 * 1024)
 loose("games/Thumbs.db", 4096)
 loose("games/capture-in-progress.mkv", 100 * 1024, old=False)
 loose("films/poster.jpg", 120 * 1024)
+loose("bonus/manual.pdf", 18 * 1024)
+loose("bonus/notes/readme.txt", 2048)
 PY
 
+# Web API 2.16 (qBittorrent 5.3) reads the skip-check option as seedMode and ignores
+# skip_checking: both are sent, or every torrent is hash-checked on add.
 add_root() { # add_root DIR SAVE_PATH: every .torrent in the walk's DIR, 40 a request
     local dir="$1" save="$2" args=() file n=0
     for file in "$home/walk-torrents/$dir"/*.torrent; do
         args+=(-F "torrents=@$BOX_HOME/walk-torrents/$dir/$(basename "$file")")
         n=$((n + 1))
         if [ "$n" = 40 ]; then
-            api torrents/add "${args[@]}" -F "savepath=$save" -F skip_checking=true >/dev/null
+            api torrents/add "${args[@]}" -F "savepath=$save" -F skip_checking=true -F seedMode=true >/dev/null
             args=()
             n=0
         fi
     done
-    [ ${#args[@]} = 0 ] || api torrents/add "${args[@]}" -F "savepath=$save" -F skip_checking=true >/dev/null
+    [ ${#args[@]} = 0 ] || api torrents/add "${args[@]}" -F "savepath=$save" -F skip_checking=true -F seedMode=true >/dev/null
 }
 add_root games "$LIB/games"
 add_root games-handheld "$LIB/games/handheld"
 add_root films "$LIB/films"
 add_root music "$LIB/music"
+add_root bonus "$LIB/bonus"
 add_root recheck "$LIB/recheck"
 add_root recheck-locked "$LIB/recheck/locked"
 
-step "The library" "$((GAMES + FILMS + MUSIC)) torrents added as complete: games ($GAMES, $HANDHELD of them in games/handheld), films ($FILMS), music ($MUSIC), and four in recheck (one a hybrid); six files no torrent owns beside them."
+step "The library" "$((GAMES + FILMS + MUSIC)) torrents added as complete: games ($GAMES, $HANDHELD of them in games/handheld), films ($FILMS), music ($MUSIC), and four in recheck (one a hybrid); six files no torrent owns beside them; and bonus (3), with two of its own."
 expect_count "games holds $GAMES torrents" count_under "$LIB/games" -eq "$GAMES" 60
 expect_count "games/handheld holds $HANDHELD" count_at "$LIB/games/handheld" -eq "$HANDHELD"
 expect_count "films holds $FILMS" count_under "$LIB/films" -eq "$FILMS"
@@ -478,7 +488,7 @@ expect_text "the rail lists the folders" "handheld" 30
 shot "The library: the rail's folders group lists library, games with handheld under it, films and music."
 
 # OMASEED_MOVE_WALK_FROM skips what comes before: selection, sheet, history, big, music or
-# remote.
+# remote; loose walks only bonus' round trip.
 FROM="${OMASEED_MOVE_WALK_FROM:-games}"
 if [ "$FROM" = games ]; then
 
@@ -579,6 +589,62 @@ expect_text "the end reads \"films moved, loose files too\"" "films moved, loose
 expect_disk "poster.jpg followed" -f /tmp/fast/films/poster.jpg
 expect_count "nothing is left in films" count_under "$LIB/films" -eq 0 5
 
+fi
+
+# ---- bonus: move back carries back what the move carried (DECISIONS C32 D19) --------------
+
+if [ "$FROM" = games ] || [ "$FROM" = loose ]; then
+
+step "Move bonus, loose files too" "The cursor on Bonus Pack 01, shift+m, /tmp/fast/bonus, enter: its 3 torrents land on /tmp, then manual.pdf and notes/readme.txt are carried (another filesystem: copied, checked, removed here)."
+open_move "Bonus Pack 01" /tmp/fast/bonus 3
+expect_text "the dry run counts its 2 loose files" "2 files" 20
+keys Return
+expect_count "the 3 bonus land on /tmp/fast/bonus" count_at /tmp/fast/bonus -eq 3 120
+expect_text "the end reads \"bonus moved, loose files too\"" "bonus moved, loose files too" 60
+expect_disk "manual.pdf is at the new place" -f /tmp/fast/bonus/manual.pdf
+expect_disk "notes/readme.txt too" -f /tmp/fast/bonus/notes/readme.txt
+expect_disk "manual.pdf left the old place" ! "$LIB/bonus/manual.pdf"
+
+step "Since the move" "At /tmp/fast/bonus, notes/readme.txt is edited and new-scan.png is put there (neither by omaseed)."
+in_box sh -c 'printf "edited after the move\n" >>/tmp/fast/bonus/notes/readme.txt'
+in_box sh -c 'printf "a scan\n" >/tmp/fast/bonus/new-scan.png'
+expect_disk "new-scan.png is there" -f /tmp/fast/bonus/new-scan.png
+
+step "Move bonus back, with what it carried" "The summary's move back…: the sheet carries back the 2 loose files the move carried, under its tick: manual.pdf back, notes/readme.txt changed after the move, so it stays; new-scan.png was put there since, the move didn't carry it, so it stays. The foot says the list is the one the move kept; the button reads move 3 back · 1 file. It moves: the torrents land in bonus, then manual.pdf follows."
+press "move back…" top
+expect_text "the sheet offers to carry back the 2" "Carry back the 2 loose files the move carried" 30
+expect_text "the changed one stays, and says when" "after the move" 10
+expect_text "the new one stays: the move didn't carry it" "the move didn't carry it" 20
+expect_text "the foot names the list" "the list is the one the move kept" 5
+expect_text "the button counts the file" "move 3 back · 1 file" 10
+shot "Move back: the tick, manual.pdf back, notes/readme.txt changed after the move and new-scan.png put there since, both staying; move 3 back · 1 file." sheet
+press "move 3 back · 1 file"
+expect_count "the 3 are back in bonus" count_at "$LIB/bonus" -eq 3 120
+expect_text "the end reads \"3 torrents moved back, loose files too\"" "moved back, loose files too" 60
+expect_disk "manual.pdf is back" -f "$LIB/bonus/manual.pdf"
+expect_disk "and gone from /tmp/fast/bonus" ! /tmp/fast/bonus/manual.pdf
+expect_disk "notes/readme.txt, changed since, stayed" -f /tmp/fast/bonus/notes/readme.txt
+expect_disk "it was not carried back" ! "$LIB/bonus/notes/readme.txt"
+expect_disk "new-scan.png stayed" -f /tmp/fast/bonus/new-scan.png
+expect_disk "and never went to bonus" ! "$LIB/bonus/new-scan.png"
+expect_disk "no temporary copy is left" ! "$LIB/bonus/.manual.pdf.omaseed-carry"
+# The band's line is cut short in the tree: "show what stayed" names it whole.
+expect_text "the summary says the move back carried files" "1 file back at $LIB/bonus" 10
+if in_box grep -aq "edited after the move" /tmp/fast/bonus/notes/readme.txt; then pass "the edit is untouched"; else fail "notes/readme.txt at /tmp/fast/bonus lost its edit"; fi
+shot "The end of the move back: 3 torrents and 1 file back at bonus; notes/readme.txt stayed at /tmp/fast/bonus, changed after the move." summary
+press "show what stayed"
+# Its rows are drawn, not in the tree: the shot shows notes/readme.txt and why.
+expect_text "what stayed opens" "Loose files of bonus" 10
+shot "What stayed: notes/readme.txt, changed after the move." stayed
+keys Escape
+press close
+
+if [ "$FROM" = loose ]; then
+    echo
+    echo "all $CHECKS checks passed"
+    [ "$INTERACTIVE" = 1 ] || printf '\n**All %s checks passed.**\n' "$CHECKS" >>"$OUT/index.md"
+    exit 0
+fi
 fi
 
 # ---- a selection (board 43, C16) ------------------------------------------------------------

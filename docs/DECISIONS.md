@@ -1830,3 +1830,15 @@ place: D2), docs/31 D5 (D6), C4 D1–D2 and C13's alternative-limits row (D8) an
   walks the modal as any form; j/k and enter stay for rows.
 - **Moves.** D19 a: move back carries back the loose files the move carried (the list it kept,
   #98), under the same tick; a file changed at the target since stays, and is named.
+  Built as the board reads it, assumed where it is silent: the move's record keeps each file
+  as it lies at the new place after the carry, so move back's size-or-time check is against
+  that; the list goes in the move back's spec (saved with the job), so a restart or a queued
+  move back carries the same files and never walks a folder. The sheet heads the block "files
+  no torrent owns · the move carried", its note drops board 51's "(M17)" (the app's words cite
+  no rulings), lists 6 files the move carried and 2 put there since at most, then "and N
+  more", and its button reads "move 46 back · 1 file · 3 stay" when both apply. A move back
+  that carries files shows its band as a folder's move does (not quiet, C16 L6), so the
+  summary can name what stayed ("notes/readme.txt (changed after the move)", up to 3 names).
+  Room on the old drive doesn't count the loose files (they are small; a full drive stops the
+  carry as M17 says). A record from before v0.5.0 has no list: its sheet still says the files
+  stay, as does one whose disks omaseed can't see.
