@@ -1198,7 +1198,7 @@ TestCase {
         // Appearance: "In the bar" (docs/33 D25) steps through the choices it can have:
         // without the shell, tray icon and none.
         keyClick(Qt.Key_5);
-        compare(modal.paneRowCount, 11);
+        compare(modal.paneRowCount, 12);
         const tray = App.trayIconMode;
         App.trayIconMode = "auto";
         compare(App.inTheBar, "tray");
@@ -1392,6 +1392,31 @@ TestCase {
         App.surfaceTint = before;
     }
 
+    // DECISIONS C32 D2 a: Appearance › Speeds, the title bar by default or the status line;
+    // the last row, enter steps it, a chip picks it.
+    function test_the_appearance_pane_places_the_speeds() {
+        const modal = createTemporaryObject(modalComponent, testCase);
+        const before = App.speedsPlace;
+        compare(before, "title");
+        modal.open();
+        keyClick(Qt.Key_5);
+        const row = testCase.childNamed(modal, "speedsPlaceRow");
+        verify(row !== null && row.visible);
+        compare(row.title, "Speeds");
+        modal.paneCursor = modal.paneRowCount - 1;
+        modal.area = "pane";
+        compare(row.hasCursor, true);
+        modal.activateRow();
+        compare(App.speedsPlace, "status");
+        modal.activateRow();
+        compare(App.speedsPlace, "title");
+        const chip = testCase.childNamed(row, "speedsChip-status");
+        chip.clicked();
+        compare(App.speedsPlace, "status");
+        verify(chip.selected);
+        App.speedsPlace = before;
+    }
+
     function test_the_appearance_pane_turns_the_rows_pulse_on() {
         const modal = createTemporaryObject(modalComponent, testCase);
         compare(App.pulseRows, false);
@@ -1508,7 +1533,7 @@ TestCase {
         compare(row.title, "Window");
         const alphaRow = testCase.childNamed(modal, "windowAlphaRow");
         compare(alphaRow.visible, false);
-        compare(modal.paneRowCount, 11);
+        compare(modal.paneRowCount, 12);
 
         modal.area = "pane";
         modal.paneCursor = 3;
@@ -1516,7 +1541,7 @@ TestCase {
         modal.activateRow();
         compare(App.windowGround, "translucent");
         compare(alphaRow.visible, true);
-        compare(modal.paneRowCount, 12);
+        compare(modal.paneRowCount, 13);
         // "In the bar" moved down one.
         modal.paneCursor = 5;
         compare(testCase.childNamed(modal, "inTheBarRow").hasCursor, true);

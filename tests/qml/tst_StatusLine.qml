@@ -197,12 +197,10 @@ TestCase {
     }
 
     // docs/31, manual box M14, #78 (#167 assumed 5): off, the glyph alone, named by its set
-    // with its tooltip as the description; on, the limits in the warning colour; a click is A.
+    // with its tooltip as the description; on, a chip tinted 18 % in the set's colour (C32
+    // D6 a); a click opens the presets (D8 a).
     function test_the_alt_speed_chip_moved_here() {
-        const line = make({
-                              "altDownLimit": "10 KB/s",
-                              "altUpLimit": "∞"
-                          });
+        const line = make({});
         const chip = line.altChip;
         const clicks = spy(line, "altSpeedClicked");
         compare(chip.text, "");
@@ -210,10 +208,14 @@ TestCase {
         compare(chip.Accessible.name, "alt-speed");
         compare(chip.Accessible.description, "alt-speed · A");
         verify(!chip.warn);
+        verify(!findChild(chip, "statusAltTint").visible);
         line.altSpeedActive = true;
-        compare(chip.text, "↓10 KB/s ↑∞");
+        compare(chip.text, "alt-speed");
         compare(chip.tooltip, "alt-speed on · A");
-        compare(findChild(chip, "statusAltText").color, Theme.yellow);
+        compare(findChild(chip, "statusAltText").color, Theme.on.turtle.yellow);
+        const tint = findChild(chip, "statusAltTint");
+        verify(tint.visible);
+        compare(tint.color, Theme.on.turtle.fill);
         mouseClick(chip);
         compare(clicks.count, 1);
         chip.Accessible.pressAction();
@@ -231,34 +233,61 @@ TestCase {
                           });
         const chip = line.altChip;
         compare(chip.glyph, Glyphs.burst);
-        compare(chip.text, "burst ↓∞ ↑∞");
-        compare(chip.suffix, "· until 07:00");
+        compare(chip.text, "burst");
+        compare(chip.suffix, "until 07:00");
         compare(chip.tooltip, "burst until 07:00, by the schedule · A");
         compare(chip.Accessible.name, "burst");
-        compare(findChild(chip, "statusAltText").color, Theme.green);
+        compare(findChild(chip, "statusAltText").color, Theme.on.burst.green);
+        compare(findChild(chip, "statusAltTint").color, Theme.on.burst.fill);
         compare(line.altText(2), "burst");
-        compare(line.altSuffix(2), "· until 07:00");
+        compare(line.altSuffix(2), "until 07:00");
         compare(line.altText(3), "");
         compare(line.altSuffix(3), "");
         line.altKind = "turtle";
-        line.altDownLimit = "10 KB/s";
-        line.altDownLimitShort = "10K";
         compare(chip.glyph, Glyphs.altSpeed);
-        compare(chip.text, "turtle ↓10 KB/s ↑∞");
-        compare(line.altText(1), "turtle ↓10K ↑∞");
-        compare(findChild(chip, "statusAltText").color, Theme.yellow);
+        compare(chip.text, "turtle");
+        compare(findChild(chip, "statusAltText").color, Theme.on.turtle.yellow);
+        compare(findChild(chip, "statusAltTint").color, Theme.on.turtle.fill);
         line.altKind = "alt";
-        compare(chip.text, "↓10 KB/s ↑∞");
-        compare(chip.suffix, "");
+        compare(chip.text, "alt-speed");
+        compare(chip.suffix, "until 07:00");
+    }
+
+    // C32 D6 a: while the alternative limits hold them, each speed reads against its cap in
+    // the set's colour; off, or with no cap, the speed alone. D2 a: the title bar can take them.
+    function test_speeds_against_their_caps() {
+        const line = make({
+                              "downSpeed": "290 KB/s",
+                              "upSpeed": "48 KB/s",
+                              "downParts": {
+                                  "value": "290",
+                                  "cap": "300",
+                                  "unit": "KB/s"
+                              },
+                              "upParts": {
+                                  "value": "48",
+                                  "cap": "",
+                                  "unit": "KB/s"
+                              }
+                          });
+        const down = findChild(line, "statusDown");
+        compare(down.text, "↓ 290 KB/s");
+        line.altSpeedActive = true;
+        line.altKind = "turtle";
+        compare(down.text, "↓ 290 <font color=\"" + Theme.yellow + "\">/ 300</font> KB/s");
+        compare(findChild(line, "statusUp").text, "↑ 48 KB/s");
+        line.altKind = "burst";
+        compare(down.text, "↓ 290 <font color=\"" + Theme.green + "\">/ 300</font> KB/s");
+        line.speedsShown = false;
+        verify(!down.visible);
+        verify(!findChild(line, "statusUp").visible);
     }
 
     // The steps (Theme.statusLineSteps): the lane keeps the name alone from 1, the speeds go
     // short and "? keys" is "?" from 3, and nothing leaves the line.
     function test_the_steps_follow_the_width() {
         const line = make({
-                              "altSpeedActive": true,
-                              "altDownLimit": "1.00 MB/s",
-                              "altDownLimitShort": "1.00M"
+                              "altSpeedActive": true
                           });
         const steps = Theme.statusLineSteps;
         for (let i = 0; i < steps.length; ++i) {
@@ -271,7 +300,7 @@ TestCase {
         compare(findChild(line, "statusServerName").text, "home · qBittorrent 5.2.3");
         line.width = steps[1];
         compare(findChild(line, "statusServerName").text, "home");
-        compare(line.altChip.text, "↓1.00M ↑∞");
+        compare(line.altChip.text, "alt-speed");
         compare(findChild(line, "statusDown").text, "↓ 4.21 MB/s");
         line.width = steps[3];
         compare(findChild(line, "statusDown").text, "↓4.21M");

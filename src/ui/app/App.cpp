@@ -1084,6 +1084,14 @@ QString App::limitShortText(qint64 bytesPerSecond)
     return Format::speedCompact(bytesPerSecond);
 }
 
+QVariantMap App::speedParts(qint64 bytesPerSecond, qint64 capBytesPerSecond)
+{
+    const Format::SpeedParts parts = Format::speedParts(bytesPerSecond, capBytesPerSecond);
+    return {{QStringLiteral("value"), parts.value},
+            {QStringLiteral("cap"), parts.cap},
+            {QStringLiteral("unit"), parts.unit}};
+}
+
 QString App::speedShortText(qint64 bytesPerSecond)
 {
     return Format::speedCompact(bytesPerSecond);
@@ -4550,6 +4558,7 @@ const QStringList kRailScrollHints{
     QStringLiteral("chevrons"), QStringLiteral("fade"), QStringLiteral("scrollbar")};
 const QStringList kDetailsPlacements{
     QStringLiteral("auto"), QStringLiteral("right"), QStringLiteral("bottom")};
+const QStringList kSpeedsPlaces{QStringLiteral("title"), QStringLiteral("status")};
 const QStringList kTrackerHostStyles{
     QStringLiteral("prefix"), QStringLiteral("left"), QStringLiteral("right")};
 const QStringList kTrayIconModes{
@@ -4630,6 +4639,23 @@ void App::setSurfaceTint(int percent)
     if (m_surfaceTint == wanted)
         return;
     m_surfaceTint = wanted;
+    saveSettings();
+    Q_EMIT settingsChanged();
+}
+
+QString App::speedsPlace() const
+{
+    const_cast<App *>(this)->loadSettings();
+    return m_speedsPlace;
+}
+
+void App::setSpeedsPlace(const QString &place)
+{
+    loadSettings();
+    const QString wanted = oneOf(place, kSpeedsPlaces);
+    if (m_speedsPlace == wanted)
+        return;
+    m_speedsPlace = wanted;
     saveSettings();
     Q_EMIT settingsChanged();
 }
@@ -4806,6 +4832,8 @@ void App::loadSettings()
     m_railScrollHint =
         oneOf(appearance.value(QStringLiteral("railScrollHint")).toString(), kRailScrollHints);
     m_surfaceTint = tintStep(appearance.value(QStringLiteral("surfaceTint")).toInt(0));
+    m_speedsPlace =
+        oneOf(appearance.value(QStringLiteral("speedsPlace")).toString(), kSpeedsPlaces);
     m_trackerHostStyle =
         oneOf(appearance.value(QStringLiteral("trackerHostStyle")).toString(), kTrackerHostStyles);
     m_railHidden = appearance.value(QStringLiteral("railHidden")).toBool(false);
@@ -4835,6 +4863,7 @@ void App::saveSettings()
     appearance[QStringLiteral("pulseRows")] = m_pulseRows;
     appearance[QStringLiteral("railScrollHint")] = m_railScrollHint;
     appearance[QStringLiteral("surfaceTint")] = m_surfaceTint;
+    appearance[QStringLiteral("speedsPlace")] = m_speedsPlace;
     appearance[QStringLiteral("trackerHostStyle")] = m_trackerHostStyle;
     appearance[QStringLiteral("railHidden")] = m_railHidden;
     appearance[QStringLiteral("railWidth")] = m_railWidth;

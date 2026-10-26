@@ -362,6 +362,9 @@ qreal Theme::shellAlpha(const QString &ground) const
         {QStringLiteral("hoverHover"), &Theme::m_fillHover},
         {QStringLiteral("hoverSelected"), &Theme::m_fillSelected},
         {QStringLiteral("hoverPressed"), &Theme::m_fillPressed},
+        // DECISIONS C32 D6 a: the alternative speeds' chip, the state's colour at 18 %.
+        {QStringLiteral("turtle"), &Theme::m_fillSelected},
+        {QStringLiteral("burst"), &Theme::m_fillSelected},
     };
     if (const auto fill = fills.constFind(ground); fill != fills.constEnd())
         return this->**fill;

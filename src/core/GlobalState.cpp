@@ -248,6 +248,43 @@ void GlobalState::reset()
     setServerVersions(QString(), QString());
     setRetryInSeconds(0);
     setSilentSeconds(0);
+    if (!m_dlHistory.isEmpty() || !m_upHistory.isEmpty()) {
+        m_dlHistory.clear();
+        m_upHistory.clear();
+        Q_EMIT speedHistoryChanged();
+    }
+}
+
+namespace {
+QVariantList toVariants(const QList<qint64> &samples)
+{
+    QVariantList list;
+    list.reserve(samples.size());
+    for (const qint64 sample : samples)
+        list.append(sample);
+    return list;
+}
+} // namespace
+
+QVariantList GlobalState::dlHistory() const
+{
+    return toVariants(m_dlHistory);
+}
+
+QVariantList GlobalState::upHistory() const
+{
+    return toVariants(m_upHistory);
+}
+
+void GlobalState::recordSpeeds()
+{
+    m_dlHistory.append(m_dlInfoSpeed);
+    m_upHistory.append(m_upInfoSpeed);
+    while (m_dlHistory.size() > kSpeedSamples)
+        m_dlHistory.removeFirst();
+    while (m_upHistory.size() > kSpeedSamples)
+        m_upHistory.removeFirst();
+    Q_EMIT speedHistoryChanged();
 }
 
 } // namespace omaseed::core

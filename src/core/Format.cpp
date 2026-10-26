@@ -69,6 +69,32 @@ QString speed(qint64 bytesPerSecond)
     return scaled(bytesPerSecond, QStringLiteral("/s"));
 }
 
+SpeedParts speedParts(qint64 bytesPerSecond, qint64 capBytesPerSecond)
+{
+    const auto split = [](const QString &text) {
+        const qsizetype space = text.lastIndexOf(QLatin1Char(' '));
+        return space < 0 ? std::pair{text, QString()}
+                         : std::pair{text.left(space), text.mid(space + 1)};
+    };
+    if (capBytesPerSecond <= 0) {
+        const auto [value, unit] = split(speed(bytesPerSecond));
+        return {value, QString(), unit};
+    }
+    const auto [cap, unit] = split(speed(capBytesPerSecond));
+    // The speed in the cap's unit, to the digits that unit prints with.
+    static const QStringList units{QStringLiteral("B/s"),
+                                   QStringLiteral("KB/s"),
+                                   QStringLiteral("MB/s"),
+                                   QStringLiteral("GB/s"),
+                                   QStringLiteral("TB/s"),
+                                   QStringLiteral("PB/s")};
+    const qsizetype step = qMax<qsizetype>(0, units.indexOf(unit));
+    const double value = double(qMax<qint64>(0, bytesPerSecond)) / std::pow(kUnit, double(step));
+    const int decimals =
+        step <= 1 || value == 0.0 ? 0 : (value < 10.0 ? 2 : (value < 100.0 ? 1 : 0));
+    return {QString::number(value, 'f', decimals), cap, unit};
+}
+
 QString limit(qint64 bytesPerSecond)
 {
     return bytesPerSecond <= 0 ? QStringLiteral("∞") : speed(bytesPerSecond);

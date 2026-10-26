@@ -345,6 +345,9 @@ public:
     Q_INVOKABLE static QString limitShortText(qint64 bytesPerSecond);
     /// A speed in the same short form ("4.21M", "812K", "0"), for the hero's last step.
     Q_INVOKABLE static QString speedShortText(qint64 bytesPerSecond);
+    /// A speed split for drawing, against its cap when there is one (`Format::speedParts`,
+    /// DECISIONS C32 D6 a): `{value, cap, unit}`, `cap` "" with none.
+    Q_INVOKABLE static QVariantMap speedParts(qint64 bytesPerSecond, qint64 capBytesPerSecond);
 
     /// A client error ("network: GET sync/maindata: Connection refused") stripped to the
     /// reason Fig. 21's notice and Fig. 23's banner print ("connection refused").
@@ -583,6 +586,11 @@ public:
     Q_PROPERTY(int surfaceTint READ surfaceTint WRITE setSurfaceTint NOTIFY settingsChanged)
     int surfaceTint() const;
     void setSurfaceTint(int percent);
+    /// Where ↓ and ↑ are drawn: "title" (the title bar, a line under each; the default) or
+    /// "status" (the status line, as C24 H15 had them). DECISIONS C32 D2 a.
+    Q_PROPERTY(QString speedsPlace READ speedsPlace WRITE setSpeedsPlace NOTIFY settingsChanged)
+    QString speedsPlace() const;
+    void setSpeedsPlace(const QString &place);
     /// How a tracker host is fitted into the rail: "prefix" (drop a leading tracker./announce./
     /// open., the default), "left" (elide the start) or "right" (elide the end).
     Q_PROPERTY(QString trackerHostStyle READ trackerHostStyle WRITE setTrackerHostStyle NOTIFY
@@ -704,6 +712,7 @@ private:
     QString m_detailsPlacement = QStringLiteral("auto");
     int m_surfaceTint = 0;
     QString m_trackerHostStyle = QStringLiteral("prefix");
+    QString m_speedsPlace = QStringLiteral("title");
     bool m_railHidden = false;
     int m_railWidth = 0;
     bool m_settingsLoaded = false;

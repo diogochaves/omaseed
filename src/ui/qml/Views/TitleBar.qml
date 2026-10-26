@@ -43,6 +43,34 @@ Item {
     property bool searchOpen: false
     readonly property bool searchFolded: root.level >= 2 && !root.searchOpen
 
+    // ---- the speeds (DECISIONS C32 D2 a, D6 a) ---------------------------------------------
+    /// The speeds are drawn here (Settings › Appearance › Speeds: the title bar). From step 2
+    /// they give way (`speedsFit`), and the status line takes them back.
+    property bool speedsShown: false
+    readonly property bool speedsFit: root.level < 2
+    /// Each speed as `App.speedParts` splits it: `{value, cap, unit}`, `cap` "" with none.
+    property var downParts: ({
+            "value": "—",
+            "cap": "",
+            "unit": ""
+        })
+    property var upParts: ({
+            "value": "—",
+            "cap": "",
+            "unit": ""
+        })
+    /// The last polls' speeds, oldest first, for the line under each.
+    property var downHistory: []
+    property var upHistory: []
+    /// D6 a: the caps read in the alternative set's colour (turtle yellow, burst green).
+    property color capColor: Theme.yellow
+    /// #24: ↑ opens the seed console here too, as on the status line; with what it adds for a
+    /// screen reader and its tooltip ("18.4 GB today").
+    property bool upOpensSeed: false
+    property string upNote: ""
+    /// The speeds' block, for the tests.
+    readonly property alias speeds: speedsRow
+
     // ---- the other tools -----------------------------------------------------------------
     /// The display tool (board 46 `.tool.disp`, DECISIONS C24 H3–H4): the scope's display,
     /// "rows", "table" or "overview" (said "shelves", #168 assumed 6); "" hides it (the seed
@@ -82,6 +110,8 @@ Item {
     }
 
     signal addClicked
+    /// ↑, with `upOpensSeed`: the seed console.
+    signal upClicked
     /// The display tool: the window opens its menu under it.
     signal displayClicked
     signal moveFolderClicked
@@ -113,6 +143,103 @@ Item {
     /// words in a Glyph; Omarchy's ▾ stays in the words.
     readonly property bool chevronDrawn: Glyphs.chevronDownGlyph !== Glyphs.chevronDown
     implicitWidth: Theme.space(900)
+
+    // One speed (board 51 `.tspd`): its arrow and figure, the cap after a slash while the
+    // alternative limits hold it (D6 a), the unit small, and the last polls under them.
+    component SpeedFigure: ColumnLayout {
+        id: figure
+
+        property string arrow: ""
+        property color tone: Theme.foreground
+        property var parts: ({})
+        property var history: []
+        /// "download" or "upload", for a screen reader.
+        property string name: ""
+        /// A button (↑ to the seed console, #24): its name, its tooltip.
+        property bool clickable: false
+        property string clickName: ""
+        property string tipText: ""
+
+        signal clicked
+        readonly property string spoken: [figure.parts.value ?? "", figure.parts.cap ? "/ " + figure.parts.cap : "",
+                                          figure.parts.unit ?? ""].filter(part => part.length > 0).join(" ")
+
+        Accessible.description: figure.spoken
+        Accessible.name: figure.clickable ? figure.clickName : figure.name
+        Accessible.role: figure.clickable ? Accessible.Button : Accessible.StaticText
+        Accessible.onPressAction: if (figure.clickable)
+                                      figure.clicked()
+        Layout.alignment: Qt.AlignVCenter
+        spacing: 0
+
+        MouseArea {
+            id: figureMouse
+
+            anchors.fill: parent
+            cursorShape: figure.clickable ? Qt.PointingHandCursor : Qt.ArrowCursor
+            enabled: figure.clickable
+            hoverEnabled: true
+
+            onClicked: figure.clicked()
+            onContainsMouseChanged: figureMouse.containsMouse && figure.tipText.length > 0
+                                    ? tip.showFor(figure, figure.tipText) : tip.hide()
+        }
+
+        Row {
+            spacing: Theme.space(5)
+
+            Text {
+                anchors.baseline: value.baseline
+                color: figureMouse.containsMouse ? Theme.accent : figure.tone
+                font.family: Theme.valueFamily
+                font.pixelSize: Theme.titleBarSpeedArrowSize
+                text: figure.arrow
+            }
+
+            Text {
+                id: value
+
+                color: Theme.brightForeground
+                font.family: Theme.valueFamily
+                font.features: {
+                    "tnum": 1
+                }
+                font.pixelSize: Theme.titleBarSpeedSize
+                font.weight: Theme.titleBarSpeedWeight
+                objectName: "speedValue"
+                text: figure.parts.value ?? ""
+            }
+
+            Text {
+                anchors.baseline: value.baseline
+                color: root.capColor
+                font.family: Theme.valueFamily
+                font.pixelSize: Theme.titleBarSpeedUnitSize
+                objectName: "speedCap"
+                text: "/ " + (figure.parts.cap ?? "")
+                visible: (figure.parts.cap ?? "").length > 0
+            }
+
+            Text {
+                anchors.baseline: value.baseline
+                color: Theme.dimForeground
+                font.family: Theme.valueFamily
+                font.pixelSize: Theme.titleBarSpeedUnitSize
+                objectName: "speedUnit"
+                text: figure.parts.unit ?? ""
+                visible: text.length > 0
+            }
+        }
+
+        Sparkline {
+            Layout.preferredHeight: Theme.titleBarSparkHeight
+            Layout.preferredWidth: Theme.titleBarSparkWidth
+            color: figure.tone
+            fillAlpha: 0
+            lineAlpha: 1
+            values: figure.history
+        }
+    }
 
     // The tools: a kit Button whose words go at step 1, with a tooltip that keeps them and
     // the key, and the key in a screen reader's description (#78).
@@ -210,6 +337,49 @@ Item {
                                                                                             sentenceText.text) :
                                                                                         tip.hide()
                 }
+            }
+        }
+
+        // D2 a: ↓ and ↑ after the title, a hairline before the tools.
+        RowLayout {
+            id: speedsRow
+
+            Layout.alignment: Qt.AlignVCenter
+            Layout.fillHeight: true
+            objectName: "titleSpeeds"
+            spacing: Theme.titleBarGap
+            visible: root.speedsShown && root.speedsFit
+
+            SpeedFigure {
+                arrow: Glyphs.arrowDown
+                history: root.downHistory
+                name: qsTr("download")
+                objectName: "titleDown"
+                parts: root.downParts
+                tone: Theme.stateDownloading
+            }
+
+            SpeedFigure {
+                arrow: Glyphs.arrowUp
+                clickName: qsTr("seed console")
+                clickable: root.upOpensSeed
+                history: root.upHistory
+                name: qsTr("upload")
+                tipText: root.upOpensSeed ? [qsTr("seed console · `"), root.upNote].filter(part => part.length > 0).join(
+                                                "\n") : ""
+
+                onClicked: root.upClicked()
+                objectName: "titleUp"
+                parts: root.upParts
+                tone: Theme.stateSeeding
+            }
+
+            Hairline {
+                Layout.bottomMargin: Theme.space(10)
+                Layout.fillHeight: true
+                Layout.preferredWidth: Theme.hairWidth
+                Layout.topMargin: Theme.space(10)
+                vertical: true
             }
         }
 

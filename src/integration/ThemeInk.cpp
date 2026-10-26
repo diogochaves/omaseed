@@ -114,6 +114,8 @@ ThemeGrounds::ThemeGrounds(QObject *parent)
     , m_hoverPressed(new ThemeInk(QStringLiteral("hoverPressed"), this))
     , m_panel(new ThemeInk(QStringLiteral("panel"), this))
     , m_picked(new ThemeInk(QStringLiteral("picked"), this))
+    , m_turtle(new ThemeInk(QStringLiteral("turtle"), this))
+    , m_burst(new ThemeInk(QStringLiteral("burst"), this))
 {}
 
 QList<ThemeInk *> ThemeGrounds::all() const
@@ -123,7 +125,8 @@ QList<ThemeInk *> ThemeGrounds::all() const
             m_attention,     m_danger,         m_ticked,        m_accentIdle,
             m_blockIdle,     m_blockHover,     m_blockSelected, m_blockSelectedCursor,
             m_blockPressed,  m_highlight,      m_hoverIdle,     m_hoverHover,
-            m_hoverSelected, m_hoverPressed,   m_panel,         m_picked};
+            m_hoverSelected, m_hoverPressed,   m_panel,         m_picked,
+            m_turtle,        m_burst};
 }
 
 ThemeInk *ThemeGrounds::byName(const QString &name) const

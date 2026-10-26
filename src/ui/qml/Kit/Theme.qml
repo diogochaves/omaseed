@@ -383,6 +383,15 @@ ThemeBase {
     /// alone (their words in the tooltip), from step 2 the filter folds into its `/` tool and
     /// opens over the title.
     readonly property var titleBarSteps: [space(760), space(560)]
+    /// The speeds in the title bar (board 51 D2 a `.tspd`): the figure (15 px, 500), its
+    /// arrow (13 px) and unit (10.5 px), and the line of the last polls under each (72 × 18;
+    /// held lower here so the bar keeps its height).
+    readonly property int titleBarSpeedSize: font.title
+    readonly property int titleBarSpeedWeight: Font.Medium
+    readonly property int titleBarSpeedArrowSize: font.body
+    readonly property int titleBarSpeedUnitSize: font.caption
+    readonly property int titleBarSparkWidth: n("titleBarSparkWidth", 72)
+    readonly property int titleBarSparkHeight: n("titleBarSparkHeight", 12)
 
     // ---- the frame's form: the status line (board 46 `statusLine()`, `.status`) ----------
     /// Its height: the line it replaced (the footer), one small line with room around it.

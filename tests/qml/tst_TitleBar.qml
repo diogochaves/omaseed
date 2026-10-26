@@ -216,6 +216,59 @@ TestCase {
         verify(findChild(bar, "titleText").visible);
     }
 
+    // DECISIONS C32 D2 a: ↓ and ↑ after the title, a line of the last polls under each, the
+    // tools after them; D6 a: each against its cap in the set's colour. They give way from
+    // step 2 (the status line takes them back).
+    function test_the_speeds_after_the_title() {
+        const bar = make({
+                             "speedsShown": true,
+                             "downParts": {
+                                 "value": "290",
+                                 "cap": "300",
+                                 "unit": "KB/s"
+                             },
+                             "upParts": {
+                                 "value": "41",
+                                 "cap": "",
+                                 "unit": "KB/s"
+                             },
+                             "downHistory": [1, 4, 2, 8],
+                             "upHistory": [3, 3]
+                         });
+        const speeds = findChild(bar, "titleSpeeds");
+        verify(speeds.visible);
+        const down = findChild(bar, "titleDown");
+        const up = findChild(bar, "titleUp");
+        compare(findChild(down, "speedValue").text, "290");
+        compare(findChild(down, "speedCap").text, "/ 300");
+        verify(findChild(down, "speedCap").visible);
+        compare(findChild(down, "speedCap").color, Theme.yellow);
+        compare(findChild(down, "speedUnit").text, "KB/s");
+        verify(!findChild(up, "speedCap").visible);
+        compare(down.Accessible.name, "download");
+        compare(down.Accessible.description, "290 / 300 KB/s");
+        compare(up.Accessible.description, "41 KB/s");
+        // After the title, before the filter.
+        verify(xOf(bar, "titleText") < xOf(bar, "titleDown"));
+        verify(xOf(bar, "titleUp") < xOf(bar, "titleFilter"));
+        bar.capColor = Theme.green;
+        compare(findChild(down, "speedCap").color, Theme.green);
+        // #24: ↑ opens the seed console here too.
+        compare(up.Accessible.role, Accessible.StaticText);
+        bar.upOpensSeed = true;
+        compare(up.Accessible.name, "seed console");
+        const seed = spy(bar, "upClicked");
+        mouseClick(up);
+        compare(seed.count, 1);
+
+        bar.width = Theme.titleBarSteps[1] - 1;
+        verify(!bar.speedsFit);
+        verify(!speeds.visible);
+        bar.width = 1200;
+        bar.speedsShown = false;
+        verify(!speeds.visible);
+    }
+
     // The log keeps its own filter: none in the bar.
     function test_the_filter_can_leave() {
         const bar = make({

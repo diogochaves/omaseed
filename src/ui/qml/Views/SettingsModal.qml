@@ -215,9 +215,10 @@ Item {
             // the skin (C24 H11), theme, base size, the window's ground (C24 H13) and, while
             // translucent, its transparency, tray icon, the bar widget (#17), then the rail's scroll hint,
             // its tint (C32 D16 a) and tracker hosts (docs/08 §5), then where Details sits
-            // (docs/10), then the rows' pulse (#24 T5). The hero's speed alignment and trends
-            // left with the hero (#167 assumed 6): their saved values are kept, and ignored.
-            return 11 + root._groundShift;
+            // (docs/10), then the rows' pulse (#24 T5), then where the speeds are (C32 D2 a).
+            // The hero's speed alignment and trends left with the hero (#167 assumed 6): their
+            // saved values are kept, and ignored.
+            return 12 + root._groundShift;
         case 5:
             return 3; // back up, restore, automatic copies (#31)
         case 6:
@@ -576,6 +577,8 @@ Item {
                 App.detailsPlacement = root._next(root.placements, App.detailsPlacement);
             else if (root.paneCursor === 10 + root._groundShift)
                 App.pulseRows = !App.pulseRows;
+            else if (root.paneCursor === 11 + root._groundShift)
+                App.speedsPlace = root._next(root.speedsPlaces, App.speedsPlace);
             return;
         }
         if (root.paneIndex === 5) {
@@ -697,6 +700,8 @@ Item {
     // Start at login (charter §2, opt-in): no entry, in the tray (`--hidden`), or the window.
     readonly property var loginStarts: [["off", qsTr("off")], ["tray", qsTr("in the tray")], ["window",
                                                                                           qsTr("window")]]
+    /// C32 D2 a: where ↓ and ↑ are drawn, as [place, chip text].
+    readonly property var speedsPlaces: [["title", qsTr("title bar")], ["status", qsTr("status line")]]
     /// C32 D16 a: the rail's tint, as [percent, chip text].
     readonly property var tints: [[0, qsTr("off")], [4, qsTr("4 %")], [8, qsTr("8 %")]]
     readonly property var hostStyles: [["prefix", qsTr("drop prefix")], ["left", qsTr("cut start")],
@@ -2764,6 +2769,47 @@ Item {
                                     checked: App.pulseRows
 
                                     onToggled: App.pulseRows = checked
+                                }
+                            }
+
+                            // C32 D2 a: the title bar by default, a line under each; the status
+                            // line keeps the count, the free space and the sync either way.
+                            SettingsRow {
+                                id: speedsRow
+
+                                Layout.fillWidth: true
+                                description: qsTr("where ↓ and ↑ are shown. The title bar draws the last minute under each.")
+                                glyph: Glyphs.arrowDown
+                                hasCursor: root.area === "pane" && root.paneCursor === 11 + root._groundShift
+                                objectName: "speedsPlaceRow"
+                                title: qsTr("Speeds")
+
+                                onClicked: {
+                                    root.paneCursor = 11 + root._groundShift;
+                                    root.area = "pane";
+                                    App.speedsPlace = root._next(root.speedsPlaces, App.speedsPlace);
+                                }
+
+                                RowLayout {
+                                    spacing: Theme.space(6)
+
+                                    Repeater {
+                                        model: root.speedsPlaces
+
+                                        Chip {
+                                            id: placeChip
+
+                                            required property var modelData
+
+                                            block: speedsRow.ground
+                                            checkable: true
+                                            objectName: "speedsChip-" + placeChip.modelData[0]
+                                            selected: App.speedsPlace === placeChip.modelData[0]
+                                            text: placeChip.modelData[1]
+
+                                            onClicked: App.speedsPlace = placeChip.modelData[0]
+                                        }
+                                    }
                                 }
                             }
 

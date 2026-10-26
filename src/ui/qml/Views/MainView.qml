@@ -2108,6 +2108,25 @@ Item {
         return App.scopeSentence;
     }
 
+    /// ↓ and ↑ split for drawing (`App.speedParts`), each against its cap while the
+    /// alternative limits are on (DECISIONS C32 D6 a); a dash while nothing is live.
+    readonly property var speedPartsDown: !root.live ? ({
+                                                             "value": "—",
+                                                             "cap": "",
+                                                             "unit": ""
+                                                         })
+                                                     : App.speedParts(App.globalState.dlInfoSpeed,
+                                                                      App.globalState.useAltSpeedLimits
+                                                                      ? App.globalState.dlRateLimit : 0)
+    readonly property var speedPartsUp: !root.live ? ({
+                                                           "value": "—",
+                                                           "cap": "",
+                                                           "unit": ""
+                                                       })
+                                                   : App.speedParts(App.globalState.upInfoSpeed,
+                                                                    App.globalState.useAltSpeedLimits
+                                                                    ? App.globalState.upRateLimit : 0)
+
     // The title bar (board 46 `titleBar()`, DECISIONS C24 H5; supersedes v2's hero, H9): where
     // the window is and its sentence, then a move's way back, "move this folder…", the filter
     // and "+ add"; across the content's top beside the rail's mark.
@@ -2123,6 +2142,18 @@ Item {
         anchors.top: parent.top
         title: root.scopeTitle
         titleId: root.scopeTitleId
+        // C32 D2 a, D6 a: ↓ and ↑ with the last polls under them, each against its cap while
+        // the alternative limits hold it.
+        speedsShown: App.speedsPlace === "title"
+        downParts: root.speedPartsDown
+        upParts: root.speedPartsUp
+        downHistory: root.live ? App.globalState.dlHistory : []
+        upHistory: root.live ? App.globalState.upHistory : []
+        capColor: App.altSpeed.kind === "burst" ? Theme.green : Theme.yellow
+        // #24: ↑ opens the seed console wherever it is drawn.
+        upOpensSeed: true
+        upNote: root.live ? App.console.todayText : ""
+        onUpClicked: root.setView("seed")
         sentence: root.scopeSentence
         // The log filters its own lines (docs/32 D11); search's `/` filters its results
         // (C26 SR14), while there are some.
@@ -2723,6 +2754,11 @@ Item {
         listenPort: App.serverPrefs.values.listen_port ?? 0
         anonymousWarning: App.serverPrefs.values.anonymous_mode === true && App.counts.privateCount > 0
 
+        // C32 D2 a: the title bar has the speeds unless Settings puts them here, or the bar is
+        // too narrow for them.
+        speedsShown: App.speedsPlace === "status" || !titleBar.speedsFit
+        downParts: root.speedPartsDown
+        upParts: root.speedPartsUp
         downSpeed: root.live ? App.globalState.dlSpeedText : "—"
         downSpeedShort: root.live ? App.speedShortText(App.globalState.dlInfoSpeed) : "—"
         upSpeed: root.live ? App.globalState.upSpeedText : "—"
@@ -2733,10 +2769,6 @@ Item {
 
         // docs/31: burst, turtle or today's alt-speed, until when, and how it came about.
         altSpeedActive: App.globalState.useAltSpeedLimits
-        altDownLimit: App.globalState.dlRateLimitText
-        altUpLimit: App.globalState.upRateLimitText
-        altDownLimitShort: App.limitShortText(App.globalState.dlRateLimit)
-        altUpLimitShort: App.limitShortText(App.globalState.upRateLimit)
         altKind: App.altSpeed.kind
         altTooltip: App.altSpeed.chipTooltip
         altUntil: App.altSpeed.untilText
