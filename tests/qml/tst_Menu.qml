@@ -687,4 +687,216 @@ TestCase {
         compare(menu.opened, true);
         menu.close();
     }
+
+    // ---- submenus (#201 F15, board 46 "transfer ›") ---------------------------------------
+    readonly property var subRows: [
+        {
+            "text": "stop",
+            "glyph": "■",
+            "key": "p",
+            "action": "stop"
+        },
+        {
+            "text": "transfer",
+            "glyph": "⋯",
+            "action": "transfer",
+            "submenu": [
+                {
+                    "text": "force start",
+                    "key": "P",
+                    "action": "forceStart"
+                },
+                {
+                    "text": "sequential download",
+                    "key": "s",
+                    "action": "sequential",
+                    "checked": true
+                }
+            ]
+        },
+        {
+            "text": "copy",
+            "action": "copy",
+            "submenu": [
+                {
+                    "text": "copy hash",
+                    "key": "Y",
+                    "action": "copyHash"
+                }
+            ]
+        },
+        {
+            "text": "delete",
+            "key": "d",
+            "action": "delete"
+        }
+    ]
+
+    Component {
+        id: subMenuComponent
+
+        Menu {
+            anchors.fill: parent
+            items: testCase.subRows
+        }
+    }
+
+    function test_a_submenu_row_draws_a_chevron_and_no_key() {
+        const menu = createTemporaryObject(subMenuComponent, testCase);
+        menu.open();
+        const row = menu.rowsLayout.children[1];
+        compare(findChild(row, "menuRowSubmenu").visible, true);
+        compare(findChild(row, "menuRowSubmenu").text, Glyphs.chevronRight);
+        compare(findChild(row, "menuRowNote").visible, false);
+        compare(findChild(menu.rowsLayout.children[0], "menuRowSubmenu").visible, false);
+        compare(row.Accessible.description, "submenu");
+        menu.close();
+    }
+
+    function test_l_opens_a_submenu_beside_the_row_and_h_closes_it() {
+        const menu = createTemporaryObject(subMenuComponent, testCase);
+        const activated = createTemporaryObject(activatedSpy, testCase, {
+                                                    "target": menu
+                                                });
+        menu.openAt(100, 100);
+        keyClick("j");
+        compare(menu.cursorIndex, 1);
+        keyClick("l");
+        compare(menu.submenuIndex, 1);
+        verify(menu.submenu !== null);
+        compare(menu.submenu.cursorIndex, 0);
+        compare(menu.submenu.items.length, 2);
+        compare(menu.submenu.width, menu.submenuWidth);
+        waitForItemPolished(menu.submenu.rowsLayout);
+        // Beside the panel, its first row level with the row that opened it.
+        const sub = findChild(menu, "menuSubmenu");
+        compare(sub.x, menu.panel.x + menu.panel.width);
+        const row = menu.rowsLayout.children[1].mapToItem(menu, 0, 0);
+        const first = menu.submenu.rowsLayout.children[0].mapToItem(menu, 0, 0);
+        compare(first.y, row.y);
+        // The keys are the submenu's now.
+        keyClick("j");
+        compare(menu.submenu.cursorIndex, 1);
+        compare(menu.cursorIndex, 1);
+        keyClick("h");
+        compare(menu.submenuIndex, -1);
+        compare(menu.cursorIndex, 1, "the cursor stays on the submenu's row");
+        compare(menu.opened, true);
+        // Right opens it too, and left closes it; esc then closes the menu.
+        keyClick(Qt.Key_Right);
+        compare(menu.submenuIndex, 1);
+        keyClick(Qt.Key_Left);
+        compare(menu.submenuIndex, -1);
+        keyClick(Qt.Key_Escape);
+        compare(menu.opened, false);
+        compare(activated.count, 0);
+    }
+
+    function test_enter_opens_a_submenu_and_runs_its_row() {
+        const menu = createTemporaryObject(subMenuComponent, testCase);
+        const activated = createTemporaryObject(activatedSpy, testCase, {
+                                                    "target": menu
+                                                });
+        menu.open();
+        keyClick("j");
+        keyClick(Qt.Key_Return);
+        compare(menu.submenuIndex, 1);
+        compare(menu.opened, true);
+        keyClick("j");
+        keyClick(Qt.Key_Return);
+        compare(activated.count, 1);
+        compare(activated.signalArguments[0][0], "sequential");
+        compare(menu.opened, false);
+        compare(menu.submenuIndex, -1);
+    }
+
+    function test_esc_in_a_submenu_closes_only_the_submenu() {
+        const menu = createTemporaryObject(subMenuComponent, testCase);
+        menu.open();
+        menu.openSubmenu(2, true);
+        keyClick(Qt.Key_Escape);
+        compare(menu.submenuIndex, -1);
+        compare(menu.opened, true);
+        keyClick(Qt.Key_Escape);
+        compare(menu.opened, false);
+    }
+
+    function test_moving_off_the_row_closes_its_submenu() {
+        const menu = createTemporaryObject(subMenuComponent, testCase);
+        menu.open();
+        menu.openSubmenu(1, false);
+        compare(menu.submenu.cursorIndex, -1, "the pointer's way in leaves the cursor out");
+        // Not in the submenu: j moves this panel's cursor and closes it.
+        keyClick("j");
+        compare(menu.cursorIndex, 2);
+        compare(menu.submenuIndex, -1);
+        menu.close();
+    }
+
+    function test_a_submenu_rows_key_runs_it_from_the_top() {
+        const menu = createTemporaryObject(subMenuComponent, testCase);
+        const activated = createTemporaryObject(activatedSpy, testCase, {
+                                                    "target": menu
+                                                });
+        menu.open();
+        compare(menu.indexOfKey("Y"), -1);
+        compare(menu.itemOfKey("Y").action, "copyHash");
+        compare(menu.itemOfKey("p").action, "stop");
+        compare(menu.itemOfKey("x"), null);
+        keyClick("Y");
+        compare(activated.count, 1);
+        compare(activated.signalArguments[0][0], "copyHash");
+        compare(menu.opened, false);
+    }
+
+    function test_the_pointer_opens_a_submenu_and_clicks_its_row() {
+        const menu = createTemporaryObject(subMenuComponent, testCase);
+        const activated = createTemporaryObject(activatedSpy, testCase, {
+                                                    "target": menu
+                                                });
+        menu.openAt(100, 100);
+        const stop = menu.rowsLayout.children[0];
+        const transfer = menu.rowsLayout.children[1];
+        // The first hover only notes where the pointer rests (as before).
+        mouseMove(stop, 20, stop.height / 2);
+        mouseMove(transfer, 20, transfer.height / 2);
+        compare(menu.submenuIndex, 1);
+        mouseMove(transfer, 40, transfer.height / 2);
+        waitForItemPolished(menu.submenu.rowsLayout);
+        const row = menu.submenu.rowsLayout.children[1];
+        mouseMove(row, 20, row.height / 2);
+        mouseMove(row, 30, row.height / 2);
+        compare(menu.submenu.cursorIndex, 1);
+        mouseClick(row, 30, row.height / 2);
+        compare(activated.count, 1);
+        compare(activated.signalArguments[0][0], "sequential");
+        compare(menu.opened, false);
+    }
+
+    function test_a_submenu_opens_to_the_left_without_room_on_the_right() {
+        const menu = createTemporaryObject(subMenuComponent, testCase);
+        menu.openAt(testCase.width - menu.menuWidth - 20, 100);
+        menu.openSubmenu(1, true);
+        const sub = findChild(menu, "menuSubmenu");
+        compare(sub.x, menu.panel.x - menu.submenuWidth);
+        menu.close();
+    }
+
+    function test_a_one_line_heading_leads_with_its_title() {
+        const menu = createTemporaryObject(menuComponent, testCase);
+        menu.headingTitle = "0.5.0";
+        menu.heading = "public · qBittorrent 5.3.0";
+        menu.headingOneLine = true;
+        menu.open();
+        const version = findChild(menu, "menuHeadingVersion");
+        compare(version.visible, true);
+        compare(version.text, "0.5.0");
+        compare(findChild(menu, "menuHeadingTitle").visible, false);
+        const line = findChild(menu, "menuHeadingLine");
+        compare(line.text, " · public · qBittorrent 5.3.0");
+        compare(line.x, version.x + version.width);
+        compare(findChild(menu, "menuHeading").height,
+                Theme.railRowHeight + 2 * Theme.menuHeadPadding + 1);
+        menu.close();
+    }
 }

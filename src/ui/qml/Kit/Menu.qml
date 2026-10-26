@@ -22,7 +22,18 @@ import Omaseed.Kit
 // `checked` (a check or radio row: a ✓ before its key while true, and a screen reader hears
 // it checkable). `{caption: true, text}` is a dim small line between the rows that is never
 // a row (the app menu's "servers", "this window"). `headingTitle`, when set, leads the
-// heading in bright demi-bold ("omaseed" before "0.5.0 · public", board 46).
+// heading in bright demi-bold ("omaseed" before "0.5.0 · public", board 46); with
+// `headingOneLine` the two share one line, the title in the foreground's medium weight
+// (board 51 D14 b's version line, "0.5.0 · public · qBittorrent 5.3.0").
+//
+// A row with `submenu` (`[items]`, the same shapes) is board 46's "transfer ›": a › where its
+// key would be, and its rows in a second panel beside this one, at the row's height (to the
+// left when the right has no room). The pointer resting on the row opens it; `enter`, `l` or
+// right opens it with its first row under the cursor; `h`, left or `esc` closes it again, and
+// the keys go to it while its cursor is on one of its rows. A submenu row's own key runs it
+// from the top panel too, so a key never needs the submenu open (`a` sets automatic
+// management from the torrent menu, as it did when the row was drawn flat). `activated`
+// carries a submenu row's action as any row's, and closes the whole menu.
 //
 // Keys: `j`/`k` and up/down move over the rows (separators and disabled rows are skipped),
 // `enter` runs the row under the cursor, a row's own key letter runs it straight away
@@ -45,6 +56,11 @@ Item {
     property string heading: ""
     /// A bright word before the heading (board 46's app menu: "omaseed"); empty draws none.
     property string headingTitle: ""
+    /// The title and the heading on one line (board 51 D14 b `.mver`), the title in the
+    /// foreground, the rest dim, at the small size.
+    property bool headingOneLine: false
+    /// A submenu's panel width (board 46 draws them narrower than the menu).
+    property int submenuWidth: Theme.space(240)
     /// A dim caption under the rows, wrapped (docs/34 D5 a); empty draws none.
     property string footer: ""
     property int cursorIndex: 0
@@ -65,6 +81,9 @@ Item {
     /// The rows' column and the Flickable that scrolls it, for the tests.
     readonly property alias rowsLayout: rows
     readonly property alias rowsScroller: rowScroller
+    /// The row whose submenu is open, or -1; the open submenu itself (an inline Menu), or null.
+    readonly property int submenuIndex: root._subIndex
+    readonly property var submenu: root._subIndex >= 0 ? root._sub : null
 
     /// The row's `action`, or its `text` when it has none.
     signal activated(string action)
@@ -78,6 +97,11 @@ Item {
     property Item _previousFocus: null
     /// `openAbove()`: `anchorY` is where the panel's bottom edge wants to be.
     property bool _up: false
+    /// The row whose submenu is open, and where that row's top was (this item's coordinates).
+    property int _subIndex: -1
+    property real _subRowY: 0
+    /// The submenu's Menu, loaded (this file again: its own type cannot be named here).
+    readonly property var _sub: subLoader.item
 
     readonly property int _edge: Theme.space(8)
     /// Where the pointer last put the cursor, in this item's coordinates.
@@ -96,8 +120,14 @@ Item {
         if (at.x === root._pointer.x && at.y === root._pointer.y)
             return;
         root._pointer = at;
-        if (known)
-            root.cursorIndex = index;
+        if (!known)
+            return;
+        root.cursorIndex = index;
+        // The pointer resting on a submenu's row opens it, on another row closes it.
+        if (root.hasSubmenu(index))
+            root.openSubmenu(index, false);
+        else
+            root.closeSubmenu();
     }
 
     function open(): void {
@@ -130,6 +160,7 @@ Item {
     }
 
     function close(): void {
+        root.closeSubmenu();
         if (!root._opened)
             return;
         root._opened = false;
@@ -144,6 +175,7 @@ Item {
         let at = root.cursorIndex + delta;
         while (at >= 0 && at < root.items.length) {
             if (root.selectable(at)) {
+                root.closeSubmenu();
                 root.cursorIndex = at;
                 root._showCursor();
                 return;
@@ -172,13 +204,84 @@ Item {
         return item.separator !== true && item.caption !== true && item.disabled !== true;
     }
 
-    /// Run row `index`, if it can be run.
+    /// Run row `index`, if it can be run; a submenu's row opens its submenu, its first row
+    /// under the cursor.
     function activate(index: int): void {
         if (!root.selectable(index))
             return;
-        const item = root.items[index];
+        if (root.hasSubmenu(index)) {
+            root.openSubmenu(index, true);
+            return;
+        }
+        root._run(root.items[index]);
+    }
+
+    function _run(item: var): void {
         root.close();
         root.activated(item.action !== undefined ? item.action : item.text);
+    }
+
+    /// Whether row `index` opens a submenu.
+    function hasSubmenu(index: int): bool {
+        return index >= 0 && index < root.items.length && root._isList(root.items[index].submenu);
+    }
+
+    /// A row's `submenu`: a list, whichever way the caller's array reached QML.
+    function _isList(value: var): bool {
+        return value !== undefined && value !== null && typeof value !== "string"
+                && typeof value.length === "number";
+    }
+
+    /// Open row `index`'s submenu beside the panel; `withCursor` puts its cursor on its first
+    /// row, so the keys go to it (the keyboard's way in; the pointer's leaves it for the
+    /// pointer).
+    function openSubmenu(index: int, withCursor: bool): void {
+        if (!root.hasSubmenu(index) || !root.selectable(index))
+            return;
+        root.cursorIndex = index;
+        const fresh = root._subIndex !== index;
+        if (fresh) {
+            root._showCursor();
+            const row = rowRepeater.itemAt(index);
+            root._subRowY = row !== null ? row.mapToItem(root, 0, 0).y : 0;
+            root._subIndex = index;
+        }
+        const sub = root._sub;
+        if (sub === null)
+            return;
+        if (withCursor)
+            sub.cursorIndex = sub._firstEnabled();
+        else if (fresh)
+            sub.cursorIndex = -1;
+    }
+
+    function closeSubmenu(): void {
+        root._subIndex = -1;
+    }
+
+    /// The open submenu has its cursor on one of its rows: the keys are its.
+    function _inSubmenu(): bool {
+        const sub = root.submenu;
+        return sub !== null && sub.cursorIndex >= 0;
+    }
+
+    /// The row, here or in a submenu, whose own key is exactly `text`, or null.
+    function itemOfKey(text: string): var {
+        const at = root.indexOfKey(text);
+        if (at >= 0)
+            return root.items[at];
+        if (text.length === 0)
+            return null;
+        for (let i = 0; i < root.items.length; ++i) {
+            if (!root.hasSubmenu(i) || !root.selectable(i))
+                continue;
+            for (const child of root.items[i].submenu) {
+                if (child.separator !== true && child.caption !== true && child.disabled !== true
+                        && child.key === text)
+                    return child;
+            }
+        }
+        return null;
     }
 
     /// The row whose own key chip is exactly `text`, or -1.
@@ -208,6 +311,33 @@ Item {
     function _onKey(event: var): void {
         if ((event.modifiers & Qt.ControlModifier) !== 0)
             return;
+        const back = event.key === Qt.Key_Escape || event.key === Qt.Key_Left
+                || (event.key === Qt.Key_H && event.text === "h");
+        const into = event.key === Qt.Key_Right || (event.key === Qt.Key_L && event.text === "l");
+        if (root._subIndex >= 0) {
+            // h, left and esc close the submenu, and leave the cursor on its row.
+            if (back) {
+                root.closeSubmenu();
+                event.accepted = true;
+                return;
+            }
+            if (root._inSubmenu()) {
+                // A key the submenu has no use for goes on to this panel's rows.
+                root.submenu._onKey(event);
+                if (into)
+                    event.accepted = true;
+                if (event.accepted)
+                    return;
+            } else if (into || event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+                root.openSubmenu(root._subIndex, true);
+                event.accepted = true;
+                return;
+            }
+        } else if (into && root.hasSubmenu(root.cursorIndex)) {
+            root.openSubmenu(root.cursorIndex, true);
+            event.accepted = true;
+            return;
+        }
         switch (event.key) {
         case Qt.Key_Escape:
             root.close();
@@ -236,9 +366,14 @@ Item {
         default:
             {
                 const at = root.indexOfKey(event.text);
-                if (at < 0)
+                if (at >= 0) {
+                    root.activate(at);
+                    break;
+                }
+                const child = root.itemOfKey(event.text);
+                if (child === null)
                     return;
-                root.activate(at);
+                root._run(child);
             }
             break;
         }
@@ -315,6 +450,7 @@ Item {
             /// Board 46 `.menu .mh` (a grid): the bright title on its line, the dim words under
             /// it; the dim words alone (Q24's "2 selected") take the title's line.
             readonly property bool twoLines: root.headingTitle.length > 0 && root.heading.length > 0
+                                              && !root.headingOneLine
             readonly property real contentHeight: heading.twoLines
                                                   ? Theme.railRowHeight + Theme.menuHeadLineGap + headingLine.implicitHeight
                                                   : Theme.railRowHeight
@@ -332,17 +468,34 @@ Item {
                 id: headingLine
 
                 anchors.left: parent.left
-                anchors.leftMargin: Theme.menuHeadInset
+                anchors.leftMargin: Theme.menuHeadInset + (root.headingOneLine ? oneLineTitle.width : 0)
                 anchors.right: parent.right
                 anchors.rightMargin: Theme.menuHeadInset
                 dim: true
                 elide: Text.ElideRight
                 height: heading.twoLines ? implicitHeight : Theme.railRowHeight
                 objectName: "menuHeadingLine"
-                size: heading.twoLines ? "small" : "body"
-                text: root.heading
+                size: heading.twoLines || root.headingOneLine ? "small" : "body"
+                text: root.headingOneLine && root.headingTitle.length > 0 && root.heading.length > 0
+                      ? " " + Glyphs.middot + " " + root.heading : root.heading
                 verticalAlignment: Text.AlignVCenter
                 y: heading.twoLines ? Theme.railRowHeight + Theme.menuHeadLineGap : 0
+            }
+
+            // Board 51 D14 b `.mver b`: the version, in the foreground, before the dim words.
+            Label {
+                id: oneLineTitle
+
+                anchors.left: parent.left
+                anchors.leftMargin: Theme.menuHeadInset
+                font.weight: Font.Medium
+                height: Theme.railRowHeight
+                objectName: "menuHeadingVersion"
+                size: "small"
+                text: root.headingTitle
+                verticalAlignment: Text.AlignVCenter
+                visible: root.headingOneLine && root.headingTitle.length > 0
+                width: oneLineTitle.visible ? implicitWidth : 0
             }
 
             Label {
@@ -361,7 +514,7 @@ Item {
                 // Board 46 `.menu .mh b`: the skin's heading voice.
                 voice: "title"
                 verticalAlignment: Text.AlignVCenter
-                visible: root.headingTitle.length > 0
+                visible: root.headingTitle.length > 0 && !root.headingOneLine
             }
 
             Hairline {
@@ -410,6 +563,7 @@ Item {
                         readonly property bool separator: menuRow.modelData.separator === true
                         readonly property bool caption: menuRow.modelData.caption === true
                         readonly property bool checkable: menuRow.modelData.checked !== undefined
+                        readonly property bool submenu: root._isList(menuRow.modelData.submenu)
                         readonly property bool filled: menuRow.current && !menuRow.separator
                                                        && !menuRow.caption
                         /// docs/DECISIONS.md C30 F1: the row's words on its ground, the cursor's
@@ -421,6 +575,7 @@ Item {
                             ground: menuRow.filled ? Theme.on.cursor : Theme.on.window
                         }
 
+                        Accessible.description: menuRow.submenu ? qsTr("submenu") : ""
                         Accessible.checkable: menuRow.checkable
                         Accessible.checked: menuRow.modelData.checked === true
                         Accessible.name: menuRow.modelData.text ?? ""
@@ -527,6 +682,17 @@ Item {
                                       ? menuRow.modelData.key : (menuRow.modelData.note ?? "")
                                 visible: text.length > 0
                             }
+
+                            // Board 46 "transfer ›": the row opens a submenu.
+                            Glyph {
+                                Layout.preferredHeight: Theme.font.caption
+                                Layout.preferredWidth: Theme.font.caption
+                                color: menuRow.ink.dimForeground
+                                objectName: "menuRowSubmenu"
+                                pixelSize: Theme.font.body
+                                text: Glyphs.chevronRight
+                                visible: menuRow.submenu
+                            }
                         }
 
                         MouseArea {
@@ -610,6 +776,45 @@ Item {
             z: -1
 
             onWheel: wheel => wheel.accepted = true
+        }
+    }
+
+    // The open submenu: this file again, inline (its panel alone, no scrim), beside the panel
+    // at its row's height, its first row level with that row; to the left when the right
+    // has no room, and kept inside this item as the panel is. It never takes the focus: this
+    // menu hands it the keys while its cursor is on one of its rows.
+    Loader {
+        id: subLoader
+
+        readonly property int _padding: Theme.space(6)
+        readonly property real _right: panel.x + panel.width
+
+        active: root._subIndex >= 0 && (root.inline || root._opened)
+        objectName: "menuSubmenu"
+        source: Qt.resolvedUrl("Menu.qml")
+        x: root.inline || subLoader._right + subLoader.width <= root.width - root._edge
+           ? subLoader._right : Math.max(root._edge, panel.x - subLoader.width)
+        y: root.inline ? root._subRowY - subLoader._padding
+                       : Math.max(root._edge, Math.min(root._subRowY - subLoader._padding,
+                                                       root.height - subLoader.height - root._edge))
+        z: 2
+
+        onLoaded: {
+            const sub = root._sub;
+            sub.inline = true;
+            sub.items = Qt.binding(() => root.hasSubmenu(root._subIndex)
+                                   ? root.items[root._subIndex].submenu : []);
+            sub.menuWidth = Qt.binding(() => root.submenuWidth);
+            sub.cursorIndex = -1;
+        }
+
+        Connections {
+            function onActivated(action: string): void {
+                root.close();
+                root.activated(action);
+            }
+
+            target: subLoader.item
         }
     }
 }
