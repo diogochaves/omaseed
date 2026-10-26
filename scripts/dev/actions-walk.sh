@@ -2,7 +2,7 @@
 # omaseed — the risky actions, walked through the app's own UI: renames, categories, tags,
 # automatic torrent management, set location through the Move… sheet (board 43: also onto
 # another filesystem, a 2 GiB torrent, and onto a folder that already has its name),
-# recheck, the action bar on two torrents (DECISIONS C24 H8), what each action came to in the
+# recheck, the action bar on two torrents (DECISIONS C32 D17), what each action came to in the
 # strip over the rows (board 45, DECISIONS C18: done, a refusal, two at once), picking rows
 # with the mouse's □ (C18 D6), the command palette (docs/30), delete with and
 # without files, and two torrents that share one file (#27: the twin goes in through the add
@@ -34,9 +34,9 @@
 # real bytes.
 #
 # The keys are the app's own: the jump palette's tab opens the actions menu on a torrent, and
-# esc from the menu leaves the keyboard on the table there. The action bar (the status line
-# while torrents are selected, DECISIONS C24 H8) is mouse only, so its buttons are clicked by
-# their accessible names, where the window's tree places them (bar_click).
+# esc from the menu leaves the keyboard on the table there. The action bar (floating over the
+# list while torrents are selected, DECISIONS C32 D17) is mouse only, so its buttons are clicked
+# by their accessible names, where the window's tree places them (bar_click).
 set -euo pipefail
 
 repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -322,8 +322,9 @@ for node in json.load(sys.stdin):
     click $at
 }
 
-# bar_click NAME: the action bar's button named NAME exactly ("stop", "category", "delete"),
-# the lowest such node in the window: the bar is its foot (C24 H8).
+# bar_click NAME: the action bar's button named NAME exactly ("stop", "category", "delete…"),
+# the lowest such node in the window: the bar floats at the list's foot (C32 D17); a row of
+# the list it opens upward over the bar ("walk") is lower than the rail's row of that name.
 bar_click() {
     local at
     at="$(omabox tree -b "$BOX" --window omaseed --json 2>/dev/null | python3 -c '
@@ -871,12 +872,13 @@ rm -f "$seen"
 expect "…and finds it whole" "$BIGH" "t['state'] in $SEEDING and t['progress'] == 1" 120
 shot "$BIG seeding again after the check." after
 
-step "Select two, stop them from the bar" "space on Field Recordings and Nested Library Sampler; a jump + tab onto a third shows the menu says \"2 selected\" (esc); then the action bar's stop button."
+step "Select two, stop them from the bar" "space on Field Recordings and Nested Library Sampler; the action bar floats over the list, the status line under it still the server's; a jump + tab onto a third shows the menu says \"2 selected\" (esc); then the action bar's stop button."
 table_on "Field Recordings"
 keys space
 table_on "Nested Library"
 keys space
-shot "Two rows selected; the status line is the action bar and reads \"2 selected\" (C24 H8)." bar
+expect_text "the status line stays the server's (D17.3)" "synced" 10
+shot "Two rows selected; the action bar floats over the list, bottom middle, \"2 selected\" over the ledger, stop · recheck | move… · category › · tags › | limits… · more › | delete… | esc; the status line under it unchanged (C32 D17)." bar
 # Q24: a jump + tab onto a third torrent opens the menu there, but its rows act on the two.
 menu_on "tiny notes"
 shot "The actions menu on tiny notes (renamed).txt, headed by a dim \"2 selected\" line above stop." menu
@@ -886,21 +888,23 @@ expect "Field Recordings is stopped" "$FIELD" 't["state"] == "stoppedUP"'
 expect "Nested Library Sampler is stopped" "$NESTED" 't["state"] == "stoppedUP"'
 expect "no other torrent is" "$FIELD" 'all(not x["state"].startswith("stopped") for x in every if x["hash"] not in ("'"$FIELD"'", "'"$NESTED"'"))'
 expect_text "the strip counts them: 2 stopped" "2 stopped" 10
-shot "Both rows read stopped; the others still seed. The strip, \"✓ 2 stopped\", floats over the rows just above the action bar, with no show: both are in view and selected (C24 H8, C30 F8)."
+shot "Both rows read stopped; the others still seed. The strip, \"✓ 2 stopped\", floats just above the action bar, with no show: both are in view and selected (C32 D17, C30 F8)."
 
-step "Category from the bar" "The bar's category button, \"walk\", enter. Field Recordings is managed, so it moves to ~/Torrents/walk; Nested Library is not (set location turned management off), so it stays in ~/Moved."
+step "Category from the bar" "The bar's category ›: its list opens upward over the bar; a click on walk. Field Recordings is managed, so it moves to ~/Torrents/walk; Nested Library is not (set location turned management off), so it stays in ~/Moved."
 bar_click category
-keys -t walk
-shot "The category palette for 2 torrents, walk under the cursor." palette
-keys Return
+expect_text "the bar's category list" "category for 2" 10
+shot "The category list for 2 over the bar, category › lit: walk, swarm…, new category…, no category (C32 D17.1)." palette
+bar_click walk
 expect "both are in walk" "$FIELD" 'all(x["category"] == "walk" for x in every if x["hash"] in ("'"$FIELD"'", "'"$NESTED"'"))'
 expect "no other torrent is" "$FIELD" 'all(x["category"] == "" for x in every if x["hash"] not in ("'"$FIELD"'", "'"$NESTED"'"))'
 expect_disk "Field Recordings moved to ~/Torrents/walk" -f "$TORRENTS_DIR/walk/Field Recordings Vol. 3 [FLAC]/album.cue" 30
 expect "Nested Library Sampler stayed in ~/Moved" "$NESTED" "t['save_path'] == '$BOX_HOME/Moved' and not t['auto_tmm']"
 expect_disk "…on disk too" -f "$BOX_HOME/Moved/Nested Library Sampler (2026)/Docs/README.md"
 
-step "Tag from the bar" "The bar's tags button, \"bulk\", enter on create \"bulk\"."
+step "Tag from the bar" "The bar's tags ›, new tag… in its list: the tag palette, \"bulk\", enter on create \"bulk\"."
 bar_click tags
+expect_text "the bar's tags list" "tags for 2" 10
+click_text "new tag"
 keys -t bulk
 keys Return
 expect "both are tagged bulk" "$FIELD" 'all(x["tags"] == "bulk" for x in every if x["hash"] in ("'"$FIELD"'", "'"$NESTED"'"))'
@@ -930,7 +934,7 @@ expect_text "one selected" "1 selected" 10
 expect_text "the bar hints the mouse" "ctrl+click add · shift+click range" 10
 row_tick "Nested Library Sampler (2026)"
 expect_text "the □ added the second, the first stays" "2 selected" 10
-shot "Two rows selected, each with ■ at its start; the bar reads 2 selected and ends with the dim hint." mouse
+shot "Two rows selected, each with ■ at its start; the bar reads 2 selected and its dim hint sits before esc." mouse
 row_tick "Nested Library Sampler (2026)"
 expect_text "a second click on its □ took it out" "1 selected" 10
 keys Escape
@@ -1019,7 +1023,7 @@ table_on "Field Recordings"
 keys space
 table_on "Nested Library"
 keys space
-bar_click delete
+bar_click "delete…"
 shot "Delete 2 torrents? both names, 226 MB; the toggle on." dialog
 keys l Return
 expect "Field Recordings is gone" "$FIELD" 't is None'

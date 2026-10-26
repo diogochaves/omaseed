@@ -206,9 +206,9 @@ omabox wait --timeout 10s still >/dev/null || true
 moving_point create --ignore "$ADDED" --ignore "$CREATED" --ignore "$FREE"
 # The sheet is guarded: the first Escape puts the keyboard on cancel, the second closes it.
 key Escape Escape
-# Three rows selected (DECISIONS C24 H8): the status line is the action bar, its ledger and
-# buttons in the line's place, and C18 D6's hint after them (a fresh box: the first plain
-# click); no free space shows there, so only the details' clock is left out. A click puts the
+# Three rows selected (DECISIONS C32 D17): the action bar floats over the list, its count and
+# ledger, its buttons and C18 D6's hint before esc (a fresh box: the first plain click), the
+# status line under it the server's; only the details' clock is left out. A click puts the
 # keyboard on the table, wherever the sheets left it; the pointer then leaves the row.
 click_text distro
 key j space j space

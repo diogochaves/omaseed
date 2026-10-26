@@ -1792,6 +1792,18 @@ place: D2), docs/31 D5 (D6), C4 D1–D2 and C13's alternative-limits row (D8) an
   the torrent menu's groups (F15), icons and words, category › and more › opening upward; the
   outcome strip floats above it. 2 a: at narrow widths the words go before the icons. 3 a: the
   status line stays on the server's status while a selection is on.
+  Built as the board reads it, assumed where it is silent: the bar's buttons are the menu's
+  rows by name (`ActionsMenu.groups`), so a word or icon changed in the menu changes on the
+  bar; more › lists the menu's rows the bar doesn't show (rename and retry too), those it
+  folded first, with no head. Category › is a list of the categories (a ✓ where all of the
+  selection has it, "2 of 3" where some do), then new category… (the palette) and no
+  category; tags › ticks a tag all of them have and a row turns it for all of them, new tag…
+  opens the palette. The ledger reads size · ratio as the board draws it ("given" is in its
+  description and in the seed console it opens). Narrow, the ledger goes first, then the
+  words, the count's "selected", then the folds; it folds only when the icons no longer fit,
+  so a 480 px list keeps every icon. C18 D6's hint (the first three times) sits before esc
+  and stays while it fits, the ledger and then the words giving way to it. No shadow (the
+  kit has none); the bar's edge and ground are the outcome strip's.
 - **The library.** D12 a: the third display is "space", a size map by folder then torrent,
   in place of shelves. D13 a: a sort block in the display tool's menu; its word reads
   "rows · added".

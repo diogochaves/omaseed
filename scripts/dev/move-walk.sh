@@ -662,7 +662,7 @@ press "move 3 torrents"
 # one (a busy machine) gets the band and its summary ("3 torrents moved to …"). Either is right.
 # Looked for first: the note lasts 6 s, and the server checks below take seconds.
 expect_text "the strip or the band says 3 moved" "moved to $SEL/keep" 30
-shot "With the three still selected, the status line is the action bar, and the strip (3 moved to ~/sel/keep, or the band's summary when it ran past 3 s) floats over the rows just above it, with no show: they are in view and selected (C24 H8, C30 F8)." strip
+shot "With the three still selected, the action bar floats over the list, and the strip (3 moved to ~/sel/keep, or the band's summary when it ran past 3 s) just above it, with no show: they are in view and selected (C32 D17, C30 F8)." strip
 expect_at "Arcade Set 002 is at ~/sel/keep$arcade_rel" "Arcade Set 002" "$SEL/keep$arcade_rel"
 expect_at "Handheld Pack 002 at ~/sel/keep$handheld_rel" "Handheld Pack 002" "$SEL/keep$handheld_rel"
 expect_at "Short Film 002 at ~/sel/keep$film_rel" "Short Film 002" "$SEL/keep$film_rel"
@@ -806,7 +806,7 @@ keys Escape
 table_on "Short Film 021"
 keys space
 expect_tree "the action bar says move…" 'button "move…"' 10
-shot "The action bar, in the status line's place: move…." bar
+shot "The action bar, floating over the list: move…." bar
 keys space
 keys Escape
 
