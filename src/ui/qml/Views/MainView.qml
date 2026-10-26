@@ -41,7 +41,7 @@ Item {
     readonly property alias rail: rail
     readonly property alias table: table
     readonly property alias libraryRows: libraryRows
-    readonly property alias libraryShelves: libraryShelves
+    readonly property alias librarySpace: librarySpace
     readonly property alias displayMenu: displayMenu
     readonly property alias details: details
     readonly property alias split: split
@@ -1588,7 +1588,7 @@ Item {
         // DECISIONS C24 H3–H4: the display tool's three, from the palette.
         "displayRows": () => root.pickDisplay("rows"),
         "displayTable": () => root.pickDisplay("table"),
-        "displayShelves": () => root.pickDisplay("overview"),
+        "displaySpace": () => root.pickDisplay("space"),
         // app
         "settings": () => App.openSettings(),
         "switchServer": () => root.openServerPalette(),
@@ -2538,7 +2538,7 @@ Item {
                                                  : selectionBar.visible ? Theme.actionBarLift + selectionBar.height : 0
                 filtered: App.filtered
                 // C24 H3: the display the scope shows draws the rows; the table keeps the rest.
-                face: App.display === "rows" ? libraryRows : App.display === "overview" ? libraryShelves
+                face: App.display === "rows" ? libraryRows : App.display === "space" ? librarySpace
                                                                                       : null
                 // #51 D9: rows hold still under the open actions menu, for D17's right-click.
                 holdOrder: actionsMenuPanel.opened
@@ -2581,7 +2581,7 @@ Item {
                 }
                 onFocusRail: rail.forceActiveFocus() // folded or not (#167 assumed 4)
                 // The inline editor is the primary rename; the sheet (`renameSheetPanel`) is
-                // only the menu/multi-selection fallback, and shelves' `r` (#168 assumed 9).
+                // only the menu/multi-selection fallback, and space's `r` (#168 assumed 9).
                 onRenameRequested: (hash, name) => App.rename(hash, name)
                 onRenameSheetRequested: hash => renameSheetPanel.openFor(hash)
             }
@@ -2600,15 +2600,19 @@ Item {
                 onFixRequested: (hash, action) => root.runRowFix(hash, action)
             }
 
-            // The overview's shelves (#168 assumed 6), the table's other face.
-            LibraryShelves {
-                id: libraryShelves
+            // Space (board 51 D12 a, C32), the table's other face: it never scrolls, so it
+            // keeps the action bar's room free at its foot.
+            LibrarySpace {
+                id: librarySpace
 
                 anchors.fill: table
                 bottomRoom: table.bottomRoom
                 opacity: table.opacity
+                reserve: Theme.actionBarLift + selectionBar.height
                 table: table
-                visible: table.visible && App.display === "overview"
+                visible: table.visible && App.display === "space"
+
+                onMoveFolderRequested: folder => root.openMoveFolder(folder, "")
             }
 
             FilteredEmpty {

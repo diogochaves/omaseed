@@ -60,9 +60,11 @@
 // a phrase in the name first, then its words in order, then in any order. A hash prefix
 // ranks with the phrases. Clearing the query brings the plain sort back.
 //
-// The rows display groups the library under the five questions and the overview under the
-// categories (DECISIONS C24 H3, board 46): `groupBy` puts each group's rows in one run, the
-// groups in the rail's order (categories by name, "none" last), the sort above inside each.
+// The rows display groups the library under the five questions (DECISIONS C24 H3, board 46)
+// and space by folder (board 51 D12 a, C32): `groupBy` puts each group's rows in one run, the
+// questions in the rail's order with the sort above inside each, the folders (save paths) the
+// largest first with their torrents the largest first, whatever the sort (size is space's
+// order: the map is laid out from it).
 // `groups` lists the runs, each with its title, first row, count and short line
 // (ScopeSentence::groupLine()). A torrent whose group changes (a download lands, an error
 // comes) always ends in one sort, so a ListView's section heads never go stale, and its new
@@ -141,12 +143,12 @@ public:
     };
     Q_ENUM(Question)
 
-    /// DECISIONS C24 H3: the rows display groups by question, the overview by category, the
-    /// table not at all.
+    /// DECISIONS C24 H3: the rows display groups by question, space by folder (C32 D12 a),
+    /// the table not at all.
     enum GroupBy {
         NoGroups,
         ByQuestion,
-        ByCategory,
+        BySpace,
     };
     Q_ENUM(GroupBy)
 
@@ -228,8 +230,9 @@ public:
 
     GroupBy groupBy() const { return m_groupBy; }
     void setGroupBy(GroupBy groupBy);
-    /// The groups in the rows' order, `[{key, title, first, count, line, question}]`; empty
-    /// while nothing groups. `question` is the group's Question (ByQuestion) or AnyQuestion.
+    /// The groups in the rows' order, `[{key, title, first, count, line, question, bytes}]`;
+    /// empty while nothing groups. `question` is the group's Question (ByQuestion) or
+    /// AnyQuestion; `bytes` its torrents' size (ScopeFacts::bytes).
     QVariantList groups() const { return m_groups; }
     /// The key GroupRole gives a question: "needsYou", "arriving", "landedToday",
     /// "givingBack", "resting"; "" for AnyQuestion.
@@ -383,7 +386,11 @@ private:
     GroupBy m_groupBy = NoGroups;
     QVariantList m_groups;
     QHash<QString, QString> m_groupOf; ///< each shown torrent's group key, by hash
-    bool m_inRuns = false;             ///< between runsAboutToBeAnnounced and runsAnnounced
+    /// BySpace: each folder's bytes among the rows shown, as the last rebuildGroups() found
+    /// them; compareGroups() orders the folders by them.
+    QHash<QString, qint64> m_spaceBytes;
+    bool m_spaceResorting = false; ///< rebuildGroups() is sorting for new folder sizes
+    bool m_inRuns = false;         ///< between runsAboutToBeAnnounced and runsAnnounced
     bool m_regroupPending = false;
     bool m_sortHeld = false;
     bool m_refilterAfterHold = false;

@@ -943,8 +943,10 @@ void TestApp::theDisplayIsRememberedPerScope()
         app.filtered()->setFolder(QStringLiteral("/data/films"));
         QCOMPARE(app.displayScope(), QStringLiteral("folder:/data/films"));
         QCOMPARE(app.display(), QStringLiteral("rows"));
+        // The shelves' old name picks space (C32 D12 a), which groups by folder.
         app.setDisplay(QStringLiteral("overview"));
-        QCOMPARE(app.filtered()->groupBy(), TorrentFilterModel::ByCategory);
+        QCOMPARE(app.display(), QStringLiteral("space"));
+        QCOMPARE(app.filtered()->groupBy(), TorrentFilterModel::BySpace);
         app.filtered()->setFolder(QString());
         app.filtered()->setQuestion(TorrentFilterModel::Arriving);
         QCOMPARE(app.display(), QStringLiteral("rows"));
@@ -959,10 +961,10 @@ void TestApp::theDisplayIsRememberedPerScope()
     }
     App app;
     QCOMPARE(app.display(), QStringLiteral("table"));
-    QCOMPARE(app.displayFor(QStringLiteral("folder:/data/films")), QStringLiteral("overview"));
+    QCOMPARE(app.displayFor(QStringLiteral("folder:/data/films")), QStringLiteral("space"));
     QCOMPARE(app.displayFor(QStringLiteral("question:arriving")), QStringLiteral("table"));
     app.filtered()->setFolder(QStringLiteral("/data/films"));
-    QCOMPARE(app.display(), QStringLiteral("overview"));
+    QCOMPARE(app.display(), QStringLiteral("space"));
     app.filtered()->setFolder(QString());
     // The test seam starts over.
     app.resetDisplays(false);
@@ -981,7 +983,7 @@ void TestApp::aMovesShowIsTheTable()
     app.filtered()->setOnlyHashes({QStringLiteral("aa")});
     QCOMPARE(app.display(), QStringLiteral("table"));
     QCOMPARE(app.filtered()->groupBy(), TorrentFilterModel::NoGroups);
-    app.setDisplay(QStringLiteral("overview"));
+    app.setDisplay(QStringLiteral("space"));
     QCOMPARE(app.display(), QStringLiteral("table"));
     app.filtered()->setOnlyHashes({});
     QCOMPARE(app.display(), QStringLiteral("rows"));
@@ -1011,6 +1013,10 @@ void TestApp::theWalksPickTheirDisplay()
     qputenv("OMASEED_DISPLAY", QByteArrayLiteral("cards"));
     App ignored;
     QCOMPARE(ignored.display(), QStringLiteral("table"));
+    // The shelves' old name is space's.
+    qputenv("OMASEED_DISPLAY", QByteArrayLiteral("overview"));
+    App space;
+    QCOMPARE(space.display(), QStringLiteral("space"));
     qunsetenv("OMASEED_DISPLAY");
 }
 

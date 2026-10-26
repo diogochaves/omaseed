@@ -2,9 +2,10 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import Omaseed.Kit
 
-// The display tool's menu (board 46 `.tool.disp`, DECISIONS C24 H3–H4): rows, table, shelves,
-// the scope's own checked. `activated` carries "rows", "table" or "overview"; the window sets
-// it for the scope shown (App.setDisplay). No keys (#168 assumed 8). Its form is the kit Menu's.
+// The display tool's menu (board 46 `.tool.disp`, DECISIONS C24 H3–H4): rows, table, space
+// (board 51 D12 a, C32), the scope's own checked. `activated` carries "rows", "table" or
+// "space"; the window sets it for the scope shown (App.setDisplay). No keys (#168 assumed 8).
+// Its form is the kit Menu's.
 //
 // Board 51 D13 a (DECISIONS C32): under them a sort block, "sort, inside each group" (the
 // table's "sort"), a radio per order with the picked one's direction in words ("newest
@@ -12,6 +13,8 @@ import Omaseed.Kit
 // block does not list (the table's default download speed, a header click) joins it, picked,
 // at its top, so the block always shows the one in use. Those rows carry "sort:<role>" and
 // "sort:reverse"; `sortWord` is the order's short name, for the tool's word ("rows · added").
+// Space has no sort block: size lays its map out, the largest first (board 51 D12 a), so the
+// footer says that, and the tool's word is "space" alone.
 Menu {
     id: root
 
@@ -21,8 +24,9 @@ Menu {
     property string sortRole: ""
     property int sortOrder: Qt.DescendingOrder
 
-    /// The short name of the sort in use ("added"), "" for none.
-    readonly property string sortWord: root.sortRole.length > 0 ? root.sortLabel(root.sortRole) : ""
+    /// The short name of the sort in use ("added"), "" for none and in space.
+    readonly property string sortWord: root.sortRole.length > 0 && root.current !== "space"
+                                       ? root.sortLabel(root.sortRole) : ""
 
     /// The block's orders, as board 51 `dispMenu()` lists them; `up` and `down` say each
     /// direction in words.
@@ -112,7 +116,8 @@ Menu {
     }
 
     dimmed: false
-    footer: qsTr("also s, the sort palette")
+    footer: root.current === "space" ? qsTr("size orders the map, the largest first")
+                                     : qsTr("also s, the sort palette")
     items: {
         const rows = [
             {
@@ -130,20 +135,22 @@ Menu {
                 "checked": root.current === "table"
             },
             {
-                "text": qsTr("shelves"),
-                "glyph": Glyphs.displayShelves,
-                "action": "overview",
-                "note": qsTr("by category"),
-                "checked": root.current === "overview"
+                "text": qsTr("space"),
+                "glyph": Glyphs.displaySpace,
+                "action": "space",
+                "note": qsTr("by size"),
+                "checked": root.current === "space"
             },
-            {
-                "separator": true
-            },
-            {
-                "caption": true,
-                "text": root.current === "table" ? qsTr("sort") : qsTr("sort, inside each group")
-            }
         ];
+        if (root.current === "space")
+            return rows;
+        rows.push({
+            "separator": true
+        });
+        rows.push({
+            "caption": true,
+            "text": root.current === "table" ? qsTr("sort") : qsTr("sort, inside each group")
+        });
         const listed = root._sorts.some(sort => sort.role === root.sortRole);
         if (!listed && root.sortRole.length > 0)
             rows.push(root._sortRow(root.sortRole, root.sortWord));

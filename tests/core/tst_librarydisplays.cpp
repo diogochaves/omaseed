@@ -21,6 +21,7 @@ private slots:
     void picksAreRememberedPerScope();
     void theJsonRoundTrips();
     void unknownNamesAreDropped();
+    void theShelvesReadAsSpace();
 };
 
 void TestLibraryDisplays::aScopesKeyIsItsNarrowestPlace()
@@ -87,23 +88,23 @@ void TestLibraryDisplays::aScopeWithoutItsOwnShowsTheLibrarys()
 void TestLibraryDisplays::picksAreRememberedPerScope()
 {
     LibraryDisplays displays(QStringLiteral("rows"));
-    QVERIFY(displays.set(QStringLiteral("folder:/data/films"), QStringLiteral("overview")));
-    QVERIFY(!displays.set(QStringLiteral("folder:/data/films"), QStringLiteral("overview")));
+    QVERIFY(displays.set(QStringLiteral("folder:/data/films"), QStringLiteral("space")));
+    QVERIFY(!displays.set(QStringLiteral("folder:/data/films"), QStringLiteral("space")));
     QVERIFY(displays.set(QStringLiteral("question:arriving"), QStringLiteral("table")));
-    QCOMPARE(displays.displayFor(QStringLiteral("folder:/data/films")), QStringLiteral("overview"));
+    QCOMPARE(displays.displayFor(QStringLiteral("folder:/data/films")), QStringLiteral("space"));
     QCOMPARE(displays.displayFor(QStringLiteral("question:arriving")), QStringLiteral("table"));
     QCOMPARE(displays.displayFor(QStringLiteral("library")), QStringLiteral("rows"));
     // The library's pick leaves a scope that has its own.
-    QVERIFY(displays.set(QStringLiteral("library"), QStringLiteral("overview")));
+    QVERIFY(displays.set(QStringLiteral("library"), QStringLiteral("space")));
     QCOMPARE(displays.displayFor(QStringLiteral("question:arriving")), QStringLiteral("table"));
-    QCOMPARE(displays.displayFor(QStringLiteral("category:films")), QStringLiteral("overview"));
+    QCOMPARE(displays.displayFor(QStringLiteral("category:films")), QStringLiteral("space"));
     QVERIFY(!displays.set(QStringLiteral("library"), QStringLiteral("cards")));
 }
 
 void TestLibraryDisplays::theJsonRoundTrips()
 {
     LibraryDisplays displays(QStringLiteral("table"));
-    displays.set(QStringLiteral("folder:/data/films"), QStringLiteral("overview"));
+    displays.set(QStringLiteral("folder:/data/films"), QStringLiteral("space"));
     displays.set(QStringLiteral("tag:keep"), QStringLiteral("rows"));
     const QJsonObject json = displays.toJson();
     QCOMPARE(json.value(QStringLiteral("library")).toString(), QStringLiteral("table"));
@@ -115,13 +116,35 @@ void TestLibraryDisplays::unknownNamesAreDropped()
 {
     const QJsonObject json{
         {"library", "cards"},
-        {"scopes",
-         QJsonObject{{"tag:keep", "rows"}, {"tag:old", "cards"}, {"library", "overview"}}}};
+        {"scopes", QJsonObject{{"tag:keep", "rows"}, {"tag:old", "cards"}, {"library", "space"}}}};
     const LibraryDisplays displays = LibraryDisplays::fromJson(json, QStringLiteral("table"));
     QCOMPARE(displays.library(), QStringLiteral("table"));
     QVERIFY(displays.hasOwn(QStringLiteral("tag:keep")));
     QVERIFY(!displays.hasOwn(QStringLiteral("tag:old")));
     QCOMPARE(displays.displayFor(QStringLiteral("tag:old")), QStringLiteral("table"));
+}
+
+// Board 51 D12 a (C32): space replaced the shelves, saved as "overview"; a state.json written
+// before reads it as space, and an old name picked (a walk's OMASEED_DISPLAY) is space too.
+void TestLibraryDisplays::theShelvesReadAsSpace()
+{
+    QCOMPARE(
+        LibraryDisplays::names(),
+        QStringList({QStringLiteral("rows"), QStringLiteral("table"), QStringLiteral("space")}));
+    QCOMPARE(LibraryDisplays::canonical(QStringLiteral("overview")), QStringLiteral("space"));
+    QCOMPARE(LibraryDisplays::canonical(QStringLiteral("shelves")), QStringLiteral("space"));
+    QCOMPARE(LibraryDisplays::canonical(QStringLiteral("rows")), QStringLiteral("rows"));
+    QVERIFY(!LibraryDisplays::isName(QStringLiteral("overview")));
+    const QJsonObject json{{"library", "overview"},
+                           {"scopes", QJsonObject{{"folder:/data/films", "overview"}}}};
+    LibraryDisplays displays = LibraryDisplays::fromJson(json, QStringLiteral("table"));
+    QCOMPARE(displays.library(), QStringLiteral("space"));
+    QCOMPARE(displays.displayFor(QStringLiteral("folder:/data/films")), QStringLiteral("space"));
+    QCOMPARE(displays.toJson().value(QStringLiteral("library")).toString(),
+             QStringLiteral("space"));
+    QVERIFY(!displays.set(QStringLiteral("library"), QStringLiteral("overview")));
+    QVERIFY(displays.set(QStringLiteral("tag:keep"), QStringLiteral("shelves")));
+    QCOMPARE(displays.displayFor(QStringLiteral("tag:keep")), QStringLiteral("space"));
 }
 
 QTEST_GUILESS_MAIN(TestLibraryDisplays)

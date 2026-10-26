@@ -115,8 +115,8 @@ TestCase {
         compare(tool.Accessible.name, "display: rows");
         verify(testCase.xOf(bar, "titleFilter") < testCase.xOf(bar, "titleDisplay"));
         verify(testCase.xOf(bar, "titleDisplay") < testCase.xOf(bar, "titleAdd"));
-        bar.display = "overview";
-        compare(tool.text, "shelves ▾");
+        bar.display = "space";
+        compare(tool.text, "space ▾");
         bar.display = "table";
         compare(tool.text, "table ▾");
         const clicked = testCase.spy(bar, "displayClicked");

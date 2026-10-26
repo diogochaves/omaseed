@@ -2254,11 +2254,12 @@ private:
     // --- end #167 -----------------------------------------------------------------------------
 
     // --- #168: the library's displays -------------------------------------------------------
-    // Board 46 H3–H4 (DECISIONS C24): rows grouped under the questions, the table, or the
-    // overview's shelves, remembered per scope (core/LibraryDisplays) in state.json's
-    // `displays`, and `filtered`'s grouping set to match. AppLibrary.cpp.
+    // Board 46 H3–H4 (DECISIONS C24): rows grouped under the questions, the table, or space
+    // (board 51 D12 a, C32: a size map by folder, in the shelves' place), remembered per
+    // scope (core/LibraryDisplays) in state.json's `displays`, and `filtered`'s grouping set
+    // to match. AppLibrary.cpp.
 public:
-    /// The display the rail's scope shows now: "rows", "table" or "overview". A move's
+    /// The display the rail's scope shows now: "rows", "table" or "space". A move's
     /// torrents on show (C15 M10) are always the table (#168 assumed 5).
     Q_PROPERTY(QString display READ display NOTIFY displayChanged)
     QString display() const { return m_display; }
@@ -2266,7 +2267,8 @@ public:
     Q_PROPERTY(QString displayScope READ displayScope NOTIFY displayChanged)
     QString displayScope() const { return m_displayScope; }
     /// The display tool's pick: `display` for the scope shown now (the library's is every
-    /// scope's that has none of its own). A move's show changes nothing.
+    /// scope's that has none of its own); "overview", the shelves' old name, is space. A
+    /// move's show changes nothing.
     Q_INVOKABLE void setDisplay(const QString &display);
     /// What `scopeKey` shows.
     Q_INVOKABLE QString displayFor(const QString &scopeKey) const;

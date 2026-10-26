@@ -1807,6 +1807,18 @@ place: D2), docs/31 D5 (D6), C4 D1–D2 and C13's alternative-limits row (D8) an
 - **The library.** D12 a: the third display is "space", a size map by folder then torrent,
   in place of shelves. D13 a: a sort block in the display tool's menu; its word reads
   "rows · added".
+  Space built as the board reads it, assumed where it is silent: the folders are save paths,
+  the largest first, and inside each the torrents the largest first, whatever the sort (size
+  lays the map out, so j/k follow the map); the menu has no sort block in space, its footer
+  says "size orders the map, the largest first", and the tool reads "space" alone. A folder
+  under 1 % of the scope's size, or a torrent under 1 % of its folder's, goes to the "under
+  1 %" line (a lone torrent's folder as that torrent); a folder's chip takes the cursor to its
+  first torrent. With more than one folder drawn, each is outlined under its path and size;
+  the line over the map names the cursor's folder with "move this folder…". A block's ground
+  is its state colour at 18 % under a 2 px line of it, the whole block whatever its progress
+  (the fact says it); the cursor's block has the accent's edge, a selected one the
+  selection's fill. The map never scrolls and keeps the action bar's room free at its foot.
+  `state.json`'s and `OMASEED_DISPLAY`'s "overview" (and "shelves") read as space.
 - **Questions (F17, ruled in the pass).** A question picked from the rail or by 1–5
   replaces the place, as the library does: it leaves any folder, category, tag or tracker and
   asks across the whole library, under its own remembered display. Narrowing a place by state

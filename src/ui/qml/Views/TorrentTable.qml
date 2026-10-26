@@ -32,7 +32,7 @@ import Omaseed.Kit
 // (`.tbl .r.sel.cur`). The cursor is kept on its torrent by hash across a re-sort or a
 // removal, and clamps when that hash is gone.
 //
-// DECISIONS C24 H3 (#168): the rows display and the overview are faces of this table. While
+// DECISIONS C24 H3 (#168): the rows display and space (C32 D12 a) are faces of this table. While
 // `face` is set, it draws the rows and the table hides its header and list but keeps
 // everything else: the cursor, the selection, the anchor, the keys, the rename, and every
 // function the window and the outcome strip call (revealHash, selectHashes, hashInView,
@@ -446,7 +446,7 @@ Item {
     property int cursorIndex: 0
     /// #201 F16: the list has the keys. While the rail or the details pane has them, the
     /// cursor row keeps its fill (the pane still follows it) and drops its edge: the hairline,
-    /// or the skin's mark. The same in every face: table, rows and shelves.
+    /// or the skin's mark. The same in every face: table, rows and space.
     property bool keysHere: true
     readonly property string cursorHash: internal.cursorHash
     readonly property alias selectedCount: internal.selectedCount
@@ -481,7 +481,7 @@ Item {
     readonly property real scrollY: root.face !== null ? root.face.scrollY : list.contentY
 
     /// DECISIONS C24 H3: the display drawing the rows instead of the table's own header and
-    /// list (LibraryRows, LibraryShelves), or null. A face is an Item with `scrollY`,
+    /// list (LibraryRows, LibrarySpace), or null. A face is an Item with `scrollY`,
     /// `hovered` (the pointer is over its rows), `inlineRename` (it draws the rename editor
     /// itself) and four functions: `positionAt(row)` scrolls just enough for the row to be
     /// wholly in view, `rowInView(row)` says whether it is, `rowAnchor(row)` is the point

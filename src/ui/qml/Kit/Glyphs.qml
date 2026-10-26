@@ -84,10 +84,10 @@ QtObject {
     /// A search result that is a link to a .torrent (board 48's ⋯), and one that is a magnet (◇).
     readonly property string searchLink: t("searchLink", "⋯")
     readonly property string searchMagnet: g("searchMagnet", "◇")
-    // DECISIONS C24 H3–H4: the library's displays (board 46's display tool).
+    // DECISIONS C24 H3–H4: the library's displays (board 46's display tool; space, C32 D12 a).
     readonly property string displayRows: g("displayRows", "≡")
     readonly property string displayTable: g("displayTable", "▤")
-    readonly property string displayShelves: g("displayShelves", "▦")
+    readonly property string displaySpace: g("displaySpace", "▦")
     readonly property string questionNeedsYou: g("questionNeedsYou", "!")
     readonly property string questionArriving: g("questionArriving", "↓")
     readonly property string questionLanded: g("questionLanded", "✓")

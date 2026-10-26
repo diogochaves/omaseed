@@ -1,8 +1,10 @@
 #pragma once
 
 // LibraryDisplays — which display shows the library in each scope (board 46 H4, DECISIONS
-// C24): rows (grouped under the five questions), table (one sorted list) or overview (board
-// 46's shelves), remembered per scope, folders included.
+// C24): rows (grouped under the five questions), table (one sorted list) or space (board 51
+// D12 a, DECISIONS C32: a size map by folder, then torrent; it replaced board 46's shelves),
+// remembered per scope, folders included. A saved "overview" (the shelves' name) reads as
+// space, so a state.json written before keeps its picks.
 //
 // The library's own display is also what every scope without a display of its own shows
 // (#168 assumed 2): picking one in the library changes every scope never set, picking one
@@ -25,9 +27,12 @@ namespace omaseed::core {
 class LibraryDisplays
 {
 public:
-    /// "rows", "table", "overview", in the display tool's order.
+    /// "rows", "table", "space", in the display tool's order.
     static QStringList names();
     static bool isName(const QString &name);
+    /// `name` as this build calls it: "overview" and "shelves" (C24's third display, which
+    /// space replaced) are "space"; any other name as it is.
+    static QString canonical(const QString &name);
 
     /// The library's key, the scope with no rail filter on.
     static QString libraryKey();
@@ -53,14 +58,14 @@ public:
     QString displayFor(const QString &scopeKey) const;
     /// Whether `scopeKey` has a display of its own.
     bool hasOwn(const QString &scopeKey) const { return m_scopes.contains(scopeKey); }
-    /// Picks `display` in `scopeKey`; false when that changed nothing (or `display` is not a
-    /// display's name).
+    /// Picks `display` in `scopeKey` (canonical() first); false when that changed nothing (or
+    /// `display` is not a display's name).
     bool set(const QString &scopeKey, const QString &display);
 
-    /// `{"library": "rows", "scopes": {"folder:/data/films": "overview", …}}`.
+    /// `{"library": "rows", "scopes": {"folder:/data/films": "space", …}}`.
     QJsonObject toJson() const;
-    /// The reverse; a missing or unknown library display reads as `fallback`, unknown scope
-    /// entries are dropped.
+    /// The reverse, each name through canonical(); a missing or unknown library display reads
+    /// as `fallback`, unknown scope entries are dropped.
     static LibraryDisplays fromJson(const QJsonObject &json, const QString &fallback);
 
     bool operator==(const LibraryDisplays &other) const = default;

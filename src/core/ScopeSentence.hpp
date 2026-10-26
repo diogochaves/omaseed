@@ -70,8 +70,9 @@ public:
     /// fixes wait", "next ready in 3 min", "since midnight", "41 KB/s · ratio 1.6", "not
     /// sharing"); "" when there is nothing to say.
     static QString groupLine(int question, const ScopeFacts &facts);
-    /// A shelf's head in the overview (board 46 `overview()`): "49 · 1.32 MB".
-    static QString shelfLine(const ScopeFacts &facts);
+    /// A folder's line in space (board 51 D12 a): "9 torrents · 1.36 GB"; the size left out
+    /// while none is known.
+    static QString folderLine(const ScopeFacts &facts);
     /// The rail's word for a question ("arriving"), for a sentence a question narrows too;
     /// "" for the library.
     static QString questionWord(int question);

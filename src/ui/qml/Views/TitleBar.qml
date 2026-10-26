@@ -77,7 +77,7 @@ Item {
 
     // ---- the other tools -----------------------------------------------------------------
     /// The display tool (board 46 `.tool.disp`, DECISIONS C24 H3–H4): the scope's display,
-    /// "rows", "table" or "overview" (said "shelves", #168 assumed 6); "" hides it (the seed
+    /// "rows", "table" or "space" (board 51 D12 a, C32); "" hides it (the seed
     /// console, the log). No key (#168 assumed 8): `:` has its rows.
     property string display: ""
     /// Board 51 D13 a (DECISIONS C32): the list's sort in a word ("added"), said after the
@@ -134,10 +134,9 @@ Item {
         filterField.focusInput();
     }
 
-    /// The display's word: rows, table, shelves.
+    /// The display's word: rows, table, space.
     function displayWord(display: string): string {
-        return display === "table" ? qsTr("table") : display === "overview" ? qsTr("shelves")
-                                                                             : qsTr("rows");
+        return display === "table" ? qsTr("table") : display === "space" ? qsTr("space") : qsTr("rows");
     }
 
     /// The display tool's word: the display, and the sort after it (board 51 D13 a).
@@ -493,9 +492,8 @@ Item {
         Tool {
             id: displayTool
 
-            glyph: root.display === "table" ? Glyphs.displayTable : root.display === "overview"
-                                                                    ? Glyphs.displayShelves
-                                                                    : Glyphs.displayRows
+            glyph: root.display === "table" ? Glyphs.displayTable : root.display === "space" ? Glyphs.displaySpace
+                                                                                             : Glyphs.displayRows
             objectName: "titleDisplay"
             text: root.level >= 1 ? "" : root.chevronDrawn ? root.displayToolWord(root.display)
                                                            : qsTr("%1 ▾").arg(root.displayToolWord(root.display))

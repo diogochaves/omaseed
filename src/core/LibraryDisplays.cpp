@@ -6,12 +6,19 @@ namespace omaseed::core {
 
 QStringList LibraryDisplays::names()
 {
-    return {QStringLiteral("rows"), QStringLiteral("table"), QStringLiteral("overview")};
+    return {QStringLiteral("rows"), QStringLiteral("table"), QStringLiteral("space")};
 }
 
 bool LibraryDisplays::isName(const QString &name)
 {
     return names().contains(name);
+}
+
+QString LibraryDisplays::canonical(const QString &name)
+{
+    if (name == QLatin1String("overview") || name == QLatin1String("shelves"))
+        return QStringLiteral("space");
+    return name;
 }
 
 QString LibraryDisplays::libraryKey()
@@ -66,8 +73,9 @@ QString LibraryDisplays::displayFor(const QString &scopeKey) const
     return m_scopes.value(scopeKey, m_library);
 }
 
-bool LibraryDisplays::set(const QString &scopeKey, const QString &display)
+bool LibraryDisplays::set(const QString &scopeKey, const QString &name)
 {
+    const QString display = canonical(name);
     if (!isName(display) || scopeKey.isEmpty())
         return false;
     if (scopeKey == libraryKey()) {
@@ -92,11 +100,11 @@ QJsonObject LibraryDisplays::toJson() const
 
 LibraryDisplays LibraryDisplays::fromJson(const QJsonObject &json, const QString &fallback)
 {
-    const QString library = json.value(QStringLiteral("library")).toString();
+    const QString library = canonical(json.value(QStringLiteral("library")).toString());
     LibraryDisplays displays(isName(library) ? library : fallback);
     const QJsonObject scopes = json.value(QStringLiteral("scopes")).toObject();
     for (auto it = scopes.constBegin(); it != scopes.constEnd(); ++it) {
-        const QString display = it.value().toString();
+        const QString display = canonical(it.value().toString());
         if (isName(display) && it.key() != libraryKey() && !it.key().isEmpty())
             displays.m_scopes.insert(it.key(), display);
     }

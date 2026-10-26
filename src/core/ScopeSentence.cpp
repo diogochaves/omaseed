@@ -203,9 +203,9 @@ QString ScopeSentence::groupLine(int question, const ScopeFacts &facts)
     }
 }
 
-QString ScopeSentence::shelfLine(const ScopeFacts &facts)
+QString ScopeSentence::folderLine(const ScopeFacts &facts)
 {
-    QString line = QString::number(facts.total);
+    QString line = torrents(facts.total);
     if (facts.bytes > 0)
         line += kApart + Format::size(facts.bytes);
     return line;

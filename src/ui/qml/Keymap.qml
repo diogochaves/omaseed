@@ -747,10 +747,10 @@ QtObject {
             "area": "global",
             "key": "",
             "via": ":",
-            "action": "displayShelves",
-            "title": qsTr("show as shelves"),
+            "action": "displaySpace",
+            "title": qsTr("show as space"),
             "needs": "",
-            "label": qsTr("shelves"),
+            "label": qsTr("space"),
             "column": "",
             "rank": 0,
             "helpKeys": "",
@@ -2295,7 +2295,7 @@ QtObject {
         {
             "group": "view",
             "word": qsTr("view"),
-            "actions": ["displayRows", "displayTable", "displayShelves", "columns", "toggleDetails",
+            "actions": ["displayRows", "displayTable", "displaySpace", "columns", "toggleDetails",
                 "cycleDetailsPlacement", "toggleRail",
                 "toggleConsole", "toggleLog", "search", "detailsSmaller", "detailsLarger"]
         },

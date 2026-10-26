@@ -60,7 +60,7 @@ private slots:
     void aLostServerSaysTheListsTime();
     void groupHeadsSayTheShortLine();
     void noSeedOnlineIsNoTimeToReady();
-    void shelvesSayCountAndSize();
+    void foldersSayCountAndSize();
     void waitsAreRounded();
     void factsAreGatheredOverTheRailsScopeAlone();
 };
@@ -409,14 +409,16 @@ void TestScopeSentence::noSeedOnlineIsNoTimeToReady()
     QCOMPARE(ScopeSentence::groupLine(TorrentFilterModel::Arriving, two), QStringLiteral("2 KB/s"));
 }
 
-void TestScopeSentence::shelvesSayCountAndSize()
+// Board 51 D12 a: a folder's line in space.
+void TestScopeSentence::foldersSayCountAndSize()
 {
     ScopeFacts facts;
-    facts.total = 49;
+    facts.total = 9;
     facts.bytes = 1384120;
-    QCOMPARE(ScopeSentence::shelfLine(facts), QStringLiteral("49 · 1.32 MB"));
+    QCOMPARE(ScopeSentence::folderLine(facts), QStringLiteral("9 torrents · 1.32 MB"));
+    facts.total = 1;
     facts.bytes = 0;
-    QCOMPARE(ScopeSentence::shelfLine(facts), QStringLiteral("49"));
+    QCOMPARE(ScopeSentence::folderLine(facts), QStringLiteral("1 torrent"));
 }
 
 QTEST_GUILESS_MAIN(TestScopeSentence)

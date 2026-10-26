@@ -75,11 +75,10 @@ qt_add_qml_module(omaseed-views
         GlobalLimitsSheet.qml
         HelpSheet.qml
         JumpPalette.qml
-        LibraryCover.qml
         LibraryGroupHead.qml
         LibraryRow.qml
         LibraryRows.qml
-        LibraryShelves.qml
+        LibrarySpace.qml
         LimitsSheet.qml
         LoadingState.qml
         LogRow.qml
@@ -125,6 +124,8 @@ qt_add_qml_module(omaseed-views
         SharedDataLine.qml
         SharedMoveConfirm.qml
         SortPalette.qml
+        SpaceChip.qml
+        SpaceTile.qml
         StatusLine.qml
         TagPalette.qml
         ThemeGallery.qml

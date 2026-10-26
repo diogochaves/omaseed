@@ -678,45 +678,49 @@ ThemeBase {
     readonly property int searchPluginNameWidth: n("searchPluginNameWidth", 110)
     readonly property int searchPluginGap: n("searchPluginGap", 9)
 
-    // ---- the library's form: the overview's shelves (board 46 `overview()`, `.shelf`) -----
-    /// The shelves' inset (6 / 18 px) and the room between two shelves (14 px).
-    readonly property int shelfInset: n("shelfInset", 16)
-    readonly property int shelfInsetTop: n("shelfInsetTop", 6)
-    readonly property int shelfGap: n("shelfGap", 13)
-    /// A shelf's head (`.shelf h5`): the name (13 px, 600, bright), its count and size (11 px,
-    /// dim, upper case, tracked), and the room under it.
-    readonly property int shelfNameSize: font.body
-    readonly property int shelfNameWeight: Font.DemiBold
-    readonly property int shelfLineSize: font.caption
-    readonly property real shelfLineTracking: font.caption * 0.12
-    readonly property int shelfHeadGap: n("shelfHeadGap", 6)
-    /// A cover (`.cover`, 92 px wide, its art 118 px tall) and the room between covers.
-    readonly property int coverWidth: n("coverWidth", 85)
-    readonly property int coverArtHeight: n("coverArtHeight", 109)
-    readonly property int coverGap: n("coverGap", 9)
-    /// The piece grid inside the art (`.grid`: 6 px in, 10 cells across, 6 px tall, 1 px
-    /// apart), at 55 % of the state colour over an 8 % cell.
-    readonly property int coverGridInset: n("coverGridInset", 6)
-    readonly property int coverGridColumns: 10
-    readonly property int coverGridRows: 6
-    readonly property int coverCellHeight: n("coverCellHeight", 6)
-    readonly property int coverCellGap: 1
-    readonly property real coverCellAlpha: 0.55
-    readonly property real coverCellTrack: fillHover
-    /// The two letters (`.ab2`: 30 px, 700, bright, 8 px in from the art's bottom left).
-    readonly property int coverMonogramSize: n("coverMonogramSize", 28)
-    readonly property int coverMonogramWeight: Font.Bold
-    readonly property int coverMonogramInset: n("coverMonogramInset", 7)
-    /// The name and the fact under the art (11 and 10.5 px), and the room between the parts.
-    readonly property int coverNameSize: font.caption
-    readonly property int coverFactSize: font.caption
-    readonly property int coverLineGap: n("coverLineGap", 4)
-    /// A selected cover's border, and the cursor's (Console: the plate's 1 px edge in the
-    /// accent, board 46 `.card.sel`).
-    readonly property int coverSelectedBorder: token("line", "card", litWidth)
-    /// A cover that needs you takes that edge in the accent, and its fact the accent (board 46
-    /// `.card.needs`); Omarchy's says it by the fact's red alone.
-    readonly property bool coverNeedsEdge: token("line", "needsEdge", false)
+    // ---- the library's form: space (board 51 D12 a, `.space`, DECISIONS C32) -------------
+    /// The map's inset (10 / 18 / 14 px) and the room between its lines (8 px).
+    readonly property int spaceInset: n("spaceInset", 18)
+    readonly property int spaceInsetTop: n("spaceInsetTop", 10)
+    readonly property int spaceInsetBottom: n("spaceInsetBottom", 14)
+    readonly property int spaceGap: n("spaceGap", 8)
+    /// The lines over the map (`.sh`: 11.5 px, dim; its lead word 13 px, 600, bright; 12 px
+    /// between the parts).
+    readonly property int spaceHeadSize: font.body
+    readonly property int spaceHeadWeight: Font.DemiBold
+    readonly property int spaceLineSize: font.small
+    readonly property int spaceLineGap: n("spaceLineGap", 12)
+    /// A torrent's block (`.blk2`): 1 px of the window round it, its ground the state colour
+    /// at the selected fill (18 %) under a 2 px line of it, 6 / 8 px in; 11.5 px words, the
+    /// name 600 and bright, then its size and fact. Words show from 70 px wide, the fact from
+    /// 50 px tall.
+    readonly property int spaceTileGap: hairWidth
+    readonly property int spaceTileLine: litWidth
+    readonly property int spaceTilePadX: n("spaceTilePadX", 8)
+    readonly property int spaceTilePadY: n("spaceTilePadY", 6)
+    readonly property int spaceTileTextSize: font.small
+    readonly property int spaceTileNameWeight: Font.DemiBold
+    readonly property int spaceTileWordsWidth: n("spaceTileWordsWidth", 70)
+    readonly property int spaceTileFactHeight: n("spaceTileFactHeight", 50)
+    /// The cursor's edge on a block (`.blk2.sel`: 2 px of the accent, inside; Console: its 1 px).
+    readonly property int spaceCursorEdge: token("line", "card", litWidth)
+    /// A folder's area when the map holds more than one (`.fold2`): a hairline round it, its
+    /// words over it (10.5 px, tracked 0.06 em, dim) in a head this tall, and the room
+    /// between two folders.
+    readonly property int spaceFolderHead: n("spaceFolderHead", 17)
+    readonly property int spaceFolderLabelSize: font.caption
+    readonly property real spaceFolderLabelTracking: font.caption * 0.06
+    readonly property int spaceFolderGap: n("spaceFolderGap", 6)
+    /// The "under 1 %" line (`.small`): chips 1 / 7 px in, a hairline round each, 6 px apart.
+    readonly property int spaceChipPadX: n("spaceChipPadX", 7)
+    readonly property int spaceChipPadY: n("spaceChipPadY", 1)
+    readonly property int spaceChipGap: n("spaceChipGap", 6)
+    /// Below this share of the scope's size a folder is gathered in that line, and a torrent
+    /// below it of its folder's.
+    readonly property real spaceSmallShare: 0.01
+    /// A block that needs you takes the accent edge (board 46 `.card.needs`, the console's);
+    /// Omarchy's says it by its red line alone.
+    readonly property bool spaceNeedsEdge: token("line", "needsEdge", false)
 
     // ---- the details' form: the story (board 46 `details()`, `.dhero`, `.tl`, `.tb h5`) -------
     /// The head's one fact (`.dhero .big`: 22 px at 13 px type, 500, in the state's colour), its
