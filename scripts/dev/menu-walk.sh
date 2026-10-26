@@ -336,6 +336,15 @@ tray_menu_row() {
 
 running() { omabox run -b "$BOX" -- pgrep -x omaseed >/dev/null 2>&1; }
 not_running() { ! running; }
+# gone: until omaseed's process has ended (10 s). Its window can be gone, or hidden, well before
+# the process is: a quit still writes what it writes on quit, so the check waits on the process.
+gone() {
+    omabox wait -b "$BOX" --timeout 10s window "$APP_ID" --gone >/dev/null 2>&1 || true
+    for _ in $(seq 1 40); do
+        running || return 0
+        sleep 0.25
+    done
+}
 
 popup() { omabox run -b "$BOX" -- omarchy-shell chaves.omaseed toggle >/dev/null; settle; }
 settle() { omabox wait -b "$BOX" --timeout 5s still >/dev/null 2>&1 || true; }
@@ -457,7 +466,7 @@ check "the servers part switched back to public" default_is public
 keys ctrl+period -s 600ms j j j j j j j -s 400ms
 step "Quit, from the widget" "The cursor on Quit omaseed, the menu's last row after a hairline (§11 change 2)." "$POPUP"
 keys Return
-omabox wait -b "$BOX" --timeout 10s window "$APP_ID" --gone >/dev/null 2>&1 || true
+gone
 check "quit from the widget: omaseed is gone" not_running
 
 # ---- D25: "In the bar: both", from the old settings ----------------------------------------
@@ -504,7 +513,7 @@ fi
 check "the tray's exported menu has private checked" tray_checked "${PRIVATE_ROW:-private}"
 check "the tray's exported menu ends with quit" tray_ends_with_quit
 tray_click quit
-omabox wait -b "$BOX" --timeout 10s window "$APP_ID" --gone >/dev/null 2>&1 || true
+gone
 check "quit from the tray: omaseed is gone" not_running
 
 if [ "$INTERACTIVE" = 0 ]; then
