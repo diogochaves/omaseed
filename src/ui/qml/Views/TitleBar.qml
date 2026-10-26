@@ -32,8 +32,14 @@ Item {
     property string sentence: ""
 
     // ---- the filter tool -----------------------------------------------------------------
-    /// The filter is offered (not on the log, whose lines have their own).
+    /// The filter is offered.
     property bool filterShown: true
+    /// What the filter narrows, for a screen reader ("filter torrents"; the log's "filter
+    /// lines", board 51 D5 a), and the hint it shows open; `filterTokens` draws its is:, cat:
+    /// and the like as chips (D18 a), which only the torrents' filter reads.
+    property string filterName: qsTr("filter torrents")
+    property string filterHint: qsTr("words, or is:stalled, cat:films, tag:keep, tracker:…")
+    property bool filterTokens: true
     property string searchText: ""
     /// What the field's trailing count prints: the count, or "N of M" while it filters.
     property string searchCountText: ""
@@ -87,6 +93,8 @@ Item {
     property bool addShown: true
     /// "+ add ▾": a click opens the add menu (create, search; C24 H17, #146), not the sheet.
     property bool addMenuShown: false
+    /// Board 51 D5 a: "export log…" in + add's place, on the log.
+    property bool exportShown: false
     /// "move this folder…" (shift+m): a folder is picked (H5).
     property bool moveFolderShown: false
     /// The way back from a move's torrents on show, its words and key ("back to the sheet",
@@ -100,6 +108,7 @@ Item {
 
     /// The parts tests and the walks read.
     readonly property alias addTool: addTool
+    readonly property alias exportTool: exportTool
     readonly property alias displayTool: displayTool
     readonly property alias moveFolderTool: moveFolderTool
     readonly property alias backTool: backTool
@@ -117,6 +126,7 @@ Item {
     }
 
     signal addClicked
+    signal exportClicked
     /// ↑, with `upOpensSeed`: the seed console.
     signal upClicked
     /// The display tool: the window opens its menu under it.
@@ -449,14 +459,13 @@ Item {
             Layout.fillWidth: root.level >= 2 || root.filterOpen
             Layout.preferredWidth: Theme.titleBarFindWidth
             // #91: the same name at every width.
-            accessibleName: qsTr("filter torrents")
+            accessibleName: root.filterName
             hint: Glyphs.search
             objectName: "titleFilter"
             // D18 a: open, the hint names what it takes.
-            placeholder: root.filterOpen ? qsTr("words, or is:stalled, cat:films, tag:keep, tracker:…")
-                                         : qsTr("filter")
+            placeholder: root.filterOpen ? root.filterHint : qsTr("filter")
             text: root.searchText
-            tokenChips: true
+            tokenChips: root.filterTokens
             trailing: root.searchCountText
             // D18 a: "× esc" clears what is typed; "esc" alone leaves the empty field.
             trailingKey: !root.filterOpen ? "" : filterField.text.length > 0 ? qsTr("× esc") : qsTr("esc")
@@ -521,6 +530,21 @@ Item {
             words: qsTr("add")
 
             onClicked: root.addClicked()
+        }
+
+        // Board 51 D5 a: the log's lines as shown, to a text file. No key of its own (the
+        // board gives it none); `:` has it.
+        Tool {
+            id: exportTool
+
+            glyph: Glyphs.exportFile
+            objectName: "titleExport"
+            // Board 51 `.tool.exp`: the accent's words and edge, as + add.
+            primary: true
+            visible: root.exportShown
+            words: qsTr("export log…")
+
+            onClicked: root.exportClicked()
         }
     }
 

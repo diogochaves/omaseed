@@ -99,6 +99,7 @@ qt_add_qml_module(omaseed-views
         QbtSettingsSections.qml
         Rail.qml
         RailGroup.qml
+        RailLogGroups.qml
         RenameFilesSheet.qml
         RenameSheet.qml
         RestoreSheet.qml

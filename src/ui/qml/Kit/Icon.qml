@@ -114,6 +114,11 @@ Item {
                                            "stroke": "M3.5 4.5 H20.5 V8.5 H3.5 Z M5 8.5 V19.5 H19 V8.5 M12 11 V16.5 M9.5 14 L12 16.5 L14.5 14",
                                            "fill": ""
                                        },
+                                       // Board 51 D5 a (`I.export`): an arrow up out of a tray, "export log…".
+                                       "export": {
+                                           "stroke": "M12 15 V3.6 M7.5 7.8 L12 3.3 L16.5 7.8 M3.9 13.5 V20.4 H20.1 V13.5",
+                                           "fill": ""
+                                       },
                                        "delete": {
                                            "stroke": "M4 7 H20 M9 7 V4.5 H15 V7 M6.5 7 L7.5 20 H16.5 L17.5 7 M10 11 V16 M14 11 V16",
                                            "fill": ""

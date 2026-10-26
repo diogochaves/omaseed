@@ -141,6 +141,7 @@ QtObject {
     readonly property string keyboard: g("keyboard", "icon:keyboard")
     readonly property string appearance: g("appearance", "icon:appearance")
     readonly property string backup: g("backup", "icon:backup") // #31 Settings › Backup
+    readonly property string exportFile: g("export", "icon:export") // board 51 D5 a, "export log…"
     readonly property string about: t("about", "i")
     // docs/34 D6 a: copy settings from another server
     readonly property string copyFrom: g("copyFrom", "⇣")

@@ -222,9 +222,10 @@ void TestScopeSentence::theFacesSayWhatTheyShow()
              QStringLiteral("qBittorrent's log on public · 1 line"));
     QCOMPARE(ScopeSentence::log(QString(), 0, QString()), QStringLiteral("qBittorrent's log"));
     // Board 51 D5 a: the warnings and the critical lines, and following.
-    QCOMPARE(ScopeSentence::log(QStringLiteral("public"), 1204, QStringLiteral("09:02"), 31, 3, true),
-             QStringLiteral(
-                 "qBittorrent's log on public · 1204 lines since 09:02 · 31 warnings, 3 critical · following"));
+    QCOMPARE(
+        ScopeSentence::log(QStringLiteral("public"), 1204, QStringLiteral("09:02"), 31, 3, true),
+        QStringLiteral("qBittorrent's log on public · 1204 lines since 09:02 · 31 warnings, 3 "
+                       "critical · following"));
     QCOMPARE(ScopeSentence::log(QStringLiteral("public"), 2, QString(), 1, 0, false),
              QStringLiteral("qBittorrent's log on public · 2 lines · 1 warning"));
     QCOMPARE(ScopeSentence::log(QStringLiteral("public"), 0, QString(), 0, 0, true),

@@ -1016,7 +1016,9 @@ TestCase {
         view.setView("log");
         compare(view.titleBar.title, "Log");
         verify(view.titleBar.sentence.startsWith("qBittorrent's log"), view.titleBar.sentence);
-        verify(!findChild(view.titleBar, "titleFilter").visible);
+        // Board 51 D5 a: the log's lines filter in the title bar too, as torrents do.
+        verify(findChild(view.titleBar, "titleFilter").visible);
+        compare(view.titleBar.filterName, "filter lines");
         view.setView("library");
         // A lost server: the list's time and the notice's headline.
         view._testServerLost = true;

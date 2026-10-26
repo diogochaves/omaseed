@@ -436,15 +436,18 @@ Item {
             root._viewBeforeSearch = root.view;
             App.refreshSearchPlugins();
         }
-        // `/` filters the face on show: the library's torrents, or search's results (SR14).
-        const leavingSearch = root.view === "search";
+        // `/` filters the face on show: the library's torrents, search's results (SR14), or the
+        // log's lines (board 51 D5 a): the field shows that face's words.
+        const filterFace = view => view === "search" || view === "log" ? view : "torrents";
+        const refill = filterFace(root.view) !== filterFace(next);
         // docs/32 §6: the lines are kept only while the log is open. A demo's stay: no server
         // would read them again.
         if (root.view === "log" && !App.demoMode)
             App.serverLog.release();
         root.view = next;
-        if (leavingSearch || next === "search")
-            titleBar.searchField.text = next === "search" ? App.searchResults.filterText : App.filtered.text;
+        if (refill)
+            titleBar.searchField.text = next === "search" ? App.searchResults.filterText
+                                                          : next === "log" ? App.logLines.text : App.filtered.text;
         if (next === "seed")
             seedConsole.forceActiveFocus();
         else
@@ -452,6 +455,48 @@ Item {
         // D12: the log opens on its newest line, following.
         if (next === "log")
             logView.followNewest();
+    }
+
+    /// Board 51 D5 a (C32): the log's rail names the torrents its lines are about, re-read as
+    /// lines come in (at most once a turn of the event loop).
+    property var logTorrents: []
+    readonly property int logTorrentsShown: 5
+
+    function _readLogTorrents(): void {
+        root.logTorrents = root.logShown ? App.serverLog.aboutTorrents(root.logTorrentsShown) : [];
+    }
+
+    onLogShownChanged: root._readLogTorrents()
+
+    Connections {
+        target: App.serverLog
+
+        function onCountsChanged(): void {
+            if (root.logShown)
+                Qt.callLater(root._readLogTorrents);
+        }
+    }
+
+    /// Board 51 D5 a, "export log…": the lines as shown (levels, words, torrent and time
+    /// applied) to a text file the portal's chooser names, as the other exports are saved.
+    function exportLog(): void {
+        if (App.logLines.count === 0) {
+            root.flashFooterNote(qsTr("no line to export"));
+            return;
+        }
+        root.exportLogTo(App.pickLogExportPath());
+    }
+
+    /// The writing half of exportLog(), for a path already chosen ("" does nothing).
+    function exportLogTo(path: string): void {
+        if (path.length === 0)
+            return;
+        const count = App.logLines.count;
+        const error = App.logLines.writeShown(path);
+        const name = path.substring(path.lastIndexOf("/") + 1);
+        root.flashFooterNote(error.length > 0 ? qsTr("not exported: %1").arg(error)
+                                              : count === 1 ? qsTr("exported 1 line to %1").arg(name)
+                                                            : qsTr("exported %1 lines to %2").arg(count).arg(name));
     }
 
     /// `~` (docs/32 D9): the log, or back to where the window was.
@@ -542,7 +587,7 @@ Item {
 
     /// Which view holds the focus, for the palette's context (`commandContext`).
     readonly property string focusArea: {
-        if (titleBar.searchField.editing || details.filterEditing || logView.filterEditing)
+        if (titleBar.searchField.editing || details.filterEditing)
             return "search";
         if (root.logShown)
             return "log";
@@ -669,7 +714,9 @@ Item {
     /// table.
     function clearFilter(): void {
         titleBar.searchField.text = "";
-        if (root.searchShown)
+        if (root.logShown)
+            App.logLines.text = "";
+        else if (root.searchShown)
             App.searchResults.filterText = "";
         else
             App.filtered.text = "";
@@ -1641,6 +1688,7 @@ Item {
         "logShowTorrent": () => logView.showLineTorrent(),
         "logTorrent": () => logView.narrowToLineTorrent(),
         "logEscape": () => logView.stepBack(),
+        "logExport": () => root.exportLog(),
         "logNormal": () => logView.toggleLevel(ServerLog.Normal),
         "logInfo": () => logView.toggleLevel(ServerLog.Info),
         "logWarning": () => logView.toggleLevel(ServerLog.Warning),
@@ -1662,7 +1710,7 @@ Item {
     function commandContext(): var {
         let area = root.focusArea;
         if (area === "search")
-            area = details.filterEditing ? "files" : logView.filterEditing ? "log" : "table";
+            area = details.filterEditing ? "files" : root.logShown ? "log" : "table";
         if (area === "details")
             area = ["story", "files", "peers", "trackers", "facts", "webseeds"][details.currentTab] || "story";
         const targets = root.actionHashes().map(hash => App.torrentRow(hash));
@@ -2082,6 +2130,11 @@ Item {
         tags: App.tags
         trackers: App.trackers
         view: root.view
+        // Board 51 D5 a (C32): on the log, its levels, the torrents its lines are about and
+        // since when.
+        logLines: App.logLines
+        serverLog: App.serverLog
+        logTorrents: root.logTorrents
         // docs/14 A1: setup has no library chrome.
         visible: !root.firstRun
         serversOnly: root.libraryEmpty || root.firstSync || root.noList || root.logShown || root.searchShown
@@ -2199,7 +2252,10 @@ Item {
             return App.lostSentence(App.torrents.count > 0 ? App.globalState.lastSyncText : "",
                                     root.serverProblem.headline ?? "");
         if (root.logShown)
-            return App.logSentence(App.serverName, App.serverLog.total, App.serverLog.firstAtText);
+            // Board 51 D5 a: the bar's words gone with it, how many and how bad, and following.
+            return App.logSentence(App.serverName, App.serverLog.total, App.serverLog.firstAtText,
+                                   App.serverLog.levelCounts[2] ?? 0, App.serverLog.levelCounts[3] ?? 0,
+                                   logView.following);
         if (root.consoleShown)
             return App.seedSentence(App.globalState.upInfoSpeed > 0 ? App.globalState.upSpeedText : "",
                                     App.console.todayText,
@@ -2259,11 +2315,16 @@ Item {
         upNote: root.live ? App.console.todayText : ""
         onUpClicked: root.setView("seed")
         sentence: root.scopeSentence
-        // The log filters its own lines (docs/32 D11); search's `/` filters its results
-        // (C26 SR14), while there are some.
-        filterShown: !root.logShown && (!root.searchShown || App.searchResults.torrentCount > 0)
+        // Search's `/` filters its results (C26 SR14), while there are some. Board 51 D5 a:
+        // the log's lines are filtered here too, as torrents are (docs/32 D11's words).
+        filterShown: !root.searchShown || App.searchResults.torrentCount > 0
+        filterName: root.logShown ? qsTr("filter lines") : qsTr("filter torrents")
+        filterHint: root.logShown ? qsTr("words, every one in the line") : qsTr("words, or is:stalled, cat:films, tag:keep, tracker:…")
+        filterTokens: !root.logShown
         keysShown: root.keysShown
-        searchCountText: root.searchShown ? (App.searchResults.filterText.length > 0 ? qsTr("%1 of %2").arg(
+        searchCountText: root.logShown ? (App.logLines.narrowed ? qsTr("%1 of %2").arg(App.logLines.count).arg(
+                                                                       App.logLines.levelTotal) : String(App.logLines.count))
+                                       : root.searchShown ? (App.searchResults.filterText.length > 0 ? qsTr("%1 of %2").arg(
                                                                                          App.searchResults.count).arg(App.searchResults.torrentCount)
                                                                                    : String(App.searchResults.count))
                                           : App.filtered.text.length > 0 ? qsTr("%1 of %2").arg(App.filtered.count).arg(
@@ -2285,12 +2346,18 @@ Item {
 
         // C24 H17: "+ add ▾" with create and search under it (#146).
         addMenuShown: App.createOffered || App.searchOffered
+        // Board 51 D5 a: on the log, "export log…" takes + add's place.
+        addShown: !root.logShown
+        exportShown: root.logShown
+        onExportClicked: root.exportLog()
         onAddClicked: root.openAddMenu()
         onDisplayClicked: root.openDisplayMenu()
         onBackClicked: root.leaveMoveShow()
         onMoveFolderClicked: root.openMoveFolder(App.filtered.folder, "")
         onSearchChanged: text => {
-            if (root.searchShown)
+            if (root.logShown)
+                App.logLines.text = text;
+            else if (root.searchShown)
                 App.searchResults.filterText = text;
             else
                 App.filtered.text = text;
@@ -2467,6 +2534,8 @@ Item {
             visible: root.logShown
 
             onCopyRequested: (text, note) => root.copyText(text, note)
+            onFilterClearRequested: root.clearFilter()
+            onFilterRequested: titleBar.openSearch()
             onLeaveRequested: root.toggleLog()
             // Board 45 B2 (C18 D7): a move's line moves it back, through the Move sheet.
             onMoveBackRequested: id => moveSheet.openBack(id, "")

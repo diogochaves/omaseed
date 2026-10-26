@@ -303,11 +303,11 @@ QString ScopeSentence::seed(const QString &upSpeed, const QString &today, const 
 }
 
 QString ScopeSentence::log(const QString &server,
-                          int lines,
-                          const QString &since,
-                          int warnings,
-                          int critical,
-                          bool following)
+                           int lines,
+                           const QString &since,
+                           int warnings,
+                           int critical,
+                           bool following)
 {
     QString line =
         server.isEmpty() ? tr("qBittorrent's log") : tr("qBittorrent's log on %1").arg(server);

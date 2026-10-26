@@ -12,8 +12,8 @@
 #include <QJsonObject>
 #include <QSignalSpy>
 #include <QTcpServer>
-#include <QTemporaryDir>
 #include <QTcpSocket>
+#include <QTemporaryDir>
 #include <QTest>
 #include <QUrlQuery>
 
@@ -760,8 +760,8 @@ void TestServerLog::marksGoWhenTheLogStartsOver()
 // Board 51 D5 a: "since" in the log's rail keeps only the lines from then on.
 void TestServerLog::sinceKeepsTheLaterLines()
 {
-    m_log->applyEntries({entry(0, 1, kAdded, 1000), entry(1, 1, kMoving, 2000),
-                         entry(2, 4, kMoveFailed, 3000)});
+    m_log->applyEntries(
+        {entry(0, 1, kAdded, 1000), entry(1, 1, kMoving, 2000), entry(2, 4, kMoveFailed, 3000)});
     QSignalSpy narrowed(m_lines, &LogFilterModel::narrowedChanged);
     m_lines->setSince(2000);
     QVERIFY(m_lines->isNarrowed());

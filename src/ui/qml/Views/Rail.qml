@@ -77,6 +77,15 @@ Item {
     readonly property int serversShownMax: 5
     /// The window's face, for the views' rows: "library", "seed", "log" or "search".
     property string view: "library"
+    /// Board 51 D5 a (C32): on the log face the rail holds the log's levels, the torrents its
+    /// lines are about and since when (RailLogGroups), in place of the torrents' groups,
+    /// which `serversOnly` keeps away there. Null leaves the log's rail bare.
+    property LogFilterModel logLines: null
+    property ServerLog serverLog: null
+    /// `serverLog.aboutTorrents()`, as the host re-reads it.
+    property var logTorrents: []
+    readonly property bool logGroupsShown: root.view === "log" && root.logLines !== null
+                                           && root.serverLog !== null && !root.compact
     /// #145 (C24 H16, C25 K30): the server has search plugins to offer, so the views end with
     /// search. Gone where it can't be offered.
     property bool searchOffered: false
@@ -692,7 +701,8 @@ Item {
     Accessible.role: Accessible.List
 
     activeFocusOnTab: true
-    implicitHeight: root._topHeight + (root.serversOnly ? 0 : content.implicitHeight)
+    implicitHeight: root._topHeight + (root.serversOnly ? (root.logGroupsShown ? logGroups.implicitHeight : 0)
+                                                        : content.implicitHeight)
                     + (root.serversRowCount > 0 ? root._serversOpenHeight : 0) + root._footHeight
     implicitWidth: root.compact ? Theme.railFoldedWidth : root.resizing ? root._dragWidth
                                                                      : root.openWidth
@@ -1454,12 +1464,61 @@ Item {
         }
     }
 
+    // Board 51 D5 a: the log's own groups, where the torrents' scroll (whose place they take).
+    Flickable {
+        id: logFlick
+
+        anchors.bottom: flick.bottom
+        anchors.left: parent.left
+        anchors.right: hairline.left
+        anchors.top: viewsRule.bottom
+        boundsBehavior: Flickable.StopAtBounds
+        clip: true
+        contentHeight: logGroups.implicitHeight + Theme.space(20) - 2 * logGroups.headPadding
+        contentWidth: width
+        interactive: contentHeight > height
+        objectName: "railLogScroll"
+        visible: root.logGroupsShown
+
+        Loader {
+            id: logGroups
+
+            readonly property real headPadding: item ? item.headPadding : 0
+
+            active: root.logGroupsShown
+            width: logFlick.width
+            y: Theme.space(10) - logGroups.headPadding
+
+            sourceComponent: RailLogGroups {
+                block: root.ground
+                collapsedGroups: root.collapsedGroups
+                keysShown: root.keysShown
+                lines: root.logLines
+                log: root.serverLog
+                torrents: root.logTorrents
+                width: logFlick.width
+
+                onGroupToggled: group => root.groupToggled(group)
+                onNameTip: (row, hovering, full) => root._nameTip(row, hovering, full)
+            }
+        }
+    }
+
+    WheelScroll {
+        anchors.fill: logFlick
+        flickable: logFlick
+        rowHeight: Theme.railRowHeight
+        visible: root.logGroupsShown
+        z: 2
+    }
+
     // A wheel notch moves three rail rows, and quick notches add up (Kit/WheelScroll).
     WheelScroll {
         anchors.fill: flick
         flickable: flick
         objectName: "railWheel"
         rowHeight: Theme.railRowHeight
+        visible: flick.visible
         z: 2
     }
 

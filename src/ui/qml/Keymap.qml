@@ -2225,6 +2225,20 @@ QtObject {
             "helpKeys": "",
             "help": ""
         },
+        // Board 51 D5 a: the title bar's "export log…", which has no key.
+        {
+            "area": "log",
+            "key": "",
+            "via": ":",
+            "action": "logExport",
+            "title": qsTr("export log…"),
+            "needs": "",
+            "label": qsTr("export"),
+            "column": "",
+            "rank": 0,
+            "helpKeys": "",
+            "help": ""
+        },
 
         // search field ---------------------------------------------------------------
         {
@@ -2347,7 +2361,7 @@ QtObject {
             "word": qsTr("log"),
             "actions": ["logFilter", "logNormal", "logInfo", "logWarning", "logCritical", "logNewest",
                 "logNextProblem", "logPreviousProblem", "logFollow", "logMarkAll", "logCopy",
-                "logShowTorrent", "logTorrent", "logEscape"]
+                "logShowTorrent", "logTorrent", "logEscape", "logExport"]
         }
     ]
 
