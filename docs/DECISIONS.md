@@ -1755,13 +1755,22 @@ place: D2), docs/31 D5 (D6), C4 D1–D2 and C13's alternative-limits row (D8) an
 - **The mark and its menu.** D1 a: a settings row at the rail's foot, the gear alone when
   folded. D14 b: the menu grows from the lit mark inside one accent outline (292 px), no head
   of its own, the version line first, then servers and the rest.
+  Built as the board reads it, assumed where it is silent: under Console the menu keeps its
+  cut-plate outline all round (the open top is Omarchy's).
+- **Menus (F15, ruled in the pass).** The torrent menu as board 46's `menuHtml()` draws it, an
+  icon on every row, transfer ›, queue › and copy › as submenus. Built, assumed: "category…"
+  and "tags…" take an ellipsis, since a › now means a submenu; force start sits in transfer ›;
+  the rows carry no counts for a selection ("stop", not "stop 3"); under Console every menu's
+  icons are Material Symbols ligatures.
 - **The rail.** D3 a: its edge drags between 160 and 360 px; let go under 120 and it folds;
   double-click goes back to 214; the width is the window's, not a server's. D9 c, **moved**:
   the fold toggle is board 51's tab on the rail's edge (‹, shown on hover, tooltip "fold the
   rail · ctrl+b"), placed at the top, within the title bar's height and centred on it, not
   halfway down the rail. The rail folds by itself when the list would get narrower than
   520 px (the open details pane counted) and unfolds when there is room, unless folded or
-  unfolded by hand, which holds until the next hand one (answers F13). D4 a: right-click on a
+  unfolded by hand, which holds until the next hand one (answers F13); assumed: a hand fold
+  holds for the session (it isn't saved), and a double-click on the folded edge unfolds it at
+  the default width. D4 a: right-click on a
   server: on the current one, its alternative speeds, stop all, start all; on another,
   "switch to it" first; both then edit…, test the connection, open its web UI, copy its
   address, remove… (asks first). D5 a: on the log the rail holds the four levels (normal,
@@ -1806,7 +1815,8 @@ place: D2), docs/31 D5 (D6), C4 D1–D2 and C13's alternative-limits row (D8) an
   kit has none); the bar's edge and ground are the outcome strip's.
 - **The library.** D12 a: the third display is "space", a size map by folder then torrent,
   in place of shelves. D13 a: a sort block in the display tool's menu; its word reads
-  "rows · added".
+  "rows · added". Assumed: the word names the sort after rows and table; a sort newly picked
+  starts in the direction a header click would.
   Space built as the board reads it, assumed where it is silent: the folders are save paths,
   the largest first, and inside each the torrents the largest first, whatever the sort (size
   lays the map out, so j/k follow the map); the menu has no sort block in space, its footer
@@ -1827,7 +1837,9 @@ place: D2), docs/31 D5 (D6), C4 D1–D2 and C13's alternative-limits row (D8) an
   from the rail leaves the question.
 - **Details.** D15 a: the story's "what happened" newest first.
 - **Settings.** D7 a: a › at each server row's end, the row lit under the pointer. D10 a: tab
-  walks the modal as any form; j/k and enter stay for rows.
+  walks the modal as any form; j/k and enter stay for rows. With #201 F2, assumed: only the
+  sign-in choice's chips take the accent edge that marks the picked one; other choice chips
+  are unchanged.
 - **Moves.** D19 a: move back carries back the loose files the move carried (the list it kept,
   #98), under the same tick; a file changed at the target since stays, and is named.
   Built as the board reads it, assumed where it is silent: the move's record keeps each file
