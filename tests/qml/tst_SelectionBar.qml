@@ -254,6 +254,21 @@ TestCase {
         compare(bar.menuActionsShown, ["stopStart", "location", "delete"]);
     }
 
+    // #201 F13: narrower than every fold, the esc button goes last (its key stays), so the bar
+    // keeps off the rail and the details beside a narrow list.
+    function test_esc_goes_last() {
+        const bar = makeBar();
+        const all = step(bar.foldOrder.length, false, false, false, false);
+        bar.availableWidth = bar.widthOf(all);
+        verify(bar.showEsc);
+        verify(button(bar, "clear").visible);
+        bar.availableWidth = bar.widthOf(all) - 1;
+        verify(!bar.showEsc);
+        verify(!button(bar, "clear").visible);
+        compare(bar.items, ["stop", "location", "delete"]);
+        verify(bar.implicitWidth < bar.widthOf(all));
+    }
+
     function test_the_bar_never_wraps() {
         const bar = makeBar({
                                 "availableWidth": 10

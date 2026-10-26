@@ -149,8 +149,10 @@ Item {
     function buttonWidth(entry: var, words: bool): real {
         if (!words)
             return Theme.actionBarButtonSize;
-        const text = Theme.controlUpper ? entry.text.toUpperCase() : entry.text;
-        return Math.ceil(wordMetrics.advanceWidth(text) + (entry.glyph.length > 0 ? iconProbe.implicitWidth
+        // A rule's part has neither (a delegate's binding can see one while the parts change).
+        const word = entry.text ?? "";
+        const text = Theme.controlUpper ? word.toUpperCase() : word;
+        return Math.ceil(wordMetrics.advanceWidth(text) + ((entry.glyph ?? "").length > 0 ? iconProbe.implicitWidth
                                                                                      + Theme.space(6) : 0)
                          + (entry.list ? chevronProbe.implicitWidth + Theme.space(6) : 0))
                 + 2 * Theme.actionBarWordPadding;
@@ -176,7 +178,8 @@ Item {
         }
         if (step.hint)
             width += gap + root._hintWidth;
-        width += gap + root._ruleWidth + gap + root._escWidth;
+        if (step.esc !== false)
+            width += gap + root._ruleWidth + gap + root._escWidth;
         return width + 2 * (Theme.actionBarPadding + Theme.edgeWidth);
     }
 
@@ -207,6 +210,11 @@ Item {
         steps.push(step(0, false, true, false, false));
         for (let folds = 0; folds <= root.foldOrder.length; ++folds)
             steps.push(step(folds, false, false, false, false));
+        // #201 F13: last, the esc button (the key, and a click on the count's tick, still
+        // clear): a list narrower than every fold keeps the bar off the rail and the details.
+        const last = step(root.foldOrder.length, false, false, false, false);
+        last.esc = false;
+        steps.push(last);
         for (const candidate of steps) {
             if (root.widthOf(candidate) <= root.availableWidth)
                 return candidate;
@@ -216,6 +224,7 @@ Item {
     readonly property bool showSummary: root.fit.ledger
     readonly property bool showHint: root.fit.hint
     readonly property bool showWords: root.fit.words
+    readonly property bool showEsc: root.fit.esc !== false
     /// The rows more now leads with, in `foldOrder`.
     readonly property var folded: root.foldOrder.slice(0, root.fit.folds)
     readonly property var _groups: root.groupsFor(root.fit.folds)
@@ -543,7 +552,9 @@ Item {
             }
         }
 
-        Rule {}
+        Rule {
+            visible: root.showEsc
+        }
 
         Button {
             id: escButton
@@ -559,6 +570,7 @@ Item {
             text: qsTr("esc")
             tooltip: qsTr("clear selection · esc")
             tooltipAbove: true
+            visible: root.showEsc
             width: root._escWidth
 
             onClicked: root.clearRequested()
