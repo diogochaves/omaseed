@@ -48,6 +48,10 @@ QJsonObject MoveRecord::toJson() const
     if (carried > 0) {
         out.insert(QStringLiteral("carried"), carried);
         out.insert(QStringLiteral("carriedTo"), carriedTo);
+        if (!carriedFrom.isEmpty())
+            out.insert(QStringLiteral("carriedFrom"), carriedFrom);
+        if (!carriedFiles.isEmpty())
+            out.insert(QStringLiteral("carriedFiles"), LooseCarry::toJson(carriedFiles));
     }
     if (!replaced.isEmpty())
         out.insert(QStringLiteral("replaced"), QJsonArray::fromStringList(replaced));
@@ -71,6 +75,9 @@ MoveRecord MoveRecord::fromJson(const QJsonObject &object)
     record.hadAutoTmm = object.value(QStringLiteral("hadAutoTmm")).toVariant().toStringList();
     record.carried = object.value(QStringLiteral("carried")).toInt();
     record.carriedTo = object.value(QStringLiteral("carriedTo")).toString();
+    record.carriedFrom = object.value(QStringLiteral("carriedFrom")).toString();
+    record.carriedFiles =
+        LooseCarry::fromJson(object.value(QStringLiteral("carriedFiles")).toArray());
     record.replaced = object.value(QStringLiteral("replaced")).toVariant().toStringList();
     return record;
 }
@@ -130,7 +137,9 @@ const MoveRecord *MoveHistory::lastFor(const QString &hash) const
     return nullptr;
 }
 
-bool MoveHistory::backDone(const QString &id, const QStringList &hashes)
+bool MoveHistory::backDone(const QString &id,
+                           const QStringList &hashes,
+                           const QStringList &filesBack)
 {
     const int at = indexOf(id);
     if (at < 0)
@@ -142,6 +151,14 @@ bool MoveHistory::backDone(const QString &id, const QStringList &hashes)
         record.to.remove(hash);
         record.names.remove(hash);
         record.hadAutoTmm.removeAll(hash);
+    }
+    // C32 D19: what went back is no longer the move's to carry back.
+    const qsizetype files = record.carriedFiles.size();
+    record.carriedFiles.removeIf(
+        [&filesBack](const CarryFile &file) { return filesBack.contains(file.relative); });
+    if (record.carriedFiles.size() != files) {
+        record.carried = std::max(0, record.carried - int(files - record.carriedFiles.size()));
+        changed = true;
     }
     if (record.from.isEmpty()) {
         m_records.removeAt(at);

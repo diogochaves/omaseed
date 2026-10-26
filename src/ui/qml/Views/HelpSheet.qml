@@ -254,7 +254,12 @@ FocusScope {
                 id: columns
 
                 spacing: root._gap
-                width: scroller.width - (scrollHint.needed ? scrollHint.width + Theme.space(8) : 0)
+                // Clear of the bar while the rows overflow the cap: by the rows' own height,
+                // not the list's laid-out one, which lags a pass behind and could put the bar
+                // up and down for ever on a row a bar's width from wrapping (#201 F23, as
+                // Kit/Sheet's body).
+                width: scroller.width - (columns.implicitHeight > root.maxListHeight
+                                         ? scrollHint.width + Theme.space(8) : 0)
 
                 Repeater {
                     model: root._twoColumns ? 2 : 1

@@ -20,6 +20,20 @@ import Omaseed.Kit
 // the mark, the views, the questions, one row standing for the other groups, the servers' dots.
 // A row's name is then its tooltip. The views and the servers are pinned: they never scroll.
 //
+// DECISIONS C32 D3 a, D9 c: the rail's edge drags its open width (`openWidth`, the host's)
+// between `minimumOpenWidth` and `maximumOpenWidth`; let go under `foldBelowWidth` and it asks
+// to fold (`foldDragged`), and a drag out of the folded rail's edge asks to unfold
+// (`unfoldDragged`) and carries on as an open drag. A double-click on the edge goes back to
+// the default (`widthChosen(Theme.railWidth, true)`). While the pointer is on the rail, a tab
+// on its edge at the top, centred on the title bar's height (`headHeight`), folds or unfolds
+// it (`foldToggleRequested`); the drag answers along the rest of the edge.
+//
+// DECISIONS C32 D1 a: the rail's foot, under the servers, is a settings row (`settingsRequested`,
+// as `,`), the gear alone when folded. It is not a cursor stop: `,` is its key.
+//
+// C32 D16 a: `tint` (Settings › Appearance, off · 4 · 8 %) fills the rail; its rows then sit on
+// C30's nested grounds over that fill (`ground` is every row's `block`).
+//
 // docs/08 §5: groups fold. `collapsedGroups` names the folded ones (the host owns and persists
 // it, per server); a click on a heading or `z` on any row asks for a toggle through
 // `groupToggled`. A folded group leaves one cursor stop, its heading, where `enter`/`space`
@@ -63,11 +77,48 @@ Item {
     readonly property int serversShownMax: 5
     /// The window's face, for the views' rows: "library", "seed", "log" or "search".
     property string view: "library"
+    /// Board 51 D5 a (C32): on the log face the rail holds the log's levels, the torrents its
+    /// lines are about and since when (RailLogGroups), in place of the torrents' groups,
+    /// which `serversOnly` keeps away there. Null leaves the log's rail bare.
+    property LogFilterModel logLines: null
+    property ServerLog serverLog: null
+    /// `serverLog.aboutTorrents()`, as the host re-reads it.
+    property var logTorrents: []
+    readonly property bool logGroupsShown: root.view === "log" && root.logLines !== null
+                                           && root.serverLog !== null && !root.compact
     /// #145 (C24 H16, C25 K30): the server has search plugins to offer, so the views end with
     /// search. Gone where it can't be offered.
     property bool searchOffered: false
     /// #167 assumed 4: folded to its glyphs (ctrl+b).
     property bool compact: false
+    /// DECISIONS C32 D3 a: the width open, as the edge was last dragged (the host keeps it).
+    property int openWidth: Theme.railWidth
+    /// D3 a: the drag's bounds (board 51 at its 13 px type: 160–360, folding under 120).
+    readonly property int minimumOpenWidth: Theme.space(160)
+    readonly property int maximumOpenWidth: Theme.space(360)
+    readonly property int foldBelowWidth: Theme.space(120)
+    /// The edge is being dragged, past the drag distance.
+    readonly property bool resizing: edgeGrip.pressed && edgeGrip.moved
+    /// Where the drag would leave the rail: an open width, or under `foldBelowWidth` (fold).
+    readonly property bool _dragFolds: root.resizing && edgeGrip.wanted < root.foldBelowWidth
+    readonly property int _dragWidth: Math.max(root.minimumOpenWidth,
+                                               Math.min(root.maximumOpenWidth, edgeGrip.wanted))
+    /// C32 D16 a: the rail's own fill, in percent of the foreground: 0, 4 or 8.
+    property int tint: 0
+    /// The ground the rail's rows lie in: the window's, the 4 % block (`on.idle`) or the
+    /// hover fill (`on.hover`), so their fills and words take C30's nested grounds.
+    readonly property ThemeInk ground: root.tint === 8 ? Theme.on.hover : root.tint === 4 ? Theme.on.idle
+                                                                                          : Theme.on.window
+    /// The servers block's: its own 4 % on the window's ground, or opened over the filters
+    /// (D18); on a tinted rail, the rail's.
+    readonly property ThemeInk _serversGround: root.ground === Theme.on.window || root.serversOverlay
+                                               ? Theme.on.idle : root.ground
+    /// The rail's fill as one opaque colour, for what covers the scroll (the stuck heading,
+    /// the scroll hint's fade).
+    readonly property color _opaqueGround: Qt.tint(Theme.background, root.ground.fill)
+    /// D9 c: the pointer is on the rail or its edge, so the edge tab shows.
+    readonly property bool edgeHovered: railHover.hovered || edgeGrip.containsMouse
+                                        || edgeTabMouse.containsMouse
     /// DECISIONS C24 H10: alt is held: the mark, the views, the questions and the servers
     /// show their keys.
     property bool keysShown: false
@@ -75,6 +126,9 @@ Item {
     property real headHeight: Theme.railHeadHeight
     /// The mark in red, as the hero's was: the server is lost and nothing retries.
     property bool markAlert: false
+    /// Board 51 D14 b (DECISIONS C32): the omaseed menu is open, grown out of the mark: the
+    /// mark lit, in the menu's outline on its left, top and right, its bottom open onto it.
+    property bool markLit: false
     readonly property alias markButton: markButton
     /// C24 H2: the library row is lit on the library face with nothing narrowing it.
     readonly property bool libraryShown: root.view === "library"
@@ -159,6 +213,17 @@ Item {
     signal markClicked
     /// The folded rail's row for its other groups: the host unfolds the rail.
     signal unfoldRequested
+    /// D3 a: the edge let go at `width` (open, clamped), or double-clicked (`isDefault`, the
+    /// default width): the host keeps it.
+    signal widthChosen(int width, bool isDefault)
+    /// D3 a: the edge let go under `foldBelowWidth`: the host folds the rail, by hand.
+    signal foldDragged
+    /// D3 a: the folded rail's edge dragged out past `foldBelowWidth`: the host unfolds it.
+    signal unfoldDragged
+    /// D9 c: the edge tab, clicked: fold the rail, or unfold it.
+    signal foldToggleRequested
+    /// D1 a: the foot's settings row, clicked: the host opens Settings, as `,` does.
+    signal settingsRequested
     /// A heading was clicked, or `z` pressed on one of the group's rows.
     signal groupToggled(string group)
     /// `enter` or a click on a server row: that server should become the default one. The
@@ -172,6 +237,9 @@ Item {
     /// menu key / `shift+F10` on the cursor's: the host opens its menu ("move this folder…")
     /// for `path` at `x`, `y` (this item's coordinates).
     signal folderMenuRequested(string path, real x, real y)
+    /// Board 51 D4 a (DECISIONS C32): a right-click on a server row, or the menu key /
+    /// `shift+F10` on the cursor's: the host opens server `id`'s menu at `x`, `y`.
+    signal serverMenuRequested(string id, real x, real y)
 
     // ---- row bookkeeping -----------------------------------------------------------
     // Every row (and every group heading) registers itself with a function that selects it;
@@ -221,6 +289,7 @@ Item {
     property bool _serversForced: false
     readonly property bool serversShort: !root.serversOnly && root.serversRowCount > 0
                                          && root.height - root._topHeight - root._serversOpenHeight
+                                         - root._footHeight
                                          < 5 * Theme.railRowHeight + Theme.space(30)
     readonly property bool serversShownFolded: root.serversFolded
                                                || (root.serversShort && !root._serversForced)
@@ -413,6 +482,11 @@ Item {
 
     onTotalRowCountChanged: if (root.cursorIndex >= root.totalRowCount)
                                 root.cursorIndex = Math.max(0, root.totalRowCount - 1)
+    // #201 F11: a tip up when the rail folds or unfolds is for a row that moved under it.
+    onCompactChanged: {
+        root._hideTips();
+        edgeTip.hide(); // nor the edge tab's, naming the other way
+    }
 
     // ---- public keyboard/selection surface ------------------------------------------
     function moveCursor(delta) {
@@ -443,17 +517,25 @@ Item {
     /// shows less (elided, or a tracker host shortened), hidden otherwise.
     function _nameTip(row: RailRow, hovering: bool, full: string): void {
         if (hovering && (row.truncated || row.text !== full)) {
-            const point = row.mapToItem(root, Theme.space(16), row.height);
+            const point = row.mapToItem(hostTip, Theme.space(16), row.height);
             hostTip.showAt(point.x, point.y, full);
         } else {
-            hostTip.hide();
+            root._hideTips();
         }
+    }
+
+    /// Both tips down. A pointer that leaves a row after the rail folded or unfolded under it
+    /// asks the other tip to go: the one up would stay for good (#201 F11, ctrl+b while the
+    /// mark's tip showed).
+    function _hideTips(): void {
+        hostTip.hide();
+        compactTip.hide();
     }
 
     /// F2's hover: "4 here, 405 with the folders below" on a save path with others under it.
     function _folderTip(row: RailRow, hovering: bool, here: int, all: int, full: string): void {
         if (hovering && here !== all) {
-            const point = row.mapToItem(root, Theme.space(16), row.height);
+            const point = row.mapToItem(hostTip, Theme.space(16), row.height);
             hostTip.showAt(point.x, point.y, qsTr("%1: %2 here, %3 with the folders below").arg(full).arg(here).arg(
                                all));
         } else {
@@ -469,6 +551,7 @@ Item {
             root.folderFoldToggled();
             return;
         }
+        root._leaveQuestion();
         root.filtered.folder = root.filtered.folder === path ? "" : path;
     }
 
@@ -477,16 +560,24 @@ Item {
     function openCursorMenu(): bool {
         const entry = root._rowMap[root.cursorIndex];
         const path = entry && entry.item ? entry.item.menuFolder : undefined;
-        if (typeof path !== "string" || path.length === 0)
+        const server = entry && entry.item ? entry.item.menuServer : undefined;
+        const folder = typeof path === "string" && path.length > 0;
+        if (!folder && (typeof server !== "string" || server.length === 0))
             return false;
         root._scrollCursorIntoView();
         const point = entry.item.mapToItem(root, Theme.space(24), entry.item.height);
-        root.folderMenuRequested(path, point.x, point.y);
+        if (folder)
+            root.folderMenuRequested(path, point.x, point.y);
+        else
+            root.serverMenuRequested(server, point.x, point.y);
         return true;
     }
 
     /// `1`–`5` and the question rows: that question (C24 H2); `0` and AnyQuestion, the
-    /// library.
+    /// library. A question replaces the place, as the library does (DECISIONS C32,
+    /// "Questions", #201 F17): it leaves any folder, category, tag or tracker and asks across
+    /// the whole library, under its own display. Narrowing a place by state is the filter's
+    /// (`is:<state>`).
     function selectQuestion(question: int): void {
         if (question === TorrentFilterModel.AnyQuestion) {
             root.pickLibrary();
@@ -494,7 +585,17 @@ Item {
         }
         if (root.questionRow(question) === null)
             return;
+        root.filtered.clearCategory();
+        root.filtered.clearTag();
+        root.filtered.clearTracker();
+        root.filtered.folder = "";
         root.filtered.question = question;
+    }
+
+    /// A place picked (a folder, category, tag or tracker): it leaves the question, which
+    /// would otherwise narrow it (C32 "Questions", #201 F17).
+    function _leaveQuestion(): void {
+        root.filtered.question = TorrentFilterModel.AnyQuestion;
     }
 
     /// The library row and `0`: every torrent, so each filter the rail sets goes (board 46's
@@ -531,10 +632,25 @@ Item {
         if (root.compact) {
             root._compactTip(markButton, hovering, text);
         } else if (hovering) {
-            const point = markButton.mapToItem(root, Theme.railMarkInset, markButton.height);
+            const point = markButton.mapToItem(hostTip, Theme.railMarkInset, markButton.height);
             hostTip.showAt(point.x, point.y, text);
         } else {
-            hostTip.hide();
+            root._hideTips();
+        }
+    }
+
+    /// D9 c's edge tab: its tip beside it, level with it, open or folded. A tip of its own,
+    /// so a row the pointer just left (which hides the rail's tips) can't take it down.
+    function _edgeTip(hovering: bool): void {
+        if (hovering) {
+            root._hideTips();
+            const gap = edgeTip.panelItem.gap;
+            const point = edgeTab.mapToItem(edgeTip, edgeTab.width + Theme.railTipGap - gap,
+                                            (edgeTab.height - edgeTip.panelItem.height) / 2 - gap);
+            edgeTip.showAt(point.x, point.y, root.compact ? qsTr("unfold the rail · %1").arg("ctrl+b")
+                                                          : qsTr("fold the rail · %1").arg("ctrl+b"));
+        } else {
+            edgeTip.hide();
         }
     }
 
@@ -547,7 +663,7 @@ Item {
                                         (row.height - compactTip.panelItem.height) / 2 - gap);
             compactTip.showAt(point.x, point.y, text);
         } else {
-            compactTip.hide();
+            root._hideTips();
         }
     }
 
@@ -585,9 +701,11 @@ Item {
     Accessible.role: Accessible.List
 
     activeFocusOnTab: true
-    implicitHeight: root._topHeight + (root.serversOnly ? 0 : content.implicitHeight)
-                    + (root.serversRowCount > 0 ? root._serversOpenHeight : 0)
-    implicitWidth: root.compact ? Theme.railFoldedWidth : Theme.railWidth
+    implicitHeight: root._topHeight + (root.serversOnly ? (root.logGroupsShown ? logGroups.implicitHeight : 0)
+                                                        : content.implicitHeight)
+                    + (root.serversRowCount > 0 ? root._serversOpenHeight : 0) + root._footHeight
+    implicitWidth: root.compact ? Theme.railFoldedWidth : root.resizing ? root._dragWidth
+                                                                     : root.openWidth
     width: root.implicitWidth
 
     Keys.onPressed: event => {
@@ -660,6 +778,18 @@ Item {
     /// What sits above the scroll: the mark, the views, their rule.
     readonly property real _topHeight: root.headHeight + viewsBlock.height + 1
 
+    // C32 D16 a: the tint, under everything the rail draws.
+    Rectangle {
+        anchors.bottom: parent.bottom
+        anchors.left: parent.left
+        anchors.right: hairline.left
+        anchors.top: parent.top
+        color: root.ground.fill
+        objectName: "railTint"
+        visible: root.ground !== Theme.on.window
+        z: -1
+    }
+
     Rectangle {
         id: markButton
 
@@ -672,7 +802,7 @@ Item {
         anchors.left: parent.left
         anchors.right: hairline.left
         anchors.top: parent.top
-        color: markMouse.containsMouse ? markInk.fill : "transparent"
+        color: markInk.ground === root.ground ? "transparent" : markInk.fill
         height: root.headHeight
         objectName: "railMark"
 
@@ -682,19 +812,48 @@ Item {
             id: markInk
 
             animated: false
-            ground: markMouse.containsMouse ? Theme.on.hover : Theme.on.window
+            ground: Theme.within(root.ground, root.markLit ? Theme.on.selected : markMouse.containsMouse
+                                                                                  ? Theme.on.hover : Theme.on.window)
         }
 
+        // D14 b `.mark.ring`: the menu's edge round the lit mark, open at the bottom.
+        Item {
+            anchors.fill: parent
+            objectName: "railMarkRing"
+            visible: root.markLit
+
+            Rectangle {
+                color: Theme.menuEdgeColor
+                height: parent.height
+                width: Theme.menuEdgeWidth
+            }
+
+            Rectangle {
+                color: Theme.menuEdgeColor
+                height: Theme.menuEdgeWidth
+                width: parent.width
+            }
+
+            Rectangle {
+                color: Theme.menuEdgeColor
+                height: parent.height
+                width: Theme.menuEdgeWidth
+                x: parent.width - width
+            }
+        }
+
+        // #201 F10: the same inset folded and open, so ctrl+b never moves the mark (centring it
+        // in the folded rail put it a pixel or two to the left).
         Row {
             anchors.left: parent.left
-            anchors.leftMargin: root.compact ? Math.round((markButton.width - markGlyph.width) / 2)
-                                             : Theme.railMarkInset
+            anchors.leftMargin: Theme.railMarkInset
             anchors.verticalCenter: parent.verticalCenter
             spacing: Theme.railMarkGap
 
             Glyph {
                 id: markGlyph
 
+                objectName: "railMarkGlyph"
                 anchors.verticalCenter: parent.verticalCenter
                 color: root.markAlert ? markInk.red : markInk.accent
                 height: Theme.railMarkSize
@@ -726,6 +885,7 @@ Item {
             anchors.bottom: parent.bottom
             anchors.left: parent.left
             anchors.right: parent.right
+            visible: !root.markLit
         }
 
         MouseArea {
@@ -765,6 +925,7 @@ Item {
             RailRow {
                 id: viewDelegate
 
+                block: root.ground
                 required property int index
                 required property var modelData
 
@@ -807,7 +968,7 @@ Item {
 
         // D12: the filters scroll above the servers block, never under it. Opened over the
         // filters (D18), the block keeps only its folded line's room.
-        anchors.bottom: root.serversRowCount > 0 ? serversBlock.top : parent.bottom
+        anchors.bottom: root.serversRowCount > 0 ? serversBlock.top : footBlock.top
         anchors.bottomMargin: root.serversOverlay ? -(serversBlock.height - root._serversFoldedHeight) : 0
         anchors.left: parent.left
         anchors.right: hairline.left
@@ -824,14 +985,17 @@ Item {
             id: content
 
             bottomPadding: Theme.space(10)
-            spacing: Theme.space(14)
-            topPadding: Theme.space(10)
+            // #201 F8: the headings' own room above their words comes out of these, so the
+            // words stay put; folded, the rail has no headings.
+            spacing: Theme.space(14) - (root.compact ? 0 : statusGroup.headPadding)
+            topPadding: Theme.space(10) - (root.compact ? 0 : statusGroup.headPadding)
             width: flick.width
 
             // ---- now: the five questions (DECISIONS C24 H2) ---------------------------
             RailGroup {
                 id: statusGroup
 
+                block: root.ground
                 readonly property int globalIndex: root.statusFolded && !root.compact ? root.statusBase : -1
 
                 collapsed: root.statusFolded && !root.compact
@@ -853,6 +1017,7 @@ Item {
                     RailRow {
                         id: questionDelegate
 
+                        block: root.ground
                         required property int index
                         required property var modelData
 
@@ -897,6 +1062,7 @@ Item {
             RailRow {
                 id: groupsRow
 
+                block: root.ground
                 readonly property int globalIndex: root.groupsRowSpan > 0 ? root.groupsRowBase : -1
                 readonly property bool compactStop: true
 
@@ -921,6 +1087,7 @@ Item {
             RailGroup {
                 id: categoriesGroup
 
+                block: root.ground
                 readonly property int globalIndex: root.categoriesFolded ? root.categoriesBase : -1
 
                 collapsed: root.categoriesFolded
@@ -940,6 +1107,7 @@ Item {
                 RailRow {
                     id: categoriesAll
 
+                    block: root.ground
                     readonly property int globalIndex: root.categoriesFolded ? -1 :
                                                                                root.categoriesBase
 
@@ -964,6 +1132,7 @@ Item {
                     RailRow {
                         id: categoryDelegate
 
+                        block: root.ground
                         required property int index
                         required property string name
 
@@ -985,6 +1154,7 @@ Item {
                         onHoverChanged: hovering => root._nameTip(categoryDelegate, hovering, categoryDelegate.name)
 
                         Component.onCompleted: root._registerRow(categoryDelegate, () => {
+                                                                     root._leaveQuestion();
                                                                      root.filtered.category
                                                                              = categoryDelegate.name;
                                                                  })
@@ -995,6 +1165,7 @@ Item {
                 RailRow {
                     id: categoriesNone
 
+                    block: root.ground
                     readonly property int globalIndex: root.categoriesFolded
                                                        || !root.categoriesNoneVisible ? -1 :
                                                                                         root.categoriesBase
@@ -1012,6 +1183,7 @@ Item {
                     onClicked: root.clickRow(categoriesNone.globalIndex)
 
                     Component.onCompleted: root._registerRow(categoriesNone, () => {
+                                                                 root._leaveQuestion();
                                                                  root.filtered.category = "";
                                                              })
                     Component.onDestruction: root._unregisterRow(categoriesNone)
@@ -1022,6 +1194,7 @@ Item {
             RailGroup {
                 id: foldersGroup
 
+                block: root.ground
                 readonly property int globalIndex: root.foldersFolded ? root.foldersBase : -1
 
                 collapsed: root.foldersFolded
@@ -1043,6 +1216,7 @@ Item {
                     RailRow {
                         id: folderDelegate
 
+                        block: root.ground
                         required property int index
                         required property string path
                         required property string name
@@ -1108,6 +1282,7 @@ Item {
             RailGroup {
                 id: tagsGroup
 
+                block: root.ground
                 readonly property int globalIndex: root.tagsFolded ? root.tagsBase : -1
 
                 collapsed: root.tagsFolded
@@ -1125,6 +1300,7 @@ Item {
                 RailRow {
                     id: tagsAll
 
+                    block: root.ground
                     readonly property int globalIndex: root.tagsFolded ? -1 : root.tagsBase
 
                     count: root.counts.total
@@ -1146,6 +1322,7 @@ Item {
                     RailRow {
                         id: tagDelegate
 
+                        block: root.ground
                         required property int index
                         required property string name
 
@@ -1165,6 +1342,7 @@ Item {
                         onHoverChanged: hovering => root._nameTip(tagDelegate, hovering, tagDelegate.name)
 
                         Component.onCompleted: root._registerRow(tagDelegate, () => {
+                                                                     root._leaveQuestion();
                                                                      root.filtered.tag
                                                                              = tagDelegate.name;
                                                                  })
@@ -1175,6 +1353,7 @@ Item {
                 RailRow {
                     id: tagsUntagged
 
+                    block: root.ground
                     readonly property int globalIndex: root.tagsFolded || !root.tagsUntaggedVisible
                                                        ? -1 : root.tagsBase + 1 + root.tagsNamedCount
 
@@ -1189,6 +1368,7 @@ Item {
                     onClicked: root.clickRow(tagsUntagged.globalIndex)
 
                     Component.onCompleted: root._registerRow(tagsUntagged, () => {
+                                                                 root._leaveQuestion();
                                                                  root.filtered.tag = "";
                                                              })
                     Component.onDestruction: root._unregisterRow(tagsUntagged)
@@ -1199,6 +1379,7 @@ Item {
             RailGroup {
                 id: trackersGroup
 
+                block: root.ground
                 readonly property int globalIndex: root.trackersFolded ? root.trackersBase : -1
 
                 collapsed: root.trackersFolded
@@ -1218,6 +1399,7 @@ Item {
                 RailRow {
                     id: trackersAll
 
+                    block: root.ground
                     readonly property int globalIndex: root.trackersFolded ? -1 : root.trackersBase
 
                     count: root.counts.total
@@ -1240,6 +1422,7 @@ Item {
                     RailRow {
                         id: trackerDelegate
 
+                        block: root.ground
                         required property int index
                         required property bool isTrackerless
                         required property string host
@@ -1270,6 +1453,7 @@ Item {
                         onClicked: root.clickRow(trackerDelegate.globalIndex)
 
                         Component.onCompleted: root._registerRow(trackerDelegate, () => {
+                                                                     root._leaveQuestion();
                                                                      root.filtered.tracker
                                                                              = trackerDelegate.host;
                                                                  })
@@ -1280,12 +1464,61 @@ Item {
         }
     }
 
+    // Board 51 D5 a: the log's own groups, where the torrents' scroll (whose place they take).
+    Flickable {
+        id: logFlick
+
+        anchors.bottom: flick.bottom
+        anchors.left: parent.left
+        anchors.right: hairline.left
+        anchors.top: viewsRule.bottom
+        boundsBehavior: Flickable.StopAtBounds
+        clip: true
+        contentHeight: logGroups.implicitHeight + Theme.space(20) - 2 * logGroups.headPadding
+        contentWidth: width
+        interactive: contentHeight > height
+        objectName: "railLogScroll"
+        visible: root.logGroupsShown
+
+        Loader {
+            id: logGroups
+
+            readonly property real headPadding: item ? item.headPadding : 0
+
+            active: root.logGroupsShown
+            width: logFlick.width
+            y: Theme.space(10) - logGroups.headPadding
+
+            sourceComponent: RailLogGroups {
+                block: root.ground
+                collapsedGroups: root.collapsedGroups
+                keysShown: root.keysShown
+                lines: root.logLines
+                log: root.serverLog
+                torrents: root.logTorrents
+                width: logFlick.width
+
+                onGroupToggled: group => root.groupToggled(group)
+                onNameTip: (row, hovering, full) => root._nameTip(row, hovering, full)
+            }
+        }
+    }
+
+    WheelScroll {
+        anchors.fill: logFlick
+        flickable: logFlick
+        rowHeight: Theme.railRowHeight
+        visible: root.logGroupsShown
+        z: 2
+    }
+
     // A wheel notch moves three rail rows, and quick notches add up (Kit/WheelScroll).
     WheelScroll {
         anchors.fill: flick
         flickable: flick
         objectName: "railWheel"
         rowHeight: Theme.railRowHeight
+        visible: flick.visible
         z: 2
     }
 
@@ -1300,32 +1533,40 @@ Item {
         countAbove: root.rowsAbove
         countBelow: root.rowsBelow
         flickable: flick
+        ground: root._opaqueGround
         revealed: root.activeFocus
         style: root.scrollHint
         z: 3
     }
 
+    // On the window's content item (as the hero's server line's, KIT-8), over everything: a
+    // name wider than the rail runs over the list and the title bar, and the servers block
+    // (z 5) sits over the rail's own children; under either, the tip read as translucent
+    // (#201 F7).
     Tooltip {
         id: hostTip
 
         objectName: "railTip"
-        z: 4
+        parent: root.Window.window ? root.Window.window.contentItem : root
+        z: 1000
     }
 
-    // Folded, a row's name shows beside the 46 px column, over the window's content, so this
-    // one lives on the window's content item (as the hero's server line's, KIT-8).
+    // Folded, a row's name shows beside the 46 px column, over the window's content.
     Tooltip {
         id: compactTip
 
         objectName: "railCompactTip"
         parent: root.Window.window ? root.Window.window.contentItem : root
-        z: 5
+        z: 1000
     }
 
     // ---- the servers block (docs/33 §9: D12, D16–D18) ----------------------------------
     /// The block's height open and folded, for the short-window rule (D18).
     readonly property real _serversFoldedHeight: Theme.railRowHeight + Theme.space(12)
-    readonly property real _serversOpenHeight: (root.compact ? 0 : serversHeading.implicitHeight) + Theme.space(12)
+    /// The heading carries the block's top room in its own padding (#201 F6, F8); folded, the
+    /// rows have it above them.
+    readonly property real _serversOpenHeight: (root.compact ? Theme.space(6) : serversHeading.implicitHeight)
+                                               + Theme.space(6)
                                                + (root.serversListed + (root.serversMore ? 1 : 0))
                                                * Theme.railRowHeight
 
@@ -1344,6 +1585,7 @@ Item {
         case "certificate":
         case "failed":
             return Theme.red;
+        case "connecting": // #201 F4: a switch under way is neutral; red only on a failure
         default:
             return Theme.fill(Theme.faintAlpha);
         }
@@ -1398,7 +1640,7 @@ Item {
     Rectangle {
         id: serversBlock
 
-        anchors.bottom: parent.bottom
+        anchors.bottom: footBlock.top
         anchors.left: parent.left
         anchors.right: hairline.left
         // D16 a: a band of its own, the idle fill under a hairline. Opened over the filters
@@ -1412,17 +1654,22 @@ Item {
         z: 5
 
         // docs/DECISIONS.md C30 F1: the block's rows and heading are on this fill
-        // (`block: Theme.on.idle`), hovered on the hover fill over it.
+        // (`block: Theme.on.idle`), hovered on the hover fill over it. On a tinted rail (C32
+        // D16 a) the block takes no fill of its own: its rows are on the rail's, under its
+        // hairline, so they stay on grounds C30 measured.
         Rectangle {
             anchors.fill: parent
             anchors.margins: parent.border.width
             color: Theme.on.idle.fill
+            visible: root.ground === Theme.on.window || root.serversOverlay
         }
 
+        // Over the rows: their hover fill starts right under it (#201 F6).
         Hairline {
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.top: parent.top
+            z: 1
         }
 
         // C24 H10: ctrl+s, the server palette, on the block's top edge while alt is held.
@@ -1436,11 +1683,15 @@ Item {
             shown: root.keysShown
         }
 
+        // #201 F6: from the block's top, so a row's hover fill (the heading's, the folded
+        // line's) meets the hairline; the room above the words is inside them. Folded, the
+        // rail has no heading and its rows keep the room above them.
         Column {
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.top: parent.top
-            anchors.topMargin: Theme.space(6)
+            anchors.topMargin: serversBlock.border.width
+            topPadding: root.compact && !root.serversShownFolded ? Theme.space(6) : 0
 
             // The heading: "servers · 3" and the fold chevron (D16 a). A click folds.
             RailGroup {
@@ -1449,12 +1700,13 @@ Item {
                 // #78: "servers", the count in the description.
                 accessibleDetail: qsTr("%n server(s)", "", root.serversRowCount)
                 accessibleName: qsTr("servers")
-                block: Theme.on.idle
+                block: root._serversGround
                 collapsed: false
                 // Where the head carries kana, in two parts (board 46 `.srv h6`): the word and
                 // its kana, then the count at the right.
                 count: root.serversRowCount
                 countShown: Theme.labelKana
+                headPadding: Theme.space(6)
                 label: Theme.labelKana ? qsTr("servers") : qsTr("servers · %1").arg(Theme.numeral(root.serversRowCount))
                 labelId: "servers"
                 objectName: "serversHeading"
@@ -1478,12 +1730,15 @@ Item {
                                          serversFoldedLine.countText, qsTr("folded")].filter(
                                             part => part.length > 0).join(" · ")
                 Accessible.name: qsTr("servers")
-                block: Theme.on.idle
+                block: root._serversGround
                 compact: root.compact
                 countText: qsTr("%n servers", "", root.serversRowCount)
                 glyph: Glyphs.dot
                 glyphColor: root._serverDotColor(root._currentServer.serverState || "")
                 hasCursor: root.cursorOn(serversFoldedLine.globalIndex)
+                // The whole block under the hairline, its words in the middle as before (#201 F6).
+                height: root._serversFoldedHeight
+                implicitHeight: root._serversFoldedHeight
                 objectName: "serversFoldedLine"
                 text: (root._currentServer.name || "") + " " + Glyphs.chevronUp
                 visible: root.serversShownFolded
@@ -1516,14 +1771,17 @@ Item {
                                                        || !serverDelegate.listed ? -1 : root.serversBase
                                                                                         + serverDelegate.index
                     readonly property bool pinned: true
+                    /// D4 a: the server this row's menu is about.
+                    readonly property string menuServer: root.serverList.idAt(serverDelegate.index)
 
-                    block: Theme.on.idle
+                    block: root._serversGround
                     compact: root.compact
                     countColor: root._serverCountColor(serverDelegate.countLabel)
                     countText: serverDelegate.countLabel
                     glyph: Glyphs.dot
                     glyphColor: root._serverDotColor(serverDelegate.serverState)
                     hasCursor: root.cursorOn(serverDelegate.globalIndex)
+                    hasMenu: true
                     objectName: "serverRow-" + serverDelegate.name
                     selected: serverDelegate.isDefault
                     text: serverDelegate.name
@@ -1533,6 +1791,13 @@ Item {
                     onClicked: root.clickRow(serverDelegate.globalIndex)
                     onHoverChanged: hovering => root._serverTip(serverDelegate, hovering,
                                                                 serverDelegate.index)
+                    // D4 a: the menu is this row's server's; the cursor goes there, as on a
+                    // folder row.
+                    onMenuRequested: (x, y) => {
+                        root.cursorIndex = serverDelegate.globalIndex;
+                        const point = serverDelegate.mapToItem(root, x, y);
+                        root.serverMenuRequested(serverDelegate.menuServer, point.x, point.y);
+                    }
 
                     Component.onCompleted: root._registerRow(serverDelegate, () => {
                                                                  root._serversForced = false;
@@ -1555,7 +1820,7 @@ Item {
                 Accessible.description: qsTr("%1 more · shortcut %2").arg(
                                             root.serversRowCount - root.serversListed).arg("ctrl+s")
                 Accessible.name: qsTr("more servers")
-                block: Theme.on.idle
+                block: root._serversGround
                 compact: root.compact
                 glyph: "…"
                 hasCursor: root.cursorOn(serversMoreRow.globalIndex)
@@ -1569,6 +1834,50 @@ Item {
                 Component.onCompleted: root._registerRow(serversMoreRow, () => root.moreServersRequested())
                 Component.onDestruction: root._unregisterRow(serversMoreRow)
             }
+        }
+    }
+
+    // ---- the foot (board 51 D1 a, DECISIONS C32) ---------------------------------------
+    /// Its height: the row and `.rfoot`'s room round it, under a hairline.
+    readonly property real _footHeight: Theme.railRowHeight + 2 * Theme.space(6) + Theme.hairWidth
+
+    Item {
+        id: footBlock
+
+        anchors.bottom: parent.bottom
+        anchors.left: parent.left
+        anchors.right: hairline.left
+        height: root._footHeight
+        objectName: "railFoot"
+        z: 5
+
+        Hairline {
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.top: parent.top
+        }
+
+        RailRow {
+            id: settingsRow
+
+            block: root.ground
+            Accessible.description: qsTr("shortcut %1").arg(",")
+            anchors.bottom: parent.bottom
+            anchors.bottomMargin: Theme.space(6)
+            anchors.left: parent.left
+            anchors.right: parent.right
+            compact: root.compact
+            glyph: Glyphs.settings
+            keyText: ","
+            keysShown: root.keysShown
+            objectName: "railSettings"
+            text: qsTr("settings")
+
+            onClicked: {
+                root._hideTips();
+                root.settingsRequested();
+            }
+            onHoverChanged: hovering => root._keyTip(settingsRow, hovering)
         }
     }
 
@@ -1596,7 +1905,7 @@ Item {
         anchors.right: hairline.left
         anchors.top: flick.top
         anchors.topMargin: scrollHintOverlay.topInset
-        color: Theme.background
+        color: root._opaqueGround
         height: stuckLabel.implicitHeight + Theme.space(10)
         visible: root.stuckGroup !== null
         z: 2
@@ -1642,6 +1951,153 @@ Item {
         anchors.right: parent.right
         anchors.bottom: parent.bottom
         anchors.top: parent.top
+        // D3 a: the edge lights in the accent under the pointer, as the details' split does.
+        color: edgeGrip.containsMouse || edgeGrip.pressed ? Theme.accent : Theme.hairColor
         vertical: true
+    }
+
+    // D9 c: its hover reaches every row without taking their pointer.
+    HoverHandler {
+        id: railHover
+    }
+
+    // ---- the edge: D3 a's drag, D9 c's tab ------------------------------------------------
+    // The edge's handle, `Theme.space(6)` inside the rail along its whole height below the tab.
+    // a11y-ignore A2: a drag handle; ctrl+b folds the rail and the tab is its button (#77)
+    MouseArea {
+        id: edgeGrip
+
+        /// The width the pointer asks for, in rail coordinates (its x past the press, from
+        /// the width the drag started at).
+        property int wanted: root.width
+        property real pressedX: 0
+        property int startWidth: 0
+        property bool moved: false
+
+        anchors.bottom: parent.bottom
+        anchors.right: parent.right
+        anchors.top: parent.top
+        anchors.topMargin: edgeTab.y + edgeTab.height
+        cursorShape: Qt.SplitHCursor
+        hoverEnabled: true
+        objectName: "railEdge"
+        width: Theme.space(6)
+        z: 6
+
+        onDoubleClicked: {
+            if (root.compact)
+                root.unfoldDragged();
+            root.widthChosen(Theme.railWidth, true);
+        }
+        onPositionChanged: mouse => {
+            if (!edgeGrip.pressed)
+                return;
+            const along = edgeGrip.mapToItem(root, mouse.x, mouse.y).x - edgeGrip.pressedX;
+            if (!edgeGrip.moved) {
+                if (Math.abs(along) < Application.styleHints.startDragDistance)
+                    return;
+                edgeGrip.moved = true;
+            }
+            edgeGrip.wanted = Math.round(edgeGrip.startWidth + along);
+            // Out of the folded column: open, and the drag carries on as an open one.
+            if (root.compact && edgeGrip.wanted >= root.foldBelowWidth)
+                root.unfoldDragged();
+        }
+        onPressed: mouse => {
+            edgeGrip.pressedX = edgeGrip.mapToItem(root, mouse.x, mouse.y).x;
+            edgeGrip.startWidth = root.width;
+            edgeGrip.wanted = root.width;
+            edgeGrip.moved = false;
+        }
+        onReleased: {
+            const was = edgeGrip.moved;
+            const folds = root._dragFolds;
+            const width = root._dragWidth;
+            edgeGrip.moved = false;
+            if (!was || root.compact)
+                return;
+            if (folds)
+                root.foldDragged();
+            else
+                root.widthChosen(width, false);
+        }
+        onCanceled: edgeGrip.moved = false
+    }
+
+    // D3 a: the width while dragging, "fold" in the accent under `foldBelowWidth`.
+    Rectangle {
+        id: widthTip
+
+        border.color: root._dragFolds ? Theme.accent : Theme.fill(Theme.hairlineAlpha)
+        border.width: Theme.hairWidth
+        color: Theme.background
+        height: widthTipText.implicitHeight + Theme.space(6)
+        objectName: "railWidthTip"
+        radius: Theme.cornerRadius
+        visible: root.resizing
+        width: widthTipText.implicitWidth + Theme.space(16)
+        x: root.width + Theme.space(8)
+        y: Math.round(root.height * 0.46)
+        z: 7
+
+        Label {
+            id: widthTipText
+
+            anchors.centerIn: parent
+            color: root._dragFolds ? Theme.accent : Theme.foreground
+            size: "small"
+            text: root._dragFolds ? qsTr("fold") : qsTr("↔ %1").arg(root._dragWidth)
+        }
+    }
+
+    // D9 c (C32: moved to the top): ‹ on the edge while the pointer is on the rail, centred on
+    // the title bar's height; › on the folded rail. Over the title bar beside it: the host
+    // keeps the rail above the content.
+    Rectangle {
+        id: edgeTab
+
+        Accessible.name: root.compact ? qsTr("unfold the rail") : qsTr("fold the rail")
+        Accessible.role: Accessible.Button
+        Accessible.onPressAction: root.foldToggleRequested()
+
+        border.color: Theme.accent
+        border.width: Theme.edgeWidth
+        color: edgeTabMouse.containsMouse ? Qt.tint(Theme.background, Theme.on.hover.fill) : Theme.background
+        height: Math.min(Theme.space(44), Math.round(root.headHeight) - 2 * Theme.space(6))
+        objectName: "railEdgeTab"
+        opacity: root.edgeHovered && !root.resizing ? 1 : 0
+        width: Theme.space(14)
+        x: root.width - Math.round(width / 2)
+        y: Math.round((root.headHeight - height) / 2)
+        z: 8
+
+        Glyph {
+            anchors.centerIn: parent
+            color: Theme.accent
+            pixelSize: Theme.font.small
+            text: root.compact ? Glyphs.chevronRight : Glyphs.chevronLeft
+        }
+
+        MouseArea {
+            id: edgeTabMouse
+
+            anchors.fill: parent
+            cursorShape: Qt.PointingHandCursor
+            hoverEnabled: true
+
+            onClicked: {
+                edgeTip.hide();
+                root.foldToggleRequested();
+            }
+            onContainsMouseChanged: root._edgeTip(edgeTabMouse.containsMouse)
+        }
+    }
+
+    Tooltip {
+        id: edgeTip
+
+        objectName: "railEdgeTip"
+        parent: root.Window.window ? root.Window.window.contentItem : root
+        z: 1000
     }
 }

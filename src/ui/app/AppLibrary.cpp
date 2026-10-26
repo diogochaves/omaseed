@@ -1,7 +1,7 @@
 // App's #168 block (board 46 H3–H4, DECISIONS C24): which display shows the library in the
 // rail's scope, remembered per scope (core/LibraryDisplays) in state.json's `displays`, and the
-// grouping of `filtered` that display wants: the rows under the five questions, the overview's
-// shelves under the categories, the table none. The declarations sit at the end of App.hpp.
+// grouping of `filtered` that display wants: the rows under the five questions, space by folder
+// (board 51 D12 a), the table none. The declarations sit at the end of App.hpp.
 #include "ui/app/App.hpp"
 
 #include "core/LibraryDisplays.hpp"
@@ -38,7 +38,7 @@ void App::setUpLibraryDisplays()
         m_displays = LibraryDisplays::fromJson(saved, QStringLiteral("table"));
     }
     // The walks pick their display explicitly (scripts/dev): every scope starts on it.
-    const QString forced = qEnvironmentVariable("OMASEED_DISPLAY");
+    const QString forced = LibraryDisplays::canonical(qEnvironmentVariable("OMASEED_DISPLAY"));
     if (LibraryDisplays::isName(forced)) {
         m_displays = LibraryDisplays(forced);
         m_displaysUnsaved = true;
@@ -63,9 +63,9 @@ void App::updateDisplay()
     // #168 assumed 5: a move's torrents on show are its step column's list.
     const QString display =
         m_filtered->onlyHashes().isEmpty() ? m_displays.displayFor(scope) : QStringLiteral("table");
-    m_filtered->setGroupBy(display == QLatin1String("rows")       ? TorrentFilterModel::ByQuestion
-                           : display == QLatin1String("overview") ? TorrentFilterModel::ByCategory
-                                                                  : TorrentFilterModel::NoGroups);
+    m_filtered->setGroupBy(display == QLatin1String("rows")    ? TorrentFilterModel::ByQuestion
+                           : display == QLatin1String("space") ? TorrentFilterModel::BySpace
+                                                               : TorrentFilterModel::NoGroups);
     if (scope == m_displayScope && display == m_display)
         return;
     m_displayScope = scope;

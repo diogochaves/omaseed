@@ -25,6 +25,7 @@
 
 #include "core/ActionOutcome.hpp"
 #include "core/AddFilesModel.hpp"
+#include "core/AltPresets.hpp"
 #include "core/AltSpeed.hpp"
 #include "core/AutoBackup.hpp"
 #include "core/CategoryModel.hpp"
@@ -194,6 +195,9 @@ public:
     bool isDemoMode() const { return m_demoMode; }
     /// True after serverLost/authRequired until a sync succeeds again (drives the tray).
     bool isServerLost() const { return m_serverLost; }
+    /// #201 F4: a server is being reached (a switch, or the launch) and has neither answered
+    /// nor failed yet: its dots are neutral, never red.
+    bool serverConnecting() const { return m_serverConnecting; }
 
     /// The tray's icon state for a given world (spec §6 Fig. 17). Highest priority first:
     /// disconnected, error, alt-speed, downloading, idle. Static and pure so the mapping is
@@ -207,9 +211,12 @@ public Q_SLOTS:
     /// The window's visibility: the poll loop slows to 5 s while it is false.
     void setVisible(bool visible);
 
-    /// POST transfer/toggleSpeedLimitsMode. The tray's checkbox is not moved here — it
+    /// A: off while the alternative limits are on, else the last preset picked (turtle or
+    /// burst, DECISIONS C32 D8 a; AltPresets). The tray's checkbox is not moved here — it
     /// follows `globalState.useAltSpeedLimits`, which the next poll brings back.
     void toggleAltSpeed();
+    /// C32 D8 a: "off", "turtle" or "burst", picked from the chip's choice or a menu.
+    Q_INVOKABLE void pickAltSpeed(const QString &kind);
     /// POST torrents/stop with hashes=all.
     void stopAll();
     /// POST torrents/start with hashes=all.
@@ -246,6 +253,8 @@ private:
     bool m_hasServer = false;
     bool m_demoMode = false;
     bool m_serverLost = false;
+    bool m_serverConnecting = false; ///< #201 F4: see serverConnecting()
+    void setServerConnecting(bool connecting);
     /// Bumped whenever the live server changes; late keychain answers compare against it.
     quint64 m_serverGeneration = 0;
 
@@ -340,6 +349,9 @@ public:
     Q_INVOKABLE static QString limitShortText(qint64 bytesPerSecond);
     /// A speed in the same short form ("4.21M", "812K", "0"), for the hero's last step.
     Q_INVOKABLE static QString speedShortText(qint64 bytesPerSecond);
+    /// A speed split for drawing, against its cap when there is one (`Format::speedParts`,
+    /// DECISIONS C32 D6 a): `{value, cap, unit}`, `cap` "" with none.
+    Q_INVOKABLE static QVariantMap speedParts(qint64 bytesPerSecond, qint64 capBytesPerSecond);
 
     /// A client error ("network: GET sync/maindata: Connection refused") stripped to the
     /// reason Fig. 21's notice and Fig. 23's banner print ("connection refused").
@@ -573,12 +585,16 @@ public:
         QString railScrollHint READ railScrollHint WRITE setRailScrollHint NOTIFY settingsChanged)
     QString railScrollHint() const;
     void setRailScrollHint(const QString &hint);
-    /// The fill the rail and details sit on, as a percentage of the foreground: 0 (none, the
-    /// default), 4 or 8 — the plan's own fill steps, so every theme still holds together.
-    /// Kept but drawn by nothing since the hero went (#167 assumed 6), as speedsAlignment.
+    /// The rail's own fill, as a percentage of the foreground: 0 (none, the default), 4 or 8
+    /// (DECISIONS C32 D16 a: the rail only, its rows on C30's nested grounds over it).
     Q_PROPERTY(int surfaceTint READ surfaceTint WRITE setSurfaceTint NOTIFY settingsChanged)
     int surfaceTint() const;
     void setSurfaceTint(int percent);
+    /// Where ↓ and ↑ are drawn: "title" (the title bar, a line under each; the default) or
+    /// "status" (the status line, as C24 H15 had them). DECISIONS C32 D2 a.
+    Q_PROPERTY(QString speedsPlace READ speedsPlace WRITE setSpeedsPlace NOTIFY settingsChanged)
+    QString speedsPlace() const;
+    void setSpeedsPlace(const QString &place);
     /// How a tracker host is fitted into the rail: "prefix" (drop a leading tracker./announce./
     /// open., the default), "left" (elide the start) or "right" (elide the end).
     Q_PROPERTY(QString trackerHostStyle READ trackerHostStyle WRITE setTrackerHostStyle NOTIFY
@@ -595,6 +611,12 @@ public:
     Q_PROPERTY(bool railHidden READ railHidden WRITE setRailHidden NOTIFY settingsChanged)
     bool railHidden() const;
     void setRailHidden(bool hidden);
+    /// DECISIONS C32 D3: the open rail's width as its edge was dragged, in Theme.space units
+    /// (so a base size change keeps the proportion); 0 is the default. The window's, not a
+    /// server's. Negative values read as 0.
+    Q_PROPERTY(int railWidth READ railWidth WRITE setRailWidth NOTIFY settingsChanged)
+    int railWidth() const;
+    void setRailWidth(int units);
 
     /// "auto" | "always" | "never" (plan Phase 6 T6.3). `auto` behaves as `always` until the
     /// companion widget exists; the row is here now because it is cheap.
@@ -694,7 +716,9 @@ private:
     QString m_detailsPlacement = QStringLiteral("auto");
     int m_surfaceTint = 0;
     QString m_trackerHostStyle = QStringLiteral("prefix");
+    QString m_speedsPlace = QStringLiteral("title");
     bool m_railHidden = false;
+    int m_railWidth = 0;
     bool m_settingsLoaded = false;
     // --- end T4.5 --------------------------------------------------------------------------
     // --- T4.3: torrent actions ---
@@ -1439,6 +1463,10 @@ public:
     /// server the app is on. The preferences are read again whenever they flip (D13).
     Q_PROPERTY(omaseed::core::AltSpeed *altSpeed READ altSpeed CONSTANT)
     omaseed::core::AltSpeed *altSpeed() const { return m_altSpeed; }
+    /// DECISIONS C32 D8 a: turtle and burst, two presets for the one alternative set, for the
+    /// server the app is on.
+    Q_PROPERTY(omaseed::core::AltPresets *altPresets READ altPresets CONSTANT)
+    omaseed::core::AltPresets *altPresets() const { return m_altPresets; }
 
 private:
     /// A change the server took may move omaseed's own way in (docs/16 §3): the Web UI's
@@ -1453,6 +1481,7 @@ private:
     void probeWebUi(const QUrl &base, std::function<void(bool)> done, int attempts);
     omaseed::core::ServerPreferences *m_prefs = nullptr;
     omaseed::core::AltSpeed *m_altSpeed = nullptr;
+    omaseed::core::AltPresets *m_altPresets = nullptr;
     QNetworkAccessManager *m_probeNam = nullptr;
 
 public:
@@ -1706,6 +1735,10 @@ public:
     /// The portal's save dialog, proposing `~/qbittorrent-<server>-<date>.json`. Empty when
     /// cancelled.
     Q_INVOKABLE QString pickQbtExportPath() const;
+    /// Board 51 D5 a, "export log…": where to save the log's lines as shown, through the
+    /// portal's chooser as the other exports ("qbittorrent-log-public-2026-10-26.txt" in the
+    /// home folder proposed); "" when cancelled. `App.logLines.writeShown()` writes it.
+    Q_INVOKABLE QString pickLogExportPath() const;
     /// Reads the server's settings and writes them to `path`; `qbtExportFinished` says how it
     /// went.
     Q_INVOKABLE void exportQbtSettings(const QString &path);
@@ -1911,6 +1944,9 @@ public:
     /// unreachable (red).
     Q_PROPERTY(bool serverWaiting READ serverWaiting NOTIFY serverStateChanged)
     bool serverWaiting() const;
+    /// #201 F4: on the way to a server (a switch or the launch) until its first answer or a
+    /// failure: the rail's dot and the status line's read "connecting", neutral, not red.
+    Q_PROPERTY(bool serverConnecting READ serverConnecting NOTIFY serverStateChanged)
     /// D23: what the read-only guard says when it stops `key`: "private is unreachable: p
     /// waits until it answers".
     Q_INVOKABLE QString guardNote(const QString &key) const;
@@ -2205,7 +2241,12 @@ public:
     /// server's, the log's, the seed console's, a move's torrents on show from its band or
     /// from the move sheet.
     Q_INVOKABLE QString lostSentence(const QString &listTime, const QString &headline) const;
-    Q_INVOKABLE QString logSentence(const QString &server, int lines, const QString &since) const;
+    Q_INVOKABLE QString logSentence(const QString &server,
+                                    int lines,
+                                    const QString &since,
+                                    int warnings = 0,
+                                    int critical = 0,
+                                    bool following = false) const;
     Q_INVOKABLE QString seedSentence(const QString &upSpeed,
                                      const QString &today,
                                      const QString &scope) const;
@@ -2222,11 +2263,12 @@ private:
     // --- end #167 -----------------------------------------------------------------------------
 
     // --- #168: the library's displays -------------------------------------------------------
-    // Board 46 H3–H4 (DECISIONS C24): rows grouped under the questions, the table, or the
-    // overview's shelves, remembered per scope (core/LibraryDisplays) in state.json's
-    // `displays`, and `filtered`'s grouping set to match. AppLibrary.cpp.
+    // Board 46 H3–H4 (DECISIONS C24): rows grouped under the questions, the table, or space
+    // (board 51 D12 a, C32: a size map by folder, in the shelves' place), remembered per
+    // scope (core/LibraryDisplays) in state.json's `displays`, and `filtered`'s grouping set
+    // to match. AppLibrary.cpp.
 public:
-    /// The display the rail's scope shows now: "rows", "table" or "overview". A move's
+    /// The display the rail's scope shows now: "rows", "table" or "space". A move's
     /// torrents on show (C15 M10) are always the table (#168 assumed 5).
     Q_PROPERTY(QString display READ display NOTIFY displayChanged)
     QString display() const { return m_display; }
@@ -2234,7 +2276,8 @@ public:
     Q_PROPERTY(QString displayScope READ displayScope NOTIFY displayChanged)
     QString displayScope() const { return m_displayScope; }
     /// The display tool's pick: `display` for the scope shown now (the library's is every
-    /// scope's that has none of its own). A move's show changes nothing.
+    /// scope's that has none of its own); "overview", the shelves' old name, is space. A
+    /// move's show changes nothing.
     Q_INVOKABLE void setDisplay(const QString &display);
     /// What `scopeKey` shows.
     Q_INVOKABLE QString displayFor(const QString &scopeKey) const;

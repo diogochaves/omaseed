@@ -41,6 +41,7 @@ ColumnLayout {
     /// The section's rows the server can take, in order.
     readonly property var rows: {
         void root._keyCount;
+        void App.altPresets.loaded; // the presets' rows (C32 D8 a) answer once their server is set
         if (!root.section)
             return [];
         return root.section.rows.filter(spec => {
@@ -59,8 +60,10 @@ ColumnLayout {
                                                 if (part)
                                                     keys.push(part.key);
                                             }
-                                            // A row with nothing to read (a button) always shows.
-                                            return keys.length === 0 || keys.some(key => root.prefs.has(key));
+                                            // A row with nothing to read (a button) always shows. The
+                                            // presets' rows read App.altPresets (C32 D8 a).
+                                            const store = spec.presets ? App.altPresets : root.prefs;
+                                            return keys.length === 0 || keys.some(key => store.has(key));
                                         });
     }
     /// For each cursor position, the index of its row in `rows`.
@@ -341,7 +344,7 @@ ColumnLayout {
                                                                              : holder.modelData.list
                                                                                ? holder.modelData.list.key
                                                                                : holder.index))
-                    prefs: root.prefs
+                    prefs: holder.modelData.presets ? App.altPresets : root.prefs
                     sectionConfirm: root.section && root.section.webui ? "webui" : ""
                     spec: holder.modelData
 

@@ -1,8 +1,8 @@
 #pragma once
 
 // TorrentStory — "what happened" in a torrent's details (board 46 `details()`'s `.tl`,
-// DECISIONS C24 H6): the story tab's timeline, oldest first, one line each with its time, a
-// marker kind, the event and a dim line under it.
+// DECISIONS C24 H6): the story tab's timeline, newest first (C32 D15), one line each with its
+// time, a marker kind, the event and a dim line under it.
 //
 // Only what omaseed knows for sure goes in: when it was added (and where), each move the
 // history keeps for it (C18 D8: the last 20 moves or 30 days), when it finished downloading,
@@ -56,7 +56,7 @@ struct StoryEvent
 class TorrentStory
 {
 public:
-    /// The events, oldest first; an event with no time is left out.
+    /// The events, newest first (C32 D15); an event with no time is left out.
     static QList<StoryEvent> events(const StoryInput &input);
 
     /// When `at` happened, seen from `now` (both local): "09:15" today, "yesterday 09:15",

@@ -48,7 +48,8 @@ private slots:
     void aTorrentAddedCompleteNeverFinishes();
     void movesSayWithWhat();
     void theErrorAndTheFailureComeAtTheirLoggedTimes();
-    void everythingIsOldestFirst();
+    void everythingIsNewestFirst();
+    void twoAtTheSameSecondReadTheLaterStepFirst();
     void anEventWithNoTimeIsLeftOut();
 };
 
@@ -86,9 +87,9 @@ void TestTorrentStory::finishedSaysHowLong()
     input.torrent.completionOn = at(24, 10, 42);
     input.torrent.totalSize = 716 * kMiB;
     const QList<StoryEvent> events = TorrentStory::events(input);
-    QCOMPARE(titles(events), QStringList({"Added", "Finished downloading"}));
-    QCOMPARE(events.at(1).detail, QStringLiteral("716 MB in 1h 27m"));
-    QCOMPARE(events.at(1).time, QStringLiteral("10:42"));
+    QCOMPARE(titles(events), QStringList({"Finished downloading", "Added"}));
+    QCOMPARE(events.at(0).detail, QStringLiteral("716 MB in 1h 27m"));
+    QCOMPARE(events.at(0).time, QStringLiteral("10:42"));
 }
 
 void TestTorrentStory::aTorrentAddedCompleteNeverFinishes()
@@ -113,16 +114,16 @@ void TestTorrentStory::movesSayWithWhat()
         {at(24, 17, 45), QStringLiteral("/data/alone"), 0, QStringLiteral("alone")}};
     const QList<StoryEvent> events = TorrentStory::events(input);
     QCOMPARE(titles(events),
-             QStringList({"Added",
-                          "Moved to /data/fast/games",
-                          "Moved to /data/keep",
+             QStringList({"Moved to /data/alone",
                           "Moved to /data/one",
-                          "Moved to /data/alone"}));
-    QCOMPARE(events.at(1).detail, QStringLiteral("with the folder games, 49 torrents"));
-    QCOMPARE(events.at(1).kind, StoryEvent::Kind::Move);
+                          "Moved to /data/keep",
+                          "Moved to /data/fast/games",
+                          "Added"}));
+    QCOMPARE(events.at(3).detail, QStringLiteral("with the folder games, 49 torrents"));
+    QCOMPARE(events.at(3).kind, StoryEvent::Kind::Move);
     QCOMPARE(events.at(2).detail, QStringLiteral("with 2 other torrents"));
-    QCOMPARE(events.at(3).detail, QStringLiteral("on its own"));
-    QCOMPARE(events.at(4).detail, QStringLiteral("with the folder alone"));
+    QCOMPARE(events.at(1).detail, QStringLiteral("on its own"));
+    QCOMPARE(events.at(0).detail, QStringLiteral("with the folder alone"));
 }
 
 void TestTorrentStory::theErrorAndTheFailureComeAtTheirLoggedTimes()
@@ -137,15 +138,17 @@ void TestTorrentStory::theErrorAndTheFailureComeAtTheirLoggedTimes()
     const QList<StoryEvent> events = TorrentStory::events(input);
     QCOMPARE(
         titles(events),
-        QStringList({"Added", "The move to dest didn't happen", "Can't write to its save folder"}));
+        QStringList({"Can't write to its save folder", "The move to dest didn't happen", "Added"}));
     QCOMPARE(events.at(1).kind, StoryEvent::Kind::Warn);
-    QCOMPARE(events.at(2).kind, StoryEvent::Kind::Error);
-    QCOMPARE(events.at(2).detail, QStringLiteral("from qBittorrent's log"));
+    QCOMPARE(events.at(0).kind, StoryEvent::Kind::Error);
+    QCOMPARE(events.at(0).detail, QStringLiteral("from qBittorrent's log"));
     QCOMPARE(TorrentStory::kindName(StoryEvent::Kind::Error), QStringLiteral("error"));
     QCOMPARE(TorrentStory::kindName(StoryEvent::Kind::Move), QStringLiteral("move"));
 }
 
-void TestTorrentStory::everythingIsOldestFirst()
+// DECISIONS C32 D15: newest first (C24 H6 read oldest first); two at the same second read
+// the later step first.
+void TestTorrentStory::everythingIsNewestFirst()
 {
     StoryInput input;
     input.now = at(24, 18, 0);
@@ -156,11 +159,23 @@ void TestTorrentStory::everythingIsOldestFirst()
     input.problem = QStringLiteral("Its files aren't where qBittorrent left them");
     input.problemAt = at(24, 9, 0);
     QCOMPARE(titles(TorrentStory::events(input)),
-             QStringList({"Added",
-                          "Moved to /a",
-                          "Finished downloading",
+             QStringList({"Its files aren't where qBittorrent left them",
                           "Moved to /b",
-                          "Its files aren't where qBittorrent left them"}));
+                          "Finished downloading",
+                          "Moved to /a",
+                          "Added"}));
+}
+
+void TestTorrentStory::twoAtTheSameSecondReadTheLaterStepFirst()
+{
+    StoryInput input;
+    input.now = at(24, 18, 0);
+    input.torrent = added(at(24, 9, 0));
+    input.torrent.completionOn = at(24, 10, 0);
+    input.problem = QStringLiteral("The disk is full");
+    input.problemAt = at(24, 10, 0);
+    QCOMPARE(titles(TorrentStory::events(input)),
+             QStringList({"The disk is full", "Finished downloading", "Added"}));
 }
 
 void TestTorrentStory::anEventWithNoTimeIsLeftOut()

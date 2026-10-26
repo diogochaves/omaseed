@@ -245,7 +245,9 @@ public:
     /// "films" for a folder; a selection's from its spec ("6 torrents").
     QString title() const;
     /// L6: a job that isn't a folder's shows only after the show delay, or once it pauses.
-    bool isQuiet() const { return kind() != QLatin1String("folder"); }
+    /// C16 L6: a selection's move shows no band at first. One that carries loose files (a move
+    /// back's, C32 D19) shows it as a folder's does, so what stayed is named in its summary.
+    bool isQuiet() const { return kind() != QLatin1String("folder") && !m_carryLoose; }
     bool wasShown() const { return m_shown; }
     void setShowDelay(std::chrono::milliseconds delay) { m_showTimer.setInterval(delay); }
     /// L10: how often the moving torrent's bytes at its target are read (2 s).

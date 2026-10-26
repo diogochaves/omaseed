@@ -565,6 +565,11 @@ private:
         /// message, where the status alone doesn't say what went wrong (getDirectoryContent's
         /// 404 is a missing folder or a missing endpoint).
         bool errorKeepsBody = false;
+        /// Sent on a slot of its own, beside the maxConcurrentRequests() the rest share:
+        /// sync/maindata, which is how a server that stopped answering is found out (#201).
+        /// Queued behind the details pane's requests to a frozen server, it waited out their
+        /// 15 s before its own, and the notice came twice as late.
+        bool ownSlot = false;
         /// Set instead of `form` for a multipart POST: called once per attempt, see
         /// postMultipart().
         std::function<QHttpMultiPart *()> buildMultiPart;

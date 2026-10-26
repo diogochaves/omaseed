@@ -1,4 +1,5 @@
 import QtQuick
+import Omaseed.Kit
 
 // qBittorrent's settings as omaseed draws them (docs/16 §4, §6): nine sections, each a list
 // of rows, each row naming the `app/preferences` keys it reads and writes. The Settings
@@ -197,7 +198,7 @@ QtObject {
             "glyph": "⇅",
             "name": qsTr("Speed"),
             "shortName": qsTr("Speed"),
-            "sub": qsTr("global limits and the alt-speed schedule"),
+            "sub": qsTr("normal limits, turtle and burst, and the schedule"),
             "rows": [
                 {
                     "note": qsTr("The same four limits as ⋯ › speed limits. That sheet stays, for a quick change without opening Settings.")
@@ -213,36 +214,51 @@ QtObject {
                     "title": qsTr("Upload limit"),
                     "fields": [root.speed("up_limit")]
                 },
+                // DECISIONS C32 D8 a: two presets for qBittorrent's one alternative set. Their
+                // rows read and write through App.altPresets ("presets"): the turtle is the
+                // server's set at rest and the saved copy while a burst runs; burst is omaseed's.
                 {
-                    "altGlyph": true,
-                    "title": qsTr("Alt-speed download"),
-                    "desc": qsTr("In force while alt-speed is on: A, the status line's chip, or the schedule below."),
-                    "descFor": {
-                        "burst": qsTr("In force while burst is on: A, the status line's chip, or the schedule below."),
-                        "turtle": qsTr("In force while turtle is on: A, the status line's chip, or the schedule below.")
-                    },
+                    "group": qsTr("alternative speeds · two presets")
+                },
+                {
+                    "glyph": Glyphs.altSpeed,
+                    "title": qsTr("Turtle download"),
+                    "desc": qsTr("qBittorrent's alternative limits, kept as turtle while nothing else is picked, so its schedule and other clients see them. A, or the status line's chip."),
+                    "presets": true,
                     "fields": [root.speed("alt_dl_limit")]
                 },
                 {
-                    "altGlyph": true,
-                    "title": qsTr("Alt-speed upload"),
+                    "glyph": Glyphs.altSpeed,
+                    "title": qsTr("Turtle upload"),
+                    "presets": true,
                     "fields": [root.speed("alt_up_limit")]
                 },
                 {
-                    "line": "set"
+                    "glyph": Glyphs.burst,
+                    "title": qsTr("Burst download"),
+                    "desc": qsTr("Written over turtle while burst is on, for as long as it lasts; turtle is written back after, and when omaseed quits."),
+                    "presets": true,
+                    "fields": [root.speed("burst_dl_limit")]
+                },
+                {
+                    "glyph": Glyphs.burst,
+                    "title": qsTr("Burst upload"),
+                    "presets": true,
+                    "fields": [root.speed("burst_up_limit")]
+                },
+                {
+                    "title": qsTr("Burst lasts"),
+                    "sub": true,
+                    "presets": true,
+                    "pick": {
+                        "key": "burst_minutes",
+                        "options": [[30, qsTr("30 min")], [60, qsTr("1 h")], [0, qsTr("until I stop it")]]
+                    }
                 },
                 {
                     "glyph": "◷",
-                    "title": qsTr("Schedule alt-speed"),
-                    "titleFor": {
-                        "burst": qsTr("Schedule burst"),
-                        "turtle": qsTr("Schedule turtle")
-                    },
-                    "desc": qsTr("Turns alt-speed on by itself between two times, and off again after."),
-                    "descFor": {
-                        "burst": qsTr("qBittorrent switches to burst by itself between two times, and back after."),
-                        "turtle": qsTr("qBittorrent switches to turtle by itself between two times, and back after.")
-                    },
+                    "title": qsTr("Schedule turtle"),
+                    "desc": qsTr("qBittorrent turns turtle on by itself between two times, and off again after."),
                     "toggle": "scheduler_enabled"
                 },
                 {

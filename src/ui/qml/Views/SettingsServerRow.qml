@@ -6,7 +6,7 @@ import Omaseed.Kit
 // dot, the name in bright over a dim `url · auth · N torrents` line, and a right-hand status
 // word — `default` for the one the engine is on, `retrying` in dim red for one that stopped
 // answering. `dashed` draws the figure's "+ add a server" row, which has no dot and a dim
-// title.
+// title. A › ends every row, brightening while the row is lit (C32 D7 a).
 //
 // A right-click sends `menuRequested` with the point in the row's own coordinates; the
 // Servers pane opens the row's menu there (#51 D4).
@@ -154,6 +154,16 @@ Rectangle {
             font.pixelSize: Theme.font.small
             text: root.status
             visible: root.status.length > 0
+        }
+
+        // docs/DECISIONS.md C32 D7 a (board 51): a › at the row's end says a click opens it;
+        // dim at rest, bright while the row is lit under the pointer or has the cursor.
+        Glyph {
+            Layout.preferredWidth: Theme.font.title
+            color: root.hot ? root.ink.brightForeground : root.ink.dimForeground
+            objectName: "serverRowChevron"
+            pixelSize: Theme.font.title
+            text: Glyphs.chevronRight
         }
     }
 }

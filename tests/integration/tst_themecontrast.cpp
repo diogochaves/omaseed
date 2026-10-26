@@ -496,6 +496,8 @@ void TestThemeContrast::omarchysSkinPaintsTheGroundsAsBefore()
     expect(on->hoverPressed(), t.foreground(), t.fillPressed(), hover);
     expect(on->panel(), t.foreground(), 0, bg);
     expect(on->picked(), t.accent(), Theme::pickedTintAlpha(), bg);
+    expect(on->turtle(), t.yellow(), t.fillSelected(), bg);
+    expect(on->burst(), t.green(), t.fillSelected(), bg);
     QCOMPARE(on->panel()->ground(), bg);
 }
 

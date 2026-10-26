@@ -115,8 +115,8 @@ TestCase {
         compare(tool.Accessible.name, "display: rows");
         verify(testCase.xOf(bar, "titleFilter") < testCase.xOf(bar, "titleDisplay"));
         verify(testCase.xOf(bar, "titleDisplay") < testCase.xOf(bar, "titleAdd"));
-        bar.display = "overview";
-        compare(tool.text, "shelves ▾");
+        bar.display = "space";
+        compare(tool.text, "space ▾");
         bar.display = "table";
         compare(tool.text, "table ▾");
         const clicked = testCase.spy(bar, "displayClicked");
@@ -182,6 +182,51 @@ TestCase {
         compare(cleared.count, 1);
     }
 
+    // Board 51 D18 a, #201 F21: in use, the field takes the bar's free room (it stayed 164 px
+    // and cut what was typed); the title stays and its sentence gives way; tokens sit on chips;
+    // the count and "× esc" at its end. Left empty, it goes back to the tool's width.
+    function test_the_filter_takes_the_free_room() {
+        const bar = make({
+                             "speedsShown": true
+                         });
+        const field = findChild(bar, "titleFilter");
+        const rest = field.width;
+        compare(rest, Theme.titleBarFindWidth);
+        verify(!bar.filterOpen);
+        compare(field.trailingKey, "");
+        bar.openSearch();
+        verify(bar.filterOpen);
+        tryVerify(() => field.width > 2 * rest, 1000, "the field kept its width");
+        verify(findChild(bar, "titleText").visible);
+        verify(!findChild(bar, "titleSentence").visible);
+        // Nothing pushed out: the speeds and the tools still in the bar.
+        verify(findChild(bar, "titleSpeeds").visible);
+        const add = findChild(bar, "titleAdd");
+        verify(add.mapToItem(bar, 0, 0).x + add.width <= bar.width);
+        compare(field.placeholder, "words, or is:stalled, cat:films, tag:keep, tracker:…");
+        compare(field.trailingKey, "esc");
+
+        bar.searchCountText = "2 of 117";
+        for (const key of "cat:games arcade")
+            keyClick(key);
+        compare(field.text, "cat:games arcade");
+        compare(field.tokenSpans.length, 1);
+        compare(field.tokenSpans[0].start, 0);
+        compare(field.tokenSpans[0].end, 9);
+        const chips = findChild(field, "fieldChips");
+        verify(chips.visible);
+        compare(field.trailing, "2 of 117");
+        compare(field.trailingKey, "× esc");
+
+        // Typed, the caret elsewhere: still open. Cleared and left: the tool again.
+        bar.forceActiveFocus();
+        verify(bar.filterOpen);
+        bar.searchField.trailingClicked();
+        verify(!bar.filterOpen);
+        tryCompare(field, "width", rest);
+        verify(findChild(bar, "titleSentence").visible);
+    }
+
     // The steps: words leave the tools first (their tooltip keeps them), then the filter folds
     // into its `/` tool and opens over the title.
     function test_narrow_steps() {
@@ -214,6 +259,59 @@ TestCase {
         verify(!bar.searchOpen);
         verify(bar.filterTool.selected);
         verify(findChild(bar, "titleText").visible);
+    }
+
+    // DECISIONS C32 D2 a: ↓ and ↑ after the title, a line of the last polls under each, the
+    // tools after them; D6 a: each against its cap in the set's colour. They give way from
+    // step 2 (the status line takes them back).
+    function test_the_speeds_after_the_title() {
+        const bar = make({
+                             "speedsShown": true,
+                             "downParts": {
+                                 "value": "290",
+                                 "cap": "300",
+                                 "unit": "KB/s"
+                             },
+                             "upParts": {
+                                 "value": "41",
+                                 "cap": "",
+                                 "unit": "KB/s"
+                             },
+                             "downHistory": [1, 4, 2, 8],
+                             "upHistory": [3, 3]
+                         });
+        const speeds = findChild(bar, "titleSpeeds");
+        verify(speeds.visible);
+        const down = findChild(bar, "titleDown");
+        const up = findChild(bar, "titleUp");
+        compare(findChild(down, "speedValue").text, "290");
+        compare(findChild(down, "speedCap").text, "/ 300");
+        verify(findChild(down, "speedCap").visible);
+        compare(findChild(down, "speedCap").color, Theme.yellow);
+        compare(findChild(down, "speedUnit").text, "KB/s");
+        verify(!findChild(up, "speedCap").visible);
+        compare(down.Accessible.name, "download");
+        compare(down.Accessible.description, "290 / 300 KB/s");
+        compare(up.Accessible.description, "41 KB/s");
+        // After the title, before the filter.
+        verify(xOf(bar, "titleText") < xOf(bar, "titleDown"));
+        verify(xOf(bar, "titleUp") < xOf(bar, "titleFilter"));
+        bar.capColor = Theme.green;
+        compare(findChild(down, "speedCap").color, Theme.green);
+        // #24: ↑ opens the seed console here too.
+        compare(up.Accessible.role, Accessible.StaticText);
+        bar.upOpensSeed = true;
+        compare(up.Accessible.name, "seed console");
+        const seed = spy(bar, "upClicked");
+        mouseClick(up);
+        compare(seed.count, 1);
+
+        bar.width = Theme.titleBarSteps[1] - 1;
+        verify(!bar.speedsFit);
+        verify(!speeds.visible);
+        bar.width = 1200;
+        bar.speedsShown = false;
+        verify(!speeds.visible);
     }
 
     // The log keeps its own filter: none in the bar.

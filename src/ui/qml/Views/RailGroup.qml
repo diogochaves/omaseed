@@ -34,6 +34,10 @@ Column {
     /// What the heading sits on while it paints nothing: the window, or the rail's servers
     /// block (`Theme.on.idle`, docs/DECISIONS.md C30 F1).
     property ThemeInk block: Theme.on.window
+    /// Room above the heading's words, inside its hover fill and its click (#201 F8): the
+    /// fill no longer starts at the words' top, cut against what is above. The caller takes
+    /// it out of the space it leaves above the group, so the words stay where they were.
+    property real headPadding: Theme.space(4)
 
     readonly property alias header: header
     /// The heading's words on its ground, the hover fill under the pointer or the cursor (over
@@ -63,7 +67,7 @@ Column {
         Accessible.onPressAction: if (header.enabled)
                                       root.toggled()
         color: root.ink.ground === root.block ? "transparent" : root.ink.ground.fill
-        implicitHeight: headerText.implicitHeight + Theme.space(4)
+        implicitHeight: root.headPadding + headerText.implicitHeight + Theme.space(4)
         visible: root.headed
         width: parent.width
 
@@ -73,6 +77,7 @@ Column {
             anchors.left: parent.left
             anchors.leftMargin: Theme.space(4)
             anchors.top: parent.top
+            anchors.topMargin: root.headPadding
             color: root.ink.dimForeground
             pixelSize: Theme.font.caption
             text: root.collapsed ? Glyphs.chevronRight : Glyphs.chevronDownGlyph
@@ -85,6 +90,7 @@ Column {
             anchors.left: parent.left
             anchors.leftMargin: Theme.space(16)
             anchors.top: parent.top
+            anchors.topMargin: root.headPadding
             ink: root.ink
             labelId: root.labelId
             tracked: true
@@ -95,6 +101,7 @@ Column {
             anchors.right: parent.right
             anchors.rightMargin: Theme.space(16)
             anchors.top: parent.top
+            anchors.topMargin: root.headPadding
             dim: true
             ink: root.ink
             size: "caption"

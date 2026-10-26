@@ -273,7 +273,7 @@ private slots:
     void isWordsNameStates_data();
     void isWordsNameStates();
     void groupsRunUnderTheQuestions();
-    void groupsByCategoryPutNoneLast();
+    void spaceGroupsByFolderTheLargestFirst();
     void aTorrentThatChangesGroupMoves();
     void aHeldOrderStillRegroups();
     void aLoggedFailureRegroupsAtOnce();
@@ -1433,24 +1433,63 @@ void TestFilterModel::groupsRunUnderTheQuestions()
     QCOMPARE(proxy.data(proxy.index(0, 0), TorrentFilterModel::GroupRole).toString(), QString());
 }
 
-// The overview's shelves: one per category, by name, the torrents with none last.
-void TestFilterModel::groupsByCategoryPutNoneLast()
+// Board 51 D12 a (C32): space groups by save path, the largest folder first, and inside each
+// the largest torrent first whatever the sort; a folder that grows past another moves up.
+void TestFilterModel::spaceGroupsByFolderTheLargestFirst()
 {
-    m_proxy.setGroupBy(TorrentFilterModel::ByCategory);
+    QJsonObject partial;
+    const auto at = [&partial](const char *hash, const char *path) {
+        partial.insert(QLatin1String(hash),
+                       QJsonObject{{QStringLiteral("save_path"), QLatin1String(path)}});
+    };
+    // Sizes: 1111 1.4 GB, 2222 4.2 GB, 3333 100 B, 4444 200 B, 5555 300 B, 6666 400 B.
+    at("1111", "/data/linux");
+    at("2222", "/data/films/");
+    at("3333", "/data/linux");
+    at("4444", "/data/misc");
+    at("5555", "/data/films");
+    at("6666", "/data/linux");
+    m_source.applyPartial(partial, {});
+    m_proxy.setSortByRoleName(QStringLiteral("name"));
+    m_proxy.setSortOrder(Qt::AscendingOrder);
+    m_proxy.setGroupBy(TorrentFilterModel::BySpace);
     QCOMPARE(groupKeys(m_proxy),
-             (QStringList{QStringLiteral("linux"), QStringLiteral("movies"), QString()}));
-    QStringList titles;
-    QStringList lines;
-    for (const QVariant &group : m_proxy.groups()) {
-        titles.append(group.toMap().value(QStringLiteral("title")).toString());
-        lines.append(group.toMap().value(QStringLiteral("line")).toString());
-    }
-    QCOMPARE(titles,
-             (QStringList{QStringLiteral("linux"),
-                          QStringLiteral("movies"),
-                          QStringLiteral("no category")}));
-    QCOMPARE(lines.at(2), QStringLiteral("1 · 200 B"));
-    QCOMPARE(m_proxy.hashAt(5), QStringLiteral("4444"));
+             (QStringList{QStringLiteral("/data/films"),
+                          QStringLiteral("/data/linux"),
+                          QStringLiteral("/data/misc")}));
+    QCOMPARE(visibleHashes(m_proxy),
+             (QStringList{QStringLiteral("2222"),
+                          QStringLiteral("5555"),
+                          QStringLiteral("1111"),
+                          QStringLiteral("6666"),
+                          QStringLiteral("3333"),
+                          QStringLiteral("4444")}));
+    const QVariantMap films = m_proxy.groups().at(0).toMap();
+    QCOMPARE(films.value(QStringLiteral("title")).toString(), QStringLiteral("/data/films"));
+    QCOMPARE(films.value(QStringLiteral("count")).toInt(), 2);
+    QCOMPARE(films.value(QStringLiteral("bytes")).toLongLong(), 4209067950LL + 300);
+    QVERIFY(
+        films.value(QStringLiteral("line")).toString().startsWith(QStringLiteral("2 torrents · ")));
+    QCOMPARE(m_proxy.data(m_proxy.index(0, 0), TorrentFilterModel::GroupRole).toString(),
+             QStringLiteral("/data/films"));
+    // The sort's direction changes nothing in space.
+    m_proxy.setSortOrder(Qt::DescendingOrder);
+    QCOMPARE(visibleHashes(m_proxy).first(), QStringLiteral("2222"));
+    QCOMPARE(visibleHashes(m_proxy).last(), QStringLiteral("4444"));
+    m_proxy.setSortOrder(Qt::AscendingOrder);
+
+    // The rows shown decide: without the 4.2 GB film, linux is the largest.
+    m_proxy.setText(QStringLiteral("debian"));
+    QCOMPARE(groupKeys(m_proxy),
+             (QStringList{QStringLiteral("/data/misc"), QStringLiteral("/data/linux")}));
+    m_proxy.setText(QString());
+
+    // misc grows past everything (a magnet's metadata came): it goes first.
+    m_source.applyPartial(
+        QJsonObject{{QStringLiteral("4444"), QJsonObject{{QStringLiteral("size"), 9000000000LL}}}},
+        {});
+    QCOMPARE(groupKeys(m_proxy).first(), QStringLiteral("/data/misc"));
+    QCOMPARE(visibleHashes(m_proxy).first(), QStringLiteral("4444"));
     m_proxy.setGroupBy(TorrentFilterModel::NoGroups);
 }
 

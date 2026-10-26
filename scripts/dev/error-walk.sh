@@ -134,10 +134,14 @@ one_notice_with_reason() {
         errored_notices | grep -qF "\"body\": \"Can't write to its save folder: Permission denied, opening $BROKEN\""
 }
 still_one_notice() { [ "$(errored_notices | wc -l)" = 1 ]; }
-# app_back SECONDS: until the app has logged "server back" (the playground restarted under it).
+# app_back SECONDS: until the app has logged "server back" (the playground restarted under it),
+# or reads the restarted playground without having lost it: a quick restart falls inside the
+# client's own retry, so no sync fails and there is nothing to come back from. Only the
+# restarted server knows MISSING's files are missing, so its row saying so is the proof.
 app_back() {
     for _ in $(seq 1 $(($1 * 2))); do
         omabox log -b "$BOX" run --grep "server back" 2>/dev/null | grep -q "server back" && return 0
+        omabox tree -b "$BOX" --window "$APP_ID" --find "missing" >/dev/null 2>&1 && return 0
         sleep 0.5
     done
     return 1
@@ -294,6 +298,9 @@ check "the stopped errored torrent is still in error" wait_state "$BROKEN" "^err
 omabox keys -b "$BOX" --window "$APP_ID" p >/dev/null
 check "p on the row stopped elsewhere started it: the app knew it was stopped" broken_running
 sleep 4 # the app reads the filter again once the start is answered, and at its next poll
+# Started, it is in error again only once it writes a piece, which takes a peer: stopped
+# before that, it would be plainly stopped, with no error left for `e` to try again.
+check "started, it fails to write again" wait_state "$BROKEN" "^error" 60
 omabox keys -b "$BOX" --window "$APP_ID" p >/dev/null
 check "p on it running stopped it" broken_stopped
 sleep 4

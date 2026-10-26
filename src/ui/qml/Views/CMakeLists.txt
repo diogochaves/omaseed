@@ -64,6 +64,8 @@ qt_add_qml_module(omaseed-views
         DetailsWebSeedsTab.qml
         DimmedOverlay.qml
         DisplayMenu.qml
+        AltSpeedMenu.qml
+        ServerMenu.qml
         DisconnectedBanner.qml
         DropOverlay.qml
         DuplicateSheet.qml
@@ -73,17 +75,17 @@ qt_add_qml_module(omaseed-views
         GlobalLimitsSheet.qml
         HelpSheet.qml
         JumpPalette.qml
-        LibraryCover.qml
         LibraryGroupHead.qml
         LibraryRow.qml
         LibraryRows.qml
-        LibraryShelves.qml
+        LibrarySpace.qml
         LimitsSheet.qml
         LoadingState.qml
         LogRow.qml
         LogView.qml
         MainView.qml
         MoveBand.qml
+        MoveCarryBackRows.qml
         MoveCheckLine.qml
         MoveLooseList.qml
         MoveQuitConfirm.qml
@@ -98,6 +100,7 @@ qt_add_qml_module(omaseed-views
         QbtSettingsSections.qml
         Rail.qml
         RailGroup.qml
+        RailLogGroups.qml
         RenameFilesSheet.qml
         RenameSheet.qml
         RestoreSheet.qml
@@ -123,6 +126,8 @@ qt_add_qml_module(omaseed-views
         SharedDataLine.qml
         SharedMoveConfirm.qml
         SortPalette.qml
+        SpaceChip.qml
+        SpaceTile.qml
         StatusLine.qml
         TagPalette.qml
         ThemeGallery.qml

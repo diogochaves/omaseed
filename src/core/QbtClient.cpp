@@ -427,8 +427,20 @@ void QbtClient::enqueue(const JobPtr &job)
 
 void QbtClient::pump()
 {
-    while (!m_queued.isEmpty() && m_active.size() < m_maxConcurrent) {
-        const JobPtr job = m_queued.takeFirst();
+    // In queue order, except that a job with a slot of its own (sync/maindata) never waits
+    // for the shared ones: one of those is out at a time, as SyncEngine asks it.
+    int shared = 0;
+    int own = 0;
+    for (const JobPtr &active : std::as_const(m_active))
+        ++(active->spec.ownSlot ? own : shared);
+    for (auto it = m_queued.begin(); it != m_queued.end();) {
+        const JobPtr job = *it;
+        if (job->spec.ownSlot ? own > 0 : shared >= m_maxConcurrent) {
+            ++it;
+            continue;
+        }
+        ++(job->spec.ownSlot ? own : shared);
+        it = m_queued.erase(it);
         send(job);
     }
 }
@@ -836,6 +848,7 @@ QbtReply<QJsonObject> *QbtClient::syncMainData(int rid)
 {
     RequestSpec spec;
     spec.path = QStringLiteral("sync/maindata");
+    spec.ownSlot = true;
     addItem(spec.query, QStringLiteral("rid"), QString::number(rid));
     const QString path = spec.path;
     return submit<QJsonObject>(std::move(spec),

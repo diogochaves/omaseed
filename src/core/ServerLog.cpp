@@ -58,7 +58,17 @@ void ServerLog::setClient(QbtClient *client)
 
 void ServerLog::setTorrents(TorrentModel *torrents)
 {
+    if (m_torrents)
+        disconnect(m_torrents, nullptr, this, nullptr);
     m_torrents = torrents;
+    m_named.clear();
+    if (torrents) {
+        // A torrent more or less changes what a message may name; a poll's progress doesn't.
+        const auto forget = [this] { m_named.clear(); };
+        connect(torrents, &QAbstractItemModel::rowsInserted, this, forget);
+        connect(torrents, &QAbstractItemModel::rowsRemoved, this, forget);
+        connect(torrents, &QAbstractItemModel::modelReset, this, forget);
+    }
 }
 
 void ServerLog::setActive(bool active)
@@ -135,6 +145,7 @@ void ServerLog::startOver()
     // A read still on its way asked for ids that may mean nothing now: it is dropped.
     ++m_generation;
     m_reading = false;
+    m_named.clear();
     const bool had = !m_lines.isEmpty();
     if (had || !m_moveLines.isEmpty()) {
         beginResetModel();
@@ -304,6 +315,54 @@ QString ServerLog::torrentAt(int row) const
     if (row < 0 || row >= m_lines.size() || m_torrents.isNull())
         return {};
     const QString &message = m_lines.at(row).message;
+    const auto known = m_named.constFind(message);
+    if (known != m_named.constEnd())
+        return known.value();
+    const QString hash = torrentNamed(message);
+    // Lines dropped off the top leave their messages: past twice the room, start afresh.
+    if (m_named.size() > 2 * qsizetype(m_capacity))
+        m_named.clear();
+    m_named.insert(message, hash);
+    return hash;
+}
+
+QVariantList ServerLog::aboutTorrents(int limit) const
+{
+    if (m_torrents.isNull() || limit <= 0)
+        return {};
+    QHash<QString, int> counts;
+    for (int row = 0; row < m_lines.size(); ++row) {
+        const QString hash = torrentAt(row);
+        if (!hash.isEmpty())
+            ++counts[hash];
+    }
+    struct About
+    {
+        QString hash;
+        QString name;
+        int count = 0;
+    };
+    QList<About> about;
+    about.reserve(counts.size());
+    for (auto it = counts.cbegin(); it != counts.cend(); ++it) {
+        if (m_torrents->indexOfHash(it.key()) >= 0)
+            about.append({it.key(), m_torrents->torrent(it.key()).name, it.value()});
+    }
+    std::sort(about.begin(), about.end(), [](const About &a, const About &b) {
+        if (a.count != b.count)
+            return a.count > b.count;
+        return a.name.compare(b.name, Qt::CaseInsensitive) < 0;
+    });
+    QVariantList out;
+    for (qsizetype i = 0; i < about.size() && i < limit; ++i)
+        out.append(QVariantMap{{QStringLiteral("hash"), about.at(i).hash},
+                               {QStringLiteral("name"), about.at(i).name},
+                               {QStringLiteral("count"), about.at(i).count}});
+    return out;
+}
+
+QString ServerLog::torrentNamed(const QString &message) const
+{
     const QStringList quoted = ProblemMatch::quotedSegments(message);
     if (quoted.isEmpty())
         return {};

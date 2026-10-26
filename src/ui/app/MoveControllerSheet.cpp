@@ -18,6 +18,7 @@
 #include <QCoreApplication>
 #include <QJsonArray>
 #include <QLocale>
+#include <QSet>
 #include <QThreadPool>
 
 #include <algorithm>
@@ -1049,7 +1050,7 @@ QJsonObject MoveController::backSpec() const
         return {};
     QStringList hashes = from.keys();
     hashes.sort();
-    return {
+    QJsonObject spec{
         {QStringLiteral("kind"), QStringLiteral("back")},
         {QStringLiteral("title"), counted(int(hashes.size()), tr("%1 torrent"), tr("%1 torrents"))},
         {QStringLiteral("hashes"), QJsonArray::fromStringList(hashes)},
@@ -1061,6 +1062,102 @@ QJsonObject MoveController::backSpec() const
         {QStringLiteral("startedAt"), m_job->startedAt().toString(Qt::ISODate)},
         // C18 D7: what goes back leaves the job's record in the history.
         {QStringLiteral("historyId"), recordIdOfJob()}};
+    // C32 D19: and the loose files it carried, from the list the record kept.
+    if (const core::MoveRecord *record = m_history.find(recordIdOfJob()))
+        addCarryBack(&spec, *record);
+    return spec;
+}
+
+void MoveController::addCarryBack(QJsonObject *spec, const core::MoveRecord &record) const
+{
+    if (record.carriedFiles.isEmpty() || record.carriedFrom.isEmpty() ||
+        record.carriedTo.isEmpty() || m_hooks.probe == nullptr || !m_hooks.probe->seesServerDisks())
+        return;
+    const QString at = m_hooks.probe->localPathFor(record.carriedTo);
+    if (at.isEmpty() || m_hooks.probe->localPathFor(record.carriedFrom).isEmpty())
+        return;
+    const QList<core::CarryFile> files = core::LooseCarry::backList(at, record.carriedFiles, now());
+    const bool any = std::any_of(files.cbegin(), files.cend(), [](const core::CarryFile &file) {
+        return file.outcome == core::CarryFile::Outcome::ToDo;
+    });
+    spec->insert(QStringLiteral("carryFrom"), record.carriedTo);
+    spec->insert(QStringLiteral("carryTo"), record.carriedFrom);
+    spec->insert(QStringLiteral("carryFiles"), core::LooseCarry::toJson(files));
+    spec->insert(QStringLiteral("carry"), any);
+}
+
+QVariantMap MoveController::carryBackWords(const QJsonObject &spec)
+{
+    // C32 D19 (board 51): the tick, what each file the move carried does, and what was put
+    // there since, which stays. Shown whether or not the tick is on.
+    const QJsonArray json = spec.value(QStringLiteral("carryFiles")).toArray();
+    if (json.isEmpty())
+        return {};
+    // What goes back first, then what stays (board 51's order).
+    QList<core::CarryFile> files = core::LooseCarry::fromJson(json);
+    std::stable_sort(files.begin(), files.end(), [](const auto &a, const auto &b) {
+        return a.outcome == core::CarryFile::Outcome::ToDo &&
+               b.outcome != core::CarryFile::Outcome::ToDo;
+    });
+    const QString from = spec.value(QStringLiteral("carryFrom")).toString();
+    const bool on = spec.value(QStringLiteral("carry")).toBool();
+    constexpr int kRowsShown = 6;
+    QVariantList rows;
+    int going = 0;
+    int more = 0;
+    QSet<QString> carried;
+    for (const core::CarryFile &file : files) {
+        carried.insert(file.relative);
+        const bool goes = file.outcome == core::CarryFile::Outcome::ToDo;
+        going += goes ? 1 : 0;
+        if (rows.size() >= kRowsShown) {
+            ++more;
+            continue;
+        }
+        rows << QVariantMap{
+            {QStringLiteral("name"), file.relative},
+            {QStringLiteral("detail"),
+             goes ? tr("%1 · as carried").arg(core::Format::size(file.size)) : file.why},
+            {QStringLiteral("verdict"), goes && on ? tr("back") : tr("stays")},
+            {QStringLiteral("kind"),
+             goes                                                ? QStringLiteral("ok")
+             : file.outcome == core::CarryFile::Outcome::Changed ? QStringLiteral("warn")
+                                                                 : QStringLiteral("fact")}};
+    }
+    // What the walk of the new place finds that the move didn't carry: named, never carried.
+    scanLoose(from);
+    const auto walk = m_loose.constFind(from);
+    if (walk != m_loose.cend() && !walk->running) {
+        for (const core::LooseFile &file : walk->result.files) {
+            if (file.isFolder || file.verdict == core::LooseFile::Verdict::NeverCounts ||
+                carried.contains(file.relative))
+                continue;
+            if (rows.size() >= kRowsShown + 2) {
+                ++more;
+                continue;
+            }
+            rows << QVariantMap{
+                {QStringLiteral("name"), file.relative},
+                {QStringLiteral("detail"), tr("put there since; the move didn't carry it")},
+                {QStringLiteral("verdict"), tr("stays")},
+                {QStringLiteral("kind"), QStringLiteral("fact")}};
+        }
+    }
+    if (more > 0)
+        rows << QVariantMap{{QStringLiteral("name"), tr("and %1 more").arg(more)},
+                            {QStringLiteral("detail"), QString()},
+                            {QStringLiteral("verdict"), QString()},
+                            {QStringLiteral("kind"), QStringLiteral("fact")}};
+    return {{QStringLiteral("text"),
+             counted(int(files.size()),
+                     tr("Carry back the %1 loose file the move carried"),
+                     tr("Carry back the %1 loose files the move carried"))},
+            {QStringLiteral("note"),
+             tr("copied, compared, then removed at %1, as the move did").arg(from)},
+            {QStringLiteral("rows"), rows},
+            {QStringLiteral("count"), going},
+            {QStringLiteral("total"), int(files.size())},
+            {QStringLiteral("on"), on}};
 }
 
 QJsonObject MoveController::backSpecOf(const QString &id, const QString &only) const
@@ -1089,23 +1186,39 @@ QJsonObject MoveController::backSpecOf(const QString &id, const QString &only) c
     const QString title = hashes.size() == 1 && record->names.contains(hashes.constFirst())
                               ? record->names.value(hashes.constFirst())
                               : counted(int(hashes.size()), tr("%1 torrent"), tr("%1 torrents"));
-    return {{QStringLiteral("kind"), QStringLiteral("back")},
-            {QStringLiteral("title"), title},
-            {QStringLiteral("hashes"), QJsonArray::fromStringList(hashes)},
-            {QStringLiteral("rule"), QStringLiteral("eachOwn")},
-            {QStringLiteral("targets"), pathsJson(from)},
-            {QStringLiteral("expectedAt"), pathsJson(to)},
-            {QStringLiteral("backOf"), record->title},
-            {QStringLiteral("backFrom"), record->newPath},
-            {QStringLiteral("startedAt"), record->startedAt.toString(Qt::ISODate)},
-            {QStringLiteral("historyId"), id},
-            {QStringLiteral("hadAutoTmm"), QJsonArray::fromStringList(hadAutoTmm)},
-            {QStringLiteral("carried"), only.isEmpty() ? record->carried : 0}};
+    QJsonObject spec{{QStringLiteral("kind"), QStringLiteral("back")},
+                     {QStringLiteral("title"), title},
+                     {QStringLiteral("hashes"), QJsonArray::fromStringList(hashes)},
+                     {QStringLiteral("rule"), QStringLiteral("eachOwn")},
+                     {QStringLiteral("targets"), pathsJson(from)},
+                     {QStringLiteral("expectedAt"), pathsJson(to)},
+                     {QStringLiteral("backOf"), record->title},
+                     {QStringLiteral("backFrom"), record->newPath},
+                     {QStringLiteral("startedAt"), record->startedAt.toString(Qt::ISODate)},
+                     {QStringLiteral("historyId"), id},
+                     {QStringLiteral("hadAutoTmm"), QJsonArray::fromStringList(hadAutoTmm)},
+                     {QStringLiteral("carried"), only.isEmpty() ? record->carried : 0}};
+    // C32 D19: the whole move carries back what it carried; "this one only" carries none.
+    if (only.isEmpty())
+        addCarryBack(&spec, *record);
+    return spec;
 }
 
-QVariantMap MoveController::planBackOf(const QString &id, const QString &only)
+namespace {
+
+/// The sheet's tick (C32 D19): off, nothing is carried back.
+QJsonObject withCarry(QJsonObject spec, bool carry)
 {
-    const QJsonObject spec = backSpecOf(id, only);
+    if (!carry && spec.value(QStringLiteral("carry")).toBool())
+        spec.insert(QStringLiteral("carry"), false);
+    return spec;
+}
+
+} // namespace
+
+QVariantMap MoveController::planBackOf(const QString &id, const QString &only, bool carry)
+{
+    const QJsonObject spec = withCarry(backSpecOf(id, only), carry);
     if (spec.isEmpty())
         return {};
     const MovePlan plan = planFor(spec);
@@ -1206,9 +1319,9 @@ QVariantMap MoveController::planSelection(const QStringList &hashes,
     return selectionWords(plan, spec);
 }
 
-QVariantMap MoveController::planBack()
+QVariantMap MoveController::planBack(bool carry)
 {
-    const QJsonObject spec = backSpec();
+    const QJsonObject spec = withCarry(backSpec(), carry);
     if (spec.isEmpty())
         return {};
     const MovePlan plan = planFor(spec);
@@ -1426,7 +1539,9 @@ QVariantMap MoveController::selectionWords(const MovePlan &plan, const QJsonObje
                                 ? spec.value(QStringLiteral("carried")).toInt()
                             : m_carryDone ? m_carryResult.carried
                                           : 0;
-        if (carried > 0)
+        // C32 D19: with the list the move kept, the sheet's own block says what goes back.
+        // Without it (a record from before, or no view of the disks) they stay, as before.
+        if (carried > 0 && !spec.contains(QStringLiteral("carryFiles")))
             checks << check(QStringLiteral("fact"),
                             counted(carried,
                                     tr("The %1 loose file carried stays at %2."),
@@ -1446,6 +1561,13 @@ QVariantMap MoveController::selectionWords(const MovePlan &plan, const QJsonObje
         checks << always(check(QStringLiteral("fact"), line));
     }
     out.insert(QStringLiteral("checks"), checks);
+    const QVariantMap carryBack = back ? carryBackWords(spec) : QVariantMap();
+    const int filesBack = carryBack.value(QStringLiteral("on")).toBool()
+                              ? carryBack.value(QStringLiteral("count")).toInt()
+                              : 0;
+    out.insert(QStringLiteral("carryBack"), carryBack);
+    out.insert(QStringLiteral("footNote"),
+               carryBack.isEmpty() ? QString() : tr("the list is the one the move kept"));
     out.insert(QStringLiteral("loose"), QVariantMap());
     out.insert(QStringLiteral("carryOffered"), false);
     out.insert(QStringLiteral("carryDefault"), false);
@@ -1458,8 +1580,16 @@ QVariantMap MoveController::selectionWords(const MovePlan &plan, const QJsonObje
     out.insert(QStringLiteral("queuedBehind"), behind ? m_job->title() : QString());
     out.insert(
         QStringLiteral("moveText"),
-        behind                     ? tr("move after %1").arg(m_job->title())
+        behind ? tr("move after %1").arg(m_job->title())
+        : back && since.stay() > 0 && filesBack > 0
+            ? tr("move %1 back · %2 · %3 stay")
+                  .arg(moveCount)
+                  .arg(counted(filesBack, tr("%1 file"), tr("%1 files")))
+                  .arg(since.stay())
         : back && since.stay() > 0 ? tr("move %1 back · %2 stay").arg(moveCount).arg(since.stay())
+        : back && filesBack > 0    ? tr("move %1 back · %2")
+                                         .arg(moveCount)
+                                         .arg(counted(filesBack, tr("%1 file"), tr("%1 files")))
         : back                     ? tr("move %1 back").arg(moveCount)
         : count == 1               ? tr("move")
         : moveCount == 0 ? tr("move")

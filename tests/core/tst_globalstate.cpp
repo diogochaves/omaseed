@@ -23,6 +23,7 @@ private slots:
     void notifiesOnlyOnRealChanges();
     void engineFields();
     void resetClearsEverythingButTheName();
+    void keepsTheLastSpeeds();
 };
 
 void TestGlobalState::defaultsAreDisconnected()
@@ -132,6 +133,36 @@ void TestGlobalState::resetClearsEverythingButTheName()
     QCOMPARE(state.connected(), false);
     QCOMPARE(state.dlInfoSpeed(), 0);
     QCOMPARE(state.connectionStatus(), QStringLiteral("disconnected"));
+}
+
+// DECISIONS C32 D2 a: the title bar's line under each speed, one sample a poll.
+void TestGlobalState::keepsTheLastSpeeds()
+{
+    GlobalState state;
+    QSignalSpy changed(&state, &GlobalState::speedHistoryChanged);
+    QVERIFY(state.dlHistory().isEmpty());
+
+    for (int i = 1; i <= GlobalState::kSpeedSamples + 3; ++i) {
+        state.applyServerState(QJsonObject{{QStringLiteral("dl_info_speed"), i * 10},
+                                           {QStringLiteral("up_info_speed"), i}});
+        state.recordSpeeds();
+    }
+    QCOMPARE(changed.count(), GlobalState::kSpeedSamples + 3);
+    QCOMPARE(state.dlHistory().size(), GlobalState::kSpeedSamples);
+    QCOMPARE(state.upHistory().size(), GlobalState::kSpeedSamples);
+    QCOMPARE(state.dlHistory().first().toLongLong(), 40);
+    QCOMPARE(state.dlHistory().last().toLongLong(), (GlobalState::kSpeedSamples + 3) * 10);
+    QCOMPARE(state.upHistory().last().toLongLong(), GlobalState::kSpeedSamples + 3);
+
+    // A poll that leaves a speed out keeps it: the sample repeats it.
+    state.applyServerState(QJsonObject{{QStringLiteral("up_info_speed"), 7}});
+    state.recordSpeeds();
+    QCOMPARE(state.dlHistory().last().toLongLong(), (GlobalState::kSpeedSamples + 3) * 10);
+    QCOMPARE(state.upHistory().last().toLongLong(), 7);
+
+    state.reset();
+    QVERIFY(state.dlHistory().isEmpty());
+    QVERIFY(state.upHistory().isEmpty());
 }
 
 QTEST_MAIN(TestGlobalState)

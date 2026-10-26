@@ -75,11 +75,18 @@ Sheet {
             required property var modelData
 
             Layout.fillWidth: true
+            objectName: "moveLooseRow"
             spacing: Theme.space(10)
 
+            // The row reads as one line for a screen reader (and a walk): the path whole,
+            // its size, what happens to it and why, as the move sheet's rows do.
             Label {
+                Accessible.name: qsTr("%1, %2: %3").arg(looseRow.modelData.path).arg(looseRow.modelData.size).arg(
+                                     looseRow.modelData.what)
+                Accessible.role: Accessible.StaticText
                 Layout.fillWidth: true
                 elide: Text.ElideMiddle
+                objectName: "moveLoosePath"
                 size: "small"
                 text: looseRow.modelData.path
             }

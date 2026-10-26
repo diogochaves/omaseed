@@ -14,10 +14,13 @@ import Omaseed.Kit
 //
 // Keyboard (Fig. 16's own footer):
 //   j k / 1–7   move the nav
-//   tab         hand the keyboard to the pane, and back
+//   tab         as in any form (C32 D10 a): the nav one stop, then every row of the pane, a
+//               row's text fields one stop each with the caret in them; shift+tab back
+//   h l         hand the keyboard to the nav, or to the pane
 //   j k         inside a pane, move the row cursor
 //   enter space act on the cursor row (toggle, open the server sheet, copy)
-//   a x d       Servers pane only: add, remove (confirmed), switch to it (docs/33 D11)
+//   a x d e     Servers pane only: add, remove (confirmed), switch to it (docs/33 D11), edit
+//               (the server's form straight away, #201 F9)
 //   esc         close — or, while the server sheet is up, close that first, because the
 //               sheet has the keyboard and traps the key itself.
 //
@@ -210,11 +213,12 @@ Item {
             return 6; // four toggles, the low-disk threshold field, the weekly recap (#24 T8)
         case 4:
             // the skin (C24 H11), theme, base size, the window's ground (C24 H13) and, while
-            // translucent, its transparency, tray icon, the bar widget (#17), then the rail's scroll hint and
-            // tracker hosts (docs/08 §5), then where Details sits (docs/10), then the rows'
-            // pulse (#24 T5). The hero's speed alignment and trends and the surface tint left
-            // with the hero (#167 assumed 6): their saved values are kept, and ignored.
-            return 10 + root._groundShift;
+            // translucent, its transparency, tray icon, the bar widget (#17), then the rail's scroll hint,
+            // its tint (C32 D16 a) and tracker hosts (docs/08 §5), then where Details sits
+            // (docs/10), then the rows' pulse (#24 T5), then where the speeds are (C32 D2 a).
+            // The hero's speed alignment and trends left with the hero (#167 assumed 6): their
+            // saved values are kept, and ignored.
+            return 12 + root._groundShift;
         case 5:
             return 3; // back up, restore, automatic copies (#31)
         case 6:
@@ -273,7 +277,13 @@ Item {
         root.open();
     }
 
-    /// ctrl+shift+, (docs/16 §2): Settings, on the qBittorrent group.
+    /// C32 D8 a: the alternative speeds' choice's "edit the presets…": qBittorrent › Speed.
+    function openSpeed(): void {
+        root.showPane(root.qbtStart);
+        root.open();
+    }
+
+        /// ctrl+shift+, (docs/16 §2): Settings, on the qBittorrent group.
     function openQbt(): void {
         if (!root.inQbt)
             root.showPane(root.qbtStart);
@@ -303,7 +313,11 @@ Item {
     /// (docs/16 §3), straight to the server otherwise.
     function qbtRequest(changes: var, confirmKind: string, what: string): void {
         if (confirmKind.length === 0) {
-            App.serverPrefs.apply(changes);
+            // C32 D8 a: the turtle's and burst's keys go through the presets.
+            if (App.altPresets.owns(changes))
+                App.altPresets.apply(changes);
+            else
+                App.serverPrefs.apply(changes);
             return;
         }
         const first = Object.keys(changes)[0];
@@ -566,11 +580,15 @@ Item {
             else if (root.paneCursor === 6 + root._groundShift)
                 App.railScrollHint = root._next(root.scrollHints, App.railScrollHint);
             else if (root.paneCursor === 7 + root._groundShift)
-                App.trackerHostStyle = root._next(root.hostStyles, App.trackerHostStyle);
+                App.surfaceTint = root._next(root.tints, App.surfaceTint);
             else if (root.paneCursor === 8 + root._groundShift)
-                App.detailsPlacement = root._next(root.placements, App.detailsPlacement);
+                App.trackerHostStyle = root._next(root.hostStyles, App.trackerHostStyle);
             else if (root.paneCursor === 9 + root._groundShift)
+                App.detailsPlacement = root._next(root.placements, App.detailsPlacement);
+            else if (root.paneCursor === 10 + root._groundShift)
                 App.pulseRows = !App.pulseRows;
+            else if (root.paneCursor === 11 + root._groundShift)
+                App.speedsPlace = root._next(root.speedsPlaces, App.speedsPlace);
             return;
         }
         if (root.paneIndex === 5) {
@@ -692,6 +710,10 @@ Item {
     // Start at login (charter §2, opt-in): no entry, in the tray (`--hidden`), or the window.
     readonly property var loginStarts: [["off", qsTr("off")], ["tray", qsTr("in the tray")], ["window",
                                                                                           qsTr("window")]]
+    /// C32 D2 a: where ↓ and ↑ are drawn, as [place, chip text].
+    readonly property var speedsPlaces: [["title", qsTr("title bar")], ["status", qsTr("status line")]]
+    /// C32 D16 a: the rail's tint, as [percent, chip text].
+    readonly property var tints: [[0, qsTr("off")], [4, qsTr("4 %")], [8, qsTr("8 %")]]
     readonly property var hostStyles: [["prefix", qsTr("drop prefix")], ["left", qsTr("cut start")],
         ["right", qsTr("cut end")]]
     // docs/10 §5: where Details sits.
@@ -752,6 +774,15 @@ Item {
         confirm.open();
     }
 
+    /// `e`, or the row menu's "edit": the server's form straight away, the keyboard on its
+    /// first field (#201 F9); a click or `enter` on the row opens its page.
+    function editCursorServer(): void {
+        const id = root.cursorServerId();
+        const map = id.length > 0 ? App.serverList.serverMap(id) : ({});
+        if (map.id !== undefined)
+            serverSheet.openEditFor(map);
+    }
+
     /// A right-click on a server row (the cursor already moved there): its menu at `x`, `y`
     /// in the modal's coordinates, the mouse's way to what `enter`, `d` and `x` do (#51 D4).
     function openServerMenu(x: int, y: int): void {
@@ -768,7 +799,7 @@ Item {
         const id = serverMenu.serverId;
         root.paneCursor = Math.max(0, App.serverList.indexOfId(id));
         if (action === "edit") {
-            root.activateRow();
+            root.editCursorServer();
         } else if (action === "test") {
             const map = App.serverList.serverMap(id);
             if (map.id !== undefined)
@@ -778,6 +809,16 @@ Item {
         } else if (action === "remove") {
             root.removeCursorServer();
         }
+    }
+
+    /// Board 51 D4 a: the rail's server menu's edit…, test the connection and remove…, as
+    /// this pane's own row menu runs them, on server `id`'s row.
+    function serverAction(id: string, action: string): void {
+        if (App.serverList.indexOfId(id) < 0)
+            return;
+        root.showServer(id);
+        serverMenu.serverId = id;
+        root.serverMenuAction(action);
     }
 
     /// The About pane's copyable `omaseed --install-bar-widget` line.
@@ -984,12 +1025,87 @@ Item {
         root.paneCursor = (root.paneCursor + delta + root.paneRowCount) % root.paneRowCount;
     }
 
+    /// The text fields of the pane's row `cursor`, in order; [] for a row without one (a
+    /// switch, a choice, a button) or one that is greyed out.
+    function _rowFields(cursor: int): var {
+        if (root.inQbtSearch || root.inQbtBackup)
+            return [];
+        if (root.inQbt) {
+            const item = qbtPane.rowItem(cursor);
+            return item && item.enabled && typeof item.fieldItems === "function" ? item.fieldItems() : [];
+        }
+        if (root.paneIndex === 2 && cursor === 4)
+            return [thresholdField];
+        if (root.paneIndex === 4 && cursor === 2)
+            return [baseSizeField];
+        if (root.paneIndex === 4 && cursor === 4 && root._groundShift > 0)
+            return [alphaField];
+        return [];
+    }
+
+    /// The caret into `field`, its text selected, as tab into a form's field does.
+    function _tabInto(field: var): void {
+        field.focusInput();
+        field.selectAll();
+    }
+
+    /// docs/DECISIONS.md C32 D10 a: tab walks the modal as any form. The section list is one
+    /// stop; then every row of the pane in order, a row of text fields one stop per field with
+    /// the caret in it (what a field holds is sent as it loses the caret, as before); after the
+    /// last row, the section list again. shift+tab walks back. Folded, there is no list: the
+    /// walk wraps within the pane. j/k and enter still move and act on rows.
+    function _tabStep(forward: bool): void {
+        root.navOnServer = false;
+        const step = forward ? 1 : -1;
+        if (root.area === "pane") {
+            const fields = root._rowFields(root.paneCursor);
+            const at = fields.findIndex(field => field.editing);
+            if (at >= 0) {
+                const next = at + step;
+                if (next >= 0 && next < fields.length) {
+                    root._tabInto(fields[next]);
+                    return;
+                }
+                bodyItem.forceActiveFocus();
+            }
+        }
+        if (root.paneRowCount <= 0) {
+            if (!root.folded)
+                root.area = "nav";
+            return;
+        }
+        let cursor;
+        if (root.area === "nav") {
+            cursor = forward ? 0 : root.paneRowCount - 1;
+        } else {
+            cursor = root.paneCursor + step;
+            if (cursor < 0 || cursor >= root.paneRowCount) {
+                if (!root.folded) {
+                    root.area = "nav";
+                    return;
+                }
+                cursor = (cursor + root.paneRowCount) % root.paneRowCount;
+            }
+        }
+        root.area = "pane";
+        root.paneCursor = cursor;
+        const fields = root._rowFields(cursor);
+        if (fields.length > 0)
+            root._tabInto(fields[forward ? 0 : fields.length - 1]);
+    }
+
     /// Every key the modal owns. `esc` is deliberately left alone — the Sheet closes on it —
     /// and everything else is swallowed, so nothing typed over the modal reaches the window
     /// behind it.
     function _onKey(event: var): void {
         if (event.key === Qt.Key_Escape)
             return;
+        // C32 D10 a: before anything else, so tab from a field with the caret walks on too.
+        if (event.key === Qt.Key_Tab || event.key === Qt.Key_Backtab) {
+            root._tabStep(event.key === Qt.Key_Tab && !(event.modifiers & Qt.ShiftModifier));
+            event.accepted = true;
+            return;
+        }
         // Folded, there is no nav to hand the keyboard to: the sideways keys move the tabs.
         if (root.folded) {
             switch (event.key) {
@@ -1005,21 +1121,9 @@ Item {
                 root._moveNav(1);
                 event.accepted = true;
                 return;
-            case Qt.Key_Tab:
-            case Qt.Key_Backtab:
-                event.accepted = true;
-                return;
             default:
                 break;
             }
-        }
-        if (event.key === Qt.Key_Tab || event.key === Qt.Key_Backtab) {
-            root.navOnServer = false;
-            root.area = root.area === "nav" ? "pane" : "nav";
-            if (root.area === "pane" && root.paneCursor < 0)
-                root.paneCursor = 0;
-            event.accepted = true;
-            return;
         }
         // The digits pick a section of the group on show: 1–7 in omaseed's, 1–9 and 0 for the
         // last (Backup, #32) in the qBittorrent group's; Search plugins (#145), before it, has
@@ -1118,6 +1222,10 @@ Item {
         case Qt.Key_Delete:
             if (root.paneIndex === 1)
                 root.removeCursorServer();
+            break;
+        case Qt.Key_E:
+            if (root.paneIndex === 1)
+                root.editCursorServer();
             break;
         case Qt.Key_D:
             if (root.paneIndex === 1)
@@ -1420,6 +1528,7 @@ Item {
                             Layout.leftMargin: Theme.space(4)
                             Layout.preferredHeight: implicitHeight
                             connected: App.globalState.connected
+                            connecting: App.serverConnecting
                             // Re-read on a switch (serverName) and a new default.
                             currentId: App.serverName.length >= 0 && App.serverList.defaultId.length >= 0
                                        ? root._currentServerId() : ""
@@ -2532,17 +2641,57 @@ Item {
                                 }
                             }
 
+                            // C32 D16 a: the rail only; its rows on C30's nested grounds.
+                            SettingsRow {
+                                id: surfaceTintRow
+
+                                Layout.fillWidth: true
+                                description: qsTr("a light fill behind the rail.")
+                                glyph: Glyphs.sidebar
+                                hasCursor: root.area === "pane" && root.paneCursor === 7 + root._groundShift
+                                objectName: "surfaceTintRow"
+                                title: qsTr("Surface tint")
+
+                                onClicked: {
+                                    root.paneCursor = 7 + root._groundShift;
+                                    root.area = "pane";
+                                    App.surfaceTint = root._next(root.tints, App.surfaceTint);
+                                }
+
+                                RowLayout {
+                                    spacing: Theme.space(6)
+
+                                    Repeater {
+                                        model: root.tints
+
+                                        Chip {
+                                            id: tintChip
+
+                                            required property var modelData
+
+                                            block: surfaceTintRow.ground
+                                            checkable: true
+                                            objectName: "tintChip-" + tintChip.modelData[0]
+                                            selected: App.surfaceTint === tintChip.modelData[0]
+                                            text: tintChip.modelData[1]
+
+                                            onClicked: App.surfaceTint = tintChip.modelData[0]
+                                        }
+                                    }
+                                }
+                            }
+
                             SettingsRow {
                                 id: trackerHostsRow
 
                                 Layout.fillWidth: true
                                 description: qsTr("how a long tracker host fits the rail.")
                                 glyph: Glyphs.host
-                                hasCursor: root.area === "pane" && root.paneCursor === 7 + root._groundShift
+                                hasCursor: root.area === "pane" && root.paneCursor === 8 + root._groundShift
                                 title: qsTr("Tracker hosts")
 
                                 onClicked: {
-                                    root.paneCursor = 7 + root._groundShift;
+                                    root.paneCursor = 8 + root._groundShift;
                                     root.area = "pane";
                                     App.trackerHostStyle = root._next(root.hostStyles, App.trackerHostStyle);
                                 }
@@ -2575,11 +2724,11 @@ Item {
                                 Layout.fillWidth: true
                                 description: qsTr("auto puts it right when the window is 16:10 or wider, else at the bottom. I cycles it.")
                                 glyph: Glyphs.sidebar
-                                hasCursor: root.area === "pane" && root.paneCursor === 8 + root._groundShift
+                                hasCursor: root.area === "pane" && root.paneCursor === 9 + root._groundShift
                                 title: qsTr("Details panel")
 
                                 onClicked: {
-                                    root.paneCursor = 8 + root._groundShift;
+                                    root.paneCursor = 9 + root._groundShift;
                                     root.area = "pane";
                                     App.detailsPlacement = root._next(root.placements, App.detailsPlacement);
                                 }
@@ -2613,12 +2762,12 @@ Item {
                                 Layout.fillWidth: true
                                 description: qsTr("a green tick at the left of each row that is uploading, breathing faster the more it sends. Still when the desktop asks for less motion.")
                                 glyph: Glyphs.statusSeeding
-                                hasCursor: root.area === "pane" && root.paneCursor === 9 + root._groundShift
+                                hasCursor: root.area === "pane" && root.paneCursor === 10 + root._groundShift
                                 objectName: "pulseRowsRow"
                                 title: qsTr("Pulse sending rows")
 
                                 onClicked: {
-                                    root.paneCursor = 9 + root._groundShift;
+                                    root.paneCursor = 10 + root._groundShift;
                                     root.area = "pane";
                                     App.pulseRows = !App.pulseRows;
                                 }
@@ -2630,6 +2779,47 @@ Item {
                                     checked: App.pulseRows
 
                                     onToggled: App.pulseRows = checked
+                                }
+                            }
+
+                            // C32 D2 a: the title bar by default, a line under each; the status
+                            // line keeps the count, the free space and the sync either way.
+                            SettingsRow {
+                                id: speedsRow
+
+                                Layout.fillWidth: true
+                                description: qsTr("where ↓ and ↑ are shown. The title bar draws the last minute under each.")
+                                glyph: Glyphs.arrowDown
+                                hasCursor: root.area === "pane" && root.paneCursor === 11 + root._groundShift
+                                objectName: "speedsPlaceRow"
+                                title: qsTr("Speeds")
+
+                                onClicked: {
+                                    root.paneCursor = 11 + root._groundShift;
+                                    root.area = "pane";
+                                    App.speedsPlace = root._next(root.speedsPlaces, App.speedsPlace);
+                                }
+
+                                RowLayout {
+                                    spacing: Theme.space(6)
+
+                                    Repeater {
+                                        model: root.speedsPlaces
+
+                                        Chip {
+                                            id: placeChip
+
+                                            required property var modelData
+
+                                            block: speedsRow.ground
+                                            checkable: true
+                                            objectName: "speedsChip-" + placeChip.modelData[0]
+                                            selected: App.speedsPlace === placeChip.modelData[0]
+                                            text: placeChip.modelData[1]
+
+                                            onClicked: App.speedsPlace = placeChip.modelData[0]
+                                        }
+                                    }
                                 }
                             }
 
@@ -3432,7 +3622,7 @@ Item {
         items: [
             {
                 "text": qsTr("edit"),
-                "key": "enter",
+                "key": "e",
                 "action": "edit"
             },
             {

@@ -11,7 +11,7 @@
 #
 # Each state is seen twice: in the table (the details tab that tells it), then in the rows
 # display (DECISIONS C24 H3, the library grouped under the five questions), and the walk ends on
-# the shelves.
+# space (board 51 D12 a, C32).
 #
 # It resets the swarm first (scripts/dev/swarm.sh reset + seed), so the downloads start from
 # zero, at 1 MiB/s so they are still running while the walk looks at them. The seeder's rate
@@ -141,7 +141,7 @@ launch
 # ---- the walk -----------------------------------------------------------------------------
 wait_state "Open Movie" "^downloading 0\.0[2-9]|^downloading 0\.[1-9]" 90
 [ "$INTERACTIVE" = 1 ] || show "Open Movie" 1
-step "Downloading" "Open Movie Night: status downloading, a moving speed and ETA; its details open on the story: the time to ready large in blue with \"to ready\", the sentence \"N % of SIZE · from N seeds at SPEED.\", the pieces bar partly filled, what happened (Added, into swarm). The status line's ↓ near 1 MiB/s. Two downloads run; the rest are queued."
+step "Downloading" "Open Movie Night: status downloading, a moving speed and ETA; its details open on the story: the time to ready large in blue with \"to ready\", the sentence \"N % of SIZE · from N seeds at SPEED.\", the pieces bar partly filled, what happened (Added, into swarm). The title bar's ↓ near 1 MiB/s. Two downloads run; the rest are queued."
 rows "Downloading" "The rows display, grouped: under ARRIVING the two downloads say their time to ready (\"to ready\") and \"N % of SIZE · from N seeds at SPEED\", the queued ones \"next\" or \"queued\" in line; heads in the rail's order, each with its count and a short line."
 [ "$INTERACTIVE" = 1 ] || show "Open Movie" 2
 step "Files tree" "Open Movie Night's Files tab: the film, extras/, subs/ (english, português (Brasil), 日本語) and sample/, with per-file progress."
@@ -149,7 +149,7 @@ step "Files tree" "Open Movie Night's Files tab: the film, extras/, subs/ (engli
 step "Many files" "photo-archive: 1 208 files in 92 folders by year and month; scrolling and folding stay smooth."
 wait_state "tiny-notes" "UP|^uploading" 30
 [ "$INTERACTIVE" = 1 ] || show "tiny-notes" 1
-step "Seeding" "tiny-notes.txt: finished, seeding (also when nobody is downloading from it), done 100 %, ETA —, the rail counts it under landed today (giving back once local midnight has passed). Its story: the time it landed in green, \"landed\", and what happened: Added (Finished downloading under it once it took a second or more). Each finished download raises a \"Download complete\" notification in the box (often caught by the first shots)."
+step "Seeding" "tiny-notes.txt: finished, seeding (also when nobody is downloading from it), done 100 %, ETA —, the rail counts it under landed today (giving back once local midnight has passed). Its story: the time it landed in green, \"landed\", and what happened, newest first: Finished downloading (once it took a second or more) over Added, both marks neutral. Each finished download raises a \"Download complete\" notification in the box (often caught by the first shots)."
 rows "Seeding" "tiny-notes.txt under LANDED TODAY: the time it landed and \"landed\", \"in swarm · 4 KB · given back 0.0× so far\"; the head says \"since midnight\"."
 wait_state "Spaces & Symbols" "UP|^uploading" 60
 [ "$INTERACTIVE" = 1 ] || show "Spaces & Symbols" 5
@@ -206,8 +206,8 @@ sleep 10
 [ "$INTERACTIVE" = 1 ] || show "Open Movie" 1
 step "Fixed" "After swarm.sh fix: no errored rows, nothing under needs you, downloads moving again (a stalled one can take a minute to reconnect)."
 rows "Fixed" "Every torrent back under its question: nothing under needs you, the downloads arriving, the rest landed today, giving back or resting."
-[ "$INTERACTIVE" = 1 ] || OMASEED_DISPLAY=overview launch
-step "Shelves" "The overview's shelves: one per category (swarm, fixtures…, no category last), a cover per torrent, its grid filled as far as it has arrived, two letters, the name and its fact under it."
+[ "$INTERACTIVE" = 1 ] || OMASEED_DISPLAY=space launch
+step "Space" "Where the space goes: a size map by folder, then torrent, the largest first; each torrent a block in its state's colour, its name, size and fact where they fit; the cursor's folder over the map with move this folder…; what is under 1 % in the line under it."
 
 echo
 if [ "$INTERACTIVE" = 1 ]; then

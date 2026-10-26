@@ -41,7 +41,7 @@ Item {
     readonly property alias rail: rail
     readonly property alias table: table
     readonly property alias libraryRows: libraryRows
-    readonly property alias libraryShelves: libraryShelves
+    readonly property alias librarySpace: librarySpace
     readonly property alias displayMenu: displayMenu
     readonly property alias details: details
     readonly property alias split: split
@@ -52,7 +52,10 @@ Item {
     readonly property alias actionsMenuPanel: actionsMenuPanel
     /// C19 T3: the rail folder row's menu.
     readonly property alias folderMenuPanel: folderMenuPanel
+    readonly property alias serverMenuPanel: serverMenuPanel
     readonly property alias selectionBar: selectionBar
+    /// C32 D17.1 a: the action bar's category › and tags › list.
+    readonly property alias barListMenu: barListMenu
     readonly property alias outcomeStrip: outcomeStrip
     readonly property alias footerNoticeItem: footerNotice
     readonly property alias deleteConfirmPanel: deleteConfirmPanel
@@ -150,6 +153,8 @@ Item {
             return actionsMenuPanel;
         if (folderMenuPanel.opened)
             return folderMenuPanel;
+        if (serverMenuPanel.opened)
+            return serverMenuPanel;
         if (appMenu.opened)
             return appMenu;
         return null;
@@ -157,6 +162,34 @@ Item {
 
     /// The rail groups folded on this server (docs/08 §5), saved with the table's state.
     property var railFolded: []
+
+    // ---- the rail's width and fold (DECISIONS C32 D3 a, D9) -------------------------------
+    /// D3 a: the open rail's width, the window's (App.railWidth, in space units; 0 the
+    /// default), within the drag's bounds.
+    readonly property int railOpenWidth: App.railWidth > 0 ? Math.max(rail.minimumOpenWidth, Math.min(
+                                                                         rail.maximumOpenWidth,
+                                                                         Theme.space(App.railWidth)))
+                                                           : Theme.railWidth
+    /// D9: the list would get narrower than 520 with the rail open (the details pane counted
+    /// while it is open beside the list).
+    readonly property bool railCrowds: {
+        const docked = split.visible && split.docked && split.showSide;
+        const side = !docked ? 0 : split.folded ? split.foldedExtent + 1
+                                                : Math.max(split.minimumSideWidth, Math.min(Theme.space(560),
+                                                                                            split.sideWidth)) + 1;
+        return root.width - root.railOpenWidth - side < Theme.space(520);
+    }
+    /// D9: a hand unfold holds the rail open against `railCrowds` until the next hand fold.
+    /// A hand fold is App.railHidden, kept across runs; this hold is the session's.
+    property bool railHeldOpen: false
+    /// The rail as it shows: folded by hand, or by itself while it would crowd the list.
+    readonly property bool railCompact: App.railHidden || (!root.railHeldOpen && root.railCrowds)
+
+    /// D9: a fold or unfold by hand (ctrl+b, the edge tab, the edge dragged in or out).
+    function setRailFoldedByHand(folded: bool): void {
+        root.railHeldOpen = !folded;
+        App.railHidden = folded;
+    }
 
     /// DECISIONS C24 H10: the frame shows its keys (alt held alone a moment, see altWatch).
     readonly property bool keysShown: root._altLong && !root.overlayOpen && !root.firstRun
@@ -403,15 +436,18 @@ Item {
             root._viewBeforeSearch = root.view;
             App.refreshSearchPlugins();
         }
-        // `/` filters the face on show: the library's torrents, or search's results (SR14).
-        const leavingSearch = root.view === "search";
+        // `/` filters the face on show: the library's torrents, search's results (SR14), or the
+        // log's lines (board 51 D5 a): the field shows that face's words.
+        const filterFace = view => view === "search" || view === "log" ? view : "torrents";
+        const refill = filterFace(root.view) !== filterFace(next);
         // docs/32 §6: the lines are kept only while the log is open. A demo's stay: no server
         // would read them again.
         if (root.view === "log" && !App.demoMode)
             App.serverLog.release();
         root.view = next;
-        if (leavingSearch || next === "search")
-            titleBar.searchField.text = next === "search" ? App.searchResults.filterText : App.filtered.text;
+        if (refill)
+            titleBar.searchField.text = next === "search" ? App.searchResults.filterText
+                                                          : next === "log" ? App.logLines.text : App.filtered.text;
         if (next === "seed")
             seedConsole.forceActiveFocus();
         else
@@ -419,6 +455,48 @@ Item {
         // D12: the log opens on its newest line, following.
         if (next === "log")
             logView.followNewest();
+    }
+
+    /// Board 51 D5 a (C32): the log's rail names the torrents its lines are about, re-read as
+    /// lines come in (at most once a turn of the event loop).
+    property var logTorrents: []
+    readonly property int logTorrentsShown: 5
+
+    function _readLogTorrents(): void {
+        root.logTorrents = root.logShown ? App.serverLog.aboutTorrents(root.logTorrentsShown) : [];
+    }
+
+    onLogShownChanged: root._readLogTorrents()
+
+    Connections {
+        target: App.serverLog
+
+        function onCountsChanged(): void {
+            if (root.logShown)
+                Qt.callLater(root._readLogTorrents);
+        }
+    }
+
+    /// Board 51 D5 a, "export log…": the lines as shown (levels, words, torrent and time
+    /// applied) to a text file the portal's chooser names, as the other exports are saved.
+    function exportLog(): void {
+        if (App.logLines.count === 0) {
+            root.flashFooterNote(qsTr("no line to export"));
+            return;
+        }
+        root.exportLogTo(App.pickLogExportPath());
+    }
+
+    /// The writing half of exportLog(), for a path already chosen ("" does nothing).
+    function exportLogTo(path: string): void {
+        if (path.length === 0)
+            return;
+        const count = App.logLines.count;
+        const error = App.logLines.writeShown(path);
+        const name = path.substring(path.lastIndexOf("/") + 1);
+        root.flashFooterNote(error.length > 0 ? qsTr("not exported: %1").arg(error)
+                                              : count === 1 ? qsTr("exported 1 line to %1").arg(name)
+                                                            : qsTr("exported %1 lines to %2").arg(count).arg(name));
     }
 
     /// `~` (docs/32 D9): the log, or back to where the window was.
@@ -509,7 +587,7 @@ Item {
 
     /// Which view holds the focus, for the palette's context (`commandContext`).
     readonly property string focusArea: {
-        if (titleBar.searchField.editing || details.filterEditing || logView.filterEditing)
+        if (titleBar.searchField.editing || details.filterEditing)
             return "search";
         if (root.logShown)
             return "log";
@@ -636,7 +714,9 @@ Item {
     /// table.
     function clearFilter(): void {
         titleBar.searchField.text = "";
-        if (root.searchShown)
+        if (root.logShown)
+            App.logLines.text = "";
+        else if (root.searchShown)
             App.searchResults.filterText = "";
         else
             App.filtered.text = "";
@@ -788,27 +868,69 @@ Item {
         root.focusHome();
     }
 
+    /// Board 51 D13 a (C32): an order from the display tool's sort block, its own direction
+    /// first as a header click gives it ("reverse" turns it); the one in use stays as it is.
+    function pickSort(role: string): void {
+        if (role === "reverse")
+            App.filtered.sortOrder = App.filtered.sortOrder === Qt.AscendingOrder ? Qt.DescendingOrder
+                                                                                  : Qt.AscendingOrder;
+        else if (role !== App.filtered.sortRoleName)
+            table.sortBy(role);
+        root.focusHome();
+    }
+
     function openAppMenu(): void {
         if (root.firstRun)
             return;
+        // Board 51 D14 b (DECISIONS C32): from the mark's bottom-left corner, its top side
+        // open under the mark, whose ring closes the shape (the rail lights it while open).
         const button = rail.markButton;
-        const corner = button.mapToItem(root, Theme.railMarkInset, button.height);
-        appMenu.openAt(Math.round(corner.x), Math.round(corner.y + Theme.railMenuGap));
+        const corner = button.mapToItem(root, 0, button.height);
+        appMenu.jointWidth = Math.round(button.width) - Theme.menuEdgeWidth;
+        appMenu.openAt(Math.round(corner.x), Math.round(corner.y));
     }
 
     /// A row of the omaseed menu, which has closed and given the focus back. The window's own
-    /// rows and `A`'s row run as their keys do (alt-speed's note, docs/31 F1); quit asks
+    /// rows run as their keys do, `A`'s row opens the presets' choice (C32 D8 a); quit asks
     /// first while a move runs (J5); the rest are C13's, through the one invoke the tray and
     /// the widget use.
     function appMenuAction(id: string): void {
         if (id === "quit")
             root.requestQuit();
         else if (id === "alt-speed")
-            root.toggleAltSpeed();
+            root.openAltSpeedMenu(); // C32 D8 a: the menus' row opens the choice, as the chip
         else if (appMenu.windowActions.indexOf(id) >= 0)
             root.runAction(id);
         else
             App.invokeAppMenu(id);
+    }
+
+    /// A row of a server's menu (board 51 D4 a) for server `id`: a switch as the rail's
+    /// enter, the current server's rows as the omaseed menu's, the address to the clipboard or
+    /// the browser, and edit, test and remove as Settings › Servers runs them.
+    function serverMenuAction(id: string, action: string): void {
+        const server = App.serverList.serverMap(id);
+        if (server.id === undefined)
+            return;
+        switch (action) {
+        case "switch":
+            table.forceActiveFocus();
+            App.switchServer(id);
+            break;
+        case "alt-speed":
+        case "stop-all":
+        case "start-all":
+            root.appMenuAction(action);
+            break;
+        case "web":
+            Qt.openUrlExternally(server.url);
+            break;
+        case "copy":
+            root.copyText(server.url, qsTr("copied %1's address").arg(server.name));
+            break;
+        default:
+            settingsModal.serverAction(id, action);
+        }
     }
 
     /// Put `text` on the clipboard and say `note`. An empty value leaves the clipboard as it
@@ -1024,18 +1146,109 @@ Item {
         root.torrentAction(action);
     }
 
-    /// The selection bar's ⋯: the full actions menu hung over the button, right edges flush,
-    /// with the actions the bar folded away at this width listed first (docs/17 M9.5).
-    function openSelectionMore(button: Item, folded: var): void {
-        const corner = button.mapToItem(root, button.width, 0);
-        const hash = root.cursorHash;
-        actionsMenuPanel.cursorStopped = hash.length > 0 && App.torrentRow(hash).stopped === true;
-        actionsMenuPanel.cursorRow = hash.length > 0 ? App.torrentRow(hash) : ({});
-        actionsMenuPanel.leadActions = folded;
-        actionsMenuPanel.heading = root.actionsHeading(hash);
-        actionsMenuPanel.headingTitle = root.actionsHeadingTitle(hash);
-        actionsMenuPanel.openAbove(Math.round(corner.x - actionsMenuPanel.menuWidth),
-                                   Math.round(corner.y - Theme.space(4)));
+    /// The action bar's button whose list is open ("category", "tags", "more"), lit.
+    readonly property string barMenuOpen: barListMenu.opened ? barListMenu.kind
+                                                             : actionsMenuPanel.opened && actionsMenuPanel.leaveOut.length > 0
+                                                               ? "more" : ""
+
+    /// The action bar's lists (board 51 D17.1 a), each opening upward over the bar, its left
+    /// edge on the button's: more › the menu's rows the bar does not show (those it
+    /// folded at this width first, docs/17 M9.5), category › and tags › their lists for the
+    /// selection.
+    function openBarMenu(action: string, button: Item, folded: var): void {
+        const x = Math.round(button.mapToItem(root, 0, 0).x);
+        const y = Math.round(selectionBar.mapToItem(root, 0, 0).y - Theme.space(4));
+        if (action === "more") {
+            const hash = root.cursorHash;
+            actionsMenuPanel.cursorStopped = hash.length > 0 && App.torrentRow(hash).stopped === true;
+            actionsMenuPanel.cursorRow = hash.length > 0 ? App.torrentRow(hash) : ({});
+            actionsMenuPanel.leadActions = folded;
+            actionsMenuPanel.leaveOut = selectionBar.menuActionsShown;
+            actionsMenuPanel.heading = "";
+            actionsMenuPanel.headingTitle = "";
+            actionsMenuPanel.openAbove(x, y);
+            return;
+        }
+        barListMenu.kind = action;
+        barListMenu.hashes = root.actionHashes();
+        barListMenu.openAbove(x, y);
+    }
+
+    /// The category list for `hashes` (board 51 `subMenu("cat")`): its caption, each
+    /// category with how many of them have it, then a new one and none.
+    function barCategoryRows(hashes: var): var {
+        const rows = [{
+                "caption": true,
+                "text": qsTr("category for %n", "", hashes.length)
+            }];
+        const tally = name => hashes.filter(hash => (App.torrentRow(hash).category ?? "") === name).length;
+        for (const name of App.categories.names()) {
+            const have = tally(name);
+            rows.push({
+                          "text": name,
+                          "glyph": Glyphs.category,
+                          "action": "category:" + name,
+                          "checked": have === hashes.length,
+                          "note": have > 0 && have < hashes.length ? qsTr("%1 of %2").arg(have).arg(hashes.length) : ""
+                      });
+        }
+        rows.push({
+                      "separator": true
+                  }, {
+                      "text": qsTr("new category…"),
+                      "glyph": Glyphs.add,
+                      "key": "C",
+                      "action": "newCategory"
+                  }, {
+                      "text": qsTr("no category"),
+                      "glyph": Glyphs.middot,
+                      "action": "category:",
+                      "disabled": tally("") === hashes.length
+                  });
+        return rows;
+    }
+
+    /// The tags list for `hashes`: each tag ticked while every one has it; a row turns it to
+    /// the other side for all of them (as the palette's space, then enter).
+    function barTagRows(hashes: var): var {
+        const rows = [{
+                "caption": true,
+                "text": qsTr("tags for %n", "", hashes.length)
+            }];
+        for (const tag of App.tags.tags()) {
+            const have = hashes.filter(hash => App.tagsOf(hash).indexOf(tag) >= 0).length;
+            rows.push({
+                          "text": tag,
+                          "glyph": Glyphs.tag,
+                          "action": "tag:" + tag,
+                          "checked": have === hashes.length,
+                          "note": have > 0 && have < hashes.length ? qsTr("%1 of %2").arg(have).arg(hashes.length) : ""
+                      });
+        }
+        rows.push({
+                      "separator": true
+                  }, {
+                      "text": qsTr("new tag…"),
+                      "glyph": Glyphs.add,
+                      "key": "t",
+                      "action": "newTag"
+                  });
+        return rows;
+    }
+
+    /// A row of the bar's category or tags list ran.
+    function barListAction(hashes: var, action: string): void {
+        if (action === "newCategory") {
+            categoryPalette.openFor(hashes);
+        } else if (action === "newTag") {
+            tagPalette.openFor(hashes);
+        } else if (action.startsWith("category:")) {
+            categoryPalette.applyTo(hashes, action.slice("category:".length), false);
+        } else if (action.startsWith("tag:")) {
+            const tag = action.slice("tag:".length);
+            const every = hashes.every(hash => App.tagsOf(hash).indexOf(tag) >= 0);
+            App.applyTags(hashes, every ? [] : [tag], every ? [tag] : []);
+        }
     }
 
     /// The Trackers and Peers tabs' keys (Fig. 3/4). `R` reannounces the torrent (the API has
@@ -1422,7 +1635,7 @@ Item {
         // DECISIONS C24 H3–H4: the display tool's three, from the palette.
         "displayRows": () => root.pickDisplay("rows"),
         "displayTable": () => root.pickDisplay("table"),
-        "displayShelves": () => root.pickDisplay("overview"),
+        "displaySpace": () => root.pickDisplay("space"),
         // app
         "settings": () => App.openSettings(),
         "switchServer": () => root.openServerPalette(),
@@ -1475,6 +1688,7 @@ Item {
         "logShowTorrent": () => logView.showLineTorrent(),
         "logTorrent": () => logView.narrowToLineTorrent(),
         "logEscape": () => logView.stepBack(),
+        "logExport": () => root.exportLog(),
         "logNormal": () => logView.toggleLevel(ServerLog.Normal),
         "logInfo": () => logView.toggleLevel(ServerLog.Info),
         "logWarning": () => logView.toggleLevel(ServerLog.Warning),
@@ -1496,7 +1710,7 @@ Item {
     function commandContext(): var {
         let area = root.focusArea;
         if (area === "search")
-            area = details.filterEditing ? "files" : logView.filterEditing ? "log" : "table";
+            area = details.filterEditing ? "files" : root.logShown ? "log" : "table";
         if (area === "details")
             area = ["story", "files", "peers", "trackers", "facts", "webseeds"][details.currentTab] || "story";
         const targets = root.actionHashes().map(hash => App.torrentRow(hash));
@@ -1566,7 +1780,7 @@ Item {
             "recent": App.recentCommands(),
             "states": {
                 "detailsShown": !details.collapsed,
-                "railShown": !App.railHidden,
+                "railShown": !root.railCompact,
                 "consoleShown": root.view === "seed",
                 "logShown": root.view === "log",
                 "searchShown": root.view === "search",
@@ -1612,11 +1826,11 @@ Item {
         titleBar.searchField.text = "is:" + word + " ";
     }
 
-    /// `ctrl+b` (docs/08 §5): fold the rail to its glyphs or open it again (#167 assumed 4).
-    /// Folding it never hides a filter: the questions keep their glyphs, and the title bar's
-    /// title and sentence name the place picked (C24 H5).
+    /// `ctrl+b` (docs/08 §5): fold the rail to its glyphs or open it again (#167 assumed 4),
+    /// by hand (C32 D9), as the edge tab does. Folding it never hides a filter: the questions
+    /// keep their glyphs, and the title bar's title and sentence name the place picked (C24 H5).
     function toggleRail(): void {
-        App.railHidden = !App.railHidden;
+        root.setRailFoldedByHand(!root.railCompact);
     }
 
     /// ctrl+shift+, (docs/16 §2): Settings on the qBittorrent group. First run holds it like
@@ -1892,8 +2106,13 @@ Item {
         anchors.left: parent.left
         anchors.top: parent.top
         categories: App.categories
-        // #167 assumed 4: ctrl+b folds it to its glyphs.
-        compact: App.railHidden
+        // #167 assumed 4: ctrl+b folds it to its glyphs; C32 D9: so does a crowded window.
+        compact: root.railCompact
+        openWidth: root.railOpenWidth
+        // C32 D16 a: Settings › Appearance's surface tint, on the rail only.
+        tint: App.surfaceTint
+        // D9 c: the edge tab sits over the title bar's edge.
+        z: 2
         counts: App.counts
         filtered: App.filtered
         // Board 42 F1 (M1, M2): the library's folders, after the categories.
@@ -1902,6 +2121,7 @@ Item {
         headHeight: titleBar.height
         keysShown: root.keysShown
         markAlert: App.hasServer && root.serverLost && !root.firstSync
+        markLit: appMenu.opened
         servers: App.servers
         // T4.5: the SERVERS group is off unless the General pane asks for it.
         serverCount: App.showServersGroup ? App.serverCount : 0
@@ -1910,6 +2130,11 @@ Item {
         tags: App.tags
         trackers: App.trackers
         view: root.view
+        // Board 51 D5 a (C32): on the log, its levels, the torrents its lines are about and
+        // since when.
+        logLines: App.logLines
+        serverLog: App.serverLog
+        logTorrents: root.logTorrents
         // docs/14 A1: setup has no library chrome.
         visible: !root.firstRun
         serversOnly: root.libraryEmpty || root.firstSync || root.noList || root.logShown || root.searchShown
@@ -1947,7 +2172,19 @@ Item {
             folderMenuPanel.folder = path;
             folderMenuPanel.openAt(Math.round(point.x), Math.round(point.y));
         }
-        onUnfoldRequested: App.railHidden = false
+        onServerMenuRequested: (id, x, y) => {
+            const point = rail.mapToItem(root, x, y);
+            serverMenuPanel.serverId = id;
+            serverMenuPanel.revision++;
+            serverMenuPanel.openAt(Math.round(point.x), Math.round(point.y));
+        }
+        onUnfoldRequested: root.setRailFoldedByHand(false)
+        onFoldToggleRequested: root.toggleRail()
+        // C32 D1 a: the foot's settings row, as `,`.
+        onSettingsRequested: App.openSettings()
+        onFoldDragged: root.setRailFoldedByHand(true)
+        onUnfoldDragged: root.setRailFoldedByHand(false)
+        onWidthChosen: (width, isDefault) => App.railWidth = isDefault ? 0 : Math.round(width / Theme.spaceScale)
         onViewPicked: view => root.setView(view)
     }
 
@@ -2015,7 +2252,10 @@ Item {
             return App.lostSentence(App.torrents.count > 0 ? App.globalState.lastSyncText : "",
                                     root.serverProblem.headline ?? "");
         if (root.logShown)
-            return App.logSentence(App.serverName, App.serverLog.total, App.serverLog.firstAtText);
+            // Board 51 D5 a: the bar's words gone with it, how many and how bad, and following.
+            return App.logSentence(App.serverName, App.serverLog.total, App.serverLog.firstAtText,
+                                   App.serverLog.levelCounts[2] ?? 0, App.serverLog.levelCounts[3] ?? 0,
+                                   logView.following);
         if (root.consoleShown)
             return App.seedSentence(App.globalState.upInfoSpeed > 0 ? App.globalState.upSpeedText : "",
                                     App.console.todayText,
@@ -2027,6 +2267,25 @@ Item {
             return App.moveSheetSentence(root.moveShowHashes.length);
         return App.scopeSentence;
     }
+
+    /// ↓ and ↑ split for drawing (`App.speedParts`), each against its cap while the
+    /// alternative limits are on (DECISIONS C32 D6 a); a dash while nothing is live.
+    readonly property var speedPartsDown: !root.live ? ({
+                                                             "value": "—",
+                                                             "cap": "",
+                                                             "unit": ""
+                                                         })
+                                                     : App.speedParts(App.globalState.dlInfoSpeed,
+                                                                      App.globalState.useAltSpeedLimits
+                                                                      ? App.globalState.dlRateLimit : 0)
+    readonly property var speedPartsUp: !root.live ? ({
+                                                           "value": "—",
+                                                           "cap": "",
+                                                           "unit": ""
+                                                       })
+                                                   : App.speedParts(App.globalState.upInfoSpeed,
+                                                                    App.globalState.useAltSpeedLimits
+                                                                    ? App.globalState.upRateLimit : 0)
 
     // The title bar (board 46 `titleBar()`, DECISIONS C24 H5; supersedes v2's hero, H9): where
     // the window is and its sentence, then a move's way back, "move this folder…", the filter
@@ -2043,12 +2302,29 @@ Item {
         anchors.top: parent.top
         title: root.scopeTitle
         titleId: root.scopeTitleId
+        // C32 D2 a, D6 a: ↓ and ↑ with the last polls under them, each against its cap while
+        // the alternative limits hold it.
+        speedsShown: App.speedsPlace === "title"
+        downParts: root.speedPartsDown
+        upParts: root.speedPartsUp
+        downHistory: root.live ? App.globalState.dlHistory : []
+        upHistory: root.live ? App.globalState.upHistory : []
+        capColor: App.altSpeed.kind === "burst" ? Theme.green : Theme.yellow
+        // #24: ↑ opens the seed console wherever it is drawn.
+        upOpensSeed: true
+        upNote: root.live ? App.console.todayText : ""
+        onUpClicked: root.setView("seed")
         sentence: root.scopeSentence
-        // The log filters its own lines (docs/32 D11); search's `/` filters its results
-        // (C26 SR14), while there are some.
-        filterShown: !root.logShown && (!root.searchShown || App.searchResults.torrentCount > 0)
+        // Search's `/` filters its results (C26 SR14), while there are some. Board 51 D5 a:
+        // the log's lines are filtered here too, as torrents are (docs/32 D11's words).
+        filterShown: !root.searchShown || App.searchResults.torrentCount > 0
+        filterName: root.logShown ? qsTr("filter lines") : qsTr("filter torrents")
+        filterHint: root.logShown ? qsTr("words, every one in the line") : qsTr("words, or is:stalled, cat:films, tag:keep, tracker:…")
+        filterTokens: !root.logShown
         keysShown: root.keysShown
-        searchCountText: root.searchShown ? (App.searchResults.filterText.length > 0 ? qsTr("%1 of %2").arg(
+        searchCountText: root.logShown ? (App.logLines.narrowed ? qsTr("%1 of %2").arg(App.logLines.count).arg(
+                                                                       App.logLines.levelTotal) : String(App.logLines.count))
+                                       : root.searchShown ? (App.searchResults.filterText.length > 0 ? qsTr("%1 of %2").arg(
                                                                                          App.searchResults.count).arg(App.searchResults.torrentCount)
                                                                                    : String(App.searchResults.count))
                                           : App.filtered.text.length > 0 ? qsTr("%1 of %2").arg(App.filtered.count).arg(
@@ -2065,15 +2341,23 @@ Item {
         // C24 H3–H4: the scope's display, in the library only, and not over a move's show (the
         // table's step column, #168 assumed 5) or an empty library.
         display: root.view === "library" && !root.moveShowing && !root.libraryEmpty ? App.display : ""
+        // Board 51 D13 a (C32): the tool's word says the sort too, "rows · added".
+        sortWord: displayMenu.sortWord
 
         // C24 H17: "+ add ▾" with create and search under it (#146).
         addMenuShown: App.createOffered || App.searchOffered
+        // Board 51 D5 a: on the log, "export log…" takes + add's place.
+        addShown: !root.logShown
+        exportShown: root.logShown
+        onExportClicked: root.exportLog()
         onAddClicked: root.openAddMenu()
         onDisplayClicked: root.openDisplayMenu()
         onBackClicked: root.leaveMoveShow()
         onMoveFolderClicked: root.openMoveFolder(App.filtered.folder, "")
         onSearchChanged: text => {
-            if (root.searchShown)
+            if (root.logShown)
+                App.logLines.text = text;
+            else if (root.searchShown)
                 App.searchResults.filterText = text;
             else
                 App.filtered.text = text;
@@ -2250,6 +2534,8 @@ Item {
             visible: root.logShown
 
             onCopyRequested: (text, note) => root.copyText(text, note)
+            onFilterClearRequested: root.clearFilter()
+            onFilterRequested: titleBar.openSearch()
             onLeaveRequested: root.toggleLog()
             // Board 45 B2 (C18 D7): a move's line moves it back, through the Move sheet.
             onMoveBackRequested: id => moveSheet.openBack(id, "")
@@ -2303,6 +2589,8 @@ Item {
                 anchors.rightMargin: Theme.space(16)
                 anchors.top: parent.top
                 anchors.topMargin: Theme.space(12)
+                // #201 F16: the cursor's edge only while the list has the keys (h / l).
+                keysHere: root.focusArea !== "rail" && root.focusArea !== "details"
                 // Board 42 J1: the job's step for each of its torrents.
                 showMoveColumn: root.moveShowingJob
                 moveRevision: App.move.revision
@@ -2311,14 +2599,15 @@ Item {
                 rowMarkRevision: App.outcomes.revision
                 rowMarkFor: hash => App.outcomes.rowMark(hash)
                 escapeTaken: outcomeStrip.visible
-                // docs/17 M9.6: the last row can always scroll clear of the outcome strip over
-                // it (C18 D1); the action bar is docked under the rows (C24 H8).
-                // Its tallest (C30 F10's reason line counted), so the reason coming and going
-                // never moves the rows it is read from.
-                bottomRoom: outcomeStrip.visible ? outcomeStrip.roomHeight + Theme.outcomeStripLift : 0
+                // docs/17 M9.6: the last row can always scroll clear of the action bar and the
+                // outcome strip floating over it (C32 D17.1 a, C18 D1). The strip's tallest
+                // (C30 F10's reason line counted), so the reason coming and going never moves
+                // the rows it is read from.
+                bottomRoom: outcomeStrip.visible ? outcomeStrip.anchors.bottomMargin + outcomeStrip.roomHeight
+                                                 : selectionBar.visible ? Theme.actionBarLift + selectionBar.height : 0
                 filtered: App.filtered
                 // C24 H3: the display the scope shows draws the rows; the table keeps the rest.
-                face: App.display === "rows" ? libraryRows : App.display === "overview" ? libraryShelves
+                face: App.display === "rows" ? libraryRows : App.display === "space" ? librarySpace
                                                                                       : null
                 // #51 D9: rows hold still under the open actions menu, for D17's right-click.
                 holdOrder: actionsMenuPanel.opened
@@ -2335,6 +2624,7 @@ Item {
                     actionsMenuPanel.cursorStopped = App.torrentRow(hash).stopped === true;
                     actionsMenuPanel.cursorRow = App.torrentRow(hash);
                     actionsMenuPanel.leadActions = [];
+                    actionsMenuPanel.leaveOut = [];
                     actionsMenuPanel.heading = root.actionsHeading(hash);
                     actionsMenuPanel.headingTitle = root.actionsHeadingTitle(hash);
                     actionsMenuPanel.openAt(point.x, point.y);
@@ -2360,7 +2650,7 @@ Item {
                 }
                 onFocusRail: rail.forceActiveFocus() // folded or not (#167 assumed 4)
                 // The inline editor is the primary rename; the sheet (`renameSheetPanel`) is
-                // only the menu/multi-selection fallback, and shelves' `r` (#168 assumed 9).
+                // only the menu/multi-selection fallback, and space's `r` (#168 assumed 9).
                 onRenameRequested: (hash, name) => App.rename(hash, name)
                 onRenameSheetRequested: hash => renameSheetPanel.openFor(hash)
             }
@@ -2379,15 +2669,19 @@ Item {
                 onFixRequested: (hash, action) => root.runRowFix(hash, action)
             }
 
-            // The overview's shelves (#168 assumed 6), the table's other face.
-            LibraryShelves {
-                id: libraryShelves
+            // Space (board 51 D12 a, C32), the table's other face: it never scrolls, so it
+            // keeps the action bar's room free at its foot.
+            LibrarySpace {
+                id: librarySpace
 
                 anchors.fill: table
                 bottomRoom: table.bottomRoom
                 opacity: table.opacity
+                reserve: Theme.actionBarLift + selectionBar.height
                 table: table
-                visible: table.visible && App.display === "overview"
+                visible: table.visible && App.display === "space"
+
+                onMoveFolderRequested: folder => root.openMoveFolder(folder, "")
             }
 
             FilteredEmpty {
@@ -2415,14 +2709,16 @@ Item {
                 onClearRequested: root.handleEscape()
             }
 
-            // DECISIONS C18 D1–D3 (board 45 §2): what a quick action on torrents came to. C24
-            // H8 (supersedes D1's place): it floats bottom middle of the rows, so with a
-            // selection on it sits just above the action bar, and both read together.
+            // DECISIONS C18 D1–D3 (board 45 §2): what a quick action on torrents came to. It
+            // floats bottom middle of the rows; with a selection on, just above the action bar
+            // (C32 D17.1 a), so both read together.
             OutcomeStrip {
                 id: outcomeStrip
 
                 anchors.bottom: table.bottom
-                anchors.bottomMargin: Theme.outcomeStripLift
+                anchors.bottomMargin: selectionBar.visible ? Theme.actionBarLift + selectionBar.height
+                                                             + Theme.actionBarStripGap
+                                                           : Theme.outcomeStripLift
                 anchors.horizontalCenter: table.horizontalCenter
                 availableWidth: table.width - Theme.space(16)
                 height: implicitHeight
@@ -2441,6 +2737,42 @@ Item {
                 onExpired: serial => App.outcomes.expire(serial)
                 onMoveRequested: (hashes, target) => moveSheet.openSelection(hashes, target)
                 onShowRequested: hashes => root.showOutcome(hashes)
+            }
+
+            // The action bar (board 51 D17, DECISIONS C32; supersedes C24 H8's status line
+            // turned action bar): while torrents are selected it floats over the rows, bottom
+            // middle, built from the torrent menu's groups. Never while the server is lost
+            // (Fig. 23 is read-only) or with no rows on show.
+            SelectionBar {
+                id: selectionBar
+
+                anchors.bottom: table.bottom
+                anchors.bottomMargin: Theme.actionBarLift
+                anchors.horizontalCenter: table.horizontalCenter
+                availableWidth: table.width - 2 * Theme.actionBarLift
+                count: table.selectedCount
+                // The menu's groups as they stand for no torrent in particular: the open
+                // menu's own follow its cursor row, and would rebuild the bar under a click.
+                groups: barMenuRows.groups
+                height: implicitHeight
+                // #170: `p`'s word, as the selection needs it.
+                startable: root.selectionRunStates.stopped
+                stoppable: root.selectionRunStates.running
+                hint: root.selectionHint
+                keysShown: root.keysShown
+                openAction: root.barMenuOpen
+                // #24 T1: re-read when the selection or the library moves.
+                summary: {
+                    App.torrents.count; // the dependency: a sync that adds or drops a row
+                    return table.selectedCount > 0 ? App.console.selectionSummary(table.selectedHashes()) : ({});
+                }
+                visible: table.selectedCount > 0 && table.visible && !root.serverLost && !root.firstRun
+                width: implicitWidth
+
+                onClearRequested: table.clearSelection()
+                onMenuRequested: (action, button, folded) => root.openBarMenu(action, button, folded)
+                onSummaryClicked: root.setView("seed")
+                onTriggered: action => root.selectionBarAction(action)
             }
 
             // #24 T7: seeding moments in the bar's spot, while nothing is selected.
@@ -2494,6 +2826,12 @@ Item {
             // docs/17 M10: `i`, the divider and the strip fold it, all through the split.
             collapsed: split.folded
             details: App.details
+            // #201 F16: the tab's line says whether h / l left the keys here.
+            keysHere: root.focusArea === "details"
+            keysShown: true
+            // #201 F18: the tabs' digits are keys like any other, shown only on alt.
+            tabKeyBadges: true
+            altKeysShown: root.keysShown
             // Keys are taught on demand in the window (DECISIONS C24 H10: menus, tooltips,
             // the palette, `?`), so the pane draws no hint row inside it.
             showHints: false
@@ -2617,8 +2955,9 @@ Item {
         anchors.bottom: parent.bottom
         anchors.left: titleBar.left
         anchors.right: parent.right
-        // While torrents are selected the action bar stands in its place (C24 H8).
-        visible: !root.firstRun && !selectionBar.visible
+        // C32 D17.3 a: it stays the server's while a selection is on; the action bar floats
+        // over the list (supersedes C24 H8).
+        visible: !root.firstRun
 
         serverText: root.serverLaneText()
         // docs/10 §2: from the first narrow step the lane drops the version (its tooltip keeps
@@ -2630,6 +2969,7 @@ Item {
         serverConfigured: App.hasServer
         connected: !root.serverLost
         syncing: root.firstSync
+        connecting: App.serverConnecting && !root.serverLost
         retrying: root.serverRetrying
         connectionStatus: App.globalState.connectionStatus
         // docs/16 §5: the port behind "not reachable", and anonymous mode with private
@@ -2637,6 +2977,11 @@ Item {
         listenPort: App.serverPrefs.values.listen_port ?? 0
         anonymousWarning: App.serverPrefs.values.anonymous_mode === true && App.counts.privateCount > 0
 
+        // C32 D2 a: the title bar has the speeds unless Settings puts them here, or the bar is
+        // too narrow for them.
+        speedsShown: App.speedsPlace === "status" || !titleBar.speedsFit
+        downParts: root.speedPartsDown
+        upParts: root.speedPartsUp
         downSpeed: root.live ? App.globalState.dlSpeedText : "—"
         downSpeedShort: root.live ? App.speedShortText(App.globalState.dlInfoSpeed) : "—"
         upSpeed: root.live ? App.globalState.upSpeedText : "—"
@@ -2647,10 +2992,6 @@ Item {
 
         // docs/31: burst, turtle or today's alt-speed, until when, and how it came about.
         altSpeedActive: App.globalState.useAltSpeedLimits
-        altDownLimit: App.globalState.dlRateLimitText
-        altUpLimit: App.globalState.upRateLimitText
-        altDownLimitShort: App.limitShortText(App.globalState.dlRateLimit)
-        altUpLimitShort: App.limitShortText(App.globalState.upRateLimit)
         altKind: App.altSpeed.kind
         altTooltip: App.altSpeed.chipTooltip
         altUntil: App.altSpeed.untilText
@@ -2670,44 +3011,12 @@ Item {
 
         onServerClicked: root.openServerPalette()
         onUpClicked: root.setView("seed")
-        onAltSpeedClicked: root.toggleAltSpeed()
+        // C32 D8 a: the chip opens the choice; A still flips the last one.
+        onAltSpeedClicked: root.openAltSpeedMenu()
         onKeysClicked: root.helpOpen = true
         // docs/35 N8: the sentence's "details" open the band above the line.
         onDetailsToggled: root.footerNoticeOpen = !root.footerNoticeOpen
         onNoteHintClicked: root.toggleDetails()
-    }
-
-    // The action bar (board 46 `statusLine()` while selecting, DECISIONS C24 H8; supersedes
-    // docs/17's floating bar): while one or more torrents are selected the status line becomes
-    // it, docked in the line's place. Never while the server is lost (Fig. 23 is read-only) or
-    // with no rows on show: the status line stays then.
-    SelectionBar {
-        id: selectionBar
-
-        anchors.fill: statusLine
-        // The line's width, not the bar's own: while the bar is made, its width follows its
-        // implicit width for a moment, which follows its folds (a binding loop).
-        availableWidth: statusLine.width - Theme.actionBarInsetStart - Theme.actionBarInsetEnd
-        count: table.selectedCount
-        // #170: `p`'s word, as the selection needs it.
-        startable: root.selectionRunStates.stopped
-        stoppable: root.selectionRunStates.running
-        hint: root.selectionHint
-        keysShown: root.keysShown
-        // The line's note, while the bar hides the line.
-        note: root.footerNote
-        noteWarn: root.footerNoteWarn
-        // #24 T1: re-read when the selection or the library moves.
-        summary: {
-            App.torrents.count; // the dependency: a sync that adds or drops a row
-            return table.selectedCount > 0 ? App.console.selectionSummary(table.selectedHashes()) : ({});
-        }
-        visible: table.selectedCount > 0 && table.visible && !root.serverLost && !root.firstRun
-
-        onClearRequested: table.clearSelection()
-        onMoreRequested: (button, folded) => root.openSelectionMore(button, folded)
-        onSummaryClicked: root.setView("seed")
-        onTriggered: action => root.selectionBarAction(action)
     }
 
     // the `?` sheet (spec §7 Fig. 26: 760 wide, no buttons — a sheet may have none)
@@ -3090,6 +3399,37 @@ Item {
         App.toggleAltSpeed();
     }
 
+    /// DECISIONS C32 D8 a: the choice of off, turtle and burst, over the status line's chip
+    /// (from the chip, or a menu's alternative speeds row).
+    function openAltSpeedMenu(): void {
+        if (!App.hasServer || root.serverLost)
+            return;
+        const chip = statusLine.altChip;
+        const corner = statusLine.visible && chip.visible ? chip.mapToItem(root, 0, 0)
+                                                          : Qt.point(statusLine.mapToItem(root, 0, 0).x
+                                                                     + Theme.statusLineInsetStart, root.height - statusLine.height);
+        altSpeedMenu.openAbove(Math.round(corner.x - Theme.space(40)), Math.round(corner.y - Theme.railMenuGap));
+        // The cursor on the one in force.
+        altSpeedMenu.cursorIndex = Math.max(0, ["off", "turtle", "burst"].indexOf(App.altPresets.current));
+    }
+
+    /// A row of the choice: a preset, how long a burst lasts, or Settings › Speed.
+    function altSpeedMenuAction(action: string): void {
+        if (action === "edit") {
+            settingsModal.openSpeed();
+            return;
+        }
+        if (action.startsWith("minutes:")) {
+            App.altPresets.burstMinutes = Number(action.slice(8));
+            return;
+        }
+        if (action === App.altPresets.current)
+            return;
+        root._altFlipFrom = App.globalState.useAltSpeedLimits === true;
+        altFlipTimer.restart();
+        App.pickAltSpeed(action);
+    }
+
     /// App.altSpeed moved. Once the server has flipped, the note shows as soon as AltSpeed
     /// has one: the flip itself re-reads the preferences (D13), so a schedule changed in the
     /// Web UI can turn the first reading's "by the schedule" into "by hand" a moment later.
@@ -3217,9 +3557,29 @@ Item {
 
         anchors.fill: parent
         current: App.display
+        sortOrder: App.filtered.sortOrder
+        sortRole: App.filtered.sortRoleName
         z: 9
 
-        onActivated: display => root.pickDisplay(display)
+        onActivated: action => action.startsWith("sort:") ? root.pickSort(action.slice(5))
+                                                           : root.pickDisplay(action)
+    }
+
+    AltSpeedMenu {
+        id: altSpeedMenu
+
+        anchors.fill: parent
+        objectName: "altSpeedMenu"
+        burstLimits: qsTr("↓%1 ↑%2").arg(App.limitShortText(App.altPresets.burstDl)).arg(App.limitShortText(
+                                                                                              App.altPresets.burstUp))
+        burstMinutes: App.altPresets.burstMinutes
+        current: App.altPresets.current
+        serverName: App.serverName
+        turtleLimits: qsTr("↓%1 ↑%2").arg(App.limitShortText(App.altPresets.turtleDl)).arg(App.limitShortText(
+                                                                                                App.altPresets.turtleUp))
+        z: 9
+
+        onActivated: action => root.altSpeedMenuAction(action)
     }
 
     AppMenu {
@@ -3227,6 +3587,8 @@ Item {
 
         anchors.fill: parent
         altKind: App.altSpeed.kind
+        // D14 b: flush with the mark it grows from.
+        clampMargin: 0
         serverLine: root.serverLaneText()
         sharedRows: App.appMenuRows
         version: App.versionText.replace(/^omaseed /, "")
@@ -3257,6 +3619,31 @@ Item {
             const at = actionsMenuPanel.mapToItem(table, x, y);
             table.contextClickAt(at.x, at.y);
         }
+    }
+
+    // The torrent menu's rows, never opened: what the action bar is built from (C32 D17).
+    ActionsMenu {
+        id: barMenuRows
+
+        visible: false
+    }
+
+    // Board 51 D17.1 a: the action bar's category › and tags › lists, upward from the button.
+    Menu {
+        id: barListMenu
+
+        /// "category" or "tags", and the torrents it acts on.
+        property string kind: ""
+        property var hashes: []
+
+        anchors.fill: parent
+        items: barListMenu.kind === "tags" ? root.barTagRows(barListMenu.hashes)
+                                           : root.barCategoryRows(barListMenu.hashes)
+        menuWidth: Theme.space(240)
+        objectName: "barListMenu"
+        z: 9
+
+        onActivated: action => root.barListAction(barListMenu.hashes, action)
     }
 
     // DECISIONS C19 T3 (C15 M1's "the row's menu"): a rail folder row's menu. It moves that
@@ -3296,6 +3683,18 @@ Item {
             else if (action === "createFrom")
                 root.openCreate(folderMenuPanel.folder.replace(/\/*$/, "/"));
         }
+    }
+
+    // Board 51 D4 a (DECISIONS C32): a server's menu, from its row in the rail.
+    ServerMenu {
+        id: serverMenuPanel
+
+        altKind: App.altSpeed.kind
+        anchors.fill: parent
+        sharedRows: App.appMenuRows
+        z: 9
+
+        onActivated: action => root.serverMenuAction(serverMenuPanel.serverId, action)
     }
 
     DeleteConfirm {
@@ -3543,6 +3942,8 @@ Item {
             return qsTr("%1 · isn't answering").arg(App.serverName);
         if (root.serverLost)
             return qsTr("%1 · unreachable").arg(App.serverName);
+        if (App.serverConnecting && !root.firstSync) // #201 F4
+            return qsTr("%1 · connecting").arg(App.serverName);
         if (root.firstSync)
             return qsTr("%1 · first sync").arg(App.serverName);
         // The API answers "v5.2.3"; the line prints "qBittorrent 5.2.3".

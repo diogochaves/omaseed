@@ -1,5 +1,7 @@
 #include "core/AltSpeed.hpp"
 
+#include "core/AltPresets.hpp"
+
 #include "core/GlobalState.hpp"
 #include "core/ServerPreferences.hpp"
 
@@ -73,6 +75,40 @@ class TestAltSpeed : public QObject
     Q_OBJECT
 
 private Q_SLOTS:
+    // DECISIONS C32 D8 a: omaseed's burst over a turtle set reads burst, until its own end.
+    void aPresetBurstIsBurstUntilItsEnd()
+    {
+        Rig rig;
+        rig.preferences.setOffline(turtleSet(true));
+        rig.state.setConnected(true);
+        rig.setOn(true);
+        rig.alt.refresh();
+        QCOMPARE(rig.alt.kind(), QStringLiteral("turtle"));
+
+        AltPresets presets;
+        presets.setClock([&rig]() { return rig.now; });
+        presets.setPreferences(&rig.preferences);
+        presets.setGlobalState(&rig.state);
+        // The set holds a burst omaseed wrote (its numbers would still read turtle).
+        presets.setStore(QJsonObject{
+            {QStringLiteral("public"),
+             QJsonObject{
+                 {QStringLiteral("running"),
+                  QJsonObject{{QStringLiteral("turtleDl"), 10240},
+                              {QStringLiteral("turtleUp"), 10240},
+                              {QStringLiteral("dl"), 10240},
+                              {QStringLiteral("up"), 10240},
+                              {QStringLiteral("until"), at(15, 16, 30).toString(Qt::ISODate)}}}}}});
+        rig.alt.setPresets(&presets);
+        presets.setServer(QStringLiteral("public"));
+        QVERIFY(presets.burstOn());
+        QCOMPARE(rig.alt.kind(), QStringLiteral("burst"));
+        QCOMPARE(rig.alt.untilText(), QStringLiteral("16:30"));
+        QCOMPARE(rig.alt.chipTooltip(), QStringLiteral("burst until 16:30, then turtle again · A"));
+        QCOMPARE(rig.alt.trayLabel(), QStringLiteral("burst · until 16:30"));
+        QVERIFY(rig.alt.footerNote().startsWith(QStringLiteral("burst until 16:30")));
+    }
+
     // Before the preferences answer: today's word, no "until", no claims.
     void notReadYet()
     {

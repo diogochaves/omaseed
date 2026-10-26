@@ -33,6 +33,8 @@ Item {
     property string version: ""
     /// The server omaseed is on answers.
     property bool connected: false
+    /// #201 F4: a switch to it is under way (App.serverConnecting): its dot is neutral, not red.
+    property bool connecting: false
     /// The keyboard's cursor is on it (Settings' nav).
     property bool hasCursor: false
     /// The item the list opens over.
@@ -75,7 +77,7 @@ Item {
             out.push({
                          "text": map.name,
                          "glyph": Glyphs.dot,
-                         "glyphColor": current && !root.connected ? Theme.red
+                         "glyphColor": current && !root.connected ? (root.connecting ? Theme.dimForeground : Theme.red)
                                        : answers ? Theme.green : Theme.dimForeground,
                          "note": note,
                          "dim": !current && failing,
@@ -174,7 +176,8 @@ Item {
             Lamp {
                 Layout.preferredHeight: Theme.space(7)
                 Layout.preferredWidth: Theme.space(7)
-                color: root.connected ? selectBox.ink.green : selectBox.ink.red
+                color: root.connected ? selectBox.ink.green : root.connecting ? selectBox.ink.dimForeground
+                                                                              : selectBox.ink.red
                 objectName: "serverSelectDot"
                 size: Theme.space(7)
             }

@@ -125,6 +125,21 @@ App::App(QObject *parent)
     m_altSpeed = new AltSpeed(this);
     m_altSpeed->setGlobalState(m_engine->globalState());
     m_altSpeed->setPreferences(m_prefs);
+    // C32 D8 a: turtle and burst; burst ends (turtle written back) on quit, and a burst a
+    // crash left running is ended at its time once its server answers.
+    m_altPresets = new AltPresets(this);
+    m_altPresets->setClient(m_client);
+    m_altPresets->setPreferences(m_prefs);
+    m_altPresets->setGlobalState(m_engine->globalState());
+    m_altSpeed->setPresets(m_altPresets);
+    m_altPresets->setStore(StateFile::readSection(QStringLiteral("altPresets")));
+    connect(m_altPresets, &AltPresets::storeChanged, this, [this]() {
+        writeStateSection(QStringLiteral("altPresets"), m_altPresets->store());
+    });
+    if (QCoreApplication::instance() != nullptr)
+        connect(QCoreApplication::instance(), &QCoreApplication::aboutToQuit, this, [this]() {
+            m_altPresets->endBurstAndWait(2000);
+        });
     m_filtered->setSourceModel(m_engine->torrents());
     // A tracker row lists what the rail counts for it: every torrent on that host.
     m_filtered->setTrackerModel(m_engine->trackers());
@@ -171,6 +186,12 @@ App::App(QObject *parent)
         m_engine->globalState(), &GlobalState::freeSpaceOnDiskChanged, this, &App::updateFreeSpace);
     connect(m_prefs, &ServerPreferences::valuesChanged, this, &App::updateFreeSpace);
     connect(this, &App::serverChanged, this, &App::updateFreeSpace);
+    connect(this, &App::serverChanged, this, [this]() {
+        // The demo's presets are its own, in its state (they write nothing to a server).
+        m_altPresets->setServer(!m_hasServer ? QString()
+                                : m_demoMode ? QStringLiteral("demo")
+                                             : m_server.id);
+    });
     connect(this, &App::settingsChanged, this, &App::updateFreeSpace);
     connect(m_engine->globalState(), &GlobalState::serverNameChanged, this, &App::updateTray);
     connect(m_engine->counts(), &FilterCounts::changed, this, &App::updateTray);
@@ -190,6 +211,7 @@ App::App(QObject *parent)
     });
     connect(m_engine, &SyncEngine::serverLost, this, [this](const ApiError &error) {
         m_serverLost = true;
+        setServerConnecting(false); // #201 F4: a real failure, now red
         // docs/44 D11: a timeout is a server there but silent, not a lost one.
         qWarning().noquote() << (error.kind() == ApiError::Kind::Timeout
                                      ? QStringLiteral("server isn't answering: %1")
@@ -206,12 +228,14 @@ App::App(QObject *parent)
     });
     connect(m_engine, &SyncEngine::authRequired, this, [this](const ApiError &error) {
         m_serverLost = true;
+        setServerConnecting(false);
         qWarning().noquote() << QStringLiteral("authentication required: %1").arg(error.toString());
         updateTray();
     });
     // serverBack only follows serverLost; after authRequired (a retry, a fixed password) the
     // first good sync is what says the server is back.
     connect(m_engine, &SyncEngine::synced, this, [this]() {
+        setServerConnecting(false); // #201 F4: it answered
         if (!m_serverLost)
             return;
         m_serverLost = false;
@@ -485,9 +509,13 @@ void App::applyServer(const Server &server)
                                  .arg(server.name, server.engine());
         m_client->setBaseUrl(QUrl());
         m_serverLost = true;
+        setServerConnecting(false);
         Q_EMIT serverStateChanged();
         return;
     }
+    // #201 F4: until it answers or fails, the dots say "connecting", not "down".
+    if (!m_demoMode)
+        setServerConnecting(true);
     m_client->setBaseUrl(server.url);
 
     // The secret is a keychain round trip, so the engine starts in the callback: polling
@@ -711,12 +739,23 @@ void App::toggleAltSpeed()
 {
     if (m_demoMode || !m_hasServer)
         return;
+    // Before the presets can act (no server id yet): qBittorrent's own toggle, as before.
+    if (m_altPresets->toggle())
+        return;
     m_client->transferToggleSpeedLimitsMode()->then(
         this, [](const QbtResult<QByteArray> &result) {
             if (result.isError())
                 qWarning().noquote()
                     << QStringLiteral("alt-speed toggle failed: %1").arg(result.error().toString());
         });
+}
+
+void App::pickAltSpeed(const QString &kind)
+{
+    if (m_demoMode || !m_hasServer)
+        return;
+    if (!m_altPresets->pick(kind))
+        qWarning().noquote() << QStringLiteral("alt-speed: %1 can't be picked yet").arg(kind);
 }
 
 void App::stopAll()
@@ -1075,6 +1114,14 @@ QString App::limitShortText(qint64 bytesPerSecond)
     if (bytesPerSecond <= 0)
         return QStringLiteral("∞");
     return Format::speedCompact(bytesPerSecond);
+}
+
+QVariantMap App::speedParts(qint64 bytesPerSecond, qint64 capBytesPerSecond)
+{
+    const Format::SpeedParts parts = Format::speedParts(bytesPerSecond, capBytesPerSecond);
+    return {{QStringLiteral("value"), parts.value},
+            {QStringLiteral("cap"), parts.cap},
+            {QStringLiteral("unit"), parts.unit}};
 }
 
 QString App::speedShortText(qint64 bytesPerSecond)
@@ -3657,8 +3704,19 @@ void App::setGlobalLimits(qint64 dl, qint64 up, qint64 altDl, qint64 altUp)
     };
     put("dl_limit", dl);
     put("up_limit", up);
-    put("alt_dl_limit", altDl);
-    put("alt_up_limit", altUp);
+    // C32 D8 a: while omaseed's burst holds the set, the alternative limits typed here are the
+    // turtle's, saved to be written back when the burst ends.
+    if (m_altPresets->burstOn()) {
+        QVariantMap turtle;
+        if (altDl >= 0)
+            turtle.insert(QStringLiteral("alt_dl_limit"), altDl);
+        if (altUp >= 0)
+            turtle.insert(QStringLiteral("alt_up_limit"), altUp);
+        m_altPresets->apply(turtle);
+    } else {
+        put("alt_dl_limit", altDl);
+        put("alt_up_limit", altUp);
+    }
     if (changes.isEmpty())
         return;
     m_client->appSetPreferences(changes)->then(this, [this](const QbtResult<QByteArray> &result) {
@@ -4137,10 +4195,23 @@ QString App::addServer(const QVariantMap &fields, const QString &secret)
     qInfo().noquote() << QStringLiteral("server added: %1").arg(id);
     // The first server ever added is made default by the model, and there is no engine
     // running yet: move onto it so the table fills without a restart.
-    if (!m_hasServer && m_servers->defaultId() == id)
+    if (!m_hasServer && m_servers->defaultId() == id) {
         setDefaultServer(id);
-    else
+    } else {
         Q_EMIT serverChanged();
+        // #201 F5: count what the new server holds, so the rail's row has a number at once
+        // (ServerListModel::setProbeResult keeps it as last seen).
+        const std::optional<Server> added = m_servers->byId(id);
+        if (!m_demoMode && added && added->isQbittorrent() && !m_probing.contains(id)) {
+            m_probing.insert(id);
+            if (!secret.isEmpty())
+                runServerTest(*added, secret, false);
+            else
+                withStoredSecret(*added, [this, server = *added](const QString &stored) {
+                    runServerTest(server, stored, false);
+                });
+        }
+    }
     return id;
 }
 
@@ -4177,6 +4248,7 @@ bool App::removeServer(const QString &id)
         m_prefs->reset();
         m_engine->globalState()->setServerName(QString());
         m_serverLost = false;
+        setServerConnecting(false);
         m_hasServer = false;
         m_server = Server();
         updateTray();
@@ -4529,6 +4601,7 @@ const QStringList kRailScrollHints{
     QStringLiteral("chevrons"), QStringLiteral("fade"), QStringLiteral("scrollbar")};
 const QStringList kDetailsPlacements{
     QStringLiteral("auto"), QStringLiteral("right"), QStringLiteral("bottom")};
+const QStringList kSpeedsPlaces{QStringLiteral("title"), QStringLiteral("status")};
 const QStringList kTrackerHostStyles{
     QStringLiteral("prefix"), QStringLiteral("left"), QStringLiteral("right")};
 const QStringList kTrayIconModes{
@@ -4613,6 +4686,23 @@ void App::setSurfaceTint(int percent)
     Q_EMIT settingsChanged();
 }
 
+QString App::speedsPlace() const
+{
+    const_cast<App *>(this)->loadSettings();
+    return m_speedsPlace;
+}
+
+void App::setSpeedsPlace(const QString &place)
+{
+    loadSettings();
+    const QString wanted = oneOf(place, kSpeedsPlaces);
+    if (m_speedsPlace == wanted)
+        return;
+    m_speedsPlace = wanted;
+    saveSettings();
+    Q_EMIT settingsChanged();
+}
+
 QString App::trackerHostStyle() const
 {
     const_cast<App *>(this)->loadSettings();
@@ -4642,6 +4732,23 @@ void App::setRailHidden(bool hidden)
     if (m_railHidden == hidden)
         return;
     m_railHidden = hidden;
+    saveSettings();
+    Q_EMIT settingsChanged();
+}
+
+int App::railWidth() const
+{
+    const_cast<App *>(this)->loadSettings();
+    return m_railWidth;
+}
+
+void App::setRailWidth(int units)
+{
+    loadSettings();
+    const int wanted = qMax(0, units);
+    if (m_railWidth == wanted)
+        return;
+    m_railWidth = wanted;
     saveSettings();
     Q_EMIT settingsChanged();
 }
@@ -4768,9 +4875,12 @@ void App::loadSettings()
     m_railScrollHint =
         oneOf(appearance.value(QStringLiteral("railScrollHint")).toString(), kRailScrollHints);
     m_surfaceTint = tintStep(appearance.value(QStringLiteral("surfaceTint")).toInt(0));
+    m_speedsPlace =
+        oneOf(appearance.value(QStringLiteral("speedsPlace")).toString(), kSpeedsPlaces);
     m_trackerHostStyle =
         oneOf(appearance.value(QStringLiteral("trackerHostStyle")).toString(), kTrackerHostStyles);
     m_railHidden = appearance.value(QStringLiteral("railHidden")).toBool(false);
+    m_railWidth = qMax(0, appearance.value(QStringLiteral("railWidth")).toInt(0));
     m_detailsPlacement =
         oneOf(appearance.value(QStringLiteral("detailsPlacement")).toString(), kDetailsPlacements);
 }
@@ -4796,8 +4906,10 @@ void App::saveSettings()
     appearance[QStringLiteral("pulseRows")] = m_pulseRows;
     appearance[QStringLiteral("railScrollHint")] = m_railScrollHint;
     appearance[QStringLiteral("surfaceTint")] = m_surfaceTint;
+    appearance[QStringLiteral("speedsPlace")] = m_speedsPlace;
     appearance[QStringLiteral("trackerHostStyle")] = m_trackerHostStyle;
     appearance[QStringLiteral("railHidden")] = m_railHidden;
+    appearance[QStringLiteral("railWidth")] = m_railWidth;
     appearance[QStringLiteral("detailsPlacement")] = m_detailsPlacement;
     writeStateSection(QStringLiteral("appearance"), appearance);
 }
@@ -5929,6 +6041,16 @@ void App::refreshQbtBackupInfo()
             m_qbtRssRules = int(QJsonDocument::fromJson(r.value()).object().size());
             Q_EMIT qbtBackupChanged();
         });
+}
+
+QString App::pickLogExportPath() const
+{
+    const QString suggested = QDir::homePath() + QStringLiteral("/qbittorrent-log-") +
+                              fileStem(m_server.name) + QLatin1Char('-') +
+                              QDate::currentDate().toString(Qt::ISODate) + QStringLiteral(".txt");
+    QFileDialog dialog(nullptr, tr("Export qBittorrent's log"), suggested, tr("Text (*.txt)"));
+    dialog.setAcceptMode(QFileDialog::AcceptSave);
+    return runPicker(dialog, m_dialogParent).value(0);
 }
 
 QString App::pickQbtExportPath() const

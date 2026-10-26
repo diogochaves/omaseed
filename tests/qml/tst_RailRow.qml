@@ -136,6 +136,30 @@ TestCase {
         compare(clicks.count, 1);
     }
 
+    // Board 51 D5 a: the log's level rows: a tick in the glyph's place, filled in the level's
+    // colour while ticked, an outline while not; the warning's name in its colour.
+    function test_a_tick_takes_the_glyphs_place() {
+        const row = createTemporaryObject(railRowComponent, testCase, {
+                                              "text": "warning",
+                                              "glyph": "x",
+                                              "count": 31,
+                                              "tick": true,
+                                              "ticked": true,
+                                              "tickColor": Theme.yellow,
+                                              "toneName": true,
+                                              "width": 214
+                                          });
+        const tick = findChild(row, "railRowTick");
+        verify(tick.visible);
+        verify(Qt.colorEqual(tick.color, Theme.yellow));
+        compare(tick.border.width, 0);
+        row.ticked = false;
+        compare(tick.color, Qt.rgba(0, 0, 0, 0));
+        compare(tick.border.width, Theme.hairWidth);
+        row.tick = false;
+        verify(!tick.visible);
+    }
+
     function test_click_emits_clicked() {
         const row = createTemporaryObject(railRowComponent, testCase, {
                                               "text": "downloading"

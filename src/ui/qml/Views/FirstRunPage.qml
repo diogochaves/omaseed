@@ -469,6 +469,19 @@ function _apiKeyTabOrder(): list<Item> {
     return order;
 }
 
+/// #201 F1: a credential picked (the chip clicked, or space on it) puts the caret in its
+/// first field, the key or the username; "none" has none and leaves the keyboard on the chip.
+/// Later, once the field the choice shows is laid out.
+function _pickAuth(mode: string): void {
+    root.editAuthMode = mode;
+    const field = mode === "apiKey" ? keyField : mode === "cookie" ? userField : null;
+    if (field)
+        Qt.callLater(() => {
+                         field.focusInput();
+                         root._scrollIntoView(field);
+                     });
+}
+
 /// Only matters when the column scrolls (a big font on a small screen): keep what the
 /// keyboard just reached on screen.
 function _scrollIntoView(item: Item): void {
@@ -1104,10 +1117,13 @@ Flickable {
 
                             focusable: true
                             checkable: true
+                            // #201 F2: the choice made reads as chosen, with an accent edge; the fill alone
+                            // (no border) read as a dimmed, disabled button beside the outlined others.
+                            accent: authChip.selected
                             selected: root.editAuthMode === authChip.modelData.mode
                             text: authChip.modelData.text
 
-                            onClicked: root.editAuthMode = authChip.modelData.mode
+                            onClicked: root._pickAuth(authChip.modelData.mode)
                         }
                     }
 
@@ -1352,7 +1368,11 @@ Flickable {
 
                     activeFocusOnTab: false // the page cycles tab itself (see _cycleApiKeyFocus)
 
-                    text: qsTr("not now")
+                    objectName: "notNowButton"
+                    // #201 F3: when omaseed already opens them (the system's own default, with
+                    // no line of ours in mimeapps.list), this button changes nothing, and
+                    // "not now" read as turning it down.
+                    text: root.alreadyHandler ? qsTr("leave it as is") : qsTr("not now")
 
                     onClicked: root.skipHandler()
                 }

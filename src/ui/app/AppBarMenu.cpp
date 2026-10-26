@@ -23,7 +23,8 @@ QString contractState(const QString &listState, const QString &reason)
 {
     if (listState == QLatin1String("live") || listState == QLatin1String("seen"))
         return QStringLiteral("ok");
-    if (listState == QLatin1String("syncing"))
+    // #201 F4: on the way to it, as a first sync is: not a loss.
+    if (listState == QLatin1String("syncing") || listState == QLatin1String("connecting"))
         return QStringLiteral("first-sync");
     if (listState == QLatin1String("refused") || listState == QLatin1String("certificate"))
         return QStringLiteral("refused");

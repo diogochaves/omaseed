@@ -11,18 +11,22 @@ before it will tag a release.
 
 - **The window answers five questions.** The rail now lists what needs you, what is arriving,
   what landed today, what is giving back and what is resting, keys `1`–`5` (`0` is the whole
-  library), under the views library, seed, log and search, with the servers at its foot.
-  `ctrl+b` folds it to a column of icons. Every state is still in the filter (`is:stalled`)
-  and the `:` palette. (#167)
-- **Rows, table or shelves.** The library can show rows grouped under the five questions, in
+  library), under the views library, seed, log and search, with the servers and settings at
+  its foot. Drag its edge to size it; it folds to a column of icons by itself when the window
+  gets narrow, or by hand with `ctrl+b` or the tab on its edge. Right-click a server for its
+  menu: switch to it, its alternative speeds, stop or start all, edit, test, open its web UI,
+  copy its address. A question asks across the whole library, whatever folder you were in.
+  Every state is still in the filter (`is:stalled`) and the `:` palette. (#167, #201)
+- **Rows, table or space.** The library can show rows grouped under the five questions, in
   words before numbers ("waiting · no seed", "ready in 3 min"), the table as one sorted list,
-  or shelves of covers by category. The display tool in the title bar or `:` "show as…" picks
-  one, and each folder, category, tag and question remembers its own. New installs start on
-  rows; an existing install keeps the table. (#168)
+  or space: where the space goes, a size map by folder, then torrent. The display tool in the
+  title bar or `:` "show as…" picks one, and each folder, category, tag and question remembers
+  its own; the tool's menu also sorts, and its word says how ("rows · added"). New installs
+  start on rows; an existing install keeps the table. (#168, #201)
 - **Details tell the story.** The pane opens on one fact and a sentence, then story · files ·
   swarm · trackers · facts (`1`–`5` while the pane has the keys). The story starts with what
-  went wrong or the last move, then what happened to the torrent and its lines in the log.
-  The size says what skipped files still hold on disk. (#169)
+  went wrong or the last move, then what happened to the torrent, newest first, and its lines
+  in the log. The size says what skipped files still hold on disk. (#169, #201)
 - **Search through your qBittorrent's search plugins.** `ctrl+f` searches with the plugins you
   install on your server (Settings › qBittorrent › Search plugins); omaseed names, ships and
   scrapes no site. Results arrive as each plugin answers, one row per torrent with the other
@@ -35,27 +39,52 @@ before it will tag a release.
   shown as dots), sets the private flag, v1 and the source tag, and saves the `.torrent` for
   the upload without adding it; when you add the site's copy back, omaseed recognises the
   files and seeds it in place without downloading. (#146)
+- **Turtle and burst.** qBittorrent keeps one set of alternative speeds; omaseed now gives you
+  two presets for it. Turtle is that set, as qBittorrent's schedule and other clients see it;
+  burst is written over it for 30 minutes, an hour or until you stop it, and turtle is written
+  back after, also when omaseed quits mid-burst. The status line's chip, or the menus'
+  alternative speeds row, opens the choice; `A` flips the last one picked; both presets are in
+  Settings › qBittorrent › Speed. While one is on, the chip is tinted in its colour and each
+  speed reads against its cap ("↓ 290 / 300 KB/s"). (#201)
+- **The log has its own rail.** The four levels with their counts, ticked on and off (`1`–`4`),
+  the torrents its lines are about, and since when; `/` filters its lines in the title bar, and
+  "export log…" saves them as shown. (#201)
 - **A second skin, Console.** Settings › Appearance › Skin: Omarchy, Console, or follow the
   desktop (Console while the console desktop's skin is on). The whole window repaints at
   once, no restart. (#171)
 
 ### Changed
 
-- **The status line is the action bar.** Select torrents and the bottom line turns into their
-  actions, in words (stop or start, recheck, move…, category, tags, limits, delete), with "all
-  actions" and esc; narrow, the less used ones fold into all actions. The outcome strip's
-  "show" appears only when it brings something back into view, and says why. (#167, #170)
+- **A floating action bar.** Select torrents and a bar floats over the list with the torrent
+  menu's own actions, icons and words: stop or start, recheck, move…, category › and tags ›
+  (lists that set them for the whole selection), limits…, more › for the rest, delete…, esc;
+  narrow, the words go before the icons. The status line stays on the server meanwhile. The
+  outcome strip floats above the bar, and its "show" appears only when it brings something
+  back into view, and says why. (#167, #170, #201)
 - **A title bar instead of the hero.** The title and a sentence name what you are looking at
   ("2 need you · 7 arriving, the next in 3 min"); a picked folder gets "move this folder…".
-  Notices, moves and creations sit in bands under it, beside a rail you can still use. (#167)
-- **Keys when you ask for them.** Hold alt for badges on every control, read them in tooltips,
-  menus, the palette and `?`. Sheets no longer print key lines at their foot; `?` has an "in a
-  sheet" block. (#167, #170)
-- **The omaseed menu** (`ctrl+.` or the mark): the tray's rows plus the window's own (seed
-  console, log, commands, keys and help, hide). (#167, #170)
+  The speeds sit beside it, each with its last minute drawn under it (Settings › Appearance ›
+  Speeds puts them in the status line instead), and the filter takes the free room when you
+  use it, `cat:` and the like on chips. Notices, moves and creations sit in bands under it,
+  beside a rail you can still use. (#167, #201)
+- **Keys when you ask for them.** Hold alt for badges on every control, the details tabs
+  included, read them in tooltips, menus, the palette and `?`. Sheets no longer print key
+  lines at their foot; `?` has an "in a sheet" block. Moving the keys between the rail, the
+  list and the details shows which one has them. (#167, #170, #201)
+- **The omaseed menu** (`ctrl+.` or the mark) grows out of the mark, the version first: the
+  tray's rows plus the window's own (seed console, log, commands, keys and help, hide).
+  (#167, #170, #201)
 - **One look for every sheet and menu.** Sheets share one head and foot, the main button
-  filled; the torrent menu groups its verbs (run, place, transfer, reach, delete) with keys on
-  the right and the torrent's state in its head. (#170)
+  filled; the torrent menu has an icon on every row and groups its verbs (run, place,
+  transfer, reach, delete), with transfer, queue and copy as submenus, keys on the right and
+  the torrent's state in its head. (#170, #201)
+- **Settings works as a form.** Tab goes to the next field; each server row ends in a ›, and
+  "edit" from its menu (or `e`) opens its form. Picking an API key or a username when signing
+  in puts the caret in its field. (#201)
+- **Move back brings back the loose files** a folder move carried, under their own tick; a file
+  changed at the new place since stays there, and the summary names it. (#201)
+- **The surface tint is back**, on the rail only: Settings › Appearance › Surface tint, off,
+  4 % or 8 %. (#201)
 - **Opaque by default,** like the other apps; Settings › Appearance › Window keeps
   "translucent". (#167)
 - **Text reads on every fill.** Selected, hovered, pressed and tinted rows lift their dim and
@@ -73,7 +102,17 @@ before it will tag a release.
 - **A base-size change applies at once.** Spacing, column widths, the details pane and the
   rail's "N below" hint follow the shell's base size (or Appearance's) without a restart.
   (#156, #184)
-- **The rail's group headings** no longer show the hover fill when nothing hovers them. (#187)
+- **The rail's group headings** no longer show the hover fill when nothing hovers them, and their
+  fill no longer cuts against the line above. (#187, #201)
+- **Switching servers no longer flashes red**: the dot reads "connecting" until the server
+  answers. A server just added shows its torrent count at once. (#201)
+- **Tooltips** are opaque, as wide as their words, and no longer stay on screen after `ctrl+b`.
+  (#201)
+- **A narrow window** keeps room for the names: no words drawn over others, the category, time
+  and state giving way first. (#201)
+- **A sheet could freeze the window** when one of its lines was just short of wrapping (the
+  folder Move sheet, on some folders). (#201)
+- **A move's long details** in its band show a scroll bar. (#201)
 
 ## v0.4.0 — 2026-10-23
 

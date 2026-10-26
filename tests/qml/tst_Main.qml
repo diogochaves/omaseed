@@ -76,6 +76,7 @@ TestCase {
         view.jumpPalette.close();
         view.categoryPalette.close();
         view.tagPalette.close();
+        view.barListMenu.close();
         view.sortPalette.close();
         view.columnsPalette.close();
         view.commandPalette.close();
@@ -91,6 +92,8 @@ TestCase {
         view.helpOpen = false;
         view._testServerLost = false;
         App.railHidden = false;
+        App.railWidth = 0;
+        view.railHeldOpen = false;
         view.split.folded = false;
         view.details.activateTab(view.details.tabStory);
         view.table.cancelRename();
@@ -248,6 +251,20 @@ TestCase {
         keyClick(Qt.Key_S, Qt.ControlModifier);
         compare(view.footerNote, "one server · add another in Settings › Servers");
         view.footerNote = "";
+    }
+
+    // DECISIONS C32 D8 a: the status line's chip opens the choice of presets, over the chip;
+    // esc closes it. A still flips the last one (the demo writes nothing).
+    function test_the_alt_chip_opens_the_presets() {
+        mouseClick(view.statusLine.altChip);
+        const menu = findChild(view, "altSpeedMenu");
+        verify(menu !== null && menu.opened);
+        compare(menu.current, "off");
+        verify(menu.panel.mapToItem(view, 0, 0).y + menu.panel.height
+               <= view.statusLine.altChip.mapToItem(view, 0, 0).y);
+        keyClick(Qt.Key_Escape);
+        verify(!menu.opened);
+        view.focusHome();
     }
 
     // #24: the status line's ↑ opens the seed console, as the rail's "seed" does.
@@ -660,9 +677,9 @@ TestCase {
                                                                                                  : item.action);
         compare(actions, ["alt-speed", "stop-all", "start-all", "|", "add", "settings", "|", "caption",
                           "toggleConsole", "toggleLog", "commands", "help", "hide", "|", "quit"]);
-        compare(view.appMenu.headingTitle, "omaseed");
-        verify(view.appMenu.heading.indexOf(App.serverName) > 0, view.appMenu.heading);
-        verify(/^\d+\.\d+/.test(view.appMenu.heading), view.appMenu.heading);
+        // D14 b: the version leads, the server after it; no "omaseed" head.
+        verify(/^\d+\.\d+/.test(view.appMenu.headingTitle), view.appMenu.headingTitle);
+        verify(view.appMenu.heading.indexOf(App.serverName) >= 0, view.appMenu.heading);
         const quit = view.appMenu.items[view.appMenu.items.length - 1];
         compare(quit.text, "quit omaseed");
         compare(quit.key, "ctrl+q");
@@ -708,11 +725,18 @@ TestCase {
         keyClick(Qt.Key_Period, Qt.ControlModifier);
         compare(view.appMenu.opened, true);
         compare(view.activeOverlay, view.appMenu);
+        // Board 51 D14 b: it grows out of the lit mark, flush with its bottom-left corner,
+        // its top side open under the mark, whose ring closes the outline.
         const mark = findChild(view.rail, "railMark");
-        const corner = mark.mapToItem(view, Theme.railMarkInset, mark.height);
-        compare(view.appMenu.anchorX, Math.round(corner.x));
-        compare(view.appMenu.anchorY, Math.round(corner.y + Theme.railMenuGap));
+        const corner = mark.mapToItem(view, 0, mark.height);
+        compare(view.appMenu.panel.x, Math.round(corner.x));
+        compare(view.appMenu.panel.y, Math.round(corner.y));
         compare(view.appMenu.panel.width, Theme.appMenuWidth);
+        compare(view.appMenu.jointWidth, Math.round(mark.width) - Theme.menuEdgeWidth);
+        compare(findChild(view.appMenu, "menuJointEdge").visible, true);
+        compare(view.rail.markLit, true);
+        compare(findChild(view.rail, "railMarkRing").visible, true);
+        compare(mark.color, Theme.on.selected.fill);
         keyClick(Qt.Key_Question, Qt.ShiftModifier);
         compare(view.appMenu.opened, false);
         compare(view.helpOpen, true);
@@ -761,6 +785,11 @@ TestCase {
         const arriving = key(findChild(view.rail, "railQuestion-arriving"), "railRowKey");
         const add = key(view.titleBar.addTool, "keyBadge");
         const filter = key(view.titleBar, "titleFilterKey");
+        // #201 F18: the details tabs carry no digits at rest, their keys come with alt.
+        const tabs = findChild(view.details, "detailsTabs");
+        const filesKey = key(findChild(tabs, "tab_1"), "keyBadge");
+        verify(tabs.keyBadges);
+        verify(!filesKey.shown);
         verify(!mark.visible && !arriving.visible && !add.visible);
 
         keyPress(Qt.Key_Alt);
@@ -777,6 +806,8 @@ TestCase {
         compare(add.key, "a");
         verify(filter.visible);
         compare(filter.key, "/");
+        verify(filesKey.shown);
+        compare(filesKey.key, "2");
         // One server: no lane badge, nothing to switch to (D19).
         verify(!key(view.statusLine, "statusServerKey").visible);
         keyRelease(Qt.Key_Alt);
@@ -865,6 +896,77 @@ TestCase {
         compare(view.rail.width, Theme.railWidth);
     }
 
+    // DECISIONS C32 D9: the rail folds by itself when the list would get narrower than 520
+    // (the details pane counted while open beside it) and opens again when there is room; a
+    // hand unfold or fold holds until the next hand one.
+    function test_the_rail_folds_by_itself_when_the_list_would_crowd() {
+        const placement = App.detailsPlacement;
+        App.detailsPlacement = "right";
+        testCase.width = Theme.space(1000);
+        verify(view.split.docked);
+        verify(view.rail.compact);
+        compare(App.railHidden, false);
+        compare(view.titleBar.x, Theme.railFoldedWidth);
+        // The details folded leave the list its room: open again.
+        view.split.folded = true;
+        verify(!view.rail.compact);
+        view.split.folded = false;
+        verify(view.rail.compact);
+        testCase.width = 1360;
+        verify(!view.rail.compact);
+
+        // A hand unfold in a crowded window holds, through a widen and a narrow.
+        testCase.width = Theme.space(1000);
+        verify(view.rail.compact);
+        keyClick(Qt.Key_B, Qt.ControlModifier);
+        verify(!view.rail.compact);
+        compare(App.railHidden, false);
+        testCase.width = 1360;
+        testCase.width = Theme.space(1000);
+        verify(!view.rail.compact);
+        // A hand fold holds too, with room again.
+        keyClick(Qt.Key_B, Qt.ControlModifier);
+        compare(App.railHidden, true);
+        testCase.width = 1360;
+        verify(view.rail.compact);
+        // The edge tab is the same hand.
+        view.rail.foldToggleRequested();
+        verify(!view.rail.compact);
+        compare(App.railHidden, false);
+        App.detailsPlacement = placement;
+    }
+
+    // C32 D1 a: the rail's foot opens Settings, as `,` does.
+    function test_the_rails_foot_opens_settings() {
+        const row = findChild(view.rail, "railSettings");
+        verify(row.visible);
+        mouseClick(row, row.width / 2, row.height / 2);
+        compare(settingsSpy.count, 1);
+    }
+
+    // C32 D3 a: the dragged width is the window's (App.railWidth, in space units); the
+    // title bar and the body follow it; a double-click's default stores 0; let go under 120,
+    // the rail folds by hand.
+    function test_the_rails_width_is_kept_and_a_drag_under_120_folds_it() {
+        view.rail.widthChosen(Theme.space(300), false);
+        verify(App.railWidth > 0);
+        verify(Math.abs(view.rail.width - Theme.space(300)) <= 1, view.rail.width);
+        compare(view.titleBar.x, view.rail.width);
+        compare(view.split.mapToItem(view, 0, 0).x, view.rail.width);
+        // Kept out of bounds by the host too.
+        App.railWidth = 9000;
+        compare(view.rail.width, view.rail.maximumOpenWidth);
+        view.rail.widthChosen(Theme.railWidth, true);
+        compare(App.railWidth, 0);
+        compare(view.rail.width, Theme.railWidth);
+        view.rail.foldDragged();
+        compare(App.railHidden, true);
+        verify(view.rail.compact);
+        view.rail.unfoldDragged();
+        compare(App.railHidden, false);
+        verify(!view.rail.compact);
+    }
+
     // At the narrowest step the filter folds into its `/` tool; `/` opens it over the title,
     // and leaving it folds it again, lit while it filters.
     function test_slash_opens_the_folded_filter_over_the_title() {
@@ -914,7 +1016,9 @@ TestCase {
         view.setView("log");
         compare(view.titleBar.title, "Log");
         verify(view.titleBar.sentence.startsWith("qBittorrent's log"), view.titleBar.sentence);
-        verify(!findChild(view.titleBar, "titleFilter").visible);
+        // Board 51 D5 a: the log's lines filter in the title bar too, as torrents do.
+        verify(findChild(view.titleBar, "titleFilter").visible);
+        compare(view.titleBar.filterName, "filter lines");
         view.setView("library");
         // A lost server: the list's time and the notice's headline.
         view._testServerLost = true;
@@ -1017,10 +1121,10 @@ TestCase {
         view.table.toggleCursorSelection();
         verify(view.selectionBar.visible);
         compare(view.selectionBar.count, 1);
-        // C24 H8: the status line becomes the bar, so the line itself goes, and the bar is
-        // docked under the rows: they need no room past the last one for it.
-        verify(!view.statusLine.visible, "the status line showed under the action bar");
-        compare(view.table.bottomRoom, 0);
+        // C32 D17.3 a: the status line stays the server's; the bar floats over the rows,
+        // which keep room past the last one for it (docs/17 M9.6).
+        verify(view.statusLine.visible, "the status line went under the action bar");
+        compare(view.table.bottomRoom, Theme.actionBarLift + view.selectionBar.height);
         view.table.clearSelection();
         verify(!view.selectionBar.visible);
         verify(view.statusLine.visible);
@@ -1052,9 +1156,9 @@ TestCase {
         view.table.clearSelection();
     }
 
-    // DECISIONS C24 H8 (supersedes docs/17's floating bar): the bar is docked in the status
-    // line's place, across the content beside the rail, and the rows above it don't move.
-    function test_the_action_bar_docks_in_the_status_lines_place() {
+    // Board 51 D17.1 a (supersedes C24 H8): the bar floats over the rows, bottom middle, the
+    // status line under them unchanged, and the rows above it don't move.
+    function test_the_action_bar_floats_over_the_rows_bottom_middle() {
         const table = view.table;
         const tableHeight = table.height;
         const line = view.statusLine;
@@ -1062,25 +1166,26 @@ TestCase {
         testCase.selectTwo();
         const bar = view.selectionBar;
         const barAt = bar.mapToItem(view, 0, 0);
-        compare(barAt.x, lineAt.x);
-        compare(barAt.y, lineAt.y);
-        compare(bar.width, line.width);
-        compare(bar.height, line.height);
-        compare(barAt.y + bar.height, view.height);
-        fuzzyCompare(barAt.x, view.contentLeft, 1);
+        const tableAt = table.mapToItem(view, 0, 0);
+        fuzzyCompare(barAt.x + bar.width / 2, tableAt.x + table.width / 2, 1);
+        compare(barAt.y + bar.height, tableAt.y + table.height - Theme.actionBarLift);
+        compare(bar.height, Theme.actionBarHeight);
+        verify(bar.width < table.width, "the bar runs the list's whole width");
+        compare(line.mapToItem(view, 0, 0).y, lineAt.y);
+        verify(line.visible);
+        verify(barAt.y + bar.height <= lineAt.y, "the bar sits on the status line");
         compare(table.height, tableHeight, "the rows moved when the bar came");
-        verify(table.mapToItem(view, 0, table.height).y <= barAt.y, "the rows run under the bar");
         compare(bar.folded, [], "at 1360 the whole bar fits");
-        // Its count is the line's facts' no more: the facts went with the line.
+        // D17.3 a: the line's facts hold no selection: the count is the bar's.
         verify(view.factsText.indexOf("selected") < 0);
     }
 
-    // The status line's note ("copied") shows in the bar while the bar hides the line.
-    function test_a_note_shows_in_the_action_bar() {
+    // D17.3 a: the status line's note ("copied") stays in the line, which stays.
+    function test_a_note_shows_in_the_status_line_under_the_bar() {
         testCase.selectTwo();
         view.flashFooterNote("copied");
-        compare(view.selectionBar.note, "copied");
-        compare(findChild(view.selectionBar, "bar_note").text, "copied");
+        verify(view.statusLine.visible);
+        compare(view.statusLine.noteText, "copied");
         view.footerNote = "";
     }
 
@@ -1095,26 +1200,35 @@ TestCase {
         verify(view.table.activeFocus, "the bar took the keyboard from the table (M9.4)");
     }
 
-    function test_the_bars_more_hangs_the_menu_over_it() {
+    // D17.1 a: more › opens the menu's other rows over the bar, none of the bar's own.
+    function test_the_bars_more_hangs_the_rest_of_the_menu_over_it() {
         testCase.selectTwo();
         waitForRendering(view);
         mouseClick(findChild(view.selectionBar, "bar_more"));
         compare(view.actionsMenuPanel.opened, true);
         compare(view.actionsMenuPanel.leadActions, []);
+        compare(view.actionsMenuPanel.leaveOut, view.selectionBar.menuActionsShown);
+        verify(findChild(view.selectionBar, "bar_more").selected, "more is lit while its list is open");
         const panel = view.actionsMenuPanel.panel;
         const bottom = panel.mapToItem(view, 0, panel.height).y;
         verify(bottom <= view.selectionBar.mapToItem(view, 0, 0).y,
                "the menu should open above the bar, not over it");
+        const actions = view.actionsMenuPanel.items.filter(item => item.action !== undefined).map(item => item.action);
+        for (const shown of ["stopStart", "recheck", "location", "category", "tags", "limits", "delete"])
+            verify(actions.indexOf(shown) < 0, shown + " is on the bar and in more");
+        for (const rest of ["reannounce", "rename", "transfer", "queue", "openFolder", "copy"])
+            verify(actions.indexOf(rest) >= 0, rest + " is in neither");
         view.actionsMenuPanel.close();
         verify(view.table.activeFocus);
     }
 
     function test_the_bars_more_lists_what_folded_first() {
-        testCase.width = 620;
+        testCase.width = 400;
         testCase.selectTwo();
         waitForRendering(view);
         const folded = view.selectionBar.folded;
-        verify(folded.length > 0, "at 620 some buttons should have folded");
+        verify(folded.length > 0, "at 400 some buttons should have folded");
+        verify(!view.selectionBar.showWords, "the words go before any row folds (D17.2 a)");
         mouseClick(findChild(view.selectionBar, "bar_more"));
         compare(view.actionsMenuPanel.opened, true);
         const items = view.actionsMenuPanel.items;
@@ -1130,7 +1244,54 @@ TestCase {
         view.table.requestActions();
         compare(view.actionsMenuPanel.opened, true);
         compare(view.actionsMenuPanel.leadActions, []);
+        compare(view.actionsMenuPanel.leaveOut, []);
         compare(view.actionsMenuPanel.items[0].action, "stopStart");
+    }
+
+    // D17.1 a: category › lists the categories for the selection, upward over the bar; a new
+    // one goes to the palette.
+    function test_the_bars_category_list() {
+        testCase.selectTwo();
+        const hashes = view.table.selectedHashes();
+        waitForRendering(view);
+        mouseClick(findChild(view.selectionBar, "bar_category"));
+        const menu = view.barListMenu;
+        verify(menu.opened);
+        verify(findChild(view.selectionBar, "bar_category").selected);
+        compare(menu.items[0].caption, true);
+        compare(menu.items[0].text, "category for 2");
+        const names = menu.items.filter(item => (item.action ?? "").startsWith("category:")
+                                        && item.action !== "category:").map(item => item.text);
+        compare(names, App.categories.names());
+        verify(menu.items.some(item => item.action === "newCategory"));
+        verify(menu.items.some(item => item.action === "category:"));
+        const panel = menu.panel;
+        verify(panel.mapToItem(view, 0, panel.height).y <= view.selectionBar.mapToItem(view, 0, 0).y,
+               "the list should open above the bar");
+        menu.activate(menu.items.findIndex(item => item.action === "newCategory"));
+        verify(!menu.opened);
+        verify(view.categoryPalette.opened);
+        compare(view.categoryPalette.hashes.slice().sort(), hashes.slice().sort());
+        view.categoryPalette.close();
+    }
+
+    // Tags › ticks the tags every one of them has; a new one goes to the palette.
+    function test_the_bars_tags_list() {
+        testCase.selectTwo();
+        waitForRendering(view);
+        mouseClick(findChild(view.selectionBar, "bar_tags"));
+        const menu = view.barListMenu;
+        verify(menu.opened);
+        compare(menu.kind, "tags");
+        compare(menu.items[0].text, "tags for 2");
+        const hashes = view.table.selectedHashes();
+        for (const item of menu.items.filter(row => (row.action ?? "").startsWith("tag:"))) {
+            const every = hashes.every(hash => App.tagsOf(hash).indexOf(item.text) >= 0);
+            compare(item.checked, every, item.text);
+        }
+        menu.activate(menu.items.findIndex(item => item.action === "newTag"));
+        verify(view.tagPalette.opened);
+        view.tagPalette.close();
     }
 
     // ---- overlays are modal, and give the keyboard back (T4.8) -------------------------------
@@ -2258,6 +2419,70 @@ TestCase {
         // Settings remembers where it was; the next case expects it as it starts.
         view.settingsModal.showPane(0);
         view.settingsModal.area = "nav";
+        testCase._noServers();
+    }
+
+    // Board 51 D4 a (DECISIONS C32): a right-click on a server in the rail opens its menu:
+    // "switch to it" first on another; the current one's limits, stop all and start all; both
+    // then edit…, test, web UI, copy its address, remove…. The menu key opens it too.
+    function test_a_right_click_on_a_rail_server_opens_its_menu() {
+        testCase._twoServers();
+        const ids = [App.serverList.idAt(0), App.serverList.idAt(1)];
+        const current = ids.find(id => App.serverList.serverMap(id).isDefault === true);
+        const other = ids.find(id => id !== current);
+        const otherName = App.serverList.serverMap(other).name;
+        const row = findChild(view.rail, "serverRow-" + otherName);
+        verify(row !== null && row.visible, "no rail row for " + otherName);
+        compare(row.hasMenu, true);
+        const currentRow = findChild(view.rail, "serverRow-" + App.serverList.serverMap(current).name);
+        // The rail's column lays the two rows out on its next polish.
+        tryVerify(() => currentRow.mapToItem(null, 0, 0).y !== row.mapToItem(null, 0, 0).y);
+
+        mouseClick(row, row.width / 2, row.height / 2, Qt.RightButton);
+        const menu = view.serverMenuPanel;
+        compare(menu.opened, true);
+        compare(view.activeOverlay, menu);
+        compare(menu.serverId, other);
+        compare(menu.headingTitle, otherName);
+        verify(menu.heading.indexOf("10.99.0.") === 0, menu.heading);
+        const actions = menu.items.map(item => item.separator ? "|" : item.action);
+        compare(actions, ["switch", "|", "edit", "test", "web", "copy", "|", "remove"]);
+        verify(menu.items.every(item => item.separator === true || item.glyph.length > 0));
+        compare(menu.items[menu.items.length - 1].danger, true);
+        compare(menu.cursorIndex, 0);
+        compare(view.rail.cursorIndex, row.globalIndex);
+        // copy its address: the URL, said in the footer.
+        menu.activate(menu.items.findIndex(item => item.action === "copy"));
+        compare(menu.opened, false);
+        compare(view.footerNote, "copied " + otherName + "'s address");
+
+        // The current one: its own rows first.
+        mouseClick(currentRow, currentRow.width / 2, currentRow.height / 2, Qt.RightButton);
+        compare(menu.opened, true);
+        compare(menu.items.slice(0, 4).map(item => item.action ?? item.text),
+                ["the current server", "alt-speed", "stop-all", "start-all"]);
+        compare(menu.items[0].disabled, true);
+        compare(menu.cursorIndex, 1);
+        // edit… opens Settings › Servers on that server, its form.
+        menu.activate(menu.items.findIndex(item => item.action === "edit"));
+        compare(view.settingsModal.opened, true);
+        compare(view.settingsModal.paneIndex, 1);
+        compare(App.serverList.idAt(view.settingsModal.paneCursor), current);
+        compare(view.settingsModal.serverSheet.opened, true);
+        compare(view.settingsModal.serverSheet.editing, true);
+        view.settingsModal.serverSheet.close();
+        view.settingsModal.close();
+        view.settingsModal.showPane(0);
+        view.settingsModal.area = "nav";
+
+        // The keyboard: the rail's cursor on the other row, the menu key.
+        view.rail.forceActiveFocus();
+        view.rail.cursorIndex = row.globalIndex;
+        keyClick(Qt.Key_Menu);
+        compare(menu.opened, true);
+        compare(menu.serverId, other);
+        menu.close();
+        view.focusHome();
         testCase._noServers();
     }
 

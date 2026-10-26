@@ -32,7 +32,7 @@ import Omaseed.Kit
 // (`.tbl .r.sel.cur`). The cursor is kept on its torrent by hash across a re-sort or a
 // removal, and clamps when that hash is gone.
 //
-// DECISIONS C24 H3 (#168): the rows display and the overview are faces of this table. While
+// DECISIONS C24 H3 (#168): the rows display and space (C32 D12 a) are faces of this table. While
 // `face` is set, it draws the rows and the table hides its header and list but keeps
 // everything else: the cursor, the selection, the anchor, the keys, the rename, and every
 // function the window and the outcome strip call (revealHash, selectHashes, hashInView,
@@ -444,6 +444,10 @@ Item {
 
     // ---- cursor, selection, rename ------------------------------------------------------
     property int cursorIndex: 0
+    /// #201 F16: the list has the keys. While the rail or the details pane has them, the
+    /// cursor row keeps its fill (the pane still follows it) and drops its edge: the hairline,
+    /// or the skin's mark. The same in every face: table, rows and space.
+    property bool keysHere: true
     readonly property string cursorHash: internal.cursorHash
     readonly property alias selectedCount: internal.selectedCount
     readonly property bool renaming: internal.renameIndex >= 0
@@ -477,7 +481,7 @@ Item {
     readonly property real scrollY: root.face !== null ? root.face.scrollY : list.contentY
 
     /// DECISIONS C24 H3: the display drawing the rows instead of the table's own header and
-    /// list (LibraryRows, LibraryShelves), or null. A face is an Item with `scrollY`,
+    /// list (LibraryRows, LibrarySpace), or null. A face is an Item with `scrollY`,
     /// `hovered` (the pointer is over its rows), `inlineRename` (it draws the rename editor
     /// itself) and four functions: `positionAt(row)` scrolls just enough for the row to be
     /// wholly in view, `rowInView(row)` says whether it is, `rowAnchor(row)` is the point
@@ -1732,6 +1736,7 @@ Item {
                 Accessible.ignored: true
                 anchors.fill: parent
                 hasCursor: row.isCursor
+                keysHere: root.keysHere
                 // The hover fill of `.tbl .r:hover`. `TableRow`'s own MouseArea never sees these
                 // events (the delegate's one is on top), so the hover state comes from here; it
                 // is a ground like the others, and every cell's words take `band.ink`
@@ -1793,6 +1798,16 @@ Item {
                                                                         + Theme.space(8) : 0)
                                                 + (privateText.visible ? privateText.implicitWidth
                                                                          + Theme.space(8) : 0)
+                    // #201 F13: the name keeps its floor before the words after it; the
+                    // category gives way first, then "private".
+                    readonly property int floor: Math.min(nameText.implicitWidth, Theme.tableNameFloor)
+                    readonly property int categoryRoom: row.category.length > 0 ? categoryText.implicitWidth
+                                                                                  + Theme.space(8) : 0
+                    readonly property int privateRoom: row.isPrivate ? privateText.implicitWidth + Theme.space(8)
+                                                                     : 0
+                    readonly property bool privateFits: nameCell.inner - nameCell.privateRoom >= nameCell.floor
+                    readonly property bool categoryFits: nameCell.inner - nameCell.privateRoom
+                                                         - nameCell.categoryRoom >= nameCell.floor
 
                     clip: true
                     height: parent.height
@@ -1832,7 +1847,7 @@ Item {
                         font.pixelSize: Theme.font.small
                         objectName: "category_" + row.index
                         text: row.category
-                        visible: !row.editing && row.category.length > 0
+                        visible: !row.editing && row.category.length > 0 && nameCell.categoryFits
                     }
 
                     // docs/16 §5: the word "private", in magenta, after the category (or
@@ -1848,7 +1863,7 @@ Item {
                         font.pixelSize: Theme.font.small
                         objectName: "private_" + row.index
                         text: qsTr("private")
-                        visible: !row.editing && row.isPrivate
+                        visible: !row.editing && row.isPrivate && nameCell.privateFits
                     }
                 }
 

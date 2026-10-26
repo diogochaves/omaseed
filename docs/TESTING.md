@@ -21,23 +21,23 @@ follows. The commands themselves are listed in `CLAUDE.md`; `README.md` says how
 
    | Walk | What it covers |
    |---|---|
-   | `swarm-walk.sh` | every torrent state the swarm can produce, in the table and details, then in the rows display; it ends on the shelves |
+   | `swarm-walk.sh` | every torrent state the swarm can produce, in the table and details, then in the rows display; it ends on space |
    | `strict-walk.sh` | first run against `:8082`: cookie login and an API key |
    | `notify-walk.sh` | downloads finishing: one notice each, a click shows the torrent |
    | `magnet-walk.sh` | a magnet or `.torrent` opened with `xdg-open`: closed, hidden, running; with `gio open` (D-Bus activation) while quit; a magnet added before its file list is in (#193) |
    | `create-walk.sh` | create a torrent from a folder (#146): "+ add ▾", public (the strip, seeding from where it is, the magnet copied, the `.torrent` read back with `scripts/dev/torrent-file.py`), the band while it hashes, private (saved in Downloads, the passkey only as dots, in no text of the window or line of the log), the site's copy back both ways, an unreadable and a missing folder, a cancel |
-   | `actions-walk.sh` | renames, categories, tags, automatic management, the Move… sheet, delete, skipped files that hold space (free the space, add it again) |
+   | `actions-walk.sh` | renames, categories, tags, automatic management, the Move… sheet, the floating action bar (a category and a new tag from its lists, the status line staying the server's), delete, skipped files that hold space (free the space, add it again) |
    | `settings-walk.sh` | the qBittorrent settings pane, against a qBittorrent in the box |
    | `servers-walk.sh` | two qBittorrents: first run, add, switch, an action on each, remove |
    | `backup-walk.sh` | a qBittorrent's torrents exported and imported through the app |
    | `error-walk.sh` | a torrent going into error, and the app saying why |
-   | `menu-walk.sh` | the one menu shown by the tray and the bar widget |
+   | `menu-walk.sh` | the one menu shown by the tray, the bar widget and the window's mark, and a server's menu from the rail |
    | `stuck-walk.sh` | a finished torrent whose move into a full disk failed (a loop image), and a recheck once room is made |
-   | `move-walk.sh` | moving folders and selections: queue, places, partial packs, move back, recheck |
+   | `move-walk.sh` | moving folders and selections: queue, places, partial packs, move back (with the loose files a folder move carried), recheck |
    | `search-walk.sh` | search through invented plugins (`scripts/dev/search-plugins.py`, whose rows are the offline swarm's): install from Settings, a failed install, a plugin off and on; a search filling in, a failed and a slow plugin and their answers; a folded magnet and a link (through its plugin) added and arriving; hide dead, `/`, uninstall |
 
    A box is a new install, so omaseed starts on the rows display there (DECISIONS C24 H4). Each
-   walk pins the display it reads with `OMASEED_DISPLAY` (`table`, `rows` or `overview`: every
+   walk pins the display it reads with `OMASEED_DISPLAY` (`table`, `rows` or `space`, which also reads the shelves' old `overview`: every
    scope starts on it); all but the swarm walk's rows pass read the table.
 
    `OMASEED_ACTIONS_WALK_FROM=disk` runs only the actions walk's board 44 steps. Their ntfs3 side
@@ -46,12 +46,13 @@ follows. The commands themselves are listed in `CLAUDE.md`; `README.md` says how
    `ctest -R tst_app_tickroom_live` a tick that doesn't fit on a FAT image (it waits, C28).
 
    `move-walk.sh` takes about 12 minutes; `OMASEED_MOVE_WALK_FROM` set to `selection`, `sheet`,
-   `history`, `big`, `music` or `remote` starts it later. Its `big` step reads a sheet's line
+   `history`, `big`, `music` or `remote` starts it later, and `loose` runs only the loose files
+   carried there and back. Its `big` step reads a sheet's line
    with `tesseract` where the accessibility tree cuts it at 80 characters (without it, only the
    line's start is checked).
 
 4. **Visual check** (`omabox check run … -- scripts/dev/visual-check.sh`). The screens the walks
-   reach (library, details, menus, palette, help, the add sheet, the rows display and the shelves,
+   reach (library, details, menus, palette, help, the add sheet, the rows display and space,
    every Settings page, the bar widget, and last a torrent that needs you, the pieces, the
    trackers, picked rows, a refused action's strip and two servers) compared with a baseline:
    "same", or which region changed and which elements moved.

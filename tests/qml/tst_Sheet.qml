@@ -894,6 +894,101 @@ TestCase {
         compare(short.bodyScrollBar.visible, false);
     }
 
+    // A line that wraps when the body is a scroll bar narrower: the move sheet's "extras goes
+    // inside …", whose one line is just under the body's width (#201 F23).
+    Component {
+        id: edgeSheetComponent
+
+        Sheet {
+            id: edgeSheet
+
+            property string line: ""
+
+            anchors.fill: parent
+            title: "Edge"
+
+            Label {
+                property int widthChanges: 0
+
+                Layout.fillWidth: true
+                objectName: "edgeLine"
+                size: "small"
+                text: edgeSheet.line
+                wrapMode: Text.Wrap
+
+                onWidthChanged: ++widthChanges
+            }
+
+            Label {
+                Layout.fillWidth: true
+                size: "small"
+                text: "a line under it"
+                wrapMode: Text.Wrap
+            }
+        }
+    }
+
+    Label {
+        id: edgeProbe
+
+        size: "small"
+        visible: false
+    }
+
+    TextMetrics {
+        id: edgeMetrics
+
+        font: edgeProbe.font
+    }
+
+    /// Words, then x's, up to just under `room` px on one line.
+    function lineJustUnder(room) {
+        const words = "extras goes inside the library each torrent keeps its place below".split(" ");
+        let line = words[0];
+        for (let i = 1;; ++i) {
+            edgeMetrics.text = line + " " + words[i % words.length];
+            if (edgeMetrics.advanceWidth > room - 1)
+                break;
+            line = edgeMetrics.text;
+        }
+        for (;;) {
+            edgeMetrics.text = line + "x";
+            if (edgeMetrics.advanceWidth > room - 1)
+                break;
+            line = edgeMetrics.text;
+        }
+        return line;
+    }
+
+    // #201 F23: a body that fits never makes room for the scroll bar. The room once followed
+    // the body's laid-out height, which lags a pass behind its rows': the bar came, the line
+    // wrapped, the bar went, the line unwrapped, every frame, and the window froze (before the
+    // fix this test never returns, and ctest's TIMEOUT on the suite ends it).
+    function test_a_line_a_bar_short_of_wrapping_does_not_loop() {
+        const probe = createTemporaryObject(edgeSheetComponent, testCase);
+        probe.open();
+        const room = findChild(probe, "sheetBody").width - 2 * Theme.focusExtent;
+        const barRoom = probe.bodyScrollBar.width + Theme.space(4);
+        probe.close();
+        edgeMetrics.text = lineJustUnder(room);
+        verify(edgeMetrics.advanceWidth > room - barRoom && edgeMetrics.advanceWidth <= room,
+               "the line is not a bar's width short of wrapping: " + edgeMetrics.advanceWidth);
+
+        const sheet = createTemporaryObject(edgeSheetComponent, testCase, {
+                                                "line": edgeMetrics.text
+                                            });
+        sheet.open();
+        const line = findChild(sheet, "edgeLine");
+        wait(200);
+        verify(!sheet.bodyOverflows);
+        compare(sheet.bodyScrollBar.needed, false);
+        compare(line.lineCount, 1);
+        compare(line.width, room);
+        const changes = line.widthChanges;
+        wait(200);
+        compare(line.widthChanges, changes, "the line's width keeps changing: a layout loop");
+    }
+
     // docs/33 A1: the add sheet's server chip sits on the title's line, right after it.
     Component {
         id: chipComponent

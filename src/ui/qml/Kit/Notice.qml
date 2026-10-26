@@ -346,6 +346,23 @@ Item {
                     event.accepted = true;
                 }
 
+                // #201 F22: more details than room, a bar says so. In the block's right margin,
+                // so the text keeps its width; parented to the block, it stays put while the
+                // lines scroll.
+                ScrollBar {
+                    anchors.bottom: parent.bottom
+                    anchors.bottomMargin: Theme.space(2)
+                    anchors.right: parent.right
+                    anchors.rightMargin: Theme.space(1)
+                    anchors.top: parent.top
+                    anchors.topMargin: Theme.space(2)
+                    flickable: detailsScroll
+                    objectName: "noticeDetailsScrollBar"
+                    parent: detailsBlock
+                    vertical: true
+                    width: Theme.space(4)
+                }
+
                 // Its hairline while it has the keys.
                 Rectangle {
                     anchors.fill: parent

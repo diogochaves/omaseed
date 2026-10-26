@@ -139,6 +139,14 @@ Sheet {
         root.open();
     }
 
+    /// Show an existing server straight in edit mode, the keyboard on its first field: the
+    /// Servers pane's right-click "edit" (#201 F9), which opened the view before.
+    function openEditFor(map: var): void {
+        root.openFor(map);
+        root.editing = true;
+        root.focusFirst();
+    }
+
     /// Show an existing server and test it at once: the lost banner's "review certificate".
     function reviewFor(map: var): void {
         root.openFor(map);
@@ -163,6 +171,16 @@ Sheet {
             return;
         root.server = App.serverList.serverMap(root.serverId);
         root.focusFirst();
+    }
+
+    /// #201 F1: a credential picked (the chip clicked, or space on it) puts the caret in its
+    /// first field, the key or the username; "none" has none and leaves the keyboard on the
+    /// chip. Later, once the field the choice shows is laid out.
+    function pickAuth(mode: string): void {
+        root.editAuthMode = mode;
+        const field = mode === "apiKey" ? keyField : mode === "cookie" ? userField : null;
+        if (field)
+            Qt.callLater(() => field.focusInput());
     }
 
     /// Show an empty sheet in edit mode (Fig. 16's "+ add a server").
@@ -598,10 +616,14 @@ Sheet {
 
                         focusable: true
                         checkable: true
+                        // #201 F2: the choice made reads as chosen, with an accent edge; the fill alone
+                        // (no border) read as a dimmed, disabled button beside the outlined others.
+                        accent: authChip.selected
+                        objectName: "authChip-" + authChip.modelData.mode
                         selected: root.editAuthMode === authChip.modelData.mode
                         text: authChip.modelData.text
 
-                        onClicked: root.editAuthMode = authChip.modelData.mode
+                        onClicked: root.pickAuth(authChip.modelData.mode)
                     }
                 }
 
@@ -621,6 +643,7 @@ Sheet {
 
                 Layout.fillWidth: true
                 escClears: false
+                objectName: "serverKeyField"
                 echoMode: TextInput.Password
                 placeholder: root.isNew ? qsTr("paste the API key") : qsTr("unchanged")
 
@@ -643,6 +666,7 @@ Sheet {
 
                     Layout.fillWidth: true
                     escClears: false
+                    objectName: "serverUserField"
 
                     onAccepted: root.triggerPrimary()
                     onTextChanged: root.editUsername = text

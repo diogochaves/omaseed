@@ -256,6 +256,11 @@ void TestServerListModel::probeResultsFillTheRow()
     QCOMPARE(map.value(QStringLiteral("version")).toString(), QStringLiteral("5.2.3"));
     QCOMPARE(map.value(QStringLiteral("apiVersion")).toString(), QStringLiteral("2.15.1"));
     QCOMPARE(map.value(QStringLiteral("versionText")).toString(), QStringLiteral("v5.2.3"));
+    // #201 F5: a probe that counted is a sighting: the rail's row shows the count at once.
+    QCOMPARE(roleOf(model, 0, ServerListModel::StateRole).toString(), QStringLiteral("seen"));
+    QCOMPARE(roleOf(model, 0, ServerListModel::CountTextRole).toString(), QStringLiteral("142"));
+    QCOMPARE(roleOf(model, 0, ServerListModel::LastCountRole).toInt(), 142);
+    QVERIFY(roleOf(model, 0, ServerListModel::LastSeenAtRole).toDateTime().isValid());
 
     // A failure keeps the last count and versions (they are still what the server had) and
     // says why.
@@ -268,6 +273,16 @@ void TestServerListModel::probeResultsFillTheRow()
              QStringLiteral("connection refused"));
     QCOMPARE(roleOf(model, 0, ServerListModel::TorrentCountRole).toInt(), 142);
     QCOMPARE(roleOf(model, 0, ServerListModel::VersionRole).toString(), QStringLiteral("5.2.3"));
+
+    // A failed probe is no sighting: the count it had stays.
+    QCOMPARE(roleOf(model, 0, ServerListModel::CountTextRole).toString(), QStringLiteral("142"));
+
+    // The current server's row keeps its live count; a probe of it is not a sighting.
+    model.setCurrent(id, QStringLiteral("live"), 7);
+    model.setProbeResult(id, true, QString(), QString(), 150, 3, QString());
+    QCOMPARE(roleOf(model, 0, ServerListModel::CountTextRole).toString(), QStringLiteral("7"));
+    QCOMPARE(roleOf(model, 0, ServerListModel::LastCountRole).toInt(), 142);
+    model.setCurrent(QString(), QString(), -1);
 
     // A version that already has no "v" is taken as it is (demo mode's answer).
     model.setProbeResult(

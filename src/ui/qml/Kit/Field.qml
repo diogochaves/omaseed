@@ -28,6 +28,9 @@ import Omaseed.Kit
 // field, before `trailing`, in the accent: a click emits `openerClicked`, and its arrow follows
 // `openerExpanded` (▾ closed, ▴ open). A screen reader reads the field as text, then the
 // opener as a button of its own, collapsed or expanded (#91).
+//
+// With `tokenChips` (board 51 D18 a: the title bar's filter), each `word:value` token typed
+// (`cat:games`, `is:stalled`) sits on a chip, the selected fill (18 %) behind its words.
 Rectangle {
     id: root
 
@@ -35,6 +38,24 @@ Rectangle {
     /// Where the caret is. A value written from outside leaves it at the end, which scrolls a
     /// long text to its tail; 0 shows it from the start (docs/16's long path fields).
     property alias cursorPosition: input.cursorPosition
+    /// Board 51 D18 a: `word:value` tokens drawn as chips.
+    property bool tokenChips: false
+    /// The tokens' spans in the text, `[{start, end}]`, as the chips draw them.
+    readonly property var tokenSpans: {
+        if (!root.tokenChips)
+            return [];
+        const spans = [];
+        const pattern = /(^|\s)([A-Za-z]+:\S+)/g;
+        let match;
+        while ((match = pattern.exec(input.text)) !== null) {
+            const start = match.index + match[1].length;
+            spans.push({
+                           "start": start,
+                           "end": start + match[2].length
+                       });
+        }
+        return spans;
+    }
     property string placeholder: ""
     property string hint: ""
     property string trailing: ""
@@ -197,6 +218,50 @@ Rectangle {
         anchors.fill: parent
         input: input
         objectName: "fieldMouse"
+    }
+
+    // D18 a: the tokens' chips, under the text and cut to the input's box as the text is.
+    Item {
+        id: chips
+
+        clip: true
+        height: input.height
+        objectName: "fieldChips"
+        visible: root.tokenSpans.length > 0
+        width: input.width
+        x: input.x
+        y: input.y
+
+        Repeater {
+            model: root.tokenSpans
+
+            Rectangle {
+                id: chip
+
+                required property var modelData
+                // Re-read as the text scrolls under the caret, and as it is typed.
+                readonly property rect from: {
+                    void input.cursorPosition;
+                    void input.contentWidth;
+                    void input.width;
+                    return input.positionToRectangle(chip.modelData.start);
+                }
+                readonly property rect to: {
+                    void input.cursorPosition;
+                    void input.contentWidth;
+                    void input.width;
+                    return input.positionToRectangle(chip.modelData.end);
+                }
+
+                color: Theme.on.selected.fill
+                height: chip.from.height + Theme.space(2)
+                objectName: "fieldChip"
+                radius: Theme.cornerRadius
+                width: chip.to.x - chip.from.x + Theme.space(8)
+                x: chip.from.x - Theme.space(4)
+                y: chip.from.y - Theme.space(1)
+            }
+        }
     }
 
     // #91: the input comes first among the parts a screen reader reads (Qt publishes children

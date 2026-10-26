@@ -466,6 +466,8 @@ const QHash<QString, SkinGround> &SkinReader::omarchyGrounds()
             {QStringLiteral("hoverPressed"), shell("foreground", "hover")},
             {QStringLiteral("panel"), shell("foreground")},
             {QStringLiteral("picked"), shell("accent")},
+            {QStringLiteral("turtle"), shell("yellow")},
+            {QStringLiteral("burst"), shell("green")},
         };
     }();
     return grounds;
@@ -497,6 +499,8 @@ const QStringList &SkinReader::groundNames()
         QStringLiteral("hoverPressed"),
         QStringLiteral("panel"),
         QStringLiteral("picked"),
+        QStringLiteral("turtle"),
+        QStringLiteral("burst"),
     };
     return names;
 }

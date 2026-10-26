@@ -257,7 +257,7 @@ TestCase {
                                                      })).length, 61);
         compare(Keymap.commandRows(testCase._context({
                                                          "area": "log"
-                                                     })).length, 72);
+                                                     })).length, 73); // board 51 D5 a: export log…
         // Every action id is listed once, and movements never.
         const actions = Keymap.commandRows(testCase._context({})).map(row => row.action);
         for (const action of actions)
@@ -615,7 +615,11 @@ TestCase {
 
     function test_the_menus_rows_are_in_the_keymap() {
         const actions = createTemporaryObject(actionsMenuComponent, testCase);
-        for (const item of actions.items) {
+        // A submenu's row (#201 F15) only opens it: its rows are the ones with keys.
+        const rows = [];
+        for (const item of actions.items)
+            rows.push(...(item.submenu ?? [item]));
+        for (const item of rows) {
             if (item.separator === true)
                 continue;
             const entry = Keymap.entries.find(e => e.action === item.action && e.area === "table");

@@ -7,8 +7,9 @@ import Omaseed.Kit
 // the widget's ⋯ read (`App.appMenuRows`, integration/BarMenu: the servers with two or more,
 // alternative limits, stop all, start all, add, settings, quit), so the window is C13's third
 // place; then, before quit, a block for this window's own rows (seed console, log, commands,
-// keys and help, hide window), each teaching its key. Its head names omaseed, its version and
-// the server, as the status line's lane says it.
+// keys and help, hide window), each teaching its key. It grows out of the lit mark in one
+// outline (board 51 D14 b, DECISIONS C32): no head of its own, since the mark says omaseed;
+// its first line the version and the server, as the status line's lane says it.
 //
 // It runs nothing itself: `activated(id)` carries a C13 id ("alt-speed", "server:<id>",
 // "quit"…) or a window row's action (the Keymap's: "toggleConsole", "toggleLog", "commands",
@@ -147,8 +148,9 @@ Menu {
         return item;
     }
 
-    headingTitle: qsTr("omaseed")
-    heading: [root.version, root.serverLine].filter(part => part.length > 0).join(" · ")
+    headingOneLine: true
+    headingTitle: root.version
+    heading: root.serverLine
     menuWidth: Theme.appMenuWidth
     items: {
         const out = [];

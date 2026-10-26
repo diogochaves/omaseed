@@ -36,6 +36,15 @@ QString ratioWords(double ratio)
 
 const QString kApart = QStringLiteral(" · ");
 
+/// #201 F14: arriving torrents with no seed online and no other estimate: "waiting for a
+/// seed" when that is all of them, else how many wait.
+QString waitingWords(const ScopeFacts &facts)
+{
+    if (facts.waitingSeed >= facts.arriving)
+        return facts.arriving == 1 ? tr("waiting for a seed") : tr("all waiting for a seed");
+    return tr("%1 waiting for a seed").arg(facts.waitingSeed);
+}
+
 } // namespace
 
 void ScopeFacts::add(const Torrent &torrent, int question)
@@ -50,7 +59,11 @@ void ScopeFacts::add(const Torrent &torrent, int question)
     case TorrentFilterModel::Arriving:
         ++arriving;
         arrivingSpeed += std::max<qint64>(0, torrent.dlspeed);
-        if (torrent.hasEta() && torrent.eta >= 0 && torrent.eta < 8640000) {
+        // #201 F14: qBittorrent keeps an estimate for a stalled torrent from its old speed,
+        // but with no seed online there is no time to ready.
+        if (torrent.state == TorrentState::StalledDownload)
+            ++waitingSeed;
+        else if (torrent.hasEta() && torrent.eta >= 0 && torrent.eta < 8640000) {
             nextEta = nextEta < 0 ? torrent.eta : std::min(nextEta, torrent.eta);
             lastEta = std::max(lastEta, torrent.eta);
         }
@@ -117,6 +130,8 @@ QString ScopeSentence::question(int question, const ScopeFacts &facts)
                              .arg(soon(facts.nextEta), soon(facts.lastEta));
             else
                 parts << tr("the next ready in %1").arg(soon(facts.nextEta));
+        } else if (facts.waitingSeed > 0) {
+            parts << waitingWords(facts);
         }
         if (facts.arrivingSpeed > 0)
             parts << Format::speed(facts.arrivingSpeed);
@@ -167,7 +182,9 @@ QString ScopeSentence::groupLine(int question, const ScopeFacts &facts)
         if (facts.nextEta >= 0)
             return facts.arriving == 1 ? tr("ready in %1").arg(soon(facts.nextEta))
                                        : tr("next ready in %1").arg(soon(facts.nextEta));
-        return facts.arrivingSpeed > 0 ? Format::speed(facts.arrivingSpeed) : QString();
+        if (facts.arrivingSpeed > 0)
+            return Format::speed(facts.arrivingSpeed);
+        return facts.waitingSeed > 0 ? waitingWords(facts) : QString();
     case TorrentFilterModel::LandedToday:
         return tr("since midnight");
     case TorrentFilterModel::GivingBack: {
@@ -186,9 +203,9 @@ QString ScopeSentence::groupLine(int question, const ScopeFacts &facts)
     }
 }
 
-QString ScopeSentence::shelfLine(const ScopeFacts &facts)
+QString ScopeSentence::folderLine(const ScopeFacts &facts)
 {
-    QString line = QString::number(facts.total);
+    QString line = torrents(facts.total);
     if (facts.bytes > 0)
         line += kApart + Format::size(facts.bytes);
     return line;
@@ -285,7 +302,12 @@ QString ScopeSentence::seed(const QString &upSpeed, const QString &today, const 
     return parts.join(kApart);
 }
 
-QString ScopeSentence::log(const QString &server, int lines, const QString &since)
+QString ScopeSentence::log(const QString &server,
+                           int lines,
+                           const QString &since,
+                           int warnings,
+                           int critical,
+                           bool following)
 {
     QString line =
         server.isEmpty() ? tr("qBittorrent's log") : tr("qBittorrent's log on %1").arg(server);
@@ -293,6 +315,17 @@ QString ScopeSentence::log(const QString &server, int lines, const QString &sinc
         line += kApart + counted(lines, "%1 line", "%1 lines");
         if (!since.isEmpty())
             line += tr(" since %1").arg(since);
+        // Board 51 D5 a: what needs reading, and whether new lines pull the view down (the
+        // log's bar, gone into the rail and the title bar, said where it stood).
+        QStringList problems;
+        if (warnings > 0)
+            problems << counted(warnings, "%1 warning", "%1 warnings");
+        if (critical > 0)
+            problems << tr("%1 critical").arg(critical);
+        if (!problems.isEmpty())
+            line += kApart + problems.join(QStringLiteral(", "));
+        if (following)
+            line += kApart + tr("following");
     }
     return line;
 }

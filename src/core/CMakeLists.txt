@@ -10,6 +10,8 @@ qt_add_library(omaseed-core STATIC
     AltSchedule.hpp
     AltSpeed.cpp
     AltSpeed.hpp
+    AltPresets.cpp
+    AltPresets.hpp
     AutoBackup.cpp
     AutoBackup.hpp
     ApiError.cpp

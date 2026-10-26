@@ -3,10 +3,11 @@ import QtQuick
 import Omaseed
 import Omaseed.Kit
 
-// qBittorrent's log, the window's third face (docs/32 §6, D9–D15, #56). It takes the body's
-// whole width, since the rail and the details are about torrents (L1): a bar with the level
-// chips, a torrent chip when the lines are narrowed to one torrent, the `/` filter and where
-// the log starts; then the lines, oldest at the top and newest at the bottom.
+// qBittorrent's log, the window's third face (docs/32 §6, D9–D15, #56): the lines, oldest at
+// the top and newest at the bottom, under their column heads. Board 51 D5 a (DECISIONS C32,
+// superseding docs/32 L1's bar of level chips): the levels, the torrent the lines are
+// narrowed to and since when are the rail's (RailLogGroups), the `/` filter is the title
+// bar's, as for torrents (`filterRequested`), and how many lines there are is its sentence.
 //
 // It follows new lines while the view is at the bottom; scrolling up pauses, and new lines are
 // counted in a pill over the bottom edge instead of pulling the view down (D12). `G` goes to the
@@ -15,7 +16,7 @@ import Omaseed.Kit
 // Its keys are its own (Keymap's "log" area): `1`–`4` levels, `/` filter, `j` `k` `g` `G`,
 // `w` `W` the next or previous warning, `f`, `space` `v` `ctrl+a` marks, `y` copy, `enter` the
 // line's torrent in the library, `t` only that torrent's lines, `esc` clears the marks, then the
-// torrent, then the filter, then goes back. What it doesn't take (`~`, `?`, `:`) reaches the
+// torrent, then the time, then the filter (`filterClearRequested`), then goes back. What it doesn't take (`~`, `?`, `:`) reaches the
 // window.
 FocusScope {
     id: root
@@ -38,8 +39,6 @@ FocusScope {
     property int newLines: 0
 
     readonly property alias list: list
-    readonly property alias filterField: filterField
-    readonly property bool filterEditing: filterField.editing
     /// The cursor line's message, for the command palette's second line.
     readonly property string cursorMessage: {
         root.lines.count; // re-read as lines come and go
@@ -56,24 +55,13 @@ FocusScope {
     signal noteRequested(string text)
     /// Board 45 B2 (C18 D7): "move back…" on one of omaseed's move lines.
     signal moveBackRequested(string id)
+    /// `/`: the caret in the title bar's filter (board 51 D5 a).
+    signal filterRequested
+    /// `esc` with words in the filter: the title bar's field empties, and the lines' words.
+    signal filterClearRequested
 
     readonly property real timeWidth: Theme.space(118)
     readonly property real levelWidth: Theme.space(84)
-
-    /// The bar's right-hand words: "N of M lines" while words or a torrent narrow them, else
-    /// where the log starts (D15).
-    readonly property string sinceText: {
-        if (!root.log.loaded && root.log.total === 0)
-            return root.serverLost ? qsTr("no lines read") : qsTr("reading qBittorrent's log…");
-        const total = root.lines.levelTotal;
-        if (root.lines.narrowed)
-            return total === 1 ? qsTr("%1 of 1 line").arg(root.lines.count) : qsTr("%1 of %2 lines").arg(root.lines.count).arg(total);
-        const count = total === 1 ? qsTr("1 line") : qsTr("%1 lines").arg(total);
-        if (root.log.total === 0)
-            return count;
-        return root.log.fromStart ? qsTr("since qBittorrent started · %1 · %2").arg(root.log.firstAtText).arg(count)
-                                  : qsTr("the last %1 it keeps · since %2").arg(count).arg(root.log.firstAtText);
-    }
 
     /// D15, over the first line: where qBittorrent's memory of its log begins, and where the
     /// rest is.
@@ -85,9 +73,9 @@ FocusScope {
         return start + " " + file;
     }
 
-    /// `/`: the caret in the filter.
+    /// `/`: the caret in the title bar's filter.
     function focusFilter(): void {
-        filterField.focusInput();
+        root.filterRequested();
     }
 
     /// Back to the lines, with the keys.
@@ -177,7 +165,7 @@ FocusScope {
         root.lines.toggleLevel(level);
     }
 
-    /// `esc`: the marks, then the torrent, then the words; then back.
+    /// `esc`: the marks, then the torrent, then the time, then the words; then back.
     function stepBack(): void {
         if (root.lines.markedCount > 0) {
             root.lines.clearMarks();
@@ -187,8 +175,12 @@ FocusScope {
             root.lines.clearTorrent();
             return;
         }
+        if (root.lines.since > 0) {
+            root.lines.since = 0;
+            return;
+        }
         if (root.lines.text.length > 0) {
-            filterField.text = "";
+            root.filterClearRequested();
             return;
         }
         root.leaveRequested();
@@ -319,129 +311,13 @@ FocusScope {
         }
     }
 
-    // --- the bar --------------------------------------------------------------------------
-    Item {
-        id: bar
-
-        anchors.left: parent.left
-        anchors.right: parent.right
-        anchors.top: parent.top
-        implicitHeight: barFlow.implicitHeight + Theme.space(20)
-        height: implicitHeight
-
-        Flow {
-            id: barFlow
-
-            anchors.left: parent.left
-            anchors.leftMargin: Theme.space(16)
-            anchors.right: sinceLabel.left
-            anchors.rightMargin: Theme.space(16)
-            anchors.verticalCenter: parent.verticalCenter
-            spacing: Theme.space(8)
-
-            Repeater {
-                model: [
-                    {
-                        "level": ServerLog.Normal,
-                        "word": qsTr("normal"),
-                        "tone": Theme.foreground
-                    },
-                    {
-                        "level": ServerLog.Info,
-                        "word": qsTr("info"),
-                        "tone": Theme.accent
-                    },
-                    {
-                        "level": ServerLog.Warning,
-                        "word": qsTr("warning"),
-                        "tone": Theme.yellow
-                    },
-                    {
-                        "level": ServerLog.Critical,
-                        "word": qsTr("critical"),
-                        "tone": Theme.red
-                    }
-                ]
-
-                Chip {
-                    id: levelChip
-
-                    required property int index
-                    required property var modelData
-
-                    count: String(root.log.levelCounts[levelChip.index] ?? 0)
-                    keyText: String(levelChip.index + 1)
-                    objectName: "levelChip" + (levelChip.index + 1)
-                    checkable: true
-                    selected: (root.lines.levels & levelChip.modelData.level) !== 0
-                    text: levelChip.modelData.word
-                    toggle: true
-                    tone: levelChip.modelData.tone
-
-                    onClicked: root.toggleLevel(levelChip.modelData.level)
-                }
-            }
-
-            // D13 (L2): the torrent the lines are narrowed to; a click, or `esc`, clears it.
-            Chip {
-                // Named without its ✕; what a press does is the description.
-                Accessible.description: tooltip
-                Accessible.name: qsTr("torrent: %1").arg(root.lines.torrentName)
-                accent: true
-                objectName: "torrentChip"
-                text: qsTr("torrent: %1").arg(root.lines.torrentName) + "  " + Glyphs.close
-                tooltip: qsTr("only the lines that name it · esc clears")
-                visible: root.lines.torrentHash.length > 0
-
-                onClicked: root.lines.clearTorrent()
-            }
-
-            Field {
-                id: filterField
-
-                hint: "/"
-                objectName: "logFilter"
-                placeholder: qsTr("filter lines")
-                width: Theme.space(240)
-
-                onAccepted: root.focusLines()
-                onCleared: root.focusLines()
-                onTextChanged: root.lines.text = filterField.text
-            }
-        }
-
-        // #79: what the log holds ("since qBittorrent started · 18:14 · 28 lines").
-        Text {
-            id: sinceLabel
-
-            Accessible.name: text
-            Accessible.role: Accessible.StaticText
-            anchors.right: parent.right
-            anchors.rightMargin: Theme.space(16)
-            anchors.verticalCenter: parent.verticalCenter
-            color: Theme.dimForeground
-            elide: Text.ElideLeft
-            font.family: Theme.fontFamily
-            font.pixelSize: Theme.font.small
-            objectName: "logSince"
-            text: root.sinceText
-            width: Math.min(implicitWidth, root.width * 0.45)
-        }
-
-        Hairline {
-            anchors.bottom: parent.bottom
-            anchors.left: parent.left
-            anchors.right: parent.right
-        }
-    }
-
     // --- the column heads ------------------------------------------------------------------
     Item {
         id: heads
 
         anchors.left: parent.left
         anchors.right: parent.right
-        anchors.top: bar.bottom
+        anchors.top: parent.top
         height: Theme.space(26)
 
         Repeater {

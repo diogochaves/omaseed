@@ -59,7 +59,7 @@ WebUI\\LocalHostAuth=false
 CONF
 cp "$TORRENTS"/*.torrent "$home/torrents/"
 omabox run -d -- qbittorrent-nox >/dev/null
-omabox wait --timeout 20s cmd -- curl -fs -o /dev/null "http://127.0.0.1:$QBT_PORT/api/v2/app/version"
+omabox wait --timeout 20s until -- curl -fs -o /dev/null "http://127.0.0.1:$QBT_PORT/api/v2/app/version"
 # One at a time and in name order, so the table's order is the same in every run.
 # shellcheck disable=SC2016 # expanded by the box's sh
 omabox run -- sh -c 'for t in "$HOME"/torrents/*.torrent; do
@@ -69,7 +69,7 @@ done' sh "$QBT_PORT"
 python3 -I "$repo/scripts/dev/search-plugins.py" make "$home/search-plugins" >/dev/null
 omabox run -- curl -fs -o /dev/null "http://127.0.0.1:$QBT_PORT/api/v2/search/installPlugin" \
     --data-urlencode "sources=/home/sbx/search-plugins/omaseed_plugin_a.py|/home/sbx/search-plugins/omaseed_plugin_b.py|/home/sbx/search-plugins/omaseed_plugin_c.py"
-omabox wait --timeout 20s cmd -- sh -c "curl -fs http://127.0.0.1:$QBT_PORT/api/v2/search/plugins | grep -q omaseed_plugin_c"
+omabox wait --timeout 20s until -- sh -c "curl -fs http://127.0.0.1:$QBT_PORT/api/v2/search/plugins | grep -q omaseed_plugin_c"
 # #146: a folder of the box's to create a torrent from, the same bytes every run (sparse).
 mkdir -p "$home/share/photo-walks/harbour"
 for n in 1 2 3; do truncate -s 2M "$home/share/photo-walks/harbour/walk-0$n.jpg"; done
@@ -206,9 +206,9 @@ omabox wait --timeout 10s still >/dev/null || true
 moving_point create --ignore "$ADDED" --ignore "$CREATED" --ignore "$FREE"
 # The sheet is guarded: the first Escape puts the keyboard on cancel, the second closes it.
 key Escape Escape
-# Three rows selected (DECISIONS C24 H8): the status line is the action bar, its ledger and
-# buttons in the line's place, and C18 D6's hint after them (a fresh box: the first plain
-# click); no free space shows there, so only the details' clock is left out. A click puts the
+# Three rows selected (DECISIONS C32 D17): the action bar floats over the list, its count and
+# ledger, its buttons and C18 D6's hint before esc (a fresh box: the first plain click), the
+# status line under it the server's; only the details' clock is left out. A click puts the
 # keyboard on the table, wherever the sheets left it; the pointer then leaves the row.
 click_text distro
 key j space j space
@@ -221,7 +221,7 @@ omabox keys --window "$APP" up:alt >/dev/null
 key Escape
 
 # The library's other displays (DECISIONS C24 H3–H4), picked from the palette: the rows grouped
-# under the five questions (every torrent here is stopped: resting), then the overview's shelves,
+# under the five questions (every torrent here is stopped: resting), then space (board 51 D12 a),
 # then the table again for what follows.
 display() {
     key colon
@@ -231,8 +231,8 @@ display() {
 }
 display rows
 moving_point rows --ignore "$ADDED" --ignore "$CREATED" --ignore "$FREE"
-display shelves
-moving_point overview --ignore "$ADDED" --ignore "$CREATED" --ignore "$FREE"
+display space
+moving_point space --ignore "$ADDED" --ignore "$CREATED" --ignore "$FREE"
 display table
 
 # Search (#145, DECISIONS C26): "sampler" asked of plugins a, b and c; b fails, c answers after 4 s.

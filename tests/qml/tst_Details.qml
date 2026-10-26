@@ -281,16 +281,19 @@ TestCase {
             verify(order[at].mapToItem(story, 0, 0).y > order[at - 1].mapToItem(story, 0, 0).y,
                    order[at].objectName + " is not under " + order[at - 1].objectName);
 
-        // What happened starts with the add, in the torrent's state colour, and ends with the
-        // error the log timed.
-        const first = findChild(story, "storyEvent_0");
-        compare(findChild(first, "storyEventTitle").text, "Added");
+        // What happened reads newest first (C32 D15): the error the log timed leads, the add
+        // ends it. #201 F19: a plain event's mark is neutral whatever the torrent's state
+        // (the add isn't the error); only the error, failure and move lines take colour.
         const events = story.story;
         verify(events.length >= 1);
-        compare(events[0].kind, "plain");
-        const last = events[events.length - 1];
-        if (last.kind === "error")
-            compare(last.title, "The disk is full");
+        const last = findChild(story, "storyEvent_" + (events.length - 1));
+        compare(findChild(last, "storyEventTitle").text, "Added");
+        compare(events[events.length - 1].kind, "plain");
+        compare(findChild(last, "storyMark").color, Theme.dimForeground);
+        if (events[0].kind === "error") {
+            compare(events[0].title, "The disk is full");
+            compare(findChild(findChild(story, "storyEvent_0"), "storyMark").color, Theme.red);
+        }
 
         // #171: the move block stands on an accent-edged plate where the skin plates blocks.
         const movePlate = findChild(findChild(story, "moveBlock"), "moveBlockPlate");
@@ -325,9 +328,9 @@ TestCase {
         verify(!findChild(story, "moveBlock").visible);
         verify(findChild(story, "storyEvents").visible);
         compare(findChild(story, "storyHeading").text, "what happened");
-        // Finished: added, then finished downloading.
+        // Finished, newest first (C32 D15): finished downloading over the add.
         const titles = story.story.map(event => event.title);
-        compare(titles.slice(0, 2), ["Added", "Finished downloading"]);
+        compare(titles.slice(-2), ["Finished downloading", "Added"]);
     }
 
     // docs/32 F1 (#55): the demo's move of Spring to /mnt/archive/movies didn't happen. The
@@ -529,6 +532,20 @@ TestCase {
         wait(0);
         verify(!view.band);
         compare(hero.width, view.width);
+    }
+
+    // #201 F13: a narrow pane shortens the pieces head's words before they reach the percent.
+    function test_a_narrow_pieces_head_never_meets_the_percent() {
+        const view = testCase.select(testCase.archName);
+        const label = findChild(view, "piecesLabel");
+        const percent = findChild(view, "piecesPercent");
+        for (const width of [340, 240, 200, 160]) {
+            view.width = width;
+            wait(0);
+            verify(label.x + label.width < percent.x, "the head ran into the percent at " + width);
+        }
+        verify(label.truncated, "at 160 the words are shortened");
+        view.width = 340;
     }
 
     // docs/12 G3: the pieces bar is in the story (C24 H6), drawn from the demo's piece states.

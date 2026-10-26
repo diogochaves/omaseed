@@ -141,7 +141,9 @@ Item {
                                       : internal.wantY - panel.gap - panel.height
 
         implicitHeight: label.implicitHeight + 2 * panel.padding
-        implicitWidth: label.implicitWidth + 2 * panel.padding
+        // As wide as the widest line drawn: a text that wraps at maxWidth would otherwise
+        // keep the width it has on one line, the box running far past its words (#201 F20).
+        implicitWidth: Math.ceil(Math.min(label.width, label.contentWidth)) + 2 * panel.padding
         visible: root._open
         // Below the pointer or the item, pulled back inside the view at either edge; above it
         // when there is no room below (or the other way round for `above`).
@@ -151,11 +153,13 @@ Item {
                       : panel.underY + panel.height <= root.height ? panel.underY
                                                                    : Math.max(0, panel.overY))
 
+        // #201 F7: the ground hides what is under it, whatever alpha the theme's background
+        // carries. Its words are the window's (C30: the floor holds on the window ground).
         Plate {
             anchors.fill: parent
             edgeColor: Theme.edgeColor
             edgeWidth: Theme.edgeWidth
-            fill: Theme.background
+            fill: Qt.rgba(Theme.background.r, Theme.background.g, Theme.background.b, 1)
             key: true
             objectName: "tooltipPlate"
             radius: Theme.cornerRadius
@@ -164,10 +168,13 @@ Item {
         Text {
             id: label
 
-            anchors.centerIn: parent
+            anchors.left: parent.left
+            anchors.leftMargin: panel.padding
+            anchors.verticalCenter: parent.verticalCenter
             color: Theme.foreground
             font.family: Theme.fontFamily
             font.pixelSize: Theme.font.small
+            objectName: "tooltipLabel"
             text: root.text
             width: Math.min(implicitWidth, root.maxWidth)
             wrapMode: Text.WrapAtWordBoundaryOrAnywhere

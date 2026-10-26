@@ -382,6 +382,17 @@ omaseed_add_test(tst_altspeed
     LIBRARIES omaseed::core
 )
 
+# DECISIONS C32 D8 a: turtle and burst, two presets for the one alternative set.
+omaseed_add_test(tst_altpresets
+    SOURCES tst_altpresets.cpp
+    LIBRARIES omaseed::core
+)
+
+omaseed_add_test(tst_altpresets_live LIVE
+    SOURCES tst_altpresets_live.cpp
+    LIBRARIES omaseed::core
+)
+
 omaseed_add_test(tst_statusdigest
     SOURCES tst_statusdigest.cpp
     LIBRARIES omaseed::core

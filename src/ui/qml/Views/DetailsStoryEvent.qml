@@ -2,23 +2,27 @@ import QtQuick
 import Omaseed.Kit
 
 // One line of the story's "what happened" (board 46 `details()`'s `.tl div`, DECISIONS C24
-// H6): the time in its column, a small square in the event's colour (the torrent's state for an
-// add or a finish, the accent for a move, yellow for a failure, red for the error), then the
-// event over its dim line. `event` is one of `App.torrentStory()`'s maps.
+// H6): the time in its column, a small square in the event's colour (the accent for a move,
+// yellow for a failure, red for the error; #201 F19: a plain one, an add or a finish, is
+// neutral, the dim foreground, so on a torrent in error "Added" doesn't read as the error),
+// then the event over its dim line. `event` is one of `App.torrentStory()`'s maps.
 Item {
     id: root
 
     /// `{time, kind ("plain", "move", "warn", "error"), title, detail}`.
     property var event: ({})
-    /// The torrent's state colour, for a plain event's square.
-    property color stateColor: Theme.foreground
-
-    readonly property color markColor: root.event.kind === "error" ? Theme.red : root.event.kind
-                                                                     === "warn" ? Theme.yellow :
-                                                                                  root.event.kind
-                                                                                  === "move"
-                                                                                  ? Theme.accent :
-                                                                                    root.stateColor
+    readonly property color markColor: {
+        switch (root.event.kind) {
+        case "error":
+            return Theme.red;
+        case "warn":
+            return Theme.yellow;
+        case "move":
+            return Theme.accent;
+        default:
+            return Theme.dimForeground;
+        }
+    }
 
     // #79: "09:15, Added, into films".
     Accessible.name: [root.event.time ?? "", root.event.title ?? "", root.event.detail ?? ""].filter(

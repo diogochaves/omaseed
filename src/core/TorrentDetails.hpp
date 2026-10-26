@@ -39,6 +39,7 @@
 #include "core/TorrentTrackersModel.hpp"
 #include "core/TorrentWebSeedsModel.hpp"
 
+#include <QElapsedTimer>
 #include <QJsonArray>
 #include <QJsonObject>
 #include <QObject>
@@ -163,6 +164,9 @@ private:
     void saveFilesFilter();
     void poll();
     void pollPeers();
+    /// The timers' ticks: a poll, unless the last one's requests are still out.
+    void pollTick();
+    void pollPeersTick();
     void pollPieceStates();
     void pollWebSeeds();
     void updateTimers();
@@ -207,6 +211,20 @@ private:
     bool m_rememberViewState = false;
     bool m_switching = false; ///< switchModels() is clearing and refilling the Files filter
     bool m_gone = false;      ///< the server answered 404 for m_hash: deleted under the pane
+
+    /// Requests a poll sent and not yet answered. A tick waits for them, so a server that
+    /// stops answering isn't sent a new round every 2 s: those would fill the client's
+    /// connections, and sync/maindata, which finds out that it stopped, would queue behind.
+    struct Outstanding
+    {
+        int count = 0;
+        QElapsedTimer since; ///< the oldest still out; past kPollStale a tick goes anyway
+        void sent();
+        void answered();
+        bool busy() const;
+    };
+    Outstanding m_pollOut;
+    Outstanding m_peersOut;
 };
 
 } // namespace omaseed::core

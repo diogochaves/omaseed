@@ -875,6 +875,14 @@ bool TorrentFilterModel::liveLessThan(const QModelIndex &left, const QModelIndex
 {
     const auto *source = qobject_cast<const TorrentModel *>(sourceModel());
     int compared = 0;
+    // C32 D12 a: inside a folder, space lays its torrents out the largest first, whatever the
+    // sort, then a to z (the proxy reverses lessThan() for a descending sort: reversed first).
+    if (m_groupBy == BySpace) {
+        const qint64 l = std::max<qint64>(0, source->torrentAt(left.row()).size);
+        const qint64 r = std::max<qint64>(0, source->torrentAt(right.row()).size);
+        compared = l != r ? (l > r ? -1 : 1) : nameRank(left.row()) - nameRank(right.row());
+        return sortOrder() == Qt::DescendingOrder ? compared > 0 : compared < 0;
+    }
     // C22: while a query is typed, the better match comes first whichever way the column
     // sorts (the proxy reverses lessThan() for a descending sort, so this is reversed first).
     if (!m_query.isEmpty()) {
@@ -1009,8 +1017,8 @@ QString TorrentFilterModel::groupKeyOf(const Torrent &torrent, int question) con
     switch (m_groupBy) {
     case ByQuestion:
         return questionKey(question);
-    case ByCategory:
-        return torrent.category;
+    case BySpace:
+        return SharedData::normalize(torrent.savePath);
     case NoGroups:
         break;
     }
@@ -1027,22 +1035,42 @@ int TorrentFilterModel::compareGroups(const QModelIndex &left, const QModelIndex
         return int(questionOf(l, source->hasLoggedTrouble(l.hash), dayStart)) -
                int(questionOf(r, source->hasLoggedTrouble(r.hash), dayStart));
     }
-    // By category: by name, the torrents with none last.
-    if (l.category == r.category)
+    // By folder (C32 D12 a): the largest first, then by path.
+    const QString lk = SharedData::normalize(l.savePath);
+    const QString rk = SharedData::normalize(r.savePath);
+    if (lk == rk)
         return 0;
-    if (l.category.isEmpty())
-        return 1;
-    if (r.category.isEmpty())
-        return -1;
-    const int compared = m_collator.compare(l.category, r.category);
-    return compared != 0 ? compared : QString::compare(l.category, r.category);
+    const qint64 lb = m_spaceBytes.value(lk);
+    const qint64 rb = m_spaceBytes.value(rk);
+    if (lb != rb)
+        return lb > rb ? -1 : 1;
+    const int compared = m_collator.compare(lk, rk);
+    return compared != 0 ? compared : QString::compare(lk, rk);
 }
 
 void TorrentFilterModel::rebuildGroups()
 {
+    if (m_spaceResorting)
+        return;
+    const auto *source = qobject_cast<const TorrentModel *>(sourceModel());
+    // C32 D12 a: the folders go the largest first, by the rows shown, which only this pass
+    // counts. New sizes sort the rows again first (one more layoutChanged, the rest of this
+    // pass on the new order); the order never feeds the sizes, so the second count agrees.
+    if (m_groupBy == BySpace && source != nullptr) {
+        QHash<QString, qint64> bytes;
+        for (int row = 0; row < rowCount(); ++row) {
+            const Torrent &t = source->torrentAt(mapToSource(index(row, 0)).row());
+            bytes[SharedData::normalize(t.savePath)] += std::max<qint64>(0, t.size);
+        }
+        if (bytes != m_spaceBytes) {
+            m_spaceBytes = std::move(bytes);
+            m_spaceResorting = true;
+            sortNow();
+            m_spaceResorting = false;
+        }
+    }
     QVariantList next;
     QHash<QString, QString> keys;
-    const auto *source = qobject_cast<const TorrentModel *>(sourceModel());
     if (m_groupBy != NoGroups && source != nullptr) {
         const qint64 dayStart = dayStartMSecs();
         const int count = rowCount();
@@ -1053,10 +1081,10 @@ void TorrentFilterModel::rebuildGroups()
         ScopeFacts facts;
         const auto close = [&](int end) {
             const QString title = m_groupBy == ByQuestion ? ScopeSentence::questionWord(question)
-                                  : current.isEmpty()     ? trGroups("no category")
+                                  : current.isEmpty()     ? trGroups("no folder")
                                                           : current;
             const QString line = m_groupBy == ByQuestion ? ScopeSentence::groupLine(question, facts)
-                                                         : ScopeSentence::shelfLine(facts);
+                                                         : ScopeSentence::folderLine(facts);
             next.append(QVariantMap{
                 {QStringLiteral("key"), current},
                 {QStringLiteral("title"), title},
@@ -1064,6 +1092,7 @@ void TorrentFilterModel::rebuildGroups()
                 {QStringLiteral("count"), end - first},
                 {QStringLiteral("line"), line},
                 {QStringLiteral("question"), m_groupBy == ByQuestion ? question : int(AnyQuestion)},
+                {QStringLiteral("bytes"), facts.bytes},
             });
         };
         for (int row = 0; row < count; ++row) {

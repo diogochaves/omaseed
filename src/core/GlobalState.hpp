@@ -11,8 +11,10 @@
 
 #include <QDateTime>
 #include <QJsonObject>
+#include <QList>
 #include <QObject>
 #include <QString>
+#include <QVariantList>
 
 namespace omaseed::core {
 
@@ -63,6 +65,10 @@ class GlobalState : public QObject
     Q_PROPERTY(QString upRateLimitText READ upRateLimitText NOTIFY upRateLimitChanged)
     Q_PROPERTY(QString freeSpaceText READ freeSpaceText NOTIFY freeSpaceOnDiskChanged)
     Q_PROPERTY(QString lastSyncText READ lastSyncText NOTIFY lastSyncTimeChanged)
+    /// The last `kSpeedSamples` polls' speeds, oldest first (bytes/s): the title bar's line
+    /// under each speed (DECISIONS C32 D2 a). One sample a poll, so a still speed draws flat.
+    Q_PROPERTY(QVariantList dlHistory READ dlHistory NOTIFY speedHistoryChanged)
+    Q_PROPERTY(QVariantList upHistory READ upHistory NOTIFY speedHistoryChanged)
 
 public:
     explicit GlobalState(QObject *parent = nullptr);
@@ -100,6 +106,13 @@ public:
     QString upRateLimitText() const;
     QString freeSpaceText() const;
     QString lastSyncText() const;
+
+    static constexpr int kSpeedSamples = 40;
+    QVariantList dlHistory() const;
+    QVariantList upHistory() const;
+    /// One sample of each speed as they stand now, the oldest dropped past `kSpeedSamples`.
+    /// The engine calls it after each poll is applied.
+    void recordSpeeds();
 
     /// Merges the keys present in `serverState`; absent keys keep their value.
     void applyServerState(const QJsonObject &serverState);
@@ -142,6 +155,7 @@ Q_SIGNALS:
     void apiVersionChanged();
     void retryInSecondsChanged();
     void silentSecondsChanged();
+    void speedHistoryChanged();
 
 private:
     qint64 m_dlInfoSpeed = 0;
@@ -170,6 +184,8 @@ private:
     QString m_apiVersion;
     int m_retryInSeconds = 0;
     int m_silentSeconds = 0;
+    QList<qint64> m_dlHistory;
+    QList<qint64> m_upHistory;
 };
 
 } // namespace omaseed::core

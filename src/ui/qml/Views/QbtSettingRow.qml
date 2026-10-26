@@ -20,7 +20,9 @@ SettingsRow {
 
     /// The row, as `QbtSettingsSections` describes it.
     property var spec: ({})
-    property ServerPreferences prefs: null
+    /// The server's preferences, or App.altPresets for the turtle and burst rows (DECISIONS
+    /// C32 D8 a), which answer the same `values`, `loaded`, `pendingKeys`.
+    property QtObject prefs: null
     /// What the section asks before any change ("webui"), on top of the row's own `confirm`.
     property string sectionConfirm: ""
 
@@ -291,6 +293,17 @@ SettingsRow {
     /// The field cell at `index` (a `var`, since the Repeater only knows it as an Item).
     function _cell(index: int): var {
         return fieldRepeater.itemAt(index);
+    }
+
+    /// The row's text fields, in order: Settings' tab stops (docs/DECISIONS.md C32 D10).
+    function fieldItems(): var {
+        const out = [];
+        for (let i = 0; i < fieldRepeater.count; ++i) {
+            const cell = row._cell(i);
+            if (cell)
+                out.push(cell.field);
+        }
+        return out;
     }
 
     /// The caret into field `index`, at the end of its text (shown from the start at rest).

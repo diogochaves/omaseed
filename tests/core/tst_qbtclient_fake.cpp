@@ -174,6 +174,7 @@ private slots:
     void mapsHttpStatus();
     void badJsonIsParse();
     void limitsConcurrencyToFour();
+    void syncMainDataNeverWaitsBehindTheRest();
     void cancelAllFinishesEveryReply();
     void abortDuringBackoffIsCancelledAndNeverResent();
     void newBaseUrlCancelsEverythingOutstanding();
@@ -397,6 +398,37 @@ void TestQbtClientFake::limitsConcurrencyToFour()
     QCOMPARE(finished, total);
     QCOMPARE(server.requests.size(), total);
     QCOMPARE(server.maxInFlight, client.maxConcurrentRequests());
+}
+
+// #201: a frozen server holds every request until the timeout. sync/maindata is what finds that
+// out, so it never queues behind the four the rest share (the details pane alone asks five).
+void TestQbtClientFake::syncMainDataNeverWaitsBehindTheRest()
+{
+    FakeServer server;
+    server.setHandler([](const Recorded &recorded, int) {
+        if (recorded.target.contains("/sync/maindata"))
+            return httpResponse(200, "OK", R"({"rid":1,"full_update":true})");
+        return QByteArray(); // never answers, as a SIGSTOPped qBittorrent
+    });
+
+    QbtClient client;
+    client.setBaseUrl(server.url());
+    client.setTimeout(std::chrono::milliseconds(5000));
+
+    for (int i = 0; i < 6; ++i)
+        client.appVersion();
+    QTRY_COMPARE(server.requests.size(), client.maxConcurrentRequests());
+
+    bool answered = false;
+    client.syncMainData(0)->then(this, [&answered](const QbtResult<QJsonObject> &result) {
+        QVERIFY2(!result.isError(), qPrintable(result.error().toString()));
+        answered = true;
+    });
+    // Answered at once, long before any of the held four could time out.
+    QTRY_VERIFY_WITH_TIMEOUT(answered, 2000);
+    QCOMPARE(server.requests.size(), client.maxConcurrentRequests() + 1);
+    QVERIFY(server.requests.last().target.contains("/sync/maindata"));
+    client.cancelAll();
 }
 
 void TestQbtClientFake::cancelAllFinishesEveryReply()

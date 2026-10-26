@@ -186,7 +186,13 @@ QtObject {
             "action": "sheet:settings",
             "helpKeys": qsTr("j k · h l"),
             "help": qsTr("settings"),
-            "about": qsTr("In Settings: move, and between the sections and the pane (tab too); space toggles, enter edits or acts, d its default")
+            "about": qsTr("In Settings: move through the rows, and between the sections and the pane; space toggles, enter edits or acts, d its default")
+        },
+        {
+            "action": "sheet:settingsTab",
+            "helpKeys": qsTr("tab"),
+            "help": qsTr("next in settings"),
+            "about": qsTr("In Settings, as in any form: the sections, then every field, switch and button in order; shift+tab back")
         },
         {
             "action": "sheet:nextServer",
@@ -741,10 +747,10 @@ QtObject {
             "area": "global",
             "key": "",
             "via": ":",
-            "action": "displayShelves",
-            "title": qsTr("show as shelves"),
+            "action": "displaySpace",
+            "title": qsTr("show as space"),
             "needs": "",
-            "label": qsTr("shelves"),
+            "label": qsTr("space"),
             "column": "",
             "rank": 0,
             "helpKeys": "",
@@ -2219,6 +2225,20 @@ QtObject {
             "helpKeys": "",
             "help": ""
         },
+        // Board 51 D5 a: the title bar's "export log…", which has no key.
+        {
+            "area": "log",
+            "key": "",
+            "via": ":",
+            "action": "logExport",
+            "title": qsTr("export log…"),
+            "needs": "",
+            "label": qsTr("export"),
+            "column": "",
+            "rank": 0,
+            "helpKeys": "",
+            "help": ""
+        },
 
         // search field ---------------------------------------------------------------
         {
@@ -2289,7 +2309,7 @@ QtObject {
         {
             "group": "view",
             "word": qsTr("view"),
-            "actions": ["displayRows", "displayTable", "displayShelves", "columns", "toggleDetails",
+            "actions": ["displayRows", "displayTable", "displaySpace", "columns", "toggleDetails",
                 "cycleDetailsPlacement", "toggleRail",
                 "toggleConsole", "toggleLog", "search", "detailsSmaller", "detailsLarger"]
         },
@@ -2341,7 +2361,7 @@ QtObject {
             "word": qsTr("log"),
             "actions": ["logFilter", "logNormal", "logInfo", "logWarning", "logCritical", "logNewest",
                 "logNextProblem", "logPreviousProblem", "logFollow", "logMarkAll", "logCopy",
-                "logShowTorrent", "logTorrent", "logEscape"]
+                "logShowTorrent", "logTorrent", "logEscape", "logExport"]
         }
     ]
 

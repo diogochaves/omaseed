@@ -6,6 +6,8 @@ TestCase {
     id: testCase
 
     name: "Tabs"
+    visible: true
+    when: windowShown
 
     Component {
         id: tabsComponent
@@ -46,6 +48,49 @@ TestCase {
                                                "model": testCase.sampleModel
                                            });
         compare(tabs.implicitHeight, Math.round(Theme.font.body * 2.2));
+    }
+
+    // #201 F16: a strip that heads a column says whether the column has the keys: lit with
+    // them, a dim hairline without; Settings' strips keep the skin's line.
+    function test_a_column_strip_lights_while_it_has_the_keys() {
+        const tabs = createTemporaryObject(tabsComponent, testCase, {
+                                               "model": testCase.sampleModel,
+                                               "currentIndex": 1,
+                                               "keysShown": true,
+                                               "keysHere": false
+                                           });
+        const line = findChild(findChild(tabs, "tab_1"), "tabLine");
+        compare(line.height, Theme.hairWidth);
+        verify(Qt.colorEqual(line.color, Theme.fill(Theme.borderHover)));
+        tabs.keysHere = true;
+        compare(line.height, Theme.litWidth);
+        compare(line.color, Theme.litColor);
+        tabs.keysShown = false;
+        compare(line.height, Theme.tabLineWidth);
+        compare(line.color, Theme.tabLineColor);
+    }
+
+    // #201 F18: in the window the digits are keys on demand: none at rest (board 46's
+    // "story · files · …"), each tab's as an alt badge while alt is held. Off, the digit
+    // follows the word as in the standalone figures.
+    function test_key_badges_replace_the_digits_and_show_on_alt() {
+        const tabs = createTemporaryObject(tabsComponent, testCase, {
+                                               "model": testCase.sampleModel
+                                           });
+        const tab = findChild(tabs, "tab_2");
+        const digit = findChild(tab, "tabDigit");
+        const badge = findChild(tab, "keyBadge");
+        verify(!badge.visible);
+        verify(!badge.visible);
+        tabs.keyBadges = true;
+        verify(!digit.visible);
+        verify(!badge.visible);
+        tabs.badgesShown = true;
+        verify(badge.visible);
+        compare(badge.key, "3");
+        tabs.keyBadges = false;
+        verify(digit.visible);
+        verify(!badge.visible);
     }
 
     // #171: the current tab's underline is the skin's: Omarchy's 1 px in the bright

@@ -30,7 +30,11 @@ struct ScopeFacts
     int resting = 0;
     /// Landed today and still sharing (not stopped).
     int landedSharing = 0;
-    /// Seconds to the soonest and the latest arriving torrent with an estimate; -1 for none.
+    /// Arriving torrents stalled with no seed online (the row's "waiting · no seed"): none
+    /// of them can finish, so none gives the soonest or latest estimate below (#201 F14).
+    int waitingSeed = 0;
+    /// Seconds to the soonest and the latest arriving torrent with an estimate, among those
+    /// that can finish; -1 for none.
     qint64 nextEta = -1;
     qint64 lastEta = -1;
     /// What the arriving torrents receive, and what the giving-back ones and every torrent
@@ -66,8 +70,9 @@ public:
     /// fixes wait", "next ready in 3 min", "since midnight", "41 KB/s · ratio 1.6", "not
     /// sharing"); "" when there is nothing to say.
     static QString groupLine(int question, const ScopeFacts &facts);
-    /// A shelf's head in the overview (board 46 `overview()`): "49 · 1.32 MB".
-    static QString shelfLine(const ScopeFacts &facts);
+    /// A folder's line in space (board 51 D12 a): "9 torrents · 1.36 GB"; the size left out
+    /// while none is known.
+    static QString folderLine(const ScopeFacts &facts);
     /// The rail's word for a question ("arriving"), for a sentence a question narrows too;
     /// "" for the library.
     static QString questionWord(int question);
@@ -88,8 +93,14 @@ public:
 
     /// The seed console: what goes up now, today's total ("18.4 GB today") and its scope.
     static QString seed(const QString &upSpeed, const QString &today, const QString &scope);
-    /// The log face: whose log, and how many lines since when ("" for none known).
-    static QString log(const QString &server, int lines, const QString &since);
+    /// The log face: whose log, and how many lines since when ("" for none known); then the
+    /// warnings and critical lines held and "following" while new lines pull the view down.
+    static QString log(const QString &server,
+                       int lines,
+                       const QString &since,
+                       int warnings = 0,
+                       int critical = 0,
+                       bool following = false);
     /// Any scope while the server is lost: the list's time and the notice's headline.
     static QString lost(const QString &listTime, const QString &headline);
 

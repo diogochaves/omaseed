@@ -29,6 +29,13 @@ TestCase {
     }
 
     Component {
+        id: spyComponent
+
+        SignalSpy {
+        }
+    }
+
+    Component {
         id: serverActivatedSpy
 
         SignalSpy {
@@ -57,6 +64,7 @@ TestCase {
     }
 
     function cleanup() {
+        testCase.width = 400;
         TestTheme.setBaseSize(0); // qmllint disable unqualified
         // Leave no server behind: App is a singleton shared with every other test file.
         while (App.serverList.count > 0)
@@ -598,8 +606,8 @@ TestCase {
         const rail = railWithServers(["public", "private"]);
         const block = findChild(rail, "serversBlock");
         verify(block.visible);
-        // At the rail's bottom, whatever the scroll.
-        compare(block.y + block.height, rail.height);
+        // At the rail's bottom over its foot (C32 D1 a), whatever the scroll.
+        compare(block.y + block.height, findChild(rail, "railFoot").y);
         compare(rail._rowMap[rail.serversBase].item.pinned, true);
         // With kana, the head is in two parts: the word, then the count at the right.
         const heading = findChild(rail, "serversHeading");
@@ -736,5 +744,282 @@ TestCase {
         rail._markTip(true);
         compare(findChild(rail, "railTip").text, "omaseed menu · ctrl+.");
         rail._markTip(false);
+    }
+
+    // #201 F8: a fold heading has room above its words inside its fill and its click, taken
+    // out of the space above the group, so the words stay where they were.
+    function test_a_heading_has_room_above_its_words() {
+        const rail = createTemporaryObject(railComponent, testCase, {
+                                               "height": 900
+                                           });
+        const now = findChild(rail, "now");
+        const categories = findChild(rail, "categories");
+        verify(now.headPadding > 0);
+        tryCompare(now, "y", Theme.space(10) - now.headPadding);
+        compare(categories.y + categories.headPadding - (now.y + now.height), Theme.space(14));
+        compare(now.header.height, now.headPadding + categories.header.height - categories.headPadding);
+        // The click covers the room too.
+        const area = now.header.children[now.header.children.length - 1];
+        compare(area.height, now.header.height);
+        // Folded, the rail has no headings and keeps its spacing.
+        rail.compact = true;
+        tryCompare(now, "y", Theme.space(10));
+    }
+
+    // #201 F10: ctrl+b folds the rail around the mark: its glyph stays where it was.
+    function test_the_mark_stays_put_when_the_rail_folds() {
+        const rail = createTemporaryObject(railComponent, testCase, {
+                                               "height": 900
+                                           });
+        const glyph = findChild(rail, "railMarkGlyph");
+        const open = glyph.mapToItem(rail, 0, 0);
+        rail.compact = true;
+        waitForRendering(rail);
+        const folded = glyph.mapToItem(rail, 0, 0);
+        compare(folded.x, open.x);
+        compare(folded.y, open.y);
+        verify(folded.x + glyph.width < rail.width, "the folded rail cut the mark");
+    }
+
+    // #201 F6: the servers block's rows meet its hairline: the heading's fill and the folded
+    // line's start at the block's top, the words where they were.
+    function test_the_servers_rows_fill_from_the_hairline() {
+        const rail = railWithServers(["public", "private"]);
+        const block = findChild(rail, "serversBlock");
+        const heading = findChild(rail, "serversHeading");
+        waitForPolish(block);
+        compare(heading.mapToItem(block, 0, 0).y, 0);
+        compare(heading.headPadding, Theme.space(6));
+        const first = rail._rowMap[rail.serversBase].item;
+        tryVerify(() => first.mapToItem(block, 0, 0).y === heading.header.height, 1000,
+                  "the first row is at %1".arg(first.mapToItem(block, 0, 0).y));
+        compare(block.height, heading.header.height + 2 * Theme.railRowHeight + Theme.space(6));
+
+        rail.serversFolded = true;
+        const line = findChild(rail, "serversFoldedLine");
+        verify(line.visible);
+        tryCompare(line, "height", block.height);
+        compare(line.mapToItem(block, 0, 0).y, 0);
+    }
+
+    // #201 F7: the rail's tip is on the window's content item, over the servers block and
+    // whatever a name wider than the rail runs over.
+    function test_the_rails_tip_is_over_the_window() {
+        const rail = railWithServers(["public", "a server with a name far wider than the rail"]);
+        const tip = findChild(rail, "railTip");
+        verify(tip.parent === rail.Window.window.contentItem, "the tip is on %1".arg(tip.parent));
+        verify(tip.z > findChild(rail, "serversBlock").z);
+        const row = rail._rowMap[rail.serversBase + 1].item;
+        row.hoverChanged(true);
+        tryCompare(tip, "shown", true);
+        compare(tip.text, "a server with a name far wider than the rail · 10.99.0.11:8080");
+        row.hoverChanged(false);
+        compare(tip.shown, false);
+    }
+
+    // #201 F11: ctrl+b while a tip shows takes it down, and leaving the row after takes down
+    // whichever tip is up.
+    function test_folding_the_rail_takes_its_tip_down() {
+        const rail = createTemporaryObject(railComponent, testCase, {
+                                               "height": 900
+                                           });
+        const tip = findChild(rail, "railTip");
+        const compactTip = findChild(rail, "railCompactTip");
+        rail._markTip(true);
+        tryCompare(tip, "shown", true);
+        rail.compact = true;
+        compare(tip.shown, false);
+        rail._markTip(true);
+        tryCompare(compactTip, "shown", true);
+        rail.compact = false;
+        compare(compactTip.shown, false);
+
+        // A tip that came up the other way round still goes when the pointer leaves.
+        const search = findChild(rail, "railView-seed");
+        rail._keyTip(search, true);
+        tryCompare(tip, "shown", true);
+        rail.compact = true;
+        rail._keyTip(search, true);
+        tryCompare(compactTip, "shown", true);
+        tip.showAt(0, 0, "left up by hand");
+        rail._keyTip(search, false);
+        compare(tip.shown, false);
+        compare(compactTip.shown, false);
+    }
+
+    // DECISIONS C32 D3 a: the edge drags the open width between 160 and 360; let go under 120
+    // it asks to fold; a double-click asks for the default; the width shows while dragging.
+    function test_the_edge_drags_the_width_and_folds_under_120() {
+        testCase.width = 900;
+        const rail = createTemporaryObject(railComponent, testCase, {
+                                               "height": 600
+                                           });
+        const chosen = createTemporaryObject(spyComponent, testCase, {
+                                                 "target": rail,
+                                                 "signalName": "widthChosen"
+                                             });
+        const folds = createTemporaryObject(spyComponent, testCase, {
+                                                "target": rail,
+                                                "signalName": "foldDragged"
+                                            });
+        const edge = findChild(rail, "railEdge");
+        const tip = findChild(rail, "railWidthTip");
+        compare(rail.width, Theme.railWidth);
+        const y = edge.y + edge.height / 2;
+        const at = rail.width - Theme.space(3);
+        mousePress(rail, at, y);
+        mouseMove(rail, at + 20, y);
+        mouseMove(rail, at + 60, y);
+        verify(rail.resizing);
+        verify(tip.visible);
+        compare(rail.width, Theme.railWidth + 60);
+        // Never past the bounds while dragging.
+        mouseMove(rail, rail.maximumOpenWidth + 40, y);
+        compare(rail.width, rail.maximumOpenWidth);
+        mouseRelease(rail, rail.maximumOpenWidth + 40, y);
+        compare(chosen.count, 1);
+        compare(chosen.signalArguments[0][0], rail.maximumOpenWidth);
+        compare(chosen.signalArguments[0][1], false);
+        verify(!tip.visible);
+        // The host keeps it; under 160 the drag stops at 160, under 120 it reads "fold".
+        rail.openWidth = rail.maximumOpenWidth;
+        mousePress(rail, rail.width - 2, y);
+        mouseMove(rail, rail.width - 40, y);
+        mouseMove(rail, Theme.space(140), y);
+        compare(rail.width, rail.minimumOpenWidth);
+        mouseMove(rail, Theme.space(100), y);
+        verify(rail._dragFolds);
+        mouseRelease(rail, Theme.space(100), y);
+        compare(folds.count, 1);
+        compare(chosen.count, 1);
+        // Double-click: the default.
+        mouseDoubleClickSequence(rail, rail.width - Theme.space(3), y);
+        compare(chosen.count, 2);
+        compare(chosen.signalArguments[1][0], Theme.railWidth);
+        compare(chosen.signalArguments[1][1], true);
+    }
+
+    // D3 a: a drag out of the folded rail's edge asks to unfold once past 120.
+    function test_a_drag_out_of_the_folded_edge_unfolds() {
+        testCase.width = 900;
+        const rail = createTemporaryObject(railComponent, testCase, {
+                                               "height": 600,
+                                               "compact": true
+                                           });
+        const unfolds = createTemporaryObject(spyComponent, testCase, {
+                                                  "target": rail,
+                                                  "signalName": "unfoldDragged"
+                                              });
+        rail.unfoldDragged.connect(() => rail.compact = false);
+        const edge = findChild(rail, "railEdge");
+        compare(rail.width, Theme.railFoldedWidth);
+        const y = edge.y + edge.height / 2;
+        mousePress(rail, rail.width - 2, y);
+        mouseMove(rail, rail.width + 20, y);
+        mouseMove(rail, Theme.space(80), y);
+        compare(unfolds.count, 0);
+        compare(rail.width, Theme.railFoldedWidth);
+        mouseMove(rail, Theme.space(230), y);
+        compare(unfolds.count, 1);
+        verify(!rail.compact);
+        compare(rail.width, Theme.space(230) + 2);
+        mouseRelease(rail, Theme.space(230), y);
+    }
+
+    // D9 c (C32: moved to the top): the edge tab shows while the pointer is on the rail,
+    // within the title bar's height and centred on it, ‹ open and › folded, with its tip.
+    function test_the_edge_tab_sits_at_the_top_and_shows_on_hover() {
+        const rail = createTemporaryObject(railComponent, testCase, {
+                                               "height": 600,
+                                               "headHeight": Theme.titleBarHeight
+                                           });
+        const toggles = createTemporaryObject(spyComponent, testCase, {
+                                                  "target": rail,
+                                                  "signalName": "foldToggleRequested"
+                                              });
+        const tab = findChild(rail, "railEdgeTab");
+        mouseMove(testCase, testCase.width - 2, testCase.height - 2);
+        tryCompare(tab, "opacity", 0);
+        mouseMove(rail, rail.width / 2, 300);
+        tryCompare(tab, "opacity", 1);
+        // Straddles the edge, inside the title bar's height, centred on it.
+        compare(tab.x + tab.width / 2, rail.width);
+        verify(tab.y > 0 && tab.y + tab.height < rail.headHeight);
+        compare(Math.round(tab.y + tab.height / 2), Math.round(rail.headHeight / 2));
+        // The drag answers below it, not on it.
+        verify(findChild(rail, "railEdge").y >= tab.y + tab.height);
+        mouseMove(tab, tab.width / 2, tab.height / 2);
+        tryCompare(findChild(rail, "railEdgeTip"), "shown", true);
+        compare(findChild(rail, "railEdgeTip").text, "fold the rail · ctrl+b");
+        mouseClick(tab, tab.width / 2, tab.height / 2);
+        compare(toggles.count, 1);
+        rail.compact = true;
+        mouseMove(rail, rail.width / 2, 300);
+        mouseMove(tab, tab.width / 2, tab.height / 2);
+        tryCompare(findChild(rail, "railEdgeTip"), "shown", true);
+        compare(findChild(rail, "railEdgeTip").text, "unfold the rail · ctrl+b");
+        mouseMove(testCase, testCase.width - 2, testCase.height - 2);
+        tryCompare(findChild(rail, "railEdgeTip"), "shown", false);
+    }
+
+    // DECISIONS C32 D1 a: the rail's foot is a settings row under the servers, its key "," on
+    // alt and in its tip; folded, the gear alone. Not a cursor stop.
+    function test_the_foot_is_a_settings_row() {
+        const rail = railWithServers(["public", "private"]);
+        const asks = createTemporaryObject(spyComponent, testCase, {
+                                               "target": rail,
+                                               "signalName": "settingsRequested"
+                                           });
+        const foot = findChild(rail, "railFoot");
+        const row = findChild(rail, "railSettings");
+        compare(foot.y + foot.height, rail.height);
+        verify(findChild(rail, "railScroll").y + findChild(rail, "railScroll").height <= findChild(rail, "serversBlock").y);
+        compare(row.text, "settings");
+        compare(row.glyph, Glyphs.settings);
+        compare(row.keyText, ",");
+        verify(row.mapToItem(rail, 0, 0).y >= foot.y);
+        mouseClick(row, row.width / 2, row.height / 2);
+        compare(asks.count, 1);
+        rail._keyTip(row, true);
+        compare(findChild(rail, "railTip").text, "settings · ,");
+        rail._keyTip(row, false);
+        // The cursor never lands on it.
+        rail.cursorIndex = rail.totalRowCount - 1;
+        verify(rail._rowMap[rail.cursorIndex].item !== row);
+        rail.compact = true;
+        verify(row.compact);
+        compare(foot.width, Theme.railFoldedWidth - Theme.hairWidth);
+    }
+
+    // DECISIONS C32 D16 a: the surface tint fills the rail only; its rows lie on C30's nested
+    // grounds over it (4 %: the block set, 8 %: the hover set), and the servers block takes
+    // no fill of its own there, so every ground stays one C30 measured.
+    function test_the_tint_fills_the_rail_and_its_rows_nest() {
+        const rail = railWithServers(["public", "private"]);
+        const fill = findChild(rail, "railTint");
+        const question = findChild(rail, "railQuestion-arriving");
+        compare(fill.visible, false);
+        compare(rail.ground, Theme.on.window);
+        App.filtered.question = TorrentFilterModel.Arriving;
+        verify(question.selected);
+        compare(question.ground, Theme.on.selected);
+
+        rail.tint = 4;
+        verify(fill.visible);
+        compare(fill.color, Theme.on.idle.fill);
+        compare(question.ground, Theme.on.blockSelected);
+        compare(findChild(rail, "railView-seed").ground, Theme.on.idle);
+        compare(findChild(rail, "railSettings").block, Theme.on.idle);
+        compare(rail._serversGround, Theme.on.idle);
+        compare(findChild(rail, "serversFoldedLine").block, Theme.on.idle);
+
+        rail.tint = 8;
+        compare(fill.color, Theme.on.hover.fill);
+        compare(question.ground, Theme.on.hoverSelected);
+        compare(rail._serversGround, Theme.on.hover);
+        // What covers the scroll is the tint, made opaque.
+        verify(Qt.colorEqual(rail._opaqueGround, Qt.tint(Theme.background, Theme.on.hover.fill)));
+        rail.tint = 0;
+        compare(question.ground, Theme.on.selected);
     }
 }

@@ -51,6 +51,13 @@ Item {
                   ? row.table.rowMarkFor(row.hash) : ({});
         return own.text !== undefined ? own : null;
     }
+    /// #201 F13: what the fact's column may take, the name's floor kept before it, so a narrow
+    /// list shortens the fact and drops its caption before it cuts the name.
+    readonly property real factRoom: Math.max(0, row.width - Theme.libraryRowInsetStart - Theme.libraryRowGlyphWidth
+                                                 - 2 * Theme.libraryRowGap - Theme.libraryRowInsetEnd
+                                                 - Theme.libraryRowNameFloor)
+    /// The caption ("to ready") goes first: shown only while it fits whole.
+    readonly property bool captionShown: row.rowCaption.length > 0 && captionText.implicitWidth <= row.factRoom
     /// The text roles on this row's ground (C30 F7).
     readonly property Ink ink: Ink {
         ground: Theme.rowGround(row.isSelected, row.isCursor, pointer.containsMouse, false)
@@ -103,7 +110,9 @@ Item {
     // The ground: the window's, the pointer's, the cursor's, selected (C30), as a table row's;
     // the cursor's hairline where the skin doesn't mark the cursor (board 46 `.row.sel`).
     Rectangle {
-        readonly property bool edged: row.isCursor && !row.isSelected && !Theme.cursorMarked
+        // #201 F16: the edge only while the list has the keys; the fill stays.
+        readonly property bool edged: row.isCursor && row.table.keysHere && !row.isSelected
+                                      && !Theme.cursorMarked
 
         anchors.fill: parent
         border.color: edged ? Theme.fill(Theme.borderHover) : "transparent"
@@ -134,7 +143,7 @@ Item {
         anchors.fill: parent
         color: Theme.accent
         objectName: "libraryRowCursor_" + row.index
-        visible: row.isCursor
+        visible: row.isCursor && row.table.keysHere
     }
 
     Rectangle {
@@ -268,7 +277,11 @@ Item {
                 objectName: "libraryRowMeta_" + row.index
                 text: row.rowMeta
                 textFormat: Text.PlainText
+                // #201 F13: and only while the name keeps its floor beside it.
                 visible: row.narrow < 2 && row.rowMeta.length > 0 && !row.editing
+                         && nameLine.width - Math.min(metaText.implicitWidth, nameLine.width / 3) - nameLine.spacing
+                         - (markText.visible ? markText.implicitWidth + nameLine.spacing : 0)
+                         >= Math.min(nameText.implicitWidth, Theme.libraryRowNameFloor)
                 width: Math.min(metaText.implicitWidth, Math.max(0, nameLine.width - nameText.width
                                                                  - nameLine.spacing
                                                                  - (markText.visible ? markText.implicitWidth
@@ -307,7 +320,9 @@ Item {
                 objectName: "libraryRowLine_" + row.index
                 trackColor: Theme.fill(Theme.libraryRowLineTrack)
                 value: row.progress
-                width: row.narrow >= 1 ? Theme.libraryRowLineWidthNarrow : Theme.libraryRowLineWidth
+                // #201 F13: never past the words' column, into the fact's.
+                width: Math.min(row.narrow >= 1 ? Theme.libraryRowLineWidthNarrow : Theme.libraryRowLineWidth,
+                                sentenceLine.width)
             }
 
             Text {
@@ -321,6 +336,8 @@ Item {
                 objectName: "libraryRowSentence_" + row.index
                 text: row.rowSentence
                 textFormat: Text.PlainText
+                // #201 F13: with no room left past the line, none of it (not a lone "…").
+                visible: sentenceText.width >= Theme.libraryRowWordsFloor
                 // As long as its words, so the fix follows them (board 46 `.l2`).
                 width: Math.min(sentenceText.implicitWidth, Math.max(0, sentenceLine.width - progressLine.width
                                                                      - sentenceLine.spacing
@@ -395,7 +412,9 @@ Item {
         anchors.right: parent.right
         anchors.rightMargin: Theme.libraryRowInsetEnd
         anchors.verticalCenter: parent.verticalCenter
-        width: Math.max(Theme.libraryRowFactWidth, factText.implicitWidth, captionText.implicitWidth)
+        // #201 F13: as wide as its words, but never into the name's floor.
+        width: Math.min(row.factRoom, Math.max(Theme.libraryRowFactWidth, factText.implicitWidth,
+                                               row.captionShown ? captionText.implicitWidth : 0))
 
         Text {
             id: factText
@@ -412,6 +431,7 @@ Item {
             objectName: "libraryRowFact_" + row.index
             text: row.rowFact
             textFormat: Text.PlainText
+            visible: parent.width >= Theme.libraryRowWordsFloor
             width: parent.width
         }
 
@@ -429,6 +449,7 @@ Item {
             objectName: "libraryRowCaption_" + row.index
             text: row.rowCaption
             textFormat: Text.PlainText
+            visible: row.captionShown
             width: parent.width
         }
     }

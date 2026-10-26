@@ -5,7 +5,7 @@ import Omaseed.Kit
 import Omaseed.Views
 
 // DECISIONS C24 H3–H4 (#168): the library's three displays in the window, on the demo
-// library. Rows grouped under the five questions and the shelves are faces of the table: the
+// library. Rows grouped under the five questions and space (C32 D12 a) are faces of the table: the
 // table keeps the cursor, the selection and the keys, so j/k, space, the click rules, the
 // action bar and the outcome strip's "show" hold in each. The display is remembered per scope;
 // rows for a new install, the table for an existing one. The whole runner shares one App, so
@@ -82,14 +82,14 @@ TestCase {
         compare(App.filtered.groupBy, TorrentFilterModel.ByQuestion);
         compare(view.table.face, view.libraryRows);
         verify(view.libraryRows.visible);
-        compare(view.titleBar.displayTool.text, "rows ▾");
+        compare(view.titleBar.displayTool.text, "rows · name ▾");
         App.resetDisplays(true);
         compare(App.display, "table");
         compare(App.filtered.groupBy, TorrentFilterModel.NoGroups);
         compare(view.table.face, null);
         verify(!view.libraryRows.visible);
         verify(findChild(view.table, "rows").visible);
-        compare(view.titleBar.displayTool.text, "table ▾");
+        compare(view.titleBar.displayTool.text, "table · name ▾");
     }
 
     // H3: rows grouped under the questions, in the rail's order, each under its head; the
@@ -198,13 +198,19 @@ TestCase {
         }
     }
 
-    // `r` renames inline on a row, and opens the sheet on a cover.
-    function test_rename_inline_in_rows_and_the_sheet_on_shelves() {
+    // `r` renames inline on a row, and opens the sheet on a block of space.
+    function test_rename_inline_in_rows_and_the_sheet_on_space() {
         // The table's own editor first: the faces leave it alone.
         compare(view.table.face, null);
         keyClick(Qt.Key_R);
         verify(view.table.renaming);
-        tryVerify(() => findChild(view.table, "renameEditor") !== null && findChild(view.table, "renameEditor").active);
+        // The cursor row's editor: a narrow case before can leave a delegate of another row
+        // with one too, which a plain findChild may find first.
+        tryVerify(() => {
+                      const row = findChild(view.table, "row_" + view.table.renameIndex);
+                      const editor = row !== null ? findChild(row, "renameEditor") : null;
+                      return editor !== null && editor.active;
+                  });
         keyClick(Qt.Key_Escape);
         verify(!view.table.renaming);
         testCase.rowsShown();
@@ -214,7 +220,7 @@ TestCase {
         verify(editor !== null && editor.active, "no editor over the row");
         keyClick(Qt.Key_Escape);
         verify(!view.table.renaming);
-        App.setDisplay("overview");
+        App.setDisplay("space");
         view.table.forceActiveFocus();
         keyClick(Qt.Key_R);
         verify(!view.table.renaming);
@@ -222,49 +228,161 @@ TestCase {
         view.renameSheetPanel.close();
     }
 
-    // The shelves: one per category, "no category" last, a cover per torrent; j goes cover by
-    // cover across the shelves, a click selects.
-    function test_shelves_hold_a_cover_per_torrent() {
-        App.setDisplay("overview");
-        compare(App.filtered.groupBy, TorrentFilterModel.ByCategory);
-        compare(view.table.face, view.libraryShelves);
-        verify(view.libraryShelves.visible);
+    // Board 51 D12 a (C32): space, a size map by folder, then torrent. The folders go the
+    // largest first, each torrent a block as big as its share, what is under 1 % in the line
+    // of chips; j goes block by block in the map's order, a click selects as on a row.
+    function test_space_maps_where_the_space_goes() {
+        App.setDisplay("space");
+        compare(App.filtered.groupBy, TorrentFilterModel.BySpace);
+        compare(view.table.face, view.librarySpace);
+        verify(view.librarySpace.visible);
         waitForRendering(view);
         const groups = App.filtered.groups;
-        verify(groups.length >= 2);
-        const last = groups[groups.length - 1];
-        if (App.filtered.data(App.filtered.index(last.first, 0), TorrentModel.CategoryRole) === "")
-            compare(last.title, "no category");
-        const cover = findChild(view.libraryShelves, "cover_0");
-        verify(cover !== null);
-        compare(findChild(cover, "coverName").text, App.filtered.data(App.filtered.index(0, 0),
-                                                                       TorrentModel.NameRole));
-        verify(findChild(cover, "coverMonogram").text.length > 0);
-        // #171: a cover that needs you takes the accent edge and fact where the skin says
-        // (board 46 `.card.needs`), its fact red otherwise.
-        for (let i = 0; i < App.filtered.count; ++i) {
-            const each = findChild(view.libraryShelves, "cover_" + i);
-            if (each === null || !each.needsYou || each.isSelected)
-                continue;
-            const plate = findChild(each, "coverPlate");
-            compare(each.needsEdge, Theme.coverNeedsEdge);
-            compare(findChild(each, "coverFact").color, Theme.coverNeedsEdge ? Theme.accent : Theme.red);
-            if (Theme.coverNeedsEdge) {
-                compare(plate.edgeColor, Theme.accent);
-                compare(plate.edgeWidth, Theme.coverSelectedBorder);
-            }
-        }
-        compare(Theme.coverNeedsEdge, Theme.skin.name === "console");
-        const next = groups[1].first;
-        view.table.moveCursorTo(next - 1);
+        verify(groups.length >= 1);
+        for (let i = 1; i < groups.length; ++i)
+            verify(groups[i - 1].bytes >= groups[i].bytes, "the folders are not the largest first");
+        const layout = view.librarySpace.layout;
+        const total = groups.reduce((sum, group) => sum + group.bytes, 0);
+        compare(layout.total, total);
+        compare(layout.count, App.filtered.count);
+        // Every row is a block or behind a chip, once.
+        let shown = layout.tiles.length;
+        for (const chip of layout.chips)
+            shown += chip.count;
+        compare(shown, App.filtered.count);
+        verify(layout.tiles.length > 0);
+        // A block's area is its share of the map's (the folders' frames and heads aside).
+        const map = findChild(view.librarySpace, "spaceMap");
+        const first = layout.tiles[0];
+        verify(first.w * first.h > 0);
+        const tile = findChild(view.librarySpace, "spaceTile_" + first.row);
+        verify(tile !== null);
+        compare(tile.name, App.filtered.data(App.filtered.index(first.row, 0), TorrentModel.NameRole));
+        verify(Qt.colorEqual(findChild(tile, "spaceTileLine").color, tile.stateColor));
+        compare(findChild(view.librarySpace, "spaceHeadWord").text, "Where the space goes");
+        verify(findChild(view.librarySpace, "spaceHeadLine").text.indexOf("by folder, then torrent") > 0);
+
+        // The cursor: its block's edge, its name over the map, its folder's line.
+        view.table.moveCursorTo(first.row);
+        waitForRendering(view);
+        compare(findChild(tile, "spaceTileEdge").edgeWidth, Theme.spaceCursorEdge);
+        verify(findChild(view.librarySpace, "spaceHeadLine").text.indexOf("the cursor on " + tile.name) > 0);
+        verify(findChild(view.librarySpace, "spaceFolderWords").text.startsWith(view.librarySpace.cursorFolder.title));
+        // j in the map's order, which is the rows'.
         keyClick(Qt.Key_J);
-        compare(view.table.cursorIndex, next);
-        verify(view.libraryShelves.rowInView(next));
-        mouseClick(cover);
-        compare(view.table.cursorIndex, 0);
+        compare(view.table.cursorIndex, first.row + 1);
+        verify(view.librarySpace.rowInView(first.row + 1));
+        compare(findChild(tile, "spaceTileEdge").edgeWidth, 0);
+
+        // A click selects that block only; rowAt finds it.
+        mouseClick(tile, 4, 4);
+        compare(view.table.cursorIndex, first.row);
         compare(view.table.selectedCount, 1);
-        compare(view.libraryShelves.rowAt(cover.mapToItem(view.libraryShelves, 4, 4).x,
-                                          cover.mapToItem(view.libraryShelves, 4, 4).y), 0);
+        verify(view.table.isRowSelected(first.row));
+        const inSpace = tile.mapToItem(view.librarySpace, 4, 4);
+        compare(view.librarySpace.rowAt(inSpace.x, inSpace.y), first.row);
+        // The chips that fit are drawn, none wider than the cap (a long name elides).
+        compare(findChild(view.librarySpace, "spaceSmall").visible, layout.chips.length > 0);
+        for (const chip of layout.chips) {
+            const item = findChild(view.librarySpace, (chip.folder ? "spaceFolderChip_" : "spaceChip_") + chip.first);
+            verify(item !== null);
+            verify(item.width <= Theme.spaceChipMaxWidth + 2 * Theme.spaceChipPadX);
+        }
+        // The map keeps its place while the action bar shows over its foot.
+        compare(map.height, findChild(view.librarySpace, "spaceSmall").y - Theme.spaceGap - map.y);
+        view.table.clearSelection();
+
+        // "move this folder…" moves the cursor's folder.
+        const move = findChild(view.librarySpace, "spaceMoveFolder");
+        verify(move.visible);
+        let asked = "";
+        const take = folder => asked = folder;
+        view.librarySpace.moveFolderRequested.connect(take);
+        mouseClick(move);
+        view.librarySpace.moveFolderRequested.disconnect(take);
+        compare(asked, view.librarySpace.cursorFolder.key);
+        tryVerify(() => view.moveSheet.opened);
+        view.moveSheet.close();
+        tryVerify(() => !view.moveSheet.opened);
+    }
+
+    // The map's layout, on rows of known sizes: board 51's halves, the 1 % floor, the chips.
+    function test_space_lays_out_by_halves_and_gathers_the_small() {
+        const out = [];
+        view.librarySpace.treemap([{ "weight": 3 }, { "weight": 1 }], 0, 0, 400, 100, out);
+        compare(out.length, 2);
+        compare(out[0].w, 300);
+        compare(out[0].h, 100);
+        compare(out[1].x, 300);
+        const tall = [];
+        view.librarySpace.treemap([{ "weight": 1 }, { "weight": 1 }], 0, 0, 100, 400, tall);
+        compare(tall[1].y, 200);
+        compare(tall[1].w, 100);
+
+        App.setDisplay("space");
+        waitForRendering(view);
+        // Groups as the proxy gives them, one folder under the floor.
+        const groups = [
+            { "key": "/a", "title": "/a", "line": "", "first": 0, "count": 2, "bytes": 9900, "question": 0 },
+            { "key": "/b", "title": "/b", "line": "", "first": 2, "count": 3, "bytes": 50, "question": 0 }
+        ];
+        const layout = view.librarySpace.layOut(view.librarySpace.gather(0, groups), 400, 200);
+        compare(layout.total, 9950);
+        compare(layout.count, 5);
+        compare(layout.folders.length, 1);
+        compare(layout.folders[0].framed, false, "one folder needs no frame: the line over the map names it");
+        const folderChip = layout.chips.find(chip => chip.folder);
+        verify(folderChip !== undefined);
+        compare(folderChip.first, 2);
+        compare(folderChip.count, 3);
+        verify(folderChip.text.startsWith("/b · 3"));
+    }
+
+    // #201 F16: h / l move the keys across rail, list and details; the list's cursor keeps its
+    // fill but shows its edge only while the list has them, and the details' tab line is lit
+    // only while the pane has them. The same in rows, table and space.
+    function test_h_and_l_show_where_the_keys_are() {
+        const tabLine = () => findChild(findChild(findChild(view.details, "detailsTabs"),
+                                                  "tab_" + view.details.currentTab), "tabLine");
+        const edges = {
+            "rows": () => findChild(testCase.rowItem(view.table.cursorIndex),
+                                    "libraryRowCursor_" + view.table.cursorIndex).visible,
+            "table": () => findChild(findChild(view.table, "row_" + view.table.cursorIndex),
+                                     "tableRowCursor").visible,
+            "space": () => {
+                const tile = findChild(view.librarySpace, "spaceTile_" + view.table.cursorIndex);
+                const chip = view.librarySpace.chipOf(view.table.cursorIndex);
+                return tile !== null ? findChild(tile, "spaceTileEdge").edgeWidth === Theme.spaceCursorEdge
+                                     : chip !== null && findChild(chip, "spaceChipPlate").edgeWidth === Theme.spaceCursorEdge;
+            }
+        };
+        for (const display of ["rows", "table", "space"]) {
+            App.setDisplay(display);
+            view.table.clearSelection();
+            view.table.moveCursorTo(1);
+            view.table.forceActiveFocus();
+            waitForRendering(view);
+            verify(view.table.keysHere, display);
+            verify(edges[display](), display + ": the cursor had no edge with the keys");
+            compare(tabLine().height, Theme.hairWidth);
+
+            keyClick("l");
+            compare(view.focusArea, "details");
+            verify(!view.table.keysHere);
+            verify(!edges[display](), display + ": the cursor kept its edge without the keys");
+            compare(tabLine().height, Theme.litWidth);
+            compare(tabLine().color, Theme.litColor);
+
+            keyClick("h");
+            compare(view.focusArea, "table");
+            verify(edges[display](), display + ": h from details left no sign on the list");
+            verify(!Qt.colorEqual(tabLine().color, Theme.litColor));
+
+            keyClick("h");
+            compare(view.focusArea, "rail");
+            verify(!edges[display](), display + ": the rail has the keys, not the list");
+            keyClick("l");
+        }
     }
 
     // H4: remembered per scope, folders included; a scope without its own shows the
@@ -274,8 +392,10 @@ TestCase {
         const folder = App.torrentRow(App.filtered.hashAt(0)).savePath;
         App.filtered.folder = folder;
         compare(App.display, "rows");
+        // The shelves' old name picks space (C32 D12 a).
         App.setDisplay("overview");
-        compare(view.table.face, view.libraryShelves);
+        compare(App.display, "space");
+        compare(view.table.face, view.librarySpace);
         App.filtered.folder = "";
         compare(App.display, "rows");
         compare(view.table.face, view.libraryRows);
@@ -283,9 +403,45 @@ TestCase {
         compare(App.display, "rows");
         App.filtered.question = TorrentFilterModel.AnyQuestion;
         App.filtered.folder = folder;
-        compare(App.display, "overview");
-        compare(view.titleBar.displayTool.text, "shelves ▾");
+        compare(App.display, "space");
+        // Size orders the map: the tool says the display alone.
+        compare(view.titleBar.displayTool.text, "space ▾");
         App.filtered.folder = "";
+    }
+
+    // #201 F17 (C32 "Questions"): a question from the rail or 1–5 replaces the place, as the
+    // library does, and keeps a display of its own; a place picked leaves the question. The
+    // place's display never changes through the question.
+    function test_a_question_replaces_the_place() {
+        App.setDisplay("rows");
+        const folder = App.torrentRow(App.filtered.hashAt(0)).savePath;
+        view.rail._pickFolder(folder, false);
+        compare(App.filtered.folder, folder);
+        App.setDisplay("table");
+        compare(App.displayScope, "folder:" + folder);
+
+        keyClick("4"); // giving back, from the folder
+        compare(App.filtered.question, TorrentFilterModel.GivingBack);
+        compare(App.filtered.folder, "");
+        compare(App.displayScope, "question:givingBack");
+        compare(App.display, "rows", "the question took the folder's display");
+        App.setDisplay("space");
+        compare(App.displayFor("folder:" + folder), "table");
+
+        // A category picked leaves the question; the question asked again leaves the category.
+        view.rail._rowMap[view.rail.categoriesBase + 1].select(); // the first named category
+        compare(App.filtered.question, TorrentFilterModel.AnyQuestion);
+        verify(App.filtered.category !== undefined);
+        view.rail.selectQuestion(TorrentFilterModel.GivingBack);
+        compare(App.filtered.category, undefined);
+        compare(App.display, "space");
+
+        view.rail._pickFolder(folder, false);
+        compare(App.filtered.question, TorrentFilterModel.AnyQuestion);
+        compare(App.filtered.folder, folder);
+        compare(App.display, "table");
+        App.filtered.folder = "";
+        compare(App.display, "rows");
     }
 
     // The tool's menu: the three, the scope's checked; a pick sets it.
@@ -293,20 +449,111 @@ TestCase {
         verify(view.titleBar.displayTool.visible);
         mouseClick(view.titleBar.displayTool);
         tryVerify(() => view.displayMenu.opened);
-        compare(view.displayMenu.items.map(item => item.action), ["rows", "table", "overview"]);
-        compare(view.displayMenu.items.filter(item => item.checked).map(item => item.action), ["table"]);
+        compare(view.displayMenu.items.slice(0, 3).map(item => item.action), ["rows", "table", "space"]);
+        compare(view.displayMenu.items.filter(item => item.checked && item.radio !== true).map(item => item.action),
+                ["table"]);
         view.displayMenu.activated("rows");
         view.displayMenu.close();
         compare(App.display, "rows");
         // The palette's rows run the same.
-        view.runCommand("displayShelves");
-        compare(App.display, "overview");
+        view.runCommand("displaySpace");
+        compare(App.display, "space");
+        // Space has no sort block: size orders its map, and the footer says so.
+        compare(view.displayMenu.items.filter(item => item.radio === true).length, 0);
+        compare(view.displayMenu.footer, "size orders the map, the largest first");
         view.runCommand("displayTable");
         compare(App.display, "table");
         // Not on the seed console or the log.
         view.setView("seed");
         verify(!view.titleBar.displayTool.visible);
         view.setView("library");
+    }
+
+    // #201 F13: however narrow the list, a row never draws its words over each other: the
+    // progress line stays in the words' column, the fact and caption right of it, and the name
+    // keeps its floor; the caption drops, then the fact shortens, first.
+    function test_narrow_rows_never_draw_over_themselves() {
+        testCase.rowsShown();
+        App.filtered.question = TorrentFilterModel.Arriving;
+        const placement = App.detailsPlacement;
+        const hidden = App.railHidden;
+        // The window's widths, then the narrowest list it allows: the rail held open by hand
+        // and the details beside the list.
+        const cases = [[1360, false], [760, false], [600, false], [480, false], [760, true], [600, true]];
+        let captionsDropped = false;
+        for (const [width, crowded] of cases) {
+            testCase.width = width;
+            if (crowded) {
+                view.setRailFoldedByHand(false);
+                App.detailsPlacement = "right";
+            }
+            waitForRendering(view);
+            for (let row = 0; row < App.filtered.count; ++row) {
+                const item = testCase.rowItem(row);
+                if (item === null)
+                    continue;
+                const at = name => findChild(item, name + "_" + row);
+                const name = at("libraryRowName");
+                const line = at("libraryRowLine");
+                const fact = at("libraryRowFact");
+                const caption = at("libraryRowCaption");
+                const factLeft = fact.parent.mapToItem(item, 0, 0).x;
+                const right = part => part.mapToItem(item, part.width, 0).x;
+                verify(right(name) <= factLeft, width + ": the name ran into the fact on row " + row);
+                verify(right(line) <= factLeft, width + ": the line ran into the fact on row " + row);
+                // The floor, or all the words' column has when the list is narrower still.
+                verify(name.width >= Math.min(name.implicitWidth, Theme.libraryRowNameFloor, name.parent.width) - 1,
+                       width + ": the name lost its floor on row " + row);
+                if (caption.visible)
+                    verify(caption.implicitWidth <= caption.width + 1, width + ": the caption was cut");
+                else if (item.rowCaption.length > 0)
+                    captionsDropped = true;
+            }
+        }
+        verify(captionsDropped, "the narrowest list never squeezed a row");
+        App.detailsPlacement = placement;
+        view.railHeldOpen = false;
+        App.railHidden = hidden;
+        testCase.width = 1360;
+    }
+
+    // Board 51 D13 a (C32): the menu's sort block, the order in use picked with its direction
+    // in words; a pick sorts, "reverse" turns it, and the tool's word says it.
+    function test_the_display_tool_sorts() {
+        testCase.rowsShown();
+        const sorts = () => view.displayMenu.items.filter(item => (item.action ?? "").startsWith("sort:")
+                                                           && item.action !== "sort:reverse");
+        compare(sorts().map(item => item.text), ["added", "name", "size", "progress", "time to ready", "ratio"]);
+        compare(view.displayMenu.items.find(item => item.caption === true).text, "sort, inside each group");
+        compare(sorts().filter(item => item.checked).map(item => item.action), ["sort:name"]);
+        compare(sorts().find(item => item.checked).note, "a to z");
+        compare(view.displayMenu.footer, "also s, the sort palette");
+
+        mouseClick(view.titleBar.displayTool);
+        tryVerify(() => view.displayMenu.opened);
+        view.displayMenu.activated("sort:addedOn");
+        view.displayMenu.close();
+        compare(App.filtered.sortRoleName, "addedOn");
+        compare(App.filtered.sortOrder, Qt.DescendingOrder);
+        compare(App.display, "rows", "a sort keeps the display");
+        compare(view.titleBar.displayTool.text, "rows · added ▾");
+        compare(view.titleBar.displayTool.Accessible.name, "display: rows, sorted by added");
+        compare(sorts().find(item => item.checked).note, "newest first");
+        // The one in use again keeps it; "reverse" turns it.
+        view.displayMenu.activated("sort:addedOn");
+        compare(App.filtered.sortOrder, Qt.DescendingOrder);
+        view.displayMenu.activated("sort:reverse");
+        compare(App.filtered.sortOrder, Qt.AscendingOrder);
+        compare(sorts().find(item => item.checked).note, "oldest first");
+
+        // A sort the block doesn't list joins it, picked, at its top.
+        App.filtered.setSortByRoleName("dlspeed");
+        compare(sorts()[0].text, "download speed");
+        verify(sorts()[0].checked);
+        compare(sorts().length, 7);
+        compare(view.titleBar.displayTool.text, "rows · download speed ▾");
+        App.setDisplay("table");
+        compare(view.displayMenu.items.find(item => item.caption === true).text, "sort");
     }
 
     // C30 F8–F11 in rows: "show" sees what the rows show, and brings them back.

@@ -1755,13 +1755,22 @@ place: D2), docs/31 D5 (D6), C4 D1–D2 and C13's alternative-limits row (D8) an
 - **The mark and its menu.** D1 a: a settings row at the rail's foot, the gear alone when
   folded. D14 b: the menu grows from the lit mark inside one accent outline (292 px), no head
   of its own, the version line first, then servers and the rest.
+  Built as the board reads it, assumed where it is silent: under Console the menu keeps its
+  cut-plate outline all round (the open top is Omarchy's).
+- **Menus (F15, ruled in the pass).** The torrent menu as board 46's `menuHtml()` draws it, an
+  icon on every row, transfer ›, queue › and copy › as submenus. Built, assumed: "category…"
+  and "tags…" take an ellipsis, since a › now means a submenu; force start sits in transfer ›;
+  the rows carry no counts for a selection ("stop", not "stop 3"); under Console every menu's
+  icons are Material Symbols ligatures.
 - **The rail.** D3 a: its edge drags between 160 and 360 px; let go under 120 and it folds;
   double-click goes back to 214; the width is the window's, not a server's. D9 c, **moved**:
   the fold toggle is board 51's tab on the rail's edge (‹, shown on hover, tooltip "fold the
   rail · ctrl+b"), placed at the top, within the title bar's height and centred on it, not
   halfway down the rail. The rail folds by itself when the list would get narrower than
   520 px (the open details pane counted) and unfolds when there is room, unless folded or
-  unfolded by hand, which holds until the next hand one (answers F13). D4 a: right-click on a
+  unfolded by hand, which holds until the next hand one (answers F13); assumed: a hand fold
+  holds for the session (it isn't saved), and a double-click on the folded edge unfolds it at
+  the default width. D4 a: right-click on a
   server: on the current one, its alternative speeds, stop all, start all; on another,
   "switch to it" first; both then edit…, test the connection, open its web UI, copy its
   address, remove… (asks first). D5 a: on the log the rail holds the four levels (normal,
@@ -1776,15 +1785,72 @@ place: D2), docs/31 D5 (D6), C4 D1–D2 and C13's alternative-limits row (D8) an
   meaning turtle), burst is written over it while on and turtle written back after (also when
   omaseed quits mid-burst); the chip opens a picker. D18 a: the filter field takes the title
   bar's free room, the title kept, tokens as chips, the count and "× esc".
+  Built as the board reads it, assumed where it is silent: the speeds give way from the
+  title bar's step 2 and the status line takes them back; ↑ opens the seed console in the
+  title bar too (#24); a cap shows whenever the set in force has one (burst's ↑ 2 MB/s as
+  well). `A` flips the last pick (it is shift+a, so burst has no key of its own; the choice
+  says so at its foot); the choice's burst length is three radio rows, Kit/Menu having no
+  chip row. A burst ends with the turtle written back and the limits as the schedule has
+  them (off with the schedule off); one found at start with no end ("until I stop it") is
+  ended then. A switch to another server leaves its burst to end when omaseed is next on
+  that server (the switch cancels the shared client's requests). The tray's and the bar
+  widget's row stays the flip (A); the window's menus open the choice. Settings › Speed
+  drops the set line (the presets name the set now). The filter's field is open while the
+  caret is in it or a filter is set.
 - **Acting on a selection (D17).** 1 a: a floating action bar over the list, bottom middle, from
   the torrent menu's groups (F15), icons and words, category › and more › opening upward; the
   outcome strip floats above it. 2 a: at narrow widths the words go before the icons. 3 a: the
   status line stays on the server's status while a selection is on.
+  Built as the board reads it, assumed where it is silent: the bar's buttons are the menu's
+  rows by name (`ActionsMenu.groups`), so a word or icon changed in the menu changes on the
+  bar; more › lists the menu's rows the bar doesn't show (rename and retry too), those it
+  folded first, with no head. Category › is a list of the categories (a ✓ where all of the
+  selection has it, "2 of 3" where some do), then new category… (the palette) and no
+  category; tags › ticks a tag all of them have and a row turns it for all of them, new tag…
+  opens the palette. The ledger reads size · ratio as the board draws it ("given" is in its
+  description and in the seed console it opens). Narrow, the ledger goes first, then the
+  words, the count's "selected", then the folds; it folds only when the icons no longer fit,
+  so a 480 px list keeps every icon. C18 D6's hint (the first three times) sits before esc
+  and stays while it fits, the ledger and then the words giving way to it. No shadow (the
+  kit has none); the bar's edge and ground are the outcome strip's.
 - **The library.** D12 a: the third display is "space", a size map by folder then torrent,
   in place of shelves. D13 a: a sort block in the display tool's menu; its word reads
-  "rows · added".
+  "rows · added". Assumed: the word names the sort after rows and table; a sort newly picked
+  starts in the direction a header click would.
+  Space built as the board reads it, assumed where it is silent: the folders are save paths,
+  the largest first, and inside each the torrents the largest first, whatever the sort (size
+  lays the map out, so j/k follow the map); the menu has no sort block in space, its footer
+  says "size orders the map, the largest first", and the tool reads "space" alone. A folder
+  under 1 % of the scope's size, or a torrent under 1 % of its folder's, goes to the "under
+  1 %" line (a lone torrent's folder as that torrent); a folder's chip takes the cursor to its
+  first torrent. With more than one folder drawn, each is outlined under its path and size;
+  the line over the map names the cursor's folder with "move this folder…". A block's ground
+  is its state colour at 18 % under a 2 px line of it, the whole block whatever its progress
+  (the fact says it); the cursor's block has the accent's edge, a selected one the
+  selection's fill. The map never scrolls and keeps the action bar's room free at its foot.
+  `state.json`'s and `OMASEED_DISPLAY`'s "overview" (and "shelves") read as space.
+- **Questions (F17, ruled in the pass).** A question picked from the rail or by 1–5
+  replaces the place, as the library does: it leaves any folder, category, tag or tracker and
+  asks across the whole library, under its own remembered display. Narrowing a place by state
+  stays with the filter (`is:<state>`). This replaces #168's assumed "a question inside a
+  place shares the place's display" (C24 H4). Built with the reverse, assumed: a place picked
+  from the rail leaves the question.
 - **Details.** D15 a: the story's "what happened" newest first.
 - **Settings.** D7 a: a › at each server row's end, the row lit under the pointer. D10 a: tab
-  walks the modal as any form; j/k and enter stay for rows.
+  walks the modal as any form; j/k and enter stay for rows. With #201 F2, assumed: only the
+  sign-in choice's chips take the accent edge that marks the picked one; other choice chips
+  are unchanged.
 - **Moves.** D19 a: move back carries back the loose files the move carried (the list it kept,
   #98), under the same tick; a file changed at the target since stays, and is named.
+  Built as the board reads it, assumed where it is silent: the move's record keeps each file
+  as it lies at the new place after the carry, so move back's size-or-time check is against
+  that; the list goes in the move back's spec (saved with the job), so a restart or a queued
+  move back carries the same files and never walks a folder. The sheet heads the block "files
+  no torrent owns · the move carried", its note drops board 51's "(M17)" (the app's words cite
+  no rulings), lists 6 files the move carried and 2 put there since at most, then "and N
+  more", and its button reads "move 46 back · 1 file · 3 stay" when both apply. A move back
+  that carries files shows its band as a folder's move does (not quiet, C16 L6), so the
+  summary can name what stayed ("notes/readme.txt (changed after the move)", up to 3 names).
+  Room on the old drive doesn't count the loose files (they are small; a full drive stops the
+  carry as M17 says). A record from before v0.5.0 has no list: its sheet still says the files
+  stay, as does one whose disks omaseed can't see.

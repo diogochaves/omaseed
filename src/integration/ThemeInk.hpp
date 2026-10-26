@@ -137,8 +137,9 @@ private:
 /// - Tints of a palette colour (C30 F5): `warning` (yellow, warningTintAlpha: the yellow
 ///   bands), `attention` (the error colour, attentionTintAlpha: the console's attention block),
 ///   `danger` (red at fillSelected: a selected danger button), `ticked` (accent at fillPressed:
-///   a ticked box, a switched-on toggle) and `accentIdle` (accent at fillIdle: the drop
-///   target).
+///   a ticked box, a switched-on toggle), `accentIdle` (accent at fillIdle: the drop
+///   target), and `turtle` and `burst` (yellow and green at fillSelected: the alternative
+///   speeds' chip, DECISIONS C32 D6 a).
 /// - A fill inside a filled block, over that block's ground: `blockIdle` (fillIdle over
 ///   `idle`: a notice's details, a chip in a block), `blockHover` (fillHover over `idle`: a
 ///   picker's row under the pointer or the keyboard), `blockSelected`, `blockSelectedCursor`
@@ -183,6 +184,8 @@ class ThemeGrounds : public QObject
     Q_PROPERTY(omaseed::integration::ThemeInk *hoverPressed READ hoverPressed CONSTANT FINAL)
     Q_PROPERTY(omaseed::integration::ThemeInk *panel READ panel CONSTANT FINAL)
     Q_PROPERTY(omaseed::integration::ThemeInk *picked READ picked CONSTANT FINAL)
+    Q_PROPERTY(omaseed::integration::ThemeInk *turtle READ turtle CONSTANT FINAL)
+    Q_PROPERTY(omaseed::integration::ThemeInk *burst READ burst CONSTANT FINAL)
 
 public:
     explicit ThemeGrounds(QObject *parent = nullptr);
@@ -211,6 +214,8 @@ public:
     ThemeInk *hoverPressed() const { return m_hoverPressed; }
     ThemeInk *panel() const { return m_panel; }
     ThemeInk *picked() const { return m_picked; }
+    ThemeInk *turtle() const { return m_turtle; }
+    ThemeInk *burst() const { return m_burst; }
 
     /// Every ground, window first: what `--theme-roles` prints and the contrast tests walk.
     QList<ThemeInk *> all() const;
@@ -242,6 +247,8 @@ private:
     ThemeInk *m_hoverPressed;
     ThemeInk *m_panel;
     ThemeInk *m_picked;
+    ThemeInk *m_turtle;
+    ThemeInk *m_burst;
 };
 
 } // namespace omaseed::integration

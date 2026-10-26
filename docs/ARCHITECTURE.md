@@ -128,7 +128,7 @@ theme changes.
    4.5:1 with the least lift, once per theme change, and the ground's `fill`, which is what
    to paint: `window`, `idle`, `hover`, `cursor`, `selected`, `selectedCursor`, `pressed`; the
    tints `warning` (the yellow bands), `attention`, `danger` (a selected danger button),
-   `ticked`, `accentIdle`; fills inside a 4 % block, `blockIdle`, `blockHover`,
+   `ticked`, `accentIdle`, `turtle` and `burst` (the alternative speeds' chip); fills inside a 4 % block, `blockIdle`, `blockHover`,
    `blockSelected`, `blockSelectedCursor`, `blockPressed`, `highlight`; and fills over the
    hover fill (the action bar, a hovered settings row), `hoverIdle`, `hoverHover`,
    `hoverSelected`, `hoverPressed` (#188). A control with states keeps a `Kit/Ink` on

@@ -32,8 +32,14 @@ Item {
     property string sentence: ""
 
     // ---- the filter tool -----------------------------------------------------------------
-    /// The filter is offered (not on the log, whose lines have their own).
+    /// The filter is offered.
     property bool filterShown: true
+    /// What the filter narrows, for a screen reader ("filter torrents"; the log's "filter
+    /// lines", board 51 D5 a), and the hint it shows open; `filterTokens` draws its is:, cat:
+    /// and the like as chips (D18 a), which only the torrents' filter reads.
+    property string filterName: qsTr("filter torrents")
+    property string filterHint: qsTr("words, or is:stalled, cat:films, tag:keep, tracker:…")
+    property bool filterTokens: true
     property string searchText: ""
     /// What the field's trailing count prints: the count, or "N of M" while it filters.
     property string searchCountText: ""
@@ -42,16 +48,53 @@ Item {
     /// From step 2 the filter is a tool; this is true while it is open over the title.
     property bool searchOpen: false
     readonly property bool searchFolded: root.level >= 2 && !root.searchOpen
+    /// Board 51 D18 a (F21): the field is in use, the caret in it or a filter set. It then
+    /// takes the bar's free room: the title stays, its sentence gives way.
+    readonly property bool filterOpen: root.filterShown && !root.searchFolded
+                                       && (filterField.editing || filterField.text.length > 0)
+
+    // ---- the speeds (DECISIONS C32 D2 a, D6 a) ---------------------------------------------
+    /// The speeds are drawn here (Settings › Appearance › Speeds: the title bar). From step 2
+    /// they give way (`speedsFit`), and the status line takes them back.
+    property bool speedsShown: false
+    readonly property bool speedsFit: root.level < 2
+    /// Each speed as `App.speedParts` splits it: `{value, cap, unit}`, `cap` "" with none.
+    property var downParts: ({
+            "value": "—",
+            "cap": "",
+            "unit": ""
+        })
+    property var upParts: ({
+            "value": "—",
+            "cap": "",
+            "unit": ""
+        })
+    /// The last polls' speeds, oldest first, for the line under each.
+    property var downHistory: []
+    property var upHistory: []
+    /// D6 a: the caps read in the alternative set's colour (turtle yellow, burst green).
+    property color capColor: Theme.yellow
+    /// #24: ↑ opens the seed console here too, as on the status line; with what it adds for a
+    /// screen reader and its tooltip ("18.4 GB today").
+    property bool upOpensSeed: false
+    property string upNote: ""
+    /// The speeds' block, for the tests.
+    readonly property alias speeds: speedsRow
 
     // ---- the other tools -----------------------------------------------------------------
     /// The display tool (board 46 `.tool.disp`, DECISIONS C24 H3–H4): the scope's display,
-    /// "rows", "table" or "overview" (said "shelves", #168 assumed 6); "" hides it (the seed
+    /// "rows", "table" or "space" (board 51 D12 a, C32); "" hides it (the seed
     /// console, the log). No key (#168 assumed 8): `:` has its rows.
     property string display: ""
+    /// Board 51 D13 a (DECISIONS C32): the list's sort in a word ("added"), said after the
+    /// display ("rows · added"); "" says the display alone.
+    property string sortWord: ""
     /// "+ add" (`a`).
     property bool addShown: true
     /// "+ add ▾": a click opens the add menu (create, search; C24 H17, #146), not the sheet.
     property bool addMenuShown: false
+    /// Board 51 D5 a: "export log…" in + add's place, on the log.
+    property bool exportShown: false
     /// "move this folder…" (shift+m): a folder is picked (H5).
     property bool moveFolderShown: false
     /// The way back from a move's torrents on show, its words and key ("back to the sheet",
@@ -65,6 +108,7 @@ Item {
 
     /// The parts tests and the walks read.
     readonly property alias addTool: addTool
+    readonly property alias exportTool: exportTool
     readonly property alias displayTool: displayTool
     readonly property alias moveFolderTool: moveFolderTool
     readonly property alias backTool: backTool
@@ -82,6 +126,9 @@ Item {
     }
 
     signal addClicked
+    signal exportClicked
+    /// ↑, with `upOpensSeed`: the seed console.
+    signal upClicked
     /// The display tool: the window opens its menu under it.
     signal displayClicked
     signal moveFolderClicked
@@ -97,10 +144,15 @@ Item {
         filterField.focusInput();
     }
 
-    /// The display's word: rows, table, shelves.
+    /// The display's word: rows, table, space.
     function displayWord(display: string): string {
-        return display === "table" ? qsTr("table") : display === "overview" ? qsTr("shelves")
-                                                                             : qsTr("rows");
+        return display === "table" ? qsTr("table") : display === "space" ? qsTr("space") : qsTr("rows");
+    }
+
+    /// The display tool's word: the display, and the sort after it (board 51 D13 a).
+    function displayToolWord(display: string): string {
+        const word = root.displayWord(display);
+        return root.sortWord.length > 0 ? qsTr("%1 · %2").arg(word).arg(root.sortWord) : word;
     }
 
     /// A tool's tooltip: its words (which narrow steps leave out) and its key.
@@ -113,6 +165,103 @@ Item {
     /// words in a Glyph; Omarchy's ▾ stays in the words.
     readonly property bool chevronDrawn: Glyphs.chevronDownGlyph !== Glyphs.chevronDown
     implicitWidth: Theme.space(900)
+
+    // One speed (board 51 `.tspd`): its arrow and figure, the cap after a slash while the
+    // alternative limits hold it (D6 a), the unit small, and the last polls under them.
+    component SpeedFigure: ColumnLayout {
+        id: figure
+
+        property string arrow: ""
+        property color tone: Theme.foreground
+        property var parts: ({})
+        property var history: []
+        /// "download" or "upload", for a screen reader.
+        property string name: ""
+        /// A button (↑ to the seed console, #24): its name, its tooltip.
+        property bool clickable: false
+        property string clickName: ""
+        property string tipText: ""
+
+        signal clicked
+        readonly property string spoken: [figure.parts.value ?? "", figure.parts.cap ? "/ " + figure.parts.cap : "",
+                                          figure.parts.unit ?? ""].filter(part => part.length > 0).join(" ")
+
+        Accessible.description: figure.spoken
+        Accessible.name: figure.clickable ? figure.clickName : figure.name
+        Accessible.role: figure.clickable ? Accessible.Button : Accessible.StaticText
+        Accessible.onPressAction: if (figure.clickable)
+                                      figure.clicked()
+        Layout.alignment: Qt.AlignVCenter
+        spacing: 0
+
+        MouseArea {
+            id: figureMouse
+
+            anchors.fill: parent
+            cursorShape: figure.clickable ? Qt.PointingHandCursor : Qt.ArrowCursor
+            enabled: figure.clickable
+            hoverEnabled: true
+
+            onClicked: figure.clicked()
+            onContainsMouseChanged: figureMouse.containsMouse && figure.tipText.length > 0
+                                    ? tip.showFor(figure, figure.tipText) : tip.hide()
+        }
+
+        Row {
+            spacing: Theme.space(5)
+
+            Text {
+                anchors.baseline: value.baseline
+                color: figureMouse.containsMouse ? Theme.accent : figure.tone
+                font.family: Theme.valueFamily
+                font.pixelSize: Theme.titleBarSpeedArrowSize
+                text: figure.arrow
+            }
+
+            Text {
+                id: value
+
+                color: Theme.brightForeground
+                font.family: Theme.valueFamily
+                font.features: {
+                    "tnum": 1
+                }
+                font.pixelSize: Theme.titleBarSpeedSize
+                font.weight: Theme.titleBarSpeedWeight
+                objectName: "speedValue"
+                text: figure.parts.value ?? ""
+            }
+
+            Text {
+                anchors.baseline: value.baseline
+                color: root.capColor
+                font.family: Theme.valueFamily
+                font.pixelSize: Theme.titleBarSpeedUnitSize
+                objectName: "speedCap"
+                text: "/ " + (figure.parts.cap ?? "")
+                visible: (figure.parts.cap ?? "").length > 0
+            }
+
+            Text {
+                anchors.baseline: value.baseline
+                color: Theme.dimForeground
+                font.family: Theme.valueFamily
+                font.pixelSize: Theme.titleBarSpeedUnitSize
+                objectName: "speedUnit"
+                text: figure.parts.unit ?? ""
+                visible: text.length > 0
+            }
+        }
+
+        Sparkline {
+            Layout.preferredHeight: Theme.titleBarSparkHeight
+            Layout.preferredWidth: Theme.titleBarSparkWidth
+            color: figure.tone
+            fillAlpha: 0
+            lineAlpha: 1
+            values: figure.history
+        }
+    }
 
     // The tools: a kit Button whose words go at step 1, with a tooltip that keeps them and
     // the key, and the key in a screen reader's description (#78).
@@ -162,8 +311,11 @@ Item {
             id: heading
 
             Layout.alignment: Qt.AlignVCenter
-            Layout.fillWidth: true
-            Layout.minimumWidth: 0
+            // D18 a: while the filter is open the title keeps its own width, no more.
+            Layout.fillWidth: !root.filterOpen
+            Layout.maximumWidth: root.filterOpen ? Math.ceil(titleText.implicitWidth) : -1
+            Layout.minimumWidth: root.filterOpen ? Math.ceil(titleText.implicitWidth) : 0
+            Layout.preferredWidth: root.filterOpen ? Math.ceil(titleText.implicitWidth) : -1
             spacing: Theme.titleBarLineGap
             visible: !(root.level >= 2 && root.searchOpen)
 
@@ -199,7 +351,7 @@ Item {
                 objectName: "titleSentence"
                 text: root.sentence
                 textFormat: Text.PlainText
-                visible: root.sentence.length > 0
+                visible: root.sentence.length > 0 && !root.filterOpen
 
                 HoverHandler {
                     id: sentenceHover
@@ -210,6 +362,49 @@ Item {
                                                                                             sentenceText.text) :
                                                                                         tip.hide()
                 }
+            }
+        }
+
+        // D2 a: ↓ and ↑ after the title, a hairline before the tools.
+        RowLayout {
+            id: speedsRow
+
+            Layout.alignment: Qt.AlignVCenter
+            Layout.fillHeight: true
+            objectName: "titleSpeeds"
+            spacing: Theme.titleBarGap
+            visible: root.speedsShown && root.speedsFit
+
+            SpeedFigure {
+                arrow: Glyphs.arrowDown
+                history: root.downHistory
+                name: qsTr("download")
+                objectName: "titleDown"
+                parts: root.downParts
+                tone: Theme.stateDownloading
+            }
+
+            SpeedFigure {
+                arrow: Glyphs.arrowUp
+                clickName: qsTr("seed console")
+                clickable: root.upOpensSeed
+                history: root.upHistory
+                name: qsTr("upload")
+                tipText: root.upOpensSeed ? [qsTr("seed console · `"), root.upNote].filter(part => part.length > 0).join(
+                                                "\n") : ""
+
+                onClicked: root.upClicked()
+                objectName: "titleUp"
+                parts: root.upParts
+                tone: Theme.stateSeeding
+            }
+
+            Hairline {
+                Layout.bottomMargin: Theme.space(10)
+                Layout.fillHeight: true
+                Layout.preferredWidth: Theme.hairWidth
+                Layout.topMargin: Theme.space(10)
+                vertical: true
             }
         }
 
@@ -260,15 +455,20 @@ Item {
             id: filterField
 
             Layout.alignment: Qt.AlignVCenter
-            Layout.fillWidth: root.level >= 2
+            // F21, D18 a: at rest the tool's width; in use, the bar's free room.
+            Layout.fillWidth: root.level >= 2 || root.filterOpen
             Layout.preferredWidth: Theme.titleBarFindWidth
             // #91: the same name at every width.
-            accessibleName: qsTr("filter torrents")
+            accessibleName: root.filterName
             hint: Glyphs.search
             objectName: "titleFilter"
-            placeholder: qsTr("filter")
+            // D18 a: open, the hint names what it takes.
+            placeholder: root.filterOpen ? root.filterHint : qsTr("filter")
             text: root.searchText
+            tokenChips: root.filterTokens
             trailing: root.searchCountText
+            // D18 a: "× esc" clears what is typed; "esc" alone leaves the empty field.
+            trailingKey: !root.filterOpen ? "" : filterField.text.length > 0 ? qsTr("× esc") : qsTr("esc")
             // While it filters, the count clears it with a click, as `esc` does.
             trailingClickable: filterField.text.length > 0
             // #78: the count is no name for what its click does.
@@ -301,15 +501,16 @@ Item {
         Tool {
             id: displayTool
 
-            glyph: root.display === "table" ? Glyphs.displayTable : root.display === "overview"
-                                                                    ? Glyphs.displayShelves
-                                                                    : Glyphs.displayRows
+            glyph: root.display === "table" ? Glyphs.displayTable : root.display === "space" ? Glyphs.displaySpace
+                                                                                             : Glyphs.displayRows
             objectName: "titleDisplay"
-            text: root.level >= 1 ? "" : root.chevronDrawn ? root.displayWord(root.display)
-                                                           : qsTr("%1 ▾").arg(root.displayWord(root.display))
+            text: root.level >= 1 ? "" : root.chevronDrawn ? root.displayToolWord(root.display)
+                                                           : qsTr("%1 ▾").arg(root.displayToolWord(root.display))
             trailingGlyph: root.level >= 1 || !root.chevronDrawn ? "" : Glyphs.chevronDownGlyph
             visible: root.display.length > 0
-            words: qsTr("display: %1").arg(root.displayWord(root.display))
+            words: root.sortWord.length > 0
+                   ? qsTr("display: %1, sorted by %2").arg(root.displayWord(root.display)).arg(root.sortWord)
+                   : qsTr("display: %1").arg(root.displayWord(root.display))
 
             onClicked: root.displayClicked()
         }
@@ -329,6 +530,21 @@ Item {
             words: qsTr("add")
 
             onClicked: root.addClicked()
+        }
+
+        // Board 51 D5 a: the log's lines as shown, to a text file. No key of its own (the
+        // board gives it none); `:` has it.
+        Tool {
+            id: exportTool
+
+            glyph: Glyphs.exportFile
+            objectName: "titleExport"
+            // Board 51 `.tool.exp`: the accent's words and edge, as + add.
+            primary: true
+            visible: root.exportShown
+            words: qsTr("export log…")
+
+            onClicked: root.exportClicked()
         }
     }
 

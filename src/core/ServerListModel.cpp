@@ -464,16 +464,31 @@ void ServerListModel::setProbeResult(const QString &id,
     const int row = indexOfId(id);
     if (row < 0)
         return;
+    // #201 F5: a probe that counted a server's torrents saw it, so the rail's row has a count
+    // from the moment it is added and tested, not only once omaseed has been on it. The
+    // current server keeps its live count.
+    const bool seen = reachable && torrentCount >= 0 && id != m_currentId;
+    if (seen) {
+        Seen &last = m_seen[id];
+        last.torrents = torrentCount;
+        last.at = QDateTime::currentDateTime();
+        last.error.clear();
+        last.detail.clear();
+    }
+    QList<int> roles{ReachableRole,
+                     ReachableTextRole,
+                     TorrentCountRole,
+                     LastErrorRole,
+                     VersionRole,
+                     ApiVersionRole,
+                     VersionTextRole};
+    if (seen)
+        roles << StateRole << LastCountRole << LastSeenRole << LastSeenAtRole << LastFailedRole
+              << LastReasonRole << LastDetailRole << CountTextRole;
     const QModelIndex changedIndex = index(row, 0);
-    Q_EMIT dataChanged(changedIndex,
-                       changedIndex,
-                       {ReachableRole,
-                        ReachableTextRole,
-                        TorrentCountRole,
-                        LastErrorRole,
-                        VersionRole,
-                        ApiVersionRole,
-                        VersionTextRole});
+    Q_EMIT dataChanged(changedIndex, changedIndex, roles);
+    if (seen)
+        Q_EMIT lastSeenChanged();
 }
 
 Server ServerListModel::serverFromMap(const QVariantMap &fields, QString *urlPassword)

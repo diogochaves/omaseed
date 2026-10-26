@@ -614,6 +614,142 @@ private slots:
         m_move = nullptr;
     }
 
+    // DECISIONS C32 D19 (board 51): move back carries back exactly the loose files the move
+    // carried, from the list it kept, under the sheet's tick; one changed at the new place
+    // since stays and is named; one put there since is never carried; "this one only" none.
+    void moveBackCarriesBackWhatTheMoveCarried()
+    {
+        QTemporaryDir disks;
+        const QString games = disks.filePath(QStringLiteral("archive/games"));
+        const QString fast = disks.filePath(QStringLiteral("fast/games"));
+        const QDateTime old = QDateTime::currentDateTime().addDays(-2);
+        const auto put = [&old](const QString &path, const QByteArray &bytes) {
+            QDir().mkpath(QFileInfo(path).path());
+            QFile file(path);
+            QVERIFY(file.open(QIODevice::WriteOnly));
+            file.write(bytes);
+            file.flush();
+            file.setFileTime(old, QFileDevice::FileModificationTime);
+        };
+        put(games + u"/Open Arena/arena.bin", "torrent's own");
+        put(games + u"/handheld/Homebrew Pack/pack.bin", "torrent's own");
+        put(games + u"/manual.pdf", "the manual");
+        put(games + u"/handheld/saves/slot1.sav", "a save");
+
+        m_engine->torrents()->applyFullUpdate(QJsonObject{
+            {QStringLiteral("a1"), torrent(QStringLiteral("Open Arena"), games, 300)},
+            {QStringLiteral("c3"),
+             torrent(QStringLiteral("Homebrew Pack"), games + u"/handheld", 100)},
+        });
+        omaseed::core::FreeSpaceProbe probe([](const QString &) {
+            omaseed::core::StorageReading reading;
+            reading.valid = true;
+            reading.exists = true;
+            reading.bytesFree = 500LL << 30;
+            reading.bytesTotal = 1000LL << 30;
+            reading.rootPath = QStringLiteral("/");
+            return reading;
+        });
+        probe.setServer(games, 500LL << 30, omaseed::core::PathMap(), false);
+        m_probe = &probe;
+        make();
+        m_move->setServer(QStringLiteral("home"));
+        const auto land = [this]() {
+            for (int poll = 0; poll < 6 && m_move->stateName() == QStringLiteral("running"); ++poll)
+                landSent();
+            QTRY_COMPARE(m_move->stateName(), QStringLiteral("done"));
+        };
+
+        m_move->plan(games, fast, true);
+        QTRY_COMPARE(m_move->looseRows(games).size(), 2);
+        QVERIFY(m_move->start(games, fast, true));
+        land();
+        QVERIFY(QFile::exists(fast + u"/manual.pdf"));
+        QVERIFY(QFile::exists(fast + u"/handheld/saves/slot1.sav"));
+
+        // Since the move: one carried file edited there, one new file put there.
+        put(fast + u"/handheld/saves/slot1.sav", "a save, played on");
+        put(fast + u"/new-scan.png", "put there since");
+
+        // The summary's move back: the record's list, checked at the new place.
+        const auto rowsOf = [](const QVariantMap &sheet) {
+            return sheet.value(QStringLiteral("carryBack"))
+                .toMap()
+                .value(QStringLiteral("rows"))
+                .toList();
+        };
+        QVariantMap sheet = m_move->planBack();
+        QTRY_COMPARE(rowsOf(sheet = m_move->planBack()).size(), 3); // the walk adds the third
+        QVariantMap carryBack = sheet.value(QStringLiteral("carryBack")).toMap();
+        QCOMPARE(carryBack.value(QStringLiteral("text")).toString(),
+                 QStringLiteral("Carry back the 2 loose files the move carried"));
+        QCOMPARE(carryBack.value(QStringLiteral("count")).toInt(), 1);
+        QVariantList rows = rowsOf(sheet);
+        QCOMPARE(rows.at(0).toMap().value(QStringLiteral("name")).toString(),
+                 QStringLiteral("manual.pdf"));
+        QCOMPARE(rows.at(0).toMap().value(QStringLiteral("verdict")).toString(),
+                 QStringLiteral("back"));
+        QCOMPARE(rows.at(1).toMap().value(QStringLiteral("name")).toString(),
+                 QStringLiteral("handheld/saves/slot1.sav"));
+        QCOMPARE(rows.at(1).toMap().value(QStringLiteral("verdict")).toString(),
+                 QStringLiteral("stays"));
+        QVERIFY(rows.at(1)
+                    .toMap()
+                    .value(QStringLiteral("detail"))
+                    .toString()
+                    .endsWith(QStringLiteral(", after the move")));
+        QCOMPARE(rows.at(2).toMap().value(QStringLiteral("detail")).toString(),
+                 QStringLiteral("put there since; the move didn't carry it"));
+        QCOMPARE(sheet.value(QStringLiteral("moveText")).toString(),
+                 QStringLiteral("move 2 back · 1 file"));
+        QCOMPARE(sheet.value(QStringLiteral("footNote")).toString(),
+                 QStringLiteral("the list is the one the move kept"));
+        QVERIFY(!checkTexts(sheet).join(u'|').contains(QStringLiteral("stay at")));
+        // The tick off: the torrents only.
+        const QVariantMap untick = m_move->planBack(false);
+        QCOMPARE(untick.value(QStringLiteral("moveText")).toString(),
+                 QStringLiteral("move 2 back"));
+        QCOMPARE(rowsOf(untick).at(0).toMap().value(QStringLiteral("verdict")).toString(),
+                 QStringLiteral("stays"));
+
+        // After the summary closes, details, the log and the palette give the same.
+        m_move->closeSummary();
+        const QString id = m_move->newestMove().value(QStringLiteral("id")).toString();
+        QVERIFY(!id.isEmpty());
+        QCOMPARE(m_move->planBackOf(id).value(QStringLiteral("moveText")).toString(),
+                 QStringLiteral("move 2 back · 1 file"));
+        // "This one only" carries none.
+        const QVariantMap one = m_move->planBackOf(id, QStringLiteral("c3"));
+        QVERIFY(one.value(QStringLiteral("carryBack")).toMap().isEmpty());
+        QCOMPARE(one.value(QStringLiteral("moveText")).toString(), QStringLiteral("move 1 back"));
+
+        QVERIFY(m_move->startBackOf(id));
+        land();
+        QCOMPARE(QFileInfo(games + u"/manual.pdf").lastModified(), old);
+        QVERIFY(!QFile::exists(fast + u"/manual.pdf"));
+        QVERIFY(QFile::exists(fast + u"/handheld/saves/slot1.sav"));
+        QVERIFY(!QFile::exists(games + u"/handheld/saves/slot1.sav"));
+        QVERIFY(QFile::exists(fast + u"/new-scan.png"));
+        QVERIFY(!QFile::exists(games + u"/new-scan.png"));
+        const QVariantMap band = m_move->band();
+        QCOMPARE(band.value(QStringLiteral("headline")).toString(),
+                 QStringLiteral("2 torrents moved back, loose files too"));
+        const QString line = band.value(QStringLiteral("line")).toString();
+        QVERIFY2(line.startsWith(QStringLiteral("2 torrents and 1 file back at ") + games),
+                 qPrintable(line));
+        QVERIFY2(line.contains(QStringLiteral("stayed at %1: handheld/saves/slot1.sav (changed "
+                                              "after the move)")
+                                   .arg(fast)),
+                 qPrintable(line));
+        QVERIFY2(m_notices.last().contains(QStringLiteral("1 loose file carried back")),
+                 qPrintable(m_notices.last()));
+        // Every torrent went back: the record goes, the changed file is the user's now.
+        QVERIFY(m_move->newestMove().isEmpty());
+        m_move->closeSummary();
+        delete m_move;
+        m_move = nullptr;
+    }
+
     // T3, board 42 §8: qBittorrent's "No space left on device" reads "… is full".
     void aFullDiskSaysFull()
     {

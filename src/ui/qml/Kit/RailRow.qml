@@ -51,6 +51,13 @@ Rectangle {
     /// before the count, or at the folded row's edge. "" for a row with no key of its own.
     property string keyText: ""
     property bool keysShown: false
+    /// Board 51 D5 a (`.ri .tk2`): a tick box in the glyph's column, filled in `tickColor`
+    /// while `ticked` (the log's levels). `toneName` paints the name in it too (`.lvw`: the
+    /// warning and critical levels).
+    property bool tick: false
+    property bool ticked: false
+    property color tickColor: Theme.accent
+    property bool toneName: false
     /// What the row sits on while it paints nothing (docs/DECISIONS.md C30 F1): the window,
     /// or the block it is in (the rail's servers, `Theme.on.idle`).
     property ThemeInk block: Theme.on.window
@@ -135,16 +142,36 @@ Rectangle {
             height: Theme.font.small
             pixelSize: Theme.font.small
             text: root.glyph
+            visible: !root.tick
             width: Theme.space(14)
+        }
+
+        // The tick, in the glyph's place and room.
+        Item {
+            anchors.verticalCenter: parent.verticalCenter
+            height: Theme.font.small
+            visible: root.tick
+            width: Theme.space(14)
+
+            Rectangle {
+                anchors.centerIn: parent
+                border.color: root.ticked ? "transparent" : root.ink.dimForeground
+                border.width: root.ticked ? 0 : Theme.hairWidth
+                color: root.ticked ? root.ink.of(root.tickColor) : "transparent"
+                height: Theme.space(11)
+                objectName: "railRowTick"
+                width: Theme.space(11)
+            }
         }
 
         Text {
             id: nameText
 
             anchors.verticalCenter: parent.verticalCenter
-            color: root.selected || root.current ? root.ink.brightForeground : root.dimText
-                                                                               ? root.ink.dimForeground
-                                                                               : root.ink.foreground
+            color: root.toneName ? root.ink.of(root.tickColor) : root.selected || root.current
+                                                                 ? root.ink.brightForeground : root.dimText
+                                                                                               ? root.ink.dimForeground
+                                                                                               : root.ink.foreground
 
             elide: root.elideLeft ? Text.ElideLeft : Text.ElideRight
             // Board 46 `.ri`: a place's name in the label family, its count a value; a view's
@@ -156,7 +183,7 @@ Rectangle {
             font.weight: root.view ? Theme.controlWeight : Font.Normal
             text: root.text
             visible: !root.compact
-            width: Math.max(0, label.width - glyphText.width - label.spacing)
+            width: Math.max(0, label.width - Theme.space(14) - label.spacing)
         }
     }
 

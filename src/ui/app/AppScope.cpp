@@ -73,9 +73,14 @@ QString App::lostSentence(const QString &listTime, const QString &headline) cons
     return ScopeSentence::lost(listTime, headline);
 }
 
-QString App::logSentence(const QString &server, int lines, const QString &since) const
+QString App::logSentence(const QString &server,
+                         int lines,
+                         const QString &since,
+                         int warnings,
+                         int critical,
+                         bool following) const
 {
-    return ScopeSentence::log(server, lines, since);
+    return ScopeSentence::log(server, lines, since, warnings, critical, following);
 }
 
 QString App::seedSentence(const QString &upSpeed, const QString &today, const QString &scope) const

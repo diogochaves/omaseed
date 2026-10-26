@@ -19,6 +19,8 @@
 //
 // Pure data, no Qt object: the controller owns one per server and saves it through its hooks.
 
+#include "core/LooseCarry.hpp"
+
 #include <QDateTime>
 #include <QHash>
 #include <QJsonArray>
@@ -44,6 +46,11 @@ struct MoveRecord
     QStringList hadAutoTmm;        ///< automatic management was on before the move
     int carried = 0;               ///< loose files carried after the torrents (a folder's)
     QString carriedTo;             ///< where they went
+    /// DECISIONS C32 D19: where they came from (the folder's path before), and each one
+    /// carried as it lay at carriedTo after the carry (LooseCarry::asCarried()): what move
+    /// back carries back, and nothing else. Empty in a record from before v0.5.0.
+    QString carriedFrom;
+    QList<CarryFile> carriedFiles;
     /// DECISIONS C28 (#176): the empty files no torrent owned that "replace it" deleted from
     /// the torrents' way before the move, as the server writes them.
     QStringList replaced;
@@ -73,9 +80,10 @@ public:
     /// The newest record that moved `hash`; null for none.
     const MoveRecord *lastFor(const QString &hash) const;
 
-    /// A move back of `id` landed for `hashes`: they leave the record, and a record with
-    /// none left goes. True when something changed.
-    bool backDone(const QString &id, const QStringList &hashes);
+    /// A move back of `id` landed for `hashes`, and carried back the loose files `filesBack`
+    /// (relative paths, C32 D19): they leave the record, and a record with no torrent left
+    /// goes. True when something changed.
+    bool backDone(const QString &id, const QStringList &hashes, const QStringList &filesBack = {});
 
     struct BackCheck
     {

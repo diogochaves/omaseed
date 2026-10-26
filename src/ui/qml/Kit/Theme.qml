@@ -383,6 +383,15 @@ ThemeBase {
     /// alone (their words in the tooltip), from step 2 the filter folds into its `/` tool and
     /// opens over the title.
     readonly property var titleBarSteps: [space(760), space(560)]
+    /// The speeds in the title bar (board 51 D2 a `.tspd`): the figure (15 px, 500), its
+    /// arrow (13 px) and unit (10.5 px), and the line of the last polls under each (72 × 18;
+    /// held lower here so the bar keeps its height).
+    readonly property int titleBarSpeedSize: font.title
+    readonly property int titleBarSpeedWeight: Font.Medium
+    readonly property int titleBarSpeedArrowSize: font.body
+    readonly property int titleBarSpeedUnitSize: font.caption
+    readonly property int titleBarSparkWidth: n("titleBarSparkWidth", 72)
+    readonly property int titleBarSparkHeight: n("titleBarSparkHeight", 12)
 
     // ---- the frame's form: the status line (board 46 `statusLine()`, `.status`) ----------
     /// Its height: the line it replaced (the footer), one small line with room around it.
@@ -407,26 +416,30 @@ ThemeBase {
     /// at 4 the downloading count and the free space go.
     readonly property var statusLineSteps: [space(880), space(740), space(600), space(460)]
 
-    // ---- the frame's form: the action bar (board 46 `statusLine()` while selecting, `.sel`) --
-    /// The status line's own height and insets: the bar takes its place, and nothing above it
-    /// moves when a selection starts or ends (DECISIONS C24 H8).
-    readonly property int actionBarHeight: statusLineHeight
-    readonly property int actionBarInsetStart: statusLineInsetStart
-    readonly property int actionBarInsetEnd: statusLineInsetEnd
-    /// Its ground, a fill over the window's (board 46 `.status.sel`: the 8 % fill).
-    readonly property real actionBarFill: fillHover
-    /// The same ground as `Theme.on`'s, which the bar paints and takes its words from
-    /// (DECISIONS C30 F1): a skin that moves the bar's fill moves its text with it.
-    readonly property ThemeInk actionBarGround: on.hover
-    /// A button's height: inside the line with a little room above and below it.
-    readonly property int actionBarButtonSize: statusLineHeight - space(4)
-    /// Between two of its parts (board 46 `.status.sel`: 4 px).
-    readonly property int actionBarGap: n("actionBarGap", 4)
-    /// A word button (board 46 `.status.sel .ab`: 8 px either side of its word, the status
-    /// line's type), and the room before the end's "all actions" and "esc".
-    readonly property int actionBarWordPadding: n("actionBarWordPadding", 8)
+    // ---- the frame's form: the action bar (board 51 D17 `.abar`, `.ab2`, DECISIONS C32) ----
+    /// It floats over the list, bottom middle, `actionBarLift` above the list's foot (board 51
+    /// `.fl51 { bottom: 12px }`), and the outcome strip `actionBarStripGap` above it.
+    readonly property int actionBarLift: n("actionBarLift", 12)
+    readonly property int actionBarStripGap: n("actionBarStripGap", 8)
+    /// Round its buttons, inside its edge (`.abar { padding: 4px }`).
+    readonly property int actionBarPadding: n("actionBarPadding", 4)
+    /// A button's height and an icon button's width (`.ab2 { height: 30px }`, `.ab2.ico`).
+    readonly property int actionBarButtonSize: n("actionBarButtonSize", 30)
+    /// The whole bar: its buttons, its padding and its edge.
+    readonly property int actionBarHeight: actionBarButtonSize + 2 * actionBarPadding + 2 * edgeWidth
+    /// Between two of its parts (`.abar { gap: 1px }`), and a group's rule's room either side
+    /// (`.sp { margin: 3px 4px }`).
+    readonly property int actionBarGap: n("actionBarGap", 1)
+    readonly property int actionBarRuleInset: n("actionBarRuleInset", 4)
+    /// A word button: 9 px either side (`.ab2 { padding: 0 9px }`), the status line's type.
+    readonly property int actionBarWordPadding: n("actionBarWordPadding", 9)
     readonly property int actionBarFontSize: Math.min(statusLineFontSize, controlFontSize)
-    readonly property int actionBarEndGap: n("actionBarEndGap", 12)
+    /// The count's room (`.cnt { padding: 0 12px 0 8px }`).
+    readonly property int actionBarCountStart: n("actionBarCountStart", 8)
+    readonly property int actionBarCountEnd: n("actionBarCountEnd", 12)
+    /// Its ground, the strip's: the window's, or the panel's on a skin that plates its blocks
+    /// (DECISIONS C30 F1: its words and buttons take their colours from it).
+    readonly property ThemeInk actionBarGround: platedBlocks ? on.panel : on.window
 
     // ---- the sheets' form (board 46 `.sheet`, `.shh`, `.shb`, `.shf`, DECISIONS C24 H7) ------
     /// From the window's edge to a sheet that would be wider than the window.
@@ -470,9 +483,8 @@ ThemeBase {
     readonly property int menuHeadTitleWeight: titleWeight
 
     // ---- the frame's form: the app menu (board 46 `menuHtml("app")`, DECISIONS C24 H9) ---
-    /// Its width: board 46's `.menu` is 268 px at least at 13 px type; the head's version and
-    /// server line ("0.5.0 · public · qBittorrent 5.3.0") want more than the kit's 280.
-    readonly property int appMenuWidth: n("appMenuWidth", 340)
+    /// Its width: board 51 D14 b's 292, wider than the rail it grows from (DECISIONS C32).
+    readonly property int appMenuWidth: n("appMenuWidth", 292)
 
     // ---- the frame's form: keys on demand (board 46 `.kb`, DECISIONS C24 H10) ------------
     /// A key's badge while alt is held: its height, the room either side of the key, its type
@@ -539,6 +551,13 @@ ThemeBase {
     readonly property real libraryRowCaptionTracking: font.caption * captionTrack(0.12)
     readonly property int libraryRowCaptionWeight: captionWeight(Font.Normal)
     readonly property int libraryRowFactWidth: n("libraryRowFactWidth", 85)
+    /// #201 F13: the room a name keeps before the fact however narrow the list; the fact
+    /// shortens, then its caption drops, first.
+    readonly property int libraryRowNameFloor: n("libraryRowNameFloor", 80)
+    /// #201 F13: the table's name keeps as much before its category and "private".
+    readonly property int tableNameFloor: n("tableNameFloor", 80)
+    /// Under this, a row's sentence or fact draws nothing rather than a lone "…".
+    readonly property int libraryRowWordsFloor: n("libraryRowWordsFloor", 24)
     /// The progress line before the sentence (board 46 `.strip`: 168 × 4 px on an 8 % track).
     readonly property int libraryRowLineWidth: n("libraryRowLineWidth", 155)
     readonly property int libraryRowLineThickness: n("libraryRowLineThickness", 4)
@@ -659,45 +678,51 @@ ThemeBase {
     readonly property int searchPluginNameWidth: n("searchPluginNameWidth", 110)
     readonly property int searchPluginGap: n("searchPluginGap", 9)
 
-    // ---- the library's form: the overview's shelves (board 46 `overview()`, `.shelf`) -----
-    /// The shelves' inset (6 / 18 px) and the room between two shelves (14 px).
-    readonly property int shelfInset: n("shelfInset", 16)
-    readonly property int shelfInsetTop: n("shelfInsetTop", 6)
-    readonly property int shelfGap: n("shelfGap", 13)
-    /// A shelf's head (`.shelf h5`): the name (13 px, 600, bright), its count and size (11 px,
-    /// dim, upper case, tracked), and the room under it.
-    readonly property int shelfNameSize: font.body
-    readonly property int shelfNameWeight: Font.DemiBold
-    readonly property int shelfLineSize: font.caption
-    readonly property real shelfLineTracking: font.caption * 0.12
-    readonly property int shelfHeadGap: n("shelfHeadGap", 6)
-    /// A cover (`.cover`, 92 px wide, its art 118 px tall) and the room between covers.
-    readonly property int coverWidth: n("coverWidth", 85)
-    readonly property int coverArtHeight: n("coverArtHeight", 109)
-    readonly property int coverGap: n("coverGap", 9)
-    /// The piece grid inside the art (`.grid`: 6 px in, 10 cells across, 6 px tall, 1 px
-    /// apart), at 55 % of the state colour over an 8 % cell.
-    readonly property int coverGridInset: n("coverGridInset", 6)
-    readonly property int coverGridColumns: 10
-    readonly property int coverGridRows: 6
-    readonly property int coverCellHeight: n("coverCellHeight", 6)
-    readonly property int coverCellGap: 1
-    readonly property real coverCellAlpha: 0.55
-    readonly property real coverCellTrack: fillHover
-    /// The two letters (`.ab2`: 30 px, 700, bright, 8 px in from the art's bottom left).
-    readonly property int coverMonogramSize: n("coverMonogramSize", 28)
-    readonly property int coverMonogramWeight: Font.Bold
-    readonly property int coverMonogramInset: n("coverMonogramInset", 7)
-    /// The name and the fact under the art (11 and 10.5 px), and the room between the parts.
-    readonly property int coverNameSize: font.caption
-    readonly property int coverFactSize: font.caption
-    readonly property int coverLineGap: n("coverLineGap", 4)
-    /// A selected cover's border, and the cursor's (Console: the plate's 1 px edge in the
-    /// accent, board 46 `.card.sel`).
-    readonly property int coverSelectedBorder: token("line", "card", litWidth)
-    /// A cover that needs you takes that edge in the accent, and its fact the accent (board 46
-    /// `.card.needs`); Omarchy's says it by the fact's red alone.
-    readonly property bool coverNeedsEdge: token("line", "needsEdge", false)
+    // ---- the library's form: space (board 51 D12 a, `.space`, DECISIONS C32) -------------
+    /// The map's inset (10 / 18 / 14 px) and the room between its lines (8 px).
+    readonly property int spaceInset: n("spaceInset", 18)
+    readonly property int spaceInsetTop: n("spaceInsetTop", 10)
+    readonly property int spaceInsetBottom: n("spaceInsetBottom", 14)
+    readonly property int spaceGap: n("spaceGap", 8)
+    /// The lines over the map (`.sh`: 11.5 px, dim; its lead word 13 px, 600, bright; 12 px
+    /// between the parts).
+    readonly property int spaceHeadSize: font.body
+    readonly property int spaceHeadWeight: Font.DemiBold
+    readonly property int spaceLineSize: font.small
+    readonly property int spaceLineGap: n("spaceLineGap", 12)
+    /// A torrent's block (`.blk2`): 1 px of the window round it, its ground the state colour
+    /// at the selected fill (18 %) under a 2 px line of it, 6 / 8 px in; 11.5 px words, the
+    /// name 600 and bright, then its size and fact. Words show from 70 px wide, the fact from
+    /// 50 px tall.
+    readonly property int spaceTileGap: hairWidth
+    readonly property int spaceTileLine: litWidth
+    readonly property int spaceTilePadX: n("spaceTilePadX", 8)
+    readonly property int spaceTilePadY: n("spaceTilePadY", 6)
+    readonly property int spaceTileTextSize: font.small
+    readonly property int spaceTileNameWeight: Font.DemiBold
+    readonly property int spaceTileWordsWidth: n("spaceTileWordsWidth", 70)
+    readonly property int spaceTileFactHeight: n("spaceTileFactHeight", 50)
+    /// The cursor's edge on a block (`.blk2.sel`: 2 px of the accent, inside; Console: its 1 px).
+    readonly property int spaceCursorEdge: token("line", "card", litWidth)
+    /// A folder's area when the map holds more than one (`.fold2`): a hairline round it, its
+    /// words over it (10.5 px, tracked 0.06 em, dim) in a head this tall, and the room
+    /// between two folders.
+    readonly property int spaceFolderHead: n("spaceFolderHead", 17)
+    readonly property int spaceFolderLabelSize: font.caption
+    readonly property real spaceFolderLabelTracking: font.caption * 0.06
+    readonly property int spaceFolderGap: n("spaceFolderGap", 6)
+    /// The "under 1 %" line (`.small`): chips 1 / 7 px in, a hairline round each, 6 px apart.
+    readonly property int spaceChipPadX: n("spaceChipPadX", 7)
+    readonly property int spaceChipPadY: n("spaceChipPadY", 1)
+    readonly property int spaceChipGap: n("spaceChipGap", 6)
+    /// A chip's words are at most this wide, elided in the middle past it (a long name).
+    readonly property int spaceChipMaxWidth: n("spaceChipMaxWidth", 240)
+    /// Below this share of the scope's size a folder is gathered in that line, and a torrent
+    /// below it of its folder's.
+    readonly property real spaceSmallShare: 0.01
+    /// A block that needs you takes the accent edge (board 46 `.card.needs`, the console's);
+    /// Omarchy's says it by its red line alone.
+    readonly property bool spaceNeedsEdge: token("line", "needsEdge", false)
 
     // ---- the details' form: the story (board 46 `details()`, `.dhero`, `.tl`, `.tb h5`) -------
     /// The head's one fact (`.dhero .big`: 22 px at 13 px type, 500, in the state's colour), its

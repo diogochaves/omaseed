@@ -177,41 +177,43 @@ config="$home/.config/omaseed"
 # First run opens on the welcome (enter sets up). In step 1 the rows are [this machine?],
 # remote, install: j to the bottom and one k up lands on "remote" whether or not a local
 # server was found. In step 2 the tab order is URL, name, the three auth chips, the chosen
-# mode's field(s), then test, open web UI, save anyway (after a failed test), continue.
-REMOTE="Return -s 500 j j j k Return"
+# mode's field(s), then test, open web UI, save anyway (after a failed test), continue. Picking
+# a chip (space) puts the caret in its first field (#201 F1).
+REMOTE="Return -s 500ms j j j k Return"
 
 # ---- cookie ---------------------------------------------------------------------------------
 launch
 check "first run floats, centred, at Omarchy's 875x600" window_is floating 875x600
 step "Welcome" "docs/14 screen 0, a floating 875x600 window, no top bar: the mark with omaseed beside it, the pitch, the server search's answer (the box cannot reach :8080, so most likely nothing found), set up / quit, the version in the footer."
 
-keys Return -s 800
+keys Return -s 800ms
 step "Step 1: server" "Centred column: the mark, 1 server · 2 sign in · 3 links, the question, the rows (remote, install; this machine only if found). Footer: step 1 of 3, j k choose, enter continue, esc quit."
-keys Escape -s 1500
+keys Escape -s 1500ms
 # shellcheck disable=SC2016 # expands in the inner sh, which gets the values as $1, $2
 check "esc on step 1 quits, as the footer says" \
     sh -c '! omabox hyprctl -b "$1" -j clients | grep -q "io.github.diogochaves.omaseed"' _ "$BOX"
 clip QBT_STRICT_PASS
 launch
 
-# URL, name, the cookie chip (API key, cookie, none are three tab stops), user, password, test.
+# URL, name, the cookie chip (the second of three tab stops; space on it puts the caret in
+# Username), user, password, test.
 # shellcheck disable=SC2086 # $REMOTE is a list of keys: split on purpose
-keys $REMOTE -s 500 -t "$STRICT" Tab -t strict Tab Tab space Tab Tab -t "$QBT_STRICT_USER" \
-    Tab -t "not-the-password" Tab Return -s 3000
+keys $REMOTE -s 500ms -t "$STRICT" Tab -t strict Tab Tab space -t "$QBT_STRICT_USER" \
+    Tab -t "not-the-password" Tab Return -s 3000ms
 step "Wrong password" "✓ server · 2 sign in. URL and name on one row; cookie shows Username and Password. A red dot and wrong username or password, the raw 401 dim underneath, then test / open web UI / save anyway / continue (off)."
 
-keys shift+Tab ctrl+a ctrl+v Tab Return -s 3000
+keys shift+Tab ctrl+a ctrl+v Tab Return -s 3000ms
 omabox run -b "$BOX" -- wl-copy --clear >/dev/null 2>&1 || true
 step "Cookie test passes" "A green dot: signed in · qBittorrent 5.2.3 · API 2.15.1 · 3 torrents, above the buttons; save anyway gone, continue on."
 
-keys Tab Tab Return -s 1500
+keys Tab Tab Return -s 1500ms
 step "Magnet handler" "✓ server ✓ sign in 3 links: Open magnet links and .torrent files with omaseed?, the dim line, open them with omaseed / not now; the script answers not now."
 
 # "not now" on the links step, then "not now" on the bar step (#17).
-keys Tab Return -s 1500 Tab Return -s 2000
+keys Tab Return -s 1500ms Tab Return -s 2000ms
 step "Done" "✓ ✓ ✓ ✓. You're connected to strict. qBittorrent 5.2.3 · 3 torrents (· free space once synced); magnet links still open elsewhere; a / , / ? hints; open the library. Footer: setup done."
 
-keys Return -s 2500
+keys Return -s 2500ms
 check "after setup the window tiles like any other launch" window_is tiled
 step "Signed in with a cookie" "The library, tiled full size, with its top bar back: fixture-one, -two, -three (stopped); the status line names strict · qBittorrent at its left (the box's isolated network may add port N not reachable in yellow after the speeds); no banner."
 
@@ -232,16 +234,16 @@ omabox run -b "$BOX" -- pkill -x omaseed >/dev/null 2>&1 || true
 rm -f "$config/servers.json"
 clip QBT_STRICT_API_KEY
 launch
-# URL, name, the API key chip, then three tabs (cookie, none, Key) and a wrong key first.
+# URL, name, the API key chip (space on it puts the caret in Key) and a wrong key first.
 # shellcheck disable=SC2086 # $REMOTE is a list of keys: split on purpose
-keys $REMOTE -s 500 -t "$STRICT" Tab -t strict-key Tab space Tab Tab Tab -t "not-a-real-key" \
-    Tab Return -s 3000
+keys $REMOTE -s 500ms -t "$STRICT" Tab -t strict-key Tab space -t "not-a-real-key" \
+    Tab Return -s 3000ms
 step "Wrong API key" "API key chosen: one Key field (no Username / Password). Red: the server refused this API key, the raw 403 dim underneath; continue stays off."
 
-keys shift+Tab ctrl+a ctrl+v Tab Return -s 3000
+keys shift+Tab ctrl+a ctrl+v Tab Return -s 3000ms
 step "API key test passes" "The pasted key (dots) tests fine: qBittorrent 5.2.3 · API 2.15.1 · 3 torrents; continue is on."
 
-keys Tab Tab Return -s 1500 Tab Return -s 1500 Tab Return -s 1500 Return -s 3000
+keys Tab Tab Return -s 1500ms Tab Return -s 1500ms Tab Return -s 1500ms Return -s 3000ms
 omabox run -b "$BOX" -- wl-copy --clear >/dev/null 2>&1 || true
 step "Signed in with an API key" "The same three fixtures; the status line says strict-key · qBittorrent."
 
@@ -264,7 +266,7 @@ sed -i 's/^base-size = .*/base-size = 18/' "$home/.config/omarchy/shell.toml"
 launch
 check "at base-size 18 setup floats at 1125x771" window_is floating 1125x771
 # shellcheck disable=SC2086 # $REMOTE is a list of keys: split on purpose
-keys $REMOTE -s 500 -t "$STRICT" Tab -t strict Tab Tab Tab Tab Return -s 3000
+keys $REMOTE -s 500ms -t "$STRICT" Tab -t strict Tab Tab Tab Tab Return -s 3000ms
 step "Base size 18" "The same step 2 at font size 18 in a 1125x771 window: none chosen, the red 403 line, the buttons, and the footer clear of them (nothing overlaps)."
 
 if [ "$INTERACTIVE" = 0 ]; then

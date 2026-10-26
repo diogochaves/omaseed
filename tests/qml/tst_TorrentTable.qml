@@ -807,6 +807,46 @@ TestCase {
 
     // A double-click on a grip fits its column to the widest cell on screen and the caption,
     // so none of them elides; it works from a narrower or a wider width alike.
+    // #201 F13: a narrow name column keeps the name's floor: the category gives way first,
+    // then "private", never the name cut to a few letters.
+    function test_a_narrow_name_keeps_its_floor() {
+        let index = -1;
+        for (let i = 0; i < App.filtered.count && index < 0; ++i) {
+            const row = findChild(table, "row_" + i);
+            if (row !== null && row.isPrivate && row.category.length > 0)
+                index = i;
+        }
+        verify(index >= 0, "the demo has a private torrent with a category in view");
+        const name = findChild(table, "name_" + index);
+        const category = findChild(table, "category_" + index);
+        const priv = findChild(table, "private_" + index);
+        verify(category.visible && priv.visible, "a wide name column shows both");
+        // The name column alone beside size, under the window's own least name width, so the
+        // test's fonts are squeezed too; the window's width sets the name's.
+        const least = table.minimumNameWidth;
+        const width = testCase.width;
+        table.minimumNameWidth = 40;
+        table.visibleColumns = ["name", "size"];
+        table.setColumnWidth("name", 40);
+        const full = name.implicitWidth + name.parent.categoryRoom + name.parent.privateRoom;
+        for (const room of [full + 40, full - 20, name.implicitWidth, Theme.tableNameFloor + 20]) {
+            testCase.width = room + 16 + (testCase.width - name.parent.width);
+            waitForRendering(table, 250);
+            verify(name.width >= Math.min(name.implicitWidth, Theme.tableNameFloor) - 1,
+                   "the name lost its floor at " + room);
+            if (priv.visible)
+                verify(name.x + name.width + 8 <= priv.x + 1, "the name ran into private at " + room);
+        }
+        verify(!category.visible, "the category gave way");
+        verify(!priv.visible, "then private");
+        testCase.width = width;
+        table.minimumNameWidth = least;
+        table.visibleColumns = testCase.allColumns;
+        table.resetColumnWidths();
+        waitForRendering(table, 250);
+        verify(category.visible && priv.visible);
+    }
+
     function test_a_double_click_on_a_grip_fits_the_widest_visible_cell() {
         for (const key of ["size", "status", "eta", "dlspeed"]) {
             table.setColumnWidth(key, table.minimumColumnWidth);

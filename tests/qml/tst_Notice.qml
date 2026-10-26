@@ -218,6 +218,11 @@ TestCase {
         verify(notice.height < testCase.height);
         verify(scroll.clip);
         verify(scroll.contentHeight > scroll.height * 3);
+        // #201 F22: a bar says there is more, in the block's margin, clear of the text.
+        const bar = findChild(notice, "noticeDetailsScrollBar");
+        verify(bar.visible);
+        verify(bar.x >= scroll.x + scroll.width, "the bar is over the text");
+        verify(bar.x + bar.width <= block.width);
         tryVerify(() => below.y >= notice.y + notice.height, 1000);
 
         scroll.forceActiveFocus();
@@ -246,6 +251,7 @@ TestCase {
         compare(scroll.contentY, 0);
         verify(!scroll.activeFocusOnTab, "content %1 in %2".arg(scroll.contentHeight).arg(
                    scroll.height));
+        verify(!findChild(notice, "noticeDetailsScrollBar").visible);
     }
 
     // #77: the details' "copy" is a link whose press is the click, once; disabled, nothing.

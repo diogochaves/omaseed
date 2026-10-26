@@ -17,6 +17,17 @@ QString speed(qint64 bytesPerSecond);
 /// A speed limit: "10 KB/s", or "∞" when there is none (qBittorrent sends 0 or -1).
 QString limit(qint64 bytesPerSecond);
 
+/// A speed split for drawing, with its cap in the same unit when there is one (DECISIONS
+/// C32 D6 a: "↓ 290 / 300 KB/s"): `value` "290", `cap` "300" ("" with no cap), `unit`
+/// "KB/s" ("" for a bare "0"). The cap picks the unit, so both read in one.
+struct SpeedParts
+{
+    QString value;
+    QString cap;
+    QString unit;
+};
+SpeedParts speedParts(qint64 bytesPerSecond, qint64 capBytesPerSecond = 0);
+
 /// "1.31 GB", "412 MB", "9 KB", "0" (spec §1 Size column, §2 strip).
 QString size(qint64 bytes);
 

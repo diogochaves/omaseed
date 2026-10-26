@@ -196,6 +196,33 @@ TestCase {
         compare(modal.paneIndex, 0);
     }
 
+    // C32 D10 a: tab walks omaseed's own panes too: the sections one stop, then each row, the
+    // low disk threshold's caret in its field, the sections again after the last row.
+    function test_tab_walks_the_notifications_pane_as_a_form() {
+        const modal = createTemporaryObject(modalComponent, testCase);
+        modal.open();
+        keyClick(Qt.Key_3);
+        compare(modal.paneIndex, 2);
+        const field = testCase.childNamed(modal, "lowDiskThresholdField");
+        keyClick(Qt.Key_Tab);
+        compare(modal.area, "pane");
+        compare(modal.paneCursor, 0);
+        for (let i = 0; i < 4; ++i)
+            keyClick(Qt.Key_Tab);
+        compare(modal.paneCursor, 4);
+        verify(field.editing);
+        keyClick(Qt.Key_Tab);
+        compare(modal.paneCursor, 5);
+        verify(!field.editing);
+        keyClick(Qt.Key_Backtab, Qt.ShiftModifier);
+        compare(modal.paneCursor, 4);
+        verify(field.editing);
+        keyClick(Qt.Key_Tab);
+        keyClick(Qt.Key_Tab);
+        compare(modal.area, "nav");
+        compare(modal.paneIndex, 2);
+    }
+
     // #31, docs/24 §3: back up, restore, automatic copies.
     function test_the_backup_pane() {
         const modal = createTemporaryObject(modalComponent, testCase);
@@ -518,6 +545,16 @@ TestCase {
         compare(addRow.title, "add a server");
         compare(addRow.status, "a");
         verify(addRow.dashed);
+
+        // C32 D7 a: a › at each row's end, dim at rest, bright while the row is lit.
+        const chevron = testCase.childNamed(row, "serverRowChevron");
+        verify(chevron !== null && chevron.visible);
+        verify(testCase.childNamed(addRow, "serverRowChevron").visible);
+        verify(Qt.colorEqual(chevron.color, row.ink.dimForeground));
+        row.hasCursor = true;
+        verify(Qt.colorEqual(chevron.color, row.ink.brightForeground));
+        row.hasCursor = false;
+        verify(chevron.mapToItem(row, chevron.width, 0).x > row.width - Theme.space(16));
 
         // #77: each row is a button named by its server, its line and status the description.
         compare(row.Accessible.role, Accessible.Button);
@@ -867,6 +904,28 @@ TestCase {
         sheet.close();
     }
 
+    // #201 F1: in the server sheet, picking a credential puts the caret in its first field.
+    function test_picking_a_credential_in_the_server_sheet_puts_the_caret_in_its_field() {
+        const modal = createTemporaryObject(modalComponent, testCase);
+        modal.open();
+        const sheet = modal.serverSheet;
+        sheet.openNew();
+        verify(sheet.editing);
+        const cookie = testCase.childNamed(sheet, "authChip-cookie");
+        const apiKey = testCase.childNamed(sheet, "authChip-apiKey");
+        cookie.clicked();
+        compare(sheet.editAuthMode, "cookie");
+        tryVerify(() => testCase.childNamed(sheet, "serverUserField").editing);
+        // F2: the one picked carries an accent edge.
+        verify(cookie.accent && cookie.border.width > 0);
+        verify(!apiKey.accent);
+        apiKey.forceActiveFocus();
+        keyClick(Qt.Key_Space);
+        compare(sheet.editAuthMode, "apiKey");
+        tryVerify(() => testCase.childNamed(sheet, "serverKeyField").editing);
+        sheet.close();
+    }
+
     function test_the_server_sheet_masks_the_key_and_switches_to_the_fields() {
         const id = testCase.addTestServer("playground", "http://127.0.0.1:8081");
         const modal = createTemporaryObject(modalComponent, testCase);
@@ -1043,7 +1102,7 @@ TestCase {
         verify(!modal.serverSheet.opened, "a right-click opened the sheet");
         compare(menu.items.filter(entry => !entry.separator).map(entry => entry.text),
                 ["edit", "test", "switch to it", "remove"]);
-        compare(item("edit").key, "enter");
+        compare(item("edit").key, "e");
         compare(item("default").key, "d");
         compare(item("remove").key, "x");
         verify(item("default").disabled, "make default on the default server");
@@ -1068,11 +1127,22 @@ TestCase {
         compare(row1.status, "in use");
         waitForItemPolished(row1.parent);
 
-        // edit opens the row's sheet; remove asks first, as `x` does.
+        // edit opens the row's sheet on its form, not its page (#201 F9), the keyboard in
+        // the first field; remove asks first, as `x` does.
         mouseClick(row0, row0.width / 2, row0.height / 2, Qt.RightButton);
         keyClick(Qt.Key_Return);
         verify(modal.serverSheet.opened);
         compare(modal.serverSheet.serverId, first);
+        verify(modal.serverSheet.editing, "edit opened the server's page");
+        modal.serverSheet.close();
+        // `e` on the row does the same; enter opens the page.
+        keyClick(Qt.Key_E);
+        verify(modal.serverSheet.opened);
+        verify(modal.serverSheet.editing);
+        modal.serverSheet.close();
+        keyClick(Qt.Key_Return);
+        verify(modal.serverSheet.opened);
+        verify(!modal.serverSheet.editing);
         modal.serverSheet.close();
         mouseClick(row0, row0.width / 2, row0.height / 2, Qt.RightButton);
         keyClick("x");
@@ -1128,7 +1198,7 @@ TestCase {
         // Appearance: "In the bar" (docs/33 D25) steps through the choices it can have:
         // without the shell, tray icon and none.
         keyClick(Qt.Key_5);
-        compare(modal.paneRowCount, 10);
+        compare(modal.paneRowCount, 12);
         const tray = App.trayIconMode;
         App.trayIconMode = "auto";
         compare(App.inTheBar, "tray");
@@ -1141,25 +1211,29 @@ TestCase {
         compare(App.inTheBar, "tray");
         compare(App.trayIconMode, "auto");
 
-        // The hero's speed alignment and trends and the surface tint left with it (#167
-        // assumed 6): no row names them.
+        // The hero's speed alignment and trends left with it (#167 assumed 6): no row names
+        // them. The surface tint came back for the rail (C32 D16 a).
         verify(findChild(modal, "downloadTrendChip") === null);
         verify(findChild(modal, "uploadTrendChip") === null);
 
-        // ...and the next two cycle the rail's looks (docs/08 §5).
+        // ...and the next three cycle the rail's looks (docs/08 §5, C32 D16 a).
         const hint = App.railScrollHint;
+        const tint = App.surfaceTint;
         const hosts = App.trackerHostStyle;
         modal.paneCursor = 6;
         modal.activateRow();
         verify(App.railScrollHint !== hint);
         modal.paneCursor = 7;
         modal.activateRow();
+        verify(App.surfaceTint !== tint);
+        modal.paneCursor = 8;
+        modal.activateRow();
         verify(App.trackerHostStyle !== hosts);
 
         // ...and the next places Details (docs/10 §5): auto, right, bottom.
         const placement = App.detailsPlacement;
         compare(placement, "auto");
-        modal.paneCursor = 8;
+        modal.paneCursor = 9;
         modal.activateRow();
         compare(App.detailsPlacement, "right");
         modal.activateRow();
@@ -1171,6 +1245,7 @@ TestCase {
         App.setNotificationEnabled("completed", completed);
         App.trayIconMode = tray;
         App.railScrollHint = hint;
+        App.surfaceTint = tint;
         App.trackerHostStyle = hosts;
         App.detailsPlacement = placement;
     }
@@ -1290,6 +1365,58 @@ TestCase {
         compare(row.warning, "");
     }
 
+    // DECISIONS C32 D16 a: Appearance › Surface tint, the rail's: off · 4 % · 8 %, after the
+    // scroll hint; enter steps it, a chip picks it.
+    function test_the_appearance_pane_tints_the_rail() {
+        const modal = createTemporaryObject(modalComponent, testCase);
+        const before = App.surfaceTint;
+        App.surfaceTint = 0;
+        modal.open();
+        keyClick(Qt.Key_5);
+        const row = testCase.childNamed(modal, "surfaceTintRow");
+        verify(row !== null && row.visible);
+        compare(row.title, "Surface tint");
+        modal.paneCursor = 7;
+        modal.area = "pane";
+        compare(row.hasCursor, true);
+        modal.activateRow();
+        compare(App.surfaceTint, 4);
+        modal.activateRow();
+        compare(App.surfaceTint, 8);
+        modal.activateRow();
+        compare(App.surfaceTint, 0);
+        const chip = testCase.childNamed(row, "tintChip-8");
+        chip.clicked();
+        compare(App.surfaceTint, 8);
+        verify(chip.selected);
+        App.surfaceTint = before;
+    }
+
+    // DECISIONS C32 D2 a: Appearance › Speeds, the title bar by default or the status line;
+    // the last row, enter steps it, a chip picks it.
+    function test_the_appearance_pane_places_the_speeds() {
+        const modal = createTemporaryObject(modalComponent, testCase);
+        const before = App.speedsPlace;
+        compare(before, "title");
+        modal.open();
+        keyClick(Qt.Key_5);
+        const row = testCase.childNamed(modal, "speedsPlaceRow");
+        verify(row !== null && row.visible);
+        compare(row.title, "Speeds");
+        modal.paneCursor = modal.paneRowCount - 1;
+        modal.area = "pane";
+        compare(row.hasCursor, true);
+        modal.activateRow();
+        compare(App.speedsPlace, "status");
+        modal.activateRow();
+        compare(App.speedsPlace, "title");
+        const chip = testCase.childNamed(row, "speedsChip-status");
+        chip.clicked();
+        compare(App.speedsPlace, "status");
+        verify(chip.selected);
+        App.speedsPlace = before;
+    }
+
     function test_the_appearance_pane_turns_the_rows_pulse_on() {
         const modal = createTemporaryObject(modalComponent, testCase);
         compare(App.pulseRows, false);
@@ -1299,7 +1426,7 @@ TestCase {
         const row = testCase.childNamed(modal, "pulseRowsRow");
         verify(row, "the Appearance pane has no pulse row");
         compare(row.title, "Pulse sending rows");
-        modal.paneCursor = 9;
+        modal.paneCursor = 10;
         modal.area = "pane";
         compare(row.hasCursor, true);
         modal.activateRow();
@@ -1375,7 +1502,11 @@ TestCase {
         compare(modal.paneIndex, 3);
         // Read-only in v1: no cursor rows at all.
         compare(modal.paneRowCount, 0);
+        // Nothing in it takes the keyboard: tab stays on the sections (C32 D10 a).
         keyClick(Qt.Key_Tab);
+        compare(modal.area, "nav");
+        compare(modal.paneIndex, 3);
+        keyClick(Qt.Key_L);
         keyClick(Qt.Key_J);
         compare(modal.paneCursor, 0);
 
@@ -1402,7 +1533,7 @@ TestCase {
         compare(row.title, "Window");
         const alphaRow = testCase.childNamed(modal, "windowAlphaRow");
         compare(alphaRow.visible, false);
-        compare(modal.paneRowCount, 10);
+        compare(modal.paneRowCount, 12);
 
         modal.area = "pane";
         modal.paneCursor = 3;
@@ -1410,7 +1541,7 @@ TestCase {
         modal.activateRow();
         compare(App.windowGround, "translucent");
         compare(alphaRow.visible, true);
-        compare(modal.paneRowCount, 11);
+        compare(modal.paneRowCount, 13);
         // "In the bar" moved down one.
         modal.paneCursor = 5;
         compare(testCase.childNamed(modal, "inTheBarRow").hasCursor, true);

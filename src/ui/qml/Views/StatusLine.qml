@@ -38,6 +38,9 @@ Item {
     property bool connected: true
     /// The first sync has not landed yet: the dot is yellow.
     property bool syncing: false
+    /// #201 F4: on the way to a server (a switch, the launch) before it answers or fails: the
+    /// dot is neutral and the network isn't read, so a switch never flashes red.
+    property bool connecting: false
     /// docs/35 N3: the server is gone and omaseed retries on its own: yellow, not red.
     property bool retrying: false
 
@@ -50,7 +53,8 @@ Item {
     property bool anonymousWarning: false
     /// What is wrong with the network, "firewalled", "disconnected" or "": only read while
     /// the API itself answers, after the first sync.
-    readonly property bool _networkRead: root.connected && !root.syncing && root.serverConfigured
+    readonly property bool _networkRead: root.connected && !root.syncing && !root.connecting
+                                         && root.serverConfigured
     readonly property string networkWarning: root._networkRead && (root.connectionStatus === "firewalled"
                                                                    || root.connectionStatus === "disconnected")
                                              ? root.connectionStatus : ""
@@ -76,9 +80,10 @@ Item {
             lines.push(qsTr("Anonymous mode hides which client you use, and most private trackers refuse clients they cannot name. Settings › Discovery and privacy."));
         return lines.join("\n");
     }
-    /// The dot's colour: none dim, first sync yellow, lost red (yellow while retried), the
-    /// network's warning in its colour, else green.
+    /// The dot's colour: none dim, connecting neutral, first sync yellow, lost red (yellow
+    /// while retried), the network's warning in its colour, else green.
     readonly property color dotColor: !root.serverConfigured ? Theme.dimForeground
+                                    : root.connecting ? Theme.fill(Theme.faintAlpha)
                                     : root.syncing ? Theme.yellow
                                     : !root.connected ? (root.retrying ? Theme.yellow : Theme.red)
                                     : root.networkWarning === "disconnected" ? Theme.red
@@ -91,6 +96,15 @@ Item {
                                             + (root.serverSwitchable ? "\n" + qsTr("switch server · ctrl+s") : "")
 
     // ---- the speeds ----------------------------------------------------------------------
+    /// ↓ and ↑ are drawn here (DECISIONS C32 D2 a: the title bar has them by default; the
+    /// line takes them back where Settings › Appearance › Speeds says, or when the title bar
+    /// is too narrow for them).
+    property bool speedsShown: true
+    /// D6 a: each speed's cap while the alternative limits hold it, in the speed's unit
+    /// ("300" against "290 KB/s"; `App.speedParts`): `{value, cap, unit}`. A cap of "" (or no
+    /// alternative limits on) prints the speed alone.
+    property var downParts: ({})
+    property var upParts: ({})
     property string downSpeed: "—"
     property string upSpeed: "—"
     /// Short forms ("4.21M"), from step 3.
@@ -103,10 +117,6 @@ Item {
 
     // ---- alt speeds (docs/31, #167 assumed 5) ------------------------------------------
     property bool altSpeedActive: false
-    property string altDownLimit: "∞"
-    property string altUpLimit: "∞"
-    property string altDownLimitShort: root.altDownLimit
-    property string altUpLimitShort: root.altUpLimit
     /// "burst", "turtle" or "alt" (mixed, the same, or not known).
     property string altKind: "alt"
     /// When the schedule ends the set ("07:00"); "" for no end.
@@ -174,18 +184,27 @@ Item {
     function altText(step: int): string {
         if (step >= 3 || !root.altSpeedActive)
             return "";
-        const limits = step >= 1 ? qsTr("↓%1 ↑%2").arg(root.altDownLimitShort).arg(root.altUpLimitShort)
-                                 : qsTr("↓%1 ↑%2").arg(root.altDownLimit).arg(root.altUpLimit);
-        if (!root.altNamed)
-            return limits;
-        return step >= 2 ? root.altKind : root.altKind + " " + limits;
+        return root.altNamed ? root.altKind : qsTr("alt-speed");
     }
 
-    /// What follows the words, a little fainter: "· until 07:00" (docs/31 D5).
+    /// What follows the word: "until 07:00" (docs/31 D5; C32 D6 a moved the limits onto the
+    /// speeds, each against its cap).
     function altSuffix(step: int): string {
-        if (step >= 3 || !root.altSpeedActive || !root.altNamed || root.altUntil.length === 0)
+        if (step >= 3 || !root.altSpeedActive || root.altUntil.length === 0)
             return "";
-        return qsTr("· until %1").arg(root.altUntil);
+        return qsTr("until %1").arg(root.altUntil);
+    }
+
+    /// A speed's words: "↓ 2.04 MB/s", against its cap while the alternative limits hold it
+    /// ("↓ 290 / 300 KB/s", the cap in the set's colour, D6 a), short from step 3.
+    function speedText(arrow: string, speed: string, short: string, parts: var): string {
+        if (root.level >= 3)
+            return arrow + short;
+        const cap = root.altSpeedActive ? (parts.cap ?? "") : "";
+        if (cap.length === 0)
+            return arrow + " " + speed;
+        return qsTr("%1 %2 <font color=\"%3\">/ %4</font> %5").arg(arrow).arg(parts.value).arg(altChip.tone).arg(
+                    cap).arg(parts.unit);
     }
 
     implicitHeight: Theme.statusLineHeight
@@ -361,7 +380,9 @@ Item {
             font.letterSpacing: Theme.statusLineFontSize * Theme.statusTrack
             font.pixelSize: Theme.statusLineFontSize
             objectName: "statusDown"
-            text: root.level >= 3 ? Glyphs.arrowDown + root.downSpeedShort : Glyphs.arrowDown + " " + root.downSpeed
+            text: root.speedText(Glyphs.arrowDown, root.downSpeed, root.downSpeedShort, root.downParts)
+            textFormat: Text.StyledText
+            visible: root.speedsShown
         }
 
         Text {
@@ -382,7 +403,9 @@ Item {
             font.letterSpacing: Theme.statusLineFontSize * Theme.statusTrack
             font.pixelSize: Theme.statusLineFontSize
             objectName: "statusUp"
-            text: root.level >= 3 ? Glyphs.arrowUp + root.upSpeedShort : Glyphs.arrowUp + " " + root.upSpeed
+            text: root.speedText(Glyphs.arrowUp, root.upSpeed, root.upSpeedShort, root.upParts)
+            textFormat: Text.StyledText
+            visible: root.speedsShown
 
             MouseArea {
                 id: upMouse
@@ -401,9 +424,10 @@ Item {
             }
         }
 
-        // Alt-speed: its glyph alone while off, named by its tooltip; on, the set's words in
-        // the warning role (burst green), so the state reads from across the room. A click
-        // is `A` (docs/31, #167 assumed 5).
+        // Alt-speed: its glyph alone while off, named by its tooltip; on, a chip tinted 18 %
+        // in the set's colour (turtle yellow, burst green; DECISIONS C32 D6 a) with its word
+        // and until when, so the state reads from across the room. A click opens the choice
+        // of presets (D8 a).
         Item {
             id: altChip
 
@@ -413,6 +437,10 @@ Item {
             readonly property bool warn: root.altSpeedActive
             readonly property color tone: !root.altSpeedActive ? Theme.dimForeground
                                                                : root.altKind === "burst" ? Theme.green : Theme.yellow
+            /// D6 a: the chip's ground while on, the state's colour at 18 %.
+            readonly property Ink ink: Ink {
+                ground: root.altKind === "burst" ? Theme.on.burst : Theme.on.turtle
+            }
             readonly property string tooltip: root.altTooltip.length > 0 ? root.altTooltip
                                               : root.altSpeedActive ? qsTr("alt-speed on · A")
                                                                     : qsTr("alt-speed · A")
@@ -427,32 +455,47 @@ Item {
             Accessible.onPressAction: if (root.enabled)
                                           root.altSpeedClicked()
             Layout.alignment: Qt.AlignVCenter
-            Layout.minimumWidth: altRow.implicitWidth
-            implicitHeight: altRow.implicitHeight
-            implicitWidth: altRow.implicitWidth
+            Layout.minimumWidth: altChip.implicitWidth
+            implicitHeight: altRow.implicitHeight + 2 * altChip.padY
+            implicitWidth: altRow.implicitWidth + 2 * altChip.padX
             objectName: "statusAlt"
+            readonly property bool tinted: root.altSpeedActive && altChip.text.length > 0
+            readonly property int padX: altChip.tinted ? Theme.space(8) : 0
+            readonly property int padY: altChip.tinted ? Theme.space(1) : 0
             // The narrowest step keeps it only while it throttles; A still toggles it.
             visible: root.level < 4 || root.altSpeedActive
+
+            Rectangle {
+                anchors.fill: parent
+                color: altChip.ink.fill
+                objectName: "statusAltTint"
+                radius: Theme.cornerRadius
+                visible: altChip.tinted
+            }
 
             Row {
                 id: altRow
 
-                spacing: Theme.space(4)
+                anchors.centerIn: parent
+                spacing: Theme.space(6)
 
                 Glyph {
                     anchors.verticalCenter: parent.verticalCenter
-                    color: altMouse.containsMouse ? Theme.accent : altChip.tone
+                    color: altMouse.containsMouse && !altChip.tinted ? Theme.accent
+                                                                    : altChip.tinted ? altChip.ink.of(altChip.tone)
+                                                                                     : altChip.tone
                     pixelSize: Theme.statusLineFontSize
                     text: altChip.glyph
                 }
 
                 Text {
                     anchors.verticalCenter: parent.verticalCenter
-                    color: altChip.tone
+                    color: altChip.ink.of(altChip.tone)
                     font.capitalization: Theme.statusUpper ? Font.AllUppercase : Font.MixedCase
                     font.family: Theme.valueFamily
                     font.letterSpacing: Theme.statusLineFontSize * Theme.statusTrack
                     font.pixelSize: Theme.statusLineFontSize
+                    font.weight: Font.DemiBold
                     objectName: "statusAltText"
                     text: altChip.text
                     visible: altChip.text.length > 0
@@ -460,7 +503,7 @@ Item {
 
                 Text {
                     anchors.verticalCenter: parent.verticalCenter
-                    color: Theme.dimForeground
+                    color: altChip.tinted ? altChip.ink.foreground : Theme.dimForeground
                     font.capitalization: Theme.statusUpper ? Font.AllUppercase : Font.MixedCase
                     font.family: Theme.valueFamily
                     font.letterSpacing: Theme.statusLineFontSize * Theme.statusTrack

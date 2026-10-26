@@ -1,3 +1,4 @@
+import QtCore
 import QtQuick
 import QtTest
 import Omaseed
@@ -50,7 +51,9 @@ TestCase {
         App.logLines.clearTorrent();
         App.logLines.levels = 15;
         App.logLines.clearMarks();
-        testCase.logView.filterField.text = "";
+        view.titleBar.searchField.text = "";
+        App.logLines.text = "";
+        App.logLines.since = 0;
         App.filtered.statusFilter = TorrentFilterModel.All;
         App.filtered.question = TorrentFilterModel.AnyQuestion;
         view.footerNote = "";
@@ -95,9 +98,15 @@ TestCase {
         verify(view.logShown);
         verify(testCase.logView.visible);
         verify(testCase.logView.list.activeFocus, "the lines did not take the keys");
-        // C24 H2: the rail stays, its views and servers; its filters are about torrents.
+        // C24 H2: the rail stays, its views and servers; its filters are about torrents. Board
+        // 51 D5 a: the log's own groups take their place; + add becomes export log…
         verify(view.rail.visible);
         verify(view.rail.serversOnly, "the rail's filters show on the log");
+        verify(view.rail.logGroupsShown);
+        verify(findChild(view.rail, "railLogScroll").visible);
+        verify(!findChild(view.rail, "railScroll").visible);
+        verify(!view.titleBar.addTool.visible);
+        verify(view.titleBar.exportTool.visible);
         verify(findChild(view.rail, "railView-log").current);
         verify(!view.split.visible);
         verify(App.serverLog.active, "the face on screen reads the log");
@@ -107,6 +116,9 @@ TestCase {
         compare(view.view, "library");
         verify(!App.serverLog.active, "nothing reads the log once the face is gone");
         verify(view.table.activeFocus);
+        verify(!view.rail.logGroupsShown);
+        verify(view.titleBar.addTool.visible);
+        verify(!view.titleBar.exportTool.visible);
 
         // From the seed console, back to the seed console.
         view.setView("seed");
@@ -116,26 +128,32 @@ TestCase {
         view.setView("library");
     }
 
-    // D10 (L1): four chips with their counts, `1`–`4` turn a level off and on.
-    function test_level_chips_count_and_toggle() {
+    // D10, board 51 D5 a: the rail's four levels, ticked, with their counts; `1`–`4` (and a
+    // click) turn a level off and on; the warning and critical words in their colours.
+    function test_the_rails_levels_count_and_toggle() {
         testCase.openLog();
-        const normal = findChild(testCase.logView, "levelChip1");
-        const critical = findChild(testCase.logView, "levelChip4");
-        compare(normal.count, String(App.serverLog.levelCounts[0]));
-        compare(critical.count, String(App.serverLog.levelCounts[3]));
+        const normal = findChild(view.rail, "railLogLevel-normal");
+        const critical = findChild(view.rail, "railLogLevel-critical");
+        verify(normal.visible && critical.visible);
+        compare(normal.count, App.serverLog.levelCounts[0]);
+        compare(critical.count, App.serverLog.levelCounts[3]);
         verify(App.serverLog.levelCounts[3] > 0);
-        verify(normal.selected);
-        compare(critical.tone, Theme.red);
+        verify(normal.ticked);
+        compare(critical.tickColor, Theme.red);
+        verify(critical.toneName);
+        verify(!normal.toneName);
+        compare(critical.keyText, "4");
 
         const all = App.logLines.count;
         keyClick("1");
-        verify(!normal.selected);
+        verify(!normal.ticked);
         compare(App.logLines.levels, 14);
         compare(App.logLines.count, all - App.serverLog.levelCounts[0]);
-        // A click does what the key does.
-        normal.clicked();
-        verify(normal.selected);
+        // A click does what the key does, and leaves the keys with the lines.
+        mouseClick(normal);
+        verify(normal.ticked);
         compare(App.logLines.count, all);
+        verify(testCase.logView.list.activeFocus);
 
         keyClick("2");
         keyClick("1");
@@ -147,26 +165,37 @@ TestCase {
         compare(App.filtered.statusFilter, TorrentFilterModel.All);
     }
 
-    // D10: `/` filters, every word must match, case ignored, and the bar says "N of M lines".
+    // D10, board 51 D5 a: `/` puts the caret in the title bar's filter, as for torrents;
+    // every word must match, case ignored, and the field counts "N of M".
     function test_slash_filters_every_word() {
+        App.filtered.text = "";
         testCase.openLog();
         keyClick("/");
-        verify(testCase.logView.filterEditing);
+        verify(view.titleBar.searchField.editing);
         compare(view.focusArea, "search");
+        compare(view.titleBar.searchField.accessibleName, "filter lines");
+        verify(!view.titleBar.searchField.tokenChips);
         for (const ch of "FAILED move")
             keyClick(ch);
         compare(App.logLines.text, "FAILED move");
+        compare(App.filtered.text, "", "the log's words went to the torrents");
         compare(App.logLines.count, 1);
         verify(App.logLines.messageAt(0).startsWith("Failed to move torrent."));
-        compare(findChild(testCase.logView, "logSince").text, "1 of %1 lines".arg(App.logLines.levelTotal));
+        compare(view.titleBar.searchCountText, "1 of %1".arg(App.logLines.levelTotal));
 
         keyClick(Qt.Key_Return);
         verify(testCase.logView.list.activeFocus);
-        // `esc` on the lines clears the words before it leaves.
+        // Back in the library the field holds the torrents' words, and the log's again on it.
+        keyClick(Qt.Key_AsciiTilde);
+        compare(view.titleBar.searchField.text, "");
+        testCase.openLog();
+        compare(view.titleBar.searchField.text, "FAILED move");
+        // `esc` on the lines clears the words, field and all, before it leaves.
         keyClick(Qt.Key_Escape);
         compare(App.logLines.text, "");
+        compare(view.titleBar.searchField.text, "");
         compare(view.view, "log");
-        verify(findChild(testCase.logView, "logSince").text.startsWith("since qBittorrent started · "));
+        compare(view.titleBar.searchCountText, String(App.logLines.count));
     }
 
     // D12 (L1, L2): newest at the bottom and followed while there; scrolling up pauses and counts
@@ -273,14 +302,17 @@ TestCase {
 
         compare(view.view, "log");
         compare(App.logLines.torrentHash, hash);
-        const chip = findChild(testCase.logView, "torrentChip");
+        // Board 51 D5 a: the rail's torrent row is the one picked.
+        const picked = () => view.rail.logTorrents.findIndex(about => about.hash === hash);
+        tryVerify(() => picked() >= 0, 1000, "the rail does not name the torrent");
+        const chip = findChild(view.rail, "railLogTorrent_" + picked());
         verify(chip.visible);
-        verify(chip.text.startsWith("torrent: Spring (2019) 4K (CC-BY)"));
+        verify(chip.selected);
+        compare(chip.text, "Spring (2019) 4K (CC-BY)");
         verify(App.logLines.count >= 2, "the restore and the failed move");
         for (let line = 0; line < App.logLines.count; ++line)
             verify(App.logLines.messageAt(line).indexOf("Spring (2019) 4K (CC-BY)") >= 0);
-        compare(findChild(testCase.logView, "logSince").text,
-                "%1 of %2 lines".arg(App.logLines.count).arg(App.logLines.levelTotal));
+        compare(view.titleBar.searchCountText, "%1 of %2".arg(App.logLines.count).arg(App.logLines.levelTotal));
         verify(App.logLines.messageAt(testCase.logView.cursor).startsWith("Failed to move torrent."));
 
         keyClick(Qt.Key_Return);
@@ -291,9 +323,10 @@ TestCase {
 
         // Back, and wider again with `esc`.
         testCase.openLog();
-        verify(chip.visible);
+        verify(findChild(view.rail, "railLogTorrent_" + picked()).selected);
         keyClick(Qt.Key_Escape);
-        verify(!chip.visible);
+        compare(App.logLines.torrentHash, "");
+        verify(!findChild(view.rail, "railLogTorrent_" + picked()).selected);
         compare(view.view, "log");
 
         // `t` on a line that names a torrent; on one that names none, a word in the footer.
@@ -355,21 +388,73 @@ TestCase {
         compare(view.footerNote, "no warning above");
     }
 
+    // Board 51 D5 a: "the last hour" keeps the lines of the hour before it was picked, `esc`
+    // lets it go; a torrent row narrows to its lines and lets them go when clicked again.
+    function test_the_rail_narrows_by_time_and_by_torrent() {
+        testCase.openLog();
+        const all = App.logLines.count;
+        const hour = findChild(view.rail, "railLogSinceHour");
+        const start = findChild(view.rail, "railLogSinceStart");
+        mouseClick(hour);
+        verify(hour.selected && !start.selected);
+        verify(App.logLines.since > 0);
+        verify(App.logLines.narrowed);
+        testCase.addLines(2, 1, "Added new torrent. Torrent: \"fresh\"");
+        verify(App.logLines.count >= 2 && App.logLines.count <= all + 2);
+        keyClick(Qt.Key_Escape);
+        compare(App.logLines.since, 0);
+        verify(start.selected);
+        compare(view.view, "log");
+
+        tryVerify(() => view.rail.logTorrents.length > 0, 1000);
+        verify(view.rail.logTorrents.length <= view.logTorrentsShown);
+        const first = view.rail.logTorrents[0];
+        for (const about of view.rail.logTorrents)
+            verify(about.count <= first.count, "the most named first");
+        const row = findChild(view.rail, "railLogTorrent_0");
+        compare(row.count, first.count);
+        mouseClick(row);
+        compare(App.logLines.torrentHash, first.hash);
+        compare(App.logLines.count, first.count);
+        mouseClick(row);
+        compare(App.logLines.torrentHash, "");
+        verify(testCase.logView.list.activeFocus);
+    }
+
+    // Board 51 D5 a: "export log…" writes the lines as shown and says so in the footer.
+    function test_export_writes_the_lines_shown() {
+        testCase.openLog();
+        App.logLines.levels = ServerLog.Warning | ServerLog.Critical;
+        const count = App.logLines.count;
+        verify(count > 0);
+        const folder = String(StandardPaths.writableLocation(StandardPaths.TempLocation)).replace(/^file:\/\//, "");
+        view.exportLogTo(folder + "/omaseed-test-log.txt");
+        compare(view.footerNote, "exported %1 lines to omaseed-test-log.txt".arg(count));
+        view.exportLogTo(folder + "/no/such/folder/log.txt");
+        verify(view.footerNote.startsWith("not exported: "), view.footerNote);
+        // Nothing shown, nothing to export (the chooser never opens).
+        App.logLines.levels = 0;
+        view.exportLog();
+        compare(view.footerNote, "no line to export");
+    }
+
     // D15: where qBittorrent's memory begins, and where its log file is; it is never read.
     function test_the_log_says_where_it_starts() {
         testCase.openLog();
         verify(App.serverLog.fromStart);
-        compare(findChild(testCase.logView, "logSince").text,
-                "since qBittorrent started · %1 · %2 lines".arg(App.serverLog.firstAtText).arg(App.serverLog.total));
+        // Board 51 D5 a: the rail's since says it, the title bar's sentence counts the lines.
+        compare(findChild(view.rail, "railLogSinceStart").text,
+                "qBittorrent started, %1".arg(App.serverLog.firstAtText));
+        verify(findChild(view.rail, "railLogSinceStart").selected);
+        verify(view.scopeSentence.indexOf("%1 lines since %2".arg(App.serverLog.total).arg(App.serverLog.firstAtText))
+               >= 0, view.scopeSentence);
+        verify(view.scopeSentence.endsWith(" · following"), view.scopeSentence);
         testCase.logView.list.positionViewAtBeginning();
         const start = findChild(testCase.logView, "logStart");
         verify(start !== null);
         verify(start.text.indexOf("starts when it started") >= 0, start.text);
         verify(start.text.indexOf("/home/you/.local/share/qBittorrent/qBittorrent/data/logs") >= 0, start.text);
-        // #79: both lines are text a screen reader hears, before the log's lines.
-        const since = findChild(testCase.logView, "logSince");
-        compare(since.Accessible.role, Accessible.StaticText);
-        compare(since.Accessible.name, since.text);
+        // #79: the line is text a screen reader hears, before the log's lines.
         compare(start.Accessible.role, Accessible.StaticText);
         compare(start.Accessible.name, start.text);
     }
@@ -382,6 +467,8 @@ TestCase {
         compare(view.commandPalette.title, "commands for the log");
         compare(view.commandPalette.items[0].group, "log");
         verify(view.commandPalette.items.some(row => row.action === "toggleLog" && row.title === "back from the log"));
+        // Board 51 D5 a: export log… has no key; the palette has it.
+        verify(view.commandPalette.items.some(row => row.action === "logExport" && row.title === "export log…"));
         view.commandPalette.close();
         // And it runs: `G` by name.
         testCase.logView.moveCursor(0);

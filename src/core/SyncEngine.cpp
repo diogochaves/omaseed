@@ -266,6 +266,7 @@ void SyncEngine::onPollResult(const QJsonObject &data)
     m_globalState->setLastSyncTime(QDateTime::currentDateTime());
 
     applyData(data);
+    m_globalState->recordSpeeds();
 
     if (wasLost)
         Q_EMIT serverBack();

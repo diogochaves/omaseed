@@ -59,7 +59,8 @@ private slots:
     void theFacesSayWhatTheyShow();
     void aLostServerSaysTheListsTime();
     void groupHeadsSayTheShortLine();
-    void shelvesSayCountAndSize();
+    void noSeedOnlineIsNoTimeToReady();
+    void foldersSayCountAndSize();
     void waitsAreRounded();
     void factsAreGatheredOverTheRailsScopeAlone();
 };
@@ -220,6 +221,15 @@ void TestScopeSentence::theFacesSayWhatTheyShow()
     QCOMPARE(ScopeSentence::log(QStringLiteral("public"), 1, QString()),
              QStringLiteral("qBittorrent's log on public · 1 line"));
     QCOMPARE(ScopeSentence::log(QString(), 0, QString()), QStringLiteral("qBittorrent's log"));
+    // Board 51 D5 a: the warnings and the critical lines, and following.
+    QCOMPARE(
+        ScopeSentence::log(QStringLiteral("public"), 1204, QStringLiteral("09:02"), 31, 3, true),
+        QStringLiteral("qBittorrent's log on public · 1204 lines since 09:02 · 31 warnings, 3 "
+                       "critical · following"));
+    QCOMPARE(ScopeSentence::log(QStringLiteral("public"), 2, QString(), 1, 0, false),
+             QStringLiteral("qBittorrent's log on public · 2 lines · 1 warning"));
+    QCOMPARE(ScopeSentence::log(QStringLiteral("public"), 0, QString(), 0, 0, true),
+             QStringLiteral("qBittorrent's log on public"));
 }
 
 void TestScopeSentence::aLostServerSaysTheListsTime()
@@ -353,14 +363,71 @@ void TestScopeSentence::groupHeadsSayTheShortLine()
     QCOMPARE(ScopeSentence::groupLine(TorrentFilterModel::AnyQuestion, quiet), QString());
 }
 
-void TestScopeSentence::shelvesSayCountAndSize()
+// #201 F14: a stalled torrent (no seed online) keeps qBittorrent's estimate from its old
+// speed, but nothing can finish it: the head says it waits, and with others the next ready
+// comes from those that can finish.
+void TestScopeSentence::noSeedOnlineIsNoTimeToReady()
+{
+    TorrentModel model;
+    TorrentFilterModel filtered;
+    filtered.setSourceModel(&model);
+    model.applyFullUpdate(QJsonObject{
+        {QStringLiteral("a"),
+         QJsonObject{{QStringLiteral("name"), QStringLiteral("alpha")},
+                     {QStringLiteral("state"), QStringLiteral("stalledDL")},
+                     {QStringLiteral("progress"), 0.4},
+                     {QStringLiteral("eta"), 97200}}},
+    });
+    ScopeFacts facts = filtered.scopeFacts();
+    QCOMPARE(facts.arriving, 1);
+    QCOMPARE(facts.waitingSeed, 1);
+    QCOMPARE(facts.nextEta, -1);
+    QCOMPARE(ScopeSentence::groupLine(TorrentFilterModel::Arriving, facts),
+             QStringLiteral("waiting for a seed"));
+    QCOMPARE(ScopeSentence::question(TorrentFilterModel::Arriving, facts),
+             QStringLiteral("1 torrent · waiting for a seed"));
+    QCOMPARE(ScopeSentence::library(facts), QStringLiteral("1 arriving"));
+
+    model.applyFullUpdate(QJsonObject{
+        {QStringLiteral("a"),
+         QJsonObject{{QStringLiteral("name"), QStringLiteral("alpha")},
+                     {QStringLiteral("state"), QStringLiteral("stalledDL")},
+                     {QStringLiteral("progress"), 0.4},
+                     {QStringLiteral("eta"), 60}}},
+        {QStringLiteral("b"),
+         QJsonObject{{QStringLiteral("name"), QStringLiteral("beta")},
+                     {QStringLiteral("state"), QStringLiteral("downloading")},
+                     {QStringLiteral("progress"), 0.1},
+                     {QStringLiteral("eta"), 900}}},
+    });
+    facts = filtered.scopeFacts();
+    QCOMPARE(facts.waitingSeed, 1);
+    QCOMPARE(facts.nextEta, 900);
+    QCOMPARE(ScopeSentence::groupLine(TorrentFilterModel::Arriving, facts),
+             QStringLiteral("next ready in 15 min"));
+
+    ScopeFacts two;
+    two.arriving = 2;
+    two.waitingSeed = 2;
+    QCOMPARE(ScopeSentence::groupLine(TorrentFilterModel::Arriving, two),
+             QStringLiteral("all waiting for a seed"));
+    two.arriving = 3;
+    QCOMPARE(ScopeSentence::groupLine(TorrentFilterModel::Arriving, two),
+             QStringLiteral("2 waiting for a seed"));
+    two.arrivingSpeed = 2048;
+    QCOMPARE(ScopeSentence::groupLine(TorrentFilterModel::Arriving, two), QStringLiteral("2 KB/s"));
+}
+
+// Board 51 D12 a: a folder's line in space.
+void TestScopeSentence::foldersSayCountAndSize()
 {
     ScopeFacts facts;
-    facts.total = 49;
+    facts.total = 9;
     facts.bytes = 1384120;
-    QCOMPARE(ScopeSentence::shelfLine(facts), QStringLiteral("49 · 1.32 MB"));
+    QCOMPARE(ScopeSentence::folderLine(facts), QStringLiteral("9 torrents · 1.32 MB"));
+    facts.total = 1;
     facts.bytes = 0;
-    QCOMPARE(ScopeSentence::shelfLine(facts), QStringLiteral("49"));
+    QCOMPARE(ScopeSentence::folderLine(facts), QStringLiteral("1 torrent"));
 }
 
 QTEST_GUILESS_MAIN(TestScopeSentence)

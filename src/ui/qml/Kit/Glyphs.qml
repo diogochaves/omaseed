@@ -84,10 +84,10 @@ QtObject {
     /// A search result that is a link to a .torrent (board 48's ⋯), and one that is a magnet (◇).
     readonly property string searchLink: t("searchLink", "⋯")
     readonly property string searchMagnet: g("searchMagnet", "◇")
-    // DECISIONS C24 H3–H4: the library's displays (board 46's display tool).
+    // DECISIONS C24 H3–H4: the library's displays (board 46's display tool; space, C32 D12 a).
     readonly property string displayRows: g("displayRows", "≡")
     readonly property string displayTable: g("displayTable", "▤")
-    readonly property string displayShelves: g("displayShelves", "▦")
+    readonly property string displaySpace: g("displaySpace", "▦")
     readonly property string questionNeedsYou: g("questionNeedsYou", "!")
     readonly property string questionArriving: g("questionArriving", "↓")
     readonly property string questionLanded: g("questionLanded", "✓")
@@ -141,6 +141,7 @@ QtObject {
     readonly property string keyboard: g("keyboard", "icon:keyboard")
     readonly property string appearance: g("appearance", "icon:appearance")
     readonly property string backup: g("backup", "icon:backup") // #31 Settings › Backup
+    readonly property string exportFile: g("export", "icon:export") // board 51 D5 a, "export log…"
     readonly property string about: t("about", "i")
     // docs/34 D6 a: copy settings from another server
     readonly property string copyFrom: g("copyFrom", "⇣")
@@ -168,6 +169,24 @@ QtObject {
     readonly property string location: g("location", "icon:location")
     readonly property string openFolder: g("openFolder", "icon:openFolder")
     readonly property string trash: g("trash", "icon:delete")
+
+    // ---- the torrent menu, board 46 `menuHtml()` (#201 F15): every row an icon ------------
+    readonly property string retry: g("retry", "icon:retry")
+    readonly property string renameRow: g("rename", "icon:rename") // `rename` stays a character
+    readonly property string queue: g("queue", "icon:queue") // queue ›
+    readonly property string copy: g("copy", "icon:copy") // copy ›
+    // transfer ›'s rows
+    readonly property string forceStart: g("forceStart", "icon:forceStart")
+    readonly property string sequential: g("sequential", "icon:sequential")
+    readonly property string firstLast: g("firstLast", "icon:firstLast")
+    readonly property string superSeeding: g("superSeeding", "icon:superSeeding")
+    readonly property string autoManagement: g("autoManagement", "icon:autoManagement")
+    // queue ›'s and copy ›'s rows
+    readonly property string queueUp: g("queueUp", "↑")
+    readonly property string queueDown: g("queueDown", "↓")
+    readonly property string copyMagnet: g("copyMagnet", "◇")
+    readonly property string copyHash: g("copyHash", "#")
+    readonly property string copyName: g("copyName", "icon:title")
 
     // ---- the app menu's window block, board 46 `menuHtml("app")` (DECISIONS C24 H9) -----
     readonly property string hideWindow: g("hideWindow", "–")

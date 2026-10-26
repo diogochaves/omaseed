@@ -95,6 +95,15 @@ drawn_skin() {
     [ -n "$line" ] && echo "${line##*skin: }" || echo omarchy
 }
 
+# wait_saved EXPECTED: until saved_skin is EXPECTED (10 s).
+wait_saved() {
+    for _ in $(seq 1 40); do
+        [ "$(saved_skin)" = "$1" ] && return 0
+        sleep 0.25
+    done
+    return 0
+}
+
 # wait_skin EXPECTED: until drawn_skin starts with EXPECTED (10 s).
 wait_skin() {
     for _ in $(seq 1 40); do
@@ -258,7 +267,10 @@ check "the theme's file first" "$(drawn_skin)" "console (choice desktop, fonts t
 omabox run -b "$BOX" -- sh -c 'rm -f "$1"; [ ! -e "$1.walk" ] || mv "$1.walk" "$1"' sh "$THEME_SKIN"
 desktop_file console-skin.json
 desktop_file console.json
+# The files gone are drawn before the key: a key pressed while the skin redraws can be lost.
+wait_skin omarchy
 keys Return
+wait_saved omarchy
 check "back to Omarchy" "$(saved_skin)" omarchy
 keys Escape Escape
 

@@ -152,11 +152,29 @@ TestCase {
             ["o", "openFolder"],
             ["d", "delete"]
         ];
-        for (const [key, action] of expected)
-            verify(view.actionsMenuPanel.indexOfKey(key) >= 0, "missing row for key " + key);
+        // A key runs its row from the top, in a submenu too (#201 F15).
+        for (const [key, action] of expected) {
+            const row = view.actionsMenuPanel.itemOfKey(key);
+            verify(row !== null, "missing row for key " + key);
+            compare(row.action, action, key);
+        }
         compare(view.actionsMenuPanel.indexOfKey("d") >= 0, true);
         const deleteRow = view.actionsMenuPanel.items[view.actionsMenuPanel.indexOfKey("d")];
         compare(deleteRow.danger, true);
+    }
+
+    // #201 F15 (board 46 `menuHtml()`): every row has an icon, its submenus' rows too.
+    function test_every_row_of_the_menu_has_an_icon() {
+        const rows = [];
+        for (const item of view.actionsMenuPanel.items) {
+            if (item.separator === true)
+                continue;
+            rows.push(item);
+            for (const child of item.submenu ?? [])
+                rows.push(child);
+        }
+        for (const row of rows)
+            verify(typeof row.glyph === "string" && row.glyph.length > 0, row.text);
     }
 
     // DECISIONS C24 H9 (board 46 `menuHtml()`): verbs grouped, keys right, delete last: run ·
@@ -169,12 +187,21 @@ TestCase {
             else
                 groups[groups.length - 1].push(item.action);
         }
-        compare(groups, [["stopStart", "forceStart", "recheck", "reannounce"],
+        compare(groups, [["stopStart", "recheck", "reannounce"],
                          ["location", "category", "tags", "rename"],
-                         ["limits", "sequential", "firstLast", "superSeeding", "autoManagement",
-                          "queueUp", "queueDown"],
-                         ["openFolder", "copyMagnet", "copyHash", "copyName"],
+                         ["limits", "transfer", "queue"],
+                         ["openFolder", "copy"],
                          ["delete"]]);
+        // #201 F15: board 46's three submenus.
+        const submenu = action => view.actionsMenuPanel.items.find(item => item.action === action)
+                      .submenu.map(child => child.action);
+        compare(submenu("transfer"), ["forceStart", "sequential", "firstLast", "superSeeding",
+                                      "autoManagement"]);
+        compare(submenu("queue"), ["queueUp", "queueDown"]);
+        compare(submenu("copy"), ["copyMagnet", "copyHash", "copyName"]);
+        // The same groups as data, for the action bar (C32 D17).
+        compare(view.actionsMenuPanel.groups.map(group => group.name),
+                ["run", "place", "transfer", "reach", "delete"]);
     }
 
     // docs/12 G4: the four per-torrent options, checked for the cursor torrent.
@@ -185,14 +212,13 @@ TestCase {
         compare(view.actionsMenuPanel.opened, true);
         for (const [key, action] of [["s", "sequential"], ["f", "firstLast"],
                                      ["S", "superSeeding"], ["a", "autoManagement"]]) {
-            const index = view.actionsMenuPanel.indexOfKey(key);
-            verify(index >= 0, "missing row for key " + key);
-            compare(view.actionsMenuPanel.items[index].action, action);
+            const row = view.actionsMenuPanel.itemOfKey(key);
+            verify(row !== null, "missing row for key " + key);
+            compare(row.action, action);
         }
         // The demo's linux rows are automatically managed.
-        compare(view.actionsMenuPanel.items[view.actionsMenuPanel.indexOfKey("a")].glyph,
-                Glyphs.check);
-        compare(view.actionsMenuPanel.items[view.actionsMenuPanel.indexOfKey("s")].glyph, "");
+        compare(view.actionsMenuPanel.itemOfKey("a").checked, true);
+        compare(view.actionsMenuPanel.itemOfKey("s").checked, false);
         view.actionsMenuPanel.close();
     }
 
@@ -1479,5 +1505,53 @@ TestCase {
         keyClick("y");
         compare(view.footerNote, "copied hash v1");
         view.details.activateTab(view.details.tabStory);
+    }
+    // DECISIONS C32 D19 (board 51): move back's sheet draws the loose files the move carried
+    // under its own tick, each with what happens to it, and its foot names the list. (The words
+    // come from App.move: tst_movecontroller checks them on real files.)
+    function test_move_back_sheet_draws_the_loose_files_it_carries_back() {
+        const sheet = view.moveSheet;
+        sheet.openBack("", "");
+        compare(sheet.opened, true);
+        compare(sheet.carryBack, true);
+        const toggle = findChild(sheet, "moveCarryBack");
+        verify(toggle !== null);
+        compare(toggle.visible, false, "a move that carried nothing has no tick");
+        sheet.plan = {
+            "title": "Move 2 torrents back",
+            "moveText": "move 2 back · 1 file",
+            "canMove": true,
+            "footNote": "the list is the one the move kept",
+            "carryBack": {
+                "text": "Carry back the 2 loose files the move carried",
+                "note": "copied, compared, then removed at /mnt/fast/games, as the move did",
+                "count": 1,
+                "total": 2,
+                "on": true,
+                "rows": [{
+                        "name": "manual.pdf",
+                        "detail": "18 KB · as carried",
+                        "verdict": "back",
+                        "kind": "ok"
+                    }, {
+                        "name": "notes/readme.txt",
+                        "detail": "changed at 17:02, after the move",
+                        "verdict": "stays",
+                        "kind": "warn"
+                    }]
+            }
+        };
+        compare(toggle.visible, true);
+        compare(toggle.checked, true);
+        compare(toggle.text, "Carry back the 2 loose files the move carried");
+        compare(sheet.note, "the list is the one the move kept");
+        const verdict = findChild(sheet, "moveCarryBackVerdict");
+        verify(verdict !== null);
+        compare(verdict.text, "back");
+        compare(verdict.color, Theme.green);
+        sheet.close();
+        compare(sheet.note, "the list is the one the move kept");
+        sheet.plan = ({});
+        compare(sheet.note, "");
     }
 }

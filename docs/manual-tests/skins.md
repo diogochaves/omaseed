@@ -3,13 +3,14 @@
 The person's pass over the console skin (#171, DECISIONS C31) before v0.5.0. Only what the
 automated layer can't judge: whether Console reads like board 46 on a real window, and whether
 the switch and Follow the desktop feel right. The rest was checked by tests and walks on the same
-commit (listed at the end). About 40 minutes. Keep [board 46](../46-the-whole-app-on-v03.html)'s
-Console pass open beside the box (and [board 49](../49-create-a-torrent.html) for create).
+commit (listed at the end). About 45 minutes. Keep [board 46](../46-the-whole-app-on-v03.html)'s
+Console pass open beside the box (and [board 49](../49-create-a-torrent.html) for create, [board
+51](../51-the-v050-pass.html) for what the first pass changed, C32).
 
 ## Setup
 
 ```sh
-scripts/dev/manual-box.sh          # a throwaway desktop, a window on workspace 9, omaseed from main
+scripts/dev/manual-box.sh          # a throwaway desktop, a window on workspace 9, omaseed from this checkout
 ```
 
 In the box: click into the window, **SUPER+ALT+ESC** (SUPER keys go to the box; again to give them
@@ -84,22 +85,31 @@ Each: what to do, then what you should see. Note OK, or what you saw instead.
    the words under the row say what is drawn?
 4. **Console, the frame.** Pick Console. Against board 46's Console window: the rail (group
    heads with kana, place names in the label font, counts padded "01", the servers head "servers"
-   with its kana and the count apart), the title bar (upper case, tracked, its kana risen a
-   little), the status line (square lamp, upper case), the window's edge. Hold **alt**: the key
-   badges sit where Omarchy's do.
+   with its kana and the count apart, the settings row at its foot), the title bar (upper case,
+   tracked, its kana risen a little; ↓ and ↑ with their lines, the filter open with a `cat:`
+   chip), the status line (square lamp, upper case; **A** for the turtle chip on its tint, the
+   choice's burst on its own), the window's edge. Hover the rail: the fold tab on its edge, its
+   tooltip; drag the edge. Hold **alt**: the key badges sit where Omarchy's do. **,** ›
+   Appearance › Surface tint 4 %: the rail's rows still read in Console's grounds; back to off.
 5. **Console, the sheets and menus.** **a** (add), **m** on a torrent (move), **ctrl+n**
    (create), **,** (settings, a few panes), **?** (help), **:** (the palette): each sheet's head
    upper case with its kana (追加, 移動, 作成; 外観 on Appearance, 検索 on search plugins, 設定 on
    the other panes), the panel cut at its corners, the hair edge. **ctrl+.** (the app menu), the
-   row's **enter** (actions), "+ add ▾", the display menu: the menus' heads in the heading voice,
-   no kana, the cursor's row bracketed. Judge: is the caption-size button text readable?
+   row's **enter** (actions, with transfer ›, queue › and copy › open in turn), a right-click on
+   a server in the rail, "+ add ▾", the display menu (its sort block): the menus' heads in the
+   heading voice, no kana, the cursor's row bracketed, each row's icon a Material Symbols glyph.
+   The app menu grows from the lit mark but keeps its cut-plate outline all round. Judge: is the
+   caption-size button text readable?
 6. **Console, the library.** The rows (**:** `show as rows`): names upper case, the cursor's
-   row in brackets, **space** on two other rows puts them on the picked ground, with no
-   brackets; the group heads' bar, the needs-you head's accent bar and red title. The table
+   row in brackets while the list has the keys (**l** into details: the brackets go, the
+   cursor's ground stays), **space** on two other rows puts them on the picked ground, with no
+   brackets; the group heads' bar, the needs-you head's accent bar and red title. With those two
+   selected, the action bar floating over the list: its buttons, their icons and the outcome
+   strip above it (a move, say) in Console's plates. The table
    (`show as table`): the status word in the caption voice, "downloading" whole in its column,
-   the same brackets on the cursor's row. The overview (`show as shelves`): the shelves in the
-   label voice, a selected cover's 1 px edge. The overview stays a shelf layout: board 46's
-   station layout is not built (#199).
+   the same brackets on the cursor's row. Space (`show as space`): the blocks as cut plates,
+   the cursor's 1 px accent edge, a selected block's brackets. Board 46's station layout is not
+   built (#199).
 7. **Console, a torrent that needs you.** Make one, by taking away a file it seeds:
 
    ```sh
@@ -112,8 +122,11 @@ Each: what to do, then what you should see. Note OK, or what you saw instead.
    `chmod 644 ~/Downloads/private/"Sketchbook Scans (v1)"/"scan 01.raw"` and the fix.
 8. **Console, the details.** On a torrent half downloaded: the hero on its plate, the pieces in
    square cells, 34 across, as many rows as the pieces fill; then the tabs (**2**–**5**): files,
-   swarm, trackers (square lamps), facts. The current tab on a 2 px accent line; every column
-   caption whole (no "SEEDSPEERS").
+   swarm, trackers (square lamps), facts, no digits (hold **alt** for their badges). The current
+   tab on a 2 px accent line while the pane has the keys, a dim hairline while the list has them
+   (#201 F16); every column caption whole (no "SEEDSPEERS"). The story's "what happened" newest
+   first, its plain marks neutral. **~** (the log): its rail's levels with their ticks and
+   counts, the torrents it names, since when.
 9. **Console, search and create.** **ctrl+f**, a word: the search rows' names upper case, the
    pills' lamps square. **ctrl+n** on a folder of the box's (`~/Downloads`): create's plates and
    its round-trip note tagged in the signal colour (board 49). Start it: the band's "creating"
@@ -143,6 +156,12 @@ Each: what to do, then what you should see. Note OK, or what you saw instead.
     - [ ] The row fact at the heading step (17.3 px at 13, the board says 18), weight 500.
     - [ ] Follow the desktop turns on for any positive integer version, and reads none of the
       desktop file's values; `fx.fonts = system` counts only while following.
+    - [ ] The app menu keeps Console's cut-plate outline all round while it grows from the lit
+      mark (the open top is Omarchy's; C32 "The mark and its menu").
+    - [ ] Every menu's icons, the action bar's and the server menu's included, are Material
+      Symbols ligatures in Console (C32 "Menus").
+    - [ ] The cursor's brackets show only while its list has the keys; the details' tab line is
+      lit only while the pane has them; Settings' tabs keep the skin's line (#201 F16).
 
 When you're done: `scripts/dev/manual-box.sh down`.
 
