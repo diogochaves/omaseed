@@ -12,6 +12,7 @@
 #include <QJsonObject>
 #include <QSignalSpy>
 #include <QTcpServer>
+#include <QTemporaryDir>
 #include <QTcpSocket>
 #include <QTest>
 #include <QUrlQuery>
@@ -156,6 +157,8 @@ private slots:
     void linesNameTheirTorrent();
     void aLineLeadsToItsTorrent();
     void copyLineIsTimeLevelMessage();
+    void aboutTorrentsCountsTheMostNamedFirst();
+    void aTorrentAddedSinceIsNamedAgain();
 
     // reading
     void nothingIsReadWhileInactive();
@@ -177,6 +180,8 @@ private slots:
     void nextProblemSkipsTheRest();
     void marksAndCopy();
     void marksGoWhenTheLogStartsOver();
+    void sinceKeepsTheLaterLines();
+    void exportWritesTheLinesShown();
 
 private:
     TorrentModel *m_torrents = nullptr;
@@ -345,6 +350,35 @@ void TestServerLog::aLineLeadsToItsTorrent()
     m_log->applyEntries({entry(6, 4, kNoName)});
     QCOMPARE(m_log->torrentAt(6), kMove); // by its prefix
     QCOMPARE(m_log->torrentAt(99), QString());
+}
+
+// Board 51 D5 a (DECISIONS C32): the log's rail names the torrents its lines are about, the
+// most lines first, then by name, and no more than asked for.
+void TestServerLog::aboutTorrentsCountsTheMostNamedFirst()
+{
+    m_log->applyEntries(l1());
+    m_log->applyEntries({entry(6, 4, kNoName)});
+    const QVariantList about = m_log->aboutTorrents(10);
+    QCOMPARE(about.size(), 2);
+    QCOMPARE(about.at(0).toMap().value(QStringLiteral("hash")).toString(), kMove);
+    QCOMPARE(about.at(0).toMap().value(QStringLiteral("name")).toString(),
+             QStringLiteral("log55-move.bin"));
+    QCOMPARE(about.at(0).toMap().value(QStringLiteral("count")).toInt(), 4);
+    QCOMPARE(about.at(1).toMap().value(QStringLiteral("hash")).toString(), kOther);
+    QCOMPARE(about.at(1).toMap().value(QStringLiteral("count")).toInt(), 1);
+    QCOMPARE(m_log->aboutTorrents(1).size(), 1);
+    QVERIFY(m_log->aboutTorrents(0).isEmpty());
+}
+
+// What a message names is kept, but a torrent new to the library is looked for again.
+void TestServerLog::aTorrentAddedSinceIsNamedAgain()
+{
+    const QString hash = QStringLiteral("feed000000000000000000000000000000000000");
+    m_log->applyEntries({entry(0, 1, QStringLiteral("Added new torrent. Torrent: \"late.bin\""))});
+    QCOMPARE(m_log->torrentAt(0), QString());
+    m_torrents->applyPartial({{hash, torrent(QStringLiteral("late.bin"))}}, {});
+    QCOMPARE(m_log->torrentAt(0), hash);
+    QCOMPARE(m_log->aboutTorrents(5).size(), 1);
 }
 
 void TestServerLog::copyLineIsTimeLevelMessage()
@@ -721,6 +755,42 @@ void TestServerLog::marksGoWhenTheLogStartsOver()
     m_log->onSynced(true, false);
     QCOMPARE(m_lines->markedCount(), 0);
     QCOMPARE(m_lines->count(), 0);
+}
+
+// Board 51 D5 a: "since" in the log's rail keeps only the lines from then on.
+void TestServerLog::sinceKeepsTheLaterLines()
+{
+    m_log->applyEntries({entry(0, 1, kAdded, 1000), entry(1, 1, kMoving, 2000),
+                         entry(2, 4, kMoveFailed, 3000)});
+    QSignalSpy narrowed(m_lines, &LogFilterModel::narrowedChanged);
+    m_lines->setSince(2000);
+    QVERIFY(m_lines->isNarrowed());
+    QCOMPARE(narrowed.count(), 1);
+    QCOMPARE(messages(*m_lines), QStringList({kMoving, kMoveFailed}));
+    QCOMPARE(m_log->firstAt(), qint64(1000));
+    m_lines->setSince(0);
+    QVERIFY(!m_lines->isNarrowed());
+    QCOMPARE(m_lines->count(), 3);
+}
+
+// Board 51 D5 a: "export log…" saves the lines as shown, the levels and filter applied.
+void TestServerLog::exportWritesTheLinesShown()
+{
+    m_log->applyEntries(l1());
+    m_lines->setLevels(ServerLog::Warning);
+    const QString text = m_lines->shownText();
+    QCOMPARE(text.count(QLatin1Char('\n')), 2);
+    QVERIFY(text.contains(QStringLiteral("warning ") + kMoveFailed));
+    QVERIFY(!text.contains(kAdded));
+
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString path = dir.filePath(QStringLiteral("log.txt"));
+    QCOMPARE(m_lines->writeShown(path), QString());
+    QFile file(path);
+    QVERIFY(file.open(QIODevice::ReadOnly));
+    QCOMPARE(QString::fromUtf8(file.readAll()), text);
+    QVERIFY(!m_lines->writeShown(dir.filePath(QStringLiteral("no/such/dir/log.txt"))).isEmpty());
 }
 
 QTEST_GUILESS_MAIN(TestServerLog)

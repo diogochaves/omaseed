@@ -93,8 +93,14 @@ public:
 
     /// The seed console: what goes up now, today's total ("18.4 GB today") and its scope.
     static QString seed(const QString &upSpeed, const QString &today, const QString &scope);
-    /// The log face: whose log, and how many lines since when ("" for none known).
-    static QString log(const QString &server, int lines, const QString &since);
+    /// The log face: whose log, and how many lines since when ("" for none known); then the
+    /// warnings and critical lines held and "following" while new lines pull the view down.
+    static QString log(const QString &server,
+                       int lines,
+                       const QString &since,
+                       int warnings = 0,
+                       int critical = 0,
+                       bool following = false);
     /// Any scope while the server is lost: the list's time and the notice's headline.
     static QString lost(const QString &listTime, const QString &headline);
 

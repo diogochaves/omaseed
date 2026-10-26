@@ -302,7 +302,12 @@ QString ScopeSentence::seed(const QString &upSpeed, const QString &today, const 
     return parts.join(kApart);
 }
 
-QString ScopeSentence::log(const QString &server, int lines, const QString &since)
+QString ScopeSentence::log(const QString &server,
+                          int lines,
+                          const QString &since,
+                          int warnings,
+                          int critical,
+                          bool following)
 {
     QString line =
         server.isEmpty() ? tr("qBittorrent's log") : tr("qBittorrent's log on %1").arg(server);
@@ -310,6 +315,17 @@ QString ScopeSentence::log(const QString &server, int lines, const QString &sinc
         line += kApart + counted(lines, "%1 line", "%1 lines");
         if (!since.isEmpty())
             line += tr(" since %1").arg(since);
+        // Board 51 D5 a: what needs reading, and whether new lines pull the view down (the
+        // log's bar, gone into the rail and the title bar, said where it stood).
+        QStringList problems;
+        if (warnings > 0)
+            problems << counted(warnings, "%1 warning", "%1 warnings");
+        if (critical > 0)
+            problems << tr("%1 critical").arg(critical);
+        if (!problems.isEmpty())
+            line += kApart + problems.join(QStringLiteral(", "));
+        if (following)
+            line += kApart + tr("following");
     }
     return line;
 }

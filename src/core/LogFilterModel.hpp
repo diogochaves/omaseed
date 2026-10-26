@@ -23,11 +23,14 @@ class LogFilterModel : public QSortFilterProxyModel
     /// The torrent the lines are narrowed to, "" for none; its name for the chip.
     Q_PROPERTY(QString torrentHash READ torrentHash NOTIFY torrentChanged)
     Q_PROPERTY(QString torrentName READ torrentName NOTIFY torrentChanged)
+    /// Board 51 D5 a: only the lines written at or after this time (seconds since the epoch,
+    /// the rail's "since" group); 0 for every line held.
+    Q_PROPERTY(qint64 since READ since WRITE setSince NOTIFY sinceChanged)
     /// Lines shown.
     Q_PROPERTY(int count READ count NOTIFY countChanged)
     /// Lines at the levels that are on: the M of "N of M lines".
     Q_PROPERTY(int levelTotal READ levelTotal NOTIFY countChanged)
-    /// Words or a torrent narrow the lines further than the levels.
+    /// Words, a torrent or a time narrow the lines further than the levels.
     Q_PROPERTY(bool narrowed READ isNarrowed NOTIFY narrowedChanged)
     Q_PROPERTY(int markedCount READ markedCount NOTIFY marksChanged)
 
@@ -61,7 +64,13 @@ public:
 
     int count() const { return rowCount(); }
     int levelTotal() const;
-    bool isNarrowed() const { return !m_words.isEmpty() || !m_torrentHash.isEmpty(); }
+    bool isNarrowed() const
+    {
+        return !m_words.isEmpty() || !m_torrentHash.isEmpty() || m_since > 0;
+    }
+
+    qint64 since() const { return m_since; }
+    void setSince(qint64 since);
 
     /// `w`/`W`: the next (`step` 1) or previous (-1) warning or critical line after `from`,
     /// -1 when there is none.
@@ -87,6 +96,12 @@ public:
     Q_INVOKABLE QString copyText(int cursor) const;
     /// How many lines copyText(`cursor`) holds.
     Q_INVOKABLE int copyCount(int cursor) const;
+    /// Board 51 D5 a, "export log…": every line shown (the levels, words, torrent and time
+    /// applied), one per line as `y` copies it, ending with a newline; "" with none.
+    Q_INVOKABLE QString shownText() const;
+    /// shownText() written to `path` in one go (QSaveFile: a failure leaves what was there).
+    /// "" once written, else why not, in a few words.
+    Q_INVOKABLE QString writeShown(const QString &path) const;
 
     QVariant data(const QModelIndex &index, int role = Qt::DisplayRole) const override;
     QHash<int, QByteArray> roleNames() const override;
@@ -96,6 +111,7 @@ Q_SIGNALS:
     void levelsChanged();
     void textChanged();
     void torrentChanged();
+    void sinceChanged();
     void countChanged();
     void narrowedChanged();
     void marksChanged();
@@ -117,6 +133,7 @@ private:
     QString m_torrentHash;
     QString m_torrentName;
     QString m_torrentPrefix;
+    qint64 m_since = 0;
     QSet<int> m_marked; ///< log ids
 };
 

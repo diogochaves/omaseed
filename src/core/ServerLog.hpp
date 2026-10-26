@@ -2,6 +2,7 @@
 
 #include <QAbstractListModel>
 #include <QDateTime>
+#include <QHash>
 #include <QJsonArray>
 #include <QList>
 #include <QPointer>
@@ -104,6 +105,13 @@ public:
     Q_INVOKABLE QString torrentAt(int row) const;
     /// What a line about `hash` carries: `{name, prefix}`, empty when it isn't in the library.
     Q_INVOKABLE QVariantMap torrentKey(const QString &hash) const;
+    /// Board 51 D5 a (DECISIONS C32): the torrents the lines held are about, for the log's
+    /// rail: `[{hash, name, count}]`, the most lines first (then by name), at most `limit`.
+    /// What each line names is kept by its message, so a read only looks at its new lines;
+    /// a torrent added to or removed from the library looks at them all again.
+    Q_INVOKABLE QVariantList aboutTorrents(int limit) const;
+    /// When the oldest line held was written, seconds since the epoch; 0 with no line.
+    qint64 firstAt() const { return m_lines.isEmpty() ? 0 : m_lines.constFirst().at; }
     /// Whether `message` names the torrent called `name`, whose hash starts `prefix`: a quoted
     /// part is the name, or starts with the prefix (libtorrent 2.1) or the name (2.0) and a
     /// space.
@@ -144,6 +152,12 @@ private:
     QPointer<QbtClient> m_client;
     QPointer<TorrentModel> m_torrents;
     void mergeMoveLines();
+    /// The torrent `message` names, "" for none (torrentAt()'s match, uncached).
+    QString torrentNamed(const QString &message) const;
+
+    /// What each message names, "" for none: torrentAt() and aboutTorrents() look a message
+    /// up once until the library gains or loses a torrent.
+    mutable QHash<QString, QString> m_named;
 
     QList<Line> m_lines;
     QList<Line> m_moveLines; ///< omaseed's, oldest first

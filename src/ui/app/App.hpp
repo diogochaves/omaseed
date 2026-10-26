@@ -1735,6 +1735,10 @@ public:
     /// The portal's save dialog, proposing `~/qbittorrent-<server>-<date>.json`. Empty when
     /// cancelled.
     Q_INVOKABLE QString pickQbtExportPath() const;
+    /// Board 51 D5 a, "export log…": where to save the log's lines as shown, through the
+    /// portal's chooser as the other exports ("qbittorrent-log-public-2026-10-26.txt" in the
+    /// home folder proposed); "" when cancelled. `App.logLines.writeShown()` writes it.
+    Q_INVOKABLE QString pickLogExportPath() const;
     /// Reads the server's settings and writes them to `path`; `qbtExportFinished` says how it
     /// went.
     Q_INVOKABLE void exportQbtSettings(const QString &path);
@@ -2237,7 +2241,12 @@ public:
     /// server's, the log's, the seed console's, a move's torrents on show from its band or
     /// from the move sheet.
     Q_INVOKABLE QString lostSentence(const QString &listTime, const QString &headline) const;
-    Q_INVOKABLE QString logSentence(const QString &server, int lines, const QString &since) const;
+    Q_INVOKABLE QString logSentence(const QString &server,
+                                    int lines,
+                                    const QString &since,
+                                    int warnings = 0,
+                                    int critical = 0,
+                                    bool following = false) const;
     Q_INVOKABLE QString seedSentence(const QString &upSpeed,
                                      const QString &today,
                                      const QString &scope) const;

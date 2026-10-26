@@ -6043,6 +6043,16 @@ void App::refreshQbtBackupInfo()
         });
 }
 
+QString App::pickLogExportPath() const
+{
+    const QString suggested = QDir::homePath() + QStringLiteral("/qbittorrent-log-") +
+                              fileStem(m_server.name) + QLatin1Char('-') +
+                              QDate::currentDate().toString(Qt::ISODate) + QStringLiteral(".txt");
+    QFileDialog dialog(nullptr, tr("Export qBittorrent's log"), suggested, tr("Text (*.txt)"));
+    dialog.setAcceptMode(QFileDialog::AcceptSave);
+    return runPicker(dialog, m_dialogParent).value(0);
+}
+
 QString App::pickQbtExportPath() const
 {
     const QString suggested = QDir::homePath() + QLatin1Char('/') + qbtExportName(m_server.name);
