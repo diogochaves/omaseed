@@ -821,6 +821,17 @@ Item {
         root.focusHome();
     }
 
+    /// Board 51 D13 a (C32): an order from the display tool's sort block, its own direction
+    /// first as a header click gives it ("reverse" turns it); the one in use stays as it is.
+    function pickSort(role: string): void {
+        if (role === "reverse")
+            App.filtered.sortOrder = App.filtered.sortOrder === Qt.AscendingOrder ? Qt.DescendingOrder
+                                                                                  : Qt.AscendingOrder;
+        else if (role !== App.filtered.sortRoleName)
+            table.sortBy(role);
+        root.focusHome();
+    }
+
     function openAppMenu(): void {
         if (root.firstRun)
             return;
@@ -2269,6 +2280,8 @@ Item {
         // C24 H3–H4: the scope's display, in the library only, and not over a move's show (the
         // table's step column, #168 assumed 5) or an empty library.
         display: root.view === "library" && !root.moveShowing && !root.libraryEmpty ? App.display : ""
+        // Board 51 D13 a (C32): the tool's word says the sort too, "rows · added".
+        sortWord: displayMenu.sortWord
 
         // C24 H17: "+ add ▾" with create and search under it (#146).
         addMenuShown: App.createOffered || App.searchOffered
@@ -3468,9 +3481,12 @@ Item {
 
         anchors.fill: parent
         current: App.display
+        sortOrder: App.filtered.sortOrder
+        sortRole: App.filtered.sortRoleName
         z: 9
 
-        onActivated: display => root.pickDisplay(display)
+        onActivated: action => action.startsWith("sort:") ? root.pickSort(action.slice(5))
+                                                           : root.pickDisplay(action)
     }
 
     AltSpeedMenu {

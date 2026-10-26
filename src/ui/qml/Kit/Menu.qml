@@ -20,7 +20,8 @@ import Omaseed.Kit
 // right, where a key would be, that no key press matches), `noteColor` (that word's colour, a
 // failing server's red or yellow), `dim` (its text dim, though it can still be picked) and
 // `checked` (a check or radio row: a ✓ before its key while true, and a screen reader hears
-// it checkable). `{caption: true, text}` is a dim small line between the rows that is never
+// it checkable); with `radio` the row's own glyph (a radio dot) says it instead, and no ✓
+// is drawn (board 51 D13 a's sort block). `{caption: true, text}` is a dim small line between the rows that is never
 // a row (the app menu's "servers", "this window"). `headingTitle`, when set, leads the
 // heading in bright demi-bold ("omaseed" before "0.5.0 · public", board 46); with
 // `headingOneLine` the two share one line, the title in the foreground's medium weight
@@ -690,6 +691,7 @@ Item {
                                 pixelSize: Theme.font.caption
                                 text: Glyphs.check
                                 visible: menuRow.modelData.checked === true
+                                         && menuRow.modelData.radio !== true
                             }
 
                             Label {

@@ -82,14 +82,14 @@ TestCase {
         compare(App.filtered.groupBy, TorrentFilterModel.ByQuestion);
         compare(view.table.face, view.libraryRows);
         verify(view.libraryRows.visible);
-        compare(view.titleBar.displayTool.text, "rows ▾");
+        compare(view.titleBar.displayTool.text, "rows · name ▾");
         App.resetDisplays(true);
         compare(App.display, "table");
         compare(App.filtered.groupBy, TorrentFilterModel.NoGroups);
         compare(view.table.face, null);
         verify(!view.libraryRows.visible);
         verify(findChild(view.table, "rows").visible);
-        compare(view.titleBar.displayTool.text, "table ▾");
+        compare(view.titleBar.displayTool.text, "table · name ▾");
     }
 
     // H3: rows grouped under the questions, in the rail's order, each under its head; the
@@ -328,7 +328,7 @@ TestCase {
         App.filtered.question = TorrentFilterModel.AnyQuestion;
         App.filtered.folder = folder;
         compare(App.display, "overview");
-        compare(view.titleBar.displayTool.text, "shelves ▾");
+        compare(view.titleBar.displayTool.text, "shelves · name ▾");
         App.filtered.folder = "";
     }
 
@@ -372,8 +372,9 @@ TestCase {
         verify(view.titleBar.displayTool.visible);
         mouseClick(view.titleBar.displayTool);
         tryVerify(() => view.displayMenu.opened);
-        compare(view.displayMenu.items.map(item => item.action), ["rows", "table", "overview"]);
-        compare(view.displayMenu.items.filter(item => item.checked).map(item => item.action), ["table"]);
+        compare(view.displayMenu.items.slice(0, 3).map(item => item.action), ["rows", "table", "overview"]);
+        compare(view.displayMenu.items.filter(item => item.checked && item.radio !== true).map(item => item.action),
+                ["table"]);
         view.displayMenu.activated("rows");
         view.displayMenu.close();
         compare(App.display, "rows");
@@ -386,6 +387,45 @@ TestCase {
         view.setView("seed");
         verify(!view.titleBar.displayTool.visible);
         view.setView("library");
+    }
+
+    // Board 51 D13 a (C32): the menu's sort block, the order in use picked with its direction
+    // in words; a pick sorts, "reverse" turns it, and the tool's word says it.
+    function test_the_display_tool_sorts() {
+        testCase.rowsShown();
+        const sorts = () => view.displayMenu.items.filter(item => (item.action ?? "").startsWith("sort:")
+                                                           && item.action !== "sort:reverse");
+        compare(sorts().map(item => item.text), ["added", "name", "size", "progress", "time to ready", "ratio"]);
+        compare(view.displayMenu.items.find(item => item.caption === true).text, "sort, inside each group");
+        compare(sorts().filter(item => item.checked).map(item => item.action), ["sort:name"]);
+        compare(sorts().find(item => item.checked).note, "a to z");
+        compare(view.displayMenu.footer, "also s, the sort palette");
+
+        mouseClick(view.titleBar.displayTool);
+        tryVerify(() => view.displayMenu.opened);
+        view.displayMenu.activated("sort:addedOn");
+        view.displayMenu.close();
+        compare(App.filtered.sortRoleName, "addedOn");
+        compare(App.filtered.sortOrder, Qt.DescendingOrder);
+        compare(App.display, "rows", "a sort keeps the display");
+        compare(view.titleBar.displayTool.text, "rows · added ▾");
+        compare(view.titleBar.displayTool.Accessible.name, "display: rows, sorted by added");
+        compare(sorts().find(item => item.checked).note, "newest first");
+        // The one in use again keeps it; "reverse" turns it.
+        view.displayMenu.activated("sort:addedOn");
+        compare(App.filtered.sortOrder, Qt.DescendingOrder);
+        view.displayMenu.activated("sort:reverse");
+        compare(App.filtered.sortOrder, Qt.AscendingOrder);
+        compare(sorts().find(item => item.checked).note, "oldest first");
+
+        // A sort the block doesn't list joins it, picked, at its top.
+        App.filtered.setSortByRoleName("dlspeed");
+        compare(sorts()[0].text, "download speed");
+        verify(sorts()[0].checked);
+        compare(sorts().length, 7);
+        compare(view.titleBar.displayTool.text, "rows · download speed ▾");
+        App.setDisplay("table");
+        compare(view.displayMenu.items.find(item => item.caption === true).text, "sort");
     }
 
     // C30 F8–F11 in rows: "show" sees what the rows show, and brings them back.

@@ -287,6 +287,33 @@ TestCase {
         verify(!menu.selectable(4));
     }
 
+    // Board 51 D13 a: a radio row says it with its own glyph, never a ✓, and is still heard
+    // checkable.
+    function test_a_radio_row_draws_no_check() {
+        const menu = createTemporaryObject(menuComponent, testCase, {
+                                               "items": [{
+                                                       "text": "added",
+                                                       "glyph": Glyphs.radioOn,
+                                                       "checked": true,
+                                                       "radio": true,
+                                                       "note": "newest first"
+                                                   }, {
+                                                       "text": "name",
+                                                       "glyph": Glyphs.radioOff,
+                                                       "checked": false,
+                                                       "radio": true
+                                                   }]
+                                           });
+        menu.open();
+        const rows = menu.rowsLayout.children;
+        verify(!findChild(rows[0], "menuRowCheck").visible);
+        compare(findChild(rows[0], "menuRowGlyph").text, Glyphs.radioOn);
+        compare(findChild(rows[0], "menuRowNote").text, "newest first");
+        compare(rows[0].Accessible.checkable, true);
+        compare(rows[0].Accessible.checked, true);
+        compare(rows[1].Accessible.checked, false);
+    }
+
     function test_it_opens_where_the_caller_anchors_it() {
         const menu = createTemporaryObject(menuComponent, testCase);
         menu.openAt(120, 200);

@@ -80,6 +80,9 @@ Item {
     /// "rows", "table" or "overview" (said "shelves", #168 assumed 6); "" hides it (the seed
     /// console, the log). No key (#168 assumed 8): `:` has its rows.
     property string display: ""
+    /// Board 51 D13 a (DECISIONS C32): the list's sort in a word ("added"), said after the
+    /// display ("rows · added"); "" says the display alone.
+    property string sortWord: ""
     /// "+ add" (`a`).
     property bool addShown: true
     /// "+ add ▾": a click opens the add menu (create, search; C24 H17, #146), not the sheet.
@@ -135,6 +138,12 @@ Item {
     function displayWord(display: string): string {
         return display === "table" ? qsTr("table") : display === "overview" ? qsTr("shelves")
                                                                              : qsTr("rows");
+    }
+
+    /// The display tool's word: the display, and the sort after it (board 51 D13 a).
+    function displayToolWord(display: string): string {
+        const word = root.displayWord(display);
+        return root.sortWord.length > 0 ? qsTr("%1 · %2").arg(word).arg(root.sortWord) : word;
     }
 
     /// A tool's tooltip: its words (which narrow steps leave out) and its key.
@@ -488,11 +497,13 @@ Item {
                                                                     ? Glyphs.displayShelves
                                                                     : Glyphs.displayRows
             objectName: "titleDisplay"
-            text: root.level >= 1 ? "" : root.chevronDrawn ? root.displayWord(root.display)
-                                                           : qsTr("%1 ▾").arg(root.displayWord(root.display))
+            text: root.level >= 1 ? "" : root.chevronDrawn ? root.displayToolWord(root.display)
+                                                           : qsTr("%1 ▾").arg(root.displayToolWord(root.display))
             trailingGlyph: root.level >= 1 || !root.chevronDrawn ? "" : Glyphs.chevronDownGlyph
             visible: root.display.length > 0
-            words: qsTr("display: %1").arg(root.displayWord(root.display))
+            words: root.sortWord.length > 0
+                   ? qsTr("display: %1, sorted by %2").arg(root.displayWord(root.display)).arg(root.sortWord)
+                   : qsTr("display: %1").arg(root.displayWord(root.display))
 
             onClicked: root.displayClicked()
         }
