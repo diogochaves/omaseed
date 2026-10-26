@@ -52,6 +52,11 @@ Sheet {
     /// The tick of "carry the N files after the torrents" (M17), on by default when offered.
     property bool carry: true
     property bool _carryTouched: false
+    /// Move back's tick (DECISIONS C32 D19): carry back the loose files the move carried, on
+    /// by default.
+    property bool carryBack: true
+    /// What planBack() says of them: {text, note, rows, count, total}.
+    readonly property var _carryBack: root.mode === "back" ? root.plan.carryBack ?? ({}) : ({})
     /// The plan for the field as it stands.
     property var plan: ({})
     /// #28: `App.sharedData(hashes)` at `openSelection()`.
@@ -92,8 +97,8 @@ Sheet {
     function _start(): void {
         let started = false;
         if (root.mode === "back")
-            started = root.backId.length > 0 ? App.move.startBackOf(root.backId, root.backOnly)
-                                             : App.move.startBack();
+            started = root.backId.length > 0 ? App.move.startBackOf(root.backId, root.backOnly, root.carryBack)
+                                             : App.move.startBack(root.carryBack);
         else if (root.selection)
             started = App.move.startSelection(root.moveHashes(), pathField.text.trim(), root.rule);
         else
@@ -107,8 +112,8 @@ Sheet {
 
     function _readPlan(): void {
         if (root.mode === "back") {
-            root.plan = root.backId.length > 0 ? App.move.planBackOf(root.backId, root.backOnly)
-                                               : App.move.planBack();
+            root.plan = root.backId.length > 0 ? App.move.planBackOf(root.backId, root.backOnly, root.carryBack)
+                                               : App.move.planBack(root.carryBack);
             return;
         }
         if (root.selection) {
@@ -191,6 +196,7 @@ Sheet {
         root.backId = id ?? "";
         root.backOnly = only ?? "";
         root.mode = "back";
+        root.carryBack = true;
         root.folder = "";
         root.hashes = [];
         root._shared = ({});
@@ -299,6 +305,8 @@ Sheet {
         return list;
     }
     glyph: root.mode === "back" ? Glyphs.moveBack : Glyphs.move
+    // C32 D19: move back's list is the one the move kept (#98).
+    note: root.mode === "back" ? root.plan.footNote ?? "" : ""
     sheetWidth: root.mode === "folder" ? Theme.space(640) : root.asking ? Theme.space(600) : Theme.space(560)
     subtitle: root.plan.header ?? ""
     title: root.plan.title ?? (root.selection ? qsTr("Move…") : qsTr("Move a folder"))
@@ -642,6 +650,44 @@ Sheet {
                 root.showRequested(hashes);
             }
         }
+    }
+
+    // C32 D19 (board 51): move back carries back the loose files the move carried, under the
+    // same tick as the move's; each file says whether it goes back or stays.
+    Label {
+        Layout.topMargin: Theme.space(6)
+        text: qsTr("files no torrent owns · the move carried")
+        tracked: true
+        visible: (root._carryBack.total ?? 0) > 0
+    }
+
+    Toggle {
+        checked: root.carryBack
+        objectName: "moveCarryBack"
+        text: root._carryBack.text ?? ""
+        visible: (root._carryBack.total ?? 0) > 0
+
+        onToggled: {
+            root.carryBack = checked;
+            root._readPlan();
+        }
+    }
+
+    Label {
+        Layout.fillWidth: true
+        Layout.leftMargin: Theme.space(36)
+        dim: true
+        size: "caption"
+        text: root._carryBack.note ?? ""
+        visible: (root._carryBack.total ?? 0) > 0
+        wrapMode: Text.Wrap
+    }
+
+    MoveCarryBackRows {
+        Layout.fillWidth: true
+        Layout.leftMargin: Theme.space(20)
+        rows: root._carryBack.rows ?? []
+        visible: (root._carryBack.total ?? 0) > 0
     }
 
     Label {

@@ -1506,4 +1506,52 @@ TestCase {
         compare(view.footerNote, "copied hash v1");
         view.details.activateTab(view.details.tabStory);
     }
+    // DECISIONS C32 D19 (board 51): move back's sheet draws the loose files the move carried
+    // under its own tick, each with what happens to it, and its foot names the list. (The words
+    // come from App.move: tst_movecontroller checks them on real files.)
+    function test_move_back_sheet_draws_the_loose_files_it_carries_back() {
+        const sheet = view.moveSheet;
+        sheet.openBack("", "");
+        compare(sheet.opened, true);
+        compare(sheet.carryBack, true);
+        const toggle = findChild(sheet, "moveCarryBack");
+        verify(toggle !== null);
+        compare(toggle.visible, false, "a move that carried nothing has no tick");
+        sheet.plan = {
+            "title": "Move 2 torrents back",
+            "moveText": "move 2 back · 1 file",
+            "canMove": true,
+            "footNote": "the list is the one the move kept",
+            "carryBack": {
+                "text": "Carry back the 2 loose files the move carried",
+                "note": "copied, compared, then removed at /mnt/fast/games, as the move did",
+                "count": 1,
+                "total": 2,
+                "on": true,
+                "rows": [{
+                        "name": "manual.pdf",
+                        "detail": "18 KB · as carried",
+                        "verdict": "back",
+                        "kind": "ok"
+                    }, {
+                        "name": "notes/readme.txt",
+                        "detail": "changed at 17:02, after the move",
+                        "verdict": "stays",
+                        "kind": "warn"
+                    }]
+            }
+        };
+        compare(toggle.visible, true);
+        compare(toggle.checked, true);
+        compare(toggle.text, "Carry back the 2 loose files the move carried");
+        compare(sheet.note, "the list is the one the move kept");
+        const verdict = findChild(sheet, "moveCarryBackVerdict");
+        verify(verdict !== null);
+        compare(verdict.text, "back");
+        compare(verdict.color, Theme.green);
+        sheet.close();
+        compare(sheet.note, "the list is the one the move kept");
+        sheet.plan = ({});
+        compare(sheet.note, "");
+    }
 }

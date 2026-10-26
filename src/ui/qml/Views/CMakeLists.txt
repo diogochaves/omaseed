@@ -85,6 +85,7 @@ qt_add_qml_module(omaseed-views
         LogView.qml
         MainView.qml
         MoveBand.qml
+        MoveCarryBackRows.qml
         MoveCheckLine.qml
         MoveLooseList.qml
         MoveQuitConfirm.qml
