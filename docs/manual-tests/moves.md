@@ -2,7 +2,8 @@
 
 What `scripts/dev/move-walk.sh` can't judge: whether the moves read well, look right and feel
 right. Run the walk first (it checks the same steps on the server and on disk); this pass is for
-a person. Covers boards 42, 43 and 45 (DECISIONS C15, C16, C18).
+a person. Covers boards 42, 43 and 45 (DECISIONS C15, C16, C18), and board 51's move back with
+the loose files (C32 D19).
 
 ## Setup (about 5 minutes)
 
@@ -37,8 +38,8 @@ Type full paths (`~` is not expanded). To narrow the table use the filter at the
 Each: what to do, then what you should see. Note OK, or what you saw instead.
 
 1. **A quick move (one torrent, same disk).** Cursor on Arcade Set 01, **m**. The checks fold to
-   one green line. Type `/home/sbx/library/archive`, enter. No band; a strip in the selection
-   bar's place says "✓ Arcade Set 01 moved to …" with "show", its line running down over
+   one green line. Type `/home/sbx/library/archive`, enter. No band; a strip floating at the
+   foot of the list says "✓ Arcade Set 01 moved to …" with "show", its line running down over
    about 6 s, and the row's status reads "✓ moved · archive" as long (DECISIONS C18).
 2. **The places list.** Another torrent, **m**. "places ▾" sits in the field, before browse.
    Click it, or press **↓**: a "recent" group (archive), then the library's folders with counts.
@@ -54,8 +55,10 @@ Each: what to do, then what you should see. Note OK, or what you saw instead.
    torrents are tiny: a move under 3 s shows no band (intended), so the queue is easier to see in
    move-walk, which slows its folder down.
 5. **Move back, from the summary.** On the games summary, **move back…**: each torrent to its old
-   place, "move N back". Short Film 05 stays in `/tmp/fast/after`. Moving back and forth while
-   the summary is open repeats the cycle.
+   place, "move N back · 2 files". Under the checks, "Carry back the 2 loose files the move
+   carried", ticked, a line per file ("back"). Short Film 05 stays in `/tmp/fast/after`; the
+   loose files go home with the torrents. Moving back and forth while the summary is open
+   repeats the cycle.
 6. **A name clash.** Space on Arcade Set 04 and 05, **m**, `/tmp/fast/clash`. "1 already there …
    Skipped", button "move 1 torrent". 05 moves, 04 stays; `cat "/tmp/fast/clash/Arcade Set
    04/data.bin"` still reads `not the same data`.
@@ -63,7 +66,7 @@ Each: what to do, then what you should see. Note OK, or what you saw instead.
    `/tmp/locked/dest` (not `/tmp`), not a block. Enter: "… didn't move: qBittorrent can't write
    to …"; the torrent still seeds where it was.
 8. **Names.** In the **:** palette, "set location" finds "move…"; the actions menu and the
-   selection bar say "move…".
+   action bar say "move…".
 9. **A partial pack, and re-ticking a folder.** Big Collection 1 → details → Files: the "Disc 1"
    folder's tick is half (parts 0 and 1 of six wanted). One click on it unticks all of Disc 1;
    the next click brings back part 0 and part 1 only, the other four stay skipped, and it stays
@@ -75,11 +78,13 @@ Each: what to do, then what you should see. Note OK, or what you saw instead.
 11. **Moves that overlap.** Filter `Arcade Set 1`; select Arcade Set 10, 11, 12; **m** →
     `/tmp/fast/elsewhere`; close that summary. In the log (**~**), each move has its line with
     move back. The games move's sheet says "3 were moved again since, by move to
-    /tmp/fast/elsewhere (HH:MM)", the button "move N back · 3 stay", and offers "move that one
-    back first".
+    /tmp/fast/elsewhere (HH:MM)", the button "move N back · 2 files · 3 stay" (the files are
+    the loose ones it carried), and offers "move that one back first".
 12. **Undo in order.** "move that one back first" (or **:** → "undo last move", which only offers
     the newest move): the 3 return to `/tmp/fast/games`. The games move's move back is now whole
-    ("move N back", nobody stays); press it: everything is back in `/home/sbx/library/games`. Loose
-    files carried with the folder stay in `/tmp/fast/games` (board 43).
+    ("move N back · 2 files", nobody stays); press it: everything is back in
+    `/home/sbx/library/games`, the loose files carried with the folder too (C32 D19; a file
+    changed at `/tmp/fast/games` since the move would stay and be named: v0.5.0.md section 4
+    step 8).
 
 Done: `scripts/dev/manual-box.sh down`, or close the box's window.
