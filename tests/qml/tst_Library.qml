@@ -204,7 +204,13 @@ TestCase {
         compare(view.table.face, null);
         keyClick(Qt.Key_R);
         verify(view.table.renaming);
-        tryVerify(() => findChild(view.table, "renameEditor") !== null && findChild(view.table, "renameEditor").active);
+        // The cursor row's editor: a narrow case before can leave a delegate of another row
+        // with one too, which a plain findChild may find first.
+        tryVerify(() => {
+                      const row = findChild(view.table, "row_" + view.table.renameIndex);
+                      const editor = row !== null ? findChild(row, "renameEditor") : null;
+                      return editor !== null && editor.active;
+                  });
         keyClick(Qt.Key_Escape);
         verify(!view.table.renaming);
         testCase.rowsShown();
@@ -387,6 +393,54 @@ TestCase {
         view.setView("seed");
         verify(!view.titleBar.displayTool.visible);
         view.setView("library");
+    }
+
+    // #201 F13: however narrow the list, a row never draws its words over each other: the
+    // progress line stays in the words' column, the fact and caption right of it, and the name
+    // keeps its floor; the caption drops, then the fact shortens, first.
+    function test_narrow_rows_never_draw_over_themselves() {
+        testCase.rowsShown();
+        App.filtered.question = TorrentFilterModel.Arriving;
+        const placement = App.detailsPlacement;
+        const hidden = App.railHidden;
+        // The window's widths, then the narrowest list it allows: the rail held open by hand
+        // and the details beside the list.
+        const cases = [[1360, false], [760, false], [600, false], [480, false], [760, true], [600, true]];
+        let captionsDropped = false;
+        for (const [width, crowded] of cases) {
+            testCase.width = width;
+            if (crowded) {
+                view.setRailFoldedByHand(false);
+                App.detailsPlacement = "right";
+            }
+            waitForRendering(view);
+            for (let row = 0; row < App.filtered.count; ++row) {
+                const item = testCase.rowItem(row);
+                if (item === null)
+                    continue;
+                const at = name => findChild(item, name + "_" + row);
+                const name = at("libraryRowName");
+                const line = at("libraryRowLine");
+                const fact = at("libraryRowFact");
+                const caption = at("libraryRowCaption");
+                const factLeft = fact.parent.mapToItem(item, 0, 0).x;
+                const right = part => part.mapToItem(item, part.width, 0).x;
+                verify(right(name) <= factLeft, width + ": the name ran into the fact on row " + row);
+                verify(right(line) <= factLeft, width + ": the line ran into the fact on row " + row);
+                // The floor, or all the words' column has when the list is narrower still.
+                verify(name.width >= Math.min(name.implicitWidth, Theme.libraryRowNameFloor, name.parent.width) - 1,
+                       width + ": the name lost its floor on row " + row);
+                if (caption.visible)
+                    verify(caption.implicitWidth <= caption.width + 1, width + ": the caption was cut");
+                else if (item.rowCaption.length > 0)
+                    captionsDropped = true;
+            }
+        }
+        verify(captionsDropped, "the narrowest list never squeezed a row");
+        App.detailsPlacement = placement;
+        view.railHeldOpen = false;
+        App.railHidden = hidden;
+        testCase.width = 1360;
     }
 
     // Board 51 D13 a (C32): the menu's sort block, the order in use picked with its direction

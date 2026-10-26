@@ -1798,6 +1798,16 @@ Item {
                                                                         + Theme.space(8) : 0)
                                                 + (privateText.visible ? privateText.implicitWidth
                                                                          + Theme.space(8) : 0)
+                    // #201 F13: the name keeps its floor before the words after it; the
+                    // category gives way first, then "private".
+                    readonly property int floor: Math.min(nameText.implicitWidth, Theme.tableNameFloor)
+                    readonly property int categoryRoom: row.category.length > 0 ? categoryText.implicitWidth
+                                                                                  + Theme.space(8) : 0
+                    readonly property int privateRoom: row.isPrivate ? privateText.implicitWidth + Theme.space(8)
+                                                                     : 0
+                    readonly property bool privateFits: nameCell.inner - nameCell.privateRoom >= nameCell.floor
+                    readonly property bool categoryFits: nameCell.inner - nameCell.privateRoom
+                                                         - nameCell.categoryRoom >= nameCell.floor
 
                     clip: true
                     height: parent.height
@@ -1837,7 +1847,7 @@ Item {
                         font.pixelSize: Theme.font.small
                         objectName: "category_" + row.index
                         text: row.category
-                        visible: !row.editing && row.category.length > 0
+                        visible: !row.editing && row.category.length > 0 && nameCell.categoryFits
                     }
 
                     // docs/16 §5: the word "private", in magenta, after the category (or
@@ -1853,7 +1863,7 @@ Item {
                         font.pixelSize: Theme.font.small
                         objectName: "private_" + row.index
                         text: qsTr("private")
-                        visible: !row.editing && row.isPrivate
+                        visible: !row.editing && row.isPrivate && nameCell.privateFits
                     }
                 }
 

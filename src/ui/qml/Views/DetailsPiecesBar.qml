@@ -44,14 +44,20 @@ Item {
             Accessible.description: [root.haveText, root.percentText].filter(part => part.length > 0).join(" · ")
             Accessible.name: qsTr("pieces")
             Accessible.role: Accessible.StaticText
+            elide: Text.ElideRight
             labelId: "pieces"
             objectName: "piecesLabel"
             text: root.haveText.length > 0 ? qsTr("pieces · %1").arg(root.haveText) : qsTr(
                                                                                           "pieces")
             tracked: true
+            // #201 F13: a narrow pane shortens these words before they reach the percent.
+            width: Math.min(pieceLabel.implicitWidth, Math.max(0, labels.width - percentLabel.implicitWidth
+                                                                  - Theme.space(12)))
         }
 
         Label {
+            id: percentLabel
+
             anchors.right: parent.right
             objectName: "piecesPercent"
             text: root.percentText

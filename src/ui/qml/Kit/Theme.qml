@@ -551,6 +551,13 @@ ThemeBase {
     readonly property real libraryRowCaptionTracking: font.caption * captionTrack(0.12)
     readonly property int libraryRowCaptionWeight: captionWeight(Font.Normal)
     readonly property int libraryRowFactWidth: n("libraryRowFactWidth", 85)
+    /// #201 F13: the room a name keeps before the fact however narrow the list; the fact
+    /// shortens, then its caption drops, first.
+    readonly property int libraryRowNameFloor: n("libraryRowNameFloor", 80)
+    /// #201 F13: the table's name keeps as much before its category and "private".
+    readonly property int tableNameFloor: n("tableNameFloor", 80)
+    /// Under this, a row's sentence or fact draws nothing rather than a lone "…".
+    readonly property int libraryRowWordsFloor: n("libraryRowWordsFloor", 24)
     /// The progress line before the sentence (board 46 `.strip`: 168 × 4 px on an 8 % track).
     readonly property int libraryRowLineWidth: n("libraryRowLineWidth", 155)
     readonly property int libraryRowLineThickness: n("libraryRowLineThickness", 4)

@@ -531,6 +531,20 @@ TestCase {
         compare(hero.width, view.width);
     }
 
+    // #201 F13: a narrow pane shortens the pieces head's words before they reach the percent.
+    function test_a_narrow_pieces_head_never_meets_the_percent() {
+        const view = testCase.select(testCase.archName);
+        const label = findChild(view, "piecesLabel");
+        const percent = findChild(view, "piecesPercent");
+        for (const width of [340, 240, 200, 160]) {
+            view.width = width;
+            wait(0);
+            verify(label.x + label.width < percent.x, "the head ran into the percent at " + width);
+        }
+        verify(label.truncated, "at 160 the words are shortened");
+        view.width = 340;
+    }
+
     // docs/12 G3: the pieces bar is in the story (C24 H6), drawn from the demo's piece states.
     function test_the_pieces_bar_is_in_the_story() {
         const view = testCase.select(testCase.archName);
