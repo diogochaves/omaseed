@@ -715,6 +715,8 @@ ThemeBase {
     readonly property int spaceChipPadX: n("spaceChipPadX", 7)
     readonly property int spaceChipPadY: n("spaceChipPadY", 1)
     readonly property int spaceChipGap: n("spaceChipGap", 6)
+    /// A chip's words are at most this wide, elided in the middle past it (a long name).
+    readonly property int spaceChipMaxWidth: n("spaceChipMaxWidth", 240)
     /// Below this share of the scope's size a folder is gathered in that line, and a torrent
     /// below it of its folder's.
     readonly property real spaceSmallShare: 0.01

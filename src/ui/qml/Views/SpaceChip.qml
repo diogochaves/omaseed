@@ -59,7 +59,7 @@ Item {
     height: label.implicitHeight + 2 * Theme.spaceChipPadY
     objectName: (chip.folder ? "spaceFolderChip_" : "spaceChip_") + chip.first
     opacity: chip.fits ? 1 : 0
-    width: label.implicitWidth + 2 * Theme.spaceChipPadX
+    width: Math.min(label.implicitWidth, Theme.spaceChipMaxWidth) + 2 * Theme.spaceChipPadX
 
     Plate {
         anchors.fill: parent
@@ -75,11 +75,14 @@ Item {
         id: label
 
         color: chip.ground.foreground
+        // A long name elides, so one chip never takes the whole line.
+        elide: Text.ElideMiddle
         font.family: Theme.valueFamily
         font.pixelSize: Theme.spaceLineSize
         objectName: "spaceChipText"
         text: chip.text
         textFormat: Text.PlainText
+        width: Math.min(label.implicitWidth, Theme.spaceChipMaxWidth)
         x: Theme.spaceChipPadX
         y: Theme.spaceChipPadY
     }

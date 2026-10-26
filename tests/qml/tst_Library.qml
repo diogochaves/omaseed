@@ -281,6 +281,13 @@ TestCase {
         verify(view.table.isRowSelected(first.row));
         const inSpace = tile.mapToItem(view.librarySpace, 4, 4);
         compare(view.librarySpace.rowAt(inSpace.x, inSpace.y), first.row);
+        // The chips that fit are drawn, none wider than the cap (a long name elides).
+        compare(findChild(view.librarySpace, "spaceSmall").visible, layout.chips.length > 0);
+        for (const chip of layout.chips) {
+            const item = findChild(view.librarySpace, (chip.folder ? "spaceFolderChip_" : "spaceChip_") + chip.first);
+            verify(item !== null);
+            verify(item.width <= Theme.spaceChipMaxWidth + 2 * Theme.spaceChipPadX);
+        }
         // The map keeps its place while the action bar shows over its foot.
         compare(map.height, findChild(view.librarySpace, "spaceSmall").y - Theme.spaceGap - map.y);
         view.table.clearSelection();
