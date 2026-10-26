@@ -949,16 +949,17 @@ TestCase {
         // The drag answers below it, not on it.
         verify(findChild(rail, "railEdge").y >= tab.y + tab.height);
         mouseMove(tab, tab.width / 2, tab.height / 2);
-        tryCompare(findChild(rail, "railTip"), "shown", true);
-        compare(findChild(rail, "railTip").text, "fold the rail · ctrl+b");
+        tryCompare(findChild(rail, "railEdgeTip"), "shown", true);
+        compare(findChild(rail, "railEdgeTip").text, "fold the rail · ctrl+b");
         mouseClick(tab, tab.width / 2, tab.height / 2);
         compare(toggles.count, 1);
         rail.compact = true;
         mouseMove(rail, rail.width / 2, 300);
         mouseMove(tab, tab.width / 2, tab.height / 2);
-        tryCompare(findChild(rail, "railTip"), "shown", true);
-        compare(findChild(rail, "railTip").text, "unfold the rail · ctrl+b");
+        tryCompare(findChild(rail, "railEdgeTip"), "shown", true);
+        compare(findChild(rail, "railEdgeTip").text, "unfold the rail · ctrl+b");
         mouseMove(testCase, testCase.width - 2, testCase.height - 2);
+        tryCompare(findChild(rail, "railEdgeTip"), "shown", false);
     }
 
     // DECISIONS C32 D1 a: the rail's foot is a settings row under the servers, its key "," on

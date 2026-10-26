@@ -474,7 +474,10 @@ Item {
     onTotalRowCountChanged: if (root.cursorIndex >= root.totalRowCount)
                                 root.cursorIndex = Math.max(0, root.totalRowCount - 1)
     // #201 F11: a tip up when the rail folds or unfolds is for a row that moved under it.
-    onCompactChanged: root._hideTips()
+    onCompactChanged: {
+        root._hideTips();
+        edgeTip.hide(); // nor the edge tab's, naming the other way
+    }
 
     // ---- public keyboard/selection surface ------------------------------------------
     function moveCursor(delta) {
@@ -627,15 +630,18 @@ Item {
         }
     }
 
-    /// A tip beside `item`, level with it, open or folded (D9 c's edge tab).
-    function _besideTip(item: Item, hovering: bool, text: string): void {
+    /// D9 c's edge tab: its tip beside it, level with it, open or folded. A tip of its own,
+    /// so a row the pointer just left (which hides the rail's tips) can't take it down.
+    function _edgeTip(hovering: bool): void {
         if (hovering) {
-            const gap = hostTip.panelItem.gap;
-            const point = item.mapToItem(hostTip, item.width + Theme.railTipGap - gap,
-                                         (item.height - hostTip.panelItem.height) / 2 - gap);
-            hostTip.showAt(point.x, point.y, text);
-        } else {
             root._hideTips();
+            const gap = edgeTip.panelItem.gap;
+            const point = edgeTab.mapToItem(edgeTip, edgeTab.width + Theme.railTipGap - gap,
+                                            (edgeTab.height - edgeTip.panelItem.height) / 2 - gap);
+            edgeTip.showAt(point.x, point.y, root.compact ? qsTr("unfold the rail · %1").arg("ctrl+b")
+                                                          : qsTr("fold the rail · %1").arg("ctrl+b"));
+        } else {
+            edgeTip.hide();
         }
     }
 
@@ -2021,12 +2027,18 @@ Item {
             hoverEnabled: true
 
             onClicked: {
-                root._hideTips();
+                edgeTip.hide();
                 root.foldToggleRequested();
             }
-            onContainsMouseChanged: root._besideTip(edgeTab, edgeTabMouse.containsMouse,
-                                                    root.compact ? qsTr("unfold the rail · %1").arg("ctrl+b")
-                                                                 : qsTr("fold the rail · %1").arg("ctrl+b"))
+            onContainsMouseChanged: root._edgeTip(edgeTabMouse.containsMouse)
         }
+    }
+
+    Tooltip {
+        id: edgeTip
+
+        objectName: "railEdgeTip"
+        parent: root.Window.window ? root.Window.window.contentItem : root
+        z: 1000
     }
 }
