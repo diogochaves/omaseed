@@ -2268,6 +2268,70 @@ TestCase {
         testCase._noServers();
     }
 
+    // Board 51 D4 a (DECISIONS C32): a right-click on a server in the rail opens its menu:
+    // "switch to it" first on another; the current one's limits, stop all and start all; both
+    // then edit…, test, web UI, copy its address, remove…. The menu key opens it too.
+    function test_a_right_click_on_a_rail_server_opens_its_menu() {
+        testCase._twoServers();
+        const ids = [App.serverList.idAt(0), App.serverList.idAt(1)];
+        const current = ids.find(id => App.serverList.serverMap(id).isDefault === true);
+        const other = ids.find(id => id !== current);
+        const otherName = App.serverList.serverMap(other).name;
+        const row = findChild(view.rail, "serverRow-" + otherName);
+        verify(row !== null && row.visible, "no rail row for " + otherName);
+        compare(row.hasMenu, true);
+        const currentRow = findChild(view.rail, "serverRow-" + App.serverList.serverMap(current).name);
+        // The rail's column lays the two rows out on its next polish.
+        tryVerify(() => currentRow.mapToItem(null, 0, 0).y !== row.mapToItem(null, 0, 0).y);
+
+        mouseClick(row, row.width / 2, row.height / 2, Qt.RightButton);
+        const menu = view.serverMenuPanel;
+        compare(menu.opened, true);
+        compare(view.activeOverlay, menu);
+        compare(menu.serverId, other);
+        compare(menu.headingTitle, otherName);
+        verify(menu.heading.indexOf("10.99.0.") === 0, menu.heading);
+        const actions = menu.items.map(item => item.separator ? "|" : item.action);
+        compare(actions, ["switch", "|", "edit", "test", "web", "copy", "|", "remove"]);
+        verify(menu.items.every(item => item.separator === true || item.glyph.length > 0));
+        compare(menu.items[menu.items.length - 1].danger, true);
+        compare(menu.cursorIndex, 0);
+        compare(view.rail.cursorIndex, row.globalIndex);
+        // copy its address: the URL, said in the footer.
+        menu.activate(menu.items.findIndex(item => item.action === "copy"));
+        compare(menu.opened, false);
+        compare(view.footerNote, "copied " + otherName + "'s address");
+
+        // The current one: its own rows first.
+        mouseClick(currentRow, currentRow.width / 2, currentRow.height / 2, Qt.RightButton);
+        compare(menu.opened, true);
+        compare(menu.items.slice(0, 4).map(item => item.action ?? item.text),
+                ["the current server", "alt-speed", "stop-all", "start-all"]);
+        compare(menu.items[0].disabled, true);
+        compare(menu.cursorIndex, 1);
+        // edit… opens Settings › Servers on that server, its form.
+        menu.activate(menu.items.findIndex(item => item.action === "edit"));
+        compare(view.settingsModal.opened, true);
+        compare(view.settingsModal.paneIndex, 1);
+        compare(App.serverList.idAt(view.settingsModal.paneCursor), current);
+        compare(view.settingsModal.serverSheet.opened, true);
+        compare(view.settingsModal.serverSheet.editing, true);
+        view.settingsModal.serverSheet.close();
+        view.settingsModal.close();
+        view.settingsModal.showPane(0);
+        view.settingsModal.area = "nav";
+
+        // The keyboard: the rail's cursor on the other row, the menu key.
+        view.rail.forceActiveFocus();
+        view.rail.cursorIndex = row.globalIndex;
+        keyClick(Qt.Key_Menu);
+        compare(menu.opened, true);
+        compare(menu.serverId, other);
+        menu.close();
+        view.focusHome();
+        testCase._noServers();
+    }
+
     // D4, D23: a lost server lets ctrl+s through and says why another key waits.
     function test_the_guard_lets_the_switch_through_and_says_why_others_wait() {
         testCase._twoServers();

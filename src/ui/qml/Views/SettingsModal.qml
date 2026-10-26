@@ -792,6 +792,16 @@ Item {
         }
     }
 
+    /// Board 51 D4 a: the rail's server menu's edit…, test the connection and remove…, as
+    /// this pane's own row menu runs them, on server `id`'s row.
+    function serverAction(id: string, action: string): void {
+        if (App.serverList.indexOfId(id) < 0)
+            return;
+        root.showServer(id);
+        serverMenu.serverId = id;
+        root.serverMenuAction(action);
+    }
+
     /// The About pane's copyable `omaseed --install-bar-widget` line.
     function copyPluginLine(): void {
         clipboard.text = App.barWidgetCommand;

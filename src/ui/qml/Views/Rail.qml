@@ -175,6 +175,9 @@ Item {
     /// menu key / `shift+F10` on the cursor's: the host opens its menu ("move this folder…")
     /// for `path` at `x`, `y` (this item's coordinates).
     signal folderMenuRequested(string path, real x, real y)
+    /// Board 51 D4 a (DECISIONS C32): a right-click on a server row, or the menu key /
+    /// `shift+F10` on the cursor's: the host opens server `id`'s menu at `x`, `y`.
+    signal serverMenuRequested(string id, real x, real y)
 
     // ---- row bookkeeping -----------------------------------------------------------
     // Every row (and every group heading) registers itself with a function that selects it;
@@ -491,11 +494,16 @@ Item {
     function openCursorMenu(): bool {
         const entry = root._rowMap[root.cursorIndex];
         const path = entry && entry.item ? entry.item.menuFolder : undefined;
-        if (typeof path !== "string" || path.length === 0)
+        const server = entry && entry.item ? entry.item.menuServer : undefined;
+        const folder = typeof path === "string" && path.length > 0;
+        if (!folder && (typeof server !== "string" || server.length === 0))
             return false;
         root._scrollCursorIntoView();
         const point = entry.item.mapToItem(root, Theme.space(24), entry.item.height);
-        root.folderMenuRequested(path, point.x, point.y);
+        if (folder)
+            root.folderMenuRequested(path, point.x, point.y);
+        else
+            root.serverMenuRequested(server, point.x, point.y);
         return true;
     }
 
@@ -1598,6 +1606,8 @@ Item {
                                                        || !serverDelegate.listed ? -1 : root.serversBase
                                                                                         + serverDelegate.index
                     readonly property bool pinned: true
+                    /// D4 a: the server this row's menu is about.
+                    readonly property string menuServer: root.serverList.idAt(serverDelegate.index)
 
                     block: Theme.on.idle
                     compact: root.compact
@@ -1606,6 +1616,7 @@ Item {
                     glyph: Glyphs.dot
                     glyphColor: root._serverDotColor(serverDelegate.serverState)
                     hasCursor: root.cursorOn(serverDelegate.globalIndex)
+                    hasMenu: true
                     objectName: "serverRow-" + serverDelegate.name
                     selected: serverDelegate.isDefault
                     text: serverDelegate.name
@@ -1615,6 +1626,13 @@ Item {
                     onClicked: root.clickRow(serverDelegate.globalIndex)
                     onHoverChanged: hovering => root._serverTip(serverDelegate, hovering,
                                                                 serverDelegate.index)
+                    // D4 a: the menu is this row's server's; the cursor goes there, as on a
+                    // folder row.
+                    onMenuRequested: (x, y) => {
+                        root.cursorIndex = serverDelegate.globalIndex;
+                        const point = serverDelegate.mapToItem(root, x, y);
+                        root.serverMenuRequested(serverDelegate.menuServer, point.x, point.y);
+                    }
 
                     Component.onCompleted: root._registerRow(serverDelegate, () => {
                                                                  root._serversForced = false;

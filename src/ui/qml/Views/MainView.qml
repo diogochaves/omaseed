@@ -52,6 +52,7 @@ Item {
     readonly property alias actionsMenuPanel: actionsMenuPanel
     /// C19 T3: the rail folder row's menu.
     readonly property alias folderMenuPanel: folderMenuPanel
+    readonly property alias serverMenuPanel: serverMenuPanel
     readonly property alias selectionBar: selectionBar
     readonly property alias outcomeStrip: outcomeStrip
     readonly property alias footerNoticeItem: footerNotice
@@ -150,6 +151,8 @@ Item {
             return actionsMenuPanel;
         if (folderMenuPanel.opened)
             return folderMenuPanel;
+        if (serverMenuPanel.opened)
+            return serverMenuPanel;
         if (appMenu.opened)
             return appMenu;
         return null;
@@ -812,6 +815,34 @@ Item {
             root.runAction(id);
         else
             App.invokeAppMenu(id);
+    }
+
+    /// A row of a server's menu (board 51 D4 a) for server `id`: a switch as the rail's
+    /// enter, the current server's rows as the omaseed menu's, the address to the clipboard or
+    /// the browser, and edit, test and remove as Settings › Servers runs them.
+    function serverMenuAction(id: string, action: string): void {
+        const server = App.serverList.serverMap(id);
+        if (server.id === undefined)
+            return;
+        switch (action) {
+        case "switch":
+            table.forceActiveFocus();
+            App.switchServer(id);
+            break;
+        case "alt-speed":
+        case "stop-all":
+        case "start-all":
+            root.appMenuAction(action);
+            break;
+        case "web":
+            Qt.openUrlExternally(server.url);
+            break;
+        case "copy":
+            root.copyText(server.url, qsTr("copied %1's address").arg(server.name));
+            break;
+        default:
+            settingsModal.serverAction(id, action);
+        }
     }
 
     /// Put `text` on the clipboard and say `note`. An empty value leaves the clipboard as it
@@ -1950,6 +1981,12 @@ Item {
             const point = rail.mapToItem(root, x, y);
             folderMenuPanel.folder = path;
             folderMenuPanel.openAt(Math.round(point.x), Math.round(point.y));
+        }
+        onServerMenuRequested: (id, x, y) => {
+            const point = rail.mapToItem(root, x, y);
+            serverMenuPanel.serverId = id;
+            serverMenuPanel.revision++;
+            serverMenuPanel.openAt(Math.round(point.x), Math.round(point.y));
         }
         onUnfoldRequested: App.railHidden = false
         onViewPicked: view => root.setView(view)
@@ -3308,6 +3345,18 @@ Item {
             else if (action === "createFrom")
                 root.openCreate(folderMenuPanel.folder.replace(/\/*$/, "/"));
         }
+    }
+
+    // Board 51 D4 a (DECISIONS C32): a server's menu, from its row in the rail.
+    ServerMenu {
+        id: serverMenuPanel
+
+        altKind: App.altSpeed.kind
+        anchors.fill: parent
+        sharedRows: App.appMenuRows
+        z: 9
+
+        onActivated: action => root.serverMenuAction(serverMenuPanel.serverId, action)
     }
 
     DeleteConfirm {
