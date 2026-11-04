@@ -2,6 +2,7 @@
 
 #include "ui/app/MoveWords.hpp"
 
+#include "core/EmptyFolders.hpp"
 #include "core/ErrorWords.hpp"
 #include "core/Format.hpp"
 #include "core/FreeSpace.hpp"
@@ -1547,6 +1548,7 @@ void MoveController::onFinished()
     bump();
     if (m_job == nullptr)
         return;
+    removeEmptied();
     recordFinished();
     const MoveJob::Summary summary = m_job->summary();
     if (!m_job->wasShown()) {
@@ -1781,6 +1783,65 @@ void MoveController::onCarryRan(const QString &serverId,
     m_carryResult = result;
     m_carryDone = true;
     m_job->finishCarry(result.carried, result.stayed);
+}
+
+void MoveController::removeEmptied()
+{
+    // M17 (#203): the folders the torrents' own move left empty at the source go, as the
+    // carry's do. qBittorrent removes each torrent's own subfolders as it moves it, never the
+    // save path it leaves (games/handheld, games). For a folder's move, whose folder goes with
+    // it once empty, and for a move back, from below the move's destination (that folder too
+    // when the move was a folder's); a selection's own move leaves its folders. On a disk this
+    // machine sees, empty folders only (rmdir), never a destination, a folder a torrent is
+    // saved in, qBittorrent's default save path, or a folder holding one.
+    if (m_job == nullptr || m_hooks.probe == nullptr || !m_hooks.probe->seesServerDisks())
+        return;
+    const QString kind = m_job->kind();
+    const QHash<QString, QString> from = m_job->movedFrom();
+    if (from.isEmpty())
+        return;
+    QString root;
+    bool withRoot = false;
+    if (kind == QLatin1String("folder")) {
+        root = m_job->root();
+        withRoot = true;
+    } else if (kind == QLatin1String("back")) {
+        const QJsonObject spec = m_job->spec();
+        root = spec.value(QStringLiteral("backFrom")).toString();
+        withRoot = spec.value(QStringLiteral("backOfKind")).toString() == QLatin1String("folder");
+        if (root.isEmpty()) {
+            // Each kept its place below a new root: their deepest common folder bounds it,
+            // and stays.
+            root = MovePlan::commonFolder(from.values());
+            withRoot = false;
+        }
+    } else {
+        return;
+    }
+    const QString localRoot = m_hooks.probe->localPathFor(root);
+    if (localRoot.isEmpty())
+        return;
+    QStringList emptied;
+    for (const QString &path : from) {
+        const QString local = m_hooks.probe->localPathFor(path);
+        if (!local.isEmpty())
+            emptied << local;
+    }
+    QStringList keep;
+    const auto keepPath = [this, &keep](const QString &serverPath) {
+        if (serverPath.isEmpty())
+            return;
+        const QString local = m_hooks.probe->localPathFor(serverPath);
+        if (!local.isEmpty())
+            keep << local;
+    };
+    keepPath(m_job->newPath());
+    for (const QString &path : m_job->movedTo())
+        keepPath(path);
+    keepPath(m_hooks.probe->defaultSavePath());
+    for (const core::Torrent &torrent : library())
+        keepPath(torrent.savePath);
+    m_carryResult.foldersRemoved += core::EmptyFolders::remove(localRoot, emptied, withRoot, keep);
 }
 
 QString MoveController::carrySource() const

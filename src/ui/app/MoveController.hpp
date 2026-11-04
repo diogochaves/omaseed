@@ -349,6 +349,8 @@ private:
     QString recordIdOfJob() const;
     /// The job landed: its record into the history, or a move back out of it.
     void recordFinished();
+    /// M17 (#203): the folders the torrents' own move left empty at its source, removed.
+    void removeEmptied();
     void saveHistory();
     bool startSpec(const QJsonObject &spec);
     /// C28 (#176): deletes those of `paths` that `plan` finds replaceable; what went.

@@ -1059,6 +1059,8 @@ QJsonObject MoveController::backSpec() const
         {QStringLiteral("expectedAt"), pathsJson(m_job->movedTo())},
         {QStringLiteral("backOf"), m_job->title()},
         {QStringLiteral("backFrom"), m_job->newPath()},
+        // #203: a folder's move back takes the folder at its new place too, once empty.
+        {QStringLiteral("backOfKind"), m_job->kind()},
         {QStringLiteral("startedAt"), m_job->startedAt().toString(Qt::ISODate)},
         // C18 D7: what goes back leaves the job's record in the history.
         {QStringLiteral("historyId"), recordIdOfJob()}};
@@ -1194,6 +1196,7 @@ QJsonObject MoveController::backSpecOf(const QString &id, const QString &only) c
                      {QStringLiteral("expectedAt"), pathsJson(to)},
                      {QStringLiteral("backOf"), record->title},
                      {QStringLiteral("backFrom"), record->newPath},
+                     {QStringLiteral("backOfKind"), record->kind},
                      {QStringLiteral("startedAt"), record->startedAt.toString(Qt::ISODate)},
                      {QStringLiteral("historyId"), id},
                      {QStringLiteral("hadAutoTmm"), QJsonArray::fromStringList(hadAutoTmm)},

@@ -778,6 +778,14 @@ job's whole life, not 30 s. Set location keeps D2.
   (#98) The sheet's dry run is what is carried, kept beside the job so a restart carries the
   same list; a file changed since (size or time) or in the last 15 min stays. A full
   destination drops the partial copy and stops the carry; pause does the same and waits.
+  (#203, assumed, to confirm) "Folders left empty" covers the torrents' own move too, both
+  ways: qBittorrent removes each torrent's own subfolders, never the save path it leaves, so
+  after the move omaseed removes the save paths it emptied and the folders above them, up to
+  and with the folder (a folder's move), or up to the move's destination below which they sat
+  (a move back; the folder at its new place too when the move was a folder's). Empty folders
+  only (rmdir: a hidden file keeps one), on disks omaseed sees; never a destination, a folder
+  a torrent is saved in, qBittorrent's default save path, or a folder holding one. A
+  selection's own move leaves its folders as they are.
 - **More than one move (M18):** one job per server at a time; a second is queued after it.
 - **Words (M19):** core/ErrorWords, board 42 §8: 409 "qBittorrent can't create FOLDER", 403
   and a 200 followed by "Permission denied" in the log "qBittorrent can't write to FOLDER",
