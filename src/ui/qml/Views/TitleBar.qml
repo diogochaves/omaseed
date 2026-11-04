@@ -194,17 +194,23 @@ Item {
         Layout.alignment: Qt.AlignVCenter
         spacing: 0
 
-        MouseArea {
-            id: figureMouse
+        // Handlers, not a MouseArea: they cover the whole figure without being one of the
+        // layout's items, so nothing anchors inside the layout (#204).
+        HoverHandler {
+            id: figureHover
 
-            anchors.fill: parent
-            cursorShape: figure.clickable ? Qt.PointingHandCursor : Qt.ArrowCursor
+            cursorShape: Qt.PointingHandCursor
             enabled: figure.clickable
-            hoverEnabled: true
 
-            onClicked: figure.clicked()
-            onContainsMouseChanged: figureMouse.containsMouse && figure.tipText.length > 0
-                                    ? tip.showFor(figure, figure.tipText) : tip.hide()
+            onHoveredChanged: figureHover.hovered && figure.tipText.length > 0
+                              ? tip.showFor(figure, figure.tipText) : tip.hide()
+        }
+
+        TapHandler {
+            enabled: figure.clickable
+            gesturePolicy: TapHandler.ReleaseWithinBounds
+
+            onTapped: figure.clicked()
         }
 
         Row {
@@ -212,7 +218,7 @@ Item {
 
             Text {
                 anchors.baseline: value.baseline
-                color: figureMouse.containsMouse ? Theme.accent : figure.tone
+                color: figureHover.hovered ? Theme.accent : figure.tone
                 font.family: Theme.valueFamily
                 font.pixelSize: Theme.titleBarSpeedArrowSize
                 text: figure.arrow
