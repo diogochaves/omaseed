@@ -21,7 +21,8 @@
 #                                             # lists every check
 #   scripts/dev/move-walk.sh --interactive    # Diogo: the box is a window on workspace 9; each
 #                                             # step says what it will do and waits for enter
-#   OMASEED_MOVE_WALK_FROM=loose …            # only extras' loose files moved there and back (C32 D19)
+#   OMASEED_MOVE_WALK_FROM=loose …            # only extras' loose files moved there and back (C32 D19),
+#                                             # and spare's emptied folders gone both ways (#203)
 #   OMASEED_MOVE_WALK_FROM=selection …        # from the selections on (no folder moves first)
 #   OMASEED_MOVE_WALK_FROM=sheet …            # from the places, names and partial pack on
 #   OMASEED_MOVE_WALK_FROM=history …          # from move back after the summary (C18) on
@@ -463,6 +464,10 @@ for i in range(1, music + 1):
 # Move back and the loose files the move carried (DECISIONS C32 D19).
 for i in range(1, 4):
     make("extras", "Extras Pack %02d" % i, 8192 + 977 * i, "x%d" % i)
+# The folders a folder's own move empties, both ways (#203): spare and spare/inner, no loose
+# files, so only the torrents' move empties them.
+make("spare", "Spare Part 1", 8192 + 971, "s1")
+make("spare/inner", "Spare Part 2", 8192 + 2 * 971, "s2")
 # The recheck after a move (#138): one that moves (the smallest, sent alone first) and three
 # below it that can't, the last a hybrid (v1+v2) that the recheck leaves out (DECISIONS C21).
 make("recheck", "Recheck One", 8192, "r1")
@@ -509,10 +514,12 @@ add_root games-handheld "$LIB/games/handheld"
 add_root films "$LIB/films"
 add_root music "$LIB/music"
 add_root extras "$LIB/extras"
+add_root spare "$LIB/spare"
+add_root spare-inner "$LIB/spare/inner"
 add_root recheck "$LIB/recheck"
 add_root recheck-locked "$LIB/recheck/locked"
 
-step "The library" "$((GAMES + FILMS + MUSIC)) torrents added as complete: games ($GAMES, $HANDHELD of them in games/handheld), films ($FILMS), music ($MUSIC), and four in recheck (one a hybrid); six files no torrent owns beside them; and extras (3), with two of its own."
+step "The library" "$((GAMES + FILMS + MUSIC)) torrents added as complete: games ($GAMES, $HANDHELD of them in games/handheld), films ($FILMS), music ($MUSIC), and four in recheck (one a hybrid); six files no torrent owns beside them; and extras (3), with two of its own; and spare (2, one in spare/inner)."
 expect_count "games holds $GAMES torrents" count_under "$LIB/games" -eq "$GAMES" 60
 expect_count "games/handheld holds $HANDHELD" count_at "$LIB/games/handheld" -eq "$HANDHELD"
 expect_count "films holds $FILMS" count_under "$LIB/films" -eq "$FILMS"
@@ -637,6 +644,8 @@ expect_text "the end reads \"extras moved, loose files too\"" "extras moved, loo
 expect_disk "manual.pdf is at the new place" -f /tmp/fast/extras/manual.pdf
 expect_disk "notes/readme.txt too" -f /tmp/fast/extras/notes/readme.txt
 expect_disk "manual.pdf left the old place" ! "$LIB/extras/manual.pdf"
+# M17 (#203): the torrents and the carry left extras empty, and a folder's move takes it.
+expect_disk "the emptied extras folder is gone" ! "$LIB/extras"
 
 step "Since the move" "At /tmp/fast/extras, notes/readme.txt is edited and new-scan.png is put there (neither by omaseed)."
 in_box sh -c 'printf "edited after the move\n" >>/tmp/fast/extras/notes/readme.txt'
@@ -674,6 +683,34 @@ expect_tree_re "the record's row: manual.pdf was carried back" 'extras/manual\.p
 shot "What stayed: notes/readme.txt, changed after the move." stayed
 keys Escape
 press close
+expect_disk "/tmp/fast/extras stays: it holds what stayed" -f /tmp/fast/extras/new-scan.png
+
+step "Move spare there and back: its emptied folders go, both ways" "spare holds Spare Part 1, and spare/inner Spare Part 2; no loose files. The cursor on Spare Part 1, shift+m, /tmp/fast/spare, enter: both land, and spare/inner and spare, which only their move emptied, are removed (qBittorrent removes each torrent's own folder, never the save path it leaves; M17, #203). Then the summary's move back…, move 2 back: they land in spare again, and /tmp/fast/spare/inner and /tmp/fast/spare go; /tmp/fast stays."
+open_move "Spare Part 1" /tmp/fast/spare 2
+keys Return
+expect_count "the 2 spare land on /tmp/fast/spare" count_under /tmp/fast/spare -eq 2 120
+expect_count "Spare Part 2 kept its place below spare" count_at /tmp/fast/spare/inner -eq 1 10
+expect_text "the end reads \"spare moved to /tmp/fast/spare\"" "spare moved to /tmp/fast/spare" 60
+expect_disk "the emptied spare/inner is gone" ! "$LIB/spare/inner"
+expect_disk "and spare itself" ! "$LIB/spare"
+expect_disk "the library folder above it stays" -d "$LIB"
+shot "spare moved: its old folders, emptied by the torrents' move, are gone." summary
+press "move back…" top
+expect_text "the sheet moves the 2 back" "move 2 back" 30
+press "move 2 back"
+expect_count "the 2 are back below spare" count_under "$LIB/spare" -eq 2 120
+expect_count "Spare Part 2 back in spare/inner" count_at "$LIB/spare/inner" -eq 1 10
+expect_disk "/tmp/fast/spare/inner, emptied by the move back, is gone" ! /tmp/fast/spare/inner 30
+expect_disk "and /tmp/fast/spare" ! /tmp/fast/spare
+expect_disk "/tmp/fast, above it, stays" -d /tmp/fast
+# A quick move back leaves only the strip, which goes by itself; one that ran past 3 s leaves a
+# summary to close. Either way nothing of it is left over the next step. (grep reads the whole
+# tree: with -q, pipefail would count the tree's broken pipe.)
+for _ in $(seq 1 15); do
+    omabox tree -b "$BOX" --window omaseed 2>/dev/null | grep '"close"' >/dev/null || break
+    sleep 1
+done
+if omabox tree -b "$BOX" --window omaseed 2>/dev/null | grep '"close"' >/dev/null; then press close; fi
 
 if [ "$FROM" = loose ]; then
     echo
