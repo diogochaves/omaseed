@@ -5,6 +5,24 @@ All notable changes to omaseed are logged here, newest first. Loosely follows
 versioning stability (pre-1.0). `scripts/release.sh` requires a `## v<version>` section here
 before it will tag a release.
 
+## v0.5.1 — 2026-11-04
+
+### Fixed
+
+- **An interrupted import starts what it should.** When qBittorrent checks the imported
+  torrents one at a time, a complete torrent waiting for its turn could be taken for one with
+  nothing on disk and left stopped. The import now waits while any of its torrents is still
+  being checked. (#208)
+- **A move tidies up after itself.** The folders a torrent's own move leaves empty are removed,
+  on the first move and on the move back, up to the folder you moved; a folder that still
+  holds anything, a hidden file included, stays, as do every destination and qBittorrent's
+  default save path. Only on disks omaseed can see. (#203)
+- **The floating action bar is opaque** over the list, in both skins, and so is the outcome
+  strip above it. (#202)
+- **Search's idle sentence** names the server before its plugins ("asks public's 3 plugins
+  that are on"), instead of "that is on on public". (#206)
+- The title bar no longer fills the log with "anchors on an item managed by a layout". (#204)
+
 ## v0.5.0 — 2026-11-04
 
 ### Added
