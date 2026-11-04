@@ -22,6 +22,14 @@ TestCase {
     when: windowShown
     width: 900
 
+    // The rows' colour under the strip (#202).
+    Rectangle {
+        id: rows
+
+        anchors.fill: parent
+        color: "transparent"
+    }
+
     // Stands for the table row under the strip.
     MouseArea {
         id: under
@@ -136,6 +144,23 @@ TestCase {
         compare(expiredSpy.count, 0, "it went from under the pointer");
         mouseMove(testCase, 1, 1);
         tryCompare(expiredSpy, "count", 1, 2000);
+    }
+
+    // #202: it floats over the rows, so its ground hides them in both skins (the window's
+    // ground under its fill): its top padding reads the same over rows of any colour.
+    function test_its_ground_hides_the_rows() {
+        strip.outcome = testCase.failed;
+        rows.color = Theme.red;
+        waitForRendering(strip);
+        const x = Math.round(strip.width / 2);
+        const y = Theme.edgeWidth + 1;
+        const overRed = grabImage(strip).pixel(x, y);
+        rows.color = Theme.green;
+        waitForRendering(strip);
+        const overGreen = grabImage(strip).pixel(x, y);
+        rows.color = "transparent";
+        verify(Qt.colorEqual(overRed, overGreen), "the rows show through: " + overRed + " over red, " + overGreen
+               + " over green");
     }
 
     function test_a_failure_is_red_and_stays() {

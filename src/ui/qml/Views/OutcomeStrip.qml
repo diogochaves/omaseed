@@ -104,10 +104,11 @@ Item {
 
     // Its ground, edge and the outcome's colour at its start, on the skin's Plate (#171 step
     // 6): Omarchy's rectangle with `.strip { box-shadow: inset 2px 0 0 var(--k) }`, Console's
-    // cut plate edged in that colour on the panel (board 46 `.ostrip`).
+    // cut plate edged in that colour on the panel (board 46 `.ostrip`). It floats over the
+    // rows, so the window's ground lies under its fill in both skins (#202).
     Plate {
         anchors.fill: parent
-        base: Theme.platedBlocks ? Theme.background : "transparent"
+        base: Theme.background
         edgeColor: Theme.fill(Theme.borderIdle)
         edgeWidth: Theme.edgeWidth
         fill: Theme.platedBlocks ? Theme.on.panel.fill : Theme.background
