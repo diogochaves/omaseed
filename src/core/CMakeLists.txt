@@ -26,6 +26,8 @@ qt_add_library(omaseed-core STATIC
     CategoryModel.hpp
     CertificatePin.cpp
     CertificatePin.hpp
+    EmptyFolders.cpp
+    EmptyFolders.hpp
     ErrorWords.cpp
     ErrorWords.hpp
     FilesViewState.cpp

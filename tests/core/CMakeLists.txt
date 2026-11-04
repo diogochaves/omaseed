@@ -497,6 +497,11 @@ omaseed_add_test(tst_loosefiles
     LIBRARIES omaseed::core
 )
 
+omaseed_add_test(tst_emptyfolders
+    SOURCES tst_emptyfolders.cpp
+    LIBRARIES omaseed::core
+)
+
 omaseed_add_test(tst_loosecarry
     SOURCES tst_loosecarry.cpp
     LIBRARIES omaseed::core
