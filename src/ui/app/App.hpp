@@ -2341,8 +2341,9 @@ public:
     /// Test seam: the session's poll, deadline and how many jobs run at once.
     Q_INVOKABLE void setSearchTimings(int pollMs, int deadlineMs, int maxRunning);
     /// The demo's search (board 48's invented plugins and rows), for the QML tests and
-    /// `--demo` shots: `stage` "none" (no plugins), "off" (all off), "nopython", "asking"
-    /// (nothing yet), "one" (plugin a answered), "done" (plugin b failed).
+    /// `--demo` shots: `stage` "none" (no plugins), "off" (all off), "idle" (all on, nothing
+    /// asked yet), "nopython", "asking" (nothing yet), "one" (plugin a answered), "done" (plugin
+    /// b failed).
     Q_INVOKABLE void loadDemoSearch(const QString &stage);
 
 private:

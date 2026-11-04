@@ -402,7 +402,8 @@ void App::loadDemoSearch(const QString &stage)
     rebuildSearchIndex();
 
     SearchSession::Snapshot snapshot;
-    if (stage == QLatin1String("none") || stage == QLatin1String("off")) {
+    if (stage == QLatin1String("none") || stage == QLatin1String("off") ||
+        stage == QLatin1String("idle")) {
         m_search->restore(snapshot);
         return;
     }

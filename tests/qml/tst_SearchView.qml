@@ -88,6 +88,22 @@ TestCase {
         verify(view.bar.visible);
     }
 
+    // #206: before the first search, the title says whose plugins enter asks; the server's
+    // name goes before them, never after "on" ("that is on on public").
+    function test_idle_sentence() {
+        let view = make("idle");
+        compare(view.search.state, "idle");
+        compare(view.sentence, "asks the 3 plugins that are on");
+        view = make("idle", {
+                        "multiServer": true
+                    });
+        compare(view.sentence, "asks public's 3 plugins that are on");
+        App.searchPlugins.setEnabled("plugin_b", false);
+        App.searchPlugins.setEnabled("plugin_c", false);
+        tryCompare(App.searchPlugins, "enabledCount", 1);
+        compare(view.sentence, "asks public's 1 plugin that is on");
+    }
+
     // SR1, SR3–SR8: one row per hash, most seeds first, "?" above 0, the words.
     function test_rows_and_their_words() {
         const view = make("done");

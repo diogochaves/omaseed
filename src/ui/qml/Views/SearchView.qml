@@ -115,10 +115,12 @@ FocusScope {
                         root._answered.length).arg(root._pluginCount(root._asked.length)).arg(
                         root._serverWord);
         const on = root.plugins.enabledCount;
-        return on > 0 ? qsTr("asks the %1 that %2 on%3").arg(root._pluginCount(on)).arg(on === 1
-                                                                                        ? qsTr("is") :
-                                                                                          qsTr("are")).arg(
-                            root._serverWord) : qsTr("search plugins%1").arg(root._serverWord);
+        // #206: the server goes before the plugins ("public's"), never after "on".
+        const whose = root._serverOwn || qsTr("the ");
+        if (on === 0)
+            return qsTr("search plugins%1").arg(root._serverWord);
+        return (on === 1 ? qsTr("asks %1%2 plugin that is on") : qsTr(
+                               "asks %1%2 plugins that are on")).arg(whose).arg(on);
     }
 
     /// add… on a row (SR9): the window opens the add sheet on `key`.
