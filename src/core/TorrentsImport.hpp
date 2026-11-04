@@ -22,7 +22,10 @@
 //   3. the queue order, by moving the queued ones to the bottom in their exported order;
 //   4. (D6 a) a check of every added torrent; once qBittorrent has checked one, it starts if
 //      it is complete and was started at export, and stays stopped otherwise ("files
-//      missing", not downloading from zero). "leave them stopped" skips the check.
+//      missing", not downloading from zero). "leave them stopped" skips the check. A torrent
+//      waiting for its turn (qBittorrent checks one at a time) shows stopped at 0 %, as one
+//      already checked with nothing on disk does: such a one is settled only after a few
+//      polls in which none of the import's torrents was checking (#208).
 //
 // Renames never replace a file on the target's disk (#64, #67): where this
 // machine sees the server's folders (`localPathFor`), a rename whose old and new names are both
@@ -232,7 +235,7 @@ private:
     QString m_apiVersion;
     int m_step = 0;
     int m_next = 0;
-    int m_polls = 0;
+    int m_quietPolls = 0; ///< polls in a row with none of `m_checking` checking
     int m_checkTotal = 0;
     int m_generation = 0;
     bool m_busy = false;

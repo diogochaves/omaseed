@@ -50,7 +50,8 @@ bool fine(const ApiError &error)
     return !error.isError() || error.kind() == ApiError::Kind::Conflict;
 }
 
-constexpr int kChunk = 100; ///< hashes per recheck, start or info request
+constexpr int kChunk = 100;    ///< hashes per recheck, start or info request
+constexpr int kQuietPolls = 3; ///< polls with nothing checking before an unseen one settles
 
 } // namespace
 
@@ -290,7 +291,7 @@ void TorrentsImport::start(const TorrentsBackup::Contents &contents,
     m_queued.clear();
     m_checking.clear();
     m_seenChecking.clear();
-    m_polls = 0;
+    m_quietPolls = 0;
     m_checkTotal = 0;
     m_adding = false;
     m_step = 0;
@@ -950,7 +951,6 @@ void TorrentsImport::poll()
 {
     if (!m_busy)
         return;
-    ++m_polls;
     const int generation = m_generation;
     auto waiting = std::make_shared<int>(0);
     auto toStart = std::make_shared<QStringList>();
@@ -996,66 +996,76 @@ void TorrentsImport::poll()
             m_pollTimer.start(m_options.pollMs);
         });
     };
+    auto polled = std::make_shared<QList<QJsonObject>>();
+    // Once every answer is in: which ones the check is done with. qBittorrent checks one
+    // torrent at a time, and one waiting for its turn shows stopped at 0 % (5.3.0: #208), as
+    // one checked with nothing on disk does. So an incomplete one never seen checking settles
+    // only after kQuietPolls polls in a row with none of these checking.
+    const auto settle = [this, polled, seen, toStart, toForce, settleAll] {
+        const bool anyChecking =
+            std::any_of(polled->cbegin(), polled->cend(), [](const QJsonObject &t) {
+                return isChecking(t.value(QStringLiteral("state")).toString());
+            });
+        m_quietPolls = anyChecking ? 0 : m_quietPolls + 1;
+        QList<QJsonObject> settled;
+        for (const QJsonObject &t : std::as_const(*polled)) {
+            const QString id = t.value(QStringLiteral("hash")).toString().toLower();
+            if (isChecking(t.value(QStringLiteral("state")).toString())) {
+                m_seenChecking.insert(id);
+                continue;
+            }
+            const bool complete = t.value(QStringLiteral("amount_left")).toInteger(1) == 0 &&
+                                  t.value(QStringLiteral("progress")).toDouble() >= 0.9999;
+            if (!m_seenChecking.contains(id) && !complete && m_quietPolls < kQuietPolls)
+                continue; // its check may not have begun yet
+            settled.append(t);
+        }
+        for (const QJsonObject &t : std::as_const(settled)) {
+            const QString id = t.value(QStringLiteral("hash")).toString().toLower();
+            m_checking.removeAll(id);
+            m_journal.stages.remove(id);
+            const Item item = m_byId.value(id);
+            const bool complete = t.value(QStringLiteral("amount_left")).toInteger(1) == 0 &&
+                                  t.value(QStringLiteral("progress")).toDouble() >= 0.9999;
+            const bool known = item.index >= 0;
+            const QString exported = known ? record(item.index).state : QString();
+            if (complete && known && exported != QLatin1String("stopped") && !item.keepStopped) {
+                toStart->append(id);
+                if (exported == QLatin1String("forced"))
+                    toForce->append(id);
+                ++m_outcome.started;
+            } else {
+                ++m_outcome.leftStopped;
+            }
+        }
+        // A torrent deleted while it was checked: nothing to start.
+        for (const QString &id : QStringList(m_checking)) {
+            if (!seen->contains(id)) {
+                m_checking.removeAll(id);
+                m_journal.stages.remove(id);
+                ++m_outcome.leftStopped;
+            }
+        }
+        settleAll();
+    };
     for (int at = 0; at < checking.size(); at += kChunk) {
         ++*waiting;
         TorrentsInfoQuery query;
         query.hashes = checking.mid(at, kChunk);
         m_client->torrentsInfo(query)->then(
             this,
-            [this, generation, waiting, toStart, toForce, seen, settleAll](
-                const QbtResult<QJsonArray> &r) {
+            [this, generation, waiting, seen, polled, settle](const QbtResult<QJsonArray> &r) {
                 if (!live(generation))
                     return;
                 if (r.isError())
                     return fail(r.error().toString());
-                QList<QJsonObject> settled;
                 for (const QJsonValue &v : r.value()) {
                     const QJsonObject t = v.toObject();
-                    const QString id = t.value(QStringLiteral("hash")).toString().toLower();
-                    seen->insert(id);
-                    const QString state = t.value(QStringLiteral("state")).toString();
-                    if (isChecking(state)) {
-                        m_seenChecking.insert(id);
-                        continue;
-                    }
-                    const bool complete =
-                        t.value(QStringLiteral("amount_left")).toInteger(1) == 0 &&
-                        t.value(QStringLiteral("progress")).toDouble() >= 0.9999;
-                    if (!m_seenChecking.contains(id) && !complete && m_polls < 3)
-                        continue; // its check may not have begun yet
-                    settled.append(t);
+                    seen->insert(t.value(QStringLiteral("hash")).toString().toLower());
+                    polled->append(t);
                 }
-                for (const QJsonObject &t : std::as_const(settled)) {
-                    const QString id = t.value(QStringLiteral("hash")).toString().toLower();
-                    m_checking.removeAll(id);
-                    m_journal.stages.remove(id);
-                    const Item item = m_byId.value(id);
-                    const bool complete =
-                        t.value(QStringLiteral("amount_left")).toInteger(1) == 0 &&
-                        t.value(QStringLiteral("progress")).toDouble() >= 0.9999;
-                    const bool known = item.index >= 0;
-                    const QString exported = known ? record(item.index).state : QString();
-                    if (complete && known && exported != QLatin1String("stopped") &&
-                        !item.keepStopped) {
-                        toStart->append(id);
-                        if (exported == QLatin1String("forced"))
-                            toForce->append(id);
-                        ++m_outcome.started;
-                    } else {
-                        ++m_outcome.leftStopped;
-                    }
-                }
-                if (--*waiting == 0) {
-                    // A torrent deleted while it was checked: nothing to start.
-                    for (const QString &id : QStringList(m_checking)) {
-                        if (!seen->contains(id)) {
-                            m_checking.removeAll(id);
-                            m_journal.stages.remove(id);
-                            ++m_outcome.leftStopped;
-                        }
-                    }
-                    settleAll();
-                }
+                if (--*waiting == 0)
+                    settle();
             });
     }
     if (*waiting == 0)
