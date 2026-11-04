@@ -7,7 +7,7 @@
 # build before any tag exists, or while iterating on packaging itself, use PKGBUILD.local
 # next to this file instead -- it builds from the working tree.
 pkgname=omaseed
-pkgver=0.4.0
+pkgver=0.5.0
 pkgrel=1
 pkgdesc="Torrents for Omarchy, powered by qBittorrent"
 arch=('x86_64')
@@ -38,7 +38,7 @@ optdepends=(
     'ttf-material-symbols-variable: icons in the Console skin'
 )
 source=("$pkgname-$pkgver.tar.gz::https://github.com/diogochaves/omaseed/archive/refs/tags/v$pkgver.tar.gz")
-sha256sums=('a29918b49d988d4c877dc75f258b416e5df5ffe1f63494bca35dde6a405402c0')
+sha256sums=('SKIP')
 
 # No .install: current Arch convention leaves desktop-database, mime-database and (on the
 # rare system without it already) icon-cache updates to the libalpm hooks shipped by
