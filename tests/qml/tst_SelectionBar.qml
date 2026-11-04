@@ -35,6 +35,15 @@ TestCase {
         }
     }
 
+    // Stands for the rows the bar floats over.
+    Component {
+        id: rowsComponent
+
+        Rectangle {
+            anchors.fill: parent
+        }
+    }
+
     // Holds the keyboard while a button is clicked (the table, in the app).
     Component {
         id: keeperComponent
@@ -277,6 +286,24 @@ TestCase {
         compare(bar.height, bar.implicitHeight);
         compare(bar.implicitHeight, Theme.actionBarHeight);
         verify(button(bar, "more") && button(bar, "clear"), "the end went");
+    }
+
+    // #202: it floats over the rows, so its ground hides them in both skins (the window's
+    // ground under its fill): its padding reads the same over rows of any colour.
+    function test_its_ground_hides_the_rows() {
+        const rows = createTemporaryObject(rowsComponent, testCase, {
+                                               "color": Theme.red
+                                           });
+        const bar = makeBar();
+        waitForRendering(bar);
+        const x = Math.round(bar.width / 2);
+        const y = Theme.edgeWidth + 1;
+        const overRed = grabImage(bar).pixel(x, y);
+        rows.color = Theme.green;
+        waitForRendering(bar);
+        const overGreen = grabImage(bar).pixel(x, y);
+        verify(Qt.colorEqual(overRed, overGreen), "the rows show through: " + overRed + " over red, " + overGreen
+               + " over green");
     }
 
     // Board 51 `.abar`, `.ab2`: 30 px buttons inside 4 px of padding, on the strip's plate.

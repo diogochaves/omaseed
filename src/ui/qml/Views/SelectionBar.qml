@@ -309,10 +309,12 @@ Item {
     }
 
     // Its ground and edge, the outcome strip's (they float together, C18 D1): Omarchy's
-    // rectangle on the window's ground, Console's cut plate on the panel (#171).
+    // rectangle on the window's ground, Console's cut plate on the panel (#171). It floats
+    // over the rows, so in both skins the window's ground lies under its fill and hides them,
+    // as a menu's does (#202).
     Plate {
         anchors.fill: parent
-        base: Theme.platedBlocks ? Theme.background : "transparent"
+        base: Theme.background
         edgeColor: Theme.fill(Theme.borderIdle)
         edgeWidth: Theme.edgeWidth
         fill: Theme.actionBarGround.fill
