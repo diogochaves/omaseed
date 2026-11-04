@@ -1854,3 +1854,22 @@ place: D2), docs/31 D5 (D6), C4 D1–D2 and C13's alternative-limits row (D8) an
   Room on the old drive doesn't count the loose files (they are small; a full drive stops the
   carry as M17 says). A record from before v0.5.0 has no list: its sheet still says the files
   stay, as does one whose disks omaseed can't see.
+
+## C33 — Releases ship what is ready (ruled 2026-11-04)
+
+v0.5.0 sat unreleased for two weeks: the plan was to finish the whole manual pass, build every
+finding and every board's ruled change, then release, and each review turned up more design to
+draw, rule, build and review again. Diogo, 2026-11-04: release what is on `main`, and release
+more often. From now on:
+
+- The gate is automated: CI green, the test pass, the walks the release touches and the visual
+  check ([RELEASING.md](RELEASING.md), "When to release").
+- The maintainer's review never blocks a release. What he finds, in use or in a pass, is an
+  issue that lands in the next release that is ready.
+- A board never blocks a release. Its feature waits for the ruling on its own.
+- A minor version is one feature or one board; fixes ship as patch versions once merged.
+- What needs a person's eyes gets an optional list of at most five minutes.
+
+This **supersedes** #201's plan (the pass's findings and board 51's changes all in v0.5.0 before
+the release): v0.5.0 ships with #201's fixes built so far; the rest goes to v0.5.1 (fixes) and
+v0.6.0 (board 52 and later D items).

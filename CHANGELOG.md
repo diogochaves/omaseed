@@ -5,7 +5,7 @@ All notable changes to omaseed are logged here, newest first. Loosely follows
 versioning stability (pre-1.0). `scripts/release.sh` requires a `## v<version>` section here
 before it will tag a release.
 
-## v0.5.0 (unreleased)
+## v0.5.0 — 2026-11-04
 
 ### Added
 
@@ -113,6 +113,14 @@ before it will tag a release.
 - **A sheet could freeze the window** when one of its lines was just short of wrapping (the
   folder Move sheet, on some folders). (#201)
 - **A move's long details** in its band show a scroll bar. (#201)
+
+### Known limits
+
+- The floating action bar is see-through over the list; it becomes opaque in v0.5.1. (#202)
+- Settings' pane can, in rare window sizes, flip its scroll bar on and off and freeze the
+  window. (#186)
+- Once a search plugin is installed, the search view has no way to the plugins: add or remove
+  them in Settings › qBittorrent › Search plugins. A later release links them from search.
 
 ## v0.4.0 — 2026-10-23
 
