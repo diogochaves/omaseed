@@ -5,6 +5,29 @@ All notable changes to omaseed are logged here, newest first. Loosely follows
 versioning stability (pre-1.0). `scripts/release.sh` requires a `## v<version>` section here
 before it will tag a release.
 
+## v0.6.0 — 2026-11-04
+
+### Added
+
+- **Search has a rail of its own.** On the search view the rail holds what a search is made of:
+  your plugins, each ticked or not and with how it answered (a count, still asking, slow,
+  failed), a click to leave one out or bring it back; the type to search in; and this
+  session's recent searches, a click to ask again. Recent searches stay in memory only and are
+  never saved. While the rail is open the plugins and type menus leave the search bar; fold the
+  rail (`ctrl+b`) and they come back. (#205)
+- **A way to your plugins from search.** "install a plugin…" at the foot of the rail's plugins
+  (or "manage plugins…" in the plugins menu with the rail folded) opens Settings › qBittorrent ›
+  Search plugins with the install field ready; esc goes back to the search. A plugin turned off
+  in Settings shows dimmed, and a click opens its settings. (#205)
+- **Clear a search.** The search field ends in "× esc" while it has words or results: a click,
+  or esc, clears both and stops any plugin still asking. esc backs out one step at a time: an
+  open pane, then the rows, then the search, then the view. (#205)
+
+### Fixed
+
+- v0.5.0 listed a Settings freeze as a known limit; it was already fixed in that release, and a
+  check of every other scrolling pane found none like it. (#186)
+
 ## v0.5.1 — 2026-11-04
 
 ### Fixed
