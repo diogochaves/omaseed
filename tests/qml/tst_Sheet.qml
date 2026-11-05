@@ -578,6 +578,26 @@ TestCase {
         verify(probe.activeFocus, "the focus was not restored on close");
     }
 
+    // #229: Fig. 10 opens over the add sheet that found it, which then closes behind it. The
+    // sheet on top keeps the keyboard, and gives back, when it closes, what the one under it
+    // would have.
+    function test_a_sheet_closing_under_another_leaves_it_the_keyboard() {
+        const probe = createTemporaryObject(probeComponent, testCase);
+        probe.forceActiveFocus();
+        const under = createTemporaryObject(formSheetComponent, testCase);
+        under.open();
+        const over = createTemporaryObject(confirmSheetComponent, testCase);
+        over.open();
+        const primary = over.primaryButton();
+        verify(primary.activeFocus, "the sheet on top did not take the keyboard");
+
+        under.close();
+        verify(primary.activeFocus, "the sheet closing underneath took the keyboard back");
+
+        over.close();
+        verify(probe.activeFocus, "the focus did not go back to what had it before both");
+    }
+
     // T4.8: `open()` used to land on the first action button, which is `cancel` in every
     // figure, so `enter` cancelled the sheet it had just opened.
     function test_a_body_with_nothing_focusable_puts_the_keyboard_on_the_primary_action() {

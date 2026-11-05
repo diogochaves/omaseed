@@ -385,6 +385,57 @@ TestCase {
         compare(window.visible, false);
     }
 
+    /// #229: a window that has had an add already, given up with esc. The hidden window keeps
+    /// what last had the keyboard (the sheet's `cancel`), and the next add sheet remembers it,
+    /// as after the magnet walk's earlier adds.
+    function usedWindow() {
+        const window = testCase.makeWindow();
+        window.openList([testCase.freshMagnet], "handoff");
+        tryCompare(window, "active", true);
+        for (let i = 0; i < 4 && window.visible; ++i)
+            keyClick(Qt.Key_Escape);
+        compare(window.visible, false);
+        return window;
+    }
+
+    // #229: Fig. 10 alone holds the keyboard (the add sheet that found it, closing behind it,
+    // must not take it back), and esc on it closes it and the window (W8).
+    function test_escape_closes_fig_10_alone() {
+        const window = testCase.usedWindow();
+        const figure = window.duplicateSheet;
+        window.openList([testCase.knownMagnet()], "handoff");
+        compare(window.addSheet.opened, false);
+        compare(figure.opened, true);
+        tryCompare(window, "active", true);
+        tryVerify(() => figure.primaryButton().activeFocus, 2000, "show it never had the keyboard");
+
+        keyClick(Qt.Key_Escape);
+        compare(figure.opened, false, "esc left Fig. 10 up");
+        compare(window.visible, false);
+        compare(window.activeOverlay, null);
+    }
+
+    // #229: tab moves between Fig. 10's buttons, and enter on `show it` acts.
+    function test_fig_10_alone_answers_tab_and_enter() {
+        const window = testCase.usedWindow();
+        const figure = window.duplicateSheet;
+        const shown = testCase.spyOn(window, "showRequested");
+        window.openList([testCase.knownMagnet()], "handoff");
+        tryCompare(window, "active", true);
+        const show = figure.primaryButton();
+        tryVerify(() => show.activeFocus, 2000, "show it never had the keyboard");
+
+        keyClick(Qt.Key_Tab);
+        verify(figure.cancelButton().activeFocus, "tab did not move to close");
+        keyClick(Qt.Key_Tab);
+        verify(show.activeFocus, "tab did not come back to show it");
+
+        keyClick(Qt.Key_Return);
+        compare(shown.count, 1, "enter on show it did nothing");
+        compare(figure.opened, false);
+        compare(window.visible, false);
+    }
+
     function test_cancel_drops_everything_and_closes() {
         const window = testCase.makeWindow();
         const sheet = window.addSheet;

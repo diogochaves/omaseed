@@ -1527,6 +1527,34 @@ TestCase {
         view.duplicateSheet.close();
     }
 
+    // #229: a duplicate dropped on the window turns into Fig. 10 alone. It holds the keyboard
+    // (the add sheet closing behind it must not hand it back to the table), esc closes it and
+    // gives the keyboard back to the table, and enter runs `show it`.
+    function test_fig_10_alone_answers_esc_and_enter() {
+        const hash = App.filtered.hashAt(3);
+        const known = "magnet:?xt=urn:btih:" + hash + "&dn=already-here";
+        const figure = view.duplicateSheet;
+
+        view.addDropped([known]);
+        compare(view.addSheet.opened, false);
+        compare(figure.opened, true);
+        verify(figure.primaryButton().activeFocus, "show it does not have the keyboard");
+        keyClick(Qt.Key_Escape);
+        compare(figure.opened, false, "esc left Fig. 10 up");
+        verify(view.table.activeFocus, "the table did not get the keyboard back");
+
+        view.addDropped([known]);
+        compare(figure.opened, true);
+        keyClick(Qt.Key_Tab);
+        verify(figure.cancelButton().activeFocus, "tab did not move to close");
+        keyClick(Qt.Key_Tab);
+        verify(figure.primaryButton().activeFocus, "tab did not come back to show it");
+        keyClick(Qt.Key_Return);
+        compare(figure.opened, false, "enter on show it did nothing");
+        compare(view.table.cursorHash, hash);
+        verify(view.table.activeFocus, "the table did not get the keyboard back");
+    }
+
     // ---- the add sheet's `…` chips open T4.4's palettes over it (T4.8) ------------------------
     function test_the_category_chip_opens_the_palette_over_the_sheet_and_comes_back() {
         App.addRequested();

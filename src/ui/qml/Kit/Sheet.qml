@@ -37,7 +37,7 @@ import Omaseed.Kit
 // body; when the body has nothing focusable it goes to the `primary` action's button (so
 // `enter` runs the primary and not the first button, which is usually `cancel`), else to the
 // first button, else to the body's first child, so a sheet of plain content still owns the
-// keyboard. `close()` gives the focus back.
+// keyboard. `close()` gives the focus back, unless a sheet opened over this one holds it.
 //
 // The mouse: the head's `esc` is a button that does what the key does for this sheet
 // (`pressEscape()`: a guarded sheet puts the keyboard on `cancel` first). A body taller than the
@@ -151,6 +151,9 @@ Item {
 
     property bool _opened: false
     property Item _previousFocus: null
+    /// The focus this sheet had to give back when it closed under a sheet holding the keyboard
+    /// (`close()`): that sheet gives it back instead when it closes.
+    property Item _handBack: null
     /// Everything `focusables()` has ever recognised (see its comment).
     property var _known: []
 
@@ -161,19 +164,48 @@ Item {
         if (root._opened)
             return;
         root._previousFocus = root.Window.activeFocusItem;
+        root._handBack = null;
         root._opened = true;
         root.focusFirst();
     }
 
-    /// Hide it and give the focus back to whatever had it before `open()`.
+    /// Hide it and give the focus back to whatever had it before `open()`. A sheet opened over
+    /// this one that holds the keyboard keeps it (#229: Fig. 10 over the add sheet that found
+    /// it, which then closes behind it); this sheet's focus to give back passes to that one,
+    /// whose own was inside this sheet.
     function close(): void {
         if (!root._opened)
             return;
         root._opened = false;
         const previous = root._previousFocus;
         root._previousFocus = null;
-        if (previous)
-            previous.forceActiveFocus();
+        const focused = root.Window.activeFocusItem;
+        if (focused && !root._holds(focused)) {
+            root._handBack = previous;
+            return;
+        }
+        const target = root._givenBack(previous);
+        if (target)
+            target.forceActiveFocus();
+    }
+
+    /// `item` is this sheet or inside it.
+    function _holds(item: Item): bool {
+        for (let at = item; at; at = at.parent) {
+            if (at === root)
+                return true;
+        }
+        return false;
+    }
+
+    /// Where the focus goes back to: `previous`, or, when it lies in a sheet that has closed
+    /// under this one, what that sheet had to give back.
+    function _givenBack(previous: Item): Item {
+        for (let at = previous; at; at = at.parent) {
+            if (at !== root && at._handBack !== undefined && at.opened === false)
+                return at._handBack ?? previous;
+        }
+        return previous;
     }
 
     /// Everything inside the sheet that the keyboard can reach, in tab order: the body's own
