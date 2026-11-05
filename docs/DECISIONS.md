@@ -1941,3 +1941,57 @@ tray, the window came back on the current workspace but tiled, squeezing the use
 - **W8 a.** esc, cancel and closing as today: esc moves to cancel, cancel drops the add and all
   waiting and closes; closing the window is a cancel; an add already sent goes on.
 - **W9 a.** No setting to bring back the jump.
+
+## C36 — Torrents in the Omarchy menu (board 53, ruled 2026-11-05)
+
+Board [53](53-the-omarchy-menu-row.html), from #211, M1–M15 all as recommended, plus one call
+made at the ruling: Speeds › and Pause / Resume hide while the server doesn't answer. It
+**amends** C13 D24 a and C20 (the shared menu's stop all and start all become pause torrents and
+resume torrents, M10), retires charter T1.8's first-page menu row, and uses C32 D8 a's two
+presets (turtle, burst) as they are.
+
+Why: the shipped row (`"torrents"`, copied by hand into the menu's file) only opened omaseed,
+which Apps and the launcher already do, and sat last on a first page that holds Omarchy's
+sections, never apps; the menu has no position field. Omarchy puts an app's actions inside the
+section for what you do (Share › Receive starts LocalSend), names on and off as a pair of rows
+with `when`, and uses ✓ for one pick among several.
+
+- **M1 a.** **Trigger › Torrents**, a submenu with the alias `torrents`
+  (`omarchy menu summon torrents`), in place of the first-page row.
+- **M2 a.** Its rows: Open omaseed · Add Torrent · Search Torrents · Speeds › · Pause Torrents /
+  Resume Torrents · Servers › · Settings. No Quit (Omarchy's menu offers none for any app), no
+  Add from Clipboard (the blank add sheet already takes a magnet, link or path from the
+  clipboard).
+- **M3 a, M4 a.** The rule: a row that opens the window runs a launch option and always shows,
+  starting omaseed when it isn't running (Open, Add, Search, Settings); a row that changes
+  state calls the Status bus with `busctl --user` and shows while omaseed runs. `when` and ✓
+  read `busctl --user status` and the status file with `jq` (Omarchy ships it). Ruled at the
+  ruling: Speeds › and Pause / Resume also hide while the server doesn't answer
+  (`server.reachable`); Servers › stays, to move off such a server.
+- **M5 a.** One launch option, `omaseed --open add|search|settings`, forwarded to a running
+  omaseed through `ActivateAction` (which already takes `settings`). Add opens the add sheet
+  where C35 rules it opens.
+- **M6 a, M7 a.** **Speeds ›**: three rows, Normal · Turtle · Burst, Omarchy's ✓ on the one in
+  force.
+- **M8 a.** A new `PickAltSpeed(s off|turtle|burst)` on the Status bus, through AltPresets, and
+  a status field `alt.pick` (AltPresets' current pick) for the ✓.
+- **M9 a.** A notice for every speed pick made outside the window: what was picked, its limits,
+  how long a burst lasts; for turtle at qBittorrent's untouched defaults (10 KiB/s each way),
+  a line saying so and pointing at Settings › qBittorrent › Speed.
+- **M10 a.** **Pause Torrents / Resume Torrents** everywhere (Omarchy's menu, the tray, the
+  widget's ⋯, the window's mark): pause stops what is running and remembers those torrents, per
+  server, across restarts; resume restarts exactly those and shows only while a pause is held
+  (a status field for the `when`). Today's start all started torrents kept stopped on purpose.
+- **M11 a.** **Servers ›**: a row per server, ✓ on the current one, with two servers or more,
+  while omaseed runs, calling `SwitchServer`; omaseed writes the block again when the server
+  list changes.
+- **M12 a.** One switch, Settings › Appearance › **In the Omarchy menu**, after Widget; off until
+  asked: neither the package nor the first run writes the menu's file.
+- **M13 a.** omaseed changes only its own block between two marker comments, never parsing the
+  file and writing it back; it adds the block before the file's last `}` (or creates the file
+  holding only it), removes it marker to marker, writes atomically, watches the file; the first
+  on replaces today's one-line first-page row. A file whose last row ends in a comment is left
+  alone, and the row says so.
+- **M14 a.** A `trigger.torrents` row outside the block is the user's: the switch shows dimmed and
+  says where, and touches nothing.
+- **M15 a.** Without Omarchy's menu the row stays, dimmed: "needs Omarchy's menu".
