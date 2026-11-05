@@ -75,6 +75,8 @@ qt_add_library(omaseed-core STATIC
     PartialCopies.hpp
     PathMap.cpp
     PathMap.hpp
+    PauseHold.cpp
+    PauseHold.hpp
     PeerInput.cpp
     PeerInput.hpp
     Paths.cpp

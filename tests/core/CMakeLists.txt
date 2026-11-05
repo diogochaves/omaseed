@@ -388,6 +388,11 @@ omaseed_add_test(tst_altpresets
     LIBRARIES omaseed::core
 )
 
+omaseed_add_test(tst_pausehold
+    SOURCES tst_pausehold.cpp FakeHttp.hpp
+    LIBRARIES omaseed::core
+)
+
 omaseed_add_test(tst_altpresets_live LIVE
     SOURCES tst_altpresets_live.cpp
     LIBRARIES omaseed::core
