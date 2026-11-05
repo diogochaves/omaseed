@@ -242,7 +242,7 @@ QtObject {
             "action": "search:esc",
             "helpKeys": qsTr("esc"),
             "help": qsTr("back out"),
-            "about": qsTr("The result, the results, the words, then where you were; the results are kept")
+            "about": qsTr("The result on the right, back to the field, then the words and the results together (any plugin still asking stops), then where you were")
         }
     ]
 

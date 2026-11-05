@@ -2583,9 +2583,12 @@ TestCase {
         compare(App.filtered.text, "");
         keyClick(Qt.Key_Escape);
         compare(App.searchResults.filterText, "");
-        // esc back out: the rows, the field, then the library.
+        // esc back out (C34 D21 a): the words and the results together, then the library.
         search.focusField();
         search.field.text = "";
+        keyClick(Qt.Key_Escape);
+        compare(view.view, "search");
+        compare(App.search.state, "idle");
         keyClick(Qt.Key_Escape);
         compare(view.view, "library");
         App.loadDemoSearch("off");

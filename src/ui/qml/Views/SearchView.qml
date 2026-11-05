@@ -18,8 +18,9 @@ import Omaseed.Kit
 //
 // Keys (SR14): enter in the field asks; ↓ into the rows; tab through the filters; in the rows
 // enter add…, space the result, c copy its magnet, o open its page, `/` filters the rows (the
-// title bar's filter); esc backs out step by step: the pane, the rows, the field's words, then
-// the face before search (`leaveRequested`).
+// title bar's filter); esc backs out step by step (DECISIONS C34 D21 a, amending SR14): the
+// pane, the rows (the keys back in the field), the words and the results together (the field's
+// "× esc": the plugins still asking stop), then out of search (`leaveRequested`).
 FocusScope {
     id: root
 
@@ -176,6 +177,17 @@ FocusScope {
         App.startSearch(words, root.category, root.pluginPick);
     }
 
+    /// C34 D21 a: the words and the results go together, the plugins still asking stop, and
+    /// the face before search shows, the keys in the field.
+    function clearSearch(): void {
+        root.paneOpen = false;
+        root.currentIndex = -1;
+        searchBar.field.text = "";
+        searchBar.stop = 0;
+        App.clearSearch();
+        searchBar.field.focusInput();
+    }
+
     /// ↓ from the field: the first row.
     function enterRows(): void {
         if (list.count === 0)
@@ -247,7 +259,8 @@ FocusScope {
             root.ask();
     }
 
-    /// esc, one step at a time (SR14).
+    /// esc, one step at a time (C34 D21 a, amending SR14): the pane, the rows, the words and
+    /// the results, then out of search.
     function backOut(): bool {
         if (root.paneOpen) {
             root.paneOpen = false;
@@ -260,6 +273,10 @@ FocusScope {
         if (searchBar.stop > 0) {
             searchBar.stop = 0;
             searchBar.field.focusInput();
+            return true;
+        }
+        if (searchBar.clearable) {
+            root.clearSearch();
             return true;
         }
         root.leaveRequested();
@@ -322,6 +339,7 @@ FocusScope {
         anchors.top: parent.top
         answersShown: root.search.didntAnswer > 0 && root.search.state !== "asking"
         category: root.category
+        hasResults: root.search.state !== "idle"
         hideDead: root.results.hideDead
         narrow: root.narrow
         order: root.results.order
@@ -330,6 +348,7 @@ FocusScope {
         visible: root.emptyKind !== "none"
 
         onAccepted: root.ask()
+        onClearRequested: root.clearSearch()
         onDownPressed: root.enterRows()
         onEmptied: root.leaveRequested()
         onHideDeadToggled: root.results.hideDead = !root.results.hideDead

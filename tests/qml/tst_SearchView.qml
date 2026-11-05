@@ -6,7 +6,8 @@ import Omaseed.Views
 
 // The search face (board 48, DECISIONS C26) on the demo's search (App.loadDemoSearch: board
 // 48's invented plugins and rows): the empty states (SR13), the rows and their words (SR3–SR8),
-// the plugins' line and its answers (SR1–SR2), the bar and its fold (SR6), and the keys (SR14).
+// the plugins' line and its answers (SR1–SR2), the bar and its fold (SR6), the keys (SR14), and
+// C34's clearing (D21 a) and way to the plugins' pane (D20 a).
 TestCase {
     id: testCase
 
@@ -198,13 +199,72 @@ TestCase {
         keyClick(Qt.Key_Return);
         compare(add.count, 1);
         compare(add.signalArguments[0][0], App.searchResults.get(1).key);
+        // C34 D21 a: the pane, the rows, the words and the results, then out.
         keyClick(Qt.Key_Escape);
         verify(!view.paneOpen);
         keyClick(Qt.Key_Escape);
         verify(view.field.editing);
-        view.field.text = "";
+        compare(App.search.state, "done");
+        keyClick(Qt.Key_Escape);
+        compare(leave.count, 0);
+        compare(App.search.state, "idle");
+        compare(view.rows.count, 0);
+        verify(view.field.editing);
         keyClick(Qt.Key_Escape);
         compare(leave.count, 1);
+    }
+
+    // C34 D21 a: "× esc" ends the field while it has words or results, as the title bar's
+    // filter (C32 D18); a click clears both and shows the face before search.
+    function test_x_esc_clears_words_and_results() {
+        const view = make("idle");
+        const field = findChild(view, "searchField");
+        const cap = findChild(field, "fieldTrailingKey");
+        verify(!cap.visible);
+        view.focusField();
+        keyClick("x");
+        tryVerify(() => cap.visible);
+        compare(cap.text, "× esc");
+        // Words only: esc clears them, and the view stays.
+        const leave = spy(view, "leaveRequested");
+        keyClick(Qt.Key_Escape);
+        compare(view.field.text, "");
+        verify(!cap.visible);
+        compare(leave.count, 0);
+
+        App.loadDemoSearch("done");
+        view.field.text = "open movie night";
+        tryVerify(() => view.rows.count > 0);
+        verify(cap.visible);
+        view.enterRows();
+        view.paneOpen = true;
+        mouseClick(findChild(field, "fieldTrailingButton"));
+        compare(view.field.text, "");
+        compare(App.search.state, "idle");
+        compare(App.search.pattern, "");
+        compare(view.rows.count, 0);
+        verify(!view.paneOpen);
+        compare(view.currentIndex, -1);
+        verify(!cap.visible);
+        verify(view.field.editing);
+        verify(findChild(view, "searchIdle").visible);
+        verify(!findChild(view, "searchLineLeft").visible);
+        compare(view.sentence, "asks the 3 plugins that are on");
+        compare(leave.count, 0);
+    }
+
+    // C34 D21 a: results with an empty field still show "× esc"; a search still asking stops.
+    function test_clearing_stops_the_asking() {
+        const view = make("asking");
+        const cap = findChild(findChild(view, "searchField"), "fieldTrailingKey");
+        compare(view.field.text, "");
+        verify(cap.visible);
+        compare(App.search.state, "asking");
+        view.focusField();
+        keyClick(Qt.Key_Escape);
+        compare(App.search.state, "idle");
+        verify(!findChild(view, "searchAsking").visible);
+        verify(!cap.visible);
     }
 
     // SR5: the cursor's row is kept, by key, while the rows move.

@@ -10,9 +10,11 @@ import Omaseed.Kit
 // don't. Narrower than 720 px the three filters fold into "filters ▾".
 //
 // Keys (SR14): enter in the field asks (`accepted`), ↓ goes to the rows (`downPressed`), tab
-// walks the filters (`stop` 1–4, then the plugins' line), where space or enter opens one; esc
-// on an empty field leaves (`emptied`). Keys are taught on demand (C24 H10): each control's
-// tooltip names its key, and nothing in the bar prints one.
+// walks the filters (`stop` 1–4, then the plugins' line), where space or enter opens one.
+// While the field has words or there are results it ends in "× esc", as the title bar's
+// filter does (C32 D18): a click on it, or esc in the field, clears both (`clearRequested`,
+// DECISIONS C34 D21 a); esc in the field with neither leaves (`emptied`). Keys are taught on
+// demand (C24 H10): each control's tooltip names its key, and nothing in the bar prints one.
 Item {
     id: root
 
@@ -22,6 +24,10 @@ Item {
     property bool hideDead: false
     property string order: "seeds"
     property bool narrow: false
+    /// A search has been asked: its results (or its "0 results") are on show.
+    property bool hasResults: false
+    /// C34 D21 a: there is something to clear, so the field ends in "× esc".
+    readonly property bool clearable: root.field.text.length > 0 || root.hasResults
     /// The keyboard's stop: 0 the field, 1 plugins ▾ (filters ▾ when narrow), 2 type ▾, 3 hide
     /// dead, 4 sort ▾.
     property int stop: 0
@@ -30,6 +36,8 @@ Item {
     signal accepted
     signal downPressed
     signal emptied
+    /// C34 D21 a: "× esc", clicked, or esc in the field while it has words or results.
+    signal clearRequested
     signal hideDeadToggled
     /// A menu to open under (`x`, `y`): "plugins", "type", "sort", "filters".
     signal menuRequested(string which, real x, real y)
@@ -164,6 +172,13 @@ Item {
             hint: Glyphs.viewSearch
             objectName: "searchField"
             placeholder: qsTr("search your plugins")
+            // C34 D21 a: esc is the bar's, to clear the words and the results together.
+            escClears: false
+            // C34 D21 a: "× esc" at the field's end, as the title bar's filter (C32 D18).
+            trailingKey: root.clearable ? qsTr("× esc") : ""
+            trailingClickable: root.clearable
+            // #78: the key's glyph is no name for what its click does.
+            trailingName: qsTr("clear the search")
             shortcuts: [
                 {
                     "key": Qt.Key_Down,
@@ -176,11 +191,15 @@ Item {
             ]
 
             Keys.onEscapePressed: event => {
-                // Words left: Field clears them first; an empty field leaves (SR14).
-                root.emptied();
+                // C34 D21 a (amends SR14): words or results, both go; neither, it leaves.
+                if (root.clearable)
+                    root.clearRequested();
+                else
+                    root.emptied();
                 event.accepted = true;
             }
             onAccepted: root.accepted()
+            onTrailingClicked: root.clearRequested()
             onShortcutPressed: key => {
                 if (key === Qt.Key_Down)
                     root.downPressed();
