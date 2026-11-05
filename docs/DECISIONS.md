@@ -2003,3 +2003,7 @@ with `when`, and uses ✓ for one pick among several.
 
 Settled 2026-11-05, at #213's first step (the board was silent): the rail's server menu
 (right-click on a server) takes Pause / Resume too, in place of its stop all and start all.
+Settled at #214 (the board was silent): the speed pick's notice (M9) has no switch of its
+own in Settings › Notifications and is always sent, as the move and creation notices are; a
+click raises the window. Picks from the window (A, the speed chip, the status line's menu, the
+window's mark menu) send none.
