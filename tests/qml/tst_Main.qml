@@ -2423,7 +2423,8 @@ TestCase {
     }
 
     // Board 51 D4 a (DECISIONS C32): a right-click on a server in the rail opens its menu:
-    // "switch to it" first on another; the current one's limits, stop all and start all; both
+    // "switch to it" first on another; the current one's limits and pause torrents (resume
+    // torrents while a pause is held, DECISIONS C36 M10, settled 2026-11-05); both
     // then edit…, test, web UI, copy its address, remove…. The menu key opens it too.
     function test_a_right_click_on_a_rail_server_opens_its_menu() {
         testCase._twoServers();
@@ -2459,8 +2460,10 @@ TestCase {
         // The current one: its own rows first.
         mouseClick(currentRow, currentRow.width / 2, currentRow.height / 2, Qt.RightButton);
         compare(menu.opened, true);
-        compare(menu.items.slice(0, 4).map(item => item.action ?? item.text),
-                ["the current server", "alt-speed", "stop-all", "start-all"]);
+        compare(menu.items.slice(0, 3).map(item => item.action ?? item.text),
+                ["the current server", "alt-speed", "pause"]);
+        compare(menu.items[2].text, "pause torrents");
+        compare(menu.items[3].separator, true);
         compare(menu.items[0].disabled, true);
         compare(menu.cursorIndex, 1);
         // edit… opens Settings › Servers on that server, its form.

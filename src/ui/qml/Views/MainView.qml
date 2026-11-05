@@ -919,8 +919,8 @@ Item {
             App.switchServer(id);
             break;
         case "alt-speed":
-        case "stop-all":
-        case "start-all":
+        case "pause":
+        case "resume":
             root.appMenuAction(action);
             break;
         case "web":

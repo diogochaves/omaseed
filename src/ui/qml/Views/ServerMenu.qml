@@ -4,20 +4,22 @@ import Omaseed
 import Omaseed.Kit
 
 // A server's menu: a right-click on its row in the rail, or the menu key on it (board 51 D4 a,
-// DECISIONS C32). On the current server: its alternative speeds, stop all, start all; on
-// another, "switch to it" first. Both then edit…, test the connection, open its web UI, copy
-// its address, and remove…, which asks first (Settings' confirm). Its head is the server's
-// name over its address, its version or when it was last seen, and its torrents.
+// DECISIONS C32). On the current server: its alternative speeds, then pause torrents, or resume
+// torrents while a pause is held (DECISIONS C36 M10, settled 2026-11-05); on another, "switch
+// to it" first. Both then edit…, test the connection, open its web UI, copy its address, and
+// remove…, which asks first (Settings' confirm). Its head is the server's name over its
+// address, its version or when it was last seen, and its torrents.
 //
-// It runs nothing itself: `activated` carries "switch", a C13 id ("alt-speed", "stop-all",
-// "start-all", as the omaseed menu's), "edit", "test", "web", "copy" or "remove", and MainView
+// It runs nothing itself: `activated` carries "switch", a C13 id ("alt-speed", "pause",
+// "resume", as the omaseed menu's), "edit", "test", "web", "copy" or "remove", and MainView
 // answers for `serverId` (`serverMenuAction`).
 Menu {
     id: root
 
     /// The server the menu is about.
     property string serverId: ""
-    /// `App.appMenuRows`, for the alternative speeds' row as the omaseed menu words it.
+    /// `App.appMenuRows`, for the alternative speeds' and the pause row as the omaseed menu
+    /// words them.
     property var sharedRows: []
     /// docs/31: the alternative set's kind, "burst", "turtle" or "alt"; the row's glyph.
     property string altKind: "alt"
@@ -37,6 +39,19 @@ Menu {
             "key": "A",
             "action": "alt-speed",
             "checked": row !== undefined && row.checked === true
+        };
+    }
+
+    /// C36 M10: one row, "pause torrents", or "resume torrents" while a pause is held, as the
+    /// omaseed menu has it; off while the server doesn't answer.
+    function _pauseRow(): var {
+        const row = root.sharedRows.find(r => r.id === "pause" || r.id === "resume");
+        const resume = row !== undefined && row.id === "resume";
+        return {
+            "text": row !== undefined ? row.label : qsTr("pause torrents"),
+            "glyph": resume ? Glyphs.start : Glyphs.stop,
+            "action": resume ? "resume" : "pause",
+            "disabled": row !== undefined && row.enabled === false
         };
     }
 
@@ -65,16 +80,7 @@ Menu {
                                            "disabled": true
                                        },
                                        root._altRow(),
-                                       {
-                                           "text": qsTr("stop all"),
-                                           "glyph": Glyphs.stop,
-                                           "action": "stop-all"
-                                       },
-                                       {
-                                           "text": qsTr("start all"),
-                                           "glyph": Glyphs.start,
-                                           "action": "start-all"
-                                       }
+                                       root._pauseRow()
                                    ] : [
                                        {
                                            "text": qsTr("switch to it"),
