@@ -201,17 +201,39 @@ elif command == "bands":
 PY
 }
 
-# bar_rect: "X Y W H" of the stock bar (its layer surface, omarchy-bar).
+# bar_rect: "X Y W H" of the stock bar's strip. Its layer surface (omarchy-bar) is the strip
+# itself in Omarchy 4.5.0; since 4.5.0-3 the layer covers the whole screen (its popups draw in
+# it), so the strip is then the edge of its monitor the bar reserves, as `monitors` reports it
+# ([left, top, right, bottom]).
 bar_rect() {
-    omabox hyprctl -b "$BOX" layers -j | python3 -I -c '
+    local layers
+    layers="$(omabox hyprctl -b "$BOX" layers -j)" || return 1
+    omabox hyprctl -b "$BOX" monitors -j | python3 -I -c '
 import json, sys
-for monitor in json.load(sys.stdin).values():
+monitors = {m["name"]: m for m in json.load(sys.stdin)}
+for name, monitor in json.loads(sys.argv[1]).items():
     for layers in monitor["levels"].values():
         for layer in layers:
-            if layer["namespace"] == "omarchy-bar":
-                print(layer["x"], layer["y"], layer["w"], layer["h"])
+            if layer["namespace"] != "omarchy-bar":
+                continue
+            x, y, w, h = layer["x"], layer["y"], layer["w"], layer["h"]
+            m = monitors.get(name)
+            if m is None:
+                sys.exit("omarchy-bar is on %s, which monitors does not list" % name)
+            mw, mh = round(m["width"] / m["scale"]), round(m["height"] / m["scale"])
+            if w < mw or h < mh:
+                print(x, y, w, h)
                 sys.exit(0)
-sys.exit(1)'
+            left, top, right, bottom = m["reserved"]
+            if top > 0:
+                print(m["x"], m["y"], mw, top)
+            elif bottom > 0:
+                print(m["x"], m["y"] + mh - bottom, mw, bottom)
+            else:
+                sys.exit("omarchy-bar covers %s (%dx%d) and reserves no top or bottom strip (reserved %s)"
+                         % (name, mw, mh, m["reserved"]))
+            sys.exit(0)
+sys.exit("no omarchy-bar layer")' "$layers"
 }
 
 # tray_id: omaseed's tray item's Id, the name the tray pins it by.
@@ -253,8 +275,17 @@ PY
 # park: the pointer on the bar's far end from the tray, so nothing near the tray is hovered (no
 # tooltip over the menu) and the shots see the same thing each time.
 park() { omabox pointer -b "$BOX" -- move "$((BAR_X + 2))" "$((BAR_Y + BAR_H / 2))" >/dev/null 2>&1 || true; }
-bar_shot() { omabox shot -b "$BOX" --no-pointer -g "$BAR_X,$BAR_Y ${BAR_W}x$BAR_H" -o "$1" >/dev/null 2>&1; }
-under_shot() { omabox shot -b "$BOX" --no-pointer -g "$UNDER" -o "$1" >/dev/null 2>&1; }
+# shoot WHAT ARGS…: `omabox shot ARGS…`, or the walk ends here saying what it could not take
+# and why (under set -e a failed shot would end it with no word).
+shoot() {
+    local what="$1" err
+    shift
+    err="$(omabox shot -b "$BOX" "$@" 2>&1 >/dev/null)" && return 0
+    echo "menu-walk: could not take $what (omabox shot $*): ${err:-no message}" >&2
+    exit 1
+}
+bar_shot() { shoot "the bar" --no-pointer -g "$BAR_X,$BAR_Y ${BAR_W}x$BAR_H" -o "$1"; }
+under_shot() { shoot "what is under the bar" --no-pointer -g "$UNDER" -o "$1"; }
 bar_changed() { omabox wait -b "$BOX" --timeout 5s change -g "$BAR_X,$BAR_Y ${BAR_W}x$BAR_H" >/dev/null 2>&1 || true; }
 # bar_until as|unlike SHOT: until the bar looks as SHOT shows it, or not (10 s at most), then
 # until it is still. The shell may redraw before a `wait change` could start, so it is polled.
@@ -278,7 +309,9 @@ bar_until() {
 # "<", or what sits before the tray) is further in.
 tray_find() {
     local pinned run
-    read -r BAR_X BAR_Y BAR_W BAR_H < <(bar_rect) || return 1
+    local rect
+    rect="$(bar_rect)" || { echo "  the stock bar's strip was not found" >&2; return 1; }
+    read -r BAR_X BAR_Y BAR_W BAR_H <<<"$rect"
     park
     settle
     bar_shot "$OUT_ROWS.bar-drawer.png"
@@ -363,9 +396,9 @@ step() {
     else
         settle
         if [ -n "${3:-}" ]; then
-            omabox shot -b "$BOX" -g "$3" -o "$OUT/$file" >/dev/null 2>&1
+            shoot "step $STEP's shot" -g "$3" -o "$OUT/$file"
         else
-            omabox shot -b "$BOX" -o "$OUT/$file" >/dev/null 2>&1
+            shoot "step $STEP's shot" -o "$OUT/$file"
         fi
         printf -- '- **%02d %s**: %s\n  ![](%s)\n' "$STEP" "$1" "$2" "$file" >>"$OUT/index.md"
         echo "$(printf '%02d' "$STEP") $1 -> $OUT/$file"
