@@ -14,10 +14,12 @@ AddRouting routeAdd(AddSource source, bool firstRun, bool mainActive, qint64 msS
     // fresh where the user is anyway. It comes up even when launched `--hidden`, as before.
     if (source == AddSource::Startup)
         return {AddRoute::Main, true};
-    // C35 W2: a menu or the bus may have taken focus from the window a moment ago.
+    // C35 W2: a menu or the bus may have taken focus from the window a moment ago. It is
+    // raised, as the menu's add always did: the user may have left its workspace within the
+    // grace, and the sheet must not open out of sight (settled at #218).
     const bool viaPopup = source == AddSource::Menu || source == AddSource::Bus;
     if (viaPopup && msSinceMainActive >= 0 && msSinceMainActive <= kAddFocusGrace.count())
-        return {AddRoute::Main, false};
+        return {AddRoute::Main, true};
     // C35 W1: anywhere else, the add window, where the user is.
     return {AddRoute::Window, false};
 }

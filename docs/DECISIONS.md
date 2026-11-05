@@ -1949,8 +1949,8 @@ inside the window, so it stays there (W2). Settled at #218 (the board was silent
 omaseed is launched with open in the main window, which maps fresh where the user is anyway,
 and it comes up for them even when launched `--hidden`. W2's "just before", for the shared
 menu's add and the bus (a bar popup or Omarchy's menu holds the keyboard while open, measured in
-a box): the main window had focus at most 5 s ago. Longer is worse: a workspace switch inside it
-leaves the sheet in the main window, out of sight.
+a box): the main window had focus at most 5 s ago, and the main window is raised for it, as the
+menu's add always did, so a workspace switch inside those 5 s doesn't leave the sheet out of sight.
 
 ## C36 — Torrents in the Omarchy menu (board 53, ruled 2026-11-05)
 

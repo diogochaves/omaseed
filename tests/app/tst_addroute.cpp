@@ -84,8 +84,8 @@ void expected(AddSource source, Focus focus, bool firstRun, AddRoute *route, boo
         *raise = true;
     } else if (popup && focus == Focus::ThreeSecondsAgo) { // W2, within kAddFocusGrace
         *route = AddRoute::Main;
-        *raise = false;
-    } else { // W1
+        *raise = true; // settled at #218: never out of sight
+    } else {           // W1
         *route = AddRoute::Window;
         *raise = false;
     }
@@ -230,14 +230,15 @@ void TestAddRoute::theMenusAddGoesThroughIt()
     QCOMPARE(blank.count(), 0);
     QCOMPARE(raised.count(), 0);
 
-    // The window's mark (or the tray a moment after the window had focus): its own sheet.
+    // The tray a moment after the window had focus: its own sheet, raised so it is never out
+    // of sight (settled at #218).
     app.setMainWindowActive(true);
     app.setMainWindowActive(false);
     now += 3'000;
     QVERIFY(app.barMenu()->invoke(QStringLiteral("add")));
     QCOMPARE(blank.count(), 1);
     QCOMPARE(window.count(), 1);
-    QCOMPARE(raised.count(), 0);
+    QCOMPARE(raised.count(), 1);
 }
 
 void TestAddRoute::theBusGoesThroughIt()
