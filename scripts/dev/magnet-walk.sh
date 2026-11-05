@@ -502,7 +502,8 @@ omabox run -b "$BOX" -- "$repo/build/omaseed" --quit >/dev/null 2>&1 || true
 omabox wait -b "$BOX" --timeout 15s window "$APP_ID" --gone >/dev/null 2>&1 || true
 # shellcheck disable=SC2016 # expands in the inner sh, which gets the box as $1
 check "omaseed quit" sh -c '! omabox run -b "$1" -- pgrep -x omaseed >/dev/null 2>&1' _ "$BOX"
-GIO_LOG="$(omabox run -b "$BOX" -d -- gio open "$MAGNET" 2>&1 | sed -n 's/.*(log: \(.*\))$/\1/p' | head -n 1)"
+GIO_LOG="$(omabox run -b "$BOX" -d -- gio open "$MAGNET" 2>&1 |
+    sed -nE 's/^omabox: started in box .*[(, ]log: ([^,)]+)[,)].*/\1/p' | head -n 1)"
 wait_window 15 || true
 # dup_sheet: until the duplicate sheet is up (the first sync comes first: the app just started).
 dup_sheet() {

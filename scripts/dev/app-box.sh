@@ -123,7 +123,9 @@ launch() {
     [ -n "${OMASEED_SKIN:-}" ] && pass+=(--pass OMASEED_SKIN)
     out="$(QT_FORCE_STDERR_LOGGING=1 omabox run -b "$BOX" "${pass[@]}" -d -- \
         "$binary" 2>&1)" || die "could not start $binary in the box: $out"
-    log="$(sed -n 's/.*(log: \(.*\))$/\1/p' <<<"$out" | head -n 1)"
+    # The job's log, from omabox's "started in box 'B' (pid N, log: HOST, BOX in the box)" (1.2.2;
+    # earlier: "(log: HOST)"). Its other lines may say "(log: omabox log …)": not ours.
+    log="$(sed -nE 's/^omabox: started in box .*[(, ]log: ([^,)]+)[,)].*/\1/p' <<<"$out" | head -n 1)"
     omabox wait -b "$BOX" --timeout 20s window omaseed >/dev/null ||
         die "no omaseed window after 20 s${log:+; its log: $log}"
     omabox wait -b "$BOX" --timeout 10s still >/dev/null || true

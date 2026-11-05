@@ -217,7 +217,8 @@ if [ "$INTERACTIVE" = 1 ]; then
 else
     up="$("$APP_BOX" up --qbt -b "$BOX" --build "$BUILD")"
 fi
-# The app's own output, where it says which skin it draws.
+# The app's own output, where it says which skin it draws: app-box.sh's own "omaseed is up in B
+# (log: L)" line, which has it only when app-box.sh could read it from omabox's.
 APP_LOG="$(sed -n 's/.*(log: \(.*\))$/\1/p' <<<"$up" | tail -n 1)"
 omabox pointer -b "$BOX" -- move 5 5 >/dev/null 2>&1 || true
 
