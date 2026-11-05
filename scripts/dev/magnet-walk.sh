@@ -487,12 +487,10 @@ check "on Fig. 10: already on this server" add_shows "Already on"
 step "Magnet it already has" "The add window alone (the main window stays in the tray), as the duplicate sheet straight away, no add form behind it: tiny-notes.txt is already on this server; a dim line says its metadata hasn't arrived, so its trackers stay as they are; \"close\" and \"show it\", no merge."
 check "no second copy on the playground" one_copy
 check "still one omaseed process" one_process
+# #229: Fig. 10 alone keeps the keyboard, and esc closes it and the window (W8).
+check "Fig. 10 alone: \"show it\" has the keyboard" add_focus_on "show it"
 keys Escape
-# shellcheck disable=SC2016 # expands in the inner sh, which gets the box as $1
-observe "esc closes Fig. 10 alone in the add window" \
-    sh -c 'omabox wait -b "$1" --timeout 2s window "title:^omaseed · add\$" --gone >/dev/null 2>&1' _ "$BOX"
-add_gone_now() { no_add_window || cancel_add; }
-check "closing the add window closes Fig. 10 (W8)" add_gone_now
+check "esc closes Fig. 10 alone in the add window (W8)" add_gone
 
 # 3b. The same, with omaseed quit, the way a browser or Files hands it over (GIO, the OpenURI
 # portal): the .desktop entry is DBusActivatable, so they call Open on omaseed's name and the
