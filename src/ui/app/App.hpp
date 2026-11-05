@@ -1166,6 +1166,9 @@ public:
     /// #40, the sheet's batch: a request with `items` (a list of `parseAddable` maps) adds
     /// all of them in one `torrents/add` under the request's options (no rename, no file
     /// choices), and answers one `addFinished` with the first one's hash.
+    ///
+    /// Board 54 W5 (#219): a request with `notifyAdded: true` (the add window's) asks for
+    /// `notifyAdded` on every torrent qBittorrent took, a batch's each, once it answers OK.
     Q_INVOKABLE void addTorrent(const QVariantMap &request);
 
     /// `OMASEED_DEMO_ADD`: the text a `--demo` run drops into the sheet when it opens, so
@@ -1287,6 +1290,8 @@ private:
     void forgetTorrentFile(const QString &token);
     /// #40: addTorrent's batch half.
     void addBatch(const QVariantMap &request);
+    /// W5 (#219): `notifyAdded` for each of `ids` when `request` asked for it.
+    void noticeAdds(const QVariantMap &request, const QStringList &ids);
 
 public:
     /// The thread that ran the most recent .torrent parse, so a test can check it was not the

@@ -2259,6 +2259,7 @@ void App::addTorrent(const QVariantMap &request)
     if (m_demoMode) {
         qInfo().noquote() << QStringLiteral("demo: would add %1 (%2)").arg(value, kind);
         Q_EMIT addFinished(true, QString(), hash);
+        noticeAdds(request, {hash});
         return;
     }
     if (!m_hasServer) {
@@ -2359,6 +2360,7 @@ void App::addTorrent(const QVariantMap &request)
         // DECISIONS C20 (#124): qBittorrent took it, so the sheet closes now; the names, file
         // choices and start below go on without it, and say in the footer if one fails.
         Q_EMIT addFinished(true, QString(), id);
+        noticeAdds(request, {id});
         if (!withPriorities && !withRenames)
             return;
         m_addsInFollowUp.insert(id, request.value(QStringLiteral("name")).toString());
@@ -2412,6 +2414,7 @@ void App::addBatch(const QVariantMap &request)
         qInfo().noquote() << QStringLiteral("demo: would add %1 torrents at once")
                                  .arg(files.size() + urls.size());
         Q_EMIT addFinished(true, QString(), first);
+        noticeAdds(request, ids);
         return;
     }
     if (!m_hasServer) {
@@ -2439,7 +2442,27 @@ void App::addBatch(const QVariantMap &request)
             if (!first.isEmpty())
                 watchForAddedHash(first);
             Q_EMIT addFinished(true, QString(), first);
+            // 5.x names every torrent it took, a link's too; an older server says "Ok." and
+            // the metainfo's own ids stand in.
+            const QJsonArray added = QJsonDocument::fromJson(result.value())
+                                         .object()
+                                         .value(QStringLiteral("added_torrent_ids"))
+                                         .toArray();
+            QStringList taken;
+            for (const QJsonValue &id : added)
+                taken.append(id.toString());
+            noticeAdds(request, taken.isEmpty() ? ids : taken);
         });
+}
+
+void App::noticeAdds(const QVariantMap &request, const QStringList &ids)
+{
+    // Board 54 W5 (DECISIONS C35): only the add window asks; the main window's adds are seen
+    // where they land.
+    if (!request.value(QStringLiteral("notifyAdded")).toBool())
+        return;
+    for (const QString &id : ids)
+        notifyAdded(id);
 }
 
 void App::applyAddRenames(const QString &id,
@@ -3033,6 +3056,7 @@ void App::afterUrlAdd(const QByteArray &body,
     // DECISIONS C20 (#124): taken, so the sheet closes; what follows says in the footer if it
     // fails.
     Q_EMIT addFinished(true, QString(), id);
+    noticeAdds(request, {id});
     if (!renames.isEmpty() || !AddFilesModel::priorityGroups(laterPriorities).isEmpty())
         m_addsInFollowUp.insert(id, request.value(QStringLiteral("name")).toString());
     if (!renames.isEmpty()) {

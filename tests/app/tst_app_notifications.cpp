@@ -42,6 +42,7 @@ namespace {
 
 const QString kCompletedHash = QStringLiteral("4a4e3b1d2d0c1a8d1e6a9f0b3c2d4e5f6a7b8c9d");
 const QString kTrackerHash = QStringLiteral("d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1");
+const QString kThirdHash = QStringLiteral("e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2");
 constexpr qint64 kGiB = 1LL * 1024 * 1024 * 1024;
 
 /// A maindata body that only carries the server's free space.
@@ -179,6 +180,7 @@ private slots:
     void anAddedNoticeSaysWhatItsRowSaysAndItsClickShowsIt(); // board 54 W5
     void anAddedNoticeWaitsForItsRowAndGoesOnce();
     void theAddedSwitchOffSendsNothing();
+    void anAddAskingForItGetsOneNoticePerTorrent(); // W5, #219
     void flappingServerFiresOneLostAndOneBack();
     void aTimeoutIsNotAnsweringThenAnsweredAgain();
     void aHiddenStartWaitsQuietlyForItsServer();
@@ -553,6 +555,65 @@ void TestAppNotifications::theAddedSwitchOffSendsNothing()
     Notifier notifier2(m_bus.connection());
     second.attachNotifier(&notifier2);
     QCOMPARE(second.notificationsEnabled().value(QStringLiteral("added")).toBool(), false);
+}
+
+// Board 54 W5 (#219): the add window's requests carry `notifyAdded`, and each torrent
+// qBittorrent takes gets its notice, a batch's each; the main window's requests carry
+// nothing and get none.
+void TestAppNotifications::anAddAskingForItGetsOneNoticePerTorrent()
+{
+    App app;
+    Notifier notifier(m_bus.connection());
+    app.attachNotifier(&notifier);
+    app.applyDemoData(QJsonObject{
+        {QStringLiteral("full_update"), true},
+        {QStringLiteral("rid"), 1},
+        {QStringLiteral("torrents"),
+         QJsonObject{
+             {kCompletedHash,
+              torrentRow(QStringLiteral("fixture-one"), QStringLiteral("linux"), 0.0, 1000)},
+             {kTrackerHash,
+              torrentRow(QStringLiteral("fixture-two"), QStringLiteral("linux"), 0.0, 1000)},
+             {kThirdHash,
+              torrentRow(QStringLiteral("fixture-three"), QStringLiteral("linux"), 0.0, 1000)}}}});
+    const auto magnet = [](const QString &hash) {
+        return QVariantMap{{QStringLiteral("kind"), QStringLiteral("magnet")},
+                           {QStringLiteral("value"), QStringLiteral("magnet:?xt=urn:btih:") + hash},
+                           {QStringLiteral("infoHashV1"), hash}};
+    };
+    QSignalSpy finished(&app, &App::addFinished);
+
+    // The main window's add: no notice.
+    app.addTorrent(magnet(kCompletedHash));
+    QCOMPARE(finished.size(), 1);
+    QCOMPARE(m_bus.server()->calls.size(), 0);
+
+    QVariantMap one = magnet(kCompletedHash);
+    one.insert(QStringLiteral("notifyAdded"), true);
+    app.addTorrent(one);
+    QCOMPARE(finished.size(), 2);
+    QCOMPARE(m_bus.server()->calls.size(), 1);
+    QCOMPARE(m_bus.server()->calls.first().summary, QStringLiteral("Torrent added"));
+    QVERIFY(m_bus.server()->calls.first().body.startsWith(QStringLiteral("fixture-one · ")));
+
+    // A list of hand-offs is one batch add with one answer, and a notice for each torrent.
+    m_bus.server()->calls.clear();
+    const QVariantMap batch{
+        {QStringLiteral("items"), QVariantList{magnet(kTrackerHash), magnet(kThirdHash)}},
+        {QStringLiteral("notifyAdded"), true}};
+    app.addTorrent(batch);
+    QCOMPARE(finished.size(), 3);
+    QCOMPARE(m_bus.server()->calls.size(), 2);
+    QVERIFY(m_bus.server()->calls.at(0).body.startsWith(QStringLiteral("fixture-two · ")));
+    QVERIFY(m_bus.server()->calls.at(1).body.startsWith(QStringLiteral("fixture-three · ")));
+
+    // The same batch from the main window: none.
+    m_bus.server()->calls.clear();
+    QVariantMap quiet = batch;
+    quiet.remove(QStringLiteral("notifyAdded"));
+    app.addTorrent(quiet);
+    QCOMPARE(finished.size(), 4);
+    QCOMPARE(m_bus.server()->calls.size(), 0);
 }
 
 void TestAppNotifications::flappingServerFiresOneLostAndOneBack()
