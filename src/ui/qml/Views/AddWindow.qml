@@ -205,6 +205,8 @@ Window {
 
         addSheet.framed: false
         categoryPicker: categoryPalette
+        // W5 (#219): an add from outside says it went in, from wherever the user is.
+        notifiesAdds: true
         // Alone, Fig. 10 is the window and its edge the window's; over the sheet, it is framed.
         duplicateSheet.framed: flow.addSheet.opened
         focus: true

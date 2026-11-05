@@ -271,6 +271,29 @@ TestCase {
         compare(merged.signalArguments[0][0], App.filtered.hashAt(0));
     }
 
+    // Board 54 W5 (#219): the window's adds ask App for "Torrent added", a batch's too; App
+    // sends one per torrent (tst_app_notifications).
+    function test_its_adds_ask_for_the_added_notice() {
+        const window = testCase.makeWindow();
+        compare(window.flow.notifiesAdds, true);
+        const request = window.flow.requestFor({
+            "kind": "magnet",
+            "value": testCase.freshMagnet
+        });
+        compare(request.notifyAdded, true);
+        compare(request.kind, "magnet");
+        compare(request.value, testCase.freshMagnet);
+        const batch = window.flow.requestFor({
+            "items": [{
+                    "kind": "magnet"
+                }, {
+                    "kind": "magnet"
+                }]
+        });
+        compare(batch.notifyAdded, true);
+        compare(batch.items.length, 2);
+    }
+
     function test_fig_10_over_the_next_source_floats_over_the_sheet() {
         const window = testCase.makeWindow();
         window.openList([testCase.knownMagnet(), testCase.freshMagnet], "drop");

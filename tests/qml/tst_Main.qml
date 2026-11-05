@@ -637,6 +637,15 @@ TestCase {
         compare(addSpy.count, 1);
     }
 
+    // Board 54 W5 (#219): "Torrent added" is the add window's; an add made here asks for none.
+    function test_an_add_here_asks_for_no_added_notice() {
+        compare(view.addFlow.notifiesAdds, false);
+        const request = view.addFlow.requestFor({
+            "kind": "magnet"
+        });
+        compare(request.notifyAdded, undefined);
+    }
+
     function test_comma_asks_for_settings() {
         keyClick(",");
         compare(settingsSpy.count, 1);

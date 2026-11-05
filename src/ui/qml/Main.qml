@@ -182,8 +182,9 @@ Window {
             // `show it` (W4): the notice's path, so main.cpp raises the window and the cursor
             // lands on the torrent.
             onShowRequested: hash => App.showTorrentRequested(hash)
-            // #219 (W5): the merge's notice, sent from here.
-            onMerged: hash => {}
+            // W4, W5 (#219): a merge from Fig. 10 here gets the add's notice; the window's
+            // adds ask App for theirs themselves (AddFlow.notifiesAdds).
+            onMerged: hash => App.notifyAdded(hash)
             // C26: a search add stays in the main window.
             onSearchRequested: text => {
                 view.openSearch(text);

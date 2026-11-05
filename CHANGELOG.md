@@ -13,6 +13,11 @@ before it will tag a release.
   burst) and the status file `alt.pick`; a pick from the bus, the tray or the widget's ⋯ sends
   a notice once it has taken effect, with what was picked and its limits (and a pointer to
   Settings › qBittorrent › Speed while turtle is still at qBittorrent's defaults). (#214)
+- **Torrent added.** An add from the add window (a browser's or file manager's hand-off, the
+  tray's or the widget's add) sends a notice once qBittorrent has it: its name, size and
+  category, one per torrent when you added several, a merge of trackers into one you already
+  have too. A click shows the torrent. Adds made in the main window stay quiet. Its own switch
+  is in Settings › Notifications, on by default. (#219)
 
 ### Changed
 

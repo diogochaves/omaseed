@@ -13,8 +13,9 @@ Omarchy
 qBittorrent server or many: this PC, a NAS, a seedbox, or all of them at once. It looks like
 the rest of your desktop and repaints the moment the Omarchy theme changes, every action has a
 key, and it keeps the seeding history qBittorrent does not. It opens `magnet:` links and
-`.torrent` files, lives in the Omarchy bar or the tray, and speaks up when a download
-finishes, a server goes away or a disk fills up.
+`.torrent` files, lives in the Omarchy bar or the tray, and speaks up when a torrent handed
+over from outside goes in, a download finishes, a server goes away or a disk fills up, each
+notice with its own switch in Settings › Notifications.
 
 <img src="docs/screenshots/library-tokyo-night.png" alt="omaseed's library in Tokyo Night: the status, category, tag and tracker rail, the torrent table with two rows selected, and a torrent's details on the right" width="100%">
 

@@ -17,6 +17,11 @@ import Omaseed.Views
 // The duplicate sheet is drawn over the add sheet; the host places this item at the add
 // sheet's height in its own stack.
 //
+// Board 54 W5 (DECISIONS C35, #219): the add window's adds each get a "Torrent added" notice
+// (`notifiesAdds`); the main window's never do. Its requests ask App for it, which sends one
+// per torrent qBittorrent took, a batch's each, even when the window was closed meanwhile (W8:
+// an add already sent goes on). A merge leaves as `merged` for the host to send.
+//
 //     AddFlow {
 //         anchors.fill: parent
 //         categoryPicker: categoryPalette
@@ -33,6 +38,8 @@ Item {
 
     readonly property alias addSheet: addSheet
     readonly property alias duplicateSheet: duplicateSheet
+    /// W5: the adds sent from here get App's "Torrent added" notice (the add window's).
+    property bool notifiesAdds: false
 
     /// Fig. 10's `show it`: the add is given up and both sheets are closed; the host shows
     /// the library's torrent.
@@ -45,12 +52,20 @@ Item {
     /// window's host sends board 54's W5 notice for it (W4 a).
     signal merged(string hash)
 
+    /// What `App.addTorrent` gets for the sheet's `request`: with `notifyAdded` when this flow
+    /// `notifiesAdds` (W5).
+    function requestFor(request: var): var {
+        return flow.notifiesAdds ? Object.assign({
+                                                     "notifyAdded": true
+                                                 }, request) : request;
+    }
+
     AddSheet {
         id: addSheet
 
         anchors.fill: parent
 
-        onAddRequested: request => App.addTorrent(request)
+        onAddRequested: request => App.addTorrent(flow.requestFor(request))
         onDuplicateFound: (duplicate, source) => duplicateSheet.openFor(duplicate, source)
         onSearchRequested: text => flow.searchRequested(text)
         // The `…` chips: T4.4's palettes, asked to answer instead of to act.
