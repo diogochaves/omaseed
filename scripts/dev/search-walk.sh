@@ -29,8 +29,13 @@
 #   - "× esc" (C34 D21 a): asked again with plugin d still looking, a click clears the words and
 #     the results, deletes every job on the server and shows the face before search;
 #   - uninstall plugin a from ⋯;
-#   - plugins ▾ › "manage plugins…" (C34 D20 a): the pane with its install field focused (a
-#     path typed in with no click starts an install), esc back to the search.
+#   - the rail (C34 D5s a, D20 a): plugins ▾ and type ▾ gone from the bar; plugin d unticked and
+#     recent's "sampler" asks plugin c alone; plugin d ticked asks both; type music skips plugin
+#     d; plugin b (off) opens the pane on it; "install a plugin…" opens it with its install field
+#     focused, esc back to the search;
+#   - ctrl+b folds the rail: plugins ▾ and type ▾ back in the bar, and plugins ▾ › "manage
+#     plugins…" (C34 D20 a): the pane with its install field focused (a path typed in with no
+#     click starts an install), esc back to the search.
 # Each check reads the box's qBittorrent; any failed check makes the script exit 1. The box goes
 # down at the end, also on ^C.
 set -euo pipefail
@@ -106,6 +111,15 @@ find_text() { omabox tree -b "$BOX" --window omaseed --find "$1" >/dev/null 2>&1
 wait_text() {
     for _ in $(seq 1 "${2:-15}"); do
         find_text "$1" && return 0
+        sleep 1
+    done
+    return 1
+}
+
+# wait_gone TEXT [SECONDS]: until the window no longer shows TEXT; 0 when it went.
+wait_gone() {
+    for _ in $(seq 1 "${2:-15}"); do
+        find_text "$1" || return 0
         sleep 1
     done
     return 1
@@ -202,6 +216,21 @@ else
     "$APP_BOX" up --qbt -b "$BOX" --build "$BUILD" >/dev/null
 fi
 omabox pointer -b "$BOX" -- move 5 5 >/dev/null 2>&1 || true
+# No desktop notices in this walk (it is about search; notify-walk.sh has them). The box's shell
+# crashed on the first one, the toast for a finished download ("Failed to create swapchain",
+# then SIGSEGV in QRhi::beginFrame): its crash dialog then sat over the middle of the screen and
+# its notifications layer over the right edge, outside omaseed's window, its tree and its shots,
+# and took the clicks meant for hide dead and for plugin a's uninstall. Off in state.json, then
+# a relaunch to read it.
+python3 -I - "$(omabox path -b "$BOX")/home/.config/omaseed/state.json" <<'PY'
+import json, os, sys
+path = sys.argv[1]
+state = json.load(open(path)) if os.path.exists(path) else {}
+state.setdefault("notifications", {})["completed"] = False
+json.dump(state, open(path, "w"), indent=2)
+PY
+"$APP_BOX" restart -b "$BOX" --build "$BUILD" >/dev/null
+omabox pointer -b "$BOX" -- move 5 5 >/dev/null 2>&1 || true
 # The invented plugins, in the box's HOME; plugin d answers after 40 s.
 python3 -I "$repo/scripts/dev/search-plugins.py" make "$(omabox path -b "$BOX")/home/search-plugins" --slow 40 >/dev/null
 
@@ -275,6 +304,9 @@ for _ in $(seq 1 20); do
     nested="$(api torrents/info | python3 -c 'import json, sys; print(sum(1 for t in json.load(sys.stdin) if t["name"].startswith("Nested Library Sampler")))')"
 done
 check "the link was added through its plugin" "$nested" 1
+# The sheet closes on omaseed's own answer to the add, which can come after the library lists the
+# torrent: a click before that lands on its scrim (and closes it) instead of the bar.
+check "the add sheet closed" "$(wait_gone "Add torrent" 15 && echo closed || echo open)" closed
 
 # ---- hide dead, `/` (SR4, SR14) -----------------------------------------------------------------
 click_text "hide dead" || true
@@ -323,7 +355,44 @@ wait_for "plugin a uninstalled" none 10 plugin_state omaseed_plugin_a
 step "Plugin a uninstalled" "The list without plugin a: plugin b (off, its line 'turned off · it failed in the last search, HH:MM'), plugin c and plugin d."
 keys Escape Escape Escape
 
-# ---- the way to the plugins (C34 D20 a) -----------------------------------------------------------
+# ---- the rail (C34 D5s a, D20 a) --------------------------------------------------------------------
+# Left: plugin b (off since its failure), plugin c and plugin d (slow) on; "sampler" in recent.
+keys ctrl+f
+shows "the rail's plugins group" "install a plugin" 5
+check "plugins ▾ left the bar with the rail open" "$(find_text "2 plugins ▾" && echo shown || echo gone)" gone
+click_text "plugin d" || true
+click_text "sampler" || true
+shows "recent asked again" "sampler commentary track" 15
+wait_for "plugin d unticked: only plugin c asked" 1 10 job_count
+step "The search rail" "The rail between the views and the servers: PLUGINS '1 of 3' (plugin b dim, no tick, 'off'; plugin c ticked, a green dot and 2; plugin d unticked, dim), '+ install a plugin…' in the accent; TYPE: any (lit), then the plugins' types; RECENT: sampler 'now'. The bar: the field, hide dead and most seeds ▾ only; the line: no pills."
+click_text "plugin d" || true
+wait_for "plugin d ticked: asked again, both plugins" 2 10 job_count
+click_text "music" || true
+wait_for "type music: asked again, plugin d skipped" 1 10 job_count
+step "A type picked in the rail" "TYPE: music lit; plugin d ticked, its words 'skipped' (no music type); plugin c answered; the title's sentence for 'sampler'."
+click_text "any" || true
+click_text "plugin b" || true
+shows "an off plugin opens its pane" "a search plugin to install" 5
+step "The pane on plugin b" "Settings › qBittorrent › Search plugins opened from the rail's plugin b: the cursor on plugin b's row (off)."
+keys Escape
+check "esc from plugin b's pane: settings closed" "$(find_text "a search plugin to install" && echo open || echo closed)" closed
+click_text "install a plugin" || true
+shows "install a plugin… opens the pane" "a search plugin to install" 5
+# No click into the field: the keys land there only if it opened focused.
+keys -t "$PLUGINS/no-such-plugin-3.py" Return
+shows "install a plugin…: the install field focused" "installing" 5
+step "install a plugin… from the rail" "The pane opened from the rail's foot row, the caret in 'install a plugin' after the typed path, 'installing · waiting for box to list it' under it."
+keys Escape
+find_text "a search plugin to install" && keys Escape
+check "esc from the rail's pane: settings closed" "$(find_text "a search plugin to install" && echo open || echo closed)" closed
+
+# ---- folded, the bar takes them back (C34 D5s a, D20 a) ------------------------------------------
+keys ctrl+b
+shows "folded: plugins ▾ back in the bar" "2 plugins ▾" 5
+shows "folded: type ▾ back in the bar" "any type ▾" 5
+step "The rail folded" "ctrl+b: the rail is its glyphs; the bar has '2 plugins ▾' and 'any type ▾' again, and the line the pills (plugin c 2, plugin d)."
+
+# ---- the way to the plugins, folded (C34 D20 a) ------------------------------------------------------
 keys ctrl+f
 # plugins ▾ counts the plugins that are on.
 on="$(api search/plugins | python3 -c 'import json, sys; print(sum(1 for p in json.load(sys.stdin) if p["enabled"]))')"
@@ -339,9 +408,13 @@ step "The pane, its install field focused" "Settings › qBittorrent › Search 
 keys Escape
 find_text "a search plugin to install" && keys Escape
 check "esc from the pane: settings closed" "$(find_text "a search plugin to install" && echo open || echo closed)" closed
-shows "esc from the pane: back in search" "Type what you are looking for" 5
-step "Back in the search" "The search face as it was: the empty field focused, the idle words; no Settings."
+# The rail's last search is still on show: its rows, not the idle words.
+shows "esc from the pane: back in search" "sampler commentary track" 5
+step "Back in the search" "The search face as it was: the rail folded, the field focused with sampler, its rows; no Settings."
 
+# A crashed shell leaves windows over omaseed's that no check here sees: say so.
+check "the box's shell never crashed" \
+    "$(compgen -G "$(omabox path -b "$BOX")/home/.cache/quickshell/crashes/*" >/dev/null && echo crashed || echo fine)" fine
 echo "the box's library at the end:"
 api torrents/info | python3 -c 'import json, sys; [print("  ", t["name"], t["state"]) for t in json.load(sys.stdin)]' || true
 echo
