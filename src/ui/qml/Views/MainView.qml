@@ -78,8 +78,9 @@ Item {
     readonly property alias renameFilesSheet: renameFilesSheet
     readonly property alias banPeerConfirm: banPeerConfirm
     // T4.8: the rest of the overlays, for the stacking and focus cases of `tst_Main`.
-    readonly property alias addSheet: addSheet
-    readonly property alias duplicateSheet: duplicateSheet
+    readonly property alias addFlow: addFlow
+    readonly property alias addSheet: addFlow.addSheet
+    readonly property alias duplicateSheet: addFlow.duplicateSheet
     readonly property alias settingsModal: settingsModal
     readonly property alias jumpPalette: jumpPalette
     readonly property alias categoryPalette: categoryPalette
@@ -117,10 +118,10 @@ Item {
             return columnsPalette;
         if (sharedMoveConfirm.opened)
             return sharedMoveConfirm;
-        if (duplicateSheet.opened)
-            return duplicateSheet;
-        if (addSheet.opened)
-            return addSheet;
+        if (addFlow.duplicateSheet.opened)
+            return addFlow.duplicateSheet;
+        if (addFlow.addSheet.opened)
+            return addFlow.addSheet;
         if (settingsModal.opened)
             return settingsModal;
         if (helpSheetPanel.opened)
@@ -1969,7 +1970,7 @@ Item {
             if (root.firstRun) // the tray's `add…`: held like a hand-off (review REG-6)
                 root._pendingBlankAdd = true;
             else
-                addSheet.openBlank();
+                addFlow.addSheet.openBlank();
         }
 
         /// A browser's or file manager's `magnet:` / `.torrent` hand-off (T1.4's second instance).
@@ -1977,7 +1978,7 @@ Item {
             if (root.firstRun) // held until there is a server to add them to
                 root._pendingAdds = root._pendingAdds.concat(uris);
             else
-                addSheet.openList(uris, "handoff");
+                addFlow.addSheet.openList(uris, "handoff");
         }
 
         /// `,`, the tray's `settings…`, the disconnected banner.
@@ -1999,7 +2000,7 @@ Item {
         /// #124 (DECISIONS C20): an add the sheet no longer waits for (cancelled while it was
         /// out) and the server refused: the footer says so, as an action's refusal.
         function onAddFinished(ok: bool, message: string, hash: string): void {
-            if (ok || addSheet.opened)
+            if (ok || addFlow.addSheet.opened)
                 return;
             root.flashFooterNote(message);
             const failure = App.addFailure;
@@ -2560,7 +2561,7 @@ Item {
             // C34 D5s a: the open rail holds the plugins and the type; folded, the bar does.
             railHolds: rail.visible && rail.searchGroupsShown
 
-            onAddRequested: key => addSheet.openFromSearch(App.searchAddable(key))
+            onAddRequested: key => addFlow.addSheet.openFromSearch(App.searchAddable(key))
             onCopyRequested: (text, note) => root.copyText(text, note)
             onLeaveRequested: root.setView(root._viewBeforeSearch === "search" ? "library" : root._viewBeforeSearch)
             onLogRequested: root.setView("log")
@@ -3858,9 +3859,9 @@ Item {
     // open the same two palettes in `openForChoice` mode, which answers the caller instead of
     // touching torrents.
     //
-    // Every palette sits above every sheet (`z: 14` against the add sheet's 12 and the
-    // duplicate's 13), because the category and tag ones can be opened from inside the add
-    // sheet. `Kit/Palette.open()` remembers `Window.activeFocusItem`, so closing one hands the
+    // Every palette sits above every sheet (`z: 14` against the add flow's 12, which holds
+    // the add sheet and the duplicate over it), because the category and tag ones can be
+    // opened from inside the add sheet. `Kit/Palette.open()` remembers `Window.activeFocusItem`, so closing one hands the
     // keyboard back to the chip row it came from.
     JumpPalette {
         id: jumpPalette
@@ -3878,7 +3879,6 @@ Item {
         scrollHint: App.railScrollHint
         z: 14
 
-        onChosen: name => addSheet.applyChosenCategory(name)
         onSharedMoveFound: (hashes, name, create, moved) => sharedMoveConfirm.openFor(hashes, name, create, moved)
     }
 
@@ -3896,8 +3896,6 @@ Item {
         anchors.fill: parent
         scrollHint: App.railScrollHint
         z: 14
-
-        onChosen: tags => addSheet.applyChosenTags(tags)
     }
 
     SortPalette {
@@ -4147,42 +4145,24 @@ Item {
     // Every source of an add ends up in one sheet (spec §3 Fig. 5): `a` and the title bar's
     // "+ add" arrive as `App.addRequested`, a drop as `Main.qml`'s `addDropped`, the browser's
     // `magnet:`/`.torrent` hand-off as `App.addUrisRequested`. An infohash the library
-    // already holds opens Fig. 10 instead of being sent.
-    AddSheet {
-        id: addSheet
+    // already holds opens Fig. 10 instead of being sent. Both sheets live in `AddFlow`, which
+    // the add window hosts too (docs/54 §6); the palettes they open are this window's.
+    AddFlow {
+        id: addFlow
 
         anchors.fill: parent
+        categoryPicker: categoryPalette
+        tagPicker: tagPalette
         z: 12
 
-        onAddRequested: request => App.addTorrent(request)
-        onDuplicateFound: (duplicate, source) => duplicateSheet.openFor(duplicate, source)
-        // C24 H16: the empty state's "search your plugins…", and typed words no add takes.
         onSearchRequested: text => root.openSearch(text)
-        // The `…` chips: T4.4's palettes, asked to answer instead of to act.
-        onCategoryPaletteRequested: categoryPalette.openForChoice()
-        onTagPaletteRequested: tagPalette.openForChoice(addSheet.tagChips.selected)
         // docs/33 D14: the head's chip or ctrl+s in the sheet.
         onServerPaletteRequested: root.openServerPalette()
-    }
-
-    DuplicateSheet {
-        id: duplicateSheet
-
-        anchors.fill: parent
-        z: 13
-
-        // `show it` gives up on the add: the sheet behind this one goes away with it.
+        // Fig. 10's `show it`, from search's add… too (C26 SR9): the library's torrent.
         onShowRequested: hash => {
-            addSheet.dismiss();
-            // From search's add… too (C26 SR9): `show it` is the library's torrent.
             if (root.searchShown)
                 root.setView("library");
             root.showTorrent(hash);
-        }
-        // docs/25 D3 a: `trackersMerged` then moves to the torrent's Trackers tab.
-        onMergeRequested: (hash, urls) => {
-            addSheet.dismiss();
-            App.mergeTrackers(hash, urls);
         }
     }
 
@@ -4194,9 +4174,9 @@ Item {
         else if (root.firstRun)
             root._pendingAdds = root._pendingAdds.concat(values);
         else if (values.length === 1)
-            addSheet.openWith(values[0], "drop");
+            addFlow.addSheet.openWith(values[0], "drop");
         else
-            addSheet.openList(values, "drop");
+            addFlow.addSheet.openList(values, "drop");
     }
 
     /// Move the table's cursor to `hash` and let the details pane follow. Used by the add
@@ -4273,9 +4253,9 @@ Item {
         root._pendingSettings = false;
         // One overlay at a time: an add asked for wins over settings.
         if (pending.length > 0)
-            addSheet.openList(pending, "handoff");
+            addFlow.addSheet.openList(pending, "handoff");
         else if (blank)
-            addSheet.openBlank();
+            addFlow.addSheet.openBlank();
         else if (settings)
             settingsModal.open();
     }

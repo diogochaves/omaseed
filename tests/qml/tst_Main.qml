@@ -1330,7 +1330,7 @@ TestCase {
         // A hand-off from the browser or the tray does stack over it, and is drawn on top.
         App.addRequested();
         compare(view.addSheet.opened, true);
-        verify(view.addSheet.z > view.settingsModal.z);
+        verify(view.addFlow.z > view.settingsModal.z);
         compare(view.activeOverlay, view.addSheet);
 
         // The add sheet is guarded (manual box M5): `esc` goes to `cancel`, then closes.
@@ -1528,7 +1528,7 @@ TestCase {
         chips.activateCursor();
         verify(view.categoryPalette.opened, "the `…` chip did not open the palette");
         verify(view.categoryPalette.choiceMode, "the palette is applying to torrents");
-        verify(view.categoryPalette.z > view.addSheet.z, "the palette is drawn under the sheet");
+        verify(view.categoryPalette.z > view.addFlow.z, "the palette is drawn under the sheet");
         verify(view.addSheet.opened, "the sheet went away under the palette");
 
         view.categoryPalette.query = "movies";

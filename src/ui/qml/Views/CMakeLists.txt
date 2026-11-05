@@ -14,6 +14,7 @@ qt_add_qml_module(omaseed-views
         AddDriverLine.qml
         AddDownloadsList.qml
         AddFetchLine.qml
+        AddFlow.qml
         AddFilesTree.qml
         FileTick.qml
         AddFreeLine.qml
