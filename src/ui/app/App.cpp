@@ -766,6 +766,8 @@ void App::retryNow()
 void App::setVisible(bool visible)
 {
     m_engine->setVisible(visible);
+    m_mainShown = visible;
+    updateMainActive();
 }
 
 void App::toggleAltSpeed(bool outside)
@@ -3267,6 +3269,13 @@ qint64 App::addClockNow() const
 
 void App::setMainWindowActive(bool active)
 {
+    m_mainFocused = active;
+    updateMainActive();
+}
+
+void App::updateMainActive()
+{
+    const bool active = m_mainShown && m_mainFocused;
     if (m_mainActive && !active)
         m_mainInactiveSinceMs = addClockNow();
     m_mainActive = active;

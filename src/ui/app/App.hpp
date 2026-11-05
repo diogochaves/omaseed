@@ -211,7 +211,8 @@ public:
 public Q_SLOTS:
     /// Skips the reconnect countdown and polls now (spec §7 Fig. 23's "retry now").
     void retryNow();
-    /// The window's visibility: the poll loop slows to 5 s while it is false.
+    /// The window's visibility: the poll loop slows to 5 s while it is false. Hidden (in the
+    /// tray), the main window also counts as unfocused for C35 W2 (`setMainWindowActive`).
     void setVisible(bool visible);
 
     /// A: off while the alternative limits are on, else the last preset picked (turtle or
@@ -260,8 +261,13 @@ private:
     QPointer<QWindow> m_dialogParent;
 
     /// C35 W2 (requestAdd): the main window's focus now, and when it last lost it (-1: never
-    /// had it), on m_addClock.
+    /// had it), on m_addClock. Focus is Qt's `isActive()` while the window is shown: hidden to
+    /// the tray, Qt on Wayland goes on saying active (#220), and a hand-off then opened its
+    /// sheet in the hidden window, out of sight.
     bool m_mainActive = false;
+    bool m_mainFocused = false;
+    bool m_mainShown = true;
+    void updateMainActive();
     qint64 m_mainInactiveSinceMs = -1;
     std::function<qint64()> m_addClock;
     qint64 addClockNow() const;

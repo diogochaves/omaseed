@@ -126,6 +126,7 @@ private slots:
     void requestAddActsOnIt();
     void theMenusAddGoesThroughIt();
     void theBusGoesThroughIt();
+    void aHiddenWindowHasNoFocus();
 };
 
 void TestAddRoute::theDecision()
@@ -267,6 +268,41 @@ void TestAddRoute::theBusGoesThroughIt()
     QCOMPARE(demoWindow.count(), 1);
     QVERIFY(demoWindow.first().first().toStringList().isEmpty());
     QCOMPARE(demoRaised.count(), 0);
+}
+
+void TestAddRoute::aHiddenWindowHasNoFocus()
+{
+    // #220: hidden to the tray, Qt on Wayland still calls the main window active. A hand-off
+    // then went to its sheet, out of sight; it opens the add window where the user is.
+    App app;
+    app.startDemo(4);
+    qint64 now = 0;
+    app.setAddClock([&now]() { return now; });
+    QSignalSpy raised(&app, &App::raiseRequested);
+    QSignalSpy listed(&app, &App::addUrisRequested);
+    QSignalSpy window(&app, &App::addWindowRequested);
+    const QString magnet =
+        QStringLiteral("magnet:?xt=urn:btih:9a4f6c1e2b3d4f50617283940a1b2c3d4e5f6071");
+
+    app.setMainWindowActive(true);
+    app.setVisible(false); // closed to the tray; no activeChanged comes
+    now += 30'000;
+    app.requestAdd({magnet}, AddSource::Handoff);
+    QCOMPARE(window.count(), 1);
+    QCOMPARE(listed.count(), 0);
+    QCOMPARE(raised.count(), 0);
+
+    // Shown again, with the focus Qt never said it lost: the main window's own sheet (W2).
+    app.setVisible(true);
+    app.requestAdd({magnet}, AddSource::Handoff);
+    QCOMPARE(listed.count(), 1);
+    QCOMPARE(window.count(), 1);
+
+    // The menu a moment after hiding it: hiding is losing focus, so the grace applies (W2).
+    app.setVisible(false);
+    now += 2'000;
+    app.requestAdd({}, AddSource::Menu);
+    QCOMPARE(raised.count(), 1);
 }
 
 QTEST_MAIN(TestAddRoute)
