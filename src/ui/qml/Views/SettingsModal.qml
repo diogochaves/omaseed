@@ -277,6 +277,21 @@ Item {
         root.open();
     }
 
+    /// DECISIONS C34 D20 a: search's way to its plugins (plugins ▾'s "manage plugins…", the
+    /// search rail's "install a plugin…"): Settings › qBittorrent › Search plugins with the
+    /// caret in its install field. esc there goes straight back to the search, as it was (the
+    /// sheet gives the keys back to what had them).
+    function openSearchPluginsInstall(): void {
+        root.openSearchPlugins();
+        root.area = "pane";
+        root.paneCursor = 0;
+        root._backToSearch = true;
+        searchPluginsPane.field.focusInput();
+    }
+
+    /// Opened by openSearchPluginsInstall(): the install field's esc closes the modal.
+    property bool _backToSearch: false
+
     /// C32 D8 a: the alternative speeds' choice's "edit the presets…": qBittorrent › Speed.
     function openSpeed(): void {
         root.showPane(root.qbtStart);
@@ -1320,6 +1335,7 @@ Item {
         } else {
             root.navOnServer = false;
             root.switchNote = "";
+            root._backToSearch = false;
         }
     }
     onPaneIndexChanged: {
@@ -3158,7 +3174,13 @@ Item {
                             serverName: App.serverName
                             visible: root.inQbtSearch
 
-                            onFieldDone: bodyItem.forceActiveFocus()
+                            // C34 D20 a: opened from search, esc goes back to it.
+                            onFieldDone: {
+                                if (root._backToSearch)
+                                    root.dismiss();
+                                else
+                                    bodyItem.forceActiveFocus();
+                            }
                             onNextServerRequested: {
                                 root.qbtNextServer();
                                 bodyItem.forceActiveFocus();

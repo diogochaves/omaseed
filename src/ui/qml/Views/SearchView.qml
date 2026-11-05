@@ -21,6 +21,10 @@ import Omaseed.Kit
 // title bar's filter); esc backs out step by step (DECISIONS C34 D21 a, amending SR14): the
 // pane, the rows (the keys back in the field), the words and the results together (the field's
 // "× esc": the plugins still asking stop), then out of search (`leaveRequested`).
+//
+// The way to the plugins (C34 D20 a): plugins ▾ ends with "manage plugins…", which asks the
+// window for Settings › qBittorrent › Search plugins with its install field focused
+// (`pluginsInstallRequested`); esc there comes back here.
 FocusScope {
     id: root
 
@@ -130,6 +134,9 @@ FocusScope {
     signal leaveRequested
     /// Settings › qBittorrent › Search plugins (SR13's link).
     signal pluginsPaneRequested
+    /// C34 D20 a: the same pane, its install field focused, esc back here ("manage
+    /// plugins…"; MainView sends it to SettingsModal.openSearchPluginsInstall()).
+    signal pluginsInstallRequested
     /// qBittorrent's log, for a plugin's failure (SR2's "the log line").
     signal logRequested
     signal copyRequested(string text, string note)
@@ -706,6 +713,8 @@ FocusScope {
                 root.results.order = action.slice(2);
             else if (action === "hideDead")
                 root.results.hideDead = !root.results.hideDead;
+            else if (action === "manage")
+                root.pluginsInstallRequested();
             else if (action === "menu:plugins" || action === "menu:type") {
                 barMenu.which = action.slice(5);
                 barMenu.open();

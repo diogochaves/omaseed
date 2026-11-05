@@ -2562,6 +2562,7 @@ Item {
             onLogRequested: root.setView("log")
             onNoteRequested: text => root.flashFooterNote(text)
             onPluginsPaneRequested: settingsModal.openSearchPlugins()
+            onPluginsInstallRequested: settingsModal.openSearchPluginsInstall()
         }
 
         DetailsStrip {

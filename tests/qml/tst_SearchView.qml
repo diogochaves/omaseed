@@ -267,6 +267,22 @@ TestCase {
         verify(!cap.visible);
     }
 
+    // C34 D20 a: plugins ▾ ends with "manage plugins…", which asks for the plugins' pane.
+    function test_manage_plugins_in_the_menu() {
+        const view = make("done");
+        const asked = spy(view, "pluginsInstallRequested");
+        mouseClick(findChild(view, "searchPluginsChip"));
+        const menu = findChild(view, "searchBarMenu");
+        tryVerify(() => menu.opened);
+        const last = menu.items[menu.items.length - 1];
+        compare(last.text, "manage plugins…");
+        compare(last.action, "manage");
+        verify(menu.items[menu.items.length - 2].separator);
+        menu.activated("manage");
+        compare(asked.count, 1);
+        verify(!menu.opened);
+    }
+
     // SR5: the cursor's row is kept, by key, while the rows move.
     function test_the_cursor_row_stays() {
         const view = make("done");

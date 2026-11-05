@@ -6,8 +6,9 @@ import Omaseed.Kit
 // The menus of search's bar (board 48 `sbar()`, DECISIONS C26 SR6), in the kit Menu's form:
 // plugins ▾ (every plugin that is on, or a pick; each with its types), type ▾ (any, then the
 // types the plugins that are on know, in their own words), sort ▾ and, narrow, filters ▾
-// (plugins…, type…, hide dead). `picked` carries "all", "p:NAME", "t:ID", "s:ORDER",
-// "hideDead", or "menu:plugins" / "menu:type" from filters ▾.
+// (plugins…, type…, hide dead). plugins ▾ ends with "manage plugins…" (DECISIONS C34 D20 a),
+// the way to Settings › qBittorrent › Search plugins. `picked` carries "all", "p:NAME", "t:ID",
+// "s:ORDER", "hideDead", "manage", or "menu:plugins" / "menu:type" from filters ▾.
 Menu {
     id: root
 
@@ -46,6 +47,14 @@ Menu {
                                      >= 0
                       });
         }
+        // C34 D20 a: the pane, its install field focused.
+        rows.push({
+                      "separator": true
+                  }, {
+                      "text": qsTr("manage plugins…"),
+                      "glyph": Glyphs.settings,
+                      "action": "manage"
+                  });
         return rows;
     }
 

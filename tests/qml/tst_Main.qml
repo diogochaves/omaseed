@@ -2594,6 +2594,40 @@ TestCase {
         App.loadDemoSearch("off");
     }
 
+    // C34 D20 a: plugins ▾'s "manage plugins…" opens Settings › qBittorrent › Search plugins
+    // with the caret in its install field; esc there goes back to the search, as it was.
+    function test_manage_plugins_opens_the_pane_focused() {
+        App.loadDemoSearch("done");
+        keyClick(Qt.Key_F, Qt.ControlModifier);
+        const search = findChild(view, "searchView");
+        verify(search.field.editing);
+        mouseClick(findChild(search, "searchPluginsChip"));
+        const menu = findChild(search, "searchBarMenu");
+        tryVerify(() => menu.opened);
+        menu.activated("manage");
+        const settings = view.settingsModal;
+        tryVerify(() => settings.opened);
+        verify(settings.inQbtSearch);
+        const install = findChild(settings, "searchInstallField");
+        tryVerify(() => install.editing);
+        keyClick(Qt.Key_Escape);
+        tryVerify(() => !settings.opened);
+        compare(view.view, "search");
+        tryVerify(() => search.field.editing);
+        compare(App.search.state, "done");
+        // Opened another way, esc in the field hands the keys to the modal as before.
+        settings.openSearchPlugins();
+        tryVerify(() => settings.opened);
+        install.focusInput();
+        keyClick(Qt.Key_Escape);
+        verify(settings.opened);
+        verify(!install.editing);
+        settings.dismiss();
+        tryVerify(() => !settings.opened);
+        view.setView("library");
+        App.loadDemoSearch("off");
+    }
+
     // #146 (C24 H17, C27 CR1): ctrl+n opens the create sheet; "+ add ▾" has add, create and
     // search; `:` has "create torrent…" and, on a picked folder, "create torrent from NAME…";
     // a folder row's menu opens it on that folder.
