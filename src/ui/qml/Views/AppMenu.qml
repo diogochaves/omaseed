@@ -5,7 +5,7 @@ import Omaseed.Kit
 // The omaseed menu (board 46 `menuHtml("app")`, DECISIONS C24 H9): the rail's mark and
 // `ctrl+.` open it under the mark. C13's rows, in C13's order, from the one list the tray and
 // the widget's ⋯ read (`App.appMenuRows`, integration/BarMenu: the servers with two or more,
-// alternative limits, stop all, start all, add, settings, quit), so the window is C13's third
+// alternative limits, pause or resume torrents, add, settings, quit), so the window is C13's third
 // place; then, before quit, a block for this window's own rows (seed console, log, commands,
 // keys and help, hide window), each teaching its key. It grows out of the lit mark in one
 // outline (board 51 D14 b, DECISIONS C32): no head of its own, since the mark says omaseed;
@@ -97,9 +97,9 @@ Menu {
         switch (id) {
         case "alt-speed":
             return root.altKind === "burst" ? Glyphs.burst : Glyphs.altSpeed;
-        case "stop-all":
+        case "pause":
             return Glyphs.stop;
-        case "start-all":
+        case "resume":
             return Glyphs.start;
         case "add":
             return Glyphs.add;

@@ -40,6 +40,7 @@
 #include "core/MadeHere.hpp"
 #include "core/MetadataLookup.hpp"
 #include "core/OmaseedBackup.hpp"
+#include "core/PauseHold.hpp"
 #include "core/PrivateTrackers.hpp"
 #include "core/QbtClient.hpp"
 #include "core/QbtSettingsExport.hpp"
@@ -217,10 +218,10 @@ public Q_SLOTS:
     void toggleAltSpeed();
     /// C32 D8 a: "off", "turtle" or "burst", picked from the chip's choice or a menu.
     Q_INVOKABLE void pickAltSpeed(const QString &kind);
-    /// POST torrents/stop with hashes=all.
-    void stopAll();
-    /// POST torrents/start with hashes=all.
-    void startAll();
+    /// DECISIONS C36 M10: stops what runs on the current server and holds it (PauseHold).
+    void pauseTorrents();
+    /// C36 M10: starts again exactly what the current server's pause holds.
+    void resumeTorrents();
 
 Q_SIGNALS:
     void serverChanged();
@@ -725,7 +726,7 @@ private:
     // Every action of spec §3 Fig. 6/7/8/11 and Fig. 26's "act" column that touches the
     // server lives here, over `QbtClient`. Each one no-ops in demo mode (logging
     // "demo: <action> <n>") and otherwise reports a failure through `actionFailed` rather
-    // than throwing it away, the way `toggleAltSpeed`/`stopAll` do above.
+    // than throwing it away, the way `toggleAltSpeed`/`pauseTorrents` do above.
 public:
     /// The remembered state of Fig. 6's "also delete files from disk" toggle. Persisted under
     /// the `"deleteFiles"` section of `~/.config/omaseed/state.json`.
@@ -1467,6 +1468,8 @@ public:
     /// server the app is on.
     Q_PROPERTY(omaseed::core::AltPresets *altPresets READ altPresets CONSTANT)
     omaseed::core::AltPresets *altPresets() const { return m_altPresets; }
+    /// DECISIONS C36 M10: what Pause Torrents stopped, per server, until Resume Torrents.
+    omaseed::core::PauseHold *pauseHold() const { return m_pauseHold; }
 
 private:
     /// A change the server took may move omaseed's own way in (docs/16 §3): the Web UI's
@@ -1482,6 +1485,7 @@ private:
     omaseed::core::ServerPreferences *m_prefs = nullptr;
     omaseed::core::AltSpeed *m_altSpeed = nullptr;
     omaseed::core::AltPresets *m_altPresets = nullptr;
+    omaseed::core::PauseHold *m_pauseHold = nullptr;
     QNetworkAccessManager *m_probeNam = nullptr;
 
 public:
@@ -2057,8 +2061,8 @@ private:
     // --- #73: one menu for the tray and the bar widget ----------------------------------------
     // docs/33 §11 (D10, D24, D25; DECISIONS C13). The tray and the widget's ⋯ show one menu,
     // built here once (integration::BarMenu): the servers with two or more, alternative
-    // limits, stop all, start all, add, settings, quit. Settings › Appearance offers the tray
-    // and the widget as one choice. The methods live in AppBarMenu.cpp.
+    // limits, pause or resume torrents (C36 M10), add, settings, quit. Settings › Appearance
+    // offers the tray and the widget as one choice. The methods live in AppBarMenu.cpp.
 public:
     /// The shared menu. The tray builds its QMenu from it, the status file writes it as
     /// `servers` and `menu`, and the widget's Invoke and SwitchServer come back to it.

@@ -5,6 +5,7 @@
 
 #include "core/AltSpeed.hpp"
 #include "core/GlobalState.hpp"
+#include "core/PauseHold.hpp"
 #include "core/ServerListModel.hpp"
 #include "core/SyncEngine.hpp"
 
@@ -53,10 +54,10 @@ void App::setUpBarMenu()
             Q_EMIT addRequested();
         } else if (id == QLatin1String("alt-speed")) {
             toggleAltSpeed();
-        } else if (id == QLatin1String("stop-all")) {
-            stopAll();
-        } else if (id == QLatin1String("start-all")) {
-            startAll();
+        } else if (id == QLatin1String("pause")) {
+            pauseTorrents();
+        } else if (id == QLatin1String("resume")) {
+            resumeTorrents();
         } else if (id == QLatin1String("settings")) {
             Q_EMIT openSettings();
         } else if (id == QLatin1String("quit")) {
@@ -76,6 +77,8 @@ void App::setUpBarMenu()
     connect(m_serverList, &QAbstractItemModel::rowsRemoved, this, &App::updateBarMenu);
     connect(this, &App::serverChanged, this, &App::updateBarMenu);
     connect(this, &App::serverStateChanged, this, &App::updateBarMenu);
+    // C36 M10: the row says Resume Torrents while the current server holds a pause.
+    connect(m_pauseHold, &PauseHold::changed, this, &App::updateBarMenu);
 
     // D25: the choice reads from the widget being in the bar and the tray icon mode.
     connect(m_barWidget, &omaseed::integration::BarWidget::changed, this, [this]() {
@@ -142,6 +145,7 @@ void App::updateBarMenu()
     if (named && !label.isEmpty())
         title = label.at(0).toUpper() + label.mid(1);
     m_barMenu->setAltSpeed(state->useAltSpeedLimits(), label, title);
+    m_barMenu->setPauseHeld(m_pauseHold->held());
     m_barMenu->setServerAnswering(m_demoMode ||
                                   (m_hasServer && state->connected() && !m_serverLost));
 }

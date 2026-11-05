@@ -4,7 +4,11 @@
 // Appearance's "In the bar" reads and writes the two old settings as one. Demo mode: no
 // server is contacted.
 
+#include "core/PauseHold.hpp"
 #include "core/ServerStore.hpp"
+#include "core/StateFile.hpp"
+#include "core/SyncEngine.hpp"
+#include "core/TorrentModel.hpp"
 #include "integration/BarMenu.hpp"
 #include "integration/BarWidget.hpp"
 #include "integration/Tray.hpp"
@@ -13,11 +17,18 @@
 
 #include <QAction>
 #include <QJsonArray>
+#include <QJsonDocument>
 #include <QJsonObject>
 #include <QMenu>
 #include <QSignalSpy>
+#include <QTcpServer>
+#include <QTcpSocket>
 #include <QTemporaryDir>
 #include <QTest>
+#include <QUrlQuery>
+
+#include <chrono>
+#include <memory>
 
 using omaseed::app::App;
 using omaseed::app::StatusService;
@@ -33,6 +44,100 @@ QStringList idsOf(const BarMenu *menu)
     return ids;
 }
 
+/// Three torrents, as qBittorrent answers for them: `a` downloading, `b` force-started and
+/// seeding, `c` kept stopped on purpose. torrents/stop and torrents/start move them; every
+/// hash list they were sent is kept.
+class PauseServer : public QTcpServer
+{
+public:
+    QHash<QString, QString> state{{QStringLiteral("a"), QStringLiteral("downloading")},
+                                  {QStringLiteral("b"), QStringLiteral("forcedUP")},
+                                  {QStringLiteral("c"), QStringLiteral("stoppedDL")}};
+    QStringList stops;
+    QStringList starts;
+    QStringList forced;
+
+    static QString hash(const QString &name) { return name.repeated(40); }
+
+protected:
+    void incomingConnection(qintptr descriptor) override
+    {
+        auto *socket = new QTcpSocket(this);
+        socket->setSocketDescriptor(descriptor);
+        connect(socket, &QTcpSocket::disconnected, socket, &QObject::deleteLater);
+        auto buffer = std::make_shared<QByteArray>();
+        connect(socket, &QTcpSocket::readyRead, socket, [this, socket, buffer]() {
+            buffer->append(socket->readAll());
+            const qsizetype headerEnd = buffer->indexOf("\r\n\r\n");
+            if (headerEnd < 0)
+                return;
+            qsizetype length = 0;
+            for (const QByteArray &line : buffer->left(headerEnd).split('\n'))
+                if (line.toLower().startsWith("content-length:"))
+                    length = line.mid(15).trimmed().toLongLong();
+            if (buffer->size() < headerEnd + 4 + length)
+                return;
+            const QByteArray target = buffer->left(buffer->indexOf('\n')).split(' ').value(1);
+            const QUrlQuery form(QString::fromUtf8(buffer->mid(headerEnd + 4, length)));
+            buffer->clear();
+            const auto names = [this](const QString &hashes) {
+                QStringList out;
+                for (const QString &h : hashes.split(u'|'))
+                    out << h.left(1);
+                out.sort();
+                return out;
+            };
+
+            QByteArray body = "Ok.";
+            if (target.startsWith("/api/v2/app/version")) {
+                body = "v5.2.3";
+            } else if (target.startsWith("/api/v2/app/webapiVersion")) {
+                body = "2.15.1";
+            } else if (target.startsWith("/api/v2/sync/maindata")) {
+                QJsonObject torrents;
+                for (auto it = state.cbegin(); it != state.cend(); ++it)
+                    torrents.insert(hash(it.key()),
+                                    QJsonObject{{QStringLiteral("name"), it.key()},
+                                                {QStringLiteral("state"), it.value()}});
+                body = QJsonDocument(QJsonObject{{QStringLiteral("rid"), 1},
+                                                 {QStringLiteral("full_update"), true},
+                                                 {QStringLiteral("torrents"), torrents}})
+                           .toJson(QJsonDocument::Compact);
+            } else if (target.startsWith("/api/v2/torrents/info")) {
+                const bool stopped = target.contains("filter=stopped");
+                QJsonArray list;
+                for (auto it = state.cbegin(); it != state.cend(); ++it) {
+                    if (it.value().startsWith(QLatin1String("stopped")) != stopped)
+                        continue;
+                    list.append(QJsonObject{
+                        {QStringLiteral("hash"), hash(it.key())},
+                        {QStringLiteral("state"), it.value()},
+                        {QStringLiteral("force_start"), it.value() == QLatin1String("forcedUP")}});
+                }
+                body = QJsonDocument(list).toJson(QJsonDocument::Compact);
+            } else if (target.startsWith("/api/v2/torrents/stop")) {
+                const QStringList picked = names(form.queryItemValue(QStringLiteral("hashes")));
+                stops << picked.join(u',');
+                for (const QString &name : picked)
+                    state.insert(name, QStringLiteral("stoppedUP"));
+            } else if (target.startsWith("/api/v2/torrents/start")) {
+                const QStringList picked = names(form.queryItemValue(QStringLiteral("hashes")));
+                starts << picked.join(u',');
+                for (const QString &name : picked)
+                    state.insert(name, QStringLiteral("uploading"));
+            } else if (target.startsWith("/api/v2/torrents/setForceStart")) {
+                const QStringList picked = names(form.queryItemValue(QStringLiteral("hashes")));
+                forced << picked.join(u',');
+                for (const QString &name : picked)
+                    state.insert(name, QStringLiteral("forcedUP"));
+            }
+            socket->write("HTTP/1.1 200 OK\r\nContent-Length: " + QByteArray::number(body.size()) +
+                          "\r\nConnection: close\r\n\r\n" + body);
+            socket->disconnectFromHost();
+        });
+    }
+};
+
 } // namespace
 
 class TestAppBarMenu : public QObject
@@ -46,6 +151,7 @@ private slots:
 
     void theMenuFollowsTheServerList();
     void itsRowsReachTheApp();
+    void pauseHoldsWhatRanAndResumeStartsOnlyThat();
     void theWidgetActsThroughStatusService();
     void theTrayShowsTheSameMenu();
     void theWindowShowsTheSameMenu();
@@ -135,8 +241,11 @@ void TestAppBarMenu::itsRowsReachTheApp()
     QVERIFY(menu->invoke(QStringLiteral("settings")));
     QCOMPARE(settings.size(), 1);
     QVERIFY(menu->invoke(QStringLiteral("alt-speed")));
+    // C36 M10: the demo stops nothing, but the row is there; resume needs a held pause.
+    QVERIFY(menu->invoke(QStringLiteral("pause")));
     QVERIFY(menu->invoke(QStringLiteral("stop-all")));
-    QVERIFY(menu->invoke(QStringLiteral("start-all")));
+    QVERIFY(!menu->invoke(QStringLiteral("resume")));
+    QVERIFY(!app.pauseHold()->held());
     QCOMPARE(quit.size(), 0);
     QVERIFY(menu->invoke(QStringLiteral("quit")));
     QCOMPARE(quit.size(), 1);
@@ -150,6 +259,56 @@ void TestAppBarMenu::itsRowsReachTheApp()
     QVERIFY(app.servers()->defaultId() != id);
     QVERIFY(menu->invoke(QStringLiteral("server:") + id));
     QCOMPARE(app.servers()->defaultId(), id);
+}
+
+// DECISIONS C36 M10: Pause Torrents stops what runs and holds it, in state.json; the row turns
+// into Resume Torrents, which starts exactly those again (the force-started one forced) and
+// leaves the one kept stopped on purpose as it was.
+void TestAppBarMenu::pauseHoldsWhatRanAndResumeStartsOnlyThat()
+{
+    QTemporaryDir home;
+    QVERIFY(home.isValid());
+    qputenv("XDG_CONFIG_HOME", home.path().toUtf8());
+    PauseServer server;
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+    qputenv("OMASEED_SERVER_URL",
+            QStringLiteral("http://127.0.0.1:%1").arg(server.serverPort()).toUtf8());
+    struct Unset
+    {
+        ~Unset() { qunsetenv("OMASEED_SERVER_URL"); }
+    } unset;
+
+    App app;
+    using namespace std::chrono_literals;
+    app.engine()->setIntervals(100ms, 100ms, 100ms, 100ms);
+    app.start();
+    BarMenu *menu = app.barMenu();
+    const auto rowId = [menu]() { return menu->rows().at(1).id; };
+    QTRY_VERIFY_WITH_TIMEOUT(app.torrents()->count() == 3 && menu->rows().at(1).enabled, 5000);
+    QCOMPARE(rowId(), QStringLiteral("pause"));
+    QVERIFY(!app.pauseHold()->server().isEmpty());
+
+    QVERIFY(app.invokeAppMenu(QStringLiteral("pause")));
+    QTRY_COMPARE_WITH_TIMEOUT(rowId(), QStringLiteral("resume"), 5000);
+    QTRY_COMPARE_WITH_TIMEOUT(server.stops, QStringList{QStringLiteral("a,b")}, 5000);
+    // The server has the stop before omaseed has its answer; a resume waits for it.
+    QTRY_VERIFY_WITH_TIMEOUT(!app.pauseHold()->busy(), 5000);
+    QCOMPARE(menu->rows().at(1).label, QStringLiteral("resume torrents"));
+    // Held in state.json, under the server it was paused on.
+    const QJsonObject held = omaseed::core::StateFile::readSection(QStringLiteral("pauseHold"))
+                                 .value(app.pauseHold()->server())
+                                 .toObject();
+    QCOMPARE(held.value(QStringLiteral("hashes")).toArray().size(), 2);
+    QCOMPARE(held.value(QStringLiteral("forced")).toArray(),
+             QJsonArray{PauseServer::hash(QStringLiteral("b"))});
+
+    // C13's old id still reaches it.
+    QVERIFY(menu->invoke(QStringLiteral("start-all")));
+    QTRY_COMPARE_WITH_TIMEOUT(rowId(), QStringLiteral("pause"), 5000);
+    QCOMPARE(server.starts, QStringList{QStringLiteral("a")});
+    QCOMPARE(server.forced, QStringList{QStringLiteral("b")});
+    QCOMPARE(server.state.value(QStringLiteral("c")), QStringLiteral("stoppedDL"));
+    QVERIFY(omaseed::core::StateFile::readSection(QStringLiteral("pauseHold")).isEmpty());
 }
 
 // docs/33 §11 change 6: SwitchServer and Invoke, through the handler StatusBus calls.
@@ -211,8 +370,7 @@ void TestAppBarMenu::theWindowShowsTheSameMenu()
     QCOMPARE(windowIds(), idsOf(menu));
     QCOMPARE(windowIds(),
              (QStringList{QStringLiteral("alt-speed"),
-                          QStringLiteral("stop-all"),
-                          QStringLiteral("start-all"),
+                          QStringLiteral("pause"),
                           QStringLiteral("separator:actions"),
                           QStringLiteral("add"),
                           QStringLiteral("settings"),

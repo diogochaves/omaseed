@@ -140,6 +140,23 @@ App::App(QObject *parent)
         connect(QCoreApplication::instance(), &QCoreApplication::aboutToQuit, this, [this]() {
             m_altPresets->endBurstAndWait(2000);
         });
+    // DECISIONS C36 M10: what Pause Torrents stopped, per server, kept across restarts.
+    m_pauseHold = new PauseHold(this);
+    m_pauseHold->setClient(m_client);
+    m_pauseHold->setStore(StateFile::readSection(QStringLiteral("pauseHold")));
+    connect(m_pauseHold, &PauseHold::storeChanged, this, [this]() {
+        writeStateSection(QStringLiteral("pauseHold"), m_pauseHold->store());
+    });
+    connect(m_pauseHold, &PauseHold::paused, this, [this](int, const QString &error) {
+        if (!error.isEmpty())
+            qWarning().noquote() << QStringLiteral("pause torrents failed: %1").arg(error);
+        m_engine->readErrorStops();
+    });
+    connect(m_pauseHold, &PauseHold::resumed, this, [this](int, int, const QString &error) {
+        if (!error.isEmpty())
+            qWarning().noquote() << QStringLiteral("resume torrents failed: %1").arg(error);
+        m_engine->readErrorStops();
+    });
     m_filtered->setSourceModel(m_engine->torrents());
     // A tracker row lists what the rail counts for it: every torrent on that host.
     m_filtered->setTrackerModel(m_engine->trackers());
@@ -191,6 +208,8 @@ App::App(QObject *parent)
         m_altPresets->setServer(!m_hasServer ? QString()
                                 : m_demoMode ? QStringLiteral("demo")
                                              : m_server.id);
+        // The demo has no torrents to stop: its menu's pause does nothing.
+        m_pauseHold->setServer(m_demoMode || !m_hasServer ? QString() : m_server.id);
     });
     connect(this, &App::settingsChanged, this, &App::updateFreeSpace);
     connect(m_engine->globalState(), &GlobalState::serverNameChanged, this, &App::updateTray);
@@ -758,32 +777,22 @@ void App::pickAltSpeed(const QString &kind)
         qWarning().noquote() << QStringLiteral("alt-speed: %1 can't be picked yet").arg(kind);
 }
 
-void App::stopAll()
+void App::pauseTorrents()
 {
     if (m_demoMode || !m_hasServer)
         return;
-    m_client->torrentsStop({QStringLiteral("all")})
-        ->then(this, [this](const QbtResult<QByteArray> &result) {
-            if (result.isError())
-                qWarning().noquote()
-                    << QStringLiteral("stop all failed: %1").arg(result.error().toString());
-            else
-                m_engine->readErrorStops();
-        });
+    // C36 M10: never `hashes=all`; PauseHold stops exactly what runs and remembers it.
+    if (!m_pauseHold->pause())
+        qWarning().noquote() << QStringLiteral("pause torrents: not sent (one on its way)");
 }
 
-void App::startAll()
+void App::resumeTorrents()
 {
     if (m_demoMode || !m_hasServer)
         return;
-    m_client->torrentsStart({QStringLiteral("all")})
-        ->then(this, [this](const QbtResult<QByteArray> &result) {
-            if (result.isError())
-                qWarning().noquote()
-                    << QStringLiteral("start all failed: %1").arg(result.error().toString());
-            else
-                m_engine->readErrorStops();
-        });
+    if (!m_pauseHold->resume())
+        qWarning().noquote() << QStringLiteral("resume torrents: not sent (nothing held, or one "
+                                               "on its way)");
 }
 
 // --- the tray ----------------------------------------------------------------------------

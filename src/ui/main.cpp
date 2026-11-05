@@ -728,7 +728,7 @@ int main(int argc, char *argv[])
     QObject::connect(&tray, &omaseed::integration::Tray::showRequested, &app, showWindow);
 
     // Everything else in the menu is the shared menu (docs/33 §11, D10, D24), App's: the
-    // servers, alt-speed, stop all and start all go out as real requests, add and settings
+    // servers, alt-speed, pause and resume torrents go out as real requests, add and settings
     // bring the window up, and quit is a real quit. The bar widget's ⋯ shows the same rows.
     // The quit is queued, so a widget's Invoke("quit") still gets its answer.
     omaseedApp.attachTray(&tray);

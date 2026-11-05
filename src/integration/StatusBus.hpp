@@ -14,8 +14,9 @@
 //   OpenFolder(s hash)                           show its content in the file manager
 //   SwitchServer(s id) → b                       the app moves onto that server (docs/33 D24)
 //   Invoke(s id) → b                             a row of the shared menu (BarMenu): add,
-//                                                alt-speed, stop-all, start-all, settings,
-//                                                quit, server:<id>
+//                                                alt-speed, pause, resume, settings, quit,
+//                                                server:<id>; stop-all and start-all, the
+//                                                ids before C36 M10, as pause and resume
 //
 // It lives on the app's object path, `/io/github/diogochaves/omaseed`, beside
 // `org.freedesktop.Application`: the adaptor is added to the object SingleInstance exported

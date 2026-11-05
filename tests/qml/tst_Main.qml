@@ -675,7 +675,7 @@ TestCase {
     function test_the_app_menu_is_c13s_rows_and_the_windows() {
         const actions = view.appMenu.items.map(item => item.separator ? "|" : item.caption ? "caption"
                                                                                                  : item.action);
-        compare(actions, ["alt-speed", "stop-all", "start-all", "|", "add", "settings", "|", "caption",
+        compare(actions, ["alt-speed", "pause", "|", "add", "settings", "|", "caption",
                           "toggleConsole", "toggleLog", "commands", "help", "hide", "|", "quit"]);
         // D14 b: the version leads, the server after it; no "omaseed" head.
         verify(/^\d+\.\d+/.test(view.appMenu.headingTitle), view.appMenu.headingTitle);

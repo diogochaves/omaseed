@@ -268,7 +268,7 @@ void TestStatusBus::theSharedMenuAnswersAtOnce()
     reply = call(QStringLiteral("SwitchServer"), {QStringLiteral("nowhere")});
     QCOMPARE(reply.arguments().value(0).toBool(), false);
 
-    reply = call(QStringLiteral("Invoke"), {QStringLiteral("stop-all")});
+    reply = call(QStringLiteral("Invoke"), {QStringLiteral("pause")});
     QCOMPARE(reply.type(), QDBusMessage::ReplyMessage);
     QCOMPARE(reply.arguments().value(0).toBool(), true);
     reply = call(QStringLiteral("Invoke"), {QStringLiteral("bogus")});
@@ -276,7 +276,7 @@ void TestStatusBus::theSharedMenuAnswersAtOnce()
     QCOMPARE(m_handler.calls,
              QStringList({QStringLiteral("switch private"),
                           QStringLiteral("switch nowhere"),
-                          QStringLiteral("invoke stop-all"),
+                          QStringLiteral("invoke pause"),
                           QStringLiteral("invoke bogus")}));
 }
 

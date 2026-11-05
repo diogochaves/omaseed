@@ -97,7 +97,7 @@ void TestTray::menuIsShowTheFiguresThenTheSharedMenu()
         QStringLiteral("4.21 MB/s"), QStringLiteral("812 KB/s"), 6, 118, QStringLiteral("1.8 TB"));
 
     const QList<QAction *> actions = tray.menu()->actions();
-    QCOMPARE(actions.size(), 13);
+    QCOMPARE(actions.size(), 12);
 
     QCOMPARE(actions.at(0)->text(), QStringLiteral("show omaseed"));
     QVERIFY(actions.at(1)->isSeparator());
@@ -110,19 +110,20 @@ void TestTray::menuIsShowTheFiguresThenTheSharedMenu()
     QVERIFY(actions.at(4)->isSeparator());
     QCOMPARE(actions.at(5)->text(), QStringLiteral("alternative speed limits"));
     QVERIFY(actions.at(5)->isCheckable());
-    QCOMPARE(actions.at(6)->text(), QStringLiteral("stop all"));
-    QCOMPARE(actions.at(7)->text(), QStringLiteral("start all"));
+    // DECISIONS C36 M10: one row, pause torrents (resume torrents while a pause is held).
+    QCOMPARE(actions.at(6)->text(), QStringLiteral("pause torrents"));
 
-    QVERIFY(actions.at(8)->isSeparator());
-    QCOMPARE(actions.at(9)->text(), QStringLiteral("add torrent…"));
-    QCOMPARE(actions.at(10)->text(), QStringLiteral("settings…"));
-    QVERIFY(actions.at(11)->isSeparator());
-    QCOMPARE(actions.at(12)->text(), QStringLiteral("quit"));
+    QVERIFY(actions.at(7)->isSeparator());
+    QCOMPARE(actions.at(8)->text(), QStringLiteral("add torrent…"));
+    QCOMPARE(actions.at(9)->text(), QStringLiteral("settings…"));
+    QVERIFY(actions.at(10)->isSeparator());
+    QCOMPARE(actions.at(11)->text(), QStringLiteral("quit"));
 
     // Before App gives it the shared menu, rows that need a server are off.
     QVERIFY(!actions.at(5)->isEnabled());
-    QVERIFY(actions.at(9)->isEnabled());
-    QVERIFY(actions.at(12)->isEnabled());
+    QVERIFY(!actions.at(6)->isEnabled());
+    QVERIFY(actions.at(8)->isEnabled());
+    QVERIFY(actions.at(11)->isEnabled());
 }
 
 void TestTray::altSpeedRowAsksTheModelAndFollowsIt()
@@ -151,19 +152,25 @@ void TestTray::altSpeedRowAsksTheModelAndFollowsIt()
 
     // Each shared row goes to the model by its id.
     const QList<QAction *> actions = tray.menu()->actions();
-    for (int at : {6, 7, 9, 10, 12})
+    for (int at : {6, 8, 9, 11})
         actions.at(at)->trigger();
-    QCOMPARE(spy.size(), 6);
-    QCOMPARE(spy.at(1).at(0).toString(), QStringLiteral("stop-all"));
-    QCOMPARE(spy.at(2).at(0).toString(), QStringLiteral("start-all"));
-    QCOMPARE(spy.at(3).at(0).toString(), QStringLiteral("add"));
-    QCOMPARE(spy.at(4).at(0).toString(), QStringLiteral("settings"));
-    QCOMPARE(spy.at(5).at(0).toString(), QStringLiteral("quit"));
+    QCOMPARE(spy.size(), 5);
+    QCOMPARE(spy.at(1).at(0).toString(), QStringLiteral("pause"));
+    QCOMPARE(spy.at(2).at(0).toString(), QStringLiteral("add"));
+    QCOMPARE(spy.at(3).at(0).toString(), QStringLiteral("settings"));
+    QCOMPARE(spy.at(4).at(0).toString(), QStringLiteral("quit"));
 
-    // A server that stops answering turns them off.
+    // A held pause: the same place says resume torrents, and asks for that.
+    model.setPauseHeld(true);
+    QAction *resume = tray.menu()->actions().at(6);
+    QCOMPARE(resume->text(), QStringLiteral("resume torrents"));
+    resume->trigger();
+    QCOMPARE(spy.last().at(0).toString(), QStringLiteral("resume"));
+
+    // A server that stops answering turns them off (the rows were made again for resume).
     model.setServerAnswering(false);
-    QVERIFY(!altSpeed->isEnabled());
-    QVERIFY(!actions.at(6)->isEnabled());
+    QVERIFY(!tray.menu()->actions().at(5)->isEnabled());
+    QVERIFY(!tray.menu()->actions().at(6)->isEnabled());
 }
 
 void TestTray::middleClickInvokesAltSpeed()
@@ -191,7 +198,7 @@ void TestTray::serversBlockOnlyWithTwoServersOrMore()
     BarMenu::Server home{
         QStringLiteral("h"), QStringLiteral("home"), true, QStringLiteral("ok"), 4, 0, QString()};
     model.setServers({home});
-    QCOMPARE(tray.menu()->actions().size(), 13);
+    QCOMPARE(tray.menu()->actions().size(), 12);
 
     BarMenu::Server box{QStringLiteral("b"),
                         QStringLiteral("seedbox"),
@@ -202,7 +209,7 @@ void TestTray::serversBlockOnlyWithTwoServersOrMore()
                         QStringLiteral("sign-in refused")};
     model.setServers({home, box});
     QList<QAction *> actions = tray.menu()->actions();
-    QCOMPARE(actions.size(), 17);
+    QCOMPARE(actions.size(), 16);
     QCOMPARE(actions.at(5)->text(), QStringLiteral("servers"));
     QVERIFY(!actions.at(5)->isEnabled());
     QCOMPARE(actions.at(6)->text(), QStringLiteral("home · 4 torrents"));
@@ -235,7 +242,7 @@ void TestTray::serversBlockOnlyWithTwoServersOrMore()
 
     // Back to one: the block goes.
     model.setServers({box});
-    QCOMPARE(tray.menu()->actions().size(), 13);
+    QCOMPARE(tray.menu()->actions().size(), 12);
 }
 
 void TestTray::leftClickRequestsToggleWindow()

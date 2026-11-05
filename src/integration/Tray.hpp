@@ -29,8 +29,8 @@ class ThemeReader;
 /// Five discrete icon states (spec v2 §6 Fig. 17), a menu, and a tooltip built from live
 /// numbers. The menu is "show omaseed" and the two figure rows (Fig. 18), then the shared
 /// BarMenu's rows, the same ones the bar widget's ⋯ shows (docs/33 §11, D10, D24; DECISIONS
-/// C13): the servers with two or more, alternative limits, stop all, start all, add, settings,
-/// quit. Icons are SVG templates in
+/// C13, C36 M10): the servers with two or more, alternative limits, pause or resume torrents,
+/// add, settings, quit. Icons are SVG templates in
 /// `src/integration/resources/tray/` with placeholder fills (`#ACCENT`, `#FG`, `#RED`,
 /// `#DIM`) substituted for the live theme palette and rendered to a multi-size `QIcon`; the
 /// downloading count and the alt-speed mark are painted on top.

@@ -595,7 +595,7 @@ QtObject {
             "rank": 3,
             "helpKeys": "ctrl+.",
             "help": qsTr("omaseed menu"),
-            "about": qsTr("The mark's menu: servers, alternative limits, stop and start all, add, settings, this window's keys, quit")
+            "about": qsTr("The mark's menu: servers, alternative limits, pause or resume torrents, add, settings, this window's keys, quit")
         },
         {
             "area": "global",

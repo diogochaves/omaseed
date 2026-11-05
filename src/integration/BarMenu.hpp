@@ -11,8 +11,10 @@
 //   servers         a caption and one radio row per server, then a separator; only with two
 //                   servers or more (D19: one server never offers to switch)
 //   alt-speed       a check row: the alternative limits, by their word (docs/31: burst, turtle)
-//   stop-all        stop every torrent
-//   start-all       start every torrent
+//   pause           Pause Torrents: stop what runs and hold it (core::PauseHold), while no
+//                   pause is held on the current server
+//   resume          Resume Torrents in its place while one is: start exactly those again
+//                   (DECISIONS C36 M10, in place of C13's stop all and start all)
 //   ---
 //   add             the app's add sheet
 //   settings        the app's settings
@@ -28,8 +30,13 @@
 // server's row carries `detail`, what it shows at its right ("4 torrents", "sign-in
 // refused"), and `urgent` when that is a failure.
 //
-// Nothing here knows the app: App feeds the servers and the alt-speed state, and answers
-// `triggered` and `serverChosen`.
+// Nothing here knows the app: App feeds the servers, the alt-speed state and whether a pause is
+// held, and answers `triggered` and `serverChosen`.
+//
+// `invoke` takes `pause` whichever row shows (a second pause adds what runs now, PauseHold)
+// and `resume` only while a pause is held. `stop-all` and `start-all`, the ids the menu had
+// before C36 M10 and STATUS.md documented, are kept as aliases of `pause` and `resume`, so a
+// script written against them keeps working; `triggered` carries the new id.
 
 #include <QJsonArray>
 #include <QList>
@@ -75,8 +82,11 @@ public:
         bool operator==(const Server &other) const = default;
     };
 
-    /// The menu ids `Invoke` takes, besides `server:<id>`.
+    /// The menu ids `Invoke` takes, besides `server:<id>` and the two aliases.
     static QStringList actionIds();
+    /// The new id an old one stands for (`stop-all` → `pause`, `start-all` → `resume`); any
+    /// other id as it is.
+    static QString canonicalId(const QString &id);
     /// "action" · "check" · "radio" · "caption" · "separator".
     static QString kindName(Kind kind);
     /// "4 torrents", "1 torrent", "sign-in refused", "down", "first sync", "" — a server
@@ -92,8 +102,10 @@ public:
     /// The alternative limits: on or off, and their words (`label` the tray's, "burst · until
     /// 07:00"; `title` the widget's, "Burst · until 07:00").
     void setAltSpeed(bool on, const QString &label, const QString &title);
-    /// Alt-speed, stop all and start all need a server that answers; the rest never do.
+    /// Alt-speed, pause and resume need a server that answers; the rest never do.
     void setServerAnswering(bool answering);
+    /// A pause is held on the current server: the row offers Resume Torrents (C36 M10).
+    void setPauseHeld(bool held);
 
     // --- what the tray and the status file read -------------------------------------------
     QList<Row> rows() const;
@@ -111,7 +123,7 @@ public:
 Q_SIGNALS:
     /// Any row moved: a label, a check, a server.
     void changed();
-    /// add · alt-speed · stop-all · start-all · settings · quit
+    /// add · alt-speed · pause · resume · settings · quit
     void triggered(const QString &id);
     /// A server row: the app switches to it (App::switchServer).
     void serverChosen(const QString &serverId);
@@ -122,6 +134,7 @@ private:
     QString m_altLabel;
     QString m_altTitle;
     bool m_answering = false;
+    bool m_pauseHeld = false;
 };
 
 } // namespace omaseed::integration

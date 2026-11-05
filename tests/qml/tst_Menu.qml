@@ -510,9 +510,9 @@ TestCase {
     function test_a_modifier_alone_runs_nothing() {
         const menu = createTemporaryObject(menuComponent, testCase, {
                                                "items": [{
-                                                       "text": "stop all",
+                                                       "text": "pause torrents",
                                                        "key": "",
-                                                       "action": "stop-all"
+                                                       "action": "pause"
                                                    }]
                                            });
         menu.open();

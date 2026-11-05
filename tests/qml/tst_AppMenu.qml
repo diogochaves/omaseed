@@ -51,14 +51,8 @@ TestCase {
             "enabled": true
         },
         {
-            "id": "stop-all",
-            "label": "stop all",
-            "kind": "action",
-            "enabled": true
-        },
-        {
-            "id": "start-all",
-            "label": "start all",
+            "id": "pause",
+            "label": "pause torrents",
             "kind": "action",
             "enabled": true
         },
@@ -127,9 +121,9 @@ TestCase {
     function test_c13s_rows_then_the_windows_then_quit() {
         const menu = createTemporaryObject(menuComponent, testCase);
         compare(testCase._kinds(menu), ["~servers", "server:a", "server:b", "|", "alt-speed",
-                                        "stop-all", "start-all", "|", "add", "settings", "|",
-                                        "~this window only", "toggleConsole", "toggleLog",
-                                        "commands", "help", "hide", "|", "quit"]);
+                                        "pause", "|", "add", "settings", "|", "~this window only",
+                                        "toggleConsole", "toggleLog", "commands", "help", "hide",
+                                        "|", "quit"]);
         compare(menu.items.map(item => item.key ?? "").filter(key => key.length > 0), ["A", "a", ",",
                                                                                        "`", "~", ":",
                                                                                        "?", "q", "ctrl+q"]);
@@ -137,6 +131,9 @@ TestCase {
         compare(menu.items[4].text, "turtle · until 07:00");
         compare(menu.items[4].checked, true);
         compare(menu.items[4].glyph, Glyphs.altSpeed);
+        // DECISIONS C36 M10: one row, pause torrents, with qBittorrent's stop glyph.
+        compare(menu.items[5].text, "pause torrents");
+        compare(menu.items[5].glyph, Glyphs.stop);
         menu.altKind = "burst";
         compare(menu.items[4].glyph, Glyphs.burst);
     }

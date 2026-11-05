@@ -955,7 +955,7 @@ Item {
             return App.barWidget.inBar ? qsTr("taking the widget out of the bar…") : qsTr("putting the widget in the bar…");
         if (App.barWidget.message.length > 0 && !App.barWidget.lastOk)
             return App.barWidget.message;
-        const words = qsTr("widget: the tray icon hides while the widget runs. Both carry the same menu: servers, alternative limits, stop and start all, settings, quit.");
+        const words = qsTr("widget: the tray icon hides while the widget runs. Both carry the same menu: servers, alternative limits, pause or resume torrents, settings, quit.");
         if (!App.barWidget.available && !App.barWidget.inBar)
             return words + "\n" + qsTr("The widget needs the Omarchy shell and omaseed's installed widget.");
         return words;
