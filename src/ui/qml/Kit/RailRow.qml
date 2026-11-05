@@ -58,6 +58,12 @@ Rectangle {
     property bool ticked: false
     property color tickColor: Theme.accent
     property bool toneName: false
+    /// DECISIONS C34 D5s a (board 52 `.pa .dt`): a state's lamp just before the count, in
+    /// `lampColor` (a search plugin's answer: answered, asking, slow, failed). `lampPulse`
+    /// breathes it while the state still moves; the caller leaves it off for reduced motion.
+    property bool lamp: false
+    property color lampColor: Theme.accent
+    property bool lampPulse: false
     /// What the row sits on while it paints nothing (docs/DECISIONS.md C30 F1): the window,
     /// or the block it is in (the rail's servers, `Theme.on.idle`).
     property ThemeInk block: Theme.on.window
@@ -129,7 +135,8 @@ Rectangle {
         objectName: "railRowLabel"
         anchors.left: parent.left
         anchors.leftMargin: Theme.space(16) + root.indent * Theme.space(12)
-        anchors.right: countText.visible ? countText.left : parent.right
+        anchors.right: lampItem.visible ? lampItem.left : countText.visible ? countText.left
+                                                                             : parent.right
         anchors.rightMargin: Theme.space(16)
         anchors.verticalCenter: parent.verticalCenter
         spacing: Theme.space(8)
@@ -184,6 +191,38 @@ Rectangle {
             text: root.text
             visible: !root.compact
             width: Math.max(0, label.width - Theme.space(14) - label.spacing)
+        }
+    }
+
+    // The state's lamp in the skin's face (Console's square), as the plugins' line's pills.
+    Lamp {
+        id: lampItem
+
+        anchors.right: countText.left
+        anchors.rightMargin: Theme.searchPillGap
+        anchors.verticalCenter: parent.verticalCenter
+        color: root.ink.of(root.lampColor)
+        objectName: "railRowLamp"
+        size: Theme.searchPillDot
+        visible: root.lamp && countText.visible
+
+        SequentialAnimation on opacity {
+            loops: Animation.Infinite
+            running: root.lampPulse && lampItem.visible
+
+            // The row outlives the state: a lamp that stops breathing is whole again.
+            onRunningChanged: if (!running)
+                                  lampItem.opacity = 1
+
+            NumberAnimation {
+                duration: Theme.searchPulseDuration / 2
+                to: Theme.searchPulseLow
+            }
+
+            NumberAnimation {
+                duration: Theme.searchPulseDuration / 2
+                to: 1
+            }
         }
     }
 

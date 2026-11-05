@@ -160,6 +160,34 @@ TestCase {
         verify(!tick.visible);
     }
 
+    // Board 52 D5s a (DECISIONS C34): a search plugin's answer, its lamp just before the
+    // words, in the state's colour; the name keeps clear of both. No words, no lamp.
+    function test_a_lamp_sits_before_the_count() {
+        const row = createTemporaryObject(railRowComponent, testCase, {
+                                              "text": "plugin a",
+                                              "countText": "failed",
+                                              "countColor": Theme.yellow,
+                                              "lamp": true,
+                                              "lampColor": Theme.yellow,
+                                              "width": 214
+                                          });
+        const lamp = findChild(row, "railRowLamp");
+        const count = findChild(row, "railRowCount");
+        verify(lamp.visible);
+        verify(Qt.colorEqual(lamp.color, Theme.yellow));
+        compare(lamp.x + lamp.width + Theme.searchPillGap, count.x);
+        const label = findChild(row, "railRowLabel");
+        verify(label.x + label.width <= lamp.x);
+        row.lampPulse = true;
+        row.lampPulse = false;
+        compare(lamp.opacity, 1);
+        row.countText = "";
+        verify(!lamp.visible);
+        row.countText = "2";
+        row.lamp = false;
+        verify(!lamp.visible);
+    }
+
     function test_click_emits_clicked() {
         const row = createTemporaryObject(railRowComponent, testCase, {
                                               "text": "downloading"
