@@ -270,7 +270,9 @@ Sheet {
     /// What the tree may take: the body's room less every other row, so the sheet fits the
     /// window and only the tree scrolls. Siblings' heights never depend on the tree's, so
     /// this binding cannot loop.
-    readonly property real _treeRoom: {
+    readonly property real _treeRoom: sheet.bodyRoom - sheet._besideTree
+    /// The body's rows but the tree, with the gaps between them.
+    readonly property real _besideTree: {
         let used = filesHead.height + filesSection.spacing
                 + (nothingTickedLine.visible ? nothingTickedLine.height + filesSection.spacing : 0)
                 + (extrasLine.visible ? extrasLine.height + filesSection.spacing : 0);
@@ -280,7 +282,23 @@ Sheet {
             if (row !== filesSection && row.visible)
                 used += row.height + sheet.body.spacing;
         }
-        return sheet.bodyRoom - used;
+        return used;
+    }
+
+    /// The panel's height with every row at its own height and the tree showing all its rows:
+    /// what a window sized to the sheet takes (the add window, docs/54 W3, which caps it at
+    /// 80 % of the screen). It never reads the window's height: the tree's room comes from
+    /// that (`_treeRoom`), so it adds the tree's full height to the other rows instead of
+    /// the panel's own height, which holds the tree as the room left it.
+    readonly property real naturalHeight: sheet.showFiles
+                                          ? sheet.chromeHeight + sheet._besideTree + filesTree.contentHeight
+                                          : sheet.panel.implicitHeight
+
+    /// A few words in the foot's note for five seconds, as the main window's footer says them
+    /// (the add window's one-server note, DECISIONS C35, settled 2026-11-05).
+    function flashNote(text: string): void {
+        sheet.note = text;
+        noteTimer.restart();
     }
 
     /// The keys every field of the form hands to the sheet instead of typing them.
@@ -1244,6 +1262,8 @@ Sheet {
                         // D6 a: closing leaves a lookup that has not answered running on the
                         // server (F4 says so); only the polling stops.
                         App.stopMetadataLookup();
+                        noteTimer.stop();
+                        sheet.note = "";
                     }
                 }
                 onRejected: sheet.dismiss()
@@ -1252,6 +1272,14 @@ Sheet {
                         sheet.submit(false);
                     else if (text === sheet._addStoppedText)
                         sheet.submit(true);
+                }
+
+                // `flashNote`'s five seconds.
+                Timer {
+                    id: noteTimer
+
+                    interval: 5000
+                    onTriggered: sheet.note = ""
                 }
 
                 // #124: the add has been out this long: the button says it is still going.

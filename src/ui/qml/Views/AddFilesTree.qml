@@ -51,6 +51,8 @@ Rectangle {
     property string renameError: ""
 
     readonly property int count: root.model ? root.model.count : 0
+    /// The box with every row shown: what it would take with no `maximumHeight`.
+    readonly property real contentHeight: (root.count + 1) * Theme.railRowHeight + 2
     /// The head tick: 2 every file wanted, 1 some, 0 none.
     readonly property int headWanted: !root.model || root.model.wantedCount === root.model.fileCount
                                       ? 2 : root.model.wantedCount === 0 ? 0 : 1
@@ -166,7 +168,7 @@ Rectangle {
     border.width: Theme.hairWidth
     clip: true
     color: Theme.on.idle.fill
-    implicitHeight: Math.min((root.count + 1) * Theme.railRowHeight + 2, root.maximumHeight)
+    implicitHeight: Math.min(root.contentHeight, root.maximumHeight)
     implicitWidth: Theme.space(400)
     radius: Theme.cornerRadius
 

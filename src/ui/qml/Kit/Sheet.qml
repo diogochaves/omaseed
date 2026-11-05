@@ -85,6 +85,9 @@ Item {
     property string note: ""
     /// Draw the panel alone, with no scrim and no centring (the gallery).
     property bool inline: false
+    /// The panel's own edge. A window that is the sheet (the add window, docs/54 W3) turns it
+    /// off: the window's edge is the sheet's there (ARCHITECTURE rule 5).
+    property bool framed: true
     /// While open, keys the sheet has no use for stop here instead of reaching the view
     /// behind the scrim (KIT-6); only `ctrl+q` goes on, since quitting is never modal.
     property bool modal: true
@@ -117,15 +120,18 @@ Item {
     /// How tall the caller's rows can be before the body starts to scroll: the window less
     /// the margins, padding, head, buttons and hint line. A row that should take what is left
     /// (the add sheet's file tree) sizes itself from this.
-    readonly property real bodyRoom: {
-        let chrome = 2 * root._margin + 2 * Theme.sheetEdge + 2 * Theme.sheetBodyPadding;
+    readonly property real bodyRoom: Math.max(0, root.height - 2 * root._margin - root.chromeHeight)
+    /// The panel's height less its rows: the edge, the body's padding, the head, its band and
+    /// the foot. A window sized to the sheet adds the rows' own height to it.
+    readonly property real chromeHeight: {
+        let chrome = 2 * Theme.sheetEdge + 2 * Theme.sheetBodyPadding;
         if (headBox.visible)
             chrome += headBox.height + 1;
         if (headBandLoader.visible)
             chrome += headBandLoader.height;
         if (footBox.visible)
             chrome += footBox.height + 1;
-        return Math.max(0, root.height - chrome);
+        return chrome;
     }
 
     /// The rows are taller than the room the window leaves them, so the body scrolls and keeps
@@ -457,7 +463,7 @@ Item {
         Plate {
             anchors.fill: parent
             edgeColor: Theme.edgeColor
-            edgeWidth: Theme.sheetEdge
+            edgeWidth: root.framed ? Theme.sheetEdge : 0
             fill: Theme.background
             objectName: "sheetPlate"
             radius: Theme.sheetRadius
