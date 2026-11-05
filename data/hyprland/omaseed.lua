@@ -48,6 +48,21 @@ o.window(class, { tag = "-default-opacity", opacity = "1 1" })
 -- done (src/ui/qml/Main.qml). The title-matched rule that used to sit here never matched:
 -- the window never took the "omaseed · first run" title it expected.
 
+-- The add window (docs/DECISIONS.md C35 W3, docs/54 §3): an add from outside the main window
+-- opens the add sheet in a window of its own, floating and centred where you are. It fixes its
+-- size to the sheet's, so Hyprland floats it without this rule; the rule covers the moment
+-- between a size change and the next frame. It matches the title, not the class: Qt on
+-- Wayland gives every window of an app the one app id, so the class can't tell the add window
+-- from the main one. The title is fixed, `omaseed · add`, never translated
+-- (src/ui/qml/Views/AddWindow.qml).
+--
+-- Deviation from the board's line, which also matched `class`: `o.window` records the class
+-- of a float rule as an app that floats on its own, and Omarchy's floating workspace modes
+-- leave such apps out of their open rule (/usr/share/omarchy/default/hypr/workspace-modes.lua),
+-- so naming the class here would take the main window out of those modes too. Matching the
+-- title as well records only the add window.
+o.window({ initial_title = "^omaseed · add$", title = "^omaseed · add$" }, { float = true, center = true })
+
 -- Touchpad scrolling at the terminals' pace. Omarchy slows every touchpad to
 -- `scroll_factor = 0.4` and gives terminals 1.5 back per window
 -- (/usr/share/omarchy/default/hypr/input.lua); omaseed's long lists want the same.
