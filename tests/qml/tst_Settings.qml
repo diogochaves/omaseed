@@ -207,15 +207,15 @@ TestCase {
         keyClick(Qt.Key_Tab);
         compare(modal.area, "pane");
         compare(modal.paneCursor, 0);
-        for (let i = 0; i < 4; ++i)
+        for (let i = 0; i < 5; ++i)
             keyClick(Qt.Key_Tab);
-        compare(modal.paneCursor, 4);
+        compare(modal.paneCursor, 5);
         verify(field.editing);
         keyClick(Qt.Key_Tab);
-        compare(modal.paneCursor, 5);
+        compare(modal.paneCursor, 6);
         verify(!field.editing);
         keyClick(Qt.Key_Backtab, Qt.ShiftModifier);
-        compare(modal.paneCursor, 4);
+        compare(modal.paneCursor, 5);
         verify(field.editing);
         keyClick(Qt.Key_Tab);
         keyClick(Qt.Key_Tab);
@@ -1185,12 +1185,12 @@ TestCase {
         keyClick(Qt.Key_Space);
         compare(App.pathMapEnabled, !mapping);
 
-        // Notifications: four toggle rows (Q16 dropped the tracker one, docs/28 added the
-        // errored one) bound to App.notificationsEnabled, the low-disk threshold field, then
-        // the weekly recap (#24 T8). The keyboard is already in the pane — a digit moves the
-        // nav without taking it back.
+        // Notifications: five toggle rows (Q16 dropped the tracker one, docs/28 added the
+        // errored one, docs/54 W5 the added one) bound to App.notificationsEnabled, the
+        // low-disk threshold field, then the weekly recap (#24 T8). The keyboard is already in
+        // the pane — a digit moves the nav without taking it back.
         keyClick(Qt.Key_3);
-        compare(modal.paneRowCount, 6);
+        compare(modal.paneRowCount, 7);
         compare(modal.area, "pane");
         keyClick(Qt.Key_Return);
         compare(App.notificationsEnabled["completed"] === true, !completed);
@@ -1250,7 +1250,7 @@ TestCase {
         App.detailsPlacement = placement;
     }
 
-    // T5.5 (Q16): the low-disk threshold is the fourth row of the Notifications pane, a
+    // T5.5 (Q16): the low-disk threshold follows the toggles in the Notifications pane, a
     // field prefilled with App's value; `enter` on the row focuses it, and accepting the
     // field writes the value back (clamped to 1 or more by App).
     function test_the_notifications_pane_edits_the_low_disk_threshold() {
@@ -1277,13 +1277,11 @@ TestCase {
         const completedRow = testCase.childNamed(modal, "notifyRow-completed");
         verify(diskRow.implicitHeight > completedRow.implicitHeight);
 
-        // `j` x4 from the first row lands on the field's row; `enter` hands it the keyboard.
+        // `j` x5 from the first row lands on the field's row; `enter` hands it the keyboard.
         keyClick(Qt.Key_Tab);
-        keyClick(Qt.Key_J);
-        keyClick(Qt.Key_J);
-        keyClick(Qt.Key_J);
-        keyClick(Qt.Key_J);
-        compare(modal.paneCursor, 4);
+        for (let i = 0; i < 5; ++i)
+            keyClick(Qt.Key_J);
+        compare(modal.paneCursor, 5);
         compare(row.hasCursor, true);
         keyClick(Qt.Key_Return);
         verify(field.editing);
@@ -1435,6 +1433,27 @@ TestCase {
         compare(App.pulseRows, false);
     }
 
+    // Board 54 W5 (DECISIONS C35): "Torrent added" is the second row, on until turned off.
+    function test_the_notifications_pane_has_the_torrent_added_switch() {
+        const modal = createTemporaryObject(modalComponent, testCase);
+        compare(App.notificationsEnabled.added, true);
+        modal.open();
+        keyClick(Qt.Key_3);
+        compare(modal.paneIndex, 2);
+        const row = testCase.childNamed(modal, "notifyRow-added");
+        verify(row, "the Notifications pane has no torrent added row");
+        compare(row.title, "Torrent added");
+
+        keyClick(Qt.Key_Tab);
+        keyClick(Qt.Key_J);
+        compare(modal.paneCursor, 1);
+        compare(row.hasCursor, true);
+        keyClick(Qt.Key_Return);
+        compare(App.notificationsEnabled.added, false);
+        keyClick(Qt.Key_Return);
+        compare(App.notificationsEnabled.added, true);
+    }
+
     // #24 T8: the weekly recap is the Notifications pane's last row, off until turned on.
     function test_the_notifications_pane_turns_the_weekly_recap_on() {
         const modal = createTemporaryObject(modalComponent, testCase);
@@ -1447,9 +1466,9 @@ TestCase {
         compare(row.title, "Weekly recap");
 
         keyClick(Qt.Key_Tab);
-        for (let i = 0; i < 5; ++i)
+        for (let i = 0; i < 6; ++i)
             keyClick(Qt.Key_J);
-        compare(modal.paneCursor, 5);
+        compare(modal.paneCursor, 6);
         compare(row.hasCursor, true);
         keyClick(Qt.Key_Return);
         compare(App.notificationsEnabled.weekly, true);

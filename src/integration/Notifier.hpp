@@ -35,6 +35,14 @@ public:
                             const QString &category,
                             bool hasFolder);
 
+    /// Board 54 W5 (DECISIONS C35): "Torrent added", body "<name> · <sizeText> · <category>"
+    /// as Download complete's, with an empty size (a magnet before its metadata) or category
+    /// left out. Action "show", also the click. Event class "added", subject the torrent hash.
+    quint32 notifyAdded(const QString &hash,
+                        const QString &name,
+                        const QString &sizeText,
+                        const QString &category);
+
     /// docs/28 N1: "<name> stopped with an error" / "<headline>: <detail>". Action "show",
     /// also the click. Event class "errored", subject the torrent hash.
     quint32 notifyErrored(const QString &hash,

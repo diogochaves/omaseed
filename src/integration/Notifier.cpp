@@ -161,6 +161,30 @@ quint32 Notifier::notifyCompleted(const QString &hash,
                       QStringLiteral("show"));
 }
 
+quint32 Notifier::notifyAdded(const QString &hash,
+                              const QString &name,
+                              const QString &sizeText,
+                              const QString &category)
+{
+    const QString key = QStringLiteral("added|%1").arg(hash);
+    QStringList parts{name};
+    if (!sizeText.isEmpty())
+        parts << sizeText;
+    if (!category.isEmpty())
+        parts << category;
+    const QStringList actions{QStringLiteral("show"), QStringLiteral("Show")};
+
+    return sendNotice(key,
+                      QStringLiteral("added"),
+                      hash,
+                      QStringLiteral("Torrent added"),
+                      parts.join(QStringLiteral(" · ")),
+                      actions,
+                      kUrgencyLow,
+                      QStringLiteral("transfer"),
+                      QStringLiteral("show"));
+}
+
 quint32 Notifier::notifyErrored(const QString &hash,
                                 const QString &name,
                                 const QString &headline,

@@ -176,6 +176,9 @@ private slots:
     void diskAlmostFullMatchesQ2Wording();
     void anErrorSendsOneNoticeWithItsReason();
     void disabledToggleSuppressesTheNotice();
+    void anAddedNoticeSaysWhatItsRowSaysAndItsClickShowsIt(); // board 54 W5
+    void anAddedNoticeWaitsForItsRowAndGoesOnce();
+    void theAddedSwitchOffSendsNothing();
     void flappingServerFiresOneLostAndOneBack();
     void aTimeoutIsNotAnsweringThenAnsweredAgain();
     void aHiddenStartWaitsQuietlyForItsServer();
@@ -435,6 +438,121 @@ void TestAppNotifications::disabledToggleSuppressesTheNotice()
     Notifier notifier2(m_bus.connection());
     second.attachNotifier(&notifier2);
     QCOMPARE(second.notificationsEnabled().value(QStringLiteral("completed")).toBool(), false);
+}
+
+// Board 54 W5 (DECISIONS C35): "Torrent added" takes its words from the torrent's row, says
+// nothing it doesn't know (a magnet before its metadata has no size; no category, none), and
+// its click shows the torrent the way Download complete's does.
+void TestAppNotifications::anAddedNoticeSaysWhatItsRowSaysAndItsClickShowsIt()
+{
+    App app;
+    Notifier notifier(m_bus.connection());
+    app.attachNotifier(&notifier);
+    QCOMPARE(app.notificationsEnabled().value(QStringLiteral("added")).toBool(), true);
+
+    QJsonObject magnet = torrentRow(QStringLiteral("a magnet"), QString(), 0.0, 0);
+    magnet.insert(QStringLiteral("total_size"), -1);
+    app.applyDemoData(QJsonObject{
+        {QStringLiteral("full_update"), true},
+        {QStringLiteral("rid"), 1},
+        {QStringLiteral("torrents"),
+         QJsonObject{
+             {kCompletedHash,
+              torrentRow(QStringLiteral("fixture-one"), QStringLiteral("linux"), 0.0, 1404304589)},
+             {kTrackerHash, magnet}}}});
+
+    app.notifyAdded(kCompletedHash);
+    QCOMPARE(m_bus.server()->calls.size(), 1);
+    const auto &call = m_bus.server()->calls.first();
+    QCOMPARE(call.summary, QStringLiteral("Torrent added"));
+    QCOMPARE(
+        call.body,
+        QStringLiteral("fixture-one · %1 · linux").arg(omaseed::core::Format::size(1404304589)));
+    QCOMPARE(call.actions, QStringList({QStringLiteral("default"), QStringLiteral("Show")}));
+
+    app.notifyAdded(kTrackerHash);
+    QCOMPARE(m_bus.server()->calls.size(), 2);
+    QCOMPARE(m_bus.server()->calls.at(1).body, QStringLiteral("a magnet"));
+
+    QSignalSpy shown(&app, &App::showTorrentRequested);
+    Q_EMIT notifier.actionInvoked(QStringLiteral("added"), kCompletedHash, QStringLiteral("show"));
+    QCOMPARE(shown.size(), 1);
+    QCOMPARE(shown.first().first().toString(), kCompletedHash);
+}
+
+// qBittorrent's OK comes before the sync that brings the row: the notice waits for it, goes
+// once, and gives up quietly when the row never comes.
+void TestAppNotifications::anAddedNoticeWaitsForItsRowAndGoesOnce()
+{
+    App app;
+    Notifier notifier(m_bus.connection());
+    app.attachNotifier(&notifier);
+    app.applyDemoData(QJsonObject{{QStringLiteral("full_update"), true},
+                                  {QStringLiteral("rid"), 1},
+                                  {QStringLiteral("torrents"), QJsonObject{}}});
+
+    app.notifyAdded(kCompletedHash);
+    app.notifyAdded(kCompletedHash); // asked twice, still one notice
+    QCOMPARE(m_bus.server()->calls.size(), 0);
+
+    // A sync without it: still waiting.
+    app.applyDemoData(freeSpaceUpdate(2, 100 * kGiB, false));
+    QCOMPARE(m_bus.server()->calls.size(), 0);
+
+    const QJsonObject arrives{
+        {QStringLiteral("rid"), 3},
+        {QStringLiteral("torrents"),
+         QJsonObject{
+             {kCompletedHash,
+              torrentRow(QStringLiteral("fixture-one"), QStringLiteral("linux"), 0.0, 1000)}}}};
+    app.applyDemoData(arrives);
+    QCOMPARE(m_bus.server()->calls.size(), 1);
+    QCOMPARE(m_bus.server()->calls.first().summary, QStringLiteral("Torrent added"));
+    QVERIFY(m_bus.server()->calls.first().body.startsWith(QStringLiteral("fixture-one · ")));
+
+    app.applyDemoData(freeSpaceUpdate(4, 100 * kGiB, false));
+    QCOMPARE(m_bus.server()->calls.size(), 1);
+
+    // Past its wait, a row that comes late sends nothing.
+    app.setAddedNoticeWait(std::chrono::milliseconds(0));
+    app.notifyAdded(kTrackerHash);
+    app.applyDemoData(QJsonObject{
+        {QStringLiteral("rid"), 5},
+        {QStringLiteral("torrents"),
+         QJsonObject{{kTrackerHash,
+                      torrentRow(QStringLiteral("late"), QStringLiteral("linux"), 0.0, 1000)}}}});
+    QCOMPARE(m_bus.server()->calls.size(), 1);
+}
+
+void TestAppNotifications::theAddedSwitchOffSendsNothing()
+{
+    App app;
+    Notifier notifier(m_bus.connection());
+    app.attachNotifier(&notifier);
+    app.setNotificationEnabled(QStringLiteral("added"), false);
+    QCOMPARE(app.notificationsEnabled().value(QStringLiteral("added")).toBool(), false);
+
+    app.applyDemoData(QJsonObject{
+        {QStringLiteral("full_update"), true},
+        {QStringLiteral("rid"), 1},
+        {QStringLiteral("torrents"),
+         QJsonObject{
+             {kCompletedHash,
+              torrentRow(QStringLiteral("fixture-one"), QStringLiteral("linux"), 0.0, 1000)}}}});
+    app.notifyAdded(kCompletedHash);
+    app.notifyAdded(kTrackerHash); // not in the model: it doesn't wait either
+    app.applyDemoData(QJsonObject{
+        {QStringLiteral("rid"), 2},
+        {QStringLiteral("torrents"),
+         QJsonObject{{kTrackerHash,
+                      torrentRow(QStringLiteral("second"), QStringLiteral("linux"), 0.0, 1000)}}}});
+    QCOMPARE(m_bus.server()->calls.size(), 0);
+
+    // Persisted: a fresh App picks the switch back up from state.json.
+    App second;
+    Notifier notifier2(m_bus.connection());
+    second.attachNotifier(&notifier2);
+    QCOMPARE(second.notificationsEnabled().value(QStringLiteral("added")).toBool(), false);
 }
 
 void TestAppNotifications::flappingServerFiresOneLostAndOneBack()

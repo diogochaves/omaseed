@@ -21,6 +21,8 @@ private slots:
 
     void completedBodyAndActionsMatchSpec();
     void completedWithoutFolderOmitsOpenFolderAction();
+    void addedBodyLeavesOutWhatIsNotKnown(); // board 54 W5
+    void aClickOnAddedIsShow();              // board 54 W5
     void serverLostBodyAndActionsMatchSpec();
     void serverBackReplacesTheServerLostNotice();
     void everyNoticeCarriesTheDesktopEntryHint();
@@ -100,6 +102,49 @@ void TestNotifier::completedWithoutFolderOmitsOpenFolderAction()
     QCOMPARE(m_server->calls.size(), 1);
     QCOMPARE(m_server->calls.first().actions,
              QStringList({QStringLiteral("default"), QStringLiteral("Show")}));
+}
+
+// Board 54 W5 (DECISIONS C35): "Torrent added" says what Download complete says, and leaves out
+// what isn't known yet: a magnet before its metadata has no size, an add may have no category.
+void TestNotifier::addedBodyLeavesOutWhatIsNotKnown()
+{
+    m_notifier->notifyAdded(QStringLiteral("abc123"),
+                            QStringLiteral("archlinux-2026.09.01-x86_64.iso"),
+                            QStringLiteral("1.31 GB"),
+                            QStringLiteral("linux"));
+    m_notifier->notifyAdded(
+        QStringLiteral("def456"), QStringLiteral("a magnet"), QString(), QStringLiteral("linux"));
+    m_notifier->notifyAdded(
+        QStringLiteral("aaa789"), QStringLiteral("no category"), QStringLiteral("2 MB"), QString());
+    m_notifier->notifyAdded(QStringLiteral("bbb000"), QStringLiteral("bare"), QString(), QString());
+    QCOMPARE(m_server->calls.size(), 4);
+
+    const auto &call = m_server->calls.at(0);
+    QCOMPARE(call.summary, QStringLiteral("Torrent added"));
+    QCOMPARE(call.body, QStringLiteral("archlinux-2026.09.01-x86_64.iso · 1.31 GB · linux"));
+    QCOMPARE(call.actions, QStringList({QStringLiteral("default"), QStringLiteral("Show")}));
+    QCOMPARE(call.hints.value(QStringLiteral("category")).toString(), QStringLiteral("transfer"));
+    QCOMPARE(m_server->calls.at(1).body, QStringLiteral("a magnet · linux"));
+    QCOMPARE(m_server->calls.at(2).body, QStringLiteral("no category · 2 MB"));
+    QCOMPARE(m_server->calls.at(3).body, QStringLiteral("bare"));
+}
+
+void TestNotifier::aClickOnAddedIsShow()
+{
+    const quint32 id = m_notifier->notifyAdded(QStringLiteral("abc123"),
+                                               QStringLiteral("name"),
+                                               QStringLiteral("1 GB"),
+                                               QStringLiteral("linux"));
+    QVERIFY(id != 0);
+
+    QSignalSpy spy(m_notifier, &Notifier::actionInvoked);
+    m_server->triggerActionInvoked(id, QStringLiteral("default"));
+    QVERIFY(spy.wait(2000));
+
+    QCOMPARE(spy.size(), 1);
+    QCOMPARE(spy.first().at(0).toString(), QStringLiteral("added"));
+    QCOMPARE(spy.first().at(1).toString(), QStringLiteral("abc123"));
+    QCOMPARE(spy.first().at(2).toString(), QStringLiteral("show"));
 }
 
 void TestNotifier::serverLostBodyAndActionsMatchSpec()

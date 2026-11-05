@@ -78,6 +78,7 @@
 
 #include <QDate>
 #include <QDateTime>
+#include <QDeadlineTimer>
 #include <QHash>
 #include <QJsonObject>
 #include <QObject>
@@ -395,15 +396,25 @@ public:
     /// `xdg` reveals a completed torrent's folder ("open folder"). Not owned.
     void attachXdg(omaseed::integration::Xdg *xdg);
 
-    /// Booleans QML can read as `enabled.completed`, `.errored`, `.serverLost`, `.diskFull`
-    /// and `.weekly`; `serverLost` covers both the lost and the back notice. Persisted under
-    /// `"notifications"` in `~/.config/omaseed/state.json`, default true, but the weekly
-    /// recap's (#24 T8), off. An older file's `trackerError` key is ignored.
+    /// Booleans QML can read as `enabled.completed`, `.added`, `.errored`, `.serverLost`,
+    /// `.diskFull` and `.weekly`; `serverLost` covers both the lost and the back notice.
+    /// Persisted under `"notifications"` in `~/.config/omaseed/state.json`, default true, but
+    /// the weekly recap's (#24 T8), off. An older file's `trackerError` key is ignored.
     Q_PROPERTY(QVariantMap notificationsEnabled READ notificationsEnabled NOTIFY
                    notificationsEnabledChanged)
     QVariantMap notificationsEnabled() const;
-    /// `key` is one of "completed", "errored", "serverLost", "diskFull", "weekly".
+    /// `key` is one of "completed", "added", "errored", "serverLost", "diskFull", "weekly".
     Q_INVOKABLE void setNotificationEnabled(const QString &key, bool enabled);
+
+    /// Board 54 W5 (DECISIONS C35): "Torrent added" for `hash`, with its name, size and
+    /// category from the sync model, when the `added` switch is on and a notifier is attached.
+    /// A hash the model doesn't have yet (qBittorrent's OK comes before the sync that brings
+    /// the row) waits for the syncs that follow and is sent once, when it arrives; after
+    /// `addedNoticeWait` with no row it is dropped quietly. Asking again for a hash already
+    /// waiting changes nothing.
+    Q_INVOKABLE void notifyAdded(const QString &hash);
+    /// How long notifyAdded() waits for its row; 15 s until set (tests).
+    void setAddedNoticeWait(std::chrono::milliseconds wait) { m_addedNoticeWait = wait; }
 
     /// #24 T8 (docs/DECISIONS.md C6): sends the weekly recap when it is due (Sunday evening,
     /// once) and switched on. Every sync asks; tests call it with their own clock.
@@ -439,6 +450,10 @@ private:
     void onNotifierActionInvoked(const QString &eventClass,
                                  const QString &subjectId,
                                  const QString &actionKey);
+    /// Sends "Torrent added" for `hash` from its row; false while the model has no row.
+    bool sendAddedNotice(const QString &hash);
+    /// Every sync: the waiting "added" notices whose row came are sent, the late are dropped.
+    void flushAddedNotices();
 
 public:
     /// The chosen server's PathMap applied to a server-side content path; the input unchanged
@@ -478,6 +493,10 @@ private:
     std::function<QDateTime()> m_recapClock;
     int m_lowDiskThresholdGiB = 2;
     bool m_notificationTogglesLoaded = false;
+    bool m_notifyAddedEnabled = true; ///< board 54 W5 a
+    /// notifyAdded()'s hashes still waiting for their row, each with when it gives up.
+    QHash<QString, QDeadlineTimer> m_addedNoticesWaiting;
+    std::chrono::milliseconds m_addedNoticeWait{std::chrono::seconds(15)};
 
     // --- T4.5: settings ------------------------------------------------------------------
     // Everything the settings modal (spec v2 §5 Fig. 16) and the server sheet (§3 Fig. 9)

@@ -210,7 +210,7 @@ Item {
         case 1:
             return App.serverList.count + 1; // the servers, then "+ add a server"
         case 2:
-            return 6; // four toggles, the low-disk threshold field, the weekly recap (#24 T8)
+            return 7; // five toggles (W5 added, docs/54), the low-disk threshold field, the weekly recap (#24 T8)
         case 4:
             // the skin (C24 H11), theme, base size, the window's ground (C24 H13) and, while
             // translucent, its transparency, tray icon, the bar widget (#17), then the rail's scroll hint,
@@ -579,7 +579,7 @@ Item {
             return;
         }
         if (root.paneIndex === 2) {
-            const keys = ["completed", "errored", "serverLost", "diskFull"];
+            const keys = ["completed", "added", "errored", "serverLost", "diskFull"];
             if (root.paneCursor === keys.length + 1) { // #24 T8: the weekly recap
                 App.setNotificationEnabled("weekly", !App.notificationsEnabled.weekly);
                 return;
@@ -1064,7 +1064,7 @@ Item {
             const item = qbtPane.rowItem(cursor);
             return item && item.enabled && typeof item.fieldItems === "function" ? item.fieldItems() : [];
         }
-        if (root.paneIndex === 2 && cursor === 4)
+        if (root.paneIndex === 2 && cursor === 5)
             return [thresholdField];
         if (root.paneIndex === 4 && cursor === 2)
             return [baseSizeField];
@@ -2129,6 +2129,12 @@ Item {
                                         "description": qsTr("One notice per finished torrent, with open folder and show.")
                                     },
                                     {
+                                        "key": "added",
+                                        "glyph": Glyphs.add,
+                                        "title": qsTr("Torrent added"),
+                                        "description": qsTr("One notice when qBittorrent takes an add made in the add window, with show.")
+                                    },
+                                    {
                                         "key": "errored",
                                         "glyph": Glyphs.statusErrored,
                                         "title": qsTr("Torrent errored"),
@@ -2189,12 +2195,12 @@ Item {
                                 Layout.fillWidth: true
                                 description: qsTr("The notice fires once when the free space drops below this.")
                                 glyph: Glyphs.altSpeed
-                                hasCursor: root.area === "pane" && root.paneCursor === 4
+                                hasCursor: root.area === "pane" && root.paneCursor === 5
                                 objectName: "lowDiskThresholdRow"
                                 title: qsTr("Low-disk threshold")
 
                                 onClicked: {
-                                    root.paneCursor = 4;
+                                    root.paneCursor = 5;
                                     root.area = "pane";
                                     thresholdField.focusInput();
                                 }
@@ -2234,12 +2240,12 @@ Item {
                                 Layout.fillWidth: true
                                 description: qsTr("On Sunday evening: what the week gave, its best day, the rare torrents you kept alive. It opens the seed console on the week.")
                                 glyph: Glyphs.statusSeeding
-                                hasCursor: root.area === "pane" && root.paneCursor === 5
+                                hasCursor: root.area === "pane" && root.paneCursor === 6
                                 objectName: "notifyRow-weekly"
                                 title: qsTr("Weekly recap")
 
                                 onClicked: {
-                                    root.paneCursor = 5;
+                                    root.paneCursor = 6;
                                     root.area = "pane";
                                     App.setNotificationEnabled("weekly", !App.notificationsEnabled.weekly);
                                 }

@@ -1253,6 +1253,8 @@ void App::attachNotifier(omaseed::integration::Notifier *notifier)
     // #24 T8: every sync asks whether the weekly recap is due; most answers are one date
     // compare.
     connect(m_engine, &SyncEngine::synced, this, &App::checkWeeklyRecap);
+    // Board 54 W5: an add's row comes with a sync after qBittorrent's OK.
+    connect(m_engine, &SyncEngine::synced, this, &App::flushAddedNotices);
 
     connect(notifier,
             &omaseed::integration::Notifier::actionInvoked,
@@ -1281,6 +1283,7 @@ QVariantMap App::notificationsEnabled() const
     const_cast<App *>(this)->loadNotificationToggles();
     QVariantMap map;
     map.insert(QStringLiteral("completed"), m_notifyCompletedEnabled);
+    map.insert(QStringLiteral("added"), m_notifyAddedEnabled);
     map.insert(QStringLiteral("serverLost"), m_notifyServerLostEnabled);
     map.insert(QStringLiteral("diskFull"), m_notifyDiskFullEnabled);
     map.insert(QStringLiteral("errored"), m_notifyErroredEnabled);
@@ -1294,6 +1297,8 @@ void App::setNotificationEnabled(const QString &key, bool enabled)
     bool *flag = nullptr;
     if (key == QStringLiteral("completed"))
         flag = &m_notifyCompletedEnabled;
+    else if (key == QStringLiteral("added"))
+        flag = &m_notifyAddedEnabled;
     else if (key == QStringLiteral("serverLost"))
         flag = &m_notifyServerLostEnabled;
     else if (key == QStringLiteral("diskFull"))
@@ -1338,6 +1343,7 @@ void App::loadNotificationToggles()
 
     const QJsonObject section = stateSection(QStringLiteral("notifications"));
     m_notifyCompletedEnabled = section.value(QStringLiteral("completed")).toBool(true);
+    m_notifyAddedEnabled = section.value(QStringLiteral("added")).toBool(true);
     m_notifyServerLostEnabled = section.value(QStringLiteral("serverLost")).toBool(true);
     m_notifyDiskFullEnabled = section.value(QStringLiteral("diskFull")).toBool(true);
     m_notifyErroredEnabled = section.value(QStringLiteral("errored")).toBool(true);
@@ -1352,6 +1358,7 @@ void App::saveNotificationToggles()
 {
     QJsonObject section;
     section.insert(QStringLiteral("completed"), m_notifyCompletedEnabled);
+    section.insert(QStringLiteral("added"), m_notifyAddedEnabled);
     section.insert(QStringLiteral("serverLost"), m_notifyServerLostEnabled);
     section.insert(QStringLiteral("diskFull"), m_notifyDiskFullEnabled);
     section.insert(QStringLiteral("errored"), m_notifyErroredEnabled);
@@ -1460,7 +1467,8 @@ void App::onNotifierActionInvoked(const QString &eventClass,
                                   const QString &subjectId,
                                   const QString &actionKey)
 {
-    if (eventClass == QStringLiteral("errored")) {
+    // Board 54 W5: "Torrent added" shows the torrent as Download complete's "show" does.
+    if (eventClass == QStringLiteral("errored") || eventClass == QStringLiteral("added")) {
         if (actionKey == QStringLiteral("show"))
             Q_EMIT showTorrentRequested(subjectId);
         return;
@@ -1499,6 +1507,44 @@ void App::onNotifierActionInvoked(const QString &eventClass,
     // #24 T8: the weekly recap opens the console on the week it told.
     if (eventClass == QStringLiteral("recap") && actionKey == QStringLiteral("console"))
         Q_EMIT showConsoleRequested(QStringLiteral("7d"));
+}
+
+void App::notifyAdded(const QString &hash)
+{
+    loadNotificationToggles();
+    if (hash.isEmpty() || m_notifier.isNull() || !m_notifyAddedEnabled)
+        return;
+    if (m_addedNoticesWaiting.contains(hash) || sendAddedNotice(hash))
+        return;
+    m_addedNoticesWaiting.insert(hash, QDeadlineTimer(m_addedNoticeWait));
+}
+
+bool App::sendAddedNotice(const QString &hash)
+{
+    const TorrentModel *torrents = m_engine->torrents();
+    if (torrents->indexOfHash(hash) < 0)
+        return false;
+    const Torrent &t = torrents->torrent(hash);
+    // A magnet before its metadata has no size yet: left out, never "0 B".
+    const QString sizeText = t.size > 0 ? Format::size(t.size) : QString();
+    m_notifier->notifyAdded(hash, t.name, sizeText, t.category);
+    return true;
+}
+
+void App::flushAddedNotices()
+{
+    if (m_addedNoticesWaiting.isEmpty())
+        return;
+    if (m_notifier.isNull() || !m_notifyAddedEnabled) {
+        m_addedNoticesWaiting.clear();
+        return;
+    }
+    for (auto it = m_addedNoticesWaiting.begin(); it != m_addedNoticesWaiting.end();) {
+        if (it.value().hasExpired() || sendAddedNotice(it.key()))
+            it = m_addedNoticesWaiting.erase(it);
+        else
+            ++it;
+    }
 }
 
 void App::checkWeeklyRecap()
