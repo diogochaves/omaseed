@@ -25,6 +25,13 @@ import Omaseed.Views
 // Board 25's Fig. 10 shows in it as in the main window (W4): alone, it is the window, at its
 // own size; over a sheet still holding the next source, it floats over that sheet.
 //
+// A hand-off while the window is up joins the sheet's list (`AddSheet.openList`) and the window
+// maps again, which puts it on the workspace the user is on now (W7, board 54 check 2): a
+// raise would fetch the user to wherever it was. `esc` goes to `cancel` first; `cancel`, and
+// closing the window (super+w), drop the add and all waiting; an add already sent goes on
+// (W8, C20). Every map waits for the sheet's height: a hidden window runs no polish, so its
+// layouts still hold the last mapped size, and the window would flash at it for a frame.
+//
 // What only the main window can answer leaves as signals: `show it` (W4), a merge (W5's notice,
 // #219), the empty state's search (C26: a search add stays in the main window) and the server
 // palette's `manage…`, which opens Settings › Servers there (C35, settled 2026-11-05).
@@ -104,14 +111,50 @@ Window {
         root._map();
     }
 
+    /// W8: `cancel`, and the window's close: the palettes, Fig. 10, the add and all waiting go,
+    /// and the window with them. An add already out goes on: the sheet's answer only finds it
+    /// closed (C20).
+    function cancel(): void {
+        serverPalette.close();
+        categoryPalette.close();
+        tagPalette.close();
+        flow.duplicateSheet.close();
+        flow.addSheet.dismiss();
+        root._hideWhenClosed();
+    }
+
     function _hideWhenClosed(): void {
         if (!flow.addSheet.opened && !flow.duplicateSheet.opened)
             root.hide();
     }
 
+    /// Map the window on what the sheets now hold. Hidden, the window ran no polish since they
+    /// changed, so its layouts and lists are polished here, deepest first, until the size holds:
+    /// `show()` then maps at the sheet's height, never at the last one for a frame. Up but not
+    /// active, it is hidden first, so it maps again on the workspace the user is on (W7).
     function _map(): void {
+        if (!flow.addSheet.opened && !flow.duplicateSheet.opened)
+            return;
+        // A pass can make rows (a list's delegates) that the next one lays out.
+        for (let pass = 0; pass < 4; ++pass) {
+            // Numbers, not the size: a value type read from a property follows it.
+            const width = root.sheetSize.width;
+            const height = root.sheetSize.height;
+            root._polish(flow);
+            if (pass > 0 && root.sheetSize.width === width && root.sheetSize.height === height)
+                break;
+        }
+        if (root.visible && !root.active)
+            root.hide();
         root.show();
         root.requestActivate();
+    }
+
+    function _polish(item: Item): void {
+        const children = item.children;
+        for (let i = 0; i < children.length; ++i)
+            root._polish(children[i]);
+        item.ensurePolished();
     }
 
     title: "omaseed · add"
@@ -123,6 +166,13 @@ Window {
     maximumWidth: root.sheetSize.width
     minimumHeight: root.sheetSize.height
     maximumHeight: root.sheetSize.height
+
+    // W8: super+w is a cancel. The window hides itself rather than close, so a close never
+    // counts as the app's last window.
+    onClosing: close => {
+        close.accepted = false;
+        root.cancel();
+    }
 
     // The flow reaches the sheet's margin past every side, so the panel, centred in it, is the
     // whole window.

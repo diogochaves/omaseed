@@ -5,10 +5,12 @@ import Omaseed
 import Omaseed.Kit
 import Omaseed.Views
 
-// #217 (board 54 W1, W3, W4, DECISIONS C35): `Views/AddWindow.qml`, the add sheet in a window
-// of its own, against the demo library (`App.loadDemo(16)`). Its first title, a size fixed to
-// the sheet's (minimum = maximum, up to 80 % of the screen's height, following the sheet as it
-// grows), never a transient child, its own palettes, gone when the sheet is; Fig. 10 in it.
+// #217 (board 54 W1, W3, W4, W7, W8, DECISIONS C35): `Views/AddWindow.qml`, the add sheet in a
+// window of its own, against the demo library (`App.loadDemo(16)`). Its first title, a size
+// fixed to the sheet's (minimum = maximum, up to 80 % of the screen's height, following the
+// sheet as it grows, and settled before it maps), never a transient child, its own palettes,
+// gone when the sheet is; Fig. 10 in it, a hand-off mapping it again where the user is, and
+// esc, cancel and the window's close as the sheet's.
 TestCase {
     id: testCase
 
@@ -228,10 +230,10 @@ TestCase {
         compare(window.addSheet.opened, false, "the form never shows for it");
         compare(window.visible, true);
         compare(window.activeOverlay, figure);
-        // Fig. 10 at its own size, its edge the window's.
+        // Fig. 10 at its own size, its edge the window's, mapped at that size.
         compare(figure.framed, false);
         compare(window.width, figure.sheetWidth);
-        tryCompare(window, "height", Math.ceil(Math.min(window.heightCap, figure.panel.implicitHeight)));
+        compare(window.height, Math.ceil(Math.min(window.heightCap, figure.panel.implicitHeight)));
         testCase.verifyFixed(window);
         tryCompare(figure.panel, "width", window.width);
         tryCompare(figure.panel, "height", window.height);
@@ -286,5 +288,134 @@ TestCase {
         compare(window.visible, true);
         compare(window.activeOverlay, window.addSheet);
         compare(window.addSheet.sourceField.text, testCase.freshMagnet);
+    }
+
+    // ---- W7: hand-offs in a row, and the size on every map ------------------------------
+
+    function test_a_hand_off_maps_the_window_again_where_the_user_is() {
+        const window = testCase.makeWindow();
+        window.openBlank();
+        tryCompare(window, "active", true);
+        // The user is elsewhere now: the hand-off comes from another app.
+        testCase.Window.window.requestActivate();
+        tryCompare(window, "active", false);
+
+        const maps = testCase.spyOn(window, "visibleChanged");
+        window.openList([testCase.freshMagnet], "handoff");
+        compare(maps.count, 2, "the window was raised where it was, not mapped again");
+        compare(window.visible, true);
+        compare(window.addSheet.sourceField.text, testCase.freshMagnet, "the hand-off did not join");
+        tryCompare(window, "active", true);
+
+        // Already in front of the user: it joins, and the window stays as it is.
+        maps.clear();
+        window.openList([testCase.secondMagnet], "handoff");
+        compare(window.addSheet.batchCount, 2);
+        compare(maps.count, 0);
+        compare(window.visible, true);
+    }
+
+    function test_it_maps_at_the_sheet_height() {
+        const window = testCase.makeWindow();
+        window.heightCap = 10000;
+        window.openList([testCase.freshMagnet, testCase.secondMagnet], "handoff");
+        compare(window.height, testCase.waitSettled(window), "mapped at a height it then left");
+        const two = window.height;
+        window.addSheet.dismiss();
+        compare(window.visible, false);
+
+        // Hidden, the window polished nothing since: the map itself must.
+        window.openList([testCase.freshMagnet, testCase.secondMagnet, testCase.thirdMagnet], "handoff");
+        const mapped = window.height;
+        verify(mapped > two, "mapped at the last height, " + mapped);
+        compare(mapped, testCase.waitSettled(window), "mapped at a height it then left");
+        testCase.verifyFixed(window);
+    }
+
+    function test_nothing_to_show_maps_nothing() {
+        const window = testCase.makeWindow();
+        window.openList([], "handoff");
+        compare(window.visible, false);
+    }
+
+    // ---- W8: esc, cancel and the window's close -----------------------------------------
+
+    function test_escape_goes_to_cancel_then_drops_everything() {
+        const window = testCase.makeWindow();
+        const sheet = window.addSheet;
+        window.openList([testCase.freshMagnet, testCase.secondMagnet], "drop");
+        sheet.oneByOne();
+        compare(sheet.queue.length, 1);
+        tryCompare(window, "active", true);
+
+        const cancel = sheet.cancelButton();
+        for (let i = 0; i < 3 && !cancel.activeFocus; ++i) {
+            keyClick(Qt.Key_Escape);
+            compare(sheet.opened, true, "esc threw the add away before cancel");
+        }
+        verify(cancel.activeFocus, "esc never moved to cancel");
+        compare(window.visible, true);
+
+        keyClick(Qt.Key_Escape);
+        compare(sheet.opened, false);
+        compare(sheet.queue.length, 0, "what was waiting stayed");
+        compare(window.visible, false);
+    }
+
+    function test_cancel_drops_everything_and_closes() {
+        const window = testCase.makeWindow();
+        const sheet = window.addSheet;
+        window.openList([testCase.freshMagnet, testCase.secondMagnet], "drop");
+        sheet.oneByOne();
+        compare(sheet.queue.length, 1);
+        mouseClick(sheet.cancelButton());
+        compare(sheet.opened, false);
+        compare(sheet.queue.length, 0);
+        compare(window.visible, false);
+    }
+
+    function test_closing_the_window_is_a_cancel() {
+        const window = testCase.makeWindow();
+        const sheet = window.addSheet;
+        window.openList([testCase.freshMagnet, testCase.secondMagnet], "drop");
+        sheet.oneByOne();
+        sheet.tagPaletteRequested();
+        compare(window.tagPalette.opened, true);
+
+        window.close(); // super+w
+        compare(window.visible, false);
+        compare(sheet.opened, false);
+        compare(sheet.queue.length, 0);
+        compare(window.tagPalette.opened, false);
+        compare(window.activeOverlay, null);
+
+        // Fig. 10 goes the same way.
+        window.openList([testCase.knownMagnet()], "handoff");
+        compare(window.duplicateSheet.opened, true);
+        window.close();
+        compare(window.duplicateSheet.opened, false);
+        compare(window.visible, false);
+    }
+
+    // C20: qBittorrent's OK closes the window with the sheet; an add already out when the
+    // window closes goes on, and its answer brings nothing back.
+    function test_an_add_sent_goes_on() {
+        const window = testCase.makeWindow();
+        const sheet = window.addSheet;
+        const finished = testCase.spyOn(App, "addFinished");
+        window.openList([testCase.freshMagnet], "handoff");
+        sheet.submit(false);
+        compare(finished.count, 1);
+        compare(finished.signalArguments[0][0], true);
+        compare(window.visible, false, "the OK did not close the window");
+
+        window.openList([testCase.secondMagnet], "handoff");
+        sheet._adding = true; // as if qBittorrent had not answered yet
+        window.close();
+        compare(window.visible, false);
+        App.addFinished(true, "", "");
+        compare(sheet.opened, false, "the answer brought the sheet back");
+        compare(window.visible, false);
+        compare(sheet._adding, false);
     }
 }
