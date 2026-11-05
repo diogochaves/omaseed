@@ -1,5 +1,6 @@
 #include "core/AltSpeed.hpp"
 #include "core/GlobalState.hpp"
+#include "core/PauseHold.hpp"
 #include "core/QbtClient.hpp"
 #include "core/SeedLedger.hpp"
 #include "core/ServerPreferences.hpp"
@@ -146,6 +147,7 @@ private slots:
     void neverStartedRemovesNothing();
     void altNamesTheSet();
     void serversAndTheSharedMenu();
+    void pausedCountsTheHold();
 
 private:
     void startWriter(StatusWriter &writer, SyncEngine &engine);
@@ -985,6 +987,57 @@ void TestStatusWriter::serversAndTheSharedMenu()
     const QJsonObject alt = status.value(QStringLiteral("menu")).toArray().at(4).toObject();
     QCOMPARE(alt.value(QStringLiteral("kind")).toString(), QStringLiteral("check"));
     QCOMPARE(alt.value(QStringLiteral("checked")).toBool(), true);
+}
+
+// DECISIONS C36 M10: `paused.count`, added within v2, is what Pause Torrents holds on the
+// current server (0 when none, and without a hold at all), for Omarchy's menu's `when`.
+void TestStatusWriter::pausedCountsTheHold()
+{
+    SyncEngine engine;
+    engine.globalState()->setConnected(true);
+    engine.applyDemoData(fullUpdate());
+    StatusWriter writer;
+    writer.setIntervals(0, 10000);
+    startWriter(writer, engine);
+
+    bool ok = false;
+    QJsonObject status = readStatus(statusPath(), &ok);
+    QVERIFY(ok);
+    QCOMPARE(
+        status.value(QStringLiteral("paused")).toObject().value(QStringLiteral("count")).toInt(-1),
+        0);
+
+    omaseed::core::PauseHold hold;
+    hold.setServer(QStringLiteral("a"));
+    QSignalSpy written(&writer, &StatusWriter::written);
+    writer.setPauseHold(&hold);
+    // Nothing held: the same document, so no write.
+    QCOMPARE(writer.snapshot()
+                 .value(QStringLiteral("paused"))
+                 .toObject()
+                 .value(QStringLiteral("count"))
+                 .toInt(-1),
+             0);
+
+    // A hold on another server is not this one's.
+    hold.setStore(QJsonObject{
+        {QStringLiteral("a"),
+         QJsonObject{
+             {QStringLiteral("hashes"), QJsonArray{QStringLiteral("aaa"), QStringLiteral("bbb")}}}},
+        {QStringLiteral("b"),
+         QJsonObject{{QStringLiteral("hashes"), QJsonArray{QStringLiteral("ccc")}}}},
+    });
+    QVERIFY(written.wait(2000));
+    status = readStatus(statusPath(), &ok);
+    QCOMPARE(
+        status.value(QStringLiteral("paused")).toObject().value(QStringLiteral("count")).toInt(),
+        2);
+    hold.setServer(QStringLiteral("b"));
+    QVERIFY(written.wait(2000));
+    status = readStatus(statusPath(), &ok);
+    QCOMPARE(
+        status.value(QStringLiteral("paused")).toObject().value(QStringLiteral("count")).toInt(),
+        1);
 }
 
 QTEST_GUILESS_MAIN(TestStatusWriter)

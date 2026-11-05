@@ -16,9 +16,9 @@ a schema change is one commit touching both sides. Design: `docs/20-companion-wi
 - The widget treats the file as dead (the "not running" state) when it is missing, when
   `now - t > 30`, or when `v` is not `2` (Q12: no compatibility).
 - Fields may be added within v2 (`alt.kind`, `alt.until`, `alt.byHand`, docs/31; `servers`
-  and `menu`, docs/33 §11 and docs/DECISIONS.md C13): a reader ignores what it does not know
-  and reads a missing field as the default the schema names. Changing or removing a field is a
-  new `v`.
+  and `menu`, docs/33 §11 and docs/DECISIONS.md C13; `paused`, C36 M10): a reader ignores what
+  it does not know and reads a missing field as the default the schema names. Changing or
+  removing a field is a new `v`.
 
 ## Rules for values
 
@@ -146,13 +146,23 @@ a schema change is one commit touching both sides. Design: `docs/20-companion-wi
   // they come (a row the app adds shows without the widget learning it). The servers part
   // (a caption, a radio row per server, a separator) is there only with two servers or more.
   //   kind     "action" · "check" · "radio" · "caption" · "separator"
-  //   label    the card-style words (docs/20 N2): "Stop All", "Quit omaseed"
+  //   label    the card-style words (docs/20 N2): "Pause Torrents", "Quit omaseed"
+  //   enabled  false while the row can't be picked: alt-speed, pause and resume while the
+  //            server doesn't answer, and pause or resume while one is still on its way
   //   detail   what the row shows at its right: a server's "4 torrents", "sign-in refused"
   //   urgent   the detail is a failure
-  // Ids: "server:<id>" (SwitchServer), and add, alt-speed, stop-all, start-all, settings,
-  // quit (Invoke); captions and separators have ids of their own that do nothing.
+  // Ids: "server:<id>" (SwitchServer), and add, alt-speed, pause, resume, settings, quit
+  // (Invoke); captions and separators have ids of their own that do nothing. pause and resume
+  // are one row (C36 M10): pause while no pause is held on the current server, resume while
+  // one is. Invoke still takes stop-all and start-all, the ids before C36, as aliases of pause
+  // and resume, so a script written against them keeps working.
   "menu": [ { "id": "alt-speed", "label": "Alternative Speed Limits", "kind": "check",
-              "checked": false, "enabled": true, "detail": "", "urgent": false } ]
+              "checked": false, "enabled": true, "detail": "", "urgent": false } ],
+
+  // C36 M10 (added within v2): how many torrents Pause Torrents stopped and holds on the
+  // current server, 0 when no pause is held there. Omarchy's menu shows Resume Torrents
+  // `when` `jq -e '.paused.count > 0'`; a missing field reads as 0.
+  "paused": { "count": 0 }
 }
 ```
 
@@ -183,7 +193,7 @@ busctl --user call io.github.diogochaves.omaseed /io/github/diogochaves/omaseed 
 | `ShowTorrent` | `(s hash)` | raises omaseed with the cursor on that torrent |
 | `OpenFolder` | `(s hash)` | shows the torrent's content in the file manager |
 | `SwitchServer` | `(s id) → b` | moves the app onto that server (docs/33 D24); false for an unknown id |
-| `Invoke` | `(s id) → b` | a row of `menu`, by its id; false for an unknown or disabled row. `quit` quits the app after answering |
+| `Invoke` | `(s id) → b` | a row of `menu`, by its id; false for an unknown or disabled row. `pause` stops what runs and holds it, `resume` starts exactly those again (only while a pause is held); `stop-all` and `start-all` are their old ids, still taken. `quit` quits the app after answering |
 
 A source is a magnet link, an `http(s)` URL, or a `.torrent` path (or `file://` URI).
 

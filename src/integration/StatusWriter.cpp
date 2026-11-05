@@ -4,6 +4,7 @@
 #include "core/CategoryModel.hpp"
 #include "core/FilterCounts.hpp"
 #include "core/GlobalState.hpp"
+#include "core/PauseHold.hpp"
 #include "core/SeedLedger.hpp"
 #include "core/ServerPreferences.hpp"
 #include "core/StateFile.hpp"
@@ -159,6 +160,16 @@ void StatusWriter::setMenu(const BarMenu *menu)
     m_menu = menu;
     if (menu)
         connect(menu, &BarMenu::changed, this, &StatusWriter::markDirty);
+    markDirty();
+}
+
+void StatusWriter::setPauseHold(const omaseed::core::PauseHold *hold)
+{
+    if (m_pauseHold)
+        disconnect(m_pauseHold, nullptr, this, nullptr);
+    m_pauseHold = hold;
+    if (hold)
+        connect(hold, &omaseed::core::PauseHold::changed, this, &StatusWriter::markDirty);
     markDirty();
 }
 
@@ -715,6 +726,11 @@ QJsonObject StatusWriter::content() const
     // rule): a widget that does not know them shows its popup as before.
     document.insert(QStringLiteral("servers"), m_menu ? m_menu->serversJson() : QJsonArray());
     document.insert(QStringLiteral("menu"), m_menu ? m_menu->menuJson() : QJsonArray());
+    // DECISIONS C36 M10: the torrents Pause Torrents holds on the current server, 0 when none,
+    // added within v2 so Omarchy's menu can show Resume Torrents only while a pause is held
+    // (`jq '.paused.count > 0'`).
+    document.insert(QStringLiteral("paused"),
+                    QJsonObject{{QStringLiteral("count"), m_pauseHold ? m_pauseHold->count() : 0}});
     return document;
 }
 

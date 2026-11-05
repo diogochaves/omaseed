@@ -5436,6 +5436,8 @@ void App::attachStatusWriter(omaseed::integration::StatusWriter *writer)
     writer->setAltSpeed(m_altSpeed);
     // docs/33 §11 (D24): `servers` and `menu`, the shared menu the widget draws.
     writer->setMenu(m_barMenu);
+    // DECISIONS C36 M10: `paused.count`, for Omarchy's menu's Resume Torrents.
+    writer->setPauseHold(m_pauseHold);
     writer->setLedger(m_ledger.get());
     writer->setPathMapper([this](const QString &path) { return mapContentPathToLocal(path); });
     writer->setLibraryCheck(
