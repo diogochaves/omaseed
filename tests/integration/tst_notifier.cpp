@@ -30,6 +30,7 @@ private slots:
     void notificationClosedForgetsTheKey();
     void aMoveIsOneNoticePerServer();
     void aCreationIsOneNoticePerServer();
+    void aSpeedPickIsOneNoticePerServer();             // C36 M9
     void theMainActionIsTheClickAndNoButtonOfItsOwn(); // #111
     void aDaemonRestartForgetsTheLiveIds();            // INT-9
     void aServiceThatAppearsLaterIsUsed();             // INT-9
@@ -235,6 +236,25 @@ void TestNotifier::aCreationIsOneNoticePerServer()
     QVERIFY(spy.wait(2000));
     QCOMPARE(spy.first().at(0).toString(), QStringLiteral("create"));
     QCOMPARE(spy.first().at(1).toString(), QStringLiteral("home"));
+}
+
+// DECISIONS C36 M9: a speed pick made outside the window, its own class; a second replaces it.
+void TestNotifier::aSpeedPickIsOneNoticePerServer()
+{
+    const quint32 id = m_notifier->notifyAltSpeed(
+        QStringLiteral("home"), QStringLiteral("Turtle"), QStringLiteral("↑ 200 KB/s"));
+    QVERIFY(id != 0);
+    QCOMPARE(m_server->calls.at(0).summary, QStringLiteral("Turtle"));
+    QCOMPARE(m_server->calls.at(0).body, QStringLiteral("↑ 200 KB/s"));
+    const quint32 second = m_notifier->notifyAltSpeed(
+        QStringLiteral("home"), QStringLiteral("Normal speeds"), QString());
+    QCOMPARE(second, id);
+    QSignalSpy spy(m_notifier, &Notifier::actionInvoked);
+    m_server->triggerActionInvoked(id, QStringLiteral("default"));
+    QVERIFY(spy.wait(2000));
+    QCOMPARE(spy.first().at(0).toString(), QStringLiteral("speed"));
+    QCOMPARE(spy.first().at(1).toString(), QStringLiteral("home"));
+    QCOMPARE(spy.first().at(2).toString(), QStringLiteral("show"));
 }
 
 // #111: Omarchy 4.5 draws a notice's actions as buttons, "default" aside (the click). The main

@@ -304,4 +304,19 @@ quint32 Notifier::notifyCreate(const QString &serverId, const QString &summary, 
                       QStringLiteral("show"));
 }
 
+quint32
+Notifier::notifyAltSpeed(const QString &serverId, const QString &summary, const QString &body)
+{
+    const QStringList actions{QStringLiteral("show"), QStringLiteral("Show")};
+    return sendNotice(QStringLiteral("speed|%1").arg(serverId),
+                      QStringLiteral("speed"),
+                      serverId,
+                      summary,
+                      body,
+                      actions,
+                      kUrgencyLow,
+                      QString(),
+                      QStringLiteral("show"));
+}
+
 } // namespace omaseed::integration

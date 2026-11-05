@@ -120,6 +120,12 @@ Q_SIGNALS:
     void changed();
     /// `store()` moved: App writes it to state.json at once.
     void storeChanged();
+    /// A `pick` has landed on the server (DECISIONS C36 M9: the notice waits for this, not for
+    /// the request). `kind` as picked; the limits it put in force in bytes/s, 0 for none and
+    /// -1 when the server's set was not read yet (off: 0 and 0); for a burst its minutes, 0
+    /// until it is stopped. Not for a pick that failed or that the server switch left behind,
+    /// nor for a burst ending on its own.
+    void picked(const QString &kind, qint64 dl, qint64 up, int minutes);
 
 private:
     QDateTime now() const;
@@ -131,7 +137,9 @@ private:
     qint64 serverLimit(const char *key) const;
     /// Writes the set and the mode, then reads the preferences again; `done(ok)` after both.
     void write(qint64 dl, qint64 up, bool on, std::function<void(bool)> done);
-    void finishBurst(bool mode);
+    /// `landed` once the turtle is back on the server (not on a failure, nor when a new
+    /// burst started meanwhile).
+    void finishBurst(bool mode, std::function<void()> landed = {});
     /// Whether the schedule has the alternative limits on now.
     bool scheduleOn() const;
     /// A burst left running on this server, once its preferences answered.

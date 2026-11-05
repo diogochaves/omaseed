@@ -73,6 +73,12 @@ public:
     /// "show", also the click. Event class "create", subject the server id.
     quint32 notifyCreate(const QString &serverId, const QString &summary, const QString &body);
 
+    /// DECISIONS C36 M9: a speed pick made outside the window (the bus, the tray, the widget's
+    /// ⋯), once it has taken effect, in AltPickWords' words ("Turtle" / "↓ 1.00 MB/s ↑ 200
+    /// KB/s"). A second pick replaces it in place. Action "show", also the click. Event class
+    /// "speed", subject the server id.
+    quint32 notifyAltSpeed(const QString &serverId, const QString &summary, const QString &body);
+
 signals:
     /// Fired when the shell reports ActionInvoked for a notice this Notifier sent.
     /// eventClass/subjectId are the values the corresponding notify*() call was made with;

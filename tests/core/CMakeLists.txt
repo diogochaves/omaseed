@@ -382,6 +382,12 @@ omaseed_add_test(tst_altspeed
     LIBRARIES omaseed::core
 )
 
+# DECISIONS C36 M9: the notice of a speed pick made outside the window.
+omaseed_add_test(tst_altpickwords
+    SOURCES tst_altpickwords.cpp
+    LIBRARIES omaseed::core
+)
+
 # DECISIONS C32 D8 a: turtle and burst, two presets for the one alternative set.
 omaseed_add_test(tst_altpresets
     SOURCES tst_altpresets.cpp

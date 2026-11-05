@@ -24,6 +24,7 @@
 #include <chrono>
 #include <functional>
 #include <memory>
+#include <tuple>
 
 #ifndef OMASEED_FIXTURES_DIR
 #error "OMASEED_FIXTURES_DIR must be defined by CMake"
@@ -359,8 +360,22 @@ void TestStatusService::pickAltSpeedGoesThroughThePresets()
     QVERIFY(server.modes.isEmpty());
     QVERIFY(server.sets.isEmpty());
 
+    // C36 M9: each pick reports once it has landed, with what it put in force; the notice of a
+    // pick from outside the window waits for this.
+    using Landing = std::tuple<QString, qint64, qint64, int>;
+    QSignalSpy landed(presets, &omaseed::core::AltPresets::picked);
+    const auto landing = [&landed]() {
+        const QList<QVariant> args = landed.takeFirst();
+        return Landing{args.at(0).toString(),
+                       args.at(1).toLongLong(),
+                       args.at(2).toLongLong(),
+                       args.at(3).toInt()};
+    };
+
     QVERIFY(service.pickAltSpeed(QStringLiteral("turtle")));
     QTRY_COMPARE_WITH_TIMEOUT(presets->current(), QStringLiteral("turtle"), 5000);
+    QTRY_COMPARE_WITH_TIMEOUT(landed.size(), 1, 5000);
+    QCOMPARE(landing(), (Landing{QStringLiteral("turtle"), 10240, 10240, 0}));
     QCOMPARE(server.modes, QStringList{QStringLiteral("1")});
     QVERIFY(server.sets.isEmpty()); // the turtle is the server's set as it is
     QCOMPARE(presets->lastPick(), QStringLiteral("turtle"));
@@ -371,6 +386,12 @@ void TestStatusService::pickAltSpeedGoesThroughThePresets()
     QCOMPARE(server.sets.first().value(QStringLiteral("alt_up_limit")).toInteger(),
              omaseed::core::AltPresets::kDefaultBurstUp);
     QCOMPARE(presets->lastPick(), QStringLiteral("burst"));
+    QTRY_COMPARE_WITH_TIMEOUT(landed.size(), 1, 5000);
+    QCOMPARE(landing(),
+             (Landing{QStringLiteral("burst"),
+                      0,
+                      omaseed::core::AltPresets::kDefaultBurstUp,
+                      omaseed::core::AltPresets::kDefaultBurstMinutes}));
 
     QVERIFY(service.pickAltSpeed(QStringLiteral("off")));
     QTRY_COMPARE_WITH_TIMEOUT(presets->current(), QStringLiteral("off"), 5000);
@@ -380,6 +401,10 @@ void TestStatusService::pickAltSpeedGoesThroughThePresets()
     QCOMPARE(server.sets.last().value(QStringLiteral("alt_up_limit")).toInteger(), 10240);
     QVERIFY(!presets->burstOn());
     QVERIFY(!server.altOn);
+    QTRY_COMPARE_WITH_TIMEOUT(landed.size(), 1, 5000);
+    QCOMPARE(landing(), (Landing{QStringLiteral("off"), 0, 0, 0}));
+    QTest::qWait(300);
+    QVERIFY(landed.isEmpty()); // once per pick
 }
 
 void TestStatusService::openAddSheetRaisesTheWindowAndQueuesTheSources()

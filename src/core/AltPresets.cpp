@@ -368,7 +368,13 @@ bool AltPresets::pick(const QString &kind)
         m_recovered = true; // what runs is this run's own
         setEntry(e);
         armTimer();
-        write(burstDl(), burstUp(), true, {});
+        const qint64 dl = burstDl();
+        const qint64 up = burstUp();
+        const QString server = m_server;
+        write(dl, up, true, [this, server, dl, up, minutes](bool ok) {
+            if (ok && server == m_server)
+                Q_EMIT picked(QStringLiteral("burst"), dl, up, minutes);
+        });
         return true;
     }
     const bool on = kind == QLatin1String("turtle");
@@ -379,14 +385,25 @@ bool AltPresets::pick(const QString &kind)
         e.insert(QStringLiteral("lastPick"), QStringLiteral("turtle"));
         setEntry(e);
     }
+    // What the pick puts in force, read now: the turtle's saved copy while a burst runs.
+    const bool known = burstOn() || isLoaded();
+    const qint64 dl = !on ? 0 : known ? turtleDl() : -1;
+    const qint64 up = !on ? 0 : known ? turtleUp() : -1;
+    const QString picking = kind;
+    const QString server = m_server;
+    const auto landed = [this, picking, server, dl, up]() {
+        if (server == m_server)
+            Q_EMIT picked(picking, dl, up, 0);
+    };
     if (burstOn()) {
-        finishBurst(on);
+        finishBurst(on, landed);
         return true;
     }
     m_client->transferSetSpeedLimitsMode(on)->then(
-        this, [this, on](const QbtResult<QByteArray> &result) {
+        this, [this, on, landed](const QbtResult<QByteArray> &result) {
             if (result.isError() && m_client && m_state && m_state->useAltSpeedLimits() != on)
                 m_client->transferToggleSpeedLimitsMode();
+            landed();
         });
     return true;
 }
@@ -403,7 +420,7 @@ void AltPresets::endBurst()
         finishBurst(scheduleOn());
 }
 
-void AltPresets::finishBurst(bool mode)
+void AltPresets::finishBurst(bool mode, std::function<void()> landed)
 {
     const QJsonObject run = running();
     if (run.isEmpty())
@@ -413,7 +430,7 @@ void AltPresets::finishBurst(bool mode)
     write(run.value(QStringLiteral("turtleDl")).toInteger(),
           run.value(QStringLiteral("turtleUp")).toInteger(),
           mode,
-          [this, server, run](bool ok) {
+          [this, server, run, landed](bool ok) {
               // Kept on a failure: the next start (or the next visit) writes it back again.
               if (!ok)
                   return;
@@ -424,6 +441,8 @@ void AltPresets::finishBurst(bool mode)
               m_store.insert(server, e);
               Q_EMIT storeChanged();
               Q_EMIT changed();
+              if (landed)
+                  landed();
           });
 }
 

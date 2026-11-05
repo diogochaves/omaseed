@@ -12,6 +12,8 @@ qt_add_library(omaseed-core STATIC
     AltSpeed.hpp
     AltPresets.cpp
     AltPresets.hpp
+    AltPickWords.cpp
+    AltPickWords.hpp
     AutoBackup.cpp
     AutoBackup.hpp
     ApiError.cpp
