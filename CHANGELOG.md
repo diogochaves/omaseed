@@ -5,7 +5,7 @@ All notable changes to omaseed are logged here, newest first. Loosely follows
 versioning stability (pre-1.0). `scripts/release.sh` requires a `## v<version>` section here
 before it will tag a release.
 
-## Unreleased
+## v0.7.0 — 2026-11-05
 
 ### Added
 
@@ -36,6 +36,12 @@ before it will tag a release.
   a resume is on its way. The status file gains `paused.count` (`plugin/STATUS.md`); the bus's
   `Invoke` takes `pause` and `resume`, and still `stop-all` and `start-all`, so scripts written
   against them keep working. (#213)
+
+### Fixed
+
+- **"Already in your library" answers the keyboard again.** When it showed alone, after a
+  duplicate was handed over or dropped, esc didn't close it and its buttons had no keyboard,
+  in the main window as well. (#229)
 
 ## v0.6.0 — 2026-11-05
 
