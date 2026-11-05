@@ -16,6 +16,12 @@ before it will tag a release.
 
 ### Changed
 
+- **Adds from outside open where you are.** A `.torrent` or magnet handed over by a browser or
+  file manager, and the add from the tray, the widget's ⋯ or the bus, open the add sheet in a
+  small window of its own, floating on the workspace you are on, with focus. The main window
+  stays where it was, or hidden. When you were in the main window a moment before, the add
+  opens there, as before; first run still holds adds on its page. A plain launch (the
+  launcher) still brings the main window up. (#217, #218)
 - **Pause Torrents and Resume Torrents, in place of stop all and start all.** Start all
   started every torrent on the server, the ones you had kept stopped on purpose too. Pause
   Torrents stops what is running and remembers exactly those, per server, across a restart of
