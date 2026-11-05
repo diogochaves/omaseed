@@ -568,8 +568,10 @@ TestCase {
             { id: "server:c", label: "seedbox", kind: "radio", checked: false, enabled: true, detail: "sign-in refused", urgent: true },
             { id: "separator:servers", label: "", kind: "separator", checked: false, enabled: false, detail: "", urgent: false },
             { id: "alt-speed", label: "Alternative Speed Limits", kind: "check", checked: false, enabled: true, detail: "", urgent: false },
-            { id: "stop-all", label: "Stop All", kind: "action", checked: false, enabled: false, detail: "", urgent: false },
-            { id: "start-all", label: "Start All", kind: "action", checked: false, enabled: true, detail: "", urgent: false },
+            // The app writes one of these two at a time (C36 M10); both here give the cursor a
+            // disabled row to skip, as pause is while its stop is on its way.
+            { id: "pause", label: "Pause Torrents", kind: "action", checked: false, enabled: false, detail: "", urgent: false },
+            { id: "resume", label: "Resume Torrents", kind: "action", checked: false, enabled: true, detail: "", urgent: false },
             { id: "separator:actions", label: "", kind: "separator", checked: false, enabled: false, detail: "", urgent: false },
             { id: "add", label: "Add Torrent…", kind: "action", checked: false, enabled: true, detail: "", urgent: false },
             { id: "future", label: "Something New", kind: "action", checked: false, enabled: true, detail: "", urgent: false },
@@ -600,8 +602,8 @@ TestCase {
         var rows = Status.menuRows(menuSample());
         var ids = rows.map(function(r) { return r.id; });
         // A row the widget never heard of is drawn; a kind it cannot draw is left out.
-        compare(ids, ["servers", "server:a", "server:b", "server:c", "separator:servers", "alt-speed", "stop-all",
-                      "start-all", "separator:actions", "add", "future", "separator:quit", "quit"]);
+        compare(ids, ["servers", "server:a", "server:b", "server:c", "separator:servers", "alt-speed", "pause",
+                      "resume", "separator:actions", "add", "future", "separator:quit", "quit"]);
         // The cursor skips captions, separators and disabled rows.
         compare(Status.menuTargets(rows), [1, 2, 3, 5, 7, 9, 10, 12]);
         var servers = Status.menuRows(menuSample(), "servers");
@@ -621,6 +623,9 @@ TestCase {
         compare(Status.menuServerId("server:b"), "b");
         compare(Status.menuServerId("add"), "");
         compare(Status.menuEffect("alt-speed"), "stay");
+        compare(Status.menuEffect("pause"), "stay");
+        compare(Status.menuEffect("resume"), "stay");
+        // An app before C36 M10 writes these in their place.
         compare(Status.menuEffect("stop-all"), "stay");
         compare(Status.menuEffect("start-all"), "stay");
         compare(Status.menuEffect("add"), "close");
