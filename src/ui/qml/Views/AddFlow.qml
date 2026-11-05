@@ -41,6 +41,9 @@ Item {
     signal searchRequested(string text)
     /// docs/33 D14: the head's chip, ctrl+s in the sheet, a down server's `switch`.
     signal serverPaletteRequested
+    /// Fig. 10's merge has gone to `App.mergeTrackers` and both sheets are closed: the add
+    /// window's host sends board 54's W5 notice for it (W4 a).
+    signal merged(string hash)
 
     AddSheet {
         id: addSheet
@@ -71,6 +74,7 @@ Item {
         onMergeRequested: (hash, urls) => {
             addSheet.dismiss();
             App.mergeTrackers(hash, urls);
+            flow.merged(hash);
         }
     }
 

@@ -22,12 +22,16 @@ import Omaseed.Views
 // becomes its transient child, which a compositor may place with the main window, on its
 // workspace.
 //
-// What only the main window can answer leaves as signals: `show it` (W4), the empty state's
-// search (C26: a search add stays in the main window) and the server palette's `manage…`,
-// which opens Settings › Servers there (C35, settled 2026-11-05).
+// Board 25's Fig. 10 shows in it as in the main window (W4): alone, it is the window, at its
+// own size; over a sheet still holding the next source, it floats over that sheet.
+//
+// What only the main window can answer leaves as signals: `show it` (W4), a merge (W5's notice,
+// #219), the empty state's search (C26: a search add stays in the main window) and the server
+// palette's `manage…`, which opens Settings › Servers there (C35, settled 2026-11-05).
 //
 //     AddWindow {
-//         onShowRequested: hash => …
+//         onShowRequested: hash => …   // raise the main window on it
+//         onMerged: hash => …
 //         onSettingsRequested: id => …
 //     }
 //     addWindow.openList(uris, "handoff");
@@ -57,22 +61,31 @@ Window {
         return null;
     }
 
+    /// Fig. 10 with no sheet behind it: the window is Fig. 10 (W4).
+    readonly property bool _figureAlone: flow.duplicateSheet.opened && !flow.addSheet.opened
+
     /// W3: the most the window grows to, 80 % of the screen's height. `Screen` is the screen the
     /// window is on, read again when it moves to another. A test sets its own.
     property real heightCap: Math.floor(0.8 * (Screen.height > 0 ? Screen.height : 1e6))
     /// The window's size: the panel's width, and its height with every row at its own height
-    /// (`AddSheet.naturalHeight`, never from the window's own), Fig. 10's while it is taller.
+    /// (`AddSheet.naturalHeight`, never from the window's own), Fig. 10's while it is taller;
+    /// Fig. 10's own when it is alone.
     readonly property size sheetSize: Qt.size(
-                                          Math.min(flow.addSheet.sheetWidth,
+                                          Math.min(root._figureAlone ? flow.duplicateSheet.sheetWidth
+                                                                     : flow.addSheet.sheetWidth,
                                                    Screen.desktopAvailableWidth > 0 ? Screen.desktopAvailableWidth : 1e6),
-                                          Math.max(1, Math.ceil(Math.min(root.heightCap, Math.max(
-                                                                              flow.addSheet.naturalHeight,
-                                                                              flow.duplicateSheet.opened
-                                                                              ? flow.duplicateSheet.panel.implicitHeight : 0)))))
+                                          Math.max(1, Math.ceil(Math.min(root.heightCap, root._figureAlone
+                                                                         ? flow.duplicateSheet.panel.implicitHeight
+                                                                         : Math.max(flow.addSheet.naturalHeight,
+                                                                                    flow.duplicateSheet.opened
+                                                                                    ? flow.duplicateSheet.panel.implicitHeight
+                                                                                    : 0)))))
 
     /// Fig. 10's `show it`: both sheets have closed; the host shows the torrent in the main
     /// window, raising it on purpose (W4).
     signal showRequested(string hash)
+    /// Fig. 10's merge has gone to App and the window is closing: W5's notice (#219).
+    signal merged(string hash)
     /// The empty state's "search your plugins…": the main window's search.
     signal searchRequested(string text)
     /// The server palette's `manage…`: Settings › Servers on server `id`, in the main window.
@@ -118,6 +131,8 @@ Window {
 
         addSheet.framed: false
         categoryPicker: categoryPalette
+        // Alone, Fig. 10 is the window and its edge the window's; over the sheet, it is framed.
+        duplicateSheet.framed: flow.addSheet.opened
         focus: true
         height: root.height + 2 * Theme.sheetMargin
         tagPicker: tagPalette
@@ -125,6 +140,7 @@ Window {
         x: -Theme.sheetMargin
         y: -Theme.sheetMargin
 
+        onMerged: hash => root.merged(hash)
         onSearchRequested: text => root.searchRequested(text)
         onShowRequested: hash => root.showRequested(hash)
         // docs/33 D14, D19: with one server there is nothing to switch to; the sheet's foot
