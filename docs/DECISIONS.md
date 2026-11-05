@@ -1881,3 +1881,29 @@ more often. From now on:
 This **supersedes** #201's plan (the pass's findings and board 51's changes all in v0.5.0 before
 the release): v0.5.0 ships with #201's fixes built so far; the rest goes to v0.5.1 (fixes) and
 v0.6.0 (board 52 and later D items).
+
+## C34 — Search's rail and clearing (board 52, ruled 2026-11-04)
+
+Board [52](52-search-rail-and-clear.html), #201's D5s, D20 and D21 (#205), all as recommended.
+It **amends** C26 SR6 (plugins ▾ and type ▾ leave the bar while the rail is open), SR2 (the
+plugins' line loses its pills to the rail), SR10/SR13 (a way to the plugins' pane from search
+with plugins installed) and SR14 (esc's order), and settles C32 D5's search half.
+
+- **D5s a, the rail on search.** Three groups. *plugins*: every installed plugin with a tick
+  (asked or not), its dot and how it answered (a count, … asking, slow, failed, skipped); a click
+  ticks or unticks it and asks again. *type*: any, or one of the plugins' types; one pick, asks
+  again. *recent*: this server's searches this session, in memory only, never saved (search
+  words can be private); a click asks again. While the rail is open, plugins ▾, type ▾ and the
+  line's pills leave the bar (the line keeps "N of M plugins didn't answer ›"); folded (ctrl+b or
+  a narrow window), they come back.
+- **D20 a, a way to the plugins.** "install a plugin…" at the foot of the rail's plugins group
+  opens Settings › qBittorrent › Search plugins with its install field focused; esc goes back to
+  the search. With the rail folded, plugins ▾ ends with "manage plugins…", opening the same pane.
+- **D21 a, clearing.** While the field has words or there are results, it ends in "× esc", as the
+  title bar's filter (C32 D18). A click, or esc in the field, clears the words and the results
+  together, stops any plugin still asking and shows the face before search. esc's order: the pane
+  → the rows → the words and results → leave search.
+
+The builder's own calls, accepted with the board: a plugin turned off in Settings shows dimmed in
+the rail with no tick ("off"), and a click on it opens the pane on it. Assumed (the board left it
+open): the group heading says **type**, the bar's word, not "kind", in both places.
