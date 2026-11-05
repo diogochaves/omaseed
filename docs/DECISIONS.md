@@ -1907,3 +1907,37 @@ with plugins installed) and SR14 (esc's order), and settles C32 D5's search half
 The builder's own calls, accepted with the board: a plugin turned off in Settings shows dimmed in
 the rail with no tick ("off"), and a click on it opens the pane on it. Assumed (the board left it
 open): the group heading says **type**, the bar's word, not "kind", in both places.
+
+## C35 — Adds from outside open where you are (board 54, ruled 2026-11-05)
+
+Board [54](54-add-where-you-are.html), from #211's follow-up, W1–W9 all as recommended. It
+**amends** C13 (the shared menu's add: it opens the add window where you are, so the tray, the
+widget's ⋯, the window's mark and board 53's Add Torrent follow), C20 (#124: in the add window,
+the window closes with the sheet on qBittorrent's OK) and Q16/C6 (a sixth notification switch),
+and changes the hand-off of charter T1.4 (the second instance no longer raises the main window
+for an add; a plain activation with no URI still does).
+
+Why: in an omabox, every add from outside (a `.torrent`, a magnet, `Invoke add`) took the user
+to omaseed's workspace, because Omarchy sets `misc:focus_on_activate = true`; hidden in the
+tray, the window came back on the current workspace but tiled, squeezing the user's window.
+
+- **W1 a.** An add from outside the window opens the add sheet in its own small window,
+  floating and centred on the workspace you are on, with focus. The main window is left where
+  it is, or stays hidden.
+- **W2 a.** When the main window had focus just before, the add opens in it, as today.
+- **W3 a.** The add window fixes its size to the sheet's (minimum = maximum, up to 80 % of the
+  screen's height, set again when the sheet grows), so Hyprland floats it with no rule; the
+  shipped snippet adds a rule on its first title, `omaseed · add` (Qt gives every window of an
+  app one app id, so a rule can't tell the windows apart by class).
+- **W4 a.** Already in your library: board 25's Fig. 10 in the add window; "show it" closes it
+  and raises the main window on the torrent; a merge sends W5's notice.
+- **W5 a.** After an add from the add window, one "Torrent added" notice (NAME · SIZE ·
+  CATEGORY, as Download complete's); a click shows the torrent. Its own switch in
+  Settings › Notifications, on by default.
+- **W6 a.** First run (no server yet) keeps the main window on the first-run page, holding the
+  adds, as today.
+- **W7 a.** Hand-offs while the add window is open join its list, and the window maps again
+  where you are.
+- **W8 a.** esc, cancel and closing as today: esc moves to cancel, cancel drops the add and all
+  waiting and closes; closing the window is a cancel; an add already sent goes on.
+- **W9 a.** No setting to bring back the jump.
