@@ -136,8 +136,9 @@ downloads or uploads, and a click opens a popup with the speeds, an hour of uplo
 `.torrent` files to add, today's share, the torrents you keep alive, and what is downloading
 and what finished. It never talks to qBittorrent itself; it reads what omaseed writes and
 asks omaseed to act. While it runs, the tray icon steps aside, and nothing goes with it: the
-popup's ⋯ is the tray's menu (the servers, alternative limits, stop and start all, settings,
-quit).
+popup's ⋯ is the tray's menu (the servers, alternative limits, pause or resume torrents,
+settings, quit). Pause Torrents stops what is running and remembers it; Resume Torrents starts
+exactly those again, never a torrent you had kept stopped.
 
 First run offers it, Settings › Appearance › In the bar chooses the widget, the tray icon,
 both or neither, and from a terminal:

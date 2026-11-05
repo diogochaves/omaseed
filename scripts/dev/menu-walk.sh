@@ -420,12 +420,12 @@ check "one server: no servers rows in the menu (D19)" \
 
 popup
 keys ctrl+period -s 600ms
-step "One server, the menu" "W1 with one server (T0): ⋯ lit in the head, the server line with no ▾; the menu: Alternative Speed Limits (or Turtle/Burst) with A, Stop All, Start All, a hairline, Add Torrent… with m, omaseed Settings…, a hairline, Quit omaseed. No SERVERS." "$POPUP"
+step "One server, the menu" "W1 with one server (T0): ⋯ lit in the head, the server line with no ▾; the menu: Alternative Speed Limits (or Turtle/Burst) with A, Pause Torrents, a hairline, Add Torrent… with m, omaseed Settings…, a hairline, Quit omaseed. No SERVERS." "$POPUP"
 keys ctrl+period -s 400ms Escape -s 600ms
 
 # ---- the window: the mark's menu, C13's third place (DECISIONS C24 H9) ---------------------
 keys --window "$APP_ID" ctrl+period -s 600ms
-step "One server, the window's menu" "Grown out of the lit mark in one accent outline, 292 px, no head of its own (board 51 D14 b): its first line the version, public · qBittorrent …; turtle (or the alternative limits' word) with A, stop all, start all, a rule, add torrent… a, settings… comma, a rule, THIS WINDOW ONLY: seed console, log, commands, keys and help, hide window, each with its key, a rule, quit omaseed ctrl+q. No servers (D19)."
+step "One server, the window's menu" "Grown out of the lit mark in one accent outline, 292 px, no head of its own (board 51 D14 b): its first line the version, public · qBittorrent …; turtle (or the alternative limits' word) with A, pause torrents, a rule, add torrent… a, settings… comma, a rule, THIS WINDOW ONLY: seed console, log, commands, keys and help, hide window, each with its key, a rule, quit omaseed ctrl+q. No servers (D19)."
 keys Escape -s 400ms
 
 # ---- the second server ---------------------------------------------------------------------
@@ -493,7 +493,7 @@ else
 fi
 if [ -n "${TRAY_X:-}" ]; then
     tray_menu_open
-    step "The tray's menu" "D10 (T1): show omaseed, the figures, servers with ✓ public · 0 torrents and private · 5 torrents, then the alternative limits, stop all, start all, add torrent…, settings…, and quit last after a separator." "$TRAY_MENU"
+    step "The tray's menu" "D10 (T1): show omaseed, the figures, servers with ✓ public · 0 torrents and private · 5 torrents, then the alternative limits, pause torrents, add torrent…, settings…, and quit last after a separator." "$TRAY_MENU"
     # private's row by its name: its figure is whatever the box's private holds.
     PRIVATE_ROW="$(tray_rows | cut -f3 | grep -m1 '^private · ' || true)"
     if [ -n "$PRIVATE_ROW" ] && tray_menu_row "$PRIVATE_ROW"; then

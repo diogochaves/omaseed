@@ -5,6 +5,20 @@ All notable changes to omaseed are logged here, newest first. Loosely follows
 versioning stability (pre-1.0). `scripts/release.sh` requires a `## v<version>` section here
 before it will tag a release.
 
+## Unreleased
+
+### Changed
+
+- **Pause Torrents and Resume Torrents, in place of stop all and start all.** Start all
+  started every torrent on the server, the ones you had kept stopped on purpose too. Pause
+  Torrents stops what is running and remembers exactly those, per server, across a restart of
+  omaseed; while a pause is held the row reads Resume Torrents, which starts those again (a
+  force-started one comes back forced) and leaves the rest as they were. One row in the tray,
+  the widget's ⋯, the window's menu and a server's menu in the rail; it is off while a pause or
+  a resume is on its way. The status file gains `paused.count` (`plugin/STATUS.md`); the bus's
+  `Invoke` takes `pause` and `resume`, and still `stop-all` and `start-all`, so scripts written
+  against them keep working. (#213)
+
 ## v0.6.0 — 2026-11-05
 
 ### Added
