@@ -73,7 +73,7 @@ invisible Omarchy desktop, so nothing opens on the real one:
 scripts/dev/swarm-walk.sh [OUT] | --interactive   # every torrent state, shown in the app in an omabox
 scripts/dev/strict-walk.sh [OUT] | --interactive  # first run + cookie / API key login against :8082, in an omabox
 scripts/dev/notify-walk.sh [OUT] | --interactive  # downloads finish: one notice each, a click shows the torrent
-scripts/dev/magnet-walk.sh [OUT] | --interactive  # xdg-open a magnet / .torrent: the add sheet, closed, in the tray, duplicate; gio open (D-Bus) while quit; add before the list
+scripts/dev/magnet-walk.sh [OUT] | --interactive  # xdg-open a magnet / .torrent: the add sheet, closed, in the tray, duplicate; gio open (D-Bus) while quit; adds from outside where you are (the add window on your workspace, the main window unmoved, the notice; show it; under the menu; joined on another workspace); add before the list
 scripts/dev/actions-walk.sh [OUT] | --interactive # renames, categories, tags, auto-TMM, set location, the action bar (its category and tags lists), outcome strip, mouse picks, delete, skipped files on disk: checked on server and disk (OMASEED_ACTIONS_WALK_FROM=disk)
 scripts/dev/settings-walk.sh [OUT] | --interactive  # Appearance › Skin (Omarchy, Console, following a fixture console-skin.json in the box), then the qBittorrent settings pane on a box-owned qBittorrent: sections, switches, Web UI port and API key confirms
 scripts/dev/servers-walk.sh [OUT] | --interactive # two qBittorrents: first run, add, switch three ways, an action each side, remove
