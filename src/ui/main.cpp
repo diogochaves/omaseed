@@ -587,25 +587,31 @@ int main(int argc, char *argv[])
     // activation, if none) to the running process over D-Bus (org.freedesktop.Application) —
     // or a QLocalServer when the session bus is unreachable — and exits here, before any QML
     // engine or window is created. The URIs this very process was started with travel the
-    // same openRequested() path, so there is exactly one place that logs a URI and raises the
-    // window (wired up below, once that window exists).
+    // same openRequested() path, so there is exactly one place that logs a URI; App routes
+    // it (wired up below, once App exists).
     auto *singleInstance = new omaseed::integration::SingleInstance(&app);
     QWindow *window = nullptr;
-    auto raiseWindow = [&window](omaseed::integration::SingleInstance *instance) {
-        if (!window)
-            return;
-        // Best-effort Wayland focus hand-off: Qt 6.11 has no public API to apply an XDG
-        // activation token to an already-mapped window, so this only helps on platforms
-        // where requestActivate() alone is enough (notably X11); on Wayland compositors
-        // that require a fresh token per activation, the window still raises but may not
-        // receive focus until the user clicks it.
+    // Best-effort Wayland focus hand-off: Qt 6.11 has no public API to apply an XDG
+    // activation token to an already-mapped window, so this only helps on platforms where
+    // requestActivate() alone is enough (notably X11); on Wayland compositors that require a
+    // fresh token per activation, the window still raises but may not receive focus until
+    // the user clicks it. A hand-off applies it too, for whichever window it maps.
+    auto applyActivationToken = [](omaseed::integration::SingleInstance *instance) {
         const QString token = instance->takeLastActivationToken();
         if (!token.isEmpty())
             qputenv("XDG_ACTIVATION_TOKEN", token.toUtf8());
+    };
+    auto raiseWindow = [&window,
+                        applyActivationToken](omaseed::integration::SingleInstance *instance) {
+        if (!window)
+            return;
+        applyActivationToken(instance);
         window->show();
         window->raise();
         window->requestActivate();
     };
+    // A plain activation (a second launch with no URI, the launcher, a dock) still raises.
+    // docs/DECISIONS.md C35: a hand-off with URIs no longer does; App decides where it opens.
     QObject::connect(singleInstance,
                      &omaseed::integration::SingleInstance::activateRequested,
                      &app,
@@ -613,10 +619,10 @@ int main(int argc, char *argv[])
     QObject::connect(singleInstance,
                      &omaseed::integration::SingleInstance::openRequested,
                      &app,
-                     [singleInstance, raiseWindow](const QStringList &openedUris) {
+                     [singleInstance, applyActivationToken](const QStringList &openedUris) {
                          for (const QString &uri : openedUris)
                              qInfo().noquote() << QStringLiteral("uri: %1").arg(uri);
-                         raiseWindow(singleInstance);
+                         applyActivationToken(singleInstance);
                      });
     // A `--demo` run never receives URIs and must never take the name: two agents' demos
     // (and a demo beside a real omaseed) have to coexist on one session bus.
@@ -796,15 +802,25 @@ int main(int argc, char *argv[])
     // --- T4.2: add flow ---
     // The URI hand-off. `SingleInstance` emits openRequested for the URIs this process was
     // started with as well as for every one a second launch forwards, always through a queued
-    // singleShot, so connecting here — after the App exists — still catches our own argv. QML
-    // picks them up as `App.addUrisRequested` and queues them into the add sheet.
-    QObject::connect(
-        singleInstance,
-        &omaseed::integration::SingleInstance::openRequested,
-        &omaseedApp,
-        [&omaseedApp](const QStringList &openedUris) { omaseedApp.openUris(openedUris); });
-    // `App::addRequested` (the tray, the hero's `+`, `a`) no longer needs a log line here:
-    // MainView opens `Views/AddSheet.qml` on it.
+    // singleShot, so connecting here — after the App exists — still catches our own argv.
+    // docs/DECISIONS.md C35: App::requestAdd decides where they open (the add window where
+    // the user is, or the main window's sheet) and whether the main window comes up.
+    QObject::connect(singleInstance,
+                     &omaseed::integration::SingleInstance::openRequested,
+                     &omaseedApp,
+                     [&omaseedApp](const QStringList &openedUris, bool atLaunch) {
+                         omaseedApp.requestAdd(openedUris,
+                                               atLaunch ? omaseed::app::AddSource::Startup
+                                                        : omaseed::app::AddSource::Handoff);
+                     });
+    // C35 W2: "the main window had focus just before" is read from its focus over time.
+    if (rootWindow) {
+        omaseedApp.setMainWindowActive(rootWindow->isActive());
+        QObject::connect(
+            rootWindow, &QWindow::activeChanged, &omaseedApp, [&omaseedApp, rootWindow]() {
+                omaseedApp.setMainWindowActive(rootWindow->isActive());
+            });
+    }
     // --- end T4.2 ---
 
     // #12: the bar widget's status file (plugin/STATUS.md). A real launch only: a demo must

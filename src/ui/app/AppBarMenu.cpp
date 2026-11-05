@@ -51,8 +51,9 @@ void App::setUpBarMenu()
         m_barMenu, &BarMenu::serverChosen, this, [this](const QString &id) { switchServer(id); });
     connect(m_barMenu, &BarMenu::triggered, this, [this](const QString &id) {
         if (id == QLatin1String("add")) {
-            Q_EMIT raiseRequested();
-            Q_EMIT addRequested();
+            // docs/DECISIONS.md C35 (amends C13): the add window where the user is, or the
+            // main window when it had focus just before; requestAdd decides and raises.
+            requestAdd({}, AddSource::Menu);
         } else if (id == QLatin1String("alt-speed")) {
             // C36 M9: the tray's and the widget's pick is made outside the window.
             toggleAltSpeed(!m_appMenuInside);

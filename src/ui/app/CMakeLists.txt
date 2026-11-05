@@ -1,6 +1,8 @@
 # omaseed-app: the composition root. Pure C++ (no QML), so the executable and the tests can
 # both build the whole app object graph and drive it.
 qt_add_library(omaseed-app STATIC
+    AddRoute.cpp
+    AddRoute.hpp
     App.cpp
     App.hpp
     AppBarMenu.cpp

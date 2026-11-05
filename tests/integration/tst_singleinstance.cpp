@@ -141,6 +141,7 @@ void TestSingleInstance::secondInstanceForwardsOpenToThePrimary()
     QVERIFY(openSpy.count() > 0 || openSpy.wait(2000));
     QCOMPARE(openSpy.count(), 1);
     QCOMPARE(openSpy.constFirst().constFirst().toStringList(), uris);
+    QCOMPARE(openSpy.constFirst().at(1).toBool(), false); // a hand-off (DECISIONS C35)
 }
 
 void TestSingleInstance::secondInstanceWithNoUrisSendsActivate()
@@ -165,10 +166,12 @@ void TestSingleInstance::primaryForwardsItsOwnUris()
     QVERIFY(primary.start(uris));
 
     // Its own positional URIs travel the same openRequested() path, once the event loop
-    // starts (they are posted with QTimer::singleShot(0)), rather than a separate signal.
+    // starts (they are posted with QTimer::singleShot(0)), rather than a separate signal;
+    // `atLaunch` tells them apart from a hand-off (DECISIONS C35).
     QVERIFY(openSpy.wait(2000));
     QCOMPARE(openSpy.count(), 1);
     QCOMPARE(openSpy.constFirst().constFirst().toStringList(), uris);
+    QCOMPARE(openSpy.constFirst().at(1).toBool(), true);
 }
 
 void TestSingleInstance::themeReloadReachesThePrimaryByName()

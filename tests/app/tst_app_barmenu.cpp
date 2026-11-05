@@ -243,14 +243,16 @@ void TestAppBarMenu::itsRowsReachTheApp()
     App app;
     app.startDemo(4);
     BarMenu *menu = app.barMenu();
-    QSignalSpy add(&app, &App::addRequested);
+    QSignalSpy add(&app, &App::addWindowRequested);
     QSignalSpy raise(&app, &App::raiseRequested);
     QSignalSpy settings(&app, &App::openSettings);
     QSignalSpy quit(&app, &App::quitRequested);
 
+    // DECISIONS C35: the main window never had focus, so the add window opens where the user
+    // is and the main window stays put. Every route: tst_addroute.
     QVERIFY(menu->invoke(QStringLiteral("add")));
     QCOMPARE(add.size(), 1);
-    QCOMPARE(raise.size(), 1); // the window comes up for the sheet, from the tray or the bar
+    QCOMPARE(raise.size(), 0);
     QVERIFY(menu->invoke(QStringLiteral("settings")));
     QCOMPARE(settings.size(), 1);
     QVERIFY(menu->invoke(QStringLiteral("alt-speed")));

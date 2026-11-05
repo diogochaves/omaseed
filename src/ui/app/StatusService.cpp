@@ -363,12 +363,9 @@ QString StatusService::rememberedCategory()
 
 void StatusService::openAddSheet(const QStringList &sources)
 {
-    Q_EMIT raiseRequested();
-    // Nothing ticked: the sheet as `a` opens it (and an open one looks at Downloads again).
-    if (sources.isEmpty())
-        Q_EMIT m_app->addRequested();
-    else
-        m_app->openUris(sources);
+    // docs/DECISIONS.md C35: where the add opens (and whether the main window comes up) is
+    // App's call, as for the menu's add. Nothing ticked: the blank sheet, as `a` opens it.
+    m_app->requestAdd(sources, AddSource::Bus);
 }
 
 void StatusService::showTorrent(const QString &hash)

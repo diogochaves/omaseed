@@ -157,6 +157,12 @@ omaseed_add_test(tst_statusservice
     DEFINES OMASEED_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../fixtures"
 )
 
+# #218 (DECISIONS C35 W1, W2, W6): where an add from outside the window opens, and the raise.
+omaseed_add_test(tst_addroute
+    SOURCES tst_addroute.cpp
+    LIBRARIES omaseed::app omaseed::core omaseed::integration
+)
+
 # #13: AddSources and the alt-speed calls against the :8081 playground (skips without it).
 omaseed_add_test(tst_statusservice_live LIVE
     SOURCES tst_statusservice_live.cpp

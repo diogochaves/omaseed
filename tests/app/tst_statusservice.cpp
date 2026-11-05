@@ -411,7 +411,9 @@ void TestStatusService::openAddSheetRaisesTheWindowAndQueuesTheSources()
 {
     App app;
     StatusService service(&app);
-    QSignalSpy raised(&service, &StatusService::raiseRequested);
+    // No server yet: first run, so the main window comes up and holds the add (DECISIONS
+    // C35 W6); App raises it now, not the service. The other routes: tst_addroute.
+    QSignalSpy raised(&app, &App::raiseRequested);
     QSignalSpy queued(&app, &App::addUrisRequested);
     const QString magnet = magnetFor(QString::fromLatin1(kFixtureHash));
     service.openAddSheet({magnet, QStringLiteral("file:///tmp/a%20b.torrent")});

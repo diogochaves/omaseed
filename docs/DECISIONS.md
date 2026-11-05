@@ -1945,7 +1945,9 @@ tray, the window came back on the current workspace but tiled, squeezing the use
 Settled 2026-11-05, at #217's first step (the board was silent): in the add window, the
 server palette's "manage…" opens Settings in the main window, raising it on purpose as "show
 it" does; the sheet's one-server note stays at its foot; an add started from search is made
-inside the window, so it stays there (W2).
+inside the window, so it stays there (W2). Settled at #218 (the board was silent): the URIs
+omaseed is launched with open in the main window, which maps fresh where the user is anyway,
+and it comes up for them even when launched `--hidden`.
 
 ## C36 — Torrents in the Omarchy menu (board 53, ruled 2026-11-05)
 

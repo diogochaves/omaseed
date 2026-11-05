@@ -67,7 +67,8 @@ public:
     static QString rememberedCategory();
 
 Q_SIGNALS:
-    /// The window should come up (OpenAddSheet): main.cpp raises it.
+    /// The window should come up (ShowTorrent with no hash): main.cpp raises it. OpenAddSheet
+    /// no longer raises here: App::requestAdd decides (docs/DECISIONS.md C35).
     void raiseRequested();
     /// AddSources wrote the category it used to state.json ("widgetAdd" › "category"):
     /// main.cpp has the StatusWriter read it again.

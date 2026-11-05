@@ -73,6 +73,7 @@
 #include "integration/BarMenu.hpp"
 #include "integration/BarWidget.hpp"
 #include "integration/Tray.hpp"
+#include "ui/app/AddRoute.hpp"
 #include "ui/app/MoveController.hpp"
 
 #include <QDate>
@@ -235,7 +236,9 @@ Q_SIGNALS:
     /// Raised by the tray menu, the hero's gear, `,` and a notice's "settings". MainView opens
     /// the settings modal on it; main.cpp brings the window up.
     void openSettings();
-    /// Raised by the tray menu, the hero's `+` and `a`. MainView opens the add sheet.
+    /// The add sheet in the main window, blank: the hero's `+`, `a` and "+ add" from inside
+    /// it, and `requestAdd`'s `main` route for the shared menu and the bus (C35 W2, W6).
+    /// MainView opens the sheet (or holds it during first run).
     void addRequested();
 
 private:
@@ -254,6 +257,13 @@ private:
 
     QPointer<omaseed::integration::Tray> m_tray;
     QPointer<QWindow> m_dialogParent;
+
+    /// C35 W2 (requestAdd): the main window's focus now, and when it last lost it (-1: never
+    /// had it), on m_addClock.
+    bool m_mainActive = false;
+    qint64 m_mainInactiveSinceMs = -1;
+    std::function<qint64()> m_addClock;
+    qint64 addClockNow() const;
 
     omaseed::core::Server m_server;
     bool m_hasServer = false;
@@ -1183,8 +1193,21 @@ public:
     Q_INVOKABLE QVariantMap freeSpaceFor(const QString &savePath) const;
     int freeSpaceRevision() const { return m_freeSpaceRevision; }
 
-    /// The URI hand-off: this process's own argv and every `SingleInstance::openRequested`
-    /// from a second launch. Re-emitted as `addUrisRequested` for the sheet to queue.
+    /// docs/DECISIONS.md C35: the one entry for an add from outside the window (a hand-off,
+    /// this process's own URIs, the shared menu's add, the Status bus's OpenAddSheet). Asks
+    /// AddRoute where it opens: `main` emits `addRequested` (no URIs) or, through `openUris`,
+    /// `addUrisRequested`; `window` emits `addWindowRequested`. `raiseRequested` goes first,
+    /// only when the route says the main window comes up (first run, a launch's own URIs).
+    /// Adds made inside the window never come here.
+    void requestAdd(const QStringList &uris, omaseed::app::AddSource source);
+    /// The main window's focus, from `QWindow::activeChanged` (main.cpp): C35 W2's "had focus
+    /// just before" is read from it, with when it last lost focus.
+    void setMainWindowActive(bool active);
+    /// A test seam: the steady clock `requestAdd` and `setMainWindowActive` read, in ms.
+    void setAddClock(std::function<qint64()> clock) { m_addClock = std::move(clock); }
+
+    /// The add sheet in the main window, for these URIs: re-emitted as `addUrisRequested`
+    /// with file:// URIs made paths. `requestAdd`'s `main` route.
     void openUris(const QStringList &uris);
 
 Q_SIGNALS:
@@ -1194,6 +1217,9 @@ Q_SIGNALS:
     void addableParsed(QVariantMap result);
     /// `openUris` reached QML: the first one opens the sheet, the rest queue behind it.
     void addUrisRequested(QStringList uris);
+    /// docs/DECISIONS.md C35 W1: an add from outside opens in the add window, where the user
+    /// is, with these URIs (file:// URIs made paths), or the blank sheet when empty.
+    void addWindowRequested(QStringList uris);
     /// `ok` false: `message` is what the sheet prints in red while staying open. `ok` true:
     /// `hash` is the new torrent's infohash, or empty when the source did not say.
     void addFinished(bool ok, QString message, QString hash);
@@ -2100,8 +2126,8 @@ public:
 Q_SIGNALS:
     void inTheBarChanged();
     void appMenuRowsChanged();
-    /// The menu's "add torrent…" from the tray or the widget: main.cpp brings the window up
-    /// (MainView opens the sheet on addRequested).
+    /// main.cpp brings the main window up: `requestAdd` when its route says so (first run,
+    /// a launch's own URIs; C35), a move's or a creation's notice, a move's ask before quit.
     void raiseRequested();
     /// The menu's "quit": main.cpp quits, queued, so a D-Bus caller still gets its answer.
     void quitRequested();

@@ -3162,19 +3162,67 @@ void App::refreshDownloadsInLibrary()
         Q_EMIT downloadsTorrentsChanged();
 }
 
-void App::openUris(const QStringList &uris)
+namespace {
+
+/// A file manager hands over file:// URIs (%U), percent-encoded; the sheet's field shows the
+/// path as a person reads it, and the parse takes either.
+QStringList readableUris(const QStringList &uris)
 {
-    if (uris.isEmpty())
-        return;
-    // A file manager hands over file:// URIs (%U), percent-encoded; the sheet's field shows
-    // the path as a person reads it, and the parse takes either.
     QStringList readable;
     readable.reserve(uris.size());
     for (const QString &uri : uris) {
         const QUrl url(uri);
         readable.append(url.isLocalFile() ? url.toLocalFile() : uri);
     }
-    Q_EMIT addUrisRequested(readable);
+    return readable;
+}
+
+} // namespace
+
+void App::openUris(const QStringList &uris)
+{
+    if (uris.isEmpty())
+        return;
+    Q_EMIT addUrisRequested(readableUris(uris));
+}
+
+qint64 App::addClockNow() const
+{
+    if (m_addClock)
+        return m_addClock();
+    return std::chrono::duration_cast<std::chrono::milliseconds>(
+               std::chrono::steady_clock::now().time_since_epoch())
+        .count();
+}
+
+void App::setMainWindowActive(bool active)
+{
+    if (m_mainActive && !active)
+        m_mainInactiveSinceMs = addClockNow();
+    m_mainActive = active;
+}
+
+void App::requestAdd(const QStringList &uris, AddSource source)
+{
+    const qint64 since = m_mainInactiveSinceMs < 0 ? -1 : addClockNow() - m_mainInactiveSinceMs;
+    // C35 W6: first run is the test MainView latches its first-run page on.
+    const bool firstRun = !m_hasServer && !m_demoMode;
+    const AddRouting routing = routeAdd(source, firstRun, m_mainActive, since);
+    const bool toMain = routing.route == AddRoute::Main;
+    qInfo().noquote() << QStringLiteral("add from %1 (%2 source(s)): %3%4")
+                             .arg(addSourceName(source))
+                             .arg(uris.size())
+                             .arg(toMain ? QStringLiteral("main window")
+                                         : QStringLiteral("add window"),
+                                  routing.raise ? QStringLiteral(", raised") : QString());
+    if (routing.raise)
+        Q_EMIT raiseRequested();
+    if (!toMain)
+        Q_EMIT addWindowRequested(readableUris(uris));
+    else if (uris.isEmpty())
+        Q_EMIT addRequested();
+    else
+        openUris(uris);
 }
 // --- end T4.2 -----------------------------------------------------------------------------------
 

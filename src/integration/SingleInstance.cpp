@@ -174,7 +174,7 @@ void SingleInstance::deliverOwnUris(const QStringList &uris)
 {
     if (uris.isEmpty())
         return;
-    QTimer::singleShot(0, this, [this, uris]() { emit openRequested(uris); });
+    QTimer::singleShot(0, this, [this, uris]() { emit openRequested(uris, true); });
 }
 
 bool SingleInstance::becomePrimaryOnBus(const QString &connectionName, const QStringList &uris)
@@ -474,7 +474,7 @@ void SingleInstance::handleActivateAction(const QString &name, const QVariantMap
 void SingleInstance::handleOpen(const QStringList &uris, const QVariantMap &platformData)
 {
     m_lastActivationToken = activationTokenFrom(platformData);
-    emit openRequested(uris);
+    emit openRequested(uris, false);
 }
 
 QString SingleInstance::takeLastActivationToken()
