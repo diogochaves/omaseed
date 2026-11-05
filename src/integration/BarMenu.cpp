@@ -120,6 +120,14 @@ void BarMenu::setPauseHeld(bool held)
     Q_EMIT changed();
 }
 
+void BarMenu::setPauseBusy(bool busy)
+{
+    if (m_pauseBusy == busy)
+        return;
+    m_pauseBusy = busy;
+    Q_EMIT changed();
+}
+
 QList<BarMenu::Row> BarMenu::rows() const
 {
     QList<Row> out;
@@ -152,13 +160,15 @@ QList<BarMenu::Row> BarMenu::rows() const
     alt.checked = m_altOn;
     out.append(alt);
     // board 33 §11 change 1: rows of the menu, never buttons; no per-torrent start or stop.
-    // DECISIONS C36 M10: one row, Pause Torrents, or Resume Torrents while a pause is held.
+    // DECISIONS C36 M10: one row, Pause Torrents, or Resume Torrents while a pause is held;
+    // off while one is on its way, so it can't be picked into a refusal.
+    const bool pauseOn = m_answering && !m_pauseBusy;
     if (m_pauseHeld)
         out.append(action(
-            QStringLiteral("resume"), tr("resume torrents"), tr("Resume Torrents"), m_answering));
+            QStringLiteral("resume"), tr("resume torrents"), tr("Resume Torrents"), pauseOn));
     else
-        out.append(action(
-            QStringLiteral("pause"), tr("pause torrents"), tr("Pause Torrents"), m_answering));
+        out.append(
+            action(QStringLiteral("pause"), tr("pause torrents"), tr("Pause Torrents"), pauseOn));
     out.append(separator(QStringLiteral("separator:actions")));
     out.append(action(QStringLiteral("add"), tr("add torrent…"), tr("Add Torrent…"), true));
     out.append(action(QStringLiteral("settings"), tr("settings…"), tr("omaseed Settings…"), true));
@@ -216,9 +226,9 @@ bool BarMenu::invoke(const QString &id)
     }
     const QString canonical = canonicalId(id);
     // C36 M10: pause whichever row shows (a second one adds what runs now), resume only
-    // while a pause is held; both need a server that answers.
+    // while a pause is held; both need a server that answers and none on its way.
     if (canonical == QLatin1String("pause") || canonical == QLatin1String("resume")) {
-        if (!m_answering || (canonical == QLatin1String("resume") && !m_pauseHeld))
+        if (!m_answering || m_pauseBusy || (canonical == QLatin1String("resume") && !m_pauseHeld))
             return false;
         Q_EMIT triggered(canonical);
         return true;

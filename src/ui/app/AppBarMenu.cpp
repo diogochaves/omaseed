@@ -77,7 +77,8 @@ void App::setUpBarMenu()
     connect(m_serverList, &QAbstractItemModel::rowsRemoved, this, &App::updateBarMenu);
     connect(this, &App::serverChanged, this, &App::updateBarMenu);
     connect(this, &App::serverStateChanged, this, &App::updateBarMenu);
-    // C36 M10: the row says Resume Torrents while the current server holds a pause.
+    // C36 M10: the row says Resume Torrents while the current server holds a pause, and is
+    // off while a pause or a resume is on its way.
     connect(m_pauseHold, &PauseHold::changed, this, &App::updateBarMenu);
 
     // D25: the choice reads from the widget being in the bar and the tray icon mode.
@@ -146,6 +147,7 @@ void App::updateBarMenu()
         title = label.at(0).toUpper() + label.mid(1);
     m_barMenu->setAltSpeed(state->useAltSpeedLimits(), label, title);
     m_barMenu->setPauseHeld(m_pauseHold->held());
+    m_barMenu->setPauseBusy(m_pauseHold->busy());
     m_barMenu->setServerAnswering(m_demoMode ||
                                   (m_hasServer && state->connected() && !m_serverLost));
 }

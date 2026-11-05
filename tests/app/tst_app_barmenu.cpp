@@ -28,6 +28,7 @@
 #include <QUrlQuery>
 
 #include <chrono>
+#include <functional>
 #include <memory>
 
 using omaseed::app::App;
@@ -56,6 +57,10 @@ public:
     QStringList stops;
     QStringList starts;
     QStringList forced;
+    /// While true, a stop is taken (the torrents stop) but its answer waits for `answerStop`,
+    /// as a slow server's would.
+    bool holdStopAnswer = false;
+    std::function<void()> answerStop;
 
     static QString hash(const QString &name) { return name.repeated(40); }
 
@@ -120,6 +125,14 @@ protected:
                 stops << picked.join(u',');
                 for (const QString &name : picked)
                     state.insert(name, QStringLiteral("stoppedUP"));
+                if (holdStopAnswer) {
+                    answerStop = [socket]() {
+                        socket->write("HTTP/1.1 200 OK\r\nContent-Length: 3\r\n"
+                                      "Connection: close\r\n\r\nOk.");
+                        socket->disconnectFromHost();
+                    };
+                    return;
+                }
             } else if (target.startsWith("/api/v2/torrents/start")) {
                 const QStringList picked = names(form.queryItemValue(QStringLiteral("hashes")));
                 starts << picked.join(u',');
@@ -288,11 +301,23 @@ void TestAppBarMenu::pauseHoldsWhatRanAndResumeStartsOnlyThat()
     QCOMPARE(rowId(), QStringLiteral("pause"));
     QVERIFY(!app.pauseHold()->server().isEmpty());
 
+    server.holdStopAnswer = true;
     QVERIFY(app.invokeAppMenu(QStringLiteral("pause")));
-    QTRY_COMPARE_WITH_TIMEOUT(rowId(), QStringLiteral("resume"), 5000);
+    // On its way: the row is off, and a second pick is refused rather than sent.
+    QVERIFY(app.pauseHold()->busy());
+    QVERIFY(!menu->rows().at(1).enabled);
+    QVERIFY(!app.invokeAppMenu(QStringLiteral("pause")));
     QTRY_COMPARE_WITH_TIMEOUT(server.stops, QStringList{QStringLiteral("a,b")}, 5000);
-    // The server has the stop before omaseed has its answer; a resume waits for it.
+    // The server has the stop before omaseed has its answer: the row reads Resume from the
+    // hold, but stays off, and a resume is not taken, until the answer comes.
+    QCOMPARE(rowId(), QStringLiteral("resume"));
+    QVERIFY(app.pauseHold()->busy());
+    QVERIFY(!menu->rows().at(1).enabled);
+    QVERIFY(!menu->invoke(QStringLiteral("resume")));
+    QVERIFY(server.answerStop);
+    server.answerStop();
     QTRY_VERIFY_WITH_TIMEOUT(!app.pauseHold()->busy(), 5000);
+    QVERIFY(menu->rows().at(1).enabled);
     QCOMPARE(menu->rows().at(1).label, QStringLiteral("resume torrents"));
     // Held in state.json, under the server it was paused on.
     const QJsonObject held = omaseed::core::StateFile::readSection(QStringLiteral("pauseHold"))
@@ -302,9 +327,11 @@ void TestAppBarMenu::pauseHoldsWhatRanAndResumeStartsOnlyThat()
     QCOMPARE(held.value(QStringLiteral("forced")).toArray(),
              QJsonArray{PauseServer::hash(QStringLiteral("b"))});
 
-    // C13's old id still reaches it.
+    // C13's old id still reaches it; the resume's start on its way turns the row off too.
     QVERIFY(menu->invoke(QStringLiteral("start-all")));
+    QVERIFY(!menu->rows().at(1).enabled);
     QTRY_COMPARE_WITH_TIMEOUT(rowId(), QStringLiteral("pause"), 5000);
+    QTRY_VERIFY_WITH_TIMEOUT(menu->rows().at(1).enabled, 5000);
     QCOMPARE(server.starts, QStringList{QStringLiteral("a")});
     QCOMPARE(server.forced, QStringList{QStringLiteral("b")});
     QCOMPARE(server.state.value(QStringLiteral("c")), QStringLiteral("stoppedDL"));

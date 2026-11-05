@@ -283,6 +283,21 @@ void TestBarMenu::pauseTurnsIntoResumeWhileHeld()
     menu.setPauseHeld(false);
     QCOMPARE(menu.rows().at(1).id, QStringLiteral("pause"));
     QCOMPARE(BarMenu::canonicalId(QStringLiteral("add")), QStringLiteral("add"));
+
+    // While a pause or a resume is on its way the row is off and neither is taken: the row
+    // reads Resume as soon as the hold is recorded, before the stop is answered.
+    menu.setPauseHeld(true);
+    menu.setPauseBusy(true);
+    QCOMPARE(menu.rows().at(1).id, QStringLiteral("resume"));
+    QVERIFY(!menu.rows().at(1).enabled);
+    QVERIFY(!menu.invoke(QStringLiteral("resume")));
+    QVERIFY(!menu.invoke(QStringLiteral("pause")));
+    QVERIFY(!menu.invoke(QStringLiteral("start-all")));
+    QCOMPARE(triggered.size(), 3);
+    menu.setPauseBusy(false);
+    QVERIFY(menu.rows().at(1).enabled);
+    QVERIFY(menu.invoke(QStringLiteral("resume")));
+    QCOMPARE(triggered.size(), 4);
 }
 
 void TestBarMenu::changedOnlyWhenSomethingMoved()

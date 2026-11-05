@@ -34,9 +34,12 @@
 // held, and answers `triggered` and `serverChosen`.
 //
 // `invoke` takes `pause` whichever row shows (a second pause adds what runs now, PauseHold)
-// and `resume` only while a pause is held. `stop-all` and `start-all`, the ids the menu had
-// before C36 M10 and STATUS.md documented, are kept as aliases of `pause` and `resume`, so a
-// script written against them keeps working; `triggered` carries the new id.
+// and `resume` only while a pause is held. While a pause or a resume is still on its way the
+// row is off and neither is taken: the row turns to Resume as soon as the hold is recorded,
+// before the stop is answered, and a resume then would only be refused. `stop-all` and
+// `start-all`, the ids the menu had before C36 M10 and STATUS.md documented, are kept as
+// aliases of `pause` and `resume`, so a script written against them keeps working;
+// `triggered` carries the new id.
 
 #include <QJsonArray>
 #include <QList>
@@ -106,6 +109,8 @@ public:
     void setServerAnswering(bool answering);
     /// A pause is held on the current server: the row offers Resume Torrents (C36 M10).
     void setPauseHeld(bool held);
+    /// A pause or a resume is on its way (PauseHold::busy): the row is off until it ends.
+    void setPauseBusy(bool busy);
 
     // --- what the tray and the status file read -------------------------------------------
     QList<Row> rows() const;
@@ -135,6 +140,7 @@ private:
     QString m_altTitle;
     bool m_answering = false;
     bool m_pauseHeld = false;
+    bool m_pauseBusy = false;
 };
 
 } // namespace omaseed::integration
