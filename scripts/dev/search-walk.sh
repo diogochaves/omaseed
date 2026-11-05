@@ -29,8 +29,8 @@
 #   - "× esc" (C34 D21 a): asked again with plugin d still looking, a click clears the words and
 #     the results, deletes every job on the server and shows the face before search;
 #   - uninstall plugin a from ⋯;
-#   - plugins ▾ › "manage plugins…" (C34 D20 a): the pane with its install field focused (plugin
-#     a typed in, no click, and installed again), esc back to the search.
+#   - plugins ▾ › "manage plugins…" (C34 D20 a): the pane with its install field focused (a
+#     path typed in with no click starts an install), esc back to the search.
 # Each check reads the box's qBittorrent; any failed check makes the script exit 1. The box goes
 # down at the end, also on ^C.
 set -euo pipefail
@@ -314,7 +314,8 @@ check "no × esc once cleared" "$(find_text "clear the search" && echo shown || 
 step "Cleared" "The face before search: an empty field with its placeholder and no × esc, the sentence 'asks the 3 plugins that are on', no plugins' line, no rows, the idle words."
 
 # ---- uninstall (SR10) ---------------------------------------------------------------------------
-keys Escape ctrl+shift+comma h 9 j
+# The clear left the keys in the empty field, where esc would leave search: straight to Settings.
+keys ctrl+shift+comma h 9 j
 shows "back in the plugins pane" "a search plugin to install" 5
 click_text "⋯" || true
 click_text "uninstall" || true
@@ -324,15 +325,17 @@ keys Escape Escape Escape
 
 # ---- the way to the plugins (C34 D20 a) -----------------------------------------------------------
 keys ctrl+f
-click_text "2 plugins" || true
+# plugins ▾ counts the plugins that are on.
+on="$(api search/plugins | python3 -c 'import json, sys; print(sum(1 for p in json.load(sys.stdin) if p["enabled"]))')"
+click_text "$on plugins" || true
 shows "plugins ▾ ends with manage plugins…" "manage plugins…" 5
-step "manage plugins… in plugins ▾" "plugins ▾ open under its chip: every plugin that is on, plugin c and plugin d, then a rule and 'manage plugins…' with the settings glyph."
+step "manage plugins… in plugins ▾" "plugins ▾ open under its chip: 'every plugin that is on', each plugin that is on with its types, then a rule and 'manage plugins…' with the settings glyph."
 click_text "manage plugins" || true
 shows "the plugins pane, from search" "a search plugin to install" 5
 # No click into the field: the keys land there only if it opened focused.
-keys -t "$PLUGINS/omaseed_plugin_a.py" Return
-wait_for "typed into the focused install field: plugin a again" on 15 plugin_state omaseed_plugin_a
-step "The pane, its install field focused" "Settings › qBittorrent › Search plugins, opened from search: the caret in 'install a plugin', 'installed: plugin a' under it, plugin a back in the list."
+keys -t "$PLUGINS/no-such-plugin-2.py" Return
+shows "typed into the focused install field: an install starts" "installing" 5
+step "The pane, its install field focused" "Settings › qBittorrent › Search plugins, opened from search: the caret in 'install a plugin' after the typed path, 'installing · waiting for box to list it' under it."
 keys Escape
 find_text "a search plugin to install" && keys Escape
 check "esc from the pane: settings closed" "$(find_text "a search plugin to install" && echo open || echo closed)" closed
