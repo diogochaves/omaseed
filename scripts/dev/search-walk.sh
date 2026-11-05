@@ -26,7 +26,11 @@
 #   - a .torrent link: the add sheet fetches it through its plugin (`downloader`), its files
 #     listed; add; it arrives;
 #   - hide dead; `/` filters the rows; plugin d (slow): "still looking" past 30 s, stop asking;
-#   - uninstall plugin a from ⋯.
+#   - "× esc" (C34 D21 a): asked again with plugin d still looking, a click clears the words and
+#     the results, deletes every job on the server and shows the face before search;
+#   - uninstall plugin a from ⋯;
+#   - plugins ▾ › "manage plugins…" (C34 D20 a): the pane with its install field focused (plugin
+#     a typed in, no click, and installed again), esc back to the search.
 # Each check reads the box's qBittorrent; any failed check makes the script exit 1. The box goes
 # down at the end, also on ^C.
 set -euo pipefail
@@ -68,6 +72,11 @@ for p in json.load(sys.stdin) or []:
         print("on" if p["enabled"] else "off"); break
 else:
     print("none")' "$1" 2>/dev/null || echo none
+}
+
+# job_count: how many search jobs the box's qBittorrent holds, running or not.
+job_count() {
+    api search/status | python3 -c 'import json, sys; print(len(json.load(sys.stdin)))'
 }
 
 # torrent FIELD NAME: a field of the box's torrent called NAME, "" when it isn't there. By name:
@@ -291,6 +300,19 @@ click_text "stop asking" || true
 running="$(api search/status | python3 -c 'import json, sys; print(sum(1 for j in json.load(sys.stdin) if j["status"] == "Running"))')"
 check "stop asking stopped its job" "$running" 0
 
+# ---- clearing (C34 D21 a) -----------------------------------------------------------------------
+keys ctrl+f -t "sampler" Return
+shows "asked again" "Public Domain Sampler" 15
+running="$(api search/status | python3 -c 'import json, sys; print(sum(1 for j in json.load(sys.stdin) if j["status"] == "Running"))')"
+check "plugin d still asking before the clear" "$running" 1
+shows "× esc while there are results" "clear the search" 5
+step "× esc at the field's end" "The field holds 'sampler' and ends in a '× esc' cap, as the title bar's filter; the rows of this search; plugin d still looking."
+click_text "clear the search" || true
+shows "the face before search" "Type what you are looking for" 5
+wait_for "the clear deleted every job on the server" 0 10 job_count
+check "no × esc once cleared" "$(find_text "clear the search" && echo shown || echo gone)" gone
+step "Cleared" "The face before search: an empty field with its placeholder and no × esc, the sentence 'asks the 3 plugins that are on', no plugins' line, no rows, the idle words."
+
 # ---- uninstall (SR10) ---------------------------------------------------------------------------
 keys Escape ctrl+shift+comma h 9 j
 shows "back in the plugins pane" "a search plugin to install" 5
@@ -299,6 +321,23 @@ click_text "uninstall" || true
 wait_for "plugin a uninstalled" none 10 plugin_state omaseed_plugin_a
 step "Plugin a uninstalled" "The list without plugin a: plugin b (off, its line 'turned off · it failed in the last search, HH:MM'), plugin c and plugin d."
 keys Escape Escape Escape
+
+# ---- the way to the plugins (C34 D20 a) -----------------------------------------------------------
+keys ctrl+f
+click_text "2 plugins" || true
+shows "plugins ▾ ends with manage plugins…" "manage plugins…" 5
+step "manage plugins… in plugins ▾" "plugins ▾ open under its chip: every plugin that is on, plugin c and plugin d, then a rule and 'manage plugins…' with the settings glyph."
+click_text "manage plugins" || true
+shows "the plugins pane, from search" "a search plugin to install" 5
+# No click into the field: the keys land there only if it opened focused.
+keys -t "$PLUGINS/omaseed_plugin_a.py" Return
+wait_for "typed into the focused install field: plugin a again" on 15 plugin_state omaseed_plugin_a
+step "The pane, its install field focused" "Settings › qBittorrent › Search plugins, opened from search: the caret in 'install a plugin', 'installed: plugin a' under it, plugin a back in the list."
+keys Escape
+find_text "a search plugin to install" && keys Escape
+check "esc from the pane: settings closed" "$(find_text "a search plugin to install" && echo open || echo closed)" closed
+shows "esc from the pane: back in search" "Type what you are looking for" 5
+step "Back in the search" "The search face as it was: the empty field focused, the idle words; no Settings."
 
 echo "the box's library at the end:"
 api torrents/info | python3 -c 'import json, sys; [print("  ", t["name"], t["state"]) for t in json.load(sys.stdin)]' || true
