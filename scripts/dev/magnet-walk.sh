@@ -631,10 +631,10 @@ check "show it: its details show $WALK_FILE" \
 step "Show it" "Workspace 1: the main window, as it was, with $WALK_FILE under the cursor and its details on the right; no add window."
 
 # Omarchy's menu (super+space) open over the main window, and a hand-off meanwhile: the add
-# window maps on workspace 1 under the menu, and has the keyboard once the menu closes. #218's
-# AddWindow asks for it again for 2 s after it maps (its activateAgain), so a menu closed
-# within that gets the add window focused; one held longer gives the keyboard back to the
-# main window, and the walk only notes which.
+# window maps on workspace 1 under the menu, and has the keyboard once the menu closes. The
+# AddWindow asks for it again until it has had it once (#218, #230): closing the menu gives the
+# keyboard back to the main window, and the next ask takes it, whether the menu was open a
+# moment or held 3 s, past #218's old 2 s.
 menu_open() { omabox wait -b "$BOX" --timeout 5s layer omarchy-menu >/dev/null 2>&1; }
 menu_closed() { omabox wait -b "$BOX" --timeout 5s layer omarchy-menu --gone >/dev/null 2>&1; }
 keys super+space
@@ -650,14 +650,15 @@ check "menu: still on workspace 1" still_on 1
 check "menu: closing the add window cancels it (W8)" cancel_add
 main_focused || true
 keys super+space
-menu_open || true
+check "menu held: opened over the main window" menu_open
 open_in_box "$(walk_magnet 4 "$WALK-menu-held")"
-add_mapped || true
+check "menu held: a hand-off maps the add window" add_mapped
 omabox wait -b "$BOX" for 3s >/dev/null
+check "menu held 3 s: still open over the add window" menu_open
 keys Escape
-menu_closed || true
-observe "menu held 3 s: the add window has the keyboard once the menu closes (#218's activateAgain asks for 2 s)" \
-    add_focused 3
+check "menu held: closed" menu_closed
+check "menu held 3 s: once closed, the add window has the keyboard (#230)" add_focused 3
+check "menu held: still on workspace 1" still_on 1
 check "menu held: closing the add window cancels it" cancel_add
 
 # In the tray: the add window where the user is, the main window left hidden; then a second
