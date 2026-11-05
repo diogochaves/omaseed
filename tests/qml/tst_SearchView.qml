@@ -313,6 +313,13 @@ TestCase {
         const menu = findChild(view, "searchBarMenu");
         menu.which = "plugins";
         verify(menu.items.every(item => item.action !== "manage"));
+        // Still asking, nothing on the line's right: it keeps its words' height, clear of the
+        // rows.
+        App.loadDemoSearch("one");
+        const left = findChild(view, "searchLineLeft");
+        verify(!findChild(view, "searchDidntAnswer").visible);
+        verify(left.parent.height >= left.height + Theme.searchLineInsetBottom);
+        App.loadDemoSearch("done");
 
         // Folded (ctrl+b, a narrow window): the bar and the line as before, manage plugins… too.
         view.railHolds = false;

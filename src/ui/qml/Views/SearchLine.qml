@@ -105,7 +105,9 @@ Item {
         return Theme.dimForeground;
     }
 
-    implicitHeight: flow.implicitHeight + Theme.searchLineInsetBottom
+    // The left words' height too: with the pills in the rail (C34 D5s a) the right side can be
+    // empty.
+    implicitHeight: Math.max(flow.implicitHeight, left.implicitHeight) + Theme.searchLineInsetBottom
     height: implicitHeight
 
     Text {
