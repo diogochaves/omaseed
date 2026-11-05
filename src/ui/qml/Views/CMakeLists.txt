@@ -101,6 +101,7 @@ qt_add_qml_module(omaseed-views
         Rail.qml
         RailGroup.qml
         RailLogGroups.qml
+        RailSearchGroups.qml
         RenameFilesSheet.qml
         RenameSheet.qml
         RestoreSheet.qml

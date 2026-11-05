@@ -22,9 +22,15 @@ import Omaseed.Kit
 // pane, the rows (the keys back in the field), the words and the results together (the field's
 // "× esc": the plugins still asking stop), then out of search (`leaveRequested`).
 //
-// The way to the plugins (C34 D20 a): plugins ▾ ends with "manage plugins…", which asks the
-// window for Settings › qBittorrent › Search plugins with its install field focused
-// (`pluginsInstallRequested`); esc there comes back here.
+// The rail (C34 D5s a, amending SR2 and SR6): while the window's rail is open (`railHolds`) it
+// holds the plugins, ticked as asked or not with how each answered, the type and this server's
+// recent searches (RailSearchGroups, driven through `toggleAsked`, `pickType`, `askRecent`), so
+// plugins ▾, type ▾ and the line's pills leave; folded, they come back. Recent searches live in
+// `_recentByServer` only, never on disk.
+//
+// The way to the plugins (C34 D20 a): the rail's "install a plugin…" or, folded, plugins ▾'s
+// last row "manage plugins…" ask the window for Settings › qBittorrent › Search plugins with
+// its install field focused (`pluginsInstallRequested`); esc there comes back here.
 FocusScope {
     id: root
 
@@ -44,6 +50,17 @@ FocusScope {
     /// SR6: the plugins asked (names), empty for every plugin that is on; and the type.
     property var pluginPick: []
     property string category: "all"
+    /// DECISIONS C34 D5s a (amending SR2, SR6): the window's rail is open on search and holds
+    /// the plugins, the type and the recent searches (RailSearchGroups), so plugins ▾, type ▾
+    /// and the line's pills leave the bar; folded (ctrl+b, a narrow window), they come back.
+    property bool railHolds: false
+    /// The server the recent searches are of (C34 D5s a: "this server's").
+    property string serverKey: App.serverId
+    /// C34 D5s a: each server's searches this session, newest first, at most `recentMax`. In
+    /// this property only, never in state.json or anywhere else: search words can be private.
+    property var _recentByServer: ({})
+    readonly property int recentMax: 8
+    readonly property var recent: root._recentByServer[root.serverKey] ?? []
     /// The keys are in the rows (else in the bar).
     readonly property bool rowsHaveKeys: rowsKeys.activeFocus
     readonly property alias field: searchBar.field
@@ -137,6 +154,9 @@ FocusScope {
     /// C34 D20 a: the same pane, its install field focused, esc back here ("manage
     /// plugins…"; MainView sends it to SettingsModal.openSearchPluginsInstall()).
     signal pluginsInstallRequested
+    /// C34's accepted call: a plugin turned off in Settings, clicked in the rail: the same pane
+    /// on that plugin's row.
+    signal pluginPaneRequested(string name)
     /// qBittorrent's log, for a plugin's failure (SR2's "the log line").
     signal logRequested
     signal copyRequested(string text, string note)
@@ -181,7 +201,68 @@ FocusScope {
             return;
         root.currentIndex = -1;
         root.paneOpen = false;
+        root._remember(words);
         App.startSearch(words, root.category, root.pluginPick);
+    }
+
+    /// C34 D5s a: the words go to the front of this server's recent searches, once.
+    function _remember(words: string): void {
+        const kept = (root._recentByServer[root.serverKey] ?? []).filter(each => each !== words);
+        const all = Object.assign({}, root._recentByServer);
+        all[root.serverKey] = [words].concat(kept).slice(0, root.recentMax);
+        root._recentByServer = all;
+    }
+
+    /// C34 D5s a: a recent search, clicked in the rail, asked again.
+    function askRecent(words: string): void {
+        searchBar.field.text = words;
+        searchBar.stop = 0;
+        root.ask();
+    }
+
+    /// The plugins that are on, by name.
+    function enabledNames(): var {
+        const names = [];
+        for (let i = 0; i < root.plugins.count; ++i) {
+            const at = root.plugins.index(i, 0);
+            if (root.plugins.data(at, SearchPlugins.EnabledRole))
+                names.push(root.plugins.data(at, SearchPlugins.NameRole));
+        }
+        return names;
+    }
+
+    /// C34 D5s a: whether the next search asks plugin `name` (one that is on): every one while
+    /// nothing is picked, else the pick's.
+    function isAsked(name: string): bool {
+        return root.pluginPick.length === 0 || root.pluginPick.indexOf(name) >= 0;
+    }
+
+    /// C34 D5s a: a plugin's tick in the rail, flipped; a search on show asks again. The last
+    /// plugin ticked stays ticked (assumed: a search asks one plugin at least), and a pick of
+    /// every plugin that is on is no pick.
+    function toggleAsked(name: string): void {
+        const on = root.enabledNames();
+        if (on.indexOf(name) < 0)
+            return;
+        let pick = root.pluginPick.length === 0 ? on.slice() : root.pluginPick.filter(each => on.indexOf(
+                                                                                         each) >= 0);
+        if (pick.indexOf(name) >= 0) {
+            if (pick.length === 1) {
+                root.noteRequested(qsTr("a search asks one plugin at least"));
+                return;
+            }
+            pick = pick.filter(each => each !== name);
+        } else {
+            pick.push(name);
+        }
+        root.pluginPick = pick.length === on.length ? [] : pick;
+        if (root.search.pattern.length > 0)
+            root.ask();
+    }
+
+    /// This search's row for plugin `name` (SearchSession's), or null when it wasn't in it.
+    function answerOf(name: string): var {
+        return root.pluginRows.find(row => row.name === name) ?? null;
     }
 
     /// C34 D21 a: the words and the results go together, the plugins still asking stop, and
@@ -352,6 +433,7 @@ FocusScope {
         order: root.results.order
         pluginPick: root.pluginPick
         plugins: root.plugins
+        railHolds: root.railHolds
         visible: root.emptyKind !== "none"
 
         onAccepted: root.ask()
@@ -380,6 +462,8 @@ FocusScope {
         narrow: root.narrow
         order: root.results.order
         pluginRows: root.pluginRows
+        // C34 D5s a: the pills are the rail's while it is open; the line keeps who didn't answer.
+        pillsShown: !root.railHolds
         results: root.results
         answersHaveCursor: searchBar.answersHaveCursor
         searchState: root.search.state
@@ -699,6 +783,8 @@ FocusScope {
         anchors.fill: parent
         category: root.category
         hideDead: root.results.hideDead
+        // C34 D20 a: with the rail folded; open, "install a plugin…" is at its plugins' foot.
+        manageShown: !root.railHolds
         order: root.results.order
         pluginPick: root.pluginPick
         plugins: root.plugins

@@ -2594,10 +2594,57 @@ TestCase {
         App.loadDemoSearch("off");
     }
 
-    // C34 D20 a: plugins ▾'s "manage plugins…" opens Settings › qBittorrent › Search plugins
-    // with the caret in its install field; esc there goes back to the search, as it was.
+    // C34 D5s a · D20 a: on search the open rail holds the plugins, the type and the recent
+    // searches, and the bar loses plugins ▾ and type ▾; folded (ctrl+b) they come back.
+    // "install a plugin…" at the plugins' foot opens the pane focused; a plugin turned off
+    // opens it on that plugin.
+    function test_the_search_rail() {
+        App.loadDemoSearch("done");
+        keyClick(Qt.Key_F, Qt.ControlModifier);
+        const search = findChild(view, "searchView");
+        verify(view.rail.searchGroupsShown);
+        verify(findChild(view.rail, "railSearchScroll").visible);
+        verify(search.railHolds);
+        verify(!findChild(search, "searchPluginsChip").visible);
+        verify(findChild(view.rail, "railSearchPlugin_plugin_a").visible);
+
+        const settings = view.settingsModal;
+        mouseClick(findChild(view.rail, "railSearchInstall"));
+        tryVerify(() => settings.opened);
+        verify(settings.inQbtSearch);
+        tryVerify(() => findChild(settings, "searchInstallField").editing);
+        keyClick(Qt.Key_Escape);
+        tryVerify(() => !settings.opened);
+        compare(view.view, "search");
+
+        App.searchPlugins.setEnabled("plugin_c", false);
+        const off = findChild(view.rail, "railSearchPlugin_plugin_c");
+        tryCompare(off, "countText", "off");
+        mouseClick(off);
+        tryVerify(() => settings.opened);
+        verify(settings.inQbtSearch);
+        compare(settings.area, "pane");
+        compare(settings.paneCursor, 2 + 2, "the cursor isn't on plugin c's row");
+        settings.dismiss();
+        tryVerify(() => !settings.opened);
+
+        App.railHidden = true;
+        verify(view.rail.compact);
+        verify(!view.rail.searchGroupsShown);
+        verify(!search.railHolds);
+        verify(findChild(search, "searchPluginsChip").visible);
+        App.railHidden = false;
+        verify(search.railHolds);
+        view.setView("library");
+        App.loadDemoSearch("off");
+    }
+
+    // C34 D20 a: with the rail folded, plugins ▾'s "manage plugins…" opens Settings ›
+    // qBittorrent › Search plugins with the caret in its install field; esc there goes back to
+    // the search, as it was.
     function test_manage_plugins_opens_the_pane_focused() {
         App.loadDemoSearch("done");
+        App.railHidden = true;
         keyClick(Qt.Key_F, Qt.ControlModifier);
         const search = findChild(view, "searchView");
         verify(search.field.editing);

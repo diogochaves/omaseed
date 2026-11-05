@@ -18,6 +18,9 @@ Item {
     property string searchState: "idle"
     property string order: "seeds"
     property bool narrow: false
+    /// DECISIONS C34 D5s a (amending SR2): false while the rail holds each plugin's answer;
+    /// "N of M plugins didn't answer ›" stays either way.
+    property bool pillsShown: true
 
     /// The keyboard is on "didn't answer ›" (SearchBar's last tab stop).
     property bool answersHaveCursor: false
@@ -133,7 +136,7 @@ Item {
         spacing: Theme.searchLineGap
 
         Repeater {
-            model: root.narrow ? [] : root.pluginRows
+            model: root.narrow || !root.pillsShown ? [] : root.pluginRows
 
             delegate: Row {
                 id: pill
@@ -187,7 +190,7 @@ Item {
             font.pixelSize: Theme.searchLineSize
             objectName: "searchPillsFolded"
             text: qsTr("%1 of %2 answered").arg(root._answered).arg(root._asked.length)
-            visible: root.narrow && root._asked.length > 0
+            visible: root.narrow && root.pillsShown && root._asked.length > 0
         }
 
         // SR2: who didn't answer, opened plugin by plugin.

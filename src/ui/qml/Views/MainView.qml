@@ -2135,6 +2135,8 @@ Item {
         logLines: App.logLines
         serverLog: App.serverLog
         logTorrents: root.logTorrents
+        // Board 52 D5s a (C34): on search, its plugins, the type and the recent searches.
+        searchView: searchView
         // docs/14 A1: setup has no library chrome.
         visible: !root.firstRun
         serversOnly: root.libraryEmpty || root.firstSync || root.noList || root.logShown || root.searchShown
@@ -2555,6 +2557,8 @@ Item {
             serverName: App.serverName
             visible: root.searchShown
             windowWidth: root.width
+            // C34 D5s a: the open rail holds the plugins and the type; folded, the bar does.
+            railHolds: rail.visible && rail.searchGroupsShown
 
             onAddRequested: key => addSheet.openFromSearch(App.searchAddable(key))
             onCopyRequested: (text, note) => root.copyText(text, note)
@@ -2563,6 +2567,7 @@ Item {
             onNoteRequested: text => root.flashFooterNote(text)
             onPluginsPaneRequested: settingsModal.openSearchPlugins()
             onPluginsInstallRequested: settingsModal.openSearchPluginsInstall()
+            onPluginPaneRequested: name => settingsModal.openSearchPluginsOn(name)
         }
 
         DetailsStrip {

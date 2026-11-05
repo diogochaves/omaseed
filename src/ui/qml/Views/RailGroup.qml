@@ -22,6 +22,9 @@ Column {
     property bool countShown: false
     /// The entries a folded group hides; -1 prints none.
     property int count: -1
+    /// Words in the count's place, open or folded (board 52 `.rg h6 .hc`: the search plugins'
+    /// "2 of 3"); "" prints `count` as before.
+    property string countText: ""
     /// The rail's keyboard cursor is on this heading (only a folded group's heading is a stop).
     property bool hasCursor: false
     /// What a screen reader calls the heading when `label` carries more than the group's
@@ -106,8 +109,8 @@ Column {
             ink: root.ink
             size: "caption"
             objectName: "railGroupCount"
-            text: Theme.numeral(root.count)
-            visible: (root.collapsed || root.countShown) && root.count >= 0
+            text: root.countText.length > 0 ? root.countText : Theme.numeral(root.count)
+            visible: root.countText.length > 0 || (root.collapsed || root.countShown) && root.count >= 0
         }
 
         MouseArea {

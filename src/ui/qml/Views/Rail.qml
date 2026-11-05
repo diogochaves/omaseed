@@ -86,6 +86,14 @@ Item {
     property var logTorrents: []
     readonly property bool logGroupsShown: root.view === "log" && root.logLines !== null
                                            && root.serverLog !== null && !root.compact
+    /// Board 52 D5s a (C34): on the search face, the plugins, the type and the recent searches
+    /// (RailSearchGroups), in the same place; their state is the search view's. Null leaves
+    /// the search's rail bare.
+    property SearchView searchView: null
+    readonly property bool searchGroupsShown: root.view === "search" && root.searchView !== null
+                                              && !root.compact
+    /// A face's own groups are on show (the log's or the search's).
+    readonly property bool faceGroupsShown: root.logGroupsShown || root.searchGroupsShown
     /// #145 (C24 H16, C25 K30): the server has search plugins to offer, so the views end with
     /// search. Gone where it can't be offered.
     property bool searchOffered: false
@@ -701,7 +709,7 @@ Item {
     Accessible.role: Accessible.List
 
     activeFocusOnTab: true
-    implicitHeight: root._topHeight + (root.serversOnly ? (root.logGroupsShown ? logGroups.implicitHeight : 0)
+    implicitHeight: root._topHeight + (root.serversOnly ? (root.faceGroupsShown ? logGroups.implicitHeight : 0)
                                                         : content.implicitHeight)
                     + (root.serversRowCount > 0 ? root._serversOpenHeight : 0) + root._footHeight
     implicitWidth: root.compact ? Theme.railFoldedWidth : root.resizing ? root._dragWidth
@@ -1464,7 +1472,8 @@ Item {
         }
     }
 
-    // Board 51 D5 a: the log's own groups, where the torrents' scroll (whose place they take).
+    // Board 51 D5 a: a face's own groups (the log's; board 52 D5s a, the search's), where the
+    // torrents' scroll is (whose place they take).
     Flickable {
         id: logFlick
 
@@ -1477,30 +1486,51 @@ Item {
         contentHeight: logGroups.implicitHeight + Theme.space(20) - 2 * logGroups.headPadding
         contentWidth: width
         interactive: contentHeight > height
-        objectName: "railLogScroll"
-        visible: root.logGroupsShown
+        objectName: root.searchGroupsShown ? "railSearchScroll" : "railLogScroll"
+        visible: root.faceGroupsShown
 
         Loader {
             id: logGroups
 
-            readonly property real headPadding: item ? item.headPadding : 0
+            readonly property real headPadding: (logGroups.item as RailSearchGroups)?.headPadding
+                                                ?? (logGroups.item as RailLogGroups)?.headPadding ?? 0
 
-            active: root.logGroupsShown
+            active: root.faceGroupsShown
             width: logFlick.width
             y: Theme.space(10) - logGroups.headPadding
 
-            sourceComponent: RailLogGroups {
-                block: root.ground
-                collapsedGroups: root.collapsedGroups
-                keysShown: root.keysShown
-                lines: root.logLines
-                log: root.serverLog
-                torrents: root.logTorrents
-                width: logFlick.width
+            sourceComponent: root.searchGroupsShown ? searchGroupsComponent : logGroupsComponent
+        }
+    }
 
-                onGroupToggled: group => root.groupToggled(group)
-                onNameTip: (row, hovering, full) => root._nameTip(row, hovering, full)
-            }
+    Component {
+        id: searchGroupsComponent
+
+        RailSearchGroups {
+            block: root.ground
+            collapsedGroups: root.collapsedGroups
+            view: root.searchView
+            width: logFlick.width
+
+            onGroupToggled: group => root.groupToggled(group)
+            onNameTip: (row, hovering, full) => root._nameTip(row, hovering, full)
+        }
+    }
+
+    Component {
+        id: logGroupsComponent
+
+        RailLogGroups {
+            block: root.ground
+            collapsedGroups: root.collapsedGroups
+            keysShown: root.keysShown
+            lines: root.logLines
+            log: root.serverLog
+            torrents: root.logTorrents
+            width: logFlick.width
+
+            onGroupToggled: group => root.groupToggled(group)
+            onNameTip: (row, hovering, full) => root._nameTip(row, hovering, full)
         }
     }
 
@@ -1508,7 +1538,7 @@ Item {
         anchors.fill: logFlick
         flickable: logFlick
         rowHeight: Theme.railRowHeight
-        visible: root.logGroupsShown
+        visible: root.faceGroupsShown
         z: 2
     }
 

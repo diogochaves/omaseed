@@ -7,7 +7,9 @@ import Omaseed.Kit
 // Search's bar (board 48 `sbar()`, DECISIONS C26 SR6): the field, then plugins ▾ (every plugin
 // that is on, or a pick), type ▾ (any, or one of the types those plugins know), hide dead (off)
 // and sort ▾ (most seeds, newest, size, name). Plugins and type ask again; hide dead and sort
-// don't. Narrower than 720 px the three filters fold into "filters ▾".
+// don't. Narrower than 720 px the three filters fold into "filters ▾". While the window's rail
+// is open on search (`railHolds`, DECISIONS C34 D5s a) it holds the plugins and the type, so
+// the bar is the field, hide dead and sort ▾.
 //
 // Keys (SR14): enter in the field asks (`accepted`), ↓ goes to the rows (`downPressed`), tab
 // walks the filters (`stop` 1–4, then the plugins' line), where space or enter opens one.
@@ -24,13 +26,20 @@ Item {
     property bool hideDead: false
     property string order: "seeds"
     property bool narrow: false
+    /// DECISIONS C34 D5s a (amending SR6): the rail is open and holds the plugins and the
+    /// type, so plugins ▾ and type ▾ (or filters ▾, narrow) leave the bar; hide dead and sort ▾
+    /// stay.
+    property bool railHolds: false
     /// A search has been asked: its results (or its "0 results") are on show.
     property bool hasResults: false
     /// C34 D21 a: there is something to clear, so the field ends in "× esc".
     readonly property bool clearable: root.field.text.length > 0 || root.hasResults
     /// The keyboard's stop: 0 the field, 1 plugins ▾ (filters ▾ when narrow), 2 type ▾, 3 hide
-    /// dead, 4 sort ▾.
+    /// dead, 4 sort ▾; narrow, 2 is sort ▾; while the rail holds the plugins (C34 D5s a), 1 is
+    /// hide dead and 2 sort ▾.
     property int stop: 0
+    readonly property int sortStop: root.narrow || root.railHolds ? 2 : 4
+    readonly property int hideDeadStop: root.railHolds ? 1 : root.narrow ? -1 : 3
     readonly property alias field: field
 
     signal accepted
@@ -75,9 +84,9 @@ Item {
     /// SR14: tab's last stop is the plugins' line's "N of M plugins didn't answer ›", while
     /// it shows.
     property bool answersShown: false
-    readonly property int answersStop: (root.narrow ? 2 : 4) + 1
+    readonly property int answersStop: root.sortStop + 1
     readonly property bool answersHaveCursor: root.answersShown && root.stop === root.answersStop
-    readonly property int _lastStop: root.answersShown ? root.answersStop : root.narrow ? 2 : 4
+    readonly property int _lastStop: root.answersShown ? root.answersStop : root.sortStop
 
     function _open(which: string, item: Item): void {
         root.menuRequested(which, item.x, item.y + item.height);
@@ -88,26 +97,14 @@ Item {
             root.answersRequested(sortChip.x + sortChip.width, sortChip.y + sortChip.height);
             return;
         }
-        switch (root.stop) {
-        case 1:
-            root._open(root.narrow ? "filters" : "plugins", root.narrow ? filtersChip :
-                                                                          pluginsChip);
-
-
-            break;
-        case 2:
-            if (root.narrow)
-                root._open("sort", sortChip);
-            else
-                root._open("type", typeChip);
-            break;
-        case 3:
-            root.hideDeadToggled();
-            break;
-        case 4:
+        if (root.stop === root.sortStop)
             root._open("sort", sortChip);
-            break;
-        }
+        else if (root.stop === root.hideDeadStop)
+            root.hideDeadToggled();
+        else if (root.stop === 1)
+            root._open(root.narrow ? "filters" : "plugins", root.narrow ? filtersChip : pluginsChip);
+        else if (root.stop === 2)
+            root._open("type", typeChip);
     }
 
     implicitHeight: bar.implicitHeight + Theme.searchBarInsetTop + Theme.searchBarInsetBottom
@@ -215,7 +212,7 @@ Item {
             objectName: "searchPluginsChip"
             text: root.pluginsText
             tooltip: qsTr("which plugins to ask · tab")
-            visible: !root.narrow
+            visible: !root.narrow && !root.railHolds
 
             onClicked: root._open("plugins", pluginsChip)
         }
@@ -228,7 +225,7 @@ Item {
             selected: root.category !== "all"
             text: root.typeText
             tooltip: qsTr("one type of torrent, or any")
-            visible: !root.narrow
+            visible: !root.narrow && !root.railHolds
 
             onClicked: root._open("type", typeChip)
         }
@@ -237,12 +234,12 @@ Item {
             id: hideDeadChip
 
             checkable: true
-            hasCursor: root.stop === 3
+            hasCursor: root.stop === root.hideDeadStop
             objectName: "searchHideDeadChip"
             selected: root.hideDead
             text: root.hideDead ? qsTr("✓ hide dead") : qsTr("hide dead")
             tooltip: qsTr("hide rows the plugins saw no seeds for; unknown counts stay")
-            visible: !root.narrow
+            visible: !root.narrow || root.railHolds
 
             onClicked: root.hideDeadToggled()
         }
@@ -256,7 +253,8 @@ Item {
             text: root._filtersOn > 0 ? qsTr("filters ▾ · %1").arg(root._filtersOn) : qsTr(
                                             "filters ▾")
             tooltip: qsTr("plugins, type and hide dead · tab")
-            visible: root.narrow
+            // C34 D5s a: with the plugins and the type in the rail, hide dead is all it held.
+            visible: root.narrow && !root.railHolds
 
             onClicked: root._open("filters", filtersChip)
         }
@@ -264,7 +262,7 @@ Item {
         Chip {
             id: sortChip
 
-            hasCursor: root.stop === (root.narrow ? 2 : 4)
+            hasCursor: root.stop === root.sortStop
             objectName: "searchSortChip"
             text: root.orderText
             tooltip: qsTr("the rows' order")

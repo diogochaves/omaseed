@@ -283,6 +283,67 @@ TestCase {
         verify(!menu.opened);
     }
 
+    // C34 D5s a (amending SR2, SR6): while the rail holds the plugins and the type, plugins ▾,
+    // type ▾ and the line's pills leave (the line keeps who didn't answer) and plugins ▾ has no
+    // "manage plugins…"; folded, all of it comes back.
+    function test_the_rail_takes_the_plugins_and_the_type() {
+        const view = make("done", {
+                              "railHolds": true
+                          });
+        verify(!findChild(view, "searchPluginsChip").visible);
+        verify(!findChild(view, "searchTypeChip").visible);
+        verify(!findChild(view, "searchFiltersChip").visible);
+        verify(findChild(view, "searchHideDeadChip").visible);
+        verify(findChild(view, "searchSortChip").visible);
+        compare(findChild(view, "searchPill_plugin_a"), null);
+        verify(findChild(view, "searchDidntAnswer").visible);
+        compare(text(view, "searchDidntAnswer"), "1 of 3 plugins didn't answer ›");
+        // tab: hide dead, sort ▾, then the answers.
+        view.focusField();
+        keyClick(Qt.Key_Tab);
+        verify(findChild(view, "searchHideDeadChip").hasCursor);
+        keyClick(Qt.Key_Space);
+        verify(App.searchResults.hideDead);
+        keyClick(Qt.Key_Tab);
+        verify(findChild(view, "searchSortChip").hasCursor);
+        keyClick(Qt.Key_Tab);
+        verify(view.bar.answersHaveCursor);
+        keyClick(Qt.Key_Tab);
+        compare(view.bar.stop, 0);
+        const menu = findChild(view, "searchBarMenu");
+        menu.which = "plugins";
+        verify(menu.items.every(item => item.action !== "manage"));
+
+        // Folded (ctrl+b, a narrow window): the bar and the line as before, manage plugins… too.
+        view.railHolds = false;
+        verify(findChild(view, "searchPluginsChip").visible);
+        verify(findChild(view, "searchTypeChip").visible);
+        tryVerify(() => findChild(view, "searchPill_plugin_a") !== null);
+        compare(menu.items[menu.items.length - 1].action, "manage");
+
+        // Narrow with the rail held open: hide dead in the bar, no filters ▾ to hold it.
+        const narrow = make("done", {
+                                "railHolds": true,
+                                "windowWidth": 700
+                            });
+        verify(findChild(narrow, "searchHideDeadChip").visible);
+        verify(!findChild(narrow, "searchFiltersChip").visible);
+        verify(!findChild(narrow, "searchPillsFolded").visible);
+    }
+
+    // C34 D5s a: recent searches are this view's memory only: nothing App keeps on disk holds
+    // them, and a new view (a new run) starts with none.
+    function test_recent_is_kept_in_memory_only() {
+        const view = make("idle");
+        view.field.text = "private words";
+        view.ask();
+        compare(view.recent, ["private words"]);
+        const saved = JSON.stringify(App.tableState(App.tableStateKey()));
+        verify(saved.indexOf("private words") < 0, "the table's state holds the words");
+        const again = make("idle");
+        compare(again.recent, []);
+    }
+
     // SR5: the cursor's row is kept, by key, while the rows move.
     function test_the_cursor_row_stays() {
         const view = make("done");

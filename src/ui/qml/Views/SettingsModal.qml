@@ -289,6 +289,21 @@ Item {
         searchPluginsPane.field.focusInput();
     }
 
+    /// DECISIONS C34 (the accepted call): a plugin turned off, clicked in search's rail: the
+    /// same pane, the cursor on that plugin's row (space turns it on); esc goes back to the
+    /// search, as the modal closes on it.
+    function openSearchPluginsOn(name: string): void {
+        root.openSearchPlugins();
+        const plugins = App.searchPlugins;
+        let row = -1;
+        for (let i = 0; i < plugins.count && row < 0; ++i) {
+            if (plugins.data(plugins.index(i, 0), SearchPlugins.NameRole) === name)
+                row = i;
+        }
+        root.area = "pane";
+        root.paneCursor = row >= 0 ? row + 2 : 0;
+    }
+
     /// Opened by openSearchPluginsInstall(): the install field's esc closes the modal.
     property bool _backToSearch: false
 
