@@ -148,7 +148,12 @@ Window {
             root.hide();
         root.show();
         root.requestActivate();
+        root._activateTries = 20;
+        activateAgain.restart();
     }
+
+    /// What is left of `activateAgain`'s tries.
+    property int _activateTries: 0
 
     function _polish(item: Item): void {
         const children = item.children;
@@ -172,6 +177,25 @@ Window {
     onClosing: close => {
         close.accepted = false;
         root.cancel();
+    }
+
+    // #218's box check: mapped from a bar popup (the widget's ⋯ `add torrent…`), the window
+    // shows but never gets the keyboard: the popup holds it, and when it closes Hyprland gives
+    // it back to the main window. So the window asks again, every 100 ms for 2 s, until it has
+    // it. A hand-off from another app is focused at the first ask and stops this at once.
+    Timer {
+        id: activateAgain
+
+        interval: 100
+        repeat: true
+
+        onTriggered: {
+            if (!root.visible || root.active || --root._activateTries <= 0) {
+                activateAgain.stop();
+                return;
+            }
+            root.requestActivate();
+        }
     }
 
     // The flow reaches the sheet's margin past every side, so the panel, centred in it, is the

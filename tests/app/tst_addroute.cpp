@@ -121,7 +121,7 @@ class TestAddRoute : public QObject
 private slots:
     void theDecision_data() { addRows(); }
     void theDecision();
-    void theGraceIsTenSeconds();
+    void theGraceIsFiveSeconds();
     void requestAddActsOnIt_data() { addRows(); }
     void requestAddActsOnIt();
     void theMenusAddGoesThroughIt();
@@ -141,11 +141,11 @@ void TestAddRoute::theDecision()
     QCOMPARE(routing.raise, raise);
 }
 
-void TestAddRoute::theGraceIsTenSeconds()
+void TestAddRoute::theGraceIsFiveSeconds()
 {
     // The edge: still "just before" at the grace, not one millisecond after.
     const qint64 grace = kAddFocusGrace.count();
-    QCOMPARE(grace, 10'000);
+    QCOMPARE(grace, 5'000);
     QCOMPARE(routeAdd(AddSource::Menu, false, false, grace).route, AddRoute::Main);
     QCOMPARE(routeAdd(AddSource::Bus, false, false, grace + 1).route, AddRoute::Window);
     // A hand-off counts only focus now, however recent.

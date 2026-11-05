@@ -1947,7 +1947,10 @@ server palette's "manage…" opens Settings in the main window, raising it on pu
 it" does; the sheet's one-server note stays at its foot; an add started from search is made
 inside the window, so it stays there (W2). Settled at #218 (the board was silent): the URIs
 omaseed is launched with open in the main window, which maps fresh where the user is anyway,
-and it comes up for them even when launched `--hidden`.
+and it comes up for them even when launched `--hidden`. W2's "just before", for the shared
+menu's add and the bus (a bar popup or Omarchy's menu holds the keyboard while open, measured in
+a box): the main window had focus at most 5 s ago. Longer is worse: a workspace switch inside it
+leaves the sheet in the main window, out of sight.
 
 ## C36 — Torrents in the Omarchy menu (board 53, ruled 2026-11-05)
 

@@ -39,8 +39,13 @@ struct AddRouting
 /// docs/DECISIONS.md C35 W2: how long after the main window lost focus an add from the menu
 /// or the bus still counts as "the window had focus just before". A bar popup or Omarchy's
 /// menu may take the keyboard while it is open, so the window's focus *at that moment* says
-/// nothing; a hand-off counts only focus now. A guess until it is measured in a box (#218).
-inline constexpr std::chrono::milliseconds kAddFocusGrace{10'000};
+/// nothing; a hand-off counts only focus now. Measured in a box (#218): the widget's popup
+/// and Omarchy's menu both take the keyboard from the main window, and the widget's ⋯ →
+/// "add torrent…" takes about 2 s. Kept short because the grace is blind to a workspace
+/// switch: leave the window for another workspace and use the widget's add within it, and
+/// the sheet opens in the main window, out of sight. Past it, the add window opens over the
+/// main window, focused, which is the safe miss.
+inline constexpr std::chrono::milliseconds kAddFocusGrace{5'000};
 
 /// The decision. `mainActive`: the main window has focus now. `msSinceMainActive`: how long
 /// ago it last stopped having focus, or a negative number when it never had it (ignored while
