@@ -172,7 +172,10 @@ void App::startSearch(const QString &pattern, const QString &category, const QSt
     m_search->deleteJobs(m_searchLeftJobs.take(m_searchServerId));
     // The plugins as the server lists them now: one may have come or gone since the view
     // opened (another client, the Web UI).
-    m_searchPlugins->refreshThen([this, words, category, plugins]() {
+    const quint64 ask = ++m_searchAsk;
+    m_searchPlugins->refreshThen([this, ask, words, category, plugins]() {
+        if (ask != m_searchAsk)
+            return; // cleared, or asked again, while the list came
         QList<SearchSession::Plugin> asked;
         for (const QVariant &value : m_searchPlugins->enabledPlugins()) {
             const QVariantMap plugin = value.toMap();
@@ -187,6 +190,14 @@ void App::startSearch(const QString &pattern, const QString &category, const QSt
         m_searchModel->startOver();
         m_search->start(words, category, asked);
     });
+}
+
+void App::clearSearch()
+{
+    ++m_searchAsk;
+    m_search->clear();
+    m_searchModel->startOver();
+    m_searchKept.remove(m_searchServerId);
 }
 
 void App::rebuildSearchIndex()

@@ -103,6 +103,10 @@ public:
     /// Lets go of everything without a word to the server (its client now points at another
     /// one); jobIds() first, to delete them when back.
     void forget();
+    /// DECISIONS C34 D21 a, "× esc": the search ends. Every job this session started is
+    /// deleted on the server (a plugin still asking stops, SR13), then the words, the rows and
+    /// the plugins' answers go: idle, the face before search.
+    void clear();
     /// Deletes jobs a forgotten session left on this server (SR12).
     void deleteJobs(const QList<int> &ids);
 

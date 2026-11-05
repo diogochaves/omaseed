@@ -2325,6 +2325,10 @@ public:
     Q_INVOKABLE void startSearch(const QString &pattern,
                                  const QString &category = QStringLiteral("all"),
                                  const QStringList &plugins = {});
+    /// DECISIONS C34 D21 a, the field's "× esc" (or esc in it): the words and the results
+    /// go together, every plugin still asking stops (its job deleted, SR13), and the view is
+    /// the face before search. This server's kept search (SR12) goes too.
+    Q_INVOKABLE void clearSearch();
     /// The plugins' list again (the view or the pane opened).
     Q_INVOKABLE void refreshSearchPlugins();
     /// SR9: what add… hands the add sheet for row `key`: `{text, downloader, fromLine, key,
@@ -2358,6 +2362,9 @@ private:
     QString m_searchServerId;
     QHash<QString, core::SearchSession::Snapshot> m_searchKept;
     QHash<QString, QList<int>> m_searchLeftJobs;
+    /// Counts startSearch() and clearSearch() calls: a start still waiting for the plugins'
+    /// list is dropped once a clear (or a newer start) has come after it.
+    quint64 m_searchAsk = 0;
     QTimer *m_searchMarksTimer = nullptr;
     /// The library by hash ({hash, words}) and by folded name and size ({name}).
     QHash<QString, core::SearchModel::LibraryMatch> m_searchByHash;

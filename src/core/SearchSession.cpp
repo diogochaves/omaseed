@@ -219,6 +219,12 @@ void SearchSession::forget()
     Q_EMIT changed();
 }
 
+void SearchSession::clear()
+{
+    deleteJobs(jobIds());
+    forget();
+}
+
 void SearchSession::deleteJobs(const QList<int> &ids)
 {
     if (m_client.isNull())

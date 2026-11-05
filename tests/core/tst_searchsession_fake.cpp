@@ -184,6 +184,7 @@ private slots:
     void aTypeAPluginLacksIsSkipped();
     void noPythonOnTheServer();
     void replacedAndShutDownJobsAreDeleted();
+    void clearStopsAndForgets();
     void askAgainReplacesItsRows();
     void failureFromLogReadsTheLastLine();
     void aSnapshotComesBackDone();
@@ -366,6 +367,38 @@ void TestSearchSessionFake::replacedAndShutDownJobsAreDeleted()
     QTRY_COMPARE(qbt.deleted, first + second);
     QVERIFY(session.jobIds().isEmpty());
     QCOMPARE(session.resultCount(), 1);
+}
+
+// C34 D21 a: "× esc" deletes the jobs still asking and leaves nothing: idle, no rows.
+void TestSearchSessionFake::clearStopsAndForgets()
+{
+    FakeServer server;
+    FakeQbt qbt(server);
+    qbt.plugins.insert(QStringLiteral("p_a"), Behaviour{2, 20});
+    qbt.plugins.insert(QStringLiteral("p_d"), Behaviour{2, 60000});
+    QbtClient client;
+    client.setBaseUrl(server.url());
+    SearchSession session;
+    session.setClient(&client);
+    session.setTimings(20, 5000, 4);
+    session.start(QStringLiteral("x"),
+                  QStringLiteral("all"),
+                  pluginsNamed({QStringLiteral("p_a"), QStringLiteral("p_d")}));
+    QTRY_COMPARE_WITH_TIMEOUT(session.resultCount(), 2, 2000);
+    QCOMPARE(session.state(), SearchSession::State::Asking);
+    const QList<int> jobs = session.jobIds();
+    QCOMPARE(jobs.size(), 2);
+    QSignalSpy hits(&session, &SearchSession::hitsChanged);
+    session.clear();
+    QCOMPARE(session.state(), SearchSession::State::Idle);
+    QCOMPARE(session.pattern(), QString());
+    QCOMPARE(session.resultCount(), 0);
+    QVERIFY(session.pluginRows().isEmpty());
+    QVERIFY(session.jobIds().isEmpty());
+    QCOMPARE(hits.count(), 1);
+    QTRY_COMPARE(qbt.deleted.size(), 2);
+    for (const int id : jobs)
+        QVERIFY(qbt.deleted.contains(id));
 }
 
 void TestSearchSessionFake::askAgainReplacesItsRows()
