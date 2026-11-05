@@ -7,6 +7,13 @@ before it will tag a release.
 
 ## Unreleased
 
+### Added
+
+- **A speed picked outside the window says so.** The bus gains `PickAltSpeed` (off, turtle or
+  burst) and the status file `alt.pick`; a pick from the bus, the tray or the widget's ⋯ sends
+  a notice once it has taken effect, with what was picked and its limits (and a pointer to
+  Settings › qBittorrent › Speed while turtle is still at qBittorrent's defaults). (#214)
+
 ### Changed
 
 - **Pause Torrents and Resume Torrents, in place of stop all and start all.** Start all

@@ -139,6 +139,8 @@ asks omaseed to act. While it runs, the tray icon steps aside, and nothing goes 
 popup's ⋯ is the tray's menu (the servers, alternative limits, pause or resume torrents,
 settings, quit). Pause Torrents stops what is running and remembers it; Resume Torrents starts
 exactly those again, never a torrent you had kept stopped.
+A speed picked from out here, or over the bus (`PickAltSpeed` off, turtle or burst), sends a
+notice once it has taken effect: what was picked and its limits.
 
 First run offers it, Settings › Appearance › In the bar chooses the widget, the tray icon,
 both or neither, and from a terminal:

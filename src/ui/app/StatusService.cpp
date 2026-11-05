@@ -74,7 +74,8 @@ bool StatusService::toggleAltSpeed()
     if (m_app->isDemoMode() || !m_app->hasServer())
         return now;
     // The tray's request: the server flips whatever it has, and the next poll says what that is.
-    m_app->toggleAltSpeed();
+    // From outside the window, so a notice says what was picked (C36 M9).
+    m_app->toggleAltSpeed(/*outside=*/true);
     return !now;
 }
 
@@ -84,9 +85,10 @@ bool StatusService::setAltSpeed(bool on)
     if (m_app->isDemoMode() || !m_app->hasServer())
         return now;
     // DECISIONS C32 D8 a: through the presets, so "off" mid-burst writes the turtle back and
-    // "on" turns on the last one picked.
+    // "on" turns on the last one picked. From outside the window: the notice (C36 M9).
     if (now != on &&
-        m_app->altPresets()->pick(on ? m_app->altPresets()->lastPick() : QStringLiteral("off")))
+        m_app->pickAltSpeed(on ? m_app->altPresets()->lastPick() : QStringLiteral("off"),
+                            /*outside=*/true))
         return on;
     QPointer<App> app(m_app);
     m_app->client()->transferSetSpeedLimitsMode(on)->then(
@@ -112,7 +114,7 @@ bool StatusService::pickAltSpeed(const QString &kind)
         QStringLiteral("off"), QStringLiteral("turtle"), QStringLiteral("burst")};
     if (!kinds.contains(kind))
         return false;
-    return m_app->pickAltSpeed(kind);
+    return m_app->pickAltSpeed(kind, /*outside=*/true);
 }
 
 // --- sources --------------------------------------------------------------------------------

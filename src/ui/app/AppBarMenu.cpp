@@ -10,6 +10,7 @@
 #include "core/SyncEngine.hpp"
 
 #include <QHash>
+#include <QScopedValueRollback>
 
 namespace omaseed::app {
 
@@ -53,7 +54,8 @@ void App::setUpBarMenu()
             Q_EMIT raiseRequested();
             Q_EMIT addRequested();
         } else if (id == QLatin1String("alt-speed")) {
-            toggleAltSpeed();
+            // C36 M9: the tray's and the widget's pick is made outside the window.
+            toggleAltSpeed(!m_appMenuInside);
         } else if (id == QLatin1String("pause")) {
             pauseTorrents();
         } else if (id == QLatin1String("resume")) {
@@ -175,6 +177,8 @@ QVariantList App::appMenuRows() const
 
 bool App::invokeAppMenu(const QString &id)
 {
+    // C36 M9: `triggered` fires within invoke, so the flag covers exactly this row.
+    const QScopedValueRollback<bool> inside(m_appMenuInside, true);
     return m_barMenu->invoke(id);
 }
 

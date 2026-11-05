@@ -215,10 +215,14 @@ public Q_SLOTS:
     /// A: off while the alternative limits are on, else the last preset picked (turtle or
     /// burst, DECISIONS C32 D8 a; AltPresets). The tray's checkbox is not moved here — it
     /// follows `globalState.useAltSpeedLimits`, which the next poll brings back.
-    void toggleAltSpeed();
+    /// `outside` (DECISIONS C36 M9): asked from outside the window (the bus, the tray, the
+    /// widget's ⋯), so a notice says what was picked once it has taken effect. The window's
+    /// own (A, the chip, the status line's menu, the mark menu) send none.
+    void toggleAltSpeed(bool outside = false);
     /// C32 D8 a: "off", "turtle" or "burst", picked from the chip's choice, a menu or the bus
     /// (C36 M8). False in the demo, with no server, or when the presets can't make it yet.
-    Q_INVOKABLE bool pickAltSpeed(const QString &kind);
+    /// `outside` as for toggleAltSpeed.
+    Q_INVOKABLE bool pickAltSpeed(const QString &kind, bool outside = false);
     /// DECISIONS C36 M10: stops what runs on the current server and holds it (PauseHold).
     void pauseTorrents();
     /// C36 M10: starts again exactly what the current server's pause holds.
@@ -1486,6 +1490,12 @@ private:
     omaseed::core::ServerPreferences *m_prefs = nullptr;
     omaseed::core::AltSpeed *m_altSpeed = nullptr;
     omaseed::core::AltPresets *m_altPresets = nullptr;
+    /// C36 M9: the pick made outside the window whose landing (AltPresets::picked) sends a
+    /// notice; "" for none. A pick from the window clears it.
+    QString m_altNoticeFor;
+    /// C36 M9: true while the window's mark menu fires a row, so the shared menu's
+    /// `triggered` knows the pick is the window's, not the tray's or the widget's.
+    bool m_appMenuInside = false;
     omaseed::core::PauseHold *m_pauseHold = nullptr;
     QNetworkAccessManager *m_probeNam = nullptr;
 

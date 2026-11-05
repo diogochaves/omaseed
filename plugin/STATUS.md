@@ -202,6 +202,10 @@ busctl --user call io.github.diogochaves.omaseed /io/github/diogochaves/omaseed 
 | `SwitchServer` | `(s id) → b` | moves the app onto that server (docs/33 D24); false for an unknown id |
 | `Invoke` | `(s id) → b` | a row of `menu`, by its id; false for an unknown or disabled row. `pause` stops what runs and holds it, `resume` starts exactly those again (only while a pause is held); `stop-all` and `start-all` are their old ids, still taken. `quit` quits the app after answering |
 
+A speed picked through the bus (`ToggleAltSpeed`, `SetAltSpeed`, `PickAltSpeed`, `Invoke` of
+`alt-speed`) sends a desktop notice once it has taken effect: what was picked and its limits
+(DECISIONS C36 M9). The window's own picks send none.
+
 A source is a magnet link, an `http(s)` URL, or a `.torrent` path (or `file://` URI).
 
 `DescribeSources` answers a JSON array, one object per source, in order:

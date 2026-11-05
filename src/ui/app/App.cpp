@@ -1,5 +1,6 @@
 #include "ui/app/App.hpp"
 
+#include "core/AltPickWords.hpp"
 #include "core/BackupFormat.hpp"
 #include "core/CertificatePin.hpp"
 #include "core/Format.hpp"
@@ -136,6 +137,19 @@ App::App(QObject *parent)
     connect(m_altPresets, &AltPresets::storeChanged, this, [this]() {
         writeStateSection(QStringLiteral("altPresets"), m_altPresets->store());
     });
+    // C36 M9: a pick made outside the window says what it put in force, once it has.
+    connect(m_altPresets,
+            &AltPresets::picked,
+            this,
+            [this](const QString &kind, qint64 dl, qint64 up, int minutes) {
+                if (m_altNoticeFor != kind)
+                    return;
+                m_altNoticeFor.clear();
+                if (m_notifier.isNull() || m_demoMode || !m_hasServer)
+                    return;
+                const AltPickWords::Notice words = AltPickWords::notice(kind, dl, up, minutes);
+                m_notifier->notifyAltSpeed(m_server.id, words.summary, words.body);
+            });
     if (QCoreApplication::instance() != nullptr)
         connect(QCoreApplication::instance(), &QCoreApplication::aboutToQuit, this, [this]() {
             m_altPresets->endBurstAndWait(2000);
@@ -754,13 +768,19 @@ void App::setVisible(bool visible)
     m_engine->setVisible(visible);
 }
 
-void App::toggleAltSpeed()
+void App::toggleAltSpeed(bool outside)
 {
     if (m_demoMode || !m_hasServer)
         return;
-    // Before the presets can act (no server id yet): qBittorrent's own toggle, as before.
-    if (m_altPresets->toggle())
+    // What the toggle picks: off while the alternative limits are on, else the last pick.
+    const QString kind = m_altPresets->current() == QLatin1String("off") ? m_altPresets->lastPick()
+                                                                         : QStringLiteral("off");
+    if (m_altPresets->toggle()) {
+        m_altNoticeFor = outside ? kind : QString();
         return;
+    }
+    // Before the presets can act (no server id yet): qBittorrent's own toggle, as before, and
+    // no notice (C36 M9 speaks for the presets' picks).
     m_client->transferToggleSpeedLimitsMode()->then(
         this, [](const QbtResult<QByteArray> &result) {
             if (result.isError())
@@ -769,12 +789,14 @@ void App::toggleAltSpeed()
         });
 }
 
-bool App::pickAltSpeed(const QString &kind)
+bool App::pickAltSpeed(const QString &kind, bool outside)
 {
     if (m_demoMode || !m_hasServer)
         return false;
-    if (m_altPresets->pick(kind))
+    if (m_altPresets->pick(kind)) {
+        m_altNoticeFor = outside ? kind : QString();
         return true;
+    }
     qWarning().noquote() << QStringLiteral("alt-speed: %1 can't be picked yet").arg(kind);
     return false;
 }
@@ -1468,8 +1490,8 @@ void App::onNotifierActionInvoked(const QString &eventClass,
         return;
     }
 
-    // #146: a creation's notice brings the window back on its band.
-    if (eventClass == QStringLiteral("create")) {
+    // #146: a creation's notice brings the window back on its band; C36 M9's speed notice too.
+    if (eventClass == QStringLiteral("create") || eventClass == QStringLiteral("speed")) {
         Q_EMIT raiseRequested();
         return;
     }
