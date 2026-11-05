@@ -1,3 +1,4 @@
+pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Window
 import Omaseed
@@ -138,4 +139,61 @@ Window {
         z: 2
     }
     // --- end T4.2 ---
+
+    // DECISIONS C35 W1 (#218): an add from outside, when App routes it away from this window,
+    // opens in the add window, where the user is. Made on the first such add and kept (its
+    // close only hides it). Its QObject parent is this window, but never its transient parent
+    // (AddWindow sets `transientParent: null`), so Hyprland maps it on the workspace the user
+    // is on, not on this window's.
+    property AddWindow addWindow: null
+
+    function _addWindow(): AddWindow {
+        if (window.addWindow === null)
+            window.addWindow = addWindowComponent.createObject(window) as AddWindow;
+        return window.addWindow;
+    }
+
+    /// What the add window hands back comes up here on purpose (W4, C26, C35): shown, raised,
+    /// focused, wherever it was.
+    function raiseMain(): void {
+        window.show();
+        window.raise();
+        window.requestActivate();
+    }
+
+    Connections {
+        /// A list joins the sheet's (W7); an empty one is the blank sheet (the menu's add).
+        /// Either way the window maps again where the user is.
+        function onAddWindowRequested(uris: list<string>): void {
+            const addWindow = window._addWindow();
+            if (uris.length > 0)
+                addWindow.openList(uris, "handoff");
+            else
+                addWindow.openBlank();
+        }
+
+        target: App
+    }
+
+    Component {
+        id: addWindowComponent
+
+        AddWindow {
+            // `show it` (W4): the notice's path, so main.cpp raises the window and the cursor
+            // lands on the torrent.
+            onShowRequested: hash => App.showTorrentRequested(hash)
+            // #219 (W5): the merge's notice, sent from here.
+            onMerged: hash => {}
+            // C26: a search add stays in the main window.
+            onSearchRequested: text => {
+                view.openSearch(text);
+                window.raiseMain();
+            }
+            // The server palette's `manage…`; the add window stays open behind.
+            onSettingsRequested: id => {
+                view.showServerSettings(id);
+                window.raiseMain();
+            }
+        }
+    }
 }

@@ -423,6 +423,13 @@ Item {
         }
     }
 
+    /// The add window's server palette `manage…` (DECISIONS C35): Settings › Servers on `id`,
+    /// as this window's own palette opens it.
+    function showServerSettings(id: string): void {
+        if (!root.firstRun)
+            settingsModal.showServer(id);
+    }
+
     /// `` ` ``, `~` and the rail's views. With a selection, the console opens on it (D2 a).
     function setView(next: string): void {
         if (next === root.view)
