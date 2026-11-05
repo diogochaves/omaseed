@@ -2007,3 +2007,52 @@ Settled at #214 (the board was silent): the speed pick's notice (M9) has no swit
 own in Settings › Notifications and is always sent, as the move and creation notices are; a
 click raises the window. Picks from the window (A, the speed chip, the status line's menu, the
 window's mark menu) send none.
+
+## C37 — Made by your agent: user skins (board 55, ruled 2026-11-05)
+
+Board [55](55-made-by-your-agent.html), #221, U1–U10 all as recommended. A person asks their own
+coding agent for a look ("make it warmer, and rounder") and gets one, without a display and
+without the agent seeing their library. For skins only. It **amends** C31: "user skins later"
+is now, data only, and the question it left open (faces from a user folder) is answered by U2.
+#163's commands join U10's family, and its skill becomes U4's guide. ARCHITECTURE's theme rules
+stand, for user skins too; under Omarchy's and Console's skins nothing is drawn differently.
+
+Why: herdr's desktop app is reshaped by agents because its interface is files, a guide for
+agents is written beside them on every start, and the agent checks its own work with no
+display. omaseed already had skins as data (C31); this is the rest, without letting code from
+the person's folder run.
+
+- **U1 a.** omaseed reads `skins/<name>/skin.json` under `$XDG_CONFIG_HOME/omaseed/` with the
+  built-ins' reader and version rule. The name is the folder; a folder named like a built-in is
+  ignored, with the reason logged. The Skin row lists them after the built-ins (a second line;
+  past three, one **yours ▾** chip opening Settings' list palette), with **open folder**; a
+  yellow line names what the drawn skin dropped, or why it isn't drawn. The folder is watched:
+  saving the drawn skin repaints, as a theme change does.
+- **U2 a.** Data only. In a user skin, `faces` names a built-in skin per seam
+  (`{"Plate": "console"}`); a path or a `faces/` folder is dropped and named.
+- **U3 a.** `omaseed skin clone <from> <name>` writes every token out, with
+  `"cloned_from": {"skin", "version"}`; an existing name is refused; the copy never follows
+  omaseed's changes. A new optional `description` is the Skin row's caption.
+- **U4 a.** On every start omaseed writes, when they differ, `AGENTS.md` (headed "Written by
+  omaseed on every start. Edits here are overwritten."), a one-line `CLAUDE.md` (`@AGENTS.md`)
+  and `skin.schema.json` (generated from the reader's table) into `~/.config/omaseed/`; a file
+  of that name without omaseed's header is left alone. `omaseed --skill` prints the guide.
+- **U5 a.** `omaseed check <skin> [--json] [--theme NAME]`: no window, D-Bus or server. The
+  reader's verdict, `dropped`, `missingFonts`, `lifted` (what C30's floor had to lift) and a
+  picture of one fixed sheet on the demo library, in the person's theme, base size and fonts,
+  under `~/.cache/omaseed/check/`. Exit 0 drawn, 1 drawn whole as Omarchy's, 2 usage.
+- **U6 a.** `omaseed skin use <name>` (the running instance over its D-Bus name, else the
+  saved choice) and `omaseed skin list [--json]`. No capture of the open window: it shows the
+  person's library, and a picture sent to an agent goes to its model's provider.
+- **U7 a.** omabox in the PKGBUILD's `optdepends`; `/usr/share/omaseed/agents/skin-check.sh`
+  for `omabox check run` (`omaseed --demo` with the skin, each Omarchy theme, a baseline);
+  without omabox, `check` ends with one line naming it. No qBittorrent in that box.
+- **U8 a.** No new key: `omaseed skin use omarchy`, the Skin row, `OMASEED_SKIN` for a run.
+- **U9 a.** A shared skin is a folder with `skin.json`, `RECIPE.md` and `preview.png`, topic
+  `omaseed-skin`; the guide says how to share one and how to add one (read it, copy, never
+  overwrite, check). No gallery yet.
+- **U10 a.** Words after `omaseed` (`check`, `skin clone|list|use`); a first argument that is
+  one of them is a command, and a file of that name is opened as `./check`.
+
+Not ruled here, each for a board of its own: panels that add features, faces as code, other
+arrangements of a view (#199).
