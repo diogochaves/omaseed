@@ -493,8 +493,11 @@ void TestAppAdd::addsATorrentFileWithItsOptions()
     request.insert(QStringLiteral("contentLayout"), QStringLiteral("Original"));
 
     QSignalSpy finished(&app, &App::addFinished);
-    // A successful add also moves the table's cursor once the new hash turns up in a sync.
-    QSignalSpy shown(&app, &App::showTorrentRequested);
+    // A successful add also moves the table's cursor once the new hash turns up in a sync,
+    // without raising the main window: an add from the add window leaves it where it is (C35
+    // W1, #220), so the landing is not a "show".
+    QSignalSpy shown(&app, &App::addLanded);
+    QSignalSpy raised(&app, &App::showTorrentRequested);
     app.addTorrent(request);
     QVERIFY(finished.wait(20000));
     QVERIFY2(finished.first().at(0).toBool(), qPrintable(finished.first().at(1).toString()));
@@ -529,6 +532,7 @@ void TestAppAdd::addsATorrentFileWithItsOptions()
     QVERIFY2(waitFor([&shown]() { return shown.count() > 0; }, 15000),
              "the add never asked the table to show the new torrent");
     QCOMPARE(shown.first().first().toString(), QString::fromLatin1(kFixtureHash));
+    QCOMPARE(raised.count(), 0);
 
     app.engine()->stop();
     await(this, probe.torrentsRemoveCategories(QStringList{QStringLiteral(kCategory)}));

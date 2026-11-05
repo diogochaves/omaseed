@@ -444,6 +444,10 @@ Q_SIGNALS:
     /// "show": raise the window and move the table cursor to this hash. MainView's
     /// `Connections { target: App }` block, when it has one, is where this lands.
     void showTorrentRequested(const QString &hash);
+    /// An add's new torrent turned up in a sync: the table's cursor goes to it. Unlike
+    /// `showTorrentRequested` it never raises the main window, so an add made in the add
+    /// window leaves the main window where it is, or in the tray (DECISIONS C35 W1, #220).
+    void addLanded(const QString &hash);
     /// #24 T8: "open the console" on the weekly recap: raise the window and show the seed
     /// console on `range`.
     void showConsoleRequested(const QString &range);
@@ -1166,7 +1170,7 @@ public:
     /// when any of them is not "normal" the torrent is added stopped, the priorities are set
     /// with `torrents/filePrio`, and it is started unless `stopped` asked otherwise.
     /// Answers with `addFinished`; on success the new hash, once the next sync
-    /// brings it, also travels as `showTorrentRequested` so the table's cursor lands on it.
+    /// brings it, also travels as `addLanded` so the table's cursor lands on it.
     /// In demo mode nothing is sent: the add is logged and reported as a success.
     ///
     /// #40, the sheet's batch: a request with `items` (a list of `parseAddable` maps) adds

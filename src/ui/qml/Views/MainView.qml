@@ -2057,6 +2057,12 @@ Item {
             root.showTorrent(hash);
         }
 
+        /// An add's new torrent is in: the cursor goes to it, wherever the add was made. The
+        /// window is not raised for it (C35 W1), as it is for a "show".
+        function onAddLanded(hash: string): void {
+            root.showTorrent(hash);
+        }
+
         /// #24 T8: the weekly recap's "open the console": the seed console on its week.
         function onShowConsoleRequested(range: string): void {
             App.console.range = range;

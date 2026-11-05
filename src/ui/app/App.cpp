@@ -2745,7 +2745,7 @@ void App::watchForAddedHash(const QString &hash)
         m_awaitedAddHash.clear();
         m_addWatchTimer->stop();
         QObject::disconnect(m_addWatch);
-        Q_EMIT showTorrentRequested(found);
+        Q_EMIT addLanded(found);
     });
     m_addWatchTimer->start();
 }
