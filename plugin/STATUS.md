@@ -187,6 +187,7 @@ busctl --user call io.github.diogochaves.omaseed /io/github/diogochaves/omaseed 
 |---|---|---|
 | `ToggleAltSpeed` | `() → b` | flips alternative speed limits; returns the state asked for |
 | `SetAltSpeed` | `(b on) → b` | sets them; returns `on` (the current state when there is no server) |
+| `PickAltSpeed` | `(s kind) → b` | picks a preset (DECISIONS C36 M8, C32 D8 a): `off`, `turtle` or `burst`, as `alt.pick` names them; false for another word, the demo, no server, or a pick that can't be made yet (the server's preferences not read) |
 | `DescribeSources` | `(as sources) → s` | JSON, below: pasted or browsed sources, before they are listed |
 | `AddSources` | `(as sources, s category, b stopped) → s` | adds them; JSON, below. Never raises the window |
 | `OpenAddSheet` | `(as sources)` | raises omaseed on its own add sheet with these sources (`m`); none: the sheet as `a` opens it |

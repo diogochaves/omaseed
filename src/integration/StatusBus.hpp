@@ -7,6 +7,8 @@
 //
 //   ToggleAltSpeed() → b                         the new state the server was asked for
 //   SetAltSpeed(b on) → b                        the same, for a caller that knows what it wants
+//   PickAltSpeed(s kind) → b                     a preset: off, turtle or burst (DECISIONS C32
+//                                                D8 a, C36 M8); false when it can't be picked
 //   DescribeSources(as sources) → s              JSON, one entry per source (see StatusHandler)
 //   AddSources(as sources, s category, b stopped) → s   JSON: what was added, what was not
 //   OpenAddSheet(as sources)                     the app's own add sheet with these sources
@@ -45,6 +47,9 @@ public:
     virtual bool toggleAltSpeed() = 0;
     /// Asks the server for `on`; returns `on`, or the current state when there is no server.
     virtual bool setAltSpeed(bool on) = 0;
+    /// DECISIONS C36 M8: "off", "turtle" or "burst" through the presets (C32 D8 a). False for
+    /// another kind, the demo, no server, or a pick the presets can't make yet.
+    virtual bool pickAltSpeed(const QString &kind) = 0;
     /// A JSON array, one object per source, in order:
     ///   {"source", "kind": "magnet"|"url"|"file"|"none", "valid", "error", "name",
     ///    "size" (bytes, 0 unknown), "hash", "duplicate", "duplicateOn"}

@@ -32,6 +32,7 @@ public:
 
     bool toggleAltSpeed() override;
     bool setAltSpeed(bool on) override;
+    bool pickAltSpeed(const QString &kind) override;
     void describeSources(const QStringList &sources, Reply reply) override;
     void addSources(const QStringList &sources,
                     const QString &category,

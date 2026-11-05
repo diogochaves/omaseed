@@ -33,6 +33,8 @@ public Q_SLOTS:
 
     bool SetAltSpeed(bool on) { return m_handler->setAltSpeed(on); }
 
+    bool PickAltSpeed(const QString &kind) { return m_handler->pickAltSpeed(kind); }
+
     QString DescribeSources(const QStringList &sources, const QDBusMessage &message)
     {
         m_handler->describeSources(sources, delayedReply(message));

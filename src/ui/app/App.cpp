@@ -769,12 +769,14 @@ void App::toggleAltSpeed()
         });
 }
 
-void App::pickAltSpeed(const QString &kind)
+bool App::pickAltSpeed(const QString &kind)
 {
     if (m_demoMode || !m_hasServer)
-        return;
-    if (!m_altPresets->pick(kind))
-        qWarning().noquote() << QStringLiteral("alt-speed: %1 can't be picked yet").arg(kind);
+        return false;
+    if (m_altPresets->pick(kind))
+        return true;
+    qWarning().noquote() << QStringLiteral("alt-speed: %1 can't be picked yet").arg(kind);
+    return false;
 }
 
 void App::pauseTorrents()

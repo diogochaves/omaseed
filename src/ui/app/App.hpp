@@ -216,8 +216,9 @@ public Q_SLOTS:
     /// burst, DECISIONS C32 D8 a; AltPresets). The tray's checkbox is not moved here — it
     /// follows `globalState.useAltSpeedLimits`, which the next poll brings back.
     void toggleAltSpeed();
-    /// C32 D8 a: "off", "turtle" or "burst", picked from the chip's choice or a menu.
-    Q_INVOKABLE void pickAltSpeed(const QString &kind);
+    /// C32 D8 a: "off", "turtle" or "burst", picked from the chip's choice, a menu or the bus
+    /// (C36 M8). False in the demo, with no server, or when the presets can't make it yet.
+    Q_INVOKABLE bool pickAltSpeed(const QString &kind);
     /// DECISIONS C36 M10: stops what runs on the current server and holds it (PauseHold).
     void pauseTorrents();
     /// C36 M10: starts again exactly what the current server's pause holds.

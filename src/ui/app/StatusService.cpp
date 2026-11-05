@@ -105,6 +105,16 @@ bool StatusService::setAltSpeed(bool on)
     return on;
 }
 
+bool StatusService::pickAltSpeed(const QString &kind)
+{
+    // DECISIONS C36 M8: the three rows of Omarchy's Speeds ›, the presets of C32 D8 a.
+    static const QStringList kinds{
+        QStringLiteral("off"), QStringLiteral("turtle"), QStringLiteral("burst")};
+    if (!kinds.contains(kind))
+        return false;
+    return m_app->pickAltSpeed(kind);
+}
+
 // --- sources --------------------------------------------------------------------------------
 
 StatusService::Source StatusService::parseSource(const QString &text)

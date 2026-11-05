@@ -1,8 +1,11 @@
 // #13 — StatusService, the app's side of the bar widget's D-Bus methods, without a server:
 // how each kind of source is described, duplicates against the (demo) library, what an add
-// answers without a server and in a demo, and the window hand-offs. The real adds and the
-// alt-speed switch against the :8081 playground are tst_statusservice_live.
+// answers without a server and in a demo, and the window hand-offs; PickAltSpeed's presets
+// against a small stand-in qBittorrent (DECISIONS C36 M8). The real adds and the alt-speed
+// switch against the :8081 playground are tst_statusservice_live.
 
+#include "core/AltPresets.hpp"
+#include "core/SyncEngine.hpp"
 #include "core/TorrentModel.hpp"
 #include "ui/app/App.hpp"
 #include "ui/app/StatusService.hpp"
@@ -11,11 +14,16 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QSignalSpy>
+#include <QTcpServer>
+#include <QTcpSocket>
 #include <QTemporaryDir>
 #include <QTest>
 #include <QUrl>
+#include <QUrlQuery>
 
+#include <chrono>
 #include <functional>
+#include <memory>
 
 #ifndef OMASEED_FIXTURES_DIR
 #error "OMASEED_FIXTURES_DIR must be defined by CMake"
@@ -51,6 +59,83 @@ QString magnetFor(const QString &hash, const QString &name = QString())
     return magnet;
 }
 
+/// Just enough qBittorrent for the alternative limits: the mode (setSpeedLimitsMode, read
+/// back by the sync) and the set (app/preferences, app/setPreferences), each write kept.
+class AltServer : public QTcpServer
+{
+public:
+    bool altOn = false;
+    /// qBittorrent's untouched defaults: 10 KiB/s each way.
+    QJsonObject preferences{{QStringLiteral("alt_dl_limit"), 10240},
+                            {QStringLiteral("alt_up_limit"), 10240},
+                            {QStringLiteral("dl_limit"), 0},
+                            {QStringLiteral("up_limit"), 0},
+                            {QStringLiteral("scheduler_enabled"), false}};
+    QStringList modes;
+    QList<QJsonObject> sets;
+
+protected:
+    void incomingConnection(qintptr descriptor) override
+    {
+        auto *socket = new QTcpSocket(this);
+        socket->setSocketDescriptor(descriptor);
+        connect(socket, &QTcpSocket::disconnected, socket, &QObject::deleteLater);
+        auto buffer = std::make_shared<QByteArray>();
+        connect(socket, &QTcpSocket::readyRead, socket, [this, socket, buffer]() {
+            buffer->append(socket->readAll());
+            const qsizetype headerEnd = buffer->indexOf("\r\n\r\n");
+            if (headerEnd < 0)
+                return;
+            qsizetype length = 0;
+            for (const QByteArray &line : buffer->left(headerEnd).split('\n'))
+                if (line.toLower().startsWith("content-length:"))
+                    length = line.mid(15).trimmed().toLongLong();
+            if (buffer->size() < headerEnd + 4 + length)
+                return;
+            const QByteArray target = buffer->left(buffer->indexOf('\n')).split(' ').value(1);
+            const QUrlQuery form(QString::fromUtf8(buffer->mid(headerEnd + 4, length)));
+            buffer->clear();
+
+            QByteArray body = "Ok.";
+            if (target.startsWith("/api/v2/app/version")) {
+                body = "v5.2.3";
+            } else if (target.startsWith("/api/v2/app/webapiVersion")) {
+                body = "2.15.1";
+            } else if (target.startsWith("/api/v2/sync/maindata")) {
+                body = QJsonDocument(
+                           QJsonObject{{QStringLiteral("rid"), 1},
+                                       {QStringLiteral("full_update"), true},
+                                       {QStringLiteral("server_state"),
+                                        QJsonObject{{QStringLiteral("use_alt_speed_limits"), altOn},
+                                                    {QStringLiteral("connection_status"),
+                                                     QStringLiteral("connected")}}},
+                                       {QStringLiteral("torrents"), QJsonObject()}})
+                           .toJson(QJsonDocument::Compact);
+            } else if (target.startsWith("/api/v2/app/preferences")) {
+                body = QJsonDocument(preferences).toJson(QJsonDocument::Compact);
+            } else if (target.startsWith("/api/v2/app/setPreferences")) {
+                const QJsonObject set =
+                    QJsonDocument::fromJson(
+                        form.queryItemValue(QStringLiteral("json"), QUrl::FullyDecoded).toUtf8())
+                        .object();
+                sets << set;
+                for (auto it = set.constBegin(); it != set.constEnd(); ++it)
+                    preferences.insert(it.key(), it.value());
+            } else if (target.startsWith("/api/v2/transfer/setSpeedLimitsMode")) {
+                const QString mode = form.queryItemValue(QStringLiteral("mode"));
+                modes << mode;
+                altOn = mode == QLatin1String("1");
+            } else if (target.startsWith("/api/v2/transfer/toggleSpeedLimitsMode")) {
+                modes << QStringLiteral("toggle");
+                altOn = !altOn;
+            }
+            socket->write("HTTP/1.1 200 OK\r\nContent-Length: " + QByteArray::number(body.size()) +
+                          "\r\nConnection: close\r\n\r\n" + body);
+            socket->disconnectFromHost();
+        });
+    }
+};
+
 } // namespace
 
 class TestStatusService : public QObject
@@ -67,6 +152,7 @@ private slots:
     void anAddWithoutAServerFailsEverySource();
     void aDemoAddSkipsDuplicatesAndNonsense();
     void altSpeedWithoutAServerKeepsTheState();
+    void pickAltSpeedGoesThroughThePresets();
     void openAddSheetRaisesTheWindowAndQueuesTheSources();
     void showTorrentGoesWhereANoticeGoes();
 
@@ -230,6 +316,70 @@ void TestStatusService::altSpeedWithoutAServerKeepsTheState()
     StatusService service(&app);
     QCOMPARE(service.toggleAltSpeed(), false);
     QCOMPARE(service.setAltSpeed(true), false);
+    for (const QString &kind :
+         {QStringLiteral("off"), QStringLiteral("turtle"), QStringLiteral("burst")})
+        QVERIFY2(!service.pickAltSpeed(kind), qPrintable(kind));
+
+    // The demo writes nothing to a server: the bus can't pick its presets either.
+    App demo;
+    demo.startDemo(4);
+    StatusService demoService(&demo);
+    QVERIFY(!demoService.pickAltSpeed(QStringLiteral("turtle")));
+    QCOMPARE(demo.altPresets()->current(), QStringLiteral("off"));
+}
+
+// DECISIONS C36 M8: PickAltSpeed(off|turtle|burst) is AltPresets::pick (C32 D8 a): turtle turns
+// the server's own set on, burst writes its limits over the set with the turtle kept aside,
+// off writes the turtle back and turns them off. Any other word is refused, and nothing sent.
+void TestStatusService::pickAltSpeedGoesThroughThePresets()
+{
+    QTemporaryDir home;
+    QVERIFY(home.isValid());
+    qputenv("XDG_CONFIG_HOME", home.path().toUtf8());
+    AltServer server;
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+    qputenv("OMASEED_SERVER_URL",
+            QStringLiteral("http://127.0.0.1:%1").arg(server.serverPort()).toUtf8());
+    struct Unset
+    {
+        ~Unset() { qunsetenv("OMASEED_SERVER_URL"); }
+    } unset;
+
+    App app;
+    using namespace std::chrono_literals;
+    app.engine()->setIntervals(100ms, 100ms, 100ms, 100ms);
+    app.start();
+    StatusService service(&app);
+    omaseed::core::AltPresets *presets = app.altPresets();
+    QTRY_VERIFY_WITH_TIMEOUT(app.hasServer() && presets->isLoaded(), 5000);
+    QCOMPARE(presets->current(), QStringLiteral("off"));
+
+    QVERIFY(!service.pickAltSpeed(QStringLiteral("fast")));
+    QVERIFY(!service.pickAltSpeed(QString()));
+    QVERIFY(server.modes.isEmpty());
+    QVERIFY(server.sets.isEmpty());
+
+    QVERIFY(service.pickAltSpeed(QStringLiteral("turtle")));
+    QTRY_COMPARE_WITH_TIMEOUT(presets->current(), QStringLiteral("turtle"), 5000);
+    QCOMPARE(server.modes, QStringList{QStringLiteral("1")});
+    QVERIFY(server.sets.isEmpty()); // the turtle is the server's set as it is
+    QCOMPARE(presets->lastPick(), QStringLiteral("turtle"));
+
+    QVERIFY(service.pickAltSpeed(QStringLiteral("burst")));
+    QTRY_COMPARE_WITH_TIMEOUT(presets->current(), QStringLiteral("burst"), 5000);
+    QTRY_COMPARE_WITH_TIMEOUT(server.sets.size(), 1, 5000);
+    QCOMPARE(server.sets.first().value(QStringLiteral("alt_up_limit")).toInteger(),
+             omaseed::core::AltPresets::kDefaultBurstUp);
+    QCOMPARE(presets->lastPick(), QStringLiteral("burst"));
+
+    QVERIFY(service.pickAltSpeed(QStringLiteral("off")));
+    QTRY_COMPARE_WITH_TIMEOUT(presets->current(), QStringLiteral("off"), 5000);
+    QTRY_COMPARE_WITH_TIMEOUT(server.sets.size(), 2, 5000);
+    // The turtle back as it was.
+    QCOMPARE(server.sets.last().value(QStringLiteral("alt_dl_limit")).toInteger(), 10240);
+    QCOMPARE(server.sets.last().value(QStringLiteral("alt_up_limit")).toInteger(), 10240);
+    QVERIFY(!presets->burstOn());
+    QVERIFY(!server.altOn);
 }
 
 void TestStatusService::openAddSheetRaisesTheWindowAndQueuesTheSources()
