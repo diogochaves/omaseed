@@ -9,8 +9,9 @@ import Omaseed.Views
 // window of its own, against the demo library (`App.loadDemo(16)`). Its first title, a size
 // fixed to the sheet's (minimum = maximum, up to 80 % of the screen's height, following the
 // sheet as it grows, and settled before it maps), never a transient child, its own palettes,
-// gone when the sheet is; Fig. 10 in it, a hand-off mapping it again where the user is, and
-// esc, cancel and the window's close as the sheet's.
+// gone when the sheet is; Fig. 10 in it, a hand-off mapping it again where the user is, its
+// asks for the keyboard until it has had it once (#230), and esc, cancel and the window's
+// close as the sheet's.
 TestCase {
     id: testCase
 
@@ -336,6 +337,61 @@ TestCase {
         compare(window.addSheet.batchCount, 2);
         compare(maps.count, 0);
         compare(window.visible, true);
+    }
+
+    // #218, #230: mapped while a layer (a bar popup, Omarchy's menu) holds the keyboard, the
+    // window asks again until it has had it once. Offscreen focuses a window as it shows, so
+    // the test's own window takes the keyboard straight back, before the first retry, as
+    // Hyprland gives it to the main window when the menu closes; and a window flagged
+    // WindowDoesNotAcceptFocus stands in for one the compositor won't focus yet: Qt drops its
+    // asks (with a warning each) until the flag goes.
+    function mapUnfocused(window) {
+        window.flags |= Qt.WindowDoesNotAcceptFocus;
+        window.openBlank();
+        testCase.Window.window.requestActivate();
+        verify(window.askingForKeyboard);
+        tryCompare(window, "active", false);
+    }
+
+    function test_it_asks_for_the_keyboard_until_it_has_had_it() {
+        const window = testCase.makeWindow();
+        testCase.mapUnfocused(window);
+        wait(2500);
+        compare(window.visible, true);
+        compare(window.active, false);
+        verify(window.askingForKeyboard, "it stopped asking at #218's 2 s, under a menu held 2.5 s");
+
+        // The menu closes: the next ask has it, and the asking stops.
+        window.flags &= ~Qt.WindowDoesNotAcceptFocus;
+        tryCompare(window, "active", true);
+        tryCompare(window, "askingForKeyboard", false);
+
+        // Once it has had the keyboard, a move elsewhere is the user's, never undone.
+        testCase.Window.window.requestActivate();
+        tryCompare(window, "active", false);
+        wait(400);
+        compare(window.active, false, "it took the keyboard back from where the user went");
+    }
+
+    function test_it_stops_asking_at_its_limit() {
+        const window = testCase.makeWindow();
+        window.keyboardAskLimit = 400;
+        testCase.mapUnfocused(window);
+        tryCompare(window, "askingForKeyboard", false, 2000, "it asked past its limit");
+        compare(window.active, false);
+
+        // A compositor that would focus it now gets no more asks.
+        window.flags &= ~Qt.WindowDoesNotAcceptFocus;
+        wait(400);
+        compare(window.active, false, "it asked past its limit");
+    }
+
+    function test_hidden_it_stops_asking() {
+        const window = testCase.makeWindow();
+        testCase.mapUnfocused(window);
+        window.cancel();
+        compare(window.visible, false);
+        tryCompare(window, "askingForKeyboard", false, 1000);
     }
 
     function test_it_maps_at_the_sheet_height() {

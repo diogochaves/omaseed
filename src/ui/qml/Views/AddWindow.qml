@@ -148,12 +148,17 @@ Window {
             root.hide();
         root.show();
         root.requestActivate();
-        root._activateTries = 20;
+        root._askedSince = Date.now();
         activateAgain.restart();
     }
 
-    /// What is left of `activateAgain`'s tries.
-    property int _activateTries: 0
+    /// How long, in ms, the window goes on asking for the keyboard after it maps, while it has
+    /// not had it once (#218, #230). Tests shorten it.
+    property int keyboardAskLimit: 30000
+    /// True while the window is still asking (`activateAgain` runs).
+    readonly property bool askingForKeyboard: activateAgain.running
+    /// When `_map` last asked, the start of `keyboardAskLimit`.
+    property double _askedSince: 0
 
     function _polish(item: Item): void {
         const children = item.children;
@@ -181,8 +186,11 @@ Window {
 
     // #218's box check: mapped from a bar popup (the widget's ⋯ `add torrent…`), the window
     // shows but never gets the keyboard: the popup holds it, and when it closes Hyprland gives
-    // it back to the main window. So the window asks again, every 100 ms for 2 s, until it has
-    // it. A hand-off from another app is focused at the first ask and stops this at once.
+    // it back to the main window. Omarchy's menu does the same, held open as long as the user
+    // reads it (#230). So the window asks again, every 100 ms, until it has had the keyboard
+    // once, for up to `keyboardAskLimit`. A hand-off from another app is focused at the first
+    // ask and stops this at once; once it has been active, a move elsewhere is the user's and
+    // is never undone.
     Timer {
         id: activateAgain
 
@@ -190,7 +198,7 @@ Window {
         repeat: true
 
         onTriggered: {
-            if (!root.visible || root.active || --root._activateTries <= 0) {
+            if (!root.visible || root.active || Date.now() - root._askedSince >= root.keyboardAskLimit) {
                 activateAgain.stop();
                 return;
             }
