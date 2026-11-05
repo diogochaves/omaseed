@@ -1942,6 +1942,11 @@ tray, the window came back on the current workspace but tiled, squeezing the use
   waiting and closes; closing the window is a cancel; an add already sent goes on.
 - **W9 a.** No setting to bring back the jump.
 
+Settled 2026-11-05, at #217's first step (the board was silent): in the add window, the
+server palette's "manage…" opens Settings in the main window, raising it on purpose as "show
+it" does; the sheet's one-server note stays at its foot; an add started from search is made
+inside the window, so it stays there (W2).
+
 ## C36 — Torrents in the Omarchy menu (board 53, ruled 2026-11-05)
 
 Board [53](53-the-omarchy-menu-row.html), from #211, M1–M15 all as recommended, plus one call
@@ -1995,3 +2000,6 @@ with `when`, and uses ✓ for one pick among several.
 - **M14 a.** A `trigger.torrents` row outside the block is the user's: the switch shows dimmed and
   says where, and touches nothing.
 - **M15 a.** Without Omarchy's menu the row stays, dimmed: "needs Omarchy's menu".
+
+Settled 2026-11-05, at #213's first step (the board was silent): the rail's server menu
+(right-click on a server) takes Pause / Resume too, in place of its stop all and start all.
