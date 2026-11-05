@@ -5436,6 +5436,8 @@ void App::attachStatusWriter(omaseed::integration::StatusWriter *writer)
     writer->setEngine(m_engine);
     writer->setPreferences(m_prefs);
     writer->setAltSpeed(m_altSpeed);
+    // DECISIONS C36 M8: `alt.pick`, the preset Omarchy's Speeds › ticks.
+    writer->setAltPresets(m_altPresets);
     // docs/33 §11 (D24): `servers` and `menu`, the shared menu the widget draws.
     writer->setMenu(m_barMenu);
     // DECISIONS C36 M10: `paused.count`, for Omarchy's menu's Resume Torrents.

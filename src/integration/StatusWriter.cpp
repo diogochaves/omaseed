@@ -1,5 +1,6 @@
 #include "integration/StatusWriter.hpp"
 
+#include "core/AltPresets.hpp"
 #include "core/AltSpeed.hpp"
 #include "core/CategoryModel.hpp"
 #include "core/FilterCounts.hpp"
@@ -143,6 +144,16 @@ void StatusWriter::setAltSpeed(const omaseed::core::AltSpeed *alt)
     m_alt = alt;
     if (alt)
         connect(alt, &omaseed::core::AltSpeed::changed, this, &StatusWriter::markDirty);
+    markDirty();
+}
+
+void StatusWriter::setAltPresets(const omaseed::core::AltPresets *presets)
+{
+    if (m_altPresets)
+        disconnect(m_altPresets, nullptr, this, nullptr);
+    m_altPresets = presets;
+    if (presets)
+        connect(presets, &omaseed::core::AltPresets::changed, this, &StatusWriter::markDirty);
     markDirty();
 }
 
@@ -636,6 +647,12 @@ QJsonObject StatusWriter::content() const
                         {QStringLiteral("kind"), m_alt ? m_alt->kind() : QStringLiteral("alt")},
                         {QStringLiteral("until"), m_alt ? m_alt->stateUntilText() : QString()},
                         {QStringLiteral("byHand"), m_alt && m_alt->isByHand()},
+                        // DECISIONS C36 M8, added within v2: the preset in force, which
+                        // Omarchy's Speeds › ticks; `kind` above stays the set's comparison.
+                        {QStringLiteral("pick"),
+                         m_altPresets ? m_altPresets->current()
+                         : altOn      ? QStringLiteral("turtle")
+                                      : QStringLiteral("off")},
                     });
     document.insert(QStringLiteral("counts"),
                     QJsonObject{

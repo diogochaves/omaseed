@@ -1,3 +1,4 @@
+#include "core/AltPresets.hpp"
 #include "core/AltSpeed.hpp"
 #include "core/GlobalState.hpp"
 #include "core/PauseHold.hpp"
@@ -146,6 +147,7 @@ private slots:
     void removedOnQuit();
     void neverStartedRemovesNothing();
     void altNamesTheSet();
+    void altNamesThePick();
     void serversAndTheSharedMenu();
     void pausedCountsTheHold();
 
@@ -904,6 +906,73 @@ void TestStatusWriter::altNamesTheSet()
     status = readStatus(statusPath(), &ok);
     altJson = status.value(QStringLiteral("alt")).toObject();
     QCOMPARE(altJson.value(QStringLiteral("kind")).toString(), QStringLiteral("turtle"));
+}
+
+// DECISIONS C36 M8: alt.pick, the preset in force (added within v2), beside alt.kind, which
+// stays the set's comparison: off, turtle while the limits are on, burst while omaseed's
+// burst is written over them; rewritten when the pick changes.
+void TestStatusWriter::altNamesThePick()
+{
+    SyncEngine engine;
+    engine.globalState()->setConnected(true);
+    engine.applyDemoData(fullUpdate()); // alternative limits on
+    StatusWriter writer;
+    writer.setIntervals(0, 10000);
+    startWriter(writer, engine);
+
+    bool ok = false;
+    const auto pick = [this, &ok]() {
+        return readStatus(statusPath(), &ok)
+            .value(QStringLiteral("alt"))
+            .toObject()
+            .value(QStringLiteral("pick"))
+            .toString();
+    };
+    // Without the presets: the limits' state alone.
+    QCOMPARE(pick(), QStringLiteral("turtle"));
+    QVERIFY(ok);
+
+    omaseed::core::ServerPreferences preferences(nullptr);
+    preferences.setOffline(
+        {{QStringLiteral("alt_dl_limit"), 0}, {QStringLiteral("alt_up_limit"), 2 * 1024 * 1024}});
+    omaseed::core::AltPresets presets;
+    presets.setPreferences(&preferences);
+    presets.setGlobalState(engine.globalState());
+    QSignalSpy written(&writer, &StatusWriter::written);
+    writer.setAltPresets(&presets);
+    QVERIFY(written.wait(2000));
+    QCOMPARE(pick(), QStringLiteral("turtle"));
+
+    // A burst found running on the server: the pick follows the presets.
+    presets.setStore(QJsonObject{
+        {QStringLiteral("public"),
+         QJsonObject{
+             {QStringLiteral("running"),
+              QJsonObject{{QStringLiteral("turtleDl"), 300 * 1024},
+                          {QStringLiteral("turtleUp"), 50 * 1024},
+                          {QStringLiteral("dl"), 0},
+                          {QStringLiteral("up"), 2 * 1024 * 1024},
+                          // Ends in an hour: kept, not ended on the spot.
+                          {QStringLiteral("until"),
+                           QDateTime::currentDateTime().addSecs(3600).toString(Qt::ISODate)}}}}}});
+    written.clear();
+    presets.setServer(QStringLiteral("public"));
+    QVERIFY(presets.burstOn());
+    QVERIFY(written.wait(2000));
+    QCOMPARE(pick(), QStringLiteral("burst"));
+    // alt.kind is still the set against the normal one.
+    QCOMPARE(readStatus(statusPath())
+                 .value(QStringLiteral("alt"))
+                 .toObject()
+                 .value(QStringLiteral("kind"))
+                 .toString(),
+             QStringLiteral("alt"));
+
+    // The limits go off: off.
+    written.clear();
+    engine.applyDemoData(partial(QJsonObject{{QStringLiteral("use_alt_speed_limits"), false}}));
+    QVERIFY(written.wait(2000));
+    QCOMPARE(pick(), QStringLiteral("off"));
 }
 
 // docs/33 §11 change 5 (D24, DECISIONS C13): `servers` and `menu`, added within v2. Without a

@@ -16,9 +16,9 @@ a schema change is one commit touching both sides. Design: `docs/20-companion-wi
 - The widget treats the file as dead (the "not running" state) when it is missing, when
   `now - t > 30`, or when `v` is not `2` (Q12: no compatibility).
 - Fields may be added within v2 (`alt.kind`, `alt.until`, `alt.byHand`, docs/31; `servers`
-  and `menu`, docs/33 §11 and docs/DECISIONS.md C13; `paused`, C36 M10): a reader ignores what
-  it does not know and reads a missing field as the default the schema names. Changing or
-  removing a field is a new `v`.
+  and `menu`, docs/33 §11 and docs/DECISIONS.md C13; `paused`, C36 M10; `alt.pick`, C36 M8):
+  a reader ignores what it does not know and reads a missing field as the default the schema
+  names. Changing or removing a field is a new `v`.
 
 ## Rules for values
 
@@ -58,12 +58,18 @@ a schema change is one commit touching both sides. Design: `docs/20-companion-wi
     // docs/31 (added within v2; a reader that does not know them keeps today's yellow):
     "kind": "burst",                  // which way the alternative set goes against the normal
                                       // one: "burst" (faster), "turtle" (slower), "alt" (mixed,
-                                      // the same, or not read yet). Written on or off.
+                                      // the same, or not read yet). Written on or off. The
+                                      // limits' comparison, not the preset: see `pick`.
     "until": "07:00",                 // when the schedule ends the current state, on or off:
                                       // "07:00", "Mon 07:00" (more than a day away), "" with
                                       // no schedule. The server's clock read as this computer's.
-    "byHand": false                   // the state goes against the schedule: a hand toggle,
+    "byHand": false,                  // the state goes against the schedule: a hand toggle,
                                       // which lasts until the schedule next flips the other way
+    // DECISIONS C36 M8 (added within v2; missing reads "off"):
+    "pick": "turtle"                  // the preset in force (C32 D8 a): "off" (the limits
+                                      // off), "turtle" (on, the server's own set) or "burst"
+                                      // (on, omaseed's burst written over the set). What
+                                      // PickAltSpeed takes; Omarchy's Speeds › ticks it
   },
   "counts": { "all": 142, "downloading": 6, "seeding": 118, "completed": 121,
               "stopped": 12, "stalled": 3, "checking": 1, "errored": 2 },

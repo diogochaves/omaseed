@@ -42,6 +42,7 @@
 class QFileSystemWatcher;
 
 namespace omaseed::core {
+class AltPresets;
 class AltSpeed;
 class PauseHold;
 class SeedLedger;
@@ -81,6 +82,9 @@ public:
     /// docs/31 D12: what `alt` says beyond on and the limits (kind, until, byHand). Without
     /// one the set reads as today's "alt", with no end.
     void setAltSpeed(const omaseed::core::AltSpeed *alt);
+    /// DECISIONS C36 M8: the preset in force, written as `alt.pick` (added within v2): "off",
+    /// "turtle" or "burst". Without one it reads "turtle" while the limits are on, else "off".
+    void setAltPresets(const omaseed::core::AltPresets *presets);
     /// The seed ledger "today's top seeders" read their upload from (#47). The caller keeps it
     /// alive and fed for as long as the writer has it; without one the list is empty.
     void setLedger(const omaseed::core::SeedLedger *ledger);
@@ -170,6 +174,7 @@ private:
     QPointer<omaseed::core::SyncEngine> m_engine;
     QPointer<omaseed::core::ServerPreferences> m_preferences;
     QPointer<const omaseed::core::AltSpeed> m_alt;
+    QPointer<const omaseed::core::AltPresets> m_altPresets;
     QPointer<const BarMenu> m_menu;
     QPointer<const omaseed::core::PauseHold> m_pauseHold;
     QString m_serverId;
