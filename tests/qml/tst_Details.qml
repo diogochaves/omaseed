@@ -598,6 +598,23 @@ TestCase {
         compare(App.details.piecesHaveCount, App.details.pieceCount);
     }
 
+    // C14 E4: an option the server can't change (Transmission's first and last, super seeding,
+    // automatic management) is not a row of Options; sequential stays.
+    function test_facts_leave_out_options_the_server_cant_change() {
+        const view = testCase.select(testCase.archName);
+        const general = findChild(view, "factsTab");
+        const keys = () => general.rows.filter(row => row.option !== undefined).map(row => row.key);
+        compare(keys(), ["Sequential", "First / last", "Super seed", "Auto manage"]);
+        general.features = {
+            "sequentialDownload": true,
+            "firstLastPiece": false,
+            "superSeeding": false,
+            "autoManagement": false
+        };
+        compare(keys(), ["Sequential"]);
+        general.features = App.features;
+    }
+
     // docs/12 G5: j k walk facts' rows across the groups; y copies the whole value.
     function test_facts_rows_take_a_cursor_and_y_copies_the_whole_value() {
         const view = testCase.select(testCase.archName);

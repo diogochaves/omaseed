@@ -2161,6 +2161,9 @@ Item {
         visible: !root.firstRun
         serversOnly: root.libraryEmpty || root.firstSync || root.noList || root.logShown || root.searchShown
         searchOffered: App.searchOffered
+        // C14 E4, C25 K16, K30: what the server lacks is gone from the rail.
+        logOffered: Keymap.offered("toggleLog", App.features, "")
+        categoriesOffered: App.features.categories !== false
         serversFolded: App.serversFolded
         serverRetrying: root.serverRetrying
 
@@ -3615,6 +3618,7 @@ Item {
         altKind: App.altSpeed.kind
         // D14 b: flush with the mark it grows from.
         clampMargin: 0
+        features: App.features
         serverLine: root.serverLaneText()
         sharedRows: App.appMenuRows
         version: App.versionText.replace(/^omaseed /, "")

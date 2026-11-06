@@ -97,6 +97,12 @@ Item {
     /// #145 (C24 H16, C25 K30): the server has search plugins to offer, so the views end with
     /// search. Gone where it can't be offered.
     property bool searchOffered: false
+    /// The server has a log to show (App.features.engineLog, C25 K30): without one the log
+    /// view's row is gone.
+    property bool logOffered: true
+    /// The server groups torrents one per torrent (App.features.categories, C25 K16): without
+    /// it the categories section is gone.
+    property bool categoriesOffered: true
     /// #167 assumed 4: folded to its glyphs (ctrl+b).
     property bool compact: false
     /// DECISIONS C32 D3 a: the width open, as the edge was last dragged (the host keeps it).
@@ -376,14 +382,14 @@ Item {
             "text": qsTr("seed"),
             "glyph": Glyphs.viewSeed,
             "shortcut": "`"
-        },
-        {
-            "key": "log",
-            "text": qsTr("log"),
-            "glyph": Glyphs.viewLog,
-            "shortcut": "~"
         }
-    ].concat(root.searchOffered ? [
+    ].concat(root.logOffered ? [
+                                   {
+                                       "key": "log",
+                                       "text": qsTr("log"),
+                                       "glyph": Glyphs.viewLog,
+                                       "shortcut": "~"
+                                   }] : []).concat(root.searchOffered ? [
                                       {
                                           "key": "search",
                                           "text": qsTr("search"),
@@ -466,7 +472,7 @@ Item {
                                                                                                   root.statusRowCount
     readonly property int groupsRowSpan: root.compact && !root.serversOnly ? 1 : 0
     readonly property bool _groupsHidden: root.serversOnly || root.compact
-    readonly property int categoriesSpan: root._groupsHidden ? 0 : root.categoriesFolded ? 1 :
+    readonly property int categoriesSpan: root._groupsHidden || !root.categoriesOffered ? 0 : root.categoriesFolded ? 1 :
                                                                                            root.categoriesRowCount
     readonly property int foldersSpan: root._groupsHidden || root.foldersRowCount === 0 ? 0 : root.foldersFolded
                                                                                            ? 1 : root.foldersRowCount
@@ -1104,7 +1110,7 @@ Item {
                 hasCursor: root.cursorOn(categoriesGroup.globalIndex)
                 label: qsTr("categories")
                 labelId: "categories"
-                visible: !root.compact
+                visible: !root.compact && root.categoriesOffered
                 width: content.width
 
                 onToggled: root.toggleGroup("categories")

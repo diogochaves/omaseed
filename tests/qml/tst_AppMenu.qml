@@ -116,6 +116,19 @@ TestCase {
                                                                             item.action);
     }
 
+    // C25 K30 (C14 E4): a server with no log of its own (Transmission) has no log row.
+    function test_no_log_row_without_the_engines_log() {
+        const menu = createTemporaryObject(menuComponent, testCase);
+        verify(testCase._kinds(menu).indexOf("toggleLog") >= 0);
+        menu.features = {
+            "engineLog": false
+        };
+        const kinds = testCase._kinds(menu);
+        verify(kinds.indexOf("toggleLog") < 0);
+        verify(kinds.indexOf("toggleConsole") >= 0);
+        verify(kinds.indexOf("commands") >= 0);
+    }
+
     // C13's order, the servers block first with its caption; this window's block after
     // settings, under its own caption, before quit's rule; quit last.
     function test_c13s_rows_then_the_windows_then_quit() {

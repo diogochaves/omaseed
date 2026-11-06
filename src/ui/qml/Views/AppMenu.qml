@@ -26,6 +26,9 @@ Menu {
     property string serverLine: ""
     /// docs/31: the alternative set's kind, "burst", "turtle" or "alt"; the row's glyph.
     property string altKind: "alt"
+    /// What the server can do (App.features, DECISIONS C14 E4): a window row it can't run
+    /// (the log, C25 K30) is left out.
+    property var features: ({})
 
     /// The window's own rows, in board 46's order; their actions are the Keymap's, and each
     /// key is that action's (tst_Keymap checks).
@@ -164,8 +167,12 @@ Menu {
                              "caption": true,
                              "text": qsTr("this window only")
                          });
-                for (const windowRow of root.windowRows)
+                for (const windowRow of root.windowRows) {
+                    // C25 K30: no log row on a server without a log.
+                    if (windowRow.action === "toggleLog" && root.features.engineLog === false)
+                        continue;
                     out.push(windowRow);
+                }
             }
             out.push(root._item(row));
         }

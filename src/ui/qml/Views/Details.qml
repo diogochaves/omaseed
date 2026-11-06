@@ -1357,6 +1357,7 @@ Item {
             // Two columns only with room for them: narrower, the values would wrap instead.
             columns: root.wide && body.width >= Theme.space(620) ? 2 : 1
             cursorIndex: root.generalCursor
+            features: App.features
             properties: root.details.properties
             // C30 F17–F18, while the reading is this torrent's.
             sizeTail: App.skippedOnDisk.hash === root.details.hash ? (App.skippedOnDisk.sizeTail || "") : ""

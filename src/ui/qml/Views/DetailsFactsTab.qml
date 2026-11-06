@@ -62,6 +62,17 @@ Flickable {
         return null;
     }
 
+    /// What the server can do (App.features, DECISIONS C14 E4): an option row it can't change
+    /// is left out. A key it lacks counts as on.
+    property var features: ({})
+    /// The feature each option row needs (Keymap.actionFeatures' names).
+    readonly property var optionFeatures: ({
+                                               "sequential": "sequentialDownload",
+                                               "firstLast": "firstLastPiece",
+                                               "superSeeding": "superSeeding",
+                                               "autoManagement": "autoManagement"
+                                           })
+
     /// `[{label, rows: [{index, key, value, copy, name, color?, dim?, halves?, option?, on?}]}]`, empty
     /// groups dropped. `option` names a G4 on/off row ("sequential", "firstLast",
     /// "superSeeding", "autoManagement") and `on` its state; `halves` breaks a value that does
@@ -147,7 +158,8 @@ Flickable {
         const options = make();
         add(options, qsTr("Share limit"), map.shareLimit);
         // docs/12 G4: on/off rows off the torrent row; `enter` or a click changes them.
-        const option = (key, name, on) => add(options, key, on ? qsTr("on") : qsTr("off"), {
+        // C14 E4: an option the server can't change is not shown (`features`).
+        const option = (key, name, on) => root.features[root.optionFeatures[name]] === false ? undefined : add(options, key, on ? qsTr("on") : qsTr("off"), {
                                                   "option": name,
                                                   "on": on,
                                                   "color": on ? Theme.green : Theme.dimForeground

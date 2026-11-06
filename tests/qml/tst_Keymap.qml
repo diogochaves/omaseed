@@ -722,6 +722,52 @@ TestCase {
                                             "editWebSeeds": false
                                         })
 
+    // Transmission 4.1's record (TransmissionTranslate::features; board 47 §1, C25).
+    readonly property var transmission: ({
+                                             "categories": false,
+                                             "tags": true,
+                                             "queue": true,
+                                             "forceStart": true,
+                                             "sequentialDownload": true,
+                                             "firstLastPiece": false,
+                                             "superSeeding": false,
+                                             "autoManagement": false,
+                                             "peerControl": false,
+                                             "editWebSeeds": false,
+                                             "engineLog": false,
+                                             "qbtSettings": false,
+                                             "altSpeeds": true,
+                                             "search": false,
+                                             "createTorrent": false
+                                         })
+
+    // C14 E4 on a Transmission: the palette and the ? sheet keep what it does and lose what
+    // it lacks; with no turtle (Deluge's K20) the alternative limits go too.
+    function test_a_transmission_is_offered_what_it_does() {
+        const rows = Keymap.commandRows(testCase._context({
+                                                              "features": testCase.transmission
+                                                          })).map(row => row.action);
+        for (const action of ["stop", "forceStart", "queueUp", "tags", "rename", "recheck",
+                              "reannounce", "altSpeed"])
+            verify(rows.indexOf(action) >= 0, action);
+        for (const action of ["category", "superSeeding", "firstLast", "autoManagement",
+                              "toggleLog", "qbtSettings", "search", "create"])
+            verify(rows.indexOf(action) < 0, action);
+        verify(!Keymap.offered("search:ask", testCase.transmission, ""));
+        verify(!Keymap.offered("createFromFolder", testCase.transmission, ""));
+        const help = ["app", "view", "torrent", "global"].reduce((out, column) => out.concat(
+                                                                     Keymap.helpRows(column, "alt", testCase.transmission).map(
+                                                                         row => row.action)), []);
+        for (const action of ["toggleLog", "search", "create", "qbtSettings"])
+            verify(help.indexOf(action) < 0, action);
+        verify(help.indexOf("altSpeed") >= 0);
+        const noTurtle = Object.assign({}, testCase.transmission, {
+                                           "altSpeeds": false
+                                       });
+        verify(!Keymap.offered("altSpeed", noTurtle, ""));
+        verify(!Keymap.offered("altLimits", noTurtle, ""));
+    }
+
     function test_offered_reads_the_feature_record() {
         verify(Keymap.offered("forceStart", undefined, ""));
         verify(Keymap.offered("forceStart", {

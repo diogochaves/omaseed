@@ -98,6 +98,23 @@ TestCase {
         compare(findChild(rail, "now").label, "now");
     }
 
+    // C14 E4, C25 K16, K30: a server without a log (Transmission) has no log row, and one
+    // without categories no categories section; the cursor space closes up behind them.
+    function test_what_the_server_lacks_is_gone_from_the_rail() {
+        const rail = createTemporaryObject(railComponent, testCase);
+        const total = rail.totalRowCount;
+        const categories = rail.categoriesSpan;
+        verify(categories > 0);
+        rail.logOffered = false;
+        compare(rail.viewRows.map(row => row.key), ["library", "seed"]);
+        compare(rail.statusBase, 2);
+        rail.categoriesOffered = false;
+        compare(rail.categoriesSpan, 0);
+        compare(rail.foldersBase, rail.categoriesBase);
+        compare(rail.totalRowCount, total - 1 - categories);
+        verify(!findChild(rail, "railGroup-categories")?.visible ?? true);
+    }
+
     // Board 46 `.ri.needs`: needs you is red while it counts something.
     function test_needs_you_is_red_while_something_needs_you() {
         const rail = createTemporaryObject(railComponent, testCase);

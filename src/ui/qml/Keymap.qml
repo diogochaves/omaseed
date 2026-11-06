@@ -2402,7 +2402,14 @@ QtObject {
                                                "superSeeding": "superSeeding",
                                                "autoManagement": "autoManagement",
                                                "toggleLog": "engineLog",
-                                               "qbtSettings": "qbtSettings"
+                                               "qbtSettings": "qbtSettings",
+                                               // C25 K20: no turtle where there is none (Deluge).
+                                               "altSpeed": "altSpeeds",
+                                               "altLimits": "altSpeeds",
+                                               // C25 K30, I: qBittorrent's search and creator.
+                                               "search": "search",
+                                               "create": "createTorrent",
+                                               "createFromFolder": "createTorrent"
                                            })
     /// The details tabs' shared keys, per tab: the same `a` adds trackers everywhere, but
     /// peers and HTTP sources only where the engine takes them.
@@ -2424,6 +2431,8 @@ QtObject {
         let feature = root.actionFeatures[action];
         if (tab === "log")
             feature = "engineLog";
+        else if (tab === "search" || String(action).startsWith("search:"))
+            feature = "search";
         else if (tab && root.tabFeatures[tab] !== undefined)
             feature = root.tabFeatures[tab][action] || feature;
         return feature === undefined || can[feature] !== false;
