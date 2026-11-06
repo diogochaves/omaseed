@@ -262,20 +262,6 @@ expect_node() {
     fi
 }
 
-# expect_gone_but "WHAT" TEXT BUT [SECONDS]: wait until no node of omaseed's window holds
-# TEXT, leaving out the nodes that also hold BUT.
-expect_gone_but() {
-    local what="$1" text="$2" but="$3" limit="${4:-20}"
-    for _ in $(seq 1 "$limit"); do
-        if ! omabox tree -b "$BOX" --window omaseed 2>/dev/null | grep -F -- "$text" | grep -qvF -- "$but"; then
-            pass "$what"
-            return 0
-        fi
-        sleep 1
-    done
-    fail "$what (after ${limit}s a node still holds \"$text\")"
-}
-
 # step "TITLE" "WHAT IT DOES": interactive, say it and wait for enter; headless, a heading.
 step() {
     STEP=$((STEP + 1))
@@ -741,9 +727,9 @@ keys l Return
 expect "gone from the daemon" "$HASH" 't is None' 30
 expect_disk "its folder is gone from disk" ! "$MOVED/$NAME" 30
 expect "the others are all still there" "$HASH" "sorted(x['hash'] for x in every) == sorted($OTHERS + ['$BIG_HASH'])"
-# The silent move's band (a finished job's summary) still names it until closed: only the
-# other nodes that hold the name count.
-expect_gone_but "the row is gone" "$RENAMED" "didn't move" 20
+# The silent move's band (a finished job's summary, held under the later move) names only
+# this torrent, so it closes with it (#244): nothing in the window names it any more.
+expect_no_text "the row is gone, and the silent move's band with it" "$RENAMED" 20
 shot "The table without it."
 
 dcall core.remove_torrent "[\"$BIG_HASH\", true]" >/dev/null

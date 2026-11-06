@@ -725,6 +725,16 @@ void MoveJob::onSynced(bool fullUpdate)
         return;
     const QDateTime at = now();
     const bool after = m_state == State::Done || m_state == State::Ended;
+    // #244 (Diogo, 2026-11-06): a summary whose torrents were all deleted after the end names
+    // nothing left; the app closes it. One that keeps any of them stays, the deleted ones
+    // counted as removed.
+    if (after && !m_entries.isEmpty() &&
+        std::none_of(m_entries.cbegin(), m_entries.cend(), [this](const Entry &entry) {
+            return m_torrents->indexOfHash(entry.hash) >= 0;
+        })) {
+        Q_EMIT allGone();
+        return;
+    }
     if (after && m_endedAt.isValid() && m_endedAt.secsTo(at) > kAfterSeconds && !m_restored)
         return;
 

@@ -857,6 +857,64 @@ private slots:
         QVERIFY(!ids.contains(QStringLiteral("moveBack")));
     }
 
+    // #244 (Diogo, 2026-11-06): the failed move's band closes when its only torrent is
+    // deleted. One that names several keeps the others (assumed): the deleted one is counted
+    // as removed, no longer as failed.
+    void aSummaryClosesWhenItsTorrentsAreDeleted()
+    {
+        failAHybridAndAV1();
+        QVERIFY(m_move->shown());
+        qbtfeed::partial(*m_engine->torrents(), {}, {QStringLiteral("a1")});
+        Q_EMIT m_engine->synced(false);
+        QCoreApplication::processEvents();
+        QCOMPARE(m_move->stateName(), QStringLiteral("done"));
+        QCOMPARE(m_move->failedHashes(), QStringList({QStringLiteral("b2")}));
+        const QString line = m_move->band().value(QStringLiteral("line")).toString();
+        QVERIFY2(line.contains(QStringLiteral("1 removed")), qPrintable(line));
+        m_move->closeSummary();
+        QCOMPARE(m_move->stateName(), QStringLiteral("idle"));
+
+        m_move->job()->setShowDelay(std::chrono::milliseconds(0));
+        QVERIFY(m_move->startSelection(
+            {QStringLiteral("d4")}, QStringLiteral("/mnt/usb/films"), QStringLiteral("oneFolder")));
+        QTRY_VERIFY(m_move->shown());
+        m_move->job()->onFailed(QStringLiteral("d4"),
+                                QDateTime::currentDateTime(),
+                                QStringLiteral("Permission denied"),
+                                QStringLiteral("noAccess"),
+                                QStringLiteral("Failed to move torrent. …"));
+        QCOMPARE(m_move->stateName(), QStringLiteral("done"));
+        QVERIFY(!m_move->band().isEmpty());
+        qbtfeed::partial(*m_engine->torrents(), {}, {QStringLiteral("d4")});
+        Q_EMIT m_engine->synced(false);
+        QTRY_COMPARE(m_move->stateName(), QStringLiteral("idle"));
+        QVERIFY(m_move->band().isEmpty());
+
+        // Held, with a quiet move run under it (#105): the same.
+        QVERIFY(m_move->startSelection(
+            {QStringLiteral("b2")}, QStringLiteral("/mnt/usb/x"), QStringLiteral("oneFolder")));
+        QTRY_VERIFY(m_move->shown());
+        m_move->job()->onFailed(QStringLiteral("b2"),
+                                QDateTime::currentDateTime(),
+                                QStringLiteral("Permission denied"),
+                                QStringLiteral("noAccess"),
+                                QStringLiteral("Failed to move torrent. …"));
+        QCOMPARE(m_move->stateName(), QStringLiteral("done"));
+        m_move->job()->setShowDelay(std::chrono::hours(1));
+        QVERIFY(m_move->startSelection(
+            {QStringLiteral("c3")}, QStringLiteral("/mnt/fast/c"), QStringLiteral("oneFolder")));
+        landSent();
+        // The quiet one is over; the band is still the held summary's.
+        QTRY_COMPARE(m_move->job()->state(), MoveJob::State::Idle);
+        QVERIFY(m_move->shown());
+        const QString held = m_move->band().value(QStringLiteral("headline")).toString();
+        QVERIFY2(held.endsWith(QStringLiteral("didn't move")), qPrintable(held));
+        qbtfeed::partial(*m_engine->torrents(), {}, {QStringLiteral("b2")});
+        Q_EMIT m_engine->synced(false);
+        QVERIFY(!m_move->shown());
+        QVERIFY(m_move->band().isEmpty());
+    }
+
     void aSlowSelectionShowsItsBandThenMovesBack()
     {
         m_move->setServer(QStringLiteral("home"));
@@ -1217,7 +1275,7 @@ private slots:
         qbtfeed::full(
             *m_engine->torrents(),
             QJsonObject{
-                {QStringLiteral("e5"),
+                {QStringLiteral("b2"),
                  torrent(QStringLiteral("Open Arena"), archive + QStringLiteral("/games"), 1000)},
                 {QStringLiteral("f6"),
                  torrent(
@@ -1226,7 +1284,7 @@ private slots:
         m_move->setServer(QStringLiteral("home"));
 
         QVariantMap sheet = m_move->planSelection(
-            {QStringLiteral("e5")}, archive + QStringLiteral("/old"), QStringLiteral("oneFolder"));
+            {QStringLiteral("b2")}, archive + QStringLiteral("/old"), QStringLiteral("oneFolder"));
         QCOMPARE(sheet.value(QStringLiteral("title")).toString(),
                  QStringLiteral("Move Open Arena"));
         QCOMPARE(sheet.value(QStringLiteral("moveText")).toString(), QStringLiteral("move"));
@@ -1234,7 +1292,7 @@ private slots:
                  QStringList({QStringLiteral(
                      "Same drive: a rename, it lands at once. Room and access are fine.")}));
 
-        sheet = m_move->planSelection({QStringLiteral("e5"), QStringLiteral("f6")},
+        sheet = m_move->planSelection({QStringLiteral("b2"), QStringLiteral("f6")},
                                       fast + QStringLiteral("/library"),
                                       QStringLiteral("keepPlaces"));
         QVERIFY(sheet.value(QStringLiteral("ruleOffered")).toBool());
@@ -1250,7 +1308,7 @@ private slots:
         QDir().mkpath(fast + QStringLiteral("/library"));
         QVERIFY(clash.open(QIODevice::WriteOnly));
         clash.close();
-        sheet = m_move->planSelection({QStringLiteral("e5"), QStringLiteral("f6")},
+        sheet = m_move->planSelection({QStringLiteral("b2"), QStringLiteral("f6")},
                                       fast + QStringLiteral("/library"),
                                       QStringLiteral("oneFolder"));
         QVERIFY(checkTexts(sheet).size() > 2);
@@ -1258,7 +1316,7 @@ private slots:
                  QStringLiteral("move 1 torrent"));
         // The note names the one that moved, not the selection ("2 torrents", #105).
         QSignalSpy notes(m_move, &MoveController::note);
-        QVERIFY(m_move->startSelection({QStringLiteral("e5"), QStringLiteral("f6")},
+        QVERIFY(m_move->startSelection({QStringLiteral("b2"), QStringLiteral("f6")},
                                        fast + QStringLiteral("/library"),
                                        QStringLiteral("oneFolder")));
         landSent();
@@ -1292,7 +1350,7 @@ private slots:
         qbtfeed::full(
             *m_engine->torrents(),
             QJsonObject{
-                {QStringLiteral("e5"),
+                {QStringLiteral("b2"),
                  torrent(QStringLiteral("Open Arena"), archive + QStringLiteral("/games"), 1000)},
                 {QStringLiteral("f6"),
                  torrent(QStringLiteral("Demo"), archive + QStringLiteral("/games"), 10)}});
@@ -1325,7 +1383,7 @@ private slots:
         QVERIFY(!leftOutLine(sheet).isEmpty());
         QVERIFY(!leftOutLine(sheet).contains(QStringLiteral("replace")));
 
-        sheet = m_move->planSelection({QStringLiteral("e5")}, to, QStringLiteral("oneFolder"));
+        sheet = m_move->planSelection({QStringLiteral("b2")}, to, QStringLiteral("oneFolder"));
         QVERIFY(!sheet.value(QStringLiteral("canMove")).toBool());
         const QVariantMap line = leftOutLine(sheet);
         QVERIFY(line.value(QStringLiteral("text"))
@@ -1348,13 +1406,13 @@ private slots:
             file.write("late");
         }
         m_move->replaceNext({empty});
-        QVERIFY(!m_move->startSelection({QStringLiteral("e5")}, to, QStringLiteral("oneFolder")));
+        QVERIFY(!m_move->startSelection({QStringLiteral("b2")}, to, QStringLiteral("oneFolder")));
         QCOMPARE(QFileInfo(empty).size(), qint64(4));
         QVERIFY(QFile::resize(empty, 0));
 
         // Replace it: deleted, then moved; the record and the log's line say so.
         m_move->replaceNext({empty});
-        QVERIFY(m_move->startSelection({QStringLiteral("e5")}, to, QStringLiteral("oneFolder")));
+        QVERIFY(m_move->startSelection({QStringLiteral("b2")}, to, QStringLiteral("oneFolder")));
         QVERIFY(!QFileInfo::exists(empty));
         QVERIFY(QFileInfo::exists(full));
         QCOMPARE(m_move->job()->spec().value(QStringLiteral("replaced")).toVariant().toStringList(),

@@ -184,6 +184,18 @@ void MoveController::attachJob()
             [this](const QString &hash, const QString &to, const QDateTime &at) {
                 m_notMoved.insert(m_serverId + QLatin1Char('\n') + hash, {to, at});
             });
+    // #244: a summary whose torrents were all deleted closes, as its close would. Not from
+    // inside the job's own signal: the next queued move may start from here.
+    connect(m_job.get(), &MoveJob::allGone, this, [this]() {
+        QPointer<MoveController> self(this);
+        QTimer::singleShot(0, this, [self]() {
+            if (self.isNull() || self->m_job == nullptr)
+                return;
+            if (self->m_job->state() == MoveJob::State::Done ||
+                self->m_job->state() == MoveJob::State::Ended)
+                self->forgetSummary();
+        });
+    });
     // L12: a queued move is checked again when its turn comes.
     m_job->setReplan([this](const QJsonObject &spec) { return replan(spec); });
     connect(m_job.get(), &MoveJob::queuedDropped, this, [this](const QString &title) {
@@ -250,6 +262,16 @@ void MoveController::onSynced()
     scheduleFolders();
     if (!m_recheckHash.isEmpty())
         recheckNext();
+    // #244: a held summary (a move ran under it) closes once every torrent it names was
+    // deleted, as the job's own does (MoveJob::allGone). One that keeps any stays as held.
+    if (holding() && !m_held->hashes.isEmpty() && m_hooks.engine != nullptr) {
+        const core::TorrentModel *torrents = m_hooks.engine->torrents();
+        if (std::none_of(
+                m_held->hashes.cbegin(), m_held->hashes.cend(), [torrents](const QString &hash) {
+                    return torrents->indexOfHash(hash) >= 0;
+                }))
+            closeSummary();
+    }
 }
 
 QDateTime MoveController::now() const

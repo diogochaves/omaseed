@@ -336,6 +336,9 @@ Q_SIGNALS:
     /// onNotMoved() took it as failed: the engine dropped the move to `to` without a word
     /// (cause "silent"), seen at `at`. The details' story keeps it after the job (#244).
     void notMoved(const QString &hash, const QString &to, const QDateTime &at);
+    /// Done or Ended, and none of its torrents is on the server any more (deleted after the
+    /// end): its summary names nothing left, so the app closes it (#244).
+    void allGone();
 
 private:
     QDateTime now() const;
