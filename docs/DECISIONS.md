@@ -1315,6 +1315,23 @@ nearest parent that exists; the job reads it again between moves. The sheet's L1
 what ran on the server per engine; without a listing it says once "Names at the destination
 can't be checked on Transmission" with "may be replaced", and loose files "stay behind" unnamed.
 
+*Errors on Transmission (2026-11-06, #85, assumed, to confirm):* built from K24 and §F with these
+calls the board left open. With no log, an errored torrent's problem is read from its
+`error_string` at the sync that shows it (no wait), and its notice (N1) goes then, in the
+engine's words; the block's time is when omaseed first saw the error. A move is known by the
+text's shape, two quoted absolute paths, so it reads in any daemon language; the cause is
+describe()'s key on the words after the last quoted path, and a text it can't read keeps the
+headline "Transmission stopped it with an error" with the words quoted under it. A failed move
+whose old folder is the incomplete one is "Didn't move when it finished" and gets "show both
+folders"; its start is "start it here" too (the board drew "start it"). An error in place leads
+with "retry", then move… and "open folder" for no access, read-only or a full disk; files gone
+put the start last (a recheck or a new place first); Transmission's own "No data found!" (English
+only) reads as missing files, "Its files aren't where Transmission left them". The row's caption is "stopped" in the usual
+caption colour (board 47 draws it red; a row role for that is left out). Errors 1 and 2 are the
+trackers': `hasTrackerError` and the trackers tab, never the needs-you block. The outcome strip's
+"start it here" takes "details"' place wherever the engine stops a torrent whose move failed
+(`moveStopsOnFailure`, so Deluge's recheck-first strip is still to do).
+
 ## C26 — Search through qBittorrent's search plugins (board 48, ruled 2026-10-22)
 
 Board [48](48-search.html) SR1–SR14, all as recommended, in board 46's frame (C24 H16: a rail view
