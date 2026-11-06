@@ -8910,7 +8910,7 @@
                         "found": true,
                         "headline": "Can't write to its save folder",
                         "line": "File error alert. Torrent: \"unwritable-fixture.bin\". File: \"/home/user/.local/share/omaseed-test/downloads/swarm-readonly/unwritable-fixture.bin\". Reason: \"ad91d5 file_open (/home/user/.local/share/omaseed-test/downloads/swarm-readonly/unwritable-fixture.bin) error: Permission denied\"",
-                        "loggedAt": "2026-10-16T20:00:26.000",
+                        "loggedAt": "2026-10-16T23:00:26.000Z",
                         "missingFiles": false,
                         "source": "",
                         "stuckMove": false

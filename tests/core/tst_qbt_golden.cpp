@@ -84,10 +84,19 @@ QJsonValue toJson(const QVariant &value)
     case QMetaType::QStringList:
         return QJsonArray::fromStringList(value.toStringList());
     case QMetaType::QVariantMap: {
-        // A problem's "today 20:00" ages; its timestamp does not.
-        QJsonObject object = QJsonObject::fromVariantMap(value.toMap());
-        object.remove(QStringLiteral("loggedAtText"));
-        return object;
+        // A problem's "today 20:00" ages; its timestamp does not. Its times are read in UTC:
+        // QJsonObject would write a QDateTime in the machine's zone, so a file made at UTC-3
+        // failed in CI's UTC.
+        QVariantMap map = value.toMap();
+        map.remove(QStringLiteral("loggedAtText"));
+        for (auto it = map.begin(); it != map.end(); ++it) {
+            if (it.value().typeId() == QMetaType::QDateTime) {
+                const QDateTime when = it.value().toDateTime();
+                it.value() = when.isValid() ? QVariant(when.toUTC().toString(Qt::ISODateWithMs))
+                                            : QVariant(QString());
+            }
+        }
+        return QJsonObject::fromVariantMap(map);
     }
     case QMetaType::QVariantList:
         return QJsonArray::fromVariantList(value.toList());
