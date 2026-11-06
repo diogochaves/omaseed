@@ -1474,6 +1474,32 @@ engine adds peers or has no web seeds at all. A magnet is looked up on Deluge on
 known (it has no API version of its own), and an engine that reports no web seeds is never asked
 for them.
 
+*Moves and errors on Deluge (2026-11-06, E6 #87, assumed, to confirm):* built from K21–K24, §E
+and §F with these calls the board left open. The band reads Deluge's own % of the torrent it
+moves (its `progress` while Moving, times the bytes done), whether or not omaseed sees its disks,
+and never says "doesn't report a single move's progress"; a first reading at full size is
+trusted. A move into a folder Deluge can't make is taken and dropped without a word (deluged's log
+only): a torrent whose send Deluge took that, two polls and 3 s after the answer, has never read
+Moving and is still in its folder failed, with cause "silent", in the strip as "Deluge didn't move
+it and doesn't say why", in the move's record as "Deluge took the move to DEST, but the torrent
+never started moving and is still in FROM. Deluge says why only in its own log; most often it
+couldn't make the folder.", and in the first-failure band as "The first torrent, NAME, didn't
+move, and Deluge doesn't say why"; nothing is paused, nothing added, and it isn't sent again.
+A failed move in words (Deluge's "Failed to move download folder: …") reads "Didn't move" with
+Deluge's words whole and "Deluge paused it · only a recheck clears this error"; Deluge's text
+names no folder, so the row says "Deluge couldn't move its files · it paused the torrent" (the
+board's "couldn't move it to DEST" isn't known from the torrent), and "Didn't move when it
+finished" isn't told apart on Deluge. An error in place reads "Deluge paused it · retry resumes
+it", retry first. The Status column and the row's caption say "paused" where Transmission's say
+"stopped"; the story "Deluge paused it". The strip after a failed move reads "Deluge can't write
+to DEST · it paused the torrent; a recheck clears it" with "recheck" in details' place, which
+opens C21's recheck sheet (libtorrent); the summary band reads "N failed · Deluge paused the
+torrent(s); a recheck clears it (them)" and "N failed · Deluge didn't move it (them) and doesn't
+say why", with "recheck the N…" first, then "retry the N". The Move sheet warns "Moves when done.
+N torrent(s) go to another folder when they finish. Deluge turns that off for any move it makes"
+for unfinished torrents with a move-when-done folder. With deluge-web up and no daemon, the
+status line's server lane reads "NAME · no daemon", as the band and the server's row do.
+
 ## C26 — Search through qBittorrent's search plugins (board 48, ruled 2026-10-22)
 
 Board [48](48-search.html) SR1–SR14, all as recommended, in board 46's frame (C24 H16: a rail view
