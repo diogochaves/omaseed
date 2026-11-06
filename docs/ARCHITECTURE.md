@@ -1,8 +1,9 @@
 # Architecture
 
 omaseed is one process and one binary. It has no torrent engine: everything it shows and does
-goes through a server's API, qBittorrent's public Web UI API v2 (2.15) or Transmission's
-JSON-RPC 2.0 (4.1 and later), against one or more servers, local or remote. C++20 and Qt 6 Quick, built with CMake.
+goes through a server's API, qBittorrent's public Web UI API v2 (2.15), Transmission's
+JSON-RPC 2.0 (4.1 and later) or deluge-web's JSON API (Deluge 2.1 and later), against one or
+more servers, local or remote. C++20 and Qt 6 Quick, built with CMake.
 
 ## Layers
 
@@ -55,6 +56,18 @@ Three static libraries and the executable. Each layer only depends on the ones a
   gap. Transmission's integer ids stay inside it. Its settings are its session's:
   `ServerPreferences` reads and writes them through `EngineClient::sessionPreferences` when
   the feature record says `sessionSettings` (Settings › Transmission).
+- `DelugeEngine` (`src/core/engines/deluge/`, C14, C25) is Deluge 2.1 and later through
+  deluge-web, the same way: `DelugeRpc` is the transport (JSON-RPC 1, one call per POST,
+  `auth.login` with the password and its session cookie, signed in again once on "Not
+  authenticated"), `DelugeTranslate` the only code that reads its JSON (its feature record
+  included: labels from the Label plugin in the categories' place, `categoriesAreLabels`; a
+  move's own %; an error that pauses, `pausesOnError`). A poll asks `web.update_ui` first (a
+  core call hangs while deluge-web has no daemon, which reads as a down server, "no
+  daemon"), then the session's totals, and `SnapshotDiffer` turns the whole list into a
+  `SyncDelta`. The daemon deluge-web drives is stored with the server (K10) and connected
+  only when deluge-web has none. Its settings are core.conf's (Settings › Deluge, with its
+  Plugins), read and written through `sessionPreferences` as Transmission's are. Deluge
+  keeps no all-time totals, so the seed console's ledger books its session's (K34).
 - qBittorrent's own surfaces live beside its engine and take a `QbtEngine`, which App hands
   them through `App::qbtEngine()` when the feature record says the server has them
   (docs/36 §4.4): `ServerPreferences` (Settings › qBittorrent), `QbtSettingsExport`,
@@ -77,9 +90,10 @@ Three static libraries and the executable. Each layer only depends on the ones a
   whether this build drives it and refuses a version too old, in words. `ServerDetector`
   (first run) only connects to each engine's usual port and reads processes and config
   files, never HTTP. App's `testServer` then runs the engine's own signed-in probe for a
-  qBittorrent or a Transmission, and names and refuses Deluge until its engine lands (E6).
+  qBittorrent or a Transmission, and for a Deluge also asks deluge-web which daemons it knows,
+  for the server sheet's daemon step (K10).
 - `SyncEngine` polls the engine's `sync(cursor)` (qBittorrent's `sync/maindata` with `rid`,
-  Transmission's diffed polls) and
+  Transmission's and Deluge's diffed polls) and
   applies each answer, a `SyncDelta`, to `TorrentModel`, `CategoryModel`, `TagModel`,
   `TrackerModel` and `GlobalState`. It polls every
   1.5 s while the window shows, 5 s while hidden and 15 s after an error. It raises the events
@@ -129,7 +143,8 @@ Three static libraries and the executable. Each layer only depends on the ones a
   it to the server (`EngineClient::setLocation`, the polls, the bytes at a target for live
   progress, and a failed move from one source per engine: qBittorrent's log through
   `ProblemLog`, or the torrent itself going into error, Transmission's and Deluge's; board 47
-  §4). On an engine that answers nothing while it moves (Transmission, C25 K22) it sends one
+  §4; and on Deluge a move it took and never started, read as failed after two polls and
+  3 s, since it says nothing). On an engine that answers nothing while it moves (Transmission, C25 K22) it sends one
   torrent at a time, and `SyncEngine` holds its polls meanwhile: "busy moving", not a lost
   server. `MoveHistory` keeps the moves that landed (the
   last 20 or 30 days, per server, in `state.json`), and says what each one's move back would do

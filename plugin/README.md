@@ -1,7 +1,7 @@
 # omaseed in the bar (`chaves.omaseed`)
 
 An Omarchy bar widget for [omaseed](https://github.com/diogochaves/omaseed), the native
-qBittorrent and Transmission client for Omarchy. omaseed's mark is the activity readout: the lower arrow
+qBittorrent, Transmission and Deluge client for Omarchy. omaseed's mark is the activity readout: the lower arrow
 lights while something downloads, the upper one while something uploads, and the square
 says how the link is. A click opens a popup with the speeds, an hour of upload, adding
 torrents, your share, the torrents you keep alive, what is downloading and what finished.

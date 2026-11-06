@@ -10,7 +10,8 @@
 Omarchy
 
 **Torrents, finally at home on Omarchy.** omaseed is a native desktop client for one
-qBittorrent or Transmission server or many: this PC, a NAS, a seedbox, or all of them at once.
+qBittorrent, Transmission or Deluge server or many: this PC, a NAS, a seedbox, or all of them
+at once.
 It looks like the rest of your desktop and repaints the moment the Omarchy theme changes, every
 action has a key, and it keeps the seeding history the server does not. It opens `magnet:` links and
 `.torrent` files, lives in the Omarchy bar or the tray, and speaks up when a torrent handed
@@ -19,9 +20,9 @@ notice with its own switch in Settings › Notifications.
 
 <img src="docs/screenshots/library-tokyo-night.png" alt="omaseed's library in Tokyo Night: the status, category, tag and tracker rail, the torrent table with two rows selected, and a torrent's details on the right" width="100%">
 
-omaseed has no torrent engine of its own: qBittorrent or Transmission, local or remote, does
-the transferring, and omaseed is the window you see it through. Built for Omarchy, it runs on any
-Linux, with a bundled theme when Omarchy is not there.
+omaseed has no torrent engine of its own: qBittorrent, Transmission or Deluge, local or remote,
+does the transferring, and omaseed is the window you see it through. Built for Omarchy, it runs on
+any Linux, with a bundled theme when Omarchy is not there.
 
 - **Five questions, not columns**: the library grouped under needs you, arriving, landed
   today, giving back and resting, each torrent saying in words what matters now; or the
@@ -73,6 +74,10 @@ you cannot type your password, so it should hand you the line.
 - **Transmission** 4.1 or newer with remote access on (`transmission-daemon`, or the desktop
   app's Preferences › Remote), signed in with a username and password or none. An older
   daemon is refused with words that say why: 4.1 changed its RPC.
+- **Deluge** 2.1 or newer through its web UI (`deluge-web`, signed in with its password) with
+  a daemon (`deluged`) behind it. When deluge-web drives no daemon, or knows several, the
+  server sheet asks which one to use; connecting one switches deluge-web for everyone who
+  uses it, so omaseed only ever connects one when deluge-web has none.
 
 omaseed does everything on Transmission that Transmission can do over its RPC: the library,
 details, adding (magnets, `.torrent` files, labels, a folder), renaming, moving, labels,
@@ -82,6 +87,16 @@ failing, and its key says so once in the status line: categories, a magnet's fil
 the add, super seeding, first and last pieces first, automatic management, adding or
 banning peers, editing web seeds, the log face, search, creating a torrent, and the
 qBittorrent backups (settings export and import, the torrents export).
+
+The same goes for Deluge: the library, details, adding (magnets with their files read before
+the add, `.torrent` files, a label, a folder), renaming (the name Deluge shows; the folder
+keeps its own), moving with Deluge's own percent, labels from its Label plugin (in the
+categories' place, lower case), ratio limits that stop or remove, errors in its own words,
+the seed console (counted from when omaseed began watching: Deluge keeps no all-time
+totals), and Settings › Deluge with its Plugins. A move Deluge fails pauses the torrent until
+a recheck, so recheck comes first; a move it takes and drops without a word reads as failed.
+Left out: tags, turtle, time limits, automatic management, banning peers, web seeds, the log
+face, search, creating a torrent, and the qBittorrent backups.
 
 **What the package installs:** the `omaseed` binary, its `.desktop` file and D-Bus service
 file, icons, the MIT licence, the bar widget (`/usr/share/omaseed/plugin`) and three
@@ -130,7 +145,8 @@ at any point.
 
 1. **Choose a server.** omaseed looks for one on this machine (the desktop qBittorrent's own
    settings, a listening port 8080, a `qbittorrent` Docker container, a running
-   `qbittorrent-nox`; Transmission's port 9091 and its daemon) and offers what it finds, one
+   `qbittorrent-nox`; Transmission's port 9091 and its daemon; Deluge's deluge-web on 8112 and
+   its daemon) and offers what it finds, one
    row per engine. You can always connect to a remote server
    instead. If nothing is found, a third choice installs `qbittorrent-nox` here: two
    commands to copy, or a button that runs them through `pkexec`.
@@ -306,7 +322,7 @@ for the rest and "esc" at its end.
 |---|---|
 | `A` | alternative speeds on or off (turtle, or the last preset picked; the status line's chip has both) |
 | `,` `ctrl+,` | settings |
-| `ctrl+shift+,` | the server's own settings (qBittorrent's or Transmission's) |
+| `ctrl+shift+,` | the server's own settings (qBittorrent's, Transmission's or Deluge's) |
 | `ctrl+.` | the omaseed menu (the mark): servers, alternative speeds, add, settings, quit |
 | hold `alt` | show the keys of what is on screen |
 | `q` | hide to the tray |
@@ -357,7 +373,8 @@ General's **path mapping** rewrites the server's save path before open folder.
 Settings › qBittorrent edits the server's own settings (downloads, connection, speed,
 BitTorrent, RSS, Web UI, advanced) without opening its web UI; Settings › Transmission does
 the same for a Transmission (speed and turtle, discovery and privacy, connection, seeding,
-queue, downloads). Each engine with a saved server keeps its group in Settings.
+queue, downloads), and Settings › Deluge for a Deluge (the same sections from its core.conf,
+then which of its plugins are on). Each engine with a saved server keeps its group in Settings.
 
 ## Backups
 
@@ -365,8 +382,8 @@ Settings › Backup saves omaseed's servers, settings and seeding history to one
 file, and restores from one (keeping a copy of what it replaces first). Automatic copies run
 weekly by default (or daily, or off) into `~/.local/share/omaseed/backups/`, keeping the last
 four. Passwords and API keys are not in a backup; the keyring keeps those. A backup carries a
-copy of each qBittorrent server's settings; a Transmission's settings and torrents stay on
-it, as Settings › Backup says.
+copy of each qBittorrent server's settings; a Transmission's or a Deluge's settings and
+torrents stay on it, as Settings › Backup says.
 
 ## Troubleshooting
 
@@ -434,5 +451,5 @@ building for.
 
 ## License
 
-MIT. omaseed talks to qBittorrent and Transmission only through their public APIs (the Web UI
-API, the JSON-RPC) and contains no code of either.
+MIT. omaseed talks to qBittorrent, Transmission and Deluge only through their public APIs
+(the Web UI API, the JSON-RPC, deluge-web's JSON API) and contains no code of any of them.

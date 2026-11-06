@@ -18,29 +18,55 @@ before it will tag a release.
   a torrent and the qBittorrent backups. Its key says so once in the status line, and the `?`
   sheet's last line names them. A daemon older than 4.1 is refused in words that say why.
   (#85)
+- **Deluge.** omaseed drives Deluge 2.1 and later (tested on 2.2) through deluge-web, its web
+  UI's JSON API: the library, details, adding with a label, a folder and a magnet's files
+  read before the add, renaming (the name Deluge shows; the folder keeps its own), moving,
+  labels, ratio limits that stop or remove, the queue, errors in Deluge's own words, the seed
+  console, the tray and the widget. Labels come from Deluge's Label plugin and take the
+  categories' place, lower case as Deluge keeps them; with the plugin off, C says where to
+  turn it on. When deluge-web drives no daemon, or knows several, the server sheet asks which
+  daemon to use and keeps it with the server; a deluge-web with no daemon reads as a server
+  that is down, "no daemon". A move's band shows Deluge's own percent. A move Deluge fails
+  pauses the torrent, and only a recheck clears that error, so recheck comes first; a move
+  Deluge takes and drops without a word (most often it couldn't make the folder) reads as
+  failed, "Deluge didn't move it and doesn't say why", in the strip, the band and the
+  torrent's story, and isn't sent again. What Deluge can't do is left out instead of offered
+  and failing: tags, turtle (its Scheduler plugin is a weekly grid), time limits, automatic
+  management, banning peers, web seeds, the log, search, creating a torrent and the
+  qBittorrent backups. Its key says so once in the status line, and the `?` sheet's last line
+  names them. Deluge keeps no all-time totals, so the seed console counts them from when
+  omaseed began watching, and says so. (#87)
 - **Servers know their engine.** Testing an address recognises qBittorrent, Transmission or
-  Deluge, and the sign-in follows the engine; first run looks for Transmission too, one row
-  per engine found. The status line, the rail's tooltip, ctrl+s and Settings › Servers name it:
-  "seedbox · Transmission 4.1.3". servers.json moves to version 2; an existing one opens
-  unchanged, every server in it a qBittorrent. Deluge is recognised, and refused until it
-  lands. (#84)
+  Deluge, and the sign-in follows the engine (a Deluge's one password); first run looks for
+  Transmission and Deluge too, one row per engine found. The status line, the rail's tooltip,
+  ctrl+s and Settings › Servers name it: "seedbox · Transmission 4.1.3". servers.json moves to
+  version 2; an existing one opens unchanged, every server in it a qBittorrent. (#84)
 - **Settings › Transmission.** A Transmission's own settings, in qBittorrent's sections: speed
   and turtle, discovery and privacy, connection with its port test, seeding, queue, downloads.
   With a qBittorrent and a Transmission both saved, each keeps its group in Settings; the
   other's sections say whose they are and switch there. (#86)
+- **Settings › Deluge.** A Deluge's own settings, from its core.conf, in the same sections:
+  speed, discovery and privacy, connection with its port test, seeding, queue, downloads; then
+  Plugins, which says which of Deluge's plugins are on (Label for the labels, Scheduler, the
+  others). Turning a plugin on or off stays in Deluge's own preferences. (#87)
 - **A walk for Transmission.** `scripts/dev/test-server.sh start --transmission` runs a
   throwaway daemon on :8085, and `scripts/dev/transmission-walk.sh` adds, renames, moves,
   labels and deletes on it in an omabox, checked on the daemon and on disk. (#85)
+- **A walk for Deluge.** `scripts/dev/test-server.sh start --deluge` runs a throwaway deluged
+  behind deluge-web on :8086, and `scripts/dev/deluge-walk.sh` picks its daemon, adds, reads a
+  magnet's files, renames, labels, sets a ratio limit, moves (with Deluge's percent, one it
+  drops without a word, one it fails) and deletes on it in an omabox, checked on the daemon
+  and on disk. (#87)
 
 ### Changed
 
-- **The welcome** reads "Torrents for Omarchy, powered by qBittorrent or Transmission"; the
-  install step still offers qbittorrent-nox. (#86)
-- **omaseed's backup** carries a qBittorrent's settings only; a Transmission's settings and
-  torrents stay on it, and Settings › Backup says so. (#86)
+- **The welcome** reads "Torrents for Omarchy, powered by qBittorrent, Transmission or
+  Deluge"; the install step still offers qbittorrent-nox. (#86, #87)
+- **omaseed's backup** carries a qBittorrent's settings only; a Transmission's or a Deluge's
+  settings and torrents stay on it, and Settings › Backup says so. (#86, #87)
 - **The settings command names the server's engine.** ctrl+shift+, reads "Transmission
-  settings" in the palette and the ? sheet on a Transmission, where "qBittorrent settings" was
-  hidden; "qBittorrent settings" on a qBittorrent as before. (#237)
+  settings" or "Deluge settings" in the palette and the ? sheet on those engines, where
+  "qBittorrent settings" was hidden; "qBittorrent settings" on a qBittorrent as before. (#237)
 
 ### Fixed
 
