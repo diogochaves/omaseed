@@ -265,7 +265,10 @@ Board [29](29-magnet-files.html) (#44), D1–D11 as recommended:
   duplicate, qBittorrent is asked for its metadata (`torrents/fetchMetadata`), on the current
   server's client: the answer is kept in the Web UI session, so every poll and the add after it
   must share that session's cookie or API key. A magnet is keyed by its
-  infohash, so typing `&dn=…` after a whole hash starts nothing new.
+  infohash, so typing `&dn=…` after a whole hash starts nothing new. (#241: a magnet typed a key
+  at a time is asked once the field has been still for 1 s, so the ask carries the `&tr=` typed
+  after the hash: qBittorrent keeps the trackers of its first ask for a hash, D6. A paste is
+  asked at once.)
 - **D2** Nothing shows for the first 0.5 s, so a quick answer just shows the tree. **D3**
   "Fetching" until 10 s, "still looking" until 60 s, then "may never come" in yellow. The polls
   go at 0, 0.25, 0.5 and 1 s, then every second, and every 5 s after a minute, one at a time; they

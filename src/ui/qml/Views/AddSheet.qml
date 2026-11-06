@@ -1196,14 +1196,24 @@ Sheet {
 
                 /// docs/29 D1: the magnet or link on show is looked up (once: App keys it by hash),
                 /// unless it is a duplicate, which Fig. 10 takes before any lookup; anything else
-                /// lets the lookup go (D6 a: qBittorrent goes on by itself).
+                /// lets the lookup go (D6 a: qBittorrent goes on by itself). #241: typed one
+                /// character at a time, it waits for the field to settle (`lookUpTimer`).
                 function _lookUp(): void {
+                    sheet._askLookup(sheet._typing);
+                }
+
+                function _askLookup(wait: bool): void {
+                    lookUpTimer.stop();
                     if (!sheet.opened)
                         return;
                     const addable = sheet.addable;
                     if (sheet.batchMode || !addable || addable.valid !== true || addable.pending === true
                             || (addable.kind !== "magnet" && addable.kind !== "url") || sheet._duplicateOf(addable)) {
                         App.stopMetadataLookup();
+                        return;
+                    }
+                    if (wait) {
+                        lookUpTimer.restart();
                         return;
                     }
                     App.lookUpMetadata(addable);
@@ -1319,6 +1329,7 @@ Sheet {
                     } else {
                         // D6 a: closing leaves a lookup that has not answered running on the
                         // server (F4 says so); only the polling stops.
+                        lookUpTimer.stop();
                         App.stopMetadataLookup();
                         noteTimer.stop();
                         sheet.note = "";
@@ -1330,6 +1341,17 @@ Sheet {
                         sheet.submit(false);
                     else if (text === sheet._addStoppedText)
                         sheet.submit(true);
+                }
+
+                // #241 (docs/DECISIONS.md C5 D1): a magnet typed key by key is valid from its
+                // hash on, before its `&tr=` is typed; qBittorrent keeps the trackers of the
+                // first ask for a hash and the API can't end a lookup (D6), so a lookup asked
+                // that early never finds its peers. The ask waits until the typing stops.
+                Timer {
+                    id: lookUpTimer
+
+                    interval: 1000
+                    onTriggered: sheet._askLookup(false)
                 }
 
                 // `flashNote`'s five seconds.
