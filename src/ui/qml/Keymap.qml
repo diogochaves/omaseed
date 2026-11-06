@@ -2444,9 +2444,9 @@ QtObject {
                                              "peerBan": qsTr("banning peers"),
                                              "editWebSeeds": qsTr("editing web seeds")
                                          })
-    /// K15: Deluge's labels are gone while its Label plugin is off; the note says why
-    /// (Settings › Deluge › Plugins says it in full).
-    readonly property string labelPluginOffWords: qsTr("labels: its Label plugin is off")
+    /// K15: Deluge's labels are gone while its Label plugin is off; the note says why and
+    /// where it is said in full (Settings › Deluge › Plugins, E6).
+    readonly property string labelPluginOffWords: qsTr("labels: its Label plugin is off, see Settings › Deluge › Plugins")
     /// The ? sheet's foot line (K30): what the server lacks, in board 47's order and words.
     readonly property var missingFoot: [["engineLog", qsTr("the log")], ["search", qsTr("search")],
         ["createTorrent", qsTr("creating a torrent")], ["rss", qsTr("RSS")], ["categories", qsTr(
@@ -2504,7 +2504,7 @@ QtObject {
         const missing = root.missingFoot.filter(pair => can[pair[0]] === false && (pair.length < 3 || can[pair[2]]
                                                                                    !== false)).map(
                           pair => pair[0] === "categories" && can.categoriesAreLabels === true
-                          ? qsTr("labels (its Label plugin is off)") : pair[1]);
+                          ? qsTr("labels (its Label plugin is off: Settings › Deluge › Plugins)") : pair[1]);
         if (missing.length === 0)
             return "";
         const engine = version.length > 0 ? engineName + " " + version : engineName;

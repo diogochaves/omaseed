@@ -97,6 +97,19 @@ TestCase {
         compare(settingsRow(), undefined);
     }
 
+    // K15 (E6): Deluge's labels with the Label plugin off point at Settings › Deluge › Plugins.
+    function test_the_foot_line_points_at_deluges_plugins() {
+        const sheet = init();
+        sheet.serverVersion = "2.2.0";
+        sheet.features = {
+            "categories": false,
+            "categoriesAreLabels": true,
+            "engineName": "Deluge"
+        };
+        verify(sheet.missingText.indexOf("labels (its Label plugin is off: Settings › Deluge › Plugins)") > 0,
+               sheet.missingText);
+    }
+
     // DECISIONS C18 D6 (board 45 M2): a mouse block right after the select keys.
     function test_the_mouse_has_its_own_block_after_select() {
         const sheet = init();

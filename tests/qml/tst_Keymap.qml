@@ -806,9 +806,11 @@ TestCase {
         verify(plain, "the act row went with the Label plugin");
         compare(plain.action, "location");
         compare(plain.help, "location · limits · rename");
+        // E6: both point at Settings › Deluge › Plugins, which says it in full.
         compare(Keymap.missingNote("category", off, "", "nas", "Deluge"),
-                "nas (Deluge) has no labels: its Label plugin is off");
-        verify(Keymap.missingLine(off, "nas", "Deluge", "2.2.0").indexOf("labels (its Label plugin is off)") >= 0);
+                "nas (Deluge) has no labels: its Label plugin is off, see Settings › Deluge › Plugins");
+        verify(Keymap.missingLine(off, "nas", "Deluge", "2.2.0").indexOf(
+                   "labels (its Label plugin is off: Settings › Deluge › Plugins)") >= 0);
     }
 
     // #237: ctrl+shift+, takes its words from the server's engine, in the palette and the ?
