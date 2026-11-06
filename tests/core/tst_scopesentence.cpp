@@ -172,8 +172,9 @@ void TestScopeSentence::placesSayTheirCountAndKind()
     sizeless.total = 3;
     QCOMPARE(ScopeSentence::category(sizeless, QString()), QStringLiteral("3 torrents"));
     // C25 K15: a Deluge label, its folder where it moves torrents when done, or none.
-    QCOMPARE(ScopeSentence::category(games, QStringLiteral("/srv/done/games"), true),
-             QStringLiteral("49 torrents · 1.21 MB · a label · moves to /srv/done/games when done"));
+    QCOMPARE(
+        ScopeSentence::category(games, QStringLiteral("/srv/done/games"), true),
+        QStringLiteral("49 torrents · 1.21 MB · a label · moves to /srv/done/games when done"));
     QCOMPARE(ScopeSentence::category(sizeless, QString(), true),
              QStringLiteral("3 torrents · a label · no folder of its own"));
     // #167 assumed 9.

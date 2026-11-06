@@ -54,10 +54,10 @@ void App::updateScopeSentence()
             const QString name = category.toString();
             line = ScopeSentence::narrowed(
                 question,
-                ScopeSentence::category(
-                    facts,
-                    name.isEmpty() ? QString() : m_engine->categories()->savePathOf(name),
-                    m_features.categoriesAreLabels && !name.isEmpty()));
+                ScopeSentence::category(facts,
+                                        name.isEmpty() ? QString()
+                                                       : m_engine->categories()->savePathOf(name),
+                                        m_features.categoriesAreLabels && !name.isEmpty()));
         } else if (m_filtered->tag().isValid()) {
             line = ScopeSentence::narrowed(
                 question,

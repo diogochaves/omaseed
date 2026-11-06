@@ -898,7 +898,6 @@ EngineFeatures features(const ServerInfo &, bool labelPlugin)
     f.peerControl = true;        // H: core.connect_peer
     f.peerBan = false;           // H: no ban
     f.webSeeds = false;          // H: none reported; the tab never appears
-    f.trackerStatusInUseOnly = true; // H, K29: tracker_status is the one in use's
     f.editWebSeeds = false;      // H
     f.engineLog = false;         // I, K30: no log face, no ~
     f.qbtSettings = false;       // I, J
@@ -909,6 +908,8 @@ EngineFeatures features(const ServerInfo &, bool labelPlugin)
     f.addAgain = false;          // I: no .torrent to add back over the API
     f.search = false;            // I (#145)
     f.createTorrent = false;     // I (#146): core.create_torrent, not driven yet
+    // H, K29: tracker_status is the one in use's; the others are listed with their tiers.
+    f.trackerStatusInUseOnly = true;
     return f;
 }
 

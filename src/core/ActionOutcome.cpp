@@ -64,9 +64,8 @@ Phrases phrases(const QString &action, const QString &target)
     if (action == QLatin1String("label")) {
         if (target.isEmpty())
             return {tr("taken out of its label"), tr("didn't change label"), tr("no label")};
-        return {tr("labelled %1").arg(target),
-                tr("didn't change label"),
-                tr("label · %1").arg(target)};
+        return {
+            tr("labelled %1").arg(target), tr("didn't change label"), tr("label · %1").arg(target)};
     }
     if (action == QLatin1String("addTags"))
         return {

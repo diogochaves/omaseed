@@ -20,9 +20,9 @@
 #include "core/TorrentWebSeedsModel.hpp"
 #include "ui/app/App.hpp"
 
+#include <QCryptographicHash>
 #include <QJsonArray>
 #include <QJsonDocument>
-#include <QCryptographicHash>
 #include <QJsonObject>
 #include <QSignalSpy>
 #include <QTemporaryDir>
@@ -470,9 +470,9 @@ void TestAppDeluge::labelsAreTheCategoriesInDelugesWords()
                              3000);
     app.filtered()->setCategory(QStringLiteral("fixtures"));
     QTRY_VERIFY_WITH_TIMEOUT(
-        app.scopeSentence().contains(QStringLiteral("a label · moves to %1 when done")
-                                         .arg(app.categories()->savePathOf(
-                                             QStringLiteral("fixtures")))),
+        app.scopeSentence().contains(
+            QStringLiteral("a label · moves to %1 when done")
+                .arg(app.categories()->savePathOf(QStringLiteral("fixtures")))),
         3000);
     app.filtered()->setCategory(QStringLiteral("empty"));
     QTRY_VERIFY_WITH_TIMEOUT(
@@ -481,8 +481,8 @@ void TestAppDeluge::labelsAreTheCategoriesInDelugesWords()
 
     // The plugin off: no labels at all, and the views say why (K15).
     daemon.recorded.labelPlugin = false;
-    QTRY_VERIFY_WITH_TIMEOUT(
-        app.featuresMap().value(QStringLiteral("labelPluginOff")).toBool(), 3000);
+    QTRY_VERIFY_WITH_TIMEOUT(app.featuresMap().value(QStringLiteral("labelPluginOff")).toBool(),
+                             3000);
     QVERIFY(!app.featuresMap().value(QStringLiteral("categories")).toBool());
     app.engine()->stop();
 }
@@ -497,9 +497,8 @@ void TestAppDeluge::aTorrentKeepsARatioOfItsOwn()
     };
     // D, K18: a ratio of its own, then remove (keeping the files); a speed in Deluge's KiB/s.
     app.setLimits({kPack}, 300 * 1024, -1, 1.5, -2, QStringLiteral("Remove"), -2);
-    QTRY_COMPARE_WITH_TIMEOUT(daemon.web.callsOf(QStringLiteral("core.set_torrent_options")).size(),
-                              2,
-                              3000);
+    QTRY_COMPARE_WITH_TIMEOUT(
+        daemon.web.callsOf(QStringLiteral("core.set_torrent_options")).size(), 2, 3000);
     const QList<Call> sets = daemon.web.callsOf(QStringLiteral("core.set_torrent_options"));
     QJsonObject merged;
     for (const Call &call : sets) {
@@ -516,9 +515,8 @@ void TestAppDeluge::aTorrentKeepsARatioOfItsOwn()
     app.setLimits({kPack}, -1, -1, -2, -2, QStringLiteral("Stop"), -2);
     QTRY_VERIFY_WITH_TIMEOUT(daemon.lastOf(QStringLiteral("core.get_config_values")).has_value(),
                              3000);
-    QTRY_COMPARE_WITH_TIMEOUT(daemon.web.callsOf(QStringLiteral("core.set_torrent_options")).size(),
-                              3,
-                              3000);
+    QTRY_COMPARE_WITH_TIMEOUT(
+        daemon.web.callsOf(QStringLiteral("core.set_torrent_options")).size(), 3, 3000);
     QCOMPARE(lastOptions().value(QStringLiteral("stop_at_ratio")), QJsonValue(false));
     QCOMPARE(lastOptions().value(QStringLiteral("stop_ratio")).toDouble(), 2.0);
     app.engine()->stop();

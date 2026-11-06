@@ -2939,8 +2939,8 @@ void App::updateLookupServer()
     // trackers (D7) only once that is known.
     const GlobalState *state = m_engine->globalState();
     // Deluge has no API version of its own (K26): its version is the one known.
-    const bool versionKnown = !state->apiVersion().isEmpty() ||
-                              (m_client != m_qbt && !state->serverVersion().isEmpty());
+    const bool versionKnown =
+        !state->apiVersion().isEmpty() || (m_client != m_qbt && !state->serverVersion().isEmpty());
     const bool ready = m_hasServer && state->connected() && versionKnown && m_engine->rid() > 0;
     if (ready && m_addLookup->phase() == MetadataLookup::Phase::Waiting &&
         m_addLookup->kind() == QLatin1String("magnet")) {
@@ -5626,8 +5626,7 @@ QVariantMap App::featuresMap() const
         // plugin's labels, in the categories place), and the plugin off: no section at all.
         {QStringLiteral("categoriesAreLabels"), f.categoriesAreLabels},
         {QStringLiteral("categoryWord"), f.categoriesAreLabels ? tr("label") : tr("category")},
-        {QStringLiteral("categoriesWord"),
-         f.categoriesAreLabels ? tr("labels") : tr("categories")},
+        {QStringLiteral("categoriesWord"), f.categoriesAreLabels ? tr("labels") : tr("categories")},
         {QStringLiteral("uncategorizedWord"),
          f.categoriesAreLabels ? tr("no label") : tr("no category")},
         {QStringLiteral("labelPluginOff"), f.categoriesAreLabels && !f.categories},
