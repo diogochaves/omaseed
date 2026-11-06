@@ -39,6 +39,9 @@ Item {
     readonly property string partText: root.features.trackerStatusInUseOnly === true
                                        ? qsTr("%1 says how the tracker in use is doing, and nothing about the others.").arg(
                                              root.engineName) : ""
+    /// K29: facts the engine doesn't report are left out, never "—": Deluge gives no seed or
+    /// peer counts per tracker, so those two columns go.
+    readonly property bool countsShown: root.features.trackerStatusInUseOnly !== true
 
     // The spec's `.trk { grid-template-columns: 14px minmax(0,1fr) 50px 44px 150px }`,
     // trimmed to fit the docked column: Fig. 3 is a 400 px mock, the real pane is 340, and
@@ -86,6 +89,7 @@ Item {
             alignRight: true
             clickable: false
             text: qsTr("Seeds")
+            visible: root.countsShown
         }
 
         DetailsHeader {
@@ -95,6 +99,7 @@ Item {
             alignRight: true
             clickable: false
             text: qsTr("Peers")
+            visible: root.countsShown
         }
 
         DetailsHeader {
@@ -203,6 +208,7 @@ Item {
                     color: row.rowColor
                     horizontalAlignment: Text.AlignRight
                     text: row.seedsText
+                    visible: root.countsShown
                 }
 
                 DetailsCell {
@@ -210,6 +216,7 @@ Item {
                     color: row.rowColor
                     horizontalAlignment: Text.AlignRight
                     text: row.leechesText
+                    visible: root.countsShown
                 }
 
                 DetailsCell {

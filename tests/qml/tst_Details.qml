@@ -461,6 +461,7 @@ TestCase {
         const tab = findChild(view, "trackersTab");
         const line = findChild(view, "trackersPartLine");
         verify(!line.visible, "qBittorrent's trackers grew a line");
+        verify(tab.countsShown);
         tab.features = {
             "trackerStatusInUseOnly": true
         };
@@ -468,6 +469,8 @@ TestCase {
         try {
             verify(line.visible);
             compare(line.text, "Deluge says how the tracker in use is doing, and nothing about the others.");
+            // K29: no Seeds or Peers columns of "—" for counts Deluge doesn't report.
+            verify(!tab.countsShown);
         } finally {
             tab.features = Qt.binding(() => App.features);
             tab.engineName = Qt.binding(() => App.serverEngineName || "qBittorrent");
