@@ -5,6 +5,14 @@ All notable changes to omaseed are logged here, newest first. Loosely follows
 versioning stability (pre-1.0). `scripts/release.sh` requires a `## v<version>` section here
 before it will tag a release.
 
+## Unreleased
+
+### Fixed
+
+- **"qBittorrent" keeps its small q in the details.** The details pane started its sentence
+  with a capital, so "qBittorrent stopped it with an error" and "qBittorrent is moving its
+  files" read "QBittorrent …". (#232)
+
 ## v0.7.0 — 2026-11-05
 
 ### Added
