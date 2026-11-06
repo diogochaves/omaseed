@@ -2176,6 +2176,7 @@ Item {
         categoriesOffered: App.features.categories !== false
         tagsWord: root.tagsWord
         untaggedWord: root.untaggedWord
+        tagsLabelId: App.features.tagsAreLabels === true ? "labels" : ""
         serversFolded: App.serversFolded
         serverRetrying: root.serverRetrying
 

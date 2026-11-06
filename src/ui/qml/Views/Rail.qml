@@ -107,6 +107,9 @@ Item {
     /// "tags", Transmission's "labels"), and its row for torrents with none.
     property string tagsWord: qsTr("tags")
     property string untaggedWord: qsTr("untagged")
+    /// The section's id for the skin's `labels` (its kana): "labels" where they are the
+    /// engine's labels (board 47 §B draws ラベル); "" keeps qBittorrent's tags as they were.
+    property string tagsLabelId: ""
     /// #167 assumed 4: folded to its glyphs (ctrl+b).
     property bool compact: false
     /// DECISIONS C32 D3 a: the width open, as the edge was last dragged (the host keeps it).
@@ -1309,6 +1312,7 @@ Item {
                 count: root.tagsNamedCount
                 hasCursor: root.cursorOn(tagsGroup.globalIndex)
                 label: root.tagsWord
+                labelId: root.tagsLabelId
                 visible: !root.compact
                 width: content.width
 
