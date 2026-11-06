@@ -42,6 +42,9 @@ struct StoryInput
     /// The engine groups torrents in categories (EngineFeatures::categories): without them
     /// "Added" says nothing about one (C14 E4, Transmission).
     bool categories = true;
+    /// They are Deluge's labels (EngineFeatures::categoriesAreLabels, C25 K13): "Added with
+    /// no label".
+    bool categoriesAreLabels = false;
 };
 
 struct StoryEvent

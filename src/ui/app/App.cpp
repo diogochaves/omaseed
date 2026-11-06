@@ -1232,6 +1232,7 @@ QVariantList App::torrentStory(const QString &hash) const
     input.torrent = m_engine->torrents()->torrent(hash);
     input.now = QDateTime::currentDateTime();
     input.categories = m_features.categories;
+    input.categoriesAreLabels = m_features.categoriesAreLabels;
     // C18 D8: the moves the history keeps for it, whatever moved with it.
     for (const MoveRecord &record : m_move->history().records()) {
         if (!record.from.contains(hash) || !record.finishedAt.isValid())
@@ -1849,7 +1850,10 @@ void App::createAndApplyCategory(const QStringList &hashes, const QString &name)
         if (hashes.isEmpty() || !m_hasServer)
             return;
         m_client->setCategory(hashes, name)
-            ->then(this, tableAnswer(QStringLiteral("category"), hashes, name));
+            ->then(this,
+                   m_features.categoriesAreLabels
+                       ? tableAnswer(QStringLiteral("label"), hashes, name.trimmed().toLower())
+                       : tableAnswer(QStringLiteral("category"), hashes, name));
     });
 }
 
@@ -3886,8 +3890,12 @@ void App::setCategory(const QStringList &hashes, const QString &name)
 {
     if (hashes.isEmpty() || demoGuard(QStringLiteral("category"), hashes.size()) || !m_hasServer)
         return;
+    // C25 K15: Deluge keeps its labels lower case; the strip says the name it kept.
     m_client->setCategory(hashes, name)
-        ->then(this, tableAnswer(QStringLiteral("category"), hashes, name));
+        ->then(this,
+               m_features.categoriesAreLabels
+                   ? tableAnswer(QStringLiteral("label"), hashes, name.trimmed().toLower())
+                   : tableAnswer(QStringLiteral("category"), hashes, name));
 }
 
 void App::addTags(const QStringList &hashes, const QStringList &tags)
@@ -5614,6 +5622,15 @@ QVariantMap App::featuresMap() const
         {QStringLiteral("tagWord"), f.tagsAreLabels ? tr("label") : tr("tag")},
         {QStringLiteral("tagsWord"), f.tagsAreLabels ? tr("labels") : tr("tags")},
         {QStringLiteral("untaggedWord"), f.tagsAreLabels ? tr("no label") : tr("untagged")},
+        // C25 K13, K15: the one-per-torrent group in the engine's word (Deluge's Label
+        // plugin's labels, in the categories place), and the plugin off: no section at all.
+        {QStringLiteral("categoriesAreLabels"), f.categoriesAreLabels},
+        {QStringLiteral("categoryWord"), f.categoriesAreLabels ? tr("label") : tr("category")},
+        {QStringLiteral("categoriesWord"),
+         f.categoriesAreLabels ? tr("labels") : tr("categories")},
+        {QStringLiteral("uncategorizedWord"),
+         f.categoriesAreLabels ? tr("no label") : tr("no category")},
+        {QStringLiteral("labelPluginOff"), f.categoriesAreLabels && !f.categories},
         {QStringLiteral("filePriorities"), priorities},
         {QStringLiteral("shareLimitActions"), f.shareLimitActions},
         {QStringLiteral("shareLimitAction"), f.shareLimitAction()},

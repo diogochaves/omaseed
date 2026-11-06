@@ -554,6 +554,10 @@ Item {
     readonly property string tagWord: Keymap.groupWords(App.features).one
     readonly property string tagsWord: Keymap.groupWords(App.features).many
     readonly property string untaggedWord: App.features.untaggedWord ?? qsTr("untagged")
+    /// C25 K13, K15: the one-per-torrent group in the engine's word ("category", Deluge's
+    /// "label"), and the words for torrents with none.
+    readonly property string categoryWord: Keymap.groupWords(App.features).catOne
+    readonly property string uncategorizedWord: Keymap.groupWords(App.features).catNone
 
     /// The console's scope in words, from what the rail selects.
     readonly property string consoleScopeName: {
@@ -562,7 +566,8 @@ Item {
         if (question !== null)
             parts.push(question.text);
         if (App.filtered.category !== undefined)
-            parts.push(App.filtered.category === "" ? qsTr("no category") : qsTr("category %1").arg(App.filtered.category));
+            parts.push(App.filtered.category === "" ? root.uncategorizedWord : qsTr("%1 %2").arg(root.categoryWord).arg(
+                                                          App.filtered.category));
         if (App.filtered.tag !== undefined)
             parts.push(App.filtered.tag === "" ? root.untaggedWord : qsTr("%1 %2").arg(root.tagWord).arg(App.filtered.tag));
         if (App.filtered.tracker !== undefined)
@@ -1034,7 +1039,7 @@ Item {
         const row = App.torrentRow(hash);
         // C14 E4: no category to speak of on an engine without them (Transmission).
         const category = App.features.categories === false ? "" : (row.category ?? "").length > 0
-                                                              ? row.category : qsTr("no category");
+                                                              ? row.category : root.uncategorizedWord;
         return [row.stateText ?? "", row.progressText ?? "", category].filter(part => part.length > 0).join(" · ");
     }
 
@@ -1221,7 +1226,7 @@ Item {
     function barCategoryRows(hashes: var): var {
         const rows = [{
                 "caption": true,
-                "text": qsTr("category for %n", "", hashes.length)
+                "text": qsTr("%1 for %n", "", hashes.length).arg(root.categoryWord)
             }];
         const tally = name => hashes.filter(hash => (App.torrentRow(hash).category ?? "") === name).length;
         for (const name of App.categories.names()) {
@@ -1237,12 +1242,12 @@ Item {
         rows.push({
                       "separator": true
                   }, {
-                      "text": qsTr("new category…"),
+                      "text": qsTr("new %1…").arg(root.categoryWord),
                       "glyph": Glyphs.add,
                       "key": "C",
                       "action": "newCategory"
                   }, {
-                      "text": qsTr("no category"),
+                      "text": root.uncategorizedWord,
                       "glyph": Glyphs.middot,
                       "action": "category:",
                       "disabled": tally("") === hashes.length
@@ -2201,6 +2206,9 @@ Item {
         // C14 E4, C25 K16, K30: what the server lacks is gone from the rail.
         logOffered: Keymap.offered("toggleLog", App.features, "")
         categoriesOffered: App.features.categories !== false
+        categoriesWord: Keymap.groupWords(App.features).catMany
+        categoriesLabelId: App.features.categoriesAreLabels === true ? "labels" : "categories"
+        tagsOffered: App.features.tags !== false
         tagsWord: root.tagsWord
         untaggedWord: root.untaggedWord
         tagsLabelId: App.features.tagsAreLabels === true ? "labels" : ""
@@ -2275,7 +2283,8 @@ Item {
             return folder.substring(folder.lastIndexOf("/") + 1) || folder;
         const category = App.filtered.category;
         if (category !== undefined)
-            return category === "" ? qsTr("No category") : category;
+            return category === "" ? root.uncategorizedWord.charAt(0).toUpperCase() + root.uncategorizedWord.slice(1)
+                                   : category;
         const tag = App.filtered.tag;
         if (tag !== undefined)
             return tag === "" ? root.untaggedWord.charAt(0).toUpperCase() + root.untaggedWord.slice(1) : tag;
@@ -2389,8 +2398,11 @@ Item {
         filterName: root.logShown ? qsTr("filter lines") : qsTr("filter torrents")
         // C25 K13: the groups the engine has, in its words.
         filterHint: root.logShown ? qsTr("words, every one in the line")
-                                  : qsTr("words, or is:stalled, %1%2:keep, tracker:…").arg(
-                                        App.features.categories === false ? "" : "cat:films, ").arg(root.tagWord)
+                                  : App.features.categoriesAreLabels === true
+                                    ? qsTr("words, or is:stalled, %1tracker:…").arg(App.features.categories === false ? ""
+                                                                                                                       : root.categoryWord + ":films, ")
+                                    : qsTr("words, or is:stalled, %1%2:keep, tracker:…").arg(
+                                          App.features.categories === false ? "" : "cat:films, ").arg(root.tagWord)
         filterTokens: !root.logShown
         keysShown: root.keysShown
         searchCountText: root.logShown ? (App.logLines.narrowed ? qsTr("%1 of %2").arg(App.logLines.count).arg(
@@ -2769,7 +2781,7 @@ Item {
                     const parts = [];
                     const category = App.filtered.category;
                     if (category !== undefined && category !== null)
-                        parts.push(category === "" ? qsTr("no category") : String(category));
+                        parts.push(category === "" ? root.uncategorizedWord : String(category));
                     const tag = App.filtered.tag;
                     if (tag !== undefined && tag !== null)
                         parts.push(tag === "" ? root.untaggedWord : String(tag));
@@ -3322,7 +3334,7 @@ Item {
             return folder.substring(folder.lastIndexOf("/") + 1) || folder;
         const category = App.filtered.category;
         if (category !== undefined)
-            return category === "" ? qsTr("no category") : String(category);
+            return category === "" ? root.uncategorizedWord : String(category);
         const tag = App.filtered.tag;
         if (tag !== undefined)
             return tag === "" ? root.untaggedWord : String(tag);
@@ -3656,6 +3668,7 @@ Item {
         anchors.fill: parent
         current: App.display
         tagsWord: root.tagsWord
+        categoryWord: root.categoryWord
         sortOrder: App.filtered.sortOrder
         sortRole: App.filtered.sortRoleName
         z: 9

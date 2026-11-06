@@ -213,13 +213,18 @@ QString ScopeSentence::folderLine(const ScopeFacts &facts)
     return line;
 }
 
-QString ScopeSentence::category(const ScopeFacts &facts, const QString &savePath)
+QString ScopeSentence::category(const ScopeFacts &facts, const QString &savePath, bool label)
 {
     QStringList parts{torrents(facts.total)};
     // Magnets still fetching their metadata have no size yet: nothing to say then.
     if (facts.bytes > 0)
         parts << Format::size(facts.bytes);
-    if (!savePath.isEmpty())
+    // Board 47 B: a label's folder is where it moves torrents when done, and only some have one.
+    if (label)
+        parts << tr("a label")
+              << (savePath.isEmpty() ? tr("no folder of its own")
+                                     : tr("moves to %1 when done").arg(savePath));
+    else if (!savePath.isEmpty())
         parts << tr("saves to %1").arg(savePath);
     return parts.join(kApart);
 }

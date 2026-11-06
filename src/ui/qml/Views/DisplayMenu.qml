@@ -25,6 +25,8 @@ Menu {
     property int sortOrder: Qt.DescendingOrder
     /// C25 K13: the tags column's name in the engine's word ("labels" on Transmission).
     property string tagsWord: qsTr("tags")
+    /// …and the categories' ("label" on Deluge).
+    property string categoryWord: qsTr("category")
 
     /// The short name of the sort in use ("added"), "" for none and in space.
     readonly property string sortWord: root.sortRole.length > 0 && root.current !== "space"
@@ -80,7 +82,7 @@ Menu {
             "numComplete": qsTr("swarm"),
             "completionOn": qsTr("completed"),
             "lastActivity": qsTr("last active"),
-            "category": qsTr("category"),
+            "category": root.categoryWord,
             "tagsText": root.tagsWord,
             "trackerHost": qsTr("tracker"),
             "totalSize": qsTr("total size"),

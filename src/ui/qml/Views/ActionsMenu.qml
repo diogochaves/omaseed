@@ -158,7 +158,8 @@ Menu {
                     "action": "location"
                 },
                 {
-                    "text": qsTr("category…"),
+                    // C25 K13: the engine's word ("label…" on Deluge).
+                    "text": qsTr("%1…").arg(Keymap.groupWords(App.features).catOne),
                     "glyph": Glyphs.category,
                     "key": "C",
                     "action": "category"

@@ -2440,16 +2440,21 @@ QtObject {
                                              "search": qsTr("search"),
                                              "createTorrent": qsTr("torrent creator"),
                                              "peerControl": qsTr("adding or banning peers"),
+                                             "peerBan": qsTr("banning peers"),
                                              "editWebSeeds": qsTr("editing web seeds")
                                          })
+    /// K15: Deluge's labels are gone while its Label plugin is off; the note says why
+    /// (Settings › Deluge › Plugins says it in full).
+    readonly property string labelPluginOffWords: qsTr("labels: its Label plugin is off")
     /// The ? sheet's foot line (K30): what the server lacks, in board 47's order and words.
     readonly property var missingFoot: [["engineLog", qsTr("the log")], ["search", qsTr("search")],
         ["createTorrent", qsTr("creating a torrent")], ["rss", qsTr("RSS")], ["categories", qsTr(
                 "categories")], ["tags", qsTr("tags")], ["altSpeeds", qsTr("turtle and its schedule")],
         ["firstLastPiece", qsTr("first and last pieces first")], ["superSeeding", qsTr("super seeding")],
         ["autoManagement", qsTr("automatic management")], ["peerControl", qsTr(
-                "adding and banning peers")], ["editWebSeeds", qsTr("editing web seeds")], ["qbtSettings", qsTr(
-                "settings export and import")], ["torrentsBackup", qsTr("the torrents backup")]]
+                "adding and banning peers")], ["peerBan", qsTr("banning peers"), "peerControl"],
+        ["webSeeds", qsTr("web seeds")], ["editWebSeeds", qsTr("editing web seeds"), "webSeeds"], ["qbtSettings",
+            qsTr("settings export and import")], ["torrentsBackup", qsTr("the torrents backup")]]
 
     /// The feature `action` needs that a server with `features` lacks, or "" when it has it
     /// (or the action needs none).
@@ -2472,7 +2477,10 @@ QtObject {
         const feature = root.missingFeature(action, features, tab);
         if (feature.length === 0)
             return "";
-        const what = root.missingWords[feature] ?? feature;
+        const can = features || {};
+        const what = feature === "categories" && can.categoriesAreLabels === true ? root.labelPluginOffWords
+                                                                                  : root.missingWords[feature]
+                                                                                    ?? feature;
         return engineName.length > 0 ? qsTr("%1 (%2) has no %3").arg(serverName).arg(engineName).arg(what)
                                      : qsTr("%1 has no %2").arg(serverName).arg(what);
     }
@@ -2489,7 +2497,13 @@ QtObject {
     /// or "" when the server lacks none of them.
     function missingLine(features, serverName, engineName, version) {
         const can = features || {};
-        const missing = root.missingFoot.filter(pair => can[pair[0]] === false).map(pair => pair[1]);
+        // A third item names the feature the row needs on to be said (Deluge bans no peer but
+        // adds one; it has no web seeds at all, so "editing" them goes unsaid). Deluge's labels
+        // with its Label plugin off are said as labels (K15).
+        const missing = root.missingFoot.filter(pair => can[pair[0]] === false && (pair.length < 3 || can[pair[2]]
+                                                                                   !== false)).map(
+                          pair => pair[0] === "categories" && can.categoriesAreLabels === true
+                          ? qsTr("labels (its Label plugin is off)") : pair[1]);
         if (missing.length === 0)
             return "";
         const engine = version.length > 0 ? engineName + " " + version : engineName;
@@ -2816,13 +2830,20 @@ QtObject {
 
     /// C25 K13: the groups as the server's engine names them, from `features` (App.features):
     /// `one` and `many` for the many-per-torrent group ("tag", "tags"; Transmission's "label",
-    /// "labels"), and whether the one-per-torrent categories are there at all.
+    /// "labels"), whether the one-per-torrent categories are there at all, and theirs:
+    /// `catOne`, `catMany`, `catNone` ("category", "categories", "no category"; Deluge's
+    /// "label", "labels", "no label"), and whether the tags are there.
     function groupWords(features) {
         const can = features || {};
         return {
             "one": can.tagWord ?? qsTr("tag"),
             "many": can.tagsWord ?? qsTr("tags"),
-            "categories": can.categories !== false
+            "categories": can.categories !== false,
+            "tags": can.tags !== false,
+            "catOne": can.categoryWord ?? qsTr("category"),
+            "catMany": can.categoriesWord ?? qsTr("categories"),
+            "catNone": can.uncategorizedWord ?? qsTr("no category"),
+            "catLabels": can.categoriesAreLabels === true
         };
     }
 
@@ -2882,6 +2903,17 @@ QtObject {
                                      "help": qsTr("free the space"),
                                      "about": qsTr("In the files tab: free the space. Deletes the skipped files that still hold space on this machine's disk, when omaseed can see it")
                                  });
+        // Deluge: its labels are the categories' (catOne), and it has no tags.
+        if (entry.action === "filter" && w.catLabels)
+            return Object.assign({}, entry, {
+                                     "about": w.categories ? qsTr("Filter the table by name, %1 or hash").arg(w.catOne)
+                                                           : qsTr("Filter the table by name or hash")
+                                 });
+        if (entry.action === "jump" && w.catLabels)
+            return Object.assign({}, entry, {
+                                     "about": w.categories ? qsTr("Jump to any torrent or %1 by name").arg(w.catOne)
+                                                           : qsTr("Jump to any torrent by name")
+                                 });
         if (entry.action === "filter")
             return Object.assign({}, entry, {
                                      "about": w.categories ? qsTr("Filter the table by name, category, %1 or hash").arg(w.one)
@@ -2892,6 +2924,34 @@ QtObject {
                                      "about": w.categories ? qsTr("Jump to any torrent, category or %1 by name").arg(w.one)
                                                            : qsTr("Jump to any torrent or %1 by name").arg(w.one)
                                  });
+        // C25 K13: Deluge's C sets its label; its act row has no t (no tags), and with the
+        // Label plugin off it is led by m.
+        if (entry.action === "category" && w.catLabels) {
+            if (!w.categories && entry.column === "act")
+                return Object.assign({}, entry, {
+                                         "action": "location",
+                                         "key": "m",
+                                         "title": qsTr("move…"),
+                                         "label": qsTr("move"),
+                                         "helpKeys": "m L r",
+                                         "help": qsTr("location · limits · rename"),
+                                         "about": qsTr("Set location · limits; rename the cursor row")
+                                     });
+            const labelled = {
+                "title": qsTr("set %1").arg(w.catOne),
+                "label": w.catOne
+            };
+            if (entry.column === "act")
+                Object.assign(labelled, {
+                                  "helpKeys": w.tags ? "C t m L r" : "C m L r",
+                                  "help": w.tags ? qsTr("%1 · %2 · location · limits · rename").arg(w.catOne).arg(w.many)
+                                                 : qsTr("%1 · location · limits · rename").arg(w.catOne),
+                                  "about": w.tags ? qsTr("Set %1 · %2 · location · limits; rename the cursor row").arg(
+                                                        w.catOne).arg(w.many) : qsTr(
+                                                        "Set %1 · location · limits; rename the cursor row").arg(w.catOne)
+                              });
+            return Object.assign({}, entry, labelled);
+        }
         if (entry.action === "tags")
             return Object.assign({}, entry, {
                                      "title": qsTr("set %1").arg(w.many),

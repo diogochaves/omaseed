@@ -103,6 +103,14 @@ Item {
     /// The server groups torrents one per torrent (App.features.categories, C25 K16): without
     /// it the categories section is gone.
     property bool categoriesOffered: true
+    /// C25 K13, K15: the one-per-torrent group in the engine's word (App.features.
+    /// categoriesWord: "categories", Deluge's "labels"), and its id for the skin's kana
+    /// ("labels" on Deluge, as Transmission's tags section).
+    property string categoriesWord: qsTr("categories")
+    property string categoriesLabelId: "categories"
+    /// The server keeps many groups per torrent (App.features.tags): Deluge has none, so the
+    /// section is gone (board 47 B).
+    property bool tagsOffered: true
     /// C25 K13: the many-per-torrent group in the engine's word (App.features.tagsWord:
     /// "tags", Transmission's "labels"), and its row for torrents with none.
     property string tagsWord: qsTr("tags")
@@ -483,7 +491,7 @@ Item {
                                                                                            root.categoriesRowCount
     readonly property int foldersSpan: root._groupsHidden || root.foldersRowCount === 0 ? 0 : root.foldersFolded
                                                                                            ? 1 : root.foldersRowCount
-    readonly property int tagsSpan: root._groupsHidden ? 0 : root.tagsFolded ? 1 : root.tagsRowCount
+    readonly property int tagsSpan: root._groupsHidden || !root.tagsOffered ? 0 : root.tagsFolded ? 1 : root.tagsRowCount
     readonly property int trackersSpan: root._groupsHidden ? 0 : root.trackersFolded ? 1 :
                                                                                        root.trackersRowCount
     // Folded, the block is its one line; open, its rows and "… N more".
@@ -1094,8 +1102,9 @@ Item {
                 objectName: "railGroupsRow"
                 selected: root.filtered.category !== undefined || root.filtered.tag !== undefined
                           || root.filtered.tracker !== undefined || root.filtered.folder.length > 0
-                text: (root.categoriesOffered ? qsTr("categories, folders, %1, trackers")
-                                              : qsTr("folders, %1, trackers")).arg(root.tagsWord)
+                text: [root.categoriesOffered ? root.categoriesWord : "", qsTr("folders"), root.tagsOffered
+                                                                                        ? root.tagsWord : "", qsTr(
+                           "trackers")].filter(word => word.length > 0).join(", ")
                 visible: root.compact
                 width: content.width
 
@@ -1116,8 +1125,8 @@ Item {
                 collapsed: root.categoriesFolded
                 count: root.categoriesNamedCount
                 hasCursor: root.cursorOn(categoriesGroup.globalIndex)
-                label: qsTr("categories")
-                labelId: "categories"
+                label: root.categoriesWord
+                labelId: root.categoriesLabelId
                 visible: !root.compact && root.categoriesOffered
                 width: content.width
 
@@ -1306,14 +1315,14 @@ Item {
                 id: tagsGroup
 
                 block: root.ground
-                readonly property int globalIndex: root.tagsFolded ? root.tagsBase : -1
+                readonly property int globalIndex: root.tagsFolded && root.tagsOffered ? root.tagsBase : -1
 
                 collapsed: root.tagsFolded
                 count: root.tagsNamedCount
                 hasCursor: root.cursorOn(tagsGroup.globalIndex)
                 label: root.tagsWord
                 labelId: root.tagsLabelId
-                visible: !root.compact
+                visible: !root.compact && root.tagsOffered
                 width: content.width
 
                 onToggled: root.toggleGroup("tags")
@@ -1325,7 +1334,8 @@ Item {
                     id: tagsAll
 
                     block: root.ground
-                    readonly property int globalIndex: root.tagsFolded ? -1 : root.tagsBase
+                    // Deluge (no tags): no stop, so the trackers' "all" keeps its place.
+                    readonly property int globalIndex: root.tagsFolded || !root.tagsOffered ? -1 : root.tagsBase
 
                     count: root.counts.total
                     hasCursor: root.cursorOn(tagsAll.globalIndex)

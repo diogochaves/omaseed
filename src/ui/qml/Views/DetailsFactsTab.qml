@@ -131,7 +131,9 @@ Flickable {
         const information = make();
         // The head's meta line (spec v2 Fig. 1), whole here.
         if (row) {
-            add(information, qsTr("Category"), row.category);
+            // C25 K13: "Label" on Deluge.
+            const one = root.features.categoryWord ?? qsTr("category");
+            add(information, one.charAt(0).toUpperCase() + one.slice(1), row.category);
             // C25 K13: "Labels" on Transmission.
             const many = root.features.tagsWord ?? qsTr("tags");
             add(information, many.charAt(0).toUpperCase() + many.slice(1), row.tagsText);

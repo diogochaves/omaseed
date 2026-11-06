@@ -202,7 +202,8 @@ Item {
         },
         {
             "key": "category",
-            "title": qsTr("Category"),
+            // C25 K13: "Label" on Deluge.
+            "title": root._capital(Keymap.groupWords(root.features).catOne),
             "role": "category",
             "text": "category",
             "width": 96,

@@ -60,8 +60,9 @@ public:
     /// One of the five questions (a TorrentFilterModel::Question); the library for any other.
     static QString question(int question, const ScopeFacts &facts);
     /// A category: its count, its size (none known: left out) and where it saves ("" leaves
-    /// the place out).
-    static QString category(const ScopeFacts &facts, const QString &savePath);
+    /// the place out). A Deluge label (`label`, C25 K15) says it is one, and where it moves
+    /// its torrents when they finish, or that it has no folder of its own.
+    static QString category(const ScopeFacts &facts, const QString &savePath, bool label = false);
     /// #167 assumed 9: a tag's and a tracker's count and the kind of place.
     /// `word` names the group ("label" on Transmission, C25 K13); empty is "tag".
     static QString tag(const ScopeFacts &facts, const QString &word = QString());

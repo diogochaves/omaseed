@@ -55,7 +55,9 @@ void App::updateScopeSentence()
             line = ScopeSentence::narrowed(
                 question,
                 ScopeSentence::category(
-                    facts, name.isEmpty() ? QString() : m_engine->categories()->savePathOf(name)));
+                    facts,
+                    name.isEmpty() ? QString() : m_engine->categories()->savePathOf(name),
+                    m_features.categoriesAreLabels && !name.isEmpty()));
         } else if (m_filtered->tag().isValid()) {
             line = ScopeSentence::narrowed(
                 question,

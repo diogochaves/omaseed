@@ -934,7 +934,8 @@ Sheet {
             const names = App.categories.count > 0 ? App.categories.names() : [];
             const category = categoryChips.current;
             if (category.length > 0 && names.indexOf(category) < 0)
-                parts.push(qsTr("category “%1” is new there and will be created").arg(category));
+                parts.push(qsTr("%1 “%2” is new there and will be created").arg(Keymap.groupWords(sheet._can).catOne).arg(
+                               category));
             for (const tag of tagChips.selected) {
                 if (!App.tags.contains(tag))
                     parts.push(qsTr("%1 “%2” is new there and will be created")
@@ -1213,8 +1214,12 @@ Sheet {
                                                        if (sheet._savePathEdited)
                                                        return;
                                                        sheet._programmatic = true;
+                                                       // K27: a Deluge label's folder is where
+                                                       // it moves torrents when done, not where
+                                                       // they download: Save to stays default.
                                                        savePathField.text
                                                        = categoryChips.current.length > 0
+                                                       && sheet._can.categoriesAreLabels !== true
                                                        ? App.categories.savePathOf(
                                                              categoryChips.current) : "";
                                                        sheet._programmatic = false;
@@ -1877,7 +1882,11 @@ Sheet {
                         FormRow {
                             Layout.fillWidth: true
                             Layout.preferredWidth: 1
-                            label: qsTr("Category")
+                            // C25 K13: "Label" on Deluge.
+                            label: {
+                                const one = Keymap.groupWords(sheet._can).catOne;
+                                return one.charAt(0).toUpperCase() + one.slice(1);
+                            }
                             visible: sheet._can.categories !== false
 
                             ChipSelect {
