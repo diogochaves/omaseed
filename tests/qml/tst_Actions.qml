@@ -1242,6 +1242,39 @@ TestCase {
         compare(a[4], -2, "an untouched seeding time left the global limit");
     }
 
+    // Board 47 §D (C25 K18): on Transmission, idle time in seeding time's place, in minutes,
+    // and the one line; no seeding time, no action. qBittorrent's sheet keeps its rows.
+    function test_limits_show_only_what_the_engine_keeps() {
+        const spy = createTemporaryObject(limitsSpy, testCase);
+        const sheet = view.limitsSheetPanel;
+        const hash = hashByName("Big Buck Bunny 4K (CC-BY)");
+        sheet.openFor([hash]);
+        verify(!sheet.idleRow.visible, "qBittorrent's sheet grew an idle row");
+        verify(!sheet.engineLine.visible);
+        sheet.close();
+
+        sheet.features = {"seedingTimeLimit": false, "shareLimitActions": [], "shareLimitAction": false};
+        sheet.engineName = "Transmission";
+        try {
+            sheet.openFor([hash]);
+            verify(sheet.idleRow.visible);
+            verify(!sheet.seedingField.parent.parent.visible, "the seeding time row is still there");
+            verify(!sheet.actionRow.visible);
+            verify(sheet.engineLine.visible);
+            compare(sheet.engineLine.children[0].text, "Transmission stops the torrent at either limit");
+            sheet._idleGlobal = false;
+            sheet.idleField.text = "30";
+            sheet.triggerPrimary();
+            compare(spy.count, 1);
+            const a = spy.signalArguments[0]; // hashes, dl, ul, ratio, seeding, action, inactive
+            compare(a[4], -2, "seeding time is not the engine's: it stays as it was");
+            compare(a[6], 30, "the idle minutes did not travel");
+        } finally {
+            sheet.features = Qt.binding(() => App.features);
+            sheet.engineName = Qt.binding(() => App.serverEngineName);
+        }
+    }
+
     function test_limits_a_cleared_speed_lifts_the_limit() {
         const spy = createTemporaryObject(limitsSpy, testCase);
         const sheet = view.limitsSheetPanel;

@@ -143,6 +143,8 @@ Sheet {
             Layout.preferredWidth: 1
             label: qsTr("Alt-speed download")
             spokenCaption: false // the field says it (#78)
+            // C25 K20: no turtle where the engine has no alternative set (Deluge).
+            visible: App.features.altSpeeds !== false
 
             Field {
                 id: altDlField
@@ -164,6 +166,8 @@ Sheet {
             Layout.preferredWidth: 1
             label: qsTr("Alt-speed upload")
             spokenCaption: false // the field says it (#78)
+            // C25 K20: no turtle where the engine has no alternative set (Deluge).
+            visible: App.features.altSpeeds !== false
 
             Field {
                 id: altUlField

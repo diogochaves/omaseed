@@ -25,10 +25,21 @@ import Omaseed.Kit
 // >= 2.15.1 (`App.supportsShareLimitAction`), prefilled from the cursor torrent's own value.
 // `default` leaves the choice to the server's global setting. Several selected torrents
 // with different actions prefill `default` and flag the row `mixed`, like qui.
+//
+// Board 47 §D (DECISIONS C25 K18): only what the engine keeps. An engine with no total seeding
+// time but an idle one (Transmission) gets "Idle for" in seeding time's place, in minutes with
+// its own `global` chip (the inactive limit qBittorrent's sheet only carries along), and one
+// line under the rows: NAME stops the torrent at either limit; no seeding time, no action.
 Sheet {
     id: root
 
     property var hashes: []
+    /// What the server's engine can do (App.features; the tests hand their own).
+    property var features: App.features
+    /// The engine's name for the one line ("Transmission").
+    property string engineName: App.serverEngineName
+    /// C25 K18: idle time in seeding time's place.
+    readonly property bool idleTime: root.features.seedingTimeLimit === false
     /// The fifth row and its chips, for the tests.
     readonly property alias actionRow: actionRow
     readonly property alias actionChips: actionChips
@@ -50,6 +61,9 @@ Sheet {
     readonly property alias ratioField: ratioField
     readonly property alias seedingField: seedingField
     readonly property alias seedingGlobalChip: seedingGlobalChip
+    readonly property alias idleField: idleField
+    readonly property alias idleRow: idleRow
+    readonly property alias engineLine: engineLine
 
     actions: [
         {
@@ -80,6 +94,7 @@ Sheet {
         ulField.text = row.upLimit > 0 ? String(Math.round(row.upLimit / 1024)) : "";
         root._setRatio(row.ratioLimit !== undefined ? row.ratioLimit : -2);
         root._setSeeding(row.seedingTimeLimit !== undefined ? row.seedingTimeLimit : -2);
+        root._setIdle(row.inactiveSeedingTimeLimit !== undefined ? row.inactiveSeedingTimeLimit : -2);
         root._setAction(row.shareLimitAction, hashes);
         root.errorText = "";
         root._initial = {
@@ -88,7 +103,9 @@ Sheet {
             "ratio": ratioField.text,
             "ratioGlobal": root._ratioGlobal,
             "seeding": seedingField.text,
-            "seedingGlobal": root._seedingGlobal
+            "seedingGlobal": root._seedingGlobal,
+            "idle": idleField.text,
+            "idleGlobal": root._idleGlobal
         };
         root.open();
     }
@@ -112,7 +129,8 @@ Sheet {
             "dl": root._speedValue(dlField.text, root._initial.dl),
             "ul": root._speedValue(ulField.text, root._initial.ul),
             "ratio": null,
-            "seeding": null
+            "seeding": null,
+            "idle": null
         };
         if (Number.isNaN(out.dl))
             return {"error": qsTr("Download is not a number")};
@@ -147,6 +165,19 @@ Sheet {
                 if (Number.isNaN(days))
                     return {"error": qsTr("Seeding time is not a number")};
                 out.seeding = Math.round(days * 1440);
+            }
+        }
+        if (root.idleTime && (root._idleGlobal !== root._initial.idleGlobal
+                              || (!root._idleGlobal && idleField.text.trim() !== String(root._initial.idle).trim()))) {
+            if (root._idleGlobal) {
+                out.idle = -2;
+            } else if (idleField.text.trim().length === 0) {
+                out.idle = -1;
+            } else {
+                const minutes = root._number(idleField.text);
+                if (Number.isNaN(minutes))
+                    return {"error": qsTr("Idle time is not a number")};
+                out.idle = Math.round(minutes);
             }
         }
         return out;
@@ -201,6 +232,17 @@ Sheet {
         }
     }
 
+    /// The same for idle time, in minutes as the field shows them.
+    function _setIdle(minutes: real): void {
+        if (minutes === -2) {
+            root._idleGlobal = true;
+            idleField.text = "";
+        } else {
+            root._idleGlobal = false;
+            idleField.text = minutes >= 0 ? String(minutes) : "";
+        }
+    }
+
     /// Bytes/s for a speed field: -1 while it still reads what it opened with (unchanged),
     /// 0 (unlimited) when emptied or "0", otherwise KB/s converted to bytes/s; NaN when it is
     /// not a number.
@@ -220,6 +262,9 @@ Sheet {
         if (which === "ratio") {
             root._ratioGlobal = false;
             ratioField.focusInput();
+        } else if (which === "idle") {
+            root._idleGlobal = false;
+            idleField.focusInput();
         } else {
             root._seedingGlobal = false;
             seedingField.focusInput();
@@ -228,6 +273,7 @@ Sheet {
 
     property bool _ratioGlobal: true
     property bool _seedingGlobal: true
+    property bool _idleGlobal: true
     /// The largest speed limit the Web API stores (a signed 32-bit bytes/s).
     readonly property real maxSpeedBytes: 2147483647
 
@@ -238,6 +284,7 @@ Sheet {
         ulField.text = "";
         root._setRatio(-2);
         root._setSeeding(-2);
+        root._setIdle(-2);
         root._setAction("Default", []);
         root.errorText = "";
         App.setLimits(root.hashes, 0, 0, -2, -2, "Default", -2);
@@ -264,8 +311,9 @@ Sheet {
             const action = root._actionMixed ? root.actionNames[Math.max(0, root.actionNames.indexOf(
                                                                              row.shareLimitAction))]
                                              : root.actionValue();
-            const inactive = row.inactiveSeedingTimeLimit !== undefined ? row.inactiveSeedingTimeLimit
-                                                                        : -2;
+            const inactive = values.idle !== null ? values.idle
+                                                  : (row.inactiveSeedingTimeLimit !== undefined
+                                                     ? row.inactiveSeedingTimeLimit : -2);
             const key = ratio + "|" + seeding + "|" + action + "|" + inactive;
             if (byKey[key] === undefined) {
                 byKey[key] = groups.length;
@@ -410,7 +458,7 @@ Sheet {
             label: qsTr("Seeding time")
             spokenCaption: false // the field says it (#78)
             // C14 E4: an engine with no seeding-time limit gets no row (its value stays as is).
-            visible: App.features.seedingTimeLimit !== false
+            visible: !root.idleTime
 
             // Ruling Q5: the ratio row's chip, for the same reason. A torrent on the global
             // seeding time used to show `∞`, which reads as "no limit".
@@ -464,6 +512,88 @@ Sheet {
             }
         }
 
+        // C25 K18: Transmission's idle limit, in seeding time's place.
+        FormRow {
+            id: idleRow
+
+            Layout.fillWidth: true
+            Layout.preferredWidth: 1
+            label: qsTr("Idle for")
+            spokenCaption: false // the field says it (#78)
+            visible: root.idleTime
+
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: Theme.space(8)
+
+                Item {
+                    Layout.fillWidth: true
+                    implicitHeight: idleField.height
+                    implicitWidth: idleField.implicitWidth
+
+                    Field {
+                        id: idleField
+
+                        // #78: named by its row's label; `∞` is no name.
+                        accessibleName: qsTr("Idle for")
+                        escClears: false
+                        enabled: !root._idleGlobal
+                        numeric: true
+                        placeholder: root._idleGlobal ? "" : "∞"
+                        trailing: root._idleGlobal ? "" : qsTr("min")
+                        width: parent.width
+
+                        onAccepted: root.triggerPrimary()
+                    }
+
+                    // a11y-ignore A2: the pointer's way off `global`; the chip does it too (#77)
+                    MouseArea {
+                        anchors.fill: parent
+                        cursorShape: Qt.IBeamCursor
+                        enabled: root._idleGlobal
+                        objectName: "idleGlobalOff"
+
+                        onClicked: root.leaveGlobal("idle")
+                    }
+                }
+
+                Chip {
+                    focusable: true
+                    checkable: true
+                    selected: root._idleGlobal
+                    // #78: the ▾ is drawn only.
+                    Accessible.name: qsTr("global")
+                    text: qsTr("global ▾")
+
+                    onClicked: root._idleGlobal = !root._idleGlobal
+                }
+            }
+        }
+
+        // Board 47 §D's one line: what the engine does at a limit, and what it has none of.
+        ColumnLayout {
+            id: engineLine
+
+            Layout.columnSpan: 2
+            Layout.fillWidth: true
+            spacing: Theme.space(2)
+            visible: root.idleTime && root.features.shareLimitAction !== true
+
+            Label {
+                Layout.fillWidth: true
+                text: qsTr("%1 stops the torrent at either limit").arg(root.engineName)
+                wrapMode: Text.WordWrap
+            }
+
+            Label {
+                Layout.fillWidth: true
+                dim: true
+                size: "small"
+                text: qsTr("it has no limit on total seeding time, and no other action")
+                wrapMode: Text.WordWrap
+            }
+        }
+
         // T5.5 Q14 — the fifth row spans both columns, like qui's select under its three
         // limit rows. Only a server that knows the field gets to show it.
         FormRow {
@@ -472,7 +602,7 @@ Sheet {
             Layout.columnSpan: 2
             Layout.fillWidth: true
             label: qsTr("When the limit is reached")
-            visible: App.supportsShareLimitAction
+            visible: App.supportsShareLimitAction && root.features.shareLimitAction !== false
 
             RowLayout {
                 Layout.fillWidth: true
