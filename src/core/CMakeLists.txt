@@ -41,6 +41,8 @@ qt_add_library(omaseed-core STATIC
     engines/EngineRecognizer.hpp
     engines/deluge/DelugeFingerprint.cpp
     engines/deluge/DelugeFingerprint.hpp
+    engines/deluge/DelugeRpc.cpp
+    engines/deluge/DelugeRpc.hpp
     engines/EngineFeatures.hpp
     engines/LogEntry.hpp
     engines/ServerInfo.hpp
