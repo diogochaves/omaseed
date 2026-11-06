@@ -536,7 +536,7 @@ private slots:
         // C25 K9's words.
         QCOMPARE(text.line,
                  QStringLiteral("omaseed can't drive Deluge yet. This build drives "
-                                "qBittorrent and Transmission."));
+                                "qBittorrent, Transmission and Deluge."));
         QCOMPARE(text.kind, QStringLiteral("engine"));
         QVERIFY(text.details.contains(QStringLiteral("deluge")));
         QCOMPARE(text.sentence(),
@@ -580,6 +580,35 @@ private slots:
         QCOMPARE(ErrorWords::versionReason(), QStringLiteral("too old"));
         QCOMPARE(ErrorWords::guardVersion(seedbox, QStringLiteral("p")),
                  QStringLiteral("seedbox's Transmission is too old: p does nothing here"));
+    }
+
+    // C25 K10: deluge-web with no daemon reads as a server that is down, and is retried.
+    void delugeWebWithoutADaemon()
+    {
+        ErrorWords::Subject subject = server(AuthMode::Password, 7);
+        subject.server = QStringLiteral("nas");
+        subject.engine = QStringLiteral("Deluge");
+        for (const QString &message :
+             {QStringLiteral("web.connected: deluge-web isn't connected to a Deluge daemon"),
+              QStringLiteral("web.update_ui: deluge-web isn't connected to a Deluge daemon")}) {
+            const ApiError error(ApiError::Kind::Conflict, message);
+            QVERIFY(ErrorWords::isNoDaemon(error));
+            // As GlobalState keeps it, and serverProblem reads it back.
+            QVERIFY(ErrorWords::isNoDaemon(ApiError::fromString(error.toString())));
+            const ErrorWords::Text text = ErrorWords::forServer(error, subject);
+            QCOMPARE(text.headline, QStringLiteral("nas's deluge-web has no daemon"));
+            QVERIFY2(text.line.startsWith(QStringLiteral("deluge-web answers, but no Deluge "
+                                                         "daemon is connected to it.")),
+                     qPrintable(text.line));
+            QVERIFY(text.line.contains(ErrorWords::retryLine(7)));
+            QCOMPARE(text.kind, QStringLiteral("unreachable"));
+            QCOMPARE(ErrorWords::shortReason(error), QStringLiteral("no daemon"));
+        }
+        // Any other Conflict is not it (K8's version refusal is one).
+        QVERIFY(!ErrorWords::isNoDaemon(
+            ApiError(ApiError::Kind::Conflict, QStringLiteral("Deluge 2.0.3 is too old"))));
+        QVERIFY(!ErrorWords::isNoDaemon(ApiError(
+            ApiError::Kind::Network, QStringLiteral("isn't connected to a Deluge daemon"))));
     }
 
     void noErrorNoWords()

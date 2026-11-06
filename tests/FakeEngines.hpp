@@ -16,6 +16,8 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 
+#include <memory>
+
 namespace fakeengines {
 
 using fakehttp::FakeServer;
@@ -79,10 +81,13 @@ inline FakeServer::Handler transmission(const QByteArray &login = {},
     };
 }
 
-/// deluge-web 2.2.0 with password "deluge": its session cookie, one daemon.
+/// deluge-web 2.2.0 with password "deluge": its session cookie, one daemon ("c0ffee"), no
+/// torrents. Not `connected`, web.connect connects it (C25 K10).
 inline FakeServer::Handler deluge(bool connected = true)
 {
-    return [connected](const Recorded &request, int) {
+    auto state = std::make_shared<bool>(connected);
+    return [state](const Recorded &request, int) {
+        const bool connected = *state;
         if (request.target != "/json")
             return notFound();
         const QJsonObject call = QJsonDocument::fromJson(request.body).object();
@@ -116,8 +121,19 @@ inline FakeServer::Handler deluge(bool connected = true)
                                                 QStringLiteral("127.0.0.1"),
                                                 58846,
                                                 QStringLiteral("localclient")}});
+        if (method == QLatin1String("web.get_host_status"))
+            return answer(QJsonArray{QStringLiteral("c0ffee"),
+                                     connected ? QStringLiteral("Connected")
+                                               : QStringLiteral("Online"),
+                                     QStringLiteral("2.2.0")});
+        if (method == QLatin1String("web.connect")) {
+            *state = true;
+            return answer(QJsonArray{});
+        }
         if (method == QLatin1String("daemon.get_version"))
             return answer(QStringLiteral("2.2.0"));
+        if (method == QLatin1String("core.get_torrents_status"))
+            return answer(QJsonObject{});
         return answer(QJsonValue::Null);
     };
 }

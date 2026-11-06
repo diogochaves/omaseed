@@ -259,8 +259,8 @@ void TestEngineRecognizer::delugeSignsInAndNamesItsDaemon()
                           QStringLiteral("daemon.get_version")}));
     // deluge-web's session rides on its cookie.
     QVERIFY(server.requests.last().header("Cookie").contains("_session_id=c00k1e"));
-    QVERIFY(engineSupport(found.engine, found.version, {})
-                .refusal.contains(QStringLiteral("can't drive Deluge yet")));
+    // E6 (#87): driven, so nothing to refuse.
+    QVERIFY(engineSupport(found.engine, found.version, {}).usable());
 }
 
 void TestEngineRecognizer::delugeWithoutADaemonListsItsHosts()

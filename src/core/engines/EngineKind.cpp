@@ -68,14 +68,16 @@ QString engineDisplayName(EngineKind kind)
 
 bool isEngineDriven(EngineKind kind)
 {
-    return kind == EngineKind::Qbittorrent || kind == EngineKind::Transmission;
+    return kind == EngineKind::Qbittorrent || kind == EngineKind::Transmission ||
+           kind == EngineKind::Deluge;
 }
 
 QString drivenEnginesText()
 {
-    return tr("%1 and %2")
+    return tr("%1, %2 and %3")
         .arg(engineDisplayName(EngineKind::Qbittorrent),
-             engineDisplayName(EngineKind::Transmission));
+             engineDisplayName(EngineKind::Transmission),
+             engineDisplayName(EngineKind::Deluge));
 }
 
 EngineSupport engineSupport(EngineKind kind, const QString &version, const QString &apiVersion)

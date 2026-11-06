@@ -26,6 +26,7 @@
 #include "core/engines/qbt/QbtEngine.hpp"
 #include "core/engines/qbt/QbtSettingsImport.hpp"
 #include "core/engines/qbt/QbtTranslate.hpp"
+#include "core/engines/deluge/DelugeEngine.hpp"
 #include "core/engines/transmission/TransmissionEngine.hpp"
 #include "integration/Autostart.hpp"
 #include "integration/Notifier.hpp"
@@ -514,8 +515,8 @@ bool App::configureFromEnvironment()
     server.url = url;
     const QString name = env("OMASEED_SERVER_NAME");
     server.name = name.isEmpty() ? url.host() : name;
-    // C14 E4: "transmission" for a Transmission (qBittorrent when unset). One this build
-    // doesn't drive is not used.
+    // C14 E4, E6: "transmission" or "deluge" (qBittorrent when unset). One this build doesn't
+    // drive is not used.
     const QString engineText = env("OMASEED_SERVER_ENGINE");
     if (!engineText.isEmpty()) {
         bool known = false;
@@ -534,6 +535,10 @@ bool App::configureFromEnvironment()
     if (!apiKey.isEmpty()) {
         server.authMode = AuthMode::ApiKey;
         m_client->setApiKey(apiKey);
+    } else if (server.engine == EngineKind::Deluge && !password.isEmpty()) {
+        // C25 K7: deluge-web's one password; a user name is ignored.
+        server.authMode = AuthMode::Password;
+        m_client->setCredentials(QString(), password);
     } else if (!username.isEmpty()) {
         server.authMode = AuthMode::Cookie;
         server.username = username;
@@ -564,6 +569,9 @@ void App::applyServer(const Server &server)
     // it has, pointed nowhere (below).
     if (isEngineDriven(server.engine))
         useClientFor(server.engine);
+    // C25 K10: the daemon the step picked, connected again when deluge-web has none.
+    if (server.engine == EngineKind::Deluge && m_deluge != nullptr)
+        m_deluge->setDaemon(server.daemon);
     // clearAuth() and a new base URL also cancel everything still queued, in flight or
     // backing off for the previous server (EngineClient::cancelAll).
     m_client->clearAuth();
@@ -571,8 +579,8 @@ void App::applyServer(const Server &server)
     m_prefs->reset();
     m_engine->globalState()->setServerName(server.name);
 
-    // DECISIONS C28, C25 K9: a server of an engine this build can't drive (a Deluge until E6,
-    // or one a newer build recorded) is listed, never asked anything: the client points
+    // DECISIONS C28, C25 K9: a server of an engine this build can't drive (one a newer build
+    // recorded) is listed, never asked anything: the client points
     // nowhere, the engine stays stopped, and the window says why in ErrorWords::forEngine's
     // words (serverProblem).
     if (!isEngineDriven(server.engine)) {
@@ -612,9 +620,12 @@ void App::applyServer(const Server &server)
                 });
         break;
     }
-    case AuthMode::Cookie: {
+    case AuthMode::Cookie:
+    case AuthMode::Password: {
         auto *job = m_secrets->secret(server.id, SecretStore::Kind::Password, this);
-        const QString username = server.username;
+        // C25 K7: deluge-web's one password has no user name.
+        const QString username =
+            server.authMode == AuthMode::Password ? QString() : server.username;
         connect(job,
                 &SecretStoreJob::finished,
                 this,
@@ -631,7 +642,6 @@ void App::applyServer(const Server &server)
         break;
     }
     case AuthMode::None:
-    case AuthMode::Password: // Deluge's: not driven, so not reached (see above)
         startEngine();
         break;
     }
@@ -644,6 +654,13 @@ void App::useClientFor(EngineKind kind)
         if (m_transmission == nullptr)
             m_transmission = new TransmissionEngine(this);
         wanted = m_transmission;
+    } else if (kind == EngineKind::Deluge) {
+        if (m_deluge == nullptr) {
+            m_deluge = new DelugeEngine(this);
+            // C25 K13–K15: the Label plugin turned on or off changes what Deluge can do.
+            connect(m_deluge, &DelugeEngine::labelPluginChanged, this, &App::updateFeatures);
+        }
+        wanted = m_deluge;
     }
     if (wanted == m_client)
         return;
@@ -655,13 +672,14 @@ void App::useClientFor(EngineKind kind)
     // Every holder of the client (SyncEngine starts over with it: rid, models, probe).
     m_engine->setClient(m_client);
     m_altPresets->setClient(m_client);
-    // C25 K20: turtle, its clock and the presets read Transmission's session where
-    // qBittorrent's preferences would be.
-    m_prefs->setSession(kind == EngineKind::Transmission ? m_transmission : nullptr);
+    // C25 K20: turtle, its clock and the presets read Transmission's or Deluge's session
+    // where qBittorrent's preferences would be (Deluge's has no alternative limits).
+    m_prefs->setSession(kind == EngineKind::Qbittorrent ? nullptr : m_client);
     m_pauseHold->setClient(m_client);
     // C36 M10 on Transmission: its stop lands a moment after the answer (#85), so a resume
-    // right after a pause waits for it rather than skip what still reads running.
-    m_pauseHold->setSettleMs(kind == EngineKind::Transmission ? 5000 : 0);
+    // right after a pause waits for it rather than skip what still reads running. Deluge's
+    // pause is libtorrent's, which lands as late (assumed, #87).
+    m_pauseHold->setSettleMs(kind == EngineKind::Qbittorrent ? 0 : 5000);
     m_details->setClient(nullptr); // selectTorrent hands it the new one
     qInfo().noquote() << QStringLiteral("engine: %1").arg(engineDisplayName(kind));
     // C25 K31: a port test said of the other server says nothing of this one.
@@ -4568,8 +4586,22 @@ void App::testServer(const QVariantMap &fields, const QString &secret)
         return;
     }
 
+    // C25 K10: the daemon step's "use this daemon" connects deluge-web to it, then tests.
+    const QString connectHost = server.engine == EngineKind::Deluge
+                                    ? fields.value(QStringLiteral("connectDaemon")).toString()
+                                    : QString();
+    const auto run = [this, server, only, connectHost](const QString &resolved) {
+        if (connectHost.isEmpty()) {
+            runServerTest(server, resolved, true, only);
+            return;
+        }
+        QElapsedTimer elapsed;
+        elapsed.start();
+        runEngineTest(server, resolved, true, elapsed, EngineKind::Deluge, connectHost);
+    };
+
     if (!secret.isEmpty() || server.authMode == AuthMode::None || server.id.isEmpty()) {
-        runServerTest(server, secret, true, only);
+        run(secret);
         return;
     }
 
@@ -4577,12 +4609,9 @@ void App::testServer(const QVariantMap &fields, const QString &secret)
     const SecretStore::Kind kind =
         usesPassword(server.authMode) ? SecretStore::Kind::Password : SecretStore::Kind::ApiKey;
     auto *job = m_secrets->secret(server.id, kind, this);
-    connect(job,
-            &SecretStoreJob::finished,
-            this,
-            [this, server, only](bool ok, const QString &value, const QString &) {
-                runServerTest(server, ok ? value : QString(), true, only);
-            });
+    connect(job, &SecretStoreJob::finished, this, [run](bool ok, const QString &value, const QString &) {
+        run(ok ? value : QString());
+    });
 }
 
 QVariantMap App::testInfo(EngineKind engine, const QUrl &endpoint) const
@@ -4689,11 +4718,15 @@ void App::runEngineTest(const Server &server,
                         const QString &secret,
                         bool announce,
                         const QElapsedTimer &elapsed,
-                        EngineKind engine)
+                        EngineKind engine,
+                        const QString &connectHost)
 {
     EngineClient *client = nullptr;
+    DelugeEngine *deluge = nullptr;
     if (engine == EngineKind::Transmission)
         client = new TransmissionEngine(this);
+    else if (engine == EngineKind::Deluge)
+        client = deluge = new DelugeEngine(this);
     else
         client = new QbtEngine(this);
     client->setPinnedCertificate(server.certificateSha256);
@@ -4707,75 +4740,248 @@ void App::runEngineTest(const Server &server,
     case AuthMode::Cookie:
         client->setCredentials(server.username, secret);
         break;
-    case AuthMode::None:
     case AuthMode::Password:
+        // C25 K7: deluge-web's one password.
+        client->setCredentials(QString(), secret);
+        break;
+    case AuthMode::None:
         break;
     }
+    // C25 K10: the daemon the step picked, connected by the probe only when deluge-web has none.
+    if (deluge != nullptr)
+        deluge->setDaemon(server.daemon);
 
     const QString id = server.id;
     const QVariantMap info = testInfo(engine, server.url);
     const QString engineText = engineKindToString(engine);
-
     const AuthMode mode = server.authMode;
     const QString pinned = server.certificateSha256;
-    client->probe()->then(
+    const QString chosen = server.daemon;
+
+    const auto probe = [this,
+                        client,
+                        deluge,
+                        elapsed,
+                        id,
+                        mode,
+                        pinned,
+                        announce,
+                        info,
+                        engineText,
+                        chosen,
+                        connectHost]() {
+        client->probe()->then(
+            this,
+            [this,
+             client,
+             deluge,
+             elapsed,
+             id,
+             mode,
+             pinned,
+             announce,
+             info,
+             engineText,
+             chosen,
+             connectHost](const Result<ServerInfo> &result) {
+                const int latency = int(elapsed.elapsed());
+                if (result.isError() && deluge != nullptr &&
+                    ErrorWords::isNoDaemon(result.error())) {
+                    // K10: signed in, and no daemon behind deluge-web: the step lists them.
+                    testDelugeDaemons(
+                        deluge, id, announce, latency, std::nullopt, info, chosen, connectHost);
+                    return;
+                }
+                if (result.isError()) {
+                    const QString raw = result.error().toString();
+                    QString refused = credentialRefusedText(result.error(), mode);
+                    if (result.error().kind() == ApiError::Kind::Certificate) {
+                        refused = certificateRefusedText(pinned);
+                        if (announce)
+                            Q_EMIT serverCertificateRefused(
+                                id, result.error().certificateSha256(), pinned);
+                    }
+                    // K8: Transmission's and Deluge's probes refuse a version too old in their
+                    // own words.
+                    const bool versionRefused =
+                        result.error().kind() == ApiError::Kind::Conflict &&
+                        engineText != QLatin1String("qbittorrent");
+                    const QString error = refused.isEmpty() ? raw : refused;
+                    const QString detail = refused.isEmpty() ? QString() : raw;
+                    QVariantMap answered = info;
+                    if (versionRefused) {
+                        answered.insert(QStringLiteral("refused"), true);
+                        answered.insert(QStringLiteral("versionRefused"), true);
+                    }
+                    answerTest(client,
+                               id,
+                               announce,
+                               false,
+                               {},
+                               -1,
+                               latency,
+                               error,
+                               detail,
+                               answered);
+                    return;
+                }
+                if (deluge != nullptr) {
+                    testDelugeDaemons(
+                        deluge, id, announce, latency, result.value(), info, chosen, connectHost);
+                    return;
+                }
+                countForTest(client, id, announce, result.value(), latency, info);
+            });
+    };
+
+    if (deluge == nullptr || connectHost.isEmpty()) {
+        probe();
+        return;
+    }
+    // K10: the daemon step's choice. Connecting switches deluge-web for all its users; the
+    // sheet said so before it asked.
+    deluge->connectDaemon(connectHost)
+        ->then(this,
+               [this, client, elapsed, id, announce, info, probe](const Result<Done> &result) {
+                   if (result.isError()) {
+                       answerTest(client,
+                                  id,
+                                  announce,
+                                  false,
+                                  {},
+                                  -1,
+                                  int(elapsed.elapsed()),
+                                  tr("deluge-web couldn't connect to that daemon"),
+                                  result.error().toString(),
+                                  info);
+                       return;
+                   }
+                   probe();
+               });
+}
+
+void App::countForTest(EngineClient *client,
+                       const QString &id,
+                       bool announce,
+                       const ServerInfo &serverInfo,
+                       int latency,
+                       const QVariantMap &info)
+{
+    // A sync would do this too, but it also allocates a cursor on the server; a plain list is
+    // the cheaper way to count what is there.
+    client->torrents()->then(
         this,
-        [this, client, elapsed, id, mode, pinned, announce, info, engineText](
-            const Result<ServerInfo> &result) {
-            const int latency = int(elapsed.elapsed());
-            if (result.isError()) {
-                const QString raw = result.error().toString();
-                QString refused = credentialRefusedText(result.error(), mode);
-                if (result.error().kind() == ApiError::Kind::Certificate) {
-                    refused = certificateRefusedText(pinned);
-                    if (announce)
-                        Q_EMIT serverCertificateRefused(
-                            id, result.error().certificateSha256(), pinned);
+        [this, client, id, serverInfo, latency, announce, info](
+            const Result<QList<TorrentPatch>> &listResult) {
+            const int count = listResult.isError() ? -1 : int(listResult.value().size());
+            answerTest(
+                client, id, announce, true, serverInfo, count, latency, QString(), QString(), info);
+        });
+}
+
+void App::answerTest(EngineClient *client,
+                     const QString &id,
+                     bool announce,
+                     bool ok,
+                     const ServerInfo &serverInfo,
+                     int count,
+                     int latency,
+                     const QString &error,
+                     const QString &detail,
+                     const QVariantMap &info)
+{
+    client->deleteLater();
+    m_probing.remove(id);
+    m_serverList->setProbeResult(id,
+                                 ok,
+                                 serverInfo.version,
+                                 serverInfo.apiVersion,
+                                 count,
+                                 latency,
+                                 error,
+                                 ok ? info.value(QStringLiteral("engine")).toString() : QString());
+    if (announce)
+        Q_EMIT serverTested(id,
+                            ok,
+                            serverInfo.version,
+                            serverInfo.apiVersion,
+                            count,
+                            latency,
+                            error,
+                            detail,
+                            info);
+}
+
+void App::testDelugeDaemons(DelugeEngine *deluge,
+                            const QString &id,
+                            bool announce,
+                            int latency,
+                            const std::optional<ServerInfo> &probed,
+                            const QVariantMap &info,
+                            const QString &chosen,
+                            const QString &connectHost)
+{
+    // C25 K10: the daemons deluge-web knows, each with its state. A step only when it has none
+    // connected, or knows several and none was picked yet (or another than the one it has).
+    deluge->hosts()->then(
+        this,
+        [this, deluge, id, announce, latency, probed, info, chosen, connectHost](
+            const Result<QList<DelugeHost>> &result) {
+            const QList<DelugeHost> hosts = result.isError() ? QList<DelugeHost>() : result.value();
+            QString connectedId;
+            QVariantList rows;
+            for (const DelugeHost &host : hosts) {
+                const bool connected = host.status == QLatin1String("Connected");
+                if (connected)
+                    connectedId = host.id;
+                rows.append(QVariantMap{
+                    {QStringLiteral("id"), host.id},
+                    {QStringLiteral("address"),
+                     QStringLiteral("%1:%2").arg(host.host).arg(host.port)},
+                    {QStringLiteral("status"), host.status},
+                    {QStringLiteral("version"), host.version},
+                    {QStringLiteral("connected"), connected},
+                    {QStringLiteral("online"),
+                     connected || host.status == QLatin1String("Online")},
+                });
+            }
+            QVariantMap answered = info;
+            answered.insert(QStringLiteral("hosts"), rows);
+            if (!probed) {
+                answered.insert(QStringLiteral("daemon"), chosen);
+                if (hosts.isEmpty()) {
+                    // Nothing to pick: deluge-web's own Connection Manager adds one.
+                    answered.insert(QStringLiteral("noDaemon"), true);
+                    answerTest(deluge,
+                               id,
+                               announce,
+                               false,
+                               {},
+                               -1,
+                               latency,
+                               tr("deluge-web knows no Deluge daemon"),
+                               tr("Add one in deluge-web's Connection Manager, then test again."),
+                               answered);
+                    return;
                 }
-                // K8: Transmission's probe refuses a daemon older than 4.1 in its own words.
-                const bool versionRefused = result.error().kind() == ApiError::Kind::Conflict &&
-                                            engineText == QLatin1String("transmission");
-                const QString error = refused.isEmpty() ? raw : refused;
-                const QString detail = refused.isEmpty() ? QString() : raw;
-                client->deleteLater();
-                m_probing.remove(id);
-                m_serverList->setProbeResult(id, false, QString(), QString(), -1, latency, error);
-                QVariantMap answered = info;
-                if (versionRefused) {
-                    answered.insert(QStringLiteral("refused"), true);
-                    answered.insert(QStringLiteral("versionRefused"), true);
-                }
-                if (announce)
-                    Q_EMIT serverTested(
-                        id, false, QString(), QString(), -1, latency, error, detail, answered);
+                answered.insert(QStringLiteral("daemonStep"), true);
+                answerTest(deluge,
+                           id,
+                           announce,
+                           false,
+                           {},
+                           -1,
+                           latency,
+                           tr("deluge-web has no daemon"),
+                           QString(),
+                           answered);
                 return;
             }
-
-            const ServerInfo serverInfo = result.value();
-            // A sync would do this too, but it also allocates a cursor on the server; a plain
-            // list is the cheaper way to count what is there.
-            client->torrents()->then(
-                this,
-                [this, client, id, serverInfo, latency, announce, info, engineText](
-                    const Result<QList<TorrentPatch>> &listResult) {
-                    const int count = listResult.isError() ? -1 : int(listResult.value().size());
-                    const QString version = serverInfo.version;
-                    const QString apiVersion = serverInfo.apiVersion;
-                    client->deleteLater();
-                    m_probing.remove(id);
-                    m_serverList->setProbeResult(
-                        id, true, version, apiVersion, count, latency, QString(), engineText);
-                    if (announce)
-                        Q_EMIT serverTested(id,
-                                            true,
-                                            version,
-                                            apiVersion,
-                                            count,
-                                            latency,
-                                            QString(),
-                                            QString(),
-                                            info);
-                });
+            const QString picked = connectHost.isEmpty() ? chosen : connectHost;
+            const bool step = connectHost.isEmpty() && hosts.size() > 1 && picked != connectedId;
+            answered.insert(QStringLiteral("daemon"), step ? picked : connectedId);
+            answered.insert(QStringLiteral("daemonStep"), step);
+            countForTest(deluge, id, announce, *probed, latency, answered);
         });
 }
 

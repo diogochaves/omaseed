@@ -36,10 +36,11 @@ inline constexpr EngineKind kKnownEngines[] = {
     EngineKind::Deluge,
 };
 
-/// Whether this build can drive `kind` (C25 K9): qBittorrent and Transmission (E4); Deluge
-/// waits for E6.
+/// Whether this build can drive `kind` (C25 K9): qBittorrent, Transmission (E4) and Deluge
+/// (E6). Only an engine a newer build knows is left.
 bool isEngineDriven(EngineKind kind);
-/// The engines this build drives, in words: "qBittorrent and Transmission" (K9's lines).
+/// The engines this build drives, in words: "qBittorrent, Transmission and Deluge" (K9's
+/// lines).
 QString drivenEnginesText();
 
 /// What omaseed makes of an engine and the version it reported (K8). `refused` holds the

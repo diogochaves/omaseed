@@ -685,15 +685,15 @@ void TestAppGlue::aSwitchReadsConnectingNeverDown()
 
 void TestAppGlue::aServerOfAnotherEngineIsNeverPolled()
 {
-    // DECISIONS C28, C25 K9: servers.json (v2, #84) with a Deluge server (not driven until E6)
-    // as the default. This build lists it, says why it can't use it, and polls it never: not
-    // at start, not on "retry now", not when the others are probed. Only a test from its sheet
-    // asks it, as the Deluge it is, to say so in K9's words.
-    QTcpServer deluge;
-    QVERIFY(deluge.listen(QHostAddress::LocalHost));
+    // DECISIONS C28, C25 K9: servers.json (v2, #84) with a server of an engine this build
+    // doesn't drive (since E6 all three are driven: one a newer build knows, #179) as the
+    // default. This build lists it, says why it can't use it, and polls it never: not at
+    // start, not on "retry now", not when the others are probed, not on a test.
+    QTcpServer listener;
+    QVERIFY(listener.listen(QHostAddress::LocalHost));
     int connections = 0;
-    connect(&deluge, &QTcpServer::newConnection, this, [&]() {
-        while (QTcpSocket *socket = deluge.nextPendingConnection()) {
+    connect(&listener, &QTcpServer::newConnection, this, [&]() {
+        while (QTcpSocket *socket = listener.nextPendingConnection()) {
             ++connections;
             socket->abort();
             socket->deleteLater();
@@ -709,9 +709,9 @@ void TestAppGlue::aServerOfAnotherEngineIsNeverPolled()
     const QJsonObject seedbox{
         {QStringLiteral("id"), QStringLiteral("t-1")},
         {QStringLiteral("name"), QStringLiteral("seedbox")},
-        {QStringLiteral("url"), QStringLiteral("http://127.0.0.1:%1").arg(deluge.serverPort())},
+        {QStringLiteral("url"), QStringLiteral("http://127.0.0.1:%1").arg(listener.serverPort())},
         {QStringLiteral("authMode"), QStringLiteral("none")},
-        {QStringLiteral("engine"), QStringLiteral("deluge")},
+        {QStringLiteral("engine"), QStringLiteral("rtorrent")},
         {QStringLiteral("engineVersion"), QStringLiteral("2.2.0")},
     };
     const QJsonObject other{
@@ -745,17 +745,16 @@ void TestAppGlue::aServerOfAnotherEngineIsNeverPolled()
     const QVariantMap problem = app.serverProblem(QString(), -1);
     QCOMPARE(problem.value(QStringLiteral("kind")).toString(), QStringLiteral("engine"));
     QCOMPARE(problem.value(QStringLiteral("headline")).toString(),
-             QStringLiteral("seedbox is a Deluge server"));
+             QStringLiteral("seedbox is a rtorrent server"));
     QCOMPARE(problem.value(QStringLiteral("retry")).toString(), QString());
     QCOMPARE(app.guardNote(QStringLiteral("p")),
-             QStringLiteral("seedbox is a Deluge server: p does nothing here"));
+             QStringLiteral("seedbox is a rtorrent server: p does nothing here"));
 
     app.retryNow();
     QVERIFY(!app.engine()->isRunning());
     QTest::qWait(300);
     QCOMPARE(connections, 0); // nothing at start, nor on "retry now"
-    // The engines build's test asks it as the Deluge it is (C25 K5, K9; the refusal's
-    // words are tst_app_engines'), never as a qBittorrent.
+    // A test says why without asking it (#179), never as a qBittorrent.
     app.testServer(app.serverList()->serverMap(QStringLiteral("t-1")), QString());
     QVERIFY(tested.wait(5000));
     QCOMPARE(tested.constFirst().at(1).toBool(), false);
@@ -772,16 +771,16 @@ void TestAppGlue::aServerOfAnotherEngineIsNeverPolled()
                 .toMap()
                 .value(QStringLiteral("detail"))
                 .toString()
-                .contains(QStringLiteral("Deluge server")));
+                .contains(QStringLiteral("rtorrent server")));
 
-    // On the other server, the Deluge one is still listed and still not asked.
+    // On the other server, that one is still listed and still not asked.
     QVERIFY(app.switchServer(QStringLiteral("q-1")));
     QVERIFY(!app.serverOtherEngine());
     QVERIFY(!app.serverRefused());
     const QVariantMap seedboxRow = app.serverRows().at(1).toMap();
     QCOMPARE(seedboxRow.value(QStringLiteral("key")).toString(), QStringLiteral("t-1"));
     QCOMPARE(seedboxRow.value(QStringLiteral("state")).toString(), QStringLiteral("refused"));
-    QCOMPARE(seedboxRow.value(QStringLiteral("meta")).toString(), QStringLiteral("Deluge server"));
+    QCOMPARE(seedboxRow.value(QStringLiteral("meta")).toString(), QStringLiteral("rtorrent server"));
     QVERIFY(app.switchServer(QStringLiteral("t-1")));
     QVERIFY(app.serverOtherEngine());
     QVERIFY(!app.engine()->isRunning());
@@ -794,7 +793,7 @@ void TestAppGlue::aServerOfAnotherEngineIsNeverPolled()
     const QJsonObject root = QJsonDocument::fromJson(file.readAll()).object();
     QCOMPARE(root.value(QStringLiteral("version")).toInt(), 2);
     const QJsonObject saved = root.value(QStringLiteral("servers")).toArray().at(0).toObject();
-    QCOMPARE(saved.value(QStringLiteral("engine")).toString(), QStringLiteral("deluge"));
+    QCOMPARE(saved.value(QStringLiteral("engine")).toString(), QStringLiteral("rtorrent"));
     QCOMPARE(saved.value(QStringLiteral("engineVersion")).toString(), QStringLiteral("2.2.0"));
 }
 

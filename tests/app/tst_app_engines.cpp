@@ -1,7 +1,7 @@
 // A server's test recognises its engine (#84; DECISIONS C25 K4, K5, K8, K9): App's testServer
 // against FakeEngines answering as qBittorrent, Transmission and Deluge would. A qBittorrent
-// goes on to its signed-in probe and is counted as before, and so does a Transmission (E4); a
-// Deluge is named and refused (this build doesn't drive it yet), one too old is refused for its
+// goes on to its signed-in probe and is counted as before, and so does a Transmission (E4) and a
+// Deluge (E6, with K10's daemon step when deluge-web has none); one too old is refused for its
 // version, and an answer from no engine says so and keeps "save anyway".
 
 #include "FakeEngines.hpp"
@@ -69,7 +69,8 @@ private Q_SLOTS:
     void aPickedQbittorrentIsNotAskedTwice();
     void aTransmissionIsRecognisedThenProbedAndCounted();
     void anOldTransmissionIsRefusedForItsVersion();
-    void aDelugeIsNamedAndRefused();
+    void aDelugeIsProbedAndCounted();
+    void aDelugeWithoutADaemonAsksWhichOne();
     void aWrongDelugePasswordIsTheSignIn();
     void anAnswerFromNoEngineKeepsSaveAnyway();
     void theProblemSaysTheRefusalInWords();
@@ -165,7 +166,7 @@ void TestAppEngines::anOldTransmissionIsRefusedForItsVersion()
     QVERIFY(answer.info.value(QStringLiteral("versionRefused")).toBool());
 }
 
-void TestAppEngines::aDelugeIsNamedAndRefused()
+void TestAppEngines::aDelugeIsProbedAndCounted()
 {
     FakeServer server;
     server.setHandler(deluge());
@@ -174,13 +175,54 @@ void TestAppEngines::aDelugeIsNamedAndRefused()
     App app;
     const Tested answer =
         test(app, fieldsFor(url, QStringLiteral("password")), QStringLiteral("deluge"));
-    QVERIFY(!answer.ok);
-    QCOMPARE(answer.error, QStringLiteral("omaseed can't drive Deluge yet"));
+    QVERIFY2(answer.ok, qPrintable(answer.error));
     QCOMPARE(answer.version, QStringLiteral("2.2.0"));
+    QCOMPARE(answer.count, 0);
     QCOMPARE(answer.info.value(QStringLiteral("engine")).toString(), QStringLiteral("deluge"));
-    QVERIFY(answer.info.value(QStringLiteral("daemonConnected")).toBool());
-    QCOMPARE(answer.info.value(QStringLiteral("daemons")).toStringList(),
-             QStringList{QStringLiteral("127.0.0.1:58846")});
+    // K10: one daemon, connected: no step, and its id is the one to keep.
+    QVERIFY(!answer.info.value(QStringLiteral("daemonStep")).toBool());
+    QCOMPARE(answer.info.value(QStringLiteral("daemon")).toString(), QStringLiteral("c0ffee"));
+    QCOMPARE(answer.info.value(QStringLiteral("hosts")).toList().size(), 1);
+}
+
+void TestAppEngines::aDelugeWithoutADaemonAsksWhichOne()
+{
+    FakeServer server;
+    server.setHandler(deluge(false));
+    QUrl url = server.url();
+    url.setPath(QStringLiteral("/json"));
+    App app;
+    QVariantMap fields = fieldsFor(url, QStringLiteral("password"));
+    const Tested step = test(app, fields, QStringLiteral("deluge"));
+    QVERIFY(!step.ok);
+    QVERIFY(step.info.value(QStringLiteral("daemonStep")).toBool());
+    const QVariantList hosts = step.info.value(QStringLiteral("hosts")).toList();
+    QCOMPARE(hosts.size(), 1);
+    const QVariantMap host = hosts.first().toMap();
+    QCOMPARE(host.value(QStringLiteral("id")).toString(), QStringLiteral("c0ffee"));
+    QCOMPARE(host.value(QStringLiteral("address")).toString(), QStringLiteral("127.0.0.1:58846"));
+    QVERIFY(!host.value(QStringLiteral("connected")).toBool());
+    QVERIFY(host.value(QStringLiteral("online")).toBool());
+    // The step is the sheet's question, not a failure to show.
+    QVERIFY(app.serverTestProblem(fields, step.error, step.detail, step.info).isEmpty());
+    const auto connects = [&server]() {
+        return std::count_if(server.requests.cbegin(),
+                             server.requests.cend(),
+                             [](const Recorded &request) {
+                                 return request.body.contains("\"web.connect\"");
+                             });
+    };
+    QCOMPARE(connects(), 0); // the test itself never switches deluge-web
+
+    // "use this daemon": connected, then tested again.
+    fields.insert(QStringLiteral("engine"), QStringLiteral("deluge"));
+    fields.insert(QStringLiteral("connectDaemon"), QStringLiteral("c0ffee"));
+    const Tested used = test(app, fields, QStringLiteral("deluge"));
+    QVERIFY2(used.ok, qPrintable(used.error));
+    QCOMPARE(connects(), 1);
+    QVERIFY(!used.info.value(QStringLiteral("daemonStep")).toBool());
+    QCOMPARE(used.info.value(QStringLiteral("daemon")).toString(), QStringLiteral("c0ffee"));
+    QCOMPARE(used.version, QStringLiteral("2.2.0"));
 }
 
 void TestAppEngines::aWrongDelugePasswordIsTheSignIn()

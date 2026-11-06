@@ -298,6 +298,14 @@ QVariantMap App::serverTestProblem(const QVariantMap &fields,
 {
     if (error.isEmpty() && errorDetail.isEmpty())
         return {};
+    // C25 K10: the daemon step is the sheet's own question, not a failure.
+    if (info.value(QStringLiteral("daemonStep")).toBool())
+        return {};
+    if (info.value(QStringLiteral("noDaemon")).toBool())
+        return {{QStringLiteral("headline"), error},
+                {QStringLiteral("line"), errorDetail},
+                {QStringLiteral("details"), QString()},
+                {QStringLiteral("kind"), QStringLiteral("request")}};
     // C25 K8, K9: refused for its version or its engine, in the test's words and what to do;
     // no "save anyway" (the sheet reads `refused`). An answer from no engine says so (K8).
     if (info.value(QStringLiteral("refused")).toBool()) {

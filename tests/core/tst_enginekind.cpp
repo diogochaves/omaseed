@@ -87,11 +87,17 @@ void TestEngineKind::delugeNeedsTwoPointOne()
 
 void TestEngineKind::anEngineNotDrivenYetIsNamed()
 {
+    // E6 (#87): all three are driven; K9's refusal is left for an engine a newer build adds.
+    for (const EngineKind kind :
+         {EngineKind::Qbittorrent, EngineKind::Transmission, EngineKind::Deluge}) {
+        QVERIFY(omaseed::core::isEngineDriven(kind));
+        QVERIFY(engineSupport(kind, QStringLiteral("9.9.9"), QStringLiteral("9.9.9")).usable());
+    }
+    QVERIFY(!omaseed::core::isEngineDriven(EngineKind::Unknown));
+    QCOMPARE(omaseed::core::drivenEnginesText(), QStringLiteral("qBittorrent, Transmission and Deluge"));
     const auto support = engineSupport(EngineKind::Deluge, QStringLiteral("2.2.0"), QString());
-    QVERIFY(!support.driven);
-    QVERIFY(!support.usable());
-    QCOMPARE(support.refusal, QStringLiteral("omaseed can't drive Deluge yet"));
-    QVERIFY(support.advice.contains(QStringLiteral("qBittorrent")));
+    QVERIFY(support.driven);
+    QVERIFY(support.refusal.isEmpty());
     // Nothing recognised: nothing to refuse here (the test says what it saw instead).
     QVERIFY(engineSupport(EngineKind::Unknown, QString(), QString()).usable());
 }

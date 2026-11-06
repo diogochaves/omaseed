@@ -262,7 +262,9 @@ Item {
 "certificateSha256": root.trustedCertificate,
 // #84: the row's engine, or "recognise" for an address typed (K4, K5).
 "engine": root.engine.length > 0 ? root.engine : "qbittorrent",
-"engineChoice": root.pickedEngine.length > 0 ? root.pickedEngine : "recognise"
+"engineChoice": root.pickedEngine.length > 0 ? root.pickedEngine : "recognise",
+// C25 K10: the daemon a passing test found deluge-web connected to (first run has no step).
+"daemon": root.engine === "deluge" && root.testOk ? String(root.testInfo.daemon || "") : ""
 };
 }
 

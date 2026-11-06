@@ -105,6 +105,7 @@ class QQmlEngine;
 QT_END_NAMESPACE
 
 namespace omaseed::core {
+class DelugeEngine;
 class QbtEngine;
 class TransmissionEngine;
 } // namespace omaseed::core
@@ -286,15 +287,18 @@ private:
     /// Resolves m_features from the engine and the server's version (docs/36 §4.3).
     void updateFeatures();
     /// Points m_client, and everything that calls the server through it, at the engine
-    /// `kind` speaks (C14 E2, E4): qBittorrent's or Transmission's. The one left is cleared.
+    /// `kind` speaks (C14 E2, E4, E6): qBittorrent's, Transmission's or Deluge's. The one left
+    /// is cleared.
     void useClientFor(omaseed::core::EngineKind kind);
 
-    /// The chosen server's engine: m_qbt or m_transmission (useClientFor).
+    /// The chosen server's engine: m_qbt, m_transmission or m_deluge (useClientFor).
     omaseed::core::EngineClient *m_client = nullptr;
     /// qBittorrent's, kept for the whole run: ServerPreferences holds it.
     omaseed::core::QbtEngine *m_qbt = nullptr;
     /// Transmission's, made the first time a Transmission server is chosen.
     omaseed::core::TransmissionEngine *m_transmission = nullptr;
+    /// Deluge's, made the first time a Deluge server is chosen.
+    omaseed::core::DelugeEngine *m_deluge = nullptr;
     omaseed::core::EngineFeatures m_features;
     QVariantMap m_portTest;
     /// Bumped by each test and each switch: a late answer for another one is dropped.
@@ -795,11 +799,44 @@ private:
                        const QString &secret,
                        bool announce,
                        omaseed::core::EngineKind only);
+    /// `connectHost` (Deluge, C25 K10): the daemon the step picked, connected before the probe.
     void runEngineTest(const omaseed::core::Server &server,
                        const QString &secret,
                        bool announce,
                        const QElapsedTimer &elapsed,
-                       omaseed::core::EngineKind engine);
+                       omaseed::core::EngineKind engine,
+                       const QString &connectHost = QString());
+    /// A probe that passed: count the torrents, then answerTest.
+    void countForTest(omaseed::core::EngineClient *client,
+                      const QString &id,
+                      bool announce,
+                      const omaseed::core::ServerInfo &serverInfo,
+                      int latency,
+                      const QVariantMap &info);
+    /// The end of a test: the throwaway client goes, the server list's row and (`announce`)
+    /// serverTested hear the result.
+    void answerTest(omaseed::core::EngineClient *client,
+                    const QString &id,
+                    bool announce,
+                    bool ok,
+                    const omaseed::core::ServerInfo &serverInfo,
+                    int count,
+                    int latency,
+                    const QString &error,
+                    const QString &detail,
+                    const QVariantMap &info);
+    /// C25 K10: after a Deluge probe (`probed`, or none: deluge-web has no daemon), the
+    /// daemons it knows go in `info.hosts`, and `info.daemonStep` says whether the sheet asks
+    /// which one (none connected, or several and `chosen` isn't the connected one).
+    /// `info.daemon` is the one to store with the server.
+    void testDelugeDaemons(omaseed::core::DelugeEngine *deluge,
+                           const QString &id,
+                           bool announce,
+                           int latency,
+                           const std::optional<omaseed::core::ServerInfo> &probed,
+                           const QVariantMap &info,
+                           const QString &chosen,
+                           const QString &connectHost);
     /// serverTested's `info` for `engine` answering at `endpoint`.
     QVariantMap testInfo(omaseed::core::EngineKind engine, const QUrl &endpoint) const;
     /// Servers probeOtherServers() is waiting on.
