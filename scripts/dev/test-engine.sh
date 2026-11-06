@@ -308,10 +308,11 @@ DELUGE_PASS="${DELUGE_TEST_PASS:-$(dev_env_get DELUGE_TEST_PASS)}"
 JAR="$PROFILE/.cookie"
 
 # drpc METHOD [PARAMS-JSON]: one deluge-web call with the session cookie; prints the answer.
+# Bounded: deluge-web never answers a core.* call while it has no daemon.
 drpc() {
   local body
   body="$(python3 -c 'import json,sys; print(json.dumps({"method":sys.argv[1],"params":json.loads(sys.argv[2]),"id":1}))' "$1" "${2:-[]}")"
-  curl -fs -b "$JAR" -c "$JAR" -H 'Content-Type: application/json' --data "$body" "$RPC"
+  curl -fs --max-time 15 -b "$JAR" -c "$JAR" -H 'Content-Type: application/json' --data "$body" "$RPC"
 }
 
 deluge_login() {
@@ -434,6 +435,7 @@ deluge_status() {
   fi
   echo "running (deluged pid $(cat "$PIDFILE"), deluge-web pid $(cat "$WEB_PIDFILE"))"
   deluge_login || { echo "deluge-web refuses DELUGE_TEST_PASS" >&2; return 1; }
+  drpc web.connected | grep -q '"result": *true' || { echo "deluge-web has no daemon connected" >&2; return 1; }
   drpc core.get_torrents_status '[{}, ["name","state","progress"]]' | python3 -c '
 import json, sys
 torrents = json.load(sys.stdin)["result"]
