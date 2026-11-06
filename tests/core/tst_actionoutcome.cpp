@@ -134,6 +134,15 @@ private Q_SLOTS:
         QTest::newRow("tags") << QStringLiteral("addTags") << QStringLiteral("keep")
                               << QStringLiteral("Arcade Set 01 tagged keep")
                               << QStringLiteral("3 tagged keep") << QStringLiteral("tagged · keep");
+        // C25 K14: Transmission's labels.
+        QTest::newRow("labels") << QStringLiteral("addLabels") << QStringLiteral("keep")
+                                << QStringLiteral("Arcade Set 01 labelled keep")
+                                << QStringLiteral("3 labelled keep")
+                                << QStringLiteral("labelled · keep");
+        QTest::newRow("unlabel") << QStringLiteral("removeLabels") << QStringLiteral("keep")
+                                 << QStringLiteral("Arcade Set 01 unlabelled keep")
+                                 << QStringLiteral("3 unlabelled keep")
+                                 << QStringLiteral("unlabelled");
         QTest::newRow("rename") << QStringLiteral("rename") << QStringLiteral("Arcade 1")
                                 << QStringLiteral("Arcade Set 01 renamed to Arcade 1")
                                 << QStringLiteral("3 renamed to Arcade 1")

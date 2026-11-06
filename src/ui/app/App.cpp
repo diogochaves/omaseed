@@ -3835,9 +3835,13 @@ void App::addTags(const QStringList &hashes, const QStringList &tags)
     if (hashes.isEmpty() || tags.isEmpty() || demoGuard(QStringLiteral("addTags"), hashes.size()) ||
         !m_hasServer)
         return;
+    // C25 K14: the outcome strip says "labelled" where the engine calls them labels.
     m_client->addTags(hashes, tags)
         ->then(this,
-               tableAnswer(QStringLiteral("addTags"), hashes, tags.join(QStringLiteral(", "))));
+               tableAnswer(m_features.tagsAreLabels ? QStringLiteral("addLabels")
+                                                    : QStringLiteral("addTags"),
+                           hashes,
+                           tags.join(QStringLiteral(", "))));
 }
 
 void App::removeTags(const QStringList &hashes, const QStringList &tags)
@@ -3847,7 +3851,10 @@ void App::removeTags(const QStringList &hashes, const QStringList &tags)
         return;
     m_client->removeTags(hashes, tags)
         ->then(this,
-               tableAnswer(QStringLiteral("removeTags"), hashes, tags.join(QStringLiteral(", "))));
+               tableAnswer(m_features.tagsAreLabels ? QStringLiteral("removeLabels")
+                                                    : QStringLiteral("removeTags"),
+                           hashes,
+                           tags.join(QStringLiteral(", "))));
 }
 
 void App::setLocation(const QStringList &hashes, const QString &path)
@@ -5370,6 +5377,11 @@ QVariantMap App::featuresMap() const
         {QStringLiteral("categories"), f.categories},
         {QStringLiteral("categorySavePaths"), f.categorySavePaths},
         {QStringLiteral("tags"), f.tags},
+        // C25 K13–K14: the many-per-torrent group in the engine's own word.
+        {QStringLiteral("tagsAreLabels"), f.tagsAreLabels},
+        {QStringLiteral("tagWord"), f.tagsAreLabels ? tr("label") : tr("tag")},
+        {QStringLiteral("tagsWord"), f.tagsAreLabels ? tr("labels") : tr("tags")},
+        {QStringLiteral("untaggedWord"), f.tagsAreLabels ? tr("no label") : tr("untagged")},
         {QStringLiteral("filePriorities"), priorities},
         {QStringLiteral("shareLimitActions"), f.shareLimitActions},
         {QStringLiteral("shareLimitAction"), f.shareLimitAction()},

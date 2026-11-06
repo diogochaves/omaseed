@@ -891,7 +891,8 @@ Sheet {
                 parts.push(qsTr("category “%1” is new there and will be created").arg(category));
             for (const tag of tagChips.selected) {
                 if (!App.tags.contains(tag))
-                    parts.push(qsTr("tag “%1” is new there and will be created").arg(tag));
+                    parts.push(qsTr("%1 “%2” is new there and will be created")
+                               .arg(Keymap.groupWords(sheet._can).one).arg(tag));
             }
             sheet.movedText = qsTr("Moved to %1: %2.").arg(App.serverName).arg(parts.join(", "));
             // The library check and the files match are the new server's now.
@@ -1816,7 +1817,11 @@ Sheet {
                         FormRow {
                             Layout.fillWidth: true
                             Layout.preferredWidth: 1
-                            label: qsTr("Tags")
+                            // C25 K13: "Labels" on Transmission.
+                            label: {
+                                const many = Keymap.groupWords(sheet._can).many;
+                                return many.charAt(0).toUpperCase() + many.slice(1);
+                            }
                             visible: sheet._can.tags !== false
 
                             ChipSelect {

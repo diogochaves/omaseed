@@ -175,6 +175,7 @@ void TestScopeSentence::placesSayTheirCountAndKind()
     ScopeFacts one;
     one.total = 1;
     QCOMPARE(ScopeSentence::tag(one), QStringLiteral("1 torrent · tag"));
+    QCOMPARE(ScopeSentence::tag(one, QStringLiteral("label")), QStringLiteral("1 torrent · label"));
     QCOMPARE(ScopeSentence::tracker(games), QStringLiteral("49 torrents · tracker"));
 }
 

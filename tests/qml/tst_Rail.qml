@@ -115,6 +115,21 @@ TestCase {
         verify(!findChild(rail, "railGroup-categories")?.visible ?? true);
     }
 
+    // Board 47 §B (C25 K13): the tags section, in the tags place, headed with the engine's
+    // word; its row for torrents with none too.
+    function test_the_tags_section_takes_the_engines_word() {
+        const rail = createTemporaryObject(railComponent, testCase);
+        rail.tagsWord = "labels";
+        rail.untaggedWord = "no label";
+        const group = findChild(rail, "labels");
+        verify(group, "no section headed labels");
+        compare(group.label, "labels");
+        verify(findChild(rail, "tags") === null);
+        rail.categoriesOffered = false;
+        rail.compact = true;
+        compare(findChild(rail, "railGroupsRow").text, "folders, labels, trackers");
+    }
+
     // Board 46 `.ri.needs`: needs you is red while it counts something.
     function test_needs_you_is_red_while_something_needs_you() {
         const rail = createTemporaryObject(railComponent, testCase);

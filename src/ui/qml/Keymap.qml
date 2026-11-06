@@ -2638,7 +2638,7 @@ QtObject {
                 // #160 (C17 D3): "free the space…" only while skipped files hold space here.
                 if (found.needs === "freeable" && ctx.freeable !== true)
                     continue;
-                let entry = root.worded(found, ctx.altKind);
+                let entry = root.worded(found, ctx.altKind, ctx.features);
                 if (found.action === "createFromFolder")
                     entry = Object.assign({}, entry, {
                                               "title": qsTr("create torrent from %1…").arg(ctx.createFolder.replace(/\/+$/, "").split("/").pop())
@@ -2732,12 +2732,25 @@ QtObject {
 
     /// The rows of one help-sheet column, in Fig. 26's order. `altKind` ("burst", "turtle",
     /// "alt") words A's row for the way the alternative set goes (docs/31 S1). A row whose
-    /// action the server can't do (`features`, C14 E4) is left out.
+    /// action the server can't do (`features`, C14 E4) is left out; its groups take the
+    /// engine's words (C25 K13), and the act row led by C is led by t without categories.
     function helpRows(column, altKind, features) {
         const shown = entry => root.offered(entry.action, features, entry.area === "log" ? "log" : "");
-        return root.entries.filter(entry => entry.column === column && shown(entry)).sort((a, b) => a.rank
-                                                                                          - b.rank).map(
-                    entry => root.worded(entry, altKind));
+        return root.entries.filter(entry => entry.column === column).map(entry => root.worded(entry, altKind,
+                                                                                               features)).filter(
+                    shown).sort((a, b) => a.rank - b.rank);
+    }
+
+    /// C25 K13: the groups as the server's engine names them, from `features` (App.features):
+    /// `one` and `many` for the many-per-torrent group ("tag", "tags"; Transmission's "label",
+    /// "labels"), and whether the one-per-torrent categories are there at all.
+    function groupWords(features) {
+        const can = features || {};
+        return {
+            "one": can.tagWord ?? qsTr("tag"),
+            "many": can.tagsWord ?? qsTr("tags"),
+            "categories": can.categories !== false
+        };
     }
 
     /// docs/31 (DECISIONS.md C4): the alternative limits' entries say "burst" or "turtle"
@@ -2763,11 +2776,14 @@ QtObject {
         return null;
     }
 
-    /// `entry` with its words for `altKind`: A's row and the alternative limits' row.
-    function worded(entry, altKind) {
+    /// `entry` with its words for `altKind`: A's row and the alternative limits' row; and
+    /// for `features` (optional), the groups in the engine's words (C25 K13).
+    function worded(entry, altKind, features) {
+        const grouped = features === undefined ? entry : root._groupWorded(entry, features);
         const words = root.altWords(altKind);
         if (words === null)
-            return entry;
+            return grouped;
+        entry = grouped;
         if (entry.action === "altSpeed")
             return Object.assign({}, entry, {
                                      "help": words.help,
@@ -2779,6 +2795,45 @@ QtObject {
             return Object.assign({}, entry, {
                                      "title": words.limitsTitle
                                  });
+        return entry;
+    }
+
+    /// The entries that name the groups, in `features`' words. Without categories the act
+    /// row (C t m L r) is led by `t`, so the `?` sheet keeps it.
+    function _groupWorded(entry, features) {
+        const w = root.groupWords(features);
+        if (entry.action === "filter")
+            return Object.assign({}, entry, {
+                                     "about": w.categories ? qsTr("Filter the table by name, category, %1 or hash").arg(w.one)
+                                                           : qsTr("Filter the table by name, %1 or hash").arg(w.one)
+                                 });
+        if (entry.action === "jump")
+            return Object.assign({}, entry, {
+                                     "about": w.categories ? qsTr("Jump to any torrent, category or %1 by name").arg(w.one)
+                                                           : qsTr("Jump to any torrent or %1 by name").arg(w.one)
+                                 });
+        if (entry.action === "tags")
+            return Object.assign({}, entry, {
+                                     "title": qsTr("set %1").arg(w.many),
+                                     "label": w.many
+                                 });
+        if (entry.action === "category" && entry.column === "act") {
+            if (w.categories)
+                return Object.assign({}, entry, {
+                                         "help": qsTr("category · %1 · location · limits · rename").arg(w.many),
+                                         "about": qsTr("Set category · %1 · location · limits; rename the cursor row").arg(w.many)
+                                     });
+            // The row is t's now: it runs and is offered as t.
+            return Object.assign({}, entry, {
+                                     "action": "tags",
+                                     "key": "t",
+                                     "title": qsTr("set %1").arg(w.many),
+                                     "label": w.many,
+                                     "helpKeys": "t m L r",
+                                     "help": qsTr("%1 · location · limits · rename").arg(w.many),
+                                     "about": qsTr("Set %1 · location · limits; rename the cursor row").arg(w.many)
+                                 });
+        }
         return entry;
     }
 }

@@ -213,7 +213,8 @@ Item {
         },
         {
             "key": "tags",
-            "title": qsTr("Tags"),
+            // C25 K13: "Labels" on Transmission.
+            "title": root._capital(Keymap.groupWords(root.features).many),
             "role": "tagsText",
             "text": "tagsText",
             "width": 120,
@@ -509,13 +510,26 @@ Item {
     /// the rename sheet on `hash`.
     signal renameSheetRequested(string hash)
 
+    /// What the server can do (App.features, C25 K16): a group the engine lacks has no column
+    /// to offer (Transmission's categories), and the tags column takes its word.
+    property var features: ({})
+
+    function _capital(word: string): string {
+        return word.charAt(0).toUpperCase() + word.slice(1);
+    }
+
     // ---- derived -------------------------------------------------------------------------
-    /// `columns` in `columnOrder`.
+    /// `columns` in `columnOrder`, less a group's column the engine lacks.
     readonly property var orderedColumns: {
         const byKey = {};
         for (const column of root.columns)
             byKey[column.key] = column;
-        return root.columnOrder.map(key => byKey[key]).filter(column => column !== undefined);
+        const lacks = {
+            "category": root.features.categories === false,
+            "tags": root.features.tags === false
+        };
+        return root.columnOrder.map(key => byKey[key]).filter(column => column !== undefined
+                                                                       && lacks[column.key] !== true);
     }
     readonly property var activeColumns: {
         const shown = root.orderedColumns.filter(column => {

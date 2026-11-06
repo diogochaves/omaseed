@@ -224,9 +224,9 @@ QString ScopeSentence::category(const ScopeFacts &facts, const QString &savePath
     return parts.join(kApart);
 }
 
-QString ScopeSentence::tag(const ScopeFacts &facts)
+QString ScopeSentence::tag(const ScopeFacts &facts, const QString &word)
 {
-    return torrents(facts.total) + kApart + tr("tag");
+    return torrents(facts.total) + kApart + (word.isEmpty() ? tr("tag") : word);
 }
 
 QString ScopeSentence::tracker(const ScopeFacts &facts)

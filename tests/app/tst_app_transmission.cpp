@@ -317,6 +317,11 @@ void TestAppTransmission::whatTransmissionLacksIsNotOffered()
                             "search",
                             "createTorrent"})
         QVERIFY2(!can.value(QString::fromLatin1(off), true).toBool(), off);
+    // Board 47 §B (C25 K13–K14): its tags are labels, named so wherever a person reads them.
+    QVERIFY(can.value(QStringLiteral("tagsAreLabels")).toBool());
+    QCOMPARE(can.value(QStringLiteral("tagWord")).toString(), QStringLiteral("label"));
+    QCOMPARE(can.value(QStringLiteral("tagsWord")).toString(), QStringLiteral("labels"));
+    QCOMPARE(can.value(QStringLiteral("untaggedWord")).toString(), QStringLiteral("no label"));
     QVERIFY(!app.searchOffered());
     QVERIFY(!app.createOffered());
     QVERIFY(!app.supportsShareLimitAction());

@@ -164,7 +164,8 @@ Menu {
                     "action": "category"
                 },
                 {
-                    "text": qsTr("tags…"),
+                    // C25 K13: the engine's word ("labels…" on Transmission).
+                    "text": qsTr("%1…").arg(Keymap.groupWords(App.features).many),
                     "glyph": Glyphs.tag,
                     "key": "t",
                     "action": "tags"

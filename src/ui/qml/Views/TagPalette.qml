@@ -12,6 +12,11 @@ import Omaseed.Kit
 // The mouse: a click ticks a row, and a click on the create row creates the tag and ticks
 // it. The footer's `enter apply` is a button too, and runs what `enter` runs, so a mouse user
 // can save the ticks (the selection bar's `tags` opens this palette).
+//
+// Board 47 §B (DECISIONS C25 K14): on Transmission they are labels, called so, and a label
+// exists only on torrents. The create row reads `new label "x"` and only ticks it: nothing
+// is created until `enter` applies it to the torrents (addTags makes it there). A comma is
+// refused in words before apply, as for a tag.
 Palette {
     id: root
 
@@ -21,11 +26,18 @@ Palette {
     /// to torrents — the add sheet's `…` chip, whose torrent does not exist yet.
     property bool choiceMode: false
 
+    /// What the server can do (App.features; the tests hand their own): its group's words,
+    /// and whether they are labels (C25 K14).
+    property var features: App.features
+    readonly property var _words: Keymap.groupWords(root.features)
+    readonly property bool _labels: root.features.tagsAreLabels === true
+
     /// The tags checked when `enter` was pressed, as a list of names.
     signal chosen(var tags)
 
-    footerRight: root._commaInQuery ? qsTr("\",\" cannot be part of a tag") : qsTr(
-                                          "new name creates it")
+    footerRight: root._labels ? (root._commaInQuery ? qsTr("a %1 can't hold a comma: add them one at a time").arg(root._words.one)
+                                                    : qsTr("a new %1 exists once a torrent has it").arg(root._words.one))
+                              : root._commaInQuery ? qsTr("\",\" cannot be part of a tag") : qsTr("new name creates it")
     glyph: Glyphs.tag
     hints: [
         {
@@ -42,9 +54,9 @@ Palette {
     // #79: a row's meta is its count.
     metaSpoken: true
     multi: true
-    title: root.choiceMode ? qsTr("tags for the new torrent") : root.hashes.length
-                             === 1 ? qsTr("tags for 1 torrent") : qsTr(
-                                         "tags for %1 torrents").arg(root.hashes.length)
+    title: root.choiceMode ? qsTr("%1 for the new torrent").arg(root._words.many)
+                           : root.hashes.length === 1 ? qsTr("%1 for 1 torrent").arg(root._words.many)
+                                                      : qsTr("%1 for %2 torrents").arg(root._words.many).arg(root.hashes.length)
 
     /// tag name -> bool, the state as it was when the palette opened.
     property var _original: ({})
@@ -71,8 +83,8 @@ Palette {
         const names = App.tags.tags();
         // In choice mode a tag the caller already carries may not be on the server yet (it
         // was created in this very palette a moment ago): it still needs a row, or it could
-        // never be unchecked again.
-        if (root.choiceMode) {
+        // never be unchecked again. So does a new label, which exists only once applied.
+        if (root.choiceMode || root._labels) {
             for (const chosen of Object.keys(root._state)) {
                 if (root._state[chosen] === true && names.indexOf(chosen) < 0)
                     names.push(chosen);
@@ -90,7 +102,8 @@ Palette {
         }
         if (created.length > 0 && names.indexOf(created) < 0 && !root._commaInQuery)
             rows.push({
-                "title": qsTr("create \"%1\"").arg(created),
+                "title": root._labels ? qsTr("new %1 \"%2\"").arg(root._words.one).arg(created)
+                                      : qsTr("create \"%1\"").arg(created),
                 "key": created,
                 // Ticked by a click while the server has not answered with the tag yet.
                 "checked": root._state[created] === true,
@@ -124,7 +137,9 @@ Palette {
     function _createAndTick(tag: string): void {
         if (root._created.indexOf(tag) < 0) {
             root._created = root._created.concat([tag]);
-            App.createTag(tag);
+            // C25 K14: a label is made by applying it, never on its own.
+            if (!root._labels)
+                App.createTag(tag);
         }
         root._setTicked(tag, true);
     }

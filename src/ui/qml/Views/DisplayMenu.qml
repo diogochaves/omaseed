@@ -23,6 +23,8 @@ Menu {
     /// The list's sort: a Torrent role name and a Qt.SortOrder (App.filtered's).
     property string sortRole: ""
     property int sortOrder: Qt.DescendingOrder
+    /// C25 K13: the tags column's name in the engine's word ("labels" on Transmission).
+    property string tagsWord: qsTr("tags")
 
     /// The short name of the sort in use ("added"), "" for none and in space.
     readonly property string sortWord: root.sortRole.length > 0 && root.current !== "space"
@@ -79,7 +81,7 @@ Menu {
             "completionOn": qsTr("completed"),
             "lastActivity": qsTr("last active"),
             "category": qsTr("category"),
-            "tagsText": qsTr("tags"),
+            "tagsText": root.tagsWord,
             "trackerHost": qsTr("tracker"),
             "totalSize": qsTr("total size"),
             "downloaded": qsTr("downloaded"),

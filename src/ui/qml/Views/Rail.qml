@@ -103,6 +103,10 @@ Item {
     /// The server groups torrents one per torrent (App.features.categories, C25 K16): without
     /// it the categories section is gone.
     property bool categoriesOffered: true
+    /// C25 K13: the many-per-torrent group in the engine's word (App.features.tagsWord:
+    /// "tags", Transmission's "labels"), and its row for torrents with none.
+    property string tagsWord: qsTr("tags")
+    property string untaggedWord: qsTr("untagged")
     /// #167 assumed 4: folded to its glyphs (ctrl+b).
     property bool compact: false
     /// DECISIONS C32 D3 a: the width open, as the edge was last dragged (the host keeps it).
@@ -1087,7 +1091,8 @@ Item {
                 objectName: "railGroupsRow"
                 selected: root.filtered.category !== undefined || root.filtered.tag !== undefined
                           || root.filtered.tracker !== undefined || root.filtered.folder.length > 0
-                text: qsTr("categories, folders, tags, trackers")
+                text: (root.categoriesOffered ? qsTr("categories, folders, %1, trackers")
+                                              : qsTr("folders, %1, trackers")).arg(root.tagsWord)
                 visible: root.compact
                 width: content.width
 
@@ -1303,7 +1308,7 @@ Item {
                 collapsed: root.tagsFolded
                 count: root.tagsNamedCount
                 hasCursor: root.cursorOn(tagsGroup.globalIndex)
-                label: qsTr("tags")
+                label: root.tagsWord
                 visible: !root.compact
                 width: content.width
 
@@ -1376,7 +1381,7 @@ Item {
                     glyph: "·"
                     hasCursor: root.cursorOn(tagsUntagged.globalIndex)
                     selected: root.filtered.tag === ""
-                    text: qsTr("untagged")
+                    text: root.untaggedWord
                     visible: root.tagsUntaggedVisible && !root.tagsFolded
                     width: content.width
 

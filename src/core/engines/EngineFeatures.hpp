@@ -19,6 +19,9 @@ struct EngineFeatures
     bool categories = false;        ///< one group per torrent
     bool categorySavePaths = false; ///< a category carries its own save path
     bool tags = false;              ///< any number of labels per torrent
+    /// The many-per-torrent group is the engine's labels (Transmission, C25 K14): called
+    /// "labels" wherever a person reads it, none exists without a torrent, no comma in one.
+    bool tagsAreLabels = false;
 
     /// The file priorities a file can be given (FilePriority values), lowest first.
     QList<int> filePriorities;

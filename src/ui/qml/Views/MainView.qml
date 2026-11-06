@@ -532,6 +532,12 @@ Item {
         }
     }
 
+    /// C25 K13: the many-per-torrent group in the engine's word ("tag", Transmission's
+    /// "label"), and the words for torrents with none.
+    readonly property string tagWord: Keymap.groupWords(App.features).one
+    readonly property string tagsWord: Keymap.groupWords(App.features).many
+    readonly property string untaggedWord: App.features.untaggedWord ?? qsTr("untagged")
+
     /// The console's scope in words, from what the rail selects.
     readonly property string consoleScopeName: {
         const parts = [];
@@ -541,7 +547,7 @@ Item {
         if (App.filtered.category !== undefined)
             parts.push(App.filtered.category === "" ? qsTr("no category") : qsTr("category %1").arg(App.filtered.category));
         if (App.filtered.tag !== undefined)
-            parts.push(App.filtered.tag === "" ? qsTr("untagged") : qsTr("tag %1").arg(App.filtered.tag));
+            parts.push(App.filtered.tag === "" ? root.untaggedWord : qsTr("%1 %2").arg(root.tagWord).arg(App.filtered.tag));
         if (App.filtered.tracker !== undefined)
             parts.push(qsTr("tracker %1").arg(rail.trackerText(App.filtered.tracker)));
         if (App.filtered.text.length > 0)
@@ -1227,7 +1233,7 @@ Item {
     function barTagRows(hashes: var): var {
         const rows = [{
                 "caption": true,
-                "text": qsTr("tags for %n", "", hashes.length)
+                "text": qsTr("%1 for %n", "", hashes.length).arg(root.tagsWord)
             }];
         for (const tag of App.tags.tags()) {
             const have = hashes.filter(hash => App.tagsOf(hash).indexOf(tag) >= 0).length;
@@ -1242,7 +1248,9 @@ Item {
         rows.push({
                       "separator": true
                   }, {
-                      "text": qsTr("new tag…"),
+                      // C25 K14: a label exists only on torrents, so it is made only here,
+                      // while applying it.
+                      "text": qsTr("new %1…").arg(root.tagWord),
                       "glyph": Glyphs.add,
                       "key": "t",
                       "action": "newTag"
@@ -2166,6 +2174,8 @@ Item {
         // C14 E4, C25 K16, K30: what the server lacks is gone from the rail.
         logOffered: Keymap.offered("toggleLog", App.features, "")
         categoriesOffered: App.features.categories !== false
+        tagsWord: root.tagsWord
+        untaggedWord: root.untaggedWord
         serversFolded: App.serversFolded
         serverRetrying: root.serverRetrying
 
@@ -2240,7 +2250,7 @@ Item {
             return category === "" ? qsTr("No category") : category;
         const tag = App.filtered.tag;
         if (tag !== undefined)
-            return tag === "" ? qsTr("Untagged") : tag;
+            return tag === "" ? root.untaggedWord.charAt(0).toUpperCase() + root.untaggedWord.slice(1) : tag;
         const tracker = App.filtered.tracker;
         if (tracker !== undefined)
             return rail.trackerText(tracker);
@@ -2346,7 +2356,10 @@ Item {
         // the log's lines are filtered here too, as torrents are (docs/32 D11's words).
         filterShown: !root.searchShown || App.searchResults.torrentCount > 0
         filterName: root.logShown ? qsTr("filter lines") : qsTr("filter torrents")
-        filterHint: root.logShown ? qsTr("words, every one in the line") : qsTr("words, or is:stalled, cat:films, tag:keep, tracker:…")
+        // C25 K13: the groups the engine has, in its words.
+        filterHint: root.logShown ? qsTr("words, every one in the line")
+                                  : qsTr("words, or is:stalled, %1%2:keep, tracker:…").arg(
+                                        App.features.categories === false ? "" : "cat:films, ").arg(root.tagWord)
         filterTokens: !root.logShown
         keysShown: root.keysShown
         searchCountText: root.logShown ? (App.logLines.narrowed ? qsTr("%1 of %2").arg(App.logLines.count).arg(
@@ -2622,6 +2635,8 @@ Item {
                 anchors.topMargin: Theme.space(12)
                 // #201 F16: the cursor's edge only while the list has the keys (h / l).
                 keysHere: root.focusArea !== "rail" && root.focusArea !== "details"
+                // C25 K16: no Category column to offer without categories.
+                features: App.features
                 // Board 42 J1: the job's step for each of its torrents.
                 showMoveColumn: root.moveShowingJob
                 moveRevision: App.move.revision
@@ -2726,7 +2741,7 @@ Item {
                         parts.push(category === "" ? qsTr("no category") : String(category));
                     const tag = App.filtered.tag;
                     if (tag !== undefined && tag !== null)
-                        parts.push(tag === "" ? qsTr("untagged") : String(tag));
+                        parts.push(tag === "" ? root.untaggedWord : String(tag));
                     const tracker = App.filtered.tracker;
                     if (tracker !== undefined && tracker !== null)
                         parts.push(rail.trackerText(String(tracker)));
@@ -3259,7 +3274,7 @@ Item {
             return category === "" ? qsTr("no category") : String(category);
         const tag = App.filtered.tag;
         if (tag !== undefined)
-            return tag === "" ? qsTr("untagged") : String(tag);
+            return tag === "" ? root.untaggedWord : String(tag);
         const tracker = App.filtered.tracker;
         if (tracker !== undefined)
             return rail.trackerText(String(tracker));
@@ -3589,6 +3604,7 @@ Item {
 
         anchors.fill: parent
         current: App.display
+        tagsWord: root.tagsWord
         sortOrder: App.filtered.sortOrder
         sortRole: App.filtered.sortRoleName
         z: 9

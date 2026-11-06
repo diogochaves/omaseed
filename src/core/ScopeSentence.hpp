@@ -63,7 +63,8 @@ public:
     /// the place out).
     static QString category(const ScopeFacts &facts, const QString &savePath);
     /// #167 assumed 9: a tag's and a tracker's count and the kind of place.
-    static QString tag(const ScopeFacts &facts);
+    /// `word` names the group ("label" on Transmission, C25 K13); empty is "tag".
+    static QString tag(const ScopeFacts &facts, const QString &word = QString());
     static QString tracker(const ScopeFacts &facts);
     /// The rows display's group head (board 46 `rows()`, DECISIONS C24 H3): the short line
     /// after a question's name and count, from the facts of the rows listed under it ("2

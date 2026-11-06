@@ -132,7 +132,9 @@ Flickable {
         // The head's meta line (spec v2 Fig. 1), whole here.
         if (row) {
             add(information, qsTr("Category"), row.category);
-            add(information, qsTr("Tags"), row.tagsText);
+            // C25 K13: "Labels" on Transmission.
+            const many = root.features.tagsWord ?? qsTr("tags");
+            add(information, many.charAt(0).toUpperCase() + many.slice(1), row.tagsText);
             add(information, qsTr("Added"), row.addedText);
         }
         add(information, qsTr("Save path"), map.savePath);

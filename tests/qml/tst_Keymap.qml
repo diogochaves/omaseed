@@ -738,8 +738,37 @@ TestCase {
                                              "qbtSettings": false,
                                              "altSpeeds": true,
                                              "search": false,
-                                             "createTorrent": false
+                                             "createTorrent": false,
+                                             "tagsAreLabels": true,
+                                             "tagWord": "label",
+                                             "tagsWord": "labels",
+                                             "untaggedWord": "no label"
                                          })
+
+    // Board 47 §B (C25 K13–K14): Transmission's labels are called labels in the palette and
+    // the ? sheet, and without categories the act row (C t m L r) is led by t, not dropped.
+    function test_labels_are_called_labels_and_t_leads_the_act_row() {
+        const act = Keymap.helpRows("act", "alt", testCase.transmission);
+        const row = act.find(r => r.helpKeys === "t m L r");
+        verify(row, "the act row went with categories");
+        compare(row.action, "tags");
+        compare(row.help, "labels · location · limits · rename");
+        compare(row.about, "Set labels · location · limits; rename the cursor row");
+        verify(act.every(r => r.action !== "category"));
+        const nav = Keymap.helpRows("navigate", "alt", testCase.transmission);
+        compare(nav.find(r => r.action === "filter").about, "Filter the table by name, label or hash");
+        compare(nav.find(r => r.action === "jump").about, "Jump to any torrent or label by name");
+        const tags = Keymap.commandRows(testCase._context({
+                                                              "features": testCase.transmission
+                                                          })).filter(r => r.action === "tags");
+        compare(tags.length, 1, "t is offered once");
+        compare(tags[0].title, "set labels");
+        // qBittorrent keeps its words.
+        const qbt = Keymap.helpRows("act", "alt", undefined).find(r => r.action === "category");
+        compare(qbt.help, "category · tags · location · limits · rename");
+        compare(Keymap.helpRows("navigate", "alt", {}).find(r => r.action === "filter").about,
+                "Filter the table by name, category, tag or hash");
+    }
 
     // C14 E4 on a Transmission: the palette and the ? sheet keep what it does and lose what
     // it lacks; with no turtle (Deluge's K20) the alternative limits go too.

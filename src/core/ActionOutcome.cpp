@@ -65,6 +65,13 @@ Phrases phrases(const QString &action, const QString &target)
             tr("tagged %1").arg(target), tr("didn't take the tag"), tr("tagged · %1").arg(target)};
     if (action == QLatin1String("removeTags"))
         return {tr("untagged %1").arg(target), tr("kept the tag"), tr("untagged")};
+    // C25 K14: Transmission's labels.
+    if (action == QLatin1String("addLabels"))
+        return {tr("labelled %1").arg(target),
+                tr("didn't take the label"),
+                tr("labelled · %1").arg(target)};
+    if (action == QLatin1String("removeLabels"))
+        return {tr("unlabelled %1").arg(target), tr("kept the label"), tr("unlabelled")};
     if (action == QLatin1String("limits"))
         return {tr("given new limits"), tr("didn't take the limits"), tr("limits set")};
     if (action == QLatin1String("rename"))

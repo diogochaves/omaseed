@@ -523,6 +523,7 @@ void TestTransmissionTranslate::featuresFollowBoard47()
 {
     const EngineFeatures f = TT::features({QStringLiteral("4.1.3"), QStringLiteral("6.0.1")});
     QVERIFY(f.tags);
+    QVERIFY(f.tagsAreLabels); // B, K13–K14
     QVERIFY(!f.categories);
     QVERIFY(!f.categorySavePaths);
     QCOMPARE(f.filePriorities,

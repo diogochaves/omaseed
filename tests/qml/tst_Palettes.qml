@@ -255,6 +255,42 @@ TestCase {
         verify(!tagPalette.opened);
     }
 
+    // Board 47 §B (C25 K14): Transmission's labels. "new label" only while applying: the row
+    // ticks it and nothing is made until enter; a comma is refused before, in words.
+    function test_labels_are_made_only_by_applying_them() {
+        const chosen = createTemporaryObject(chosenSpy, testCase, {
+                                                 "target": tagPalette
+                                             });
+        tagPalette.features = {
+            "tags": true,
+            "tagsAreLabels": true,
+            "tagWord": "label",
+            "tagsWord": "labels"
+        };
+        try {
+            tagPalette.openForChoice([]);
+            compare(tagPalette.title, "labels for the new torrent");
+            tagPalette.query = "night, sky";
+            verify(!tagPalette.items.some(item => item.isCreate === true), "a comma made a row");
+            compare(tagPalette.footerRight, "a label can't hold a comma: add them one at a time");
+            tagPalette.query = "night sky";
+            compare(tagPalette.footerRight, "a new label exists once a torrent has it");
+            const create = tagPalette.items.find(item => item.isCreate === true);
+            compare(create.title, "new label \"night sky\"");
+            tagPalette.toggled(tagPalette.items.indexOf(create), create);
+            tagPalette.query = "";
+            const row = tagPalette.items.find(item => item.key === "night sky");
+            verify(row, "the new label lost its row before it was applied");
+            compare(row.checked, true);
+            tagPalette.activated(0, tagPalette.items[0]);
+            compare(chosen.count, 1);
+            verify(chosen.signalArguments[0][0].indexOf("night sky") >= 0);
+        } finally {
+            tagPalette.features = Qt.binding(() => App.features);
+            tagPalette.close();
+        }
+    }
+
     function test_tag_choice_mode_keeps_a_created_tag_as_a_row() {
         tagPalette.openForChoice(["not-on-the-server"]);
         const row = tagPalette.items.find(item => item.key === "not-on-the-server");
@@ -429,6 +465,28 @@ TestCase {
 
         verify(table.visibleColumns.indexOf("eta") < 0);
         verify(table.activeColumns.find(column => column.key === "eta") === undefined);
+    }
+
+    // Board 47 §B (C25 K13, K16): without categories the Category column is not offered, and
+    // the tags column takes the engine's word.
+    function test_columns_offer_only_the_engines_groups() {
+        table.features = {
+            "categories": false,
+            "tags": true,
+            "tagsWord": "labels"
+        };
+        try {
+            columnsPalette.open();
+            verify(columnsPalette.items.find(item => item.key === "category") === undefined,
+                   "the Category column is still offered");
+            compare(columnsPalette.items.find(item => item.key === "tags").title, "Labels");
+        } finally {
+            table.features = {};
+        }
+        columnsPalette.close();
+        columnsPalette.open();
+        verify(columnsPalette.items.find(item => item.key === "category") !== undefined);
+        compare(columnsPalette.items.find(item => item.key === "tags").title, "Tags");
     }
 
     function test_columns_name_cannot_be_hidden() {

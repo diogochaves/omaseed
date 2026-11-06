@@ -24,6 +24,8 @@ void App::setUpScope()
     connect(m_filtered, &TorrentFilterModel::questionChanged, this, &App::updateScopeSentence);
     connect(m_filtered, &TorrentFilterModel::categoryChanged, this, &App::updateScopeSentence);
     connect(m_filtered, &TorrentFilterModel::tagChanged, this, &App::updateScopeSentence);
+    // C25 K13: the tag's word is the engine's.
+    connect(this, &App::featuresChanged, this, &App::updateScopeSentence);
     connect(m_filtered, &TorrentFilterModel::trackerChanged, this, &App::updateScopeSentence);
     connect(m_filtered, &TorrentFilterModel::folderChanged, this, &App::updateScopeSentence);
     connect(m_filtered, &TorrentFilterModel::onlyHashesChanged, this, &App::updateScopeSentence);
@@ -55,7 +57,9 @@ void App::updateScopeSentence()
                 ScopeSentence::category(
                     facts, name.isEmpty() ? QString() : m_engine->categories()->savePathOf(name)));
         } else if (m_filtered->tag().isValid()) {
-            line = ScopeSentence::narrowed(question, ScopeSentence::tag(facts));
+            line = ScopeSentence::narrowed(
+                question,
+                ScopeSentence::tag(facts, m_features.tagsAreLabels ? tr("label") : QString()));
         } else if (m_filtered->tracker().isValid()) {
             line = ScopeSentence::narrowed(question, ScopeSentence::tracker(facts));
         } else {

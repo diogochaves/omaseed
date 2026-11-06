@@ -856,6 +856,7 @@ EngineFeatures features(const ServerInfo &)
     f.categories = false;        // B, K16: bandwidth groups carry no folder; left out
     f.categorySavePaths = false; // B
     f.tags = true;               // B, K14: labels, in the tags place (C14 E5)
+    f.tagsAreLabels = true;      // B, K13–K14: called labels; "new label…" only while applying
     // C, K17: skip · low · normal · high.
     f.filePriorities = {int(FilePriority::Skip),
                         int(FilePriority::Low),
