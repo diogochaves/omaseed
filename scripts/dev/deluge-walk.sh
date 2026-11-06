@@ -571,10 +571,10 @@ expect_text "the rail's labels are back" "walk-two" 30
 step "A ratio limit that removes" "Jump to it, esc, L: the limits sheet has no time limits on Deluge, only the ratio; tab tab, 1.5; tab tab to the action, right, space: remove (keeps the files); enter."
 table_on "$NAME"
 keys shift+l
-# The sheet's dim lines ("Deluge has no time limits…") aren't in the accessibility tree: the
-# shot shows them; the tree tells the sheet by its ratio-only rows.
 expect_text "the limits sheet is open, with stop or remove" "remove (keeps the files)" 10
-expect_no_text "…and no seeding time row (Deluge has no time limits)" "Seeding time" 5
+expect_text "…saying Deluge has no time limits" "Deluge has no time limits" 5
+expect_text "…the ratio being the only one" "the ratio is the only one" 5
+expect_no_text "…and no seeding time row" "Seeding time" 5
 keys Tab Tab -t 1.5
 keys Tab Tab Right space
 expect_node "remove (keeps the files) is picked" 'button "remove \(keeps the files\)" \[([^]]* )?checked'
@@ -707,6 +707,7 @@ shot "After the recheck: seeding again, no error."
 step "A setting on the daemon" "ctrl+shift+,: Settings › Deluge, Speed (Deluge has no turtle); j ×5 to Count the protocol's overhead, space: written to core.conf (rate_limit_ip_overhead) and read back there; space again puts it back; esc."
 keys ctrl+shift+comma
 expect_text "Settings › Deluge opens on Speed, its switches listed" "Count the protocol's overhead" 10
+expect_text "…and says Deluge has no turtle" "Deluge has no turtle" 5
 keys j j j j j space
 expect_call "the daemon's rate_limit_ip_overhead is now $([ "$OVERHEAD" = true ] && echo false || echo true)" "r['rate_limit_ip_overhead'] is not $([ "$OVERHEAD" = true ] && echo True || echo False)" core.get_config_values '[["rate_limit_ip_overhead"]]'
 expect_node "the switch shows it" "check box \"Count the protocol's overhead\" \\[([^]]* )?$([ "$OVERHEAD" = true ] && echo unchecked || echo checked)"

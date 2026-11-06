@@ -609,16 +609,23 @@ Sheet {
             spacing: Theme.space(2)
             visible: (root.idleTime && root.features.shareLimitAction !== true) || root.ratioOnly
 
+            // #244: a screen reader (and a walk) reads both lines.
             Label {
+                Accessible.name: text
+                Accessible.role: Accessible.StaticText
                 Layout.fillWidth: true
+                objectName: "limitsEngineLine"
                 text: root.ratioOnly ? qsTr("%1 has no time limits").arg(root.engineName) : qsTr(
                                            "%1 stops the torrent at either limit").arg(root.engineName)
                 wrapMode: Text.WordWrap
             }
 
             Label {
+                Accessible.name: text
+                Accessible.role: Accessible.StaticText
                 Layout.fillWidth: true
                 dim: true
+                objectName: "limitsEngineNote"
                 size: "small"
                 text: root.ratioOnly ? qsTr("the ratio is the only one; global copies the server's onto the torrent")
                                      : qsTr("it has no limit on total seeding time, and no other action")

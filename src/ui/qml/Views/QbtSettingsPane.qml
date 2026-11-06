@@ -233,6 +233,10 @@ ColumnLayout {
                     Label {
                         id: noteText
 
+                        // #244: a screen reader (and a walk) reads the note ("Deluge has no
+                        // turtle…").
+                        Accessible.name: text
+                        Accessible.role: Accessible.StaticText
                         anchors.left: parent.left
                         anchors.leftMargin: Theme.space(12)
                         anchors.right: parent.right

@@ -1355,6 +1355,14 @@ TestCase {
             compare(sheet.actionChips.options, ["stop", "remove (keeps the files)"]);
             verify(sheet.engineLine.visible);
             compare(sheet.engineLine.children[0].text, "Deluge has no time limits");
+            // #244: both lines have an accessible name, so a screen reader (and a walk) reads
+            // them.
+            const line = findChild(sheet, "limitsEngineLine");
+            compare(line.Accessible.name, "Deluge has no time limits");
+            compare(line.Accessible.role, Accessible.StaticText);
+            const note = findChild(sheet, "limitsEngineNote");
+            compare(note.Accessible.name, note.text);
+            verify(note.Accessible.name.indexOf("the ratio is the only one") === 0, note.Accessible.name);
             sheet._ratioGlobal = false;
             sheet.ratioField.text = "1.5";
             sheet.actionChips.current = "remove (keeps the files)";
