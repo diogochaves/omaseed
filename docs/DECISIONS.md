@@ -1436,7 +1436,8 @@ in deluge-web's Connection Manager"), "save anyway" kept. First run has no step:
 daemon its passing test found. While polling, deluge-web without a daemon is C12's down server
 (red, retried, the lost notice): "NAME's deluge-web has no daemon" / "deluge-web answers, but no
 Deluge daemon is connected to it. Is deluged running?", short reason "no daemon". Pause Torrents'
-settle window (C36 M10) is Transmission's 5 s on Deluge too.
+settle window (C36 M10) is Transmission's 5 s on Deluge too. The welcome (K3) and `--help` now
+read "…powered by qBittorrent, Transmission or Deluge."
 
 ## C26 — Search through qBittorrent's search plugins (board 48, ruled 2026-10-22)
 

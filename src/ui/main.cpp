@@ -451,7 +451,7 @@ struct CommandLine
     void addTo(QCommandLineParser &parser) const
     {
         parser.setApplicationDescription(QStringLiteral(
-            "omaseed — torrents for Omarchy, powered by qBittorrent or Transmission."));
+            "omaseed — torrents for Omarchy, powered by qBittorrent, Transmission or Deluge."));
         parser.addHelpOption();
         parser.addVersionOption();
         parser.addOptions({demo, rows, headless, hidden, themeRoles, skin, installBarWidget, quit});

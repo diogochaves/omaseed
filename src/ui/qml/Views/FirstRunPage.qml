@@ -674,7 +674,7 @@ Flickable {
             dim: true
             objectName: "welcomeIntro"
             // C25 K3: the welcome names the engines this build drives (board 47 §6 E5).
-            text: qsTr("Torrents for Omarchy, powered by qBittorrent or Transmission.")
+            text: qsTr("Torrents for Omarchy, powered by qBittorrent, Transmission or Deluge.")
             visible: root.page === "welcome"
             wrapMode: Text.WordWrap
         }

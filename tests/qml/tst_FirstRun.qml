@@ -694,7 +694,7 @@ TestCase {
         compare(heading.Accessible.name, "omaseed");
         const intro = findChild(page, "welcomeIntro");
         compare(intro.Accessible.role, Accessible.StaticText);
-        compare(intro.Accessible.name, "Torrents for Omarchy, powered by qBittorrent or Transmission.");
+        compare(intro.Accessible.name, "Torrents for Omarchy, powered by qBittorrent, Transmission or Deluge.");
         const none = findChild(page, "detectNone");
         verify(none.visible);
         compare(none.Accessible.role, Accessible.StaticText);
