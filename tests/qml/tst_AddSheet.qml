@@ -938,6 +938,40 @@ TestCase {
         compare(sheet.opened, false, "and closes when the queue is empty");
     }
 
+    // #244 (Diogo, 2026-11-06): Deluge's label follows qBittorrent's category. One add's
+    // category is not the next add's: each opening of the sheet starts without one (reset()).
+    // Only the torrents queued in one batch share it, as that batch's settings (VIEW-11).
+    function test_a_category_or_label_is_not_carried_to_the_next_add() {
+        const sheet = createTemporaryObject(addSheetComponent, testCase);
+        const deluge = {
+            "addOptions": true,
+            "addContentLayout": false,
+            "categories": true,
+            "categoriesAreLabels": true,
+            "categoryWord": "label",
+            "tags": false
+        };
+        for (const caps of [null, deluge]) {
+            const engine = caps === null ? "qBittorrent" : "Deluge";
+            if (caps !== null)
+                sheet._can = caps;
+            sheet.openList([testCase.freshMagnet,
+                            "magnet:?xt=urn:btih:0102030405060708090a0b0c0d0e0f1011121314&dn=second"],
+                           "handoff");
+            sheet.oneByOne();
+            sheet.categoryChips.pick("linux");
+            sheet.finish(true, "");
+            compare(sheet.categoryChips.current, "linux",
+                    engine + ": the queued one lost its batch's category");
+            sheet.finish(true, "");
+            compare(sheet.opened, false);
+            sheet.openWith(testCase.freshMagnet, "clipboard");
+            compare(sheet.categoryChips.current, "",
+                    engine + ": the next add kept the last one's category");
+            sheet.dismiss();
+        }
+    }
+
     // Review VIEW-18: the limit fields read as the Limits sheets read theirs.
     function test_a_limit_that_is_not_a_number_is_refused() {
         const sheet = createTemporaryObject(addSheetComponent, testCase);
