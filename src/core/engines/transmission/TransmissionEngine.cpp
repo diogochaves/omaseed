@@ -621,8 +621,9 @@ Reply<FreeSpaceAt> *TransmissionEngine::freeSpace(const QString &path)
     auto *reply = new Reply<FreeSpaceAt>(this);
     if (!path.startsWith(QLatin1Char('/'))) {
         QTimer::singleShot(0, reply, [reply, path]() {
-            reply->complete(Result<FreeSpaceAt>(ApiError(
-                ApiError::Kind::Conflict, QStringLiteral("free_space: %1 isn't absolute").arg(path))));
+            reply->complete(Result<FreeSpaceAt>(
+                ApiError(ApiError::Kind::Conflict,
+                         QStringLiteral("free_space: %1 isn't absolute").arg(path))));
         });
         return reply;
     }
@@ -1032,6 +1033,14 @@ Reply<Done> *TransmissionEngine::setSessionPreferences(const QVariantMap &change
                 return settled<Done>(ApiError(ApiError::Kind::Conflict, why));
             return done(m_rpc->call(QStringLiteral("session_set"), params));
         });
+}
+
+Reply<bool> *TransmissionEngine::testPort()
+{
+    // Transmission asks its own checker on the internet; that can take a while, and fail.
+    return mapReply<bool>(m_rpc->call(QStringLiteral("port_test"), {}),
+                          this,
+                          [](const QJsonObject &answer) { return TT::portIsOpen(answer); });
 }
 
 Reply<Done> *TransmissionEngine::toggleAltSpeed()

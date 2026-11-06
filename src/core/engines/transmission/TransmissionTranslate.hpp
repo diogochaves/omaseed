@@ -76,13 +76,20 @@ GlobalLimits globalLimits(const QJsonObject &sessionGet);
 /// sessionPreferences, C25 K20): dl_limit, up_limit, alt_dl_limit, alt_up_limit in bytes/s
 /// (0 none), scheduler_enabled, schedule_from_hour/min and schedule_to_hour/min from
 /// alt_speed_time_*, scheduler_day_mask (alt_speed_time_day, AltSchedule's Transmission rule)
-/// and save_path (download_dir). A key whose field is missing is left out.
+/// and save_path (download_dir). TRANSMISSION › Basics (C25 K31) adds temp_path_enabled and
+/// temp_path (incomplete_dir), listen_port (peer_port), dht (dht_enabled), max_ratio_enabled
+/// and max_ratio (seed_ratio_limited, seed_ratio_limit), max_inactive_seeding_time_enabled
+/// and max_inactive_seeding_time in minutes (idle_seeding_limit*). A key whose field is
+/// missing is left out.
 QVariantMap speedPreferences(const QJsonObject &sessionGet);
 /// What session_set takes for `changes` (keys as speedPreferences writes them), given the
 /// session as it is (`sessionGet`, for the half of a time not changed and the units). Empty,
-/// with `why` saying so, when a key has no place in Transmission's session.
+/// with `why` saying so, when a key has no place in Transmission's session (or a port is out
+/// of range).
 QJsonObject
 speedSessionSet(const QVariantMap &changes, const QJsonObject &sessionGet, QString *why = nullptr);
+/// port_test's answer: the peer port is open from outside, or not.
+bool portIsOpen(const QJsonObject &answer);
 
 /// The General tab: a torrent of propertiesFields(). `nowSecs` (seconds since the epoch)
 /// counts down to the next announce.

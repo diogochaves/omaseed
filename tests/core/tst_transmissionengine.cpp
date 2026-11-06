@@ -91,6 +91,7 @@ private Q_SLOTS:
     void sequentialIsReadThenSet();
     void addSendsTorrentAddThenLimits();
     void whatTransmissionLacksIsNotSupported();
+    void thePortIsTestedByTransmission();
 
     // moves (board 47 §E, C25 K22, K23)
     void aMoveIsBusyUntilItsCopyEnds();
@@ -677,9 +678,15 @@ void TestTransmissionEngine::turtleAndGlobalLimits()
     QCOMPARE(m_daemon->methods(), QStringList({"session_get", "session_set"}));
     QCOMPARE(m_daemon->last().params, QJsonObject({{"alt_speed_time_end", 7 * 60}}));
     m_daemon->calls.clear();
-    const Result<Done> refused = wait(m_engine->setSessionPreferences({{"listen_port", 1}}));
+    const Result<Done> refused = wait(m_engine->setSessionPreferences({{"web_ui_port", 1}}));
     QCOMPARE(refused.error().kind(), ApiError::Kind::Conflict);
     QCOMPARE(m_daemon->methods(), QStringList({"session_get"})); // nothing set
+    // TRANSMISSION › Basics (C25 K31): the port and DHT go as the session's own fields.
+    m_daemon->calls.clear();
+    QVERIFY(wait(m_engine->setSessionPreferences(
+                     {{QStringLiteral("listen_port"), 51413}, {QStringLiteral("dht"), true}}))
+                .isValid());
+    QCOMPARE(m_daemon->last().params, QJsonObject({{"peer_port", 51413}, {"dht_enabled", true}}));
 
     QVERIFY(wait(m_engine->setAltSpeed(true)).isValid());
     QCOMPARE(m_daemon->last().params, QJsonObject({{"alt_speed_enabled", true}}));
@@ -890,6 +897,21 @@ void TestTransmissionEngine::addSendsTorrentAddThenLimits()
     QVERIFY(m_daemon->calls.isEmpty());
 }
 
+// TRANSMISSION › Basics (C25 K31): "test port" asks the daemon, which asks from outside.
+void TestTransmissionEngine::thePortIsTestedByTransmission()
+{
+    m_daemon->answer = [](const QString &method, const QJsonObject &) {
+        return method == QLatin1String("port_test")
+                   ? QJsonObject{{QStringLiteral("port_is_open"), true},
+                                 {QStringLiteral("ip_protocol"), QStringLiteral("ipv4")}}
+                   : QJsonObject{};
+    };
+    const Result<bool> open = wait(m_engine->testPort());
+    QVERIFY(open.isValid());
+    QVERIFY(open.value());
+    QCOMPARE(m_daemon->last().method, QStringLiteral("port_test"));
+}
+
 void TestTransmissionEngine::whatTransmissionLacksIsNotSupported()
 {
     const QList<std::function<ReplyBase *()>> lacking{
@@ -980,9 +1002,8 @@ void TestTransmissionEngine::aMoveGivenUpIsNoLongerBusy()
         return QJsonObject();
     };
     bool answered = false;
-    m_engine->setLocation({kPack}, QStringLiteral("/srv/new"))->then(this, [&](const Result<Done> &) {
-        answered = true;
-    });
+    m_engine->setLocation({kPack}, QStringLiteral("/srv/new"))
+        ->then(this, [&](const Result<Done> &) { answered = true; });
     QTRY_COMPARE_WITH_TIMEOUT(m_server->heldCount(), 1, 3000);
     QCOMPARE(m_engine->busyMoving(), QStringList({kPack}));
     QSignalSpy changed(m_engine.get(), &EngineClient::busyMovingChanged);

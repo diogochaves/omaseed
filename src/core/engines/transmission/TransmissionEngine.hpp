@@ -135,6 +135,7 @@ public:
     Reply<Done> *setGlobalLimits(const GlobalLimits &limits) override;
     Reply<QVariantMap> *sessionPreferences() override;
     Reply<Done> *setSessionPreferences(const QVariantMap &changes) override;
+    Reply<bool> *testPort() override;
     Reply<Done> *toggleAltSpeed() override;
     Reply<Done> *setAltSpeed(bool on) override;
 

@@ -70,6 +70,7 @@ private Q_SLOTS:
     void absentFieldsStayAbsent();
     void sessionFiguresAndLimits();
     void sessionAsSpeedPreferences();
+    void sessionAsBasics();
     void filesWithPrioritiesAndPieces();
     void trackersEachWithItsState();
     void piecesFromTheBitfield();
@@ -365,6 +366,52 @@ void TestTransmissionTranslate::sessionAsSpeedPreferences()
                 &why)
                 .isEmpty());
     QCOMPARE(why, QStringLiteral("Transmission has no setting for web_ui_port"));
+}
+
+// TRANSMISSION › Basics (C25 K31): the port, DHT, the incomplete folder and the seeding
+// defaults, both ways, in app/preferences' words.
+void TestTransmissionTranslate::sessionAsBasics()
+{
+    const QJsonObject sessionGet = result("session_get.json");
+    const QVariantMap prefs = TT::speedPreferences(sessionGet);
+    QCOMPARE(prefs.value(QStringLiteral("listen_port")).toInt(), 26994);
+    QCOMPARE(prefs.value(QStringLiteral("dht")).toBool(), false);
+    QCOMPARE(prefs.value(QStringLiteral("temp_path_enabled")).toBool(), false);
+    QCOMPARE(prefs.value(QStringLiteral("temp_path")).toString(),
+             QStringLiteral("/home/user/Downloads"));
+    QCOMPARE(prefs.value(QStringLiteral("max_ratio_enabled")).toBool(), false);
+    QCOMPARE(prefs.value(QStringLiteral("max_ratio")).toDouble(), 2.0);
+    QCOMPARE(prefs.value(QStringLiteral("max_inactive_seeding_time_enabled")).toBool(), false);
+    QCOMPARE(prefs.value(QStringLiteral("max_inactive_seeding_time")).toInt(), 30);
+    for (const char *field :
+         {"peer_port", "dht_enabled", "seed_ratio_limited", "idle_seeding_limit"})
+        QVERIFY2(TT::sessionFields().contains(QString::fromLatin1(field)), field);
+
+    QCOMPARE(TT::speedSessionSet({{QStringLiteral("listen_port"), 51413},
+                                  {QStringLiteral("dht"), true},
+                                  {QStringLiteral("temp_path_enabled"), true},
+                                  {QStringLiteral("temp_path"), QStringLiteral("/srv/incomplete")},
+                                  {QStringLiteral("max_ratio_enabled"), true},
+                                  {QStringLiteral("max_ratio"), 1.5},
+                                  {QStringLiteral("max_inactive_seeding_time_enabled"), true},
+                                  {QStringLiteral("max_inactive_seeding_time"), 45}},
+                                 sessionGet),
+             QJsonObject({{"peer_port", 51413},
+                          {"dht_enabled", true},
+                          {"incomplete_dir_enabled", true},
+                          {"incomplete_dir", "/srv/incomplete"},
+                          {"seed_ratio_limited", true},
+                          {"seed_ratio_limit", 1.5},
+                          {"idle_seeding_limit_enabled", true},
+                          {"idle_seeding_limit", 45}}));
+    // qBittorrent's "none" for a ratio leaves the value alone: the switch says it.
+    QCOMPARE(TT::speedSessionSet({{QStringLiteral("max_ratio"), -1}}, sessionGet), QJsonObject());
+    QString why;
+    QVERIFY(
+        TT::speedSessionSet({{QStringLiteral("listen_port"), 70000}}, sessionGet, &why).isEmpty());
+    QCOMPARE(why, QStringLiteral("a port is from 1 to 65535, not 70000"));
+    QVERIFY(TT::portIsOpen(QJsonObject{{"port_is_open", true}, {"ip_protocol", "ipv4"}}));
+    QVERIFY(!TT::portIsOpen(QJsonObject{{"port_is_open", false}}));
 }
 
 void TestTransmissionTranslate::filesWithPrioritiesAndPieces()

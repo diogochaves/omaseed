@@ -237,6 +237,9 @@ public:
     virtual Reply<QVariantMap> *sessionPreferences();
     /// Writes those keys (any other is refused, nothing sent).
     virtual Reply<Done> *setSessionPreferences(const QVariantMap &changes);
+    /// Asks the engine to test its peer port from outside (Transmission's port_test, C25
+    /// K31): true when peers can reach it. Not supported by default.
+    virtual Reply<bool> *testPort();
     virtual Reply<Done> *toggleAltSpeed() = 0;
     /// Says what it wants, so two quick calls cannot cancel each other out.
     virtual Reply<Done> *setAltSpeed(bool on) = 0;

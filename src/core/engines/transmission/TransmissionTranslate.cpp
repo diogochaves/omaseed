@@ -150,7 +150,14 @@ QStringList sessionFields()
             QStringLiteral("alt_speed_time_enabled"),
             QStringLiteral("alt_speed_time_begin"),
             QStringLiteral("alt_speed_time_end"),
-            QStringLiteral("alt_speed_time_day")};
+            QStringLiteral("alt_speed_time_day"),
+            // TRANSMISSION › Basics (C25 K31): the port, DHT and the seeding defaults.
+            QStringLiteral("peer_port"),
+            QStringLiteral("dht_enabled"),
+            QStringLiteral("seed_ratio_limited"),
+            QStringLiteral("seed_ratio_limit"),
+            QStringLiteral("idle_seeding_limit_enabled"),
+            QStringLiteral("idle_seeding_limit")};
 }
 
 QStringList listFields()
@@ -618,6 +625,26 @@ QVariantMap speedPreferences(const QJsonObject &sessionGet)
     if (has(sessionGet, "download_dir"))
         prefs.insert(QStringLiteral("save_path"),
                      sessionGet.value(QStringLiteral("download_dir")).toString());
+    // TRANSMISSION › Basics (C25 K31), in app/preferences' words so Settings' rows read them.
+    const auto flag = [&prefs, &sessionGet](const char *field, const char *name) {
+        if (has(sessionGet, field))
+            prefs.insert(QString::fromLatin1(name), sessionGet.value(key(field)).toBool());
+    };
+    flag("incomplete_dir_enabled", "temp_path_enabled");
+    if (has(sessionGet, "incomplete_dir"))
+        prefs.insert(QStringLiteral("temp_path"),
+                     sessionGet.value(QStringLiteral("incomplete_dir")).toString());
+    if (has(sessionGet, "peer_port"))
+        prefs.insert(QStringLiteral("listen_port"), int(number(sessionGet, "peer_port")));
+    flag("dht_enabled", "dht");
+    flag("seed_ratio_limited", "max_ratio_enabled");
+    if (has(sessionGet, "seed_ratio_limit"))
+        prefs.insert(QStringLiteral("max_ratio"),
+                     sessionGet.value(QStringLiteral("seed_ratio_limit")).toDouble());
+    flag("idle_seeding_limit_enabled", "max_inactive_seeding_time_enabled");
+    if (has(sessionGet, "idle_seeding_limit"))
+        prefs.insert(QStringLiteral("max_inactive_seeding_time"),
+                     int(number(sessionGet, "idle_seeding_limit")));
     return prefs;
 }
 
@@ -664,6 +691,30 @@ QJsonObject speedSessionSet(const QVariantMap &changes, const QJsonObject &sessi
             params.insert(QStringLiteral("alt_speed_time_day"), int(value & 127));
         } else if (name == QLatin1String("save_path")) {
             params.insert(QStringLiteral("download_dir"), it.value().toString());
+        } else if (name == QLatin1String("temp_path_enabled")) {
+            params.insert(QStringLiteral("incomplete_dir_enabled"), it.value().toBool());
+        } else if (name == QLatin1String("temp_path")) {
+            params.insert(QStringLiteral("incomplete_dir"), it.value().toString());
+        } else if (name == QLatin1String("listen_port")) {
+            if (value < 1 || value > 65535) {
+                if (why != nullptr)
+                    *why = QStringLiteral("a port is from 1 to 65535, not %1").arg(value);
+                return {};
+            }
+            params.insert(QStringLiteral("peer_port"), int(value));
+        } else if (name == QLatin1String("dht")) {
+            params.insert(QStringLiteral("dht_enabled"), it.value().toBool());
+        } else if (name == QLatin1String("max_ratio_enabled")) {
+            params.insert(QStringLiteral("seed_ratio_limited"), it.value().toBool());
+        } else if (name == QLatin1String("max_ratio")) {
+            // qBittorrent's "none" (-1) has no place here: the switch says it.
+            if (it.value().toDouble() >= 0)
+                params.insert(QStringLiteral("seed_ratio_limit"), it.value().toDouble());
+        } else if (name == QLatin1String("max_inactive_seeding_time_enabled")) {
+            params.insert(QStringLiteral("idle_seeding_limit_enabled"), it.value().toBool());
+        } else if (name == QLatin1String("max_inactive_seeding_time")) {
+            if (value >= 0)
+                params.insert(QStringLiteral("idle_seeding_limit"), int(value));
         } else {
             if (why != nullptr)
                 *why = QStringLiteral("Transmission has no setting for %1").arg(name);
@@ -671,6 +722,11 @@ QJsonObject speedSessionSet(const QVariantMap &changes, const QJsonObject &sessi
         }
     }
     return params;
+}
+
+bool portIsOpen(const QJsonObject &answer)
+{
+    return answer.value(QStringLiteral("port_is_open")).toBool();
 }
 
 TorrentProperties properties(const QJsonObject &json, qint64 nowSecs)

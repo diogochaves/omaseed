@@ -39,4 +39,9 @@ Reply<Done> *EngineClient::setSessionPreferences(const QVariantMap &)
     return unsupported<Done>(QStringLiteral("the session's settings"));
 }
 
+Reply<bool> *EngineClient::testPort()
+{
+    return unsupported<bool>(QStringLiteral("a port test"));
+}
+
 } // namespace omaseed::core
