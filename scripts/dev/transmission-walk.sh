@@ -2,13 +2,23 @@
 # omaseed — a Transmission server driven through the app (#85's "done when", DECISIONS C14 E4):
 # a .torrent added through the add sheet with a label and a save path, renamed in place (K28:
 # its folder on disk follows), moved through the Move… sheet, a label added and another taken
-# off, then deleted with its files. After each step it checks what the daemon says (its RPC)
-# and what is on disk, and stops at the first mismatch.
+# off, then deleted with its files. Then, where omaseed sees the daemon's disks (#233), a
+# second torrent's Move… sheet with a file by its name already at the destination (board 47
+# §E, M8: left out, Transmission would replace it) and a move that copies, frozen halfway so
+# the busy band shows the growth probe's "N of M there". After each step it checks what the
+# daemon says (its RPC) and what is on disk, and stops at the first mismatch.
 #
 #   scripts/dev/transmission-walk.sh [OUT_DIR]   # agents: a headless box, a shot per step,
 #                                                # OUT_DIR/index.md lists every check
 #   scripts/dev/transmission-walk.sh --interactive  # a person: the box is a window on
 #                                                # workspace 9; each step waits for enter
+#   OMASEED_TRANSMISSION_WALK_FROM=podman scripts/dev/transmission-walk.sh [OUT_DIR]
+#       the same on Transmission in a rootless podman container (#233): LinuxServer's image on
+#       :8087 (test-server.sh start --transmission-podman), saved with a path map (/downloads
+#       and /far to the profile's folders), the box seeing those folders. It opens on first
+#       run, whose detector must find the container; every daemon check reads the container's
+#       paths and every disk check the mapped ones on this machine; the Move… sheet reads the
+#       room and the names here; open folder must resolve to this machine's path.
 #
 # The server is the Transmission playground (scripts/dev/test-server.sh start --transmission,
 # :8085, its profile under ~/.local/share/omaseed-test/transmission). When it isn't running,
@@ -18,6 +28,10 @@
 # transmission-create, its data put where it is added, so the daemon verifies it complete and
 # seeds it. The box (scripts/dev/app-box.sh up --transmission) reaches only :8085; the daemon
 # runs on this machine, so the paths typed into the app are this machine's, under the profile.
+# The box doesn't see them until the steps where omaseed sees the disks: there it comes up
+# again with the profile bound in (--ro-bind). The move that copies needs a second file
+# system under the profile, a btrfs subvolume; elsewhere that step is skipped. The podman
+# playground's two mounts are always two to rename(2).
 set -euo pipefail
 
 repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -29,14 +43,53 @@ APP_BOX="$repo/scripts/dev/app-box.sh"
 TEST_SERVER="$repo/scripts/dev/test-server.sh"
 BOX="${OMASEED_TRANSMISSION_BOX:-transmission-walk}"
 BOX_HOME=/home/sbx
-PORT="${OMASEED_TRANSMISSION_PORT:-8085}"
+ROOT="${OMASEED_ENGINES_ROOT:-$HOME/.local/share/omaseed-test}"
+FROM="${OMASEED_TRANSMISSION_WALK_FROM:-native}"
+case "$FROM" in
+native)
+    PORT="${OMASEED_TRANSMISSION_PORT:-8085}"
+    FLAG=--transmission
+    PROFILE="$ROOT/transmission"
+    WALK="$PROFILE/walk"
+    # The second file system for the move that copies: a subvolume in the walk's folder.
+    FAR="$WALK/far"
+    ;;
+podman)
+    PORT="${OMASEED_TRANSMISSION_PODMAN_PORT:-8087}"
+    FLAG=--transmission-podman
+    PROFILE="$ROOT/transmission-podman"
+    CONTAINER="${OMASEED_TRANSMISSION_PODMAN_NAME:-omaseed-transmission}"
+    # The container sees the profile's downloads/ as /downloads and its far/ as /far.
+    WALK="$PROFILE/downloads/walk"
+    FAR="$PROFILE/far/walk"
+    ;;
+*) echo "OMASEED_TRANSMISSION_WALK_FROM is native or podman, not $FROM" >&2; exit 2 ;;
+esac
 RPC="http://127.0.0.1:$PORT/transmission/rpc"
-PROFILE="${OMASEED_ENGINES_ROOT:-$HOME/.local/share/omaseed-test}/transmission"
-WALK="$PROFILE/walk"
 NAME="Walk Sampler"
 RENAMED="Walk Sampler (renamed)"
 IN="$WALK/in"
 MOVED="$WALK/moved"
+# The torrent of the steps where omaseed sees the disks: one file, big enough that a copy of
+# it can be frozen halfway, in a no-copy-on-write folder (btrfs would clone it at once).
+BIG=walk-big.bin
+BIG_DIR="$WALK/big"
+BIG_SIZE=$((1024 * 1024 * 1024))
+
+# remote PATH: PATH on this machine as the daemon sees it (the container's mounts).
+remote() {
+    if [ "$FROM" = podman ]; then
+        case "$1" in
+        "$PROFILE/downloads" | "$PROFILE/downloads"/*) echo "/downloads${1#"$PROFILE/downloads"}"; return ;;
+        "$PROFILE/far" | "$PROFILE/far"/*) echo "/far${1#"$PROFILE/far"}"; return ;;
+        esac
+    fi
+    echo "$1"
+}
+R_IN="$(remote "$IN")"
+R_MOVED="$(remote "$MOVED")"
+R_FAR="$(remote "$FAR")"
+R_BIG_DIR="$(remote "$BIG_DIR")"
 INTERACTIVE=0
 OUT=""
 case "${1:-}" in
@@ -48,6 +101,7 @@ esac
 [ -x build/omaseed ] || { echo "build first: cmake --build build" >&2; exit 1; }
 command -v transmission-create >/dev/null || { echo "missing: transmission-create (transmission-cli)" >&2; exit 1; }
 case "$PORT" in 8080) echo "refusing :8080, the real library" >&2; exit 1 ;; esac
+if [ "$FROM" = podman ]; then command -v podman >/dev/null || { echo "missing: podman" >&2; exit 1; }; fi
 
 # ---- helpers ------------------------------------------------------------------------------
 
@@ -83,11 +137,15 @@ keys() { omabox keys -b "$BOX" --window omaseed --wait --ignore "$STRIP_IGNORE" 
 menu_on() { keys ctrl+k -t "$1" Tab; }
 table_on() { menu_on "$1"; keys Escape; }
 
+# short TEXT: TEXT with the profile's path written PROFILE, as the index says.
+short() { printf '%s' "${1//"$PROFILE"/PROFILE}"; }
+
 CHECKS=0
 STEP=0
 STEP_SLUG=""
 
 fail() {
+    set -- "$(short "$1")"
     printf '  \033[31m✗ %s\033[0m\n' "$1"
     if [ "$INTERACTIVE" = 0 ]; then
         printf '  - ✗ **%s**\n' "$1" >>"$OUT/index.md"
@@ -100,6 +158,7 @@ fail() {
 
 pass() {
     CHECKS=$((CHECKS + 1))
+    set -- "$(short "$1")"
     printf '  ✓ %s\n' "$1"
     [ "$INTERACTIVE" = 1 ] || printf '  - ✓ %s\n' "$1" >>"$OUT/index.md"
 }
@@ -158,6 +217,7 @@ expect_no_text() {
 step() {
     STEP=$((STEP + 1))
     STEP_SLUG="$(printf '%02d' "$STEP")-$(echo "$1" | tr 'A-Z ' 'a-z-' | tr -cd 'a-z0-9-')"
+    set -- "$1" "$(short "$2")"
     printf '\n\033[1m%02d %s\033[0m\n    %s\n' "$STEP" "$1" "$2"
     if [ "$INTERACTIVE" = 1 ]; then
         printf '    enter to do it '
@@ -172,33 +232,69 @@ shot() {
     [ "$INTERACTIVE" = 0 ] || return 0
     local file="$STEP_SLUG${2:+-$2}.png"
     omabox shot -b "$BOX" --window omaseed -o "$OUT/$file" >/dev/null 2>&1
-    printf '  ![%s](%s)\n  *%s*\n' "$file" "$file" "$1" >>"$OUT/index.md"
+    printf '  ![%s](%s)\n  *%s*\n' "$file" "$file" "$(short "$1")" >>"$OUT/index.md"
 }
 
-# remove_walk_torrents: whatever a run left on the daemon (a torrent named Walk Sampler…),
-# removed with its data, and the walk's folder.
+# app_logged TEXT: omaseed's own output in the box (app-box.sh runs it with Qt's log on
+# stderr) has a line holding TEXT.
+app_logged() { omabox log -b "$BOX" run 2>/dev/null | grep -qF -- "$1"; }
+
+# expect_logged "WHAT" TEXT [SECONDS]: wait until omaseed has logged TEXT.
+expect_logged() {
+    local what="$1" text="$2" limit="${3:-10}"
+    for _ in $(seq 1 $((limit * 4))); do
+        app_logged "$text" && { pass "$what"; return 0; }
+        sleep 0.25
+    done
+    fail "$what (after ${limit}s no \"$text\" in omaseed's log)"
+}
+
+# expect_size "WHAT" PATH BYTES [SECONDS]: wait until the file PATH here holds BYTES bytes.
+expect_size() {
+    local what="$1" path="$2" bytes="$3" limit="${4:-20}"
+    for _ in $(seq 1 $((limit * 4))); do
+        [ "$(stat -c %s "$path" 2>/dev/null)" = "$bytes" ] && { pass "$what"; return 0; }
+        sleep 0.25
+    done
+    fail "$what (after ${limit}s: ${path#"$HOME"/} holds $(stat -c %s "$path" 2>/dev/null || echo no) bytes, not $bytes)"
+}
+
+# daemon_pid: the daemon's process here (the container's runs in this user's namespace).
+daemon_pid() {
+    if [ "$FROM" = podman ]; then
+        podman top "$CONTAINER" hpid comm 2>/dev/null | awk '$2 ~ /^transmission-da/ { print $1; exit }'
+    else
+        cat "$PROFILE/daemon.pid" 2>/dev/null
+    fi
+}
+
+# remove_walk_torrents: whatever a run left on the daemon (a torrent named Walk Sampler… or
+# walk-big.bin), removed with its data, and the walk's folders.
 remove_walk_torrents() {
     local ids
     ids="$(trpc torrent_get '{"fields":["id","name"]}' 2>/dev/null | python3 -c '
 import json, sys
-print(",".join(str(t["id"]) for t in json.load(sys.stdin)["result"]["torrents"] if t["name"].startswith(sys.argv[1])))' "$NAME" 2>/dev/null || true)"
+print(",".join(str(t["id"]) for t in json.load(sys.stdin)["result"]["torrents"] if t["name"].startswith(sys.argv[1]) or t["name"] == sys.argv[2]))' "$NAME" "$BIG" 2>/dev/null || true)"
     if [ -n "$ids" ]; then
         trpc torrent_remove "{\"ids\":[$ids],\"delete_local_data\":true}" >/dev/null 2>&1 || true
     fi
-    rm -rf "${WALK:?}"
+    rm -rf "${WALK:?}" "${FAR:?}"
 }
 
 STARTED=0
+FROZEN=""
 cleanup() {
     local status=$?
+    # A daemon the walk froze is let go whatever happened.
+    [ -z "$FROZEN" ] || kill -CONT "$FROZEN" 2>/dev/null || true
     if [ "$INTERACTIVE" = 1 ]; then
         echo
         echo "The box stays up for a look around; throw it away with: scripts/dev/app-box.sh down -b $BOX"
-        [ "$STARTED" = 0 ] || echo "The playground stays up too: scripts/dev/test-server.sh reset|stop --transmission"
+        [ "$STARTED" = 0 ] || echo "The playground stays up too: scripts/dev/test-server.sh reset|stop $FLAG"
     else
         "$APP_BOX" down -b "$BOX" >/dev/null 2>&1 || true
         if [ "$STARTED" = 1 ]; then
-            "$TEST_SERVER" stop --transmission >/dev/null 2>&1 || true
+            "$TEST_SERVER" stop "$FLAG" >/dev/null 2>&1 || true
             rm -rf "${PROFILE:?}"
         else
             remove_walk_torrents
@@ -210,11 +306,11 @@ trap cleanup EXIT
 
 # ---- setup --------------------------------------------------------------------------------
 
-if ! "$TEST_SERVER" status --transmission >/dev/null 2>&1; then
-    echo "starting the Transmission playground (:$PORT), seeded"
+if ! "$TEST_SERVER" status "$FLAG" >/dev/null 2>&1; then
+    echo "starting the Transmission playground (:$PORT, $FROM), seeded"
     STARTED=1
-    "$TEST_SERVER" start --transmission >/dev/null
-    "$TEST_SERVER" seed --transmission >/dev/null
+    "$TEST_SERVER" start "$FLAG" >/dev/null
+    "$TEST_SERVER" seed "$FLAG" >/dev/null
 fi
 remove_walk_torrents
 
@@ -229,28 +325,55 @@ transmission-create -c "omaseed transmission walk" -o "$WALK/$NAME.torrent" "$WA
 cp -r "$WALK/src/$NAME" "$IN/"
 HASH="$(transmission-show "$WALK/$NAME.torrent" | sed -n 's/^ *Hash v1: *//p')"
 [ -n "$HASH" ] || { echo "no infohash read from the walk's .torrent" >&2; exit 1; }
+# The big one (zeros: only its size matters), no copy-on-write where the file system has it.
+mkdir -p "$BIG_DIR"
+chattr +C "$BIG_DIR" 2>/dev/null || true
+head -c "$BIG_SIZE" /dev/zero >"$BIG_DIR/$BIG"
+transmission-create -c "omaseed transmission walk" -o "$WALK/$BIG.torrent" "$BIG_DIR/$BIG" >/dev/null
+BIG_HASH="$(transmission-show "$WALK/$BIG.torrent" | sed -n 's/^ *Hash v1: *//p')"
+if [ "$FROM" = native ]; then
+    btrfs subvolume create "$FAR" >/dev/null 2>&1 || mkdir -p "$FAR"
+else
+    mkdir -p "$FAR"
+fi
+# Whether a move from BIG_DIR to FAR copies (another file system for the daemon) or renames.
+COPIES=1
+if [ "$FROM" = native ] && [ "$(stat -c %d "$BIG_DIR")" = "$(stat -c %d "$FAR")" ]; then COPIES=0; fi
 # The torrents already there (the seeded three, on a playground this walk started): they must
 # come through untouched.
 OTHERS="$(trpc torrent_get '{"fields":["hash_string"]}' | python3 -c '
 import json, sys; print(sorted(t["hash_string"] for t in json.load(sys.stdin)["result"]["torrents"]))')"
 SEEDED="$(python3 -c 'import ast, sys; print(len(ast.literal_eval(sys.argv[1])))' "$OTHERS")"
 
-if [ "$INTERACTIVE" = 1 ]; then
-    "$APP_BOX" up --transmission --interactive -b "$BOX" >/dev/null
-else
+# The podman box opens on first run (its servers.json put aside), for the detector's step.
+up_args=("$FLAG" -b "$BOX")
+[ "$FROM" = podman ] && up_args+=(--first-run)
+[ "$INTERACTIVE" = 1 ] && up_args+=(--interactive)
+if [ "$INTERACTIVE" = 0 ]; then
     mkdir -p "$OUT"
     # shellcheck disable=SC2016 # backticks are Markdown, not command substitution
-    printf '# Transmission walk %s\n\nBuild `%s`, a box on the Transmission playground (`app-box.sh up --transmission`). Each step: what was done, every check on the daemon and on disk, and shots. Paths are under the playground profile, written PROFILE here.\n' \
-        "$(date '+%Y-%m-%d %H:%M')" "$(git rev-parse --short HEAD)" >"$OUT/index.md"
-    "$APP_BOX" up --transmission -b "$BOX" >/dev/null
+    printf '# Transmission walk %s (%s)\n\nBuild `%s`, a box on the Transmission playground (`app-box.sh up %s`). Each step: what was done, every check on the daemon and on disk, and shots. Paths are under the playground profile, written PROFILE here.\n' \
+        "$(date '+%Y-%m-%d %H:%M')" "$FROM" "$(git rev-parse --short HEAD)" "$FLAG" >"$OUT/index.md"
 fi
+"$APP_BOX" up "${up_args[@]}" >/dev/null
 home="$(omabox path -b "$BOX")/home"
+
+if [ "$FROM" = podman ]; then
+    step "First run finds the container" "No server saved: first run's detector asks podman for its containers and offers the one whose image names Transmission, at the host port it publishes. Then the server is saved with its path map and omaseed starts again."
+    expect_text "first run offers Transmission in the podman container, at its published port" \
+        "127.0.0.1:$PORT · Podman container $CONTAINER" 30
+    shot "First run: Use Transmission on this machine · 127.0.0.1:$PORT · Podman container $CONTAINER."
+    omabox run -b "$BOX" -- "$repo/build/omaseed" --quit >/dev/null 2>&1 || true
+    omabox wait -b "$BOX" --timeout 20s window omaseed --gone >/dev/null 2>&1 || fail "omaseed did not quit"
+    mv "$home/.omaseed-servers.json" "$home/.config/omaseed/servers.json"
+    "$APP_BOX" restart -b "$BOX" >/dev/null
+fi
 cp "$WALK/$NAME.torrent" "$home/Downloads/"
 expect_text "omaseed lists the playground's $SEEDED torrents" "$SEEDED torrents" 30
 
 # ---- the walk -----------------------------------------------------------------------------
 
-step "Add with a label and a save path" "a: the add sheet; ~/Downloads/$NAME.torrent in the first field; tab to Labels, space on … (the label palette), \"walk-label\", enter on new label; tab to Save to, PROFILE/walk/in, where its data already is; enter (add). Transmission verifies the data and seeds."
+step "Add with a label and a save path" "a: the add sheet; ~/Downloads/$NAME.torrent in the first field; tab to Labels, space on … (the label palette), \"walk-label\", enter on new label; tab to Save to, $R_IN (the daemon's path), where its data already is; enter (add). Transmission verifies the data and seeds."
 keys a
 expect_text "the add sheet is open" "Add torrent" 10
 keys -t "$BOX_HOME/Downloads/$NAME.torrent"
@@ -261,15 +384,15 @@ keys -t walk-label
 shot "The label palette over the add sheet: new label \"walk-label\"." palette
 keys Return
 expect_text "the label is picked in the sheet" "walk-label" 10
-keys Tab -t "$IN"
-expect_text "Save to holds the path" "$IN" 10
+keys Tab -t "$R_IN"
+expect_text "Save to holds the path" "$R_IN" 10
 shot "The add sheet: $NAME · 3.00 MB · from file, Labels walk-label, Save to PROFILE/walk/in, the three files." sheet
 keys Return
 expect_no_text "the sheet closed" "Add torrent" 10
 expect "the daemon has it" "$HASH" 't is not None' 20
 expect "named $NAME" "$HASH" "t['name'] == '$NAME'"
 expect "labelled walk-label only" "$HASH" "t['labels'] == ['walk-label']"
-expect "saving to PROFILE/walk/in" "$HASH" "t['download_dir'].rstrip('/') == '$IN'"
+expect "saving to $R_IN" "$HASH" "t['download_dir'].rstrip('/') == '$R_IN'"
 expect "verified complete from the data there, no error" "$HASH" "t['percent_done'] == 1 and t['have_valid'] == t['total_size'] and t['error'] == 0" 30
 expect "seeding" "$HASH" "t['status'] == 6" 30
 expect_same "sample.bin on disk is the torrent's" "$NAME/sample.bin" "$IN/$NAME/sample.bin"
@@ -286,7 +409,7 @@ keys ctrl+a -t "$RENAMED"
 shot "The rename sheet: the new name typed, the K28 line with the folder's path." sheet
 keys Return
 expect "the daemon's name is $RENAMED" "$HASH" "t['name'] == '$RENAMED'"
-expect "still in PROFILE/walk/in" "$HASH" "t['download_dir'].rstrip('/') == '$IN'"
+expect "still in $R_IN" "$HASH" "t['download_dir'].rstrip('/') == '$R_IN'"
 expect_disk "the folder on disk is $RENAMED" -d "$IN/$RENAMED"
 expect_disk "…and no longer $NAME" ! "$IN/$NAME"
 expect_same "its files came with it" "$NAME/sample.bin" "$IN/$RENAMED/sample.bin"
@@ -294,16 +417,29 @@ expect "still complete and seeding" "$HASH" "t['percent_done'] == 1 and t['statu
 expect_text "the row reads the new name" "$RENAMED" 10
 shot "The row reads $RENAMED."
 
-step "Move" "Jump to it, its actions menu, m: the Move… sheet (Transmission's checks: room by its count, names not checkable there); ctrl+a, PROFILE/walk/moved (not made yet), enter."
+if [ "$FROM" = podman ]; then
+    move_checks="omaseed's own checks, through the path map: room and names read here"
+else
+    move_checks="Transmission's checks: room by its count, names not checkable there"
+fi
+step "Move" "Jump to it, its actions menu, m: the Move… sheet ($move_checks); ctrl+a, $R_MOVED (not made yet), enter."
 menu_on "$NAME"
 keys m
 expect_text "the Move… sheet is open" "new path on" 10
-keys ctrl+a -t "$MOVED"
-expect_text "the sheet read the room on the server" "Room. 3.00 MB to move" 20
-expect_text "…and says names there can't be checked on Transmission" "Names at the destination can't be checked on Transmission" 10
-shot "The Move… sheet: PROFILE/walk/moved; room by Transmission's count; names can't be checked on Transmission; goes alone." sheet
+keys ctrl+a -t "$R_MOVED"
+if [ "$FROM" = podman ]; then
+    # The path map shows omaseed the disks: room and names are read here.
+    expect_text "the sheet read the room here: the same drive, a rename" "Room. The same drive" 20
+    expect_no_text "…not \"can't see the disks\"" "omaseed can't see" 5
+    expect_no_text "…and names there are checked here, not \"can't be checked\"" "Names at the destination can't be checked" 5
+    shot "The Move… sheet: $R_MOVED; the same drive, renamed; no line about disks omaseed can't see or names it can't check; goes alone." sheet
+else
+    expect_text "the sheet read the room on the server" "Room. 3.00 MB to move" 20
+    expect_text "…and says names there can't be checked on Transmission" "Names at the destination can't be checked on Transmission" 10
+    shot "The Move… sheet: PROFILE/walk/moved; room by Transmission's count; names can't be checked on Transmission; goes alone." sheet
+fi
 keys Return
-expect "the daemon's download_dir is PROFILE/walk/moved" "$HASH" "t['download_dir'].rstrip('/') == '$MOVED'" 60
+expect "the daemon's download_dir is $R_MOVED" "$HASH" "t['download_dir'].rstrip('/') == '$R_MOVED'" 60
 expect_disk "the folder is in PROFILE/walk/moved" -d "$MOVED/$RENAMED" 30
 expect_same "every byte with it" "$NAME/sample.bin" "$MOVED/$RENAMED/sample.bin"
 expect_disk "…Docs/README.txt too" -f "$MOVED/$RENAMED/Docs/README.txt"
@@ -311,8 +447,14 @@ expect_disk "the old place holds nothing of it" ! "$IN/$RENAMED" 30
 if [ -z "$(ls -A "$IN")" ]; then pass "PROFILE/walk/in is empty"; else fail "PROFILE/walk/in still has: $(ls -A "$IN")"; fi
 expect "still complete and seeding" "$HASH" "t['percent_done'] == 1 and t['status'] == 6 and t['error'] == 0" 30
 # The tree cuts a name at 80 characters: the path's start is enough.
-expect_text "the story says it moved" "Moved to ${MOVED:0:40}" 20
-shot "Moved: the details' story, Moved to PROFILE/walk/moved; the rail's folder reads moved."
+expect_text "the story says it moved" "Moved to ${R_MOVED:0:40}" 20
+shot "Moved: the details' story, Moved to $R_MOVED; the rail's folder reads moved."
+if [ "$FROM" = podman ]; then
+    menu_on "$NAME"
+    keys o
+    # Open folder (o in its actions menu) maps the container's path to this machine's.
+    expect_logged "open folder opens this machine's folder, through the path map" "open folder: $MOVED/$RENAMED" 10
+fi
 
 step "Add a label" "Jump to it, its actions menu, t: the label palette for 1 torrent; \"walk-two\", enter on new label."
 menu_on "$NAME"
@@ -354,6 +496,83 @@ expect_disk "its folder is gone from disk" ! "$MOVED/$RENAMED" 30
 expect "the other $SEEDED torrents are all still there" "$HASH" "sorted(x['hash_string'] for x in every) == $OTHERS"
 expect_no_text "the row is gone" "$RENAMED" 20
 shot "The table without it; the rail without its folder and labels."
+
+# ---- where omaseed sees the disks (#233) ---------------------------------------------------
+
+if [ "$FROM" = native ]; then
+    # The same box again, now seeing the profile (omabox binds what is there at `up`). FAR is
+    # bound on its own too: a subvolume is no mount here, so omaseed would take it for the same
+    # drive (a rename) while the daemon copies; its own mount in the box says what it is.
+    up_args=(--transmission -b "$BOX" --ro-bind "$PROFILE" --ro-bind "$FAR")
+    [ "$INTERACTIVE" = 1 ] && up_args+=(--interactive)
+    "$APP_BOX" up "${up_args[@]}" >/dev/null
+    expect_text "omaseed is back, seeing the profile's folders" "$SEEDED torrents" 30
+fi
+trpc torrent_add "{\"metainfo\":\"$(base64 -w0 "$WALK/$BIG.torrent")\",\"download_dir\":\"$R_BIG_DIR\"}" >/dev/null
+expect "$BIG verified complete from its data and seeding" "$BIG_HASH" "t is not None and t['percent_done'] == 1 and t['status'] == 6" 90
+expect_text "its row is in the table" "$BIG" 20
+
+step "A name already at the destination" "A file named $BIG put in $R_FAR by hand; then $BIG's Move… sheet to $R_FAR. omaseed sees that folder, so it leaves the torrent out and says Transmission would replace that file (board 47 §E, M8). Esc: nothing sent."
+printf 'a file that happens to have the torrent'"'"'s name\n' >"$FAR/$BIG"
+menu_on "$BIG"
+keys m
+expect_text "the Move… sheet is open" "new path on" 10
+keys ctrl+a -t "$R_FAR"
+expect_text "it is left out" "1 left out" 20
+expect_text "…because Transmission would replace that file" "would replace that file with theirs" 10
+shot "The Move… sheet: 1 left out, $R_FAR already has a file with its name; Transmission would replace that file with theirs." sheet
+keys Escape
+expect_no_text "the sheet closed" "new path on" 10
+expect "nothing was sent: still in $R_BIG_DIR" "$BIG_HASH" "t['download_dir'].rstrip('/') == '$R_BIG_DIR'"
+rm -f "$FAR/$BIG"
+
+if [ "$COPIES" = 1 ]; then
+    step "A move that copies, seen growing" "$BIG's Move… sheet to $R_FAR (another file system for the daemon: a copy); enter. As soon as the copy has started, the daemon is frozen (SIGSTOP) for the shots: Transmission answers nothing while it moves, so the busy band shows, with what has arrived there as omaseed reads it on disk. Then it is let go and the move lands."
+    menu_on "$BIG"
+    keys m
+    expect_text "the Move… sheet is open" "new path on" 10
+    keys ctrl+a -t "$R_FAR"
+    expect_text "the sheet read the room here" "Room. 1.00 GB to move" 20
+    shot "The Move… sheet: $R_FAR, 1.00 GB to move, read on this machine." sheet
+    DAEMON="$(daemon_pid)"
+    [ -n "$DAEMON" ] || fail "no daemon process found to freeze"
+    # Freeze it once the copy has begun (the file at the destination has bytes), not before.
+    python3 - "$FAR/$BIG" "$DAEMON" <<'FREEZE' &
+import os, signal, sys, time
+path, pid = sys.argv[1], int(sys.argv[2])
+end = time.monotonic() + 60
+while time.monotonic() < end:
+    try:
+        if os.stat(path).st_size > 0:
+            os.kill(pid, signal.SIGSTOP)
+            sys.exit(0)
+    except FileNotFoundError:
+        pass
+    time.sleep(0.002)
+sys.exit("the copy never started")
+FREEZE
+    freezer=$!
+    keys Return
+    if wait "$freezer"; then FROZEN="$DAEMON"; else fail "the copy to $R_FAR never started"; fi
+    there="$(stat -c %s "$FAR/$BIG")"
+    if [ "$there" -lt "$BIG_SIZE" ]; then pass "frozen halfway: $there of $BIG_SIZE bytes there"; else fail "the copy was done before the freeze"; fi
+    expect_text "the busy band: Transmission is busy moving it" "is busy moving $BIG" 20
+    expect_text "…with what has arrived there, read on disk" "of 1.00 GB there" 10
+    shot "Busy moving: the band's growth line, N of 1.00 GB there; the list's time; speeds —." busy
+    kill -CONT "$FROZEN"
+    FROZEN=""
+    expect "the daemon's download_dir is $R_FAR" "$BIG_HASH" "t['download_dir'].rstrip('/') == '$R_FAR'" 120
+    expect_size "all of it there" "$FAR/$BIG" "$BIG_SIZE" 60
+    expect_disk "…and gone from where it was" ! "$BIG_DIR/$BIG" 30
+    expect "still complete and seeding" "$BIG_HASH" "t['percent_done'] == 1 and t['status'] == 6 and t['error'] == 0" 60
+    expect_no_text "the busy band is gone" "is busy moving" 30
+    shot "Moved: the band gone, the row seeding from $R_FAR."
+else
+    echo "  (the move that copies is skipped: $FAR is on the same file system as $BIG_DIR; it needs btrfs)"
+    [ "$INTERACTIVE" = 1 ] || printf '\n*The move that copies was skipped: no second file system under the profile (it needs btrfs).*\n' >>"$OUT/index.md"
+fi
+trpc torrent_remove "{\"ids\":[\"$BIG_HASH\"],\"delete_local_data\":true}" >/dev/null
+expect "$BIG removed, with its data" "$BIG_HASH" 't is None' 30
 
 if [ "$INTERACTIVE" = 0 ]; then
     printf '\n**PASS: %d checks.**\n' "$CHECKS" >>"$OUT/index.md"

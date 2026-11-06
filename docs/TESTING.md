@@ -16,7 +16,10 @@ follows. The commands themselves are listed in `CLAUDE.md`; `README.md` says how
    (`test-server.sh start --transmission`) and deluge-web 2.2 on `:8086` (`start --deluge`,
    its password `DELUGE_TEST_PASS` in `dev.env`), user processes with their config under
    `~/.local/share/omaseed-test/`, each with `seed` (three small generic torrents, complete
-   and seeding) and `reset`. `tst_enginerecognizer_live` recognises both; it skips a server
+   and seeding) and `reset`. Transmission also runs as many people run it, in a container:
+   `start --transmission-podman` puts LinuxServer's image (pinned to 4.1.3) in rootless
+   podman on `:8087`, its `/downloads` and `/far` mounted from its profile, so a server
+   saved for it needs a path map. `tst_enginerecognizer_live` recognises both; it skips a server
    that isn't running.
 3. **Walks** (`scripts/dev/*-walk.sh`). The app driven through its own UI in an
    [omabox](https://github.com/diogochaves/omabox), an invisible desktop, checking what
@@ -41,7 +44,7 @@ follows. The commands themselves are listed in `CLAUDE.md`; `README.md` says how
    | `stuck-walk.sh` | a finished torrent whose move into a full disk failed (a loop image), and a recheck once room is made |
    | `move-walk.sh` | moving folders and selections: queue, places, partial packs, move back (with the loose files a folder move carried), recheck |
    | `search-walk.sh` | search through invented plugins (`scripts/dev/search-plugins.py`, whose rows are the offline swarm's): install from Settings, a failed install, a plugin off and on; a search filling in, a failed and a slow plugin and their answers; a folded magnet and a link (through its plugin) added and arriving; hide dead, `/`, uninstall |
-   | `transmission-walk.sh` | a Transmission server (`:8085`, the playground; started, seeded and wiped afterwards when it wasn't up): a `.torrent` added through the add sheet with a label and a save path, renamed (its folder on disk follows, K28), moved through the Move… sheet, a label added and one taken off, deleted with its files; each step checked on the daemon's RPC and on disk |
+   | `transmission-walk.sh` | a Transmission server (`:8085`, the playground; started, seeded and wiped afterwards when it wasn't up): a `.torrent` added through the add sheet with a label and a save path, renamed (its folder on disk follows, K28), moved through the Move… sheet, a label added and one taken off, deleted with its files; each step checked on the daemon's RPC and on disk. Then where omaseed sees the disks (the box again, the profile bound in with `--ro-bind`): a file by a torrent's name at the destination (left out, Transmission would replace it, M8) and a move that copies, frozen halfway (SIGSTOP) so the busy band shows the growth probe's "N of M there" (needs btrfs for a second file system; skipped elsewhere). `OMASEED_TRANSMISSION_WALK_FROM=podman`: the same on the podman Transmission (`:8087`), saved with its path map: first run's detector finds the container, daemon checks read its paths and disk checks the mapped ones, the Move… sheet reads room and names here, open folder resolves to this machine's path |
 
    A box is a new install, so omaseed starts on the rows display there (DECISIONS C24 H4). Each
    walk pins the display it reads with `OMASEED_DISPLAY` (`table`, `rows` or `space`, which also reads the shelves' old `overview`: every
