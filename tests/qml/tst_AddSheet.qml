@@ -377,6 +377,80 @@ TestCase {
         verify(!line.visible);
     }
 
+    // C25 K25 (board 47 §G, #147): an engine that finds torrents by their v1 hash
+    // (Transmission) can't add a v2-only one: a red line, the add off; a v1 hash goes.
+    function test_a_v2_only_hash_is_refused_where_the_engine_finds_v1_hashes() {
+        const sheet = createTemporaryObject(addSheetComponent, testCase, {
+                                                "_can": {
+                                                    "v2Only": false,
+                                                    "fetchMetadata": false,
+                                                    "addOptions": false
+                                                },
+                                                "engineName": "Transmission"
+                                            });
+        const added = createTemporaryObject(addSpy, testCase, {
+                                                "target": sheet
+                                            });
+        const block = findChild(sheet, "addV2OnlyBlock");
+        sheet.open();
+        sheet.sourceField.text = testCase.freshHashV2;
+        verify(sheet.v2OnlyRefused);
+        verify(block.visible);
+        compare(findChild(sheet, "addV2OnlyLine").text,
+                App.serverName + " (Transmission) can't add a v2-only hash");
+        compare(findChild(sheet, "addV2OnlyWhy").text,
+                "Transmission finds torrents by their v1 hash. A hybrid torrent's magnet link carries one too: paste the whole link instead.");
+        // Neither button sends it; the files row has no wait to draw.
+        sheet.triggerPrimary();
+        sheet.triggerSecondary();
+        compare(added.count, 0);
+        verify(!findChild(sheet, "addNoFetchLine").visible);
+
+        // A btmh-only magnet link is the same torrent, worded as a link.
+        sheet.loadText("magnet:?xt=urn:btmh:1220" + testCase.freshHashV2 + "&dn=v2", "");
+        verify(sheet.v2OnlyRefused);
+        compare(findChild(sheet, "addV2OnlyLine").text,
+                App.serverName + " (Transmission) can't add a magnet link with only a v2 hash");
+
+        // A v1 hash goes.
+        sheet.loadText(testCase.freshHash, "");
+        verify(!sheet.v2OnlyRefused);
+        verify(!block.visible);
+    }
+
+    // qBittorrent takes a v2 hash (#147): no line.
+    function test_a_v2_only_hash_goes_to_qbittorrent() {
+        const sheet = createTemporaryObject(addSheetComponent, testCase);
+        sheet.open();
+        sheet.sourceField.text = testCase.freshHashV2;
+        verify(!sheet.v2OnlyRefused);
+        verify(!findChild(sheet, "addV2OnlyBlock").visible);
+    }
+
+    // C25 K26 (board 47 §G): Transmission can't read a magnet's files before the add; one dim
+    // line where the tree would be, and nothing waits.
+    function test_a_magnet_on_an_engine_without_a_lookup_says_where_its_files_are_picked() {
+        const sheet = createTemporaryObject(addSheetComponent, testCase, {
+                                                "_can": {
+                                                    "v2Only": false,
+                                                    "fetchMetadata": false,
+                                                    "addOptions": false
+                                                },
+                                                "engineName": "Transmission"
+                                            });
+        sheet.open();
+        sheet.loadText(testCase.freshMagnet, "");
+        const line = findChild(sheet, "addNoFetchLine");
+        verify(line.visible);
+        compare(line.text,
+                "⋯ Transmission finds a magnet's files only once it is added and started: pick them in files then");
+        // An engine with a lookup has C5's waits instead.
+        sheet._can = {
+            "fetchMetadata": true
+        };
+        verify(!line.visible);
+    }
+
     // ---- the rows -------------------------------------------------------------------------
 
     function test_the_category_chips_are_the_servers_categories() {

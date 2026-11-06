@@ -69,8 +69,10 @@ Sheet {
     /// recognisable. `valid`, `name`, `sizeText`, `infoHashV1/V2`, `kind`, `value`, `token`.
     property var addable: null
     /// What the server can do (App.features, docs/DECISIONS.md C14 E4): a field for what it
-    /// can't is not offered. A key it lacks counts as on.
-    readonly property var _can: App.features
+    /// can't is not offered. A key it lacks counts as on. A test gives its own.
+    property var _can: App.features
+    /// The server's engine, as its lines name it (C25 K25–K27); a test gives its own.
+    property string engineName: App.serverEngineName || "qBittorrent"
     /// #145 (DECISIONS C26 SR9): the search result the sheet was opened on, App.searchAddable's
     /// `{key, text, downloader, fromLine}`, or null. Its link goes through its plugin
     /// (`downloader`), its line names the plugins and trackers, and the row says "added".
@@ -104,6 +106,43 @@ Sheet {
     readonly property bool bareHashWithoutDht: App.serverPrefs.values.dht === false
                                                && (sheet.batchMode ? sheet.batch.some(entry => entry.map.bareHash === true)
                                                                    : sheet.addable !== null && sheet.addable.bareHash === true)
+    /// C25 K25 (#147): the server's engine finds torrents by their v1 hash, so a torrent known
+    /// only by its v2 one (a 64-character hash, a btmh-only magnet, a v2-only .torrent) can't
+    /// be added there: a red line says so and the add is off. In a batch, the rows that are.
+    readonly property var _v2OnlyRefused: {
+        if (sheet._can.v2Only !== false)
+            return [];
+        const v2Only = map => map !== null && map !== undefined && map.valid === true
+                       && (map.infoHashV1 || "").length === 0 && (map.infoHashV2 || "").length > 0;
+        if (sheet.batchMode)
+            return sheet.batch.filter(entry => v2Only(entry.map)).map(entry => entry.map);
+        return v2Only(sheet.addable) ? [sheet.addable] : [];
+    }
+    readonly property bool v2OnlyRefused: sheet._v2OnlyRefused.length > 0
+    /// The red line's two parts: what can't be added, and why, with the way out.
+    readonly property string v2OnlyHeadline: {
+        const who = qsTr("%1 (%2)").arg(App.serverName).arg(sheet.engineName);
+        if (sheet.batchMode)
+            return qsTr("%1 can't add %n of these: they are known only by their v2 hash", "",
+                        sheet._v2OnlyRefused.length).arg(who);
+        const one = sheet._v2OnlyRefused.length > 0 ? sheet._v2OnlyRefused[0] : {};
+        if (one.kind === "file")
+            return qsTr("%1 can't add a v2-only torrent").arg(who);
+        if (one.bareHash === true)
+            return qsTr("%1 can't add a v2-only hash").arg(who);
+        return qsTr("%1 can't add a magnet link with only a v2 hash").arg(who);
+    }
+    readonly property string v2OnlyLine: {
+        const one = !sheet.batchMode && sheet._v2OnlyRefused.length > 0 ? sheet._v2OnlyRefused[0] : {};
+        if (sheet.batchMode)
+            return qsTr("%1 finds torrents by their v1 hash. Take them out of the list to add the rest.").arg(
+                        sheet.engineName);
+        if (one.kind === "file")
+            return qsTr("%1 finds torrents by their v1 hash, and this .torrent has none: a hybrid torrent's has both.").arg(
+                        sheet.engineName);
+        return qsTr("%1 finds torrents by their v1 hash. A hybrid torrent's magnet link carries one too: paste the whole link instead.").arg(
+                    sheet.engineName);
+    }
     /// D15: `add when back` holds `{stopped}` until the server answers.
     property var _held: null
     /// The server the sheet's figures came from, to tell a switch from another server change.
@@ -250,6 +289,10 @@ Sheet {
                                       && (sheet.addable.token || "").length === 0
     /// The Files row holds the lookup's line instead of a tree (F1, F3-F5, F7, F8).
     readonly property bool _showFetch: !sheet.batchMode && sheet._lookable && !sheet.showFiles && fetchLine.shown
+    /// C25 K26 (board 47 §G): an engine that can't fetch a magnet's files before the add
+    /// (Transmission) gets one dim line in the Files row instead of C5's waits.
+    readonly property bool _showNoFetch: !sheet.batchMode && sheet._lookable && !sheet.showFiles
+                                         && sheet._can.fetchMetadata === false && !sheet.v2OnlyRefused
     /// D5 a: "add stopped" before the list stops it once the list arrives, while the server
     /// can fetch one (not for a private tracker's magnet, nor below Web API 2.11.9).
     readonly property bool _untilMetadata: sheet._lookable
@@ -776,6 +819,9 @@ Sheet {
         function submit(stopped: bool): void {
         if (sheet._adding)
             return;
+        // C25 K25: the red line says why; nothing is sent.
+        if (sheet.v2OnlyRefused)
+            return;
         sheet._submitWhenRead = null;
         // Ticks in In Downloads: they become the field's source, or a batch, as a click on a
         // row would make them, and this add goes on with them.
@@ -1181,7 +1227,8 @@ Sheet {
                                                     },
                                                     {
                                                         "text": sheet._addStoppedText,
-                                                        "primary": true
+                                                        "primary": true,
+                                                        "disabled": sheet.v2OnlyRefused
                                                     }
                                                 ] : [
                                                     {
@@ -1190,11 +1237,13 @@ Sheet {
                                                     },
                                                     {
                                                         "text": sheet._addStoppedText,
-                                                        "secondary": true
+                                                        "secondary": true,
+                                                        "disabled": sheet.v2OnlyRefused
                                                     },
                                                     {
                                                         "text": sheet._addText,
-                                                        "primary": true
+                                                        "primary": true,
+                                                        "disabled": sheet.v2OnlyRefused
                                                     }
                                                 ]
                 // docs/33 D13, D20: the server is named in the head with two servers, nowhere
@@ -1368,7 +1417,34 @@ Sheet {
                         objectName: "addNoDhtLine"
                         text: qsTr("DHT is off on %1, and an info hash names no tracker: it may never find anyone.").arg(
                                   App.serverName)
-                        visible: sheet.bareHashWithoutDht
+                        visible: sheet.bareHashWithoutDht && !sheet.v2OnlyRefused
+                    }
+
+                    // C25 K25 (board 47 §G, #147): a v2-only hash on an engine that finds
+                    // torrents by their v1 hash: a red line, the add off.
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        objectName: "addV2OnlyBlock"
+                        spacing: Theme.space(2)
+                        visible: sheet.v2OnlyRefused
+
+                        Banner {
+                            Layout.fillWidth: true
+                            kind: "error"
+                            objectName: "addV2OnlyLine"
+                            text: sheet.v2OnlyHeadline
+                        }
+
+                        Label {
+                            Accessible.name: text
+                            Accessible.role: Accessible.StaticText
+                            Layout.fillWidth: true
+                            dim: true
+                            objectName: "addV2OnlyWhy"
+                            size: "caption"
+                            text: sheet.v2OnlyLine
+                            wrapMode: Text.Wrap
+                        }
                     }
 
                     // docs/33 D14 (A2): what a switch from the sheet moved, in one yellow line.
@@ -2061,7 +2137,7 @@ Sheet {
 
                         Layout.fillWidth: true
                         spacing: Theme.space(4)
-                        visible: sheet.showFiles || sheet._showFetch
+                        visible: sheet.showFiles || sheet._showFetch || sheet._showNoFetch
 
                         RowLayout {
                             id: filesHead
@@ -2099,6 +2175,23 @@ Sheet {
                             seconds: App.addLookup.seconds
                             serverName: App.serverName
                             visible: sheet._showFetch
+                        }
+
+                        // C25 K26: "Transmission finds a magnet's files only once it is added
+                        // and started: pick them in files then" (a link's .torrent likewise).
+                        Label {
+                            Accessible.name: text
+                            Accessible.role: Accessible.StaticText
+                            Layout.fillWidth: true
+                            dim: true
+                            objectName: "addNoFetchLine"
+                            size: "caption"
+                            text: (sheet.addable && sheet.addable.kind === "url"
+                                   ? qsTr("⋯ %1 reads a link's .torrent only once it is added: pick its files in files then")
+                                   : qsTr("⋯ %1 finds a magnet's files only once it is added and started: pick them in files then")).arg(
+                                      sheet.engineName)
+                            visible: sheet._showNoFetch
+                            wrapMode: Text.Wrap
                         }
 
                         AddFilesTree {

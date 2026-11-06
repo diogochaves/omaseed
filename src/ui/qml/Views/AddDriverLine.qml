@@ -10,7 +10,9 @@ import Omaseed.Kit
 // and counts the full size of what is ticked: it fits, or "Select fewer files, or save to
 // another disk". On vfat (FAT32) a file of 4 GiB or more is named in red with "Skip these";
 // the add stays possible. The newer ntfs driver, Linux filesystems, unmeasured types and disks
-// this machine can't see get nothing.
+// this machine can't see get nothing. The lines name the server's engine (C25 K27): the disk's
+// rule is the same under every engine that writes pieces where they fall (Transmission's
+// "sparse" files are whole files on these drivers too).
 //
 // Hand-formatted (qmlformat rewrites typed function bodies).
 ColumnLayout {
@@ -20,6 +22,8 @@ ColumnLayout {
     /// The ticked files' bytes (their full size), or -1 while unknown.
     property real neededBytes: -1
     property bool serverDown: false
+    /// The engine that would stop, as the lines name it.
+    property string engineName: App.serverEngineName || "qBittorrent"
     /// D9 needs the files: off for a batch of several torrents.
     property bool perFile: true
 
@@ -55,8 +59,8 @@ ColumnLayout {
             size: "caption"
             text: root.fits ? qsTr("On this disk every file you tick takes its full size at once. Selected: %1, so it fits.").arg(
                                   App.sizeText(root.neededBytes))
-                            : qsTr("Needs %1, %2 free: every ticked file takes its full size here at once, so qBittorrent would stop with \"No space left on device\" before downloading. Select fewer files, or save to another disk.").arg(
-                                  App.sizeText(root.neededBytes)).arg(App.sizeText(root.room.bytesFree))
+                            : qsTr("Needs %1, %2 free: every ticked file takes its full size here at once, so %3 would stop with \"No space left on device\" before downloading. Select fewer files, or save to another disk.").arg(
+                                  App.sizeText(root.neededBytes)).arg(App.sizeText(root.room.bytesFree)).arg(root.engineName)
             wrapMode: Text.Wrap
         }
     }
@@ -74,7 +78,7 @@ ColumnLayout {
             color: Theme.red
             objectName: "addFat32Line"
             size: "caption"
-            text: qsTr("%n files are 4 GiB or more, past what FAT32 can hold: qBittorrent would stop with \"File too large\" within seconds of the tick.", "", root.tooBig.length)
+            text: qsTr("%n files are 4 GiB or more, past what FAT32 can hold: %1 would stop with \"File too large\" within seconds of the tick.", "", root.tooBig.length).arg(root.engineName)
                   + " " + root.tooBig.slice(0, 3).map(file => file.path).join(", ")
                   + (root.tooBig.length > 3 ? " …" : "")
             wrapMode: Text.Wrap

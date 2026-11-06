@@ -57,6 +57,18 @@ TestCase {
         compare(text.color, Theme.red);
     }
 
+    // C25 K27: the disk's rule holds under any engine; the line names the server's.
+    function test_the_line_names_the_servers_engine() {
+        const line = createTemporaryObject(lineComponent, testCase, {
+                                               "room": ntfs3(23 * testCase.gb),
+                                               "neededBytes": 85.8 * testCase.gb
+                                           });
+        const text = findChild(line, "addDriverLine");
+        verify(text.text.indexOf("so qBittorrent would stop") > 0, text.text);
+        line.engineName = "Transmission";
+        verify(text.text.indexOf("so Transmission would stop") > 0, text.text);
+    }
+
     function test_other_drivers_get_no_line() {
         for (const fs of ["ntfs", "ext4", "btrfs", "fuseblk", ""]) {
             const line = createTemporaryObject(lineComponent, testCase, {

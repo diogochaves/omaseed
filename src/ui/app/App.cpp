@@ -5394,6 +5394,7 @@ QVariantMap App::featuresMap() const
         {QStringLiteral("autoManagement"), f.autoManagement},
         {QStringLiteral("fetchMetadata"), f.fetchMetadata},
         {QStringLiteral("addOptions"), f.addOptions},
+        {QStringLiteral("v2Only"), f.v2Only},
         {QStringLiteral("peerControl"), f.peerControl},
         {QStringLiteral("editWebSeeds"), f.editWebSeeds},
         {QStringLiteral("seedingTimeLimit"), f.seedingTimeLimit},

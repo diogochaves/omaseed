@@ -873,6 +873,7 @@ EngineFeatures features(const ServerInfo &)
     f.autoManagement = false;    // I
     f.fetchMetadata = false;     // G, K26: a stopped magnet never connects
     f.addOptions = false;        // G, K27: no name, layout, first and last, skip check at add
+    f.v2Only = false;            // G, K25: its magnet parser takes btih only
     f.renameOnDisk = true;       // G, K28: renaming renames its folder on disk
     f.moveProgress = false;      // E, K21: no moving state; download_dir changes at the end
     f.moveStopsOnFailure = true; // E, §4: error 3 "Couldn't move…", the torrent stopped

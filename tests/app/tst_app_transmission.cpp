@@ -561,6 +561,7 @@ void TestAppTransmission::whatTransmissionLacksIsNotOffered()
                             "autoManagement",
                             "fetchMetadata",
                             "addOptions",
+                            "v2Only",
                             "peerControl",
                             "editWebSeeds",
                             "seedingTimeLimit",

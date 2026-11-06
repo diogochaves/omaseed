@@ -47,6 +47,9 @@ struct EngineFeatures
     /// shown: Transmission's torrent_rename_path (C25 K28). Renaming a file or folder inside
     /// it keeps it where it is there (a new name, never a new folder).
     bool renameOnDisk = false;
+    /// A torrent known only by its v2 hash (a 64-character hash, a btmh-only magnet, a v2-only
+    /// .torrent) can be added; Transmission finds torrents by their v1 hash (C25 K25, #147).
+    bool v2Only = false;
     // Moves (board 47 §E, the engine matrix's §4.2; C25 K21–K23).
     /// The engine says how far one torrent's move is, wherever its disks are (Deluge's %).
     /// Without it, the growth probe measures the target when omaseed sees the disks (L10).

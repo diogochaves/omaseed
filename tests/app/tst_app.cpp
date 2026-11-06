@@ -226,6 +226,7 @@ void TestApp::featuresFollowTheServersVersion()
                             "superSeeding",
                             "autoManagement",
                             "addOptions",
+                            "v2Only",
                             "peerControl",
                             "editWebSeeds",
                             "seedingTimeLimit",

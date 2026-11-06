@@ -550,6 +550,7 @@ void TestTransmissionTranslate::featuresFollowBoard47()
                            f.autoManagement,
                            f.fetchMetadata,
                            f.addOptions,
+                           f.v2Only,
                            f.peerControl,
                            f.editWebSeeds,
                            f.engineLog,
