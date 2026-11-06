@@ -1464,8 +1464,9 @@ Deluge can't keep and says "a label takes letters, digits, - _ and . only"; each
 and its scope line read "a label · moves to FOLDER when done" or "no folder of its own". Picking a
 label in the add sheet leaves Save to as it was (a label's folder is a move-when-done one, K27).
 With the Label plugin off, the act row is led by m, and C says "NAME (Deluge) has no labels: its
-Label plugin is off" in the status line, as the ? sheet's foot line does, until Settings › Deluge
-› Plugins says it in full. The limits sheet keeps the row "When the limit is reached" with the
+Label plugin is off, see Settings › Deluge › Plugins" in the status line, and the ? sheet's foot
+line "labels (its Label plugin is off: Settings › Deluge › Plugins)"; that section says it in
+full. The limits sheet keeps the row "When the limit is reached" with the
 chips "stop" and "remove (keeps the files)", and its line reads "Deluge has no time limits" /
 "the ratio is the only one; global copies the server's onto the torrent". `r` opens the rename
 sheet on Deluge, so its line "Only the name changes; the folder on disk keeps its name" is read;
@@ -1504,6 +1505,40 @@ say why", with "recheck the N…" first, then "retry the N". The Move sheet warn
 N torrent(s) go to another folder when they finish. Deluge turns that off for any move it makes"
 for unfinished torrents with a move-when-done folder. With deluge-web up and no daemon, the
 status line's server lane reads "NAME · no daemon", as the band and the server's row do.
+
+*Settings › Deluge, its Plugins, the seed console and the settings command (2026-11-06, E6 #87
+and #237, assumed, to confirm):* built from K15, K29, K31, K32 and K34 with these calls the board
+left open. Settings › Deluge goes past K31's Basics, as E5 did for Transmission: qBittorrent's
+sections, order and ids (speed, discovery, connection, seeding, queue, downloads), filled from the
+whole of core.conf (core.get_config), then Plugins. Rows: the two global limits and each new
+torrent's own (KiB/s, empty for none), no limits on the local network, the protocol's overhead,
+and a note that Deluge has no turtle (its Scheduler plugin); DHT, PEX, LSD and one encryption
+choice "on · required · off" written to both ways (enc_in_policy, enc_out_policy; read from the
+outgoing one); the port with its test, a random port, UPnP, NAT-PMP, connections and upload slots
+in total and per torrent; the share ratio with "stop · remove (keeps the files)" and a note that
+each torrent keeps its own ratio; the queue's active, downloading and seeding counts, slow
+torrents, seeds first, new at the top, and the three limits past which a seed gives way (share
+ratio, seed time ratio, seed time); the default save path, move finished torrents, keep a copy of
+each .torrent (and delete it with its torrent), add paused, download in order, first and last
+pieces first, allocate the whole size. Left out: the proxy, interfaces, the cache (libtorrent 2
+maps files), the daemon's own keys (its port, remote access), encryption level. Counts and limits
+Deluge keeps -1 for are empty for none; values out of range are refused before sending. Plugins
+follows the board: read only ("Turning one on or off is done in Deluge's own preferences"; enter
+on a row says so), Label "on · its labels are the rail's labels, one per torrent" or, when off,
+the board's yellow line in its place; Scheduler on or off with its line; "Others" lists the rest
+Deluge has on with "N on", "none on" when none. Its head reads "NAME · Deluge VERSION", not "saved
+as you change it". A Deluge server's group shows beside other engines' as Transmission's does
+(K32). The seed console (K34): an engine without all-time totals feeds omaseed's ledger its
+session's totals (a daemon restart is a step back, a new baseline); the whole library's given,
+taken and ratio are what the ledger booked since it began, their notes "since 14 Oct", and under
+the totals the board's line "Deluge keeps no all-time totals. These count from 14 Oct, when
+omaseed began watching nas; what nas gave before then isn't known."; a scope still sums its
+torrents. #237: ctrl+shift+, is offered in the palette and the ? sheet wherever the engine has a
+group in Settings, titled "qBittorrent settings", "Transmission settings" or "Deluge settings";
+on an engine with none its key says "has no settings omaseed can change". The trackers tab drops
+its Seeds and Peers columns where only the tracker in use has a status (K29: unreported facts
+left out), and a torrent new to the engine has its trackers asked on the next poll, so one added
+paused isn't counted trackerless before it announces.
 
 ## C26 — Search through qBittorrent's search plugins (board 48, ruled 2026-10-22)
 

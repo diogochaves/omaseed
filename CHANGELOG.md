@@ -38,6 +38,9 @@ before it will tag a release.
   install step still offers qbittorrent-nox. (#86)
 - **omaseed's backup** carries a qBittorrent's settings only; a Transmission's settings and
   torrents stay on it, and Settings › Backup says so. (#86)
+- **The settings command names the server's engine.** ctrl+shift+, reads "Transmission
+  settings" in the palette and the ? sheet on a Transmission, where "qBittorrent settings" was
+  hidden; "qBittorrent settings" on a qBittorrent as before. (#237)
 
 ### Fixed
 
