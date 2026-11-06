@@ -20,6 +20,12 @@
 //   torrentCompleted  a known torrent reached progress 1 or got a completion_on in a
 //                     *partial* update — never from the full one, which would fire for the
 //                     whole library at startup.
+//   torrentRenamed    a known torrent's name changed between two applied polls, and it had
+//                     its metadata (a size) both times (DECISIONS C38 R4): a magnet's name
+//                     filling in is no rename. Never from the first full update after
+//                     setClient() (R5: renames while omaseed wasn't looking are left out), nor
+//                     for a torrent's first appearance. Whose rename it was is the caller's to
+//                     work out (C38's echo); the engine only sees the change.
 //   diskAlmostFull    server_state.free_space_on_disk crossed the threshold downwards.
 //   serverLost        the first network or timeout failure, once, not once per poll; also
 //                     deluge-web with no daemon (C25 K10, ErrorWords::isNoDaemon).
@@ -172,6 +178,8 @@ Q_SIGNALS:
                           qint64 sizeBytes,
                           const QString &category,
                           const QString &contentPath);
+    /// C38 R4: `hash`'s name went from `oldName` to `newName` between two polls (above).
+    void torrentRenamed(const QString &hash, const QString &oldName, const QString &newName);
     void diskAlmostFull(qint64 freeBytes);
     void serverLost(const omaseed::core::ApiError &error);
     void serverBack();

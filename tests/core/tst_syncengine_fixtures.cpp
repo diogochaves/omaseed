@@ -185,6 +185,7 @@ private slots:
     void aTimeoutCountsTheSilence();
     void forbiddenStopsThePollLoop();
     void applyDemoDataFillsTheModelsWithNoClient();
+    void aNameChangedBetweenTwoPollsIsARename();
 
 private:
     QByteArray m_full;
@@ -779,6 +780,58 @@ void TestSyncEngineFixtures::applyDemoDataFillsTheModelsWithNoClient()
     QCOMPARE(engine.categories()->names(),
              QStringList({QStringLiteral("fixtures"), QStringLiteral("linux")}));
     QVERIFY(engine.globalState()->freeSpaceOnDisk() > 0);
+}
+
+// DECISIONS C38 R4, R5: a known torrent's name that changes between two polls, while it has its
+// metadata, is a rename; never at the first full update, never a new torrent's first showing,
+// never a magnet's name filling in with its metadata.
+void TestSyncEngineFixtures::aNameChangedBetweenTwoPollsIsARename()
+{
+    const QString kept = QStringLiteral("1111111111111111111111111111111111111111");
+    const QString magnet = QStringLiteral("2222222222222222222222222222222222222222");
+    const QString added = QStringLiteral("3333333333333333333333333333333333333333");
+    const auto row = [](const QString &name, qint64 totalSize) {
+        return QJsonObject{{QStringLiteral("name"), name},
+                           {QStringLiteral("state"), QStringLiteral("uploading")},
+                           {QStringLiteral("total_size"), totalSize}};
+    };
+    const auto poll = [](bool full, const QJsonObject &torrents) {
+        return QJsonObject{{QStringLiteral("rid"), 1},
+                           {QStringLiteral("full_update"), full},
+                           {QStringLiteral("torrents"), torrents}};
+    };
+
+    SyncEngine engine;
+    QSignalSpy renamed(&engine, &SyncEngine::torrentRenamed);
+    // The first full update: nothing to compare with.
+    qbtfeed::demo(
+        engine, poll(true, {{kept, row(QStringLiteral("Kept"), 4096)}, {magnet, row(magnet, -1)}}));
+    QCOMPARE(renamed.count(), 0);
+
+    // A partial: the kept torrent renamed, the magnet's metadata and name arrive, a new one.
+    qbtfeed::demo(engine,
+                  poll(false,
+                       {{kept, QJsonObject{{QStringLiteral("name"), QStringLiteral("Kept 2")}}},
+                        {magnet, row(QStringLiteral("Magnet Named"), 8192)},
+                        {added, row(QStringLiteral("Added"), 1024)}}));
+    QCOMPARE(renamed.count(), 1);
+    QCOMPARE(renamed.at(0).at(0).toString(), kept);
+    QCOMPARE(renamed.at(0).at(1).toString(), QStringLiteral("Kept"));
+    QCOMPARE(renamed.at(0).at(2).toString(), QStringLiteral("Kept 2"));
+
+    // The same name again is no change; a later full update compares too.
+    qbtfeed::demo(
+        engine,
+        poll(false, {{kept, QJsonObject{{QStringLiteral("name"), QStringLiteral("Kept 2")}}}}));
+    QCOMPARE(renamed.count(), 1);
+    qbtfeed::demo(engine,
+                  poll(true,
+                       {{kept, row(QStringLiteral("Kept 2"), 4096)},
+                        {magnet, row(QStringLiteral("Magnet Renamed"), 8192)},
+                        {added, row(QStringLiteral("Added"), 1024)}}));
+    QCOMPARE(renamed.count(), 2);
+    QCOMPARE(renamed.at(1).at(0).toString(), magnet);
+    QCOMPARE(renamed.at(1).at(1).toString(), QStringLiteral("Magnet Named"));
 }
 
 QTEST_MAIN(TestSyncEngineFixtures)

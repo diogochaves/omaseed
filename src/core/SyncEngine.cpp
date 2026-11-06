@@ -459,6 +459,32 @@ void SyncEngine::applyData(const SyncDelta &data)
         }
     }
 
+    // DECISIONS C38 R4, R5: a known torrent's name that changed while it had its metadata
+    // before and after (a magnet's name filling in is no rename), never at the first full
+    // update, which has no "before".
+    struct Renamed
+    {
+        QString hash;
+        QString oldName;
+        QString newName;
+    };
+    QList<Renamed> renamed;
+    if (m_hadFullUpdate) {
+        for (const TorrentPatch &diff : torrents) {
+            if (!diff.has(TorrentField::Name) || diff.values.name.isEmpty())
+                continue;
+            const int row = m_torrents->indexOfHash(diff.hash);
+            if (row < 0)
+                continue;
+            const Torrent &before = m_torrents->torrentAt(row);
+            const qint64 sizeAfter =
+                diff.has(TorrentField::TotalSize) ? diff.values.totalSize : before.totalSize;
+            if (diff.values.name != before.name && !before.name.isEmpty() && before.totalSize > 0 &&
+                sizeAfter > 0)
+                renamed.append({diff.hash, before.name, diff.values.name});
+        }
+    }
+
     if (fullUpdate) {
         m_torrents->applyFullUpdate(torrents);
         m_categories->applyFullUpdate(data.categories);
@@ -490,6 +516,9 @@ void SyncEngine::applyData(const SyncDelta &data)
             Q_EMIT firstSyncFinished();
         }
     }
+
+    for (const Renamed &rename : std::as_const(renamed))
+        Q_EMIT torrentRenamed(rename.hash, rename.oldName, rename.newName);
 
     for (const QString &hash : completed) {
         const Torrent &t = m_torrents->torrent(hash);
