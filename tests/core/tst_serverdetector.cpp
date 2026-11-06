@@ -636,8 +636,7 @@ void TestServerDetector::aPodmanContainerIsFoundToo()
     QCOMPARE(candidates.first().kind, QStringLiteral("docker"));
     QCOMPARE(candidates.first().engine, QStringLiteral("transmission"));
     QCOMPARE(candidates.first().url, QStringLiteral("http://127.0.0.1:8087"));
-    QCOMPARE(candidates.first().detail,
-             QStringLiteral("127.0.0.1:8087 · Podman container seeds"));
+    QCOMPARE(candidates.first().detail, QStringLiteral("127.0.0.1:8087 · Podman container seeds"));
 }
 
 QTEST_GUILESS_MAIN(TestServerDetector)

@@ -444,8 +444,9 @@ bool ServerDetector::candidateFor(EngineKind engine, DetectedServer *candidate) 
         const QString port = hostPort.isEmpty() ? QString::number(usualPort(engine)) : hostPort;
         candidate->url = QStringLiteral("http://127.0.0.1:%1").arg(port);
         candidate->detail =
-            docker ? QStringLiteral("127.0.0.1:%1 · Docker container %2").arg(port, found.dockerName)
-                   : QStringLiteral("127.0.0.1:%1 · Podman container %2").arg(port, found.podmanName);
+            docker
+                ? QStringLiteral("127.0.0.1:%1 · Docker container %2").arg(port, found.dockerName)
+                : QStringLiteral("127.0.0.1:%1 · Podman container %2").arg(port, found.podmanName);
         return true;
     }
     if (found.portFound) {
