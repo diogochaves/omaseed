@@ -16,7 +16,10 @@
 # some not (F15); and a big tick that waits with Undo (#119). After each step it checks what qBittorrent says and
 # what is on disk, and stops at the first mismatch. OMASEED_ACTIONS_WALK_FROM=disk runs board
 # 44's steps alone.
-# Run it again after any change to an action, a sheet, a palette or the action bar.
+# The renames are told in the details' story too (board 56, DECISIONS C38, #236): a torrent's
+# (a typo fix folds into the same line), one made through qBittorrent's API (renamed outside
+# omaseed, folding away when put back), a file, a folder and a sheet run.
+# Run it again after any change to an action, a sheet, a palette, the action bar or the story.
 #
 #   scripts/dev/actions-walk.sh [OUT_DIR]        # agents: a headless box, a shot per step,
 #                                                # OUT_DIR/index.md says what each shot shows
@@ -227,6 +230,34 @@ expect_read() {
         sleep 1
     done
     fail "$what (after ${limit}s the line reads: ${read:-nothing})"
+}
+
+# expect_story "WHAT" LINE [COUNT] [SECONDS]: wait until the details' story shows COUNT lines
+# (default 1) that read LINE, then check it still does 2 s later (a second line, or one taken
+# back, comes a moment after the server's answer). A story line is one node, "TIME, TITLE,
+# DETAIL" (#79); LINE is it without its time, "Renamed, was OLD" (DECISIONS C38), whole: --json
+# carries names uncut. LINE ending in * counts the lines starting with the rest.
+story_count() {
+    omabox tree -b "$BOX" --window omaseed --json 2>/dev/null | python3 -c '
+import json, sys
+want = sys.argv[1]
+names = [n.get("name") or "" for n in json.load(sys.stdin)]
+lines = [n.split(", ", 1)[1] for n in names if ", " in n]
+print(sum(1 for l in lines if (l.startswith(want[:-1]) if want.endswith("*") else l == want)))' "$1"
+}
+expect_story() {
+    local what="$1" line="$2" count="${3:-1}" limit="${4:-20}" got=""
+    for _ in $(seq 1 "$limit"); do
+        got="$(story_count "$line")"
+        if [ "$got" = "$count" ]; then
+            sleep 2
+            got="$(story_count "$line")"
+            [ "$got" = "$count" ] && { pass "$what"; return 0; }
+            fail "$what (then $got lines read \"$line\", not $count)"
+        fi
+        sleep 1
+    done
+    fail "$what (after ${limit}s ${got:-no} lines read \"$line\", not $count)"
 }
 
 # expect_size "WHAT" PATH BYTES: the file PATH in the box is BYTES long.
@@ -699,14 +730,35 @@ sleep 1
 
 # ---- the walk -----------------------------------------------------------------------------
 
-step "Rename a torrent" "tiny-notes.txt, r in the table, a new name, enter. qBittorrent renames the torrent only: the file on disk keeps its name."
+step "Rename a torrent" "tiny-notes.txt, r in the table, a new name with a typo, enter; l 1, its story: Renamed, was tiny-notes.txt. Then r again, the typo fixed, enter: still one line, the first old name kept (DECISIONS C38 R6). qBittorrent renames the torrent only: the file on disk keeps its name."
 table_on "tiny-notes"
 keys r
 shot "The inline editor on tiny-notes.txt, the whole name selected." editor
+keys -t "tiny notes (renamd).txt" Return
+expect "the torrent is called \"tiny notes (renamd).txt\"" "$TINY" 't["name"] == "tiny notes (renamd).txt"'
+keys l 1
+expect_story "its story: Renamed, was tiny-notes.txt" "Renamed, was tiny-notes.txt"
+table_on "tiny notes"
+keys r
 keys -t "tiny notes (renamed).txt" Return
 expect "the torrent is called \"tiny notes (renamed).txt\"" "$TINY" 't["name"] == "tiny notes (renamed).txt"'
+expect_text "the row reads the fixed name" "tiny notes (renamed).txt"
+expect_story "…still one rename line (the typo fix folds into it)" "Renamed, *"
+expect_story "…that keeps the first old name" "Renamed, was tiny-notes.txt"
 expect_disk "the file on disk is still tiny-notes.txt" -f "$TORRENTS_DIR/tiny-notes.txt"
-shot "The row reads \"tiny notes (renamed).txt\"."
+shot "The row reads \"tiny notes (renamed).txt\"; its story: one Renamed line, was tiny-notes.txt, with the accent's square."
+
+step "Renamed outside omaseed" "qBittorrent renames tiny notes (renamed).txt to tiny notes (outside).txt through its API, not the app: after the next poll its story has a second line, Renamed, was tiny notes (renamed).txt · renamed outside omaseed (C38 R4). Then the API puts the name back: that line folds away (R6, a run back to where it began), omaseed's own stays."
+api torrents/rename -d "hash=$TINY" --data-urlencode "name=tiny notes (outside).txt" >/dev/null
+expect "the torrent is called \"tiny notes (outside).txt\"" "$TINY" 't["name"] == "tiny notes (outside).txt"'
+expect_story "its story: Renamed, was tiny notes (renamed).txt · renamed outside omaseed" \
+    "Renamed, was tiny notes (renamed).txt · renamed outside omaseed"
+expect_story "…over omaseed's own, was tiny-notes.txt" "Renamed, was tiny-notes.txt"
+shot "The story, newest first: Renamed, was tiny notes (renamed).txt · renamed outside omaseed; Renamed, was tiny-notes.txt; both with the accent's square, at today's time." story
+api torrents/rename -d "hash=$TINY" --data-urlencode "name=tiny notes (renamed).txt" >/dev/null
+expect "the torrent is called \"tiny notes (renamed).txt\" again" "$TINY" 't["name"] == "tiny notes (renamed).txt"'
+expect_story "the outside line folded away" "Renamed, was tiny notes (renamed).txt · renamed outside omaseed" 0
+expect_story "…omaseed's own stays" "Renamed, *"
 
 step "Rename a file" "Public Domain Sampler's Files tab, README.txt, r, \"LEES MIJ\", enter (the extension stays)."
 table_on "Public Domain"
@@ -719,7 +771,7 @@ expect_disk "LEES MIJ.txt is on disk" -f "$TORRENTS_DIR/Public Domain Sampler/LE
 expect_disk "README.txt is gone from disk" ! "$TORRENTS_DIR/Public Domain Sampler/README.txt"
 shot "The Files tab lists LEES MIJ.txt."
 
-step "Rename a folder" "The same tab, the torrent's top folder, r, \"Sampler (renamed)\", enter: the folder on disk follows and the torrent keeps seeding."
+step "Rename a folder" "The same tab, the torrent's top folder, r, \"Sampler (renamed)\", enter: the folder on disk follows and the torrent keeps seeding. Then 1, its story: Renamed a folder over Renamed a file (C38 R3)."
 keys k r
 shot "The folder in the inline editor, its whole name selected and readable from its first letter." editor
 keys -t "Sampler (renamed)" Return
@@ -728,8 +780,14 @@ expect_disk "the folder is renamed on disk" -f "$TORRENTS_DIR/Sampler (renamed)/
 expect_disk "the old folder is gone" ! "$TORRENTS_DIR/Public Domain Sampler"
 expect "it still seeds, complete" "$PDS" "t['state'] in $SEEDING and t['progress'] == 1"
 shot "The Files tab's top folder reads \"Sampler (renamed)/\"."
+keys 1
+expect_story "its story: Renamed a folder, Public Domain Sampler → Sampler (renamed)" \
+    "Renamed a folder, Public Domain Sampler → Sampler (renamed)"
+expect_story "…and Renamed a file, README.txt → LEES MIJ.txt in Public Domain Sampler/" \
+    "Renamed a file, README.txt → LEES MIJ.txt in Public Domain Sampler/"
+shot "The story, newest first: Renamed a folder, Public Domain Sampler → Sampler (renamed); Renamed a file, README.txt → LEES MIJ.txt in Public Domain Sampler/; accent squares." story
 
-step "Rename many files" "Field Recordings' Files tab, ctrl+a, r: the rename sheet on all 16 files. ctrl+e (regex), find \"(\\d+) - \", replace \"\$1. \", enter: the 14 tracks become \"NN. Title.flac\", album.cue and cover.jpg stay. Then the same sheet puts the names back."
+step "Rename many files" "Field Recordings' Files tab, ctrl+a, r: the rename sheet on all 16 files. ctrl+e (regex), find \"(\\d+) - \", replace \"\$1. \", enter: the 14 tracks become \"NN. Title.flac\", album.cue and cover.jpg stay. Then the same sheet puts the names back. 1, its story: two Renamed 14 files lines, one per run (C38 R3)."
 ALBUM="Field Recordings Vol. 3 [FLAC]"
 table_on "Field Recordings"
 keys l 2
@@ -754,6 +812,12 @@ keys Tab ctrl+a
 keys -t '$1 - ' Return
 expect_file "the names are back: 01 - Harbour at Dawn.flac" "$FIELD" "$ALBUM/01 - Harbour at Dawn.flac"
 expect_disk "…on disk too" -f "$TORRENTS_DIR/$ALBUM/14 - Last Ferry.flac"
+keys 1
+expect_story "its story: Renamed 14 files, the run there" \
+    "Renamed 14 files, in $ALBUM/ · the first 01 - Harbour at Dawn.flac → 01. Harbour at Dawn.flac, and 13 more"
+expect_story "…and the run back, its own line (sheet runs never fold)" \
+    "Renamed 14 files, in $ALBUM/ · the first 01. Harbour at Dawn.flac → 01 - Harbour at Dawn.flac, and 13 more"
+shot "The story, newest first: two Renamed 14 files lines, each \"in $ALBUM/ · the first OLD → NEW, and 13 more\"." story
 
 step "Create and set a category" "Field Recordings, the menu's category (C), \"walk\", enter on create \"walk\". Automatic management is off, so nothing moves."
 menu_on "Field Recordings"

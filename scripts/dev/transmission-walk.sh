@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # omaseed — a Transmission server driven through the app (#85's "done when", DECISIONS C14 E4):
 # a .torrent added through the add sheet with a label and a save path, renamed in place (K28:
-# its folder on disk follows), moved through the Move… sheet, a label added and another taken
+# its folder on disk follows, and the story says so, C38 R7), moved through the Move… sheet, a label added and another taken
 # off, then deleted with its files. Then, where omaseed sees the daemon's disks (#233), a
 # second torrent's Move… sheet with a file by its name already at the destination (board 47
 # §E, M8: left out, Transmission would replace it) and a move that copies, frozen halfway so
@@ -401,7 +401,7 @@ expect_text "the row is in the table" "$NAME" 10
 expect_text "the rail lists the label" "walk-label" 10
 shot "The table: $NAME seeding; the rail's LABELS: walk-label 1."
 
-step "Rename in place" "Jump to it, esc to the table, r: the rename sheet says on Transmission this renames its folder on disk too (K28); ctrl+a, \"$RENAMED\", enter."
+step "Rename in place" "Jump to it, esc to the table, r: the rename sheet says on Transmission this renames its folder on disk too (K28); ctrl+a, \"$RENAMED\", enter. Its story: Renamed, was $NAME · its folder on disk too (DECISIONS C38 R7)."
 table_on "$NAME"
 keys r
 expect_text "the rename sheet is open" "On Transmission this renames its folder on disk too" 10
@@ -415,7 +415,9 @@ expect_disk "…and no longer $NAME" ! "$IN/$NAME"
 expect_same "its files came with it" "$NAME/sample.bin" "$IN/$RENAMED/sample.bin"
 expect "still complete and seeding" "$HASH" "t['percent_done'] == 1 and t['status'] == 6 and t['error'] == 0" 30
 expect_text "the row reads the new name" "$RENAMED" 10
-shot "The row reads $RENAMED."
+# DECISIONS C38 R7: Transmission renamed the folder on disk too, so its story line says so.
+expect_text "the story: Renamed, was $NAME · its folder on disk too" "Renamed, was $NAME · its folder on disk too" 20
+shot "The row reads $RENAMED; the details' story, Renamed, was $NAME · its folder on disk too, with the accent's square."
 
 if [ "$FROM" = podman ]; then
     move_checks="omaseed's own checks, through the path map: room and names read here"
