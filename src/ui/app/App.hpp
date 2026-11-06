@@ -139,7 +139,7 @@ class App : public QObject
     /// lists ("filePriorities", "shareLimitActions"). The views hide what is false wherever it
     /// would be offered; for qBittorrent everything is on.
     Q_PROPERTY(QVariantMap features READ featuresMap NOTIFY featuresChanged)
-    /// C25 K31: TRANSMISSION › Basics' "test port", the engine's own test from outside:
+    /// C25 K31: Settings › Transmission's "test port", the engine's own test from outside:
     /// {state: "" | "testing" | "open" | "closed" | "failed", port, text}. Cleared by a switch.
     Q_PROPERTY(QVariantMap portTest READ portTest NOTIFY portTestChanged)
 

@@ -1650,13 +1650,13 @@ QtObject {
             ]
         }
     ]
-    // ---- TRANSMISSION › Basics (board 47 §J, DECISIONS C25 K31) ---------------------------
-    // One page until Settings › Transmission (E5, #86): the port with its test, the global
-    // limits, turtle and its clock, the default folder (and the incomplete one), DHT, and the
-    // seeding defaults the limits sheet's "global" means. The keys are app/preferences' words:
-    // ServerPreferences reads and writes them through Transmission's session
-    // (TransmissionTranslate::speedPreferences). Speeds in Transmission's own kB/s (1000
-    // bytes), so what is typed is what it keeps.
+    // ---- Settings › Transmission (board 36 §6 E5, board 47 §6, DECISIONS C14 E6, C25 K31) --
+    // It replaces TRANSMISSION › Basics: the session's settings in qBittorrent's sections and
+    // order (speed, discovery, connection, seeding, queue, downloads), each section's id the
+    // same as qBittorrent's so a switch between the groups lands on its like. Basics' rows keep
+    // app/preferences' words (ServerPreferences reads and writes them through Transmission's
+    // session, TransmissionTranslate::speedPreferences); the rest go by Transmission's own field
+    // names. Speeds in Transmission's own kB/s (1000 bytes), so what is typed is what it keeps.
 
     /// A speed in kB/s (1000 bytes) over bytes/s, empty for no limit.
     function speedKb(key: string): var {
@@ -1673,31 +1673,21 @@ QtObject {
                 "weekends")], [2, qsTr("Monday")], [4, qsTr("Tuesday")], [8, qsTr("Wednesday")], [16, qsTr(
                 "Thursday")], [32, qsTr("Friday")], [64, qsTr("Saturday")], [1, qsTr("Sunday")]]
 
+    /// A script on the server, run by Transmission (script_torrent_*_filename).
+    function script(key: string): var {
+        return root.text(key, 220, qsTr("a script on the server"));
+    }
+
     readonly property var transmissionSections: [
         {
-            "id": "basics",
-            "glyph": "◇",
-            "name": qsTr("Basics"),
-            "shortName": qsTr("Basics"),
-            "sub": qsTr("the port, limits, turtle, folders and DHT"),
+            "id": "speed",
+            "glyph": "⇅",
+            "name": qsTr("Speed"),
+            "shortName": qsTr("Speed"),
+            "sub": qsTr("normal limits, turtle and burst, and its clock"),
             "rows": [
                 {
-                    "note": qsTr("Saved on the server as you change them. The rest of Transmission's settings come with Settings › Transmission.")
-                },
-                {
-                    "glyph": "⊙",
-                    "title": qsTr("Listening port"),
-                    "desc": qsTr("Where peers reach the server. Transmission can test it from outside."),
-                    "fields": [root.num("listen_port", {
-                                            "min": 1,
-                                            "max": 65535
-                                        })],
-                    "reach": "test",
-                    "button": {
-                        "text": qsTr("test port"),
-                        "action": "testPort"
-                    },
-                    "confirm": "port"
+                    "note": qsTr("The same four limits as ⋯ › speed limits, in Transmission's kB/s (1000 bytes). That sheet stays, for a quick change without opening Settings.")
                 },
                 {
                     "glyph": "↓",
@@ -1794,35 +1784,138 @@ QtObject {
                 },
                 {
                     "line": "schedule"
-                },
+                }
+            ]
+        },
+        {
+            "id": "discovery",
+            "glyph": "◎",
+            "name": qsTr("Discovery and privacy"),
+            "shortName": qsTr("Discovery"),
+            "sub": qsTr("how Transmission finds peers"),
+            "rows": [
                 {
-                    "group": qsTr("where")
-                },
-                {
-                    "glyph": "▤",
-                    "title": qsTr("Default save path"),
-                    "desc": qsTr("Where a torrent goes when the add sheet keeps the server's default. A path on the server."),
-                    "fields": [root.text("save_path", 240, "")]
-                },
-                {
-                    "glyph": "▤",
-                    "title": qsTr("Keep incomplete files elsewhere"),
-                    "toggle": "temp_path_enabled",
-                    "fields": [root.text("temp_path", 200, "")]
-                },
-                {
-                    "group": qsTr("peers and seeding")
+                    "note": qsTr("Private torrents never use DHT, PEX or LPD, whatever these switches say. The torrent carries a private flag and Transmission obeys it. These three are for public torrents.")
                 },
                 {
                     "glyph": "◎",
                     "title": qsTr("DHT"),
-                    "desc": qsTr("Finds peers without a tracker; a bare info hash needs it. Private torrents never use it."),
+                    "desc": qsTr("Find peers without a tracker, through a network of other clients. A bare info hash needs it."),
                     "toggle": "dht"
+                },
+                {
+                    "glyph": "⇆",
+                    "title": qsTr("Peer exchange (PEX)"),
+                    "desc": qsTr("Swap peer lists with the peers you're connected to."),
+                    "toggle": "pex_enabled"
+                },
+                {
+                    "glyph": "⌂",
+                    "title": qsTr("Local peer discovery (LPD)"),
+                    "desc": qsTr("Find peers on your own network."),
+                    "toggle": "lpd_enabled"
+                },
+                {
+                    "glyph": "⚿",
+                    "title": qsTr("Encryption"),
+                    "desc": qsTr("Prefer lets each peer choose. Require refuses peers that don't encrypt, which a few trackers ask for. Allow starts plain and takes peers that encrypt."),
+                    "choice": {
+                        "key": "encryption",
+                        "options": [["preferred", qsTr("prefer")], ["required", qsTr("require")], ["allowed", qsTr("allow")]]
+                    }
+                },
+                {
+                    "glyph": "⊘",
+                    "title": qsTr("Blocklist"),
+                    "desc": qsTr("Refuse the addresses in a list Transmission fetches from a URL and keeps up to date."),
+                    "toggle": "blocklist_enabled"
+                },
+                {
+                    "title": qsTr("List URL"),
+                    "sub": true,
+                    "dep": "blocklist_enabled",
+                    "fields": [root.text("blocklist_url", 220, "https://…")]
+                },
+                {
+                    "glyph": "+",
+                    "title": qsTr("Add these trackers to new torrents"),
+                    "desc": qsTr("Added to every new public torrent; private torrents never take them. Empty adds none."),
+                    "list": {
+                        "key": "default_trackers",
+                        "sep": "\n",
+                        "what": qsTr("tracker URLs")
+                    }
+                }
+            ]
+        },
+        {
+            "id": "connection",
+            "glyph": "⇌",
+            "name": qsTr("Connection"),
+            "shortName": qsTr("Connection"),
+            "sub": qsTr("the port, the router and peers"),
+            "rows": [
+                {
+                    "glyph": "⊙",
+                    "title": qsTr("Listening port"),
+                    "desc": qsTr("Where peers reach the server. Transmission can test it from outside."),
+                    "fields": [root.num("listen_port", {
+                                            "min": 1,
+                                            "max": 65535
+                                        })],
+                    "reach": "test",
+                    "button": {
+                        "text": qsTr("test port"),
+                        "action": "testPort"
+                    },
+                    "confirm": "port"
+                },
+                {
+                    "glyph": "⟳",
+                    "title": qsTr("New random port on every start"),
+                    "toggle": "peer_port_random_on_start"
+                },
+                {
+                    "glyph": "⌬",
+                    "title": qsTr("UPnP / NAT-PMP"),
+                    "desc": qsTr("Ask the router to forward the port by itself."),
+                    "toggle": "port_forwarding_enabled"
+                },
+                {
+                    "glyph": "⇄",
+                    "title": qsTr("µTP"),
+                    "desc": qsTr("Talk to peers over µTP as well as TCP. It gives way to the rest of your traffic."),
+                    "toggle": "utp_enabled"
+                },
+                {
+                    "glyph": "⋈",
+                    "title": qsTr("Peers"),
+                    "desc": qsTr("At most, in total and per torrent."),
+                    "fields": [root.num("peer_limit_global", {
+                                            "min": 1,
+                                            "max": 65535
+                                        }), root.num("peer_limit_per_torrent", {
+                                                         "min": 1,
+                                                         "max": 65535,
+                                                         "sep": "·"
+                                                     })]
+                }
+            ]
+        },
+        {
+            "id": "seeding",
+            "glyph": "↑",
+            "name": qsTr("Seeding"),
+            "shortName": qsTr("Seeding"),
+            "sub": qsTr("when a torrent stops seeding"),
+            "rows": [
+                {
+                    "note": qsTr("What the limits sheet's \"global\" means. A torrent's own limit (L) wins.")
                 },
                 {
                     "glyph": "÷",
                     "title": qsTr("Share ratio"),
-                    "desc": qsTr("Stop once a torrent has uploaded this many times its size. A torrent's own limit (L) wins."),
+                    "desc": qsTr("Stop once a torrent has uploaded this many times its size."),
                     "toggle": "max_ratio_enabled",
                     "fields": [root.num("max_ratio", {
                                             "decimals": 2,
@@ -1839,6 +1932,128 @@ QtObject {
                                             "min": 1,
                                             "width": 100
                                         })]
+                }
+            ]
+        },
+        {
+            "id": "queue",
+            "glyph": "≡",
+            "name": qsTr("Queue"),
+            "shortName": qsTr("Queue"),
+            "sub": qsTr("how many run at once"),
+            "rows": [
+                {
+                    "glyph": "↓",
+                    "title": qsTr("Download queue"),
+                    "desc": qsTr("At most this many download at once; the rest wait their turn."),
+                    "toggle": "download_queue_enabled",
+                    "fields": [root.num("download_queue_size", {
+                                            "min": 1
+                                        })]
+                },
+                {
+                    "glyph": "↑",
+                    "title": qsTr("Seed queue"),
+                    "desc": qsTr("At most this many seed at once."),
+                    "toggle": "seed_queue_enabled",
+                    "fields": [root.num("seed_queue_size", {
+                                            "min": 1
+                                        })]
+                },
+                {
+                    "glyph": "◌",
+                    "title": qsTr("Skip stalled torrents"),
+                    "desc": qsTr("A torrent with no data for this long stops counting, and the next one starts."),
+                    "toggle": "queue_stalled_enabled",
+                    "fields": [root.num("queue_stalled_minutes", {
+                                            "unit": qsTr("min"),
+                                            "min": 1,
+                                            "width": 100
+                                        })]
+                }
+            ]
+        },
+        {
+            "id": "downloads",
+            "glyph": "▤",
+            "name": qsTr("Downloads and files"),
+            "shortName": qsTr("Downloads"),
+            "sub": qsTr("where files go, and what happens on add"),
+            "rows": [
+                {
+                    "group": qsTr("where")
+                },
+                {
+                    "glyph": "▤",
+                    "title": qsTr("Default save path"),
+                    "desc": qsTr("Where a torrent goes when the add sheet keeps the server's default. A path on the server."),
+                    "fields": [root.text("save_path", 240, "")]
+                },
+                {
+                    "glyph": "▤",
+                    "title": qsTr("Keep incomplete files elsewhere"),
+                    "toggle": "temp_path_enabled",
+                    "fields": [root.text("temp_path", 200, "")]
+                },
+                {
+                    "glyph": "◦",
+                    "title": qsTr("Add .part to unfinished files"),
+                    "toggle": "rename_partial_files"
+                },
+                {
+                    "group": qsTr("adding")
+                },
+                {
+                    "glyph": "▶",
+                    "title": qsTr("Start torrents as they are added"),
+                    "desc": qsTr("For adds that don't say. omaseed's add sheet always says."),
+                    "toggle": "start_added_torrents"
+                },
+                {
+                    "glyph": "⇣",
+                    "title": qsTr("Download in order"),
+                    "desc": qsTr("New torrents get their pieces start to end, for playing while they download. The add sheet's own switch wins."),
+                    "toggle": "sequential_download"
+                },
+                {
+                    "glyph": "⌫",
+                    "title": qsTr("Trash a .torrent once it is added"),
+                    "desc": qsTr("Only files Transmission reads from its own disk, a watch folder's say."),
+                    "toggle": "trash_original_torrent_files"
+                },
+                {
+                    "group": qsTr("disk")
+                },
+                {
+                    "glyph": "◫",
+                    "title": qsTr("Disk cache"),
+                    "desc": qsTr("Memory for reads and writes before they reach the disk."),
+                    "fields": [root.num("cache_size_mib", {
+                                            "unit": qsTr("MiB"),
+                                            "min": 0,
+                                            "width": 100
+                                        })]
+                },
+                {
+                    "group": qsTr("run a program")
+                },
+                {
+                    "glyph": "›",
+                    "title": qsTr("When a torrent is added"),
+                    "toggle": "script_torrent_added_enabled",
+                    "fields": [root.script("script_torrent_added_filename")]
+                },
+                {
+                    "glyph": "›",
+                    "title": qsTr("When a torrent finishes"),
+                    "toggle": "script_torrent_done_enabled",
+                    "fields": [root.script("script_torrent_done_filename")]
+                },
+                {
+                    "glyph": "›",
+                    "title": qsTr("When it finishes seeding"),
+                    "toggle": "script_torrent_done_seeding_enabled",
+                    "fields": [root.script("script_torrent_done_seeding_filename")]
                 }
             ]
         }

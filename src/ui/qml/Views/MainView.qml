@@ -1881,7 +1881,7 @@ Item {
     function openQbtSettings(): void {
         if (root.firstRun)
             return;
-        // C25 K31: on another engine, its own group (TRANSMISSION › Basics), where it has one.
+        // C25 K31: on another engine, its own group (Settings › Transmission), where it has one.
         if (!Keymap.offered("qbtSettings", App.features, "") && App.features.sessionSettings !== true) {
             root.sayMissing("qbtSettings", "");
             return;

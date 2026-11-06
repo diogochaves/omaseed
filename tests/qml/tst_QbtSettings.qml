@@ -265,10 +265,11 @@ TestCase {
         compare(modal.sheet.note, "omaseed is on private now · the library too");
     }
 
-    // Board 47 §J (C25 K31–K32): a Transmission server's group is TRANSMISSION, one page,
-    // Basics, read and written through the same preferences (its session's, in the app); a
-    // speed there is in Transmission's kB/s. An engine with neither has no group at all.
-    function test_a_transmission_has_its_own_group_with_basics() {
+    // Board 47 §J and §6 E5 (C25 K31–K32, C14 E6): a Transmission server's group is
+    // TRANSMISSION, Settings › Transmission in qBittorrent's sections and order, read and
+    // written through the same preferences (its session's, in the app); a speed there is in
+    // Transmission's kB/s. An engine with neither has no group at all.
+    function test_a_transmission_has_its_own_group_with_its_settings() {
         const modal = createTemporaryObject(modalComponent, testCase, {
                                                 "features": {
                                                     "qbtSettings": false,
@@ -276,20 +277,37 @@ TestCase {
                                                 },
                                                 "engineName": "Transmission"
                                             });
-        compare(modal.qbtSections.map(section => section.id), ["basics"]);
+        compare(modal.qbtSections.map(section => section.id),
+                ["speed", "discovery", "connection", "seeding", "queue", "downloads"]);
         compare(testCase.childNamed(modal, "qbtNavHead").text, "transmission");
-        compare(testCase.childNamed(modal, "qbtNavRow0").text, "Basics");
+        compare(testCase.childNamed(modal, "qbtNavRow0").text, "Speed");
+        compare(testCase.childNamed(modal, "qbtNavRow4").text, "Queue");
         modal.openQbt();
         compare(modal.paneIndex, modal.qbtStart);
-        compare(modal.qbtSection.id, "basics");
-        for (const key of ["listen_port", "dl_limit", "up_limit", "alt_dl_limit", "save_path", "temp_path",
-                           "max_ratio", "max_inactive_seeding_time"])
-            verify(testCase.childNamed(modal, "field-" + key) !== null, key);
+        compare(modal.qbtSection.id, "speed");
+        // The demo's preferences are a qBittorrent's, and a row whose keys the server lacks is
+        // left out (tst_app_transmission reads and writes the rest on a Transmission).
+        const shown = {
+            "speed": ["dl_limit", "up_limit", "alt_dl_limit", "burst_up_limit"],
+            "discovery": [],
+            "connection": ["listen_port"],
+            "seeding": ["max_ratio", "max_inactive_seeding_time"],
+            "queue": [],
+            "downloads": ["save_path", "temp_path"]
+        };
+        for (let i = 0; i < modal.qbtSections.length; ++i) {
+            const id = modal.qbtSections[i].id;
+            modal.showPane(modal.qbtStart + i);
+            for (const key of shown[id])
+                verify(testCase.childNamed(modal, "field-" + key) !== null, id + " " + key);
+        }
+        modal.showPane(modal.qbtStart);
         const field = testCase.childNamed(modal, "field-dl_limit");
         field.text = "100";
         field.accepted();
         compare(App.serverPrefs.values.dl_limit, 100 * 1000);
         // "test port": the engine's own test; the demo's qBittorrent has none, and says so.
+        modal.showPane(modal.qbtStart + 2);
         verify(!testCase.childNamed(modal, "portTestChip").visible);
         modal.qbtAction("testPort");
         tryVerify(() => App.portTest.state === "failed", 5000);

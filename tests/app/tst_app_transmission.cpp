@@ -174,7 +174,7 @@ private Q_SLOTS:
     void anOldTransmissionIsRefusedInK8sWords();
     void filesStepThroughTransmissionsPriorities();
     void turtleAndItsClockAreTransmissionsSession();
-    void basicsAreTransmissionsSessionAndItsPortTest();
+    void settingsAreTransmissionsSessionAndItsPortTest();
     void aLongMoveIsBusyNotLost();
     void aFailedMoveIsLearntFromTheTorrent();
     void theMoveSheetRunsTransmissionsChecks();
@@ -260,9 +260,10 @@ void TestAppTransmission::turtleAndItsClockAreTransmissionsSession()
     app.engine()->stop();
 }
 
-// Board 47 §J (C25 K31): TRANSMISSION › Basics reads and writes the session as the rest of
-// Settings does qBittorrent's preferences, and "test port" asks the daemon.
-void TestAppTransmission::basicsAreTransmissionsSessionAndItsPortTest()
+// Board 47 §J and §6 E5 (C25 K31, C14 E6): Settings › Transmission reads and writes the
+// session as the rest of Settings does qBittorrent's preferences, and "test port" asks the
+// daemon.
+void TestAppTransmission::settingsAreTransmissionsSessionAndItsPortTest()
 {
     Daemon daemon;
     daemon.wire.answer = [&daemon](const QString &method, const QJsonObject &params) {
@@ -288,6 +289,26 @@ void TestAppTransmission::basicsAreTransmissionsSessionAndItsPortTest()
     QVERIFY(daemon.library.sessionGet.value(QStringLiteral("incomplete_dir_enabled")).toBool());
     QTRY_COMPARE_WITH_TIMEOUT(
         app.serverPrefs()->value(QStringLiteral("listen_port")).toInt(), 51413, 3000);
+
+    // Settings › Transmission (E5, #86): the rest of the session by its own names.
+    QCOMPARE(app.serverPrefs()->value(QStringLiteral("download_queue_size")).toInt(), 5);
+    QCOMPARE(app.serverPrefs()->value(QStringLiteral("encryption")).toString(),
+             QStringLiteral("preferred"));
+    app.serverPrefs()->apply({{QStringLiteral("seed_queue_enabled"), true},
+                              {QStringLiteral("seed_queue_size"), 4},
+                              {QStringLiteral("encryption"), QStringLiteral("required")},
+                              {QStringLiteral("pex_enabled"), true}});
+    QTRY_COMPARE_WITH_TIMEOUT(
+        daemon.library.sessionGet.value(QStringLiteral("seed_queue_size")).toInt(), 4, 3000);
+    QVERIFY(daemon.library.sessionGet.value(QStringLiteral("seed_queue_enabled")).toBool());
+    QVERIFY(daemon.library.sessionGet.value(QStringLiteral("pex_enabled")).toBool());
+    QCOMPARE(daemon.library.sessionGet.value(QStringLiteral("encryption")).toString(),
+             QStringLiteral("required"));
+    // A queue of none is refused before it is sent, and the row goes back.
+    app.serverPrefs()->apply({{QStringLiteral("download_queue_size"), 0}});
+    QTRY_COMPARE_WITH_TIMEOUT(
+        app.serverPrefs()->value(QStringLiteral("download_queue_size")).toInt(), 5, 3000);
+    QCOMPARE(daemon.library.sessionGet.value(QStringLiteral("download_queue_size")).toInt(), 5);
 
     QSignalSpy tested(&app, &App::portTestChanged);
     app.testPort(51413);

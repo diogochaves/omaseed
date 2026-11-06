@@ -116,8 +116,8 @@ Item {
     /// docs/16: the qBittorrent group's sections, closed by docs/24 §4's Backup (#32, D1 a),
     /// which is drawn by `qbtBackupPane` rather than from rows.
     /// Only a server whose engine has them (App.features.qbtSettings, docs/36 §4.4). Another
-    /// engine whose basic settings omaseed reads through its session gets its group's one page
-    /// instead, Basics (C25 K31: TRANSMISSION › Basics); one with neither, no group.
+    /// engine whose settings omaseed reads through its session gets its own sections instead
+    /// (Settings › Transmission, C14 E6, board 47 §6 E5); one with neither, no group.
     readonly property var qbtSections: root.features.qbtSettings === false
                                        ? (root.features.sessionSettings === true ? qbtSchema.transmissionSections : [])
                                        : qbtSchema.sections.concat([{
@@ -329,8 +329,8 @@ Item {
     /// Opened by openSearchPluginsInstall(): the install field's esc closes the modal.
     property bool _backToSearch: false
 
-    /// C32 D8 a: the alternative speeds' choice's "edit the presets…": qBittorrent › Speed,
-    /// or TRANSMISSION › Basics, where its turtle and burst rows are (C25 K31).
+    /// C32 D8 a: the alternative speeds' choice's "edit the presets…": the engine's Speed,
+    /// where its turtle and burst rows are (qBittorrent's, Transmission's).
     function openSpeed(): void {
         root.showPane(root.qbtStart);
         root.open();
@@ -1597,7 +1597,7 @@ Item {
                             Layout.leftMargin: Theme.space(4)
                             Layout.topMargin: Theme.space(14)
                             objectName: "qbtNavHead"
-                            // C25 K31: "transmission" over TRANSMISSION › Basics.
+                            // C25 K31: "transmission" over Settings › Transmission.
                             text: root.engineGroupIsQbt ? qsTr("qbittorrent") : root.engineGroupName.toLowerCase()
                             tracked: true
                             visible: root.qbtSections.length > 0
