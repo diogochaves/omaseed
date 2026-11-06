@@ -124,6 +124,8 @@ public:
                                 const std::optional<QString> &action) override;
     Reply<GlobalLimits> *globalLimits() override;
     Reply<Done> *setGlobalLimits(const GlobalLimits &limits) override;
+    Reply<QVariantMap> *sessionPreferences() override;
+    Reply<Done> *setSessionPreferences(const QVariantMap &changes) override;
     Reply<Done> *toggleAltSpeed() override;
     Reply<Done> *setAltSpeed(bool on) override;
 

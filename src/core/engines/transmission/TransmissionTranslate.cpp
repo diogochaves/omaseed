@@ -146,7 +146,11 @@ QStringList sessionFields()
             QStringLiteral("speed_limit_up_enabled"),
             QStringLiteral("alt_speed_enabled"),
             QStringLiteral("alt_speed_down"),
-            QStringLiteral("alt_speed_up")};
+            QStringLiteral("alt_speed_up"),
+            QStringLiteral("alt_speed_time_enabled"),
+            QStringLiteral("alt_speed_time_begin"),
+            QStringLiteral("alt_speed_time_end"),
+            QStringLiteral("alt_speed_time_day")};
 }
 
 QStringList listFields()
@@ -583,6 +587,90 @@ GlobalLimits globalLimits(const QJsonObject &sessionGet)
     if (has(sessionGet, "alt_speed_up"))
         limits.altUpload = number(sessionGet, "alt_speed_up") * unit;
     return limits;
+}
+
+QVariantMap speedPreferences(const QJsonObject &sessionGet)
+{
+    QVariantMap prefs;
+    const GlobalLimits limits = globalLimits(sessionGet);
+    if (limits.download)
+        prefs.insert(QStringLiteral("dl_limit"), *limits.download);
+    if (limits.upload)
+        prefs.insert(QStringLiteral("up_limit"), *limits.upload);
+    if (limits.altDownload)
+        prefs.insert(QStringLiteral("alt_dl_limit"), *limits.altDownload);
+    if (limits.altUpload)
+        prefs.insert(QStringLiteral("alt_up_limit"), *limits.altUpload);
+    if (has(sessionGet, "alt_speed_time_enabled"))
+        prefs.insert(QStringLiteral("scheduler_enabled"),
+                     sessionGet.value(QStringLiteral("alt_speed_time_enabled")).toBool());
+    if (has(sessionGet, "alt_speed_time_begin") && has(sessionGet, "alt_speed_time_end") &&
+        has(sessionGet, "alt_speed_time_day")) {
+        const qint64 begin = number(sessionGet, "alt_speed_time_begin");
+        const qint64 end = number(sessionGet, "alt_speed_time_end");
+        prefs.insert(QStringLiteral("schedule_from_hour"), int(begin / 60));
+        prefs.insert(QStringLiteral("schedule_from_min"), int(begin % 60));
+        prefs.insert(QStringLiteral("schedule_to_hour"), int(end / 60));
+        prefs.insert(QStringLiteral("schedule_to_min"), int(end % 60));
+        prefs.insert(QStringLiteral("scheduler_day_mask"),
+                     int(number(sessionGet, "alt_speed_time_day")));
+    }
+    if (has(sessionGet, "download_dir"))
+        prefs.insert(QStringLiteral("save_path"),
+                     sessionGet.value(QStringLiteral("download_dir")).toString());
+    return prefs;
+}
+
+QJsonObject speedSessionSet(const QVariantMap &changes, const QJsonObject &sessionGet, QString *why)
+{
+    const qint64 unit = session(sessionGet).speedBytes;
+    const auto minutes = [&changes, &sessionGet](
+                             const char *hourKey, const char *minuteKey, const char *field) {
+        const qint64 was = number(sessionGet, field);
+        const qint64 hour =
+            changes.contains(key(hourKey)) ? changes.value(key(hourKey)).toLongLong() : was / 60;
+        const qint64 minute = changes.contains(key(minuteKey))
+                                  ? changes.value(key(minuteKey)).toLongLong()
+                                  : was % 60;
+        return std::clamp<qint64>(hour * 60 + minute, 0, 24 * 60 - 1);
+    };
+    QJsonObject params;
+    for (auto it = changes.constBegin(); it != changes.constEnd(); ++it) {
+        const QString &name = it.key();
+        const qint64 value = it.value().toLongLong();
+        if (name == QLatin1String("dl_limit") || name == QLatin1String("up_limit")) {
+            const QString field = name == QLatin1String("dl_limit")
+                                      ? QStringLiteral("speed_limit_down")
+                                      : QStringLiteral("speed_limit_up");
+            params.insert(field + QStringLiteral("_enabled"), value > 0);
+            if (value > 0)
+                params.insert(field, speedUnits(value, unit));
+        } else if (name == QLatin1String("alt_dl_limit")) {
+            params.insert(QStringLiteral("alt_speed_down"), speedUnits(value, unit));
+        } else if (name == QLatin1String("alt_up_limit")) {
+            params.insert(QStringLiteral("alt_speed_up"), speedUnits(value, unit));
+        } else if (name == QLatin1String("scheduler_enabled")) {
+            params.insert(QStringLiteral("alt_speed_time_enabled"), it.value().toBool());
+        } else if (name == QLatin1String("schedule_from_hour") ||
+                   name == QLatin1String("schedule_from_min")) {
+            params.insert(
+                QStringLiteral("alt_speed_time_begin"),
+                minutes("schedule_from_hour", "schedule_from_min", "alt_speed_time_begin"));
+        } else if (name == QLatin1String("schedule_to_hour") ||
+                   name == QLatin1String("schedule_to_min")) {
+            params.insert(QStringLiteral("alt_speed_time_end"),
+                          minutes("schedule_to_hour", "schedule_to_min", "alt_speed_time_end"));
+        } else if (name == QLatin1String("scheduler_day_mask")) {
+            params.insert(QStringLiteral("alt_speed_time_day"), int(value & 127));
+        } else if (name == QLatin1String("save_path")) {
+            params.insert(QStringLiteral("download_dir"), it.value().toString());
+        } else {
+            if (why != nullptr)
+                *why = QStringLiteral("Transmission has no setting for %1").arg(name);
+            return {};
+        }
+    }
+    return params;
 }
 
 TorrentProperties properties(const QJsonObject &json, qint64 nowSecs)

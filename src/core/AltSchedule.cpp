@@ -2,6 +2,7 @@
 
 #include <QCoreApplication>
 #include <QLocale>
+#include <QStringList>
 
 namespace omaseed::core {
 
@@ -40,17 +41,26 @@ AltSchedule::AltSchedule(bool enabled, int fromMinute, int toMinute, int days)
     , m_days(days)
 {}
 
+AltSchedule AltSchedule::transmission(bool enabled, int fromMinute, int toMinute, int dayMask)
+{
+    AltSchedule schedule(enabled, fromMinute, toMinute, EveryDay);
+    schedule.m_rule = Rule::Transmission;
+    schedule.m_mask = dayMask & AllDays;
+    return schedule;
+}
+
 AltSchedule AltSchedule::fromPreferences(const QVariantMap &preferences)
 {
     const auto value = [&preferences](const char *key) {
         return preferences.value(QLatin1String(key));
     };
     AltSchedule schedule;
+    const bool mask = preferences.contains(QLatin1String("scheduler_day_mask"));
     for (const char *key : {"schedule_from_hour",
                             "schedule_from_min",
                             "schedule_to_hour",
                             "schedule_to_min",
-                            "scheduler_days"}) {
+                            mask ? "scheduler_day_mask" : "scheduler_days"}) {
         if (!preferences.contains(QLatin1String(key)))
             return schedule;
     }
@@ -58,12 +68,19 @@ AltSchedule AltSchedule::fromPreferences(const QVariantMap &preferences)
     schedule.m_enabled = value("scheduler_enabled").toBool();
     schedule.m_from = value("schedule_from_hour").toInt() * 60 + value("schedule_from_min").toInt();
     schedule.m_to = value("schedule_to_hour").toInt() * 60 + value("schedule_to_min").toInt();
-    schedule.m_days = value("scheduler_days").toInt();
+    if (mask) {
+        schedule.m_rule = Rule::Transmission;
+        schedule.m_mask = value("scheduler_day_mask").toInt() & AllDays;
+    } else {
+        schedule.m_days = value("scheduler_days").toInt();
+    }
     return schedule;
 }
 
 bool AltSchedule::dayPicked(int dayOfWeek) const
 {
+    if (m_rule == Rule::Transmission)
+        return (m_mask & (1 << (dayOfWeek % 7))) != 0; // Qt's Sunday is 7, the mask's bit 0
     switch (m_days) {
     case EveryDay:
         return true;
@@ -82,7 +99,16 @@ bool AltSchedule::onAt(const QDateTime &when) const
         return false;
     const QTime time = when.time();
     const int minute = time.hour() * 60 + time.minute();
-    const bool picked = dayPicked(when.date().dayOfWeek());
+    const int day = when.date().dayOfWeek();
+    if (m_rule == Rule::Transmission) {
+        // On from `from` on a picked day; a window past midnight (or a whole one) runs on
+        // into the next day.
+        const int end = m_to <= m_from ? m_to + 24 * 60 : m_to;
+        if (dayPicked(day) && m_from <= minute && minute < end)
+            return true;
+        return end > 24 * 60 && dayPicked(day == 1 ? 7 : day - 1) && minute < end - 24 * 60;
+    }
+    const bool picked = dayPicked(day);
     if (m_from < m_to)
         return picked && m_from <= minute && minute < m_to;
     // Past midnight: on, except in the daytime between them on a picked day.
@@ -119,8 +145,9 @@ AltSchedule::Reading AltSchedule::read(bool on, const QDateTime &now) const
         reading.until = nextChange(now, on);
         return reading;
     }
-    // The schedule changed in the last 30 s and qBittorrent has not looked yet.
-    const QDateTime look = now.addSecs(-lookSeconds);
+    // The schedule changed in the last 30 s and qBittorrent has not looked yet (Transmission
+    // looks every second).
+    const QDateTime look = now.addSecs(-lookEvery());
     if (onAt(look) == on) {
         reading.until = nextChange(look, on);
         return reading;
@@ -157,7 +184,9 @@ AltSchedule::Summary AltSchedule::summary(const QString &word, bool on, const QD
     if (!m_known)
         return summary;
     if (never()) {
-        summary.text = tr("Never on: from and to are the same time.");
+        summary.text = m_rule == Rule::Transmission
+                           ? tr("Never on: no day is picked.")
+                           : tr("Never on: from and to are the same time.");
         return summary;
     }
     const QString name = capitalised(word);
@@ -181,7 +210,11 @@ AltSchedule::Summary AltSchedule::summary(const QString &word, bool on, const QD
         return summary;
     }
     QString when;
-    if (overnight())
+    if (m_rule == Rule::Transmission)
+        when = (m_mask == AllDays && overnight()
+                    ? tr("%1 every night from %2 to %3").arg(name, from, to)
+                    : tr("%1 %2 from %3 to %4").arg(name, maskWords(), from, to));
+    else if (overnight())
         when = tr("%1 every night from %2 to %3").arg(name, from, to);
     else if (m_days == EveryDay)
         when = tr("%1 every day from %2 to %3").arg(name, from, to);
@@ -205,6 +238,22 @@ AltSchedule::Summary AltSchedule::summary(const QString &word, bool on, const QD
     else if (!scheduled && on)
         summary.note = tr("Ticked now, it ends %1 at once.").arg(word);
     return summary;
+}
+
+QString AltSchedule::maskWords() const
+{
+    if (m_mask == AllDays)
+        return tr("every day");
+    if (m_mask == WeekdayMask)
+        return tr("Monday to Friday");
+    if (m_mask == WeekendMask)
+        return tr("on Saturday and Sunday");
+    QStringList days;
+    for (int day = 1; day <= 7; ++day) { // Monday first
+        if (dayPicked(day))
+            days.append(QLocale::c().dayName(day, QLocale::ShortFormat));
+    }
+    return tr("on %1").arg(days.join(QStringLiteral(", ")));
 }
 
 } // namespace omaseed::core

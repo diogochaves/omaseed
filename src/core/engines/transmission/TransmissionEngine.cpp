@@ -907,6 +907,38 @@ Reply<Done> *TransmissionEngine::setGlobalLimits(const GlobalLimits &limits)
     return done(m_rpc->call(QStringLiteral("session_set"), params));
 }
 
+Reply<QVariantMap> *TransmissionEngine::sessionPreferences()
+{
+    return mapReply<QVariantMap>(
+        m_rpc->call(QStringLiteral("session_get"),
+                    {{QStringLiteral("fields"), fieldsOf(TT::sessionFields())}},
+                    Retry::OnTransient),
+        this,
+        [this](const QJsonObject &sessionGet) {
+            m_session = TT::session(sessionGet);
+            return TT::speedPreferences(sessionGet);
+        });
+}
+
+Reply<Done> *TransmissionEngine::setSessionPreferences(const QVariantMap &changes)
+{
+    if (changes.isEmpty())
+        return doneNow();
+    // The session as it is first: a time's other half and the speed units come from it.
+    return then<QJsonObject, Done>(
+        m_rpc->call(QStringLiteral("session_get"),
+                    {{QStringLiteral("fields"), fieldsOf(TT::sessionFields())}},
+                    Retry::OnTransient),
+        [this, changes](const QJsonObject &sessionGet) -> Reply<Done> * {
+            m_session = TT::session(sessionGet);
+            QString why;
+            const QJsonObject params = TT::speedSessionSet(changes, sessionGet, &why);
+            if (params.isEmpty())
+                return settled<Done>(ApiError(ApiError::Kind::Conflict, why));
+            return done(m_rpc->call(QStringLiteral("session_set"), params));
+        });
+}
+
 Reply<Done> *TransmissionEngine::toggleAltSpeed()
 {
     return then<QJsonObject, Done>(

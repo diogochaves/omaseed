@@ -69,6 +69,7 @@ private Q_SLOTS:
     void incompleteFolderAndQueueFromTheSession();
     void absentFieldsStayAbsent();
     void sessionFiguresAndLimits();
+    void sessionAsSpeedPreferences();
     void filesWithPrioritiesAndPieces();
     void trackersEachWithItsState();
     void piecesFromTheBitfield();
@@ -320,6 +321,50 @@ void TestTransmissionTranslate::sessionFiguresAndLimits()
     QJsonObject limited = sessionGet;
     limited.insert(QStringLiteral("speed_limit_down_enabled"), true);
     QCOMPARE(TT::globalLimits(limited).download, std::optional<qint64>(100000));
+}
+
+// C25 K20: the session's limits, turtle and its clock in app/preferences' words, and back.
+void TestTransmissionTranslate::sessionAsSpeedPreferences()
+{
+    const QJsonObject sessionGet = result("session_get.json");
+    const QVariantMap prefs = TT::speedPreferences(sessionGet);
+    QCOMPARE(prefs.value(QStringLiteral("dl_limit")).toLongLong(), 0);
+    QCOMPARE(prefs.value(QStringLiteral("up_limit")).toLongLong(), 0);
+    QCOMPARE(prefs.value(QStringLiteral("alt_dl_limit")).toLongLong(), 50000);
+    QCOMPARE(prefs.value(QStringLiteral("alt_up_limit")).toLongLong(), 50000);
+    QCOMPARE(prefs.value(QStringLiteral("scheduler_enabled")).toBool(), false);
+    QCOMPARE(prefs.value(QStringLiteral("schedule_from_hour")).toInt(), 9);
+    QCOMPARE(prefs.value(QStringLiteral("schedule_from_min")).toInt(), 0);
+    QCOMPARE(prefs.value(QStringLiteral("schedule_to_hour")).toInt(), 17);
+    QCOMPARE(prefs.value(QStringLiteral("scheduler_day_mask")).toInt(), 127);
+    QVERIFY(!prefs.contains(QStringLiteral("scheduler_days")));
+    QCOMPARE(prefs.value(QStringLiteral("save_path")).toString(),
+             QStringLiteral("/srv/transmission/downloads"));
+    QVERIFY(TT::speedPreferences({}).isEmpty());
+
+    // The way out: kB/s, enabled flags, a time from its two halves.
+    QString why;
+    QCOMPARE(TT::speedSessionSet({{QStringLiteral("alt_dl_limit"), 300 * 1024},
+                                  {QStringLiteral("dl_limit"), 0},
+                                  {QStringLiteral("schedule_from_hour"), 23},
+                                  {QStringLiteral("scheduler_enabled"), true}},
+                                 sessionGet,
+                                 &why),
+             QJsonObject({{"alt_speed_down", 308},
+                          {"speed_limit_down_enabled", false},
+                          {"alt_speed_time_begin", 23 * 60},
+                          {"alt_speed_time_enabled", true}}));
+    QCOMPARE(TT::speedSessionSet({{QStringLiteral("schedule_to_min"), 30}}, sessionGet),
+             QJsonObject({{"alt_speed_time_end", 17 * 60 + 30}}));
+    QCOMPARE(TT::speedSessionSet({{QStringLiteral("up_limit"), 2000000}}, sessionGet),
+             QJsonObject({{"speed_limit_up_enabled", true}, {"speed_limit_up", 2000}}));
+    // Nothing goes when one key has no place in the session.
+    QVERIFY(TT::speedSessionSet(
+                {{QStringLiteral("alt_up_limit"), 1000}, {QStringLiteral("web_ui_port"), 8081}},
+                sessionGet,
+                &why)
+                .isEmpty());
+    QCOMPARE(why, QStringLiteral("Transmission has no setting for web_ui_port"));
 }
 
 void TestTransmissionTranslate::filesWithPrioritiesAndPieces()

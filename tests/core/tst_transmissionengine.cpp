@@ -661,6 +661,21 @@ void TestTransmissionEngine::turtleAndGlobalLimits()
                           {"speed_limit_up_enabled", false},
                           {"alt_speed_down", 20}}));
 
+    // C25 K20: the session as the speed preferences, and a write of them (read first, for
+    // the units and a time's other half).
+    const Result<QVariantMap> prefs = wait(m_engine->sessionPreferences());
+    QCOMPARE(prefs.value().value(QStringLiteral("alt_dl_limit")).toLongLong(), 50000);
+    QCOMPARE(prefs.value().value(QStringLiteral("scheduler_day_mask")).toInt(), 127);
+    m_daemon->calls.clear();
+    QVERIFY(
+        wait(m_engine->setSessionPreferences({{QStringLiteral("schedule_to_hour"), 7}})).isValid());
+    QCOMPARE(m_daemon->methods(), QStringList({"session_get", "session_set"}));
+    QCOMPARE(m_daemon->last().params, QJsonObject({{"alt_speed_time_end", 7 * 60}}));
+    m_daemon->calls.clear();
+    const Result<Done> refused = wait(m_engine->setSessionPreferences({{"listen_port", 1}}));
+    QCOMPARE(refused.error().kind(), ApiError::Kind::Conflict);
+    QCOMPARE(m_daemon->methods(), QStringList({"session_get"})); // nothing set
+
     QVERIFY(wait(m_engine->setAltSpeed(true)).isValid());
     QCOMPARE(m_daemon->last().params, QJsonObject({{"alt_speed_enabled", true}}));
     // Toggle: read it (off in the recording), then say what it should be.

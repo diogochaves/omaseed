@@ -6,10 +6,15 @@
 
 #include "FakeTransmission.hpp"
 
+#include "core/AltPresets.hpp"
+#include "core/AltSpeed.hpp"
 #include "core/GlobalState.hpp"
 #include "core/PauseHold.hpp"
 #include "core/SyncEngine.hpp"
+#include "core/TorrentDetails.hpp"
+#include "core/TorrentFilesModel.hpp"
 #include "core/TorrentModel.hpp"
+#include "core/engines/qbt/ServerPreferences.hpp"
 #include "ui/app/App.hpp"
 
 #include <QSignalSpy>
@@ -135,6 +140,11 @@ private:
         }
         if (method == QLatin1String("torrent_add"))
             return fixture("torrent_add.json").value(QStringLiteral("result")).toObject();
+        if (method == QLatin1String("session_set")) {
+            for (auto it = params.constBegin(); it != params.constEnd(); ++it)
+                library.sessionGet.insert(it.key(), it.value());
+            return {};
+        }
         return library.answer(method, params);
     }
 };
@@ -156,6 +166,8 @@ private Q_SLOTS:
     void detailsAreAskedOfTransmission();
     void resumeRightAfterPauseWaitsForTheStopToLand();
     void anOldTransmissionIsRefusedInK8sWords();
+    void filesStepThroughTransmissionsPriorities();
+    void turtleAndItsClockAreTransmissionsSession();
 
 private:
     /// Starts `app` on `daemon` through the environment, polling every 100 ms, and waits for
@@ -176,6 +188,63 @@ void TestAppTransmission::cleanup()
     qunsetenv("OMASEED_SERVER_URL");
     qunsetenv("OMASEED_SERVER_ENGINE");
     m_home.reset();
+}
+
+// C25 K17: the Files tab and the add sheet get Transmission's set, low included.
+void TestAppTransmission::filesStepThroughTransmissionsPriorities()
+{
+    Daemon daemon;
+    App app;
+    QVERIFY(startOn(app, daemon));
+    QCOMPARE(app.details()->files()->prioritySetList(), (QVariantList{0, 2, 1, 6}));
+    QCOMPARE(app.details()->files()->raised(6), 6);
+    QCOMPARE(app.featuresMap().value(QStringLiteral("filePriorities")).toList(),
+             (QVariantList{0, 2, 1, 6}));
+    app.engine()->stop();
+}
+
+// C25 K20, C32 D8 a: turtle, its clock and the presets read and write Transmission's session
+// (session_get / session_set), as they do qBittorrent's preferences.
+void TestAppTransmission::turtleAndItsClockAreTransmissionsSession()
+{
+    Daemon daemon;
+    // Turtle by the clock, every day 09:00–17:00 (the recording's window, switched on).
+    daemon.library.sessionGet.insert(QStringLiteral("alt_speed_time_enabled"), true);
+    App app;
+    QVERIFY(startOn(app, daemon));
+    QTRY_VERIFY_WITH_TIMEOUT(app.serverPrefs()->isLoaded(), 3000);
+    QVERIFY(app.serverPrefs()->isSession());
+    QCOMPARE(app.serverPrefs()->value(QStringLiteral("alt_dl_limit")).toLongLong(), 50000);
+    QCOMPARE(app.serverPrefs()->value(QStringLiteral("scheduler_day_mask")).toInt(), 127);
+    QVERIFY(app.altSpeed()->isScheduled());
+    QVERIFY(app.altSpeed()->until().isValid());
+    // 50 kB/s against no normal limit: the set is the slow one.
+    QCOMPARE(app.altSpeed()->kind(), QStringLiteral("turtle"));
+    QVERIFY(app.altPresets()->isLoaded());
+
+    // Turtle on: the set stays, the mode goes on.
+    daemon.wire.calls.clear();
+    QVERIFY(app.pickAltSpeed(QStringLiteral("turtle"), false));
+    QTRY_VERIFY_WITH_TIMEOUT(
+        daemon.library.sessionGet.value(QStringLiteral("alt_speed_enabled")).toBool(), 3000);
+    QTRY_VERIFY_WITH_TIMEOUT(app.globalState()->useAltSpeedLimits(), 3000);
+    QCOMPARE(daemon.library.sessionGet.value(QStringLiteral("alt_speed_down")).toInt(), 50);
+
+    // Burst: its limits written over the set (2 MiB/s up in kB/s), turtle's kept aside...
+    QVERIFY(app.pickAltSpeed(QStringLiteral("burst"), false));
+    QTRY_COMPARE_WITH_TIMEOUT(
+        daemon.library.sessionGet.value(QStringLiteral("alt_speed_up")).toInt(), 2098, 3000);
+    QCOMPARE(daemon.library.sessionGet.value(QStringLiteral("alt_speed_down")).toInt(), 0);
+    QTRY_COMPARE_WITH_TIMEOUT(app.altSpeed()->kind(), QStringLiteral("burst"), 3000);
+    QVERIFY(app.altPresets()->burstOn());
+    // ...and written back when it ends.
+    QVERIFY(app.pickAltSpeed(QStringLiteral("off"), false));
+    QTRY_COMPARE_WITH_TIMEOUT(
+        daemon.library.sessionGet.value(QStringLiteral("alt_speed_up")).toInt(), 50, 3000);
+    QTRY_VERIFY_WITH_TIMEOUT(!app.altPresets()->burstOn(), 3000);
+    QTRY_VERIFY_WITH_TIMEOUT(
+        !daemon.library.sessionGet.value(QStringLiteral("alt_speed_enabled")).toBool(), 3000);
+    app.engine()->stop();
 }
 
 bool TestAppTransmission::startOn(App &app, Daemon &daemon)

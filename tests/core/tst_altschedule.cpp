@@ -270,6 +270,60 @@ private Q_SLOTS:
             QVERIFY(got.note.contains(QStringLiteral("the other way round")));
     }
 
+    // C25 K20: Transmission's clock. The window starts on a picked day and runs forwards past
+    // midnight; begin and end the same is a whole day; it looks every second.
+    void transmissionsRule()
+    {
+        const AltSchedule weekdayNights = AltSchedule::fromPreferences({
+            {QStringLiteral("scheduler_enabled"), true},
+            {QStringLiteral("schedule_from_hour"), 23},
+            {QStringLiteral("schedule_from_min"), 0},
+            {QStringLiteral("schedule_to_hour"), 7},
+            {QStringLiteral("schedule_to_min"), 0},
+            {QStringLiteral("scheduler_day_mask"), int(AltSchedule::WeekdayMask)},
+        });
+        QVERIFY(weekdayNights.known());
+        QCOMPARE(weekdayNights.rule(), AltSchedule::Rule::Transmission);
+        QCOMPARE(weekdayNights.dayMask(), 62);
+        QVERIFY(weekdayNights.overnight());
+        QVERIFY(!weekdayNights.backwards());
+        // 2026-10-16 is a Friday: on from 23:00, on into Saturday until 07:00.
+        QVERIFY(weekdayNights.onAt(at(16, 23, 30)));
+        QVERIFY(weekdayNights.onAt(at(17, 6, 59)));
+        QVERIFY(!weekdayNights.onAt(at(17, 7, 0)));
+        // Saturday night is not picked (qBittorrent would be on all Saturday).
+        QVERIFY(!weekdayNights.onAt(at(17, 23, 30)));
+        QVERIFY(!weekdayNights.onAt(at(17, 12, 0)));
+        // Sunday night is not picked, so Monday morning is off; Monday night is on.
+        QVERIFY(!weekdayNights.onAt(at(19, 3, 0)));
+        QVERIFY(weekdayNights.onAt(at(19, 23, 0)));
+        QCOMPARE(weekdayNights.nextChange(at(17, 12, 0), false), at(19, 23, 0));
+
+        // Begin and end the same: on the whole day from begin.
+        const AltSchedule wholeDay = AltSchedule::transmission(true, 8 * H, 8 * H, 1 << 4);
+        QVERIFY(!wholeDay.never());
+        QVERIFY(wholeDay.onAt(at(15, 8, 0)));  // Thursday
+        QVERIFY(wholeDay.onAt(at(16, 7, 59))); // Friday morning, still Thursday's
+        QVERIFY(!wholeDay.onAt(at(16, 8, 0)));
+        QVERIFY(AltSchedule::transmission(true, 8 * H, 9 * H, 0).never());
+
+        // A state the clock reached two seconds ago is a hand toggle on Transmission, which
+        // has already looked (qBittorrent's 30 s grace doesn't apply).
+        const AltSchedule days =
+            AltSchedule::transmission(true, 9 * H, 17 * H, AltSchedule::AllDays);
+        QCOMPARE(days.lookEvery(), 1);
+        QVERIFY(!days.read(true, at(15, 9, 0, 0)).byHand);
+        QVERIFY(days.read(false, at(15, 9, 0, 2)).byHand);
+        QVERIFY(!AltSchedule(true, 9 * H, 17 * H, 0).read(false, at(15, 9, 0, 2)).byHand);
+
+        QCOMPARE(days.summary(QStringLiteral("turtle"), false, at(15, 8, 0)).text,
+                 QStringLiteral("Turtle every day from 09:00 to 17:00, by the server's clock. "
+                                "Next: on at 09:00."));
+        QVERIFY(AltSchedule::transmission(true, 9 * H, 17 * H, 2 | 8)
+                    .summary(QStringLiteral("turtle"), false, at(15, 8, 0))
+                    .text.startsWith(QStringLiteral("Turtle on Mon, Wed from 09:00")));
+    }
+
     void summaryNotes()
     {
         const QDateTime night = at(15, 23, 30);

@@ -36,6 +36,7 @@
 #include <QStringList>
 #include <QTimer>
 #include <QUrl>
+#include <QVariantMap>
 
 #include <chrono>
 #include <optional>
@@ -204,6 +205,15 @@ public:
                                         const std::optional<QString> &action) = 0;
     virtual Reply<GlobalLimits> *globalLimits() = 0;
     virtual Reply<Done> *setGlobalLimits(const GlobalLimits &limits) = 0;
+    /// The server's settings omaseed's speed surfaces read (AltSpeed, AltPresets, the add
+    /// sheet's default folder) for an engine whose settings are not qBittorrent's preferences
+    /// (ServerPreferences::setSession, C25 K20): in app/preferences' keys and units, dl_limit,
+    /// up_limit, alt_dl_limit, alt_up_limit (bytes/s, 0 none), scheduler_enabled,
+    /// schedule_from_hour/min, schedule_to_hour/min, the days as the engine keeps them
+    /// (AltSchedule::fromPreferences) and save_path. Not supported by default.
+    virtual Reply<QVariantMap> *sessionPreferences();
+    /// Writes those keys (any other is refused, nothing sent).
+    virtual Reply<Done> *setSessionPreferences(const QVariantMap &changes);
     virtual Reply<Done> *toggleAltSpeed() = 0;
     /// Says what it wants, so two quick calls cannot cancel each other out.
     virtual Reply<Done> *setAltSpeed(bool on) = 0;

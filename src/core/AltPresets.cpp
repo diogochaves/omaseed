@@ -28,6 +28,13 @@ qint64 limitOf(const QVariant &value)
     return qMax<qint64>(0, value.toLongLong());
 }
 
+/// A limit read back is the one written: exactly, or within one unit of an engine that keeps
+/// its own (Transmission's kB of 1000 bytes rounds 2 MiB/s up to 2098 kB/s, C25 K20).
+bool sameLimit(qint64 read, qint64 written)
+{
+    return read == written || (read > 0 && written > 0 && qAbs(read - written) < 1024);
+}
+
 int minutesStep(int minutes)
 {
     return minutes == 30 || minutes == 0 ? minutes : AltPresets::kDefaultBurstMinutes;
@@ -474,8 +481,8 @@ void AltPresets::recover()
     if (run.isEmpty())
         return;
     // Someone else wrote the set meanwhile: it is theirs now, and the saved turtle is stale.
-    if (serverLimit("alt_dl_limit") != run.value(QStringLiteral("dl")).toInteger() ||
-        serverLimit("alt_up_limit") != run.value(QStringLiteral("up")).toInteger()) {
+    if (!sameLimit(serverLimit("alt_dl_limit"), run.value(QStringLiteral("dl")).toInteger()) ||
+        !sameLimit(serverLimit("alt_up_limit"), run.value(QStringLiteral("up")).toInteger())) {
         QJsonObject e = entry();
         e.remove(kRunning);
         setEntry(e);

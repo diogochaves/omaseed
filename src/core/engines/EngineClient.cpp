@@ -24,4 +24,14 @@ Reply<ServerFolder> *EngineClient::folderContent(const QString &)
     return reply;
 }
 
+Reply<QVariantMap> *EngineClient::sessionPreferences()
+{
+    return unsupported<QVariantMap>(QStringLiteral("the session's settings"));
+}
+
+Reply<Done> *EngineClient::setSessionPreferences(const QVariantMap &)
+{
+    return unsupported<Done>(QStringLiteral("the session's settings"));
+}
+
 } // namespace omaseed::core

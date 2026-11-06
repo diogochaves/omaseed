@@ -15,8 +15,14 @@
 //     and when App connects to a server.
 // `reset()` forgets everything, for a server switch; answers still on their way for the
 // previous server are dropped.
+//
+// On an engine whose settings are not qBittorrent's (Transmission's session, C25 K20),
+// `setSession` points it at that engine's EngineClient::sessionPreferences: the same rules,
+// with only the speed keys, the turtle's clock and the default folder, in app/preferences'
+// words, so AltSpeed, AltPresets and the add sheet read them as they do qBittorrent's.
 
 #include <QObject>
+#include <QPointer>
 #include <QString>
 #include <QStringList>
 #include <QVariantList>
@@ -24,6 +30,7 @@
 
 namespace omaseed::core {
 
+class EngineClient;
 class QbtClient;
 class QbtEngine;
 
@@ -71,6 +78,11 @@ public:
 
     /// Forget the server: no values, nothing pending, and late answers are dropped.
     void reset();
+    /// Read and write `engine`'s session settings instead of qBittorrent's preferences; null
+    /// goes back to qBittorrent's. Forgets what it had (reset()).
+    void setSession(EngineClient *engine);
+    /// The values come from an engine's session (setSession), not qBittorrent's preferences.
+    bool isSession() const { return !m_session.isNull(); }
     /// The demo's server: these values, and changes that land at once with no client.
     void setOffline(const QVariantMap &values);
 
@@ -98,7 +110,14 @@ private:
     /// Reads the preferences and hands the keys of `sent` to `applied` once they land.
     void readBack(const QVariantMap &sent);
 
+    /// The values as read, or why not, from either source.
+    void landed(quint64 generation,
+                const QVariantMap &sent,
+                const QVariantMap &fresh,
+                const QString &error);
+
     QbtClient *m_client = nullptr;
+    QPointer<EngineClient> m_session;
     QVariantMap m_values;
     /// key -> the value it had before the change on its way.
     QVariantMap m_pending;

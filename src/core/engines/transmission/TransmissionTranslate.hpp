@@ -22,6 +22,7 @@
 #include <QJsonArray>
 #include <QJsonObject>
 #include <QStringList>
+#include <QVariantMap>
 
 #include <optional>
 
@@ -71,6 +72,17 @@ ServerStatePatch serverState(const QJsonObject &stats,
                              const std::optional<QJsonObject> &freeSpace = std::nullopt);
 /// The speed limits and turtle mode's, from the same session_get.
 GlobalLimits globalLimits(const QJsonObject &sessionGet);
+/// The same session_get as the preferences omaseed's speed surfaces read (EngineClient::
+/// sessionPreferences, C25 K20): dl_limit, up_limit, alt_dl_limit, alt_up_limit in bytes/s
+/// (0 none), scheduler_enabled, schedule_from_hour/min and schedule_to_hour/min from
+/// alt_speed_time_*, scheduler_day_mask (alt_speed_time_day, AltSchedule's Transmission rule)
+/// and save_path (download_dir). A key whose field is missing is left out.
+QVariantMap speedPreferences(const QJsonObject &sessionGet);
+/// What session_set takes for `changes` (keys as speedPreferences writes them), given the
+/// session as it is (`sessionGet`, for the half of a time not changed and the units). Empty,
+/// with `why` saying so, when a key has no place in Transmission's session.
+QJsonObject
+speedSessionSet(const QVariantMap &changes, const QJsonObject &sessionGet, QString *why = nullptr);
 
 /// The General tab: a torrent of propertiesFields(). `nowSecs` (seconds since the epoch)
 /// counts down to the next announce.

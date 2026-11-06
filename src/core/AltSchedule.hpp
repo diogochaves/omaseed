@@ -16,9 +16,19 @@
 //     A hand toggle is left alone until then; if that change goes the same way as the hand
 //     toggle nothing happens, and the hand's state lasts until the change after it.
 //
+// Transmission's turtle clock (alt_speed_time_*, DECISIONS C25 K20, board 47 §D "the until
+// follows Transmission's own timer"), read in libtransmission 4.1 for behaviour only:
+//   * One window, begin to end, on the days of a mask (Sunday 1, Monday 2, … Saturday 64).
+//   * The window starts on a picked day; past midnight it runs on into the next day (not
+//     backwards, unlike qBittorrent). Begin and end the same: on the whole day from begin.
+//   * It looks every second and, like qBittorrent, acts only when its reading changes, so a
+//     hand toggle lasts until the change that goes the other way.
+// `fromPreferences` reads it when the preferences carry `scheduler_day_mask` (the mask; what
+// TransmissionTranslate::speedPreferences writes) instead of `scheduler_days`.
+//
 // Times are the server's clock; the API gives no time zone, so omaseed reads them with this
 // computer's (the `QDateTime`s handed in). Minutes are the unit: a boundary is the minute
-// qBittorrent's window starts or ends. Pure.
+// the window starts or ends. Pure.
 
 #include <QDateTime>
 #include <QString>
@@ -30,13 +40,20 @@ class AltSchedule
 {
 public:
     enum Days { EveryDay = 0, Weekdays = 1, Weekends = 2, Monday = 3, Sunday = 9 };
+    /// Whose scheduler: the days and the overnight window differ (see above).
+    enum class Rule { Qbittorrent, Transmission };
+    /// Transmission's day mask: Sunday 1 << 0 to Saturday 1 << 6.
+    enum DayMask { AllDays = 127, WeekdayMask = 62, WeekendMask = 65 };
 
     AltSchedule() = default;
     /// `from` and `to` in minutes since midnight.
     AltSchedule(bool enabled, int fromMinute, int toMinute, int days);
+    /// Transmission's: `dayMask` as alt_speed_time_day keeps it.
+    static AltSchedule transmission(bool enabled, int fromMinute, int toMinute, int dayMask);
 
     /// From `app/preferences`: scheduler_enabled, schedule_from_hour/min, schedule_to_hour/min,
-    /// scheduler_days. `known()` is false when the window's keys are missing.
+    /// scheduler_days (or Transmission's scheduler_day_mask). `known()` is false when the
+    /// window's keys are missing.
     static AltSchedule fromPreferences(const QVariantMap &preferences);
 
     bool known() const { return m_known; }
@@ -44,13 +61,23 @@ public:
     int fromMinute() const { return m_from; }
     int toMinute() const { return m_to; }
     int days() const { return m_days; }
+    Rule rule() const { return m_rule; }
+    /// Transmission's days (Rule::Transmission only).
+    int dayMask() const { return m_mask; }
 
-    /// From and to the same: it never turns on.
-    bool never() const { return m_from == m_to; }
-    /// The window passes midnight.
-    bool overnight() const { return m_from > m_to; }
-    /// Past midnight on some days only: the picked days are the ones it holds back.
-    bool backwards() const { return overnight() && m_days != EveryDay; }
+    /// It never turns on: qBittorrent's from and to the same, or Transmission with no day.
+    bool never() const
+    {
+        return m_rule == Rule::Transmission ? (m_mask & AllDays) == 0 : m_from == m_to;
+    }
+    /// The window passes midnight (Transmission's from and to the same: a whole day from).
+    bool overnight() const { return m_rule == Rule::Transmission ? m_from >= m_to : m_from > m_to; }
+    /// Past midnight on some days only: the picked days are the ones it holds back
+    /// (qBittorrent's rule; Transmission's runs forwards).
+    bool backwards() const
+    {
+        return m_rule == Rule::Qbittorrent && overnight() && m_days != EveryDay;
+    }
 
     /// What the schedule says at `when` (whether it is enabled or not).
     bool onAt(const QDateTime &when) const;
@@ -95,15 +122,21 @@ public:
 
     /// qBittorrent's scheduler looks every 30 s.
     static constexpr int lookSeconds = 30;
+    /// How often this one looks: 30 s on qBittorrent, every second on Transmission.
+    int lookEvery() const { return m_rule == Rule::Transmission ? 1 : lookSeconds; }
 
 private:
     bool dayPicked(int dayOfWeek) const;
+    /// Transmission's days in words ("every day", "Monday to Friday", "Mon, Wed").
+    QString maskWords() const;
 
     bool m_known = false;
     bool m_enabled = false;
     int m_from = 0;
     int m_to = 0;
     int m_days = EveryDay;
+    Rule m_rule = Rule::Qbittorrent;
+    int m_mask = AllDays;
 };
 
 } // namespace omaseed::core

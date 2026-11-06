@@ -201,15 +201,18 @@ App::App(QObject *parent)
     connect(m_engine->globalState(), &GlobalState::connectedChanged, this, &App::updateTray);
     // docs/16: the hero reads the listening port and anonymous mode, so the preferences are
     // read as soon as a server answers, and again whenever it comes back.
+    // C25 K20: on Transmission they are its session's speed keys and turtle clock.
     connect(m_engine->globalState(), &GlobalState::connectedChanged, this, [this]() {
-        if (!m_demoMode && m_hasServer && qbtEngine() && m_engine->globalState()->connected())
+        if (!m_demoMode && m_hasServer && (qbtEngine() || m_prefs->isSession()) &&
+            m_engine->globalState()->connected())
             m_prefs->reload();
     });
     // docs/31 D13: the other set and the schedule live only in the preferences, so they are
     // read again each time the alternative limits flip (a few times a day): a set or a schedule
     // changed in qBittorrent's Web UI shows the next time it switches.
     connect(m_engine->globalState(), &GlobalState::useAltSpeedLimitsChanged, this, [this]() {
-        if (!m_demoMode && m_hasServer && qbtEngine() && m_engine->globalState()->connected())
+        if (!m_demoMode && m_hasServer && (qbtEngine() || m_prefs->isSession()) &&
+            m_engine->globalState()->connected())
             m_prefs->reload();
     });
     connect(m_prefs, &ServerPreferences::posted, this, &App::followServerPreferences);
@@ -652,6 +655,9 @@ void App::useClientFor(EngineKind kind)
     // Every holder of the client (SyncEngine starts over with it: rid, models, probe).
     m_engine->setClient(m_client);
     m_altPresets->setClient(m_client);
+    // C25 K20: turtle, its clock and the presets read Transmission's session where
+    // qBittorrent's preferences would be.
+    m_prefs->setSession(kind == EngineKind::Transmission ? m_transmission : nullptr);
     m_pauseHold->setClient(m_client);
     // C36 M10 on Transmission: its stop lands a moment after the answer (#85), so a resume
     // right after a pause waits for it rather than skip what still reads running.

@@ -1,5 +1,6 @@
 #include "core/engines/qbt/ServerPreferences.hpp"
 
+#include "core/engines/EngineClient.hpp"
 #include "core/engines/qbt/QbtClient.hpp"
 #include "core/engines/qbt/QbtEngine.hpp"
 
@@ -72,52 +73,81 @@ void ServerPreferences::reload()
     readBack({});
 }
 
+void ServerPreferences::setSession(EngineClient *engine)
+{
+    if (m_session == engine)
+        return;
+    reset();
+    m_session = engine;
+}
+
 void ServerPreferences::readBack(const QVariantMap &sent)
 {
-    if (m_client == nullptr)
+    if (m_client == nullptr && m_session.isNull())
         return;
     const quint64 generation = m_generation;
     ++m_reads;
     setLoading(true);
+    if (!m_session.isNull()) {
+        m_session->sessionPreferences()->then(
+            this, [this, generation, sent](const Result<QVariantMap> &result) {
+                landed(generation,
+                       sent,
+                       result.isError() ? QVariantMap() : result.value(),
+                       result.isError() ? result.error().toString() : QString());
+            });
+        return;
+    }
     m_client->appPreferences()->then(
         this, [this, generation, sent](const Result<QJsonObject> &result) {
-            if (generation != m_generation)
-                return; // another server took over meanwhile
-            if (--m_reads == 0)
-                setLoading(false);
-            if (result.isError()) {
-                m_loadError = result.error().toString();
-                Q_EMIT stateChanged();
-                if (!sent.isEmpty())
-                    Q_EMIT applied(sent.keys(), {});
-                return;
-            }
-            QVariantMap fresh = result.value().toVariantMap();
-            // A change still on its way keeps showing what was asked for.
-            for (auto it = m_pending.constBegin(); it != m_pending.constEnd(); ++it) {
-                if (m_values.contains(it.key()))
-                    fresh.insert(it.key(), m_values.value(it.key()));
-            }
-            const bool changed = fresh != m_values;
-            m_values = fresh;
-            const bool firstLoad = !m_loaded;
-            m_loaded = true;
-            const bool hadError = !m_loadError.isEmpty();
-            m_loadError.clear();
-            if (firstLoad || hadError)
-                Q_EMIT stateChanged();
-            if (changed)
-                Q_EMIT valuesChanged();
-            if (sent.isEmpty())
-                return;
-            QStringList kept;
-            for (auto it = sent.constBegin(); it != sent.constEnd(); ++it) {
-                // Write-only keys (a password) never come back, so they cannot be checked.
-                if (m_values.contains(it.key()) && !sameValue(m_values.value(it.key()), it.value()))
-                    kept.append(it.key());
-            }
-            Q_EMIT applied(sent.keys(), kept);
+            landed(generation,
+                   sent,
+                   result.isError() ? QVariantMap() : result.value().toVariantMap(),
+                   result.isError() ? result.error().toString() : QString());
         });
+}
+
+void ServerPreferences::landed(quint64 generation,
+                               const QVariantMap &sent,
+                               const QVariantMap &answer,
+                               const QString &error)
+{
+    if (generation != m_generation)
+        return; // another server took over meanwhile
+    if (--m_reads == 0)
+        setLoading(false);
+    if (!error.isEmpty()) {
+        m_loadError = error;
+        Q_EMIT stateChanged();
+        if (!sent.isEmpty())
+            Q_EMIT applied(sent.keys(), {});
+        return;
+    }
+    QVariantMap fresh = answer;
+    // A change still on its way keeps showing what was asked for.
+    for (auto it = m_pending.constBegin(); it != m_pending.constEnd(); ++it) {
+        if (m_values.contains(it.key()))
+            fresh.insert(it.key(), m_values.value(it.key()));
+    }
+    const bool changed = fresh != m_values;
+    m_values = fresh;
+    const bool firstLoad = !m_loaded;
+    m_loaded = true;
+    const bool hadError = !m_loadError.isEmpty();
+    m_loadError.clear();
+    if (firstLoad || hadError)
+        Q_EMIT stateChanged();
+    if (changed)
+        Q_EMIT valuesChanged();
+    if (sent.isEmpty())
+        return;
+    QStringList kept;
+    for (auto it = sent.constBegin(); it != sent.constEnd(); ++it) {
+        // Write-only keys (a password) never come back, so they cannot be checked.
+        if (m_values.contains(it.key()) && !sameValue(m_values.value(it.key()), it.value()))
+            kept.append(it.key());
+    }
+    Q_EMIT applied(sent.keys(), kept);
 }
 
 void ServerPreferences::apply(const QVariantMap &changes)
@@ -136,7 +166,7 @@ void ServerPreferences::apply(const QVariantMap &changes)
         Q_EMIT applied(changes.keys(), {});
         return;
     }
-    if (m_client == nullptr)
+    if (m_client == nullptr && m_session.isNull())
         return;
     const quint64 generation = m_generation;
 
@@ -153,24 +183,34 @@ void ServerPreferences::apply(const QVariantMap &changes)
     Q_EMIT valuesChanged();
     Q_EMIT pendingChanged();
 
-    m_client->appSetPreferences(QJsonObject::fromVariantMap(changes))
-        ->then(this, [this, generation, changes, before](const Result<QByteArray> &result) {
-            if (generation != m_generation)
-                return;
-            for (auto it = changes.constBegin(); it != changes.constEnd(); ++it)
-                m_pending.remove(it.key());
-            Q_EMIT pendingChanged();
-            if (result.isError()) {
-                for (auto it = before.constBegin(); it != before.constEnd(); ++it) {
-                    if (m_values.contains(it.key()))
-                        m_values.insert(it.key(), it.value());
-                }
-                Q_EMIT valuesChanged();
-                Q_EMIT applyFailed(changes.keys(), result.error().toString());
-                return;
+    const auto answered = [this, generation, changes, before](const QString &error) {
+        if (generation != m_generation)
+            return;
+        for (auto it = changes.constBegin(); it != changes.constEnd(); ++it)
+            m_pending.remove(it.key());
+        Q_EMIT pendingChanged();
+        if (!error.isEmpty()) {
+            for (auto it = before.constBegin(); it != before.constEnd(); ++it) {
+                if (m_values.contains(it.key()))
+                    m_values.insert(it.key(), it.value());
             }
-            Q_EMIT posted(changes, before);
-            readBack(changes);
+            Q_EMIT valuesChanged();
+            Q_EMIT applyFailed(changes.keys(), error);
+            return;
+        }
+        Q_EMIT posted(changes, before);
+        readBack(changes);
+    };
+    if (!m_session.isNull()) {
+        m_session->setSessionPreferences(changes)->then(
+            this, [answered](const Result<Done> &result) {
+                answered(result.isError() ? result.error().toString() : QString());
+            });
+        return;
+    }
+    m_client->appSetPreferences(QJsonObject::fromVariantMap(changes))
+        ->then(this, [answered](const Result<QByteArray> &result) {
+            answered(result.isError() ? result.error().toString() : QString());
         });
 }
 

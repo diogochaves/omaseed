@@ -22,6 +22,7 @@ private slots:
     void burstKeysStayHereByServer();
     void aRunningBurstKeepsTheTurtleAside();
     void aSetSomeoneElseWroteIsForgotten();
+    void aSetAnEngineRoundedIsStillBursts();
 };
 
 namespace {
@@ -159,6 +160,26 @@ void TestAltPresets::aSetSomeoneElseWroteIsForgotten()
     QVERIFY(!presets.burstOn());
     QCOMPARE(stored.count(), 1);
     QCOMPARE(presets.turtleDl(), 123 * 1024);
+}
+
+// C25 K20: Transmission keeps kB/s of 1000 bytes, so burst's 2 MiB/s reads back as 2098 kB/s.
+// That is still burst's set: the burst is ended (here it can't be, with no client, so it is
+// kept), not forgotten.
+void TestAltPresets::aSetAnEngineRoundedIsStillBursts()
+{
+    ServerPreferences prefs(nullptr);
+    prefs.setOffline(serverValues(0, 2098 * 1000));
+    GlobalState state;
+    state.setConnected(true);
+    AltPresets presets;
+    presets.setPreferences(&prefs);
+    presets.setGlobalState(&state);
+    QSignalSpy stored(&presets, &AltPresets::storeChanged);
+    presets.setStore(runningStore(0, 2 * 1024 * 1024));
+    presets.setServer(QStringLiteral("public"));
+    QVERIFY(presets.burstOn());
+    QCOMPARE(stored.count(), 0);
+    QCOMPARE(presets.turtleDl(), 300 * 1024);
 }
 
 QTEST_MAIN(TestAltPresets)
