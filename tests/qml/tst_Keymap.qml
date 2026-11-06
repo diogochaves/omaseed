@@ -811,6 +811,36 @@ TestCase {
         verify(Keymap.missingLine(off, "nas", "Deluge", "2.2.0").indexOf("labels (its Label plugin is off)") >= 0);
     }
 
+    // #237: ctrl+shift+, takes its words from the server's engine, in the palette and the ?
+    // sheet, wherever the engine has a group in Settings (its own sections: sessionSettings).
+    function test_the_settings_command_is_named_for_the_engine() {
+        const titleOf = features => Keymap.commandRows(testCase._context({
+                                                                             "features": features
+                                                                         })).find(r => r.action === "qbtSettings");
+        compare(titleOf({}).title, "qBittorrent settings");
+        compare(titleOf({
+                            "engineName": "qBittorrent"
+                        }).title, "qBittorrent settings");
+        for (const engine of ["Transmission", "Deluge"]) {
+            const features = Object.assign({}, engine === "Deluge" ? testCase.deluge : testCase.transmission, {
+                                               "sessionSettings": true,
+                                               "engineName": engine
+                                           });
+            verify(Keymap.offered("qbtSettings", features, ""), engine);
+            const row = titleOf(features);
+            verify(row, engine + ": no settings command");
+            compare(row.title, engine + " settings");
+            compare(row.meta, "ctrl+shift+,");
+            const help = Keymap.helpRows("app", "alt", features).find(r => r.action === "qbtSettings");
+            compare(help.help, engine + " settings");
+            compare(Keymap.missingNote("qbtSettings", features, "", "nas", engine), "");
+        }
+        // Without a group of its own the command goes, and its key says so.
+        verify(titleOf(testCase.deluge) === undefined);
+        compare(Keymap.missingNote("qbtSettings", testCase.deluge, "", "nas", "Deluge"),
+                "nas (Deluge) has no settings omaseed can change");
+    }
+
     // Board 47 §H–§I (C25 K29, K30): what a Deluge lacks, said once and in the ? sheet's foot.
     function test_what_a_deluge_lacks_is_said_in_words() {
         compare(Keymap.missingNote("altSpeed", testCase.deluge, "", "nas", "Deluge"), "nas (Deluge) has no turtle");

@@ -1896,7 +1896,7 @@ Item {
         if (root.firstRun)
             return;
         // C25 K31: on another engine, its own group (Settings › Transmission), where it has one.
-        if (!Keymap.offered("qbtSettings", App.features, "") && App.features.sessionSettings !== true) {
+        if (!Keymap.offered("qbtSettings", App.features, "")) {
             root.sayMissing("qbtSettings", "");
             return;
         }

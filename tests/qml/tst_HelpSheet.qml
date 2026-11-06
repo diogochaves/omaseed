@@ -67,6 +67,36 @@ TestCase {
         verify(!line.visible);
     }
 
+    // #237: ctrl+shift+,'s row names the server's engine's settings, on every engine with a
+    // group in Settings (qbtSettings, or its own sections: sessionSettings).
+    function test_the_settings_row_names_the_servers_engine() {
+        const sheet = init();
+        const settingsRow = () => sheet.sections.reduce((rows, section) => rows.concat(section.rows), []).find(
+                              row => row.action === "qbtSettings");
+        sheet.features = {
+            "engineName": "qBittorrent"
+        };
+        compare(settingsRow().help, "qBittorrent settings");
+        for (const engine of ["Transmission", "Deluge"]) {
+            sheet.features = {
+                "qbtSettings": false,
+                "sessionSettings": true,
+                "engineName": engine
+            };
+            compare(settingsRow().help, engine + " settings");
+            compare(settingsRow().helpKeys, "ctrl+shift+,");
+        }
+        sheet.filterField.text = "deluge settings";
+        compare(sheet.matchedRows.map(row => row.action), ["qbtSettings"]);
+        sheet.filterField.text = "";
+        // An engine omaseed has no settings for: no row.
+        sheet.features = {
+            "qbtSettings": false,
+            "engineName": "Other"
+        };
+        compare(settingsRow(), undefined);
+    }
+
     // DECISIONS C18 D6 (board 45 M2): a mouse block right after the select keys.
     function test_the_mouse_has_its_own_block_after_select() {
         const sheet = init();

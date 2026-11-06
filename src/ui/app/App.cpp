@@ -5654,6 +5654,9 @@ QVariantMap App::featuresMap() const
         {QStringLiteral("engineLog"), f.engineLog},
         {QStringLiteral("qbtSettings"), f.qbtSettings},
         {QStringLiteral("sessionSettings"), f.sessionSettings},
+        // #237: the engine the settings command names ("Deluge settings").
+        {QStringLiteral("engineName"),
+         m_client == m_qbt ? QStringLiteral("qBittorrent") : serverEngineName()},
         {QStringLiteral("torrentsBackup"), f.torrentsBackup},
         {QStringLiteral("rss"), f.rss},
         {QStringLiteral("addAgain"), f.addAgain},

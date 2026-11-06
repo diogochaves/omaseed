@@ -2436,7 +2436,7 @@ QtObject {
                                              "superSeeding": qsTr("super seeding"),
                                              "autoManagement": qsTr("automatic management"),
                                              "engineLog": qsTr("log"),
-                                             "qbtSettings": qsTr("qBittorrent settings"),
+                                             "qbtSettings": qsTr("settings omaseed can change"),
                                              "altSpeeds": qsTr("turtle"),
                                              "search": qsTr("search"),
                                              "createTorrent": qsTr("torrent creator"),
@@ -2516,6 +2516,9 @@ QtObject {
     /// offered by a server that can do `features`.
     function offered(action, features, tab) {
         const can = features || {};
+        // #237: the server's own settings, on every engine omaseed has a group for (C25 K31).
+        if (action === "qbtSettings")
+            return can.qbtSettings !== false || can.sessionSettings === true;
         let feature = root.actionFeatures[action];
         if (tab === "log")
             feature = "engineLog";
@@ -2848,6 +2851,16 @@ QtObject {
         };
     }
 
+    /// #237: ctrl+shift+,'s words for a server of `engine` ("Transmission settings").
+    function settingsWords(engine) {
+        const title = qsTr("%1 settings").arg(engine);
+        return {
+            "title": title,
+            "label": title,
+            "help": title
+        };
+    }
+
     /// docs/31 (DECISIONS.md C4): the alternative limits' entries say "burst" or "turtle"
     /// when the set goes one way; mixed, the same or not known keep today's words. The `?`
     /// sheet's line still says "alternative", so a search for "alt" finds it either way.
@@ -2897,6 +2910,9 @@ QtObject {
     /// row (C t m L r) is led by `t`, so the `?` sheet keeps it.
     function _groupWorded(entry, features) {
         const w = root.groupWords(features);
+        // #237: the settings command named for the server's engine ("Deluge settings").
+        if (entry.action === "qbtSettings" && (features || {}).engineName)
+            return Object.assign({}, entry, root.settingsWords(features.engineName));
         // C14 E4: adding it again is qBittorrent's (EngineFeatures::addAgain); elsewhere the
         // row only frees the space.
         if (entry.action === "freeSpace" && (features || {}).addAgain === false)
