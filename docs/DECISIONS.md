@@ -1540,6 +1540,19 @@ its Seeds and Peers columns where only the tracker in use has a status (K29: unr
 left out), and a torrent new to the engine has its trackers asked on the next poll, so one added
 paused isn't counted trackerless before it announces.
 
+*Deluge settled (2026-11-06, E6 #87 and #244, assumed, to confirm):* the move Deluge takes and
+drops without a word gets a line in the details' story, as a failed move has on qBittorrent:
+board 46's words, "The move to FOLDER/SUB didn't happen" (the warning marker), over the strip's
+"Deluge didn't move it and doesn't say why". No log knows it and the move history keeps only
+moves made, so omaseed keeps the last such move of each torrent on the server for the session;
+after a restart the story no longer has it. A resume (`p`, retry) of a torrent Deluge paused in
+error leaves it in Error with `paused` false: omaseed now reads it as not paused (C20's errored
+and stopped read asks Deluge's `paused`, while Pause Torrents' running list still leaves it
+alone), so the row and the details' head no longer say "paused": "didn't move", "needs you",
+"Deluge couldn't move its files · still in error until a recheck", recheck still its fix; `p`
+then pauses it again. Another engine's problem read the same way ("… · still in error") where
+the engine says it runs in error.
+
 ## C26 — Search through qBittorrent's search plugins (board 48, ruled 2026-10-22)
 
 Board [48](48-search.html) SR1–SR14, all as recommended, in board 46's frame (C24 H16: a rail view
