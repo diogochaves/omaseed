@@ -105,8 +105,10 @@ Item {
     /// next torrent's list is still on its way and that tab is the one on show, so moving the
     /// cursor between two web-seeded torrents does not drop it (the model clears on every
     /// selection change; `loaded` says when it has answered).
-    readonly property bool hasWebSeeds: root.details.webSeeds.count > 0
-                                        || (!root.details.webSeeds.loaded && root.currentTab === root.tabWebSeeds)
+    /// Board 47 H: never on an engine that reports none (Deluge, App.features.webSeeds).
+    readonly property bool hasWebSeeds: App.features.webSeeds !== false && (root.details.webSeeds.count > 0
+                                                                            || (!root.details.webSeeds.loaded
+                                                                                && root.currentTab === root.tabWebSeeds))
 
     // One cursor per list, so switching tabs and coming back keeps the place.
     property int filesCursor: 0

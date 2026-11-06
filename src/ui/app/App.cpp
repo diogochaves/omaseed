@@ -5659,6 +5659,8 @@ void App::updateFeatures()
     m_filtered->setEngineName(engine);
     // C25 K29: web seeds read only, with no status, where there is no log to read.
     m_details->webSeeds()->setEngine(engine, features.engineLog);
+    // Board 47 H: an engine that reports no web seeds isn't asked for them.
+    m_details->setWebSeedsReported(features.webSeeds);
     m_console->setEngineName(engine);
     if (features == m_features)
         return;

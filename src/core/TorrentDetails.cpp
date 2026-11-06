@@ -199,6 +199,15 @@ void TorrentDetails::refreshWebSeeds()
     pollWebSeeds();
 }
 
+void TorrentDetails::setWebSeedsReported(bool reported)
+{
+    if (reported == m_webSeedsReported)
+        return;
+    m_webSeedsReported = reported;
+    if (!reported)
+        m_webSeeds->clear();
+}
+
 int TorrentDetails::piecesHaveCount() const
 {
     return PieceStates::count(m_pieceStates, PieceStates::Have);
@@ -347,7 +356,7 @@ void TorrentDetails::poll()
 
 void TorrentDetails::pollWebSeeds()
 {
-    if (m_demo || m_client.isNull() || m_hash.isEmpty() || !torrentExists())
+    if (m_demo || !m_webSeedsReported || m_client.isNull() || m_hash.isEmpty() || !torrentExists())
         return;
 
     const QString hash = m_hash;

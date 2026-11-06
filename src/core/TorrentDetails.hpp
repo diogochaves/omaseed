@@ -123,6 +123,10 @@ public:
     void setWebSeedsActive(bool active);
     /// Asks for the web seeds now (after an add or a remove).
     void refreshWebSeeds();
+    /// The engine reports a torrent's web seeds (EngineFeatures::webSeeds). Deluge doesn't
+    /// (board 47 H): nothing is asked, so its "not supported" answer never reads as the
+    /// torrent gone, and the list stays empty.
+    void setWebSeedsReported(bool reported);
 
     int pieceCount() const { return int(m_pieceStates.size()); }
     /// The last torrents/pieceStates answer, one PieceStates::State per piece; empty while
@@ -200,6 +204,7 @@ private:
     bool m_peersActive = false;
     bool m_generalActive = true;
     bool m_webSeedsActive = false;
+    bool m_webSeedsReported = true;
     int m_pollTick = 0; ///< poll() calls since the selection changed: webseeds every tenth
     bool m_demo = false;
     bool m_errorLogged = false;
