@@ -160,6 +160,44 @@ private Q_SLOTS:
         QCOMPARE(t.value(QStringLiteral("bufferNegative")).toBool(), false);
     }
 
+    // C25 K34 (board 47 §K): an engine with no all-time totals (Deluge) counts from when
+    // omaseed began watching, and one line says so; a scope still sums its torrents.
+    void deluge_countsFromWhenOmaseedBeganWatching()
+    {
+        Fixture f;
+        f.state.setServerName(QStringLiteral("nas"));
+        f.console.setEngineName(QStringLiteral("Deluge"));
+        f.console.setOwnTotals(true);
+        const qint64 start = QDateTime(QDate(2026, 10, 1), QTime(12, 0)).toSecsSinceEpoch();
+        f.ledger.observe(start, 0, 0, {});
+        f.ledger.observe(start + 2, 3000, 1000, {});
+        f.console.refresh();
+        QVariantMap t = f.console.totals();
+        QCOMPARE(t.value(QStringLiteral("givenText")).toString(), Format::size(3000));
+        QCOMPARE(t.value(QStringLiteral("takenText")).toString(), Format::size(1000));
+        QCOMPARE(t.value(QStringLiteral("ratioText")).toString(), QStringLiteral("3.00"));
+        QCOMPARE(t.value(QStringLiteral("takenNote")).toString(), QStringLiteral("since 1 Oct"));
+        QCOMPARE(t.value(QStringLiteral("ratioNote")).toString(), QStringLiteral("since 1 Oct"));
+        QCOMPARE(t.value(QStringLiteral("sinceLine")).toString(),
+                 QStringLiteral("Deluge keeps no all-time totals. These count from 1 Oct, when "
+                                "omaseed began watching nas; what nas gave before then isn't "
+                                "known."));
+
+        f.filter.setCategory(QStringLiteral("films"));
+        f.console.refresh();
+        t = f.console.totals();
+        QCOMPARE(t.value(QStringLiteral("takenNote")).toString(),
+                 QStringLiteral("by these torrents"));
+        QCOMPARE(t.value(QStringLiteral("sinceLine")).toString(), QString());
+
+        // qBittorrent's own count otherwise: no line.
+        Fixture q;
+        q.console.refresh();
+        QCOMPARE(q.console.totals().value(QStringLiteral("sinceLine")).toString(), QString());
+        QCOMPARE(q.console.totals().value(QStringLiteral("takenNote")).toString(),
+                 QStringLiteral("all time"));
+    }
+
     void aScopeSumsItsTorrents()
     {
         Fixture f;

@@ -399,20 +399,45 @@ void SeedConsole::refreshFast()
             if (x->inGroup(StatusGroup::Seeding))
                 ++seeding;
         }
-        const bool server = !m_scoped && m_state && m_state->allTimeUpload() > 0;
+        const bool server =
+            !m_scoped && !m_ownTotals && m_state && m_state->allTimeUpload() > 0;
+        // C25 K34: an engine with no all-time totals (Deluge) counts what the ledger booked
+        // since omaseed began watching the server.
+        const bool own = !m_scoped && m_ownTotals && m_ledger && m_ledger->start() > 0;
         if (server) {
             given = m_state->allTimeUpload();
             taken = m_state->allTimeDownload();
+        }
+        QString since, sinceLine;
+        if (own) {
+            const SeedLedger::Totals booked = m_ledger->totals();
+            given = booked.up;
+            taken = booked.down;
+            const QDate start = QDateTime::fromSecsSinceEpoch(m_ledger->start()).date();
+            const QString day = english().toString(
+                start, start.year() == now().date().year() ? QStringLiteral("d MMM")
+                                                           : QStringLiteral("d MMM yyyy"));
+            const QString name = m_state && !m_state->serverName().isEmpty()
+                                     ? m_state->serverName()
+                                     : QStringLiteral("the server");
+            since = QStringLiteral("since %1").arg(day);
+            sinceLine = QStringLiteral("%1 keeps no all-time totals. These count from %2, when "
+                                       "omaseed began watching %3; what %3 gave before then "
+                                       "isn't known.")
+                            .arg(m_engineName, day, name);
         }
         QVariantMap m = m_totals;
         m[QStringLiteral("given")] = given;
         m[QStringLiteral("givenText")] = Format::size(given);
         m[QStringLiteral("takenText")] = Format::size(taken);
-        m[QStringLiteral("takenNote")] =
-            server ? QStringLiteral("all time") : QStringLiteral("by these torrents");
+        m[QStringLiteral("takenNote")] = server ? QStringLiteral("all time")
+                                         : own  ? since
+                                                : QStringLiteral("by these torrents");
         m[QStringLiteral("ratioText")] = ratioText(double(given), double(taken));
-        m[QStringLiteral("ratioNote")] =
-            server ? QStringLiteral("all time") : QStringLiteral("given ÷ taken");
+        m[QStringLiteral("ratioNote")] = server ? QStringLiteral("all time")
+                                         : own  ? since
+                                                : QStringLiteral("given ÷ taken");
+        m[QStringLiteral("sinceLine")] = sinceLine;
         m[QStringLiteral("bufferText")] = signedSize(given - taken);
         m[QStringLiteral("bufferNegative")] = given < taken;
         m[QStringLiteral("offerText")] = Format::size(offer);

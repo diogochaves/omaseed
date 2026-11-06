@@ -98,6 +98,9 @@ public:
     /// The server's engine, which keeps the all-time count a fresh ledger quotes (C12's line:
     /// the words name it). qBittorrent until set.
     void setEngineName(const QString &name) { m_engineName = name; }
+    /// The engine keeps no all-time totals (Deluge; C25 K34): the whole library's all time is
+    /// what the ledger booked since it began, and `totals.sinceLine` says so.
+    void setOwnTotals(bool own) { m_ownTotals = own; }
 
     bool active() const { return m_active; }
     void setActive(bool active);
@@ -199,6 +202,7 @@ private:
     bool m_active = false;
     QString m_range = QStringLiteral("24h");
     QString m_engineName = QStringLiteral("qBittorrent");
+    bool m_ownTotals = false;
     int m_rareSeeds = 2;
     QStringList m_scopeHashes;
     int m_scopeCount = 0;

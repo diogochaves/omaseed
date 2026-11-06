@@ -1054,6 +1054,7 @@ EngineFeatures features(const ServerInfo &, bool labelPlugin)
     f.engineLog = false;         // I, K30: no log face, no ~
     f.qbtSettings = false;       // I, J
     f.sessionSettings = true;    // J, K31: Settings › Deluge, from core.conf (E6)
+    f.allTimeTotals = false;     // K, K34: what omaseed saw, from when it began watching
     f.torrentsBackup = false;    // I, K33
     f.rss = false;               // I
     f.addAgain = false;          // I: no .torrent to add back over the API

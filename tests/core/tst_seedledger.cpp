@@ -100,6 +100,26 @@ private Q_SLOTS:
         QCOMPARE(ledger.days(QDate(2026, 10, 3), QDate(2026, 10, 3)).first().up, 60);
     }
 
+    // C25 K34: everything booked since the ledger began, flushed or not; a session's totals
+    // fed in place of all-time ones (Deluge) start afresh after a daemon restart.
+    void totalsAreEverythingBookedSinceTheStart()
+    {
+        QTemporaryDir dir;
+        SeedLedger ledger;
+        QVERIFY(ledger.open(dir.filePath(QStringLiteral("t.sqlite"))));
+        QCOMPARE(ledger.totals().up, 0);
+        const qint64 t = noon(1);
+        ledger.observe(t, 100, 40, {});
+        ledger.observe(t + 2, 400, 90, {});
+        ledger.flush(t + 2);
+        ledger.observe(noon(), 400, 90, {}); // a day later, nothing moved
+        ledger.observe(noon() + 2, 30, 5, {}); // the daemon restarted: a new baseline
+        ledger.observe(noon() + 4, 80, 25, {});
+        const SeedLedger::Totals booked = ledger.totals();
+        QCOMPARE(booked.up, 300 + 50);
+        QCOMPARE(booked.down, 50 + 20);
+    }
+
     void aReAddedTorrentIsNotCountedAsALoss()
     {
         SeedLedger ledger;

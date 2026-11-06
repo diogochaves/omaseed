@@ -5697,6 +5697,7 @@ void App::updateFeatures()
     // Board 47 H: an engine that reports no web seeds isn't asked for them.
     m_details->setWebSeedsReported(features.webSeeds);
     m_console->setEngineName(engine);
+    m_console->setOwnTotals(!features.allTimeTotals);
     if (features == m_features)
         return;
     m_features = features;
@@ -6204,6 +6205,11 @@ void App::feedLedger()
                                          t.downloaded,
                                          t.addedOn.isValid() ? t.addedOn.toSecsSinceEpoch() : 0};
     };
+    // C25 K34: an engine with no all-time totals (Deluge) gives the ledger its session's; a
+    // daemon restart reads as a step back, which starts a new baseline and loses nothing.
+    const bool ownTotals = !m_features.allTimeTotals;
+    const qint64 allUp = ownTotals ? state->upInfoData() : state->allTimeUpload();
+    const qint64 allDown = ownTotals ? state->dlInfoData() : state->allTimeDownload();
     // #36: an idle poll changes nothing and costs nothing; a busy one, the rows it touched.
     const bool follows = m_fed && torrents->lastChangeFollows(m_fedRevision);
     if (follows && !m_ledger->wantsWholeList()) {
@@ -6212,14 +6218,13 @@ void App::feedLedger()
         changed.reserve(change.changed.size());
         for (const QString &hash : change.changed)
             changed.append(totalsOf(torrents->torrent(hash)));
-        m_ledger->observeChanges(
-            now, state->allTimeUpload(), state->allTimeDownload(), changed, change.removed);
+        m_ledger->observeChanges(now, allUp, allDown, changed, change.removed);
     } else {
         QList<SeedLedger::TorrentTotals> totals;
         totals.reserve(torrents->count());
         for (int i = 0; i < torrents->count(); ++i)
             totals.append(totalsOf(torrents->torrentAt(i)));
-        m_ledger->observe(now, state->allTimeUpload(), state->allTimeDownload(), totals);
+        m_ledger->observe(now, allUp, allDown, totals);
     }
 
     // T7: a complete torrent whose swarm just went down to you alone. Nothing is announced

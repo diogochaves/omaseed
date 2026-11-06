@@ -287,6 +287,18 @@ Flickable {
             }
         }
 
+        // C25 K34 (board 47 §K): an engine with no all-time totals (Deluge) counts from when
+        // omaseed began watching the server; one dim line under the totals says so.
+        Label {
+            dim: true
+            objectName: "consoleSinceLine"
+            size: "small"
+            text: root.seed.totals.sinceLine ?? ""
+            visible: text.length > 0
+            width: parent.width
+            wrapMode: Text.Wrap
+        }
+
         // --- the tide ------------------------------------------------------------------------
         Column {
             spacing: Theme.space(10)

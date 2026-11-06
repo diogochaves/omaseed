@@ -102,6 +102,11 @@ struct EngineFeatures
     /// Settings › qBittorrent with its settings export and import, the torrents export and
     /// import (C9's file holds qBittorrent's rows), RSS feeds and rules.
     bool qbtSettings = false;
+    /// The engine keeps all-time totals of what the server gave and took (qBittorrent's
+    /// alltime_ul, Transmission's cumulative stats). Deluge keeps none: the seed console's
+    /// all time counts from when omaseed began watching (C25 K34), and the ledger is fed the
+    /// session's totals instead.
+    bool allTimeTotals = true;
     /// The engine's settings, read and written through its session (EngineClient::
     /// sessionPreferences): Settings › ENGINE, its own sections (C25 K31, C14 E6; E5, #86).
     bool sessionSettings = false;

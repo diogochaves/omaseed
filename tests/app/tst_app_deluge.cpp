@@ -18,6 +18,8 @@
 #include "core/MoveJob.hpp"
 #include "core/ProblemLog.hpp"
 #include "core/SecretStore.hpp"
+#include "core/SeedConsole.hpp"
+#include "core/SeedLedger.hpp"
 #include "core/SyncEngine.hpp"
 #include "core/TorrentDetails.hpp"
 #include "core/TorrentFilterModel.hpp"
@@ -287,6 +289,15 @@ void TestAppDeluge::aDelugeServerIsPolledIntoTheLibrary()
     QCOMPARE(app.torrentRow(kPack).value(QStringLiteral("name")).toString(),
              QStringLiteral("Fixture Pack"));
     QVERIFY(!app.isServerLost());
+    // K34: no all-time totals; the console counts what omaseed saw, from its ledger's start.
+    QTRY_VERIFY_WITH_TIMEOUT(app.ledger()->start() > 0, 3000);
+    app.console()->refresh();
+    QVERIFY2(app.console()
+                 ->totals()
+                 .value(QStringLiteral("sinceLine"))
+                 .toString()
+                 .startsWith(QLatin1String("Deluge keeps no all-time totals. These count from ")),
+             qPrintable(app.console()->totals().value(QStringLiteral("sinceLine")).toString()));
 
     // A torrent removed on the daemon goes from the list at the next poll.
     daemon.recorded.torrents.remove(kMagnet);

@@ -769,6 +769,23 @@ QList<SeedLedger::Day> SeedLedger::days(const QDate &from, const QDate &to) cons
     return out;
 }
 
+SeedLedger::Totals SeedLedger::totals() const
+{
+    Totals out;
+    if (m_open) {
+        QSqlQuery q(QSqlDatabase::database(m_connection, false));
+        if (q.exec(QStringLiteral("SELECT SUM(up), SUM(down) FROM days")) && q.next()) {
+            out.up = q.value(0).toLongLong();
+            out.down = q.value(1).toLongLong();
+        }
+    }
+    for (auto it = m_pendingDays.cbegin(); it != m_pendingDays.cend(); ++it) {
+        out.up += it->up;
+        out.down += it->down;
+    }
+    return out;
+}
+
 QHash<QString, qint64> SeedLedger::torrentTotals(const QDate &from, const QDate &to) const
 {
     QHash<QString, qint64> out;

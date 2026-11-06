@@ -137,6 +137,14 @@ public:
     QList<qint64> recentDownload(qint64 now, int count) const;
     /// Every day from `from` to `to`, inclusive.
     QList<Day> days(const QDate &from, const QDate &to) const;
+    /// Everything booked since the ledger began: bytes given and taken (C25 K34: the all time
+    /// of an engine that keeps none).
+    struct Totals
+    {
+        qint64 up = 0;
+        qint64 down = 0;
+    };
+    Totals totals() const;
     /// Bytes given by each torrent from `from` to `to`, inclusive.
     QHash<QString, qint64> torrentTotals(const QDate &from, const QDate &to) const;
     /// torrentTotals(day, day), kept in memory after the first read and booked into as polls
