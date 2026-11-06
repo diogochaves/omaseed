@@ -127,8 +127,10 @@ public:
     static QString
     guard(const QString &server, const QString &key, bool refused, bool waiting = false);
     /// DECISIONS C28: a server an engines build (#84) recorded with another engine, listed
-    /// but never connected to. "NAME is a Transmission server" / "This omaseed only talks to
-    /// qBittorrent. A newer omaseed can."; kind "engine" (red: it needs you, nothing retries).
+    /// but never connected to. "NAME is a Transmission server" / "omaseed can't drive
+    /// Transmission yet. This build drives qBittorrent." (C25 K9); an engine this build doesn't
+    /// know (#179): "This omaseed doesn't know that engine. A newer omaseed may."; kind
+    /// "engine" (red: it needs you, nothing retries).
     static Text forEngine(const Server &server);
     /// Its short reason, for a server row and the menu: "Transmission server"; "not
     /// qBittorrent" when the engine has no name.

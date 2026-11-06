@@ -4435,13 +4435,16 @@ void App::testServer(const QVariantMap &fields, const QString &secret)
     if (const std::optional<Server> stored =
             server.id.isEmpty() ? std::nullopt : m_servers->byId(server.id);
         stored && stored->engine == EngineKind::Unknown) {
+        // #179: refused in the sheet's words, with no "save anyway" (K8), and the engine as
+        // servers.json spells it, so a save keeps it.
         const ErrorWords::Text words = ErrorWords::forEngine(*stored);
-        QString line = words.line;
-        if (!line.isEmpty())
-            line.replace(0, 1, line.at(0).toLower());
-        const QString error = words.headline + QStringLiteral(": ") + line;
-        QTimer::singleShot(0, this, [this, id = server.id, error]() {
-            Q_EMIT serverTested(id, false, QString(), QString(), -1, -1, error, QString());
+        QVariantMap info = testInfo(EngineKind::Unknown, stored->url);
+        info.insert(QStringLiteral("engine"), stored->extra.value(QStringLiteral("engine")));
+        info.insert(QStringLiteral("engineName"), stored->engineName());
+        info.insert(QStringLiteral("refused"), true);
+        QTimer::singleShot(0, this, [this, id = server.id, words, info]() {
+            Q_EMIT serverTested(
+                id, false, QString(), QString(), -1, -1, words.headline, words.line, info);
         });
         return;
     }

@@ -466,13 +466,15 @@ private slots:
         seedbox.engine = omaseed::core::EngineKind::Transmission;
         const ErrorWords::Text text = ErrorWords::forEngine(seedbox);
         QCOMPARE(text.headline, QStringLiteral("seedbox is a Transmission server"));
+        // C25 K9's words.
         QCOMPARE(text.line,
-                 QStringLiteral("This omaseed only talks to qBittorrent. A newer omaseed can."));
+                 QStringLiteral("omaseed can't drive Transmission yet. This build drives "
+                                "qBittorrent."));
         QCOMPARE(text.kind, QStringLiteral("engine"));
         QVERIFY(text.details.contains(QStringLiteral("transmission")));
         QCOMPARE(text.sentence(),
-                 QStringLiteral("seedbox is a Transmission server: this omaseed only talks to "
-                                "qBittorrent"));
+                 QStringLiteral("seedbox is a Transmission server: omaseed can't drive "
+                                "Transmission yet"));
         QCOMPARE(ErrorWords::engineReason(seedbox), QStringLiteral("Transmission server"));
         QCOMPARE(ErrorWords::guardEngine(seedbox, QStringLiteral("p")),
                  QStringLiteral("seedbox is a Transmission server: p does nothing here"));
@@ -485,6 +487,13 @@ private slots:
         QCOMPARE(ErrorWords::forEngine(odd).headline,
                  QStringLiteral("127.0.0.1 isn't a qBittorrent server"));
         QCOMPARE(ErrorWords::engineReason(odd), QStringLiteral("not qBittorrent"));
+        // #179: an engine a newer build drives is named as servers.json spells it.
+        odd.extra.insert(QStringLiteral("engine"), QStringLiteral("rtorrent"));
+        const ErrorWords::Text future = ErrorWords::forEngine(odd);
+        QCOMPARE(future.headline, QStringLiteral("127.0.0.1 is a rtorrent server"));
+        QCOMPARE(future.line,
+                 QStringLiteral("This omaseed doesn't know that engine. A newer omaseed may."));
+        QVERIFY(future.details.contains(QStringLiteral("rtorrent")));
     }
 
     void noErrorNoWords()

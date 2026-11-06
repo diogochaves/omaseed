@@ -13,6 +13,23 @@ namespace omaseed::core {
 
 namespace {
 
+/// servers.json's spelling of the server's engine: "qbittorrent", or one this build doesn't
+/// know as it was written ("rtorrent", #179); empty when it was no text at all.
+QString storedEngine(const Server &server)
+{
+    if (server.engine != EngineKind::Unknown)
+        return engineKindToString(server.engine);
+    return server.extra.value(QStringLiteral("engine")).toString();
+}
+
+/// The engine's name to show: "qBittorrent", "Transmission", an unknown one as spelt.
+QString engineNameOf(const Server &server)
+{
+    if (server.engine != EngineKind::Unknown)
+        return engineDisplayName(server.engine);
+    return server.engineName();
+}
+
 QString stringField(const QVariantMap &fields, const char *key)
 {
     return fields.value(QString::fromLatin1(key)).toString().trimmed();
@@ -90,9 +107,9 @@ QVariant ServerListModel::data(const QModelIndex &index, int role) const
     case CertificateRole:
         return server.certificateSha256;
     case EngineRole:
-        return engineKindToString(server.engine);
+        return storedEngine(server);
     case EngineNameRole:
-        return engineDisplayName(server.engine);
+        return engineNameOf(server);
     case EngineVersionRole:
         return probe.version.isEmpty() ? bareVersion(server.engineVersion) : probe.version;
     case EngineTextRole: {
@@ -100,7 +117,7 @@ QVariant ServerListModel::data(const QModelIndex &index, int role) const
         // before one.
         const QString version =
             probe.version.isEmpty() ? bareVersion(server.engineVersion) : probe.version;
-        const QString name = engineDisplayName(server.engine);
+        const QString name = engineNameOf(server);
         return version.isEmpty() ? name : QStringLiteral("%1 %2").arg(name, version);
     }
     case IsCurrentRole:
@@ -425,8 +442,14 @@ bool ServerListModel::update(const QVariantMap &fields, const QString &secretIn)
     if (!fields.contains(QStringLiteral("engineVersion")))
         server.engineVersion =
             server.engine == existing->engine ? existing->engineVersion : QString();
-    // A newer build's keys (C28) are not the sheet's to drop.
+    // A newer build's keys (C28) are not the sheet's to drop. An engine this build doesn't
+    // know stays as servers.json spelt it, until a test names one it does (#179).
+    const QJsonValue spelled = server.extra.value(QStringLiteral("engine"));
     server.extra = existing->extra;
+    if (server.engine != EngineKind::Unknown)
+        server.extra.remove(QStringLiteral("engine"));
+    else if (spelled.isString())
+        server.extra.insert(QStringLiteral("engine"), spelled);
     const QString secret = secretIn.isEmpty() ? urlPassword : secretIn;
 
     if (!m_store->update(server))
@@ -575,9 +598,11 @@ Server ServerListModel::serverFromMap(const QVariantMap &fields, QString *urlPas
     server.certificateSha256 = CertificatePin::normalized(stringField(fields, "certificateSha256"));
 
     // C25 K4: the engine the test recognised (or the one picked); none said is qBittorrent,
-    // as every server was before #84.
+    // as every server was before #84. One this build doesn't know keeps its spelling (#179).
     const QString engine = stringField(fields, "engine");
     server.engine = engine.isEmpty() ? EngineKind::Qbittorrent : engineKindFromString(engine);
+    if (server.engine == EngineKind::Unknown)
+        server.extra.insert(QStringLiteral("engine"), engine);
     server.engineVersion = stringField(fields, "engineVersion");
     return server;
 }

@@ -88,8 +88,10 @@ public:
         /// When it was last seen or tried, as a QDateTime (invalid when never): the status
         /// file's `servers[].seen` (docs/33 §11).
         LastSeenAtRole,
-        EngineRole,        ///< "qbittorrent" | "transmission" | "deluge" (servers.json v2)
-        EngineNameRole,    ///< "qBittorrent": what the engine calls itself
+        /// "qbittorrent" | "transmission" | "deluge" (servers.json v2); an engine this build
+        /// doesn't know as servers.json spells it ("rtorrent", #179), so a save keeps it.
+        EngineRole,
+        EngineNameRole,    ///< "qBittorrent": what the engine calls itself; "rtorrent" unknown
         EngineVersionRole, ///< the last contact's version, "5.2.3"; empty before one
         EngineTextRole,    ///< C25 K12: "qBittorrent 5.2.3", the name alone before a contact
     };

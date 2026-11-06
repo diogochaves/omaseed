@@ -251,7 +251,12 @@ ErrorWords::Text ErrorWords::forEngine(const Server &server)
     Text text;
     text.kind = QStringLiteral("engine");
     text.headline = engineHeadline(server);
-    text.line = tr("This omaseed only talks to qBittorrent. A newer omaseed can.");
+    // C25 K9: an engine this build knows but doesn't drive yet is named and refused, in the
+    // sheet's words; one it doesn't know (a newer build's, #179) is listed, never asked.
+    text.line = server.engine != EngineKind::Unknown
+                    ? tr("omaseed can't drive %1 yet. This build drives qBittorrent.")
+                          .arg(engineDisplayName(server.engine))
+                    : tr("This omaseed doesn't know that engine. A newer omaseed may.");
     const QJsonValue stored = server.engine != EngineKind::Unknown
                                   ? QJsonValue(engineKindToString(server.engine))
                                   : server.extra.value(QStringLiteral("engine"));

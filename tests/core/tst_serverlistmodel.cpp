@@ -9,7 +9,10 @@
 #include "core/ServerListModel.hpp"
 #include "core/ServerStore.hpp"
 
+#include <QDir>
 #include <QFile>
+#include <QJsonArray>
+#include <QJsonDocument>
 #include <QJsonObject>
 #include <QSignalSpy>
 #include <QTemporaryDir>
@@ -59,7 +62,8 @@ private Q_SLOTS:
     void lastSeenPerServer();                     // docs/33 D5
     void currentServerState();                    // docs/33 D5, D8, D9
     void whenText();
-    void theEngineIsKeptWithTheServer(); // #84, C25 K12
+    void theEngineIsKeptWithTheServer();                     // #84, C25 K12
+    void anEngineThisBuildDoesNotKnowIsWrittenBackAsSpelt(); // #179
 
 private:
     QTemporaryDir m_config;
@@ -629,6 +633,80 @@ void TestServerListModel::theEngineIsKeptWithTheServer()
     QCOMPARE(store.byId(id)->engine, EngineKind::Deluge);
     QVERIFY(store.byId(id)->engineVersion.isEmpty());
     QCOMPARE(store.byId(id)->authMode, AuthMode::Password);
+}
+
+void TestServerListModel::anEngineThisBuildDoesNotKnowIsWrittenBackAsSpelt()
+{
+    // #179: a newer build's engine ("aria2" here, invented for this build) is listed under its
+    // own spelling, and the sheet's edits write it back unchanged, never as a qBittorrent.
+    const QJsonObject entry{
+        {QStringLiteral("id"), QStringLiteral("a-1")},
+        {QStringLiteral("name"), QStringLiteral("attic")},
+        {QStringLiteral("url"), QStringLiteral("http://attic.invalid:6800")},
+        {QStringLiteral("authMode"), QStringLiteral("none")},
+        {QStringLiteral("username"), QString()},
+        {QStringLiteral("pathMap"), QJsonArray()},
+        {QStringLiteral("isDefault"), true},
+        {QStringLiteral("engine"), QStringLiteral("aria2")},
+        {QStringLiteral("engineVersion"), QStringLiteral("1.37.0")},
+    };
+    {
+        QDir().mkpath(m_config.path() + QStringLiteral("/omaseed"));
+        QFile file(m_config.path() + QStringLiteral("/omaseed/servers.json"));
+        QVERIFY(file.open(QIODevice::WriteOnly));
+        file.write(QJsonDocument(QJsonObject{{QStringLiteral("version"), 2},
+                                             {QStringLiteral("servers"), QJsonArray{entry}},
+                                             {QStringLiteral("defaultId"), QStringLiteral("a-1")}})
+                       .toJson());
+    }
+    const auto storedEngine = [this]() {
+        QFile file(m_config.path() + QStringLiteral("/omaseed/servers.json"));
+        if (!file.open(QIODevice::ReadOnly))
+            return QJsonValue();
+        return QJsonDocument::fromJson(file.readAll())
+            .object()
+            .value(QStringLiteral("servers"))
+            .toArray()
+            .at(0)
+            .toObject()
+            .value(QStringLiteral("engine"));
+    };
+
+    ServerStore store;
+    QVERIFY(store.load());
+    ServerListModel model(&store);
+    QCOMPARE(store.byId(QStringLiteral("a-1"))->engine, EngineKind::Unknown);
+    QCOMPARE(roleOf(model, 0, ServerListModel::EngineRole).toString(), QStringLiteral("aria2"));
+    QCOMPARE(roleOf(model, 0, ServerListModel::EngineNameRole).toString(), QStringLiteral("aria2"));
+    QCOMPARE(roleOf(model, 0, ServerListModel::EngineTextRole).toString(),
+             QStringLiteral("aria2 1.37.0"));
+    QCOMPARE(roleOf(model, 0, ServerListModel::StateRole).toString(), QStringLiteral("refused"));
+
+    // A rename from the sheet sends the engine as the role gave it: kept as spelt.
+    QVariantMap edit = model.serverMap(QStringLiteral("a-1"));
+    QCOMPARE(edit.value(QStringLiteral("engine")).toString(), QStringLiteral("aria2"));
+    edit.insert(QStringLiteral("name"), QStringLiteral("loft"));
+    QVERIFY(model.update(edit));
+    QCOMPARE(storedEngine(), QJsonValue(QStringLiteral("aria2")));
+    // Without an engine in the fields, too.
+    edit.remove(QStringLiteral("engine"));
+    QVERIFY(model.update(edit));
+    QCOMPARE(storedEngine(), QJsonValue(QStringLiteral("aria2")));
+    {
+        ServerStore reloaded;
+        QVERIFY(reloaded.load());
+        QCOMPARE(reloaded.byId(QStringLiteral("a-1"))->name, QStringLiteral("loft"));
+        QCOMPARE(reloaded.byId(QStringLiteral("a-1"))->engine, EngineKind::Unknown);
+        QCOMPARE(reloaded.byId(QStringLiteral("a-1"))->engineName(), QStringLiteral("aria2"));
+    }
+
+    // Once a test names an engine this build knows, that one is stored and the spelling goes.
+    edit.insert(QStringLiteral("engine"), QStringLiteral("qbittorrent"));
+    QVERIFY(model.update(edit));
+    QCOMPARE(storedEngine(), QJsonValue(QStringLiteral("qbittorrent")));
+    QVERIFY(!store.byId(QStringLiteral("a-1"))->extra.contains(QStringLiteral("engine")));
+    QCOMPARE(roleOf(model, 0, ServerListModel::EngineRole).toString(),
+             QStringLiteral("qbittorrent"));
 }
 
 QTEST_MAIN(TestServerListModel)

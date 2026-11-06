@@ -84,6 +84,7 @@ private slots:
 
     // DECISIONS C28 (#84)
     void aServerOfAnotherEngineIsNeverPolled();
+    void anEngineThisBuildDoesNotKnowIsNeverAsked(); // #179
 
     // #201 F4, F5
     void aSwitchReadsConnectingNeverDown();
@@ -797,6 +798,89 @@ void TestAppGlue::aServerOfAnotherEngineIsNeverPolled()
     const QJsonObject saved = root.value(QStringLiteral("servers")).toArray().at(0).toObject();
     QCOMPARE(saved.value(QStringLiteral("engine")).toString(), QStringLiteral("transmission"));
     QCOMPARE(saved.value(QStringLiteral("engineVersion")).toString(), QStringLiteral("4.1.0"));
+}
+
+void TestAppGlue::anEngineThisBuildDoesNotKnowIsNeverAsked()
+{
+    // #179: a newer build's engine ("aria2", invented for this build) is listed and never
+    // asked, not even by its sheet's test, which refuses it in words with no "save anyway";
+    // servers.json keeps its spelling through a rename.
+    QTcpServer aria;
+    QVERIFY(aria.listen(QHostAddress::LocalHost));
+    int connections = 0;
+    connect(&aria, &QTcpServer::newConnection, this, [&]() {
+        while (QTcpSocket *socket = aria.nextPendingConnection()) {
+            ++connections;
+            socket->abort();
+            socket->deleteLater();
+        }
+    });
+
+    QTemporaryDir home;
+    qputenv("XDG_CONFIG_HOME", home.path().toUtf8());
+    qunsetenv("OMASEED_SERVER_URL");
+    const QString configDir = home.path() + QStringLiteral("/omaseed");
+    QVERIFY(QDir().mkpath(configDir));
+    const QString filePath = configDir + QStringLiteral("/servers.json");
+    const QJsonObject attic{
+        {QStringLiteral("id"), QStringLiteral("a-1")},
+        {QStringLiteral("name"), QStringLiteral("attic")},
+        {QStringLiteral("url"), QStringLiteral("http://127.0.0.1:%1").arg(aria.serverPort())},
+        {QStringLiteral("authMode"), QStringLiteral("none")},
+        {QStringLiteral("engine"), QStringLiteral("aria2")},
+    };
+    {
+        QFile file(filePath);
+        QVERIFY(file.open(QIODevice::WriteOnly));
+        file.write(QJsonDocument(QJsonObject{{QStringLiteral("version"), 2},
+                                             {QStringLiteral("servers"), QJsonArray{attic}},
+                                             {QStringLiteral("defaultId"), QStringLiteral("a-1")}})
+                       .toJson());
+    }
+
+    App app;
+    QSignalSpy tested(&app, &App::serverTested);
+    app.start();
+    QVERIFY(app.serverOtherEngine());
+    QVERIFY(!app.engine()->isRunning());
+    const QVariantMap problem = app.serverProblem(QString(), -1);
+    QCOMPARE(problem.value(QStringLiteral("headline")).toString(),
+             QStringLiteral("attic is a aria2 server"));
+    QCOMPARE(problem.value(QStringLiteral("line")).toString(),
+             QStringLiteral("This omaseed doesn't know that engine. A newer omaseed may."));
+
+    const QVariantMap fields = app.serverList()->serverMap(QStringLiteral("a-1"));
+    QCOMPARE(fields.value(QStringLiteral("engine")).toString(), QStringLiteral("aria2"));
+    app.testServer(fields, QString());
+    QVERIFY(tested.wait(5000));
+    const QVariantList answer = tested.constFirst();
+    QCOMPARE(answer.at(1).toBool(), false);
+    QCOMPARE(answer.at(6).toString(), QStringLiteral("attic is a aria2 server"));
+    const QVariantMap info = answer.at(8).toMap();
+    QVERIFY(info.value(QStringLiteral("refused")).toBool());
+    QCOMPARE(info.value(QStringLiteral("engine")).toString(), QStringLiteral("aria2"));
+    QCOMPARE(app.serverTestProblem(fields, answer.at(6).toString(), answer.at(7).toString(), info)
+                 .value(QStringLiteral("kind"))
+                 .toString(),
+             QStringLiteral("refused"));
+
+    QVariantMap renamed = fields;
+    renamed.insert(QStringLiteral("name"), QStringLiteral("loft"));
+    QVERIFY(app.serverList()->update(renamed));
+    app.retryNow();
+    QTest::qWait(300); // anything sent would have connected by now
+    QCOMPARE(connections, 0);
+
+    QFile file(filePath);
+    QVERIFY(file.open(QIODevice::ReadOnly));
+    const QJsonObject saved = QJsonDocument::fromJson(file.readAll())
+                                  .object()
+                                  .value(QStringLiteral("servers"))
+                                  .toArray()
+                                  .at(0)
+                                  .toObject();
+    QCOMPARE(saved.value(QStringLiteral("name")).toString(), QStringLiteral("loft"));
+    QCOMPARE(saved.value(QStringLiteral("engine")).toString(), QStringLiteral("aria2"));
 }
 
 void TestAppGlue::secretsInAPlainFileAreNamed()

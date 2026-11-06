@@ -1509,6 +1509,10 @@ Diogo's answers, all as recommended, to the questions the v0.4.0 builders record
   and shows in the refused state's places in ErrorWords' words: "seedbox is a Transmission
   server" / "This omaseed only talks to qBittorrent. A newer omaseed can.", with only "switch
   server" to offer.
+  *On `engines` (C25 K9, #179):* a Transmission or a Deluge reads "omaseed can't drive
+  Transmission yet. This build drives qBittorrent."; an engine this build doesn't know keeps
+  servers.json's spelling through every save, reads "This omaseed doesn't know that engine. A
+  newer omaseed may.", and is never asked, its sheet's test included.
 
 ## C29 — v2-only in the free plan (#182, ruled 2026-10-23)
 
