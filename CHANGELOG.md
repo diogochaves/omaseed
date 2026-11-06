@@ -17,6 +17,11 @@ before it will tag a release.
   ("nothing is copied"), with no room needed and no time left, while the engine copied every
   file. The sheet now tells drives apart by their device, so such a move reads room on the
   destination and shows its progress like any other copy. (#240)
+- **A magnet typed by hand is looked up with its trackers.** The add sheet asked qBittorrent
+  for a magnet's files as soon as its hash was typed, before its `&tr=` part; qBittorrent keeps
+  the trackers of the first ask, so the files of a magnet whose peers only its trackers know
+  never came. A magnet typed a key at a time is now asked about once the typing stops for a
+  second; a pasted one still at once. (#241)
 
 ## v0.7.0 — 2026-11-05
 
