@@ -601,7 +601,12 @@ Item {
                            : qsTr("This torrent is hybrid (v1 and v2). Deleting a file that holds downloaded pieces needs a recheck, and a recheck on a hybrid hits a libtorrent bug that errors the torrent. Adding it again from its own .torrent, with those files gone, checks it from scratch.");
                 const fs = root.skipped.fileSystem || "";
                 const sparse = ["ext4", "btrfs", "ntfs", "xfs"].indexOf(fs) >= 0;
-                const lead = qsTr("Wanting a file makes qBittorrent create it at its full size, even on a stopped torrent, before anything downloads.");
+                const engine = App.serverEngineName || "qBittorrent";
+                // libtorrent makes it as soon as it is wanted; Transmission when it first
+                // writes to it (its preallocation, sparse by default).
+                const lead = engine === "qBittorrent"
+                           ? qsTr("Wanting a file makes qBittorrent create it at its full size, even on a stopped torrent, before anything downloads.")
+                           : qsTr("%1 makes a wanted file at its full size when it first writes to it.").arg(engine);
                 if (fs.length === 0)
                     return lead + " " + qsTr("Skipping it later stops the download, but the file stays.");
                 if (sparse)

@@ -5469,6 +5469,7 @@ void App::updateFeatures()
     m_filtered->setEngineName(engine);
     // C25 K29: web seeds read only, with no status, where there is no log to read.
     m_details->webSeeds()->setEngine(engine, features.engineLog);
+    m_console->setEngineName(engine);
     if (features == m_features)
         return;
     m_features = features;
@@ -6172,7 +6173,9 @@ void App::refreshBackupInfo()
     Q_EMIT backupChanged();
     // docs/34 D1 a: a backup made now carries the connected server's settings as they are;
     // read them, and the summary names that server.
-    if (m_demoMode || !m_hasServer || !m_engine->globalState()->connected() || m_qbtBusy > 0)
+    // C25 K33: only a qBittorrent's settings go with it.
+    if (m_demoMode || !m_hasServer || !m_engine->globalState()->connected() || m_qbtBusy > 0 ||
+        !m_features.qbtSettings)
         return;
     collectQbtSettings(
         [this](std::optional<QbtSettingsSnapshot>, const QString &) { Q_EMIT backupChanged(); });
@@ -7076,7 +7079,10 @@ void App::runAutoBackupIfDue()
     const qint64 now = QDateTime::currentSecsSinceEpoch();
     if (m_autoBackupReading || !m_autoBackup->isDue(now))
         return;
-    if (m_demoMode || !m_hasServer || !m_engine->globalState()->connected()) {
+    // C25 K33: a copy carries only qBittorrent's settings; on another engine it keeps the
+    // ones the last copy had (each qBittorrent server's), with nothing to read now.
+    if (m_demoMode || !m_hasServer || !m_engine->globalState()->connected() ||
+        !m_features.qbtSettings) {
         m_autoBackup->runNow(now);
         return;
     }

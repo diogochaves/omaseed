@@ -899,9 +899,8 @@ void SeedConsole::refreshSlow()
         if (fresh) {
             if (m_state && m_state->allTimeUpload() > 0)
                 facts.append(
-                    QStringLiteral(
-                        "before the ledger · <b>%1</b> given (qBittorrent's all-time count)")
-                        .arg(Format::size(m_state->allTimeUpload())));
+                    QStringLiteral("before the ledger · <b>%1</b> given (%2's all-time count)")
+                        .arg(Format::size(m_state->allTimeUpload()), m_engineName));
             facts.append(QStringLiteral("today's cell fills in as you seed"));
         } else {
             facts.append(QStringLiteral("this year · <b>%1</b>").arg(Format::size(yearTotal)));

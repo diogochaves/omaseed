@@ -324,6 +324,34 @@ TestCase {
         verify(!testCase.childNamed(modal, "qbtNavHead").visible);
     }
 
+    // C25 K33: omaseed's own Backup carries a qBittorrent's settings only; on a Transmission
+    // it says they stay on the server, with no link to a Backup it has none of.
+    function test_omaseeds_backup_on_a_transmission() {
+        const seedbox = App.serverList.add({
+                                               "name": "seedbox",
+                                               "url": "http://127.0.0.1:9091/transmission/web/",
+                                               "authMode": "none",
+                                               "engine": "transmission"
+                                           }, "");
+        App.serverList.setDefault(seedbox);
+        const modal = createTemporaryObject(modalComponent, testCase, {
+                                                "features": {
+                                                    "qbtSettings": false,
+                                                    "sessionSettings": true
+                                                },
+                                                "engineName": "Transmission"
+                                            });
+        modal.open();
+        modal.showPane(5);
+        const line = testCase.childNamed(modal, "backupScopeLine");
+        compare(line.text,
+                "omaseed's own: its settings, your server (no password) and its seed history. Its torrents and its Transmission settings aren't in it: the server keeps them.");
+        compare(line.linkKey, "");
+        testCase.addServer("home", 8081);
+        compare(line.text,
+                "omaseed's own: its settings, your 2 servers (no passwords) and their seed history, with a copy of each qBittorrent server's settings. Torrents and other engines' settings aren't in it: each server keeps its own.");
+    }
+
     // Board 47 §J (C25 K32): each group stays while a server of its engine is saved, its select
     // listing only that engine's servers. Another engine's pane says whose settings they are
     // and switches there, landing on the same section of that server's group.

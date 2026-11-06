@@ -95,6 +95,9 @@ public:
     /// Completions and milestones, newest first (the status file's `recent`).
     void setRecentProvider(std::function<QVariantList()> provider);
     void setIntervals(int refreshMs, int slowMs);
+    /// The server's engine, which keeps the all-time count a fresh ledger quotes (C12's line:
+    /// the words name it). qBittorrent until set.
+    void setEngineName(const QString &name) { m_engineName = name; }
 
     bool active() const { return m_active; }
     void setActive(bool active);
@@ -195,6 +198,7 @@ private:
 
     bool m_active = false;
     QString m_range = QStringLiteral("24h");
+    QString m_engineName = QStringLiteral("qBittorrent");
     int m_rareSeeds = 2;
     QStringList m_scopeHashes;
     int m_scopeCount = 0;

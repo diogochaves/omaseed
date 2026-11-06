@@ -2392,7 +2392,7 @@ Item {
                                         "key": "added",
                                         "glyph": Glyphs.add,
                                         "title": qsTr("Torrent added"),
-                                        "description": qsTr("One notice when qBittorrent takes an add made in the add window, with show.")
+                                        "description": qsTr("One notice when the server takes an add made in the add window, with show.")
                                     },
                                     {
                                         "key": "errored",
@@ -3558,10 +3558,28 @@ Item {
                                 linkKey: root.engineGroupIsQbt ? "t" : ""
                                 linkText: root.engineGroupIsQbt ? qsTr("qBittorrent › Backup ›") : ""
                                 objectName: "backupScopeLine"
-                                text: App.serverList.count === 1
-                                      ? qsTr("omaseed's own: its settings, your server (no password) and its seed history, with a copy of its qBittorrent settings. Torrents aren't in it: the server keeps them.")
-                                      : qsTr("omaseed's own: its settings, your %1 servers (no passwords) and their seed history, with a copy of each server's qBittorrent settings. Torrents aren't in it: each server keeps its own.").arg(
-                                            App.serverList.count)
+                                // C25 K33: only a qBittorrent's settings go with it; another
+                                // engine's stay on its server, as its torrents do.
+                                text: {
+                                    void App.serverName; // a switch, or the list changed
+                                    const count = App.serverList.count;
+                                    let qbt = 0;
+                                    for (let i = 0; i < count; ++i)
+                                        qbt += root._isQbtServer(App.serverList.idAt(i)) ? 1 : 0;
+                                    if (count === 1)
+                                        return qbt === 1
+                                               ? qsTr("omaseed's own: its settings, your server (no password) and its seed history, with a copy of its qBittorrent settings. Torrents aren't in it: the server keeps them.")
+                                               : qsTr("omaseed's own: its settings, your server (no password) and its seed history. Its torrents and its %1 settings aren't in it: the server keeps them.").arg(
+                                                     App.serverList.serverMap(App.serverList.idAt(0)).engineName || qsTr("server"));
+                                    if (qbt === count)
+                                        return qsTr("omaseed's own: its settings, your %1 servers (no passwords) and their seed history, with a copy of each server's qBittorrent settings. Torrents aren't in it: each server keeps its own.").arg(
+                                                   count);
+                                    if (qbt === 0)
+                                        return qsTr("omaseed's own: its settings, your %1 servers (no passwords) and their seed history. Their torrents and their own settings aren't in it: each server keeps its own.").arg(
+                                                   count);
+                                    return qsTr("omaseed's own: its settings, your %1 servers (no passwords) and their seed history, with a copy of each qBittorrent server's settings. Torrents and other engines' settings aren't in it: each server keeps its own.").arg(
+                                               count);
+                                }
 
                                 onLinkActivated: root.openTorrentsBackup()
                             }

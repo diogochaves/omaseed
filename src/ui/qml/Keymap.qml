@@ -198,7 +198,7 @@ QtObject {
             "action": "sheet:nextServer",
             "helpKeys": qsTr("s"),
             "help": qsTr("next server"),
-            "about": qsTr("In Settings' qBittorrent panes, with two servers or more: the next one")
+            "about": qsTr("In a server's Settings panes, with two servers or more: the next one")
         }
     ]
 

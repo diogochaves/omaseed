@@ -10,6 +10,7 @@
 #include "core/AltSpeed.hpp"
 #include "core/GlobalState.hpp"
 #include "core/MoveJob.hpp"
+#include "core/OmaseedBackup.hpp"
 #include "core/PauseHold.hpp"
 #include "core/ProblemLog.hpp"
 #include "core/SyncEngine.hpp"
@@ -181,6 +182,7 @@ private Q_SLOTS:
     void anErroredTorrentReadsTransmissionsWords();
     void anErrorInPlaceReadsItsCauseAndItsNotice();
     void aTrackerErrorIsTrackerTrouble();
+    void omaseedsBackupHoldsNoTransmissionSettings();
 
 private:
     /// Starts `app` on `daemon` through the environment, polling every 100 ms, and waits for
@@ -813,5 +815,26 @@ void TestAppTransmission::anOldTransmissionIsRefusedInK8sWords()
 }
 
 QTEST_MAIN(TestAppTransmission)
+
+// C25 K33 (board 36 §6 E5's "backups and the weekly copies per engine"): omaseed's own backup
+// and its copies carry qBittorrent's settings only; on Transmission nothing is read for them,
+// and the summary names no engine settings.
+void TestAppTransmission::omaseedsBackupHoldsNoTransmissionSettings()
+{
+    Daemon daemon;
+    App app;
+    QVERIFY(startOn(app, daemon));
+    app.refreshBackupInfo();
+    QVERIFY2(!app.backupSummary().contains(QStringLiteral("qBittorrent")),
+             qPrintable(app.backupSummary()));
+
+    const QString path = m_home->filePath(QStringLiteral("now.omaseed"));
+    QCOMPARE(app.backUpTo(path), QString());
+    const std::optional<omaseed::core::OmaseedBackup::Contents> contents =
+        omaseed::core::OmaseedBackup::parseFile(path);
+    QVERIFY(contents.has_value());
+    QVERIFY(contents->extras.isEmpty());
+    app.engine()->stop();
+}
 
 #include "tst_app_transmission.moc"
