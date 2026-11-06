@@ -1,0 +1,8 @@
+{
+ "error": {
+  "code": 4,
+  "message": "Failure: [Failure instance: Traceback (failure with no frames): <class 'deluge.error.WrappedException'>: 'info_hash'\nTraceback (most recent call last):\n  File \"/usr/lib/python3.14/site-packages/deluge/core/rpcserver.py\", line 363, in on_fail\n    failure.raiseException()\n    ~~~~~~~~~~~~~~~~~~~~~~^^\n  File \"/usr/lib/python3.14/site-packages/twisted/python/failure.py\", line 455, in raiseException\n    raise self.value.with_traceback(self.tb)\n  File \"/usr/lib/python3.14/site-packages/twisted/internet/defer.py\", line 1838, in _inlineCallbacks\n    result = context.run(gen.send, result)\n  File \"/usr/lib/python3.14/site-packages/deluge/core/core.py\", line 453, in prefetch_magnet_metadata\n    return await self.torrentmanager.prefetch_metadata(magnet, timeout)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/lib/python3.14/site-packages/deluge/core/torrentmanager.py\", line 360, in prefetch_metadata\n    torrent_id = get_magnet_info(magnet)['info_hash']\n                 ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^\nKeyError: 'info_hash'\n\n]"
+ },
+ "id": 101,
+ "result": null
+}

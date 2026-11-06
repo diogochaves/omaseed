@@ -1,0 +1,8 @@
+{
+ "error": {
+  "code": 1,
+  "message": "Not authenticated"
+ },
+ "id": 2,
+ "result": null
+}

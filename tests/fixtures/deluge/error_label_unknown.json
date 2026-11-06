@@ -1,0 +1,8 @@
+{
+ "error": {
+  "code": 4,
+  "message": "Failure: [Failure instance: Traceback (failure with no frames): <class 'deluge.error.WrappedException'>: Unknown Label\nTraceback (most recent call last):\n  File \"/usr/lib/python3.14/site-packages/deluge/core/rpcserver.py\", line 342, in dispatch\n    ret = self.factory.methods[method](*args, **kwargs)\n  File \"/srv/deluge/plugin_cache/label-0.3/deluge_label/core.py\", line 318, in set_torrent\n    check_input((not label_id) or (label_id in self.labels), _('Unknown Label'))\n    ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/srv/deluge/plugin_cache/label-0.3/deluge_label/core.py\", line 66, in check_input\n    raise Exception(message)\nException: Unknown Label\n\n]"
+ },
+ "id": 20,
+ "result": null
+}

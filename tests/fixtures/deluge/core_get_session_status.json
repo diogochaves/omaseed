@@ -1,0 +1,13 @@
+{
+ "error": null,
+ "id": 93,
+ "result": {
+  "dht_nodes": 0,
+  "has_incoming_connections": 0,
+  "num_peers": 1,
+  "payload_download_rate": 95919.5,
+  "payload_upload_rate": 0.0,
+  "total_payload_download": 383683,
+  "total_payload_upload": 0
+ }
+}

@@ -1,0 +1,22 @@
+{
+ "error": null,
+ "id": 17,
+ "result": {
+  "apply_max": false,
+  "apply_move_completed": true,
+  "apply_queue": false,
+  "auto_add": false,
+  "auto_add_trackers": [],
+  "is_auto_managed": false,
+  "max_connections": -1,
+  "max_download_speed": -1,
+  "max_upload_slots": -1,
+  "max_upload_speed": -1,
+  "move_completed": true,
+  "move_completed_path": "/srv/deluge/fixtures-recording/done",
+  "prioritize_first_last": false,
+  "remove_at_ratio": false,
+  "stop_at_ratio": false,
+  "stop_ratio": 2.0
+ }
+}

@@ -1,0 +1,8 @@
+{
+ "error": {
+  "code": 4,
+  "message": "Failure: [Failure instance: Traceback (failure with no frames): <class 'deluge.error.AddTorrentError'>: Unable to add magnet, invalid magnet info: magnet:?xt=urn:btmh:1220abababababababababababababababababababababababababababababababab&dn=v2-only\n]"
+ },
+ "id": 30,
+ "result": null
+}

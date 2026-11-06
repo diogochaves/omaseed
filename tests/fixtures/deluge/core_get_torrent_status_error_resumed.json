@@ -1,0 +1,9 @@
+{
+ "error": null,
+ "id": 103,
+ "result": {
+  "message": "Failed to move download folder: Permission denied",
+  "paused": false,
+  "state": "Error"
+ }
+}

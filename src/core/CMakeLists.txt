@@ -43,6 +43,8 @@ qt_add_library(omaseed-core STATIC
     engines/deluge/DelugeFingerprint.hpp
     engines/deluge/DelugeRpc.cpp
     engines/deluge/DelugeRpc.hpp
+    engines/deluge/DelugeTranslate.cpp
+    engines/deluge/DelugeTranslate.hpp
     engines/EngineFeatures.hpp
     engines/LogEntry.hpp
     engines/ServerInfo.hpp

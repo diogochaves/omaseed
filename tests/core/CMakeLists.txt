@@ -568,6 +568,14 @@ omaseed_add_test(tst_transmissionengine_live LIVE
     DEFINES OMASEED_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../fixtures"
 )
 
+# #87: Deluge's answers in omaseed's terms, from answers recorded off a real deluge-web 2.2
+# (tests/fixtures/deluge, scripts/dev/deluge-fixtures.py).
+omaseed_add_test(tst_delugetranslate
+    SOURCES tst_delugetranslate.cpp
+    LIBRARIES omaseed::core
+    DEFINES OMASEED_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../fixtures"
+)
+
 omaseed_add_test(tst_foldertree
     SOURCES tst_foldertree.cpp
     LIBRARIES omaseed::core

@@ -66,3 +66,19 @@ Deluge 2.2.0 (libtorrent 2.0.14.0) through deluge-web; seeder: Transmission on :
   shared. Session B's call took the pause, and session A's next diff never saw it. The poll uses
   `web.update_ui` (the whole list with the filter tree and the stats, one call) through
   SnapshotDiffer.
+
+**Also seen while recording the engine's fixtures** (`scripts/dev/deluge-fixtures.py`, same day):
+
+- A move into a folder Deluge has to make and can't (its parent read-only) is refused before
+  anything moves, and only deluged's log says so ("Could not move storage … could not create the
+  directory: [Errno 13] Permission denied"); `core.move_storage` answers `null` all the same and
+  the torrent keeps seeding where it was. Into a folder that is there but can't be written, the
+  move starts and fails: state `Error`, `message` "Failed to move download folder: Permission
+  denied", paused. A resume then clears `paused` but not the error (still `Error`, same message):
+  only a recheck does (engine matrix §4.4). The moves step has to read the first case from the
+  folder staying the same after the send.
+- With no daemon connected (`web.disconnect`), `web.update_ui` answers at once with
+  `connected: false` and nothing else, but a `core.*` or `daemon.*` call is never answered: it
+  waits until the client gives up. The engine's poll is the place that learns it.
+- A move (`core.move_storage`) turns the torrent's own "move when done" off (`move_completed`
+  false; a label had set it): the folder it was moved to is its folder from then on.

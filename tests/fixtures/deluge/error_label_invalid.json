@@ -1,0 +1,8 @@
+{
+ "error": {
+  "code": 4,
+  "message": "Failure: [Failure instance: Traceback (failure with no frames): <class 'deluge.error.WrappedException'>: Invalid label, valid characters:[a-z0-9_-]\nTraceback (most recent call last):\n  File \"/usr/lib/python3.14/site-packages/deluge/core/rpcserver.py\", line 342, in dispatch\n    ret = self.factory.methods[method](*args, **kwargs)\n  File \"/srv/deluge/plugin_cache/label-0.3/deluge_label/core.py\", line 182, in add\n    check_input(\n    ~~~~~~~~~~~^\n        RE_VALID.match(label_id), _('Invalid label, valid characters:[a-z0-9_-]')\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n    )\n    ^\n  File \"/srv/deluge/plugin_cache/label-0.3/deluge_label/core.py\", line 66, in check_input\n    raise Exception(message)\nException: Invalid label, valid characters:[a-z0-9_-]\n\n]"
+ },
+ "id": 19,
+ "result": null
+}

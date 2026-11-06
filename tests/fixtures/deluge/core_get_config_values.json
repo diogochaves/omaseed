@@ -1,0 +1,20 @@
+{
+ "error": null,
+ "id": 94,
+ "result": {
+  "dht": false,
+  "download_location": "/srv/deluge/downloads",
+  "listen_ports": [
+   26993,
+   26993
+  ],
+  "max_active_downloading": 0,
+  "max_download_speed": -1.0,
+  "max_upload_speed": -1.0,
+  "move_completed": false,
+  "move_completed_path": "/home/user/Downloads",
+  "remove_seed_at_ratio": false,
+  "stop_seed_at_ratio": false,
+  "stop_seed_ratio": 2.0
+ }
+}
