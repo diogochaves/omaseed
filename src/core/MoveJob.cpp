@@ -408,7 +408,7 @@ void MoveJob::sampleLive()
         // at the torrent's size measures nothing. The band falls back to board 43 B2's
         // "moving for …" until this torrent lands, rather than read 100 % from its first
         // second.
-        m_liveBlind = !m_growthFromEngine && moving->bytes > 0 && bytes >= moving->bytes;
+        m_liveBlind = moving->bytes > 0 && bytes >= moving->bytes;
         m_liveBytes = m_liveBlind ? -1 : bytes;
         m_liveFirstBytes = m_liveBytes;
         m_liveFirstAt = at;

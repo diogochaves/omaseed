@@ -166,10 +166,6 @@ public:
         m_growthProbe = std::move(probe);
         updateLiveTimer();
     }
-    /// The growth probe reads the engine's own count of the move (Deluge's %, C25 K21), not
-    /// a file's size at the target: a first reading at full size is trusted (#162's blind
-    /// rule is for files made at full length before the copy).
-    void setGrowthFromEngine(bool fromEngine) { m_growthFromEngine = fromEngine; }
     /// Whether the engine says it is moving `hash` although the torrent's state doesn't
     /// (Transmission has no moving state, and holds every answer while it moves: C25 K22).
     /// Read with the state on each poll; a torrent either reads as moving is the one moving.
@@ -364,7 +360,6 @@ private:
     std::function<QJsonObject(const QJsonObject &)> m_replan;
     qint64 m_lowDiskThreshold = 2LL * 1024 * 1024 * 1024;
     QString m_engineName;
-    bool m_growthFromEngine = false;
     int m_ahead = 3;
     QString m_filePath;
 

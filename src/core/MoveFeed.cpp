@@ -121,10 +121,8 @@ void MoveFeed::setFeatures(const EngineFeatures &features)
     m_showsAtOnce = features.movesShowAtOnce && m_failures == Failures::Torrent;
     if (!m_showsAtOnce)
         m_unseen.clear();
-    if (!m_job.isNull()) {
+    if (!m_job.isNull())
         m_job->setAhead(m_holdsAnswers ? kAheadHolding : kAhead);
-        m_job->setGrowthFromEngine(m_engineProgress);
-    }
     watch();
 }
 
@@ -313,8 +311,10 @@ qint64 MoveFeed::bytesAt(const QString &hash, const QString &target)
         return -1;
     const Torrent &torrent = torrents->torrent(hash);
     if (m_engineProgress) {
-        // K21: Deluge's own % of the move (bytes at the target over its bytes done), wherever
-        // its disks are; nothing until it reads Moving.
+        // K21: Deluge's own % of the move (the bytes of its files at the target over its bytes
+        // done), wherever its disks are; nothing until it reads Moving. libtorrent makes each
+        // file full length at the target before it copies it, so the % rises file by file and
+        // one file reads 100 % from the start: #162's blind rule (MoveJob) still applies.
         const MoveJob::Entry *entry = m_job.isNull() ? nullptr : m_job->entry(hash);
         if (entry == nullptr || torrent.status.phase != TorrentPhase::Moving)
             return -1;

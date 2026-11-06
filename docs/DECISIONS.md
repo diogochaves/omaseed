@@ -1477,8 +1477,10 @@ for them.
 *Moves and errors on Deluge (2026-11-06, E6 #87, assumed, to confirm):* built from K21–K24, §E
 and §F with these calls the board left open. The band reads Deluge's own % of the torrent it
 moves (its `progress` while Moving, times the bytes done), whether or not omaseed sees its disks,
-and never says "doesn't report a single move's progress"; a first reading at full size is
-trusted. A move into a folder Deluge can't make is taken and dropped without a word (deluged's log
+and never says "doesn't report a single move's progress". Deluge counts the files at the target,
+which libtorrent makes full length before it copies each, so its % rises file by file and a
+one-file torrent reads 100 % from the start: #162's rule holds (the band says how long it has
+been moving instead). A move into a folder Deluge can't make is taken and dropped without a word (deluged's log
 only): a torrent whose send Deluge took that, two polls and 3 s after the answer, has never read
 Moving and is still in its folder failed, with cause "silent", in the strip as "Deluge didn't move
 it and doesn't say why", in the move's record as "Deluge took the move to DEST, but the torrent
