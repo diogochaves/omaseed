@@ -70,6 +70,7 @@ scripts/dev/test-server.sh rotate --strict        # new random strict login in d
 scripts/dev/test-server.sh start|stop|status|reset|seed|log --transmission  # Transmission on :8085
 scripts/dev/test-server.sh start|stop|status|reset|seed|log --deluge        # deluge-web on :8086
 scripts/dev/transmission-fixtures.py [OUT]           # re-record tests/fixtures/transmission/ from :8085 (its own torrents, removed after)
+scripts/dev/deluge-fixtures.py [OUT]                 # re-record tests/fixtures/deluge/ from :8086 (+ :8085 as a peer; its own torrents and labels, removed after)
 scripts/dev/swarm.sh start|seed|status|break CASE|fix|reset|stop   # offline swarm: real downloads on :8081
 scripts/dev/swarm.sh leech start [--rate KIB]|status|stop  # a leecher on :8084 pulls from :8081, nonstop: live uploads
 ```

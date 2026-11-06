@@ -576,6 +576,22 @@ omaseed_add_test(tst_delugetranslate
     DEFINES OMASEED_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../fixtures"
 )
 
+# #87: Deluge behind EngineClient, against a fake deluge-web: the password and its cookie, a
+# session that runs out, the daemon step, the poll through the differ, every action's call.
+omaseed_add_test(tst_delugeengine
+    SOURCES tst_delugeengine.cpp
+    LIBRARIES omaseed::core Qt6::Network
+    DEFINES OMASEED_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../fixtures"
+)
+
+# The same against the real deluge-web test server (:8086, test-server.sh --deluge;
+# DELUGE_TEST_PASS from dev.env in the environment).
+omaseed_add_test(tst_delugeengine_live LIVE
+    SOURCES tst_delugeengine_live.cpp
+    LIBRARIES omaseed::core Qt6::Network
+    DEFINES OMASEED_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../fixtures"
+)
+
 omaseed_add_test(tst_foldertree
     SOURCES tst_foldertree.cpp
     LIBRARIES omaseed::core
