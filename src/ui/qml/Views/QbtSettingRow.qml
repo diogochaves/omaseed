@@ -437,7 +437,6 @@ SettingsRow {
             objectName: "pluginChip"
             text: row.pluginState
             visible: row.pluginState.length > 0 && row.loaded
-            warn: row.spec.plugin !== undefined && !row.pluginOn
         }
 
         // docs/31 P1: "nights" before From and To, its key drawn faint before it.
