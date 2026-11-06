@@ -2830,6 +2830,8 @@ Item {
                 onCloseRequested: App.outcomes.dismiss()
                 onDetailsRequested: root.openOutcomeDetails()
                 onStartHereRequested: hashes => App.retryTorrents(hashes)
+                // C25 K24: Deluge's failed move, rechecked first (C21's sheet: libtorrent).
+                onRecheckRequested: hashes => moveRecheckSheet.openFor(hashes)
                 onMoreRequested: id => App.createAction(id)
                 onExpired: serial => App.outcomes.expire(serial)
                 onMoveRequested: (hashes, target) => moveSheet.openSelection(hashes, target)

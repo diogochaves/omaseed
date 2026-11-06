@@ -79,6 +79,13 @@ TestCase {
         target: strip
     }
 
+    SignalSpy {
+        id: recheckSpy
+
+        signalName: "recheckRequested"
+        target: strip
+    }
+
     readonly property var done: ({
                                      "kind": "done",
                                      "mark": "✓",
@@ -203,6 +210,26 @@ TestCase {
         compare(startHereSpy.signalArguments[0][0], ["b"]);
         strip.outcome = testCase.failed;
         verify(!findChild(strip, "outcomeStartHere").visible);
+    }
+
+    // C25 K24 (board 47's strip): Deluge paused the one that didn't move, and only a recheck
+    // clears it, so "recheck" takes "details"' place, then move….
+    function test_a_paused_failure_offers_recheck_first() {
+        recheckSpy.clear();
+        strip.outcome = Object.assign({}, testCase.failed, {
+                                          "line": "Deluge can't write to /srv/locked · it paused the torrent; a recheck clears it",
+                                          "recheckFirst": true
+                                      });
+        verify(findChild(strip, "outcomeRecheck").visible);
+        verify(!findChild(strip, "outcomeStartHere").visible);
+        verify(!findChild(strip, "outcomeDetails").visible);
+        verify(findChild(strip, "outcomeMove").visible);
+        laidOut();
+        mouseClick(findChild(strip, "outcomeRecheck"));
+        compare(recheckSpy.count, 1);
+        compare(recheckSpy.signalArguments[0][0], ["b"]);
+        strip.outcome = testCase.failed;
+        verify(!findChild(strip, "outcomeRecheck").visible);
     }
 
     // #146 (board 49 §7): a creation cancelled is a dim strip with its own action, no timer.

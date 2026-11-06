@@ -55,8 +55,12 @@ Item {
     /// starts them where their files still are, and takes "details"' place.
     readonly property bool canStartHere: root.kind !== "done" && root.outcome.startHere === true
                                          && (root.outcome.failedHashes ?? []).length > 0
+    /// Board 47's strip on Deluge (C25 K24): it paused the ones that failed and only a recheck
+    /// clears their error; "recheck" takes "details"' place.
+    readonly property bool canRecheck: root.kind !== "done" && root.outcome.recheckFirst === true
+                                       && (root.outcome.failedHashes ?? []).length > 0
     readonly property bool canDetail: root.kind !== "done" && (root.outcome.details ?? "").length > 0
-                                      && !root.canStartHere
+                                      && !root.canStartHere && !root.canRecheck
     /// A failed move offers to try again, as the error block's "set location" does (docs/32 D1).
     readonly property bool canMove: root.kind === "failed" && (root.outcome.action === "move")
                                     && (root.outcome.failedHashes ?? []).length > 0
@@ -67,6 +71,8 @@ Item {
     signal detailsRequested
     /// "start it here": the failed ones started where they are (C25 K24).
     signal startHereRequested(var hashes)
+    /// "recheck": the failed ones rechecked (C25 K24, Deluge).
+    signal recheckRequested(var hashes)
     /// "move…": the move sheet again, on the ones that didn't move.
     signal moveRequested(var hashes, string target)
     /// #146: the outcome's own action (`outcome.more`: {id, text}, "create again…").
@@ -201,6 +207,14 @@ Item {
                 visible: root.canStartHere
 
                 onActivated: root.startHereRequested(root.outcome.failedHashes)
+            }
+
+            StripLink {
+                objectName: "outcomeRecheck"
+                text: qsTr("recheck")
+                visible: root.canRecheck
+
+                onActivated: root.recheckRequested(root.outcome.failedHashes)
             }
 
             StripLink {

@@ -14,10 +14,15 @@
 //     answered, the torrent in error while its folder is still the old one; the engine's
 //     text is kept for the block and read for the cause ("Couldn't move 'A' to 'B':
 //     Permission denied (13)" is noAccess);
+//   - and, on an engine that reads a move as Moving from its send on (movesShowAtOnce,
+//     Deluge), a torrent that after the send's answer never did and is still in its old
+//     folder, kSilentPolls polls and kSilentMs later: a move that failed without a word
+//     (MoveJob::onNotMoved, cause "silent");
 // - the room before each send through FreeSpaceProbe (M5), or, where omaseed can't see the
 //   disks and the engine reads any folder's free space (roomOnServer), as the server last
-//   read it for the job's targets; and the bytes already at a torrent's target, read on this
-//   machine when it sees the server's disks (L10, M14).
+//   read it for the job's targets; and the bytes already at a torrent's target: the engine's
+//   own % of the move where it says it (moveProgress, Deluge, K21), else read on this machine
+//   when it sees the server's disks (L10, M14).
 //
 // An engine that holds every answer while it moves (EngineFeatures::movesHoldAnswers,
 // Transmission, K22) gets one torrent at a time: a second move queued behind the first would
@@ -70,7 +75,8 @@ private:
     void send(const QStringList &hashes, const QString &location);
     void synced(bool fullUpdate);
     void watch();
-    /// The torrent source: a send that answered, then the torrent in error, still at home.
+    /// The torrent source: a send that answered, then the torrent in error, still at home;
+    /// or never moving, still at home (movesShowAtOnce).
     void readFailures();
     /// The server's free space for the targets still to send to (roomOnServer).
     void readRoom();
@@ -84,6 +90,11 @@ private:
     Failures m_failures = Failures::Log;
     bool m_holdsAnswers = false;
     bool m_roomOnServer = false;
+    bool m_engineProgress = false;
+    bool m_showsAtOnce = false;
+    /// movesShowAtOnce: sends the server took whose torrent hasn't read Moving yet, by hash:
+    /// since the answer, and the polls since.
+    QHash<QString, QPair<QElapsedTimer, int>> m_unseen;
     /// bytesAt() walks a folder: once every 30 s per torrent at most.
     QHash<QString, QPair<qint64, QElapsedTimer>> m_grown;
     /// The torrent source: sends the server took, by hash, until they land or fail.

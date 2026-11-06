@@ -192,6 +192,7 @@ QVariantMap ActionOutcome::words() const
         {QStringLiteral("doneRow"), words.row},
         {QStringLiteral("failedRow"), words.failed},
         {QStringLiteral("startHere"), startHere && k != Kind::Done},
+        {QStringLiteral("recheckFirst"), recheckFirst && k != Kind::Done},
     };
 }
 
@@ -207,6 +208,7 @@ ActionOutcome ActionOutcome::fromMap(const QVariantMap &map)
     outcome.cause = map.value(QStringLiteral("cause")).toString();
     outcome.details = map.value(QStringLiteral("details")).toString();
     outcome.startHere = map.value(QStringLiteral("startHere")).toBool();
+    outcome.recheckFirst = map.value(QStringLiteral("recheckFirst")).toBool();
     return outcome;
 }
 

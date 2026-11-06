@@ -166,6 +166,10 @@ public:
         m_growthProbe = std::move(probe);
         updateLiveTimer();
     }
+    /// The growth probe reads the engine's own count of the move (Deluge's %, C25 K21), not
+    /// a file's size at the target: a first reading at full size is trusted (#162's blind
+    /// rule is for files made at full length before the copy).
+    void setGrowthFromEngine(bool fromEngine) { m_growthFromEngine = fromEngine; }
     /// Whether the engine says it is moving `hash` although the torrent's state doesn't
     /// (Transmission has no moving state, and holds every answer while it moves: C25 K22).
     /// Read with the state on each poll; a torrent either reads as moving is the one moving.
@@ -240,6 +244,10 @@ public:
                   const QString &reason,
                   const QString &causeKey,
                   const QString &line);
+    /// The server took the send of `hash`, but the torrent never moved and its folder didn't
+    /// change: a move that failed without a word (Deluge, when it can't make the folder; its
+    /// own log says why). Failed with cause "silent", in the engine's name.
+    void onNotMoved(const QString &hash);
     /// The answer to a sendRequested().
     void onSendResult(const QStringList &hashes, const ApiError &error);
     /// Whether the server can be reached and is the one open (C12: no requests otherwise).
@@ -356,6 +364,7 @@ private:
     std::function<QJsonObject(const QJsonObject &)> m_replan;
     qint64 m_lowDiskThreshold = 2LL * 1024 * 1024 * 1024;
     QString m_engineName;
+    bool m_growthFromEngine = false;
     int m_ahead = 3;
     QString m_filePath;
 

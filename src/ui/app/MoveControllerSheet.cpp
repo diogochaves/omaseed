@@ -603,6 +603,19 @@ MoveController::checkLines(const MovePlan &plan, const QString &newPath, const Q
                 QString(),
                 plan.autoManaged());
         }
+        // Board 47 §E on Deluge (assumed): its move turns a torrent's move-when-done off.
+        if (m_features.moveEndsWhenDone && !plan.movingWhenDone().isEmpty())
+            checks << check(
+                QStringLiteral("warn"),
+                counted(int(plan.movingWhenDone().size()),
+                        tr("Moves when done. %1 torrent goes to another folder when it finishes. "
+                           "%2 turns that off for any move it makes: it stays where it goes now."),
+                        tr("Moves when done. %1 torrents go to another folder when they finish. "
+                           "%2 turns that off for any move it makes: they stay where they go "
+                           "now."))
+                    .arg(engine),
+                QString(),
+                plan.movingWhenDone());
         // M8: left out.
         if (!plan.leftOut().isEmpty()) {
             // Moving back, each goes to its own place: the first one's names it.

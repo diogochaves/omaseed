@@ -134,6 +134,9 @@ public:
         bool thereOwnerKnown = false;
         bool autoTmm = false;
         QString category;
+        /// It goes to another folder of its own when done (a download path apart from its
+        /// save path: Deluge's move-when-done folder, qBittorrent's incomplete folder).
+        bool whenDone = false;
     };
 
     /// One row of the sheet's "goes to" list: a save path and where it goes.
@@ -261,6 +264,9 @@ public:
     /// Moving torrents with automatic management on (M7), and the categories they use.
     QStringList autoManaged() const;
     QStringList autoManagedCategories() const;
+    /// Moving torrents that go to a folder of their own when done (Item::whenDone): on an
+    /// engine whose move turns that off (Deluge), the sheet says so.
+    QStringList movingWhenDone() const;
 
 private:
     QStringList hashesOf(Item::Kind kind) const;

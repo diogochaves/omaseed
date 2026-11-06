@@ -55,6 +55,9 @@ struct ActionOutcome
     /// DECISIONS C25 K24 (board 47's outcome strip): the engine stopped the ones that failed
     /// (a move on Transmission), so the strip offers "start it here" in place of "details".
     bool startHere = false;
+    /// Board 47's strip on Deluge (C25 K24): it paused the ones that failed and only a
+    /// recheck clears their error, so the strip offers "recheck" in place of "details".
+    bool recheckFirst = false;
 
     enum class Kind { Done, Failed, Mixed };
     Kind kind() const;

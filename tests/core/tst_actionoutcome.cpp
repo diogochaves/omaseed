@@ -72,6 +72,13 @@ private Q_SLOTS:
         o.startHere = true;
         QCOMPARE(o.words().value(QStringLiteral("startHere")).toBool(), true);
         QCOMPARE(ActionOutcome::fromMap({{QStringLiteral("startHere"), true}}).startHere, true);
+        // Deluge paused it: the strip offers "recheck" first.
+        QCOMPARE(w.value(QStringLiteral("recheckFirst")).toBool(), false);
+        o.startHere = false;
+        o.recheckFirst = true;
+        QCOMPARE(o.words().value(QStringLiteral("recheckFirst")).toBool(), true);
+        QCOMPARE(ActionOutcome::fromMap({{QStringLiteral("recheckFirst"), true}}).recheckFirst,
+                 true);
     }
 
     // O3: counts, never a list; the line names the first that failed.

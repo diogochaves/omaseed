@@ -321,6 +321,8 @@ MovePlan MovePlan::make(const Input &input)
             item.bytes = std::max<qint64>(0, torrent.completed);
             item.autoTmm = torrent.autoTmm;
             item.category = torrent.category;
+            item.whenDone = !torrent.downloadPath.isEmpty() &&
+                            SharedData::normalize(torrent.downloadPath) != save;
             switch (plan.m_rule) {
             case Rule::OneFolder:
                 item.to = to;
@@ -370,6 +372,8 @@ MovePlan MovePlan::make(const Input &input)
         item.bytes = std::max<qint64>(0, torrent.completed);
         item.autoTmm = torrent.autoTmm;
         item.category = torrent.category;
+        item.whenDone =
+            !torrent.downloadPath.isEmpty() && SharedData::normalize(torrent.downloadPath) != save;
         const bool noRoot = content.isEmpty() || content == save;
 
         if (SharedData::isUnder(save, root)) {
@@ -778,6 +782,16 @@ QStringList MovePlan::autoManaged() const
     QStringList out;
     for (const Item &item : m_items) {
         if (item.autoTmm && (item.kind == Item::Kind::Move || item.kind == Item::Kind::PulledIn))
+            out << item.hash;
+    }
+    return out;
+}
+
+QStringList MovePlan::movingWhenDone() const
+{
+    QStringList out;
+    for (const Item &item : m_items) {
+        if (item.whenDone && (item.kind == Item::Kind::Move || item.kind == Item::Kind::PulledIn))
             out << item.hash;
     }
     return out;

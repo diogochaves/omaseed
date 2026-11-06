@@ -408,7 +408,7 @@ void MoveJob::sampleLive()
         // at the torrent's size measures nothing. The band falls back to board 43 B2's
         // "moving for …" until this torrent lands, rather than read 100 % from its first
         // second.
-        m_liveBlind = moving->bytes > 0 && bytes >= moving->bytes;
+        m_liveBlind = !m_growthFromEngine && moving->bytes > 0 && bytes >= moving->bytes;
         m_liveBytes = m_liveBlind ? -1 : bytes;
         m_liveFirstBytes = m_liveBytes;
         m_liveFirstAt = at;
@@ -689,6 +689,21 @@ void MoveJob::onFailed(const QString &hash,
     settle();
     pump();
     touch();
+}
+
+void MoveJob::onNotMoved(const QString &hash)
+{
+    const Entry *entry = find(hash);
+    if (entry == nullptr)
+        return;
+    const QString engine = m_engineName.isEmpty() ? QStringLiteral("qBittorrent") : m_engineName;
+    onFailed(hash,
+             QDateTime(),
+             tr("%1 didn't move it and doesn't say why").arg(engine),
+             QStringLiteral("silent"),
+             tr("%1 took the move to %2, but the torrent never started moving and is still in "
+                "%3. %1 says why only in its own log; most often it couldn't make the folder.")
+                 .arg(engine, entry->to, entry->from));
 }
 
 void MoveJob::landed(Entry &entry)

@@ -15,6 +15,8 @@
 #include <QDirIterator>
 #include <QFileInfo>
 
+#include <algorithm>
+
 namespace omaseed::core {
 
 namespace {
@@ -29,6 +31,12 @@ constexpr qint64 kRoomTrustMs = 5 * 60 * 1000;
 // three (C15 M12) otherwise.
 constexpr int kAheadHolding = 1;
 constexpr int kAhead = 3;
+// Board 47 §E on Deluge (movesShowAtOnce): a torrent whose send was taken reads Moving on the
+// next poll sent after the answer. Still not moving, in its old folder, on two polls after the
+// answer and 3 s on, the move failed without a word (assumed: two polls make sure one was
+// sent after the answer; 3 s covers a slow one at the window's 1.5 s cadence).
+constexpr int kSilentPolls = 2;
+constexpr qint64 kSilentMs = 3000;
 
 qint64 sizeOf(const QString &localPath)
 {
@@ -109,8 +117,14 @@ void MoveFeed::setFeatures(const EngineFeatures &features)
     m_failures = features.moveStopsOnFailure ? Failures::Torrent : Failures::Log;
     m_holdsAnswers = features.movesHoldAnswers;
     m_roomOnServer = features.roomOnServer;
-    if (!m_job.isNull())
+    m_engineProgress = features.moveProgress;
+    m_showsAtOnce = features.movesShowAtOnce && m_failures == Failures::Torrent;
+    if (!m_showsAtOnce)
+        m_unseen.clear();
+    if (!m_job.isNull()) {
         m_job->setAhead(m_holdsAnswers ? kAheadHolding : kAhead);
+        m_job->setGrowthFromEngine(m_engineProgress);
+    }
     watch();
 }
 
@@ -132,15 +146,23 @@ void MoveFeed::send(const QStringList &hashes, const QString &location)
             hashes, ApiError(ApiError::Kind::Network, QStringLiteral("no server to send to")));
         return;
     }
-    for (const QString &hash : hashes)
+    for (const QString &hash : hashes) {
         m_answered.remove(hash);
+        m_unseen.remove(hash);
+    }
     QPointer<MoveJob> job = m_job;
     QPointer<MoveFeed> self(this);
     client->setLocation(hashes, location)
         ->then(this, [self, job, hashes](const Result<Done> &result) {
             if (!self.isNull() && !result.isError()) {
-                for (const QString &hash : hashes)
+                for (const QString &hash : hashes) {
                     self->m_answered.insert(hash);
+                    if (self->m_showsAtOnce) {
+                        QElapsedTimer since;
+                        since.start();
+                        self->m_unseen.insert(hash, {since, 0});
+                    }
+                }
             }
             if (!job.isNull())
                 job->onSendResult(hashes, result.isError() ? result.error() : ApiError());
@@ -169,12 +191,26 @@ void MoveFeed::readFailures()
             continue;
         if (!withServer(entry.step) || torrents->indexOfHash(entry.hash) < 0) {
             m_answered.remove(entry.hash);
+            m_unseen.remove(entry.hash);
             continue;
         }
         const Torrent &torrent = torrents->torrent(entry.hash);
+        const bool home = SharedData::normalize(torrent.savePath) == entry.from;
+        const TorrentPhase phase = torrent.status.phase;
+        auto unseen = m_unseen.find(entry.hash);
+        if (unseen != m_unseen.end()) {
+            if (phase == TorrentPhase::Moving || phase == TorrentPhase::Errored || !home) {
+                m_unseen.erase(unseen); // it moves, landed, or failed in words
+            } else if (++unseen->second >= kSilentPolls && unseen->first.elapsed() >= kSilentMs) {
+                // Board 47 §E: taken, never moving, still at home: Deluge didn't move it.
+                m_unseen.erase(unseen);
+                m_answered.remove(entry.hash);
+                m_job->onNotMoved(entry.hash);
+                continue;
+            }
+        }
         // Board 47 §4: in error after the send, its folder still the old one.
-        if (torrent.status.phase != TorrentPhase::Errored ||
-            SharedData::normalize(torrent.savePath) != entry.from)
+        if (phase != TorrentPhase::Errored || !home)
             continue;
         m_answered.remove(entry.hash);
         const QString text = torrent.errorMessage;
@@ -270,12 +306,20 @@ bool MoveFeed::seesDisks() const
 
 qint64 MoveFeed::bytesAt(const QString &hash, const QString &target)
 {
-    if (!seesDisks() || m_engine.isNull())
+    if (m_engine.isNull() || (!seesDisks() && !m_engineProgress))
         return -1;
     TorrentModel *torrents = m_engine->torrents();
     if (torrents->indexOfHash(hash) < 0)
         return -1;
     const Torrent &torrent = torrents->torrent(hash);
+    if (m_engineProgress) {
+        // K21: Deluge's own % of the move (bytes at the target over its bytes done), wherever
+        // its disks are; nothing until it reads Moving.
+        const MoveJob::Entry *entry = m_job.isNull() ? nullptr : m_job->entry(hash);
+        if (entry == nullptr || torrent.status.phase != TorrentPhase::Moving)
+            return -1;
+        return qint64(std::clamp(torrent.progress, 0.0, 1.0) * double(entry->bytes));
+    }
     const QString save = SharedData::normalize(torrent.savePath);
     const QString content = SharedData::normalize(torrent.contentPath);
     // A torrent added without a subfolder has no folder of its own to measure.

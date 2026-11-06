@@ -6,12 +6,16 @@
 // when deluge-web has none, never another one. Step 11b: the Label plugin's labels in the
 // categories place and words (K13, K15), a ratio of each torrent's own (K18), the add's
 // options (K27) and a magnet's files from the prefetch (K26), details without web seeds (H).
+// Step 11c: moves with Deluge's own % (K21), the move it refuses without a word (board 47 §E),
+// and its errors in its words, paused, cleared only by a recheck (K24, §F).
 
 #include "FakeDeluge.hpp"
 
 #include "core/ActionOutcome.hpp"
 #include "core/CategoryModel.hpp"
 #include "core/GlobalState.hpp"
+#include "core/MoveJob.hpp"
+#include "core/ProblemLog.hpp"
 #include "core/SecretStore.hpp"
 #include "core/SyncEngine.hpp"
 #include "core/TorrentDetails.hpp"
@@ -19,8 +23,10 @@
 #include "core/TorrentModel.hpp"
 #include "core/TorrentWebSeedsModel.hpp"
 #include "ui/app/App.hpp"
+#include "ui/app/MoveController.hpp"
 
 #include <QCryptographicHash>
+#include <QElapsedTimer>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -29,6 +35,7 @@
 #include <QTest>
 
 #include <algorithm>
+#include <functional>
 #include <memory>
 
 using omaseed::app::App;
@@ -53,6 +60,12 @@ public:
     RecordedDeluge recorded;
     /// What core.prefetch_magnet_metadata answers ([hash, base64 info]).
     QJsonValue prefetch;
+    /// What core.move_storage does to the torrents it names; nothing by default, as Deluge
+    /// does when it can't make the folder (its log says why, its answer doesn't).
+    std::function<void(const QJsonArray &ids, const QString &dest)> onMove;
+    /// Torrents in Deluge's forced error (a failed move): a resume leaves them in Error, only
+    /// a recheck clears it (restart_to_resume).
+    QSet<QString> forced;
 
     Daemon()
     {
@@ -95,6 +108,22 @@ public:
         return recorded.torrents.value(hash).toObject().value(QStringLiteral("state")).toString();
     }
 
+    void set(const QString &hash, const char *key, const QJsonValue &value)
+    {
+        QJsonObject torrent = recorded.torrents.value(hash).toObject();
+        torrent.insert(QString::fromLatin1(key), value);
+        recorded.torrents.insert(hash, torrent);
+    }
+
+    /// Deluge's storage_moved_failed: Error with its words, paused, forced.
+    void failMove(const QString &hash)
+    {
+        set(hash, "state", QStringLiteral("Error"));
+        set(hash, "message", QStringLiteral("Failed to move download folder: Permission denied"));
+        set(hash, "paused", true);
+        forced.insert(hash);
+    }
+
 private:
     void setPaused(const QJsonArray &ids, bool paused)
     {
@@ -104,6 +133,10 @@ private:
                 continue;
             const bool done = torrent.value(QStringLiteral("progress")).toDouble() >= 100.0;
             torrent.insert(QStringLiteral("paused"), paused);
+            if (forced.contains(id.toString())) {
+                recorded.torrents.insert(id.toString(), torrent); // still Error
+                continue;
+            }
             torrent.insert(QStringLiteral("state"),
                            paused ? QStringLiteral("Paused")
                            : done ? QStringLiteral("Seeding")
@@ -131,6 +164,21 @@ private:
             recorded.connected = true;
             return result("web_connect.json");
         }
+        if (method == QLatin1String("core.move_storage")) {
+            if (onMove)
+                onMove(params.at(0).toArray(), params.at(1).toString());
+            return {};
+        }
+        if (method == QLatin1String("core.force_recheck")) {
+            for (const QJsonValue &id : params.at(0).toArray()) {
+                if (!forced.remove(id.toString()))
+                    continue;
+                set(id.toString(), "state", QStringLiteral("Seeding"));
+                set(id.toString(), "message", QStringLiteral("OK"));
+                set(id.toString(), "paused", false);
+            }
+            return {};
+        }
         if (method == QLatin1String("core.add_torrent_magnet"))
             return result("core_add_torrent_magnet.json");
         if (method == QLatin1String("core.prefetch_magnet_metadata"))
@@ -138,7 +186,6 @@ private:
         if (method == QLatin1String("label.set_torrent") || method == QLatin1String("label.add"))
             return {};
         if (method == QLatin1String("core.set_torrent_options") ||
-            method == QLatin1String("core.force_recheck") ||
             method == QLatin1String("core.force_reannounce") ||
             method == QLatin1String("core.queue_up") || method == QLatin1String("core.queue_down"))
             return {};
@@ -167,6 +214,11 @@ private Q_SLOTS:
     void aTorrentKeepsARatioOfItsOwn();
     void anAddTakesDelugesOptions();
     void aMagnetsFilesComeFromThePrefetch();
+    void aMoveShowsDelugesOwnPercent();
+    void aMoveDelugeNeverMadeHasFailed();
+    void aFolderMoveSaysWhatDelugeDidToEach();
+    void aFailedMoveIsPausedUntilARecheck();
+    void anErroredTorrentReadsDelugesWords();
 
 private:
     /// Starts `app` on `daemon` through the environment with deluge-web's password, polling
@@ -571,6 +623,245 @@ void TestAppDeluge::aMagnetsFilesComeFromThePrefetch()
     QCOMPARE(map.value(QStringLiteral("name")).toString(), QStringLiteral("a.bin"));
     QCOMPARE(map.value(QStringLiteral("fileCount")).toInt(), 1);
     QVERIFY(!daemon.web.callsOf(QStringLiteral("core.prefetch_magnet_metadata")).isEmpty());
+    app.engine()->stop();
+}
+
+// Board 47 §E, K21: Deluge answers the move at once; the torrent reads Moving with Deluge's own
+// %, which the band shows though omaseed can't see the server's disks, then it lands.
+void TestAppDeluge::aMoveShowsDelugesOwnPercent()
+{
+    Daemon daemon;
+    const QString to = QStringLiteral("/srv/other/films");
+    daemon.onMove = [&](const QJsonArray &ids, const QString &) {
+        for (const QJsonValue &id : ids) {
+            daemon.set(id.toString(), "state", QStringLiteral("Moving"));
+            daemon.set(id.toString(), "progress", 40.0);
+        }
+    };
+    App app;
+    QVERIFY(startOn(app, daemon));
+    QVERIFY(app.move()->startSelection({kPack}, to, QString()));
+    QTRY_VERIFY_WITH_TIMEOUT(app.engine()->torrents()->torrent(kPack).status.phase ==
+                                 omaseed::core::TorrentPhase::Moving,
+                             3000);
+    // 40 % of the pack's 64 440 bytes done, from Deluge's count (no path map, no disk seen).
+    QTRY_COMPARE_WITH_TIMEOUT(app.move()->job()->liveBytes(kPack), qint64(25776), 5000);
+    QTRY_VERIFY_WITH_TIMEOUT(!app.move()->band().isEmpty(), 6000);
+    const QString line = app.move()->band().value(QStringLiteral("line")).toString();
+    QVERIFY2(line.contains(QStringLiteral("40 %")), qPrintable(line));
+    QVERIFY2(!line.contains(QStringLiteral("doesn't report")), qPrintable(line));
+
+    // Moved: where it is now is the destination (and Deluge turned its move-when-done off).
+    daemon.set(kPack, "state", QStringLiteral("Seeding"));
+    daemon.set(kPack, "progress", 100.0);
+    daemon.set(kPack, "save_path", to);
+    daemon.set(kPack, "move_completed", false);
+    QTRY_COMPARE_WITH_TIMEOUT(app.move()->stateName(), QStringLiteral("done"), 5000);
+    QCOMPARE(app.move()->failedHashes(), QStringList());
+    const std::optional<Call> sent = daemon.lastOf(QStringLiteral("core.move_storage"));
+    QVERIFY(sent.has_value());
+    QCOMPARE(sent->params.at(1).toString(), to);
+    QCOMPARE(daemon.idsOf(QStringLiteral("core.move_storage")),
+             QList<QStringList>({QStringList{kPack}}));
+    app.engine()->stop();
+}
+
+// Board 47 §E: a move into a folder Deluge can't make is taken and dropped, said only in
+// deluged's log. Never Moving and still in its folder after the bound, it reads as failed,
+// in words that say Deluge didn't move it and doesn't say why; sent once, nothing paused.
+void TestAppDeluge::aMoveDelugeNeverMadeHasFailed()
+{
+    Daemon daemon; // onMove unset: Deluge's silent refusal
+    const QString to = QStringLiteral("/srv/locked/new/films");
+    App app;
+    QVERIFY(startOn(app, daemon));
+    QSignalSpy outcomes(app.move(), &omaseed::app::MoveController::outcome);
+    QElapsedTimer clock;
+    clock.start();
+    QVERIFY(app.move()->startSelection({kPack}, to, QString()));
+    // Quick, it ends quiet (the strip, the job closed); past L6's 3 s, in its summary band.
+    QTRY_VERIFY_WITH_TIMEOUT(
+        !outcomes.isEmpty() || app.move()->stateName() == QLatin1String("done"), 8000);
+    // Within the bound (two polls, 3 s), long before the quiet rule's resend (10 s).
+    QVERIFY2(clock.elapsed() < 8000, qPrintable(QString::number(clock.elapsed())));
+    if (outcomes.isEmpty()) {
+        QCOMPARE(app.move()->failedHashes(), QStringList({kPack}));
+        // The bound outlasts L6's 3 s, so the job showed: its summary band says it.
+        const QString line = app.move()->band().value(QStringLiteral("line")).toString();
+        QVERIFY2(
+            line.contains(QStringLiteral("1 failed · Deluge didn't move it and doesn't say why")),
+            qPrintable(line));
+        QVERIFY2(!line.contains(QStringLiteral("paused")), qPrintable(line));
+    } else {
+        // Done under 3 s on a fast poll: the strip says it.
+        const QVariantMap outcome = outcomes.constLast().at(0).toMap();
+        QCOMPARE(outcome.value(QStringLiteral("cause")).toString(),
+                 QStringLiteral("Deluge didn't move it and doesn't say why"));
+        QVERIFY(!outcome.value(QStringLiteral("startHere")).toBool());
+        QVERIFY(!outcome.value(QStringLiteral("recheckFirst")).toBool());
+        QCOMPARE(outcome.value(QStringLiteral("failedHashes")).toStringList(),
+                 QStringList({kPack}));
+        QVERIFY(outcome.value(QStringLiteral("details"))
+                    .toString()
+                    .contains(QStringLiteral("never started moving")));
+    }
+    QCOMPARE(daemon.idsOf(QStringLiteral("core.move_storage")).size(), 1);
+    QCOMPARE(daemon.state(kPack), QStringLiteral("Seeding"));
+    app.engine()->stop();
+}
+
+// Board 47 §E/§F, the summary band on Deluge: of a folder's three, one moved, one Deluge
+// paused in error (a recheck clears it, so recheck leads) and one it never moved.
+void TestAppDeluge::aFolderMoveSaysWhatDelugeDidToEach()
+{
+    Daemon daemon;
+    const QString root = QStringLiteral("/srv/deluge/fixtures-recording");
+    const QString to = QStringLiteral("/srv/locked/dest");
+    // The recorded torrent in error isn't part of this story: it seeds.
+    daemon.set(kError, "state", QStringLiteral("Seeding"));
+    daemon.set(kError, "message", QStringLiteral("OK"));
+    // The first sent moves (the job's probe), the second fails in Error, the rest Deluge
+    // takes and drops, as when it can't make their folder.
+    int calls = 0;
+    daemon.onMove = [&](const QJsonArray &ids, const QString &dest) {
+        for (const QJsonValue &id : ids) {
+            ++calls;
+            if (calls == 1)
+                daemon.set(id.toString(), "save_path", dest);
+            else if (calls == 2)
+                daemon.failMove(id.toString());
+        }
+    };
+    App app;
+    QVERIFY(startOn(app, daemon));
+    // The sheet's plan asks Deluge the names at the destination (core.glob) and its room;
+    // the move starts once they are in.
+    (void)app.move()->plan(root, to, false);
+    bool started = false; // QTRY's check runs its expression once more: start once
+    QTRY_VERIFY_WITH_TIMEOUT(started || (started = app.move()->start(root, to, false)), 3000);
+    QTRY_COMPARE_WITH_TIMEOUT(app.move()->stateName(), QStringLiteral("done"), 15000);
+    QVERIFY2(calls >= 3, qPrintable(QString::number(calls)));
+    QCOMPARE(app.move()->failedHashes().size(), calls - 1);
+    QTRY_VERIFY_WITH_TIMEOUT(!app.move()->band().isEmpty(), 3000);
+    const QVariantMap band = app.move()->band();
+    const QString line = band.value(QStringLiteral("line")).toString();
+    QVERIFY2(
+        line.contains(QStringLiteral("1 failed · Deluge paused the torrent; a recheck clears it")),
+        qPrintable(line));
+    QVERIFY2(line.contains(
+                 calls == 3 ? QStringLiteral("1 failed · Deluge didn't move it and doesn't say why")
+                            : QStringLiteral("failed · Deluge didn't move them and doesn't say "
+                                             "why")),
+             qPrintable(line));
+    QVERIFY2(!line.contains(QStringLiteral("stopped")), qPrintable(line));
+    QStringList ids;
+    for (const QVariant &item : band.value(QStringLiteral("actions")).toList())
+        ids << item.toMap().value(QStringLiteral("id")).toString();
+    QCOMPARE(ids.mid(0, 2), QStringList({QStringLiteral("recheck"), QStringLiteral("retry")}));
+    QVERIFY(!ids.contains(QStringLiteral("startHere")));
+    // Each was sent once: the silent ones weren't sent again.
+    QCOMPARE(daemon.idsOf(QStringLiteral("core.move_storage")).size(), calls);
+    app.engine()->stop();
+}
+
+// Board 47 §F `sf07` on Deluge (K24): a move into a read-only folder puts the torrent in Error
+// with Deluge's words, paused. The strip says so and offers recheck; a resume leaves the
+// error; only the recheck clears it.
+void TestAppDeluge::aFailedMoveIsPausedUntilARecheck()
+{
+    Daemon daemon;
+    const QString to = QStringLiteral("/srv/locked/dest");
+    daemon.onMove = [&](const QJsonArray &ids, const QString &) {
+        for (const QJsonValue &id : ids)
+            daemon.failMove(id.toString());
+    };
+    App app;
+    QVERIFY(startOn(app, daemon));
+    QSignalSpy outcomes(app.move(), &omaseed::app::MoveController::outcome);
+    QVERIFY(app.move()->startSelection({kPack}, to, QString()));
+    QTRY_VERIFY_WITH_TIMEOUT(outcomes.count() == 1, 5000);
+    const QVariantMap outcome = outcomes.at(0).at(0).toMap();
+    QCOMPARE(outcome.value(QStringLiteral("failedHashes")).toStringList(), QStringList({kPack}));
+    QCOMPARE(outcome.value(QStringLiteral("cause")).toString(),
+             QStringLiteral("Deluge can't write to %1 · it paused the torrent; a recheck clears it")
+                 .arg(to));
+    QVERIFY(outcome.value(QStringLiteral("recheckFirst")).toBool());
+    QVERIFY(!outcome.value(QStringLiteral("startHere")).toBool());
+    QCOMPARE(outcome.value(QStringLiteral("details")).toString(),
+             QStringLiteral("Failed to move download folder: Permission denied"));
+    QCOMPARE(daemon.idsOf(QStringLiteral("core.move_storage")).size(), 1);
+
+    // The row: paused, Deluge's sentence, recheck its fix.
+    QTRY_COMPARE_WITH_TIMEOUT(app.torrentRow(kPack).value(QStringLiteral("rowCaption")).toString(),
+                              QStringLiteral("paused"),
+                              3000);
+    QCOMPARE(app.engine()
+                 ->torrents()
+                 ->problem(kPack)
+                 .value(QStringLiteral("actions"))
+                 .toStringList()
+                 .constFirst(),
+             QStringLiteral("recheck"));
+
+    // A resume leaves Deluge's forced error; the recheck clears it.
+    app.retryTorrents({kPack});
+    QTRY_VERIFY_WITH_TIMEOUT(!daemon.idsOf(QStringLiteral("core.resume_torrents")).isEmpty(), 3000);
+    QCOMPARE(daemon.state(kPack), QStringLiteral("Error"));
+    QTRY_COMPARE_WITH_TIMEOUT(app.engine()->torrents()->torrent(kPack).status.phase,
+                              omaseed::core::TorrentPhase::Errored,
+                              3000);
+    app.recheck({kPack});
+    QTRY_VERIFY_WITH_TIMEOUT(!daemon.idsOf(QStringLiteral("core.force_recheck")).isEmpty(), 3000);
+    QTRY_VERIFY_WITH_TIMEOUT(app.engine()->torrents()->torrent(kPack).status.phase !=
+                                 omaseed::core::TorrentPhase::Errored,
+                             3000);
+    app.engine()->stop();
+}
+
+// Board 47 §F on Deluge (K24): the recorded torrent in Error reads Deluge's own words in the
+// block, the row and the story, paused, with recheck first and no log.
+void TestAppDeluge::anErroredTorrentReadsDelugesWords()
+{
+    Daemon daemon;
+    daemon.forced.insert(kError);
+    App app;
+    QVERIFY(startOn(app, daemon));
+    QTRY_VERIFY_WITH_TIMEOUT(!app.engine()
+                                  ->torrents()
+                                  ->problem(kError)
+                                  .value(QStringLiteral("headline"))
+                                  .toString()
+                                  .isEmpty(),
+                             3000);
+    const QVariantMap problem = app.engine()->torrents()->problem(kError);
+    QCOMPARE(problem.value(QStringLiteral("engine")).toString(), QStringLiteral("Deluge"));
+    QVERIFY(problem.value(QStringLiteral("failedMove")).toBool());
+    QCOMPARE(problem.value(QStringLiteral("headline")).toString(), QStringLiteral("Didn't move"));
+    QCOMPARE(problem.value(QStringLiteral("detail")).toString(),
+             QStringLiteral("Deluge: “Failed to move download folder: Permission denied”"));
+    QCOMPARE(problem.value(QStringLiteral("actions")).toStringList(),
+             QStringList({QStringLiteral("recheck"), QStringLiteral("location")}));
+    QCOMPARE(problem.value(QStringLiteral("note")).toString(),
+             QStringLiteral("Deluge paused it · only a recheck clears this error"));
+
+    // The row, as the rows display and the details' hero read it.
+    QTRY_COMPARE_WITH_TIMEOUT(app.torrentRow(kError).value(QStringLiteral("rowCaption")).toString(),
+                              QStringLiteral("paused"),
+                              3000);
+    const QVariantMap row = app.torrentRow(kError);
+    QCOMPARE(row.value(QStringLiteral("rowFact")).toString(), QStringLiteral("didn't move"));
+    QCOMPARE(row.value(QStringLiteral("rowSentence")).toString(),
+             QStringLiteral("Deluge couldn't move its files · it paused the torrent"));
+    bool told = false;
+    for (const QVariant &event : app.torrentStory(kError)) {
+        const QVariantMap e = event.toMap();
+        if (e.value(QStringLiteral("kind")).toString() == QLatin1String("error")) {
+            QCOMPARE(e.value(QStringLiteral("detail")).toString(),
+                     QStringLiteral("Deluge paused it"));
+            told = true;
+        }
+    }
+    QVERIFY(told);
     app.engine()->stop();
 }
 

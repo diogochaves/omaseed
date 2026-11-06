@@ -1143,12 +1143,15 @@ QVariantMap MoveController::band() const
                 parts << core::Format::size(entry->bytes);
                 if (entry->movingSince.isValid())
                     parts << tr("moving for %1").arg(span(entry->movingSince.secsTo(now())));
-                // K21: Transmission doesn't say how far a move is either.
-                parts << (m_hooks.probe != nullptr && m_hooks.probe->seesServerDisks()
-                              ? tr("%1 doesn't report a single move's progress").arg(engineName())
-                              : tr("%1 doesn't report a single move's progress, and "
-                                   "omaseed can't see %2's disks")
-                                    .arg(engineName(), server));
+                // K21: Transmission doesn't say how far a move is either; Deluge does, from
+                // its next poll on.
+                if (!m_features.moveProgress)
+                    parts
+                        << (m_hooks.probe != nullptr && m_hooks.probe->seesServerDisks()
+                                ? tr("%1 doesn't report a single move's progress").arg(engineName())
+                                : tr("%1 doesn't report a single move's progress, and "
+                                     "omaseed can't see %2's disks")
+                                      .arg(engineName(), server));
                 progress = -1;
             } else {
                 if (!single)
@@ -1227,19 +1230,34 @@ QVariantMap MoveController::band() const
                     engineName());
                 headline = words.headline;
             }
-            line = job.pauseReason() == MoveJob::PauseReason::FirstFailed
-                       ? (folder ? tr("The first torrent, %1, didn't move: “%2”. Nothing else was "
-                                      "sent; everything is still at %3.")
-                                       .arg(first == nullptr ? QString() : first->name,
-                                            first == nullptr ? QString() : first->reason,
-                                            job.root())
-                                 : tr("The first torrent, %1, didn't move: “%2”. Nothing else was "
-                                      "sent; everything is still where it was.")
-                                       .arg(first == nullptr ? QString() : first->name,
-                                            first == nullptr ? QString() : first->reason))
-                       : tr("%1 didn't move: “%2”. Nothing more is sent.")
-                             .arg(first == nullptr ? QString() : first->name,
-                                  first == nullptr ? QString() : first->reason);
+            const bool silent = first != nullptr && first->causeKey == QLatin1String("silent");
+            // Board 47 §E on Deluge: no words of its own to quote.
+            if (silent)
+                line = job.pauseReason() == MoveJob::PauseReason::FirstFailed
+                           ? (folder ? tr("The first torrent, %1, didn't move, and %2 doesn't say "
+                                          "why. Nothing else was sent; everything is still at %3.")
+                                           .arg(first->name, engineName(), job.root())
+                                     : tr("The first torrent, %1, didn't move, and %2 doesn't say "
+                                          "why. Nothing else was sent; everything is still where "
+                                          "it was.")
+                                           .arg(first->name, engineName()))
+                           : tr("%1 didn't move, and %2 doesn't say why. Nothing more is sent.")
+                                 .arg(first->name, engineName());
+            else
+                line =
+                    job.pauseReason() == MoveJob::PauseReason::FirstFailed
+                        ? (folder ? tr("The first torrent, %1, didn't move: “%2”. Nothing else was "
+                                       "sent; everything is still at %3.")
+                                        .arg(first == nullptr ? QString() : first->name,
+                                             first == nullptr ? QString() : first->reason,
+                                             job.root())
+                                  : tr("The first torrent, %1, didn't move: “%2”. Nothing else was "
+                                       "sent; everything is still where it was.")
+                                        .arg(first == nullptr ? QString() : first->name,
+                                             first == nullptr ? QString() : first->reason))
+                        : tr("%1 didn't move: “%2”. Nothing more is sent.")
+                              .arg(first == nullptr ? QString() : first->name,
+                                   first == nullptr ? QString() : first->reason);
             failedText.clear(); // the headline says it
             actions.clear();
             actions << action(QStringLiteral("changeFolder"), tr("change the folder…"))
@@ -1449,15 +1467,35 @@ QVariantMap MoveController::band() const
                         : tr("%1 of %2").arg(summary.moved).arg(summary.total));
         }
         // C25 K24 (#238): an engine that stops a torrent whose move failed (Transmission) says
-        // so, in the strip's words, since its retry finds them stopped, not seeding.
-        const bool stopped = m_features.moveStopsOnFailure && summary.failed > 0;
-        if (stopped)
-            parts << counted(summary.failed,
+        // so, in the strip's words, since its retry finds them stopped, not seeding. Deluge
+        // pauses them, and only a recheck clears their error; the ones it didn't move without
+        // a word (board 47 §E) still run where they were.
+        int silent = 0;
+        for (const QString &hash : summary.failedHashes) {
+            const MoveJob::Entry *entry = job.entry(hash);
+            if (entry != nullptr && entry->causeKey == QLatin1String("silent"))
+                ++silent;
+        }
+        const int halted = summary.failed - silent;
+        const bool stopped = m_features.moveStopsOnFailure && halted > 0;
+        const bool paused = stopped && m_features.pausesOnError;
+        if (paused)
+            parts << counted(halted,
+                             tr("%1 failed · %2 paused the torrent; a recheck clears it"),
+                             tr("%1 failed · %2 paused the torrents; a recheck clears them"))
+                         .arg(engineName());
+        else if (stopped)
+            parts << counted(halted,
                              tr("%1 failed · %2 stopped the torrent"),
                              tr("%1 failed · %2 stopped the torrents"))
                          .arg(engineName());
-        else if (summary.failed > 0)
-            parts << tr("%1 failed").arg(summary.failed);
+        else if (halted > 0)
+            parts << tr("%1 failed").arg(halted);
+        if (silent > 0)
+            parts << counted(silent,
+                             tr("%1 failed · %2 didn't move it and doesn't say why"),
+                             tr("%1 failed · %2 didn't move them and doesn't say why"))
+                         .arg(engineName());
         if (summary.alreadyThere > 0)
             parts << counted(
                 summary.alreadyThere, tr("%1 was already there"), tr("%1 were already there"));
@@ -1475,7 +1513,11 @@ QVariantMap MoveController::band() const
                          .arg(job.root());
         line = parts.join(QStringLiteral(" · "));
         failedText.clear();
-        if (stopped) {
+        if (paused) {
+            // Board 47 §F on Deluge: recheck first (K24), the move's retry next to it.
+            actions << action(QStringLiteral("recheck"), tr("recheck the %1…").arg(summary.failed))
+                    << action(QStringLiteral("retry"), tr("retry the %1").arg(summary.failed));
+        } else if (stopped) {
             // The strip's "start it here" leads (K24), the move's retry next to it.
             actions << action(QStringLiteral("startHere"),
                               counted(summary.failed, tr("start it here"), tr("start the %1 here")))
@@ -1616,13 +1658,23 @@ QVariantMap MoveController::quietOutcome(const MoveJob::Summary &summary,
             failedName = first->name;
     }
     // C25 K24 (board 47's strip): an engine that stops a torrent whose move failed
-    // (Transmission) says so, and the strip offers to start it where its files still are.
-    const bool stops = m_features.moveStopsOnFailure && !summary.failedHashes.isEmpty();
-    const QString why = stops && !cause.isEmpty()
-                            ? cause + QStringLiteral(" · ") +
-                                  (summary.failedHashes.size() == 1 ? tr("it stopped the torrent")
-                                                                    : tr("it stopped the torrents"))
-                            : cause;
+    // (Transmission) says so, and the strip offers to start it where its files still are;
+    // Deluge pauses it and a recheck clears it, so the strip offers that. One Deluge didn't
+    // move without a word (board 47 §E) still runs where it was: nothing to add.
+    const MoveJob::Entry *first =
+        summary.failedHashes.isEmpty() ? nullptr : m_job->entry(summary.failedHashes.constFirst());
+    const bool silent = first != nullptr && first->causeKey == QLatin1String("silent");
+    const bool stops = m_features.moveStopsOnFailure && !summary.failedHashes.isEmpty() && !silent;
+    const bool one = summary.failedHashes.size() == 1;
+    const QString tail = !stops                     ? QString()
+                         : m_features.pausesOnError ? (one ? tr("it paused the torrent; a recheck "
+                                                                "clears it")
+                                                           : tr("it paused the torrents; a "
+                                                                "recheck clears them"))
+                         : one                      ? tr("it stopped the torrent")
+                                                    : tr("it stopped the torrents");
+    const QString why =
+        !tail.isEmpty() && !cause.isEmpty() ? cause + QStringLiteral(" · ") + tail : cause;
     return {{QStringLiteral("action"),
              m_job->kind() == QLatin1String("back") ? QStringLiteral("moveBack")
                                                     : QStringLiteral("move")},
@@ -1633,7 +1685,8 @@ QVariantMap MoveController::quietOutcome(const MoveJob::Summary &summary,
             {QStringLiteral("target"), m_job->newPath()},
             {QStringLiteral("cause"), why},
             {QStringLiteral("details"), details},
-            {QStringLiteral("startHere"), stops}};
+            {QStringLiteral("startHere"), stops && !m_features.pausesOnError},
+            {QStringLiteral("recheckFirst"), stops && m_features.pausesOnError}};
 }
 
 void MoveController::onFinished()

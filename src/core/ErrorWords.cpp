@@ -575,6 +575,12 @@ ErrorWords::Text ErrorWords::forMoveFailure(const QString &torrent,
     text.kind = QStringLiteral("request");
     text.details = reason;
     const QString name = torrent.isEmpty() ? tr("the torrent") : torrent;
+    if (causeKey == QLatin1String("silent")) {
+        // Board 47 §E on Deluge: the move taken, the torrent never moved, no word why.
+        text.headline = tr("%1 didn't move %2").arg(engine, name);
+        text.line = tr("%1 doesn't say why.").arg(engine);
+        return text;
+    }
     if (causeKey == QLatin1String("noAccess") || causeKey == QLatin1String("readOnly")) {
         // T2: answered 200, then "Permission denied" in the log.
         text.headline = cantWrite(folder, engine);
