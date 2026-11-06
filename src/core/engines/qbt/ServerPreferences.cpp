@@ -226,7 +226,8 @@ void ServerPreferences::loadInterfaces(const QString &iface)
         Q_EMIT interfacesChanged();
         return;
     }
-    if (m_client == nullptr)
+    // Another engine's session has no interface list (Settings › Transmission binds none).
+    if (m_client == nullptr || !m_session.isNull())
         return;
     const quint64 generation = m_generation;
     m_client->get(QStringLiteral("app/networkInterfaceList"))
