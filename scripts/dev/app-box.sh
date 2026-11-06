@@ -4,7 +4,8 @@
 # (the manual box, through scripts/dev/manual-box.sh).
 #
 #   scripts/dev/app-box.sh up [-b NAME] [--interactive] [--build DIR] [--handlers] [--qbt]
-#                             [--transmission [--and-playground]] [--plugin DIR] [--stock-bar]
+#                             [--transmission [--and-playground] | --deluge] [--plugin DIR]
+#                             [--stock-bar]
 #       a box on its own network that reaches only :8081; servers.json pointing omaseed at the
 #       playground; every swarm .torrent in ~/Downloads (the add sheet's "In Downloads" list);
 #       then DIR/omaseed (default build/) is started and the command returns once its window
@@ -18,6 +19,10 @@
 #       --and-playground (with --transmission): the :8081 playground saved too, as a second
 #       server, "playground" (qBittorrent), and the box reaching it: a Settings group for each
 #       engine (DECISIONS C25 K32, #86).
+#       --deluge: the Deluge playground instead (deluge-web on :8086, scripts/dev/test-server.sh
+#       start --deluge, started if it isn't), the box reaching only that port; omaseed's server
+#       is "deluge" (DECISIONS C14 E6, #87), signed in with DELUGE_TEST_PASS from dev.env, put
+#       in the box's keyring (never printed, never in servers.json).
 #       --plugin DIR: that shell plugin (the repo's plugin/, the bar widget) mounted and enabled
 #       in the box's bar, beside the app.
 #       --stock-bar: Omarchy's default bar (at the top, workspaces and clock) instead of a copy
@@ -53,6 +58,10 @@ PLAY="http://127.0.0.1:$PLAY_PORT"
 # The Transmission playground (test-engine.sh), for `up --transmission`.
 TR_PORT="${OMASEED_TRANSMISSION_PORT:-8085}"
 TR_WEB="http://127.0.0.1:$TR_PORT/transmission/web/"
+# The Deluge playground (test-engine.sh), for `up --deluge`: deluge-web, whose daemon it runs.
+DE_PORT="${OMASEED_DELUGE_WEB_PORT:-8086}"
+DE_WEB="http://127.0.0.1:$DE_PORT/"
+DEV_ENV="${OMASEED_DEV_ENV:-$HOME/.config/omaseed/dev.env}"
 BOX_HOME=/home/sbx
 BOX_QBT_PORT="${OMASEED_BOX_QBT_PORT:-8090}"
 # BOX_BT_PORT and BOX_BT2_PORT, each box's own, are set from its name once that is known.
@@ -210,12 +219,27 @@ EOF
 
 # ---- up: the app box ---------------------------------------------------------------------
 
+# deluge_pass: the Deluge playground's deluge-web password, from the environment or dev.env
+# (test-server.sh start --deluge makes it), on stdout for a pipe; never echoed anywhere else.
+deluge_pass() {
+    if [ -n "${DELUGE_TEST_PASS:-}" ]; then
+        printf '%s' "$DELUGE_TEST_PASS"
+        return
+    fi
+    [ -f "$DEV_ENV" ] || return 0
+    sed -n "s/^[[:space:]]*\(export[[:space:]]\{1,\}\)\{0,1\}DELUGE_TEST_PASS=//p" "$DEV_ENV" |
+        tail -n 1 | sed -e "s/^'\(.*\)'\$/\1/" -e 's/^"\(.*\)"$/\1/' | tr -d '\n'
+}
+
 up_app() {
     local build="$1" interactive="$2" handlers="$3" qbt="$4" plugin="${5:-}" transmission="${6:-0}"
-    local both="${7:-0}"
-    local home url name engine=qbittorrent up_args=() second=""
+    local both="${7:-0}" deluge="${8:-0}"
+    local home url name engine=qbittorrent auth=none up_args=() second=""
     [ -x "$build/omaseed" ] || die "no $build/omaseed: build it first (cmake --build $build)"
     if [ "$transmission" = 1 ] && [ "$qbt" = 1 ]; then die "--qbt and --transmission: pick one"; fi
+    if [ "$deluge" = 1 ] && { [ "$qbt" = 1 ] || [ "$transmission" = 1 ]; }; then
+        die "--deluge goes alone (not with --qbt or --transmission)"
+    fi
     if [ "$both" = 1 ] && [ "$transmission" = 0 ]; then die "--and-playground goes with --transmission"; fi
     if [ "$both" = 1 ] && ! "$repo/scripts/dev/test-server.sh" status >/dev/null 2>&1; then
         echo "starting the playground (:$PLAY_PORT)"
@@ -226,6 +250,12 @@ up_app() {
             echo "starting the Transmission playground (:$TR_PORT)"
             "$repo/scripts/dev/test-server.sh" start --transmission >/dev/null
         fi
+    elif [ "$deluge" = 1 ]; then
+        if ! "$repo/scripts/dev/test-server.sh" status --deluge >/dev/null 2>&1; then
+            echo "starting the Deluge playground (:$DE_PORT)"
+            "$repo/scripts/dev/test-server.sh" start --deluge >/dev/null
+        fi
+        [ -n "$(deluge_pass)" ] || die "no DELUGE_TEST_PASS in $DEV_ENV (test-server.sh start --deluge makes it)"
     elif [ "$qbt" = 0 ] && ! "$repo/scripts/dev/test-server.sh" status >/dev/null 2>&1; then
         echo "starting the playground (:$PLAY_PORT)"
         "$repo/scripts/dev/test-server.sh" start >/dev/null
@@ -249,6 +279,8 @@ up_app() {
         up_args=(--net isolated --allow "$TR_PORT,$PLAY_PORT")
     elif [ "$transmission" = 1 ]; then
         up_args=(--net isolated --allow "$TR_PORT")
+    elif [ "$deluge" = 1 ]; then
+        up_args=(--net isolated --allow "$DE_PORT")
     else
         up_args=(--net isolated --allow "$PLAY_PORT")
     fi
@@ -272,6 +304,16 @@ up_app() {
         url="$TR_WEB"
         name=transmission
         engine=transmission
+    elif [ "$deluge" = 1 ]; then
+        url="$DE_WEB"
+        name=deluge
+        engine=deluge
+        auth=password
+        # deluge-web's one password (C25 K7), where omaseed keeps it: the box's keyring, under
+        # the server's id, as QtKeychain writes it. Piped, so it is never on a command line.
+        deluge_pass | omabox run -b "$BOX" -- secret-tool store --label="omaseed deluge" \
+            user "$name/password" server io.github.diogochaves.omaseed type plaintext ||
+            die "the box's keyring did not take deluge-web's password"
     else
         url="$PLAY"
         name=playground
@@ -279,12 +321,13 @@ up_app() {
     if [ "$both" = 1 ]; then
         second="$(printf ',{"id":"playground","name":"playground","url":"%s","engine":"qbittorrent","authMode":"none","username":"","pathMap":[],"isDefault":false,"addedAt":"2026-09-23T00:00:00Z"}' "$PLAY")"
     fi
-    printf '{"version":2,"defaultId":"%s","servers":[{"id":"%s","name":"%s","url":"%s","engine":"%s","authMode":"none","username":"","pathMap":[],"isDefault":true,"addedAt":"2026-09-23T00:00:00Z"}%s]}' \
-        "$name" "$name" "$name" "$url" "$engine" "$second" >"$home/.config/omaseed/servers.json"
+    printf '{"version":2,"defaultId":"%s","servers":[{"id":"%s","name":"%s","url":"%s","engine":"%s","authMode":"%s","username":"","pathMap":[],"isDefault":true,"addedAt":"2026-09-23T00:00:00Z"}%s]}' \
+        "$name" "$name" "$name" "$url" "$engine" "$auth" "$second" >"$home/.config/omaseed/servers.json"
     chmod 600 "$home/.config/omaseed/servers.json"
     cp "$TORRENTS"/*.torrent "$home/Downloads/"
     local kind=app
     if [ "$qbt" = 1 ]; then kind=qbt; elif [ "$transmission" = 1 ]; then kind=transmission; fi
+    if [ "$deluge" = 1 ]; then kind=deluge; fi
     printf 'kind=%s\nbinary=%s\napi=%s/api/v2\nskin=%s\n' "$kind" "$repo/$build/omaseed" "$url" \
         "${OMASEED_SKIN:-}" >"$home/$MARKER"
     if [ "$handlers" = 1 ]; then
@@ -489,6 +532,8 @@ curl -sS --fail-with-body -b "$dir/jar" "$@" "$url/$path"
 ' sh "$url" "$method" "$path" "$BOX_HOME/$LOGINS/$SERVER.txt" "$@"
     elif [ "$kind" = transmission ]; then
         die "this box runs omaseed on Transmission: ask it with scripts/dev/test-server.sh status --transmission"
+    elif [ "$kind" = deluge ]; then
+        die "this box runs omaseed on Deluge: ask it with scripts/dev/test-server.sh status --deluge"
     elif [ "$SERVER" != public ]; then
         die "only a manual box has a \"$SERVER\" qBittorrent"
     elif [ "$kind" = qbt ]; then
@@ -519,6 +564,7 @@ interactive=0
 handlers=0
 qbt=0
 transmission=0
+deluge=0
 both=0
 plugin=""
 bar_args=()
@@ -535,6 +581,7 @@ while [ $# -gt 0 ]; do
     --handlers) handlers=1 ;;
     --qbt) qbt=1 ;;
     --transmission) transmission=1 ;;
+    --deluge) deluge=1 ;;
     --and-playground) both=1 ;;
     --plugin) [ $# -ge 2 ] || die "--plugin needs a directory"; plugin="$(cd "$2" && pwd)"; shift ;;
     --stock-bar) bar_args=(--stock-bar) ;;
@@ -567,7 +614,8 @@ up)
     if [ "$manual" = 1 ]; then
         up_manual "${build:-build-box}" "$interactive"
     else
-        up_app "${build:-build}" "$interactive" "$handlers" "$qbt" "$plugin" "$transmission" "$both"
+        up_app "${build:-build}" "$interactive" "$handlers" "$qbt" "$plugin" "$transmission" "$both" \
+            "$deluge"
     fi
     ;;
 restart)
