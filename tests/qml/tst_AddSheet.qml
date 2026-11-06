@@ -1131,6 +1131,35 @@ TestCase {
         compare(App.addLookup.phase, "idle");
     }
 
+    // #241: a magnet typed key by key is valid from its hash on, before its trackers are in;
+    // qBittorrent keeps the trackers of its first ask, so the ask waits for the typing to stop
+    // and carries the whole link. A paste is asked at once (D1).
+    function test_a_typed_magnet_is_looked_up_once_the_typing_stops() {
+        testCase.lookupAt(0);
+        const sheet = createTemporaryObject(addSheetComponent, testCase);
+        const magnet = testCase.freshMagnet + "&tr=udp%3A%2F%2Fopen.example.net%3A6969%2Fannounce";
+        const hashEnd = magnet.indexOf("&");
+        sheet.openBlank();
+        sheet.clipboardAddable = "";
+        sheet.sourceField.text = "";
+        for (let i = 1; i <= hashEnd; ++i)
+            sheet.sourceField.text = magnet.slice(0, i);
+        compare(sheet.addable.kind, "magnet");
+        compare(App.addLookup.phase, "idle");
+        for (let i = hashEnd + 1; i <= magnet.length; ++i)
+            sheet.sourceField.text = magnet.slice(0, i);
+        compare(App.addLookup.phase, "idle");
+        tryCompare(App.addLookup, "phase", "quiet", 3000);
+        compare(App.addLookup.source, magnet);
+
+        // Pasted whole, it is asked at once.
+        sheet.sourceField.text = "";
+        compare(App.addLookup.phase, "idle");
+        sheet.sourceField.text = magnet;
+        compare(App.addLookup.phase, "quiet");
+        compare(App.addLookup.source, magnet);
+    }
+
     // D7 a, F5: the demo library's films come from tracker.example.org, a private tracker: its
     // magnet is not looked up, and add stopped is a plain stopped add.
     function test_a_private_trackers_magnet_is_not_looked_up() {
