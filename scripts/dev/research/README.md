@@ -16,6 +16,7 @@ issue, with a README saying what it reproduces, how to run it and what it printe
 | [151-add-file-prio](151-add-file-prio/) | Are a .torrent's file choices kept when they are set right after a stopped add? | #151 |
 | [182-v2-free](182-v2-free/) | Why does freeing a skipped file leave a v2-only torrent short of 100 %, and does adding it again fix it? | #182 |
 | [153-engines-board47](153-engines-board47/) | Board 47 §3: Transmission's RPC during a move and its move over a file; Deluge's prefetch through deluge-web and its shared daemon | #153 |
+| [87-deluge-prefetch](87-deluge-prefetch/) | What Deluge's prefetch gives before an add (files, timing, failure, asked again), and is its diff safe through deluge-web? | #87 |
 
 They talk only to throwaway qBittorrents (the playground on `:8081`, or a profile made with
 `scripts/dev/test-server.sh`), the other engines' test servers (`--transmission` on `:8085`,
