@@ -74,13 +74,13 @@ void needsYou(const Torrent &t, const RowTrouble &trouble, const QString &engine
     if (!trouble.problemEngine.isEmpty()) {
         // C25 K24 (board 47 §F): the engine's own text, read; the engine stopped it, so the
         // caption says so where "needs you" would be, and the sentence names the engine.
-        words.fact = trouble.failedMove           ? tr("didn't move")
+        words.fact = trouble.failedMove               ? tr("didn't move")
                      : trouble.problemCause.isEmpty() ? tr("error")
                                                       : trouble.problemCause;
         if (trouble.cause == QLatin1String("stopped"))
             words.caption = tr("stopped");
-        words.sentence = trouble.problemSentence.isEmpty() ? trouble.headline
-                                                           : trouble.problemSentence;
+        words.sentence =
+            trouble.problemSentence.isEmpty() ? trouble.headline : trouble.problemSentence;
         for (const QString &id : trouble.actions) {
             const QString fix = RowWords::fixWords(id, trouble.stuckMove);
             if (!fix.isEmpty()) {

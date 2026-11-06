@@ -261,7 +261,8 @@ void TestProblemLog::withoutALogTheTorrentsOwnWordsAreRead()
     QCOMPARE(problem.value(QStringLiteral("engine")).toString(), QStringLiteral("Transmission"));
     QCOMPARE(problem.value(QStringLiteral("headline")).toString(),
              QStringLiteral("Transmission can't write to its save folder"));
-    QCOMPARE(problem.value(QStringLiteral("line")).toString(), QStringLiteral("Permission denied (13)"));
+    QCOMPARE(problem.value(QStringLiteral("line")).toString(),
+             QStringLiteral("Permission denied (13)"));
     QCOMPARE(causeOf(*m_model, kA), QStringLiteral("no access"));
     QCOMPARE(errored.count(), 0); // in error when first seen: no notice
 

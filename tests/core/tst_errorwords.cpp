@@ -364,8 +364,9 @@ private slots:
         };
         QCOMPARE(line(ApiError::Kind::Network, QStringLiteral("POST rpc: Connection refused")),
                  QStringLiteral("Connection refused at 127.0.0.1:8091. Is Transmission running?"));
-        QVERIFY(line(ApiError::Kind::Timeout, QStringLiteral("POST rpc: no reply within 8000 ms"))
-                    .startsWith(QStringLiteral("Transmission is running but hasn't replied for 8 s.")));
+        QVERIFY(
+            line(ApiError::Kind::Timeout, QStringLiteral("POST rpc: no reply within 8000 ms"))
+                .startsWith(QStringLiteral("Transmission is running but hasn't replied for 8 s.")));
         QCOMPARE(line(ApiError::Kind::Server, QStringLiteral("POST rpc: 500"), 500),
                  QStringLiteral("Transmission answered 500."));
         QCOMPARE(line(ApiError::Kind::Parse, QStringLiteral("POST rpc: not JSON")),
@@ -406,11 +407,8 @@ private slots:
                                                             QStringLiteral("Transmission"));
         QCOMPARE(stuck.headline, QStringLiteral("Transmission stopped moving"));
         QVERIFY(stuck.line.endsWith(QStringLiteral("Restarting Transmission usually frees it.")));
-        const ErrorWords::Text replaced = ErrorWords::forLeftOut(1,
-                                                                 QStringLiteral("/tmp/fast/games"),
-                                                                 QString(),
-                                                                 QStringLiteral("Transmission"),
-                                                                 true);
+        const ErrorWords::Text replaced = ErrorWords::forLeftOut(
+            1, QStringLiteral("/tmp/fast/games"), QString(), QStringLiteral("Transmission"), true);
         QCOMPARE(replaced.line,
                  QStringLiteral("/tmp/fast/games already has a file with their file's name. "
                                 "Transmission would replace that file with theirs."));

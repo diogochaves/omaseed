@@ -270,8 +270,7 @@ void MoveController::fetchRoom(const QStringList &folders)
     // where this machine can't see the disks; a reading a minute old is asked again behind
     // it. Not while the engine is busy moving (K22): the question would wait behind the copy.
     if (!m_features.roomOnServer || m_hooks.engine == nullptr ||
-        m_hooks.engine->client() == nullptr ||
-        !m_hooks.engine->client()->busyMoving().isEmpty() ||
+        m_hooks.engine->client() == nullptr || !m_hooks.engine->client()->busyMoving().isEmpty() ||
         (m_hooks.probe != nullptr && m_hooks.probe->seesServerDisks()))
         return;
     for (const QString &folder : folders) {
@@ -290,8 +289,8 @@ void MoveController::fetchRoom(const QStringList &folders)
                 self->m_roomPending.remove(folder);
                 self->m_serverRoomAt.insert(folder, self->now());
                 if (!result.isError() && result.value().bytesFree >= 0)
-                    self->m_serverRoom.insert(
-                        folder, {result.value().bytesFree, result.value().path});
+                    self->m_serverRoom.insert(folder,
+                                              {result.value().bytesFree, result.value().path});
                 ++self->m_planRevision;
                 Q_EMIT self->planChanged();
             });
@@ -307,8 +306,7 @@ bool MoveController::roomPending(const QStringList &folders) const
 
 core::FreeSpaceProbe MoveController::planProbe() const
 {
-    core::FreeSpaceProbe probe = m_hooks.probe != nullptr ? *m_hooks.probe
-                                                          : core::FreeSpaceProbe();
+    core::FreeSpaceProbe probe = m_hooks.probe != nullptr ? *m_hooks.probe : core::FreeSpaceProbe();
     probe.setServerReadings(m_serverRoom);
     return probe;
 }
@@ -441,11 +439,10 @@ MoveController::checkLines(const MovePlan &plan, const QString &newPath, const Q
                 case MovePlan::Check::Ok:
                 case MovePlan::Check::Warn:
                     if (!drives.isEmpty()) {
-                        checks << check(
-                            plan.room() == MovePlan::Check::Ok ? QStringLiteral("ok")
-                                                               : QStringLiteral("warn"),
-                            tr("Room. %1.").arg(drives),
-                            roomSource(plan, server, engine));
+                        checks << check(plan.room() == MovePlan::Check::Ok ? QStringLiteral("ok")
+                                                                           : QStringLiteral("warn"),
+                                        tr("Room. %1.").arg(drives),
+                                        roomSource(plan, server, engine));
                         break;
                     }
                     checks << check(
@@ -637,12 +634,8 @@ MoveController::checkLines(const MovePlan &plan, const QString &newPath, const Q
                 }
                 about = each.join(QStringLiteral("; "));
             }
-            const core::ErrorWords::Text words =
-                core::ErrorWords::forLeftOut(int(plan.leftOut().size()),
-                                             where,
-                                             about,
-                                             engine,
-                                             m_features.moveReplacesFile);
+            const core::ErrorWords::Text words = core::ErrorWords::forLeftOut(
+                int(plan.leftOut().size()), where, about, engine, m_features.moveReplacesFile);
             // DECISIONS C28 (#176): an empty file no torrent owns, seen here, is a leftover:
             // "replace it" deletes it, then moves, and the move's line in the log says so.
             const QStringList replace = plan.replaceable();
@@ -907,13 +900,13 @@ QVariantMap MoveController::plan(const QString &rootIn, const QString &newPathIn
                 ? tr("Files no torrent owns: %1 couldn't list all of %2. Whatever is there stays "
                      "where it is.")
                       .arg(server, name)
-                : !m_features.listFolders
-                    // K23: Transmission can't list the folder at all.
-                    ? tr("Loose files stay behind: %1 can't list the folder, so omaseed can't "
-                         "name them. A path map in Settings › Servers lets omaseed see them.")
-                          .arg(engineName())
-                    : tr("Files no torrent owns: can't see them. They stay where they are. A path "
-                         "map in Settings › Servers lets omaseed see them."));
+            : !m_features.listFolders
+                // K23: Transmission can't list the folder at all.
+                ? tr("Loose files stay behind: %1 can't list the folder, so omaseed can't "
+                     "name them. A path map in Settings › Servers lets omaseed see them.")
+                      .arg(engineName())
+                : tr("Files no torrent owns: can't see them. They stay where they are. A path "
+                     "map in Settings › Servers lets omaseed see them."));
     } else {
         const auto walk = m_loose.constFind(root);
         if (!filesIn || walk == m_loose.cend() || walk->running || !walk->at.isValid()) {

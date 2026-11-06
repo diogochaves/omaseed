@@ -518,9 +518,9 @@ void TestTorrentProblem::anEnginesTextIsTakenApart()
     const auto plain = readEngineText(QStringLiteral("No space left on device (28)"));
     QCOMPARE(plain.message, QStringLiteral("No space left on device"));
     QVERIFY(!plain.isMove());
-    QCOMPARE(readEngineText(QStringLiteral("Failed to move download folder: Permission denied"))
-                 .message,
-             QStringLiteral("Permission denied"));
+    QCOMPARE(
+        readEngineText(QStringLiteral("Failed to move download folder: Permission denied")).message,
+        QStringLiteral("Permission denied"));
 }
 
 // Board 47 §F `sf07` and `stk`: a failed move reads "Didn't move", the engine's words whole,
@@ -530,8 +530,8 @@ void TestTorrentProblem::anEnginesFailedMoveIsItsOwnBlock()
     Torrent t;
     t.hash = QStringLiteral("aa");
     t.savePath = QStringLiteral("/srv/films");
-    t.errorMessage = QStringLiteral(
-        "Couldn't move '/srv/films' to '/tmp/locked/dest': Permission denied (13)");
+    t.errorMessage =
+        QStringLiteral("Couldn't move '/srv/films' to '/tmp/locked/dest': Permission denied (13)");
     const QDateTime seen = QDateTime::fromSecsSinceEpoch(1'800'000'000);
     const TorrentProblem p = ProblemMatch::fromEngine(t, QStringLiteral("Transmission"), seen);
     QVERIFY(p.found);
@@ -544,8 +544,9 @@ void TestTorrentProblem::anEnginesFailedMoveIsItsOwnBlock()
     QCOMPARE(p.source, QStringLiteral("/srv/films"));
     QCOMPARE(p.destination, QStringLiteral("/tmp/locked/dest"));
     QCOMPARE(p.note, QStringLiteral("Transmission stopped it · its files are still in /srv/films"));
-    QCOMPARE(p.rowSentence, QStringLiteral("Transmission couldn't move it to /tmp/locked/dest · "
-                                           "it stopped the torrent"));
+    QCOMPARE(p.rowSentence,
+             QStringLiteral("Transmission couldn't move it to /tmp/locked/dest · "
+                            "it stopped the torrent"));
     QCOMPARE(p.actions, QStringList({QStringLiteral("startHere"), QStringLiteral("location")}));
     QCOMPARE(p.line, t.errorMessage);
     QCOMPARE(p.loggedAt, seen);
@@ -556,13 +557,14 @@ void TestTorrentProblem::anEnginesFailedMoveIsItsOwnBlock()
     // Done downloading, out of the incomplete folder: "when it finished", both folders.
     Torrent done = t;
     done.downloadPath = QStringLiteral("/srv/incomplete");
-    done.errorMessage = QStringLiteral(
-        "Couldn't move '/srv/incomplete' to '/srv/films': Permission denied (13)");
+    done.errorMessage =
+        QStringLiteral("Couldn't move '/srv/incomplete' to '/srv/films': Permission denied (13)");
     const TorrentProblem d = ProblemMatch::fromEngine(done, QStringLiteral("Transmission"), seen);
     QCOMPARE(d.headline, QStringLiteral("Didn't move when it finished"));
     QCOMPARE(d.note, QStringLiteral("Transmission stopped it · its files are in /srv/incomplete"));
-    QCOMPARE(d.rowSentence, QStringLiteral("Transmission couldn't move it out of the incomplete "
-                                           "folder · it stopped the torrent"));
+    QCOMPARE(d.rowSentence,
+             QStringLiteral("Transmission couldn't move it out of the incomplete "
+                            "folder · it stopped the torrent"));
     QCOMPARE(d.actions,
              QStringList({QStringLiteral("startHere"),
                           QStringLiteral("bothFolders"),
@@ -584,12 +586,12 @@ void TestTorrentProblem::anEnginesErrorInPlaceReadsItsCause()
     QCOMPARE(p.folder, QStringLiteral("/home/sbx/Downloads/swarm-readonly"));
     QCOMPARE(p.cause, QStringLiteral("no access"));
     QCOMPARE(p.actions,
-             QStringList({QStringLiteral("start"),
-                          QStringLiteral("location"),
-                          QStringLiteral("folder")}));
+             QStringList(
+                 {QStringLiteral("start"), QStringLiteral("location"), QStringLiteral("folder")}));
     QCOMPARE(p.note, QStringLiteral("Transmission stopped it · retry starts it again"));
-    QCOMPARE(p.rowSentence, QStringLiteral("Transmission can't write to its save folder · it "
-                                           "stopped the torrent"));
+    QCOMPARE(p.rowSentence,
+             QStringLiteral("Transmission can't write to its save folder · it "
+                            "stopped the torrent"));
 
     t.errorMessage = QStringLiteral("No space left on device (28)");
     const TorrentProblem full = ProblemMatch::fromEngine(t, QStringLiteral("Transmission"), {});
@@ -612,11 +614,11 @@ void TestTorrentProblem::anEnginesErrorInPlaceReadsItsCause()
     QCOMPARE(noData.headline, QStringLiteral("Its files aren't where Transmission left them"));
     QCOMPARE(noData.cause, QStringLiteral("missing files"));
     QCOMPARE(noData.actions,
-             QStringList({QStringLiteral("location"),
-                          QStringLiteral("recheck"),
-                          QStringLiteral("start")}));
-    QCOMPARE(noData.rowSentence,
-             QStringLiteral("its files aren't where Transmission left them · it stopped the torrent"));
+             QStringList(
+                 {QStringLiteral("location"), QStringLiteral("recheck"), QStringLiteral("start")}));
+    QCOMPARE(
+        noData.rowSentence,
+        QStringLiteral("its files aren't where Transmission left them · it stopped the torrent"));
 }
 
 // A text in the daemon's language with no cause omaseed reads: the engine's words stay whole,

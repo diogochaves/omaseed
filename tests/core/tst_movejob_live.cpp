@@ -7,9 +7,9 @@
 // removed with its files at the end.
 
 #include "core/Bencode.hpp"
+#include "core/MoveFeed.hpp"
 #include "core/MoveJob.hpp"
 #include "core/MovePlan.hpp"
-#include "core/MoveFeed.hpp"
 #include "core/ServerFolder.hpp"
 #include "core/SyncEngine.hpp"
 #include "core/TorrentModel.hpp"
@@ -34,11 +34,11 @@
 
 #include <unistd.h>
 
+using omaseed::core::MoveFeed;
 using omaseed::core::MoveJob;
 using omaseed::core::MovePlan;
 using omaseed::core::QbtClient;
 using omaseed::core::QbtEngine;
-using omaseed::core::MoveFeed;
 using omaseed::core::Reply;
 using omaseed::core::Result;
 using omaseed::core::ServerFolder;

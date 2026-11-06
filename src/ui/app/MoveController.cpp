@@ -1086,19 +1086,18 @@ QVariantMap MoveController::band() const
         progress = job.percent() / 100.0;
         // C25 K22 (board 47 §E, busy): the engine answers nothing until this torrent has
         // moved, so the band says so instead of the figures it can't read meanwhile.
-        const QStringList busy = m_hooks.engine == nullptr
-                                     ? QStringList()
-                                     : m_hooks.engine->globalState()->busyMoving();
+        const QStringList busy =
+            m_hooks.engine == nullptr ? QStringList() : m_hooks.engine->globalState()->busyMoving();
         if (!busy.isEmpty() && job.isConnected()) {
             kind = QStringLiteral("yellow");
             glyph = QStringLiteral("→");
             const QString who = server.isEmpty() ? tr("The server") : server;
             const MoveJob::Entry *entry = job.entry(busy.constFirst());
-            headline = tr("%1 is busy moving %2")
-                           .arg(who,
-                                entry != nullptr ? entry->name
-                                                 : (busy.size() == 1 ? tr("a torrent")
-                                                                     : tr("torrents")));
+            headline =
+                tr("%1 is busy moving %2")
+                    .arg(who,
+                         entry != nullptr ? entry->name
+                                          : (busy.size() == 1 ? tr("a torrent") : tr("torrents")));
             QStringList parts;
             const qint64 live = entry == nullptr ? -1 : job.liveBytes(entry->hash);
             if (live >= 0 && entry != nullptr)
@@ -1607,9 +1606,8 @@ QVariantMap MoveController::quietOutcome(const MoveJob::Summary &summary,
     const bool stops = m_features.moveStopsOnFailure && !summary.failedHashes.isEmpty();
     const QString why = stops && !cause.isEmpty()
                             ? cause + QStringLiteral(" · ") +
-                                  (summary.failedHashes.size() == 1
-                                       ? tr("it stopped the torrent")
-                                       : tr("it stopped the torrents"))
+                                  (summary.failedHashes.size() == 1 ? tr("it stopped the torrent")
+                                                                    : tr("it stopped the torrents"))
                             : cause;
     return {{QStringLiteral("action"),
              m_job->kind() == QLatin1String("back") ? QStringLiteral("moveBack")

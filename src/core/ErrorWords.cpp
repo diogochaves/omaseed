@@ -349,15 +349,14 @@ ErrorWords::Text ErrorWords::forServer(const ApiError &error, const Subject &sub
         text.headline = tr("%1 isn't answering").arg(name);
         const int seconds =
             subject.silentSeconds >= 0 ? subject.silentSeconds : timeoutSeconds(error);
-        text.line =
-            seconds >= 0
-                ? tr("%1 is running but hasn't replied for %2 s. It may be busy writing "
-                     "to its disk. omaseed keeps asking.")
-                      .arg(engine)
-                      .arg(seconds)
-                : tr("%1 is running but hasn't replied. It may be busy writing to its "
-                     "disk. omaseed keeps asking.")
-                      .arg(engine);
+        text.line = seconds >= 0
+                        ? tr("%1 is running but hasn't replied for %2 s. It may be busy writing "
+                             "to its disk. omaseed keeps asking.")
+                              .arg(engine)
+                              .arg(seconds)
+                        : tr("%1 is running but hasn't replied. It may be busy writing to its "
+                             "disk. omaseed keeps asking.")
+                              .arg(engine);
         return text;
     }
     case ApiError::Kind::Certificate:
@@ -445,11 +444,11 @@ ErrorWords::forTest(const ApiError &error, const Subject &subject, const QString
     if (error.kind() == ApiError::Kind::Network && !hostNotFound(error)) {
         // docs/33 N5, as board 35 draws it in the sheet.
         text.headline = tr("Nothing answered at %1").arg(addressOf(subject));
-        text.line = subject.engine.isEmpty()
-                        ? tr("Check the address and port, and that qBittorrent's Web UI is on "
-                             "(Tools › Options › Web UI).")
-                        : tr("Check the address and port, and that %1 is running.")
-                              .arg(subject.engine);
+        text.line =
+            subject.engine.isEmpty()
+                ? tr("Check the address and port, and that qBittorrent's Web UI is on "
+                     "(Tools › Options › Web UI).")
+                : tr("Check the address and port, and that %1 is running.").arg(subject.engine);
     } else if (error.kind() == ApiError::Kind::Timeout) {
         const int seconds = timeoutSeconds(error);
         text.line = seconds > 0 ? tr("It took the connection but didn't reply in %1 s. Test "

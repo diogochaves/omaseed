@@ -751,11 +751,11 @@ TorrentProblem fromEngine(const Torrent &torrent, const QString &engine, const Q
             (whenDone ? tr("%1 couldn't move it out of the incomplete folder").arg(engine)
                       : tr("%1 couldn't move it to %2").arg(engine, said.to)) +
             QStringLiteral(" · ") + tail;
-        problem.actions = whenDone ? QStringList{QStringLiteral("startHere"),
-                                                 QStringLiteral("bothFolders"),
-                                                 QStringLiteral("location")}
-                                   : QStringList{QStringLiteral("startHere"),
-                                                 QStringLiteral("location")};
+        problem.actions =
+            whenDone ? QStringList{QStringLiteral("startHere"),
+                                   QStringLiteral("bothFolders"),
+                                   QStringLiteral("location")}
+                     : QStringList{QStringLiteral("startHere"), QStringLiteral("location")};
         return problem;
     }
 
@@ -773,7 +773,8 @@ TorrentProblem fromEngine(const Torrent &torrent, const QString &engine, const Q
     QStringList actions = cause.actions;
     actions.removeAll(start);
     actions.removeAll(QStringLiteral("checkDisk"));
-    if (cause.causeKey == QLatin1String("missing") || cause.causeKey == QLatin1String("missingFiles"))
+    if (cause.causeKey == QLatin1String("missing") ||
+        cause.causeKey == QLatin1String("missingFiles"))
         actions.append(start);
     else
         actions.prepend(start);

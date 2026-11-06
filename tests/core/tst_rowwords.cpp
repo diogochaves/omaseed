@@ -208,10 +208,11 @@ void TestRowWords::anEnginesErrorReadsInItsWords()
     trouble.problemCause = QStringLiteral("no access");
     trouble.failedMove = true;
     trouble.headline = QStringLiteral("Didn't move");
-    trouble.problemSentence =
-        QStringLiteral("Transmission couldn't move it to /tmp/locked/dest · it stopped the torrent");
+    trouble.problemSentence = QStringLiteral(
+        "Transmission couldn't move it to /tmp/locked/dest · it stopped the torrent");
     trouble.actions = {QStringLiteral("startHere"), QStringLiteral("location")};
-    RowWords words = RowWords::of(t, TorrentFilterModel::NeedsYou, trouble, QStringLiteral("Transmission"));
+    RowWords words =
+        RowWords::of(t, TorrentFilterModel::NeedsYou, trouble, QStringLiteral("Transmission"));
     QCOMPARE(words.fact, QStringLiteral("didn't move"));
     QCOMPARE(words.caption, QStringLiteral("stopped"));
     QCOMPARE(words.sentence, trouble.problemSentence);
@@ -222,13 +223,15 @@ void TestRowWords::anEnginesErrorReadsInItsWords()
     trouble.failedMove = false;
     trouble.problemSentence =
         QStringLiteral("Transmission can't write to its save folder · it stopped the torrent");
-    trouble.actions = {QStringLiteral("start"), QStringLiteral("location"), QStringLiteral("folder")};
+    trouble.actions = {
+        QStringLiteral("start"), QStringLiteral("location"), QStringLiteral("folder")};
     words = RowWords::of(t, TorrentFilterModel::NeedsYou, trouble, QStringLiteral("Transmission"));
     QCOMPARE(words.fact, QStringLiteral("no access"));
     QCOMPARE(words.sentence, trouble.problemSentence);
     QCOMPARE(words.fix, QStringLiteral("retry"));
     QCOMPARE(words.fixAction, QStringLiteral("problem:start"));
-    QCOMPARE(RowWords::fixWords(QStringLiteral("startHere"), false), QStringLiteral("start it here"));
+    QCOMPARE(RowWords::fixWords(QStringLiteral("startHere"), false),
+             QStringLiteral("start it here"));
 }
 
 // Where a row's sentence names who does it, it is the server's engine, never qBittorrent on a
@@ -236,7 +239,8 @@ void TestRowWords::anEnginesErrorReadsInItsWords()
 void TestRowWords::theSentencesNameTheServersEngine()
 {
     const Torrent errored = make({{"state", "error"}, {"progress", 0.0}});
-    RowWords words = RowWords::of(errored, TorrentFilterModel::NeedsYou, {}, QStringLiteral("Transmission"));
+    RowWords words =
+        RowWords::of(errored, TorrentFilterModel::NeedsYou, {}, QStringLiteral("Transmission"));
     QCOMPARE(words.sentence, QStringLiteral("Transmission stopped it with an error"));
     const Torrent moving = make({{"state", "moving"}, {"progress", 0.4}});
     words = RowWords::of(moving, TorrentFilterModel::Arriving, {}, QStringLiteral("Transmission"));

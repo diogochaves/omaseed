@@ -80,8 +80,8 @@ struct TransmissionRpc::Job
     QString what; ///< the method(s), for errors and logs
     Retry retry = Retry::No;
     std::chrono::milliseconds timeout{0}; ///< 0: the client's
-    int attempt = 0;             ///< attempts already finished
-    bool sessionRetried = false; ///< the one resend with a new session id was spent
+    int attempt = 0;                      ///< attempts already finished
+    bool sessionRetried = false;          ///< the one resend with a new session id was spent
     bool cancelled = false;
     bool finished = false;
     QPointer<QNetworkReply> networkReply;
@@ -248,12 +248,13 @@ Reply<QJsonObject> *TransmissionRpc::call(const QString &method,
 {
     const QByteArray body =
         QJsonDocument(request(method, params, nextId())).toJson(QJsonDocument::Compact);
-    return mapReply<QJsonObject>(post(body, method, retry, timeout), this, [method](const HttpAnswer &a) {
-        const QJsonDocument document = QJsonDocument::fromJson(a.body);
-        if (!document.isObject())
-            return Result<QJsonObject>(notJsonRpc(method));
-        return answerOf(method, document.object());
-    });
+    return mapReply<QJsonObject>(
+        post(body, method, retry, timeout), this, [method](const HttpAnswer &a) {
+            const QJsonDocument document = QJsonDocument::fromJson(a.body);
+            if (!document.isObject())
+                return Result<QJsonObject>(notJsonRpc(method));
+            return answerOf(method, document.object());
+        });
 }
 
 Reply<QList<Result<QJsonObject>>> *TransmissionRpc::batch(const QList<Call> &calls, Retry retry)
@@ -402,11 +403,10 @@ void TransmissionRpc::onFinished(const JobPtr &job)
             answer.status, QStringLiteral("%1: HTTP %2").arg(where).arg(answer.status));
     } else if (networkError == QNetworkReply::TimeoutError ||
                networkError == QNetworkReply::OperationCanceledError) {
-        error =
-            ApiError(ApiError::Kind::Timeout,
-                     QStringLiteral("%1: no reply within %2 ms")
-                         .arg(where)
-                         .arg((job->timeout.count() > 0 ? job->timeout : m_timeout).count()));
+        error = ApiError(ApiError::Kind::Timeout,
+                         QStringLiteral("%1: no reply within %2 ms")
+                             .arg(where)
+                             .arg((job->timeout.count() > 0 ? job->timeout : m_timeout).count()));
     } else if (!job->refusedCertificate.isEmpty()) {
         const QString why =
             job->refusedCertificateReason.isEmpty() ? networkText : job->refusedCertificateReason;
