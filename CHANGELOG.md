@@ -25,6 +25,10 @@ before it will tag a release.
 - **A move where nothing moved says so.** A one-torrent move that qBittorrent failed after its
   band had shown ended on a green "✓ NAME moved to DEST" over "0 of 1 · 1 failed". A summary
   where nothing moved and something failed now reads red "✕ NAME didn't move". (#242)
+- **A move goes out after the server's sheet is saved while it is lost.** Saving the sheet of
+  the server omaseed is on restarts its connection; done while the server was lost, the move
+  job never heard that it came back, so a move kept "waiting for" the server and was never
+  sent, though the list updated again. A move now goes out once the server answers. (#243)
 
 ## v0.7.0 — 2026-11-05
 
