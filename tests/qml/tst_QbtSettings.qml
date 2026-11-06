@@ -324,6 +324,103 @@ TestCase {
         verify(!testCase.childNamed(modal, "qbtNavHead").visible);
     }
 
+    // Settings › Deluge (E6, #87; board 47 §J, C25 K31, K15): DELUGE's group, in qBittorrent's
+    // sections and order with Plugins last, read from core.conf by Deluge's own names (the
+    // demo's preferences given Deluge's keys); Plugins says what Deluge has on, read only, and
+    // the one line when Label is off.
+    function test_a_deluge_has_its_own_group_with_its_plugins() {
+        App.patchDemoPrefs({
+                               "utpex": true,
+                               "lsd": false,
+                               "encryption": "enabled",
+                               "random_port": false,
+                               "max_connections_global": 200,
+                               "max_connections_per_torrent": -1,
+                               "max_active_limit": 8,
+                               "max_active_seeding": 5,
+                               "share_ratio_limit": 2,
+                               "move_completed": false,
+                               "move_completed_path": "/srv/done",
+                               "enabled_plugins": ["Blocklist", "Execute", "Label"]
+                           }, []);
+        const modal = createTemporaryObject(modalComponent, testCase, {
+                                                "features": {
+                                                    "qbtSettings": false,
+                                                    "sessionSettings": true
+                                                },
+                                                "engineName": "Deluge"
+                                            });
+        compare(modal.qbtSections.map(section => section.id),
+                ["speed", "discovery", "connection", "seeding", "queue", "downloads", "plugins"]);
+        compare(testCase.childNamed(modal, "qbtNavHead").text, "deluge");
+        compare(testCase.childNamed(modal, "qbtNavRow6").text, "Plugins");
+        modal.openQbt();
+        const shown = {
+            "speed": ["dl_limit", "up_limit"],
+            "discovery": ["dht", "utpex", "lsd", "encryption"],
+            "connection": ["listen_port", "random_port", "max_connections_global"],
+            "seeding": ["max_ratio_enabled", "max_ratio_act"],
+            "queue": ["max_active_limit", "max_active_seeding", "share_ratio_limit"],
+            "downloads": ["save_path", "move_completed"]
+        };
+        for (let i = 0; i < 6; ++i) {
+            const id = modal.qbtSections[i].id;
+            modal.showPane(modal.qbtStart + i);
+            for (const key of shown[id])
+                verify(testCase.childNamed(modal, "qbtRow-" + key) !== null, id + " " + key);
+        }
+        // No turtle on Deluge (K20): no turtle rows, and a field Deluge keeps -1 for is empty.
+        modal.showPane(modal.qbtStart);
+        verify(testCase.childNamed(modal, "field-alt_dl_limit") === null);
+        modal.showPane(modal.qbtStart + 2);
+        compare(testCase.childNamed(modal, "field-max_connections_per_torrent").text, "");
+        // A count written by Deluge's own name; the encryption by its words.
+        modal.showPane(modal.qbtStart + 4);
+        const field = testCase.childNamed(modal, "field-max_active_seeding");
+        compare(field.text, "5");
+        field.text = "7";
+        field.accepted();
+        compare(App.serverPrefs.values.max_active_seeding, 7);
+        modal.showPane(modal.qbtStart + 1);
+        modal.area = "pane";
+        modal.paneCursor = 3;
+        modal.activateRow("enter");
+        compare(App.serverPrefs.values.encryption, "forced");
+
+        // Plugins: the scope line, Label on with its line, Scheduler off, the others named.
+        modal.showPane(modal.qbtStart + 6);
+        compare(modal.qbtSection.id, "plugins");
+        compare(testCase.childNamed(modal, "qbtHeadNote").text, App.serverName + " · Deluge 5.2.3");
+        const label = testCase.childNamed(modal, "qbtRow-plugin-Label");
+        verify(label !== null);
+        compare(label.description, "on · its labels are the rail's labels, one per torrent");
+        compare(testCase.childNamed(label, "pluginChip").text, "on");
+        const scheduler = testCase.childNamed(modal, "qbtRow-plugin-Scheduler");
+        compare(testCase.childNamed(scheduler, "pluginChip").text, "off");
+        verify(scheduler.description.indexOf("off · slows or pauses") === 0, scheduler.description);
+        const others = testCase.childNamed(modal, "qbtRow-plugins-others");
+        compare(testCase.childNamed(others, "pluginChip").text, "2 on");
+        compare(others.description, "Blocklist, Execute · omaseed doesn't use them");
+        // Nothing to switch here: enter says where it is done.
+        modal.paneCursor = 0;
+        modal.activateRow("enter");
+        compare(testCase.childNamed(modal, "qbtHeadNote").text,
+                "Deluge's own preferences turn its plugins on or off");
+        verify(testCase.childNamed(modal, "qbtPane").rows.every(row => row.whenOff === undefined));
+
+        // Label off: its row gives way to the one line, which says where to turn it on.
+        App.patchDemoPrefs({
+                               "enabled_plugins": ["Scheduler"]
+                           }, []);
+        const pane = testCase.childNamed(modal, "qbtPane");
+        tryVerify(() => testCase.childNamed(modal, "qbtRow-plugin-Label") === null);
+        verify(pane.rows.some(row => row.whenOff === "Label"));
+        compare(testCase.childNamed(testCase.childNamed(modal, "qbtRow-plugin-Scheduler"), "pluginChip").text,
+                "on");
+        compare(testCase.childNamed(testCase.childNamed(modal, "qbtRow-plugins-others"), "pluginChip").text,
+                "none on");
+    }
+
     // C25 K33: omaseed's own Backup carries a qBittorrent's settings only; on a Transmission
     // it says they stay on the server, with no link to a Backup it has none of.
     function test_omaseeds_backup_on_a_transmission() {

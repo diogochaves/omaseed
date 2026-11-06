@@ -1053,8 +1053,7 @@ EngineFeatures features(const ServerInfo &, bool labelPlugin)
     f.editWebSeeds = false;      // H
     f.engineLog = false;         // I, K30: no log face, no ~
     f.qbtSettings = false;       // I, J
-    f.sessionSettings = false;   // J, K31: Settings › Deluge is its own step (sessionPreferences
-                                 // already reads Basics' keys)
+    f.sessionSettings = true;    // J, K31: Settings › Deluge, from core.conf (E6)
     f.torrentsBackup = false;    // I, K33
     f.rss = false;               // I
     f.addAgain = false;          // I: no .torrent to add back over the API

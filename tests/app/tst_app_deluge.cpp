@@ -14,6 +14,7 @@
 #include "core/ActionOutcome.hpp"
 #include "core/CategoryModel.hpp"
 #include "core/GlobalState.hpp"
+#include "core/engines/qbt/ServerPreferences.hpp"
 #include "core/MoveJob.hpp"
 #include "core/ProblemLog.hpp"
 #include "core/SecretStore.hpp"
@@ -66,6 +67,8 @@ public:
     /// Torrents in Deluge's forced error (a failed move): a resume leaves them in Error, only
     /// a recheck clears it (restart_to_resume).
     QSet<QString> forced;
+    /// core.conf once Settings changed it (empty: the recorded one).
+    QJsonObject config;
 
     Daemon()
     {
@@ -185,6 +188,17 @@ private:
             return prefetch;
         if (method == QLatin1String("label.set_torrent") || method == QLatin1String("label.add"))
             return {};
+        // core.conf, as Settings › Deluge changes it.
+        if (method == QLatin1String("core.set_config")) {
+            if (config.isEmpty())
+                config = recorded.answer(QStringLiteral("core.get_config"), {}).toObject();
+            const QJsonObject changes = params.at(0).toObject();
+            for (auto it = changes.begin(); it != changes.end(); ++it)
+                config.insert(it.key(), it.value());
+            return {};
+        }
+        if (method == QLatin1String("core.get_config") && !config.isEmpty())
+            return config;
         if (method == QLatin1String("core.set_torrent_options") ||
             method == QLatin1String("core.force_reannounce") ||
             method == QLatin1String("core.queue_up") || method == QLatin1String("core.queue_down"))
@@ -220,6 +234,7 @@ private Q_SLOTS:
     void aFailedMoveIsPausedUntilARecheck();
     void anErroredTorrentReadsDelugesWords();
     void theMoveSheetSaysAMoveEndsMoveWhenDone();
+    void settingsAreDelugesCoreConf();
 
 private:
     /// Starts `app` on `daemon` through the environment with deluge-web's password, polling
@@ -297,7 +312,8 @@ void TestAppDeluge::whatDelugeLacksIsNotOffered()
                            "moveProgress",
                            "moveStopsOnFailure",
                            "roomOnServer",
-                           "listFolders"})
+                           "listFolders",
+                           "sessionSettings"})
         QVERIFY2(can.value(QString::fromLatin1(on)).toBool(), on);
     // …and what it lacks, hidden by the views that read these.
     for (const char *off : {"tags",
@@ -311,7 +327,6 @@ void TestAppDeluge::whatDelugeLacksIsNotOffered()
                             "rss",
                             "search",
                             "createTorrent",
-                            "sessionSettings",
                             "movesHoldAnswers",
                             "editWebSeeds"})
         QVERIFY2(!can.value(QString::fromLatin1(off)).toBool(), off);
@@ -913,6 +928,62 @@ void TestAppDeluge::theMoveSheetSaysAMoveEndsMoveWhenDone()
         qPrintable(all));
     // A finished one, or one without that folder, isn't named.
     QVERIFY(!texts({kSingle}).contains(QStringLiteral("Moves when done")));
+    app.engine()->stop();
+}
+
+// Settings › Deluge (E6, #87; C25 K31, K15): the server's own settings, read from and written
+// to core.conf through the same preferences the speed surfaces use; its plugins read only.
+void TestAppDeluge::settingsAreDelugesCoreConf()
+{
+    Daemon daemon;
+    App app;
+    QVERIFY(startOn(app, daemon));
+    QVERIFY(app.featuresMap().value(QStringLiteral("sessionSettings")).toBool());
+    QVERIFY(!app.featuresMap().value(QStringLiteral("qbtSettings")).toBool());
+    QTRY_VERIFY_WITH_TIMEOUT(app.serverPrefs()->isLoaded(), 3000);
+    QVERIFY(app.serverPrefs()->isSession());
+    QVERIFY(daemon.lastOf(QStringLiteral("core.get_config")).has_value());
+    QCOMPARE(app.serverPrefs()->value(QStringLiteral("listen_port")).toInt(), 26993);
+    QCOMPARE(app.serverPrefs()->value(QStringLiteral("max_active_seeding")).toInt(), 5);
+    QCOMPARE(app.serverPrefs()->value(QStringLiteral("encryption")).toString(),
+             QStringLiteral("enabled"));
+    QCOMPARE(app.serverPrefs()->value(QStringLiteral("enabled_plugins")).toStringList(),
+             QStringList({QStringLiteral("Label")}));
+
+    app.serverPrefs()->apply({{QStringLiteral("max_active_seeding"), 7},
+                              {QStringLiteral("utpex"), true},
+                              {QStringLiteral("max_connections_per_torrent"), 40},
+                              {QStringLiteral("encryption"), QStringLiteral("forced")}});
+    QTRY_VERIFY_WITH_TIMEOUT(daemon.lastOf(QStringLiteral("core.set_config")).has_value(), 3000);
+    const QJsonObject set = daemon.lastOf(QStringLiteral("core.set_config"))->params.at(0).toObject();
+    QCOMPARE(set.value(QStringLiteral("max_active_seeding")), QJsonValue(7));
+    QCOMPARE(set.value(QStringLiteral("utpex")), QJsonValue(true));
+    QCOMPARE(set.value(QStringLiteral("max_connections_per_torrent")), QJsonValue(40));
+    QCOMPARE(set.value(QStringLiteral("enc_in_policy")), QJsonValue(0));
+    QCOMPARE(set.value(QStringLiteral("enc_out_policy")), QJsonValue(0));
+    // Read back from core.conf.
+    QTRY_COMPARE_WITH_TIMEOUT(
+        app.serverPrefs()->value(QStringLiteral("encryption")).toString(),
+        QStringLiteral("forced"),
+        3000);
+    QCOMPARE(app.serverPrefs()->value(QStringLiteral("max_active_seeding")).toInt(), 7);
+
+    // Out of range: refused before sending, the value back as it was.
+    const qsizetype sets = daemon.web.callsOf(QStringLiteral("core.set_config")).size();
+    QSignalSpy failed(app.serverPrefs(), &omaseed::core::ServerPreferences::applyFailed);
+    app.serverPrefs()->apply({{QStringLiteral("max_connections_global"), 0}});
+    QTRY_COMPARE_WITH_TIMEOUT(failed.count(), 1, 3000);
+    QCOMPARE(daemon.web.callsOf(QStringLiteral("core.set_config")).size(), sets);
+    QCOMPARE(app.serverPrefs()->value(QStringLiteral("max_connections_global")).toInt(), 200);
+
+    // The Label plugin off: the plugins list says so at the next read.
+    daemon.recorded.labelPlugin = false;
+    daemon.config.insert(QStringLiteral("enabled_plugins"), QJsonArray());
+    app.serverPrefs()->reload();
+    QTRY_COMPARE_WITH_TIMEOUT(
+        app.serverPrefs()->value(QStringLiteral("enabled_plugins")).toStringList(),
+        QStringList(),
+        3000);
     app.engine()->stop();
 }
 

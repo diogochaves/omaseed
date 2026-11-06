@@ -103,9 +103,26 @@ SettingsRow {
         return failure.loggedAtText ? failure.text + " · " + failure.loggedAtText : failure.text;
     }
 
+    /// K15 (Settings › Deluge › Plugins): the plugins Deluge has on, for a `plugin` or
+    /// `others` row; [] elsewhere.
+    readonly property var plugins: row.spec.plugin !== undefined || row.spec.others !== undefined
+                                   ? Array.from(row.values.enabled_plugins ?? []) : []
+    readonly property bool pluginOn: row.spec.plugin !== undefined && row.plugins.indexOf(row.spec.plugin) >= 0
+    /// `others`: the plugins on but those the section names.
+    readonly property var otherPlugins: row.spec.others !== undefined
+                                        ? row.plugins.filter(name => row.spec.others.indexOf(name) < 0) : []
+    /// The chip a plugin's row shows: "on", "off", or "3 on".
+    readonly property string pluginState: row.spec.plugin !== undefined ? (row.pluginOn ? qsTr("on") : qsTr("off"))
+                                          : row.spec.others === undefined ? ""
+                                          : row.otherPlugins.length === 0 ? qsTr("none on")
+                                                                          : qsTr("%1 on").arg(row.otherPlugins.length)
+
     Layout.fillWidth: true
     Layout.leftMargin: row.spec.sub ? Theme.space(22) : 0
-    description: (row.spec.descFor ? row.spec.descFor[row.altKind] : undefined) ?? row.spec.desc ?? ""
+    description: row.spec.plugin !== undefined ? qsTr("%1 · %2").arg(row.pluginState).arg(row.spec.desc ?? "")
+                 : row.spec.others !== undefined && row.otherPlugins.length > 0
+                   ? qsTr("%1 · %2").arg(row.otherPlugins.join(", ")).arg(row.spec.desc ?? "")
+                 : (row.spec.descFor ? row.spec.descFor[row.altKind] : undefined) ?? row.spec.desc ?? ""
     enabled: row.loaded && row.depOk
     glyph: row.spec.altGlyph ? (row.altKind === "burst" ? Glyphs.burst : Glyphs.altSpeed)
                              : row.spec.glyph ?? ""
@@ -146,8 +163,13 @@ SettingsRow {
             row.flip();
             return;
         }
-        if (row.spec.button)
+        if (row.spec.button) {
             row.actionRequested(row.spec.button.action);
+            return;
+        }
+        // K15: omaseed only reads Deluge's plugins (board 47 §J).
+        if (row.pluginState.length > 0)
+            row.noteRequested(qsTr("Deluge's own preferences turn its plugins on or off"));
     }
 
     /// `spec.preset`'s key, or a click on its chip: its keys, all at once (docs/31 D8).
@@ -407,6 +429,15 @@ SettingsRow {
                 toggle.checked = Qt.binding(() => !!row.values[row.spec.toggle]);
                 row.flip();
             }
+        }
+
+        // K15: a plugin on or off, as Deluge reports it; read only.
+        Chip {
+            block: row.ground
+            objectName: "pluginChip"
+            text: row.pluginState
+            visible: row.pluginState.length > 0 && row.loaded
+            warn: row.spec.plugin !== undefined && !row.pluginOn
         }
 
         // docs/31 P1: "nights" before From and To, its key drawn faint before it.

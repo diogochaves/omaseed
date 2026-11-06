@@ -38,15 +38,34 @@ ColumnLayout {
     // How many keys the server has: moves when it first answers, not on each change, so the
     // rows are not rebuilt (and a field does not lose its caret) every time a value moves.
     readonly property int _keyCount: root.prefs ? Object.keys(root.prefs.values).length : 0
+    /// K15: the plugins Deluge has on (Settings › Deluge › Plugins), as one string so the rows
+    /// are worked out again only when the list moves.
+    readonly property string _plugins: root.prefs ? String(root.prefs.values.enabled_plugins ?? "") : ""
+    /// A plugin is on, by Deluge's enabled_plugins.
+    function pluginOn(name: string): bool {
+        const plugins = root.prefs ? (root.prefs.values.enabled_plugins ?? []) : [];
+        return Array.from(plugins).indexOf(name) >= 0;
+    }
     /// The section's rows the server can take, in order.
     readonly property var rows: {
         void root._keyCount;
+        void root._plugins;
         void App.altPresets.loaded; // the presets' rows (C32 D8 a) answer once their server is set
         if (!root.section)
             return [];
         return root.section.rows.filter(spec => {
+                                            // K15: a row for a plugin on, or one off; before the
+                                            // server answers, the "on" ones (greyed).
+                                            if (spec.whenOff !== undefined)
+                                                return root.loaded && !root.pluginOn(spec.whenOff);
+                                            if (spec.whenOn !== undefined && root.loaded
+                                                && !root.pluginOn(spec.whenOn))
+                                                return false;
                                             if (!root.loaded || spec.title === undefined)
                                                 return true;
+                                            // A plugin's row reads the plugins' list.
+                                            if (spec.plugin !== undefined || spec.others !== undefined)
+                                                return root.prefs.has("enabled_plugins");
                                             const keys = [];
                                             if (spec.toggle)
                                                 keys.push(spec.toggle);
@@ -221,7 +240,8 @@ ColumnLayout {
                         anchors.verticalCenter: parent.verticalCenter
                         ink: noteBlock.ink
                         size: "small"
-                        text: holder.modelData.note
+                        // A note may name the server (Settings › Deluge › Plugins, K15).
+                        text: String(holder.modelData.note).split("%1").join(root.serverName)
                         wrapMode: Text.Wrap
                     }
                 }
@@ -335,7 +355,9 @@ ColumnLayout {
 
                 QbtSettingRow {
                     hasCursor: root.keyboard && root.cursor === holder.cursorIndex
-                    objectName: "qbtRow-" + (holder.modelData.toggle ?? (holder.modelData.fields
+                    objectName: "qbtRow-" + (holder.modelData.plugin !== undefined ? "plugin-" + holder.modelData.plugin
+                                             : holder.modelData.others !== undefined ? "plugins-others"
+                                             : holder.modelData.toggle ?? (holder.modelData.fields
                                                                          ? holder.modelData.fields[0].key
                                                                          : holder.modelData.choice
                                                                            ? holder.modelData.choice.key

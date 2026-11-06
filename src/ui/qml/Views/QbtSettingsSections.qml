@@ -2058,4 +2058,403 @@ QtObject {
             ]
         }
     ]
+
+    // Settings › Deluge (E6, #87; C25 K31, K15): what Deluge's core.conf holds, in qBittorrent's
+    // order and ids (speed, discovery, connection, seeding, queue, downloads), then Plugins.
+    // Basics' rows keep app/preferences' words (DelugeTranslate::speedPreferences); the rest go
+    // by Deluge's own names, -1 for no limit as Deluge keeps it. Speeds in KiB/s, Deluge's own.
+    // No turtle (K20), no proxy, interfaces or cache: assumed, DECISIONS C25.
+
+    /// A count Deluge takes -1 for, shown empty.
+    function count(key: string, extra: var): var {
+        const field = root.num(key, {
+                                   "none": -1,
+                                   "noneText": root.inf,
+                                   "min": 1
+                               });
+        for (const name in extra)
+            field[name] = extra[name];
+        return field;
+    }
+
+    /// A new torrent's own speed in Deluge's KiB/s, -1 for none.
+    function torrentSpeed(key: string): var {
+        return root.count(key, {
+                              "unit": qsTr("KB/s"),
+                              "decimals": 0,
+                              "width": 110
+                          });
+    }
+
+    readonly property var delugeSections: [
+        {
+            "id": "speed",
+            "glyph": "⇅",
+            "name": qsTr("Speed"),
+            "shortName": qsTr("Speed"),
+            "sub": qsTr("limits for every torrent, and each new one's"),
+            "rows": [
+                {
+                    "note": qsTr("Deluge has no turtle. Its Scheduler plugin slows or pauses torrents by the hour of the week, set in Deluge's own preferences.")
+                },
+                {
+                    "glyph": "↓",
+                    "title": qsTr("Download limit"),
+                    "desc": qsTr("For every torrent together. Empty means no limit."),
+                    "fields": [root.speed("dl_limit")]
+                },
+                {
+                    "glyph": "↑",
+                    "title": qsTr("Upload limit"),
+                    "fields": [root.speed("up_limit")]
+                },
+                {
+                    "group": qsTr("each new torrent")
+                },
+                {
+                    "glyph": "↓",
+                    "title": qsTr("A torrent's download limit"),
+                    "desc": qsTr("What a new torrent starts with; L changes one torrent's. Empty means none of its own."),
+                    "fields": [root.torrentSpeed("max_download_speed_per_torrent")]
+                },
+                {
+                    "glyph": "↑",
+                    "title": qsTr("A torrent's upload limit"),
+                    "fields": [root.torrentSpeed("max_upload_speed_per_torrent")]
+                },
+                {
+                    "group": qsTr("what counts")
+                },
+                {
+                    "glyph": "⌂",
+                    "title": qsTr("No limits on your own network"),
+                    "desc": qsTr("Peers on the local network go at full speed."),
+                    "toggle": "ignore_limits_on_local_network"
+                },
+                {
+                    "glyph": "≈",
+                    "title": qsTr("Count the protocol's overhead"),
+                    "desc": qsTr("The limits hold for everything sent, not only the files' data."),
+                    "toggle": "rate_limit_ip_overhead"
+                }
+            ]
+        },
+        {
+            "id": "discovery",
+            "glyph": "◎",
+            "name": qsTr("Discovery and privacy"),
+            "shortName": qsTr("Discovery"),
+            "sub": qsTr("how Deluge finds peers"),
+            "rows": [
+                {
+                    "note": qsTr("Private torrents never use DHT, PEX or LSD, whatever these switches say. The torrent carries a private flag and Deluge obeys it. These three are for public torrents.")
+                },
+                {
+                    "glyph": "◎",
+                    "title": qsTr("DHT"),
+                    "desc": qsTr("Find peers without a tracker, through a network of other clients. A bare info hash needs it."),
+                    "toggle": "dht"
+                },
+                {
+                    "glyph": "⇆",
+                    "title": qsTr("Peer exchange (PEX)"),
+                    "desc": qsTr("Swap peer lists with the peers you're connected to."),
+                    "toggle": "utpex"
+                },
+                {
+                    "glyph": "⌂",
+                    "title": qsTr("Local service discovery (LSD)"),
+                    "desc": qsTr("Find peers on your own network."),
+                    "toggle": "lsd"
+                },
+                {
+                    "glyph": "⚿",
+                    "title": qsTr("Encryption"),
+                    "desc": qsTr("On takes peers either way. Required refuses peers that don't encrypt, which a few trackers ask for. Off talks plain only. The same both ways, in and out."),
+                    "choice": {
+                        "key": "encryption",
+                        "options": [["enabled", qsTr("on")], ["forced", qsTr("required")], ["disabled", qsTr("off")]]
+                    }
+                }
+            ]
+        },
+        {
+            "id": "connection",
+            "glyph": "⇌",
+            "name": qsTr("Connection"),
+            "shortName": qsTr("Connection"),
+            "sub": qsTr("the port, the router and peers"),
+            "rows": [
+                {
+                    "glyph": "⊙",
+                    "title": qsTr("Listening port"),
+                    "desc": qsTr("Where peers reach the server. Deluge can test it from outside."),
+                    "dep": "random_port!=true",
+                    "fields": [root.num("listen_port", {
+                                            "min": 1,
+                                            "max": 65535
+                                        })],
+                    "reach": "test",
+                    "button": {
+                        "text": qsTr("test port"),
+                        "action": "testPort"
+                    },
+                    "confirm": "port"
+                },
+                {
+                    "glyph": "⟳",
+                    "title": qsTr("A random port"),
+                    "desc": qsTr("Deluge picks one each time it starts, in place of the port above."),
+                    "toggle": "random_port"
+                },
+                {
+                    "glyph": "⌬",
+                    "title": qsTr("UPnP"),
+                    "desc": qsTr("Ask the router to forward the port by itself."),
+                    "toggle": "upnp"
+                },
+                {
+                    "glyph": "⌬",
+                    "title": qsTr("NAT-PMP"),
+                    "desc": qsTr("The same, for routers that speak NAT-PMP."),
+                    "toggle": "natpmp"
+                },
+                {
+                    "glyph": "⋈",
+                    "title": qsTr("Connections"),
+                    "desc": qsTr("At most, in total and per torrent. Empty means no limit."),
+                    "fields": [root.count("max_connections_global", {}), root.count("max_connections_per_torrent", {
+                                                                                      "sep": "·"
+                                                                                  })]
+                },
+                {
+                    "glyph": "↑",
+                    "title": qsTr("Upload slots"),
+                    "desc": qsTr("Peers you upload to at once, in total and per torrent. Empty means no limit."),
+                    "fields": [root.count("max_upload_slots_global", {}), root.count("max_upload_slots_per_torrent", {
+                                                                                       "sep": "·"
+                                                                                   })]
+                }
+            ]
+        },
+        {
+            "id": "seeding",
+            "glyph": "↑",
+            "name": qsTr("Seeding"),
+            "shortName": qsTr("Seeding"),
+            "sub": qsTr("when a torrent stops seeding"),
+            "rows": [
+                {
+                    "note": qsTr("Each Deluge torrent keeps a ratio of its own, copied from here when it is added. The limits sheet's \"global\" copies these onto it again.")
+                },
+                {
+                    "glyph": "÷",
+                    "title": qsTr("Share ratio"),
+                    "desc": qsTr("Stop once a torrent has uploaded this many times its size."),
+                    "toggle": "max_ratio_enabled",
+                    "fields": [root.num("max_ratio", {
+                                            "decimals": 2,
+                                            "min": 0
+                                        })]
+                },
+                {
+                    "glyph": "■",
+                    "title": qsTr("At the ratio"),
+                    "desc": qsTr("Deluge has no time limits; the ratio is the only one."),
+                    "sub": true,
+                    "dep": "max_ratio_enabled",
+                    "choice": {
+                        "key": "max_ratio_act",
+                        "options": [[0, qsTr("stop")], [1, qsTr("remove (keeps the files)")]]
+                    }
+                }
+            ]
+        },
+        {
+            "id": "queue",
+            "glyph": "≡",
+            "name": qsTr("Queue"),
+            "shortName": qsTr("Queue"),
+            "sub": qsTr("how many run at once"),
+            "rows": [
+                {
+                    "note": qsTr("Only torrents in the queue count: one force-started (ctrl+s) runs whatever these say.")
+                },
+                {
+                    "glyph": "≡",
+                    "title": qsTr("Active torrents"),
+                    "desc": qsTr("At most this many run at once, downloading and seeding together. Empty means no limit."),
+                    "fields": [root.count("max_active_limit", {
+                                              "min": 0
+                                          })]
+                },
+                {
+                    "glyph": "↓",
+                    "title": qsTr("Downloading"),
+                    "sub": true,
+                    "fields": [root.count("max_active_downloading", {
+                                              "min": 0
+                                          })]
+                },
+                {
+                    "glyph": "↑",
+                    "title": qsTr("Seeding"),
+                    "sub": true,
+                    "fields": [root.count("max_active_seeding", {
+                                              "min": 0
+                                          })]
+                },
+                {
+                    "glyph": "◌",
+                    "title": qsTr("Don't count slow torrents"),
+                    "desc": qsTr("A torrent that moves almost nothing gives its place to the next one."),
+                    "toggle": "dont_count_slow_torrents"
+                },
+                {
+                    "glyph": "↑",
+                    "title": qsTr("Seeds first"),
+                    "desc": qsTr("When there is room for one more, a waiting seed goes before a download."),
+                    "toggle": "auto_manage_prefer_seeds"
+                },
+                {
+                    "glyph": "⇡",
+                    "title": qsTr("New torrents at the top"),
+                    "desc": qsTr("A new torrent goes first in the queue, not last."),
+                    "toggle": "queue_new_to_top"
+                },
+                {
+                    "group": qsTr("a seed gives way once it reaches")
+                },
+                {
+                    "glyph": "÷",
+                    "title": qsTr("Share ratio"),
+                    "desc": qsTr("It keeps seeding while there is room, but a waiting torrent goes before it. Empty means never."),
+                    "fields": [root.count("share_ratio_limit", {
+                                              "decimals": 2,
+                                              "min": 0
+                                          })]
+                },
+                {
+                    "glyph": "◷",
+                    "title": qsTr("Seeding time ÷ downloading time"),
+                    "fields": [root.count("seed_time_ratio_limit", {
+                                              "decimals": 2,
+                                              "min": 0
+                                          })]
+                },
+                {
+                    "glyph": "◷",
+                    "title": qsTr("Seeding time"),
+                    "fields": [root.count("seed_time_limit", {
+                                              "unit": qsTr("min"),
+                                              "min": 0,
+                                              "width": 100
+                                          })]
+                }
+            ]
+        },
+        {
+            "id": "downloads",
+            "glyph": "▤",
+            "name": qsTr("Downloads and files"),
+            "shortName": qsTr("Downloads"),
+            "sub": qsTr("where files go, and what happens on add"),
+            "rows": [
+                {
+                    "group": qsTr("where")
+                },
+                {
+                    "glyph": "▤",
+                    "title": qsTr("Default save path"),
+                    "desc": qsTr("Where a torrent goes when the add sheet keeps the server's default. A path on the server."),
+                    "fields": [root.text("save_path", 240, "")]
+                },
+                {
+                    "glyph": "▤",
+                    "title": qsTr("Move finished torrents to"),
+                    "desc": qsTr("For torrents without a label that moves them. A path on the server."),
+                    "toggle": "move_completed",
+                    "fields": [root.text("move_completed_path", 200, "")]
+                },
+                {
+                    "glyph": "◫",
+                    "title": qsTr("Keep a copy of each .torrent in"),
+                    "toggle": "copy_torrent_file",
+                    "fields": [root.text("torrentfiles_location", 200, "")]
+                },
+                {
+                    "title": qsTr("Delete the copy when its torrent is removed"),
+                    "sub": true,
+                    "dep": "copy_torrent_file",
+                    "toggle": "del_copy_torrent_file"
+                },
+                {
+                    "group": qsTr("adding")
+                },
+                {
+                    "glyph": "‖",
+                    "title": qsTr("Add torrents paused"),
+                    "desc": qsTr("For adds that don't say. omaseed's add sheet always says."),
+                    "toggle": "add_paused"
+                },
+                {
+                    "glyph": "⇣",
+                    "title": qsTr("Download in order"),
+                    "desc": qsTr("New torrents get their pieces start to end, for playing while they download. The add sheet's own switch wins."),
+                    "toggle": "sequential_download"
+                },
+                {
+                    "glyph": "⇤",
+                    "title": qsTr("First and last pieces first"),
+                    "desc": qsTr("New torrents fetch the ends of each file early, so a player can open them sooner."),
+                    "toggle": "prioritize_first_last_pieces"
+                },
+                {
+                    "glyph": "▮",
+                    "title": qsTr("Allocate the whole size at once"),
+                    "desc": qsTr("A new torrent takes its full size on disk before it downloads."),
+                    "toggle": "pre_allocate_storage"
+                }
+            ]
+        },
+        {
+            // K15: Deluge's plugins, one line each, read from core.conf's enabled_plugins.
+            // `plugin` rows say on or off; `whenOff` shows a row only while that plugin is off,
+            // `whenOn` only while it is on; `others` is every plugin on but those named.
+            "id": "plugins",
+            "glyph": "▤",
+            "name": qsTr("Plugins"),
+            "shortName": qsTr("Plugins"),
+            "sub": qsTr("the Deluge plugins omaseed reads"),
+            "rows": [
+                {
+                    "note": qsTr("%1's plugins, as Deluge reports them. Turning one on or off is done in Deluge's own preferences.")
+                },
+                {
+                    "note": qsTr("Label is off on %1. Torrents have no labels in omaseed while it is off, and the rail has no labels group. Turn it on in Deluge's preferences, under Plugins."),
+                    "warn": true,
+                    "whenOff": "Label"
+                },
+                {
+                    "glyph": "▤",
+                    "title": qsTr("Label"),
+                    "plugin": "Label",
+                    "whenOn": "Label",
+                    "desc": qsTr("its labels are the rail's labels, one per torrent")
+                },
+                {
+                    "glyph": "◷",
+                    "title": qsTr("Scheduler"),
+                    "plugin": "Scheduler",
+                    "desc": qsTr("slows or pauses every torrent by the hour; omaseed doesn't show its week grid yet")
+                },
+                {
+                    "glyph": "◇",
+                    "title": qsTr("Others"),
+                    "others": ["Label", "Scheduler"],
+                    "desc": qsTr("omaseed doesn't use them")
+                }
+            ]
+        }
+    ]
 }

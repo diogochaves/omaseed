@@ -119,7 +119,8 @@ Item {
     /// engine whose settings omaseed reads through its session gets its own sections instead
     /// (Settings › Transmission, C14 E6, board 47 §6 E5); one with neither, no group.
     readonly property var qbtSections: root.features.qbtSettings === false
-                                       ? (root.features.sessionSettings === true ? qbtSchema.transmissionSections : [])
+                                       ? (root.features.sessionSettings === true
+                                          ? root.sectionsOf(root.engineName.toLowerCase()) : [])
                                        : root.qbtAllSections
     /// qBittorrent's group whole: docs/16's sections, then Search plugins and Backup.
     readonly property var qbtAllSections: qbtSchema.sections.concat([{
@@ -149,14 +150,24 @@ Item {
     readonly property string groupEngine: root.qbtSections.length === 0 ? ""
                                           : root.engineGroupIsQbt ? "qbittorrent"
                                                                   : root.engineName.toLowerCase()
-    /// An engine's sections in Settings, for a group omaseed is not on: [] for one it has no
-    /// settings for (Deluge until E6).
+    /// An engine's sections in Settings: [] for one it has no settings for. Deluge's end with
+    /// Plugins (K15, E6).
     function sectionsOf(engine: string): var {
         if (engine === "qbittorrent")
             return root.qbtAllSections;
         if (engine === "transmission")
             return qbtSchema.transmissionSections;
+        if (engine === "deluge")
+            return qbtSchema.delugeSections;
         return [];
+    }
+    /// An engine's name as its group's head and pane say it.
+    function _engineWord(engine: string): string {
+        return {
+            "qbittorrent": "qBittorrent",
+            "transmission": "Transmission",
+            "deluge": "Deluge"
+        }[engine] ?? engine;
     }
     /// C25 K32: a group stays while a server of its engine is saved. The other engines'
     /// groups, after the one omaseed is on, each on its first saved server (no server is
@@ -178,7 +189,7 @@ Item {
                 continue;
             out.push({
                          "engine": engine,
-                         "name": engine === "qbittorrent" ? "qBittorrent" : "Transmission",
+                         "name": root._engineWord(engine),
                          "serverId": id,
                          "serverName": App.serverList.serverMap(id).name ?? "",
                          "sections": sections
@@ -266,7 +277,7 @@ Item {
     /// The Backup pane's head (docs/24 §4): "home · qBittorrent 5.2.3".
     readonly property string qbtServerHead: {
         const version = App.globalState.serverVersion.replace(/^v/, "");
-        return version.length > 0 ? qsTr("%1 · qBittorrent %2").arg(App.serverName).arg(version)
+        return version.length > 0 ? qsTr("%1 · %2 %3").arg(App.serverName).arg(root.engineGroupName).arg(version)
                                   : App.serverName;
     }
     /// A line for the pane's head after a change: why the server said no, or what it kept.
@@ -1965,7 +1976,9 @@ Item {
                             text: root.qbtNote.length > 0 ? root.qbtNote
                                                           : root.paneIndex === 5 ? qsTr("omaseed · on this machine") // docs/34 D1 a
                                                           : root.inOther ? qsTr("%1 · %2").arg(root.otherRow.serverName).arg(root.otherRow.engineName)
-                                                          : root.inQbtBackup || root.inQbtSearch ? root.qbtServerHead
+                                                          : root.inQbtBackup || root.inQbtSearch
+                                                            || (root.qbtSection && root.qbtSection.id === "plugins")
+                                                            ? root.qbtServerHead
                                                                              : qsTr("%1 · saved as you change it").arg(
                                                                                    App.serverName)
                             visible: root.inQbt || root.inOther || root.paneIndex === 5
