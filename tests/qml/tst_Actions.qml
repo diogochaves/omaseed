@@ -1307,6 +1307,24 @@ TestCase {
         }
     }
 
+    // Each engine's own upper bound, named (Transmission keeps an int of kB/s).
+    function test_limits_refuse_past_the_engines_largest() {
+        const sheet = view.limitsSheetPanel;
+        sheet.features = {"maxSpeedLimit": 2000};
+        sheet.engineName = "Transmission";
+        try {
+            sheet.openFor([view.cursorHash]);
+            sheet.downloadField.text = "5";
+            compare(sheet._formValues().error, "Download is over the largest limit Transmission takes");
+            sheet.downloadField.text = "1";
+            verify(sheet._formValues().error === undefined);
+        } finally {
+            sheet.close();
+            sheet.features = Qt.binding(() => App.features);
+            sheet.engineName = Qt.binding(() => App.serverEngineName);
+        }
+    }
+
     function test_limits_a_cleared_speed_lifts_the_limit() {
         const spy = createTemporaryObject(limitsSpy, testCase);
         const sheet = view.limitsSheetPanel;

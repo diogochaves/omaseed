@@ -137,11 +137,13 @@ Sheet {
         if (Number.isNaN(out.ul))
             return {"error": qsTr("Upload is not a number")};
         // qBittorrent keeps a speed limit in an int of bytes/s; past it the server wraps the
-        // value to "no limit" without a word (review RUN-2 (e)).
+        // value to "no limit" without a word (review RUN-2 (e)). Each engine has its own bound
+        // (App.features.maxSpeedLimit; Transmission's is an int of kB/s).
+        const engine = root.engineName || "qBittorrent";
         if (out.dl > root.maxSpeedBytes)
-            return {"error": qsTr("Download is over the largest limit qBittorrent takes")};
+            return {"error": qsTr("Download is over the largest limit %1 takes").arg(engine)};
         if (out.ul > root.maxSpeedBytes)
-            return {"error": qsTr("Upload is over the largest limit qBittorrent takes")};
+            return {"error": qsTr("Upload is over the largest limit %1 takes").arg(engine)};
         if (root._ratioGlobal !== root._initial.ratioGlobal
                 || (!root._ratioGlobal && ratioField.text.trim() !== String(root._initial.ratio).trim())) {
             if (root._ratioGlobal) {
@@ -274,8 +276,9 @@ Sheet {
     property bool _ratioGlobal: true
     property bool _seedingGlobal: true
     property bool _idleGlobal: true
-    /// The largest speed limit the Web API stores (a signed 32-bit bytes/s).
-    readonly property real maxSpeedBytes: 2147483647
+    /// The largest speed limit the engine stores: qBittorrent's Web API a signed 32-bit
+    /// bytes/s, Transmission's an int of kB/s (App.features.maxSpeedLimit).
+    readonly property real maxSpeedBytes: root.features.maxSpeedLimit ?? 2147483647
 
     onActionTriggered: text => {
         if (text !== qsTr("reset"))

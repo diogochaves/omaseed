@@ -5439,6 +5439,7 @@ QVariantMap App::featuresMap() const
         {QStringLiteral("addAgain"), f.addAgain},
         {QStringLiteral("search"), f.search},
         {QStringLiteral("createTorrent"), f.createTorrent},
+        {QStringLiteral("maxSpeedLimit"), double(f.maxSpeedLimit)},
         {QStringLiteral("altSpeeds"), f.altSpeeds},
         {QStringLiteral("renameOnDisk"), f.renameOnDisk},
         {QStringLiteral("moveProgress"), f.moveProgress},

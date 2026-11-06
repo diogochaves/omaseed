@@ -947,6 +947,7 @@ EngineFeatures features(const ServerInfo &)
     f.addAgain = false;          // I: C17 D3's re-add is libtorrent's hybrid fix
     f.search = false;            // I (#145)
     f.createTorrent = false;     // I (#146): transmission-create is a command only
+    f.maxSpeedLimit = 2147483647LL * 1000; // D: an int of kB/s
     return f;
 }
 

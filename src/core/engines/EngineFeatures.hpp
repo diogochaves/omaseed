@@ -88,6 +88,9 @@ struct EngineFeatures
     /// qBittorrent's torrent creator (torrentcreator/*, Web API 2.10.4; DECISIONS C27, #146):
     /// "create a torrent" and its sheet.
     bool createTorrent = false;
+    /// The largest speed limit the engine keeps, in bytes/s: past it qBittorrent wraps the
+    /// value to "no limit" without a word (an int of bytes/s); Transmission keeps kB/s.
+    qint64 maxSpeedLimit = 2147483647;
 
     bool shareLimitAction() const { return !shareLimitActions.isEmpty(); }
 
