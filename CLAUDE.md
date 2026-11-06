@@ -28,7 +28,10 @@ A maintainer's private `CLAUDE.local.md` beside this file, when there is one, ad
     `~/.local/share/omaseed-test/`, never the system units: Transmission 4.1 on
     `http://127.0.0.1:8085` (`start --transmission`, no login) and deluge-web 2.2 on
     `http://127.0.0.1:8086` (`start --deluge`, its daemon on :58847; the password is
-    `DELUGE_TEST_PASS` in `dev.env`, made with the profile).
+    `DELUGE_TEST_PASS` in `dev.env`, made with the profile). Transmission as people run it
+    in a container: LinuxServer's image in rootless podman on `http://127.0.0.1:8087`
+    (`start --transmission-podman`, no login; never sudo or the system Docker), reached
+    through a path map (`/downloads`, `/far` to its profile's folders).
 - Credentials live in `~/.config/omaseed/dev.env` (0600, outside the repo). Load with
   `set -a; . ~/.config/omaseed/dev.env; set +a`. Never print them, never commit them: no
   credential is written in the repo. Scripts and tests read `QBT_STRICT_*` from the
@@ -68,6 +71,7 @@ scripts/dev/shellcheck.sh                          # every tracked shell script 
 scripts/dev/test-server.sh start|stop|status|reset|seed [--strict]
 scripts/dev/test-server.sh rotate --strict        # new random strict login in dev.env; key kept
 scripts/dev/test-server.sh start|stop|status|reset|seed|log --transmission  # Transmission on :8085
+scripts/dev/test-server.sh start|stop|status|reset|seed|log --transmission-podman  # Transmission in rootless podman on :8087 (linuxserver/transmission 4.1.3; path map /downloads, /far)
 scripts/dev/test-server.sh start|stop|status|reset|seed|log --deluge        # deluge-web on :8086
 scripts/dev/transmission-fixtures.py [OUT]           # re-record tests/fixtures/transmission/ from :8085 (its own torrents, removed after)
 scripts/dev/deluge-fixtures.py [OUT]                 # re-record tests/fixtures/deluge/ from :8086 (+ :8085 as a peer; its own torrents and labels, removed after)
@@ -94,12 +98,13 @@ scripts/dev/search-walk.sh [OUT] | --interactive  # search: invented plugins ins
 scripts/dev/search-plugins.py make DIR [--slow S] # four invented nova3 search plugins answering with the offline swarm's torrents (never a real site)
 scripts/dev/create-walk.sh [OUT] | --interactive  # create a torrent (#146): + add ▾, public (strip, seeding, the .torrent read back), the band, private (saved, passkey only as dots), the round trip both ways, errors, cancel
 scripts/dev/move-walk.sh [OUT] | --interactive    # folder and selection moves, queue, places, partial pack, move back (the loose files too), recheck (~12 min; OMASEED_MOVE_WALK_FROM=loose|selection|sheet|history|big|music|remote)
-scripts/dev/transmission-walk.sh [OUT] | --interactive  # on the Transmission playground (:8085, started, seeded and wiped if it wasn't up): add with a label and a save path, rename (its folder too), move, a label on and one off, delete with files; each checked on the daemon and on disk
+scripts/dev/transmission-walk.sh [OUT] | --interactive  # on the Transmission playground (:8085, started, seeded and wiped if it wasn't up): add with a label and a save path, rename (its folder too), move, a label on and one off, delete with files; each checked on the daemon and on disk; then, where omaseed sees the disks (the box again with --ro-bind), a name already at the destination (left out: Transmission would replace it) and a move that copies, frozen halfway: the busy band's "N of M there"
+OMASEED_TRANSMISSION_WALK_FROM=podman scripts/dev/transmission-walk.sh [OUT]  # the same on the podman Transmission (:8087) with a path map: first run finds the container, daemon checks on its paths, disk checks on the mapped ones, open folder resolves to this machine's path
 omabox check run [--approve] --base .local/visual --plugin plugin -- scripts/dev/visual-check.sh  # the walks' screens against a baseline: same, or what changed
 OMASEED_SKIN=console omabox check run [--approve] --keep fonts --base .local/visual-console --plugin plugin -- scripts/dev/visual-check.sh  # the same in the Console skin, its own baseline
 scripts/dev/manual-box.sh [--headless] | down          # throwaway desktop for manual tests: omaseed installed, two qBittorrents (public :8090, private :8091)
 scripts/dev/move-library.sh [-b BOX] [--server S]  # the move test library in a box's qBittorrent: 109 torrents (4 partial packs), /tmp/fast, a clash, a read-only dest
-scripts/dev/app-box.sh up [-b NAME] [--build DIR] [--handlers] [--qbt | --transmission [--and-playground] | --deluge]  # agents: build/omaseed in a box on :8081 (--qbt: the box's own qBittorrent; --transmission: the Transmission playground :8085, --and-playground: :8081 saved too; --deluge: the Deluge playground's deluge-web :8086, its password in the box's keyring), swarm .torrents in ~/Downloads
+scripts/dev/app-box.sh up [-b NAME] [--build DIR] [--handlers] [--qbt | --transmission [--and-playground] | --transmission-podman | --deluge] [--ro-bind DIR] [--first-run]  # agents: build/omaseed in a box on :8081 (--qbt: the box's own qBittorrent; --transmission: the Transmission playground :8085, --and-playground: :8081 saved too; --transmission-podman: the podman Transmission :8087 with its path map, its folders bound in, a podman stand-in for first run; --deluge: the Deluge playground's deluge-web :8086, its password in the box's keyring; --ro-bind: a folder seen in the box; --first-run: no server saved), swarm .torrents in ~/Downloads
 scripts/dev/app-box.sh restart | shot | down [-b NAME]  # relaunch after a rebuild (the log has Qt's output), a window shot, away
 scripts/dev/app-box.sh api [-b NAME] [--server public|private] [-X M] PATH [CURL ARGS]  # the box's qBittorrent (playground, or a manual box's own, signed in)
 ```

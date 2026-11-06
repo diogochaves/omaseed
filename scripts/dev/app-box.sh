@@ -4,8 +4,8 @@
 # (the manual box, through scripts/dev/manual-box.sh).
 #
 #   scripts/dev/app-box.sh up [-b NAME] [--interactive] [--build DIR] [--handlers] [--qbt]
-#                             [--transmission [--and-playground] | --deluge] [--plugin DIR]
-#                             [--stock-bar]
+#                             [--transmission [--and-playground] | --transmission-podman | --deluge]
+#                             [--plugin DIR] [--stock-bar] [--ro-bind DIR[:DEST]]... [--first-run]
 #       a box on its own network that reaches only :8081; servers.json pointing omaseed at the
 #       playground; every swarm .torrent in ~/Downloads (the add sheet's "In Downloads" list);
 #       then DIR/omaseed (default build/) is started and the command returns once its window
@@ -19,6 +19,13 @@
 #       --and-playground (with --transmission): the :8081 playground saved too, as a second
 #       server, "playground" (qBittorrent), and the box reaching it: a Settings group for each
 #       engine (DECISIONS C25 K32, #86).
+#       --transmission-podman: the Transmission in rootless podman instead (:8087, test-server.sh
+#       start --transmission-podman, started if it isn't; #233), the box reaching only that port
+#       and seeing the container's two host folders (its downloads/ and far/, read-only, at their
+#       own paths); omaseed's server is "transmission" with the path map /downloads and /far to
+#       those folders. The box can't reach this machine's podman: a `podman` in the box (on
+#       omaseed's PATH) answers `ps` with the container's line as the host's podman printed it
+#       at `up`, for first run's detector.
 #       --deluge: the Deluge playground instead (deluge-web on :8086, scripts/dev/test-server.sh
 #       start --deluge, started if it isn't), the box reaching only that port; omaseed's server
 #       is "deluge" (DECISIONS C14 E6, #87), signed in with DELUGE_TEST_PASS from dev.env, put
@@ -27,6 +34,10 @@
 #       in the box's bar, beside the app.
 #       --stock-bar: Omarchy's default bar (at the top, workspaces and clock) instead of a copy
 #       of yours; also for `up --manual` (manual-box.sh --stock-bar).
+#       --ro-bind DIR[:DEST]: that folder seen in the box, read-only (omabox up --ro-bind): a
+#       playground's downloads, so omaseed sees the disks of a server on this machine.
+#       --first-run: no server saved, so omaseed opens on first run; the servers.json it would
+#       have had waits in the box's HOME as .omaseed-servers.json, for a walk to put in place.
 #   scripts/dev/app-box.sh restart [-b NAME] [--build DIR]
 #       stop omaseed, start it again (after a rebuild), return once its window is still; prints
 #       the run log, which has the app's own output (QT_FORCE_STDERR_LOGGING, omabox#26).
@@ -61,6 +72,13 @@ TR_WEB="http://127.0.0.1:$TR_PORT/transmission/web/"
 # The Deluge playground (test-engine.sh), for `up --deluge`: deluge-web, whose daemon it runs.
 DE_PORT="${OMASEED_DELUGE_WEB_PORT:-8086}"
 DE_WEB="http://127.0.0.1:$DE_PORT/"
+# Transmission in rootless podman (test-engine.sh), for `up --transmission-podman`.
+TP_PORT="${OMASEED_TRANSMISSION_PODMAN_PORT:-8087}"
+TP_WEB="http://127.0.0.1:$TP_PORT/transmission/web/"
+TP_PROFILE="${OMASEED_ENGINES_ROOT:-$HOME/.local/share/omaseed-test}/transmission-podman"
+TP_CONTAINER="${OMASEED_TRANSMISSION_PODMAN_NAME:-omaseed-transmission}"
+# Commands of the box's own for omaseed's PATH (the podman stand-in), in the box's HOME.
+BOX_BIN=.omaseed-bin
 DEV_ENV="${OMASEED_DEV_ENV:-$HOME/.config/omaseed/dev.env}"
 BOX_HOME=/home/sbx
 BOX_QBT_PORT="${OMASEED_BOX_QBT_PORT:-8090}"
@@ -80,7 +98,7 @@ SEEDER="http://127.0.0.1:$SEEDER_PORT/api/v2"
 TORRENTS="${OMASEED_SWARM_PROFILE:-$HOME/.local/share/omaseed-swarm}/torrents"
 # What `up` left in the box for `restart` and `api`: KEY=VALUE lines, outside omaseed's config.
 MARKER=.omaseed-box
-refuse_home "$PLAY" "$TR_PORT" "$BOX_QBT_PORT" "$BOX_QBT2_PORT" "$SEEDER"
+refuse_home "$PLAY" "$TR_PORT" "$TP_PORT" "$BOX_QBT_PORT" "$BOX_QBT2_PORT" "$SEEDER"
 
 die() { echo "app-box.sh: $*" >&2; exit 1; }
 
@@ -139,7 +157,11 @@ launch() {
     [ -n "${OMASEED_DISPLAY:-}" ] && pass+=(--pass OMASEED_DISPLAY)
     # A pinned skin (#171): OMASEED_SKIN wins over Settings › Appearance's choice.
     [ -n "${OMASEED_SKIN:-}" ] && pass+=(--pass OMASEED_SKIN)
-    out="$(QT_FORCE_STDERR_LOGGING=1 omabox run -b "$BOX" "${pass[@]}" -d -- \
+    # omabox run keeps this PATH: the box's own commands (up --transmission-podman's podman)
+    # come first.
+    local path="$PATH"
+    [ -d "$(box_home)/$BOX_BIN" ] && path="$BOX_HOME/$BOX_BIN:$PATH"
+    out="$(PATH="$path" QT_FORCE_STDERR_LOGGING=1 omabox run -b "$BOX" "${pass[@]}" -d -- \
         "$binary" 2>&1)" || die "could not start $binary in the box: $out"
     # The job's log, from omabox's "started in box 'B' (pid N, log: HOST, BOX in the box)" (1.2.2;
     # earlier: "(log: HOST)"). Its other lines may say "(log: omabox log …)": not ours.
@@ -234,13 +256,16 @@ deluge_pass() {
 up_app() {
     local build="$1" interactive="$2" handlers="$3" qbt="$4" plugin="${5:-}" transmission="${6:-0}"
     local both="${7:-0}" deluge="${8:-0}"
-    local home url name engine=qbittorrent auth=none up_args=() second=""
+    local home url name engine=qbittorrent auth=none up_args=() second="" pathmap='[]'
     [ -x "$build/omaseed" ] || die "no $build/omaseed: build it first (cmake --build $build)"
     if [ "$transmission" = 1 ] && [ "$qbt" = 1 ]; then die "--qbt and --transmission: pick one"; fi
     if [ "$deluge" = 1 ] && { [ "$qbt" = 1 ] || [ "$transmission" = 1 ]; }; then
         die "--deluge goes alone (not with --qbt or --transmission)"
     fi
     if [ "$both" = 1 ] && [ "$transmission" = 0 ]; then die "--and-playground goes with --transmission"; fi
+    if [ "$tpod" = 1 ] && { [ "$qbt" = 1 ] || [ "$transmission" = 1 ] || [ "$deluge" = 1 ]; }; then
+        die "--transmission-podman goes alone (not with --qbt, --transmission or --deluge)"
+    fi
     if [ "$both" = 1 ] && ! "$repo/scripts/dev/test-server.sh" status >/dev/null 2>&1; then
         echo "starting the playground (:$PLAY_PORT)"
         "$repo/scripts/dev/test-server.sh" start >/dev/null
@@ -249,6 +274,11 @@ up_app() {
         if ! "$repo/scripts/dev/test-server.sh" status --transmission >/dev/null 2>&1; then
             echo "starting the Transmission playground (:$TR_PORT)"
             "$repo/scripts/dev/test-server.sh" start --transmission >/dev/null
+        fi
+    elif [ "$tpod" = 1 ]; then
+        if ! "$repo/scripts/dev/test-server.sh" status --transmission-podman >/dev/null 2>&1; then
+            echo "starting the Transmission container (:$TP_PORT)"
+            "$repo/scripts/dev/test-server.sh" start --transmission-podman >/dev/null
         fi
     elif [ "$deluge" = 1 ]; then
         if ! "$repo/scripts/dev/test-server.sh" status --deluge >/dev/null 2>&1; then
@@ -279,13 +309,16 @@ up_app() {
         up_args=(--net isolated --allow "$TR_PORT,$PLAY_PORT")
     elif [ "$transmission" = 1 ]; then
         up_args=(--net isolated --allow "$TR_PORT")
+    elif [ "$tpod" = 1 ]; then
+        up_args=(--net isolated --allow "$TP_PORT" --ro-bind "$TP_PROFILE/downloads"
+            --ro-bind "$TP_PROFILE/far")
     elif [ "$deluge" = 1 ]; then
         up_args=(--net isolated --allow "$DE_PORT")
     else
         up_args=(--net isolated --allow "$PLAY_PORT")
     fi
     if [ -n "$plugin" ]; then up_args+=(--plugin "$plugin"); fi
-    up_args+=("${bar_args[@]}")
+    up_args+=("${bar_args[@]}" "${ro_binds[@]}")
     if [ "$interactive" = 1 ]; then
         quiet omabox up "$BOX" --interactive "${up_args[@]}"
     else
@@ -304,6 +337,24 @@ up_app() {
         url="$TR_WEB"
         name=transmission
         engine=transmission
+    elif [ "$tpod" = 1 ]; then
+        url="$TP_WEB"
+        name=transmission
+        engine=transmission
+        pathmap="$(python3 -c 'import json, sys; print(json.dumps([{"remote": "/downloads", "local": sys.argv[1] + "/downloads"}, {"remote": "/far", "local": sys.argv[1] + "/far"}]))' "$TP_PROFILE")"
+        # The host's podman, for the box's stand-in: the container's line only.
+        mkdir -p "$home/$BOX_BIN"
+        podman ps --filter "name=^$TP_CONTAINER\$" --format '{{.Names}} {{.Image}} {{.Ports}}' \
+            >"$home/$BOX_BIN/podman-ps.txt"
+        cat >"$home/$BOX_BIN/podman" <<'SHIM'
+#!/bin/sh
+# omaseed's app box (scripts/dev/app-box.sh up --transmission-podman): the box can't reach
+# this machine's podman, so `ps` answers with the playground container's line as the host's
+# `podman ps --format '{{.Names}} {{.Image}} {{.Ports}}'` printed it when the box came up.
+[ "$1" = ps ] || { echo "podman in an omaseed box answers only ps" >&2; exit 125; }
+cat "$(dirname "$0")/podman-ps.txt"
+SHIM
+        chmod +x "$home/$BOX_BIN/podman"
     elif [ "$deluge" = 1 ]; then
         url="$DE_WEB"
         name=deluge
@@ -321,12 +372,14 @@ up_app() {
     if [ "$both" = 1 ]; then
         second="$(printf ',{"id":"playground","name":"playground","url":"%s","engine":"qbittorrent","authMode":"none","username":"","pathMap":[],"isDefault":false,"addedAt":"2026-09-23T00:00:00Z"}' "$PLAY")"
     fi
-    printf '{"version":2,"defaultId":"%s","servers":[{"id":"%s","name":"%s","url":"%s","engine":"%s","authMode":"%s","username":"","pathMap":[],"isDefault":true,"addedAt":"2026-09-23T00:00:00Z"}%s]}' \
-        "$name" "$name" "$name" "$url" "$engine" "$auth" "$second" >"$home/.config/omaseed/servers.json"
-    chmod 600 "$home/.config/omaseed/servers.json"
+    local servers="$home/.config/omaseed/servers.json"
+    [ "$first_run" = 1 ] && servers="$home/.omaseed-servers.json"
+    printf '{"version":2,"defaultId":"%s","servers":[{"id":"%s","name":"%s","url":"%s","engine":"%s","authMode":"%s","username":"","pathMap":%s,"isDefault":true,"addedAt":"2026-09-23T00:00:00Z"}%s]}' \
+        "$name" "$name" "$name" "$url" "$engine" "$auth" "$pathmap" "$second" >"$servers"
+    chmod 600 "$servers"
     cp "$TORRENTS"/*.torrent "$home/Downloads/"
     local kind=app
-    if [ "$qbt" = 1 ]; then kind=qbt; elif [ "$transmission" = 1 ]; then kind=transmission; fi
+    if [ "$qbt" = 1 ]; then kind=qbt; elif [ "$transmission" = 1 ] || [ "$tpod" = 1 ]; then kind=transmission; fi
     if [ "$deluge" = 1 ]; then kind=deluge; fi
     printf 'kind=%s\nbinary=%s\napi=%s/api/v2\nskin=%s\n' "$kind" "$repo/$build/omaseed" "$url" \
         "${OMASEED_SKIN:-}" >"$home/$MARKER"
@@ -531,7 +584,7 @@ if [ -n "$method" ]; then set -- -X "$method" "$@"; fi
 curl -sS --fail-with-body -b "$dir/jar" "$@" "$url/$path"
 ' sh "$url" "$method" "$path" "$BOX_HOME/$LOGINS/$SERVER.txt" "$@"
     elif [ "$kind" = transmission ]; then
-        die "this box runs omaseed on Transmission: ask it with scripts/dev/test-server.sh status --transmission"
+        die "this box runs omaseed on Transmission: ask it with scripts/dev/test-server.sh status --transmission[-podman]"
     elif [ "$kind" = deluge ]; then
         die "this box runs omaseed on Deluge: ask it with scripts/dev/test-server.sh status --deluge"
     elif [ "$SERVER" != public ]; then
@@ -565,6 +618,9 @@ handlers=0
 qbt=0
 transmission=0
 deluge=0
+tpod=0
+first_run=0
+ro_binds=()
 both=0
 plugin=""
 bar_args=()
@@ -582,6 +638,9 @@ while [ $# -gt 0 ]; do
     --qbt) qbt=1 ;;
     --transmission) transmission=1 ;;
     --deluge) deluge=1 ;;
+    --transmission-podman) tpod=1 ;;
+    --first-run) first_run=1 ;;
+    --ro-bind) [ $# -ge 2 ] || die "--ro-bind needs a folder"; ro_binds+=(--ro-bind "$2"); shift ;;
     --and-playground) both=1 ;;
     --plugin) [ $# -ge 2 ] || die "--plugin needs a directory"; plugin="$(cd "$2" && pwd)"; shift ;;
     --stock-bar) bar_args=(--stock-bar) ;;

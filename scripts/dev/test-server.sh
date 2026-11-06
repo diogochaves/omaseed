@@ -13,11 +13,14 @@
 #   scripts/dev/test-server.sh log      # tail the server log
 #   scripts/dev/test-server.sh rotate --strict   # a new strict login; the API key stays
 #   scripts/dev/test-server.sh start|stop|status|reset|seed|log --transmission   # :8085
+#   scripts/dev/test-server.sh start|stop|status|reset|seed|log --transmission-podman   # :8087
 #   scripts/dev/test-server.sh start|stop|status|reset|seed|log --deluge         # :8086
 #
 # --transmission and --deluge (C14 E11) are the other engines' test servers, run by
 # scripts/dev/test-engine.sh: user processes with their own config dirs under
 # ~/.local/share/omaseed-test/ (transmission/, deluge/), which a playground reset keeps.
+# --transmission-podman (#233) is Transmission in a rootless podman container (LinuxServer's
+# image), reached through a path map; its profile is transmission-podman/, kept too.
 #
 # Two profiles, chosen with --strict as the LAST argument:
 #   default  :8081  localhost auth-bypassed. Plain requests need no credential. The
@@ -41,7 +44,7 @@ set -euo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/detach.sh"
 
 case "${!#}" in
---transmission | --deluge)
+--transmission | --transmission-podman | --deluge)
   engine="${!#}"
   exec "$(dirname "${BASH_SOURCE[0]}")/test-engine.sh" "${engine#--}" "${@:1:$(($#-1))}"
   ;;
@@ -418,7 +421,7 @@ cmd_reset() {
   fi
   cmd_stop
   # The other engines' test servers live under the playground's directory: they stay.
-  find "$PROFILE" -mindepth 1 -maxdepth 1 ! -name transmission ! -name deluge -exec rm -rf {} + 2>/dev/null || true
+  find "$PROFILE" -mindepth 1 -maxdepth 1 ! -name transmission ! -name transmission-podman ! -name deluge -exec rm -rf {} + 2>/dev/null || true
   cmd_start
 }
 

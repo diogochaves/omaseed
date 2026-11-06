@@ -4,17 +4,28 @@
 # Run by scripts/dev/test-server.sh when its last argument is --transmission or --deluge:
 #
 #   scripts/dev/test-server.sh start|stop|status|reset|seed|log --transmission
+#   scripts/dev/test-server.sh start|stop|status|reset|seed|log --transmission-podman
 #   scripts/dev/test-server.sh start|stop|status|reset|seed|log --deluge
 #
 #   --transmission  transmission-daemon 4.1 on 127.0.0.1:8085 (RPC at /transmission/rpc), no
 #                   login: localhost only, like the qBittorrent playground.
+#   --transmission-podman
+#                   Transmission as many people run it (#233): LinuxServer's image
+#                   (linuxserver/transmission, pinned to a 4.1 build) in a rootless podman
+#                   container "omaseed-transmission", its RPC published on 127.0.0.1:8087 only, no
+#                   login. The container sees two host folders: /downloads (the profile's
+#                   downloads/) and /far (its far/, a btrfs subvolume where the profile is on
+#                   btrfs, so a move there is a copy, not a rename). A server saved for it needs
+#                   the path map /downloads -> PROFILE/downloads and /far -> PROFILE/far. It runs
+#                   in podman's keep-id user namespace, so its files are the current user's.
 #   --deluge        deluged (its RPC on 127.0.0.1:58847) and deluge-web on 127.0.0.1:8086
 #                   (/json), connected to that daemon at start. deluge-web always wants a
 #                   password: a random one is made with the profile and saved to
 #                   ~/.config/omaseed/dev.env (0600) as DELUGE_TEST_PASS; never in the repo.
 #
-# Each runs as a user process with its own config dir under ~/.local/share/omaseed-test/
-# (transmission/, deluge/), its downloads beside it, DHT, PeX, LSD and port mapping off and
+# Each runs as a user process (the podman one in a user container) with its own config dir
+# under ~/.local/share/omaseed-test/ (transmission/, transmission-podman/, deluge/), its
+# downloads beside it, DHT, PeX, LSD and port mapping off and
 # peers on loopback only. The system units (transmission.service, deluged.service,
 # deluge-web.service) are never enabled, started or touched.
 #
@@ -46,6 +57,18 @@ transmission)
   LOGFILE="$PROFILE/daemon.log"
   refuse_home "$PORT" "$BT_PORT"
   ;;
+transmission-podman)
+  ENGINE=podman
+  PROFILE="$ROOT/transmission-podman"
+  PORT="${OMASEED_TRANSMISSION_PODMAN_PORT:-8087}"
+  BASE="http://127.0.0.1:$PORT"
+  RPC="$BASE/transmission/rpc"
+  CONTAINER="${OMASEED_TRANSMISSION_PODMAN_NAME:-omaseed-transmission}"
+  # A LinuxServer build of Transmission 4.1.3, the version the native playground runs.
+  IMAGE="docker.io/linuxserver/transmission:4.1.3-r0-ls366"
+  FAR="$PROFILE/far"
+  refuse_home "$PORT"
+  ;;
 deluge)
   PROFILE="$ROOT/deluge"
   PORT="${OMASEED_DELUGE_WEB_PORT:-8086}"
@@ -60,12 +83,14 @@ deluge)
   refuse_home "$PORT" "$DAEMON_PORT" "$BT_PORT"
   ;;
 *)
-  echo "usage: test-engine.sh transmission|deluge start|stop|status|reset|seed|log" >&2
+  echo "usage: test-engine.sh transmission|transmission-podman|deluge start|stop|status|reset|seed|log" >&2
   exit 2
   ;;
 esac
 DOWNLOADS="$PROFILE/downloads"
 LIBRARY="$PROFILE/library"
+# The container sees only /downloads and /far: its library lives in downloads.
+if [ "$ENGINE" = podman ]; then LIBRARY="$DOWNLOADS/library"; fi
 
 need() { command -v "$1" >/dev/null 2>&1 || { echo "missing: $1 (sudo pacman -S $2)" >&2; exit 1; }; }
 
@@ -177,6 +202,10 @@ print("Transmission", r["version"], "· RPC", r["rpc_version_semver"], "·", sys
 transmission_status() {
   if ! alive "$PIDFILE"; then echo "not running"; return 1; fi
   echo "running (pid $(cat "$PIDFILE"))"
+  transmission_status_list
+}
+
+transmission_status_list() {
   trpc torrent_get '{"fields":["name","status","percent_done"]}' | python3 -c '
 import json, sys
 torrents = json.load(sys.stdin)["result"]["torrents"]
@@ -189,6 +218,88 @@ transmission_add() { # TORRENT-FILE DIR
   local meta
   meta="$(base64 -w0 "$1")"
   trpc torrent_add "{\"metainfo\":\"$meta\",\"download_dir\":\"$2\"}" >/dev/null
+}
+
+# ---- Transmission in rootless podman (#233) ----------------------------------------------------
+
+podman_running() {
+  [ "$(podman container inspect -f '{{.State.Running}}' "$CONTAINER" 2>/dev/null)" = true ]
+}
+
+# podman_settings: the daemon's settings.json, written before LinuxServer's init reads it (it
+# copies its own only when there is none, then sets auth and the whitelists from the
+# environment: none given, so both stay off). Inside the container the RPC listens on 9091 on
+# every address (podman publishes it on the host's 127.0.0.1 only); peers on its loopback.
+podman_settings() {
+  mkdir -p "$PROFILE/config" "$DOWNLOADS"
+  if [ ! -d "$FAR" ]; then
+    # A subvolume is another device to rename(2): a move from /downloads to /far copies.
+    btrfs subvolume create "$FAR" >/dev/null 2>&1 || mkdir -p "$FAR"
+  fi
+  python3 - "$PROFILE/config/settings.json" <<'PY2'
+import json, sys
+path = sys.argv[1]
+try:
+    settings = json.load(open(path))
+except (FileNotFoundError, ValueError):
+    settings = {}
+settings.update({
+    "rpc-enabled": True, "rpc-port": 9091, "rpc-bind-address": "0.0.0.0",
+    "rpc-authentication-required": False, "rpc-whitelist-enabled": False,
+    "rpc-host-whitelist-enabled": False, "peer-port": 51413,
+    "peer-port-random-on-start": False, "bind-address-ipv4": "127.0.0.1",
+    "bind-address-ipv6": "::1", "dht-enabled": False, "pex-enabled": False,
+    "lpd-enabled": False, "port-forwarding-enabled": False, "utp-enabled": False,
+    "download-dir": "/downloads", "incomplete-dir-enabled": False,
+    "watch-dir-enabled": False, "start-added-torrents": True, "blocklist-enabled": False,
+    "message-level": 3,
+})
+json.dump(settings, open(path, "w"), indent=4, sort_keys=True)
+PY2
+}
+
+podman_start() {
+  need podman podman
+  if podman_running; then echo "already running (container $CONTAINER) on $BASE"; return 0; fi
+  if answers "$RPC"; then
+    echo "something already answers on $BASE, and it is not the container $CONTAINER;" \
+      "refusing to start (stop it first)" >&2
+    exit 1
+  fi
+  podman rm -f "$CONTAINER" >/dev/null 2>&1 || true
+  podman image exists "$IMAGE" || podman pull -q "$IMAGE" >/dev/null
+  podman_settings
+  # keep-id: the container's user is this one, so LinuxServer's image runs unprivileged
+  # (no PUID/PGID, no chown of the mounts) and every file it writes is ours.
+  podman run -d --name "$CONTAINER" --userns keep-id -e TZ=Etc/UTC \
+    -p "127.0.0.1:$PORT:9091" -v "$PROFILE/config:/config" -v "$DOWNLOADS:/downloads" \
+    -v "$FAR:/far" "$IMAGE" >/dev/null
+  wait_answer "$RPC" "podman logs $CONTAINER"
+  local session
+  session="$(trpc session_get '{"fields":["version","rpc_version_semver","download_dir"]}')"
+  python3 -c '
+import json, sys
+r = json.loads(sys.argv[1])["result"]
+if r["download_dir"].rstrip("/") != "/downloads":
+    sys.exit("the daemon on this port does not save into /downloads: not ours")
+print("Transmission", r["version"], "in podman (" + sys.argv[4] + ") · RPC", r["rpc_version_semver"], "·", sys.argv[2], "· profile", sys.argv[3])
+print("path map: /downloads -> " + sys.argv[3] + "/downloads, /far -> " + sys.argv[3] + "/far")
+' "$session" "$RPC" "$PROFILE" "$IMAGE"
+}
+
+podman_stop() {
+  podman rm -f -t 10 "$CONTAINER" >/dev/null 2>&1 || true
+}
+
+podman_status() {
+  if ! podman_running; then echo "not running"; return 1; fi
+  echo "running (container $CONTAINER, $IMAGE)"
+  transmission_status_list
+}
+
+# podman_add TORRENT-FILE HOST-DIR: added with the dir as the container sees it.
+podman_add() {
+  transmission_add "$1" "/downloads/${2#"$DOWNLOADS"/}"
 }
 
 # ---- Deluge ------------------------------------------------------------------------------------
@@ -376,16 +487,23 @@ cmd_seed() {
 cmd_start() { "${ENGINE}_start"; }
 cmd_status() { "${ENGINE}_status"; }
 cmd_stop() {
-  if [ "$ENGINE" = deluge ]; then deluge_stop; else stop_pid "$PIDFILE"; fi
+  case "$ENGINE" in
+  deluge) deluge_stop ;;
+  podman) podman_stop ;;
+  *) stop_pid "$PIDFILE" ;;
+  esac
   echo "stopped"
 }
 cmd_reset() {
   cmd_stop
   rm -rf "$PROFILE"
+  # far/ may be a btrfs subvolume: rm empties it and removes it as a folder (Linux 4.18+).
+  [ ! -e "$PROFILE" ] || { echo "could not remove $PROFILE" >&2; exit 1; }
   if [ "$ENGINE" = deluge ]; then DELUGE_PASS="${DELUGE_TEST_PASS:-$(dev_env_get DELUGE_TEST_PASS)}"; fi
   cmd_start
 }
 cmd_log() {
+  if [ "$ENGINE" = podman ]; then podman logs -f --tail 50 "$CONTAINER"; return; fi
   if [ "$ENGINE" = deluge ]; then tail -n 50 -f "$LOGFILE" "$WEB_LOGFILE"; else tail -n 50 -f "$LOGFILE"; fi
 }
 
