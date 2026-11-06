@@ -3206,6 +3206,10 @@ Item {
             App.showBothFolders(hash);
         else if (action === "start") // DECISIONS C20: "retry", a start that forgets the stop
             App.retryTorrents(hashes);
+        else if (action === "startHere") // C25 K24: a failed move's torrent, started in place
+            App.retryTorrents(hashes);
+        else if (action === "folder")
+            App.openFolder(hash);
         else if (action === "recheck")
             App.recheck(hashes);
         else if (action === "addAgain") // board 44 §2: libtorrent's hybrid error

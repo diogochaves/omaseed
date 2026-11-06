@@ -66,6 +66,41 @@ TestCase {
         compare(block.hints[1].clickable, true);
     }
 
+    // DECISIONS C25 K24 (board 47 §F): Transmission's own words, no log link, "copy
+    // Transmission's words", and what it did on the dim line; a failed move starts here.
+    function test_an_engines_error_is_in_its_own_words() {
+        const block = createTemporaryObject(errorBlockComponent, testCase, {
+                                                "problem": {
+                                                    "found": true,
+                                                    "engine": "Transmission",
+                                                    "failedMove": true,
+                                                    "headline": "Didn't move",
+                                                    "detail": "Transmission: “Couldn't move '/srv/films' to '/tmp/locked/dest': Permission denied (13)”",
+                                                    "loggedAtText": "16:26",
+                                                    "note": "Transmission stopped it · its files are still in /srv/films",
+                                                    "actions": ["startHere", "location"]
+                                                }
+                                            });
+        compare(block.kindColor, Theme.red);
+        compare(block.hints.map(hint => (hint.key + " " + hint.label).trim()),
+                ["e start it here", "m move…", "copy Transmission's words"]);
+        compare(findChild(block, "errorMeta").text,
+                "16:26 · Transmission stopped it · its files are still in /srv/films");
+        block.problem = {
+            "found": true,
+            "engine": "Transmission",
+            "headline": "Transmission can't write to its save folder",
+            "detail": "Transmission says: “Permission denied (13)”",
+            "folder": "/home/sbx/Downloads/swarm-readonly",
+            "loggedAtText": "11:40",
+            "note": "Transmission stopped it · retry starts it again",
+            "actions": ["start", "location", "folder"]
+        };
+        compare(block.hints.map(hint => (hint.key + " " + hint.label).trim()),
+                ["e retry", "m move…", "o open folder", "copy Transmission's words"]);
+        compare(findChild(block, "errorFolder").text, "/home/sbx/Downloads/swarm-readonly");
+    }
+
     // docs/44 D13 (#121): a stuck move is red in board 28's place: show both folders, c recheck
     // (DECISIONS C28, #158) and set location…, then the log's links; its partial copies named
     // when they are seen.

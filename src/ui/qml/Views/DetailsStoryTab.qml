@@ -6,6 +6,7 @@ import Omaseed.Kit
 // The details' story tab (board 46 `details()`, DECISIONS C24 H6), in reading order:
 //
 //   1. docs/28's error block, when qBittorrent's log says why it is in error;
+//      on an engine with no log, its own text (C25 K24);
 //   2. docs/32's failure block under it, a move, rename or part file that didn't happen;
 //   3. C18 D7's last move, while the history keeps it, with "move back…";
 //   4. the pieces bar (docs/12 G3), while the torrent has pieces;

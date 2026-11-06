@@ -40,6 +40,8 @@ private slots:
     void restingSaysStopped();
     void needsYouSaysTheCauseAndItsFix();
     void aFailureLeadsWithItsFix();
+    void anEnginesErrorReadsInItsWords();
+    void theSentencesNameTheServersEngine();
     void monogramsTakeTwoLetters_data();
     void monogramsTakeTwoLetters();
 };
@@ -192,6 +194,55 @@ void TestRowWords::needsYouSaysTheCauseAndItsFix()
     QCOMPARE(words.fact, QStringLiteral("files missing"));
     QCOMPARE(words.sentence, QStringLiteral("its files are gone from /srv/a"));
     QVERIFY(words.fix.isEmpty());
+}
+
+// DECISIONS C25 K24 (board 47 §F): on Transmission the row reads the torrent's own text: the
+// cause, "stopped" where "needs you" would be, the engine named, and "start it here" for a
+// failed move.
+void TestRowWords::anEnginesErrorReadsInItsWords()
+{
+    const Torrent t = make({{"state", "error"}, {"progress", 1.0}});
+    RowTrouble trouble;
+    trouble.cause = QStringLiteral("stopped"); // the Status column: Transmission stopped it
+    trouble.problemEngine = QStringLiteral("Transmission");
+    trouble.problemCause = QStringLiteral("no access");
+    trouble.failedMove = true;
+    trouble.headline = QStringLiteral("Didn't move");
+    trouble.problemSentence =
+        QStringLiteral("Transmission couldn't move it to /tmp/locked/dest · it stopped the torrent");
+    trouble.actions = {QStringLiteral("startHere"), QStringLiteral("location")};
+    RowWords words = RowWords::of(t, TorrentFilterModel::NeedsYou, trouble, QStringLiteral("Transmission"));
+    QCOMPARE(words.fact, QStringLiteral("didn't move"));
+    QCOMPARE(words.caption, QStringLiteral("stopped"));
+    QCOMPARE(words.sentence, trouble.problemSentence);
+    QCOMPARE(words.fix, QStringLiteral("start it here"));
+    QCOMPARE(words.fixAction, QStringLiteral("problem:startHere"));
+
+    // An error in place: its cause, and retry.
+    trouble.failedMove = false;
+    trouble.problemSentence =
+        QStringLiteral("Transmission can't write to its save folder · it stopped the torrent");
+    trouble.actions = {QStringLiteral("start"), QStringLiteral("location"), QStringLiteral("folder")};
+    words = RowWords::of(t, TorrentFilterModel::NeedsYou, trouble, QStringLiteral("Transmission"));
+    QCOMPARE(words.fact, QStringLiteral("no access"));
+    QCOMPARE(words.sentence, trouble.problemSentence);
+    QCOMPARE(words.fix, QStringLiteral("retry"));
+    QCOMPARE(words.fixAction, QStringLiteral("problem:start"));
+    QCOMPARE(RowWords::fixWords(QStringLiteral("startHere"), false), QStringLiteral("start it here"));
+}
+
+// Where a row's sentence names who does it, it is the server's engine, never qBittorrent on a
+// Transmission.
+void TestRowWords::theSentencesNameTheServersEngine()
+{
+    const Torrent errored = make({{"state", "error"}, {"progress", 0.0}});
+    RowWords words = RowWords::of(errored, TorrentFilterModel::NeedsYou, {}, QStringLiteral("Transmission"));
+    QCOMPARE(words.sentence, QStringLiteral("Transmission stopped it with an error"));
+    const Torrent moving = make({{"state", "moving"}, {"progress", 0.4}});
+    words = RowWords::of(moving, TorrentFilterModel::Arriving, {}, QStringLiteral("Transmission"));
+    QCOMPARE(words.sentence, QStringLiteral("Transmission is moving its files"));
+    words = RowWords::of(moving, TorrentFilterModel::Arriving, {});
+    QCOMPARE(words.sentence, QStringLiteral("qBittorrent is moving its files"));
 }
 
 void TestRowWords::aFailureLeadsWithItsFix()

@@ -99,7 +99,11 @@ QList<StoryEvent> TorrentStory::events(const StoryInput &input)
     if (!input.failure.isEmpty())
         add(input.failureAt, StoryEvent::Kind::Warn, input.failure, tr("from qBittorrent's log"));
     if (!input.problem.isEmpty())
-        add(input.problemAt, StoryEvent::Kind::Error, input.problem, tr("from qBittorrent's log"));
+        add(input.problemAt,
+            StoryEvent::Kind::Error,
+            input.problem,
+            input.problemEngine.isEmpty() ? tr("from qBittorrent's log")
+                                          : tr("%1 stopped it").arg(input.problemEngine));
 
     // Newest first (DECISIONS C32 D15, amending C24 H6's order): sorted by time with two at
     // the same second in the order above (added before finished), then read backwards, so

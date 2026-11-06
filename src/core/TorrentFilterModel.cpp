@@ -704,8 +704,12 @@ TorrentFilterModel::wordsAt(const TorrentModel &source, const QModelIndex &at, i
         trouble.failureKind = failure.value(QStringLiteral("kind")).toString();
         trouble.failureHeadline = failure.value(QStringLiteral("headline")).toString();
         trouble.failureActions = failure.value(QStringLiteral("actions")).toStringList();
+        trouble.problemEngine = problem.value(QStringLiteral("engine")).toString();
+        trouble.problemCause = problem.value(QStringLiteral("cause")).toString();
+        trouble.failedMove = problem.value(QStringLiteral("failedMove")).toBool();
+        trouble.problemSentence = problem.value(QStringLiteral("rowSentence")).toString();
     }
-    return RowWords::of(source.torrentAt(at.row()), question, trouble);
+    return RowWords::of(source.torrentAt(at.row()), question, trouble, m_engineName);
 }
 
 RowWords TorrentFilterModel::wordsOfHash(const QString &hash) const
@@ -1010,6 +1014,15 @@ void TorrentFilterModel::setGroupBy(GroupBy groupBy)
         freezeOrder();
     rebuildGroups();
     Q_EMIT groupByChanged();
+}
+
+void TorrentFilterModel::setEngineName(const QString &name)
+{
+    if (m_engineName == name)
+        return;
+    m_engineName = name;
+    if (rowCount() > 0)
+        Q_EMIT dataChanged(index(0, 0), index(rowCount() - 1, 0));
 }
 
 QString TorrentFilterModel::groupKeyOf(const Torrent &torrent, int question) const

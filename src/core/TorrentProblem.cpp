@@ -318,6 +318,10 @@ QVariantMap TorrentProblem::toMap() const
         {QStringLiteral("stuckMove"), stuckMove},
         {QStringLiteral("destination"), destination},
         {QStringLiteral("source"), source},
+        {QStringLiteral("engine"), engine},
+        {QStringLiteral("failedMove"), failedMove},
+        {QStringLiteral("note"), note},
+        {QStringLiteral("rowSentence"), rowSentence},
     };
 }
 
@@ -668,6 +672,128 @@ TorrentProblem hybridRecheck()
                         "qBittorrent brings it back. Adding it again clears it, at the cost of "
                         "its ratio, seeding time and added date.");
     problem.actions = {QStringLiteral("addAgain")};
+    return problem;
+}
+
+EngineText readEngineText(const QString &engineText)
+{
+    EngineText said;
+    QString message = engineText.trimmed();
+    // A move: two quoted absolute paths, the old folder first.
+    static const QRegularExpression move(QStringLiteral("'(/[^']*)'[^']*'(/[^']*)'"));
+    const QRegularExpressionMatch found = move.match(message);
+    if (found.hasMatch()) {
+        said.from = SharedData::normalize(found.captured(1));
+        said.to = SharedData::normalize(found.captured(2));
+    }
+    qsizetype cut = message.lastIndexOf(QLatin1String("': "));
+    if (cut >= 0) {
+        cut += 3;
+    } else {
+        cut = message.lastIndexOf(QLatin1String(": "));
+        cut = cut >= 0 ? cut + 2 : 0;
+    }
+    message = message.mid(cut).trimmed();
+    static const QRegularExpression code(QStringLiteral("\\s*\\(-?\\d+\\)$"));
+    message.remove(code);
+    said.message = message;
+    return said;
+}
+
+TorrentProblem fromEngine(const Torrent &torrent, const QString &engine, const QDateTime &seenAt)
+{
+    const QString text = torrent.errorMessage.trimmed();
+    const EngineText said = readEngineText(text);
+    TorrentProblem problem;
+    problem.found = !text.isEmpty();
+    problem.engine = engine;
+    problem.line = text;
+    problem.count = problem.found ? 1 : 0;
+    problem.loggedAt = seenAt;
+
+    ProblemLine line;
+    line.kind = said.isMove() ? ProblemLine::Kind::MoveFailed : ProblemLine::Kind::FileError;
+    line.systemMessage = said.message;
+    TorrentProblem cause = describe(line);
+    // Transmission 4's "No data found! Ensure your drives are connected or use \"Set
+    // Location\"…" (English only: another language reads as its words, quoted): the files
+    // aren't where it left them, as qBittorrent's missing files.
+    if (said.message.contains(QLatin1String("No data found"), Qt::CaseInsensitive)) {
+        cause.causeKey = QStringLiteral("missingFiles");
+        cause.cause = tr("missing files");
+        cause.headline = tr("Its files aren't where %1 left them").arg(engine);
+        cause.actions = {QStringLiteral("location"), QStringLiteral("recheck")};
+    }
+    const bool known = problem.found && cause.causeKey != QLatin1String("other");
+    problem.causeKey = problem.found ? cause.causeKey : QStringLiteral("notSaid");
+    problem.cause = known ? cause.cause : tr("error");
+    problem.advice = cause.advice;
+    // Board 47 §F: the row and the block say the torrent stopped; Transmission stops it.
+    const QString stopped = tr("%1 stopped it").arg(engine);
+    const QString tail = tr("it stopped the torrent");
+
+    if (said.isMove()) {
+        // Board 47 `sf07` and `stk`: "Didn't move", the engine's words whole, where its
+        // files are; started here, it seeds from there.
+        problem.failedMove = true;
+        problem.source = said.from;
+        problem.destination = said.to;
+        const bool whenDone =
+            !torrent.downloadPath.isEmpty() &&
+            SharedData::normalize(torrent.downloadPath) == said.from &&
+            SharedData::normalize(torrent.downloadPath) != SharedData::normalize(torrent.savePath);
+        problem.headline = whenDone ? tr("Didn't move when it finished") : tr("Didn't move");
+        problem.detail = tr("%1: “%2”").arg(engine, text);
+        problem.note =
+            stopped + QStringLiteral(" · ") +
+            (whenDone ? tr("its files are in %1") : tr("its files are still in %1")).arg(said.from);
+        problem.rowSentence =
+            (whenDone ? tr("%1 couldn't move it out of the incomplete folder").arg(engine)
+                      : tr("%1 couldn't move it to %2").arg(engine, said.to)) +
+            QStringLiteral(" · ") + tail;
+        problem.actions = whenDone ? QStringList{QStringLiteral("startHere"),
+                                                 QStringLiteral("bothFolders"),
+                                                 QStringLiteral("location")}
+                                   : QStringList{QStringLiteral("startHere"),
+                                                 QStringLiteral("location")};
+        return problem;
+    }
+
+    // Board 47 `unw`: the cause from the text, the engine's words quoted, its folder.
+    const QString start = QStringLiteral("start");
+    if (!known)
+        problem.headline = tr("%1 stopped it with an error").arg(engine);
+    else if (cause.causeKey == QLatin1String("noAccess"))
+        problem.headline = tr("%1 can't write to its save folder").arg(engine);
+    else
+        problem.headline = cause.headline;
+    problem.detail = problem.found ? tr("%1 says: “%2”").arg(engine, text) : QString();
+    problem.folder = SharedData::normalize(torrent.savePath);
+    // C20's retry first, as K24 has it: the engine stopped it, so starting it leads.
+    QStringList actions = cause.actions;
+    actions.removeAll(start);
+    actions.removeAll(QStringLiteral("checkDisk"));
+    if (cause.causeKey == QLatin1String("missing") || cause.causeKey == QLatin1String("missingFiles"))
+        actions.append(start);
+    else
+        actions.prepend(start);
+    if ((cause.causeKey == QLatin1String("noAccess") ||
+         cause.causeKey == QLatin1String("readOnly") ||
+         cause.causeKey == QLatin1String("diskFull")) &&
+        !problem.folder.isEmpty())
+        actions.append(QStringLiteral("folder"));
+    problem.actions = actions;
+    problem.note = stopped + QStringLiteral(" · ") +
+                   (actions.constFirst() == start ? tr("retry starts it again")
+                                                  : tr("a recheck finds what is there"));
+    if (known) {
+        QString sentence = problem.headline;
+        if (!sentence.startsWith(engine))
+            sentence[0] = sentence.at(0).toLower();
+        problem.rowSentence = sentence + QStringLiteral(" · ") + tail;
+    } else {
+        problem.rowSentence = problem.headline;
+    }
     return problem;
 }
 

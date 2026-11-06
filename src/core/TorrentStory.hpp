@@ -32,6 +32,9 @@ struct StoryInput
     /// The error block's headline (TorrentProblem) and when the log wrote it; "" for none.
     QString problem;
     QDateTime problemAt;
+    /// DECISIONS C25 K24: the engine whose own words the problem is (TorrentProblem::engine),
+    /// "" for qBittorrent's log.
+    QString problemEngine;
     /// The failure block's headline (TorrentFailure) and when the log wrote it; "" for none.
     QString failure;
     QDateTime failureAt;

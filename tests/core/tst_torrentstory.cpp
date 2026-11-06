@@ -148,6 +148,9 @@ void TestTorrentStory::theErrorAndTheFailureComeAtTheirLoggedTimes()
     QCOMPARE(events.at(1).kind, StoryEvent::Kind::Warn);
     QCOMPARE(events.at(0).kind, StoryEvent::Kind::Error);
     QCOMPARE(events.at(0).detail, QStringLiteral("from qBittorrent's log"));
+    // C25 K24: an error in an engine's own words says who stopped it, not the log.
+    input.problemEngine = QStringLiteral("Transmission");
+    QCOMPARE(TorrentStory::events(input).at(0).detail, QStringLiteral("Transmission stopped it"));
     QCOMPARE(TorrentStory::kindName(StoryEvent::Kind::Error), QStringLiteral("error"));
     QCOMPARE(TorrentStory::kindName(StoryEvent::Kind::Move), QStringLiteral("move"));
 }

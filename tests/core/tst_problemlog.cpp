@@ -5,6 +5,7 @@
 #include "QbtFeed.hpp"
 #include "core/ProblemLog.hpp"
 #include "core/TorrentModel.hpp"
+#include "core/engines/TorrentPatch.hpp"
 
 #include <QJsonArray>
 #include <QJsonObject>
@@ -72,6 +73,7 @@ private slots:
     void noticeOnlyForErrorsWhileWatching();
     void aFullUpdateReadsTheLogAgain();
     void healthyTorrentsAreLeftAlone();
+    void withoutALogTheTorrentsOwnWordsAreRead();
 
 private:
     TorrentModel *m_model = nullptr;
@@ -237,6 +239,52 @@ void TestProblemLog::noticeOnlyForErrorsWhileWatching()
     // Once per entry into error, not once per read.
     qbtfeed::entries(*m_log, {});
     QCOMPARE(errored.count(), 1);
+}
+
+// DECISIONS C25 K24: an engine with no log (Transmission). Nothing is read; an errored
+// torrent's problem comes from its own text in the engine's name at the next sync, and its
+// notice goes then, once.
+void TestProblemLog::withoutALogTheTorrentsOwnWordsAreRead()
+{
+    using omaseed::core::Torrent;
+    using omaseed::core::TorrentField;
+    const auto said = [this](const QString &hash, const QString &state, const QString &text) {
+        QList<omaseed::core::TorrentPatch> patches = omaseed::core::QbtTranslate::torrents(
+            {{hash, QJsonObject{{QStringLiteral("state"), state}}}});
+        patches[0].set(&Torrent::errorMessage, TorrentField::ErrorMessage, text);
+        m_model->applyPartial(patches, {});
+    };
+    said(kA, QStringLiteral("error"), QStringLiteral("Permission denied (13)"));
+    QSignalSpy errored(m_log, &ProblemLog::torrentErrored);
+    m_log->setEngine(QStringLiteral("Transmission"), false);
+    QVariantMap problem = problemOf(*m_model, kA);
+    QCOMPARE(problem.value(QStringLiteral("engine")).toString(), QStringLiteral("Transmission"));
+    QCOMPARE(problem.value(QStringLiteral("headline")).toString(),
+             QStringLiteral("Transmission can't write to its save folder"));
+    QCOMPARE(problem.value(QStringLiteral("line")).toString(), QStringLiteral("Permission denied (13)"));
+    QCOMPARE(causeOf(*m_model, kA), QStringLiteral("no access"));
+    QCOMPARE(errored.count(), 0); // in error when first seen: no notice
+
+    // A torrent going into error while watched: its words and its notice at the next sync.
+    said(kB, QStringLiteral("error"), QStringLiteral("No space left on device (28)"));
+    m_log->onSynced(false);
+    QCOMPARE(problemOf(*m_model, kB).value(QStringLiteral("headline")).toString(),
+             QStringLiteral("The disk is full"));
+    QCOMPARE(errored.count(), 1);
+    QCOMPARE(errored.at(0).at(0).toString(), kB);
+    QCOMPARE(errored.at(0).at(2).value<TorrentProblem>().engine, QStringLiteral("Transmission"));
+    m_log->onSynced(false);
+    QCOMPARE(errored.count(), 1);
+    QCOMPARE(m_log->lastId(), -1); // never read
+
+    // Out of error: the problem goes.
+    said(kB, QStringLiteral("stalledUP"), QString());
+    m_log->onSynced(false);
+    QVERIFY(problemOf(*m_model, kB).isEmpty());
+
+    // Back on qBittorrent's log, the engine's words go until the log says why.
+    m_log->setEngine(QStringLiteral("qBittorrent"), true);
+    QVERIFY(problemOf(*m_model, kA).isEmpty());
 }
 
 void TestProblemLog::aFullUpdateReadsTheLogAgain()

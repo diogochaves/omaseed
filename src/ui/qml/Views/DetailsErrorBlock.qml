@@ -15,6 +15,11 @@ import Omaseed.Kit
 // docs/32 F1–F3 (#55): the same block for a move, rename or part file that failed while the
 // torrent kept working (`problem` is then TorrentFailure::toMap(), which has a `kind`): always
 // yellow with "!", since nothing is broken, its own actions, and `x dismiss` last.
+//
+// DECISIONS C25 K24 (board 47 §F): on an engine with no log (`problem.engine`, Transmission)
+// the block is read from the torrent's own text, in the engine's words: no log link, "copy
+// Transmission's words", and a dim line on what the engine did ("Transmission stopped it ·
+// retry starts it again"); a move it stopped the torrent on offers "start it here".
 Rectangle {
     id: root
 
@@ -34,6 +39,8 @@ Rectangle {
     signal actionTriggered(string action)
 
     readonly property bool found: root.problem.found === true
+    /// K24: the engine whose own words these are; "" for qBittorrent's log.
+    readonly property string engine: root.problem.engine || ""
     /// docs/32: a failure rather than an error.
     readonly property bool failure: (root.problem.kind || "").length > 0
     readonly property bool missingFiles: root.problem.missingFiles === true
@@ -55,6 +62,8 @@ Rectangle {
             "bothFolders": ["", qsTr("show both folders")],
             // DECISIONS C20 (#107): `p` stops an errored torrent; "retry" has a key of its own.
             "start": ["e", qsTr("retry")],
+            // C25 K24: a move the engine stopped it on; started, it seeds where it is.
+            "startHere": ["e", qsTr("start it here")],
             "recheck": ["c", qsTr("recheck")],
             "rename": ["2", qsTr("rename in Files")],
             "folder": ["o", qsTr("open folder")],
@@ -79,12 +88,14 @@ Rectangle {
         if (root.found)
             list.push({
                           "key": "",
-                          "label": qsTr("copy the line"),
+                          "label": root.engine.length > 0 ? qsTr("copy %1's words").arg(root.engine)
+                                                          : qsTr("copy the line"),
                           "action": "copy",
                           "clickable": true
                       });
-        // docs/32 D13 (F1, L2): the log face, narrowed to this torrent's lines.
-        if (root.found || root.failure)
+        // docs/32 D13 (F1, L2): the log face, narrowed to this torrent's lines. C25 K24: none
+        // where the words are the torrent's own.
+        if ((root.found || root.failure) && root.engine.length === 0)
             list.push({
                           "key": "",
                           "label": qsTr("its lines in the log"),
@@ -103,6 +114,9 @@ Rectangle {
         return list;
     }
     readonly property string metaText: {
+        // C25 K24: when omaseed saw it, and what the engine did.
+        if (root.engine.length > 0)
+            return [root.problem.loggedAtText, root.problem.note].filter(part => part && part.length > 0).join(" · ");
         // docs/44 D13: no line, no guess why; the log's limits are not the point here.
         if (!root.found && root.stuckMove)
             return "";
@@ -198,7 +212,9 @@ Rectangle {
             textFormat: Text.PlainText
             visible: text.length > 0
             width: parent.width
-            wrapMode: Text.WrapAnywhere
+            // C25 K24: an engine's own words are a sentence, broken between words; libtorrent's
+            // short reason with its path anywhere.
+            wrapMode: root.engine.length > 0 ? Text.WrapAtWordBoundaryOrAnywhere : Text.WrapAnywhere
         }
 
         // #108: what the cause may mean, when the words alone don't say ("may be damaged").

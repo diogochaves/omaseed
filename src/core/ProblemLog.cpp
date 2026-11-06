@@ -78,6 +78,7 @@ void ProblemLog::setClient(EngineClient *client)
     m_client = client;
     m_seenFirstSync = false;
     m_errored.clear();
+    m_erroredSince.clear();
     m_newlyErrored.clear();
     m_stuck.clear();
     // Another server: nothing of this one's failures applies there. The caller hands the next
@@ -100,6 +101,25 @@ void ProblemLog::setClient(EngineClient *client)
     reset();
     if (hadLogLines)
         Q_EMIT logLinesChanged();
+}
+
+void ProblemLog::setEngine(const QString &name, bool hasLog)
+{
+    const QString engine = name.isEmpty() ? QStringLiteral("qBittorrent") : name;
+    if (engine == m_engineName && hasLog == m_hasLog)
+        return;
+    m_engineName = engine;
+    m_hasLog = hasLog;
+    reset();
+    // What was shown came from the other source: worded again from this one.
+    for (auto it = m_problems.cbegin(); it != m_problems.cend(); ++it) {
+        if (!m_torrents.isNull())
+            m_torrents->setProblem(it.key(), {});
+    }
+    m_problems.clear();
+    if (!m_hasLog)
+        publishFromEngine();
+    publishStuck();
 }
 
 void ProblemLog::setTorrents(TorrentModel *torrents)
@@ -139,6 +159,11 @@ void ProblemLog::onSynced(bool fullUpdate, bool mayRead)
     if (fullUpdate || failureTouched())
         updateFailures();
 
+    // C25 K24: an engine with no log says why in the torrent itself.
+    if (!m_hasLog) {
+        publishFromEngine();
+        return;
+    }
     if (!mayRead)
         return;
     const auto since =
@@ -193,6 +218,7 @@ void ProblemLog::updateErrored(bool fullUpdate)
         }
         if (errored && !m_errored.contains(hash)) {
             m_errored.insert(hash);
+            m_erroredSince.insert(hash, QDateTime::currentDateTime());
             changed = true;
             const QDateTime checked = m_checkedAt.value(hash);
             if (checked.isValid() &&
@@ -205,6 +231,7 @@ void ProblemLog::updateErrored(bool fullUpdate)
                 m_newlyErrored.insert(hash);
         } else if (!errored && m_errored.remove(hash)) {
             changed = true;
+            m_erroredSince.remove(hash);
             m_erroredAfterCheck.remove(hash);
             m_newlyErrored.remove(hash);
             m_problems.remove(hash);
@@ -222,7 +249,7 @@ void ProblemLog::updateErrored(bool fullUpdate)
 
 void ProblemLog::read()
 {
-    if (m_reading || m_client.isNull())
+    if (m_reading || m_client.isNull() || !m_hasLog)
         return;
     m_reading = true;
     const quint64 serial = ++m_issued;
@@ -366,6 +393,26 @@ void ProblemLog::publish(const QString &hash, const TorrentProblem &problem)
         return;
     m_problems.insert(hash, problem);
     m_torrents->setProblem(hash, problem.toMap());
+}
+
+void ProblemLog::publishFromEngine()
+{
+    if (m_torrents.isNull())
+        return;
+    for (const QString &hash : std::as_const(m_errored)) {
+        if (m_torrents->indexOfHash(hash) < 0)
+            continue;
+        const QDateTime since = m_erroredSince.value(hash);
+        publish(hash,
+                ProblemMatch::fromEngine(m_torrents->torrent(hash), m_engineName, since));
+    }
+    // N1: the notice goes with the engine's own words, at once (nothing to wait for).
+    const QSet<QString> pending = std::exchange(m_newlyErrored, {});
+    for (const QString &hash : pending) {
+        if (!m_errored.contains(hash) || m_torrents->indexOfHash(hash) < 0)
+            continue;
+        Q_EMIT torrentErrored(hash, m_torrents->torrent(hash).name, m_problems.value(hash));
+    }
 }
 
 void ProblemLog::publishStuck()

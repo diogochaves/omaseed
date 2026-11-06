@@ -106,6 +106,19 @@ struct TorrentProblem
     bool stuckMove = false;
     QString destination;
     QString source;
+    /// DECISIONS C25 K24 (board 47 §F): the engine whose own words `line` is ("Transmission"),
+    /// when the problem was read from the torrent's text rather than qBittorrent's log; ""
+    /// for the log's. Such a block has no log link, and copies the engine's words.
+    QString engine;
+    /// K24: a move the engine stopped the torrent on ("Couldn't move 'A' to 'B': …"): its
+    /// files are still in `source`, `destination` is where they were meant to go.
+    bool failedMove = false;
+    /// K24: what the engine did and what comes next, for the block's dim line after the
+    /// time: "Transmission stopped it · retry starts it again". Engine problems only.
+    QString note;
+    /// K24: the rows display's sentence, where the headline isn't it ("Transmission
+    /// couldn't move it to /dest · it stopped the torrent"). Engine problems only.
+    QString rowSentence;
 
     QVariantMap toMap() const;
     bool operator==(const TorrentProblem &other) const = default;
@@ -165,6 +178,28 @@ TorrentProblem describe(const ProblemLine &line);
 
 /// What an errored torrent with no line shows (S4).
 TorrentProblem notLogged(bool missingFiles);
+
+/// What an engine says in its own text about a failure: the system's words, and the two
+/// folders of a move. Transmission writes "Couldn't move 'OLD' to 'NEW': MESSAGE (CODE)" and
+/// Deluge "Failed to move download folder: MESSAGE", in the daemon's language; the system's
+/// words come last, after the last ": " that follows a quote (a path may hold ": " itself),
+/// with the code dropped. A move is known by its shape, two quoted absolute paths, so it reads
+/// in any language.
+struct EngineText
+{
+    QString message; ///< "Permission denied"
+    QString from;    ///< a move's old folder, or ""
+    QString to;      ///< a move's new folder, or ""
+    bool isMove() const { return !from.isEmpty() && !to.isEmpty(); }
+};
+EngineText readEngineText(const QString &text);
+
+/// DECISIONS C25 K24 (board 47 §F): an errored torrent on an engine with no log
+/// (Transmission), worded from its own text (`Torrent::errorMessage`) in `engine`'s name. The
+/// cause is read from the text where it can be (describe()'s keys); the engine has stopped the
+/// torrent, so starting it leads: "start" ("retry") for an error in place, "startHere" ("start
+/// it here") for a move that failed, which starts it where its files still are.
+TorrentProblem fromEngine(const Torrent &torrent, const QString &engine, const QDateTime &seenAt);
 
 /// Board 44 §2 (DECISIONS C17 D3, #115): a hybrid (v1+v2) torrent that went into error just
 /// after a check, with nothing logged: libtorrent 2.1.2's torrent_inconsistent_hashes. Starting

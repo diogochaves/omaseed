@@ -14,7 +14,6 @@
 #include <QDateTime>
 #include <QDirIterator>
 #include <QFileInfo>
-#include <QRegularExpression>
 
 namespace omaseed::core {
 
@@ -117,20 +116,8 @@ void MoveFeed::setFeatures(const EngineFeatures &features)
 
 QPair<QString, QString> MoveFeed::causeOf(const QString &engineText)
 {
-    // Transmission: "Couldn't move 'OLD' to 'NEW': MESSAGE (CODE)", in the daemon's language;
-    // Deluge: "Failed to move download folder: MESSAGE". The system's words come last, after
-    // the last ": " that follows a quote (a path may hold ": " itself).
-    QString message = engineText.trimmed();
-    qsizetype cut = message.lastIndexOf(QLatin1String("': "));
-    if (cut >= 0) {
-        cut += 3;
-    } else {
-        cut = message.lastIndexOf(QLatin1String(": "));
-        cut = cut >= 0 ? cut + 2 : 0;
-    }
-    message = message.mid(cut).trimmed();
-    static const QRegularExpression code(QStringLiteral("\\s*\\(-?\\d+\\)$"));
-    message.remove(code);
+    // Read as the error block reads it (ProblemMatch::readEngineText, C25 K24).
+    const QString message = ProblemMatch::readEngineText(engineText).message;
     ProblemLine line;
     line.kind = ProblemLine::Kind::MoveFailed;
     line.systemMessage = message;

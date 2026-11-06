@@ -34,6 +34,13 @@ struct RowTrouble
     QString failureKind;
     QString failureHeadline;
     QStringList failureActions;
+    /// DECISIONS C25 K24: the engine whose own text the problem was read from
+    /// (TorrentProblem::engine), "" for qBittorrent's log; its cause ("no access"), whether it
+    /// is a move that failed, and the row's sentence for it.
+    QString problemEngine;
+    QString problemCause;
+    bool failedMove = false;
+    QString problemSentence;
 };
 
 struct RowWords
@@ -47,8 +54,12 @@ struct RowWords
     QString fix;
     QString fixAction;
 
-    /// The words for `torrent`, which answers `question` (a TorrentFilterModel::Question).
-    static RowWords of(const Torrent &torrent, int question, const RowTrouble &trouble);
+    /// The words for `torrent`, which answers `question` (a TorrentFilterModel::Question), on
+    /// a server of `engine` ("Transmission"; "" is qBittorrent), who the sentences name.
+    static RowWords of(const Torrent &torrent,
+                       int question,
+                       const RowTrouble &trouble,
+                       const QString &engine = QString());
 
     /// A cover's two letters (board 39 L3, board 46 `.ab2`): the initials of the name's first
     /// two words, or the first word's first two letters when the second does not start with a

@@ -10,6 +10,7 @@
 #include "core/AltSpeed.hpp"
 #include "core/GlobalState.hpp"
 #include "core/PauseHold.hpp"
+#include "core/ProblemLog.hpp"
 #include "core/SyncEngine.hpp"
 #include "core/TorrentDetails.hpp"
 #include "core/TorrentFilesModel.hpp"
@@ -174,6 +175,9 @@ private Q_SLOTS:
     void aLongMoveIsBusyNotLost();
     void aFailedMoveIsLearntFromTheTorrent();
     void theMoveSheetRunsTransmissionsChecks();
+    void anErroredTorrentReadsTransmissionsWords();
+    void anErrorInPlaceReadsItsCauseAndItsNotice();
+    void aTrackerErrorIsTrackerTrouble();
 
 private:
     /// Starts `app` on `daemon` through the environment, polling every 100 ms, and waits for
@@ -384,6 +388,105 @@ void TestAppTransmission::theMoveSheetRunsTransmissionsChecks()
     QVERIFY2(all.contains(QStringLiteral("the rest follow one at a time")), qPrintable(all));
     QVERIFY2(!all.contains(QStringLiteral("qBittorrent")), qPrintable(all));
     QVERIFY(daemon.lastOf(QStringLiteral("torrent_set_location")) == nullptr);
+    app.engine()->stop();
+}
+
+// Board 47 §F, C25 K24: the recorded torrent in error 3 (a move into a read-only folder) reads
+// Transmission's own text in the row, the hero, the block and the story, with no log; "start it
+// here" is a start.
+void TestAppTransmission::anErroredTorrentReadsTransmissionsWords()
+{
+    Daemon daemon;
+    App app;
+    QVERIFY(startOn(app, daemon));
+    QTRY_VERIFY_WITH_TIMEOUT(
+        !app.engine()->torrents()->problem(kError).value(QStringLiteral("headline")).toString().isEmpty(),
+        3000);
+    const QVariantMap problem = app.engine()->torrents()->problem(kError);
+    QCOMPARE(problem.value(QStringLiteral("engine")).toString(), QStringLiteral("Transmission"));
+    QVERIFY(problem.value(QStringLiteral("failedMove")).toBool());
+    QCOMPARE(problem.value(QStringLiteral("headline")).toString(), QStringLiteral("Didn't move"));
+    const QString text = daemon.library.byHash(kError).value(QStringLiteral("error_string")).toString();
+    QCOMPARE(problem.value(QStringLiteral("detail")).toString(),
+             QStringLiteral("Transmission: “%1”").arg(text));
+    QCOMPARE(problem.value(QStringLiteral("line")).toString(), text);
+    QCOMPARE(problem.value(QStringLiteral("actions")).toStringList(),
+             QStringList({QStringLiteral("startHere"), QStringLiteral("location")}));
+    QVERIFY(problem.value(QStringLiteral("note")).toString().startsWith(
+        QStringLiteral("Transmission stopped it · its files are still in ")));
+
+    // The row, as the rows display and the details' hero read it: stopped, in its words.
+    QTRY_COMPARE_WITH_TIMEOUT(
+        app.torrentRow(kError).value(QStringLiteral("rowCaption")).toString(),
+        QStringLiteral("stopped"), 3000);
+    const QVariantMap row = app.torrentRow(kError);
+    QCOMPARE(row.value(QStringLiteral("rowFact")).toString(), QStringLiteral("didn't move"));
+    QVERIFY(row.value(QStringLiteral("rowSentence")).toString().startsWith(
+        QStringLiteral("Transmission couldn't move it to ")));
+    QVERIFY(row.value(QStringLiteral("rowSentence")).toString().endsWith(
+        QStringLiteral(" · it stopped the torrent")));
+    for (const QVariant &event : app.torrentStory(kError)) {
+        const QVariantMap e = event.toMap();
+        if (e.value(QStringLiteral("kind")).toString() == QLatin1String("error"))
+            QCOMPARE(e.value(QStringLiteral("detail")).toString(),
+                     QStringLiteral("Transmission stopped it"));
+    }
+
+    // "start it here": Transmission's start.
+    daemon.wire.calls.clear();
+    app.retryTorrents({kError});
+    QTRY_VERIFY_WITH_TIMEOUT(daemon.lastOf(QStringLiteral("torrent_start")) != nullptr, 3000);
+    QCOMPARE(daemon.idsOf(QStringLiteral("torrent_start")).constLast(), QStringList({kError}));
+    app.engine()->stop();
+}
+
+// Board 47 `unw`: an error in place reads its cause ("no access"), retry first; one going into
+// error while watched gets its notice in Transmission's words.
+void TestAppTransmission::anErrorInPlaceReadsItsCauseAndItsNotice()
+{
+    Daemon daemon;
+    daemon.library.byHash(kError).insert(QStringLiteral("error_string"),
+                                         QStringLiteral("Permission denied (13)"));
+    App app;
+    QVERIFY(startOn(app, daemon));
+    QTRY_COMPARE_WITH_TIMEOUT(
+        app.engine()->torrents()->problem(kError).value(QStringLiteral("headline")).toString(),
+        QStringLiteral("Transmission can't write to its save folder"), 3000);
+    const QVariantMap problem = app.engine()->torrents()->problem(kError);
+    QCOMPARE(problem.value(QStringLiteral("actions")).toStringList().constFirst(),
+             QStringLiteral("start"));
+    QTRY_COMPARE_WITH_TIMEOUT(app.torrentRow(kError).value(QStringLiteral("rowFact")).toString(),
+                              QStringLiteral("no access"), 3000);
+
+    QSignalSpy errored(app.engine()->problems(), &omaseed::core::ProblemLog::torrentErrored);
+    QJsonObject &single = daemon.library.byHash(kSingle);
+    single.insert(QStringLiteral("error"), 3);
+    single.insert(QStringLiteral("error_string"), QStringLiteral("No space left on device (28)"));
+    QTRY_COMPARE_WITH_TIMEOUT(errored.count(), 1, 3000);
+    QCOMPARE(errored.at(0).at(0).toString(), kSingle);
+    QCOMPARE(errored.at(0).at(2).value<omaseed::core::TorrentProblem>().headline,
+             QStringLiteral("The disk is full"));
+    app.engine()->stop();
+}
+
+// Board 47 §F/H: errors 1 and 2 are the trackers': tracker trouble, never "needs you".
+void TestAppTransmission::aTrackerErrorIsTrackerTrouble()
+{
+    Daemon daemon;
+    QJsonObject &single = daemon.library.byHash(kSingle);
+    single.insert(QStringLiteral("error"), 2);
+    single.insert(QStringLiteral("error_string"),
+                  QStringLiteral("Tracker gave HTTP response code 404 (Not Found)"));
+    App app;
+    QVERIFY(startOn(app, daemon));
+    const omaseed::core::Torrent t = app.engine()->torrents()->torrent(kSingle);
+    QVERIFY(t.hasTrackerError);
+    QVERIFY(t.status.phase != omaseed::core::TorrentPhase::Errored);
+    QVERIFY(t.errorMessage.isEmpty());
+    QVERIFY(app.engine()->torrents()->problem(kSingle).isEmpty());
+    // The pack's trackers all failed to answer: tracker trouble too, and nothing more.
+    QVERIFY(app.engine()->torrents()->torrent(kPack).hasTrackerError);
+    QVERIFY(app.engine()->torrents()->problem(kPack).isEmpty());
     app.engine()->stop();
 }
 

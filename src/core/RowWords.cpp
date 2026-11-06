@@ -68,9 +68,29 @@ QString partOf(const Torrent &t)
 }
 
 /// The needs-you words: the short cause, the long one, the fix.
-void needsYou(const Torrent &t, const RowTrouble &trouble, RowWords &words)
+void needsYou(const Torrent &t, const RowTrouble &trouble, const QString &engine, RowWords &words)
 {
     words.caption = tr("needs you");
+    if (!trouble.problemEngine.isEmpty()) {
+        // C25 K24 (board 47 §F): the engine's own text, read; the engine stopped it, so the
+        // caption says so where "needs you" would be, and the sentence names the engine.
+        words.fact = trouble.failedMove           ? tr("didn't move")
+                     : trouble.problemCause.isEmpty() ? tr("error")
+                                                      : trouble.problemCause;
+        if (trouble.cause == QLatin1String("stopped"))
+            words.caption = tr("stopped");
+        words.sentence = trouble.problemSentence.isEmpty() ? trouble.headline
+                                                           : trouble.problemSentence;
+        for (const QString &id : trouble.actions) {
+            const QString fix = RowWords::fixWords(id, trouble.stuckMove);
+            if (!fix.isEmpty()) {
+                words.fix = fix;
+                words.fixAction = QStringLiteral("problem:") + id;
+                break;
+            }
+        }
+        return;
+    }
     // C20: an errored torrent that was stopped says "stopped" in the Status column; the row
     // keeps the cause it stopped on, when the log has one.
     const bool stoppedWord = trouble.cause == QLatin1String("stopped");
@@ -95,7 +115,7 @@ void needsYou(const Torrent &t, const RowTrouble &trouble, RowWords &words)
         words.sentence = t.savePath.isEmpty() ? tr("its files are gone")
                                               : tr("its files are gone from %1").arg(t.savePath);
     else
-        words.sentence = tr("qBittorrent stopped it with an error");
+        words.sentence = tr("%1 stopped it with an error").arg(engine);
 
     // The error block's first action leads (docs/28); else the failure block's (docs/32);
     // an error the log says nothing about can still be retried (C20).
@@ -129,7 +149,7 @@ void needsYou(const Torrent &t, const RowTrouble &trouble, RowWords &words)
 }
 
 /// The arriving words, by state.
-void arriving(const Torrent &t, RowWords &words)
+void arriving(const Torrent &t, const QString &engine, RowWords &words)
 {
     if (isMetadata(t.status)) {
         words.fact = tr("finding files");
@@ -156,7 +176,7 @@ void arriving(const Torrent &t, RowWords &words)
     if (t.status.phase == TorrentPhase::Moving) {
         words.fact = tr("moving");
         words.caption = Format::percent(t.progress);
-        words.sentence = tr("qBittorrent is moving its files");
+        words.sentence = tr("%1 is moving its files").arg(engine);
         return;
     }
     if (isStalledDownload(t.status)) {
@@ -194,6 +214,9 @@ QString RowWords::fixWords(const QString &action, bool stuckMove)
     // The error and failure blocks' words for the same ids (DetailsErrorBlock.qml).
     if (action == QLatin1String("start"))
         return tr("retry");
+    // C25 K24: a move the engine stopped it on; started, it seeds where its files are.
+    if (action == QLatin1String("startHere"))
+        return tr("start it here");
     if (action == QLatin1String("location"))
         return stuckMove ? tr("set location…") : tr("move…");
     if (action == QLatin1String("recheck"))
@@ -205,9 +228,11 @@ QString RowWords::fixWords(const QString &action, bool stuckMove)
     return {};
 }
 
-RowWords RowWords::of(const Torrent &t, int question, const RowTrouble &trouble)
+RowWords
+RowWords::of(const Torrent &t, int question, const RowTrouble &trouble, const QString &engine)
 {
     RowWords words;
+    const QString named = engine.isEmpty() ? QStringLiteral("qBittorrent") : engine;
 
     // Beside the name: what kind of place it is in and how big, "magnet" before the metadata.
     if (isMetadata(t.status) && t.totalSize < 0)
@@ -219,10 +244,10 @@ RowWords RowWords::of(const Torrent &t, int question, const RowTrouble &trouble)
 
     switch (question) {
     case TorrentFilterModel::NeedsYou:
-        needsYou(t, trouble, words);
+        needsYou(t, trouble, named, words);
         break;
     case TorrentFilterModel::Arriving:
-        arriving(t, words);
+        arriving(t, named, words);
         break;
     case TorrentFilterModel::LandedToday: {
         words.fact = t.completionOn.toLocalTime().toString(QStringLiteral("HH:mm"));

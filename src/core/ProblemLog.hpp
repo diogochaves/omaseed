@@ -67,6 +67,11 @@ public:
     void setWatchDuration(std::chrono::milliseconds duration) { m_watchDuration = duration; }
     /// Whether the window shows: failures are looked for every 15 s only then.
     void setVisible(bool visible) { m_visible = visible; }
+    /// DECISIONS C25 K24: the server's engine, by name, and whether it keeps a log
+    /// (EngineFeatures::engineLog). Without one (Transmission) nothing is read: an errored
+    /// torrent's problem comes from its own text (ProblemMatch::fromEngine), in the engine's
+    /// name, as soon as a sync shows it, and its notice goes then. qBittorrent's log until told.
+    void setEngine(const QString &name, bool hasLog);
 
     /// What `log/main` returned, straight in, as a read that started at lastId(): the tests
     /// feed lines through this.
@@ -182,6 +187,8 @@ private:
     void applyRead(const QList<LogEntry> &entries, quint64 serial, bool fromStart);
     void rematch();
     void publish(const QString &hash, const TorrentProblem &problem);
+    /// K24: every errored torrent's problem from its own text, and the notices due.
+    void publishFromEngine();
     /// docs/44 D13: the stuck moves' problems, from the lines read so far.
     void publishStuck();
 
@@ -226,6 +233,10 @@ private:
     /// docs/44 D13: finished torrents still in their incomplete folder, not errored.
     QSet<QString> m_stuck;
     QSet<QString> m_newlyErrored; ///< went into error while watched, notice not sent yet
+    /// K24: when each errored torrent was first seen in error, the time its block shows.
+    QHash<QString, QDateTime> m_erroredSince;
+    QString m_engineName = QStringLiteral("qBittorrent");
+    bool m_hasLog = true;
     bool m_seenFirstSync = false;
     QHash<QString, TorrentProblem> m_problems;
 

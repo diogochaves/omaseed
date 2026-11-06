@@ -230,6 +230,11 @@ public:
 
     GroupBy groupBy() const { return m_groupBy; }
     void setGroupBy(GroupBy groupBy);
+
+    /// The server's engine by name ("Transmission"), who the rows' sentences name (C25 K24);
+    /// "" is qBittorrent.
+    QString engineName() const { return m_engineName; }
+    void setEngineName(const QString &name);
     /// The groups in the rows' order, `[{key, title, first, count, line, question, bytes}]`;
     /// empty while nothing groups. `question` is the group's Question (ByQuestion) or
     /// AnyQuestion; `bytes` its torrents' size (ScopeFacts::bytes).
@@ -384,6 +389,7 @@ private:
     mutable QHash<QString, double> m_heldSlots; ///< new torrents' places, found on first use
     bool m_holdOrder = false;
     GroupBy m_groupBy = NoGroups;
+    QString m_engineName;
     QVariantList m_groups;
     QHash<QString, QString> m_groupOf; ///< each shown torrent's group key, by hash
     /// BySpace: each folder's bytes among the rows shown, as the last rebuildGroups() found

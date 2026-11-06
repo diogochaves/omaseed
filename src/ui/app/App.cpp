@@ -1187,6 +1187,7 @@ QVariantList App::torrentStory(const QString &hash) const
     const QVariantMap problem = m_engine->torrents()->problem(hash);
     input.problem = problem.value(QStringLiteral("headline")).toString();
     input.problemAt = problem.value(QStringLiteral("loggedAt")).toDateTime();
+    input.problemEngine = problem.value(QStringLiteral("engine")).toString();
     const QVariantMap failure = m_engine->torrents()->failure(hash);
     input.failure = failure.value(QStringLiteral("headline")).toString();
     input.failureAt = failure.value(QStringLiteral("loggedAt")).toDateTime();
@@ -5419,6 +5420,12 @@ void App::updateFeatures()
     const GlobalState *state = m_engine->globalState();
     const EngineFeatures features =
         m_client->features(ServerInfo{state->serverVersion(), state->apiVersion()});
+    // C25 K24: errors in the engine's words, from its log or from the torrent's own text;
+    // the rows' sentences name it.
+    const QString engine =
+        m_client == m_qbt ? QStringLiteral("qBittorrent") : serverEngineName();
+    m_engine->problems()->setEngine(engine, features.engineLog);
+    m_filtered->setEngineName(engine);
     if (features == m_features)
         return;
     m_features = features;

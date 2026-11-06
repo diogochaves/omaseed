@@ -8947,6 +8947,8 @@
                         "count": 2,
                         "destination": "",
                         "detail": "Permission denied, opening unwritable-fixture.bin",
+                        "engine": "",
+                        "failedMove": false,
                         "file": "/home/user/.local/share/omaseed-test/downloads/swarm-readonly/unwritable-fixture.bin",
                         "folder": "/home/user/.local/share/omaseed-test/downloads/swarm-readonly",
                         "found": true,
@@ -8954,6 +8956,8 @@
                         "line": "File error alert. Torrent: \"unwritable-fixture.bin\". File: \"/home/user/.local/share/omaseed-test/downloads/swarm-readonly/unwritable-fixture.bin\". Reason: \"ad91d5 file_open (/home/user/.local/share/omaseed-test/downloads/swarm-readonly/unwritable-fixture.bin) error: Permission denied\"",
                         "loggedAt": "2026-10-16T23:00:26.000Z",
                         "missingFiles": false,
+                        "note": "",
+                        "rowSentence": "",
                         "source": "",
                         "stuckMove": false
                     },

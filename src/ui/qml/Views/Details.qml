@@ -1334,7 +1334,9 @@ Item {
                 if (action === "rename") {
                     root.activateTab(root.tabFiles);
                 } else if (action === "copy") {
-                    root.valueCopyRequested(storyTab.problem.line || "", qsTr("the log line"));
+                    // C25 K24: the engine's own words, where there is no log.
+                    root.valueCopyRequested(storyTab.problem.line || "", (storyTab.problem.engine || "").length > 0
+                                                ? qsTr("%1's words").arg(storyTab.problem.engine) : qsTr("the log line"));
                 } else {
                     root.problemActionRequested(action);
                 }
