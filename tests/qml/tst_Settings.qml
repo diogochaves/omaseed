@@ -536,7 +536,7 @@ TestCase {
         const row = testCase.childNamed(modal, "serverRow0");
         verify(row !== null);
         compare(row.title, "playground");
-        compare(row.description, "http://127.0.0.1:8081 · API key · v5.2.3 · 3 torrents");
+        compare(row.description, "http://127.0.0.1:8081 · API key · qBittorrent 5.2.3 · 3 torrents");
         compare(row.status, "in use"); // the only server is the default one
         compare(row.failing, false);
 
@@ -571,11 +571,11 @@ TestCase {
         compare(row.failing, true);
         verify(Qt.colorEqual(testCase.childNamed(row, "serverDot").color, Theme.red));
         // ...and keeps the version and count it had.
-        compare(row.description, "http://127.0.0.1:8081 · API key · v5.2.3 · 3 torrents");
+        compare(row.description, "http://127.0.0.1:8081 · API key · qBittorrent 5.2.3 · 3 torrents");
 
         // One is "1 torrent" (servers-walk: the pane read "1 torrents").
         App.serverList.setProbeResult(id, true, "v5.2.3", "2.15.1", 1, 4, "");
-        compare(row.description, "http://127.0.0.1:8081 · API key · v5.2.3 · 1 torrent");
+        compare(row.description, "http://127.0.0.1:8081 · API key · qBittorrent 5.2.3 · 1 torrent");
     }
 
     // Review RUN-9: a server nobody has tested has a dim dot, not the green of one that
@@ -629,7 +629,7 @@ TestCase {
 
         const row = testCase.childNamed(modal, "serverRow0");
         verify(row !== null);
-        compare(row.description, "http://127.0.0.1:8081 · none · v5.2.3 · 142 torrents");
+        compare(row.description, "http://127.0.0.1:8081 · none · qBittorrent 5.2.3 · 142 torrents");
         compare(row.failing, false);
         compare(modal.paneCursor, 0);
     }
@@ -706,6 +706,63 @@ TestCase {
         sheet.triggerPrimary();
         compare(App.serverList.count, 1);
         verify(!sheet.opened);
+    }
+
+    // #84 (C25 K4, K7, K9): the engine row, recognise first; a test that finds Transmission
+    // names it on the chip, gives the auth chips Transmission's two, and refuses the save,
+    // keeping what was typed.
+    function test_the_engine_row_recognises_and_refuses_an_engine_not_driven_yet() {
+        const modal = createTemporaryObject(modalComponent, testCase);
+        modal.open();
+        modal.showPane(1);
+        const sheet = modal.serverSheet;
+        sheet.openNew();
+        sheet.editName = "seedbox";
+        sheet.editUrl = "http://127.0.0.1:9091";
+        compare(sheet.editEngineChoice, "recognise");
+        compare(sheet.fieldMap().engineChoice, "recognise");
+        // Before recognition, qBittorrent's three sign-ins.
+        compare(sheet.authModes, ["apiKey", "cookie", "none"]);
+        const recognise = findChild(sheet, "engineChip-recognise");
+        verify(recognise);
+        compare(recognise.text, "recognise");
+        verify(findChild(sheet, "engineChip-transmission"));
+        verify(findChild(sheet, "engineChip-deluge"));
+
+        sheet.testing = true;
+        sheet._pendingKey = sheet._connectionKey;
+        App.serverTested("", false, "4.1.3", "6.0.0", -1, 3, "omaseed can't drive Transmission yet",
+                         "This build of omaseed drives qBittorrent.", {
+                             "engine": "transmission",
+                             "engineName": "Transmission",
+                             "endpoint": "http://127.0.0.1:9091/transmission/rpc",
+                             "refused": true
+                         });
+        compare(recognise.text, "recognise: Transmission");
+        compare(sheet.engine, "transmission");
+        compare(sheet.authModes, ["cookie", "none"]);
+        verify(findChild(sheet, "authChip-cookie"));
+        compare(findChild(sheet, "authChip-apiKey"), null);
+        // K9: refused, with no "save anyway"; what was typed stays.
+        compare(sheet.saveState, "refused");
+        compare(sheet.actions.map(action => action.text), ["cancel", "test", "save"]);
+        compare(testCase.sheetButton(sheet, "save").enabled, false);
+        compare(sheet.note, "can't be saved");
+        compare(sheet.testProblem.headline, "omaseed can't drive Transmission yet");
+        verify(sheet.testProblem.line.indexOf("It answered at http://127.0.0.1:9091/transmission/rpc") > 0);
+        compare(sheet.editUrl, "http://127.0.0.1:9091");
+        compare(sheet.editName, "seedbox");
+        sheet.actionTriggered("save");
+        compare(App.serverList.count, 0);
+
+        // Picking an engine asks a new test, for that one only.
+        findChild(sheet, "engineChip-deluge").clicked();
+        compare(sheet.tested, false);
+        compare(sheet.fieldMap().engineChoice, "deluge");
+        compare(sheet.authModes, ["password"]);
+        compare(sheet.editAuthMode, "password");
+        verify(findChild(sheet, "lonePassField").visible);
+        sheet.close();
     }
 
     // #68: a failed test offers `save anyway`, so a server that is down now can still be
@@ -934,16 +991,18 @@ TestCase {
         sheet.openFor(App.serverList.serverMap(id));
         verify(sheet.opened);
 
-        // View mode: Fig. 9's five key/value rows, in the figure's order.
+        // View mode: Fig. 9's five key/value rows, in the figure's order, after the engine
+        // (C25 K12: stored, from the last contact; the name alone before one).
         const kv = sheet.body.children[0];
-        compare(kv.items.length, 5);
-        compare(kv.items.map(item => item.key), ["Auth", "Key", "Path map", "Torrents", "Reachable"]);
-        compare(kv.items[0].value, "API key · stored in libsecret");
+        compare(kv.items.length, 6);
+        compare(kv.items.map(item => item.key), ["Engine", "Auth", "Key", "Path map", "Torrents", "Reachable"]);
+        compare(kv.items[0].value, "qBittorrent");
+        compare(kv.items[1].value, "API key · stored in libsecret");
         // The stored secret is never drawn: the Key row is a fixed mask of bullets.
-        verify(kv.items[1].value.length > 0);
-        compare(kv.items[1].value.replace(/•/g, ""), "");
-        compare(kv.items[2].value, "/downloads → /data/torrents");
-        compare(kv.items[3].value, "not tested yet");
+        verify(kv.items[2].value.length > 0);
+        compare(kv.items[2].value.replace(/•/g, ""), "");
+        compare(kv.items[3].value, "/downloads → /data/torrents");
+        compare(kv.items[4].value, "not tested yet");
 
         // Fig. 9's three actions in view mode, and three different ones once editing.
         compare(sheet.actions.map(action => action.text), ["test", "remove", "edit"]);
@@ -953,6 +1012,9 @@ TestCase {
         compare(sheet.fieldMap().url, "http://127.0.0.1:8081");
         compare(sheet.fieldMap().authMode, "apiKey");
         compare(sheet.fieldMap().pathMapRemote, "/downloads");
+        // #84: a saved server is tested as the engine it is stored with (K4).
+        compare(sheet.editEngineChoice, "qbittorrent");
+        compare(sheet.fieldMap().engine, "qbittorrent");
         sheet.close();
     }
 

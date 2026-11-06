@@ -1996,7 +1996,7 @@ Item {
                                     required property string reachableText
                                     required property int torrentCount
                                     required property string url
-                                    required property string versionText
+                                    required property string engineText
                                     required property int lastCount
                                     required property bool lastFailed
                                     required property string lastReason
@@ -2006,8 +2006,10 @@ Item {
                                     objectName: "serverRow" + serverRow.index
                                     description: {
                                         const parts = [serverRow.url, serverRow.authModeText];
-                                        if (serverRow.versionText.length > 0)
-                                            parts.push(serverRow.versionText);
+                                        // DECISIONS C25 K12: the engine, with the last contact's
+                                        // version ("qBittorrent 5.2.3").
+                                        if (serverRow.engineText.length > 0)
+                                            parts.push(serverRow.engineText);
                                         if (serverRow.torrentCount >= 0)
                                             parts.push(serverRow.torrentCount === 1 ? qsTr("1 torrent") : qsTr(
                                                                                           "%1 torrents").arg(

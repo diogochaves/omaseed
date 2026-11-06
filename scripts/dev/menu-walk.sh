@@ -462,8 +462,9 @@ step "One server, the window's menu" "Grown out of the lit mark in one accent ou
 keys Escape -s 400ms
 
 # ---- the second server ---------------------------------------------------------------------
+# Past the engine's four chips (C25 K4, recognise kept) to the auth chips.
 clip private
-keys --window "$APP_ID" comma -s 600ms 2 -s 300ms a -s 800ms -t private Tab -t http://127.0.0.1:8091 Tab Tab space \
+keys --window "$APP_ID" comma -s 600ms 2 -s 300ms a -s 800ms -t private Tab -t http://127.0.0.1:8091 Tab Tab Tab Tab Tab Tab space \
     -t admin Tab ctrl+v Tab Tab Tab Tab -s 800ms Tab Return -s 2500ms Return -s 1200ms
 unclip
 keys Escape -s 1500ms

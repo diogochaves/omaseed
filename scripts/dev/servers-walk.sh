@@ -253,7 +253,7 @@ check "both qBittorrents answer: public has no torrent, private 5" \
 "$APP_BOX" restart -b "$BOX" >/dev/null
 check "first run floats" window_is floating
 keys Return -s 800ms
-step "First run, two clients" "Step 1 with both qBittorrents running: one row, \"Use the server on this machine · 127.0.0.1:8090 · qbittorrent-nox running\" (the detector reads ~/.config/qBittorrent only; the --profile one on :8091 is not offered), then remote and install."
+step "First run, two clients" "Step 1 with both qBittorrents running: one row, \"Use qBittorrent on this machine · 127.0.0.1:8090 · qbittorrent-nox running\" (the detector reads ~/.config/qBittorrent only; the --profile one on :8091 is not offered), then remote and install."
 
 # Step 2: URL (filled), name, the three auth chips (cookie is the second; space on it puts the
 # caret in Username, #201 F1), username, password, then test.
@@ -294,10 +294,11 @@ keys Escape -s 800ms
 check "the failed test saved nothing" servers_are "public" public
 
 # ---- add the second server ----------------------------------------------------------------
-# `a` a new server: name, URL, the chips (space on cookie puts the caret in Username, #201
-# F1), username, password, then path map remote, local, cancel, and the keyboard on test.
+# `a` a new server: name, URL, the engine's four chips (C25 K4, recognise kept), the auth chips
+# (space on cookie puts the caret in Username, #201 F1), username, password, then path map
+# remote, local, cancel, and the keyboard on test.
 clip private
-keys a -s 800ms -t private Tab -t http://127.0.0.1:8091 Tab Tab space \
+keys a -s 800ms -t private Tab -t http://127.0.0.1:8091 Tab Tab Tab Tab Tab Tab space \
     -t admin Tab ctrl+v Tab Tab Tab Tab -s 800ms
 unclip
 step "Save waits for a test" "#68, as first run: the New server sheet filled in (private, cookie login as admin), the keyboard on test, which is the primary; save dimmed beside it and \"test first\" at the right of the footer, which says enter test."
