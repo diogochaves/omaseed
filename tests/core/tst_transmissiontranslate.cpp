@@ -291,7 +291,8 @@ void TestTransmissionTranslate::sessionFiguresAndLimits()
     QCOMPARE(s.dlRateLimit, std::optional<qint64>(0)); // speed_limit_down not enabled
     QCOMPARE(s.queueing, std::optional<bool>(true));
     QCOMPARE(s.freeSpaceOnDisk, std::optional<qint64>(400000000000));
-    QVERIFY(!s.connectionStatus.has_value());
+    // Not reported: "", never the "disconnected" a missing value reads (E4 step 3).
+    QCOMPARE(s.connectionStatus, std::optional<QString>(QString()));
     QVERIFY(!s.dhtNodes.has_value());
 
     // Turtle on: the limits in force are the alternative ones.

@@ -640,6 +640,8 @@ QJsonObject StatusWriter::content() const
     QString connection = state ? state->connectionStatus() : QStringLiteral("disconnected");
     if (!reachable)
         connection = QStringLiteral("disconnected");
+    else if (connection.isEmpty())
+        connection = QStringLiteral("connected"); // an engine that reports none (Transmission)
     document.insert(QStringLiteral("reachable"), connection);
 
     const qint64 dl = reachable ? roundSignificant(state->dlInfoSpeed()) : 0;

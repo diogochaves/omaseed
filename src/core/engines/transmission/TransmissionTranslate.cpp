@@ -532,6 +532,9 @@ ServerStatePatch serverState(const QJsonObject &stats,
                              const std::optional<QJsonObject> &freeSpace)
 {
     ServerStatePatch s;
+    // Transmission reports no network state like libtorrent's connection_status (its port test
+    // asks a site outside): "" says so, rather than the "disconnected" a missing value reads.
+    s.connectionStatus = QString();
     if (has(stats, "download_speed"))
         s.dlSpeed = number(stats, "download_speed");
     if (has(stats, "upload_speed"))

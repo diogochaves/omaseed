@@ -52,7 +52,9 @@ a schema change is one commit touching both sides. Design: `docs/20-companion-wi
     "retryIn": 0                      // seconds until the next retry while unreachable
   },
   "reachable": "connected",           // server_state.connection_status:
-                                      //   "connected" | "firewalled" | "disconnected"
+                                      //   "connected" | "firewalled" | "disconnected";
+                                      //   "connected" whenever an engine that reports
+                                      //   none (Transmission) answers
   "speed":  { "dl": 4415221, "up": 831488 },
   "alt": {
     "on": false,
