@@ -171,6 +171,10 @@ void MoveFeed::synced(bool fullUpdate)
 {
     if (m_job.isNull())
         return;
+    // A sync is the server answering. The engine's serverBack says so too, but not after a
+    // restart while lost (saving the server's sheet restarts it): the job would wait forever.
+    if (!m_job->isConnected())
+        m_job->setConnected(true);
     if (m_failures == Failures::Torrent)
         readFailures();
     m_job->onSynced(fullUpdate);

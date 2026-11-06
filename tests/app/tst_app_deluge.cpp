@@ -226,6 +226,7 @@ private Q_SLOTS:
     void detailsAreAskedOfDeluge();
     void delugeWebWithoutADaemonIsDown();
     void theStoredDaemonIsConnectedWhenDelugeWebHasNone();
+    void aMoveIsSentAfterARestartWhileLost();
     void labelsAreTheCategoriesInDelugesWords();
     void aTorrentKeepsARatioOfItsOwn();
     void anAddTakesDelugesOptions();
@@ -513,6 +514,31 @@ void TestAppDeluge::theStoredDaemonIsConnectedWhenDelugeWebHasNone()
     QVERIFY(!connects.isEmpty());
     for (const Call &call : connects)
         QCOMPARE(call.params.at(0).toString(), kHost);
+    app.engine()->stop();
+}
+
+// The Deluge walk's first step: deluge-web had no daemon (the server lost), the server sheet
+// connected one and saved the server, which restarts the engine (setDefaultServer) while it is
+// still lost. The restart forgets the loss without a serverBack, so the move job kept waiting
+// for the server ("waiting for deluge") and never sent a move. A sync means it answers.
+void TestAppDeluge::aMoveIsSentAfterARestartWhileLost()
+{
+    Daemon daemon;
+    App app;
+    QVERIFY(startOn(app, daemon));
+    daemon.recorded.connected = false;
+    QTRY_VERIFY_WITH_TIMEOUT(app.isServerLost(), 3000);
+    QVERIFY(!app.move()->job()->isConnected());
+    daemon.recorded.connected = true;
+    app.engine()->stop();
+    app.engine()->start();
+    QTRY_VERIFY_WITH_TIMEOUT(!app.isServerLost(), 5000);
+    QCOMPARE(app.torrents()->count(), 6);
+    QTRY_VERIFY_WITH_TIMEOUT(app.move()->job()->isConnected(), 3000);
+    const QString to = QStringLiteral("/srv/other/films");
+    QVERIFY(app.move()->startSelection({kPack}, to, QString()));
+    QTRY_VERIFY_WITH_TIMEOUT(daemon.lastOf(QStringLiteral("core.move_storage")).has_value(), 5000);
+    QCOMPARE(daemon.lastOf(QStringLiteral("core.move_storage"))->params.at(1).toString(), to);
     app.engine()->stop();
 }
 
