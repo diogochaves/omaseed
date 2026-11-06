@@ -7,6 +7,8 @@
 #include <QLocale>
 
 #include <algorithm>
+#include <tuple>
+#include <utility>
 
 namespace omaseed::core {
 
@@ -20,6 +22,43 @@ QString tr(const char *text)
 QString counted(qint64 count, const char *one, const char *many)
 {
     return (count == 1 ? tr(one) : tr(many)).arg(count);
+}
+
+// DECISIONS C38 R3: a folder as the dim line names it, "Disc 1/".
+QString folderWords(const QString &folder)
+{
+    return folder.endsWith(QLatin1Char('/')) ? folder : folder + QLatin1Char('/');
+}
+
+// DECISIONS C38: a rename's line, its title and its dim line.
+std::pair<QString, QString> renameWords(const RenameRecord &rename)
+{
+    using What = RenameRecord::What;
+    const QString change = tr("%1 → %2").arg(rename.was, rename.now);
+    if (rename.what == What::Torrent) {
+        // R1 a: what was lost, the old name. R4 a: C18 D7's words when it wasn't omaseed.
+        // R7 a: Transmission renamed its folder on disk too (K28), in board 56's order.
+        QStringList parts{tr("was %1").arg(rename.was)};
+        if (rename.by == RenameRecord::By::Elsewhere)
+            parts << tr("renamed outside omaseed");
+        if (rename.disk)
+            parts << tr("its folder on disk too");
+        return {tr("Renamed"), parts.join(QStringLiteral(" · "))};
+    }
+    // R3 a: one line per run; file and folder lines read the same on every engine (R7).
+    if (rename.what == What::Folder)
+        return {tr("Renamed a folder"), change};
+    if (rename.what == What::Files && rename.count > 1) {
+        QString detail =
+            tr("the first %1, and %2 more").arg(change, QString::number(rename.count - 1));
+        if (rename.folders > 1)
+            detail = tr("in %1 folders · %2").arg(QString::number(rename.folders), detail);
+        else if (!rename.in.isEmpty())
+            detail = tr("in %1 · %2").arg(folderWords(rename.in), detail);
+        return {tr("Renamed %1 files").arg(rename.count), detail};
+    }
+    return {tr("Renamed a file"),
+            rename.in.isEmpty() ? change : tr("%1 in %2").arg(change, folderWords(rename.in))};
 }
 
 } // namespace
@@ -48,6 +87,8 @@ QString TorrentStory::kindName(StoryEvent::Kind kind)
         return QStringLiteral("warn");
     case StoryEvent::Kind::Error:
         return QStringLiteral("error");
+    case StoryEvent::Kind::Rename:
+        return QStringLiteral("rename");
     case StoryEvent::Kind::Plain:
         break;
     }
@@ -118,11 +159,26 @@ QList<StoryEvent> TorrentStory::events(const StoryInput &input)
             : input.problemPaused         ? tr("%1 paused it").arg(input.problemEngine)
                                           : tr("%1 stopped it").arg(input.problemEngine));
 
+    // DECISIONS C38: each rename the record keeps, at the server's OK or the poll that saw it
+    // (R1, R4). Oldest first here, as the moves' history is read, so two at the same time
+    // read the later one first once reversed below.
+    for (auto rename = input.renames.crbegin(); rename != input.renames.crend(); ++rename) {
+        auto [title, detail] = renameWords(*rename);
+        add(rename->at, StoryEvent::Kind::Rename, std::move(title), std::move(detail));
+    }
+
     // Newest first (DECISIONS C32 D15, amending C24 H6's order): sorted by time with two at
     // the same second in the order above (added before finished), then read backwards, so
-    // the later of the two leads as the later time does.
-    std::stable_sort(out.begin(), out.end(), [](const StoryEvent &a, const StoryEvent &b) {
-        return a.at < b.at;
+    // the later of the two leads as the later time does. C38 amends H6: a rename at the same
+    // second as another line is the later act, so it goes above it whatever their
+    // milliseconds.
+    const auto order = [](const StoryEvent &event) {
+        return std::tuple(event.at.toSecsSinceEpoch(),
+                          event.kind == StoryEvent::Kind::Rename,
+                          event.at.toMSecsSinceEpoch());
+    };
+    std::stable_sort(out.begin(), out.end(), [&](const StoryEvent &a, const StoryEvent &b) {
+        return order(a) < order(b);
     });
     std::reverse(out.begin(), out.end());
     return out;

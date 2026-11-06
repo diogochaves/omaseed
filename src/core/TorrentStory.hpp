@@ -7,9 +7,12 @@
 // Only what omaseed knows for sure goes in: when it was added (and where), each move the
 // history keeps for it (C18 D8: the last 20 moves or 30 days), when it finished downloading,
 // and the error (docs/28) and the failure (docs/32) at the time qBittorrent's log wrote them,
-// and a move an engine dropped without a word (C25, Deluge) when omaseed saw it fail.
+// a move an engine dropped without a word (C25, Deluge) when omaseed saw it fail, and each
+// rename omaseed's own record keeps (DECISIONS C38: omaseed's renames, and the torrent's name
+// seen changed in a poll while it ran; never a file renamed elsewhere, which it can't see).
 // The now is the details' head sentence, not a line here. Pure Qt Core; `tst_torrentstory`.
 
+#include "core/RenameHistory.hpp"
 #include "core/Torrent.hpp"
 
 #include <QDateTime>
@@ -47,6 +50,8 @@ struct StoryInput
     QString notMovedTo;
     QDateTime notMovedAt;
     QString notMovedEngine;
+    /// DECISIONS C38: the torrent's rename lines (RenameHistory::recordsFor), newest first.
+    QList<RenameRecord> renames;
     QDateTime now;
     /// The engine groups torrents in categories (EngineFeatures::categories): without them
     /// "Added" says nothing about one (C14 E4, Transmission).
@@ -59,10 +64,11 @@ struct StoryInput
 struct StoryEvent
 {
     enum class Kind {
-        Plain, ///< added, finished: the state's colour
-        Move,  ///< a move: the accent
-        Warn,  ///< a failure the log tells: yellow
-        Error, ///< the error: red
+        Plain,  ///< added, finished: the state's colour
+        Move,   ///< a move: the accent
+        Warn,   ///< a failure the log tells: yellow
+        Error,  ///< the error: red
+        Rename, ///< a rename (C38 R2): the accent, as a move
     };
     QDateTime at;
     QString time; ///< "09:15", "yesterday 09:15", "12 Oct 09:15", "12 Oct 2025"
@@ -81,7 +87,7 @@ public:
     /// "12 Oct 09:15" this year, "12 Oct 2025" before it.
     static QString timeWords(const QDateTime &at, const QDateTime &now);
 
-    /// The marker kind's name for QML: "plain", "move", "warn", "error".
+    /// The marker kind's name for QML: "plain", "move", "warn", "error", "rename".
     static QString kindName(StoryEvent::Kind kind);
 };
 

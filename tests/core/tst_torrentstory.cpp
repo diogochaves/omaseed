@@ -27,6 +27,33 @@ Torrent added(const QDateTime &when, const QString &category = {})
     return t;
 }
 
+RenameRecord renamed(const QDateTime &when,
+                     RenameRecord::What what,
+                     const QString &was,
+                     const QString &now,
+                     const QString &in = {})
+{
+    RenameRecord r;
+    r.at = when.toUTC();
+    r.hash = QStringLiteral("aa");
+    r.what = what;
+    r.was = was;
+    r.now = now;
+    r.in = in;
+    return r;
+}
+
+// The one line a single rename makes, beside the add.
+StoryEvent renameLine(const RenameRecord &rename)
+{
+    StoryInput input;
+    input.now = at(24, 18, 0);
+    input.torrent = added(at(10, 9, 0));
+    input.renames = {rename};
+    const QList<StoryEvent> events = TorrentStory::events(input);
+    return events.size() == 2 ? events.at(0) : StoryEvent{};
+}
+
 QStringList titles(const QList<StoryEvent> &events)
 {
     QStringList out;
@@ -51,6 +78,14 @@ private slots:
     void everythingIsNewestFirst();
     void twoAtTheSameSecondReadTheLaterStepFirst();
     void anEventWithNoTimeIsLeftOut();
+    void aTorrentRenameSaysTheOldName();
+    void aRenameOutsideSaysSo();
+    void transmissionSaysItsFolderMovedToo();
+    void aFileOrAFolderSaysOldToNew();
+    void aRunOfFilesIsOneLine();
+    void aRenameFromAnEarlierDay();
+    void aRenameAtTheSameSecondReadsAbove();
+    void renamesTakeTheirPlaceInTheStory();
 };
 
 void TestTorrentStory::timesReadFromNow()
@@ -199,6 +234,163 @@ void TestTorrentStory::anEventWithNoTimeIsLeftOut()
     input.torrent = added(QDateTime());
     input.problem = QStringLiteral("qBittorrent didn't log a reason");
     QVERIFY(TorrentStory::events(input).isEmpty());
+}
+
+// DECISIONS C38 R1, R2: Renamed, was OLD, the accent's kind.
+void TestTorrentStory::aTorrentRenameSaysTheOldName()
+{
+    const StoryEvent line = renameLine(renamed(at(24, 14, 3),
+                                               RenameRecord::What::Torrent,
+                                               QStringLiteral("night.market.rec.2026"),
+                                               QStringLiteral("Night Market Field Recordings")));
+    QCOMPARE(line.title, QStringLiteral("Renamed"));
+    QCOMPARE(line.detail, QStringLiteral("was night.market.rec.2026"));
+    QCOMPARE(line.time, QStringLiteral("14:03"));
+    QCOMPARE(line.kind, StoryEvent::Kind::Rename);
+    QCOMPARE(TorrentStory::kindName(StoryEvent::Kind::Rename), QStringLiteral("rename"));
+}
+
+// C38 R4: seen in a poll, C18 D7's words.
+void TestTorrentStory::aRenameOutsideSaysSo()
+{
+    RenameRecord rename = renamed(
+        at(24, 14, 3), RenameRecord::What::Torrent, QStringLiteral("NMFR_v2"), QStringLiteral("x"));
+    rename.by = RenameRecord::By::Elsewhere;
+    QCOMPARE(renameLine(rename).title, QStringLiteral("Renamed"));
+    QCOMPARE(renameLine(rename).detail, QStringLiteral("was NMFR_v2 · renamed outside omaseed"));
+}
+
+// C38 R7: only Transmission's rename moved the folder on disk (K28); seen in a poll too, in
+// board 56 §5's order.
+void TestTorrentStory::transmissionSaysItsFolderMovedToo()
+{
+    RenameRecord rename = renamed(
+        at(24, 14, 3), RenameRecord::What::Torrent, QStringLiteral("NMFR_v2"), QStringLiteral("x"));
+    rename.disk = true;
+    QCOMPARE(renameLine(rename).detail, QStringLiteral("was NMFR_v2 · its folder on disk too"));
+    rename.by = RenameRecord::By::Elsewhere;
+    QCOMPARE(renameLine(rename).detail,
+             QStringLiteral("was NMFR_v2 · renamed outside omaseed · its folder on disk too"));
+}
+
+// C38 R3: a file at the top, a file in a folder, a folder.
+void TestTorrentStory::aFileOrAFolderSaysOldToNew()
+{
+    StoryEvent line = renameLine(renamed(at(24, 14, 3),
+                                         RenameRecord::What::File,
+                                         QStringLiteral("cover.jpg"),
+                                         QStringLiteral("folder.jpg")));
+    QCOMPARE(line.title, QStringLiteral("Renamed a file"));
+    QCOMPARE(line.detail, QStringLiteral("cover.jpg → folder.jpg"));
+    QCOMPARE(line.kind, StoryEvent::Kind::Rename);
+
+    line = renameLine(renamed(at(24, 14, 3),
+                              RenameRecord::What::File,
+                              QStringLiteral("01.flac"),
+                              QStringLiteral("01 Lanterns.flac"),
+                              QStringLiteral("Disc 1")));
+    QCOMPARE(line.title, QStringLiteral("Renamed a file"));
+    QCOMPARE(line.detail, QStringLiteral("01.flac → 01 Lanterns.flac in Disc 1/"));
+
+    line = renameLine(renamed(at(24, 14, 3),
+                              RenameRecord::What::Folder,
+                              QStringLiteral("CD1"),
+                              QStringLiteral("Disc 1"),
+                              QStringLiteral("Extras")));
+    QCOMPARE(line.title, QStringLiteral("Renamed a folder"));
+    QCOMPARE(line.detail, QStringLiteral("CD1 → Disc 1"));
+}
+
+// C38 R3: board 18's sheet is one line however many files it renamed: in one folder, at the
+// top, in several folders.
+void TestTorrentStory::aRunOfFilesIsOneLine()
+{
+    RenameRecord run = renamed(at(24, 13, 58),
+                               RenameRecord::What::Files,
+                               QStringLiteral("01.flac"),
+                               QStringLiteral("01 Lanterns.flac"),
+                               QStringLiteral("Disc 1"));
+    run.count = 12;
+    StoryEvent line = renameLine(run);
+    QCOMPARE(line.title, QStringLiteral("Renamed 12 files"));
+    QCOMPARE(line.detail,
+             QStringLiteral("in Disc 1/ · the first 01.flac → 01 Lanterns.flac, and 11 more"));
+    QCOMPARE(line.time, QStringLiteral("13:58"));
+
+    run.in.clear();
+    QCOMPARE(renameLine(run).detail,
+             QStringLiteral("the first 01.flac → 01 Lanterns.flac, and 11 more"));
+
+    run.folders = 3;
+    line = renameLine(run);
+    QCOMPARE(line.title, QStringLiteral("Renamed 12 files"));
+    QCOMPARE(line.detail,
+             QStringLiteral("in 3 folders · the first 01.flac → 01 Lanterns.flac, and 11 more"));
+}
+
+// C38 R1: the story's own time words.
+void TestTorrentStory::aRenameFromAnEarlierDay()
+{
+    QCOMPARE(renameLine(renamed(at(23, 21, 10),
+                                RenameRecord::What::Torrent,
+                                QStringLiteral("a"),
+                                QStringLiteral("b")))
+                 .time,
+             QStringLiteral("yesterday 21:10"));
+    QCOMPARE(renameLine(renamed(at(12, 9, 15),
+                                RenameRecord::What::Torrent,
+                                QStringLiteral("a"),
+                                QStringLiteral("b")))
+                 .time,
+             QStringLiteral("12 Oct 09:15"));
+}
+
+// C38 amends C24 H6: a rename at the same second as another line is the later act, even a few
+// milliseconds before it.
+void TestTorrentStory::aRenameAtTheSameSecondReadsAbove()
+{
+    StoryInput input;
+    input.now = at(24, 18, 0);
+    input.torrent = added(at(24, 9, 0));
+    input.moves = {{at(24, 10, 0).addMSecs(900), QStringLiteral("/b"), 0, {}}};
+    input.renames = {renamed(at(24, 10, 0).addMSecs(100),
+                             RenameRecord::What::Torrent,
+                             QStringLiteral("old"),
+                             QStringLiteral("new"))};
+    QCOMPARE(titles(TorrentStory::events(input)), QStringList({"Renamed", "Moved to /b", "Added"}));
+
+    // Two renames at the very same time: the newer record (first) leads.
+    input.moves.clear();
+    RenameRecord later = input.renames.at(0);
+    later.was = QStringLiteral("new");
+    later.now = QStringLiteral("newer");
+    input.renames.prepend(later);
+    const QList<StoryEvent> events = TorrentStory::events(input);
+    QCOMPARE(events.at(0).detail, QStringLiteral("was new"));
+    QCOMPARE(events.at(1).detail, QStringLiteral("was old"));
+}
+
+// C32 D15: newest first, renames among the rest by their time; no rename changes nothing.
+void TestTorrentStory::renamesTakeTheirPlaceInTheStory()
+{
+    StoryInput input;
+    input.now = at(24, 18, 0);
+    input.torrent = added(at(20, 9, 0));
+    input.torrent.completionOn = at(22, 9, 0);
+    input.moves = {{at(23, 9, 0), QStringLiteral("/b"), 0, {}}};
+    const QList<StoryEvent> without = TorrentStory::events(input);
+    input.renames = {
+        renamed(
+            at(24, 9, 0), RenameRecord::What::Torrent, QStringLiteral("b"), QStringLiteral("c")),
+        renamed(
+            at(21, 9, 0), RenameRecord::What::Torrent, QStringLiteral("a"), QStringLiteral("b"))};
+    const QList<StoryEvent> events = TorrentStory::events(input);
+    QCOMPARE(titles(events),
+             QStringList({"Renamed", "Moved to /b", "Finished downloading", "Renamed", "Added"}));
+    QCOMPARE(events.at(0).detail, QStringLiteral("was b"));
+    QCOMPARE(events.at(3).detail, QStringLiteral("was a"));
+    QCOMPARE(events.at(0).kind, StoryEvent::Kind::Rename);
+    QCOMPARE(titles(without), QStringList({"Moved to /b", "Finished downloading", "Added"}));
 }
 
 QTEST_GUILESS_MAIN(TestTorrentStory)

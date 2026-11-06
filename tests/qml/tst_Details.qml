@@ -426,6 +426,21 @@ TestCase {
         verify(!findChild(findChild(tab, "storyEvent_0"), "storyTime").truncated);
     }
 
+    // DECISIONS C38 R2: a rename takes a move's accent; R1: the screen reader hears it as the
+    // other lines (#79).
+    function test_a_rename_is_marked_as_a_move() {
+        const lines = [{"time": "14:03", "kind": "rename", "title": "Renamed",
+                        "detail": "was night.market.rec.2026"},
+                       {"time": "13:40", "kind": "move", "title": "Moved to /data/b"}];
+        const tab = createTemporaryObject(storyTabComponent, testCase, {"story": lines});
+        wait(0);
+        const rename = findChild(tab, "storyEvent_0");
+        compare(findChild(rename, "storyMark").color, Theme.accent);
+        compare(findChild(rename, "storyMark").color,
+                findChild(findChild(tab, "storyEvent_1"), "storyMark").color);
+        compare(rename.Accessible.name, "14:03, Renamed, was night.market.rec.2026");
+    }
+
     // docs/32 F1 (#55): the demo's move of Spring to /mnt/archive/movies didn't happen. The
     // story opens with #54's block in yellow: what didn't happen, why, where the files still are,
     // and set location, open folder, copy the line, dismiss. No red block: it isn't an error.
