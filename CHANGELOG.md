@@ -12,6 +12,11 @@ before it will tag a release.
 - **"qBittorrent" keeps its small q in the details.** The details pane started its sentence
   with a capital, so "qBittorrent stopped it with an error" and "qBittorrent is moving its
   files" read "QBittorrent …". (#232)
+- **A move between btrfs subvolumes is a copy.** A subvolume shares its parent's mount point,
+  so the Move sheet took a move from one into another for the same drive and promised a rename
+  ("nothing is copied"), with no room needed and no time left, while the engine copied every
+  file. The sheet now tells drives apart by their device, so such a move reads room on the
+  destination and shows its progress like any other copy. (#240)
 
 ## v0.7.0 — 2026-11-05
 
