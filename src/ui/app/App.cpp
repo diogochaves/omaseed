@@ -23,10 +23,10 @@
 #include "core/Version.hpp"
 #include "core/WeeklyRecap.hpp"
 #include "core/engines/EngineRecognizer.hpp"
+#include "core/engines/deluge/DelugeEngine.hpp"
 #include "core/engines/qbt/QbtEngine.hpp"
 #include "core/engines/qbt/QbtSettingsImport.hpp"
 #include "core/engines/qbt/QbtTranslate.hpp"
-#include "core/engines/deluge/DelugeEngine.hpp"
 #include "core/engines/transmission/TransmissionEngine.hpp"
 #include "integration/Autostart.hpp"
 #include "integration/Notifier.hpp"
@@ -4609,9 +4609,10 @@ void App::testServer(const QVariantMap &fields, const QString &secret)
     const SecretStore::Kind kind =
         usesPassword(server.authMode) ? SecretStore::Kind::Password : SecretStore::Kind::ApiKey;
     auto *job = m_secrets->secret(server.id, kind, this);
-    connect(job, &SecretStoreJob::finished, this, [run](bool ok, const QString &value, const QString &) {
-        run(ok ? value : QString());
-    });
+    connect(job,
+            &SecretStoreJob::finished,
+            this,
+            [run](bool ok, const QString &value, const QString &) { run(ok ? value : QString()); });
 }
 
 QVariantMap App::testInfo(EngineKind engine, const QUrl &endpoint) const
@@ -4803,9 +4804,8 @@ void App::runEngineTest(const Server &server,
                     }
                     // K8: Transmission's and Deluge's probes refuse a version too old in their
                     // own words.
-                    const bool versionRefused =
-                        result.error().kind() == ApiError::Kind::Conflict &&
-                        engineText != QLatin1String("qbittorrent");
+                    const bool versionRefused = result.error().kind() == ApiError::Kind::Conflict &&
+                                                engineText != QLatin1String("qbittorrent");
                     const QString error = refused.isEmpty() ? raw : refused;
                     const QString detail = refused.isEmpty() ? QString() : raw;
                     QVariantMap answered = info;
@@ -4813,16 +4813,8 @@ void App::runEngineTest(const Server &server,
                         answered.insert(QStringLiteral("refused"), true);
                         answered.insert(QStringLiteral("versionRefused"), true);
                     }
-                    answerTest(client,
-                               id,
-                               announce,
-                               false,
-                               {},
-                               -1,
-                               latency,
-                               error,
-                               detail,
-                               answered);
+                    answerTest(
+                        client, id, announce, false, {}, -1, latency, error, detail, answered);
                     return;
                 }
                 if (deluge != nullptr) {
@@ -4901,15 +4893,8 @@ void App::answerTest(EngineClient *client,
                                  error,
                                  ok ? info.value(QStringLiteral("engine")).toString() : QString());
     if (announce)
-        Q_EMIT serverTested(id,
-                            ok,
-                            serverInfo.version,
-                            serverInfo.apiVersion,
-                            count,
-                            latency,
-                            error,
-                            detail,
-                            info);
+        Q_EMIT serverTested(
+            id, ok, serverInfo.version, serverInfo.apiVersion, count, latency, error, detail, info);
 }
 
 void App::testDelugeDaemons(DelugeEngine *deluge,
@@ -4941,8 +4926,7 @@ void App::testDelugeDaemons(DelugeEngine *deluge,
                     {QStringLiteral("status"), host.status},
                     {QStringLiteral("version"), host.version},
                     {QStringLiteral("connected"), connected},
-                    {QStringLiteral("online"),
-                     connected || host.status == QLatin1String("Online")},
+                    {QStringLiteral("online"), connected || host.status == QLatin1String("Online")},
                 });
             }
             QVariantMap answered = info;

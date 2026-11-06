@@ -206,11 +206,10 @@ void TestAppEngines::aDelugeWithoutADaemonAsksWhichOne()
     // The step is the sheet's question, not a failure to show.
     QVERIFY(app.serverTestProblem(fields, step.error, step.detail, step.info).isEmpty());
     const auto connects = [&server]() {
-        return std::count_if(server.requests.cbegin(),
-                             server.requests.cend(),
-                             [](const Recorded &request) {
-                                 return request.body.contains("\"web.connect\"");
-                             });
+        return std::count_if(
+            server.requests.cbegin(), server.requests.cend(), [](const Recorded &request) {
+                return request.body.contains("\"web.connect\"");
+            });
     };
     QCOMPARE(connects(), 0); // the test itself never switches deluge-web
 

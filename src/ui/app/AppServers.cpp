@@ -407,7 +407,10 @@ QVariantList App::serverRows() const
             if (state == QLatin1String("waiting"))
                 detail << tr("isn't answering");
             else if (state == QLatin1String("down"))
-                detail << tr("unreachable");
+                // C25 K10: deluge-web there, its daemon not.
+                detail << (ErrorWords::isNoDaemon(m_serverError)
+                               ? ErrorWords::shortReason(m_serverError)
+                               : tr("unreachable"));
             else if (state == QLatin1String("refused"))
                 detail << (serverOtherEngine()      ? ErrorWords::engineReason(m_server)
                            : m_serverVersionRefused ? ErrorWords::versionReason()

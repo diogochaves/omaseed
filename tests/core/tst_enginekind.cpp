@@ -94,7 +94,8 @@ void TestEngineKind::anEngineNotDrivenYetIsNamed()
         QVERIFY(engineSupport(kind, QStringLiteral("9.9.9"), QStringLiteral("9.9.9")).usable());
     }
     QVERIFY(!omaseed::core::isEngineDriven(EngineKind::Unknown));
-    QCOMPARE(omaseed::core::drivenEnginesText(), QStringLiteral("qBittorrent, Transmission and Deluge"));
+    QCOMPARE(omaseed::core::drivenEnginesText(),
+             QStringLiteral("qBittorrent, Transmission and Deluge"));
     const auto support = engineSupport(EngineKind::Deluge, QStringLiteral("2.2.0"), QString());
     QVERIFY(support.driven);
     QVERIFY(support.refusal.isEmpty());

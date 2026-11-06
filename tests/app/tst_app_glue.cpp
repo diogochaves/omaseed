@@ -780,7 +780,8 @@ void TestAppGlue::aServerOfAnotherEngineIsNeverPolled()
     const QVariantMap seedboxRow = app.serverRows().at(1).toMap();
     QCOMPARE(seedboxRow.value(QStringLiteral("key")).toString(), QStringLiteral("t-1"));
     QCOMPARE(seedboxRow.value(QStringLiteral("state")).toString(), QStringLiteral("refused"));
-    QCOMPARE(seedboxRow.value(QStringLiteral("meta")).toString(), QStringLiteral("rtorrent server"));
+    QCOMPARE(seedboxRow.value(QStringLiteral("meta")).toString(),
+             QStringLiteral("rtorrent server"));
     QVERIFY(app.switchServer(QStringLiteral("t-1")));
     QVERIFY(app.serverOtherEngine());
     QVERIFY(!app.engine()->isRunning());

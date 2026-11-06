@@ -122,10 +122,10 @@ inline FakeServer::Handler deluge(bool connected = true)
                                                 58846,
                                                 QStringLiteral("localclient")}});
         if (method == QLatin1String("web.get_host_status"))
-            return answer(QJsonArray{QStringLiteral("c0ffee"),
-                                     connected ? QStringLiteral("Connected")
-                                               : QStringLiteral("Online"),
-                                     QStringLiteral("2.2.0")});
+            return answer(
+                QJsonArray{QStringLiteral("c0ffee"),
+                           connected ? QStringLiteral("Connected") : QStringLiteral("Online"),
+                           QStringLiteral("2.2.0")});
         if (method == QLatin1String("web.connect")) {
             *state = true;
             return answer(QJsonArray{});
