@@ -159,6 +159,8 @@ qt_add_library(omaseed-core STATIC
     Reply.hpp
     RenameDisk.cpp
     RenameDisk.hpp
+    RenameHistory.cpp
+    RenameHistory.hpp
     RenamePlan.cpp
     RenamePlan.hpp
     RowWords.cpp

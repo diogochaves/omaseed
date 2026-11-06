@@ -640,6 +640,11 @@ omaseed_add_test(tst_movehistory
     LIBRARIES omaseed::core
 )
 
+omaseed_add_test(tst_renamehistory
+    SOURCES tst_renamehistory.cpp
+    LIBRARIES omaseed::core
+)
+
 omaseed_add_test(tst_movejob
     SOURCES tst_movejob.cpp
     LIBRARIES omaseed::core
