@@ -1448,7 +1448,15 @@ QVariantMap MoveController::band() const
                         ? tr("%1 of %2 in %3").arg(summary.moved).arg(summary.total).arg(span(took))
                         : tr("%1 of %2").arg(summary.moved).arg(summary.total));
         }
-        if (summary.failed > 0)
+        // C25 K24 (#238): an engine that stops a torrent whose move failed (Transmission) says
+        // so, in the strip's words, since its retry finds them stopped, not seeding.
+        const bool stopped = m_features.moveStopsOnFailure && summary.failed > 0;
+        if (stopped)
+            parts << counted(summary.failed,
+                             tr("%1 failed · %2 stopped the torrent"),
+                             tr("%1 failed · %2 stopped the torrents"))
+                         .arg(engineName());
+        else if (summary.failed > 0)
             parts << tr("%1 failed").arg(summary.failed);
         if (summary.alreadyThere > 0)
             parts << counted(
@@ -1467,7 +1475,13 @@ QVariantMap MoveController::band() const
                          .arg(job.root());
         line = parts.join(QStringLiteral(" · "));
         failedText.clear();
-        if (summary.failed > 0) {
+        if (stopped) {
+            // The strip's "start it here" leads (K24), the move's retry next to it.
+            actions << action(QStringLiteral("startHere"),
+                              counted(summary.failed, tr("start it here"), tr("start the %1 here")))
+                    << action(QStringLiteral("retry"), tr("retry the %1").arg(summary.failed))
+                    << action(QStringLiteral("recheck"), tr("recheck the %1…").arg(summary.failed));
+        } else if (summary.failed > 0) {
             actions << action(QStringLiteral("recheck"), tr("recheck the %1…").arg(summary.failed))
                     << action(QStringLiteral("retry"), tr("retry the %1").arg(summary.failed));
         }
