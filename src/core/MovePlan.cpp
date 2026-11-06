@@ -588,9 +588,7 @@ MovePlan MovePlan::make(const Input &input)
         const FreeSpaceProbe::Answer there = probe->answer(to);
         if (plan.m_seesDisks) {
             const FreeSpaceProbe::Answer here = probe->answer(root);
-            plan.m_sameDrive = here.source == FreeSpaceProbe::Source::Local &&
-                               there.source == FreeSpaceProbe::Source::Local &&
-                               !here.where.isEmpty() && here.where == there.where;
+            plan.m_sameDrive = FreeSpaceProbe::sameDrive(here, there);
         }
         if (there.source != FreeSpaceProbe::Source::Unknown) {
             plan.m_bytesFree = there.bytesFree;
@@ -669,9 +667,7 @@ void MovePlan::roomForEach(const Input &input)
         const FreeSpaceProbe::Answer there = probe->answer(item.to);
         if (m_seesDisks) {
             const FreeSpaceProbe::Answer here = probe->answer(item.from);
-            if (here.source == FreeSpaceProbe::Source::Local &&
-                there.source == FreeSpaceProbe::Source::Local && !here.where.isEmpty() &&
-                here.where == there.where)
+            if (FreeSpaceProbe::sameDrive(here, there))
                 continue; // a rename
         }
         allSame = false;

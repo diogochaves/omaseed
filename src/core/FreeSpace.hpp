@@ -17,6 +17,10 @@ struct StorageReading
     qint64 bytesFree = 0;
     qint64 bytesTotal = 0;
     QString rootPath; ///< the drive's mount point, e.g. "/mnt/media"
+    /// `st_dev` of the folder (or its nearest existing parent); 0 when it couldn't be read. Two
+    /// btrfs subvolumes share a mount point but not a device, and rename(2) between them
+    /// copies (#240), so "the same drive" compares this before rootPath.
+    quint64 device = 0;
     /// QStorageInfo::fileSystemType(): the driver, not the format ("ntfs3", "ntfs", "exfat",
     /// "vfat", "ext4", "btrfs"), as #116 read it. DECISIONS C17 D8 decides by it.
     QString fileSystem;
@@ -66,6 +70,7 @@ public:
         qint64 bytesFree = 0;
         qint64 bytesTotal = 0; ///< 0 when only the free figure is known (Default)
         QString where;         ///< the mount point for Local, empty otherwise
+        quint64 device = 0;    ///< StorageReading::device for Local, 0 otherwise
         /// The drive's filesystem (StorageReading::fileSystem) wherever this machine reads
         /// it: Local, and Default while it sees the server's disks. Empty otherwise: the API
         /// doesn't say, and omaseed won't guess (DECISIONS C17 D8).
@@ -92,8 +97,12 @@ public:
     /// The rename guard (#64) reads the server's files through it.
     QString localPathFor(const QString &serverPath) const;
 
-    /// QStorageInfo on `localPath`, or on its nearest existing parent.
+    /// QStorageInfo and stat(2) on `localPath`, or on its nearest existing parent.
     static StorageReading readLocal(const QString &localPath);
+
+    /// Whether a move between two folders is a rename (#240): both read on this machine, on
+    /// one device when both devices are known, else under one mount point.
+    static bool sameDrive(const Answer &a, const Answer &b);
 
 private:
     /// The local folder for a server path, or "" when the path map says it is not reachable.

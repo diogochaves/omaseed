@@ -79,6 +79,7 @@ private slots:
     void readsARealFolder();
     void localPathsOnlyWhereTheDisksAreSeen();
     void answersCarryTheFileSystem();
+    void sameDriveComparesTheDevice();
     void whichFileSystemsAllocateInFull();
 };
 
@@ -231,11 +232,13 @@ void TestFreeSpace::readsARealFolder()
     QVERIFY(here.bytesTotal > 0);
     QVERIFY(!here.rootPath.isEmpty());
     QVERIFY(!here.fileSystem.isEmpty());
+    QVERIFY(here.device != 0);
 
     const StorageReading later = FreeSpaceProbe::readLocal(dir.path() + QStringLiteral("/not/yet"));
     QVERIFY(later.valid);
     QVERIFY(!later.exists);
     QCOMPARE(later.rootPath, here.rootPath);
+    QCOMPARE(later.device, here.device);
 
     QVERIFY(!FreeSpaceProbe::readLocal(QStringLiteral("relative/path")).valid);
     QVERIFY(!FreeSpaceProbe::readLocal(QString()).valid);
@@ -296,6 +299,34 @@ void TestFreeSpace::answersCarryTheFileSystem()
     probe.setServer(QStringLiteral("/downloads"), 1500 * kGiB, PathMap(), false);
     QVERIFY(probe.answer(QString()).fileSystem.isEmpty());
     QVERIFY(probe.answer(QStringLiteral("/downloads/films")).fileSystem.isEmpty());
+}
+
+void TestFreeSpace::sameDriveComparesTheDevice()
+{
+    // #240: a btrfs subvolume shares its parent's mount point, not its device.
+    FakeDisks disks;
+    disks.add(QStringLiteral("/home/d/Downloads"), QStringLiteral("/home"), 1500 * kGiB);
+    disks.add(QStringLiteral("/home/d/far"), QStringLiteral("/home"), 1500 * kGiB);
+    disks.add(QStringLiteral("/mnt/media"), QStringLiteral("/mnt/media"), 23 * kGiB);
+    disks.folders[QStringLiteral("/home/d/Downloads")].device = 41;
+    disks.folders[QStringLiteral("/home/d/far")].device = 42;
+    disks.folders[QStringLiteral("/mnt/media")].device = 43;
+    FreeSpaceProbe probe(disks.reader());
+    probe.setServer(QStringLiteral("/home/d/Downloads"), 1500 * kGiB, PathMap(), false);
+    const auto library = probe.answer(QStringLiteral("/home/d/Downloads/library"));
+    const auto far = probe.answer(QStringLiteral("/home/d/far/x"));
+    QCOMPARE(far.device, quint64(42));
+    QCOMPARE(far.where, library.where);
+    QVERIFY(!FreeSpaceProbe::sameDrive(library, far));
+    QVERIFY(
+        FreeSpaceProbe::sameDrive(library, probe.answer(QStringLiteral("/home/d/Downloads/new"))));
+    QVERIFY(!FreeSpaceProbe::sameDrive(library, probe.answer(QStringLiteral("/mnt/media/x"))));
+
+    // A device not read: the mount point decides, as before.
+    disks.folders[QStringLiteral("/home/d/far")].device = 0;
+    QVERIFY(FreeSpaceProbe::sameDrive(library, probe.answer(QStringLiteral("/home/d/far/x"))));
+    // The server's own figure is never "read here": never a rename.
+    QVERIFY(!FreeSpaceProbe::sameDrive(probe.answer(QString()), library));
 }
 
 void TestFreeSpace::whichFileSystemsAllocateInFull()

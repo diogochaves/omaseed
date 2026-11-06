@@ -735,7 +735,9 @@ job's whole life, not 30 s. Set location keeps D2.
 - **Room (M5):** bytes on disk plus the loose files when carried, against free space read on
   this machine (or qBittorrent's figure for its default drive) less the low-disk threshold
   (Q16). Short turns the move off with the figures; can't tell is a yellow line and the move is
-  allowed; the same drive needs no room. Read again before every send.
+  allowed; the same drive needs no room. "The same drive" is one device, not one mount point: a
+  btrfs subvolume is another drive, since a rename into it copies (#240). Read again before
+  every send.
 - **Writable (M6):** qBittorrent 5.2.3 answers 200 for a folder it can't write
   (seen on a server). A local check against the owner of the folder's files when
   omaseed sees the disks, and always the smallest torrent alone first: if it fails, the job
