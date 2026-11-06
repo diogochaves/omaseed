@@ -5429,6 +5429,8 @@ void App::updateFeatures()
         m_client == m_qbt ? QStringLiteral("qBittorrent") : serverEngineName();
     m_engine->problems()->setEngine(engine, features.engineLog);
     m_filtered->setEngineName(engine);
+    // C25 K29: web seeds read only, with no status, where there is no log to read.
+    m_details->webSeeds()->setEngine(engine, features.engineLog);
     if (features == m_features)
         return;
     m_features = features;

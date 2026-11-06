@@ -452,6 +452,32 @@ TestCase {
         view.activateTab(view.tabStory);
     }
 
+    // Board 47 §H (C25 K29): Transmission lists web seeds with no status and doesn't let
+    // them be edited: the head is "URL", and one dim line says they are read only.
+    function test_web_seeds_read_only_say_so() {
+        const view = testCase.select(testCase.archName);
+        view.activateTab(view.tabWebSeeds);
+        waitForRendering(view, 500);
+        const tab = findChild(view, "webSeedsTab");
+        verify(!findChild(view, "webSeedsReadOnly").visible);
+        compare(findChild(view, "webSeedsHead").text, "URL · what qBittorrent's log says");
+        tab.features = {
+            "editWebSeeds": false,
+            "engineLog": false
+        };
+        tab.engineName = "Transmission";
+        try {
+            verify(findChild(view, "webSeedsReadOnly").visible);
+            compare(findChild(view, "webSeedsReadOnly").text,
+                    "Web seeds are read only on Transmission: omaseed can't add or remove them there.");
+            compare(findChild(view, "webSeedsHead").text, "URL");
+        } finally {
+            tab.features = Qt.binding(() => App.features);
+            tab.engineName = Qt.binding(() => App.serverEngineName || "qBittorrent");
+            view.activateTab(view.tabStory);
+        }
+    }
+
     function test_the_tracker_badge_follows_the_torrent() {
         const arch = testCase.select(testCase.archName);
         // Spec §2 Fig. 3's middle row times out, so Fig. 1's tab strip badges Trackers.

@@ -20,6 +20,10 @@
 // `statusMeta` when, and how often ("today 09:40", "10 times, last 3 Oct 22:59"). The lines
 // come from ProblemLog through setLogLines(), for whichever torrent the pane shows; a line
 // about a file is the seed's whose folder holds it.
+//
+// C25 K29 (board 47 §H): an engine with no log and no status for web seeds (Transmission)
+// lists them read only; each row's second line then says so, "listed by Transmission · it
+// gives no status for web seeds" (setEngine).
 
 #include "core/TorrentProblem.hpp"
 
@@ -62,6 +66,9 @@ public:
     void clear();
     /// docs/32 W1: the URL seed lines about the torrent shown, oldest first.
     void setLogLines(const QList<WebSeedLogLine> &lines);
+    /// The server's engine, and whether its log tells of web seeds (C25 K29): without one,
+    /// no row reads "no errors logged".
+    void setEngine(const QString &name, bool hasLog);
 
     /// The whole URL of a row, for `y` and `d`; empty out of range.
     Q_INVOKABLE QString urlAt(int row) const;
@@ -88,6 +95,8 @@ private:
     QList<QString> m_urls;
     bool m_loaded = false;
     QList<WebSeedLogLine> m_logLines;
+    QString m_engine = QStringLiteral("qBittorrent");
+    bool m_hasLog = true;
     QList<Status> m_statuses;
 };
 

@@ -13,11 +13,22 @@ import Omaseed.Kit
 // docs/32 W1 (#55): each URL has a second line, what qBittorrent's log says about it: the
 // error's own words in red and when, or "no errors logged" (never "working", which the log
 // can't say). A dot in front is red while there is an error, as the Trackers tab's is.
+//
+// C25 K29 (board 47 §H): where the engine has no log and doesn't let them be edited
+// (Transmission), the head reads "URL", each row "listed by Transmission · it gives no status
+// for web seeds" (the model's), and one dim line under the list says they are read only.
 Item {
     id: root
 
     required property TorrentWebSeedsModel model
     property int cursorIndex: 0
+    /// What the server can do (App.features) and its engine; a test gives its own.
+    property var features: App.features
+    property string engineName: App.serverEngineName || "qBittorrent"
+    /// The dim line under the list, "" for none.
+    readonly property string readOnlyText: root.features.editWebSeeds === false
+                                           ? qsTr("Web seeds are read only on %1: omaseed can't add or remove them there.").arg(
+                                                 root.engineName) : ""
 
     /// The pane's selection (#51 D15), as URLs: those rows fill.
     property var selectedKeys: []
@@ -64,7 +75,8 @@ Item {
         DetailsHeader {
             Layout.fillWidth: true
             clickable: false
-            text: qsTr("URL · what qBittorrent's log says")
+            objectName: "webSeedsHead"
+            text: root.features.engineLog === false ? qsTr("URL") : qsTr("URL · what qBittorrent's log says")
         }
     }
 
@@ -74,7 +86,7 @@ Item {
         // #77: the web seeds' list, for a screen reader; each row is a list item.
         Accessible.name: qsTr("HTTP sources")
         Accessible.role: Accessible.List
-        anchors.bottom: parent.bottom
+        anchors.bottom: readOnlyLine.visible ? readOnlyLine.top : parent.bottom
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.top: header.bottom
@@ -212,5 +224,24 @@ Item {
     // The whole URL, scheme and all.
     Tooltip {
         id: tip
+    }
+
+    Label {
+        id: readOnlyLine
+
+        Accessible.name: text
+        Accessible.role: Accessible.StaticText
+        anchors.bottom: parent.bottom
+        anchors.left: parent.left
+        anchors.leftMargin: Theme.space(8)
+        anchors.right: parent.right
+        anchors.rightMargin: Theme.space(8)
+        dim: true
+        objectName: "webSeedsReadOnly"
+        size: "caption"
+        text: root.readOnlyText
+        topPadding: Theme.space(6)
+        visible: text.length > 0
+        wrapMode: Text.Wrap
     }
 }

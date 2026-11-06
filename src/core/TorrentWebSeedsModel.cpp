@@ -80,6 +80,18 @@ void TorrentWebSeedsModel::clear()
     setLoaded(false);
 }
 
+void TorrentWebSeedsModel::setEngine(const QString &name, bool hasLog)
+{
+    if (name == m_engine && hasLog == m_hasLog)
+        return;
+    m_engine = name;
+    m_hasLog = hasLog;
+    if (m_urls.isEmpty())
+        return;
+    m_statuses = statuses();
+    Q_EMIT dataChanged(index(0), index(int(m_urls.size()) - 1), {StatusErrorRole, StatusMetaRole});
+}
+
 void TorrentWebSeedsModel::setLogLines(const QList<WebSeedLogLine> &lines)
 {
     if (lines == m_logLines)
@@ -122,7 +134,10 @@ QList<TorrentWebSeedsModel::Status> TorrentWebSeedsModel::statuses() const
     result.reserve(m_urls.size());
     for (const Seen &one : std::as_const(seen)) {
         Status status;
-        if (one.newest == nullptr) {
+        if (!m_hasLog) {
+            // C25 K29: board 47 §H's words; no log, so nothing about errors either.
+            status.meta = tr("listed by %1 · it gives no status for web seeds").arg(m_engine);
+        } else if (one.newest == nullptr) {
             status.meta = tr("no errors logged");
         } else {
             status.error = one.newest->status;

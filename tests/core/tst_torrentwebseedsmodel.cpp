@@ -36,6 +36,7 @@ private Q_SLOTS:
     void displayText();
     void eachUrlSaysWhatTheLogSays();
     void logLinesOutliveARowChange();
+    void anEngineWithoutALogListsThemWithoutAStatus();
 };
 
 void TestTorrentWebSeedsModel::rowsKeepTheServersOrderAndDropTheScheme()
@@ -202,6 +203,22 @@ void TestTorrentWebSeedsModel::logLinesOutliveARowChange()
     qbtfeed::webSeeds(model, seeds(R"([{"url":"https://m.example/a.iso"}])"));
     QCOMPARE(model.index(0).data(TorrentWebSeedsModel::StatusErrorRole).toString(),
              QStringLiteral("timed out"));
+}
+
+// C25 K29 (board 47 §H): Transmission lists web seeds and says nothing of their health.
+void TestTorrentWebSeedsModel::anEngineWithoutALogListsThemWithoutAStatus()
+{
+    TorrentWebSeedsModel model;
+    qbtfeed::webSeeds(model, seeds(R"([{"url":"https://archive.example.org/pub/"}])"));
+    QSignalSpy changed(&model, &TorrentWebSeedsModel::dataChanged);
+    model.setEngine(QStringLiteral("Transmission"), false);
+    QCOMPARE(changed.count(), 1);
+    QCOMPARE(model.index(0).data(TorrentWebSeedsModel::StatusMetaRole).toString(),
+             QStringLiteral("listed by Transmission · it gives no status for web seeds"));
+    QCOMPARE(model.index(0).data(TorrentWebSeedsModel::StatusErrorRole).toString(), QString());
+    model.setEngine(QStringLiteral("qBittorrent"), true);
+    QCOMPARE(model.index(0).data(TorrentWebSeedsModel::StatusMetaRole).toString(),
+             QStringLiteral("no errors logged"));
 }
 
 QTEST_GUILESS_MAIN(TestTorrentWebSeedsModel)
