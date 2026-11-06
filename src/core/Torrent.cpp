@@ -106,6 +106,7 @@ TorrentFields Torrent::apply(const TorrentPatch &patch)
     take(patch, TorrentField::InfohashV1, &Torrent::infohashV1, *this, changed);
     take(patch, TorrentField::InfohashV2, &Torrent::infohashV2, *this, changed);
     take(patch, TorrentField::MagnetUri, &Torrent::magnetUri, *this, changed);
+    take(patch, TorrentField::ErrorMessage, &Torrent::errorMessage, *this, changed);
     return changed;
 }
 

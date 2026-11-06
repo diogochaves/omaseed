@@ -91,7 +91,7 @@ const std::array<QList<int>, std::size_t(TorrentField::Count)> &fieldRoles()
         put(F::InfohashV2, {M::InfohashV2Role});
         put(F::MagnetUri, {M::MagnetUriRole});
         // Fields no role shows on its own (only TorrentRole, which every change carries):
-        // DownloadPath, SuperSeeding, AutoTmm, UploadedSession.
+        // DownloadPath, SuperSeeding, AutoTmm, UploadedSession, ErrorMessage.
         return t;
     }();
     return table;

@@ -101,7 +101,8 @@ void TestTorrentPatch::everyFieldFeedsTheTorrentRole()
     const QList<TorrentField> roleless{TorrentField::DownloadPath,
                                        TorrentField::SuperSeeding,
                                        TorrentField::AutoTmm,
-                                       TorrentField::UploadedSession};
+                                       TorrentField::UploadedSession,
+                                       TorrentField::ErrorMessage};
     for (int i = 0; i < int(TorrentField::Count); ++i) {
         const auto field = TorrentField(i);
         QCOMPARE(TorrentModel::rolesForField(field).isEmpty(), roleless.contains(field));

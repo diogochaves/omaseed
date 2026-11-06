@@ -58,6 +58,7 @@ enum class TorrentField {
     InfohashV1,
     InfohashV2,
     MagnetUri,
+    ErrorMessage,
     Count ///< not a field: how many there are
 };
 

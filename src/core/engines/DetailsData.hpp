@@ -19,11 +19,13 @@
 namespace omaseed::core {
 
 /// A file's priority. The values are qBittorrent's (the reference), which App still sends as
-/// they are; other engines map theirs onto these four.
+/// they are; other engines map theirs onto these. Low is Transmission's and Deluge's (C25 K17):
+/// qBittorrent has none, so its feature record never offers it.
 enum class FilePriority {
     Mixed = -1,
     Skip = 0,
     Normal = 1,
+    Low = 2,
     High = 6,
     Maximal = 7,
 };

@@ -38,6 +38,12 @@ struct EngineFeatures
     bool editWebSeeds = false;     ///< add and remove a torrent's HTTP sources
     bool seedingTimeLimit = false; ///< a limit on total seeding time (ratio and idle aside)
     bool engineLog = false;        ///< the engine's own log: the log face, the problem log
+    /// The alternative speed limits, turtle mode and its clock (C4); none on Deluge (C25 K20).
+    bool altSpeeds = false;
+    /// Renaming a torrent renames its top folder (or its one file) on disk, not only the name
+    /// shown: Transmission's torrent_rename_path (C25 K28). Renaming a file or folder inside
+    /// it keeps it where it is there (a new name, never a new folder).
+    bool renameOnDisk = false;
     /// qBittorrent's own surfaces, reached through its engine (docs/36 §4.4, C14 E6, E7):
     /// Settings › qBittorrent with its settings export and import, the torrents export and
     /// import (C9's file holds qBittorrent's rows), RSS feeds and rules.
