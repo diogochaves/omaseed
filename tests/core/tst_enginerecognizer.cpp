@@ -170,8 +170,8 @@ void TestEngineRecognizer::transmissionAfterQbittorrentDidNotAnswer()
     QCOMPARE(server.requests.at(1).method, QByteArray("POST"));
     QCOMPARE(server.requests.at(2).header("X-Transmission-Session-Id"), QByteArray("s3ss10n"));
     QCOMPARE(methodOf(server.requests.at(2)), QStringLiteral("session_get"));
-    QVERIFY(engineSupport(found.engine, found.version, found.apiVersion)
-                .refusal.contains(QStringLiteral("can't drive Transmission yet")));
+    // E4: driven, so nothing refuses it.
+    QVERIFY(engineSupport(found.engine, found.version, found.apiVersion).usable());
 }
 
 void TestEngineRecognizer::transmissionFirstForItsPath()
