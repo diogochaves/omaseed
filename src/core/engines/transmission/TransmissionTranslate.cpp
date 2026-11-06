@@ -941,6 +941,7 @@ EngineFeatures features(const ServerInfo &)
     f.editWebSeeds = false;      // H, K29: read only
     f.engineLog = false;         // I, K30: no log face, no ~
     f.qbtSettings = false;       // I, J
+    f.sessionBasics = true;      // J, K31: TRANSMISSION › Basics from session_get / session_set
     f.torrentsBackup = false;    // I, K33
     f.rss = false;               // I
     f.addAgain = false;          // I: C17 D3's re-add is libtorrent's hybrid fix

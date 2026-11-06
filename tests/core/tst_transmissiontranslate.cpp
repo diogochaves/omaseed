@@ -586,6 +586,7 @@ void TestTransmissionTranslate::featuresFollowBoard47()
     QVERIFY(f.forceStart);
     QVERIFY(f.sequentialDownload);
     QVERIFY(f.renameOnDisk);
+    QVERIFY(f.sessionBasics);
     QVERIFY(f.moveStopsOnFailure);
     QVERIFY(f.movesHoldAnswers);
     QVERIFY(f.roomOnServer);

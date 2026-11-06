@@ -1879,8 +1879,13 @@ Item {
     /// ctrl+shift+, (docs/16 §2): Settings on the qBittorrent group. First run holds it like
     /// `,` does.
     function openQbtSettings(): void {
-        if (root.firstRun || !Keymap.offered("qbtSettings", App.features, ""))
+        if (root.firstRun)
             return;
+        // C25 K31: on another engine, its own group (TRANSMISSION › Basics), where it has one.
+        if (!Keymap.offered("qbtSettings", App.features, "") && App.features.sessionBasics !== true) {
+            root.sayMissing("qbtSettings", "");
+            return;
+        }
         settingsModal.openQbt();
     }
 

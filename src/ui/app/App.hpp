@@ -139,6 +139,9 @@ class App : public QObject
     /// lists ("filePriorities", "shareLimitActions"). The views hide what is false wherever it
     /// would be offered; for qBittorrent everything is on.
     Q_PROPERTY(QVariantMap features READ featuresMap NOTIFY featuresChanged)
+    /// C25 K31: TRANSMISSION › Basics' "test port", the engine's own test from outside:
+    /// {state: "" | "testing" | "open" | "closed" | "failed", port, text}. Cleared by a switch.
+    Q_PROPERTY(QVariantMap portTest READ portTest NOTIFY portTestChanged)
 
     // The server the hero line prints, and whether there is one at all.
     Q_PROPERTY(QString serverName READ serverName NOTIFY serverChanged)
@@ -210,6 +213,9 @@ public:
     /// What the chosen server can do, resolved from its engine and version after the probe.
     const omaseed::core::EngineFeatures &features() const { return m_features; }
     QVariantMap featuresMap() const;
+    QVariantMap portTest() const { return m_portTest; }
+    /// C25 K31: asks the server's engine to test its peer port (`port`, the one shown).
+    Q_INVOKABLE void testPort(int port);
     /// For tests: its probe runner and keychain hooks keep them off the desktop's keyring.
     omaseed::core::SecretStore *secretStore() const { return m_secrets; }
 
@@ -259,6 +265,7 @@ Q_SIGNALS:
     void serverChanged();
     /// The chosen server's feature record moved (a probe, a switch).
     void featuresChanged();
+    void portTestChanged();
     void demoModeChanged();
 
     /// Raised by the tray menu, the hero's gear, `,` and a notice's "settings". MainView opens
@@ -289,6 +296,9 @@ private:
     /// Transmission's, made the first time a Transmission server is chosen.
     omaseed::core::TransmissionEngine *m_transmission = nullptr;
     omaseed::core::EngineFeatures m_features;
+    QVariantMap m_portTest;
+    /// Bumped by each test and each switch: a late answer for another one is dropped.
+    quint64 m_portTestId = 0;
     omaseed::core::SyncEngine *m_engine = nullptr;
     omaseed::core::TorrentFilterModel *m_filtered = nullptr;
     omaseed::core::ServerStore *m_servers = nullptr;

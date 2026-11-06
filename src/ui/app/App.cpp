@@ -664,7 +664,38 @@ void App::useClientFor(EngineKind kind)
     m_pauseHold->setSettleMs(kind == EngineKind::Transmission ? 5000 : 0);
     m_details->setClient(nullptr); // selectTorrent hands it the new one
     qInfo().noquote() << QStringLiteral("engine: %1").arg(engineDisplayName(kind));
+    // C25 K31: a port test said of the other server says nothing of this one.
+    ++m_portTestId;
+    if (!m_portTest.isEmpty()) {
+        m_portTest.clear();
+        Q_EMIT portTestChanged();
+    }
     updateFeatures();
+}
+
+void App::testPort(int port)
+{
+    const quint64 id = ++m_portTestId;
+    const auto say = [this, port](const QString &state, const QString &text) {
+        m_portTest = {{QStringLiteral("state"), state},
+                      {QStringLiteral("port"), port},
+                      {QStringLiteral("text"), text}};
+        Q_EMIT portTestChanged();
+    };
+    say(QStringLiteral("testing"), tr("testing port %1…").arg(port));
+    m_client->testPort()->then(this, [this, id, port, say](const Result<bool> &result) {
+        if (id != m_portTestId)
+            return;
+        if (result.isError()) {
+            say(QStringLiteral("failed"),
+                tr("couldn't test port %1: %2").arg(port).arg(result.error().message()));
+        } else if (result.value()) {
+            say(QStringLiteral("open"), tr("port %1 is open: peers can reach it").arg(port));
+        } else {
+            say(QStringLiteral("closed"),
+                tr("port %1 is closed: peers can't reach it from outside").arg(port));
+        }
+    });
 }
 
 void App::startEngine()
@@ -5402,6 +5433,7 @@ QVariantMap App::featuresMap() const
         {QStringLiteral("seedingTimeLimit"), f.seedingTimeLimit},
         {QStringLiteral("engineLog"), f.engineLog},
         {QStringLiteral("qbtSettings"), f.qbtSettings},
+        {QStringLiteral("sessionBasics"), f.sessionBasics},
         {QStringLiteral("torrentsBackup"), f.torrentsBackup},
         {QStringLiteral("rss"), f.rss},
         {QStringLiteral("addAgain"), f.addAgain},
@@ -5425,8 +5457,7 @@ void App::updateFeatures()
         m_client->features(ServerInfo{state->serverVersion(), state->apiVersion()});
     // C25 K24: errors in the engine's words, from its log or from the torrent's own text;
     // the rows' sentences name it.
-    const QString engine =
-        m_client == m_qbt ? QStringLiteral("qBittorrent") : serverEngineName();
+    const QString engine = m_client == m_qbt ? QStringLiteral("qBittorrent") : serverEngineName();
     m_engine->problems()->setEngine(engine, features.engineLog);
     m_filtered->setEngineName(engine);
     // C25 K29: web seeds read only, with no status, where there is no log to read.

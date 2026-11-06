@@ -265,6 +265,79 @@ TestCase {
         compare(modal.sheet.note, "omaseed is on private now · the library too");
     }
 
+    // Board 47 §J (C25 K31–K32): a Transmission server's group is TRANSMISSION, one page,
+    // Basics, read and written through the same preferences (its session's, in the app); a
+    // speed there is in Transmission's kB/s. An engine with neither has no group at all.
+    function test_a_transmission_has_its_own_group_with_basics() {
+        const modal = createTemporaryObject(modalComponent, testCase, {
+                                                "features": {
+                                                    "qbtSettings": false,
+                                                    "sessionBasics": true
+                                                },
+                                                "engineName": "Transmission"
+                                            });
+        compare(modal.qbtSections.map(section => section.id), ["basics"]);
+        compare(testCase.childNamed(modal, "qbtNavHead").text, "transmission");
+        compare(testCase.childNamed(modal, "qbtNavRow0").text, "Basics");
+        modal.openQbt();
+        compare(modal.paneIndex, modal.qbtStart);
+        compare(modal.qbtSection.id, "basics");
+        for (const key of ["listen_port", "dl_limit", "up_limit", "alt_dl_limit", "save_path", "temp_path",
+                           "max_ratio", "max_inactive_seeding_time"])
+            verify(testCase.childNamed(modal, "field-" + key) !== null, key);
+        const field = testCase.childNamed(modal, "field-dl_limit");
+        field.text = "100";
+        field.accepted();
+        compare(App.serverPrefs.values.dl_limit, 100 * 1000);
+        // "test port": the engine's own test; the demo's qBittorrent has none, and says so.
+        verify(!testCase.childNamed(modal, "portTestChip").visible);
+        modal.qbtAction("testPort");
+        tryVerify(() => App.portTest.state === "failed", 5000);
+        verify(App.portTest.text.indexOf("couldn't test port 51413") === 0, App.portTest.text);
+        verify(testCase.childNamed(modal, "portTestChip").visible);
+        compare(testCase.childNamed(modal, "portTestChip").text, "couldn't test");
+
+        // No group for an engine omaseed has no settings for.
+        modal.features = {
+            "qbtSettings": false
+        };
+        compare(modal.qbtSections.length, 0);
+        compare(modal.paneIndex, 0, "the pane stayed past the group's end");
+        verify(!testCase.childNamed(modal, "qbtNavHead").visible);
+    }
+
+    // Board 47 §J (C25 K33): Backup is qBittorrent's; its scope line names the servers that
+    // have none, and only a qBittorrent can be copied from.
+    function test_backups_scope_names_the_servers_that_have_none() {
+        const home = App.serverList.add({
+                                            "name": "home",
+                                            "url": "http://demo.example.org",
+                                            "authMode": "none"
+                                        }, "");
+        App.serverList.setDefault(home);
+        const seedbox = App.serverList.add({
+                                               "name": "seedbox",
+                                               "url": "http://127.0.0.1:9091/transmission/web/",
+                                               "authMode": "none",
+                                               "engine": "transmission"
+                                           }, "");
+        verify(seedbox.length > 0);
+        compare(App.serverList.serverMap(seedbox).engine, "transmission");
+        const modal = createTemporaryObject(modalComponent, testCase);
+        modal.openQbt();
+        keyClick(Qt.Key_0);
+        verify(modal.inQbtBackup);
+        compare(testCase.childNamed(modal, "qbtScopeLine").text,
+                "home's own settings and torrents, read from and sent to home only. seedbox (Transmission) has no backup in omaseed yet: its settings and torrents stay on it.");
+        compare(modal.otherQbtServerIds, []);
+        verify(!testCase.childNamed(modal, "copySourceButton").visible);
+
+        testCase.addServer("private", 8091);
+        compare(testCase.childNamed(modal, "qbtScopeLine").text,
+                "home's own settings and torrents, read from and sent to home only. seedbox (Transmission) has no backup in omaseed yet: its settings and torrents stay on it. private has its own:");
+        compare(modal.copySourceName, "private");
+    }
+
     // docs/34 D6 a: copy settings from another server, on the demo's fiction of one: space
     // picks which, enter reads it and opens the import sheet, titled for the copy.
     function test_copy_settings_from_another_server() {

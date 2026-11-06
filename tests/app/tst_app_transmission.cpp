@@ -9,17 +9,17 @@
 #include "core/AltPresets.hpp"
 #include "core/AltSpeed.hpp"
 #include "core/GlobalState.hpp"
+#include "core/MoveJob.hpp"
 #include "core/PauseHold.hpp"
 #include "core/ProblemLog.hpp"
 #include "core/SyncEngine.hpp"
 #include "core/TorrentDetails.hpp"
 #include "core/TorrentFilesModel.hpp"
 #include "core/TorrentModel.hpp"
-#include "core/MoveJob.hpp"
 #include "core/engines/EngineClient.hpp"
-#include "ui/app/MoveController.hpp"
 #include "core/engines/qbt/ServerPreferences.hpp"
 #include "ui/app/App.hpp"
+#include "ui/app/MoveController.hpp"
 
 #include <QSignalSpy>
 #include <QTemporaryDir>
@@ -114,6 +114,8 @@ private:
                     t.insert(QStringLiteral("status"), status);
     }
 
+public:
+    /// The daemon's own answer, for a test that answers one method itself.
     QJsonObject answer(const QString &method, const QJsonObject &params)
     {
         const QStringList ids = hashes(params);
@@ -172,6 +174,7 @@ private Q_SLOTS:
     void anOldTransmissionIsRefusedInK8sWords();
     void filesStepThroughTransmissionsPriorities();
     void turtleAndItsClockAreTransmissionsSession();
+    void basicsAreTransmissionsSessionAndItsPortTest();
     void aLongMoveIsBusyNotLost();
     void aFailedMoveIsLearntFromTheTorrent();
     void theMoveSheetRunsTransmissionsChecks();
@@ -257,6 +260,46 @@ void TestAppTransmission::turtleAndItsClockAreTransmissionsSession()
     app.engine()->stop();
 }
 
+// Board 47 §J (C25 K31): TRANSMISSION › Basics reads and writes the session as the rest of
+// Settings does qBittorrent's preferences, and "test port" asks the daemon.
+void TestAppTransmission::basicsAreTransmissionsSessionAndItsPortTest()
+{
+    Daemon daemon;
+    daemon.wire.answer = [&daemon](const QString &method, const QJsonObject &params) {
+        if (method == QLatin1String("port_test"))
+            return QJsonObject{{QStringLiteral("port_is_open"), true}};
+        return daemon.answer(method, params);
+    };
+    App app;
+    QVERIFY(startOn(app, daemon));
+    QVERIFY(app.featuresMap().value(QStringLiteral("sessionBasics")).toBool());
+    QVERIFY(!app.featuresMap().value(QStringLiteral("qbtSettings")).toBool());
+    QTRY_VERIFY_WITH_TIMEOUT(app.serverPrefs()->isLoaded(), 3000);
+    QCOMPARE(app.serverPrefs()->value(QStringLiteral("listen_port")).toInt(), 26994);
+    QCOMPARE(app.serverPrefs()->value(QStringLiteral("dht")).toBool(), false);
+    QCOMPARE(app.serverPrefs()->value(QStringLiteral("max_inactive_seeding_time")).toInt(), 30);
+
+    app.serverPrefs()->apply({{QStringLiteral("listen_port"), 51413},
+                              {QStringLiteral("dht"), true},
+                              {QStringLiteral("temp_path_enabled"), true}});
+    QTRY_COMPARE_WITH_TIMEOUT(
+        daemon.library.sessionGet.value(QStringLiteral("peer_port")).toInt(), 51413, 3000);
+    QVERIFY(daemon.library.sessionGet.value(QStringLiteral("dht_enabled")).toBool());
+    QVERIFY(daemon.library.sessionGet.value(QStringLiteral("incomplete_dir_enabled")).toBool());
+    QTRY_COMPARE_WITH_TIMEOUT(
+        app.serverPrefs()->value(QStringLiteral("listen_port")).toInt(), 51413, 3000);
+
+    QSignalSpy tested(&app, &App::portTestChanged);
+    app.testPort(51413);
+    QCOMPARE(app.portTest().value(QStringLiteral("state")).toString(), QStringLiteral("testing"));
+    QTRY_COMPARE_WITH_TIMEOUT(
+        app.portTest().value(QStringLiteral("state")).toString(), QStringLiteral("open"), 3000);
+    QCOMPARE(app.portTest().value(QStringLiteral("text")).toString(),
+             QStringLiteral("port 51413 is open: peers can reach it"));
+    QCOMPARE(tested.count(), 2);
+    app.engine()->stop();
+}
+
 // Board 47 §E, C25 K22: Transmission answers nothing while a move's copy runs. The poll is held
 // and says "busy moving" (status, title, band), no server is lost, one torrent goes at a time,
 // and the list comes back when the move answers.
@@ -298,12 +341,14 @@ void TestAppTransmission::aLongMoveIsBusyNotLost()
     QTRY_VERIFY_WITH_TIMEOUT(app.move()->shown(), 5000);
     const QVariantMap band = app.move()->band();
     QCOMPARE(band.value(QStringLiteral("kind")).toString(), QStringLiteral("yellow"));
-    QVERIFY2(band.value(QStringLiteral("headline")).toString().contains(
-                 QStringLiteral("is busy moving Fixture Pack")),
+    QVERIFY2(band.value(QStringLiteral("headline"))
+                 .toString()
+                 .contains(QStringLiteral("is busy moving Fixture Pack")),
              qPrintable(band.value(QStringLiteral("headline")).toString()));
-    QVERIFY(band.value(QStringLiteral("line"))
-                .toString()
-                .contains(QStringLiteral("Transmission answers again once this torrent has moved")));
+    QVERIFY(
+        band.value(QStringLiteral("line"))
+            .toString()
+            .contains(QStringLiteral("Transmission answers again once this torrent has moved")));
 
     // The copy ends: the move answers, the poll goes at once and finds it there.
     daemon.server.release();
@@ -321,7 +366,8 @@ void TestAppTransmission::aFailedMoveIsLearntFromTheTorrent()
 {
     Daemon daemon;
     const QString to = QStringLiteral("/srv/locked/dest");
-    const QString from = daemon.library.byHash(kPack).value(QStringLiteral("download_dir")).toString();
+    const QString from =
+        daemon.library.byHash(kPack).value(QStringLiteral("download_dir")).toString();
     daemon.wire.answer = [&](const QString &method, const QJsonObject &params) {
         if (method == QLatin1String("torrent_set_location")) {
             QJsonObject &pack = daemon.library.byHash(kPack);
@@ -347,7 +393,9 @@ void TestAppTransmission::aFailedMoveIsLearntFromTheTorrent()
              QStringLiteral("Transmission can't write to %1 · it stopped the torrent").arg(to));
     // C25 K24 (board 47's strip): "start it here" in place of details.
     QVERIFY(outcome.value(QStringLiteral("startHere")).toBool());
-    QVERIFY(outcome.value(QStringLiteral("details")).toString().startsWith(QStringLiteral("Couldn't move")));
+    QVERIFY(outcome.value(QStringLiteral("details"))
+                .toString()
+                .startsWith(QStringLiteral("Couldn't move")));
     QVERIFY(!notes.isEmpty());
     QVERIFY(notes.constLast().at(2).toBool());
     // Sent once: the failure isn't a quiet torrent sent again.
@@ -379,13 +427,16 @@ void TestAppTransmission::theMoveSheetRunsTransmissionsChecks()
                                          ->params.value(QStringLiteral("path"))
                                          .toString() == to,
                              3000);
-    QTRY_VERIFY_WITH_TIMEOUT((lines = texts()).join(QLatin1Char('\n'))
+    QTRY_VERIFY_WITH_TIMEOUT((lines = texts())
+                                 .join(QLatin1Char('\n'))
                                  .contains(QStringLiteral("by Transmission's count")),
                              3000);
     const QString all = lines.join(QLatin1Char('\n'));
-    QVERIFY2(all.contains(QStringLiteral("through Transmission: room on that drive")), qPrintable(all));
-    QVERIFY2(all.contains(QStringLiteral("Names at the destination can't be checked on Transmission.")),
+    QVERIFY2(all.contains(QStringLiteral("through Transmission: room on that drive")),
              qPrintable(all));
+    QVERIFY2(
+        all.contains(QStringLiteral("Names at the destination can't be checked on Transmission.")),
+        qPrintable(all));
     QVERIFY2(all.contains(QStringLiteral("may be replaced by it")), qPrintable(all));
     QVERIFY2(all.contains(QStringLiteral("the rest follow one at a time")), qPrintable(all));
     QVERIFY2(!all.contains(QStringLiteral("qBittorrent")), qPrintable(all));
@@ -401,32 +452,40 @@ void TestAppTransmission::anErroredTorrentReadsTransmissionsWords()
     Daemon daemon;
     App app;
     QVERIFY(startOn(app, daemon));
-    QTRY_VERIFY_WITH_TIMEOUT(
-        !app.engine()->torrents()->problem(kError).value(QStringLiteral("headline")).toString().isEmpty(),
-        3000);
+    QTRY_VERIFY_WITH_TIMEOUT(!app.engine()
+                                  ->torrents()
+                                  ->problem(kError)
+                                  .value(QStringLiteral("headline"))
+                                  .toString()
+                                  .isEmpty(),
+                             3000);
     const QVariantMap problem = app.engine()->torrents()->problem(kError);
     QCOMPARE(problem.value(QStringLiteral("engine")).toString(), QStringLiteral("Transmission"));
     QVERIFY(problem.value(QStringLiteral("failedMove")).toBool());
     QCOMPARE(problem.value(QStringLiteral("headline")).toString(), QStringLiteral("Didn't move"));
-    const QString text = daemon.library.byHash(kError).value(QStringLiteral("error_string")).toString();
+    const QString text =
+        daemon.library.byHash(kError).value(QStringLiteral("error_string")).toString();
     QCOMPARE(problem.value(QStringLiteral("detail")).toString(),
              QStringLiteral("Transmission: “%1”").arg(text));
     QCOMPARE(problem.value(QStringLiteral("line")).toString(), text);
     QCOMPARE(problem.value(QStringLiteral("actions")).toStringList(),
              QStringList({QStringLiteral("startHere"), QStringLiteral("location")}));
-    QVERIFY(problem.value(QStringLiteral("note")).toString().startsWith(
-        QStringLiteral("Transmission stopped it · its files are still in ")));
+    QVERIFY(problem.value(QStringLiteral("note"))
+                .toString()
+                .startsWith(QStringLiteral("Transmission stopped it · its files are still in ")));
 
     // The row, as the rows display and the details' hero read it: stopped, in its words.
-    QTRY_COMPARE_WITH_TIMEOUT(
-        app.torrentRow(kError).value(QStringLiteral("rowCaption")).toString(),
-        QStringLiteral("stopped"), 3000);
+    QTRY_COMPARE_WITH_TIMEOUT(app.torrentRow(kError).value(QStringLiteral("rowCaption")).toString(),
+                              QStringLiteral("stopped"),
+                              3000);
     const QVariantMap row = app.torrentRow(kError);
     QCOMPARE(row.value(QStringLiteral("rowFact")).toString(), QStringLiteral("didn't move"));
-    QVERIFY(row.value(QStringLiteral("rowSentence")).toString().startsWith(
-        QStringLiteral("Transmission couldn't move it to ")));
-    QVERIFY(row.value(QStringLiteral("rowSentence")).toString().endsWith(
-        QStringLiteral(" · it stopped the torrent")));
+    QVERIFY(row.value(QStringLiteral("rowSentence"))
+                .toString()
+                .startsWith(QStringLiteral("Transmission couldn't move it to ")));
+    QVERIFY(row.value(QStringLiteral("rowSentence"))
+                .toString()
+                .endsWith(QStringLiteral(" · it stopped the torrent")));
     for (const QVariant &event : app.torrentStory(kError)) {
         const QVariantMap e = event.toMap();
         if (e.value(QStringLiteral("kind")).toString() == QLatin1String("error"))
@@ -453,12 +512,14 @@ void TestAppTransmission::anErrorInPlaceReadsItsCauseAndItsNotice()
     QVERIFY(startOn(app, daemon));
     QTRY_COMPARE_WITH_TIMEOUT(
         app.engine()->torrents()->problem(kError).value(QStringLiteral("headline")).toString(),
-        QStringLiteral("Transmission can't write to its save folder"), 3000);
+        QStringLiteral("Transmission can't write to its save folder"),
+        3000);
     const QVariantMap problem = app.engine()->torrents()->problem(kError);
     QCOMPARE(problem.value(QStringLiteral("actions")).toStringList().constFirst(),
              QStringLiteral("start"));
     QTRY_COMPARE_WITH_TIMEOUT(app.torrentRow(kError).value(QStringLiteral("rowFact")).toString(),
-                              QStringLiteral("no access"), 3000);
+                              QStringLiteral("no access"),
+                              3000);
 
     QSignalSpy errored(app.engine()->problems(), &omaseed::core::ProblemLog::torrentErrored);
     QJsonObject &single = daemon.library.byHash(kSingle);
@@ -541,18 +602,17 @@ void TestAppTransmission::whatTransmissionLacksIsNotOffered()
     QVERIFY(startOn(app, daemon));
     const QVariantMap can = app.featuresMap();
     // C14 E4, board 47 §1: what Transmission has…
-    for (const char *on :
-         {"tags",
-          "queue",
-          "forceStart",
-          "sequentialDownload",
-          "altSpeeds",
-          "renameOnDisk",
-          // Board 47 §E (C25 K21–K23): moves.
-          "moveStopsOnFailure",
-          "movesHoldAnswers",
-          "roomOnServer",
-          "moveReplacesFile"})
+    for (const char *on : {"tags",
+                           "queue",
+                           "forceStart",
+                           "sequentialDownload",
+                           "altSpeeds",
+                           "renameOnDisk",
+                           // Board 47 §E (C25 K21–K23): moves.
+                           "moveStopsOnFailure",
+                           "movesHoldAnswers",
+                           "roomOnServer",
+                           "moveReplacesFile"})
         QVERIFY2(can.value(QString::fromLatin1(on)).toBool(), on);
     // …and what it lacks, hidden by the views that read these.
     for (const char *off : {"categories",

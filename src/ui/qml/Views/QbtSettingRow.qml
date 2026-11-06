@@ -374,6 +374,24 @@ SettingsRow {
             warn: App.globalState.connectionStatus !== "connected"
         }
 
+        // C25 K31: "test port"'s answer, the engine's own test from outside (App.portTest),
+        // for the port shown; nothing until it is asked.
+        Chip {
+            readonly property var test: App.portTest
+            readonly property bool forThisPort: row.spec.reach === "test" && row.loaded
+                                                && test.state !== undefined
+                                                && test.port === row.values[row.spec.fields[0].key]
+
+            block: row.ground
+            objectName: "portTestChip"
+            text: test.state === "testing" ? qsTr("testing…") : test.state === "open" ? qsTr("open")
+                                                                                     : test.state === "closed"
+                                                                                       ? qsTr("closed")
+                                                                                       : qsTr("couldn't test")
+            visible: forThisPort
+            warn: test.state === "closed" || test.state === "failed"
+        }
+
         Toggle {
             id: toggle
 

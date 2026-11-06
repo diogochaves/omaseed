@@ -1650,4 +1650,195 @@ QtObject {
             ]
         }
     ]
+    // ---- TRANSMISSION › Basics (board 47 §J, DECISIONS C25 K31) ---------------------------
+    // One page until Settings › Transmission (E5, #86): the port with its test, the global
+    // limits, turtle and its clock, the default folder (and the incomplete one), DHT, and the
+    // seeding defaults the limits sheet's "global" means. The keys are app/preferences' words:
+    // ServerPreferences reads and writes them through Transmission's session
+    // (TransmissionTranslate::speedPreferences). Speeds in Transmission's own kB/s (1000
+    // bytes), so what is typed is what it keeps.
+
+    /// A speed in kB/s (1000 bytes) over bytes/s, empty for no limit.
+    function speedKb(key: string): var {
+        const field = root.speed(key);
+        field.unit = qsTr("kB/s");
+        field.scale = 1000;
+        return field;
+    }
+
+    /// The schedule's days as Transmission keeps them, a mask from Sunday (1) to Saturday (64).
+    readonly property var dayMaskOptions: [[127, qsTr("every day")], [62, qsTr("weekdays")], [65, qsTr(
+                "weekends")], [2, qsTr("Monday")], [4, qsTr("Tuesday")], [8, qsTr("Wednesday")], [16, qsTr(
+                "Thursday")], [32, qsTr("Friday")], [64, qsTr("Saturday")], [1, qsTr("Sunday")]]
+
+    readonly property var transmissionSections: [
+        {
+            "id": "basics",
+            "glyph": "◇",
+            "name": qsTr("Basics"),
+            "shortName": qsTr("Basics"),
+            "sub": qsTr("the port, limits, turtle, folders and DHT"),
+            "rows": [
+                {
+                    "note": qsTr("Saved on the server as you change them. The rest of Transmission's settings come with Settings › Transmission.")
+                },
+                {
+                    "glyph": "⊙",
+                    "title": qsTr("Listening port"),
+                    "desc": qsTr("Where peers reach the server. Transmission can test it from outside."),
+                    "fields": [root.num("listen_port", {
+                                            "min": 1,
+                                            "max": 65535
+                                        })],
+                    "reach": "test",
+                    "button": {
+                        "text": qsTr("test port"),
+                        "action": "testPort"
+                    },
+                    "confirm": "port"
+                },
+                {
+                    "glyph": "↓",
+                    "title": qsTr("Download limit"),
+                    "desc": qsTr("For every torrent together. Empty means no limit."),
+                    "fields": [root.speedKb("dl_limit")]
+                },
+                {
+                    "glyph": "↑",
+                    "title": qsTr("Upload limit"),
+                    "fields": [root.speedKb("up_limit")]
+                },
+                {
+                    "group": qsTr("alternative speeds · two presets")
+                },
+                {
+                    "glyph": Glyphs.altSpeed,
+                    "title": qsTr("Turtle download"),
+                    "desc": qsTr("Transmission's alternative limits, kept as turtle while nothing else is picked, so its schedule and other clients see them. A, or the status line's chip."),
+                    "presets": true,
+                    "fields": [root.speedKb("alt_dl_limit")]
+                },
+                {
+                    "glyph": Glyphs.altSpeed,
+                    "title": qsTr("Turtle upload"),
+                    "presets": true,
+                    "fields": [root.speedKb("alt_up_limit")]
+                },
+                {
+                    "glyph": Glyphs.burst,
+                    "title": qsTr("Burst download"),
+                    "desc": qsTr("Written over turtle while burst is on, for as long as it lasts; turtle is written back after, and when omaseed quits."),
+                    "presets": true,
+                    "fields": [root.speedKb("burst_dl_limit")]
+                },
+                {
+                    "glyph": Glyphs.burst,
+                    "title": qsTr("Burst upload"),
+                    "presets": true,
+                    "fields": [root.speedKb("burst_up_limit")]
+                },
+                {
+                    "title": qsTr("Burst lasts"),
+                    "sub": true,
+                    "presets": true,
+                    "pick": {
+                        "key": "burst_minutes",
+                        "options": [[30, qsTr("30 min")], [60, qsTr("1 h")], [0, qsTr("until I stop it")]]
+                    }
+                },
+                {
+                    "glyph": "◷",
+                    "title": qsTr("Turtle by the clock"),
+                    "desc": qsTr("Transmission turns turtle on by itself between two times, by its own clock, and off again after."),
+                    "toggle": "scheduler_enabled"
+                },
+                {
+                    "title": qsTr("From, to"),
+                    "sub": true,
+                    "dep": "scheduler_enabled",
+                    "preset": {
+                        "key": "n",
+                        "text": qsTr("nights"),
+                        "about": qsTr("23:00 to 07:00, every day"),
+                        "changes": {
+                            "schedule_from_hour": 23,
+                            "schedule_from_min": 0,
+                            "schedule_to_hour": 7,
+                            "schedule_to_min": 0,
+                            "scheduler_day_mask": 127
+                        }
+                    },
+                    "fields": [{
+                            "key": "schedule_from_hour",
+                            "minKey": "schedule_from_min",
+                            "kind": "time",
+                            "width": 70
+                        }, {
+                            "key": "schedule_to_hour",
+                            "minKey": "schedule_to_min",
+                            "kind": "time",
+                            "width": 70,
+                            "sep": qsTr("to")
+                        }]
+                },
+                {
+                    "title": qsTr("Days"),
+                    "sub": true,
+                    "dep": "scheduler_enabled",
+                    "pick": {
+                        "key": "scheduler_day_mask",
+                        "options": root.dayMaskOptions
+                    }
+                },
+                {
+                    "line": "schedule"
+                },
+                {
+                    "group": qsTr("where")
+                },
+                {
+                    "glyph": "▤",
+                    "title": qsTr("Default save path"),
+                    "desc": qsTr("Where a torrent goes when the add sheet keeps the server's default. A path on the server."),
+                    "fields": [root.text("save_path", 240, "")]
+                },
+                {
+                    "glyph": "▤",
+                    "title": qsTr("Keep incomplete files elsewhere"),
+                    "toggle": "temp_path_enabled",
+                    "fields": [root.text("temp_path", 200, "")]
+                },
+                {
+                    "group": qsTr("peers and seeding")
+                },
+                {
+                    "glyph": "◎",
+                    "title": qsTr("DHT"),
+                    "desc": qsTr("Finds peers without a tracker; a bare info hash needs it. Private torrents never use it."),
+                    "toggle": "dht"
+                },
+                {
+                    "glyph": "÷",
+                    "title": qsTr("Share ratio"),
+                    "desc": qsTr("Stop once a torrent has uploaded this many times its size. A torrent's own limit (L) wins."),
+                    "toggle": "max_ratio_enabled",
+                    "fields": [root.num("max_ratio", {
+                                            "decimals": 2,
+                                            "min": 0
+                                        })]
+                },
+                {
+                    "glyph": "◷",
+                    "title": qsTr("Idle for"),
+                    "desc": qsTr("Stop after this long with no upload."),
+                    "toggle": "max_inactive_seeding_time_enabled",
+                    "fields": [root.num("max_inactive_seeding_time", {
+                                            "unit": qsTr("min"),
+                                            "min": 1,
+                                            "width": 100
+                                        })]
+                }
+            ]
+        }
+    ]
 }

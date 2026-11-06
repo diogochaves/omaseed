@@ -72,6 +72,10 @@ Item {
     /// modal. MainView closes the modal and opens it.
     signal helpRequested
 
+    /// What the server can do (App.features) and its engine's name; a test gives its own.
+    property var features: App.features
+    property string engineName: App.serverEngineName
+
     readonly property var navRows: [
         {
             "glyph": Glyphs.settings,
@@ -111,8 +115,12 @@ Item {
 
     /// docs/16: the qBittorrent group's sections, closed by docs/24 §4's Backup (#32, D1 a),
     /// which is drawn by `qbtBackupPane` rather than from rows.
-    /// Only a server whose engine has them (App.features.qbtSettings, docs/36 §4.4); none else.
-    readonly property var qbtSections: App.features.qbtSettings === false ? [] : qbtSchema.sections.concat([{
+    /// Only a server whose engine has them (App.features.qbtSettings, docs/36 §4.4). Another
+    /// engine whose basic settings omaseed reads through its session gets its group's one page
+    /// instead, Basics (C25 K31: TRANSMISSION › Basics); one with neither, no group.
+    readonly property var qbtSections: root.features.qbtSettings === false
+                                       ? (root.features.sessionBasics === true ? qbtSchema.transmissionSections : [])
+                                       : qbtSchema.sections.concat([{
                                                                       // #145 (DECISIONS C26 SR10): the server's
                                                                       // search plugins, drawn by searchPluginsPane.
                                                                       "id": "search",
@@ -147,6 +155,11 @@ Item {
                                                                                           "shortText": section.shortName,
                                                                                           "labelId": section.id === "search" ? "search" : "settings"
                                                                                       })))
+    /// C25 K31–K32: the group is the server's engine's, headed by its name ("qbittorrent",
+    /// "transmission").
+    readonly property bool engineGroupIsQbt: root.features.qbtSettings !== false
+    readonly property string engineGroupName: root.engineGroupIsQbt ? qsTr("qBittorrent")
+                                                                    : (root.engineName || qsTr("server"))
     /// The qBittorrent group's head: "playground 5.2.3".
     readonly property string qbtServerText: {
         const version = App.globalState.serverVersion.replace(/^v/, "");
@@ -191,9 +204,17 @@ Item {
     readonly property var otherServerIds: App.serverName.length >= 0 && App.serverList.count >= 0
                                           && App.serverList.defaultId.length >= 0
                                           ? root._otherServerIds() : []
+    /// A saved server speaks qBittorrent (servers.json's engine; none written is qBittorrent).
+    function _isQbtServer(id: string): bool {
+        const engine = App.serverList.serverMap(id).engine ?? "";
+        return engine.length === 0 || engine === "qbittorrent";
+    }
+    /// C25 K33: the other servers with qBittorrent's settings and torrents, the only ones a
+    /// copy can read and the scope line's "has its own".
+    readonly property var otherQbtServerIds: root.otherServerIds.filter(id => root._isQbtServer(id))
     /// The one it reads now: the one picked, while it is still another server; else the next.
-    readonly property string copySource: root.otherServerIds.indexOf(root.copySourceId) >= 0
-                                         ? root.copySourceId : (root.otherServerIds[0] ?? "")
+    readonly property string copySource: root.otherQbtServerIds.indexOf(root.copySourceId) >= 0
+                                         ? root.copySourceId : (root.otherQbtServerIds[0] ?? "")
     readonly property string copySourceName: root.copySource.length > 0
                                              ? (App.serverList.serverMap(root.copySource).name ?? "") : ""
 
@@ -308,7 +329,8 @@ Item {
     /// Opened by openSearchPluginsInstall(): the install field's esc closes the modal.
     property bool _backToSearch: false
 
-    /// C32 D8 a: the alternative speeds' choice's "edit the presets…": qBittorrent › Speed.
+    /// C32 D8 a: the alternative speeds' choice's "edit the presets…": qBittorrent › Speed,
+    /// or TRANSMISSION › Basics, where its turtle and burst rows are (C25 K31).
     function openSpeed(): void {
         root.showPane(root.qbtStart);
         root.open();
@@ -405,7 +427,10 @@ Item {
 
     /// A row's button: a random port, or a new API key.
     function qbtAction(action: string): void {
-        if (action === "randomPort") {
+        if (action === "testPort") {
+            // C25 K31: the engine's own test, for the port it has now.
+            App.testPort(Number(App.serverPrefs.values.listen_port ?? 0));
+        } else if (action === "randomPort") {
             const port = 1024 + Math.floor(Math.random() * (65535 - 1024));
             root.qbtRequest({
                                 "listen_port": port
@@ -480,6 +505,8 @@ Item {
     /// docs/34 D1 a: `t` (or the scope line's link) in omaseed's Backup: qBittorrent's, the
     /// cursor on Export torrents.
     function openTorrentsBackup(): void {
+        if (!root.engineGroupIsQbt)
+            return; // C25 K33: no Backup but qBittorrent's
         root.showPane(root.qbtStart + root.qbtSections.length - 1);
         root.paneCursor = 3;
         root.area = "pane";
@@ -497,7 +524,7 @@ Item {
 
     /// The copy row's "private ▾": the other servers, under it.
     function openCopyPick(anchor: Item): void {
-        const ids = root.otherServerIds;
+        const ids = root.otherQbtServerIds;
         if (ids.length === 0)
             return;
         copyMenu.items = ids.map(id => ({
@@ -530,6 +557,28 @@ Item {
         root.navOnServer = false;
         root.paneIndex = index;
         root.paneCursor = 0;
+    }
+
+    // C25 K32: a switch to a server of another engine changes the group under the select; a
+    // pane past its end goes to the group's first, or to General when there is no group.
+    onQbtSectionsChanged: {
+        // paneCount may not have followed yet: count from the sections themselves.
+        if (root.paneIndex >= root.navRows.length + root.qbtSections.length) {
+            root.navOnServer = false;
+            root.paneIndex = root.qbtSections.length > 0 ? root.qbtStart : 0;
+            root.paneCursor = 0;
+        }
+    }
+
+    // C25 K31: "test port"'s answer in words, in the pane head's note.
+    Connections {
+        function onPortTestChanged(): void {
+            const test = App.portTest;
+            if (test.state === "open" || test.state === "closed" || test.state === "failed")
+                root._flashQbtNote(test.text, test.state !== "open");
+        }
+
+        target: App
     }
 
     /// `enter` / `space` on the cursor row of the pane on show. `how` is "enter" or "space":
@@ -1542,14 +1591,16 @@ Item {
                         // "qbittorrent", then "playground 5.2.3" under it.
                         Label {
                             // #79: the second group's heading, as the pane titles are.
-                            Accessible.name: qsTr("qBittorrent")
+                            Accessible.name: root.engineGroupName
                             Accessible.role: Accessible.Heading
                             Layout.fillWidth: true
                             Layout.leftMargin: Theme.space(4)
                             Layout.topMargin: Theme.space(14)
                             objectName: "qbtNavHead"
-                            text: qsTr("qbittorrent")
+                            // C25 K31: "transmission" over TRANSMISSION › Basics.
+                            text: root.engineGroupIsQbt ? qsTr("qbittorrent") : root.engineGroupName.toLowerCase()
                             tracked: true
+                            visible: root.qbtSections.length > 0
                         }
 
                         // docs/34 D3 a: with two servers or more, the panes' pick-one select;
@@ -1572,7 +1623,7 @@ Item {
                             objectName: "qbtNavServer"
                             serverList: App.serverList
                             version: App.globalState.serverVersion.replace(/^v/, "")
-                            visible: root.qbtServerText.length > 0
+                            visible: root.qbtServerText.length > 0 && root.qbtSections.length > 0
 
                             onListOpened: {
                                 root.navOnServer = true;
@@ -1638,7 +1689,7 @@ Item {
                         model: [{
                                 "text": qsTr("omaseed")
                             }, {
-                                "text": qsTr("qBittorrent")
+                                "text": root.engineGroupName
                             }]
                         objectName: "settingsGroupTabs"
                         visible: root.folded
@@ -2920,7 +2971,7 @@ Item {
                             readonly property bool torrentsReady: App.globalState.connected
                                                                   && App.torrentsBackupRunning.length === 0
                             readonly property bool copyReady: qbtBackupPane.ready
-                                                              && root.otherServerIds.length > 0
+                                                              && root.otherQbtServerIds.length > 0
                             readonly property string name: App.serverName
 
                             anchors.left: parent.left
@@ -2938,13 +2989,25 @@ Item {
                                 text: {
                                     const own = qsTr("%1's own settings and torrents, read from and sent to %1 only.").arg(
                                               qbtBackupPane.name);
-                                    const others = root.otherServerIds;
+                                    // C25 K33: servers of another engine have no backup yet,
+                                    // named before the qBittorrent servers that have their own.
+                                    const none = root.otherServerIds.filter(id => !root._isQbtServer(id)).map(id => {
+                                        const server = App.serverList.serverMap(id);
+                                        return qsTr("%1 (%2)").arg(server.name).arg(server.engineName);
+                                    });
+                                    const noneText = none.length === 0 ? ""
+                                                   : " " + (none.length === 1
+                                                            ? qsTr("%1 has no backup in omaseed yet: its settings and torrents stay on it.").arg(none[0])
+                                                            : qsTr("%1 have no backup in omaseed yet: their settings and torrents stay on them.").arg(
+                                                                  none.slice(0, -1).join(", ") + " " + qsTr("and") + " " + none[none.length - 1]));
+                                    const others = root.otherQbtServerIds;
                                     if (others.length === 0)
-                                        return own;
+                                        return own + noneText;
                                     if (others.length === 1)
-                                        return own + " " + qsTr("%1 has its own:").arg(
+                                        return own + noneText + " " + qsTr("%1 has its own:").arg(
                                                     App.serverList.serverMap(others[0]).name);
-                                    return own + " " + qsTr("The other servers have their own:");
+                                    return own + noneText + " " + (none.length === 0 ? qsTr("The other servers have their own:")
+                                                                                     : qsTr("The other qBittorrent servers have their own:"));
                                 }
 
                                 onLinkActivated: {
@@ -3031,7 +3094,7 @@ Item {
                                 Layout.fillWidth: true
                                 description: !App.globalState.connected
                                              ? qsTr("Connect to %1 to copy into it.").arg(qbtBackupPane.name)
-                                             : root.otherServerIds.length === 0
+                                             : root.otherQbtServerIds.length === 0
                                                ? qsTr("Another server's settings, read and shown as an import into %1. Add one in Settings › Servers first.").arg(qbtBackupPane.name)
                                                : qsTr("Read from that server just now, then shown as an import into %1. Nothing changes on the other server.").arg(qbtBackupPane.name)
                                 glyph: Glyphs.copyFrom
@@ -3060,7 +3123,7 @@ Item {
                                         bordered: true
                                         objectName: "copySourceButton"
                                         text: root.copySourceName + "  " + Glyphs.chevronDown
-                                        visible: root.otherServerIds.length > 0
+                                        visible: root.otherQbtServerIds.length > 0
 
                                         onClicked: {
                                             root.paneCursor = 2;
@@ -3228,8 +3291,9 @@ Item {
 
                             ScopeLine {
                                 Layout.fillWidth: true
-                                linkKey: "t"
-                                linkText: qsTr("qBittorrent › Backup ›")
+                                // C25 K33: only a qBittorrent has a Backup of its own.
+                                linkKey: root.engineGroupIsQbt ? "t" : ""
+                                linkText: root.engineGroupIsQbt ? qsTr("qBittorrent › Backup ›") : ""
                                 objectName: "backupScopeLine"
                                 text: App.serverList.count === 1
                                       ? qsTr("omaseed's own: its settings, your server (no password) and its seed history, with a copy of its qBittorrent settings. Torrents aren't in it: the server keeps them.")
