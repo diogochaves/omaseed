@@ -68,7 +68,14 @@ QString engineDisplayName(EngineKind kind)
 
 bool isEngineDriven(EngineKind kind)
 {
-    return kind == EngineKind::Qbittorrent;
+    return kind == EngineKind::Qbittorrent || kind == EngineKind::Transmission;
+}
+
+QString drivenEnginesText()
+{
+    return tr("%1 and %2")
+        .arg(engineDisplayName(EngineKind::Qbittorrent),
+             engineDisplayName(EngineKind::Transmission));
 }
 
 EngineSupport engineSupport(EngineKind kind, const QString &version, const QString &apiVersion)
@@ -116,9 +123,9 @@ EngineSupport engineSupport(EngineKind kind, const QString &version, const QStri
     if (support.refusal.isEmpty() && !support.driven && kind != EngineKind::Unknown) {
         // K9: named, and refused, keeping what was typed.
         support.refusal = tr("omaseed can't drive %1 yet").arg(name);
-        support.advice = tr("This build of omaseed drives qBittorrent. %1 support is on its "
-                            "way; until then, add a qBittorrent server.")
-                             .arg(name);
+        support.advice = tr("This build of omaseed drives %1. %2 support is on its way; until "
+                            "then, add one of those.")
+                             .arg(drivenEnginesText(), name);
     }
     return support;
 }

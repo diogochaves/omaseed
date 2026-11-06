@@ -91,10 +91,28 @@ void App::setUpServers()
         Q_EMIT serverStateChanged();
         updateServerState();
     });
+    connect(m_engine, &SyncEngine::versionRefused, this, [this](const ApiError &error) {
+        // C25 K8: a Transmission older than 4.1 (the probe's refusal). Polling has stopped;
+        // the window says why in K8's words, red, with nothing retried.
+        qWarning().noquote() << QStringLiteral("server refused: %1").arg(error.toString());
+        m_serverError = error;
+        m_serverLost = true;
+        m_serverVersionRefused = true;
+        setServerConnecting(false);
+        if (!m_demoMode && m_hasServer && !m_server.id.isEmpty())
+            m_serverList->setLastFailure(m_server.id,
+                                         ErrorWords::versionReason(),
+                                         ErrorWords::forVersion(m_server, error).headline,
+                                         QDateTime::currentDateTime());
+        Q_EMIT serverStateChanged();
+        updateServerState();
+        updateTray();
+    });
     // A new start (a switch, "retry now", an edited login) is a new attempt.
     connect(m_engine, &SyncEngine::runningChanged, this, [this]() {
-        if (m_engine->isRunning() && m_serverRefused) {
+        if (m_engine->isRunning() && (m_serverRefused || m_serverVersionRefused)) {
             m_serverRefused = false;
+            m_serverVersionRefused = false;
             Q_EMIT serverStateChanged();
             updateServerState();
         }
@@ -184,8 +202,9 @@ bool App::switchServer(const QString &id)
     m_seenAt = QDateTime();
     m_serverError = ApiError();
     m_lostWaiting = false;
-    if (m_serverRefused) {
+    if (m_serverRefused || m_serverVersionRefused) {
         m_serverRefused = false;
+        m_serverVersionRefused = false;
         Q_EMIT serverStateChanged();
     }
     return setDefaultServer(id);
@@ -225,6 +244,15 @@ App::serverProblem(const QString &lastError, int retryInSeconds, int silentSecon
         words.insert(QStringLiteral("retry"), QString());
         words.insert(QStringLiteral("retryChars"), 0);
         words.insert(QStringLiteral("reason"), ErrorWords::engineReason(m_server));
+        return words;
+    }
+    if (m_serverVersionRefused && !m_demoMode) {
+        // C25 K8: refused for its version; nothing retries until someone asks.
+        QVariantMap words = ErrorWords::forVersion(m_server, m_serverError).toMap();
+        words.insert(QStringLiteral("lineBase"), words.value(QStringLiteral("line")));
+        words.insert(QStringLiteral("retry"), QString());
+        words.insert(QStringLiteral("retryChars"), 0);
+        words.insert(QStringLiteral("reason"), ErrorWords::versionReason());
         return words;
     }
     if (lastError.isEmpty() && !m_serverRefused)
@@ -320,6 +348,8 @@ QString App::guardNote(const QString &key) const
 {
     if (serverOtherEngine())
         return ErrorWords::guardEngine(m_server, key);
+    if (m_serverVersionRefused)
+        return ErrorWords::guardVersion(m_server, key);
     return ErrorWords::guard(m_server.name, key, m_serverRefused, serverWaiting());
 }
 
@@ -368,8 +398,9 @@ QVariantList App::serverRows() const
             else if (state == QLatin1String("down"))
                 detail << tr("unreachable");
             else if (state == QLatin1String("refused"))
-                detail << (serverOtherEngine() ? ErrorWords::engineReason(m_server)
-                                               : tr("sign-in refused"));
+                detail << (serverOtherEngine()      ? ErrorWords::engineReason(m_server)
+                           : m_serverVersionRefused ? ErrorWords::versionReason()
+                                                    : tr("sign-in refused"));
             else if (state == QLatin1String("certificate"))
                 detail << tr("certificate refused");
             else if (state == QLatin1String("syncing"))
@@ -382,9 +413,9 @@ QVariantList App::serverRows() const
             const QString version = m_engine->globalState()->serverVersion();
             if (!version.isEmpty() && state != QLatin1String("down") &&
                 state != QLatin1String("waiting") && state != QLatin1String("refused"))
-                detail << tr("%1 %2").arg(
-                    serverEngineName(),
-                    version.startsWith(QLatin1Char('v')) ? version.mid(1) : version);
+                detail << tr("%1 %2").arg(serverEngineName(),
+                                          version.startsWith(QLatin1Char('v')) ? version.mid(1)
+                                                                               : version);
         } else if (state == QLatin1String("refused")) {
             // C28: another engine's server, never asked.
             meta = role(ServerListModel::LastReasonRole).toString();

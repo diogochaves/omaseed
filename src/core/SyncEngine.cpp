@@ -218,6 +218,15 @@ void SyncEngine::poll()
                 if (!m_running)
                     return;
                 if (result.isError()) {
+                    if (result.error().kind() == ApiError::Kind::Conflict) {
+                        // C25 K8: the engine is there and too old; asking again won't help.
+                        m_globalState->setLastError(result.error());
+                        m_globalState->setConnected(false);
+                        m_globalState->setSyncing(false);
+                        stop();
+                        Q_EMIT versionRefused(result.error());
+                        return;
+                    }
                     onPollError(result.error());
                     return;
                 }

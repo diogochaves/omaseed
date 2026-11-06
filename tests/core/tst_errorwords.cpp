@@ -460,24 +460,24 @@ private slots:
     void anotherEngine()
     {
         omaseed::core::Server seedbox;
-        seedbox.id = QStringLiteral("t-1");
+        seedbox.id = QStringLiteral("d-1");
         seedbox.name = QStringLiteral("seedbox");
-        seedbox.url = QUrl(QStringLiteral("http://127.0.0.1:9091"));
-        seedbox.engine = omaseed::core::EngineKind::Transmission;
+        seedbox.url = QUrl(QStringLiteral("http://127.0.0.1:8112"));
+        seedbox.engine = omaseed::core::EngineKind::Deluge;
         const ErrorWords::Text text = ErrorWords::forEngine(seedbox);
-        QCOMPARE(text.headline, QStringLiteral("seedbox is a Transmission server"));
+        QCOMPARE(text.headline, QStringLiteral("seedbox is a Deluge server"));
         // C25 K9's words.
         QCOMPARE(text.line,
-                 QStringLiteral("omaseed can't drive Transmission yet. This build drives "
-                                "qBittorrent."));
+                 QStringLiteral("omaseed can't drive Deluge yet. This build drives "
+                                "qBittorrent and Transmission."));
         QCOMPARE(text.kind, QStringLiteral("engine"));
-        QVERIFY(text.details.contains(QStringLiteral("transmission")));
+        QVERIFY(text.details.contains(QStringLiteral("deluge")));
         QCOMPARE(text.sentence(),
-                 QStringLiteral("seedbox is a Transmission server: omaseed can't drive "
-                                "Transmission yet"));
-        QCOMPARE(ErrorWords::engineReason(seedbox), QStringLiteral("Transmission server"));
+                 QStringLiteral("seedbox is a Deluge server: omaseed can't drive "
+                                "Deluge yet"));
+        QCOMPARE(ErrorWords::engineReason(seedbox), QStringLiteral("Deluge server"));
         QCOMPARE(ErrorWords::guardEngine(seedbox, QStringLiteral("p")),
-                 QStringLiteral("seedbox is a Transmission server: p does nothing here"));
+                 QStringLiteral("seedbox is a Deluge server: p does nothing here"));
 
         // An engine with no name to give, and a server with no name.
         omaseed::core::Server odd = seedbox;
@@ -494,6 +494,25 @@ private slots:
         QCOMPARE(future.line,
                  QStringLiteral("This omaseed doesn't know that engine. A newer omaseed may."));
         QVERIFY(future.details.contains(QStringLiteral("rtorrent")));
+    }
+
+    // C25 K8: a Transmission that answered with a version omaseed refuses (E4).
+    void aVersionRefused()
+    {
+        omaseed::core::Server seedbox;
+        seedbox.name = QStringLiteral("seedbox");
+        seedbox.url = QUrl(QStringLiteral("http://127.0.0.1:9091/transmission/web/"));
+        seedbox.engine = omaseed::core::EngineKind::Transmission;
+        const ApiError error(ApiError::Kind::Conflict,
+                             QStringLiteral("Transmission 4.0.6 is too old: omaseed needs 4.1 or "
+                                            "later"));
+        const ErrorWords::Text text = ErrorWords::forVersion(seedbox, error);
+        QCOMPARE(text.headline, error.message());
+        QVERIFY(text.line.contains(QStringLiteral("Update Transmission")));
+        QCOMPARE(text.kind, QStringLiteral("engine"));
+        QCOMPARE(ErrorWords::versionReason(), QStringLiteral("too old"));
+        QCOMPARE(ErrorWords::guardVersion(seedbox, QStringLiteral("p")),
+                 QStringLiteral("seedbox's Transmission is too old: p does nothing here"));
     }
 
     void noErrorNoWords()

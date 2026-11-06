@@ -5,7 +5,8 @@
 // and the tests that recognise them (#84) talk to these instead.
 //   * qbittorrent(): app/version, webapiVersion and an empty torrents/info, signed out or not;
 //   * transmission(): the 409 with X-Transmission-Session-Id (and 4.1's RPC version), a 401
-//     with a Transmission realm when it wants a login, then session_get;
+//     with a Transmission realm when it wants a login, then session_get (and an empty
+//     torrent_get, for the count a driven engine's test makes);
 //   * deluge(): deluge-web's JSON-RPC on /json, auth.check_session, auth.login with its
 //     cookie, web.connected, web.get_hosts and daemon.get_version.
 
@@ -64,12 +65,17 @@ inline FakeServer::Handler transmission(const QByteArray &login = {},
                 {{QStringLiteral("result"), QStringLiteral("success")},
                  {QStringLiteral("arguments"),
                   QJsonObject{{QStringLiteral("version"), QStringLiteral("3.00 (bb6b5a062e)")}}}});
+        // E4: a driven Transmission's test goes on to count its torrents (none here).
+        const QJsonObject call = QJsonDocument::fromJson(request.body).object();
+        const QJsonObject result =
+            call.value(QStringLiteral("method")).toString() == QLatin1String("torrent_get")
+                ? QJsonObject{{QStringLiteral("torrents"), QJsonArray()}}
+                : QJsonObject{
+                      {QStringLiteral("version"), QStringLiteral("4.1.3 (6e5b2d1)")},
+                      {QStringLiteral("rpc_version_semver"), QString::fromLatin1(rpcVersion)}};
         return json({{QStringLiteral("jsonrpc"), QStringLiteral("2.0")},
-                     {QStringLiteral("id"), 1},
-                     {QStringLiteral("result"),
-                      QJsonObject{{QStringLiteral("version"), QStringLiteral("4.1.3 (6e5b2d1)")},
-                                  {QStringLiteral("rpc_version_semver"),
-                                   QString::fromLatin1(rpcVersion)}}}});
+                     {QStringLiteral("id"), call.value(QStringLiteral("id")).toInt(1)},
+                     {QStringLiteral("result"), result}});
     };
 }
 

@@ -254,15 +254,15 @@ ErrorWords::Text ErrorWords::forEngine(const Server &server)
     // C25 K9: an engine this build knows but doesn't drive yet is named and refused, in the
     // sheet's words; one it doesn't know (a newer build's, #179) is listed, never asked.
     text.line = server.engine != EngineKind::Unknown
-                    ? tr("omaseed can't drive %1 yet. This build drives qBittorrent.")
-                          .arg(engineDisplayName(server.engine))
+                    ? tr("omaseed can't drive %1 yet. This build drives %2.")
+                          .arg(engineDisplayName(server.engine), drivenEnginesText())
                     : tr("This omaseed doesn't know that engine. A newer omaseed may.");
     const QJsonValue stored = server.engine != EngineKind::Unknown
                                   ? QJsonValue(engineKindToString(server.engine))
                                   : server.extra.value(QStringLiteral("engine"));
-    text.details =
-        tr("servers.json records engine %1 for this server; this build drives qBittorrent only")
-            .arg(stored.isString() ? stored.toString() : QStringLiteral("(unreadable)"));
+    text.details = tr("servers.json records engine %1 for this server; this build drives %2")
+                       .arg(stored.isString() ? stored.toString() : QStringLiteral("(unreadable)"),
+                            drivenEnginesText());
     return text;
 }
 
@@ -275,6 +275,29 @@ QString ErrorWords::engineReason(const Server &server)
 QString ErrorWords::guardEngine(const Server &server, const QString &key)
 {
     return tr("%1: %2 does nothing here").arg(engineHeadline(server), key);
+}
+
+ErrorWords::Text ErrorWords::forVersion(const Server &server, const ApiError &error)
+{
+    // C25 K8: the engine's own sentence, and EngineSupport's advice (the same for any version).
+    const EngineSupport support = engineSupport(server.engine, QString(), QString());
+    Text text;
+    text.kind = QStringLiteral("engine");
+    text.headline = error.message().isEmpty() ? support.refusal : error.message();
+    text.line = support.advice;
+    text.details = details(error, server.url.toString(QUrl::RemoveUserInfo));
+    return text;
+}
+
+QString ErrorWords::versionReason()
+{
+    return tr("too old");
+}
+
+QString ErrorWords::guardVersion(const Server &server, const QString &key)
+{
+    return tr("%1's %2 is too old: %3 does nothing here")
+        .arg(engineServerName(server), server.engineName(), key);
 }
 
 QString ErrorWords::guard(const QString &server, const QString &key, bool refused, bool waiting)

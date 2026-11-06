@@ -63,11 +63,12 @@ void TestEngineKind::transmissionNeedsRpcSix()
     QCOMPARE(support.refusal,
              QStringLiteral("Transmission 4.0.6 is too old: omaseed needs 4.1 or later"));
     QVERIFY(!support.advice.isEmpty());
-    // New enough: refused only for not being driven yet (K9).
+    // New enough: driven (E4), nothing refused.
     support =
         engineSupport(EngineKind::Transmission, QStringLiteral("4.1.3"), QStringLiteral("6.0.0"));
     QVERIFY(!support.versionRefused);
-    QCOMPARE(support.refusal, QStringLiteral("omaseed can't drive Transmission yet"));
+    QVERIFY(support.driven);
+    QVERIFY(support.usable());
 }
 
 void TestEngineKind::delugeNeedsTwoPointOne()

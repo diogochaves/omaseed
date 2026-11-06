@@ -137,6 +137,15 @@ public:
     static QString engineReason(const Server &server);
     /// The read-only guard for it: "seedbox is a Transmission server: p does nothing here".
     static QString guardEngine(const Server &server, const QString &key);
+    /// C25 K8: a server whose engine answered with a version omaseed refuses (the probe's
+    /// Conflict, its message EngineKind's sentence). "Transmission 4.0.6 is too old: omaseed
+    /// needs 4.1 or later" / what to do about it (EngineSupport::advice); kind "engine" (red:
+    /// it needs you, nothing retries).
+    static Text forVersion(const Server &server, const ApiError &error);
+    /// Its short reason, for a server row and the menu: "too old".
+    static QString versionReason();
+    /// The read-only guard for it: "seedbox's Transmission is too old: p does nothing here".
+    static QString guardVersion(const Server &server, const QString &key);
     /// True when the error is a refused sign-in (401, or 403 to a key or to no credential).
     static bool isRefusedSignIn(const ApiError &error, AuthMode mode);
 

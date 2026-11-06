@@ -125,8 +125,9 @@ QVariant ServerListModel::data(const QModelIndex &index, int role) const
     case StateRole: {
         if (!server.id.isEmpty() && server.id == m_currentId)
             return m_currentState.isEmpty() ? QStringLiteral("live") : m_currentState;
-        // DECISIONS C28: a server of another engine is never asked; it stays refused.
-        if (!server.isQbittorrent())
+        // DECISIONS C28, C25 K9: a server of an engine this build doesn't drive is never asked;
+        // it stays refused.
+        if (!isEngineDriven(server.engine))
             return QStringLiteral("refused");
         const Seen seen = m_seen.value(server.id);
         if (!seen.error.isEmpty())
@@ -142,15 +143,15 @@ QVariant ServerListModel::data(const QModelIndex &index, int role) const
     case LastFailedRole:
         return !m_seen.value(server.id).error.isEmpty();
     case LastReasonRole:
-        if (!server.isQbittorrent())
+        if (!isEngineDriven(server.engine))
             return ErrorWords::engineReason(server); // C28
         return m_seen.value(server.id).error;
     case LastDetailRole:
-        if (!server.isQbittorrent())
+        if (!isEngineDriven(server.engine))
             return ErrorWords::forEngine(server).line; // C28
         return m_seen.value(server.id).detail;
     case CountTextRole: {
-        if (!server.isQbittorrent())
+        if (!isEngineDriven(server.engine))
             return QStringLiteral("!"); // C28: listed, never asked
         if (!server.id.isEmpty() && server.id == m_currentId) {
             if (m_currentState == QLatin1String("down"))

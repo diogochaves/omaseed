@@ -106,7 +106,8 @@ QT_END_NAMESPACE
 
 namespace omaseed::core {
 class QbtEngine;
-}
+class TransmissionEngine;
+} // namespace omaseed::core
 
 namespace omaseed::integration {
 class Notifier;
@@ -277,8 +278,16 @@ private:
     void updateTrayNumbers();
     /// Resolves m_features from the engine and the server's version (docs/36 §4.3).
     void updateFeatures();
+    /// Points m_client, and everything that calls the server through it, at the engine
+    /// `kind` speaks (C14 E2, E4): qBittorrent's or Transmission's. The one left is cleared.
+    void useClientFor(omaseed::core::EngineKind kind);
 
+    /// The chosen server's engine: m_qbt or m_transmission (useClientFor).
     omaseed::core::EngineClient *m_client = nullptr;
+    /// qBittorrent's, kept for the whole run: ServerPreferences holds it.
+    omaseed::core::QbtEngine *m_qbt = nullptr;
+    /// Transmission's, made the first time a Transmission server is chosen.
+    omaseed::core::TransmissionEngine *m_transmission = nullptr;
     omaseed::core::EngineFeatures m_features;
     omaseed::core::SyncEngine *m_engine = nullptr;
     omaseed::core::TorrentFilterModel *m_filtered = nullptr;
@@ -770,15 +779,17 @@ private:
     /// The shared tail of `testServer()`: run the probe with the secret already resolved.
     /// `announce` false (probeOtherServers) only updates the server list: no `serverTested`.
     /// `only` is the engine to ask (K4's chip, or a saved server's own); Unknown recognises it
-    /// first (EngineRecognizer, K5). A qBittorrent then gets its signed-in probe (runQbtTest).
+    /// first (EngineRecognizer, K5). An engine this build drives (qBittorrent, Transmission)
+    /// then gets its signed-in probe and its count (runEngineTest).
     void runServerTest(const omaseed::core::Server &server,
                        const QString &secret,
                        bool announce,
                        omaseed::core::EngineKind only);
-    void runQbtTest(const omaseed::core::Server &server,
-                    const QString &secret,
-                    bool announce,
-                    const QElapsedTimer &elapsed);
+    void runEngineTest(const omaseed::core::Server &server,
+                       const QString &secret,
+                       bool announce,
+                       const QElapsedTimer &elapsed,
+                       omaseed::core::EngineKind engine);
     /// serverTested's `info` for `engine` answering at `endpoint`.
     QVariantMap testInfo(omaseed::core::EngineKind engine, const QUrl &endpoint) const;
     /// Servers probeOtherServers() is waiting on.
@@ -2049,10 +2060,17 @@ public:
     /// someone asks for one; the hero says "sign-in refused", not "unreachable". Also true on
     /// a server of another engine (C28), which is never asked anything.
     Q_PROPERTY(bool serverRefused READ serverRefused NOTIFY serverStateChanged)
-    bool serverRefused() const { return m_serverRefused || serverOtherEngine(); }
-    /// DECISIONS C28: the current server is one an engines build (#84) recorded with another
-    /// engine: listed, never connected to, its problem ErrorWords::forEngine's.
-    bool serverOtherEngine() const { return m_hasServer && !m_server.isQbittorrent(); }
+    bool serverRefused() const
+    {
+        return m_serverRefused || m_serverVersionRefused || serverOtherEngine();
+    }
+    /// DECISIONS C28, C25 K9: the current server runs an engine this build doesn't drive (a
+    /// Deluge until E6, or one a newer build recorded): listed, never connected to, its
+    /// problem ErrorWords::forEngine's.
+    bool serverOtherEngine() const
+    {
+        return m_hasServer && !omaseed::core::isEngineDriven(m_server.engine);
+    }
     /// docs/35 N6: the engine declared the server lost (or refused), and it hasn't answered
     /// since. Not while a switch waits for the keychain: the window shows no loss for that.
     Q_PROPERTY(bool serverLost READ isServerLost NOTIFY serverStateChanged)
@@ -2169,6 +2187,9 @@ private:
                 int calls = 1);
 
     bool m_serverRefused = false;
+    /// C25 K8: the server's engine answered with a version omaseed refuses (SyncEngine's
+    /// versionRefused); polling stopped until a retry or a switch.
+    bool m_serverVersionRefused = false;
     /// What `serverLost` last said, so it notifies only when it moves.
     bool m_lostShown = false;
     /// docs/44 D11: the latest failure while lost was a timeout; "answered again" after it.

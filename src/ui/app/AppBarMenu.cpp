@@ -111,7 +111,9 @@ void App::updateBarMenu()
             // The current server: how it is doing now, and its live count.
             if (listState == QLatin1String("refused"))
                 // C28: another engine's server keeps the list's reason ("Transmission server").
-                reason = serverOtherEngine() ? reason : tr("sign-in refused");
+                reason = serverOtherEngine()      ? reason
+                         : m_serverVersionRefused ? ErrorWords::versionReason()
+                                                  : tr("sign-in refused");
             else if (listState == QLatin1String("certificate"))
                 reason = tr("certificate refused");
             else if (listState == QLatin1String("down") || listState == QLatin1String("waiting")) {

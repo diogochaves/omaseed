@@ -68,6 +68,14 @@ omaseed_add_test(tst_app_engines
     LIBRARIES omaseed::app omaseed::core omaseed::integration Qt6::Network
 )
 
+# #85 (C14 E4, C25): a Transmission server driven in the app, against FakeTransmission and the
+# daemon's recorded answers.
+omaseed_add_test(tst_app_transmission
+    SOURCES tst_app_transmission.cpp
+    LIBRARIES omaseed::app omaseed::core omaseed::integration Qt6::Network
+    DEFINES OMASEED_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../fixtures"
+)
+
 # #180 (DECISIONS C17 D1–D2): the skipped files' reading follows the server's file list, against a
 # small fake server whose files sit in a temporary folder.
 omaseed_add_test(tst_app_skipped

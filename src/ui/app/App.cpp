@@ -26,6 +26,7 @@
 #include "core/engines/qbt/QbtEngine.hpp"
 #include "core/engines/qbt/QbtSettingsImport.hpp"
 #include "core/engines/qbt/QbtTranslate.hpp"
+#include "core/engines/transmission/TransmissionEngine.hpp"
 #include "integration/Autostart.hpp"
 #include "integration/Notifier.hpp"
 #include "integration/StatusWriter.hpp"
@@ -117,14 +118,16 @@ QString hostPort(const QUrl &url)
 
 App::App(QObject *parent)
     : QObject(parent)
-    , m_client(new QbtEngine(this))
     , m_engine(new SyncEngine(this))
     , m_filtered(new TorrentFilterModel(this))
     , m_servers(new ServerStore(this))
     , m_secrets(new SecretStore(SecretStore::defaultServiceName(), this))
 {
+    m_qbt = new QbtEngine(this);
+    m_client = m_qbt;
     m_engine->setClient(m_client);
-    m_prefs = new ServerPreferences(qbtEngine(), this);
+    // qBittorrent's preferences only: on another engine they stay empty (never reloaded).
+    m_prefs = new ServerPreferences(m_qbt, this);
     // Before setUpMetadataLookup(): the lookup reads the features when the version moves.
     connect(m_engine->globalState(), &GlobalState::apiVersionChanged, this, &App::updateFeatures);
     updateFeatures();
@@ -199,14 +202,14 @@ App::App(QObject *parent)
     // docs/16: the hero reads the listening port and anonymous mode, so the preferences are
     // read as soon as a server answers, and again whenever it comes back.
     connect(m_engine->globalState(), &GlobalState::connectedChanged, this, [this]() {
-        if (!m_demoMode && m_hasServer && m_engine->globalState()->connected())
+        if (!m_demoMode && m_hasServer && qbtEngine() && m_engine->globalState()->connected())
             m_prefs->reload();
     });
     // docs/31 D13: the other set and the schedule live only in the preferences, so they are
     // read again each time the alternative limits flip (a few times a day): a set or a schedule
     // changed in qBittorrent's Web UI shows the next time it switches.
     connect(m_engine->globalState(), &GlobalState::useAltSpeedLimitsChanged, this, [this]() {
-        if (!m_demoMode && m_hasServer && m_engine->globalState()->connected())
+        if (!m_demoMode && m_hasServer && qbtEngine() && m_engine->globalState()->connected())
             m_prefs->reload();
     });
     connect(m_prefs, &ServerPreferences::posted, this, &App::followServerPreferences);
@@ -241,9 +244,11 @@ App::App(QObject *parent)
         if (m_demoMode)
             return; // the demo has no server to name; applyDemoData() logs its own line
         const GlobalState *state = m_engine->globalState();
-        qInfo().noquote() << QStringLiteral("first sync: %1 torrents · qBittorrent %2 · API %3")
+        qInfo().noquote() << QStringLiteral("first sync: %1 torrents · %2 %3 · API %4")
                                  .arg(m_engine->torrents()->count())
-                                 .arg(state->serverVersion(), state->apiVersion());
+                                 .arg(engineDisplayName(m_server.engine),
+                                      state->serverVersion(),
+                                      state->apiVersion());
     });
     connect(m_engine, &SyncEngine::serverLost, this, [this](const ApiError &error) {
         m_serverLost = true;
@@ -506,6 +511,19 @@ bool App::configureFromEnvironment()
     server.url = url;
     const QString name = env("OMASEED_SERVER_NAME");
     server.name = name.isEmpty() ? url.host() : name;
+    // C14 E4: "transmission" for a Transmission (qBittorrent when unset). One this build
+    // doesn't drive is not used.
+    const QString engineText = env("OMASEED_SERVER_ENGINE");
+    if (!engineText.isEmpty()) {
+        bool known = false;
+        server.engine = engineKindFromString(engineText, &known);
+        if (!known || !isEngineDriven(server.engine)) {
+            qWarning().noquote()
+                << QStringLiteral("OMASEED_SERVER_ENGINE: can't drive %1").arg(engineText);
+            return false;
+        }
+    }
+    useClientFor(server.engine);
 
     const QString apiKey = env("OMASEED_API_KEY");
     const QString username = env("OMASEED_USERNAME");
@@ -539,6 +557,10 @@ void App::applyServer(const Server &server)
     const quint64 generation = ++m_serverGeneration;
     m_server = server;
     m_hasServer = true;
+    // C14 E4: the engine the server speaks. An engine this build doesn't drive keeps the one
+    // it has, pointed nowhere (below).
+    if (isEngineDriven(server.engine))
+        useClientFor(server.engine);
     // clearAuth() and a new base URL also cancel everything still queued, in flight or
     // backing off for the previous server (EngineClient::cancelAll).
     m_client->clearAuth();
@@ -546,11 +568,10 @@ void App::applyServer(const Server &server)
     m_prefs->reset();
     m_engine->globalState()->setServerName(server.name);
 
-    // DECISIONS C28, C25 K9: a server of an engine this build can't drive (a Transmission or a
-    // Deluge until E4/E6, or one a newer build recorded) is listed, never asked anything: the
-    // client points nowhere, the engine stays stopped, and the window says why in
-    // ErrorWords::forEngine's words (serverProblem).
-    // TODO(E4): pick the EngineClient for server.engine here.
+    // DECISIONS C28, C25 K9: a server of an engine this build can't drive (a Deluge until E6,
+    // or one a newer build recorded) is listed, never asked anything: the client points
+    // nowhere, the engine stays stopped, and the window says why in ErrorWords::forEngine's
+    // words (serverProblem).
     if (!isEngineDriven(server.engine)) {
         qInfo().noquote() << QStringLiteral("server: %1 runs %2; not connecting")
                                  .arg(server.name,
@@ -611,6 +632,33 @@ void App::applyServer(const Server &server)
         startEngine();
         break;
     }
+}
+
+void App::useClientFor(EngineKind kind)
+{
+    EngineClient *wanted = m_qbt;
+    if (kind == EngineKind::Transmission) {
+        if (m_transmission == nullptr)
+            m_transmission = new TransmissionEngine(this);
+        wanted = m_transmission;
+    }
+    if (wanted == m_client)
+        return;
+    // The one left behind forgets its server: nothing of it may keep running.
+    m_client->clearAuth();
+    m_client->setPinnedCertificate(QString());
+    m_client->setBaseUrl(QUrl());
+    m_client = wanted;
+    // Every holder of the client (SyncEngine starts over with it: rid, models, probe).
+    m_engine->setClient(m_client);
+    m_altPresets->setClient(m_client);
+    m_pauseHold->setClient(m_client);
+    // C36 M10 on Transmission: its stop lands a moment after the answer (#85), so a resume
+    // right after a pause waits for it rather than skip what still reads running.
+    m_pauseHold->setSettleMs(kind == EngineKind::Transmission ? 5000 : 0);
+    m_details->setClient(nullptr); // selectTorrent hands it the new one
+    qInfo().noquote() << QStringLiteral("engine: %1").arg(engineDisplayName(kind));
+    updateFeatures();
 }
 
 void App::startEngine()
@@ -4327,7 +4375,7 @@ QString App::addServer(const QVariantMap &fields, const QString &secret)
         // #201 F5: count what the new server holds, so the rail's row has a number at once
         // (ServerListModel::setProbeResult keeps it as last seen).
         const std::optional<Server> added = m_servers->byId(id);
-        if (!m_demoMode && added && added->isQbittorrent() && !m_probing.contains(id)) {
+        if (!m_demoMode && added && isEngineDriven(added->engine) && !m_probing.contains(id)) {
             m_probing.insert(id);
             if (!secret.isEmpty())
                 runServerTest(*added, secret, false, added->engine);
@@ -4498,7 +4546,7 @@ void App::runServerTest(const Server &server, const QString &secret, bool announ
         // A qBittorrent asked for by name: its signed-in probe straight away, as before E3.
         QElapsedTimer elapsed;
         elapsed.start();
-        runQbtTest(server, secret, announce, elapsed);
+        runEngineTest(server, secret, announce, elapsed, EngineKind::Qbittorrent);
         return;
     }
 
@@ -4516,8 +4564,11 @@ void App::runServerTest(const Server &server, const QString &secret, bool announ
             this,
             [this, recognizer, server, secret, announce, elapsed, id](const Recognition &found) {
                 recognizer->deleteLater();
-                if (found.recognised() && found.engine == EngineKind::Qbittorrent) {
-                    runQbtTest(server, secret, announce, elapsed);
+                // C14 E4: an engine this build drives goes on to its own signed-in probe and
+                // count; a version it refuses (K8) stops here, in the recogniser's words.
+                if (found.recognised() && !found.signInRefused &&
+                    engineSupport(found.engine, found.version, found.apiVersion).usable()) {
+                    runEngineTest(server, secret, announce, elapsed, found.engine);
                     return;
                 }
                 const int latency = int(elapsed.elapsed());
@@ -4580,12 +4631,17 @@ void App::runServerTest(const Server &server, const QString &secret, bool announ
     recognizer->start(server.url, only);
 }
 
-void App::runQbtTest(const Server &server,
-                     const QString &secret,
-                     bool announce,
-                     const QElapsedTimer &elapsed)
+void App::runEngineTest(const Server &server,
+                        const QString &secret,
+                        bool announce,
+                        const QElapsedTimer &elapsed,
+                        EngineKind engine)
 {
-    auto *client = new QbtEngine(this);
+    EngineClient *client = nullptr;
+    if (engine == EngineKind::Transmission)
+        client = new TransmissionEngine(this);
+    else
+        client = new QbtEngine(this);
     client->setPinnedCertificate(server.certificateSha256);
     client->setBaseUrl(server.url);
     client->setMaxRetries(0);
@@ -4603,13 +4659,14 @@ void App::runQbtTest(const Server &server,
     }
 
     const QString id = server.id;
-    const QVariantMap info = testInfo(EngineKind::Qbittorrent, server.url);
+    const QVariantMap info = testInfo(engine, server.url);
+    const QString engineText = engineKindToString(engine);
 
     const AuthMode mode = server.authMode;
     const QString pinned = server.certificateSha256;
     client->probe()->then(
         this,
-        [this, client, elapsed, id, mode, pinned, announce, info](
+        [this, client, elapsed, id, mode, pinned, announce, info, engineText](
             const Result<ServerInfo> &result) {
             const int latency = int(elapsed.elapsed());
             if (result.isError()) {
@@ -4621,14 +4678,22 @@ void App::runQbtTest(const Server &server,
                         Q_EMIT serverCertificateRefused(
                             id, result.error().certificateSha256(), pinned);
                 }
+                // K8: Transmission's probe refuses a daemon older than 4.1 in its own words.
+                const bool versionRefused = result.error().kind() == ApiError::Kind::Conflict &&
+                                            engineText == QLatin1String("transmission");
                 const QString error = refused.isEmpty() ? raw : refused;
                 const QString detail = refused.isEmpty() ? QString() : raw;
                 client->deleteLater();
                 m_probing.remove(id);
                 m_serverList->setProbeResult(id, false, QString(), QString(), -1, latency, error);
+                QVariantMap answered = info;
+                if (versionRefused) {
+                    answered.insert(QStringLiteral("refused"), true);
+                    answered.insert(QStringLiteral("versionRefused"), true);
+                }
                 if (announce)
                     Q_EMIT serverTested(
-                        id, false, QString(), QString(), -1, latency, error, detail, info);
+                        id, false, QString(), QString(), -1, latency, error, detail, answered);
                 return;
             }
 
@@ -4637,21 +4702,15 @@ void App::runQbtTest(const Server &server,
             // list is the cheaper way to count what is there.
             client->torrents()->then(
                 this,
-                [this, client, id, serverInfo, latency, announce, info](
+                [this, client, id, serverInfo, latency, announce, info, engineText](
                     const Result<QList<TorrentPatch>> &listResult) {
                     const int count = listResult.isError() ? -1 : int(listResult.value().size());
                     const QString version = serverInfo.version;
                     const QString apiVersion = serverInfo.apiVersion;
                     client->deleteLater();
                     m_probing.remove(id);
-                    m_serverList->setProbeResult(id,
-                                                 true,
-                                                 version,
-                                                 apiVersion,
-                                                 count,
-                                                 latency,
-                                                 QString(),
-                                                 QStringLiteral("qbittorrent"));
+                    m_serverList->setProbeResult(
+                        id, true, version, apiVersion, count, latency, QString(), engineText);
                     if (announce)
                         Q_EMIT serverTested(id,
                                             true,
@@ -5291,7 +5350,7 @@ bool App::supportsShareLimitAction() const
 
 QbtEngine *App::qbtEngine() const
 {
-    return qobject_cast<QbtEngine *>(m_client);
+    return m_client == m_qbt ? m_qbt : nullptr;
 }
 
 QVariantMap App::featuresMap() const
@@ -5325,6 +5384,8 @@ QVariantMap App::featuresMap() const
         {QStringLiteral("addAgain"), f.addAgain},
         {QStringLiteral("search"), f.search},
         {QStringLiteral("createTorrent"), f.createTorrent},
+        {QStringLiteral("altSpeeds"), f.altSpeeds},
+        {QStringLiteral("renameOnDisk"), f.renameOnDisk},
     };
 }
 
@@ -6675,8 +6736,9 @@ void App::probeOtherServers()
     if (m_demoMode)
         return;
     for (const Server &server : m_servers->servers()) {
-        // C28: a server of another engine is never asked.
-        if (server.id == m_server.id || m_probing.contains(server.id) || !server.isQbittorrent())
+        // C28, C25 K9: a server of an engine this build doesn't drive is never asked.
+        if (server.id == m_server.id || m_probing.contains(server.id) ||
+            !isEngineDriven(server.engine))
             continue;
         m_probing.insert(server.id);
         withStoredSecret(server, [this, server](const QString &secret) {

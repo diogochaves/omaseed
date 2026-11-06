@@ -1,8 +1,8 @@
 // A server's test recognises its engine (#84; DECISIONS C25 K4, K5, K8, K9): App's testServer
 // against FakeEngines answering as qBittorrent, Transmission and Deluge would. A qBittorrent
-// goes on to its signed-in probe and is counted as before; a Transmission or a Deluge is named
-// and refused (this build drives neither yet), one too old is refused for its version, and an
-// answer from no engine says so and keeps "save anyway".
+// goes on to its signed-in probe and is counted as before, and so does a Transmission (E4); a
+// Deluge is named and refused (this build doesn't drive it yet), one too old is refused for its
+// version, and an answer from no engine says so and keeps "save anyway".
 
 #include "FakeEngines.hpp"
 #include "ui/app/App.hpp"
@@ -11,6 +11,7 @@
 #include <QTemporaryDir>
 #include <QTest>
 
+#include <algorithm>
 #include <memory>
 
 using omaseed::app::App;
@@ -66,7 +67,7 @@ private Q_SLOTS:
 
     void aQbittorrentIsRecognisedThenProbedAsBefore();
     void aPickedQbittorrentIsNotAskedTwice();
-    void aTransmissionIsNamedAndRefused();
+    void aTransmissionIsRecognisedThenProbedAndCounted();
     void anOldTransmissionIsRefusedForItsVersion();
     void aDelugeIsNamedAndRefused();
     void aWrongDelugePasswordIsTheSignIn();
@@ -123,7 +124,7 @@ void TestAppEngines::aPickedQbittorrentIsNotAskedTwice()
     QCOMPARE(picked.requests.size(), recognised.requests.size() - 1);
 }
 
-void TestAppEngines::aTransmissionIsNamedAndRefused()
+void TestAppEngines::aTransmissionIsRecognisedThenProbedAndCounted()
 {
     FakeServer server;
     server.setHandler(transmission());
@@ -131,19 +132,19 @@ void TestAppEngines::aTransmissionIsNamedAndRefused()
     url.setPath(QStringLiteral("/transmission/web/"));
     App app;
     const Tested answer = test(app, fieldsFor(url));
-    QVERIFY(!answer.ok);
-    QCOMPARE(answer.error, QStringLiteral("omaseed can't drive Transmission yet"));
-    QVERIFY(answer.detail.contains(QStringLiteral("qBittorrent")));
+    QVERIFY2(answer.ok, qPrintable(answer.error));
     QCOMPARE(answer.version, QStringLiteral("4.1.3"));
     QCOMPARE(answer.apiVersion, QStringLiteral("6.0.0"));
+    QCOMPARE(answer.count, 0);
     QCOMPARE(answer.info.value(QStringLiteral("engine")).toString(),
              QStringLiteral("transmission"));
-    QVERIFY(answer.info.value(QStringLiteral("refused")).toBool());
-    QVERIFY(!answer.info.value(QStringLiteral("versionRefused")).toBool());
-    // K6: the endpoint it found, for the test's line.
-    QVERIFY(answer.info.value(QStringLiteral("endpoint"))
-                .toString()
-                .endsWith(QStringLiteral("/transmission/rpc")));
+    QCOMPARE(answer.info.value(QStringLiteral("engineName")).toString(),
+             QStringLiteral("Transmission"));
+    QVERIFY(!answer.info.value(QStringLiteral("refused")).toBool());
+    // The probe and the count went to the RPC endpoint, as torrent_get.
+    QVERIFY(std::any_of(server.requests.cbegin(), server.requests.cend(), [](const Recorded &r) {
+        return methodOf(r) == QLatin1String("torrent_get");
+    }));
     // Nothing went to qBittorrent's API: the path said Transmission first.
     for (const Recorded &request : std::as_const(server.requests))
         QVERIFY(!request.target.startsWith("/api/v2"));

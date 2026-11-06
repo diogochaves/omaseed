@@ -5,8 +5,8 @@
 // A server stores its engine (servers.json v2, `Server::engine`) and the version it reported
 // at the last contact. The first-run detector names the engine an open port or a process
 // points to, and a server's test recognises it (EngineRecognizer). This build drives
-// qBittorrent only: a Transmission or a Deluge is named and refused (K9) until E4 and E6
-// bring their engines, and an engine below the version omaseed needs is refused in words
+// qBittorrent and Transmission (E4): a Deluge is named and refused (K9) until E6 brings its
+// engine, and an engine below the version omaseed needs is refused in words
 // (K8: Transmission 4.1, the first with JSON-RPC 2.0, RPC 6.0.0; Deluge 2.1).
 
 #include <QMetaType>
@@ -36,9 +36,11 @@ inline constexpr EngineKind kKnownEngines[] = {
     EngineKind::Deluge,
 };
 
-/// Whether this build can drive `kind` (C25 K9). qBittorrent only, until E4 (Transmission)
-/// and E6 (Deluge).
+/// Whether this build can drive `kind` (C25 K9): qBittorrent and Transmission (E4); Deluge
+/// waits for E6.
 bool isEngineDriven(EngineKind kind);
+/// The engines this build drives, in words: "qBittorrent and Transmission" (K9's lines).
+QString drivenEnginesText();
 
 /// What omaseed makes of an engine and the version it reported (K8). `refused` holds the
 /// words for a version below the one omaseed needs; `notDriven` the words for an engine this

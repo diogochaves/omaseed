@@ -24,6 +24,7 @@
 //   serverLost        the first network or timeout failure, once, not once per poll.
 //   serverBack        the first success after that.
 //   authRequired      401/403: polling stops until start() is called again.
+//   versionRefused    the probe's Conflict (C25 K8, an engine too old): the same.
 
 #include "core/ApiError.hpp"
 #include "core/Reply.hpp"
@@ -164,6 +165,9 @@ Q_SIGNALS:
     void serverLost(const omaseed::core::ApiError &error);
     void serverBack();
     void authRequired(const omaseed::core::ApiError &error);
+    /// C25 K8: the probe refused the server's version (a Conflict: Transmission older than
+    /// 4.1). Polling stops until start() is called again, as after authRequired().
+    void versionRefused(const omaseed::core::ApiError &error);
 
 private:
     void schedule(std::chrono::milliseconds delay);
