@@ -112,8 +112,9 @@ public:
     /// copy failed: …"), `line`. Empty when there is none.
     QVariantMap exportFailure() const { return m_exportFailure; }
 
-    /// D2: omaseed asked qBittorrent to rename `files` files of `hash`.
-    void watchRename(const QString &hash, int files);
+    /// D2: omaseed asked qBittorrent to rename `files` files of `hash`. Returns the watch's
+    /// id (from 1; 0 when nothing is watched), which renameWatchFailed() names.
+    int watchRename(const QString &hash, int files);
     /// D2: omaseed asked qBittorrent to delete `hashes` with their files. Call it before the
     /// request: the torrents' names are taken from the model now, while they are still there.
     void watchDelete(const QStringList &hashes);
@@ -148,6 +149,11 @@ Q_SIGNALS:
     /// ("b.txt kept its old name: Permission denied"). `hashes` are the torrents it is
     /// about that are still in the list (none after a delete).
     void watchedFailure(const QString &text, const QStringList &hashes);
+    /// DECISIONS C38 R3: the rename watch `watchId` (watchRename()'s) about `hash` was told
+    /// that `files` failed (the paths the log names), as watchedFailure() says it. Every watch
+    /// on that torrent hears every rename failure of it, so the story checks the files against
+    /// the run it recorded before it takes that run's line back.
+    void renameWatchFailed(int watchId, const QString &hash, const QStringList &files);
     /// C15 M15: qBittorrent logged that `hash`, one of watchJob()'s, didn't move. `reason`
     /// is libtorrent's text ("Permission denied"), `causeKey` TorrentProblem's (noAccess,
     /// readOnly, diskFull…), `line` the whole line.
@@ -176,6 +182,7 @@ private:
     struct Watch
     {
         Action action = Action::Rename;
+        int id = 0; ///< a rename watch's, for renameWatchFailed()
         QStringList hashes;
         QStringList names; ///< the torrents' names when the watch began
         int total = 0;     ///< torrents (delete) or files (rename) asked for
@@ -256,6 +263,7 @@ private:
     QHash<QString, QList<WebSeedLogLine>> m_webSeedLines;
     QVariantMap m_exportFailure;
     QList<Watch> m_watches;
+    int m_nextWatchId = 1;
     QSet<QString> m_jobHashes;
     QDateTime m_jobSince;
     QSet<QString> m_jobTold; ///< lineKey()s already told to the job

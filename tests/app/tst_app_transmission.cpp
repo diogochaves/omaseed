@@ -169,6 +169,7 @@ private Q_SLOTS:
     void aTransmissionServerIsPolledIntoTheLibrary();
     void whatTransmissionLacksIsNotOffered();
     void theEverydayActionsAreTransmissionsMethods();
+    void aRenameSeenOnTransmissionSaysItsFolderToo();
     void anAddCarriesItsFolderAndLabels();
     void detailsAreAskedOfTransmission();
     void resumeRightAfterPauseWaitsForTheStopToLand();
@@ -791,6 +792,24 @@ void TestAppTransmission::theEverydayActionsAreTransmissionsMethods()
                  .toBool(),
              true);
     QTRY_COMPARE_WITH_TIMEOUT(app.torrents()->count(), 2, 3000);
+    app.engine()->stop();
+}
+
+// DECISIONS C38 R4, R7: a name changed on the daemon by someone else is a line, and on
+// Transmission its folder on disk was renamed with it (K28).
+void TestAppTransmission::aRenameSeenOnTransmissionSaysItsFolderToo()
+{
+    Daemon daemon;
+    App app;
+    QVERIFY(startOn(app, daemon));
+    QVERIFY(app.renameHistory().recordsFor(kPack).isEmpty());
+    daemon.library.byHash(kPack).insert(QStringLiteral("name"), QStringLiteral("Outside Pack"));
+    QTRY_COMPARE_WITH_TIMEOUT(app.renameHistory().recordsFor(kPack).size(), 1, 3000);
+    const omaseed::core::RenameRecord line = app.renameHistory().recordsFor(kPack).constFirst();
+    QCOMPARE(line.by, omaseed::core::RenameRecord::By::Elsewhere);
+    QCOMPARE(line.was, QStringLiteral("Fixture Pack"));
+    QCOMPARE(line.now, QStringLiteral("Outside Pack"));
+    QVERIFY(line.disk);
     app.engine()->stop();
 }
 

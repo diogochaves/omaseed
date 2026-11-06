@@ -1445,10 +1445,12 @@ private:
     QString m_demoDiskFolder;
     /// Sends `moves[at]` of a renameTorrentFiles() run and the rest after it. `serverId` is
     /// the server it was sent to, whose rename record takes the run (DECISIONS C38 R3).
+    /// `watchId` is the run's rename watch (ProblemLog::watchRename), for C38 R3's take-back.
     void sendFileRename(const QString &serverId,
                         const QString &hash,
                         const QList<std::pair<QString, QString>> &moves,
-                        int at);
+                        int at,
+                        int watchId);
     /// Sends `renames[at]` (paths prefixed with `root`) and the rest after it.
     void sendAddRename(const QString &id,
                        const QVariantList &renames,
@@ -2681,9 +2683,10 @@ private:
     // --- end #146 -----------------------------------------------------------------------------
 
     // --- #236: the renames the story tells (board 56, DECISIONS C38) --------------------------
-    // omaseed's own renames (R1, R3), one RenameHistory per server, saved beside the move history
-    // in state.json's "moves" (R9, C18 D8): moves.<server id>.renames. Names given in the add
-    // sheet never come here (R8). AppRenames.cpp.
+    // omaseed's own renames (R1, R3) and the torrent names seen changed in a poll (R4), one
+    // RenameHistory per server, saved beside the move history in state.json's "moves" (R9, C18
+    // D8): moves.<server id>.renames. Names given in the add sheet never come here (R8). A file
+    // rename the log says failed takes its line back (R3, C2 D2). AppRenames.cpp.
 public:
     /// Moves when the rename record changes (a rename written, another server's loaded): the
     /// details' story reads torrentStory() again.
@@ -2711,8 +2714,54 @@ private:
     /// answer that lands after a server switch writes nothing). Returns the id of the line it is
     /// in now (RenameHistory::record), 0 when it left none.
     int recordRename(const QString &serverId, core::RenameRecord rename);
-    /// C38 R3 (3b): a rename the log says failed takes its line back. True when it was there.
+    /// C38 R3: a rename the log says failed takes its line back. True when it was there.
     bool takeBackRename(const QString &hash, int id);
+    /// Writes `rename` as it is (its `by` kept): recordRename()'s and recordSeenRename()'s.
+    int writeRename(const QString &serverId, const core::RenameRecord &rename);
+    /// C38 R4: SyncEngine::torrentRenamed. Not omaseed's own (its echo, below), it is an
+    /// Elsewhere line timed now, with R7's disk on an engine that renames the folder too.
+    void recordSeenRename(const QString &hash, const QString &was, const QString &now);
+
+    /// R4's echo: omaseed's own torrent rename shows up in a poll too. Each rename sent is noted
+    /// (noteSentRename(), a token back); refused, it is dropped; answered OK, it stays for
+    /// kEchoSeconds. A name seen changed to a noted one, pending or answered within that, is
+    /// that rename (isEchoOfSentRename() takes the note), not a second line.
+    static constexpr int kEchoSeconds = 60;
+    struct SentRename
+    {
+        int token = 0;
+        QString name;
+        QElapsedTimer answered; ///< invalid while the rename is pending
+    };
+    int noteSentRename(const QString &hash, const QString &name);
+    void settleSentRename(const QString &hash, int token, bool ok);
+    bool isEchoOfSentRename(const QString &hash, const QString &name);
+    QHash<QString, QList<SentRename>> m_sentRenames;
+    int m_nextSentRename = 1;
+
+    /// R3's take-back: a file or folder rename's log watch (ProblemLog::watchRename's id) →
+    /// the run it watches and the line that run landed in. A failure is the run's when the
+    /// file the log names is one of the run's (inside the folder, for a folder). It may be
+    /// read before the OK lands: it waits for the line. Kept as long as the watch reads (2 ×
+    /// 30 s, to be safe).
+    struct RenameWatchRun
+    {
+        QString hash;
+        QList<std::pair<QString, QString>> moves; ///< from → to, paths inside the torrent
+        bool folder = false;
+        int line = 0;
+        bool failed = false;
+        QElapsedTimer age;
+    };
+    /// A watch began for this run (`watchId` 0: none, nothing kept).
+    void noteRenameWatch(int watchId,
+                         const QString &hash,
+                         const QList<std::pair<QString, QString>> &moves,
+                         bool folder);
+    /// The run of watch `watchId` was recorded into `line` (0: no line).
+    void settleRenameWatch(int watchId, int line);
+    void onRenameWatchFailed(int watchId, const QString &hash, const QStringList &files);
+    QHash<int, RenameWatchRun> m_renameWatchRuns;
     /// R3: a run of file renames (from → to, the paths inside the torrent) is one line: a File
     /// for one, Files with the count and folders for several. `done` of `moves` went.
     int recordFileRun(const QString &serverId,

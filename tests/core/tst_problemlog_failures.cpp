@@ -603,12 +603,20 @@ void TestProblemLogFailures::aJobIsToldEveryMoveFailure()
 void TestProblemLogFailures::aWatchedRenameAndDeleteTell()
 {
     QSignalSpy told(m_log, &ProblemLog::watchedFailure);
-    m_log->watchRename(kRenameHash, 1);
+    QSignalSpy renameFailed(m_log, &ProblemLog::renameWatchFailed);
+    const int watchId = m_log->watchRename(kRenameHash, 1);
+    QVERIFY(watchId > 0);
     qbtfeed::entries(*m_log, {entry(221, renameLine(QStringLiteral("log55-rename/b.txt")))});
     QCOMPARE(told.count(), 1);
     QCOMPARE(told.at(0).at(0).toString(),
              QStringLiteral("b.txt kept its old name: Permission denied"));
     QCOMPARE(told.at(0).at(1).toStringList(), QStringList{kRenameHash});
+    // DECISIONS C38 R3: the story hears which watch, and which file.
+    QCOMPARE(renameFailed.count(), 1);
+    QCOMPARE(renameFailed.at(0).at(0).toInt(), watchId);
+    QCOMPARE(renameFailed.at(0).at(1).toString(), kRenameHash);
+    QCOMPARE(renameFailed.at(0).at(2).toStringList(),
+             QStringList{QStringLiteral("log55-rename/b.txt")});
 
     // The delete's names are taken before the torrent leaves the list.
     m_log->watchDelete({kDeleteHash});

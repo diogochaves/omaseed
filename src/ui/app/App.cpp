@@ -4204,16 +4204,22 @@ void App::rename(const QString &hash, const QString &name)
     rename.was = m_engine->torrents()->torrent(hash).name;
     rename.now = name;
     rename.disk = m_features.renameOnDisk;
+    // R4: the next poll shows this rename too, maybe before its OK lands; noted, it is no
+    // second line.
+    const int sent = noteSentRename(hash, name);
     m_client->rename(hash, name)
-        ->then(this,
-               [this, answer, rename, serverId = renamesServerId()](const Result<Done> &result) {
-                   answer(result);
-                   if (result.isError())
-                       return;
-                   RenameRecord done = rename;
-                   done.at = QDateTime::currentDateTimeUtc();
-                   recordRename(serverId, done);
-               });
+        ->then(
+            this,
+            [this, answer, rename, sent, serverId = renamesServerId()](const Result<Done> &result) {
+                answer(result);
+                if (serverId == renamesServerId())
+                    settleSentRename(rename.hash, sent, !result.isError());
+                if (result.isError())
+                    return;
+                RenameRecord done = rename;
+                done.at = QDateTime::currentDateTimeUtc();
+                recordRename(serverId, done);
+            });
 }
 
 void App::queueUp(const QStringList &hashes)
@@ -5814,14 +5820,17 @@ void App::renameTorrentFile(const QString &hash,
     if (!m_hasServer)
         return;
 
-    // docs/32 D2: the rename itself happens after the answer; a failure is in the log.
-    m_engine->problems()->watchRename(hash, 1);
+    // docs/32 D2: the rename itself happens after the answer; a failure is in the log, and
+    // takes the story's line back (DECISIONS C38 R3).
+    const int watchId = m_engine->problems()->watchRename(hash, 1);
+    noteRenameWatch(watchId, hash, {{oldPath, newPath}}, folder);
     auto *reply = folder ? m_client->renameFolder(hash, oldPath, newPath)
                          : m_client->renameFile(hash, oldPath, newPath);
     reply->then(this,
-                [this, hash, oldPath, newPath, folder, serverId = renamesServerId()](
+                [this, hash, oldPath, newPath, folder, watchId, serverId = renamesServerId()](
                     const Result<Done> &result) {
                     if (result.isError()) {
+                        settleRenameWatch(watchId, 0);
                         Q_EMIT actionFailed(QString(), actionFailureText(result.error()));
                         return;
                     }
@@ -5835,9 +5844,10 @@ void App::renameTorrentFile(const QString &hash,
                         rename.now = newPath.mid(newPath.lastIndexOf(QLatin1Char('/')) + 1);
                         const qsizetype slash = oldPath.lastIndexOf(QLatin1Char('/'));
                         rename.in = slash < 0 ? QString() : oldPath.left(slash);
-                        recordRename(serverId, rename);
+                        settleRenameWatch(watchId, recordRename(serverId, rename));
                     } else {
-                        recordFileRun(serverId, hash, {{oldPath, newPath}}, 1);
+                        settleRenameWatch(watchId,
+                                          recordFileRun(serverId, hash, {{oldPath, newPath}}, 1));
                     }
                 });
 }
@@ -6040,33 +6050,36 @@ void App::renameTorrentFiles(const QString &hash,
     if (!m_hasServer)
         return;
     // docs/32 D2: each file's rename happens after its answer; failures are in the log.
-    m_engine->problems()->watchRename(hash, int(moves.size()));
-    sendFileRename(renamesServerId(), hash, moves, 0);
+    const int watchId = m_engine->problems()->watchRename(hash, int(moves.size()));
+    noteRenameWatch(watchId, hash, moves, false);
+    sendFileRename(renamesServerId(), hash, moves, 0, watchId);
 }
 
 void App::sendFileRename(const QString &serverId,
                          const QString &hash,
                          const QList<std::pair<QString, QString>> &moves,
-                         int at)
+                         int at,
+                         int watchId)
 {
     if (at >= moves.size()) {
         m_details->refreshNow();
-        // DECISIONS C38 R3: the run is one line of the story.
-        recordFileRun(serverId, hash, moves, at);
+        // DECISIONS C38 R3: the run is one line of the story; a failure its watch reads in the
+        // log takes it back.
+        settleRenameWatch(watchId, recordFileRun(serverId, hash, moves, at));
         Q_EMIT torrentFilesRenamed(hash, at, int(moves.size()), QString(), QString());
         return;
     }
     auto *reply = m_client->renameFile(hash, moves.at(at).first, moves.at(at).second);
-    reply->then(this, [this, serverId, hash, moves, at](const Result<Done> &result) {
+    reply->then(this, [this, serverId, hash, moves, at, watchId](const Result<Done> &result) {
         if (result.isError()) {
             m_details->refreshNow();
             // R3: what went before the refusal still went (none: no line).
-            recordFileRun(serverId, hash, moves, at);
+            settleRenameWatch(watchId, recordFileRun(serverId, hash, moves, at));
             Q_EMIT torrentFilesRenamed(
                 hash, at, int(moves.size()), moves.at(at).first, result.error().toString());
             return;
         }
-        sendFileRename(serverId, hash, moves, at + 1);
+        sendFileRename(serverId, hash, moves, at + 1, watchId);
     });
 }
 

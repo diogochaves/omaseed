@@ -797,20 +797,22 @@ void ProblemLog::tellJob(quint64 serial)
     }
 }
 
-void ProblemLog::watchRename(const QString &hash, int files)
+int ProblemLog::watchRename(const QString &hash, int files)
 {
     if (hash.isEmpty() || m_torrents.isNull())
-        return;
+        return 0;
     if (!m_renamed.contains(hash))
         m_renamed.insert(hash, m_issued + 1);
     Watch watch;
     watch.action = Action::Rename;
+    watch.id = m_nextWatchId++;
     watch.hashes = {hash};
     watch.names = {m_torrents->torrent(hash).name};
     watch.total = std::max(1, files);
     watch.fromRead = m_issued + 1;
     watch.age.start();
     m_watches.append(watch);
+    return watch.id;
 }
 
 void ProblemLog::watchDelete(const QStringList &hashes)
@@ -838,6 +840,13 @@ void ProblemLog::tellWatches(quint64 serial)
 {
     if (m_watches.isEmpty() || m_torrents.isNull())
         return;
+    struct RenameFailure
+    {
+        int id = 0;
+        QString hash;
+        QStringList files;
+    };
+    QList<RenameFailure> renameFailures; // told after the loop: m_watches stays put
     for (Watch &watch : m_watches) {
         if (serial < watch.fromRead)
             continue;
@@ -848,6 +857,7 @@ void ProblemLog::tellWatches(quint64 serial)
         }
         QString reason;
         QString file;
+        QStringList toldFiles;
         bool told = false;
         for (const Line &line : std::as_const(m_lines)) {
             if (line.read != serial || watch.counted.contains(line.key))
@@ -869,6 +879,7 @@ void ProblemLog::tellWatches(quint64 serial)
             watch.counted.insert(line.key);
             for (const QString &one : std::as_const(failed))
                 watch.failed.insert(one);
+            toldFiles << failed;
             reason = line.parsed.systemMessage;
             told = true;
         }
@@ -897,11 +908,15 @@ void ProblemLog::tellWatches(quint64 serial)
         }
         stillHere.sort();
         Q_EMIT watchedFailure(text, stillHere);
+        if (watch.action == Action::Rename)
+            renameFailures.append({watch.id, watch.hashes.value(0), toldFiles});
     }
     // A delete whose every torrent failed has nothing more to say.
     m_watches.removeIf([](const Watch &watch) {
         return watch.action != Action::Rename && watch.failed.size() >= watch.total;
     });
+    for (const RenameFailure &failure : std::as_const(renameFailures))
+        Q_EMIT renameWatchFailed(failure.id, failure.hash, failure.files);
 }
 
 } // namespace omaseed::core
