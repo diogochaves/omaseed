@@ -142,6 +142,9 @@ class App : public QObject
     // The server the hero line prints, and whether there is one at all.
     Q_PROPERTY(QString serverName READ serverName NOTIFY serverChanged)
     Q_PROPERTY(QString serverUrlText READ serverUrlText NOTIFY serverChanged)
+    /// The chosen server's engine by name (DECISIONS C25 K11): "qBittorrent", "Transmission",
+    /// "Deluge", one this build doesn't know as servers.json spells it (#179); "" with none.
+    Q_PROPERTY(QString serverEngineName READ serverEngineName NOTIFY serverChanged)
     Q_PROPERTY(bool hasServer READ hasServer NOTIFY serverChanged)
     Q_PROPERTY(int serverCount READ serverCount NOTIFY serverChanged)
 
@@ -212,6 +215,7 @@ public:
     // --- the chosen server ---------------------------------------------------------------
     QString serverName() const;
     QString serverUrlText() const;
+    QString serverEngineName() const;
     bool hasServer() const { return m_hasServer; }
     int serverCount() const;
     bool isDemoMode() const { return m_demoMode; }

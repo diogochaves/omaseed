@@ -368,11 +368,11 @@ TestCase {
         verify(rail._rowMap[5].item.selected);
     }
 
-    // The servers' rows say the name and the address on hover; engines' K12 adds the engine.
-    function test_a_server_rows_tooltip_names_it_and_its_address() {
+    // The servers' rows say the name, the engine and the address on hover (C25 K12).
+    function test_a_server_rows_tooltip_names_it_its_engine_and_its_address() {
         const rail = railWithServers(["public", "private"]);
         const tip = rail.serverTipText(0);
-        verify(tip.startsWith("public · ") && tip.indexOf("10.99.0.10:8080") > 0, tip);
+        verify(tip.startsWith("public · qBittorrent") && tip.indexOf("10.99.0.10:8080") > 0, tip);
     }
 
     function test_move_cursor_clamps_at_both_ends() {
@@ -812,7 +812,7 @@ TestCase {
         const row = rail._rowMap[rail.serversBase + 1].item;
         row.hoverChanged(true);
         tryCompare(tip, "shown", true);
-        compare(tip.text, "a server with a name far wider than the rail · 10.99.0.11:8080");
+        compare(tip.text, "a server with a name far wider than the rail · qBittorrent · 10.99.0.11:8080");
         row.hoverChanged(false);
         compare(tip.shown, false);
     }

@@ -675,13 +675,14 @@ Item {
         }
     }
 
-    /// A server row's tooltip (board 46: its name and address).
-    // TODO(engines, DECISIONS C25 K12): "NAME · ENGINE VERSION" here.
+    /// A server row's tooltip (board 46: its name and address; DECISIONS C25 K12: its engine
+    /// and the version from the last contact between them, "seedbox · Transmission 4.1.3 ·
+    /// 127.0.0.1:8085"). The row itself keeps the name alone.
     function serverTipText(index: int): string {
         if (!root.serverList)
             return "";
         const map = root.serverList.serverMap(root.serverList.idAt(index));
-        return [map.name || "", map.urlText || ""].filter(part => part.length > 0).join(" · ");
+        return [map.name || "", map.engineText || "", map.urlText || ""].filter(part => part.length > 0).join(" · ");
     }
 
     function _serverTip(row: RailRow, hovering: bool, index: int): void {

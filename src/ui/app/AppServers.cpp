@@ -378,17 +378,20 @@ QVariantList App::serverRows() const
                 detail << tr("connecting");
             else
                 detail << torrentsText(m_engine->torrents()->count());
+            // C25 K12: the engine and the version it answered with, "qBittorrent 5.3.0".
             const QString version = m_engine->globalState()->serverVersion();
             if (!version.isEmpty() && state != QLatin1String("down") &&
                 state != QLatin1String("waiting") && state != QLatin1String("refused"))
-                detail << tr("qBittorrent %1")
-                              .arg(version.startsWith(QLatin1Char('v')) ? version.mid(1) : version);
+                detail << tr("%1 %2").arg(
+                    serverEngineName(),
+                    version.startsWith(QLatin1Char('v')) ? version.mid(1) : version);
         } else if (state == QLatin1String("refused")) {
             // C28: another engine's server, never asked.
             meta = role(ServerListModel::LastReasonRole).toString();
             detail << role(ServerListModel::LastDetailRole).toString();
         } else if (state == QLatin1String("failed")) {
             meta = role(ServerListModel::LastReasonRole).toString();
+            detail << role(ServerListModel::EngineTextRole).toString(); // C25 K12
             detail << tr("last try %1").arg(role(ServerListModel::LastSeenRole).toString());
             const QString why = role(ServerListModel::LastDetailRole).toString();
             if (!why.isEmpty())
@@ -397,8 +400,10 @@ QVariantList App::serverRows() const
             const int count = role(ServerListModel::LastCountRole).toInt();
             if (count >= 0)
                 meta = torrentsText(count);
+            detail << role(ServerListModel::EngineTextRole).toString(); // C25 K12
             detail << tr("last seen %1").arg(role(ServerListModel::LastSeenRole).toString());
         } else {
+            detail << role(ServerListModel::EngineTextRole).toString(); // C25 K12
             detail << tr("not seen yet");
         }
         detail.removeAll(QString());

@@ -3947,10 +3947,9 @@ Item {
         onManageRequested: id => settingsModal.showServer(id)
     }
 
-    /// The status line's server lane (DECISIONS C24 H15, C12's words): "NAME · qBittorrent
-    /// 5.2.3", or the name with its state while the server is down or on its first sync.
-    /// The one place the lane's words are made, for engines' K11 (C25: "NAME · ENGINE
-    /// VERSION", C12's state words in its place while it is down).
+    /// The status line's server lane (DECISIONS C24 H15, C12's words; C25 K11): "NAME · ENGINE
+    /// VERSION" ("public · qBittorrent 5.2.3"), C12's state words in the engine's place while
+    /// the server is down or on its first sync.
     function serverLaneText(): string {
         if (!App.hasServer)
             return qsTr("no server");
@@ -3971,8 +3970,8 @@ Item {
             return qsTr("%1 · first sync").arg(App.serverName);
         // The API answers "v5.2.3"; the line prints "qBittorrent 5.2.3".
         const version = App.globalState.serverVersion.replace(/^v/, "");
-        return version.length > 0 ? qsTr("%1 · qBittorrent %2").arg(App.serverName).arg(version)
-                                  : App.serverName;
+        const engine = App.serverEngineName.length > 0 ? App.serverEngineName : qsTr("qBittorrent");
+        return version.length > 0 ? qsTr("%1 · %2 %3").arg(App.serverName).arg(engine).arg(version) : App.serverName;
     }
 
     /// `ctrl+s`, the status line's server lane, "switch server…", the rail's "… N more", the

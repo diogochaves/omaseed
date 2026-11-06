@@ -413,6 +413,15 @@ QString App::serverUrlText() const
     return hostPort(m_server.url);
 }
 
+QString App::serverEngineName() const
+{
+    if (!m_hasServer && !m_demoMode)
+        return {};
+    if (m_server.engine != EngineKind::Unknown)
+        return engineDisplayName(m_server.engine);
+    return m_server.engineName();
+}
+
 QString App::plainSecretsPath() const
 {
     if (m_demoMode || m_secrets->knownBackend() != SecretStore::Backend::File)
