@@ -1527,7 +1527,7 @@ Item {
             break;
         case Qt.Key_A:
             if (shift)
-                root.toggleAltSpeed();
+                root.runAction("altSpeed"); // C25 K20, K30: Deluge has no turtle, and says so
             else
                 App.addRequested();
             break;
@@ -1580,8 +1580,14 @@ Item {
         if (action.startsWith(Keymap.switchToPrefix))
             return App.switchServer(action.slice(Keymap.switchToPrefix.length));
         const run = root._runners[action];
-        if (run === undefined || !Keymap.offered(action, App.features, ""))
+        if (run === undefined)
             return false;
+        // C25 K30: a window key for what the server lacks (A on Deluge, board 47 §I) says so
+        // once in the status line, as a torrent's key does.
+        if (!Keymap.offered(action, App.features, "")) {
+            root.sayMissing(action, "");
+            return true;
+        }
         run();
         return true;
     }
