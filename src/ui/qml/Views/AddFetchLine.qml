@@ -34,6 +34,10 @@ Rectangle {
     property string serverName: ""
     /// #193: an add was pressed and waits for the list (App.addWaitsForList).
     property bool addWaiting: false
+    /// The engine asked (board 47 G, K26): Deluge looks a magnet up too, by repeated calls
+    /// that stop once the sheet lets go.
+    property string engineName: "qBittorrent"
+    readonly property bool _qbt: root.engineName === "qBittorrent"
 
     readonly property bool shown: ["waiting", "fetching", "slow", "never", "private"].indexOf(root.phase) >= 0
     readonly property bool isLink: root.kind === "url"
@@ -93,8 +97,8 @@ Rectangle {
         case "waiting":
             return qsTr("Connecting to %1").arg(root.serverName);
         case "fetching":
-            return root.isLink ? qsTr("qBittorrent is downloading the .torrent from the link")
-                               : qsTr("Asking qBittorrent for the file list");
+            return root.isLink ? qsTr("%1 is downloading the .torrent from the link").arg(root.engineName)
+                               : qsTr("Asking %1 for the file list").arg(root.engineName);
         case "slow":
             return root.isLink ? qsTr("The link hasn't answered") : qsTr("No peer has sent the file list yet");
         case "never":
@@ -110,8 +114,9 @@ Rectangle {
         const enter = root.keyText(qsTr("enter"));
         const shiftEnter = root.keyText(qsTr("shift+enter"));
         const add = root.keyText(qsTr("add"));
-        const leftRunning = qsTr("qBittorrent goes on looking until it restarts, even after you close this sheet.");
-        const noReport = qsTr("qBittorrent doesn't report a failed download here.");
+        const leftRunning = root._qbt ? qsTr("qBittorrent goes on looking until it restarts, even after you close this sheet.")
+                                      : qsTr("%1 stops looking soon after you close this sheet.").arg(root.engineName);
+        const noReport = qsTr("%1 doesn't report a failed download here.").arg(root.engineName);
         // #193: qBittorrent 5.3 can crash when a magnet is added while it is still fetching
         // that magnet's list, so the add waits for it, up to F4's minute.
         if (root.addWaiting && !root.isLink && ["fetching", "slow"].indexOf(root.phase) >= 0)
@@ -132,7 +137,7 @@ Rectangle {
                     + qsTr("The ways out are the same: %1 adds every file, %2 adds it stopped until its list arrives.").arg(enter).arg(shiftEnter),
                     leftRunning];
         case "private":
-            return [qsTr("Your library's torrents from %1 are private, and qBittorrent can't fetch a private torrent's list from a magnet, so omaseed doesn't ask. To choose files first, add the site's %2 instead.").arg(root.keyText(root.privateHost)).arg(root.keyText(qsTr(".torrent"))),
+            return [qsTr("Your library's torrents from %1 are private, and %3 can't fetch a private torrent's list from a magnet, so omaseed doesn't ask. To choose files first, add the site's %2 instead.").arg(root.keyText(root.privateHost)).arg(root.keyText(qsTr(".torrent"))).arg(root.engineName),
                     qsTr("Added from this magnet, it may stay at \"metadata\" for good.")];
         }
         return [];

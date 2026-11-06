@@ -70,6 +70,17 @@ TestCase {
         verify(line.lines[0].indexOf("usually in a few seconds") > 0);
     }
 
+    // Board 47 G (C25 K26): Deluge looks a magnet up too, and the line names it; it stops
+    // looking once the sheet lets go, unlike qBittorrent.
+    function test_the_line_names_the_engine_asked() {
+        const line = testCase.make("fetching", 3);
+        line.engineName = "Deluge";
+        compare(line.headline, "Asking Deluge for the file list");
+        const never = testCase.make("never", 70);
+        never.engineName = "Deluge";
+        compare(never.lines[1], "Deluge stops looking soon after you close this sheet.");
+    }
+
     // #193: an add pressed before the list waits for it, and the line says why; at F4 it
     // has gone, and a link never waits.
     function test_an_add_waiting_for_the_list() {

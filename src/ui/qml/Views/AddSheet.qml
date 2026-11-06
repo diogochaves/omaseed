@@ -2178,6 +2178,7 @@ Sheet {
 
                             Layout.fillWidth: true
                             addWaiting: App.addWaitsForList
+                            engineName: sheet.engineName
                             kind: sheet.addable ? sheet.addable.kind : "magnet"
                             objectName: "addFetchLine"
                             phase: App.addLookup.phase
