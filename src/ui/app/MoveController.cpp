@@ -172,6 +172,7 @@ void MoveController::attachJob()
     if (m_hooks.lowDiskBytes)
         m_job->setLowDiskThreshold(m_hooks.lowDiskBytes());
     m_job->setFilePath(MoveJob::defaultFilePath(m_serverId));
+    m_job->setEngineName(engineName());
     connect(m_job.get(), &MoveJob::changed, this, &MoveController::onJobChanged);
     connect(m_job.get(), &MoveJob::stateChanged, this, &MoveController::onJobChanged);
     connect(m_job.get(), &MoveJob::finished, this, &MoveController::onFinished);

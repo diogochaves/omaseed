@@ -321,6 +321,7 @@ ErrorWords::Text ErrorWords::forServer(const ApiError &error, const Subject &sub
     text.details = details(error, subject.address);
     const QString name = serverName(subject);
     const QString retry = retryLine(subject.retrySeconds);
+    const QString engine = engineOr(subject.engine);
 
     switch (error.kind()) {
     case ApiError::Kind::None:
@@ -340,7 +341,7 @@ ErrorWords::Text ErrorWords::forServer(const ApiError &error, const Subject &sub
                 ownText(error).contains(QLatin1String("refused"), Qt::CaseInsensitive)
                     ? tr("Connection refused at %1.").arg(addressOf(subject))
                     : tr("No route to %1.").arg(addressOf(subject));
-            text.line = joined(joined(where, tr("Is qBittorrent running?")), retry);
+            text.line = joined(joined(where, tr("Is %1 running?").arg(engine)), retry);
         }
         return text;
     case ApiError::Kind::Timeout: {
@@ -350,11 +351,13 @@ ErrorWords::Text ErrorWords::forServer(const ApiError &error, const Subject &sub
             subject.silentSeconds >= 0 ? subject.silentSeconds : timeoutSeconds(error);
         text.line =
             seconds >= 0
-                ? tr("qBittorrent is running but hasn't replied for %1 s. It may be busy writing "
+                ? tr("%1 is running but hasn't replied for %2 s. It may be busy writing "
                      "to its disk. omaseed keeps asking.")
+                      .arg(engine)
                       .arg(seconds)
-                : tr("qBittorrent is running but hasn't replied. It may be busy writing to its "
-                     "disk. omaseed keeps asking.");
+                : tr("%1 is running but hasn't replied. It may be busy writing to its "
+                     "disk. omaseed keeps asking.")
+                      .arg(engine);
         return text;
     }
     case ApiError::Kind::Certificate:
@@ -400,15 +403,23 @@ ErrorWords::Text ErrorWords::forServer(const ApiError &error, const Subject &sub
     case ApiError::Kind::Server:
         text.kind = QStringLiteral("server");
         text.headline = tr("%1 had an internal error").arg(name);
-        text.line =
-            error.httpStatus() > 0
-                ? tr("qBittorrent answered %1; its log may say why.").arg(error.httpStatus())
-                : tr("Its log may say why.");
+        // C25 K24: only qBittorrent has a log omaseed can point to.
+        if (!subject.engine.isEmpty())
+            text.line = error.httpStatus() > 0
+                            ? tr("%1 answered %2.").arg(engine).arg(error.httpStatus())
+                            : QString();
+        else
+            text.line =
+                error.httpStatus() > 0
+                    ? tr("qBittorrent answered %1; its log may say why.").arg(error.httpStatus())
+                    : tr("Its log may say why.");
         return text;
     case ApiError::Kind::Parse:
         text.kind = QStringLiteral("parse");
         text.headline = tr("%1 answered something omaseed can't read").arg(name);
-        text.line = tr("Is %1 a qBittorrent Web UI?").arg(addressOf(subject));
+        text.line = subject.engine.isEmpty()
+                        ? tr("Is %1 a qBittorrent Web UI?").arg(addressOf(subject))
+                        : tr("Is %1 %2's address?").arg(addressOf(subject), engine);
         return text;
     default:
         break;
@@ -434,8 +445,11 @@ ErrorWords::forTest(const ApiError &error, const Subject &subject, const QString
     if (error.kind() == ApiError::Kind::Network && !hostNotFound(error)) {
         // docs/33 N5, as board 35 draws it in the sheet.
         text.headline = tr("Nothing answered at %1").arg(addressOf(subject));
-        text.line = tr("Check the address and port, and that qBittorrent's Web UI is on (Tools "
-                       "› Options › Web UI).");
+        text.line = subject.engine.isEmpty()
+                        ? tr("Check the address and port, and that qBittorrent's Web UI is on "
+                             "(Tools › Options › Web UI).")
+                        : tr("Check the address and port, and that %1 is running.")
+                              .arg(subject.engine);
     } else if (error.kind() == ApiError::Kind::Timeout) {
         const int seconds = timeoutSeconds(error);
         text.line = seconds > 0 ? tr("It took the connection but didn't reply in %1 s. Test "
@@ -471,14 +485,15 @@ ErrorWords::Text ErrorWords::forRequest(const ApiError &error, const Subject &su
             return text;
         }
         if (error.kind() == ApiError::Kind::Conflict) {
-            text.headline = subject.folder.isEmpty()
-                                ? tr("qBittorrent can't create that folder")
-                                : tr("qBittorrent can't create %1").arg(subject.folder);
+            text.headline =
+                subject.folder.isEmpty()
+                    ? tr("%1 can't create that folder").arg(engineOr(subject.engine))
+                    : tr("%1 can't create %2").arg(engineOr(subject.engine), subject.folder);
             text.line = tr("Check that the drive is mounted and its parent folder exists.");
             return text;
         }
         if (isFolderRefusal(error)) {
-            text.headline = cantWrite(subject.folder);
+            text.headline = cantWrite(subject.folder, engineOr(subject.engine));
             text.line = tr("Its user has no write access there. This is not about the sign-in.");
             return text;
         }
@@ -488,8 +503,8 @@ ErrorWords::Text ErrorWords::forRequest(const ApiError &error, const Subject &su
         Text text;
         text.kind = QStringLiteral("request");
         text.details = details(error, subject.address);
-        text.headline =
-            tr("qBittorrent couldn't read the .torrent of %1").arg(torrentName(subject));
+        text.headline = tr("%1 couldn't read the .torrent of %2")
+                            .arg(engineOr(subject.engine), torrentName(subject));
         return text;
     }
     // An add the server stopped answering in the middle of (docs/33 N3).

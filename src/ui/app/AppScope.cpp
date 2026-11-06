@@ -94,7 +94,7 @@ QString App::seedSentence(const QString &upSpeed, const QString &today, const QS
 
 QString App::moveJobSentence(int torrents, int withServer) const
 {
-    return ScopeSentence::moveJob(torrents, withServer);
+    return ScopeSentence::moveJob(torrents, withServer, serverEngineName());
 }
 
 QString App::moveSheetSentence(int torrents) const

@@ -21,6 +21,8 @@ RowLayout {
     property int index: 0
     /// `save there` was pressed: the line says so and offers `undo`.
     property bool saved: false
+    /// The server's engine by name, who checks the files (C25 K24).
+    property string engineName: "qBittorrent"
 
     signal saveRequested(int index)
     signal undoRequested
@@ -47,10 +49,10 @@ RowLayout {
             return "";
         if (root.saved)
             return match.fileCount === 1
-                    ? qsTr("<b>Saving beside %1.</b> qBittorrent will check the file and start seeding.").arg(
-                          match.name)
-                    : qsTr("<b>Saving beside %1.</b> qBittorrent will check the %2 files and start seeding.").arg(
-                          match.name).arg(match.fileCount);
+                    ? qsTr("<b>Saving beside %1.</b> %2 will check the file and start seeding.").arg(
+                          match.name).arg(root.engineName)
+                    : qsTr("<b>Saving beside %1.</b> %2 will check the %3 files and start seeding.").arg(
+                          match.name).arg(root.engineName).arg(match.fileCount);
         if (root.matches.length > 1)
             return qsTr("<b>These files are already on disk, %1 times.</b> Pick the copy to share:").arg(
                         root.matches.length);

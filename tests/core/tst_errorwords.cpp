@@ -354,6 +354,34 @@ private slots:
 
     // Board 47 §4, §E (C25 K22, K23): the engine that moves is named, and Transmission's M8
     // outcome is "replace".
+    // C25 K24: a server's lines name its engine; only qBittorrent's point to a log.
+    void serverLinesNameTheEngine()
+    {
+        ErrorWords::Subject subject = server(AuthMode::None, -1);
+        subject.engine = QStringLiteral("Transmission");
+        const auto line = [&subject](ApiError::Kind kind, const QString &text, int status = 0) {
+            return ErrorWords::forServer(ApiError(kind, text, status), subject).line;
+        };
+        QCOMPARE(line(ApiError::Kind::Network, QStringLiteral("POST rpc: Connection refused")),
+                 QStringLiteral("Connection refused at 127.0.0.1:8091. Is Transmission running?"));
+        QVERIFY(line(ApiError::Kind::Timeout, QStringLiteral("POST rpc: no reply within 8000 ms"))
+                    .startsWith(QStringLiteral("Transmission is running but hasn't replied for 8 s.")));
+        QCOMPARE(line(ApiError::Kind::Server, QStringLiteral("POST rpc: 500"), 500),
+                 QStringLiteral("Transmission answered 500."));
+        QCOMPARE(line(ApiError::Kind::Parse, QStringLiteral("POST rpc: not JSON")),
+                 QStringLiteral("Is 127.0.0.1:8091 Transmission's address?"));
+        // The setLocation refusals name who can't create or write there.
+        subject.folder = QStringLiteral("/srv/new");
+        const ErrorWords::Text create = ErrorWords::forRequest(
+            ApiError(ApiError::Kind::Conflict, QStringLiteral("POST torrents/setLocation: x"), 409),
+            subject);
+        QCOMPARE(create.headline, QStringLiteral("Transmission can't create /srv/new"));
+        // No engine named is qBittorrent, as before.
+        subject.engine.clear();
+        QCOMPARE(line(ApiError::Kind::Server, QStringLiteral("POST x: 500"), 500),
+                 QStringLiteral("qBittorrent answered 500; its log may say why."));
+    }
+
     void moveRowsNameTheEngine()
     {
         const ErrorWords::Text failed =

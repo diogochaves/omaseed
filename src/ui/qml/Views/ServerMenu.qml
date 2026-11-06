@@ -58,10 +58,11 @@ Menu {
     headingTitle: root.server.name ?? ""
     heading: {
         const parts = [root.server.urlText ?? root.server.url ?? ""];
-        // The API answers "v5.3.0"; board 51 prints "qBittorrent 5.3.0" for the current one.
+        // The API answers "v5.3.0"; board 51 prints "qBittorrent 5.3.0" for the current one,
+        // C25 K11 its engine's name ("Transmission 4.1.3").
         const version = root.current ? App.globalState.serverVersion.replace(/^v/, "") : "";
         if (version.length > 0)
-            parts.push(qsTr("qBittorrent %1").arg(version));
+            parts.push(qsTr("%1 %2").arg(App.serverEngineName || "qBittorrent").arg(version));
         else if (!root.current && (root.server.lastSeen ?? "").length > 0)
             parts.push(qsTr("last seen %1").arg(root.server.lastSeen));
         // The rail's count, "10", read out: "10 torrents".

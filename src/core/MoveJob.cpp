@@ -764,7 +764,9 @@ void MoveJob::onSynced(bool fullUpdate)
             entry.quietPolls = 0;
             if (entry.sends >= kMaxSends) {
                 entry.step = Step::Failed;
-                entry.reason = tr("qBittorrent didn't take it");
+                entry.reason =
+                    tr("%1 didn't take it")
+                        .arg(m_engineName.isEmpty() ? QStringLiteral("qBittorrent") : m_engineName);
                 entry.causeKey = QStringLiteral("notTaken");
             } else {
                 entry.step = Step::Waiting;

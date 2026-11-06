@@ -69,6 +69,9 @@ public:
         QString torrent;
         /// setLocation's destination folder, or empty.
         QString folder;
+        /// The server's engine by name ("Transmission"), who the lines say is running, busy or
+        /// can't do something (C25 K24); "" is qBittorrent.
+        QString engine;
     };
 
     /// The words, as plain data.

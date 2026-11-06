@@ -17,6 +17,8 @@ Item {
     /// `App.serverPathForPick()`'s answer, or `{}` before a pick (or after typing over it).
     property var pick: ({})
     property string serverName: ""
+    /// The server's engine by name, who may not see the folder (C25 K24).
+    property string engineName: "qBittorrent"
 
     readonly property bool mapped: root.pick.mapped === true
     readonly property bool outside: root.pick.outside === true
@@ -65,7 +67,7 @@ Item {
             if (!root.outside)
                 return "";
             const head = qsTr("%1 is outside the folders mapped for %2.").arg(root.pick.local).arg(root.serverName);
-            const tail = qsTr("qBittorrent may not see it. Mapped: %1.").arg(root.pick.mappings);
+            const tail = qsTr("%1 may not see it. Mapped: %2.").arg(root.engineName).arg(root.pick.mappings);
             return "<font color='%1'>%2</font><br><font color='%3'>%4</font>".arg(Theme.on.warning.yellow).arg(
                         root._escape(head)).arg(Theme.on.warning.dimForeground).arg(root._escape(tail));
         }

@@ -735,6 +735,7 @@ TestCase {
                                              "peerControl": false,
                                              "editWebSeeds": false,
                                              "engineLog": false,
+                                             "addAgain": false,
                                              "qbtSettings": false,
                                              "altSpeeds": true,
                                              "search": false,
@@ -755,6 +756,10 @@ TestCase {
         compare(row.help, "labels · location · limits · rename");
         compare(row.about, "Set labels · location · limits; rename the cursor row");
         verify(act.every(r => r.action !== "category"));
+        // C14 E4: adding it again is qBittorrent's; the F row only frees the space.
+        const free = act.find(r => r.action === "freeSpace");
+        compare(free.help, "free the space");
+        verify(free.about.indexOf("add it again") < 0, free.about);
         const nav = Keymap.helpRows("navigate", "alt", testCase.transmission);
         compare(nav.find(r => r.action === "filter").about, "Filter the table by name, label or hash");
         compare(nav.find(r => r.action === "jump").about, "Jump to any torrent or label by name");

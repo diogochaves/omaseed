@@ -476,6 +476,7 @@ Sheet {
         BrowsedPathLine {
             id: browsedLine
 
+            engineName: App.serverEngineName || "qBittorrent"
             objectName: "moveBrowsedLine"
             pick: root._pick
             serverName: App.serverName

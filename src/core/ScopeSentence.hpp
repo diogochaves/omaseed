@@ -88,7 +88,7 @@ public:
     /// landed").
     static QString folderMoving(const QString &newPath, int landed, int torrents);
     /// A move's torrents on show (C15 M10's "show"): how many, and how many qBittorrent has.
-    static QString moveJob(int torrents, int withServer);
+    static QString moveJob(int torrents, int withServer, const QString &engine = QString());
     /// The move sheet's torrents on show (its "show").
     static QString moveSheet(int torrents);
 

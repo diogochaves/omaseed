@@ -217,6 +217,8 @@ ErrorWords::Subject App::errorSubject() const
     subject.address = serverHostPortText();
     subject.authMode = m_server.authMode;
     subject.pinnedCertificate = m_server.certificateSha256;
+    // C25 K24: the lines name who runs there; "" keeps qBittorrent's own words.
+    subject.engine = m_server.engineName();
     return subject;
 }
 
@@ -328,6 +330,7 @@ QVariantMap App::serverTestProblem(const QVariantMap &fields,
         subject.address =
             url.port() > 0 ? QStringLiteral("%1:%2").arg(url.host()).arg(url.port()) : url.host();
     subject.server = server.name.isEmpty() ? subject.address : server.name;
+    subject.engine = server.engineName();
     subject.authMode = server.authMode;
     subject.pinnedCertificate = server.certificateSha256;
     // runServerTest: the raw error alone, or the sheet's words with the raw one under them.

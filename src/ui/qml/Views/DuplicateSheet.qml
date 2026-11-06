@@ -67,7 +67,7 @@ Sheet {
             return known + " " + qsTr("Its trackers are the same as this source's.");
         if (sheet.canMerge)
             return known;
-        return known + " " + qsTr("qBittorrent rejects duplicates.");
+        return known + " " + qsTr("%1 rejects duplicates.").arg(App.serverEngineName || "qBittorrent");
     }
 
     /// "This source lists 2 trackers it doesn't have."

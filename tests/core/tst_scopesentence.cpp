@@ -206,6 +206,8 @@ void TestScopeSentence::movesSayWhatIsOnShow()
 {
     QCOMPARE(ScopeSentence::moveJob(49, 3), QStringLiteral("49 torrents · 3 with qBittorrent"));
     QCOMPARE(ScopeSentence::moveJob(1, 0), QStringLiteral("1 torrent"));
+    QCOMPARE(ScopeSentence::moveJob(2, 1, QStringLiteral("Transmission")),
+             QStringLiteral("2 torrents · 1 with Transmission"));
     QCOMPARE(ScopeSentence::moveSheet(3), QStringLiteral("3 torrents the move sheet listed"));
     QCOMPARE(ScopeSentence::moveSheet(1), QStringLiteral("1 torrent the move sheet listed"));
 }

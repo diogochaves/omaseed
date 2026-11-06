@@ -588,8 +588,9 @@ Item {
                 if (root.readdOnly)
                     return one ? qsTr("It was written while wanted, and pieces of it were downloaded. qBittorrent keeps it; on this torrent only adding it again frees it.")
                                : qsTr("They were written while wanted, and pieces of them were downloaded. qBittorrent keeps them; on this torrent only adding it again frees them.");
-                return one ? qsTr("It was written while wanted. qBittorrent keeps it; it never deletes a skipped file.")
-                           : qsTr("They were written while wanted. qBittorrent keeps them; it never deletes a skipped file.");
+                const engine = App.serverEngineName || "qBittorrent";
+                return one ? qsTr("It was written while wanted. %1 keeps it; it never deletes a skipped file.").arg(engine)
+                           : qsTr("They were written while wanted. %1 keeps them; it never deletes a skipped file.").arg(engine);
             }
             copyable: false
             details: {

@@ -278,11 +278,13 @@ QString ScopeSentence::folderMoving(const QString &newPath, int landed, int torr
            tr("%1 of %2 landed").arg(landed).arg(torrentCount);
 }
 
-QString ScopeSentence::moveJob(int torrentCount, int withServer)
+QString ScopeSentence::moveJob(int torrentCount, int withServer, const QString &engine)
 {
     QString line = torrents(torrentCount);
     if (withServer > 0)
-        line += kApart + tr("%1 with qBittorrent").arg(withServer);
+        line += kApart + tr("%1 with %2")
+                             .arg(withServer)
+                             .arg(engine.isEmpty() ? QStringLiteral("qBittorrent") : engine);
     return line;
 }
 

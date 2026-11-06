@@ -19,6 +19,8 @@ ColumnLayout {
 
     /// App.madeHereFor's map; {} draws nothing.
     property var made: ({})
+    /// The server's engine by name, who checks the files (C25 K24).
+    property string engineName: "qBittorrent"
     /// The made one in the library is replaced (CR9); false keeps both.
     readonly property bool replace: root.asking && choice.choice === 0
 
@@ -38,7 +40,7 @@ ColumnLayout {
         detail: root.kind === "same"
                 ? qsTr("same info hash; the site only changed the announce · it seeds from %1 at once, nothing downloads").arg(root.made.folder ?? "")
                 : root.kind === "files"
-                  ? [root.made.changedText ?? "", qsTr("every file matches by name and size in %1 · qBittorrent checks them there first, then it seeds").arg(root.made.folder ?? "")].filter(text => text.length > 0).join(" · ")
+                  ? [root.made.changedText ?? "", qsTr("every file matches by name and size in %1 · %2 checks them there first, then it seeds").arg(root.made.folder ?? "").arg(root.engineName)].filter(text => text.length > 0).join(" · ")
                   : qsTr("%1 only knows it once you upload it: added now, it would announce a torrent the tracker calls unregistered. Upload it on %1's site, then add the site's copy.").arg(root.made.host ?? "")
         kind: root.kind === "made" ? "warn" : "ok"
         objectName: "addMadeFact"

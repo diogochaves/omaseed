@@ -174,6 +174,9 @@ public:
         m_movingHint = std::move(hint);
     }
     void setLowDiskThreshold(qint64 bytes) { m_lowDiskThreshold = bytes; }
+    /// The server's engine by name, for a torrent it didn't take ("Transmission didn't take
+    /// it"); "" is qBittorrent.
+    void setEngineName(const QString &name) { m_engineName = name; }
     /// M13: `~/.config/omaseed/moves/<serverId>.json`, where the app keeps a server's job.
     static QString defaultFilePath(const QString &serverId);
     /// Where the job is saved; empty saves nothing. restore() reads it.
@@ -352,6 +355,7 @@ private:
     std::function<bool(const QString &)> m_movingHint;
     std::function<QJsonObject(const QJsonObject &)> m_replan;
     qint64 m_lowDiskThreshold = 2LL * 1024 * 1024 * 1024;
+    QString m_engineName;
     int m_ahead = 3;
     QString m_filePath;
 

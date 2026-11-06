@@ -2802,6 +2802,13 @@ QtObject {
     /// row (C t m L r) is led by `t`, so the `?` sheet keeps it.
     function _groupWorded(entry, features) {
         const w = root.groupWords(features);
+        // C14 E4: adding it again is qBittorrent's (EngineFeatures::addAgain); elsewhere the
+        // row only frees the space.
+        if (entry.action === "freeSpace" && (features || {}).addAgain === false)
+            return Object.assign({}, entry, {
+                                     "help": qsTr("free the space"),
+                                     "about": qsTr("In the files tab: free the space. Deletes the skipped files that still hold space on this machine's disk, when omaseed can see it")
+                                 });
         if (entry.action === "filter")
             return Object.assign({}, entry, {
                                      "about": w.categories ? qsTr("Filter the table by name, category, %1 or hash").arg(w.one)

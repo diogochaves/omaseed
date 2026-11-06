@@ -1670,6 +1670,7 @@ Sheet {
                         id: madeLine
 
                         Layout.fillWidth: true
+                        engineName: App.serverEngineName || "qBittorrent"
                         made: sheet.madeHere
                     }
 
@@ -1680,6 +1681,7 @@ Sheet {
                         Layout.fillWidth: true
                         // The made-here line already says where the files are (C27 CR8).
                         visible: matchLine.matches.length > 0 && madeLine.kind !== "same" && madeLine.kind !== "files"
+                        engineName: App.serverEngineName || "qBittorrent"
                         index: sheet.matchIndex
                         matches: sheet.filesMatches
                         saved: sheet.savedThere
@@ -1875,6 +1877,7 @@ Sheet {
                         BrowsedPathLine {
                             id: saveBrowsedLine
 
+                            engineName: App.serverEngineName || "qBittorrent"
                             pick: sheet._savePick
                             serverName: App.serverName
                         }
