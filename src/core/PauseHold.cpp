@@ -4,6 +4,7 @@
 #include "core/engines/EngineClient.hpp"
 
 #include <QJsonValue>
+#include <QTimer>
 
 #include <algorithm>
 
@@ -179,6 +180,8 @@ void PauseHold::pauseListed(const QString &server, const QList<RunningTorrent> &
                 Q_EMIT paused(0, result.error().toString());
                 return;
             }
+            m_sinceStop.start();
+            m_stoppedOn = server;
             finish();
             Q_EMIT paused(count, QString());
         });
@@ -190,7 +193,16 @@ bool PauseHold::resume()
         return false;
     m_busy = true;
     Q_EMIT changed();
-    const QString server = m_server;
+    askStopped(m_server);
+    return true;
+}
+
+void PauseHold::askStopped(const QString &server)
+{
+    if (!m_client) {
+        resumeFailed(ApiError(ApiError::Kind::Cancelled, QStringLiteral("no server")));
+        return;
+    }
     // Every stopped torrent: the held ones among them are started.
     m_client->stoppedAmong({})->then(this, [this, server](const Result<QStringList> &result) {
         if (result.isError()) {
@@ -199,12 +211,21 @@ bool PauseHold::resume()
         }
         resumeListed(server, result.value());
     });
-    return true;
 }
 
 void PauseHold::resumeListed(const QString &server, const QStringList &stopped)
 {
     const Entry holding = entry(server);
+    // A stop of ours still landing (see the header): ask again in a moment rather than skip.
+    if (m_stoppedOn == server && m_sinceStop.isValid() && m_sinceStop.elapsed() < m_settleMs) {
+        QSet<QString> stoppedSet;
+        for (const QString &hash : stopped)
+            stoppedSet.insert(hash.toLower());
+        if (!(holding.hashes - stoppedSet).isEmpty()) {
+            QTimer::singleShot(kSettleStepMs, this, [this, server]() { askStopped(server); });
+            return;
+        }
+    }
     QSet<QString> normal;
     QSet<QString> forced;
     for (const QString &stoppedHash : stopped) {

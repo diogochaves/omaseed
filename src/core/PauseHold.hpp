@@ -17,10 +17,17 @@
 // starts the held ones among them, then forgets the server's record. A held torrent removed
 // meanwhile, or started by hand, is skipped, never sent. A resume that fails keeps the record.
 //
+// A stop may land a moment after the server answered it (Transmission: `torrent_stop` answers
+// while the torrent still reads running; C14 E4, #85). So a resume within `settleMs()` of this
+// hold's own stop on that server asks again, every `kSettleStepMs`, while some held torrent
+// doesn't read stopped yet, and only then skips it. App sets the window per engine; 0 (none)
+// for qBittorrent, whose stop has landed when it answers.
+//
 // Per server: the store keeps `{ "<server id>": { "hashes": [...], "forced": [...] } }`; App
 // writes it to state.json, so a hold outlives a restart. A reply is booked to the server the
 // call was made on, whatever server omaseed is on when it comes.
 
+#include <QElapsedTimer>
 #include <QJsonArray>
 #include <QJsonObject>
 #include <QObject>
@@ -72,6 +79,13 @@ public:
     /// pause.
     Q_INVOKABLE bool resume();
 
+    /// How long after its stop was answered a resume waits for that stop to land (ms); 0 for
+    /// an engine whose stop has landed when it answers.
+    int settleMs() const { return m_settleMs; }
+    void setSettleMs(int ms) { m_settleMs = ms; }
+    /// How often a resume in that window asks again (ms).
+    static constexpr int kSettleStepMs = 500;
+
 Q_SIGNALS:
     void changed();
     /// `store()` moved: App writes it to state.json at once.
@@ -92,6 +106,7 @@ private:
     void setEntry(const QString &server, const Entry &entry);
     void finish();
     void pauseListed(const QString &server, const QList<RunningTorrent> &running);
+    void askStopped(const QString &server);
     void resumeListed(const QString &server, const QStringList &stopped);
     void startForced(const QString &server, const QStringList &forced, int started, int skipped);
     void resumeFailed(const ApiError &error);
@@ -100,6 +115,10 @@ private:
     QJsonObject m_store;
     QString m_server;
     bool m_busy = false;
+    int m_settleMs = 0;
+    /// Since this hold's last stop was answered, and on which server.
+    QElapsedTimer m_sinceStop;
+    QString m_stoppedOn;
 };
 
 } // namespace omaseed::core
