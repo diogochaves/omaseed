@@ -347,6 +347,8 @@ def main():
              deluge.answer("core.get_torrent_status", ["0" * 40, ["name"]]))
         save("core_get_session_status.json", deluge.answer("core.get_session_status", [SESSION_KEYS]))
         save("core_get_config_values.json", deluge.answer("core.get_config_values", [CONFIG_KEYS]))
+        # Settings › Deluge reads the whole of core.conf (DelugeTranslate::speedPreferences).
+        save("core_get_config.json", deluge.answer("core.get_config"))
         save("core_get_free_space.json", deluge.answer("core.get_free_space", [data]))
         save("core_get_free_space_missing.json",
              deluge.answer("core.get_free_space", [os.path.join(WORK, "not-there")]))

@@ -322,6 +322,26 @@ void TestDelugeTranslate::limitsAndPreferences()
     // No turtle and no clock (K20).
     QVERIFY(!prefs.contains(QStringLiteral("alt_dl_limit")));
     QVERIFY(!prefs.contains(QStringLiteral("scheduler_enabled")));
+
+    // Settings › Deluge (E6): the whole of core.conf, the rest by Deluge's own names.
+    const QVariantMap all = DT::speedPreferences(result("core_get_config.json").toObject());
+    QCOMPARE(all.value(QStringLiteral("listen_port")).toInt(), 26993);
+    QCOMPARE(all.value(QStringLiteral("utpex")).toBool(), false);
+    QCOMPARE(all.value(QStringLiteral("max_connections_global")).toInt(), 200);
+    QCOMPARE(all.value(QStringLiteral("max_connections_per_torrent")).toInt(), -1);
+    QCOMPARE(all.value(QStringLiteral("max_active_limit")).toInt(), 8);
+    QCOMPARE(all.value(QStringLiteral("share_ratio_limit")).toDouble(), 2.0);
+    QCOMPARE(all.value(QStringLiteral("seed_time_limit")).toInt(), 180);
+    QCOMPARE(all.value(QStringLiteral("max_download_speed_per_torrent")).toDouble(), -1.0);
+    QCOMPARE(all.value(QStringLiteral("move_completed_path")).toString(),
+             QStringLiteral("/home/user/Downloads"));
+    QCOMPARE(all.value(QStringLiteral("encryption")).toString(), QStringLiteral("enabled"));
+    QCOMPARE(all.value(QStringLiteral("enabled_plugins")).toStringList(),
+             QStringList({QStringLiteral("Label")}));
+    // Nothing Settings has no row for (the proxy and its password, the daemon's own).
+    QVERIFY(!all.contains(QStringLiteral("proxy")));
+    QVERIFY(!all.contains(QStringLiteral("daemon_port")));
+    QVERIFY(!all.contains(QStringLiteral("enc_in_policy")));
 }
 
 void TestDelugeTranslate::preferencesGoBackAsConfig()
@@ -347,6 +367,38 @@ void TestDelugeTranslate::preferencesGoBackAsConfig()
     QCOMPARE(set.value(QStringLiteral("remove_seed_at_ratio")).toBool(), true);
     QCOMPARE(set.value(QStringLiteral("download_location")).toString(), QStringLiteral("/srv/in"));
 
+    QVERIFY(DT::configSet({{QStringLiteral("alt_dl_limit"), 10}}, &why).isEmpty());
+    QVERIFY(why.contains(QLatin1String("alt_dl_limit")));
+
+    // Settings › Deluge (E6): its own keys by its own names; -1 is no limit where it may be.
+    const QJsonObject own = DT::configSet({{QStringLiteral("utpex"), false},
+                                           {QStringLiteral("max_connections_global"), -1},
+                                           {QStringLiteral("max_active_downloading"), 0},
+                                           {QStringLiteral("share_ratio_limit"), 1.5},
+                                           {QStringLiteral("max_upload_speed_per_torrent"), 64},
+                                           {QStringLiteral("move_completed_path"),
+                                            QStringLiteral("/srv/done")},
+                                           {QStringLiteral("encryption"),
+                                            QStringLiteral("disabled")}},
+                                          &why);
+    QVERIFY2(!own.isEmpty(), qPrintable(why));
+    QCOMPARE(own.value(QStringLiteral("utpex")), QJsonValue(false));
+    QCOMPARE(own.value(QStringLiteral("max_connections_global")), QJsonValue(-1));
+    QCOMPARE(own.value(QStringLiteral("max_active_downloading")), QJsonValue(0));
+    QCOMPARE(own.value(QStringLiteral("share_ratio_limit")).toDouble(), 1.5);
+    QCOMPARE(own.value(QStringLiteral("max_upload_speed_per_torrent")).toDouble(), 64.0);
+    QCOMPARE(own.value(QStringLiteral("move_completed_path")).toString(),
+             QStringLiteral("/srv/done"));
+    QCOMPARE(own.value(QStringLiteral("enc_in_policy")), QJsonValue(2));
+    QCOMPARE(own.value(QStringLiteral("enc_out_policy")), QJsonValue(2));
+    // Out of range, not a whole count, an unknown word, a plugin, a key with no row.
+    QVERIFY(DT::configSet({{QStringLiteral("max_connections_global"), 0}}, &why).isEmpty());
+    QVERIFY(why.contains(QLatin1String("-1 (no limit)")));
+    QVERIFY(DT::configSet({{QStringLiteral("max_active_seeding"), 2.5}}, &why).isEmpty());
+    QVERIFY(DT::configSet({{QStringLiteral("encryption"), QStringLiteral("prefer")}}, &why)
+                .isEmpty());
+    QVERIFY(DT::configSet({{QStringLiteral("enabled_plugins"), QStringList()}}, &why).isEmpty());
+    QVERIFY(DT::configSet({{QStringLiteral("daemon_port"), 1}}, &why).isEmpty());
     QVERIFY(DT::configSet({{QStringLiteral("alt_dl_limit"), 10}}, &why).isEmpty());
     QVERIFY(why.contains(QLatin1String("alt_dl_limit")));
     QVERIFY(DT::configSet({{QStringLiteral("max_ratio_act"), 3}}, &why).isEmpty());

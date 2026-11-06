@@ -73,6 +73,82 @@ bool hasMetadata(const QJsonObject &torrent)
     return !has(torrent, "num_pieces") || number(torrent, "num_pieces") > 0;
 }
 
+/// Settings › Deluge (E6, #87): the core.conf keys its sections read and write under Deluge's
+/// own names (the rest go by app/preferences' words, so the speed surfaces and Basics read them
+/// as on qBittorrent). A Count or a Real takes -1 for "no limit" where `none` says so, else a
+/// value from `min`; a read-only key is never written.
+enum class SettingKind { Flag, Count, Real, Text };
+
+struct Setting
+{
+    const char *field;
+    SettingKind kind;
+    double min = 0;
+    bool none = false; ///< -1 is "no limit"
+};
+
+const QList<Setting> &ownSettings()
+{
+    using K = SettingKind;
+    static const QList<Setting> settings{
+        // speed
+        {"max_download_speed_per_torrent", K::Real, 1, true},
+        {"max_upload_speed_per_torrent", K::Real, 1, true},
+        {"ignore_limits_on_local_network", K::Flag},
+        {"rate_limit_ip_overhead", K::Flag},
+        // discovery
+        {"utpex", K::Flag},
+        {"lsd", K::Flag},
+        // connection
+        {"random_port", K::Flag},
+        {"upnp", K::Flag},
+        {"natpmp", K::Flag},
+        {"max_connections_global", K::Count, 1, true},
+        {"max_connections_per_torrent", K::Count, 1, true},
+        {"max_upload_slots_global", K::Count, 1, true},
+        {"max_upload_slots_per_torrent", K::Count, 1, true},
+        // queue
+        {"queue_new_to_top", K::Flag},
+        {"max_active_limit", K::Count, 0, true},
+        {"max_active_downloading", K::Count, 0, true},
+        {"max_active_seeding", K::Count, 0, true},
+        {"dont_count_slow_torrents", K::Flag},
+        {"auto_manage_prefer_seeds", K::Flag},
+        {"share_ratio_limit", K::Real, 0, true},
+        {"seed_time_ratio_limit", K::Real, 0, true},
+        {"seed_time_limit", K::Count, 0, true},
+        // downloads and files
+        {"move_completed", K::Flag},
+        {"move_completed_path", K::Text},
+        {"copy_torrent_file", K::Flag},
+        {"torrentfiles_location", K::Text},
+        {"del_copy_torrent_file", K::Flag},
+        {"add_paused", K::Flag},
+        {"pre_allocate_storage", K::Flag},
+        {"prioritize_first_last_pieces", K::Flag},
+        {"sequential_download", K::Flag},
+    };
+    return settings;
+}
+
+const Setting *ownSetting(const QString &name)
+{
+    for (const Setting &setting : ownSettings()) {
+        if (name == QLatin1String(setting.field))
+            return &setting;
+    }
+    return nullptr;
+}
+
+/// Deluge's encryption policy (enc_in_policy, enc_out_policy): 0 forced, 1 enabled, 2 disabled,
+/// in Settings' one choice by those words.
+const QStringList &encryptionWords()
+{
+    static const QStringList words{
+        QStringLiteral("forced"), QStringLiteral("enabled"), QStringLiteral("disabled")};
+    return words;
+}
+
 /// Deluge's `pieces` values (torrent.get_pieces_info).
 constexpr int kPieceDownloading = 2;
 constexpr int kPieceHave = 3;
@@ -549,6 +625,40 @@ QVariantMap speedPreferences(const QJsonObject &config)
         prefs.insert(QStringLiteral("max_ratio"), real(config, "stop_seed_ratio"));
     if (has(config, "remove_seed_at_ratio"))
         prefs.insert(QStringLiteral("max_ratio_act"), flag(config, "remove_seed_at_ratio") ? 1 : 0);
+    // Settings › Deluge (E6): the rest by Deluge's own names.
+    for (const Setting &setting : ownSettings()) {
+        if (!has(config, setting.field))
+            continue;
+        const QString name = key(setting.field);
+        switch (setting.kind) {
+        case SettingKind::Flag:
+            prefs.insert(name, flag(config, setting.field));
+            break;
+        case SettingKind::Count:
+            prefs.insert(name, int(number(config, setting.field, -1)));
+            break;
+        case SettingKind::Real:
+            prefs.insert(name, real(config, setting.field, -1));
+            break;
+        case SettingKind::Text:
+            prefs.insert(name, text(config, setting.field));
+            break;
+        }
+    }
+    // One choice for both ways: the outgoing policy, which is what peers meet first.
+    if (has(config, "enc_out_policy")) {
+        const qint64 policy = number(config, "enc_out_policy", -1);
+        if (policy >= 0 && policy < encryptionWords().size())
+            prefs.insert(QStringLiteral("encryption"), encryptionWords().at(int(policy)));
+    }
+    // K15: the plugins Deluge has on, for Settings › Deluge › Plugins (read only).
+    if (has(config, "enabled_plugins")) {
+        QStringList plugins;
+        for (const QJsonValue &plugin : config.value(QStringLiteral("enabled_plugins")).toArray())
+            plugins.append(plugin.toString());
+        plugins.sort(Qt::CaseInsensitive);
+        prefs.insert(QStringLiteral("enabled_plugins"), plugins);
+    }
     return prefs;
 }
 
@@ -596,6 +706,45 @@ QJsonObject configSet(const QVariantMap &changes, QString *why)
                 return refuse(
                     QStringLiteral("max_ratio_act: Deluge stops or removes, keeping the files"));
             set.insert(QStringLiteral("remove_seed_at_ratio"), act == 1);
+        } else if (name == QLatin1String("encryption")) {
+            const qsizetype policy = encryptionWords().indexOf(value.toString());
+            if (policy < 0)
+                return refuse(QStringLiteral("encryption is one of %1, not %2")
+                                  .arg(encryptionWords().join(QStringLiteral(", ")),
+                                       value.toString()));
+            set.insert(QStringLiteral("enc_in_policy"), int(policy));
+            set.insert(QStringLiteral("enc_out_policy"), int(policy));
+        } else if (const Setting *setting = ownSetting(name)) {
+            switch (setting->kind) {
+            case SettingKind::Flag:
+                set.insert(name, value.toBool());
+                break;
+            case SettingKind::Count:
+            case SettingKind::Real: {
+                const double amount = value.toDouble(&ok);
+                const bool none = setting->none && amount == -1.0;
+                if (!ok || (!none && amount < setting->min) ||
+                    (setting->kind == SettingKind::Count && amount != std::floor(amount)))
+                    return refuse(
+                        setting->none
+                            ? QStringLiteral("%1 is -1 (no limit) or from %2, not %3")
+                                  .arg(name)
+                                  .arg(setting->min)
+                                  .arg(value.toString())
+                            : QStringLiteral("%1 is from %2, not %3")
+                                  .arg(name)
+                                  .arg(setting->min)
+                                  .arg(value.toString()));
+                if (setting->kind == SettingKind::Count)
+                    set.insert(name, int(amount));
+                else
+                    set.insert(name, amount);
+                break;
+            }
+            case SettingKind::Text:
+                set.insert(name, value.toString());
+                break;
+            }
         } else {
             return refuse(QStringLiteral("%1: not one of Deluge's settings here").arg(name));
         }

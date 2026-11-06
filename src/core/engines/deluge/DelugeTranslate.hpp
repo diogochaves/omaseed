@@ -103,11 +103,14 @@ GlobalLimits globalLimits(const QJsonObject &config);
 /// (EngineClient::sessionPreferences): dl_limit, up_limit (bytes/s, 0 none), save_path
 /// (download_location), listen_port (the first of listen_ports), dht, max_ratio_enabled,
 /// max_ratio and max_ratio_act (stop_seed_at_ratio, stop_seed_ratio, remove_seed_at_ratio:
-/// 0 stop, 1 remove). No alt_* and no scheduler (K20). A key whose setting is missing is left
-/// out.
+/// 0 stop, 1 remove). No alt_* and no scheduler (K20). Settings › Deluge (E6) reads the rest
+/// of core.get_config by Deluge's own names (utpex, lsd, max_active_seeding…, -1 for no
+/// limit), `encryption` (forced · enabled · disabled, the outgoing policy) and
+/// `enabled_plugins` (sorted, read only; K15). A key whose setting is missing is left out.
 QVariantMap speedPreferences(const QJsonObject &config);
-/// What core.set_config takes for `changes` (keys as speedPreferences writes them). Empty, with
-/// `why` saying so, when a key has no place in it or a value is out of range.
+/// What core.set_config takes for `changes` (keys as speedPreferences writes them; `encryption`
+/// sets both ways). Empty, with `why` saying so, when a key has no place in it (the plugins
+/// among them: Deluge's own preferences turn those on or off, K15) or a value is out of range.
 QJsonObject configSet(const QVariantMap &changes, QString *why = nullptr);
 
 /// The General tab: a torrent of propertiesFields().

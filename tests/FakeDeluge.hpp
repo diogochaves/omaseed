@@ -231,6 +231,13 @@ struct RecordedDeluge
                        : result("label_get_options_empty.json");
         if (method == QLatin1String("core.get_config_values"))
             return result("core_get_config_values.json");
+        if (method == QLatin1String("core.get_config")) {
+            // The whole of core.conf, its plugins as the Label switch says.
+            QJsonObject config = result("core_get_config.json").toObject();
+            if (!labelPlugin)
+                config.insert(QStringLiteral("enabled_plugins"), QJsonArray());
+            return config;
+        }
         if (method == QLatin1String("core.get_free_space"))
             return result("core_get_free_space.json");
         return QJsonValue();

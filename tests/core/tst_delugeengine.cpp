@@ -879,7 +879,27 @@ void TestDelugeEngine::globalLimitsAndPreferences()
 
     const Result<QVariantMap> prefs = wait(m_engine->sessionPreferences());
     QCOMPARE(prefs.value().value(QStringLiteral("listen_port")).toInt(), 26993);
-    QCOMPARE(stringsOf(m_web->calls.constLast().params.at(0).toArray()), DT::configKeys());
+    QCOMPARE(m_web->calls.constLast().method, QStringLiteral("core.get_config"));
+    QCOMPARE(prefs.value().value(QStringLiteral("enabled_plugins")).toStringList(),
+             QStringList({QStringLiteral("Label")}));
+    QCOMPARE(prefs.value().value(QStringLiteral("max_active_seeding")).toInt(), 5);
+    QCOMPARE(prefs.value().value(QStringLiteral("encryption")).toString(),
+             QStringLiteral("enabled"));
+    // Settings › Deluge's own keys go back under their names; the encryption both ways.
+    QVERIFY(wait(m_engine->setSessionPreferences({{QStringLiteral("max_active_seeding"), 7},
+                                                  {QStringLiteral("encryption"),
+                                                   QStringLiteral("forced")}}))
+                .isValid());
+    QCOMPARE(m_web->calls.constLast().method, QStringLiteral("core.set_config"));
+    QCOMPARE(m_web->calls.constLast().params,
+             QJsonArray({QJsonObject{
+                 {"max_active_seeding", 7}, {"enc_in_policy", 0}, {"enc_out_policy", 0}}}));
+    // The plugins are Deluge's own preferences' to turn on or off (K15).
+    QCOMPARE(wait(m_engine->setSessionPreferences(
+                      {{QStringLiteral("enabled_plugins"), QStringList{QStringLiteral("Label")}}}))
+                 .error()
+                 .kind(),
+             ApiError::Kind::Conflict);
     QVERIFY(wait(m_engine->setSessionPreferences({{QStringLiteral("dht"), true}})).isValid());
     QCOMPARE(m_web->calls.constLast().params, QJsonArray({QJsonObject{{"dht", true}}}));
     m_web->calls.clear();

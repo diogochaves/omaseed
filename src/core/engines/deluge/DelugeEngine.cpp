@@ -1344,10 +1344,9 @@ Reply<Done> *DelugeEngine::setGlobalLimits(const GlobalLimits &limits)
 
 Reply<QVariantMap> *DelugeEngine::sessionPreferences()
 {
+    // Settings › Deluge reads the whole of core.conf in one call (its plugins among it).
     return mapReply<QVariantMap>(
-        m_rpc->call(QStringLiteral("core.get_config_values"),
-                    {QJsonValue(fieldsOf(DT::configKeys()))},
-                    Retry::OnTransient),
+        m_rpc->call(QStringLiteral("core.get_config"), {}, Retry::OnTransient),
         this,
         [](const QJsonValue &config) { return DT::speedPreferences(config.toObject()); });
 }
