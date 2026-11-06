@@ -271,8 +271,8 @@ up_app() {
     cp "$TORRENTS"/*.torrent "$home/Downloads/"
     local kind=app
     if [ "$qbt" = 1 ]; then kind=qbt; elif [ "$transmission" = 1 ]; then kind=transmission; fi
-    printf 'kind=%s\nbinary=%s\napi=%s/api/v2\n' "$kind" "$repo/$build/omaseed" "$url" \
-        >"$home/$MARKER"
+    printf 'kind=%s\nbinary=%s\napi=%s/api/v2\nskin=%s\n' "$kind" "$repo/$build/omaseed" "$url" \
+        "${OMASEED_SKIN:-}" >"$home/$MARKER"
     if [ "$handlers" = 1 ]; then
         omabox run -b "$BOX" -- scripts/dev/install-desktop.sh "$repo/$build/omaseed" --set-default \
             >/dev/null 2>&1 || die "install-desktop.sh failed in the box"
@@ -557,6 +557,11 @@ up)
 restart)
     [ ${#args[@]} -eq 0 ] || die "restart: unexpected ${args[0]} (see --help)"
     box_is_up || die "no box $BOX: scripts/dev/app-box.sh up -b $BOX"
+    # The skin `up` pinned stays pinned, unless this restart names another.
+    if [ -z "${OMASEED_SKIN:-}" ]; then
+        OMASEED_SKIN="$(marker skin)"
+        [ -n "$OMASEED_SKIN" ] && export OMASEED_SKIN
+    fi
     binary="$(marker binary)"
     [ -n "$build" ] && binary="$repo/$build/omaseed"
     [ -n "$binary" ] || binary="$([ "$(box_kind)" = manual ] && echo "$BOX_HOME/.local/bin/omaseed" || echo "$repo/build/omaseed")"
