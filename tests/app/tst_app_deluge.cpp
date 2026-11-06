@@ -449,6 +449,8 @@ void TestAppDeluge::delugeWebWithoutADaemonIsDown()
     QCOMPARE(problem.value(QStringLiteral("headline")).toString(),
              QStringLiteral("%1's deluge-web has no daemon").arg(app.serverName()));
     QCOMPARE(problem.value(QStringLiteral("kind")).toString(), QStringLiteral("unreachable"));
+    // The status line says "no daemon", as the band and the server's row do (11a's leftover).
+    QVERIFY(problem.value(QStringLiteral("noDaemon")).toBool());
     // No daemon was stored (the environment's server), so nobody switches deluge-web.
     QVERIFY(daemon.web.callsOf(QStringLiteral("web.connect")).isEmpty());
 

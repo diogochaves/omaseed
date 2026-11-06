@@ -4055,6 +4055,9 @@ Item {
         // docs/33 D9: a server that answered and said no is not "unreachable".
         if (root.serverLost && App.serverRefused)
             return qsTr("%1 · sign-in refused").arg(App.serverName);
+        // C25 K10: deluge-web answers, no daemon behind it (the band and the row say so too).
+        if (root.serverLost && root.serverProblem.noDaemon === true)
+            return qsTr("%1 · no daemon").arg(App.serverName);
         // docs/44 D11: a timeout is there but slow; refused or no route, nothing is.
         if (root.serverLost && App.serverWaiting)
             return qsTr("%1 · isn't answering").arg(App.serverName);

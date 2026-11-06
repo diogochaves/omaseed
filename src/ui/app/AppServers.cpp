@@ -271,6 +271,9 @@ App::serverProblem(const QString &lastError, int retryInSeconds, int silentSecon
     subject.silentSeconds =
         silentSeconds >= 0 ? silentSeconds : m_engine->globalState()->silentSeconds();
     QVariantMap words = ErrorWords::forServer(error, subject).toMap();
+    // C25 K10: deluge-web there, its daemon not; the status line says "no daemon", as the
+    // band and the server's row do.
+    words.insert(QStringLiteral("noDaemon"), ErrorWords::isNoDaemon(error));
     // docs/35 N5: the window draws the retry in a slot of its own, so the line without it,
     // the retry alone, and the slot's width (its longest form).
     ErrorWords::Subject base = subject;
