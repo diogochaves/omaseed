@@ -1444,6 +1444,29 @@ Deluge daemon is connected to it. Is deluged running?", short reason "no daemon"
 settle window (C36 M10) is Transmission's 5 s on Deluge too. The welcome (K3) and `--help` now
 read "…powered by qBittorrent, Transmission or Deluge."
 
+*Groups, limits, adding and details on Deluge (2026-11-06, E6 #87, assumed, to confirm):* built
+from K13, K15, K18, K20 and K25–K30 with these calls the board left open. The Label plugin's
+labels take every categories surface under "label", "labels" and "no label" (the rail's row for
+torrents with none too, and the filter hint's `label:films`); C's act row reads "label · location
+· limits · rename" (no t). The palette shows a typed name lower case as `new label "night-sky"`,
+its footer "Deluge's labels are lower case: this one becomes night-sky", offers no row for a name
+Deluge can't keep and says "a label takes letters, digits, - _ and . only"; each label's detail
+and its scope line read "a label · moves to FOLDER when done" or "no folder of its own". Picking a
+label in the add sheet leaves Save to as it was (a label's folder is a move-when-done one, K27).
+With the Label plugin off, the act row is led by m, and C says "NAME (Deluge) has no labels: its
+Label plugin is off" in the status line, as the ? sheet's foot line does, until Settings › Deluge
+› Plugins says it in full. The limits sheet keeps the row "When the limit is reached" with the
+chips "stop" and "remove (keeps the files)", and its line reads "Deluge has no time limits" /
+"the ratio is the only one; global copies the server's onto the torrent". `r` opens the rename
+sheet on Deluge, so its line "Only the name changes; the folder on disk keeps its name" is read;
+qBittorrent's `r` stays the inline editor. The trackers tab keeps each row's words and adds the
+board's line "Deluge says how the tracker in use is doing, and nothing about the others."; the
+swarm's hints and menu drop ban (and, on Transmission, add) where the engine can't, and `b` says
+"has no banning peers". The ? sheet's foot line says "banning peers" and "web seeds" where the
+engine adds peers or has no web seeds at all. A magnet is looked up on Deluge once its version is
+known (it has no API version of its own), and an engine that reports no web seeds is never asked
+for them.
+
 ## C26 — Search through qBittorrent's search plugins (board 48, ruled 2026-10-22)
 
 Board [48](48-search.html) SR1–SR14, all as recommended, in board 46's frame (C24 H16: a rail view
