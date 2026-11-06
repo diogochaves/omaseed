@@ -2934,8 +2934,10 @@ void App::updateLookupServer()
     // before the first sync waits for all three, and is checked against the library's private
     // trackers (D7) only once that is known.
     const GlobalState *state = m_engine->globalState();
-    const bool ready =
-        m_hasServer && state->connected() && !state->apiVersion().isEmpty() && m_engine->rid() > 0;
+    // Deluge has no API version of its own (K26): its version is the one known.
+    const bool versionKnown = !state->apiVersion().isEmpty() ||
+                              (m_client != m_qbt && !state->serverVersion().isEmpty());
+    const bool ready = m_hasServer && state->connected() && versionKnown && m_engine->rid() > 0;
     if (ready && m_addLookup->phase() == MetadataLookup::Phase::Waiting &&
         m_addLookup->kind() == QLatin1String("magnet")) {
         const QString host =
