@@ -324,6 +324,78 @@ TestCase {
         verify(!testCase.childNamed(modal, "qbtNavHead").visible);
     }
 
+    // Board 47 §J (C25 K32): each group stays while a server of its engine is saved, its select
+    // listing only that engine's servers. Another engine's pane says whose settings they are
+    // and switches there, landing on the same section of that server's group.
+    function test_a_group_for_each_engine_saved() {
+        const home = App.serverList.add({
+                                            "name": "home",
+                                            "url": "http://demo.example.org",
+                                            "authMode": "none"
+                                        }, "");
+        App.serverList.setDefault(home);
+        const seedbox = App.serverList.add({
+                                               "name": "seedbox",
+                                               "url": "http://127.0.0.1:9091/transmission/web/",
+                                               "authMode": "none",
+                                               "engine": "transmission"
+                                           }, "");
+        const modal = createTemporaryObject(modalComponent, testCase);
+        modal.open();
+        compare(modal.groupEngine, "qbittorrent");
+        compare(modal.otherGroups.map(group => group.engine), ["transmission"]);
+        compare(modal.otherStart, modal.qbtStart + modal.qbtSections.length);
+        compare(modal.paneCount, modal.otherStart + 6);
+        compare(testCase.childNamed(modal, "otherNavHead0").text, "transmission");
+        compare(testCase.childNamed(modal, "otherNavServer0").text, "seedbox");
+        compare(testCase.childNamed(modal, "otherNavRow4").text, "Queue");
+        // The qBittorrent select lists home only: one server, a plain label, no stop.
+        const select = testCase.childNamed(modal, "qbtNavServer");
+        compare(select.items.map(item => item.text), ["home"]);
+        verify(!select.switches);
+        verify(!modal.serverStop);
+
+        // Transmission's Queue, from the nav: whose it is, and the switch.
+        testCase.childNamed(modal, "otherNavRow4").clicked();
+        verify(modal.inOther);
+        verify(!modal.inQbt);
+        compare(testCase.childNamed(modal, "paneTitle").text, "Queue");
+        compare(testCase.childNamed(modal, "qbtHeadNote").text, "seedbox · Transmission");
+        verify(testCase.childNamed(modal, "otherPane").visible);
+        verify(!testCase.childNamed(modal, "qbtPane").visible);
+        compare(testCase.childNamed(modal, "otherScopeLine").text,
+                "seedbox's own Transmission settings, read from and saved on seedbox while omaseed is on it.");
+        compare(modal.paneRowCount, 1);
+        modal.area = "pane";
+        keyClick(Qt.Key_Return);
+        compare(App.serverList.defaultId, seedbox);
+
+        // On seedbox, its group is the one on (as App.features says once it answers), and the
+        // pane is Transmission's Queue; qBittorrent's group follows, on home.
+        modal.features = {
+            "qbtSettings": false,
+            "sessionSettings": true
+        };
+        modal.engineName = "Transmission";
+        compare(modal.groupEngine, "transmission");
+        verify(modal.inQbt);
+        compare(modal.qbtSection.id, "queue");
+        compare(modal.otherGroups.map(group => group.serverName), ["home"]);
+        compare(testCase.childNamed(modal, "otherNavHead0").text, "qbittorrent");
+        compare(select.items.map(item => item.text), ["seedbox"]);
+        // Folded, a tab per group.
+        compare(testCase.childNamed(modal, "settingsGroupTabs").model.map(tab => tab.text),
+                ["omaseed", "Transmission", "qBittorrent"]);
+
+        // The Transmission server gone: no group for it.
+        App.serverList.remove(seedbox);
+        modal.features = {
+            "qbtSettings": true
+        };
+        compare(modal.otherGroups, []);
+        compare(modal.paneCount, modal.navRows.length + modal.qbtSections.length);
+    }
+
     // Board 47 §J (C25 K33): Backup is qBittorrent's; its scope line names the servers that
     // have none, and only a qBittorrent can be copied from.
     function test_backups_scope_names_the_servers_that_have_none() {

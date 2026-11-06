@@ -39,6 +39,9 @@ Item {
     property bool hasCursor: false
     /// The item the list opens over.
     property Item menuParent: null
+    /// C25 K32: only the servers of this engine ("qbittorrent", "transmission"); every
+    /// server when empty. A server with no engine written speaks qBittorrent.
+    property string engine: ""
 
     /// Another server was picked.
     signal switchRequested(string id)
@@ -47,7 +50,7 @@ Item {
     /// The list closed, with or without a pick.
     signal listClosed
 
-    readonly property bool switches: root.serverList !== null && root.serverList.count > 1
+    readonly property bool switches: root.items.length > 1
     readonly property bool listOpen: list.opened
     readonly property alias list: list
     readonly property bool hot: root.hasCursor || area.containsMouse
@@ -64,6 +67,8 @@ Item {
         for (let i = 0; i < model.count; ++i) {
             const id = model.idAt(i);
             const map = model.serverMap(id);
+            if (root.engine.length > 0 && (map.engine || "qbittorrent") !== root.engine)
+                continue;
             const current = id === root.currentId;
             const failing = map.reachableText.length > 0 && !map.reachable;
             const answers = current ? root.connected : map.reachable === true;

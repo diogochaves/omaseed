@@ -120,7 +120,9 @@ Item {
     /// (Settings › Transmission, C14 E6, board 47 §6 E5); one with neither, no group.
     readonly property var qbtSections: root.features.qbtSettings === false
                                        ? (root.features.sessionSettings === true ? qbtSchema.transmissionSections : [])
-                                       : qbtSchema.sections.concat([{
+                                       : root.qbtAllSections
+    /// qBittorrent's group whole: docs/16's sections, then Search plugins and Backup.
+    readonly property var qbtAllSections: qbtSchema.sections.concat([{
                                                                       // #145 (DECISIONS C26 SR10): the server's
                                                                       // search plugins, drawn by searchPluginsPane.
                                                                       "id": "search",
@@ -137,24 +139,120 @@ Item {
                                                                       "sub": qsTr("export and import this server's settings and torrents"),
                                                                       "rows": []
                                                                   }])
+    /// C25 K32: the engine a saved server speaks (servers.json's; none written is qBittorrent).
+    function _engineOf(id: string): string {
+        const engine = App.serverList.serverMap(id).engine ?? "";
+        return engine.length === 0 ? "qbittorrent" : engine;
+    }
+    /// The engine of the group the server omaseed is on has ("qbittorrent", "transmission");
+    /// "" while it has none.
+    readonly property string groupEngine: root.qbtSections.length === 0 ? ""
+                                          : root.engineGroupIsQbt ? "qbittorrent"
+                                                                  : root.engineName.toLowerCase()
+    /// An engine's sections in Settings, for a group omaseed is not on: [] for one it has no
+    /// settings for (Deluge until E6).
+    function sectionsOf(engine: string): var {
+        if (engine === "qbittorrent")
+            return root.qbtAllSections;
+        if (engine === "transmission")
+            return qbtSchema.transmissionSections;
+        return [];
+    }
+    /// C25 K32: a group stays while a server of its engine is saved. The other engines'
+    /// groups, after the one omaseed is on, each on its first saved server (no server is
+    /// remembered as the last used of its engine): [{engine, name, serverId, serverName,
+    /// sections}]. Their panes say whose settings they are and switch to it.
+    readonly property var otherGroups: {
+        if (App.serverList.count < 0 || App.serverList.defaultId.length < 0 || App.serverName.length < 0)
+            return [];
+        const here = root._currentServerId();
+        const skip = [root.groupEngine, here.length > 0 && App.serverList.indexOfId(here) >= 0 ? root._engineOf(here) : ""];
+        const out = [];
+        for (let i = 0; i < App.serverList.count; ++i) {
+            const id = App.serverList.idAt(i);
+            const engine = root._engineOf(id);
+            if (skip.indexOf(engine) >= 0 || out.some(group => group.engine === engine))
+                continue;
+            const sections = root.sectionsOf(engine);
+            if (sections.length === 0)
+                continue;
+            out.push({
+                         "engine": engine,
+                         "name": engine === "qbittorrent" ? "qBittorrent" : "Transmission",
+                         "serverId": id,
+                         "serverName": App.serverList.serverMap(id).name ?? "",
+                         "sections": sections
+                     });
+        }
+        // Board 47 §2 J draws the groups in one order: qBittorrent, Transmission, Deluge.
+        const order = ["qbittorrent", "transmission", "deluge"];
+        return out.sort((a, b) => order.indexOf(a.engine) - order.indexOf(b.engine));
+    }
+    /// The other groups' sections, one pane each, in nav order.
+    readonly property var otherRows: {
+        const rows = [];
+        root.otherGroups.forEach((group, g) => group.sections.forEach((section, i) => rows.push({
+                                                                                              "group": g,
+                                                                                              "first": i === 0,
+                                                                                              "engine": group.engine,
+                                                                                              "engineName": group.name,
+                                                                                              "serverId": group.serverId,
+                                                                                              "serverName": group.serverName,
+                                                                                              "section": section
+                                                                                          })));
+        return rows;
+    }
+    /// Where the other groups start in `paneIndex`.
+    readonly property int otherStart: root.qbtStart + root.qbtSections.length
+    /// The pane on show is another engine's group's.
+    readonly property bool inOther: root.paneIndex >= root.otherStart
+    readonly property var otherRow: root.inOther ? (root.otherRows[root.paneIndex - root.otherStart] ?? null) : null
+    /// Opened from another group: the section to show once its server's group is the one on.
+    property string _pendingSection: ""
+
     /// The qBittorrent group's Backup pane is on show.
     readonly property bool inQbtBackup: root.qbtSection !== null && root.qbtSection.id === "backup"
     /// The qBittorrent group's Search plugins pane is on show (#145).
     readonly property bool inQbtSearch: root.qbtSection !== null && root.qbtSection.id === "search"
     /// Where the qBittorrent group starts in `paneIndex`.
     readonly property int qbtStart: root.navRows.length
-    readonly property int paneCount: root.navRows.length + root.qbtSections.length
+    readonly property int paneCount: root.navRows.length + root.qbtSections.length + root.otherRows.length
     /// The pane on show is one of the qBittorrent group's.
-    readonly property bool inQbt: root.paneIndex >= root.qbtStart
+    readonly property bool inQbt: root.paneIndex >= root.qbtStart && root.paneIndex < root.otherStart
     readonly property var qbtSection: root.inQbt ? root.qbtSections[root.paneIndex - root.qbtStart]
                                                  : null
-    /// Every nav row in `paneIndex` order, both groups.
-    readonly property var allRows: root.navRows.concat(root.qbtSections.map(section => ({
-                                                                                          "glyph": section.glyph,
-                                                                                          "text": section.name,
-                                                                                          "shortText": section.shortName,
-                                                                                          "labelId": section.id === "search" ? "search" : "settings"
-                                                                                      })))
+    /// Every nav row in `paneIndex` order, every group.
+    readonly property var allRows: root.navRows.concat(root.qbtSections.concat(root.otherRows.map(row => row.section)).map(
+                                                           section => ({
+                                                                   "glyph": section.glyph,
+                                                                   "text": section.name,
+                                                                   "shortText": section.shortName,
+                                                                   "labelId": section.id === "search" ? "search" : "settings"
+                                                               })))
+    /// The group of pane `index`: 0 omaseed's, 1 the one omaseed is on, 2 on the other groups.
+    function _groupOf(index: int): int {
+        if (index < root.qbtStart)
+            return 0;
+        if (index < root.otherStart)
+            return 1;
+        const row = root.otherRows[index - root.otherStart];
+        return row ? 2 + row.group : 0;
+    }
+    /// Where group `group` (as _groupOf counts) starts in `paneIndex`, and how many panes it has.
+    function _groupStart(group: int): int {
+        if (group <= 0)
+            return 0;
+        if (group === 1)
+            return root.qbtStart;
+        return root.otherStart + root.otherRows.findIndex(row => row.group === group - 2);
+    }
+    function _groupCount(group: int): int {
+        if (group <= 0)
+            return root.navRows.length;
+        if (group === 1)
+            return root.qbtSections.length;
+        return root.otherRows.filter(row => row.group === group - 2).length;
+    }
     /// C25 K31–K32: the group is the server's engine's, headed by its name ("qbittorrent",
     /// "transmission").
     readonly property bool engineGroupIsQbt: root.features.qbtSettings !== false
@@ -178,7 +276,7 @@ Item {
     /// docs/34 D3 a: the nav's keyboard is on the server select, between About and Speed.
     property bool navOnServer: false
     /// The select is a stop of the nav's: two servers or more, and the nav drawn.
-    readonly property bool serverStop: App.serverList.count > 1 && !root.folded
+    readonly property bool serverStop: serverSelect.switches && !root.folded
     /// docs/34 D5 a: the footer's note after a switch made here.
     property string switchNote: ""
     /// docs/34 D6 a: the server "copy settings from" reads, picked in its row.
@@ -226,6 +324,8 @@ Item {
             return searchPluginsPane.cursorCount;
         if (root.inQbt)
             return qbtPane.cursorCount;
+        if (root.inOther)
+            return 1; // "switch to NAME"
         switch (root.paneIndex) {
         case 0:
             return 5; // three switches, the handler button, then start at login
@@ -502,6 +602,16 @@ Item {
         switchNoteTimer.restart();
     }
 
+    /// C25 K32: another engine's pane's "switch to NAME": omaseed moves there (docs/34 D5 a),
+    /// and the same section opens in that server's group once it is the one on.
+    function switchToOther(): void {
+        const row = root.otherRow;
+        if (row === null)
+            return;
+        root._pendingSection = row.section.id;
+        root.qbtSwitchTo(row.serverId);
+    }
+
     /// docs/34 D1 a: `t` (or the scope line's link) in omaseed's Backup: qBittorrent's, the
     /// cursor on Export torrents.
     function openTorrentsBackup(): void {
@@ -538,6 +648,7 @@ Item {
     }
 
     function close(): void {
+        root._pendingSection = "";
         sheet.close();
     }
 
@@ -562,10 +673,29 @@ Item {
     // C25 K32: a switch to a server of another engine changes the group under the select; a
     // pane past its end goes to the group's first, or to General when there is no group.
     onQbtSectionsChanged: {
+        // C25 K32: a switch made from another group's pane lands on the same section.
+        const pending = root._pendingSection.length > 0
+                      ? root.qbtSections.findIndex(section => section.id === root._pendingSection) : -1;
+        if (pending >= 0) {
+            root._pendingSection = "";
+            root.navOnServer = false;
+            root.paneIndex = root.navRows.length + pending;
+            root.paneCursor = 0;
+            Qt.callLater(root._revealNav);
+            return;
+        }
         // paneCount may not have followed yet: count from the sections themselves.
         if (root.paneIndex >= root.navRows.length + root.qbtSections.length) {
             root.navOnServer = false;
             root.paneIndex = root.qbtSections.length > 0 ? root.qbtStart : 0;
+            root.paneCursor = 0;
+        }
+    }
+    // The other groups change with the server list: a pane past their end goes to General.
+    onOtherRowsChanged: {
+        if (root.paneIndex >= root.paneCount) {
+            root.navOnServer = false;
+            root.paneIndex = 0;
             root.paneCursor = 0;
         }
     }
@@ -605,6 +735,10 @@ Item {
         }
         if (root.inQbt) {
             qbtPane.activate(root.paneCursor, how);
+            return;
+        }
+        if (root.inOther) {
+            root.switchToOther();
             return;
         }
         if (root.paneIndex === 0) {
@@ -1035,6 +1169,7 @@ Item {
     readonly property Item _paneOnShow: root.inQbtBackup ? qbtBackupPane
                                                          : root.inQbtSearch ? searchPluginsPane
                                                          : root.inQbt ? qbtPane
+                                                         : root.inOther ? otherPane
                                                                       : [generalPane, serversPane,
                                                                          notificationsPane, keysPane,
                                                                          appearancePane, backupPane,
@@ -1091,7 +1226,8 @@ Item {
     function _revealNav(): void {
         const row = root.navOnServer ? serverSelect
                                      : root.paneIndex < root.qbtStart ? navRepeater.itemAt(root.paneIndex)
-                                                                      : qbtNavRepeater.itemAt(root.paneIndex - root.qbtStart);
+                                     : root.paneIndex < root.otherStart ? qbtNavRepeater.itemAt(root.paneIndex - root.qbtStart)
+                                                                        : otherNavRepeater.itemAt(root.paneIndex - root.otherStart);
         if (!row)
             return;
         const top = row.mapToItem(navColumn, 0, 0).y;
@@ -1211,9 +1347,10 @@ Item {
         // last (Backup, #32) in the qBittorrent group's; Search plugins (#145), before it, has
         // no digit of its own.
         if ((event.key >= Qt.Key_1 && event.key <= Qt.Key_9) || event.key === Qt.Key_0) {
-            const base = root.inQbt ? root.qbtStart : 0;
-            const count = root.inQbt ? root.qbtSections.length : root.navRows.length;
-            const at = event.key === Qt.Key_0 ? (root.inQbt ? count - 1 : 9) : event.key - Qt.Key_1;
+            const group = root._groupOf(root.paneIndex);
+            const base = root._groupStart(group);
+            const count = root._groupCount(group);
+            const at = event.key === Qt.Key_0 ? (group > 0 ? count - 1 : 9) : event.key - Qt.Key_1;
             if (at < count)
                 root.showPane(base + at);
             event.accepted = true;
@@ -1411,15 +1548,15 @@ Item {
         root._paneBarKept = paneBar.needed;
         // A click on a tab sets the tabs' own index, which ends a binding; keep them in step.
         // From paneIndex itself: `inQbt` may not have caught up yet inside this handler.
-        const qbt = root.paneIndex >= root.qbtStart;
-        sectionTabs.currentIndex = root.paneIndex - (qbt ? root.qbtStart : 0);
-        groupTabs.currentIndex = qbt ? 1 : 0;
+        const group = root._groupOf(root.paneIndex);
+        sectionTabs.currentIndex = root.paneIndex - root._groupStart(group);
+        groupTabs.currentIndex = group;
         root.qbtNote = "";
         root.backupNote = "";
         if (root.paneIndex === 5)
             App.refreshBackupInfo();
         Qt.callLater(root._revealNav);
-        if (root.opened && qbt)
+        if (root.opened && group === 1)
             Qt.callLater(root._readQbt);
     }
     onPaneCursorChanged: Qt.callLater(root._revealCursor)
@@ -1620,6 +1757,8 @@ Item {
                             currentName: App.serverName
                             hasCursor: root.area === "nav" && root.navOnServer
                             menuParent: root
+                            // C25 K32: only this engine's servers.
+                            engine: root.groupEngine
                             objectName: "qbtNavServer"
                             serverList: App.serverList
                             version: App.globalState.serverVersion.replace(/^v/, "")
@@ -1662,6 +1801,65 @@ Item {
                                 }
                             }
                         }
+
+                        // C25 K32: the other engines' groups, each while a server of its engine
+                        // is saved: its head, the server its panes would switch to, its sections.
+                        Repeater {
+                            id: otherNavRepeater
+
+                            model: root.otherRows
+
+                            ColumnLayout {
+                                id: otherNavItem
+
+                                required property int index
+                                required property var modelData
+                                readonly property int pane: root.otherStart + otherNavItem.index
+
+                                Layout.fillWidth: true
+                                spacing: 1
+
+                                Label {
+                                    Accessible.name: otherNavItem.modelData.engineName
+                                    Accessible.role: Accessible.Heading
+                                    Layout.fillWidth: true
+                                    Layout.leftMargin: Theme.space(4)
+                                    Layout.topMargin: Theme.space(14)
+                                    objectName: "otherNavHead" + otherNavItem.modelData.group
+                                    text: otherNavItem.modelData.engine
+                                    tracked: true
+                                    visible: otherNavItem.modelData.first
+                                }
+
+                                Label {
+                                    Layout.bottomMargin: Theme.space(8)
+                                    Layout.fillWidth: true
+                                    Layout.leftMargin: Theme.space(4)
+                                    dim: true
+                                    elide: Text.ElideRight
+                                    objectName: "otherNavServer" + otherNavItem.modelData.group
+                                    size: "small"
+                                    text: otherNavItem.modelData.serverName
+                                    visible: otherNavItem.modelData.first
+                                }
+
+                                RailRow {
+                                    Layout.fillWidth: true
+                                    glyph: otherNavItem.modelData.section.glyph
+                                    hasCursor: root.area === "nav" && !root.navOnServer
+                                               && root.paneIndex === otherNavItem.pane
+                                    objectName: "otherNavRow" + otherNavItem.index
+                                    selected: root.paneIndex === otherNavItem.pane
+                                    text: otherNavItem.modelData.section.shortName
+
+                                    onClicked: {
+                                        root.showPane(otherNavItem.pane);
+                                        root.area = "nav";
+                                        bodyItem.forceActiveFocus();
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
 
@@ -1685,18 +1883,20 @@ Item {
                         id: groupTabs
 
                         Layout.fillWidth: true
-                        currentIndex: root.inQbt ? 1 : 0
+                        currentIndex: root._groupOf(root.paneIndex)
                         model: [{
                                 "text": qsTr("omaseed")
                             }, {
                                 "text": root.engineGroupName
-                            }]
+                            }].concat(root.otherGroups.map(group => ({
+                                                                  "text": group.name
+                                                              })))
                         objectName: "settingsGroupTabs"
                         visible: root.folded
 
                         onActivated: index => {
-                            if ((index === 1) !== root.inQbt)
-                                root.showPane(index === 1 ? root.qbtStart : 0);
+                            if (index !== root._groupOf(root.paneIndex))
+                                root.showPane(root._groupStart(index));
                             root.area = "pane";
                             bodyItem.forceActiveFocus();
                         }
@@ -1708,17 +1908,20 @@ Item {
 
                         Layout.fillWidth: true
                         clip: true
-                        currentIndex: root.paneIndex - (root.inQbt ? root.qbtStart : 0)
-                        model: (root.inQbt ? root.allRows.slice(root.qbtStart) : root.navRows).map(
-                                   row => ({
-                                           "text": row.shortText ?? row.text
-                                       }))
+                        currentIndex: root.paneIndex - root._groupStart(root._groupOf(root.paneIndex))
+                        model: {
+                            const group = root._groupOf(root.paneIndex);
+                            const start = root._groupStart(group);
+                            return root.allRows.slice(start, start + root._groupCount(group)).map(row => ({
+                                                                                                      "text": row.shortText ?? row.text
+                                                                                                  }));
+                        }
                         objectName: "settingsTabs"
                         visible: root.folded
                         wheelSteps: true
 
                         onActivated: index => {
-                            root.showPane(index + (root.inQbt ? root.qbtStart : 0));
+                            root.showPane(index + root._groupStart(root._groupOf(root.paneIndex)));
                             root.area = "pane";
                             bodyItem.forceActiveFocus();
                         }
@@ -1761,10 +1964,11 @@ Item {
                             size: "caption"
                             text: root.qbtNote.length > 0 ? root.qbtNote
                                                           : root.paneIndex === 5 ? qsTr("omaseed · on this machine") // docs/34 D1 a
+                                                          : root.inOther ? qsTr("%1 · %2").arg(root.otherRow.serverName).arg(root.otherRow.engineName)
                                                           : root.inQbtBackup || root.inQbtSearch ? root.qbtServerHead
                                                                              : qsTr("%1 · saved as you change it").arg(
                                                                                    App.serverName)
-                            visible: root.inQbt || root.paneIndex === 5
+                            visible: root.inQbt || root.inOther || root.paneIndex === 5
                         }
 
                         // A click does what the key does: closes the modal.
@@ -2956,6 +3160,62 @@ Item {
                                 if (index >= 0)
                                     root.paneCursor = index;
                                 root.area = "pane";
+                            }
+                        }
+
+                        // ---- another engine's group (C25 K32) -----------------------------
+                        // Its server isn't the one omaseed is on, and omaseed reads a server's
+                        // settings through the connection it has: the pane says whose they
+                        // are and switches there (docs/34 D5 a), landing on the same section.
+                        ColumnLayout {
+                            id: otherPane
+
+                            readonly property string serverName: root.otherRow ? root.otherRow.serverName : ""
+                            readonly property string engineName: root.otherRow ? root.otherRow.engineName : ""
+
+                            anchors.left: parent.left
+                            anchors.right: parent.right
+                            anchors.top: parent.top
+                            objectName: "otherPane"
+                            spacing: Theme.space(8)
+                            visible: root.inOther
+
+                            ScopeLine {
+                                Layout.fillWidth: true
+                                objectName: "otherScopeLine"
+                                text: qsTr("%1's own %2 settings, read from and saved on %1 while omaseed is on it.").arg(
+                                          otherPane.serverName).arg(otherPane.engineName)
+                            }
+
+                            SettingsRow {
+                                id: otherSwitchRow
+
+                                Layout.fillWidth: true
+                                description: qsTr("omaseed is on %1. The library and the tray follow, and %2 becomes the default.").arg(
+                                                 App.serverName).arg(otherPane.serverName)
+                                glyph: Glyphs.server
+                                hasCursor: root.area === "pane" && root.paneCursor === 0
+                                objectName: "otherSwitchRow"
+                                title: qsTr("Switch to %1 to change these").arg(otherPane.serverName)
+
+                                onClicked: {
+                                    root.paneCursor = 0;
+                                    root.area = "pane";
+                                    root.switchToOther();
+                                }
+
+                                Button {
+                                    block: otherSwitchRow.ground
+                                    bordered: true
+                                    objectName: "otherSwitchButton"
+                                    primary: true
+                                    text: qsTr("switch to %1").arg(otherPane.serverName)
+
+                                    onClicked: {
+                                        root.paneCursor = 0;
+                                        root.switchToOther();
+                                    }
+                                }
                             }
                         }
 
