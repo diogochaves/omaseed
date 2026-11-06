@@ -2397,3 +2397,40 @@ the person's folder run.
 
 Not ruled here, each for a board of its own: panels that add features, faces as code, other
 arrangements of a view (#199).
+
+## C38 — The story tells renames (board 56, ruled 2026-11-06)
+
+Board [56](56-the-story-tells-renames.html), #236, R1–R10 all as recommended. A rename is a line
+of the details pane's what happened story, told like a move. It **amends** C24 H6 (the story's
+events gain each rename the record keeps; newest first per C32 D15, and a rename at the same
+second as another line goes above it, as the later act) and #201 F19 (a fifth mark, `rename`,
+painted as `move`). K28 a, C18 D8 and C18's outcome strip are unchanged.
+
+- **R1 a.** The torrent's name: **Renamed**, dim line **was OLD**. Its time is the server's OK,
+  in the story's time words; the screen reader hears "TIME, Renamed, was OLD" (#79).
+- **R2 a.** The accent, as a move's: the accent marks what was done to the torrent, the neutral
+  square what it did by itself.
+- **R3 a.** One line per run of file renames: **Renamed a file** (`OLD → NEW`, then `in FOLDER/`
+  when not at the top), **Renamed a folder** (`OLD → NEW`), **Renamed N files** (`in FOLDER/ ·
+  the first OLD → NEW, and N−1 more`, `in K folders` when they span several). Only omaseed's
+  own file renames: the sync has no file names. A file rename that qBittorrent answers OK and
+  then logs as failed (C2 D2) takes its line back; the failure line tells it.
+- **R4 a.** A torrent's name that changes between two polls, not sent by omaseed, is a line
+  with **renamed outside omaseed** after `was OLD` (C18 D7's words), timed at the poll that saw
+  it. A name change while the torrent has no metadata is never a line. omaseed's own rename seen
+  in the next poll (pending, or answered within the last minute) is that rename, not a second
+  line.
+- **R5 a.** Renames made while omaseed wasn't running are left out.
+- **R6 a.** Renames of the same name (the torrent's, or the same file or folder) within 10
+  minutes, with no other line between them, fold into one at write time: the last one's time,
+  the first one's old name. A run that ends on the name it started with leaves no line.
+  Renames seen in a poll fold with each other, never with omaseed's own.
+- **R7 a.** Only Transmission's torrent rename adds **· its folder on disk too** (it renames
+  the root on disk, K28); qBittorrent's and Deluge's read `was OLD`. Also for a rename seen in a
+  poll on Transmission. File and folder lines read the same on every engine.
+- **R8 a.** Names given in the add sheet (the torrent's, M18's files) are no line.
+- **R9 a.** omaseed's own record (`core/RenameHistory`), per server, saved beside the move
+  history (C18): the last 10 rename lines per torrent, for as long as the torrent is in the
+  library, dropped when it leaves the server.
+- **R10 a.** Other quiet edits (category or label, tags, a location set elsewhere, limits,
+  priorities) get a board of their own (#248). The record is built to take them; none is drawn.
