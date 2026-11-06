@@ -1,0 +1,11 @@
+{
+ "error": {
+  "code": -32602,
+  "data": {
+   "error_string": "labels cannot contain comma (,) character"
+  },
+  "message": "Invalid params"
+ },
+ "id": 27,
+ "jsonrpc": "2.0"
+}

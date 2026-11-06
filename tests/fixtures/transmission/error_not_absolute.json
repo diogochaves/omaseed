@@ -1,0 +1,11 @@
+{
+ "error": {
+  "code": 3,
+  "data": {
+   "error_string": "new location path is not absolute"
+  },
+  "message": "path is not absolute"
+ },
+ "id": 28,
+ "jsonrpc": "2.0"
+}

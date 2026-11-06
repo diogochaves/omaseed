@@ -1,0 +1,35 @@
+{
+ "id": 21,
+ "jsonrpc": "2.0",
+ "result": {
+  "removed": [
+   13
+  ],
+  "torrents": [
+   {
+    "hash_string": "69d539c673763be3e41ba688df820be7657f1c91",
+    "id": 9,
+    "name": "Fixture Pack",
+    "status": 6
+   },
+   {
+    "hash_string": "2b86112ae20c6ca831cbfb3e4333c8acc6d21088",
+    "id": 10,
+    "name": "fixture-single.bin",
+    "status": 0
+   },
+   {
+    "hash_string": "475ad2787551903b6374cb9358f285cbe6fd8c21",
+    "id": 11,
+    "name": "fixture-error.bin",
+    "status": 0
+   },
+   {
+    "hash_string": "a4f76fd25afb6b9952fa7709154af943f91a793f",
+    "id": 12,
+    "name": "fixture-magnet",
+    "status": 4
+   }
+  ]
+ }
+}

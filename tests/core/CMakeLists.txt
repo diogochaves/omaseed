@@ -539,6 +539,20 @@ omaseed_add_test(tst_qbtengine
     LIBRARIES omaseed::core Qt6::Network
 )
 
+# #85: the differ an engine without deltas goes through (C14 E2 a).
+omaseed_add_test(tst_snapshotdiffer
+    SOURCES tst_snapshotdiffer.cpp
+    LIBRARIES omaseed::core
+)
+
+# #85: Transmission's answers in omaseed's terms, from answers recorded off a real daemon
+# (tests/fixtures/transmission, scripts/dev/transmission-fixtures.py).
+omaseed_add_test(tst_transmissiontranslate
+    SOURCES tst_transmissiontranslate.cpp
+    LIBRARIES omaseed::core
+    DEFINES OMASEED_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../fixtures"
+)
+
 omaseed_add_test(tst_foldertree
     SOURCES tst_foldertree.cpp
     LIBRARIES omaseed::core

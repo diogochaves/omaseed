@@ -1,0 +1,11 @@
+{
+ "id": 3,
+ "jsonrpc": "2.0",
+ "result": {
+  "torrent_added": {
+   "hash_string": "69d539c673763be3e41ba688df820be7657f1c91",
+   "id": 9,
+   "name": "Fixture Pack"
+  }
+ }
+}

@@ -45,6 +45,8 @@ qt_add_library(omaseed-core STATIC
     engines/LogEntry.hpp
     engines/ServerInfo.hpp
     engines/ShareLimits.hpp
+    engines/SnapshotDiffer.cpp
+    engines/SnapshotDiffer.hpp
     engines/SyncDelta.hpp
     engines/TorrentFields.hpp
     engines/TorrentMetadata.hpp
@@ -80,6 +82,8 @@ qt_add_library(omaseed-core STATIC
     engines/qbt/TorrentsImport.hpp
     engines/transmission/TransmissionFingerprint.cpp
     engines/transmission/TransmissionFingerprint.hpp
+    engines/transmission/TransmissionTranslate.cpp
+    engines/transmission/TransmissionTranslate.hpp
     ErrorWords.cpp
     ErrorWords.hpp
     FilesViewState.cpp
