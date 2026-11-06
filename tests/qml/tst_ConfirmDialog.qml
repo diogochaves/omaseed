@@ -82,9 +82,11 @@ TestCase {
         const dialog = createTemporaryObject(deleteComponent, testCase);
         compare(dialog.panel.width, Theme.space(370));
         compare(dialog.panel.padding, Theme.space(18));
-        compare(dialog.panel.color, Theme.background);
-        compare(dialog.panel.border.color, Theme.accent);
-        compare(dialog.panel.border.width, 1);
+        // The skin's Plate draws the ground and edge (#171).
+        const plate = findChild(dialog, "confirmPlate");
+        compare(plate.fill, Theme.background);
+        compare(plate.edgeColor, Theme.accent);
+        compare(plate.edgeWidth, 1);
     }
 
     function test_the_message_is_title_sized_and_bright() {

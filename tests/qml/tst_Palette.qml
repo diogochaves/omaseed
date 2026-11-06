@@ -116,9 +116,11 @@ TestCase {
     function test_the_panel_is_four_hundred_and_eighty_wide_with_an_accent_edge() {
         const palette = createTemporaryObject(paletteComponent, testCase);
         compare(palette.panel.width, Theme.space(480));
-        compare(palette.panel.color, Theme.background);
-        compare(palette.panel.border.color, Theme.accent);
-        compare(palette.panel.border.width, 1);
+        // The skin's Plate draws the ground and edge (#171).
+        const plate = findChild(palette, "palettePlate");
+        compare(plate.fill, Theme.background);
+        compare(plate.edgeColor, Theme.accent);
+        compare(plate.edgeWidth, 1);
     }
 
     function test_the_query_row_is_a_control_plus_eight_tall() {
@@ -806,11 +808,12 @@ TestCase {
         waitForRendering(palette.listView);
         const faint = Theme.fill(Theme.faintAlpha);
 
+        // The first row is the cursor's: its words on the cursor's fill (DECISIONS C30 F1).
         const runs = palette.listView.itemAtIndex(0);
-        compare(findChild(runs, "paletteRowTitle").color, Theme.brightForeground);
+        compare(findChild(runs, "paletteRowTitle").color, Theme.on.cursor.brightForeground);
         compare(findChild(runs, "paletteRowTitle").font.weight, Font.Medium);
         compare(findChild(runs, "paletteRowMeta").text, "p");
-        compare(findChild(runs, "paletteRowMeta").color, Theme.dimForeground);
+        compare(findChild(runs, "paletteRowMeta").color, Theme.on.cursor.dimForeground);
         compare(findChild(runs, "paletteRowVia").visible, false);
 
         const dim = palette.listView.itemAtIndex(3);

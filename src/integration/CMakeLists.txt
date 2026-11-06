@@ -10,6 +10,8 @@ qt_add_library(omaseed-integration STATIC
     BarWidget.hpp
     BarWidgetInstaller.cpp
     BarWidgetInstaller.hpp
+    DesktopSkin.cpp
+    DesktopSkin.hpp
     HyprlandEvents.cpp
     HyprlandEvents.hpp
     MotionPreference.cpp
@@ -20,10 +22,14 @@ qt_add_library(omaseed-integration STATIC
     QuitSignals.hpp
     SingleInstance.cpp
     SingleInstance.hpp
+    SkinReader.cpp
+    SkinReader.hpp
     StatusWriter.cpp
     StatusWriter.hpp
     Theme.cpp
     Theme.hpp
+    ThemeInk.cpp
+    ThemeInk.hpp
     ThemeReader.cpp
     ThemeReader.hpp
     StatusBus.cpp
@@ -42,6 +48,16 @@ qt_add_resources(omaseed-integration "omaseed-theme-fallback"
     PREFIX "/omaseed"
     BASE resources
     FILES resources/theme/tokyo-night/colors.toml
+)
+
+# The built-in skins (#171): Omarchy's, with no overrides, and Console's. They live with the
+# QML they dress (src/ui/skins), but SkinReader reads them, so they are this library's.
+qt_add_resources(omaseed-integration "omaseed-skins"
+    PREFIX "/omaseed/skins"
+    BASE "${PROJECT_SOURCE_DIR}/src/ui/skins"
+    FILES
+        "${PROJECT_SOURCE_DIR}/src/ui/skins/omarchy/skin.json"
+        "${PROJECT_SOURCE_DIR}/src/ui/skins/console/skin.json"
 )
 
 # The five tray icon states, SVG templates tinted from the theme at render time.

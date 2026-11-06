@@ -1,6 +1,8 @@
 #include "QbtFeed.hpp"
+#include "core/AltPresets.hpp"
 #include "core/AltSpeed.hpp"
 #include "core/GlobalState.hpp"
+#include "core/PauseHold.hpp"
 #include "core/SeedLedger.hpp"
 #include "core/StateFile.hpp"
 #include "core/SyncEngine.hpp"
@@ -146,7 +148,9 @@ private slots:
     void removedOnQuit();
     void neverStartedRemovesNothing();
     void altNamesTheSet();
+    void altNamesThePick();
     void serversAndTheSharedMenu();
+    void pausedCountsTheHold();
 
 private:
     void startWriter(StatusWriter &writer, SyncEngine &engine);
@@ -912,6 +916,73 @@ void TestStatusWriter::altNamesTheSet()
     QCOMPARE(altJson.value(QStringLiteral("kind")).toString(), QStringLiteral("turtle"));
 }
 
+// DECISIONS C36 M8: alt.pick, the preset in force (added within v2), beside alt.kind, which
+// stays the set's comparison: off, turtle while the limits are on, burst while omaseed's
+// burst is written over them; rewritten when the pick changes.
+void TestStatusWriter::altNamesThePick()
+{
+    SyncEngine engine;
+    engine.globalState()->setConnected(true);
+    qbtfeed::demo(engine, fullUpdate()); // alternative limits on
+    StatusWriter writer;
+    writer.setIntervals(0, 10000);
+    startWriter(writer, engine);
+
+    bool ok = false;
+    const auto pick = [this, &ok]() {
+        return readStatus(statusPath(), &ok)
+            .value(QStringLiteral("alt"))
+            .toObject()
+            .value(QStringLiteral("pick"))
+            .toString();
+    };
+    // Without the presets: the limits' state alone.
+    QCOMPARE(pick(), QStringLiteral("turtle"));
+    QVERIFY(ok);
+
+    omaseed::core::ServerPreferences preferences(nullptr);
+    preferences.setOffline(
+        {{QStringLiteral("alt_dl_limit"), 0}, {QStringLiteral("alt_up_limit"), 2 * 1024 * 1024}});
+    omaseed::core::AltPresets presets;
+    presets.setPreferences(&preferences);
+    presets.setGlobalState(engine.globalState());
+    QSignalSpy written(&writer, &StatusWriter::written);
+    writer.setAltPresets(&presets);
+    QVERIFY(written.wait(2000));
+    QCOMPARE(pick(), QStringLiteral("turtle"));
+
+    // A burst found running on the server: the pick follows the presets.
+    presets.setStore(QJsonObject{
+        {QStringLiteral("public"),
+         QJsonObject{
+             {QStringLiteral("running"),
+              QJsonObject{{QStringLiteral("turtleDl"), 300 * 1024},
+                          {QStringLiteral("turtleUp"), 50 * 1024},
+                          {QStringLiteral("dl"), 0},
+                          {QStringLiteral("up"), 2 * 1024 * 1024},
+                          // Ends in an hour: kept, not ended on the spot.
+                          {QStringLiteral("until"),
+                           QDateTime::currentDateTime().addSecs(3600).toString(Qt::ISODate)}}}}}});
+    written.clear();
+    presets.setServer(QStringLiteral("public"));
+    QVERIFY(presets.burstOn());
+    QVERIFY(written.wait(2000));
+    QCOMPARE(pick(), QStringLiteral("burst"));
+    // alt.kind is still the set against the normal one.
+    QCOMPARE(readStatus(statusPath())
+                 .value(QStringLiteral("alt"))
+                 .toObject()
+                 .value(QStringLiteral("kind"))
+                 .toString(),
+             QStringLiteral("alt"));
+
+    // The limits go off: off.
+    written.clear();
+    qbtfeed::demo(engine, partial(QJsonObject{{QStringLiteral("use_alt_speed_limits"), false}}));
+    QVERIFY(written.wait(2000));
+    QCOMPARE(pick(), QStringLiteral("off"));
+}
+
 // docs/33 §11 change 5 (D24, DECISIONS C13): `servers` and `menu`, added within v2. Without a
 // menu both lists are present and empty (lists are always present); with one they follow it.
 void TestStatusWriter::serversAndTheSharedMenu()
@@ -972,8 +1043,7 @@ void TestStatusWriter::serversAndTheSharedMenu()
                           QStringLiteral("server:b"),
                           QStringLiteral("separator:servers"),
                           QStringLiteral("alt-speed"),
-                          QStringLiteral("stop-all"),
-                          QStringLiteral("start-all"),
+                          QStringLiteral("pause"),
                           QStringLiteral("separator:actions"),
                           QStringLiteral("add"),
                           QStringLiteral("settings"),
@@ -994,6 +1064,57 @@ void TestStatusWriter::serversAndTheSharedMenu()
     const QJsonObject alt = status.value(QStringLiteral("menu")).toArray().at(4).toObject();
     QCOMPARE(alt.value(QStringLiteral("kind")).toString(), QStringLiteral("check"));
     QCOMPARE(alt.value(QStringLiteral("checked")).toBool(), true);
+}
+
+// DECISIONS C36 M10: `paused.count`, added within v2, is what Pause Torrents holds on the
+// current server (0 when none, and without a hold at all), for Omarchy's menu's `when`.
+void TestStatusWriter::pausedCountsTheHold()
+{
+    SyncEngine engine;
+    engine.globalState()->setConnected(true);
+    qbtfeed::demo(engine, fullUpdate());
+    StatusWriter writer;
+    writer.setIntervals(0, 10000);
+    startWriter(writer, engine);
+
+    bool ok = false;
+    QJsonObject status = readStatus(statusPath(), &ok);
+    QVERIFY(ok);
+    QCOMPARE(
+        status.value(QStringLiteral("paused")).toObject().value(QStringLiteral("count")).toInt(-1),
+        0);
+
+    omaseed::core::PauseHold hold;
+    hold.setServer(QStringLiteral("a"));
+    QSignalSpy written(&writer, &StatusWriter::written);
+    writer.setPauseHold(&hold);
+    // Nothing held: the same document, so no write.
+    QCOMPARE(writer.snapshot()
+                 .value(QStringLiteral("paused"))
+                 .toObject()
+                 .value(QStringLiteral("count"))
+                 .toInt(-1),
+             0);
+
+    // A hold on another server is not this one's.
+    hold.setStore(QJsonObject{
+        {QStringLiteral("a"),
+         QJsonObject{
+             {QStringLiteral("hashes"), QJsonArray{QStringLiteral("aaa"), QStringLiteral("bbb")}}}},
+        {QStringLiteral("b"),
+         QJsonObject{{QStringLiteral("hashes"), QJsonArray{QStringLiteral("ccc")}}}},
+    });
+    QVERIFY(written.wait(2000));
+    status = readStatus(statusPath(), &ok);
+    QCOMPARE(
+        status.value(QStringLiteral("paused")).toObject().value(QStringLiteral("count")).toInt(),
+        2);
+    hold.setServer(QStringLiteral("b"));
+    QVERIFY(written.wait(2000));
+    status = readStatus(statusPath(), &ok);
+    QCOMPARE(
+        status.value(QStringLiteral("paused")).toObject().value(QStringLiteral("count")).toInt(),
+        1);
 }
 
 QTEST_GUILESS_MAIN(TestStatusWriter)

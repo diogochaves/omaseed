@@ -28,6 +28,10 @@
 set -euo pipefail
 
 repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+# DECISIONS C24 H4: a new install shows the rows display, and a box is a new install. This
+# walk reads the table (its columns, its rows' order), so it pins the table: every scope starts
+# on it (App's OMASEED_DISPLAY), passed to each launch here and by app-box.sh.
+export OMASEED_DISPLAY="${OMASEED_DISPLAY:-table}"
 cd "$repo"
 APP_BOX="$repo/scripts/dev/app-box.sh"
 BOX="${OMASEED_BACKUP_BOX:-backup-walk}"
@@ -285,8 +289,10 @@ source_api torrents/setCategory -d "hashes=$TINY" -d category=notes >/dev/null
 source_api torrents/addTags -d "hashes=$TINY" -d tags=keep >/dev/null
 source_api torrents/addTags -d "hashes=$ALBUM" -d "tags=flac,field" >/dev/null
 source_api torrents/setUploadLimit -d "hashes=$TINY" -d limit=10240 >/dev/null
+# As QbtClient::torrentsSetShareLimits sends it: Web API 2.15.3 made shareLimitsMode required
+# (5.3 answers 400 without it), and 5.2 and older ignore it. Default keeps the global rule.
 source_api torrents/setShareLimits -d "hashes=$ALBUM" -d ratioLimit=2 -d seedingTimeLimit=-2 \
-    -d inactiveSeedingTimeLimit=-2 -d shareLimitAction=Default >/dev/null
+    -d inactiveSeedingTimeLimit=-2 -d shareLimitAction=Default -d shareLimitsMode=Default >/dev/null
 source_api torrents/renameFile --data-urlencode "hash=$ALBUM" --data-urlencode "oldPath=$TRACK" \
     --data-urlencode "newPath=$RENAMED" >/dev/null
 cover="$(source_api "torrents/files?hash=$ALBUM" | python3 -c '

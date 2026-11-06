@@ -42,7 +42,9 @@
 class QFileSystemWatcher;
 
 namespace omaseed::core {
+class AltPresets;
 class AltSpeed;
+class PauseHold;
 class SeedLedger;
 class ServerPreferences;
 class SyncEngine;
@@ -80,12 +82,18 @@ public:
     /// docs/31 D12: what `alt` says beyond on and the limits (kind, until, byHand). Without
     /// one the set reads as today's "alt", with no end.
     void setAltSpeed(const omaseed::core::AltSpeed *alt);
+    /// DECISIONS C36 M8: the preset in force, written as `alt.pick` (added within v2): "off",
+    /// "turtle" or "burst". Without one it reads "turtle" while the limits are on, else "off".
+    void setAltPresets(const omaseed::core::AltPresets *presets);
     /// The seed ledger "today's top seeders" read their upload from (#47). The caller keeps it
     /// alive and fed for as long as the writer has it; without one the list is empty.
     void setLedger(const omaseed::core::SeedLedger *ledger);
     /// docs/33 §11 (D24, DECISIONS C13): the shared menu, written as `servers` and `menu`
     /// (added within v2). Without one both lists are empty and the widget shows no ⋯.
     void setMenu(const BarMenu *menu);
+    /// DECISIONS C36 M10: what Pause Torrents holds on the current server, written as
+    /// `paused.count` (added within v2) for Omarchy's menu's `when`. Without one it is 0.
+    void setPauseHold(const omaseed::core::PauseHold *hold);
     /// The server the engine is on. A different `id` starts the session over (share, hour,
     /// milestones) and loads that server's week and recent list. `url` keeps only host:port.
     void setServer(const QString &id, const QString &name, const QUrl &url);
@@ -169,7 +177,9 @@ private:
     QPointer<omaseed::core::SyncEngine> m_engine;
     QPointer<omaseed::core::ServerPreferences> m_preferences;
     QPointer<const omaseed::core::AltSpeed> m_alt;
+    QPointer<const omaseed::core::AltPresets> m_altPresets;
     QPointer<const BarMenu> m_menu;
+    QPointer<const omaseed::core::PauseHold> m_pauseHold;
     QString m_serverId;
     QString m_serverName;
     QString m_serverEngine;

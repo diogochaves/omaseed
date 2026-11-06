@@ -77,6 +77,7 @@ private slots:
     void repairsALayerRepeatedPerDuplicateFile();
     void leavesSoundLayersAndOtherTorrentsAlone();
     void rejectsGarbage();
+    void readsThePrivateSourceTag(); // #146
 };
 
 void TestTorrentFile::matchesFixtures_data()
@@ -319,6 +320,23 @@ void TestTorrentFile::rejectsGarbage()
     const TorrentFile torrent = TorrentFile::parse(QByteArrayLiteral("not a torrent"), &error);
     QVERIFY(!torrent.isValid());
     QVERIFY(!error.isEmpty());
+}
+
+// #146 (C27 CR6): the info's `source`, as qBittorrent's creator writes it for a private one.
+void TestTorrentFile::readsThePrivateSourceTag()
+{
+    const QByteArray bytes =
+        "d8:announce38:https://tracker-a.example/announce/k3y4:infod6:lengthi3e"
+        "4:name5:a.txt12:piece lengthi16384e6:pieces20:aaaaaaaaaaaaaaaaaaaa"
+        "7:privatei1e6:source2:TAee";
+    const TorrentFile file = TorrentFile::parse(bytes);
+    QVERIFY(file.isValid());
+    QVERIFY(file.isPrivate);
+    QCOMPARE(file.source, QStringLiteral("TA"));
+    const TorrentFile none = TorrentFile::parse(
+        "d4:infod6:lengthi3e4:name5:a.txt12:piece lengthi16384e6:pieces20:aaaaaaaaaaaaaaaaaaaaee");
+    QVERIFY(none.isValid());
+    QVERIFY(none.source.isEmpty());
 }
 
 QTEST_APPLESS_MAIN(TestTorrentFile)

@@ -195,16 +195,6 @@ Sheet {
         }
     ]
     glyph: sheet.info.copy === true ? Glyphs.copyFrom : Glyphs.backup
-    hints: [
-        {
-            "key": "tab",
-            "label": qsTr("move")
-        },
-        {
-            "key": "space",
-            "label": qsTr("tick")
-        }
-    ]
     sheetWidth: Theme.space(680)
     subtitle: sheet.info.sub ?? ""
     subtitleLines: 3
@@ -354,15 +344,15 @@ Sheet {
                 // A tick box drawn from the theme, as the restore sheet's.
                 Rectangle {
                     border.color: importRow.ticked ? Theme.accent : Theme.fill(Theme.borderIdle)
-                    border.width: 1
-                    color: importRow.ticked ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b,
-                                                      Theme.fillPressed) : "transparent"
+                    border.width: Theme.hairWidth
+                    // The ticked tint, its ✓ lifted against it (docs/DECISIONS.md C30 F5).
+                    color: importRow.ticked ? Theme.on.ticked.fill : "transparent"
                     implicitHeight: Theme.space(14)
                     implicitWidth: Theme.space(14)
 
                     Label {
                         anchors.centerIn: parent
-                        bright: true
+                        color: Theme.on.ticked.brightForeground
                         size: "caption"
                         text: Glyphs.check
                         visible: importRow.ticked

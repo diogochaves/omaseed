@@ -46,7 +46,7 @@ TestCase {
                                                "selected": true
                                            });
         compare(chip.border.width, 0);
-        fuzzyCompare(chip.color.a, Theme.fill(Theme.fillSelected).a, 0.01);
+        fuzzyCompare(chip.color.a, Theme.on.selected.fill.a, 0.01);
     }
 
     function test_hover_or_cursor_fills_at_the_hover_alpha() {
@@ -54,7 +54,7 @@ TestCase {
                                                "text": "linux",
                                                "hasCursor": true
                                            });
-        fuzzyCompare(chip.color.a, Theme.fill(Theme.fillHover).a, 0.01);
+        fuzzyCompare(chip.color.a, Theme.on.hover.fill.a, 0.01);
     }
 
     function test_click_emits_clicked() {
@@ -162,9 +162,15 @@ TestCase {
         compare(key.text, "3");
         verify(count.visible);
         compare(count.text, "10");
-        compare(count.color, Theme.dimForeground);
-        // On, the word takes the level's colour.
-        compare(findChild(chip, "chipLabel").color, Theme.yellow);
+        // DECISIONS C30 F1, F3: on the selected fill, its roles lifted against that fill.
+        compare(chip.ground, Theme.on.selected);
+        tryCompare(count, "color", Theme.on.selected.dimForeground);
+        // The key is the dim role at full strength: fainter, it read under the floor (#188).
+        tryCompare(key, "color", Theme.on.selected.dimForeground);
+        compare(key.opacity, 1);
+        // On, the word takes the level's colour, as it reads on the fill.
+        tryCompare(findChild(chip, "chipLabel"), "color", Theme.on.selected.yellow);
+        verify(!Qt.colorEqual(Theme.on.selected.dimForeground, Theme.dimForeground));
         // Wider than the word alone.
         const plain = createTemporaryObject(chipComponent, testCase, {
                                                 "text": "warning"
@@ -179,18 +185,20 @@ TestCase {
                                               "text": "normal",
                                               "toggle": true
                                           });
-        compare(findChild(off, "chipLabel").color, Theme.dimForeground);
+        // Off, the chip's idle fill is its ground (DECISIONS C30 F1).
+        compare(off.ground, Theme.on.idle);
+        compare(findChild(off, "chipLabel").color, Theme.on.idle.dimForeground);
         const on = createTemporaryObject(chipComponent, testCase, {
                                              "text": "normal",
                                              "toggle": true,
                                              "selected": true
                                          });
-        compare(findChild(on, "chipLabel").color, Theme.brightForeground);
+        compare(findChild(on, "chipLabel").color, Theme.on.selected.brightForeground);
         // A label chip, not a switch, keeps the foreground when off.
         const label = createTemporaryObject(chipComponent, testCase, {
                                                 "text": "linux"
                                             });
-        compare(findChild(label, "chipLabel").color, Theme.foreground);
+        compare(findChild(label, "chipLabel").color, Theme.on.idle.foreground);
     }
 
     // docs/32 L2: the torrent chip, an accent edge, selected or not.
@@ -205,8 +213,8 @@ TestCase {
         compare(chip.border.width, 1);
     }
 
-    // docs/31 D3, D5: the hero's burst warns in green, and "until" follows the limits a
-    // little fainter, in the same colour.
+    // docs/31 D3, D5: the hero's burst warns in green, and "until" follows the limits in the
+    // same colour, at full strength: fainter, it read under C30's floor (#188).
     function test_a_warning_chip_takes_its_colour_and_a_suffix() {
         const chip = createTemporaryObject(chipComponent, testCase, {
                                                "text": "burst ↓∞ ↑∞",
@@ -220,7 +228,7 @@ TestCase {
         compare(label.color, Theme.green);
         compare(suffix.color, Theme.green);
         verify(suffix.visible);
-        verify(suffix.opacity < 1);
+        compare(suffix.opacity, 1);
         compare(chip.Accessible.name, "burst ↓∞ ↑∞ · until 07:00");
         // Without a suffix nothing is drawn after the text, and warn is yellow by default.
         const plain = createTemporaryObject(chipComponent, testCase, {

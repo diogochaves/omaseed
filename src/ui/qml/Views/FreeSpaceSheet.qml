@@ -7,13 +7,21 @@ import Omaseed.Kit
 // "Free the space…" (board 44 §2 F2, DECISIONS C17 D3, #118): a sheet that says each step
 // before it runs. Stop the torrent (when it runs), delete the skipped files that hold space and
 // no downloaded piece (only inside its folder, none another torrent uses, none a program has
-// open), start it again; no recheck, but on a v1-only or v2-only torrent whose files with
-// downloaded pieces go too, which is named before it runs. On a hybrid those files stay, the
-// sheet says why (a recheck there hits libtorrent's bug, #115), and "add it again" frees them,
-// its cost named first (AddAgainConfirm).
+// open), start it again; no recheck, but on a v1-only torrent whose files with downloaded
+// pieces go too, which is named before it runs. On a hybrid those files stay, the sheet says
+// why (a recheck there hits libtorrent's bug, #115), and "add it again" frees them, its cost
+// named first (AddAgainConfirm). A v2-only torrent is treated like a hybrid, in words of its
+// own: a recheck there leaves it short of 100 % for good, and adding it again doesn't
+// (DECISIONS C29, #182).
 //
 // The plan is App.planFreeSkipped()'s, read when the sheet opens; App.freeSkippedSpace() reads
 // the files again at delete time, so a file wanted or opened since stays.
+//
+// DECISIONS C30 F14–F15: when the plan finds that only adding it again frees anything (shift+f
+// before the Files tab's reading, or a reading that changed), the sheet is titled "Only adding
+// it again frees this" and its main button is the re-add ("Re-add to delete them…"); when some
+// can go and some only that way, the main button frees what it can and "re-add to free all
+// SIZE…" sits beside it.
 Sheet {
     id: root
 
@@ -24,9 +32,20 @@ Sheet {
     readonly property int deletes: root.plan.deletes || 0
     readonly property var items: root.plan.items || []
     readonly property bool anyOpen: root.items.some(item => item.verdict === "open")
+    /// C30 F14–F15: the files only adding it again frees (a hybrid's or a v2-only torrent's
+    /// with downloaded pieces); none on a server that can't add it again (App.features, C14 E4).
+    readonly property int readdFiles: App.features.addAgain === false ? 0 : (root.plan.leftWithPieces || 0)
+    /// F14: nothing to free but by adding it again.
+    readonly property bool readdOnly: root.ready && root.deletes === 0 && root.readdFiles > 0
+    /// F15: some to free, some only by adding it again.
+    readonly property bool mixed: root.ready && root.deletes > 0 && root.readdFiles > 0
+    readonly property string readdText: root.readdOnly ? (root.readdFiles === 1 ? qsTr("Re-add to delete it…")
+                                                                               : qsTr("Re-add to delete them…"))
+                                                       : qsTr("re-add to free all %1…").arg(root.plan.allText || "")
 
-    /// The hybrid's "add it again", with what it costs.
-    signal addAgainRequested(string hash, string name, int files)
+    /// A hybrid's or a v2-only torrent's "add it again" (C29), with what it costs: the files
+    /// and what they hold, and the version for the confirm's one line why (C30 F13).
+    signal addAgainRequested(string hash, string name, int files, string bytesText, string version)
     /// "Show in folder": the torrent's folder.
     signal showFolderRequested(string hash)
 
@@ -50,27 +69,52 @@ Sheet {
         return qsTr("outside its folder · stays");
     }
 
-    actions: [
-        {
-            "text": qsTr("cancel"),
-            "cancel": true
-        },
-        {
-            "text": qsTr("show in folder")
-        },
-        {
-            "text": root.deletes > 0 ? qsTr("free %1").arg(root.plan.freedText) : qsTr("nothing to free"),
-            "primary": true,
-            "disabled": !root.ready || root.deletes === 0 || App.skippedOnDisk.busy === true
-        }
-    ]
+    actions: {
+        const list = [
+            {
+                "text": qsTr("cancel"),
+                "cancel": true
+            },
+            {
+                "text": qsTr("show in folder")
+            }
+        ];
+        // F15: beside the main button, the re-add that frees all of it.
+        if (root.mixed)
+            list.push({
+                          "text": root.readdText,
+                          "disabled": App.skippedOnDisk.busy === true
+                      });
+        list.push({
+                      "text": root.readdOnly ? root.readdText : root.deletes > 0 ? qsTr("free %1").arg(root.plan.freedText)
+                                                                                : qsTr("nothing to free"),
+                      "primary": true,
+                      "disabled": !root.ready || (root.deletes === 0 && !root.readdOnly) || App.skippedOnDisk.busy === true
+                  });
+        return list;
+    }
     glyph: Glyphs.trash
-    sheetWidth: Theme.space(600)
+    // C30 F15: four buttons, the re-add's words among them; each as wide as its words
+    // (Kit/Sheet, board 46), they fit 680 where four equal ones needed 880 (#169, #170), and
+    // wrap onto two lines on a window narrower than that.
+    sheetWidth: root.mixed ? Theme.space(680) : Theme.space(600)
     subtitle: root.ready ? (root.plan.name || "") + " · " + (root.plan.folder || "") : ""
     title: !root.ready ? qsTr("Free the space") : root.deletes > 0 ? qsTr("Free %1").arg(root.plan.freedText)
-                                                                   : qsTr("Nothing to free")
+                                                                   : root.readdOnly ? qsTr("Only adding it again frees this")
+                                                                                    : qsTr("Nothing to free")
+
+    /// The re-add, with what it costs named first (AddAgainConfirm).
+    function readd(): void {
+        root.close();
+        root.addAgainRequested(root.hash, root.plan.name || "", root.readdFiles + root.deletes,
+                               root.plan.allText || "", root.plan.version === "v1" ? "" : (root.plan.version || ""));
+    }
 
     onAccepted: {
+        if (root.readdOnly) {
+            root.readd();
+            return;
+        }
         if (!root.ready || root.deletes === 0)
             return;
         App.freeSkippedSpace(root.hash);
@@ -79,6 +123,8 @@ Sheet {
     onActionTriggered: text => {
         if (text === qsTr("show in folder"))
             root.showFolderRequested(root.hash);
+        else if (text === root.readdText)
+            root.readd();
     }
 
     Connections {
@@ -88,7 +134,7 @@ Sheet {
             root.plan = plan;
             // `enter` frees, as the sheet's primary: the keyboard on it once it can.
             const primary = root.primaryButton();
-            if (primary && root.deletes > 0)
+            if (primary && (root.deletes > 0 || root.readdOnly))
                 Qt.callLater(() => primary.forceActiveFocus());
         }
 
@@ -112,9 +158,16 @@ Sheet {
             const steps = [];
             if (root.plan.running)
                 steps.push(qsTr("Stop the torrent so nothing writes while files go."));
-            steps.push(root.plan.recheck
-                       ? qsTr("Delete %n skipped files from the disk, some holding downloaded pieces. Only skipped files, only inside this torrent's folder, and none another torrent also uses.", "", root.deletes)
-                       : qsTr("Delete %n skipped files from the disk: those that hold no downloaded piece. Only skipped files, only inside this torrent's folder, and none another torrent also uses.", "", root.deletes));
+            const only = qsTr("Only skipped files, only inside this torrent's folder, and none another torrent also uses.");
+            if (root.deletes === 1)
+                steps.push((root.plan.recheck ? qsTr("Delete 1 skipped file from the disk, one holding downloaded pieces.")
+                                              : qsTr("Delete 1 skipped file from the disk: one that holds no downloaded piece."))
+                           + " " + only);
+            else
+                steps.push((root.plan.recheck
+                            ? qsTr("Delete %1 skipped files from the disk, some holding downloaded pieces.").arg(root.deletes)
+                            : qsTr("Delete %1 skipped files from the disk: those that hold no downloaded piece.").arg(root.deletes))
+                           + " " + only);
             if (root.plan.running)
                 steps.push(root.plan.recheck ? qsTr("Start it again, then recheck it, so it downloads those pieces again when you tick them.")
                                              : qsTr("Start it again. The wanted files carry on. No recheck."));
@@ -218,7 +271,8 @@ Sheet {
         wrapMode: Text.Wrap
     }
 
-    // C17 D3: a hybrid's files with downloaded pieces stay; adding it again frees them.
+    // C17 D3: a hybrid's files with downloaded pieces stay; adding it again frees them. C29: a
+    // v2-only torrent's too, said in its own words.
     ColumnLayout {
         Layout.fillWidth: true
         spacing: Theme.space(4)
@@ -229,23 +283,35 @@ Sheet {
             Accessible.role: Accessible.StaticText
             Layout.fillWidth: true
             dim: true
-            objectName: "freeSpaceHybridNote"
+            objectName: "freeSpaceStaysNote"
             size: "small"
-            text: qsTr("%n files stay (%1) because this torrent is hybrid and pieces of them were downloaded: deleting them safely needs a recheck, and a recheck there hits a libtorrent bug.", "",
-                       root.plan.leftWithPieces || 0).arg(root.plan.leftText || "")
+            text: {
+                const left = root.plan.leftWithPieces || 0;
+                const bytes = root.plan.leftText || "";
+                if (root.plan.version === "v2")
+                    return left === 1
+                           ? qsTr("1 file stays (%1) because this torrent is v2 and pieces of it were downloaded: deleting it leaves the torrent short of 100 % for good, a libtorrent bug.").arg(bytes)
+                           : qsTr("%1 files stay (%2) because this torrent is v2 and pieces of them were downloaded: deleting them leaves the torrent short of 100 % for good, a libtorrent bug.").arg(left).arg(bytes);
+                return left === 1
+                       ? qsTr("1 file stays (%1) because this torrent is hybrid and pieces of it were downloaded: deleting it safely needs a recheck, and a recheck there hits a libtorrent bug.").arg(bytes)
+                       : qsTr("%1 files stay (%2) because this torrent is hybrid and pieces of them were downloaded: deleting them safely needs a recheck, and a recheck there hits a libtorrent bug.").arg(left).arg(bytes);
+            }
             wrapMode: Text.Wrap
         }
 
-        Button {
-            objectName: "freeSpaceAddAgain"
-            visible: App.features.addAgain !== false // qBittorrent's (C14 E4)
-            text: qsTr("Free them too by adding the torrent again…")
-
-            onClicked: {
-                root.close();
-                root.addAgainRequested(root.hash, root.plan.name || "",
-                                       (root.plan.leftWithPieces || 0) + root.deletes);
-            }
+        // F14: what the re-add does, before its confirm says it again.
+        Label {
+            Accessible.name: text
+            Accessible.role: Accessible.StaticText
+            Layout.fillWidth: true
+            dim: true
+            objectName: "freeSpaceReaddNote"
+            size: "small"
+            text: root.readdFiles === 1
+                  ? qsTr("It is removed keeping its files, the file is deleted, and it comes back from its own .torrent with the same files ticked, names, category, tags and limits. It loses its ratio, seeding time and added date.")
+                  : qsTr("It is removed keeping its files, the %1 files are deleted, and it comes back from its own .torrent with the same files ticked, names, category, tags and limits. It loses its ratio, seeding time and added date.").arg(root.readdFiles)
+            visible: root.readdOnly
+            wrapMode: Text.Wrap
         }
     }
 }

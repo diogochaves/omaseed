@@ -2,8 +2,8 @@ pragma Singleton
 import QtQuick
 
 // The one table of keys (spec v2 §7 Fig. 26, "the same map as v1"). Everything that binds a
-// key in omaseed reads it from here: `MainView` routes presses through it, `HintModel`
-// derives the footer's hints from it, and `HelpSheet` draws the `?` sheet from it. Nothing
+// key in omaseed reads it from here: `MainView` routes presses through it, the command
+// palette lists it, and `HelpSheet` draws the `?` sheet from it. Nothing
 // else may invent a window key. A menu's own row letters (Fig. 11's actions menu, the Files
 // tab's menus) are part of that menu's rows and live with it.
 //
@@ -16,7 +16,7 @@ import QtQuick
 //             "global" entry for the same key — that is how `a` adds a tracker inside the
 //             details pane and a torrent everywhere else.
 //   key       the key as the spec writes it: "j", "G", "ctrl+q", "esc", "enter", "space",
-//             "0–8", "1–4" (en dashes, like the figure).
+//             "1–5", "1–4" (en dashes, like the figure).
 //   action    the verb `MainView` switches on.
 //   label     the short word the footer hints print after the key.
 //   column    the help-sheet section: "navigate", "select", "act", "view", "app" — set
@@ -45,9 +45,9 @@ import QtQuick
 //             "details" the pane on show, and in a details tab "marked" (marked rows or the
 //             cursor's), "row" (the cursor's row), "rows" (any row), "file" (a file, not a
 //             folder, under the cursor), "lastMove" a finished move that can go back
-//             (board 45 D7).
-//   via       a menu-only action has no key ("key": ""): the path to it ("enter s",
-//             "ctrl+."), printed in the key's place (D3). Key routing, the footer and the `?`
+//             (board 45 D7), "freeable" skipped files that hold space here (#160).
+//   via       a menu-only action has no key ("key": ""): the path to it ("enter s", or
+//             ":" for the palette's own), printed in the key's place (D3). Key routing, the footer and the `?`
 //             sheet never see an entry with no key.
 //   sharesKey start and stop have no key of their own: `p` runs one or the other (D5), and
 //             the palette prints it on the one it would run now.
@@ -109,6 +109,143 @@ QtObject {
         }
     ]
 
+    /// DECISIONS C24 H10 (keys on demand): the keys a sheet's foot printed until v0.5.0 (v2's
+    /// footer hints, C11 D4's "s next server"), in a block of the `?` sheet after view, and Settings ›
+    /// Keybindings. Not entries: each sheet routes its own keys, so the palette doesn't list
+    /// them.
+    readonly property string sheetTitle: qsTr("in a sheet")
+    readonly property string sheetAbout: qsTr("Add, Move, Settings and the other sheets and lists over the window.")
+    readonly property var sheetRows: [
+        {
+            "action": "sheet:enter",
+            "helpKeys": qsTr("enter"),
+            "help": qsTr("the main button"),
+            "about": qsTr("Run the filled button: add, move, save; on a focused button, that one")
+        },
+        {
+            "action": "sheet:shiftEnter",
+            "helpKeys": qsTr("shift+enter"),
+            "help": qsTr("add stopped"),
+            "about": qsTr("The add sheet's second button: add it without starting it")
+        },
+        {
+            "action": "sheet:tab",
+            "helpKeys": qsTr("tab"),
+            "help": qsTr("next field"),
+            "about": qsTr("Through the sheet's fields, lists and buttons, never out of it; shift+tab back")
+        },
+        {
+            "action": "sheet:esc",
+            "helpKeys": qsTr("esc"),
+            "help": qsTr("close"),
+            "about": qsTr("Close the sheet; on the add sheet the first esc goes to cancel")
+        },
+        {
+            "action": "sheet:browse",
+            "helpKeys": qsTr("ctrl+o"),
+            "help": qsTr("browse"),
+            "about": qsTr("The add sheet's file chooser, or the Move sheet's folder chooser")
+        },
+        {
+            "action": "sheet:places",
+            "helpKeys": qsTr("↓"),
+            "help": qsTr("places"),
+            "about": qsTr("In the Move sheet's path: the places list (↑↓ choose, enter fill, esc close it)")
+        },
+        {
+            "action": "sheet:server",
+            "helpKeys": qsTr("ctrl+s"),
+            "help": qsTr("server"),
+            "about": qsTr("In the add sheet with two servers: which one it goes to")
+        },
+        {
+            "action": "sheet:saveThere",
+            "helpKeys": qsTr("alt+s"),
+            "help": qsTr("save there"),
+            "about": qsTr("In the add sheet, while its files are already on disk: add it where they are")
+        },
+        {
+            "action": "sheet:files",
+            "helpKeys": qsTr("space · ctrl+a"),
+            "help": qsTr("tick files"),
+            "about": qsTr("In the add sheet's files: tick a file or a folder, then all or none; + - priority, h l fold, r rename")
+        },
+        {
+            "action": "sheet:lists",
+            "helpKeys": qsTr("j k · d"),
+            "help": qsTr("its lists"),
+            "about": qsTr("In the add sheet's lists (in Downloads, several torrents): move; space ticks, d removes one")
+        },
+        {
+            "action": "sheet:lines",
+            "helpKeys": qsTr("ctrl+enter"),
+            "help": qsTr("save a list"),
+            "about": qsTr("In a sheet of lines (trackers, peers, extensions): enter starts a new line")
+        },
+        {
+            "action": "sheet:settings",
+            "helpKeys": qsTr("j k · h l"),
+            "help": qsTr("settings"),
+            "about": qsTr("In Settings: move through the rows, and between the sections and the pane; space toggles, enter edits or acts, d its default")
+        },
+        {
+            "action": "sheet:settingsTab",
+            "helpKeys": qsTr("tab"),
+            "help": qsTr("next in settings"),
+            "about": qsTr("In Settings, as in any form: the sections, then every field, switch and button in order; shift+tab back")
+        },
+        {
+            "action": "sheet:nextServer",
+            "helpKeys": qsTr("s"),
+            "help": qsTr("next server"),
+            "about": qsTr("In Settings' qBittorrent panes, with two servers or more: the next one")
+        }
+    ]
+
+    /// #145 (DECISIONS C26 SR14): search's own keys, a block of the `?` sheet after app (and
+    /// Settings › Keybindings). Not entries: SearchView routes them, so the palette doesn't
+    /// list them.
+    readonly property string searchTitle: qsTr("in search")
+    readonly property string searchAbout: qsTr("The search face: its field, its filters and its results.")
+    readonly property var searchRows: [
+        {
+            "action": "search:ask",
+            "helpKeys": qsTr("enter · ↓"),
+            "help": qsTr("ask · the results"),
+            "about": qsTr("In the field: ask every plugin that is on; then down into the results")
+        },
+        {
+            "action": "search:filters",
+            "helpKeys": qsTr("tab"),
+            "help": qsTr("the filters"),
+            "about": qsTr("plugins, type, hide dead, sort: space opens one; a change of plugins or type asks again")
+        },
+        {
+            "action": "search:add",
+            "helpKeys": qsTr("enter · space"),
+            "help": qsTr("add… · the result"),
+            "about": qsTr("In the results: the add sheet with its magnet or link; space shows the result on the right")
+        },
+        {
+            "action": "search:copy",
+            "helpKeys": qsTr("c · o"),
+            "help": qsTr("copy magnet · its page"),
+            "about": qsTr("Copy the result's magnet (every folded tracker in it); open its page in the browser")
+        },
+        {
+            "action": "search:filter",
+            "helpKeys": "/",
+            "help": qsTr("filter the results"),
+            "about": qsTr("Narrow the results by name without asking again")
+        },
+        {
+            "action": "search:esc",
+            "helpKeys": qsTr("esc"),
+            "help": qsTr("back out"),
+            "about": qsTr("The result on the right, back to the field, then the words and the results together (any plugin still asking stops), then where you were")
+        }
+    ]
+
     readonly property var entries: [
         // global: routed by MainView wherever the focus is -------------------------
         // #24 (docs/22): the window's second face.
@@ -142,6 +279,22 @@ QtObject {
             "helpKeys": "~",
             "help": qsTr("qBittorrent's log"),
             "about": qsTr("Flip to qBittorrent's log and back; it is read from the server only while it shows")
+        },
+        // #145 (C24 H16, DECISIONS C26 SR14): the window's fourth face, search, from anywhere.
+        {
+            "area": "global",
+            "key": "ctrl+f",
+            "action": "search",
+            "title": qsTr("search…"),
+            "titleOn": qsTr("search again…"),
+            "state": "searchShown",
+            "needs": "search",
+            "label": qsTr("search"),
+            "column": "view",
+            "rank": 0,
+            "helpKeys": "ctrl+f",
+            "help": qsTr("search plugins"),
+            "about": qsTr("Search through the server's own search plugins; the field focused, the last words selected")
         },
         // console: MainView routes these while the seed console is on show (#24)
         {
@@ -301,6 +454,34 @@ QtObject {
             "help": qsTr("add"),
             "about": qsTr("Add a torrent: magnet, file or URL")
         },
+        // #146 (C24 H17, DECISIONS C27 CR1): create a torrent from a folder, from anywhere; `:`
+        // also offers the folder picked in the rail. Not on a server that can't create.
+        {
+            "area": "global",
+            "key": "ctrl+n",
+            "action": "create",
+            "title": qsTr("create torrent…"),
+            "needs": "create",
+            "label": qsTr("create"),
+            "column": "act",
+            "rank": 1,
+            "helpKeys": "ctrl+n",
+            "help": qsTr("create a torrent"),
+            "about": qsTr("Make a torrent from a folder on the server: it seeds from where it is, or is saved for a private tracker")
+        },
+        {
+            "area": "global",
+            "key": "",
+            "via": ":",
+            "action": "createFromFolder",
+            "title": qsTr("create torrent from the folder…"),
+            "needs": "createFolder",
+            "label": qsTr("create"),
+            "column": "",
+            "rank": 0,
+            "helpKeys": "",
+            "help": ""
+        },
         {
             "area": "global",
             "key": "s",
@@ -356,7 +537,7 @@ QtObject {
             "rank": 2.5,
             "helpKeys": "ctrl+s",
             "help": qsTr("switch server"),
-            "about": qsTr("Switch to another server; the hero's server line and the rail's servers do too"),
+            "about": qsTr("Switch to another server; the status line's server and the rail's servers do too"),
             "aboutOne": qsTr("Switch server, with two servers or more")
         },
         // `ctrl+,` is where the rest of the desktop keeps settings (GTK, macOS, VS Code,
@@ -386,13 +567,14 @@ QtObject {
             "help": qsTr("qBittorrent settings"),
             "about": qsTr("Settings, open on the server's own: speed, discovery, port, seeding, queue…")
         },
-        // docs/08 §5: hide or show the rail (the sidebar key of most editors).
+        // docs/08 §5: fold the rail to its glyphs or open it (#167 assumed 4; the sidebar key
+        // of most editors).
         {
             "area": "global",
             "key": "ctrl+b",
             "action": "toggleRail",
-            "title": qsTr("show the rail"),
-            "titleOn": qsTr("hide the rail"),
+            "title": qsTr("open the rail"),
+            "titleOn": qsTr("fold the rail"),
             "state": "railShown",
             "needs": "",
             "label": qsTr("rail"),
@@ -400,19 +582,20 @@ QtObject {
             "rank": 5,
             "helpKeys": "ctrl+b",
             "help": qsTr("rail"),
-            "about": qsTr("Hide or show the rail")
+            "about": qsTr("Fold the rail to its glyphs, or open it")
         },
-        // The hero's ⋯ menu (docs/08 §3).
+        // The window's menu (docs/08 §3), under the rail's mark since the hero's ⋯ went (C24
+        // H9); S6 makes it the app menu.
         {
             "area": "global",
             "key": "ctrl+.",
-            "action": "more",
-            "label": qsTr("more"),
+            "action": "appMenu",
+            "label": qsTr("omaseed menu"),
             "column": "app",
             "rank": 3,
             "helpKeys": "ctrl+.",
-            "help": qsTr("more actions"),
-            "about": qsTr("The ⋯ menu: speed limits, columns, select all")
+            "help": qsTr("omaseed menu"),
+            "about": qsTr("The mark's menu: servers, alternative limits, pause or resume torrents, add, settings, this window's keys, quit")
         },
         {
             "area": "global",
@@ -518,12 +701,12 @@ QtObject {
             "helpKeys": "",
             "help": ""
         },
-        // docs/30 D3: the ⋯ menu's two limit sheets have no key; the palette lists them with
-        // the path to them.
+        // docs/30 D3: the two limit sheets have no key. The ⋯ menu that held them went with
+        // the app menu (DECISIONS C24 H9), so the palette is their one way in.
         {
             "area": "global",
             "key": "",
-            "via": "ctrl+.",
+            "via": ":",
             "action": "globalLimits",
             "title": qsTr("speed limits…"),
             "needs": "",
@@ -533,10 +716,50 @@ QtObject {
             "helpKeys": "",
             "help": ""
         },
+        // DECISIONS C24 H3–H4: the display tool's three rows; no key (#168 assumed 8).
         {
             "area": "global",
             "key": "",
-            "via": "ctrl+.",
+            "via": ":",
+            "action": "displayRows",
+            "title": qsTr("show as rows"),
+            "needs": "",
+            "label": qsTr("rows"),
+            "column": "",
+            "rank": 0,
+            "helpKeys": "",
+            "help": ""
+        },
+        {
+            "area": "global",
+            "key": "",
+            "via": ":",
+            "action": "displayTable",
+            "title": qsTr("show as table"),
+            "needs": "",
+            "label": qsTr("table"),
+            "column": "",
+            "rank": 0,
+            "helpKeys": "",
+            "help": ""
+        },
+        {
+            "area": "global",
+            "key": "",
+            "via": ":",
+            "action": "displaySpace",
+            "title": qsTr("show as space"),
+            "needs": "",
+            "label": qsTr("space"),
+            "column": "",
+            "rank": 0,
+            "helpKeys": "",
+            "help": ""
+        },
+        {
+            "area": "global",
+            "key": "",
+            "via": ":",
             "action": "altLimits",
             "title": qsTr("alt-speed limits…"),
             "needs": "",
@@ -998,7 +1221,7 @@ QtObject {
             "help": qsTr("open folder"),
             "about": qsTr("Open the cursor row's folder in the file manager")
         },
-        // docs/32 D3 (#55): the failure block's `x`, while the pane shows it on General. A
+        // docs/32 D3 (#55): the failure block's `x`, while the pane shows it on the story. A
         // gesture on that block rather than a command: no title, no palette row.
         {
             "area": "table",
@@ -1135,16 +1358,16 @@ QtObject {
         },
         {
             "area": "global", // handled by the window from the table, rail and details alike
-            // Fig. 26 prints 0–9, but the rail has nine status rows, 0 (all) to 8 (errored),
-            // so `9` does nothing; the sheet prints the keys that work (batch-2 S1, REVIEW §9).
-            "key": "0–8",
-            "action": "statusFilter",
-            "label": qsTr("status"),
+            // DECISIONS C24 H2: the rail's five questions, and 0 the library; 6–9 do nothing.
+            // Every state stays in the filter (`is:stalled`) and the palette.
+            "key": "1–5",
+            "action": "question",
+            "label": qsTr("question"),
             "column": "navigate",
             "rank": 5,
-            "helpKeys": "0–8",
-            "help": qsTr("status filter"),
-            "about": qsTr("Filter by status: 0 all, 1 downloading, 2 seeding…")
+            "helpKeys": "1–5 0",
+            "help": qsTr("questions · library"),
+            "about": qsTr("1 needs you, 2 arriving, 3 landed today, 4 giving back, 5 resting; 0 the library. Type is:stalled in the filter for any other state")
         },
 
         // details (spec §2 Fig. 2-4 add the file/tracker/peer keys) -------------------
@@ -1190,14 +1413,14 @@ QtObject {
         },
         {
             "area": "details",
-            "key": "1–4",
+            "key": "1–5",
             "action": "detailsTab",
             "label": qsTr("tab"),
             "column": "view",
             "rank": 2,
-            "helpKeys": "1–4",
+            "helpKeys": "1–5",
             "help": qsTr("details tab"),
-            "about": qsTr("In the details: general, files, trackers, peers tab, and 5 for HTTP sources when the torrent has any; 0 and 5–8 pick a status otherwise")
+            "about": qsTr("In the details: the story, files, swarm, trackers, facts tab, and 6 for web seeds when the torrent has any; elsewhere 1–5 pick a question")
         },
         {
             "area": "details",
@@ -1247,8 +1470,8 @@ QtObject {
             "helpKeys": "",
             "help": ""
         },
-        // docs/12 G5/G4: the sheet row for the details pane's `y`, which General's rows share,
-        // and General's `enter` on an option row.
+        // docs/12 G5/G4: the sheet row for the details pane's `y`, which facts' rows share,
+        // and facts' `enter` on an option row (General's until DECISIONS C24 H6).
         {
             "area": "details",
             "key": "y",
@@ -1260,7 +1483,7 @@ QtObject {
             "rank": 12,
             "helpKeys": "y enter",
             "help": qsTr("copy value · change option"),
-            "about": qsTr("In the details: copy the row under the cursor; in General, its whole value (the full hash or magnet). enter turns a General option on or off; a click does either")
+            "about": qsTr("In the details: copy the row under the cursor; in facts, its whole value (the full hash or magnet). enter turns a facts option on or off; a click does either")
         },
         {
             "area": "details",
@@ -1744,6 +1967,22 @@ QtObject {
             "help": qsTr("hide skipped files"),
             "about": qsTr("In the Files tab: hide the files set to skip, or show them again")
         },
+        // Board 44 F1 (DECISIONS C17 D3, #160): shift+f, the band's "Free the space…". The
+        // palette offers it only on a torrent whose skipped files hold space here; C30 F13:
+        // when only adding it again frees them, it says so (commandRows' `readdText`).
+        {
+            "area": "details",
+            "key": "F",
+            "action": "freeSpace",
+            "titles": {"files": qsTr("free the space…")},
+            "needs": "freeable",
+            "label": qsTr("free the space"),
+            "column": "act",
+            "rank": 11.5,
+            "helpKeys": "F",
+            "help": qsTr("free the space, or add it again"),
+            "about": qsTr("In the files tab: free the space, or add it again. Deletes the skipped files that still hold space on this machine's disk, when omaseed can see it; on a hybrid or v2 torrent whose skipped files hold downloaded pieces, only adding it again frees them")
+        },
 
         // the log face (docs/32 §6, D10–D13): LogView takes these while it is on show. The
         // levels have one key each for the palette, and one row for the footer and the sheet.
@@ -1986,6 +2225,20 @@ QtObject {
             "helpKeys": "",
             "help": ""
         },
+        // Board 51 D5 a: the title bar's "export log…", which has no key.
+        {
+            "area": "log",
+            "key": "",
+            "via": ":",
+            "action": "logExport",
+            "title": qsTr("export log…"),
+            "needs": "",
+            "label": qsTr("export"),
+            "column": "",
+            "rank": 0,
+            "helpKeys": "",
+            "help": ""
+        },
 
         // search field ---------------------------------------------------------------
         {
@@ -2051,13 +2304,14 @@ QtObject {
         {
             "group": "library",
             "word": qsTr("library"),
-            "actions": ["add", "filter", "jump", "sort", "undoLastMove"]
+            "actions": ["add", "create", "createFromFolder", "filter", "jump", "sort", "undoLastMove"]
         },
         {
             "group": "view",
             "word": qsTr("view"),
-            "actions": ["columns", "toggleDetails", "cycleDetailsPlacement", "toggleRail",
-                "toggleConsole", "toggleLog", "detailsSmaller", "detailsLarger"]
+            "actions": ["displayRows", "displayTable", "displaySpace", "columns", "toggleDetails",
+                "cycleDetailsPlacement", "toggleRail",
+                "toggleConsole", "toggleLog", "search", "detailsSmaller", "detailsLarger"]
         },
         {
             "group": "speed",
@@ -2075,7 +2329,7 @@ QtObject {
             "word": qsTr("files"),
             "actions": ["priorityMenu", "raisePriority", "lowerPriority", "skipFile", "openFile",
                 "revealFile", "renameFile", "copyLocalPath", "copyFileName", "sortFiles", "filterFiles",
-                "selectAllFiles", "collapseAll", "expandAll", "hideSkipped"]
+                "selectAllFiles", "collapseAll", "expandAll", "hideSkipped", "freeSpace"]
         },
         {
             "group": "trackers",
@@ -2086,13 +2340,13 @@ QtObject {
         {
             "group": "peers",
             "area": "peers",
-            "word": qsTr("peers"),
+            "word": qsTr("swarm"),
             "actions": ["addRow", "ban", "copy"]
         },
         {
             "group": "webseeds",
             "area": "webseeds",
-            "word": qsTr("HTTP sources"),
+            "word": qsTr("web seeds"),
             "actions": ["addRow", "removeRow", "copy"]
         },
         {
@@ -2107,7 +2361,7 @@ QtObject {
             "word": qsTr("log"),
             "actions": ["logFilter", "logNormal", "logInfo", "logWarning", "logCritical", "logNewest",
                 "logNextProblem", "logPreviousProblem", "logFollow", "logMarkAll", "logCopy",
-                "logShowTorrent", "logTorrent", "logEscape"]
+                "logShowTorrent", "logTorrent", "logEscape", "logExport"]
         }
     ]
 
@@ -2117,8 +2371,18 @@ QtObject {
     /// run too (`isOffline()`).
     readonly property var offlineActions: ["settings", "help", "hide", "quit", "commands", "switchServer"]
 
+    /// C26 SR14: the palette's second no-match row, "search plugins for ‘…’", its action
+    /// "searchFor:<text>".
+    readonly property string searchForPrefix: "searchFor:"
+
     /// docs/33 D4: one "switch to NAME" row per other server, its action "switchTo:<id>".
     readonly property string switchToPrefix: "switchTo:"
+    /// DECISIONS C24 H2: one "show STATE…" row per state the rail no longer lists, its action
+    /// "showState:<word>"; the window types `is:<word>` into the filter.
+    readonly property string showStatePrefix: "showState:"
+    /// The words `is:` takes (TorrentFilterModel::isWords()).
+    readonly property var stateWords: ["downloading", "seeding", "completed", "stopped", "active",
+        "stalled", "checking", "errored"]
 
     // ---- what the server can do (docs/36 §4.3, DECISIONS C14 E4) -------------------------
     // An action whose engine feature is off is hidden wherever it would be offered: the
@@ -2229,6 +2493,8 @@ QtObject {
             return ctx.lastMove.canBack === true ? "" : qsTr("moved again since: nothing to move back");
         case "details":
             return states.detailsShown === true ? "" : qsTr("details hidden · i shows them");
+        case "freeable":
+            return ctx.freeable === true ? "" : qsTr("no skipped file holds space here");
         case "marked":
         case "row":
         case "rows":
@@ -2316,8 +2582,8 @@ QtObject {
     /// the focused area's own commands when it is not the table (P5), the last ones run
     /// (D7), the rest in the `?` sheet's order, then every row that can't run (D4).
     ///
-    /// `context` is plain data: `{area: "table" | "rail" | "general" | "files" | "trackers" |
-    /// "peers" | "webseeds" | "console" | "log", selected: 2, cursor: "<the cursor torrent's name>",
+    /// `context` is plain data: `{area: "table" | "rail" | "story" | "files" | "peers" |
+    /// "trackers" | "facts" | "webseeds" | "console" | "log", selected: 2, cursor: "<the cursor torrent's name>",
     /// stopped: 0, running: 2, errored: 0 (of the targets), firstStopped: false (`p` starts),
     /// marked: 3, row: "<the focused tab's cursor row>", rowIsFolder: false,
     /// serverLost: false, recent: ["stop", …], altKind: "burst" (docs/31, A's words),
@@ -2351,10 +2617,35 @@ QtObject {
                 // DECISIONS C20: "retry" only while a target is in error.
                 if (found.needs === "errored" && (ctx.errored || 0) === 0)
                     continue;
-                // D4: the per-server rows follow "switch server…".
-                const servers = found.action === "switchServer" ? root.serverRows(ctx, group) : [];
-                const entry = root.worded(found, ctx.altKind);
+                // C25 K30: no search where it can't be offered.
+                if (found.needs === "search" && ctx.searchOffered === false)
+                    continue;
+                // #146 (C27): no create where the server can't, and "create torrent from NAME…"
+                // only while a folder is picked in the rail.
+                if ((found.needs === "create" || found.needs === "createFolder") && ctx.createOffered === false)
+                    continue;
+                if (found.needs === "createFolder" && (ctx.createFolder || "").length === 0)
+                    continue;
+                // #160 (C17 D3): "free the space…" only while skipped files hold space here.
+                if (found.needs === "freeable" && ctx.freeable !== true)
+                    continue;
+                let entry = root.worded(found, ctx.altKind);
+                if (found.action === "createFromFolder")
+                    entry = Object.assign({}, entry, {
+                                              "title": qsTr("create torrent from %1…").arg(ctx.createFolder.replace(/\/+$/, "").split("/").pop())
+                                          });
+                // DECISIONS C30 F13: only adding it again frees this torrent's skipped files.
+                if (found.action === "freeSpace" && (ctx.readdText || "").length > 0)
+                    entry = Object.assign({}, entry, {
+                                              "titles": {
+                                                  "files": qsTr("add it again to free %1…").arg(ctx.readdText)
+                                              }
+                                          });
                 const row = root._commandRow(entry, group, ctx);
+                // D4: the per-server rows follow "switch server…"; C24 H2: the states' rows
+                // follow "filter", while it can run.
+                const servers = found.action === "switchServer" ? root.serverRows(ctx, group) :
+                                found.action === "filter" && !row.disabled ? root.stateRows(ctx, group) : [];
                 if (row.disabled)
                     off.push(row);
                 else if (group.area !== undefined)
@@ -2403,8 +2694,25 @@ QtObject {
         return rows;
     }
 
+    /// DECISIONS C24 H2: "show stalled…" and the like, one per `is:` word, after "filter".
+    function stateRows(context: var, group: var): var {
+        const ctx = context || {};
+        return root.stateWords.map(word => ({
+                                                "action": root.showStatePrefix + word,
+                                                "key": root.showStatePrefix + word,
+                                                "title": qsTr("show %1…").arg(word),
+                                                "meta": "",
+                                                "via": "",
+                                                "detail": [group.word, "is:" + word].join(" · "),
+                                                "disabled": false,
+                                                "group": group.group,
+                                                "word": group.word,
+                                                "recent": (ctx.recent || []).indexOf(root.showStatePrefix + word)
+                                            }));
+    }
+
     /// `label` of (area, key), falling back to the global entry and then to the key itself,
-    /// so `HintModel` never has to repeat a word the map already holds.
+    /// so a caller never has to repeat a word the map already holds.
     function labelOf(area, key) {
         const own = root.find(area, key);
         if (own)

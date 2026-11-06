@@ -29,6 +29,13 @@ TestCase {
     }
 
     Component {
+        id: spyComponent
+
+        SignalSpy {
+        }
+    }
+
+    Component {
         id: serverActivatedSpy
 
         SignalSpy {
@@ -50,29 +57,56 @@ TestCase {
     function init() {
         App.loadDemo(16);
         App.filtered.statusFilter = TorrentFilterModel.All;
+        App.filtered.question = TorrentFilterModel.AnyQuestion;
         App.filtered.clearCategory();
         App.filtered.clearTag();
         App.filtered.clearTracker();
     }
 
     function cleanup() {
+        testCase.width = 400;
+        TestTheme.setBaseSize(0); // qmllint disable unqualified
         // Leave no server behind: App is a singleton shared with every other test file.
         while (App.serverList.count > 0)
             App.serverList.remove(App.serverList.idAt(0));
     }
 
-    function test_status_group_has_nine_rows_with_the_demo_counts() {
+    // DECISIONS C24 H2: the views on top, pinned, then "now", the five questions with their
+    // counts, in the rail's order, which is the keys'.
+    function test_the_views_and_the_five_questions_with_the_demo_counts() {
         const rail = createTemporaryObject(railComponent, testCase);
-        compare(rail.statusRowCount, 9);
-        compare(rail.statusRows[0].count, App.counts.total);
-        compare(rail.statusRows[1].count, App.counts.downloading);
-        compare(rail.statusRows[2].count, App.counts.seeding);
-        compare(rail.statusRows[3].count, App.counts.completed);
-        compare(rail.statusRows[4].count, App.counts.stopped);
-        compare(rail.statusRows[5].count, App.counts.active);
-        compare(rail.statusRows[6].count, App.counts.stalled);
-        compare(rail.statusRows[7].count, App.counts.checking);
-        compare(rail.statusRows[8].count, App.counts.errored);
+        compare(rail.viewRows.map(row => row.key), ["library", "seed", "log"]);
+        compare(rail.viewsBase, 0);
+        compare(rail.statusBase, 3);
+        for (let i = 0; i < 3; ++i)
+            verify(rail._rowMap[i].item.pinned === true);
+        compare(rail._rowMap[0].item.count, App.counts.total);
+        compare(rail.statusRowCount, 5);
+        compare(rail.questionRows.map(row => row.text), ["needs you", "arriving", "landed today",
+                                                         "giving back", "resting"]);
+        compare(rail.questionRows.map(row => row.question), [TorrentFilterModel.NeedsYou,
+                                                             TorrentFilterModel.Arriving,
+                                                             TorrentFilterModel.LandedToday,
+                                                             TorrentFilterModel.GivingBack,
+                                                             TorrentFilterModel.Resting]);
+        compare(rail.questionRows[0].count, App.counts.needsYou);
+        compare(rail.questionRows[1].count, App.counts.arriving);
+        compare(rail.questionRows[2].count, App.counts.landedToday);
+        compare(rail.questionRows[3].count, App.counts.givingBack);
+        compare(rail.questionRows[4].count, App.counts.resting);
+        compare(rail.questionRows.reduce((sum, row) => sum + row.count, 0), App.counts.total);
+        compare(findChild(rail, "now").label, "now");
+    }
+
+    // Board 46 `.ri.needs`: needs you is red while it counts something.
+    function test_needs_you_is_red_while_something_needs_you() {
+        const rail = createTemporaryObject(railComponent, testCase);
+        const row = findChild(rail, "railQuestion-needsYou");
+        verify(App.counts.needsYou > 0, "the demo has an errored torrent");
+        compare(row.glyphColor, Theme.red);
+        compare(row.countColor, Theme.red);
+        const resting = findChild(rail, "railQuestion-resting");
+        compare(resting.countColor, Theme.dimForeground);
     }
 
     function test_categories_group_lists_all_named_categories_plus_all_and_none() {
@@ -98,27 +132,30 @@ TestCase {
         }
     }
 
-    function test_selecting_downloading_narrows_the_filtered_count() {
+    function test_selecting_arriving_narrows_the_filtered_count() {
         const rail = createTemporaryObject(railComponent, testCase);
         const before = App.filtered.count;
-        rail.selectStatus(1); // downloading
-        compare(App.filtered.statusFilter, TorrentFilterModel.Downloading);
+        rail.selectQuestion(TorrentFilterModel.Arriving);
+        compare(App.filtered.question, TorrentFilterModel.Arriving);
         verify(App.filtered.count < before);
-        compare(App.filtered.count, App.counts.downloading);
+        compare(App.filtered.count, App.counts.arriving);
     }
 
     // docs/08 §5 (REVIEW §9): a group with no filter draws its "all" row selected, so every
     // group always shows its answer. The spec's RAIL array never selected "all".
+    // C24 H2: the questions have no "all" row; the library view is lit while nothing narrows
+    // it. The other groups still draw their "all" row selected (docs/08 §5).
     function test_all_rows_are_selected_while_their_group_has_no_filter() {
         const rail = createTemporaryObject(railComponent, testCase);
 
-        compare(rail._rowMap[rail.statusBase].item.selected, true); // status "all"
+        compare(rail._rowMap[rail.viewsBase].item.current, true); // the library
+        compare(rail._rowMap[rail.statusBase].item.selected, false);
         compare(rail._rowMap[rail.categoriesBase].item.selected, true);
         compare(rail._rowMap[rail.tagsBase].item.selected, true);
         compare(rail._rowMap[rail.trackersBase].item.selected, true);
 
-        rail.selectStatus(1); // downloading
-        compare(rail._rowMap[rail.statusBase].item.selected, false);
+        rail.selectQuestion(TorrentFilterModel.Arriving);
+        compare(rail._rowMap[rail.viewsBase].item.current, false);
         compare(rail._rowMap[rail.statusBase + 1].item.selected, true);
 
         rail._rowMap[rail.categoriesBase + 2].select(); // movies
@@ -127,9 +164,9 @@ TestCase {
         // The other groups still have no filter.
         compare(rail._rowMap[rail.tagsBase].item.selected, true);
 
-        rail.selectStatus(0);
-        compare(rail._rowMap[rail.statusBase].item.selected, true);
-        App.filtered.clearCategory();
+        rail.selectQuestion(TorrentFilterModel.AnyQuestion);
+        compare(rail._rowMap[rail.viewsBase].item.current, true);
+        compare(rail._rowMap[rail.statusBase + 1].item.selected, false);
         compare(rail._rowMap[rail.categoriesBase].item.selected, true);
     }
 
@@ -151,6 +188,63 @@ TestCase {
         compare(heading.Accessible.description, "folded");
         heading.Accessible.pressAction();
         compare(rail.collapsedGroups, []);
+    }
+
+    // #187: an open group's heading is no cursor stop, so it paints nothing at rest, with or
+    // without the keys; a folded one shows the cursor only while the rail has the keys and the
+    // cursor is on it.
+    function test_headings_at_rest_paint_no_fill() {
+        const rail = createTemporaryObject(railComponent, testCase);
+        const names = ["now", "categories", "tags", "trackers"];
+        function verifyAtRest(why) {
+            for (const name of names) {
+                const group = findChild(rail, name);
+                verify(group !== null, name);
+                compare(group.hasCursor, false, name + ", " + why);
+                verify(group.ink.ground === group.block, name + " sits on a fill, " + why);
+                compare(group.header.color, Qt.color("transparent"), name + ", " + why);
+            }
+        }
+        verifyAtRest("without the keys");
+
+        rail.cursorIndex = rail.categoriesBase + 1;
+        rail.forceActiveFocus();
+        verify(rail.activeFocus);
+        verifyAtRest("with the cursor on a row");
+
+        rail.collapsedGroups = ["categories"];
+        rail.cursorIndex = rail.categoriesBase;
+        const categories = findChild(rail, "categories");
+        compare(categories.hasCursor, true);
+        verify(categories.ink.ground !== categories.block, "the cursor's heading has no fill");
+        rail.focus = false;
+        compare(categories.hasCursor, false);
+    }
+
+    // #184: the "N below" hint recounts when the rows move without a scroll. A rail that holds
+    // every row at base 12 overflows at 20, and once back at 12 has nothing below again (it
+    // said "2 below" with nothing there).
+    function test_the_hint_recounts_after_a_base_size_change() {
+        const rail = createTemporaryObject(railComponent, testCase);
+        const flick = findChild(rail, "railScroll");
+        verify(flick !== null);
+        waitForRendering(testCase);
+        rail.height += flick.contentHeight + Theme.space(4) - flick.height;
+        waitForRendering(testCase);
+        verify(flick.contentHeight <= flick.height);
+        compare(rail.rowsBelow, 0);
+
+        TestTheme.setBaseSize(20); // qmllint disable unqualified
+        waitForRendering(testCase);
+        verify(flick.contentHeight > flick.height, "nothing to scroll at base 20");
+        verify(rail.rowsBelow > 0, "nothing counted below at base 20");
+        compare(rail.rowsBelow, rail._countOutside(false));
+
+        TestTheme.setBaseSize(0); // qmllint disable unqualified
+        waitForRendering(testCase);
+        compare(rail._countOutside(false), 0);
+        compare(rail.rowsBelow, 0);
+        compare(rail.rowsAbove, 0);
     }
 
     // docs/08 §5: a folded group hides its rows and leaves one cursor stop, its heading;
@@ -206,12 +300,79 @@ TestCase {
         compare(App.filtered.category, "movies");
     }
 
-    function test_select_status_zero_restores_all() {
-        const rail = createTemporaryObject(railComponent, testCase);
-        rail.selectStatus(1);
-        compare(App.filtered.statusFilter, TorrentFilterModel.Downloading);
-        rail.selectStatus(0);
-        compare(App.filtered.statusFilter, TorrentFilterModel.All);
+    // C24 H2 (#167 assumed 2): 0 and the library row are every torrent: each filter the
+    // rail sets goes, and the host is asked for the library's face.
+    function test_the_library_clears_what_the_rail_narrows() {
+        const rail = createTemporaryObject(railComponent, testCase, {
+                                               "view": "seed"
+                                           });
+        const picked = [];
+        rail.viewPicked.connect(view => picked.push(view));
+        rail.selectQuestion(TorrentFilterModel.Resting);
+        App.filtered.category = "movies";
+        App.filtered.tag = "";
+        rail.selectQuestion(0);
+        compare(App.filtered.question, TorrentFilterModel.AnyQuestion);
+        compare(App.filtered.category, undefined);
+        compare(App.filtered.tag, undefined);
+        compare(picked, ["library"]);
+        // The other views only ask for their face.
+        rail._rowMap[1].select();
+        rail._rowMap[2].select();
+        compare(picked, ["library", "seed", "log"]);
+        verify(findChild(rail, "railView-seed").current);
+    }
+
+    // The mark asks for the app's menu, as ctrl+. does, and names itself.
+    function test_the_mark_asks_for_the_menu() {
+        const rail = createTemporaryObject(railComponent, testCase, {
+                                               "headHeight": 61
+                                           });
+        const mark = findChild(rail, "railMark");
+        compare(mark.height, 61);
+        compare(mark.Accessible.name, "omaseed menu");
+        compare(mark.Accessible.role, Accessible.Button);
+        let clicks = 0;
+        rail.markClicked.connect(() => clicks++);
+        mark.Accessible.pressAction();
+        compare(clicks, 1);
+    }
+
+    // #167 assumed 4: folded, the rail is its glyphs: the mark, the views, the questions, one
+    // row for the other groups (which unfolds it), the servers' dots; nothing else takes a stop.
+    function test_the_folded_rail_keeps_the_views_and_questions() {
+        const rail = railWithServers(["public", "private"], {
+                                         "compact": true
+                                     });
+        compare(rail.width, Theme.railFoldedWidth);
+        compare(rail.statusBase, 3);
+        compare(rail.groupsRowBase, 8);
+        compare(rail.categoriesSpan, 0);
+        compare(rail.trackersSpan, 0);
+        compare(rail.serversBase, 9);
+        compare(rail.totalRowCount, 11);
+        for (let i = 0; i < rail.totalRowCount; ++i)
+            verify(rail._rowMap[i] !== undefined, "no stop at " + i);
+        verify(rail._rowMap[4].item.compact);
+        compare(rail._rowMap[4].item.text, "arriving");
+        compare(rail._rowMap[8].item.objectName, "railGroupsRow");
+        compare(rail._rowMap[9].item.text, "public");
+        verify(!findChild(rail, "categories").visible);
+        let unfolds = 0;
+        rail.unfoldRequested.connect(() => unfolds++);
+        rail.cursorIndex = 8;
+        rail.selectCursor();
+        compare(unfolds, 1);
+        // Digits still pick, j/k still walk.
+        rail.selectQuestion(TorrentFilterModel.LandedToday);
+        verify(rail._rowMap[5].item.selected);
+    }
+
+    // The servers' rows say the name and the address on hover; engines' K12 adds the engine.
+    function test_a_server_rows_tooltip_names_it_and_its_address() {
+        const rail = railWithServers(["public", "private"]);
+        const tip = rail.serverTipText(0);
+        verify(tip.startsWith("public · ") && tip.indexOf("10.99.0.10:8080") > 0, tip);
     }
 
     function test_move_cursor_clamps_at_both_ends() {
@@ -233,15 +394,15 @@ TestCase {
         compare(App.filtered.category, undefined);
     }
 
-    function test_key_2_selects_seeding() {
+    function test_key_4_selects_giving_back() {
         const rail = createTemporaryObject(railComponent, testCase);
         rail.forceActiveFocus();
         if (!rail.activeFocus) {
             skip("rail did not take active focus in this environment");
             return;
         }
-        keyClick(Qt.Key_2);
-        if (App.filtered.statusFilter !== TorrentFilterModel.Seeding) {
+        keyClick(Qt.Key_4);
+        if (App.filtered.question !== TorrentFilterModel.GivingBack) {
             // Known offscreen-qmltestrunner limitation (see tst_Toggle.qml's Key_Space case,
             // which does work): key delivery to a plain Item with Keys.onPressed sometimes
             // does not reach the item in this harness. Logged rather than failed so it does
@@ -249,7 +410,12 @@ TestCase {
             skip("keyClick did not reach Rail's Keys.onPressed in this environment");
             return;
         }
-        compare(App.filtered.statusFilter, TorrentFilterModel.Seeding);
+        compare(App.filtered.question, TorrentFilterModel.GivingBack);
+        // 6–9 do nothing (C24 H2).
+        keyClick(Qt.Key_7);
+        compare(App.filtered.question, TorrentFilterModel.GivingBack);
+        keyClick(Qt.Key_0);
+        compare(App.filtered.question, TorrentFilterModel.AnyQuestion);
     }
 
     function test_servers_group_absent_with_one_server() {
@@ -335,9 +501,9 @@ TestCase {
         rail.moveCursor(1);
         compare(rail.cursorIndex, rail.categoriesBase + 3);
 
-        const seeding = rail._rowMap[rail.statusBase + 2].item;
-        mouseClick(seeding, seeding.width / 2, seeding.height / 2);
-        compare(App.filtered.statusFilter, TorrentFilterModel.Seeding);
+        const landed = rail._rowMap[rail.statusBase + 2].item;
+        mouseClick(landed, landed.width / 2, landed.height / 2);
+        compare(App.filtered.question, TorrentFilterModel.LandedToday);
         compare(rail.cursorIndex, rail.statusBase + 2);
     }
 
@@ -412,8 +578,11 @@ TestCase {
 
     function test_width_is_the_spec_column() {
         const rail = createTemporaryObject(railComponent, testCase);
-        compare(rail.width, Theme.space(200));
-        compare(rail.implicitWidth, Theme.space(200));
+        // The skin's rail (#171): Omarchy's is the spec's 200 px.
+        compare(rail.width, Theme.railWidth);
+        compare(rail.implicitWidth, Theme.railWidth);
+        if (Theme.skin.name === "omarchy")
+            compare(rail.width, Theme.space(200));
     }
 
     function test_row_height_is_the_rail_row_height() {
@@ -437,10 +606,15 @@ TestCase {
         const rail = railWithServers(["public", "private"]);
         const block = findChild(rail, "serversBlock");
         verify(block.visible);
-        // At the rail's bottom, whatever the scroll.
-        compare(block.y + block.height, rail.height);
+        // At the rail's bottom over its foot (C32 D1 a), whatever the scroll.
+        compare(block.y + block.height, findChild(rail, "railFoot").y);
         compare(rail._rowMap[rail.serversBase].item.pinned, true);
-        compare(findChild(rail, "serversHeading").label, "servers · 2");
+        // With kana, the head is in two parts: the word, then the count at the right.
+        const heading = findChild(rail, "serversHeading");
+        compare(heading.label, Theme.labelKana ? "servers" : "servers · " + Theme.numeral(2));
+        const count = findChild(heading, "railGroupCount");
+        compare(count.visible, Theme.labelKana);
+        compare(count.text, Theme.numeral(2));
         // #78: a screen reader hears "servers"; the count goes in the description.
         const header = findChild(rail, "serversHeading").header;
         compare(header.Accessible.name, "servers");
@@ -509,11 +683,13 @@ TestCase {
         const rail = railWithServers(["public", "private"], {
                                          "serversOnly": true
                                      });
+        // C24 H2: the views stay, pinned above; the filters take no stop.
         compare(rail.statusSpan, 0);
         compare(rail.trackersSpan, 0);
-        compare(rail.serversBase, 0);
-        compare(rail.totalRowCount, 2);
-        compare(rail._rowMap[0].item.text, "public");
+        compare(rail.serversBase, 3);
+        compare(rail.totalRowCount, 5);
+        compare(rail._rowMap[0].item.text, "library");
+        compare(rail._rowMap[3].item.text, "public");
     }
 
     // D5, docs/35 N3: a row's dot and count say what omaseed saw last; docs/44 D11: a timeout
@@ -529,5 +705,321 @@ TestCase {
         compare(rail._serverCountColor("waiting"), Theme.yellow);
         compare(rail._serverCountColor("!"), Theme.red);
         compare(rail._serverCountColor("4"), Theme.dimForeground);
+    }
+
+    // DECISIONS C24 H10: alt held, the mark, the views and the questions show their keys (0 and
+    // the views' own, 1–5 in the rail's order), the servers' block ctrl+s; folded too. A badge
+    // covers nothing it moves: the counts stay where they were. Their tooltips name the keys.
+    function test_alt_badges_the_rails_keys_and_tooltips_name_them() {
+        const rail = railWithServers(["public", "private"]);
+        const badge = name => findChild(findChild(rail, name), "railRowKey");
+        const arriving = findChild(rail, "railQuestion-arriving");
+        const countRight = arriving.countRight;
+        verify(!findChild(rail, "railMarkKey").visible);
+        verify(!badge("railView-library").visible);
+        rail.keysShown = true;
+        compare(findChild(rail, "railMarkKey").key, "ctrl+.");
+        verify(findChild(rail, "railMarkKey").visible);
+        compare(["railView-library", "railView-seed", "railView-log"].map(name => badge(name).key),
+                ["0", "`", "~"]);
+        compare(["railQuestion-needsYou", "railQuestion-arriving", "railQuestion-landedToday",
+                 "railQuestion-givingBack", "railQuestion-resting"].map(name => badge(name).key),
+                ["1", "2", "3", "4", "5"]);
+        verify(badge("railQuestion-arriving").visible);
+        compare(arriving.countRight, countRight);
+        // Before the count, clear of it.
+        const key = badge("railQuestion-arriving");
+        verify(key.x + key.width <= findChild(arriving, "railRowCount").x);
+        verify(findChild(rail, "serversKey").visible);
+        compare(findChild(rail, "serversKey").key, "ctrl+s");
+        rail.compact = true;
+        verify(badge("railQuestion-arriving").visible);
+        verify(badge("railQuestion-arriving").x + badge("railQuestion-arriving").width <= arriving.width);
+        rail.compact = false;
+
+        rail._keyTip(findChild(rail, "railView-seed"), true);
+        compare(findChild(rail, "railTip").text, "seed · `");
+        rail._keyTip(arriving, true);
+        compare(findChild(rail, "railTip").text, "arriving · 2");
+        rail._markTip(true);
+        compare(findChild(rail, "railTip").text, "omaseed menu · ctrl+.");
+        rail._markTip(false);
+    }
+
+    // #201 F8: a fold heading has room above its words inside its fill and its click, taken
+    // out of the space above the group, so the words stay where they were.
+    function test_a_heading_has_room_above_its_words() {
+        const rail = createTemporaryObject(railComponent, testCase, {
+                                               "height": 900
+                                           });
+        const now = findChild(rail, "now");
+        const categories = findChild(rail, "categories");
+        verify(now.headPadding > 0);
+        tryCompare(now, "y", Theme.space(10) - now.headPadding);
+        compare(categories.y + categories.headPadding - (now.y + now.height), Theme.space(14));
+        compare(now.header.height, now.headPadding + categories.header.height - categories.headPadding);
+        // The click covers the room too.
+        const area = now.header.children[now.header.children.length - 1];
+        compare(area.height, now.header.height);
+        // Folded, the rail has no headings and keeps its spacing.
+        rail.compact = true;
+        tryCompare(now, "y", Theme.space(10));
+    }
+
+    // #201 F10: ctrl+b folds the rail around the mark: its glyph stays where it was.
+    function test_the_mark_stays_put_when_the_rail_folds() {
+        const rail = createTemporaryObject(railComponent, testCase, {
+                                               "height": 900
+                                           });
+        const glyph = findChild(rail, "railMarkGlyph");
+        const open = glyph.mapToItem(rail, 0, 0);
+        rail.compact = true;
+        waitForRendering(rail);
+        const folded = glyph.mapToItem(rail, 0, 0);
+        compare(folded.x, open.x);
+        compare(folded.y, open.y);
+        verify(folded.x + glyph.width < rail.width, "the folded rail cut the mark");
+    }
+
+    // #201 F6: the servers block's rows meet its hairline: the heading's fill and the folded
+    // line's start at the block's top, the words where they were.
+    function test_the_servers_rows_fill_from_the_hairline() {
+        const rail = railWithServers(["public", "private"]);
+        const block = findChild(rail, "serversBlock");
+        const heading = findChild(rail, "serversHeading");
+        waitForPolish(block);
+        compare(heading.mapToItem(block, 0, 0).y, 0);
+        compare(heading.headPadding, Theme.space(6));
+        const first = rail._rowMap[rail.serversBase].item;
+        tryVerify(() => first.mapToItem(block, 0, 0).y === heading.header.height, 1000,
+                  "the first row is at %1".arg(first.mapToItem(block, 0, 0).y));
+        compare(block.height, heading.header.height + 2 * Theme.railRowHeight + Theme.space(6));
+
+        rail.serversFolded = true;
+        const line = findChild(rail, "serversFoldedLine");
+        verify(line.visible);
+        tryCompare(line, "height", block.height);
+        compare(line.mapToItem(block, 0, 0).y, 0);
+    }
+
+    // #201 F7: the rail's tip is on the window's content item, over the servers block and
+    // whatever a name wider than the rail runs over.
+    function test_the_rails_tip_is_over_the_window() {
+        const rail = railWithServers(["public", "a server with a name far wider than the rail"]);
+        const tip = findChild(rail, "railTip");
+        verify(tip.parent === rail.Window.window.contentItem, "the tip is on %1".arg(tip.parent));
+        verify(tip.z > findChild(rail, "serversBlock").z);
+        const row = rail._rowMap[rail.serversBase + 1].item;
+        row.hoverChanged(true);
+        tryCompare(tip, "shown", true);
+        compare(tip.text, "a server with a name far wider than the rail · 10.99.0.11:8080");
+        row.hoverChanged(false);
+        compare(tip.shown, false);
+    }
+
+    // #201 F11: ctrl+b while a tip shows takes it down, and leaving the row after takes down
+    // whichever tip is up.
+    function test_folding_the_rail_takes_its_tip_down() {
+        const rail = createTemporaryObject(railComponent, testCase, {
+                                               "height": 900
+                                           });
+        const tip = findChild(rail, "railTip");
+        const compactTip = findChild(rail, "railCompactTip");
+        rail._markTip(true);
+        tryCompare(tip, "shown", true);
+        rail.compact = true;
+        compare(tip.shown, false);
+        rail._markTip(true);
+        tryCompare(compactTip, "shown", true);
+        rail.compact = false;
+        compare(compactTip.shown, false);
+
+        // A tip that came up the other way round still goes when the pointer leaves.
+        const search = findChild(rail, "railView-seed");
+        rail._keyTip(search, true);
+        tryCompare(tip, "shown", true);
+        rail.compact = true;
+        rail._keyTip(search, true);
+        tryCompare(compactTip, "shown", true);
+        tip.showAt(0, 0, "left up by hand");
+        rail._keyTip(search, false);
+        compare(tip.shown, false);
+        compare(compactTip.shown, false);
+    }
+
+    // DECISIONS C32 D3 a: the edge drags the open width between 160 and 360; let go under 120
+    // it asks to fold; a double-click asks for the default; the width shows while dragging.
+    function test_the_edge_drags_the_width_and_folds_under_120() {
+        testCase.width = 900;
+        const rail = createTemporaryObject(railComponent, testCase, {
+                                               "height": 600
+                                           });
+        const chosen = createTemporaryObject(spyComponent, testCase, {
+                                                 "target": rail,
+                                                 "signalName": "widthChosen"
+                                             });
+        const folds = createTemporaryObject(spyComponent, testCase, {
+                                                "target": rail,
+                                                "signalName": "foldDragged"
+                                            });
+        const edge = findChild(rail, "railEdge");
+        const tip = findChild(rail, "railWidthTip");
+        compare(rail.width, Theme.railWidth);
+        const y = edge.y + edge.height / 2;
+        const at = rail.width - Theme.space(3);
+        mousePress(rail, at, y);
+        mouseMove(rail, at + 20, y);
+        mouseMove(rail, at + 60, y);
+        verify(rail.resizing);
+        verify(tip.visible);
+        compare(rail.width, Theme.railWidth + 60);
+        // Never past the bounds while dragging.
+        mouseMove(rail, rail.maximumOpenWidth + 40, y);
+        compare(rail.width, rail.maximumOpenWidth);
+        mouseRelease(rail, rail.maximumOpenWidth + 40, y);
+        compare(chosen.count, 1);
+        compare(chosen.signalArguments[0][0], rail.maximumOpenWidth);
+        compare(chosen.signalArguments[0][1], false);
+        verify(!tip.visible);
+        // The host keeps it; under 160 the drag stops at 160, under 120 it reads "fold".
+        rail.openWidth = rail.maximumOpenWidth;
+        mousePress(rail, rail.width - 2, y);
+        mouseMove(rail, rail.width - 40, y);
+        mouseMove(rail, Theme.space(140), y);
+        compare(rail.width, rail.minimumOpenWidth);
+        mouseMove(rail, Theme.space(100), y);
+        verify(rail._dragFolds);
+        mouseRelease(rail, Theme.space(100), y);
+        compare(folds.count, 1);
+        compare(chosen.count, 1);
+        // Double-click: the default.
+        mouseDoubleClickSequence(rail, rail.width - Theme.space(3), y);
+        compare(chosen.count, 2);
+        compare(chosen.signalArguments[1][0], Theme.railWidth);
+        compare(chosen.signalArguments[1][1], true);
+    }
+
+    // D3 a: a drag out of the folded rail's edge asks to unfold once past 120.
+    function test_a_drag_out_of_the_folded_edge_unfolds() {
+        testCase.width = 900;
+        const rail = createTemporaryObject(railComponent, testCase, {
+                                               "height": 600,
+                                               "compact": true
+                                           });
+        const unfolds = createTemporaryObject(spyComponent, testCase, {
+                                                  "target": rail,
+                                                  "signalName": "unfoldDragged"
+                                              });
+        rail.unfoldDragged.connect(() => rail.compact = false);
+        const edge = findChild(rail, "railEdge");
+        compare(rail.width, Theme.railFoldedWidth);
+        const y = edge.y + edge.height / 2;
+        mousePress(rail, rail.width - 2, y);
+        mouseMove(rail, rail.width + 20, y);
+        mouseMove(rail, Theme.space(80), y);
+        compare(unfolds.count, 0);
+        compare(rail.width, Theme.railFoldedWidth);
+        mouseMove(rail, Theme.space(230), y);
+        compare(unfolds.count, 1);
+        verify(!rail.compact);
+        compare(rail.width, Theme.space(230) + 2);
+        mouseRelease(rail, Theme.space(230), y);
+    }
+
+    // D9 c (C32: moved to the top): the edge tab shows while the pointer is on the rail,
+    // within the title bar's height and centred on it, ‹ open and › folded, with its tip.
+    function test_the_edge_tab_sits_at_the_top_and_shows_on_hover() {
+        const rail = createTemporaryObject(railComponent, testCase, {
+                                               "height": 600,
+                                               "headHeight": Theme.titleBarHeight
+                                           });
+        const toggles = createTemporaryObject(spyComponent, testCase, {
+                                                  "target": rail,
+                                                  "signalName": "foldToggleRequested"
+                                              });
+        const tab = findChild(rail, "railEdgeTab");
+        mouseMove(testCase, testCase.width - 2, testCase.height - 2);
+        tryCompare(tab, "opacity", 0);
+        mouseMove(rail, rail.width / 2, 300);
+        tryCompare(tab, "opacity", 1);
+        // Straddles the edge, inside the title bar's height, centred on it.
+        compare(tab.x + tab.width / 2, rail.width);
+        verify(tab.y > 0 && tab.y + tab.height < rail.headHeight);
+        compare(Math.round(tab.y + tab.height / 2), Math.round(rail.headHeight / 2));
+        // The drag answers below it, not on it.
+        verify(findChild(rail, "railEdge").y >= tab.y + tab.height);
+        mouseMove(tab, tab.width / 2, tab.height / 2);
+        tryCompare(findChild(rail, "railEdgeTip"), "shown", true);
+        compare(findChild(rail, "railEdgeTip").text, "fold the rail · ctrl+b");
+        mouseClick(tab, tab.width / 2, tab.height / 2);
+        compare(toggles.count, 1);
+        rail.compact = true;
+        mouseMove(rail, rail.width / 2, 300);
+        mouseMove(tab, tab.width / 2, tab.height / 2);
+        tryCompare(findChild(rail, "railEdgeTip"), "shown", true);
+        compare(findChild(rail, "railEdgeTip").text, "unfold the rail · ctrl+b");
+        mouseMove(testCase, testCase.width - 2, testCase.height - 2);
+        tryCompare(findChild(rail, "railEdgeTip"), "shown", false);
+    }
+
+    // DECISIONS C32 D1 a: the rail's foot is a settings row under the servers, its key "," on
+    // alt and in its tip; folded, the gear alone. Not a cursor stop.
+    function test_the_foot_is_a_settings_row() {
+        const rail = railWithServers(["public", "private"]);
+        const asks = createTemporaryObject(spyComponent, testCase, {
+                                               "target": rail,
+                                               "signalName": "settingsRequested"
+                                           });
+        const foot = findChild(rail, "railFoot");
+        const row = findChild(rail, "railSettings");
+        compare(foot.y + foot.height, rail.height);
+        verify(findChild(rail, "railScroll").y + findChild(rail, "railScroll").height <= findChild(rail, "serversBlock").y);
+        compare(row.text, "settings");
+        compare(row.glyph, Glyphs.settings);
+        compare(row.keyText, ",");
+        verify(row.mapToItem(rail, 0, 0).y >= foot.y);
+        mouseClick(row, row.width / 2, row.height / 2);
+        compare(asks.count, 1);
+        rail._keyTip(row, true);
+        compare(findChild(rail, "railTip").text, "settings · ,");
+        rail._keyTip(row, false);
+        // The cursor never lands on it.
+        rail.cursorIndex = rail.totalRowCount - 1;
+        verify(rail._rowMap[rail.cursorIndex].item !== row);
+        rail.compact = true;
+        verify(row.compact);
+        compare(foot.width, Theme.railFoldedWidth - Theme.hairWidth);
+    }
+
+    // DECISIONS C32 D16 a: the surface tint fills the rail only; its rows lie on C30's nested
+    // grounds over it (4 %: the block set, 8 %: the hover set), and the servers block takes
+    // no fill of its own there, so every ground stays one C30 measured.
+    function test_the_tint_fills_the_rail_and_its_rows_nest() {
+        const rail = railWithServers(["public", "private"]);
+        const fill = findChild(rail, "railTint");
+        const question = findChild(rail, "railQuestion-arriving");
+        compare(fill.visible, false);
+        compare(rail.ground, Theme.on.window);
+        App.filtered.question = TorrentFilterModel.Arriving;
+        verify(question.selected);
+        compare(question.ground, Theme.on.selected);
+
+        rail.tint = 4;
+        verify(fill.visible);
+        compare(fill.color, Theme.on.idle.fill);
+        compare(question.ground, Theme.on.blockSelected);
+        compare(findChild(rail, "railView-seed").ground, Theme.on.idle);
+        compare(findChild(rail, "railSettings").block, Theme.on.idle);
+        compare(rail._serversGround, Theme.on.idle);
+        compare(findChild(rail, "serversFoldedLine").block, Theme.on.idle);
+
+        rail.tint = 8;
+        compare(fill.color, Theme.on.hover.fill);
+        compare(question.ground, Theme.on.hoverSelected);
+        compare(rail._serversGround, Theme.on.hover);
+        // What covers the scroll is the tint, made opaque.
+        verify(Qt.colorEqual(rail._opaqueGround, Qt.tint(Theme.background, Theme.on.hover.fill)));
+        rail.tint = 0;
+        compare(question.ground, Theme.on.selected);
     }
 }

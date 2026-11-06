@@ -651,6 +651,9 @@ EngineFeatures features(const QString &apiVersion)
     f.torrentsBackup = true;
     f.rss = true;
     f.addAgain = true; // torrents/export, then an add with the record's settings (C17 D3)
+    f.search = true;   // search/* and its plugins (C26)
+    // torrentcreator/* (C27): Web API 2.10.4 and later.
+    f.createTorrent = atLeast(2, 10, 4);
     // torrents/fetchMetadata, and file priorities on an add (C5).
     f.fetchMetadata = atLeast(2, 11, 9);
     // The shareLimitAction field: an older server rejects an unknown parameter.

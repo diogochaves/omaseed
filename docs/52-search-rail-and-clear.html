@@ -1,0 +1,988 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Board 52 · search's rail and clearing</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap">
+<style>
+/* ------------------------------------------------------------------
+   docs/52: search's rail and clearing (2026-10-31, #201 D5s D20 D21).
+   A proposal. Board 51's window kit and board 48's search look, copied
+   here (not edited there), Omarchy skin only, every colour a Theme
+   role. Plugins, torrents and servers are invented.
+   ------------------------------------------------------------------ */
+:root {
+  --accent:#5492f8; --bg:#11111b; --bg-dark:#0d0d14;
+  --fg:#b9c5ef; --fg-dark:#8b94b3; --fg-bright:#cbd4f3;
+  --green:#7dd676; --red:#ee5681; --yellow:#f6d58c;
+  --fill-normal: color-mix(in srgb, var(--fg) 4%, transparent);
+  --hairline: color-mix(in srgb, var(--fg) 12%, transparent);
+  --mono: "JetBrains Mono", "JetBrainsMono Nerd Font", ui-monospace, monospace;
+  color-scheme: dark;
+}
+* { box-sizing:border-box; }
+[hidden] { display:none !important; }
+html { background:var(--bg-dark); }
+body { margin:0; background:var(--bg-dark); color:var(--fg); font:400 13px/1.6 var(--mono); -webkit-font-smoothing:antialiased; }
+body::before { content:""; position:fixed; inset:0 0 auto; height:env(safe-area-inset-top, 0px); z-index:60; background:var(--bg-dark); }
+main { max-width:1340px; margin:0 auto; padding-block:32px 72px; padding-left:max(16px, env(safe-area-inset-left, 0px)); padding-right:max(16px, env(safe-area-inset-right, 0px)); display:grid; gap:32px; }
+h1,h2,h3 { margin:0; font-weight:600; color:var(--fg-bright); text-wrap:balance; }
+h1 { font-size:26px; } h2 { font-size:17px; } h3 { font-size:13px; }
+p, li { max-width:88ch; }
+p { margin:0; }
+ul, ol { margin:0; padding-left:20px; display:grid; gap:4px; }
+code, kbd { font:inherit; color:var(--fg-bright); background:var(--fill-normal); padding:0 4px; overflow-wrap:anywhere; }
+b { color:var(--fg-bright); font-weight:600; }
+a { color:var(--accent); }
+.eyebrow { font-size:10px; letter-spacing:.12em; text-transform:uppercase; color:var(--fg-dark); }
+.dim { color:var(--fg-dark); }
+.lead { font-size:14px; color:var(--fg); max-width:90ch; }
+section { display:grid; gap:14px; border-top:1px solid var(--hairline); padding-top:22px; min-width:0; }
+.sec-head { display:grid; gap:4px; }
+figure { margin:0; display:grid; gap:6px; align-content:start; min-width:0; }
+figcaption { font-size:11.5px; color:var(--fg-dark); max-width:100ch; }
+figcaption b { color:var(--fg); font-weight:500; }
+.cols { display:grid; grid-template-columns:repeat(auto-fit, minmax(min(100%, 360px), 1fr)); gap:22px; }
+.cols > * { min-width:0; }
+.cols.two { grid-template-columns:repeat(auto-fit, minmax(min(100%, 520px), 1fr)); }
+.scroll { overflow-x:auto; }
+table.t { border-collapse:collapse; width:100%; font-size:12px; min-width:760px; }
+.t th, .t td { text-align:left; padding:6px 10px; border-bottom:1px solid var(--hairline); vertical-align:top; }
+.t th { font-weight:500; color:var(--fg-dark); font-size:10px; letter-spacing:.1em; text-transform:uppercase; white-space:nowrap; background:var(--bg-dark); }
+.t td:first-child { color:var(--fg-bright); }
+.t td.nw { white-space:nowrap; }
+.t .y { color:var(--green); } .t .n { color:var(--red); } .t .m { color:var(--yellow); }
+.shot { border:1px solid var(--hairline); display:block; width:100%; height:auto; }
+.note { border-left:2px solid var(--accent); padding:6px 12px; background:var(--fill-normal); font-size:12px; max-width:100ch; }
+.note.warn { border-color:var(--yellow); }
+.note.bad { border-color:var(--red); }
+.facts li::marker { color:var(--accent); }
+.flags { display:flex; flex-wrap:wrap; gap:8px; }
+.flag { font-size:10.5px; letter-spacing:.1em; text-transform:uppercase; color:var(--fg-dark); border:1px solid var(--hairline); padding:2px 9px; }
+.flag.hot { color:var(--yellow); border-color:color-mix(in srgb, var(--yellow) 45%, transparent); }
+.flag.ok { color:var(--green); border-color:color-mix(in srgb, var(--green) 45%, transparent); }
+.bcards { display:grid; grid-template-columns:repeat(auto-fit, minmax(min(100%, 250px), 1fr)); gap:12px; }
+.bcard { border:1px solid var(--hairline); background:var(--fill-normal); padding:12px 14px; display:grid; gap:6px; align-content:start; min-width:0; }
+.bcard .k { font-size:11px; color:var(--accent); }
+.bcard .h { color:var(--fg-bright); font-weight:600; }
+.bcard p, .bcard li { font-size:12.2px; }
+.bcard ul { padding-left:16px; gap:3px; }
+.bcard.ruled { border-color:color-mix(in srgb, var(--green) 35%, transparent); }
+.bcard.ruled .k { color:var(--green); }
+.tag { font-size:9.5px; letter-spacing:.12em; text-transform:uppercase; padding:0 5px; border:1px solid var(--hairline); color:var(--fg-dark); white-space:nowrap; }
+.tag.kept { color:var(--green); border-color:color-mix(in srgb, var(--green) 40%, transparent); }
+.tag.chg { color:var(--yellow); border-color:color-mix(in srgb, var(--yellow) 40%, transparent); }
+.tag.drop { color:var(--red); border-color:color-mix(in srgb, var(--red) 40%, transparent); }
+.tag.new { color:var(--accent); border-color:color-mix(in srgb, var(--accent) 40%, transparent); }
+.go { font:inherit; font-size:11px; color:var(--accent); background:none; border:1px solid color-mix(in srgb, var(--accent) 40%, transparent); padding:0 7px; cursor:pointer; white-space:nowrap; }
+.go:hover { background:var(--fill-normal); }
+button:focus-visible, input:focus-visible, textarea:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+
+/* ---------- the switch strip over the live window (board 41's, in 45's look) ---------- */
+.ctl { position:sticky; top:env(safe-area-inset-top, 0px); z-index:40; display:flex; flex-wrap:wrap; gap:6px 14px; align-items:center; padding:8px 10px; background:color-mix(in srgb, var(--bg-dark) 94%, transparent); backdrop-filter:blur(8px); border:1px solid var(--hairline); }
+.grp { display:flex; align-items:center; gap:3px; flex-wrap:wrap; }
+.grp > span { font-size:9.5px; letter-spacing:.14em; text-transform:uppercase; color:var(--fg-dark); margin-right:4px; }
+.tog { font:inherit; font-size:11.5px; color:var(--fg-dark); background:transparent; border:1px solid var(--hairline); padding:1px 8px; cursor:pointer; white-space:nowrap; }
+.tog:hover { color:var(--fg); }
+.tog[aria-pressed="true"] { background:color-mix(in srgb, var(--fg) 18%, transparent); color:var(--fg-bright); border-color:transparent; }
+.grp[data-off] { opacity:.35; pointer-events:none; }
+.stages { display:grid; gap:18px; }
+.stages.both { grid-template-columns:repeat(auto-fit, minmax(min(100%, 560px), 1fr)); }
+.stagebox { display:grid; gap:6px; min-width:0; }
+.stagecap { font-size:10.5px; letter-spacing:.1em; text-transform:uppercase; color:var(--fg-dark); display:flex; gap:10px; flex-wrap:wrap; align-items:baseline; }
+.stagecap b { color:var(--fg-bright); font-weight:500; }
+.stage { position:relative; width:100%; overflow:hidden; border:1px solid var(--hairline); background:var(--bg-dark); }
+.stage .sc { position:absolute; left:0; top:0; transform-origin:0 0; padding:14px; }
+#snote { font-size:12.4px; max-width:110ch; }
+#snote b { color:var(--fg-bright); }
+
+/* ---------- the decision sheet (board 45's) ---------- */
+.dec { display:grid; grid-template-columns:repeat(auto-fit, minmax(min(100%, 520px), 1fr)); gap:14px; }
+.q { display:grid; gap:8px; border:1px solid var(--hairline); padding:14px; min-width:0; align-content:start; }
+.q.ruled { border-color:color-mix(in srgb, var(--green) 30%, transparent); }
+.q fieldset { border:0; margin:0; padding:0; display:grid; gap:6px; min-width:0; }
+.q legend { padding:0; color:var(--fg-bright); font-weight:500; margin-bottom:4px; }
+.q .id { color:var(--accent); font-weight:600; }
+.q .why { font-size:11.5px; color:var(--fg-dark); margin:0 0 4px; max-width:100ch; }
+.q .flag2 { color:var(--yellow); }
+.q .was { color:var(--fg-dark); }
+.opt { display:grid; grid-template-columns:18px 1fr; gap:8px; align-items:start; font-size:12.4px; cursor:pointer; }
+.opt input { margin:3px 0 0; accent-color:var(--accent); }
+.opt .rec { color:var(--green); font-size:10px; letter-spacing:.1em; text-transform:uppercase; margin-left:6px; }
+.out { display:grid; gap:8px; }
+.out textarea { width:100%; min-height:420px; font:inherit; font-size:12.4px; color:var(--fg); background:var(--bg); border:1px solid var(--hairline); padding:10px; resize:vertical; }
+.out button { font:inherit; justify-self:start; color:var(--bg); background:var(--accent); border:0; padding:6px 14px; cursor:pointer; }
+.out .ok { color:var(--green); font-size:12px; }
+#free { width:100%; min-height:70px; font:inherit; font-size:12.4px; color:var(--fg); background:var(--bg); border:1px solid var(--hairline); padding:8px; }
+@media (prefers-reduced-motion: reduce) { * { transition:none !important; } }
+
+/* =================================================================
+   THE MOCK WINDOW: shared structure
+   ================================================================= */
+.wf { position: relative; width: var(--W); height: var(--H); padding: 2px; background: var(--wfc); clip-path: var(--wcut); }
+.win { position: relative; width: 100%; height: 100%; overflow: hidden; display: grid; grid-template-columns: var(--railw) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); background: var(--bg); color: var(--fg); clip-path: var(--wcuti); }
+.win button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; text-align: left; }
+.win .rail { display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+.win .rscroll { flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
+.win .main { display: grid; grid-template-rows: auto auto minmax(0, 1fr) auto; min-width: 0; min-height: 0; position: relative; }
+.win .main > .top { grid-row: 1; } .win .main > .notice { grid-row: 2; } .win .main > .body { grid-row: 3; } .win .main > .status { grid-row: 4; }
+.win .body { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto; min-height: 0; }
+.win .content { min-width: 0; min-height: 0; overflow-y: auto; overflow-x: hidden; position: relative; scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--fg) 25%, transparent) transparent; }
+.win .det { width: 372px; min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
+.win.narrow .det { position: absolute; right: 0; top: 0; bottom: 0; z-index: 6; width: 360px; }
+.win .ov { position: absolute; z-index: 20; }
+.win .menu .mi { width: 100%; }
+.win .scrim { position: absolute; inset: 0; z-index: 15; }
+.win .kb { display: none; }
+.win.keys .kb { display: inline-flex; }
+.win .ell { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.win .row { position: relative; cursor: pointer; }
+.win .grow { flex: 1; min-width: 0; }
+.win svg { display: block; }
+@keyframes blk { 0% { background-position: 0 0; } 100% { background-position: 24px 0; } }
+@keyframes flick { 0%, 12% { opacity: .2; } 6%, 20%, 100% { opacity: 1; } 15% { opacity: .5; } }
+@keyframes glt { 0%, 100% { transform: none; clip-path: none; } 20% { transform: translateX(5px); clip-path: inset(30% 0 40% 0); } 60% { transform: translateX(-3px); clip-path: inset(50% 0 20% 0); } }
+@media (prefers-reduced-motion: reduce) { .win * { animation: none !important; transition: none !important; } }
+
+/* =================================================================
+   SKIN 1: OMARCHY (omaseed's v2 rules: Theme roles, fills 4/8/18/22 %,
+   hairlines 12 %, the monospace face, square corners, base 14 → 13 here)
+   ================================================================= */
+.sk-oma { --wfc: var(--accent); --wcut: none; --wcuti: none;
+  --hair: color-mix(in srgb, var(--fg) 12%, transparent);
+  --f4: color-mix(in srgb, var(--fg) 4%, transparent); --f8: color-mix(in srgb, var(--fg) 8%, transparent);
+  --f18: color-mix(in srgb, var(--fg) 18%, transparent); --f22: color-mix(in srgb, var(--fg) 22%, transparent);
+  --fsel: color-mix(in srgb, var(--fg) calc(var(--fs) * 100%), transparent);
+  font: 400 13px/1.5 "JetBrains Mono", "JetBrainsMono Nerd Font", ui-monospace, monospace; }
+.sk-oma .win { --railw: 214px; }
+.sk-oma .win.narrow { --railw: 48px; }
+.sk-oma .rail { border-right: 1px solid var(--hair); background: var(--bg); }
+.sk-oma .mark { display: flex; align-items: center; gap: 9px; height: 54px; padding: 0 14px; border-bottom: 1px solid var(--hair); flex: none; }
+.sk-oma .mark .logo { width: 20px; height: 20px; border: 2px solid var(--accent); display: grid; place-items: center; font-size: 10px; color: var(--accent); font-weight: 700; }
+.sk-oma .mark b { color: var(--bright); font-weight: 600; }
+.sk-oma .mark .car { color: var(--dim); font-size: 11px; }
+.sk-oma .rg { padding: 10px 8px 4px; display: grid; gap: 1px; }
+.sk-oma .rg h6 { margin: 0 6px 4px; font-weight: 500; font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--dim); }
+.sk-oma .ri { display: grid; grid-template-columns: 16px minmax(0, 1fr) auto; gap: 8px; align-items: center; padding: 3px 6px; color: var(--fg); }
+.sk-oma .ri:hover { background: var(--f8); }
+.sk-oma .ri.on { background: var(--fsel); color: var(--bright); }
+.sk-oma .ri .g { color: var(--dim); text-align: center; font-size: 12px; }
+.sk-oma .ri .n { color: var(--dim); font-size: 12px; font-variant-numeric: tabular-nums; }
+.sk-oma .ri.needs .g, .sk-oma .ri.needs .n { color: var(--red); }
+.sk-oma .ri .tick { width: 3px; height: 12px; background: var(--c); justify-self: center; }
+.sk-oma .views { padding: 8px 8px 8px; display: grid; gap: 1px; border-bottom: 1px solid var(--hair); }
+.sk-oma .views .ri { padding: 5px 6px; }
+.sk-oma .views .ri.on { background: var(--f8); box-shadow: inset 2px 0 0 var(--accent); }
+.sk-oma .srv { border-top: 1px solid var(--hair); background: var(--f4); padding: 8px 8px 10px; flex: none; display: grid; gap: 1px; }
+.sk-oma .srv h6 { display: flex; justify-content: space-between; margin: 0 6px 3px; font-weight: 500; font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--dim); }
+.sk-oma .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); justify-self: center; }
+.sk-oma .dot.off { background: var(--dim); }
+.sk-oma .dot.down { background: var(--yellow); }
+.sk-oma .dot.ref { background: var(--red); }
+.sk-oma .top { height: 54px; display: flex; align-items: center; gap: 12px; padding: 0 14px 0 18px; border-bottom: 1px solid var(--hair); min-width: 0; }
+.sk-oma .top h1 { font-weight: 600; font-size: 15px; color: var(--bright); letter-spacing: 0; text-transform: none; }
+.sk-oma .top p { font-size: 11.5px; color: var(--dim); }
+.sk-oma .top .tt { min-width: 0; flex: 1; display: grid; }
+.sk-oma .tool { position: relative; display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border: 1px solid var(--hair); color: var(--fg); white-space: nowrap; }
+.sk-oma .tool:hover { background: var(--f8); }
+.sk-oma .tool.find { width: 176px; color: var(--dim); }
+.sk-oma .tool.add { border-color: var(--accent); color: var(--accent); }
+.sk-oma .tool .c { color: var(--dim); }
+.sk-oma .kb { position: absolute; right: -6px; top: -9px; z-index: 3; font-size: 10px; line-height: 14px; padding: 0 4px; background: var(--accent); color: var(--bg); font-weight: 700; }
+.sk-oma .ri .kb { position: static; margin-left: 4px; }
+.sk-oma .notice { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; gap: 4px 10px; padding: 9px 14px 10px 16px; border-bottom: 1px solid var(--hair); box-shadow: inset 3px 0 0 var(--nc); background: color-mix(in srgb, var(--nc) 8%, transparent); }
+.sk-oma .notice .g { color: var(--nc); font-weight: 700; }
+.sk-oma .notice b { font-weight: 600; }
+.sk-oma .notice .ln { grid-column: 2 / -1; font-size: 12px; }
+.sk-oma .notice .acts { display: flex; gap: 14px; font-size: 12px; color: var(--accent); }
+.sk-oma .notice .acts .d { color: var(--dim); }
+.sk-oma .gh { display: flex; gap: 10px; align-items: baseline; padding: 12px 18px 4px; font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--dim); }
+.sk-oma .gh .n { color: var(--fg); }
+.sk-oma .gh .s { text-transform: none; letter-spacing: 0; font-size: 11.5px; margin-left: auto; }
+.sk-oma .gh.needs { color: var(--red); }
+.sk-oma .row { display: grid; grid-template-columns: 20px minmax(0, 1fr) auto; grid-template-rows: auto auto; gap: 1px 10px; padding: 7px 18px 8px 14px; border-bottom: 1px solid color-mix(in srgb, var(--fg) 5%, transparent); }
+.sk-oma .row:hover { background: var(--f4); }
+.sk-oma .row.sel { background: var(--fsel); }
+.sk-oma .row.picked { background: color-mix(in srgb, var(--accent) 9%, transparent); box-shadow: inset 2px 0 0 var(--accent); }
+.sk-oma .row .st { grid-row: 1 / 3; color: var(--sc); text-align: center; font-size: 13px; padding-top: 1px; }
+.sk-oma .row .l1 { display: flex; gap: 8px; align-items: baseline; min-width: 0; }
+.sk-oma .row .nm { color: var(--bright); font-weight: 600; font-size: 13.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sk-oma .row .mt { color: var(--dim); font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sk-oma .row .fact { grid-row: 1 / 3; grid-column: 3; text-align: right; display: grid; align-content: center; min-width: 92px; }
+.sk-oma .row .fact b { font-weight: 500; font-size: 14px; color: var(--bright); }
+.sk-oma .row .fact span { font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--dim); }
+.sk-oma .row.needs .fact b { color: var(--red); }
+.sk-oma .row .l2 { display: flex; gap: 10px; align-items: center; min-width: 0; font-size: 11.8px; color: var(--dim); }
+.sk-oma .row .fix { color: var(--accent); white-space: nowrap; border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent); padding: 0 6px; font-size: 11px; }
+.sk-oma .strip { flex: none; width: 168px; height: 4px; display: flex; gap: 1px; background: var(--f8); }
+.sk-oma .strip i { flex: 1; background: transparent; }
+.sk-oma .strip i.h { background: var(--sc); }
+.sk-oma .strip i.a { background: color-mix(in srgb, var(--sc) 45%, transparent); }
+.sk-oma .strip i.o { background: var(--orange); }
+.sk-oma .row.rest .strip i.h { background: var(--dim); }
+.sk-oma .worn .row { opacity: .55; }
+.sk-oma .status { height: 30px; display: flex; align-items: center; gap: 12px; padding: 0 14px 0 18px; border-top: 1px solid var(--hair); font-size: 11.8px; color: var(--dim); white-space: nowrap; min-width: 0; overflow: hidden; }
+.sk-oma .status b { color: var(--fg); font-weight: 500; }
+.sk-oma .status .dn { color: var(--blue); } .sk-oma .status .up { color: var(--green); }
+.sk-oma .status .sep { opacity: .5; }
+.sk-oma .status .r { margin-left: auto; }
+.sk-oma .status.sel { background: var(--f8); color: var(--fg); gap: 4px; }
+.sk-oma .status.sel .ab { padding: 2px 8px; }
+.sk-oma .status.sel .ab:hover { background: var(--f8); }
+.sk-oma .status.sel .ab.red { color: var(--red); }
+/* table display */
+.sk-oma .tbl { width: 100%; border-collapse: collapse; font-size: 12px; table-layout: fixed; }
+.sk-oma .tbl th { font-weight: 500; font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--dim); text-align: left; padding: 8px 8px; border-bottom: 1px solid var(--hair); }
+.sk-oma .tbl td { padding: 5px 8px; border-bottom: 1px solid color-mix(in srgb, var(--fg) 5%, transparent); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sk-oma .tbl tr.sel td { background: var(--fsel); }
+.sk-oma .tbl td.r, .sk-oma .tbl th.r { text-align: right; }
+.sk-oma .pbar { display: inline-block; width: 54px; height: 3px; background: var(--f8); vertical-align: middle; margin-right: 6px; position: relative; }
+.sk-oma .pbar i { position: absolute; inset: 0 auto 0 0; background: var(--sc); }
+/* overview: shelves */
+.sk-oma .ovw { padding: 6px 18px 12px; display: grid; gap: 14px; }
+.sk-oma .shelf h5 { margin: 0 0 6px; display: flex; gap: 10px; align-items: baseline; font-weight: 500; font-size: 11px; color: var(--dim); text-transform: uppercase; letter-spacing: .12em; }
+.sk-oma .shelf h5 b { color: var(--bright); font-weight: 600; text-transform: none; letter-spacing: 0; font-size: 13px; }
+.sk-oma .covers { display: flex; gap: 10px; flex-wrap: nowrap; overflow: hidden; }
+.sk-oma .cover { flex: none; width: 92px; display: grid; gap: 4px; }
+.sk-oma .cover .art { position: relative; height: 118px; background: var(--f4); border: 1px solid var(--hair); overflow: hidden; }
+.sk-oma .cover .art .grid { position: absolute; inset: 6px; display: grid; grid-template-columns: repeat(10, 1fr); gap: 1px; align-content: start; }
+.sk-oma .cover .art .grid i { height: 6px; background: var(--f8); }
+.sk-oma .cover .art .grid i.h { background: color-mix(in srgb, var(--sc) 55%, transparent); }
+.sk-oma .cover .art .ab2 { position: absolute; left: 8px; bottom: 6px; font-weight: 700; font-size: 30px; color: var(--bright); letter-spacing: -.02em; }
+.sk-oma .cover.sel .art { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.sk-oma .cover .cn { font-size: 11px; color: var(--fg); }
+.sk-oma .cover .cf { font-size: 10.5px; color: var(--dim); }
+.sk-oma .cover.needs .cf { color: var(--red); }
+/* details */
+.sk-oma .det { border-left: 1px solid var(--hair); background: var(--bg); }
+.sk-oma.narrow-det .det { box-shadow: -14px 0 30px -18px #000; }
+.sk-oma .dh { padding: 12px 16px 10px; border-bottom: 1px solid var(--hair); display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 8px; }
+.sk-oma .dh b { color: var(--bright); font-size: 14px; font-weight: 600; }
+.sk-oma .dh .raw { grid-column: 1; font-size: 11px; color: var(--dim); }
+.sk-oma .dh .x { grid-row: 1; grid-column: 2; color: var(--dim); font-size: 11.5px; }
+.sk-oma .dhero { padding: 10px 16px 12px; display: grid; gap: 3px; border-bottom: 1px solid var(--hair); }
+.sk-oma .dhero .big { font-size: 22px; color: var(--sc); font-weight: 500; }
+.sk-oma .dhero .big span { font-size: 12px; color: var(--dim); margin-left: 8px; }
+.sk-oma .dhero p { font-size: 12px; color: var(--fg); }
+.sk-oma .tabs { display: flex; gap: 2px; padding: 0 10px; border-bottom: 1px solid var(--hair); }
+.sk-oma .tab { padding: 7px 7px; font-size: 12px; color: var(--dim); }
+.sk-oma .tab.on { color: var(--bright); box-shadow: inset 0 -2px 0 var(--accent); }
+.sk-oma .tb { flex: 1; min-height: 0; overflow: hidden; padding: 12px 16px; display: grid; gap: 12px; align-content: start; }
+.sk-oma .tb h5 { margin: 0; display: flex; justify-content: space-between; font-weight: 500; font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--dim); }
+.sk-oma .pmap { display: grid; grid-template-columns: repeat(34, 1fr); gap: 1px; }
+.sk-oma .pmap i { aspect-ratio: 1; background: var(--f8); }
+.sk-oma .pmap i.h { background: var(--sc); }
+.sk-oma .pmap i.a { background: color-mix(in srgb, var(--sc) 45%, transparent); }
+.sk-oma .pmap i.o { background: var(--orange); }
+.sk-oma .leg { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 10.5px; color: var(--dim); }
+.sk-oma .leg i { display: inline-block; width: 8px; height: 8px; margin-right: 5px; vertical-align: -1px; }
+.sk-oma .tl { display: grid; gap: 7px; font-size: 12px; }
+.sk-oma .tl div { display: grid; grid-template-columns: 42px 10px minmax(0, 1fr); gap: 8px; }
+.sk-oma .tl .tm { color: var(--dim); font-variant-numeric: tabular-nums; }
+.sk-oma .tl .mk { width: 7px; height: 7px; margin-top: 6px; background: var(--sc); }
+.sk-oma .tl .mk.w { background: var(--yellow); } .sk-oma .tl .mk.n { background: var(--accent); }
+.sk-oma .tl small { display: block; color: var(--dim); font-size: 11px; }
+.sk-oma .fl { display: grid; gap: 8px; font-size: 12px; }
+.sk-oma .fl .f { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 3px 10px; }
+.sk-oma .fl .bar { grid-column: 1 / -1; height: 5px; background: var(--f8); position: relative; }
+.sk-oma .fl .bar i { position: absolute; inset: 0 auto 0 0; background: var(--sc); }
+.sk-oma .fl .f.off { opacity: .55; }
+.sk-oma .kv { display: grid; grid-template-columns: 112px minmax(0, 1fr); gap: 0; font-size: 12px; }
+.sk-oma .kv dt { color: var(--dim); font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; padding: 4px 0; border-bottom: 1px solid color-mix(in srgb, var(--fg) 6%, transparent); }
+.sk-oma .kv dd { margin: 0; padding: 4px 0; border-bottom: 1px solid color-mix(in srgb, var(--fg) 6%, transparent); overflow-wrap: anywhere; }
+.sk-oma .swarm { display: grid; grid-template-columns: 136px minmax(0, 1fr); gap: 12px; align-items: center; }
+.sk-oma .where { display: grid; grid-template-columns: 26px minmax(0, 1fr) 22px; gap: 4px 8px; font-size: 11.5px; align-items: center; }
+.sk-oma .where .bar { height: 4px; background: var(--f8); position: relative; }
+.sk-oma .where .bar i { position: absolute; inset: 0 auto 0 0; background: var(--blue); }
+.sk-oma .trk { display: grid; gap: 6px; font-size: 12px; }
+.sk-oma .trk div { display: grid; grid-template-columns: 10px minmax(0, 1fr) auto; gap: 8px; align-items: center; }
+/* overlays */
+.sk-oma .scrim { background: color-mix(in srgb, var(--dbg) 62%, transparent); }
+.sk-oma .sheet { background: var(--bg); border: 1px solid var(--accent); box-shadow: 0 24px 60px -20px #000; display: flex; flex-direction: column; overflow: hidden; }
+.sk-oma .sheet .shh { display: flex; align-items: center; gap: 10px; padding: 12px 16px; border-bottom: 1px solid var(--hair); }
+.sk-oma .sheet .shh h4 { margin: 0; font-weight: 600; font-size: 14px; color: var(--bright); }
+.sk-oma .sheet .shb { padding: 12px 16px; display: grid; gap: 12px; overflow: hidden; align-content: start; flex: 1; min-height: 0; }
+.sk-oma .sheet .shf { display: flex; align-items: center; gap: 10px; padding: 10px 16px; border-top: 1px solid var(--hair); }
+.sk-oma .chip { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--hair); padding: 2px 8px; color: var(--fg); white-space: nowrap; }
+.sk-oma .chip.on { background: var(--f18); color: var(--bright); border-color: transparent; }
+.sk-oma .btn { border: 1px solid var(--hair); padding: 4px 12px; color: var(--fg); white-space: nowrap; }
+.sk-oma .btn.pri { background: var(--accent); color: var(--bg); border-color: var(--accent); font-weight: 600; }
+.sk-oma .btn.red { background: var(--red); color: var(--bg); border-color: var(--red); font-weight: 600; }
+.sk-oma .btn.ghost { border-color: transparent; color: var(--dim); }
+.sk-oma .field { display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: 10px; align-items: center; font-size: 12px; }
+.sk-oma .field > span:first-child { color: var(--dim); font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; }
+.sk-oma .input { border: 1px solid var(--hair); padding: 3px 8px; color: var(--bright); background: var(--f4); min-width: 0; display: flex; gap: 8px; }
+.sk-oma .input .u { margin-left: auto; color: var(--dim); }
+.sk-oma .typebar { display: flex; height: 10px; gap: 1px; }
+.sk-oma .typebar i { display: block; }
+.sk-oma .warnbox { display: grid; grid-template-columns: 16px minmax(0, 1fr); gap: 4px 10px; padding: 8px 12px; box-shadow: inset 3px 0 0 var(--wc); background: color-mix(in srgb, var(--wc) 9%, transparent); font-size: 12px; }
+.sk-oma .warnbox .g { color: var(--wc); font-weight: 700; }
+.sk-oma .menu { background: var(--bg); border: 1px solid var(--hair); box-shadow: 0 18px 44px -14px #000; min-width: 268px; padding: 4px 0; font-size: 12.5px; }
+.sk-oma .menu .mh { padding: 6px 12px 8px; border-bottom: 1px solid var(--hair); margin-bottom: 4px; display: grid; }
+.sk-oma .menu .mh b { color: var(--bright); font-weight: 600; }
+.sk-oma .menu .mh span { font-size: 11px; color: var(--dim); }
+.sk-oma .menu .mi { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; gap: 8px; padding: 3px 12px; align-items: center; }
+.sk-oma .menu .mi:hover, .sk-oma .menu .mi.cur { background: var(--fsel); color: var(--bright); }
+.sk-oma .menu .mi .g { color: var(--dim); text-align: center; }
+.sk-oma .menu .mi .k { color: var(--dim); font-size: 11px; }
+.sk-oma .menu .mi.red { color: var(--red); } .sk-oma .menu .mi.red .g { color: var(--red); }
+.sk-oma .menu hr { border: 0; border-top: 1px solid var(--hair); margin: 4px 0; }
+.sk-oma .menu .sub { color: var(--dim); }
+.sk-oma .snav { width: 200px; border-right: 1px solid var(--hair); padding: 10px 8px; display: grid; gap: 1px; align-content: start; }
+.sk-oma .snav h6 { margin: 8px 6px 4px; font-weight: 500; font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--dim); }
+.sk-oma .snav h6:first-child { margin-top: 0; }
+.sk-oma .snav .ri { grid-template-columns: 16px minmax(0, 1fr); }
+.sk-oma .scope { display: flex; gap: 8px; align-items: center; margin: 2px 4px 6px; padding: 4px 8px; border: 1px solid var(--hair); font-size: 12px; }
+.sk-oma .srow { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 14px; align-items: center; padding: 9px 12px; border: 1px solid var(--hair); background: var(--f4); }
+.sk-oma .srow b { font-weight: 500; color: var(--bright); }
+.sk-oma .srow small { grid-column: 1; color: var(--dim); font-size: 11.5px; }
+.sk-oma .srow .ctl2 { grid-row: 1 / 3; grid-column: 2; }
+.sk-oma .sw { width: 30px; height: 14px; border: 1px solid var(--hair); position: relative; display: inline-block; }
+.sk-oma .sw::after { content: ""; position: absolute; top: 2px; left: 2px; width: 8px; height: 8px; background: var(--dim); }
+.sk-oma .sw.on { background: color-mix(in srgb, var(--accent) 22%, transparent); border-color: var(--accent); }
+.sk-oma .sw.on::after { left: auto; right: 2px; background: var(--accent); }
+.sk-oma .pick { display: grid; gap: 6px; }
+.sk-oma .pick .opt2 { display: grid; grid-template-columns: 14px minmax(0, 1fr); gap: 8px; padding: 6px 10px; border: 1px solid var(--hair); font-size: 12px; }
+.sk-oma .pick .opt2.on { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, transparent); }
+.sk-oma .pick .opt2 i { width: 10px; height: 10px; border: 1px solid var(--dim); margin-top: 4px; border-radius: 50%; }
+.sk-oma .pick .opt2.on i { border-color: var(--accent); background: var(--accent); box-shadow: inset 0 0 0 2px var(--bg); }
+.sk-oma .pick .opt2 small { display: block; color: var(--dim); font-size: 11px; }
+
+/* =================================================================
+   BOARD 46's ADDITIONS to board 41's kit, both skins
+   ================================================================= */
+/* the stage is a busy wallpaper, so the ground (#113) can be judged */
+.stage .sc { background:
+  radial-gradient(circle at 18% 22%, color-mix(in srgb, var(--magenta) 75%, transparent) 0 9%, transparent 22%),
+  radial-gradient(circle at 82% 30%, color-mix(in srgb, var(--cyan) 70%, transparent) 0 8%, transparent 20%),
+  radial-gradient(circle at 60% 85%, color-mix(in srgb, var(--accent) 70%, transparent) 0 10%, transparent 24%),
+  radial-gradient(circle at 30% 70%, color-mix(in srgb, var(--orange) 60%, transparent) 0 6%, transparent 16%),
+  repeating-linear-gradient(118deg, color-mix(in srgb, var(--fg) 16%, transparent) 0 2px, transparent 2px 22px),
+  linear-gradient(160deg, var(--dbg), color-mix(in srgb, var(--blue) 30%, var(--dbg))); }
+.stage .sc.plain { background:var(--dbg); }
+/* the window's ground: today the shell launcher's alpha (Q1), opaque on 4.5 (#113) */
+.win { background:color-mix(in srgb, var(--bg) calc(var(--ga, 1) * 100%), transparent); }
+.sk-oma .rail, .sk-oma .det { background:transparent; }
+.wf.sbk { opacity:.985; }
+/* row 2 of the main column holds the bands: the server notice, a job, a torrent's own */
+.win .main > .bands { grid-row:2; display:grid; min-width:0; }
+.win .cwrap { position:relative; min-width:0; min-height:0; display:grid; grid-template-rows:minmax(0, 1fr); }
+.sk-oma .notice { position:relative; }
+.notice .pl { position:absolute; left:0; right:0; bottom:-1px; height:2px; background:var(--hair); }
+.notice .pl i { position:absolute; left:0; top:0; bottom:0; background:var(--nc); }
+.notice .num { font-variant-numeric:tabular-nums; color:var(--bright); }
+/* the outcome strip (C18 D1-D3): in the selection's place, over the rows */
+.ostrip { position:absolute; z-index:5; left:50%; bottom:12px; transform:translateX(-50%); width:min(700px, calc(100% - 28px)); }
+.sk-oma .ostrip { display:grid; grid-template-columns:18px minmax(0, 1fr) auto; gap:2px 10px; align-items:baseline; padding:7px 12px 8px 14px; background:var(--bg); border:1px solid var(--hair); box-shadow:inset 2px 0 0 var(--oc), 0 14px 30px -16px #000; font-size:12px; }
+.sk-oma .ostrip .g { color:var(--oc); font-weight:700; text-align:center; }
+.sk-oma .ostrip b { font-weight:600; color:var(--bright); }
+.sk-oma .ostrip .ln { grid-column:2 / -1; color:var(--dim); font-size:11.5px; }
+.sk-oma .ostrip .acts { display:flex; gap:14px; color:var(--accent); white-space:nowrap; }
+.sk-oma .ostrip .acts .d { color:var(--dim); }
+.ostrip .run { position:absolute; left:0; bottom:0; height:2px; background:var(--oc); }
+.ostrip.above { bottom:12px; }
+/* the row's own mark while the strip shows (C18 D1) */
+.sk-oma .row .mark2 { color:var(--oc); font-size:11px; white-space:nowrap; }
+/* the hover tick (C18 D6) */
+.row .tk { position:absolute; left:4px; top:9px; width:11px; height:11px; box-shadow:inset 0 0 0 1px var(--dim); }
+.row .tk.on { background:var(--accent); box-shadow:none; }
+/* the folders group (C15 M1): a drive's top dim, its folders under it */
+.ri.l1 { padding-left:22px; } .ri.l2 { padding-left:36px; }
+.ri.dimhead { color:var(--dim); }
+.ri .pct { color:var(--accent); }
+/* sheet pieces shared by both skins: the Move sheet (C15, C16, C18 D5), the add sheet, the Files tab */
+.sc .places { display:grid; box-shadow:inset 0 0 0 1px var(--hair); margin-top:-6px; background:var(--bg); }
+.sc .places h6 { margin:0; padding:6px 10px 2px; font-weight:500; font-size:10px; letter-spacing:.12em; text-transform:uppercase; color:var(--dim); }
+.sc .places .o { display:grid; grid-template-columns:minmax(0, 1fr) auto; gap:10px; padding:2px 10px; font-size:12px; color:var(--fg); }
+.sc .places .o > span:first-child { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.sc .places .o .c { color:var(--dim); font-size:11px; }
+.sc .places .o.on { background:var(--fsel, var(--panel2)); color:var(--bright); }
+.sc .places .ft { display:flex; gap:14px; padding:4px 10px; font-size:11px; color:var(--dim); box-shadow:inset 0 1px 0 var(--hair); }
+.sc .chk { display:grid; grid-template-columns:16px minmax(0, 1fr) auto; gap:1px 8px; font-size:12px; align-items:baseline; }
+.sc .chk .g { text-align:center; font-weight:700; }
+.sc .chk .g.ok { color:var(--green); } .sc .chk .g.w { color:var(--yellow); } .sc .chk .g.x { color:var(--red); } .sc .chk .g.i { color:var(--dim); }
+.sc .chk b { color:var(--bright); font-weight:500; }
+.sc .chk small { grid-column:2 / -1; color:var(--dim); font-size:11px; }
+.sc .chk .lk { color:var(--accent); font-size:11px; white-space:nowrap; }
+.sc .mapl { display:grid; grid-template-columns:minmax(0, 1fr) 16px minmax(0, 1fr); gap:8px; font-size:12px; padding:5px 10px; background:var(--f4, var(--panel)); }
+.sc .mapl span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.sc .mapl .a { color:var(--dim); text-align:center; }
+.sc .mapl .to { color:var(--bright); }
+.sc .tickl { display:flex; gap:8px; align-items:baseline; font-size:12px; }
+.sc .tickl i { font-style:normal; width:12px; height:12px; flex:none; transform:translateY(2px); box-shadow:inset 0 0 0 1px var(--accent); display:inline-grid; place-items:center; font-size:9px; color:var(--accent); }
+.sc .tickl small { color:var(--dim); font-size:11px; }
+.sc .fhd { display:flex; gap:8px; align-items:baseline; font-size:11px; color:var(--dim); }
+.sc .later { font-size:10.5px; letter-spacing:.08em; color:var(--dim); box-shadow:inset 0 0 0 1px var(--hair); padding:1px 7px; white-space:nowrap; }
+/* the Files tab with board 44's on-disk column (C17 D1) */
+.sc .ftab { display:grid; font-size:11.5px; }
+.sc .ftab .r { display:grid; grid-template-columns:14px minmax(0, 1fr) 54px 56px 46px; gap:8px; padding:3px 0; align-items:baseline; box-shadow:inset 0 -1px 0 color-mix(in srgb, var(--fg) 6%, transparent); }
+.sc .ftab .r > span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.sc .ftab .r .n { text-align:right; font-variant-numeric:tabular-nums; }
+.sc .ftab .h { color:var(--dim); font-size:10px; letter-spacing:.1em; text-transform:uppercase; }
+.sc .ftab .bx { color:var(--accent); }
+.sc .ftab .r.skip { color:var(--dim); } .sc .ftab .r.skip .bx { color:var(--dim); }
+.sc .ftab .od { color:var(--yellow); }
+.sc .ftab .r.fold > span:nth-child(2) { color:var(--bright); }
+.sc .ftab .ft { display:flex; gap:12px; padding-top:6px; color:var(--dim); font-size:11px; }
+/* search results (#145, placement only) */
+.sc .sbar { display:flex; gap:10px; align-items:center; padding:12px 18px 8px; flex-wrap:wrap; }
+.sk-oma .sbar .q2 { flex:1; min-width:200px; border:1px solid var(--accent); padding:4px 10px; color:var(--bright); display:flex; gap:8px; }
+.sc .sbar .q2 .u { margin-left:auto; color:var(--dim); }
+.sc .sline { padding:0 18px 6px; font-size:11.5px; color:var(--dim); display:flex; gap:12px; flex-wrap:wrap; }
+.sc .sline .w { color:var(--yellow); }
+.sc .row .inlib { color:var(--green); font-size:10.5px; letter-spacing:.06em; white-space:nowrap; }
+.sc .empty { margin:40px auto; max-width:440px; display:grid; gap:8px; text-align:center; font-size:12.5px; color:var(--dim); }
+.sc .empty b { color:var(--bright); font-size:14px; }
+/* the settings scope line (C11 D1, ScopeLine) */
+.sk-oma .scopel { display:flex; gap:8px; align-items:baseline; padding:7px 12px; background:var(--f4); box-shadow:inset 2px 0 0 var(--accent); font-size:12px; }
+.sk-oma .scopel .g { color:var(--accent); }
+.sk-oma .scopel .lk { color:var(--accent); margin-left:auto; white-space:nowrap; }
+.sk-oma .scopel .lk .k { color:var(--dim); }
+/* blocks in the details' story (docs/28's error block, C18 D7's last move) */
+.sc .blk { display:grid; gap:3px; padding:8px 12px; font-size:12px; }
+.sk-oma .blk { box-shadow:inset 3px 0 0 var(--bc); background:color-mix(in srgb, var(--bc) 8%, transparent); }
+.sc .blk b { color:var(--bright); font-weight:600; }
+.sc .blk small { color:var(--dim); font-size:11px; }
+.sc .blk .acts { display:flex; gap:14px; flex-wrap:wrap; color:var(--accent); font-size:11.5px; }
+.sc .blk .acts .d { color:var(--dim); }
+/* a small caption under the window inside the stage */
+.sc .under { margin-top:10px; font:11px var(--mono, monospace); color:var(--fg); background:color-mix(in srgb, var(--dbg) 80%, transparent); padding:4px 8px; display:inline-block; }
+
+/* =================================================================
+   BOARD 51's ADDITIONS (Omarchy skin; every colour a Theme role,
+   fills 4/8/18/22 %, hairlines 12 %)
+   ================================================================= */
+.win svg.ic { display:inline-block; flex:none; vertical-align:-2px; }
+.opttag { font-size:9.5px; letter-spacing:.12em; text-transform:uppercase; padding:0 6px; border:1px solid var(--hairline); color:var(--fg-dark); white-space:nowrap; }
+.opttag.rec { color:var(--green); border-color:color-mix(in srgb, var(--green) 45%, transparent); }
+.opttag.today { color:var(--yellow); border-color:color-mix(in srgb, var(--yellow) 45%, transparent); }
+.opttag.later { color:var(--accent); border-color:color-mix(in srgb, var(--accent) 45%, transparent); }
+.item { display:grid; gap:12px; min-width:0; }
+.item > h3 { display:flex; gap:10px; align-items:baseline; flex-wrap:wrap; font-size:14px; }
+.item > h3 .id { color:var(--accent); }
+.prob { font-size:12.6px; max-width:96ch; }
+.prob q { color:var(--fg-bright); quotes:"“" "”"; }
+.recl { font-size:12.2px; border-left:2px solid var(--green); padding:4px 10px; background:var(--fill-normal); max-width:100ch; }
+.recl b { color:var(--green); font-weight:600; }
+.recl .sup { color:var(--yellow); }
+.opts { display:grid; grid-template-columns:repeat(auto-fit, minmax(min(100%, 380px), 1fr)); gap:18px; align-items:start; }
+.opts.wide { grid-template-columns:repeat(auto-fit, minmax(min(100%, 560px), 1fr)); }
+.opts > * { min-width:0; }
+.optcap { font-size:11.6px; color:var(--fg); max-width:90ch; }
+.optcap b { color:var(--fg-bright); font-weight:600; }
+.stagecap .opttag { letter-spacing:.12em; }
+
+/* the mark lit, the rail's foot, the fold toggle, the edge being dragged */
+.sk-oma .mark.lit { background:var(--fsel); border-bottom-color:transparent; }
+.sk-oma .mark.lit .car { color:var(--bright); }
+.sk-oma .mark .mbtn { margin-left:auto; width:26px; height:24px; display:grid; place-items:center; border:1px solid var(--hair); color:var(--fg); }
+.sk-oma .rfoot { flex:none; border-top:1px solid var(--hair); display:flex; align-items:center; gap:2px; padding:6px 8px; }
+.sk-oma .rfoot .ri { flex:1; }
+.sk-oma .rfoot .rf { width:28px; height:24px; display:grid; place-items:center; color:var(--dim); }
+.sk-oma .rfoot .rf:hover, .sk-oma .rfoot .rf.hot { background:var(--f8); color:var(--fg); }
+.sk-oma .win.narrow .rfoot { flex-direction:column; padding:6px 4px; }
+.sk-oma .win.narrow .rfoot .ri { flex:none; width:100%; grid-template-columns:1fr; justify-items:center; }
+.sk-oma .ri.hot { background:var(--f8); }
+.sk-oma .ri .g svg.ic { margin:0 auto; }
+.rgrip { position:absolute; top:0; bottom:0; width:2px; background:var(--accent); z-index:8; }
+.rgrip .lbl { position:absolute; top:46%; left:8px; font-size:11px; color:var(--bg); background:var(--accent); padding:0 6px; white-space:nowrap; font-weight:600; }
+.rgrip .lbl.dim { top:calc(46% + 22px); background:var(--bg); color:var(--fg); box-shadow:inset 0 0 0 1px var(--hair); font-weight:400; }
+.rhandle { position:absolute; top:46%; width:14px; height:44px; margin-left:-7px; display:grid; place-items:center; background:var(--bg); border:1px solid var(--accent); color:var(--accent); z-index:8; font-size:12px; }
+.sk-oma .top .tbtn { width:28px; height:28px; display:grid; place-items:center; border:1px solid var(--hair); color:var(--fg); flex:none; }
+.sk-oma .top .tbtn.hot { background:var(--f8); }
+.tipf { position:absolute; z-index:30; background:var(--bg); color:var(--fg); border:1px solid var(--hair); padding:3px 8px; font-size:11.5px; white-space:nowrap; box-shadow:0 10px 24px -12px #000; }
+.tipf .k { color:var(--dim); margin-left:8px; }
+
+/* D14: the menu grown out of the mark */
+.sk-oma .menu .mver { padding:7px 12px 8px; font-size:11.5px; color:var(--dim); border-bottom:1px solid var(--hair); margin-bottom:4px; }
+.sk-oma .menu .mver b { color:var(--fg); font-weight:500; }
+.sk-oma .menu.grown { border-top:0; box-shadow:0 22px 44px -18px #000; }
+.sk-oma .menu.g-a { background:linear-gradient(var(--fsel), var(--fsel)), var(--bg); border-color:var(--hair); }
+.sk-oma .menu.g-a .mi:hover, .sk-oma .menu.g-a .mi.cur { background:var(--f8); }
+.sk-oma .menu.g-b { border:1px solid var(--accent); border-top:0; }
+.sk-oma .menu.g-b::before { content:""; position:absolute; top:0; left:var(--joint); right:-1px; border-top:1px solid var(--accent); }
+.sk-oma .mark.ring { box-shadow:inset 1px 1px 0 var(--accent), inset -1px 0 0 var(--accent); }
+.sk-oma .rail.asmenu .mi { width:100%; }
+.sk-oma .rail.asmenu .rmenu { flex:1; min-height:0; overflow:hidden; padding:4px 0; font-size:12.5px; }
+.sk-oma .rail.asmenu .rmenu .mi { display:grid; grid-template-columns:18px minmax(0, 1fr) auto; gap:8px; padding:3px 12px; align-items:center; }
+.sk-oma .rail.asmenu .rmenu .mi.cur { background:var(--fsel); color:var(--bright); }
+.sk-oma .rail.asmenu .rmenu .mi .g, .sk-oma .rail.asmenu .rmenu .mi .k { color:var(--dim); text-align:center; font-size:11px; }
+.sk-oma .rail.asmenu .rmenu .mi.red { color:var(--red); }
+.sk-oma .rail.asmenu .rmenu hr { border:0; border-top:1px solid var(--hair); margin:4px 0; }
+.sk-oma .rail.asmenu .rmenu .mh2 { padding:4px 12px 2px; font-size:10.5px; letter-spacing:.12em; text-transform:uppercase; color:var(--dim); }
+.sk-oma .menu .mi.off { color:var(--dim); }
+.sk-oma .menu .cap2 { padding:4px 12px 2px; font-size:10.5px; letter-spacing:.12em; text-transform:uppercase; color:var(--dim); }
+.sk-oma .menu .note2 { padding:4px 12px 6px; font-size:11px; color:var(--dim); max-width:300px; white-space:normal; }
+
+
+/* board 51's D2 (the speeds in the title bar, C32 D2), D18 (the filter field, C32 D18), D5 (the rail's ticks) */
+.sk-oma .top .tspd { display:grid; grid-template-columns:auto auto; grid-template-rows:auto auto; column-gap:6px; align-items:baseline; flex:none; padding:0 6px; }
+.sk-oma .top .tspd b { font-weight:500; font-size:15px; color:var(--bright); font-variant-numeric:tabular-nums; }
+.sk-oma .top .tspd .a { font-size:13px; }
+.sk-oma .top .tspd small { font-size:10.5px; color:var(--dim); }
+.sk-oma .top .tspd svg { grid-column:1 / -1; }
+.sk-oma .top .tspd.d .a { color:var(--blue); } .sk-oma .top .tspd.u .a { color:var(--green); }
+.sk-oma .top .tsep { width:1px; align-self:stretch; margin:12px 2px; background:var(--hair); }
+
+.sk-oma .top .ffield { flex:1; min-width:0; height:30px; display:flex; align-items:center; gap:8px; padding:0 8px 0 10px; border:1px solid var(--accent); background:var(--f4); color:var(--bright); }
+.sk-oma .top .ffield .sl { color:var(--accent); font-weight:600; }
+.sk-oma .top .ffield .car { width:1px; height:15px; background:var(--bright); margin-left:-6px; }
+.sk-oma .top .ffield .tok { padding:0 6px; background:var(--f18); color:var(--bright); font-size:12px; }
+.sk-oma .top .ffield .cnt2 { margin-left:auto; color:var(--dim); font-size:11.5px; white-space:nowrap; }
+.sk-oma .top .ffield .x { color:var(--dim); font-size:11px; padding:0 4px; }
+.sk-oma .top .ffield.cramped { flex:none; width:176px; border-color:var(--hair); background:transparent; overflow:hidden; white-space:nowrap; }
+.sk-oma .top .tt.short { flex:none; }
+.sk-oma .fline { display:flex; align-items:center; gap:10px; padding:8px 14px 8px 18px; border-bottom:1px solid var(--hair); background:var(--f4); font-size:12.5px; }
+.sk-oma .fline .ffield { flex:1; display:flex; gap:8px; align-items:center; color:var(--bright); }
+.sk-oma .fline .ffield .sl { color:var(--accent); font-weight:600; }
+.sk-oma .fline .cnt2 { color:var(--dim); font-size:11.5px; }
+.sk-oma .row .nm mark { background:var(--f18); color:var(--bright); }
+.sk-oma .ri .tk2 { width:11px; height:11px; box-shadow:inset 0 0 0 1px var(--dim); display:inline-block; justify-self:center; }
+.sk-oma .ri .tk2.on { background:var(--c, var(--accent)); box-shadow:none; }
+.sk-oma .ri .lvw { color:var(--c); }
+
+/* =================================================================
+   BOARD 48's ADDITIONS: search (#145), both skins
+   ================================================================= */
+.win .fx { outline:2px solid var(--accent); outline-offset:1px; }
+.sc .q2 .qsel { background:color-mix(in srgb, var(--accent) 32%, transparent); color:var(--bright); }
+.sc .sbar .chip { position:relative; }
+.sc .sbar .q2 { white-space:nowrap; overflow:hidden; }
+.sk-oma .sbar .q2:not(.foc) { border-color:var(--hair); }
+.sc .sbar .q2 .u { overflow:hidden; text-overflow:ellipsis; }
+/* add… shows on the cursor row and under the pointer (law 4's quiet) */
+.sc .row.res .fix { visibility:hidden; }
+.sc .row.res.sel .fix, .sc .row.res:hover .fix { visibility:visible; }
+.sc .sline { align-items:baseline; }
+.sc .pills { margin-left:auto; display:flex; gap:12px; align-items:baseline; flex-wrap:wrap; }
+.sc .pill { display:inline-flex; gap:6px; align-items:center; white-space:nowrap; color:var(--dim); }
+.sc .dt { width:6px; height:6px; display:inline-block; flex:none; background:var(--dim); }
+.sk-oma .dt { border-radius:50%; }
+.sc .pill.ok { color:var(--fg); } .sc .pill.ok .dt { background:var(--green); }
+.sc .pill.run .dt, .sc .pline.run .dt { background:var(--accent); animation:pulse48 1.3s ease-in-out infinite; }
+.sc .pill.no, .sc .pill.slow { color:var(--yellow); } .sc .pill.no .dt { background:var(--yellow); }
+.sc .pill.slow .dt { background:var(--yellow); animation:pulse48 1.3s ease-in-out infinite; }
+@keyframes pulse48 { 0%, 100% { opacity:.3; } 50% { opacity:1; } }
+.sc .warnlk { color:var(--yellow); white-space:nowrap; text-decoration:underline; text-underline-offset:3px; text-decoration-color:color-mix(in srgb, var(--yellow) 45%, transparent); }
+.sc .go2 { color:var(--accent); white-space:nowrap; }
+.sc .dim2 { color:var(--dim); }
+.sc .empty .go2 { justify-self:center; }
+.sc .empty .dim2 { font-size:11px; }
+/* a result's row: the rows display, the fact is its seeds (SR8) */
+.sc .row.res .st { color:var(--sc); }
+.sc .row.dead { opacity:.72; }
+.sc .row .ondisk { color:color-mix(in srgb, var(--green) 72%, var(--dim)); font-size:10.5px; letter-spacing:.06em; white-space:nowrap; border-bottom:1px dashed currentColor; }
+.sc .row .added { color:var(--accent); font-size:10.5px; letter-spacing:.06em; white-space:nowrap; }
+.sc .row .new { color:var(--accent); font-size:10px; letter-spacing:.08em; white-space:nowrap; }
+.sk-oma .row.fresh { background:color-mix(in srgb, var(--accent) 7%, transparent); }
+.sc .newabove { margin:4px 18px 4px; font-size:11px; color:var(--accent); }
+.sc .hid { padding:8px 18px; font-size:11.5px; color:var(--dim); }
+.sc .asking { padding:16px 18px; display:grid; gap:7px; font-size:12px; color:var(--dim); }
+.sc .asking div { display:flex; gap:16px; }
+.sc .asking .pill { min-width:90px; color:var(--fg); }
+.sc .asking p { margin-top:6px; }
+/* the plugins' answers (SR2) */
+.sc .pp { display:grid; grid-template-columns:8px auto minmax(0, 1fr); gap:1px 8px; align-items:baseline; padding:6px 12px; font-size:12px; }
+.sc .pp + .pp { box-shadow:inset 0 1px 0 var(--hair); }
+.sc .pp b { color:var(--bright); font-weight:600; }
+.sc .pp .w2 { color:var(--fg); }
+.sc .pp small { grid-column:2 / -1; color:var(--dim); font-size:11px; }
+.sc .pp .acts { grid-column:2 / -1; display:flex; gap:14px; color:var(--accent); font-size:11.5px; padding-top:3px; }
+.sc .pp .acts .d { color:var(--dim); }
+.sc .pp.ok .dt { background:var(--green); }
+.sc .pp.no .dt, .sc .pp.slow .dt { background:var(--yellow); }
+.sc .pp.no .w2, .sc .pp.slow .w2 { color:var(--yellow); }
+/* the result on the right (SR3) */
+.sc .cop { display:grid; gap:6px; }
+.sc .cop div { display:grid; grid-template-columns:62px minmax(0, 1fr); gap:0 10px; font-size:12px; padding:5px 8px; background:var(--f4, var(--panel)); }
+.sc .cop div.on { box-shadow:inset 2px 0 0 var(--accent); }
+.sc .cop b { color:var(--bright); font-weight:600; grid-row:1 / 4; }
+.sc .cop span:last-of-type { color:var(--dim); font-size:11.5px; }
+.sc .cop small { color:var(--dim); font-size:10.5px; letter-spacing:.06em; }
+.sc .trl { display:grid; gap:2px; font-size:11.5px; color:var(--fg); }
+.sc .p2 { font-size:11.8px; line-height:1.5; margin:0; }
+.sc .p2 code { font:inherit; color:var(--bright); }
+.sc .ract { display:flex; gap:14px; align-items:center; flex-wrap:wrap; padding-top:4px; font-size:12px; }
+.sk-oma .ract .fix { color:var(--accent); border:1px solid color-mix(in srgb, var(--accent) 45%, transparent); padding:1px 8px; }
+.sc .ract .kb { margin-left:6px; }
+/* the hand-off (SR9) */
+.sc .srcn { color:var(--bright); font-size:14px; font-weight:600; }
+.sc .srcs { font-size:11.5px; color:var(--dim); }
+/* Settings › qBittorrent › Search plugins (SR10) */
+.sc .inst { display:grid; grid-template-columns:auto minmax(0, 1fr) auto; gap:10px; align-items:center; font-size:12px; }
+.sc .inst .lb { color:var(--dim); font-size:10.5px; letter-spacing:.1em; text-transform:uppercase; }
+.sc .inst .input .u.off { opacity:.45; text-decoration:line-through; }
+.sc .pline { display:flex; gap:8px; align-items:baseline; font-size:11.5px; color:var(--dim); }
+.sc .pline .dt { transform:translateY(-1px); }
+.sc .pline.ok .dt { background:var(--green); }
+.sc .phead { display:flex; align-items:baseline; gap:10px; padding-top:4px; font-size:10.5px; letter-spacing:.1em; text-transform:uppercase; color:var(--dim); }
+.sc .phead .go2 { text-transform:none; letter-spacing:0; font-size:11.5px; }
+.sc .plg { display:grid; grid-template-columns:32px 84px 38px minmax(0, 1fr) 18px; gap:2px 10px; align-items:center; padding:7px 10px; font-size:12px; box-shadow:inset 0 0 0 1px var(--hair); }
+.sc .plg b { color:var(--bright); font-weight:600; }
+.sc .plg .ver, .sc .plg .ty { color:var(--dim); font-size:11.5px; }
+.sc .plg .mo { color:var(--dim); text-align:center; }
+.sc .plg small { grid-column:2 / -1; color:var(--yellow); font-size:11px; }
+.sc .plg.off b { color:var(--dim); }
+/* the status line on Transmission or Deluge */
+.sc .engsay { color:var(--yellow); }
+/* the key card (SR14) */
+.cwrap .keycard { position:absolute; left:14px; bottom:12px; z-index:5; max-width:min(640px, calc(100% - 28px)); }
+.sk-oma .keycard { display:flex; gap:12px; align-items:baseline; padding:8px 12px; background:var(--bg); border:1px solid var(--accent); box-shadow:0 14px 30px -16px #000; font-size:12px; }
+.sc .keycard .kk { color:var(--accent); font-weight:700; white-space:nowrap; }
+
+/* =================================================================
+   BOARD 52's ADDITIONS (Omarchy skin; every colour a Theme role,
+   fills 4/8/18/22 %, hairlines 12 %)
+   ================================================================= */
+/* the rail's plugins group: a tick (asked or not), the name, how it answered */
+.sc .ri .pa { display:inline-flex; gap:6px; align-items:center; white-space:nowrap; color:var(--fg); font-variant-numeric:tabular-nums; font-size:12px; }
+.sc .ri .pa.ok .dt { background:var(--green); }
+.sc .ri .pa.run .dt { background:var(--accent); animation:pulse48 1.3s ease-in-out infinite; }
+.sc .ri .pa.slow, .sc .ri .pa.no { color:var(--yellow); }
+.sc .ri .pa.slow .dt { background:var(--yellow); animation:pulse48 1.3s ease-in-out infinite; }
+.sc .ri .pa.no .dt { background:var(--yellow); }
+.sc .ri .pa.skip, .sc .ri .pa.off, .sc .ri .pa.none { color:var(--dim); }
+.sk-oma .ri.pr.unt .ell, .sk-oma .ri.pr.offr .ell { color:var(--dim); }
+.sk-oma .ri.pr.offr .ell { text-decoration:line-through; text-decoration-color:var(--hair); }
+.sk-oma .ri.add2, .sk-oma .ri.add2 .g { color:var(--accent); }
+.sk-oma .ri.add2.hot { background:var(--f8); }
+.sk-oma .ri .now { color:var(--dim); font-size:11px; }
+.sk-oma .ri.hot { background:var(--f8); }
+.sk-oma .rg h6 .hc { float:right; text-transform:none; letter-spacing:0; }
+/* the search field: placeholder, caret, and × esc at its end (as C32 D18's filter) */
+.sc .sbar .q2 .ph { color:var(--dim); }
+.sc .sbar .q2 .car2 { width:1px; height:15px; background:var(--bright); align-self:center; margin-left:-7px; }
+.sc .sbar .q2 .xesc { margin-left:auto; color:var(--dim); font-size:11.5px; white-space:nowrap; padding:0 5px; }
+.sc .sbar .q2 .xesc.hot { color:var(--bright); background:var(--f8); }
+.sc .sbar .chip.hot { background:var(--f8); }
+.sc .sline .clr { color:var(--accent); white-space:nowrap; }
+.sc .sline .clr.hot { text-decoration:underline; text-underline-offset:3px; }
+.sc .idle52 { padding:2px 18px; font-size:11.5px; color:var(--dim); max-width:84ch; }
+.sc .input .car3 { width:1px; height:15px; background:var(--bright); align-self:center; margin-right:-4px; }
+.sk-oma .menu .mi.go3, .sk-oma .menu .mi.go3 .g { color:var(--accent); }
+.sk-oma .menu .mi.go3.cur { background:var(--f8); }
+.sk-oma .menu.pm .mi .k { max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+/* the esc order, today and in D21 a */
+.flow { display:grid; gap:6px; font-size:12px; min-width:820px; }
+.flow .fr { display:grid; grid-template-columns:96px repeat(4, minmax(0, 1fr)); gap:6px; }
+.flow .fr > span { padding:6px 10px; border:1px solid var(--hairline); background:var(--fill-normal); }
+.flow .fr > span.h { border:0; background:none; color:var(--fg-dark); font-size:10.5px; letter-spacing:.1em; text-transform:uppercase; align-self:center; padding:0; }
+.flow .fr > span.chg { border-color:color-mix(in srgb, var(--green) 45%, transparent); color:var(--fg-bright); }
+.flow .fr > span i { font-style:normal; color:var(--fg-dark); display:block; font-size:11px; }
+.states { display:grid; gap:4px; font-size:12px; align-content:start; }
+.states div { display:grid; grid-template-columns:96px minmax(0, 1fr); gap:10px; }
+.states b { font-weight:500; }
+.states .ok { color:var(--green); } .states .run { color:var(--accent); } .states .w { color:var(--yellow); } .states .d { color:var(--fg-dark); }
+</style>
+</head>
+<body>
+<main>
+  <header style="display:grid;gap:12px">
+    <div class="eyebrow">docs/52 · proposal for Diogo · 2026-10-31 · #201 D5s D20 D21 · v0.5.0 · inside board 46's frame, as board 51 drew it</div>
+    <h1>Search's rail, and clearing a search</h1>
+    <p class="lead"><b>Three calls the pass's search section left open, drawn so you can rule on them.</b> D20 and D21 are gaps #201 found in the search view (C26, board 48); D5s is the call board 51 left for after that section (C32 D5: "search's rail waits for the pass's section 5"). D5s and D20 are drawn together, because the recommended way to the plugins is a row in the rail. Each option is a mock in board 51's kit (Omarchy skin, baseline theme, Theme roles only); one is marked recommended, with its reason and the ruling it changes. Section 4 collects them as a table and an answer sheet. Nothing is built before you rule.</p>
+    <div class="flags">
+      <span class="flag hot">a proposal: the calls are open</span>
+      <span class="flag">the console skin follows by C31's tokens; drawn here in Omarchy's</span>
+      <span class="flag">plugins, torrents and servers invented</span>
+    </div>
+  </header>
+
+  <section>
+    <div class="sec-head"><div class="eyebrow">0 · not on this board</div><h2>What this board leaves out</h2></div>
+    <div class="bcards">
+      <div class="bcard"><div class="k">C26 SR1–SR13</div><div class="h">How search asks and answers</div><p>One job per plugin, the fold by info hash, seeds as words, the hand-off to the add sheet: unchanged. Only where a plugin's answer is shown (D5s) and how a search ends (D21) move.</p></div>
+      <div class="bcard"><div class="k">SR10 · the pane</div><div class="h">Settings › qBittorrent › Search plugins</div><p>The pane itself (install from a URL or a file, a switch per plugin, uninstall, check for updates) stays as built. D20 is only about getting there from search.</p></div>
+      <div class="bcard"><div class="k">C32</div><div class="h">Board 51's other calls</div><p>The settings row at the rail's foot (D1), the fold tab (D9), the speeds in the title bar (D2) and the filter's "× esc" (D18) are drawn as built, not reopened.</p></div>
+      <div class="bcard"><div class="k">#201 F and P items</div><div class="h">Fixes and the test page</div><p>The pass's fixes and the rewrites of the manual test page land on their own; none of them waits for this board.</p></div>
+    </div>
+  </section>
+
+  <!-- 1 -->
+  <section id="today">
+    <div class="sec-head"><div class="eyebrow">1 · today · v0.5.0 with C32 built</div><h2>An empty rail, no way to the plugins, rows that stay</h2></div>
+    <div class="item"><h3><span class="id">D5s D20 D21</span> The search view as it is</h3>
+      <p class="prob">Search after one search, with one plugin installed. Between the views and the servers the rail holds nothing, so it reads as empty (D5s). The bar's <q>1 plugin ▾</q> only picks which of the installed plugins to ask; nothing in the view leads to <b>Settings › qBittorrent › Search plugins</b>, where a second one is installed (D20). There is no × or <q>clear</q>: esc empties the field, then leaves, and coming back shows the last search's rows until the next one (D21).</p>
+      <div class="opts wide"><div id="t-view"></div></div>
+      <div class="opts"><div id="t-menu"></div><div id="t-none"></div></div>
+      <div class="opts wide"><div id="t-back"></div><div class="note" style="align-self:center"><b>Why the rows stay.</b> SR12 keeps each server's last results for the session, so a switch of server or view doesn't lose them. That is right for a search you come back to, but nothing lets you end one: esc in the field clears the words only (SR14), and an empty field's esc leaves the view. The words go; the sentence, the plugins' line and the rows stay.</div></div>
+    </div>
+  </section>
+
+  <!-- 2 -->
+  <section id="rail">
+    <div class="sec-head"><div class="eyebrow">2 · D5s D20 · the rail on search, and the way to plugins</div><h2>The rail holds the plugins, and the plugins lead to their pane</h2></div>
+    <div class="item"><h3><span class="id">D5s a · D20 a</span> Plugins, kind and recent in the rail; "install a plugin…" at the plugins' foot</h3>
+      <p class="prob">As the log's rail holds its levels (C32 D5), the search rail holds what narrows the answers. <b>plugins</b>: every installed plugin, a tick for whether this search asks it, and how it answered, with the plugins' line's dot and words (a count, … while asking, slow, failed, skipped). A click ticks or unticks it and asks again, as a change in <q>plugins ▾</q> does today; <q>plugins ▾</q> and the pills leave the bar and the line, and the line keeps <q>1 of 2 plugins didn't answer ›</q>. The group's foot row, <q>install a plugin…</q>, opens the pane with its install field focused. <b>kind</b>: any, or one of the types the plugins declare; one pick, which asks again (type ▾ moves here). <b>recent</b>: this server's last searches this session; a click asks it again.</p>
+      <div class="opts wide"><div id="a-view"></div></div>
+      <div class="opts wide"><div id="a-states"></div><div class="states note" style="align-self:center">
+        <div><b>tick on</b><span>asked by the next search; a click asks again with the change</span></div>
+        <div><b>tick off</b><span>installed and on, left out of this search (dim name, no answer)</span></div>
+        <div><b class="ok">● 2</b><span>answered with 2 results (before the fold)</span></div>
+        <div><b class="run">● …</b><span>asked, still looking (within the 30 s)</span></div>
+        <div><b class="w">● slow</b><span>still looking past 30 s, heard until qBittorrent's 3 min (SR2)</span></div>
+        <div><b class="w">● failed</b><span>didn't answer; the line's "didn't answer ›" opens why, as today</span></div>
+        <div><b class="d">skipped</b><span>it has no plugin type for the kind picked (SR6)</span></div>
+        <div><b class="d">off</b><span>turned off in Settings: no tick; a click opens the pane on it</span></div>
+      </div></div>
+      <div class="opts wide"><div id="a-pane"></div></div>
+      <div class="opts wide"><div id="a-fold"></div><div class="note" style="align-self:center"><b>Folded (ctrl+b, or a narrow window).</b> A 48 px rail can't hold a plugin's name and answer, so the bar takes them back: <q>2 plugins ▾</q> and <q>any type ▾</q> return (at 720 px inside <q>filters ▾</q>, as SR6), and the pills return to the line. <q>plugins ▾</q> gains one last row, <q>manage plugins…</q>, opening the same pane. So there is a way to the plugins in every width.</div></div>
+      <p class="recl"><b>Recommended: D5s a, D20 a.</b> The plugins are what a search is made of, so they get the room, and the place you see them answer is where you add one. It also moves two filters out of a crowded bar, as the log's levels moved. Recent searches stay in memory only (search words can be private), never saved. It <span class="sup">amends C32 D5</span> (search's rail, left open) and <span class="sup">C26 SR6</span> (plugins ▾ and type ▾ leave the bar while the rail is open) and <span class="sup">SR10</span> (a second way into the pane besides Settings and the empty state).</p>
+    </div>
+
+    <div class="item"><h3><span class="id">D5s b · D20 b</span> The plugins only, as state; the bar as today</h3>
+      <p class="prob">The rail shows each plugin's dot and answer, without ticks, and a foot row <q>manage plugins…</q> that opens the pane at its list. The bar keeps <q>plugins ▾</q> and <q>type ▾</q>, the line keeps its pills, so each answer shows twice. Smaller, and the rail no longer looks empty, but it only repeats the line.</p>
+      <div class="opts wide"><div id="b-view"></div></div>
+    </div>
+
+    <div class="item"><h3><span class="id">D5s c · D20 c</span> No rail change; "manage plugins…" in plugins ▾</h3>
+      <p class="prob">The minimal fix: <q>plugins ▾</q> gets a last row, <q>manage plugins…</q>, opening the pane. The rail stays as today. It answers D20, but the way is inside a menu you open for something else, and D5s stays an empty rail.</p>
+      <div class="opts wide"><div id="c-menu"></div></div>
+    </div>
+  </section>
+
+  <!-- 3 -->
+  <section id="clear">
+    <div class="sec-head"><div class="eyebrow">3 · D21 · clearing</div><h2>A way to end a search</h2></div>
+    <div class="item"><h3><span class="id">D21 a</span> "× esc" at the field's end, as the title bar's filter</h3>
+      <p class="prob">While the field has words or there are results, it ends in <q>× esc</q>, as the filter field does since C32 D18. A click, or esc in the field, clears the words and the results together, stops asking any plugin still looking (the jobs omaseed started are deleted, SR13), and shows the face before search. One more esc leaves. Recent searches keep the words (D5s a), so nothing is lost that you'd want back.</p>
+      <div class="opts wide"><div id="d21-a"></div><div id="d21-a2"></div></div>
+      <div class="scroll"><div class="flow">
+        <div class="fr"><span class="h">today</span><span>pane open<i>esc closes it</i></span><span>cursor in the rows<i>esc: back to the field</i></span><span>words in the field<i>esc clears the words; rows stay</i></span><span>empty field<i>esc leaves search; rows kept</i></span></div>
+        <div class="fr"><span class="h">D21 a</span><span>pane open<i>esc closes it</i></span><span>cursor in the rows<i>esc: back to the field</i></span><span class="chg">words or results<i>esc clears the words and the results</i></span><span>the face before search<i>esc leaves search</i></span></div>
+      </div></div>
+      <p class="recl"><b>Recommended: a.</b> It is the model the window already has (the filter's × esc), it sits where the eye is when you want to start over, and esc keeps its one meaning: back out a step. It <span class="sup">amends C26 SR14</span> (esc's order: pane → rows → the words and results → leave search).</p>
+    </div>
+    <div class="item"><h3><span class="id">D21 b</span> A "clear" word at the end of the results line</h3>
+      <p class="prob">The line ends in <q>clear</q>; esc stays as today. Easy to see once you look at the line, but it sits away from the field, and esc still leaves the rows behind.</p>
+      <div class="opts wide"><div id="d21-b"></div></div>
+    </div>
+    <div class="item"><h3><span class="id">D21 c</span> Results aren't kept</h3>
+      <p class="prob">Leaving search drops the results; coming back shows the face before search, with the last words selected in the field so enter asks again. No new control, but a server switch or a look at the library loses a search that took a minute to fill. It <span class="sup">amends C26 SR12</span> (each server's last results kept for the session).</p>
+      <div class="opts wide"><div id="d21-c"></div></div>
+    </div>
+  </section>
+
+  <!-- 4 -->
+  <section id="decisions">
+    <div class="sec-head"><div class="eyebrow">4 · your calls</div><h2>D5s, D20, D21</h2></div>
+    <div class="scroll" id="dtable"></div>
+    <p>D20 a and b need a plugins group in the rail (D5s a or b); with D5s c, D20 is c. Recommended options are preselected below. Change what you disagree with and paste the block back into a session, or answer "all as recommended".</p>
+    <div class="dec" id="dec"></div>
+    <div class="out">
+      <textarea id="answers" readonly aria-label="Your answers" style="min-height:140px"></textarea>
+      <div style="display:flex;gap:12px;align-items:center"><button type="button" id="copy">Copy answers</button><span class="ok" id="copied" hidden>Copied</span></div>
+    </div>
+  </section>
+</main>
+<script>
+(() => {
+"use strict";
+const $ = (s, r = document) => r.querySelector(s), $$ = (s, r = document) => [...r.querySelectorAll(s)];
+/* baseline, as boards 46–51 carry it */
+const TH = {"bg":"#121316","dbg":"#0d0e10","lbg":"#1d1f23","fg":"#c4c7cc","dim":"#797d86","bright":"#f2f2ec","accent":"#efdf3c","sel":"#3e3c1e","muted":"#37393c","red":"#ff4f5e","yellow":"#f2a33a","green":"#7fd08a","blue":"#6f9cf0","magenta":"#c88df0","cyan":"#45c6dc","orange":"#f9794c","sDown":"#6f9cf0","sSeed":"#7fd08a","sCheck":"#f2a33a","sQueue":"#c88df0","sStall":"#f9794c","sErr":"#ff4f5e","sStop":"#797d86","fs":0.13};
+const SERV = [{ id: "public", n: 117 }, { id: "private", n: 4 }];
+
+/* ---------- helpers (board 51's, cut to the Omarchy skin) ---------- */
+function rng(seed) { let h = 2166136261; for (const c of seed) h = Math.imul(h ^ c.charCodeAt(0), 16777619); return () => ((h = Math.imul(h ^ (h >>> 13), 1274126177) >>> 0) / 4294967296); }
+const kb = k => `<span class="kb">${k}</span>`;
+const g = s => `<span aria-hidden="true">${s}</span>`;
+const dotH = (cls = "") => `<span class="dot ${cls}" style="display:inline-block"></span>`;
+const sv = d => `<svg class="ic" viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="square" stroke-linejoin="miter">${d}</svg>`;
+const I = {
+  gear: sv(`<circle cx="8" cy="8" r="2.2"/><path d="M8 1.8v2.2M8 12v2.2M1.8 8H4M12 8h2.2M3.6 3.6l1.5 1.5M10.9 10.9l1.5 1.5M3.6 12.4l1.5-1.5M10.9 5.1l1.5-1.5"/>`),
+  plus: sv(`<path d="M8 3v10M3 8h10"/>`),
+};
+const OPT = (l, rec) => `${l ? `<span>${l}</span>` : ""}${rec === "rec" ? `<span class="opttag rec">recommended</span>` : rec === "today" ? `<span class="opttag today">today</span>` : ""}`;
+function tool(cls, inner, k) { return `<button class="tool ${cls}">${inner}${k ? kb(k) : ""}</button>`; }
+const spark = (seed, c) => { const r = rng(seed); let y = 9; const p = Array.from({ length: 24 }, (_, i) => { y = Math.max(2, Math.min(16, y + (r() - .5) * 6)); return `${(i * 3).toFixed(0)},${y.toFixed(1)}`; }).join(" "); return `<svg width="72" height="18" viewBox="0 0 72 18" aria-hidden="true"><polyline points="${p}" fill="none" stroke="${c}" stroke-width="1.2"/></svg>`; };
+const tip = (x, y, text, k = "") => `<div class="tipf" style="left:${x}px;top:${y}px">${text}${k ? `<span class="k">${k}</span>` : ""}</div>`;
+
+/* ---------- the rail: the views, then whatever the view holds, the servers, settings (C32 D1) ---------- */
+function rail52(o = {}) {
+  const n = !!o.fold;
+  const views = [["library", "≡", "library", "117"], ["seed", "↑", "seed console", "`"], ["log", "~", "log", "~"], ["search", "⌕", "search", "ctrl+f"]];
+  const vh = views.map(([id, gl, name, k]) => `<button class="ri ${id === "search" ? "on" : ""}" title="${name}"><span class="g">${g(gl)}</span>${n ? "" : `<span class="ell">${name}</span><span class="n">${id === "library" ? k : kb(k)}</span>`}</button>`).join("");
+  const srv = `<div class="srv">${n ? "" : `<h6><span>servers · 2</span><span>▾</span></h6>`}${SERV.map((s, i) => `<button class="ri ${i === 0 ? "on" : ""}" title="${s.id}"><span class="dot ${i ? "off" : ""}"></span>${n ? "" : `<span class="ell">${s.id}</span><span class="n">${s.n}</span>`}</button>`).join("")}</div>`;
+  const foot = n
+    ? `<div class="rfoot"><button class="ri" title="settings · ,"><span class="g">${I.gear}</span></button></div>`
+    : `<div class="rfoot"><button class="ri"><span class="g">${I.gear}</span><span class="ell">settings</span><span class="n">${kb(",")}</span></button></div>`;
+  const mark = `<button class="mark" aria-label="omaseed menu"><span class="logo">o</span>${n ? "" : `<b>omaseed</b><span class="car">▾</span>`}</button>`;
+  return `<nav class="rail" aria-label="where">${mark}<div class="views">${vh}</div><div class="rscroll">${n ? "" : (o.groups || "")}</div>${srv}${foot}</nav>`;
+}
+/* a plugin's row: tick true (asked), false (left out) or "off" (turned off in Settings); its answer [words, kind] */
+function pr(name, tick, ans, o = {}) {
+  const off = tick === "off";
+  const [w, c] = ans || ["", ""];
+  const dot = ["ok", "run", "slow", "no"].includes(c) ? `<i class="dt"></i>` : "";
+  return `<button class="ri pr ${tick === true ? "" : off ? "offr" : "unt"} ${o.hot ? "hot" : ""}" title="${o.title || name}"><span class="tk2 ${tick === true ? "on" : ""}" style="${off ? "visibility:hidden" : ""}"></span><span class="ell">${name}</span><span class="n">${w ? `<span class="pa ${c}">${dot}${w}</span>` : ""}</span></button>`;
+}
+const group = (head, rows, count = "") => `<div class="rg"><h6><span>${head}</span>${count ? `<span class="hc">${count}</span>` : ""}</h6>${rows.join("")}</div>`;
+const addRow = (word, hot, icon = I.plus) => `<button class="ri add2 ${hot ? "hot" : ""}" data-r="add"><span class="g">${icon}</span><span class="ell">${word}</span><span class="n"></span></button>`;
+const KINDS = ["any", "movies", "tv", "music", "software", "books"];
+const kindGroup = (cur = "any") => group("kind", KINDS.map(k => `<button class="ri ${k === cur ? "on" : ""}"><span class="g">·</span><span class="ell">${k}</span><span class="n"></span></button>`));
+const recentGroup = (now = "sampler") => group("recent", ["sampler", "open movie night", "field recordings", "arcade set"].map(w => `<button class="ri"><span class="g">⌕</span><span class="ell">${w}</span><span class="n">${w === now ? `<span class="now">now</span>` : ""}</span></button>`));
+const PLUGS_A = (hotAdd) => group("plugins", [pr("plugin a", true, ["2", "ok"]), pr("plugin b", true, ["failed", "no"]), pr("plugin c", false, null, { title: "plugin c · not asked: a click asks it too" }), addRow("install a plugin…", hotAdd)], "2 of 3");
+
+/* ---------- the search view (board 48's look, today's words) ---------- */
+const CH_TODAY = [["1 plugin ▾", "plugins"], ["any type ▾", "type"], ["hide dead", "dead"], ["most seeds ▾", "sort"]];
+const CH_TWO = [["2 plugins ▾", "plugins"], ["any type ▾", "type"], ["hide dead", "dead"], ["most seeds ▾", "sort"]];
+const CH_RAIL = [["hide dead", "dead"], ["most seeds ▾", "sort"]];
+function sbar52(o = {}) {
+  const field = `<span class="q2 ${o.blur ? "" : "foc"}">${g("⌕")} ${o.words ? `<span>${o.words}</span>` : `<span class="ph">search your plugins</span>`}${o.caret && o.words ? `<span class="car2"></span>` : ""}${o.x ? `<button class="xesc ${o.x === "hot" ? "hot" : ""}">× esc</button>` : ""}</span>`;
+  const chips = (o.chips || CH_TODAY).map(([t, id]) => `<span class="chip ${id === o.hot ? "hot" : ""}" data-chip="${id}">${t}</span>`).join("");
+  return `<div class="sbar">${field}${chips}</div>`;
+}
+const RES = [
+  { name: "Public Domain Sampler", size: "24.0 MB", age: "3 days ago", seeds: 31, say: "plugin a · 4 leechers" },
+  { name: "Nested Library Sampler (2026)", size: "118 MB", age: "2 weeks ago", seeds: 6, say: "plugin a · 1 leecher" },
+];
+function resRow(r) {
+  return `<div class="row res ${r.seeds < 5 ? "few" : ""}" style="--sc:${r.seeds < 5 ? "var(--yellow)" : "var(--sSeed)"}"><span class="st">${g("◇")}</span><div class="l1"><b class="nm">${r.name}</b><span class="mt">${r.size} · ${r.age}</span></div><div class="fact"><b style="${r.seeds < 5 ? "color:var(--yellow)" : ""}">${r.seeds}</b><span>${r.seeds < 5 ? "few seeds" : "seeds"}</span></div><div class="l2"><span class="ell">${r.say}</span><button class="fix">add…</button></div></div>`;
+}
+const RES_C = [
+  { name: "Field Recordings Vol. 3 [FLAC]", size: "103 MB", age: "1 month ago", seeds: 12, say: "plugin c · 2 leechers" },
+  { name: "Field Recordings Vol. 2", size: "88.4 MB", age: "1 year ago", seeds: 7, say: "plugin c · 0 leechers" },
+  { name: "Field Recordings (Live, 2025)", size: "61.0 MB", age: "5 months ago", seeds: 3, say: "plugin c · 1 leecher" },
+];
+const PILL_A = `<span class="pill ok"><i class="dt"></i>plugin a 2</span>`;
+const IDLE = "Type what you are looking for, then enter: each plugin that is on asks its own site, through public's qBittorrent. Nothing is asked until then.";
+function results(o = {}) {
+  if (o.idle) return `${sbar52(o.bar)}<div class="idle52">${IDLE}</div>`;
+  const right = o.right ?? PILL_A;
+  return `${sbar52(o.bar)}<div class="sline"><span>${o.left || "2 torrents from 2 results · most seeds, then newest"}</span><span class="pills">${right}</span></div><div class="rows">${(o.rows || RES).map(resRow).join("")}</div>`;
+}
+const speeds = () => `<div class="tspd d"><span class="a">↓</span><b>2.04 <small>MB/s</small></b>${spark("dn", "var(--blue)")}</div><div class="tspd u"><span class="a">↑</span><b>41 <small>KB/s</small></b>${spark("up", "var(--green)")}</div><span class="tsep"></span>`;
+const top52 = sentence => `<header class="top"><div class="tt"><h1>Search</h1><p class="ell">${sentence}</p></div>${speeds()}${tool("add", `+ add <span class="c">▾</span>`, "a")}</header>`;
+const status52 = () => `<footer class="status"><span style="display:inline-flex;gap:7px;align-items:center" title="switch server · ctrl+s">${dotH()}<b>public</b><span class="c" style="color:var(--dim)">▾</span></span><span class="sep">·</span><span>117 torrents</span><span class="sep">·</span><span>1.46 TB free</span><span class="sep">·</span><span>synced now</span><span class="r">? keys</span></footer>`;
+const S1 = "“sampler” · 2 torrents from 1 of 1 plugin on public";
+const S2 = "“sampler” · 2 torrents from 1 of 2 plugins on public";
+const FAILB = `<span class="pill no"><i class="dt"></i>plugin b failed</span>`;
+const DIDNT = `<button class="warnlk">1 of 2 plugins didn't answer ›</button>`;
+
+/* ---------- menus ---------- */
+const mi = (gl, name, k = "", cls = "") => `<button class="mi ${cls}"><span class="g">${gl}</span><span class="ell">${name}</span><span class="k">${k}</span></button>`;
+function plugMenu(o = {}) {
+  const rows = o.two
+    ? [mi("", "every plugin that is on"), "<hr>", mi("✓", "plugin a", "movies · music · software"), mi("✓", "plugin b", "movies · tv"), mi("", "plugin c", "music · books · movies")]
+    : [mi("✓", "every plugin that is on"), "<hr>", mi("✓", "plugin a", "movies · music · software")];
+  const manage = o.manage ? `<hr>${mi(I.gear, "manage plugins…", "", "go3 cur")}` : "";
+  return `<div class="scrim" style="background:transparent"></div><div class="menu pm ov" style="left:0;top:0;min-width:330px">${rows.join("")}${manage}<div class="note2">A change asks again.</div></div>`;
+}
+
+/* ---------- Settings › qBittorrent › Search plugins (SR10), its install field focused ---------- */
+function plugSheet(W, H) {
+  const nav = (arr, cur) => arr.map(([gl, n]) => `<button class="ri ${n === cur ? "on" : ""}"><span class="g">${g(gl)}</span><span class="ell">${n}</span></button>`).join("");
+  const omaNav = [["◎", "General"], ["▤", "Servers"], ["◉", "Notifications"], ["⌨", "Keys"], ["◐", "Appearance"], ["⛁", "Backup"], ["i", "About"]];
+  const qNav = [["⇅", "Speed"], ["◌", "Discovery"], ["⇄", "Connection"], ["↑", "Seeding"], ["≡", "Queue"], ["▤", "Downloads"], ["⌕", "Search plugins"], ["⌘", "Web UI"], ["◆", "Advanced"], ["⛁", "Backup"]];
+  const prow = (name, ver, types, on) => `<div class="plg ${on ? "" : "off"}"><span class="sw ${on ? "on" : ""}"></span><b>${name}</b><span class="ver">${ver}</span><span class="ty ell">${types}</span><button class="mo" title="uninstall">✕</button></div>`;
+  const pane = `<div class="shh"><h4>Search plugins</h4><span class="grow"></span><span style="font-size:11.5px;color:var(--dim)">public · qBittorrent 5.3.0</span></div>
+    <div class="shb"><div class="scopel"><span class="g">i</span><span>public's plugins: installed on public's machine and run by its qBittorrent. private has its own.</span><span class="lk"><span class="k">s</span> switch server</span></div>
+    <div class="inst"><span class="lb">install a plugin</span><span class="input fx"><span class="car3"></span><span class="ell" style="color:var(--dim)">a URL, or a .py file here</span><span class="u">browse…</span></span><button class="btn">install</button></div>
+    <div class="phead"><span>3 installed</span><span class="grow"></span><button class="go2">check for updates</button></div>
+    ${prow("plugin a", "1.4", "movies · music · software", true)}${prow("plugin b", "2.0", "movies · tv", true)}${prow("plugin c", "0.9", "music · books · movies", true)}
+    <div class="pline"><span>Types are each plugin's own (qBittorrent's categories).</span></div></div>`;
+  const w = 860, h = 560;
+  const inner = `<div style="display:flex;height:100%;min-height:0"><div class="snav"><h6><span>omaseed</span></h6>${nav(omaNav)}<h6><span>qbittorrent</span></h6><div class="scope">${dotH()}public<span style="margin-left:auto;color:var(--dim)">5.3.0 ▾</span></div>${nav(qNav, "Search plugins")}</div><div style="flex:1;min-width:0;display:flex;flex-direction:column">${pane}<div class="shf"><span style="font-size:11.5px;color:var(--dim)">esc closes · back to the search, as it was</span></div></div></div>`;
+  return `<div class="scrim"></div><div class="sheet ov" style="left:${(W - w) / 2}px;top:${(H - h) / 2}px;width:${w}px;height:${h}px">${inner}</div>`;
+}
+
+/* ---------- the stage: a window, or a part of it (clip: x, y, w, h) ---------- */
+function win52(c) {
+  return `<div class="wf" style="--W:${c.W}px;--H:${c.H}px;--ga:1"><div class="win ${c.fold ? "narrow" : ""}">${c.rail}<div class="main">${c.top}<div class="body"><div class="cwrap"><div class="content">${c.content}</div></div></div>${c.status || status52()}</div>${c.extra || ""}${c.ov ? c.ov(c.W, c.H) : ""}</div></div>`;
+}
+function fitIn(el, W, H) {
+  const sc = $(".sc", el), st = $(".stage", el);
+  const fit = () => { const s = Math.min(1, st.clientWidth / (W + 28)); sc.style.transform = `scale(${s})`; st.style.height = Math.ceil((H + 28) * s) + "px"; };
+  fit(); new ResizeObserver(fit).observe(st);
+}
+function placeMenu(el, p) {
+  const win = $(".win", el), a = $(p.a, el), m = $(p.m || ".menu.ov", el);
+  if (!win || !a || !m) return;
+  const wr = win.getBoundingClientRect(), s = wr.width / win.offsetWidth, ar = a.getBoundingClientRect();
+  const ax = (ar.left - wr.left) / s, ay = (ar.top - wr.top) / s, ah = ar.height / s;
+  m.style.left = (ax + (p.dx || 0)) + "px"; m.style.top = (ay + ah + 4) + "px";
+}
+function mount52(id, cfg) {
+  const el = document.getElementById(id); if (!el) return;
+  const c = Object.assign({ W: 1180, H: 560, status: null }, cfg);
+  const vs = Object.entries(TH).map(([k, v]) => `--${k}:${v}`).join(";");
+  let inner = win52(c), W = c.W, H = c.H;
+  if (c.clip) { const [x, y, w, h] = c.clip; inner = `<div style="position:relative;width:${w}px;height:${h}px;overflow:hidden"><div style="position:absolute;left:${-x}px;top:${-y}px">${inner}</div></div>`; W = w; H = h; }
+  el.innerHTML = `<div class="stagebox"><div class="stagecap"><b>${c.cap || ""}</b>${OPT("", c.tag)}<span>${c.sub || `${c.clip ? "part of the window" : "the window"} · Omarchy skin · baseline · ${c.W} × ${c.H}`}</span></div><div class="stage"><div class="sc sk-oma plain" style="${vs}">${inner}</div></div></div>`;
+  fitIn(el, W, H);
+  if (c.place) placeMenu(el, c.place);
+}
+
+/* ---------- §1 today ---------- */
+mount52("t-view", { cap: "today · search after one search", tag: "today", sub: "the rail holds the views, the servers and settings, nothing between", rail: rail52(), top: top52(S1), content: results({ bar: { words: "sampler" } }) });
+mount52("t-menu", { cap: "today · 1 plugin ▾ open", tag: "today", sub: "which plugins to ask; no way to install or manage one", H: 400, rail: rail52(), top: top52(S1), content: results({ bar: { hot: "plugins", words: "sampler" } }), ov: () => plugMenu(), place: { a: '[data-chip="plugins"]' }, clip: [440, 0, 740, 300] });
+mount52("t-none", { cap: "today · before any plugin", tag: "today", sub: "SR13's empty state: the only way to the pane from search, gone once one plugin is in", H: 400, rail: rail52(), top: top52("no search plugins on public"), content: `<div class="empty"><b>No search plugins on public</b><span>Search runs through qBittorrent's own search plugins: small Python files you choose and install on the server, each asking one site. omaseed doesn't name, ship or suggest any.</span><button class="go2">install a plugin…</button><span class="dim2">Settings › qBittorrent › Search plugins</span></div>`, clip: [214, 0, 966, 360] });
+mount52("t-back", { cap: "today · esc, esc, then ctrl+f again", tag: "today", sub: "the words are gone; the last search's sentence, line and rows stay", H: 400, rail: rail52(), top: top52(S1), content: results({ bar: {} }), clip: [214, 0, 966, 250] });
+
+/* ---------- §2 D5s + D20 ---------- */
+mount52("a-view", { cap: "D5s a · D20 a · plugins, kind, recent", tag: "rec", sub: "plugins ▾ and type ▾ moved to the rail; the line keeps what didn't answer", H: 800, rail: rail52({ groups: PLUGS_A(true) + kindGroup() + recentGroup() }), top: top52(S2), content: results({ bar: { chips: CH_RAIL, words: "sampler" }, right: DIDNT }), extra: tip(222, 300, "Settings › qBittorrent › Search plugins") });
+mount52("a-states", { cap: "D5s a · the plugins group, while asking", sub: "kind music picked: plugin b has no music type, so it is skipped", H: 720, rail: rail52({ groups: group("plugins", [pr("plugin a", true, ["…", "run"]), pr("plugin b", true, ["skipped", "skip"], { title: "plugin b · skipped: not this type" }), pr("plugin c", true, ["3", "ok"]), pr("plugin d", "off", ["off", "off"], { title: "plugin d · turned off in Settings" }), addRow("install a plugin…")], "3 of 4") + kindGroup("music") }), top: top52("“field recordings” · plugin c answered · 1 still looking"), content: results({ bar: { chips: CH_RAIL, words: "field recordings" }, left: "3 so far · most seeds, then newest", right: "", rows: RES_C }), clip: [0, 0, 560, 600] });
+mount52("a-pane", { cap: "D20 a · install a plugin… opens the pane", tag: "rec", sub: "Settings › qBittorrent › Search plugins, the install field focused; esc goes back to the search", H: 640, rail: rail52({ groups: PLUGS_A() + kindGroup() + recentGroup() }), top: top52(S2), content: results({ bar: { chips: CH_RAIL, words: "sampler" }, right: DIDNT }), ov: plugSheet });
+mount52("a-fold", { cap: "D5s a · D20 a · the rail folded", sub: "ctrl+b: plugins ▾ and type ▾ back in the bar, the pills back in the line; plugins ▾ ends in manage plugins…", W: 900, H: 460, fold: true, rail: rail52({ fold: true }), top: top52(S2), content: results({ bar: { chips: CH_TWO, words: "sampler", hot: "plugins" }, right: PILL_A + FAILB + DIDNT }), ov: () => plugMenu({ two: true, manage: true }), place: { a: '[data-chip="plugins"]' } });
+
+mount52("b-view", { cap: "D5s b · D20 b · the plugins only, as state", sub: "no ticks; manage plugins… at its foot; the bar and the pills as today", H: 560, rail: rail52({ groups: group("plugins", [pr("plugin a", true, ["2", "ok"]).replace(/<span class="tk2[^>]*><\/span>/, `<span class="g">${g("·")}</span>`), pr("plugin b", true, ["failed", "no"]).replace(/<span class="tk2[^>]*><\/span>/, `<span class="g">${g("·")}</span>`), pr("plugin c", true, ["—", "none"], { title: "plugin c · not asked" }).replace(/<span class="tk2[^>]*><\/span>/, `<span class="g">${g("·")}</span>`), addRow("manage plugins…", false, I.gear)], "3") }), top: top52(S2), content: results({ bar: { chips: CH_TWO, words: "sampler" }, right: PILL_A + FAILB + DIDNT }), clip: [0, 0, 1180, 340] });
+
+mount52("c-menu", { cap: "D5s c · D20 c · manage plugins… in plugins ▾", sub: "the rail as today; the way to the pane is the menu's last row", H: 560, rail: rail52(), top: top52(S1), content: results({ bar: { hot: "plugins", words: "sampler" } }), ov: () => plugMenu({ manage: true }), place: { a: '[data-chip="plugins"]' }, clip: [0, 0, 1180, 340] });
+
+/* ---------- §3 D21 ---------- */
+mount52("d21-a", { cap: "D21 a · × esc at the field's end", tag: "rec", sub: "while it has words or results; the pointer on it", H: 420, rail: rail52({ groups: PLUGS_A() + kindGroup() + recentGroup() }), top: top52(S2), content: results({ bar: { chips: CH_RAIL, words: "sampler", caret: true, x: "hot" }, right: DIDNT }), extra: tip(752, 98, "clear the words and the results", "esc"), clip: [214, 0, 966, 250] });
+mount52("d21-a2", { cap: "D21 a · cleared", tag: "rec", sub: "the face before search; the plugins keep their ticks, recent keeps sampler", H: 560, rail: rail52({ groups: group("plugins", [pr("plugin a", true), pr("plugin b", true), pr("plugin c", false), addRow("install a plugin…")], "2 of 3") + kindGroup() + recentGroup("") }), top: top52("asks 2 of the 3 plugins on public"), content: results({ idle: true, bar: { chips: CH_RAIL } }), clip: [0, 0, 1180, 330] });
+mount52("d21-b", { cap: "D21 b · clear at the end of the results line", sub: "esc as today", H: 420, rail: rail52(), top: top52(S1), content: results({ bar: { words: "sampler", blur: true }, right: PILL_A + `<button class="clr hot">clear</button>` }), clip: [214, 0, 966, 250] });
+mount52("d21-c", { cap: "D21 c · back in search after the library", sub: "nothing kept but the words, selected: enter asks again", H: 420, rail: rail52(), top: top52("asks the 1 plugin that is on on public"), content: results({ idle: true, bar: { words: `<span class="qsel">sampler</span>` } }), clip: [214, 0, 966, 250] });
+
+/* ---------- §4 the calls ---------- */
+const DEC = [
+  { id: "D5s", s: "§2", q: "What the rail holds on the search view", sup: "C32 D5 (search's rail left for the pass's section 5); a also amends C26 SR6 (plugins ▾ and type ▾ leave the bar while the rail is open) and SR2's plugins' line (its pills move to the rail)", opts: [
+    ["a", "Three groups. plugins: each installed plugin with a tick (asked or not), its dot and how it answered (a count, … asking, slow, failed, skipped; off when turned off in Settings); a click ticks it and asks again. kind: any, or one of the plugins' types; one pick, asks again. recent: this server's last searches this session, in memory only; a click asks again. While the rail is open plugins ▾, type ▾ and the pills leave the bar and the line (it keeps \"N of M plugins didn't answer ›\"); folded, they come back", true],
+    ["b", "Only a plugins group, as state: each plugin's dot and answer, no ticks; the bar keeps plugins ▾ and type ▾ and the line its pills"],
+    ["c", "No change: the views, the servers and settings, nothing between"]] },
+  { id: "D20", s: "§2", q: "A way from search to Settings › qBittorrent › Search plugins", sup: "C26 SR10 and SR13 (the pane reached from Settings, or from search's empty state while no plugin is installed)", opts: [
+    ["a", "\"install a plugin…\" at the foot of the rail's plugins group, opening the pane with its install field focused, esc back to the search; with the rail folded, plugins ▾ ends with \"manage plugins…\", opening the same pane", true],
+    ["b", "\"manage plugins…\" at the foot of the rail's plugins group (D5s b), opening the pane at its list; plugins ▾ unchanged"],
+    ["c", "\"manage plugins…\" as plugins ▾'s last row only"]] },
+  { id: "D21", s: "§3", q: "Clearing a search's results", sup: "C26 SR14 (esc backs out step by step: the field's esc clears its words, an empty field leaves); c amends SR12 (each server's last results kept for the session)", opts: [
+    ["a", "\"× esc\" at the field's end while it has words or results, as the title bar's filter (C32 D18); a click, or esc in the field, clears the words and the results together, stops any plugin still looking and shows the face before search. esc: pane → rows → the words and results → leave search", true],
+    ["b", "A \"clear\" word at the end of the results line; esc as today"],
+    ["c", "Results aren't kept: leaving search drops them; coming back shows the face before search with the last words selected"]] },
+];
+const recOf = d => d.opts.find(o => o[2]);
+$("#dtable").innerHTML = `<table class="t"><thead><tr><th>id</th><th>question</th><th>options</th><th>recommended</th><th>amends</th></tr></thead><tbody>${DEC.map(d => `<tr><td class="nw">${d.id} <span class="dim">${d.s}</span></td><td>${d.q}</td><td class="nw">${d.opts.map(o => o[0]).join(" · ")}</td><td><b>${recOf(d)[0]}</b> · ${recOf(d)[1]}</td><td>${d.sup}</td></tr>`).join("")}</tbody></table>`;
+const dec = $("#dec");
+for (const d of DEC) {
+  const box = document.createElement("div"); box.className = "q";
+  const inputs = d.opts.map(([v, label, rec]) => {
+    const id = `${d.id}-${v}`;
+    return `<label class="opt" for="${id}"><input id="${id}" type="radio" name="${d.id}" value="${v}" ${rec ? "checked" : ""}><span><b>${v}</b> · ${label}${rec ? `<span class="rec">recommended</span>` : ""}</span></label>`;
+  }).join("");
+  box.innerHTML = `<fieldset><legend><span class="id">${d.id}</span> · ${d.q}</legend><p class="why"><span class="flag2">${d.sup}</span></p>${inputs}</fieldset>`;
+  dec.append(box);
+}
+const notes = document.createElement("div"); notes.className = "q";
+notes.innerHTML = `<label for="free" style="color:var(--fg-bright);font-weight:500">Anything else</label><textarea id="free"></textarea>`;
+dec.append(notes);
+function answers() {
+  const lines = ["docs/52 search's rail and clearing (#201, 2026-10-31):"];
+  for (const d of DEC) { const c = document.querySelector(`input[name="${d.id}"]:checked`); lines.push(`${d.id} ${c ? c.value : "-"}`); }
+  const f = $("#free").value.trim(); if (f) lines.push("notes: " + f);
+  $("#answers").value = lines.join("\n");
+}
+dec.addEventListener("input", answers); notes.addEventListener("input", answers); answers();
+$("#copy").addEventListener("click", () => {
+  const ta = $("#answers");
+  const done = () => { $("#copied").hidden = false; setTimeout(() => $("#copied").hidden = true, 1600); };
+  if (navigator.clipboard?.writeText) navigator.clipboard.writeText(ta.value).then(done, () => ta.select()); else ta.select();
+});
+})();
+</script>
+</body>
+</html>

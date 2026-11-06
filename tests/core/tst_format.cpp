@@ -35,6 +35,7 @@ private slots:
     void speedShort();
     void speedCompact_data();
     void speedCompact();
+    void speedPartsAgainstACap();
     void percentNeverRoundsUpTo100();
     void countGroupsWithSpaces();
     void piecesRow();
@@ -375,6 +376,23 @@ void TestFormat::shareLimitRow()
     QCOMPARE(Format::shareLimit(2.0, -1), QStringLiteral("ratio 2.0"));
     QCOMPARE(Format::shareLimit(-1.0, -1), QStringLiteral("unlimited"));
     QCOMPARE(Format::shareLimit(1.5, 10080), QStringLiteral("ratio 1.5 · seeding 7d 0h"));
+}
+
+// DECISIONS C32 D6 a: "↓ 290 / 300 KB/s", the cap picking the unit.
+void TestFormat::speedPartsAgainstACap()
+{
+    const auto parts = [](qint64 speed, qint64 cap) {
+        const Format::SpeedParts p = Format::speedParts(speed, cap);
+        return QStringList{p.value, p.cap, p.unit};
+    };
+    QCOMPARE(parts(290 * 1024, 300 * 1024), (QStringList{"290", "300", "KB/s"}));
+    QCOMPARE(parts(0, 50 * 1024), (QStringList{"0", "50", "KB/s"}));
+    QCOMPARE(parts(512 * 1024, 2 * 1024 * 1024), (QStringList{"0.50", "2.00", "MB/s"}));
+    // Over the cap (the limits just changed): still in the cap's unit.
+    QCOMPARE(parts(3 * 1024 * 1024, 300 * 1024), (QStringList{"3072", "300", "KB/s"}));
+    // No cap: the speed alone, split for drawing.
+    QCOMPARE(parts(2140000, 0), (QStringList{"2.04", "", "MB/s"}));
+    QCOMPARE(parts(0, 0), (QStringList{"0", "", ""}));
 }
 
 QTEST_MAIN(TestFormat)

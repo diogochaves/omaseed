@@ -124,11 +124,12 @@ def with_servers(s, now):
                  row("server:{s-2}", "private", "radio", detail="4 torrents"),
                  row("separator:servers", "", "separator"),
                  row("alt-speed", "Alternative Speed Limits", "check", s["alt"]["on"]),
-                 row("stop-all", "Stop All"), row("start-all", "Start All"),
+                 row("pause", "Pause Torrents"),
                  row("separator:actions", "", "separator"),
                  row("add", "Add Torrent…"), row("settings", "Settings…"),
                  row("separator:quit", "", "separator"),
                  row("quit", "Quit omaseed")]
+    s["paused"] = {"count": 0}
     return s
 
 

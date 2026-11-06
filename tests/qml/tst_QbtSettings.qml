@@ -55,20 +55,23 @@ TestCase {
         modal.openQbt();
         keyClick(Qt.Key_1 + index);
         compare(modal.paneIndex, modal.qbtStart + index);
-        keyClick(Qt.Key_Tab);
+        // l hands the keyboard to the pane's rows; tab would put the caret in a first field
+        // (C32 D10 a).
+        keyClick(Qt.Key_L);
         compare(modal.area, "pane");
         return modal;
     }
 
-    // Nine sections of settings, then Backup (#32, docs/24 §4 D1 a) closing the group.
-    function test_the_nav_has_a_qbittorrent_group_of_ten() {
+    // Nine sections of settings, Search plugins (#145, C26 SR10), then Backup (#32, docs/24 §4
+    // D1 a) closing the group.
+    function test_the_nav_has_a_qbittorrent_group_of_eleven() {
         const modal = createTemporaryObject(modalComponent, testCase);
-        compare(modal.qbtSections.length, 10);
+        compare(modal.qbtSections.length, 11);
         compare(modal.qbtSections.map(section => section.id), ["speed", "discovery", "connection",
                                                                "proxy", "seeding", "queue",
                                                                "downloads", "webui", "advanced",
-                                                               "backup"]);
-        for (let i = 0; i < 10; ++i)
+                                                               "search", "backup"]);
+        for (let i = 0; i < 11; ++i)
             verify(testCase.childNamed(modal, "qbtNavRow" + i) !== null);
         compare(testCase.childNamed(modal, "qbtNavHead").text, "qbittorrent");
         const server = testCase.childNamed(modal, "qbtNavServer");
@@ -152,10 +155,8 @@ TestCase {
         verify(testCase.childNamed(modal, "torrentsImportRow").hasCursor);
         keyClick(Qt.Key_J);
         verify(exportRow.hasCursor);
-        // The footer: rows to act on, nothing to toggle or edit; one server, no `s`.
-        verify(modal.sheet.hints.some(hint => hint.key === "enter" && hint.label === "act"));
-        verify(!modal.sheet.hints.some(hint => hint.key === "space"));
-        verify(!modal.sheet.hints.some(hint => hint.key === "s"));
+        // C24 H10: the foot names no keys (the `?` sheet's "in a sheet" block does).
+        compare(modal.sheet.note, "");
     }
 
     /// A second (and third) server for the demo, in memory only.
@@ -185,8 +186,6 @@ TestCase {
         const head = testCase.childNamed(modal, "qbtHeadNote");
         verify(head.visible);
         compare(head.text, "omaseed · on this machine");
-        verify(modal.sheet.hints.some(hint => hint.key === "t"
-                                      && hint.label === "torrents: qBittorrent › Backup"));
         compare(modal.paneRowCount, 3);
         keyClick("t");
         verify(modal.inQbtBackup);
@@ -218,11 +217,9 @@ TestCase {
         verify(select.switches);
         verify(testCase.childNamed(select, "serverSelectBox").visible);
         compare(select.currentId, home);
-        // Every footer of the group has `s`.
-        verify(modal.sheet.hints.some(hint => hint.key === "s" && hint.label === "next server"));
+        // C24 H10 supersedes C11 D4's "every footer says s next server": `s` still goes.
         keyClick(Qt.Key_0);
         verify(modal.inQbtBackup);
-        verify(modal.sheet.hints.some(hint => hint.key === "s" && hint.label === "next server"));
         compare(testCase.childNamed(modal, "qbtScopeLine").text,
                 "home's own settings and torrents, read from and sent to home only. The other servers have their own:");
 
@@ -234,7 +231,6 @@ TestCase {
         verify(select.hasCursor);
         compare(modal.paneIndex, modal.qbtStart);
         verify(!testCase.childNamed(modal, "qbtNavRow0").hasCursor);
-        verify(modal.sheet.hints.some(hint => hint.key === "enter" && hint.label === "servers"));
         keyClick(Qt.Key_K);
         verify(!modal.navOnServer);
         compare(modal.paneIndex, modal.qbtStart - 1);
@@ -256,17 +252,17 @@ TestCase {
         keyClick(Qt.Key_Return);
         verify(!select.listOpen);
         verify(App.serverList.defaultId !== home);
-        verify(modal.sheet.footerRight.indexOf("omaseed is on seedbox now · the library too") === 0,
-               modal.sheet.footerRight);
+        verify(modal.sheet.note.indexOf("omaseed is on seedbox now · the library too") === 0,
+               modal.sheet.note);
 
         // `s` from the select itself, then from a pane: one step each.
         keyClick("s");
         compare(App.serverList.defaultId, home);
-        compare(modal.sheet.footerRight, "omaseed is on home now · the library too");
+        compare(modal.sheet.note, "omaseed is on home now · the library too");
         keyClick(Qt.Key_0);
         keyClick("s");
         compare(App.serverList.defaultId, second);
-        compare(modal.sheet.footerRight, "omaseed is on private now · the library too");
+        compare(modal.sheet.note, "omaseed is on private now · the library too");
     }
 
     // docs/34 D6 a: copy settings from another server, on the demo's fiction of one: space
@@ -367,43 +363,89 @@ TestCase {
         compare(testCase.childNamed(modal, "field-alt_dl_limit").text, "10");
     }
 
-    // docs/31 §5 P1, P3: a line under the four limits says which way the set goes, and the rows
-    // follow the word. The demo's set is qBittorrent's default turtle (10 KB/s, no normal
-    // limits); someone who uses it that way keeps today's rows, named "turtle".
-    function test_the_speed_page_names_the_set() {
+    // C32 D10 a (board 51): tab walks the pane as any form: a row of fields one stop per field,
+    // the caret in it; a switch or a choice one stop; a value typed is sent as tab leaves it;
+    // shift+tab walks back; after the last row, the sections again.
+    function test_tab_walks_a_qbittorrent_section_as_a_form() {
+        const modal = createTemporaryObject(modalComponent, testCase);
+        modal.openQbt();
+        keyClick(Qt.Key_3); // Connection
+        compare(modal.area, "nav");
+        const port = testCase.childNamed(modal, "field-listen_port");
+        const total = testCase.childNamed(modal, "field-max_connec");
+        const perTorrent = testCase.childNamed(modal, "field-max_connec_per_torrent");
+
+        keyClick(Qt.Key_Tab);
+        compare(modal.area, "pane");
+        compare(modal.paneCursor, 0);
+        verify(port.editing);
+        keyClick(Qt.Key_Tab); // the random port switch: a stop, no caret anywhere
+        compare(modal.paneCursor, 1);
+        verify(!port.editing);
+        keyClick(Qt.Key_Tab); // UPnP
+        keyClick(Qt.Key_Tab); // Protocol
+        compare(modal.paneCursor, 3);
+        // Off a field, j and k still walk the rows.
+        keyClick(Qt.Key_K);
+        compare(modal.paneCursor, 2);
+        keyClick(Qt.Key_J);
+        keyClick(Qt.Key_Tab); // Connections: its first field
+        compare(modal.paneCursor, 4);
+        verify(total.editing);
+        keyClick(Qt.Key_3);
+        keyClick(Qt.Key_0);
+        keyClick(Qt.Key_0);
+        keyClick(Qt.Key_Tab); // the same row's second field; the first one's value is sent
+        compare(modal.paneCursor, 4);
+        verify(perTorrent.editing);
+        compare(App.serverPrefs.values.max_connec, 300);
+        keyClick(Qt.Key_Tab, Qt.ShiftModifier);
+        verify(total.editing);
+        keyClick(Qt.Key_Backtab, Qt.ShiftModifier);
+        compare(modal.paneCursor, 3);
+        verify(!total.editing);
+
+        // Past the last row, the keyboard goes back to the sections, and shift+tab from there
+        // lands on the last row.
+        for (let i = 0; i < 3 * modal.paneRowCount && modal.area === "pane"; ++i)
+            keyClick(Qt.Key_Tab);
+        compare(modal.area, "nav");
+        keyClick(Qt.Key_Backtab, Qt.ShiftModifier);
+        compare(modal.area, "pane");
+        compare(modal.paneCursor, modal.paneRowCount - 1);
+    }
+
+    // DECISIONS C32 D8 a (board 51 `speedPane()`): two presets under the normal limits. The
+    // turtle is qBittorrent's alternative set (the demo's 10 KB/s), its schedule the turtle's;
+    // burst is omaseed's own (↓ no limit, ↑ 2 MB/s, for an hour), written to App.altPresets and
+    // never to the server's preferences.
+    function test_the_speed_page_has_two_presets() {
         const modal = openOn(0);
-        const setLine = testCase.childNamed(modal, "qbtLine-set");
-        verify(setLine.visible);
-        compare(testCase.childNamed(setLine, "qbtLineText").text,
-                "Slower than your limits above, so omaseed calls this set turtle.");
-        compare(testCase.childNamed(setLine, "qbtLineGlyph").text, "▼");
+        verify(testCase.childNamed(modal, "qbtLine-set") === null);
         const schedule = testCase.childNamed(modal, "qbtRow-scheduler_enabled");
         compare(schedule.title, "Schedule turtle");
-        compare(testCase.childNamed(modal, "qbtRow-alt_dl_limit").description,
-                "In force while turtle is on: A, the hero's chip, or the schedule below.");
-        compare(testCase.childNamed(modal, "qbtRow-alt_dl_limit").glyph, Glyphs.altSpeed);
+        const turtle = testCase.childNamed(modal, "qbtRow-alt_dl_limit");
+        compare(turtle.title, "Turtle download");
+        compare(turtle.glyph, Glyphs.altSpeed);
+        compare(testCase.childNamed(modal, "field-alt_dl_limit").text, "10");
+        const burst = testCase.childNamed(modal, "qbtRow-burst_dl_limit");
+        compare(burst.title, "Burst download");
+        compare(burst.glyph, Glyphs.burst);
+        compare(testCase.childNamed(modal, "field-burst_dl_limit").text, "");
+        compare(testCase.childNamed(modal, "field-burst_up_limit").text, "2048");
+        verify(testCase.childNamed(modal, "qbtRow-burst_minutes") !== null);
 
-        // A daytime upload cap with the alternative set open: burst, as it is typed.
-        App.serverPrefs.apply({
-                                  "up_limit": 1200 * 1024,
-                                  "alt_dl_limit": 0,
-                                  "alt_up_limit": 0
-                              });
-        compare(testCase.childNamed(setLine, "qbtLineText").text,
-                "Faster than your limits above, so omaseed calls this set burst.");
-        compare(testCase.childNamed(setLine, "qbtLineGlyph").text, "▲");
-        compare(schedule.title, "Schedule burst");
-        compare(schedule.description,
-                "qBittorrent switches to burst by itself between two times, and back after.");
-        compare(testCase.childNamed(modal, "qbtRow-alt_up_limit").glyph, Glyphs.burst);
-
-        // The same both ways: switching changes nothing; the words go back to alt-speed.
-        App.serverPrefs.apply({
-                                  "alt_up_limit": 1200 * 1024
-                              });
-        compare(testCase.childNamed(setLine, "qbtLineText").text,
-                "The same as your limits above: switching changes nothing.");
-        compare(schedule.title, "Schedule alt-speed");
+        // A burst limit typed stays with omaseed.
+        const before = App.serverPrefs.values.alt_up_limit;
+        const field = testCase.childNamed(modal, "field-burst_up_limit");
+        field.focusInput();
+        field.text = "1024";
+        keyClick(Qt.Key_Return);
+        compare(App.altPresets.burstUp, 1024 * 1024);
+        compare(App.serverPrefs.values.alt_up_limit, before);
+        App.altPresets.apply({
+                                 "burst_up_limit": 2 * 1024 * 1024
+                             });
     }
 
     // docs/31 D8, D9 (P1, P2): `n` fills the schedule with nights in one press, every key at
@@ -412,14 +454,17 @@ TestCase {
     function test_nights_and_the_summary_under_days() {
         const modal = openOn(0);
         const summary = testCase.childNamed(modal, "qbtLine-schedule");
-        verify(summary.visible); // what it would do, dimmed while the schedule is off
-        verify(summary.opacity < 1);
+        verify(summary.visible); // what it would do, dim while the schedule is off
+        // Dim words, not a faded line: at 0.6 its words read under C30's floor (#188).
+        verify(summary.off);
+        compare(summary.opacity, 1);
+        tryCompare(testCase.childNamed(summary, "qbtLineText"), "color", Theme.on.idle.dimForeground);
         // While the schedule is off its rows (and the preset) do nothing.
         keyClick(Qt.Key_N);
         compare(App.serverPrefs.values.schedule_from_hour, 8);
         testCase.childNamed(modal, "qbtRow-scheduler_enabled").activate("space");
         compare(App.serverPrefs.values.scheduler_enabled, true);
-        compare(summary.opacity, 1);
+        verify(!summary.off);
         const preset = testCase.childNamed(testCase.childNamed(modal, "qbtRow-schedule_from_hour"),
                                            "presetChip");
         verify(preset.visible);
@@ -723,9 +768,9 @@ TestCase {
         const groups = testCase.childNamed(modal, "settingsGroupTabs");
         const sections = testCase.childNamed(modal, "settingsTabs");
         compare(groups.currentIndex, 1);
-        compare(sections.model.length, 10);
+        compare(sections.model.length, 11);
         keyClick(Qt.Key_0);
-        compare(sections.currentIndex, 9);
+        compare(sections.currentIndex, 10);
         verify(sections._shift > 0, "the Backup tab is out of view");
         keyClick(Qt.Key_L); // wraps to omaseed's General
         compare(modal.paneIndex, 0);
@@ -744,5 +789,33 @@ TestCase {
             height: 800
             width: Theme.space(480)
         }
+    }
+
+    // #145 (DECISIONS C26 SR10, SR11): Search plugins, between Advanced and Backup: the scope
+    // line, the install field (URLs only for a server that isn't this computer), a switch per
+    // plugin with its own name, version and types, and check for updates.
+    function test_the_search_plugins_pane() {
+        App.loadDemoSearch("done");
+        const modal = createTemporaryObject(modalComponent, testCase);
+        modal.openQbt();
+        modal.showPane(modal.qbtStart + 9);
+        verify(modal.inQbtSearch);
+        const pane = testCase.childNamed(modal, "searchPluginsPane");
+        verify(pane.visible);
+        verify(!testCase.childNamed(modal, "qbtPane").visible);
+        verify(testCase.childNamed(pane, "searchScopeLine").text.indexOf("home's plugins: installed on home's machine") === 0);
+        compare(pane.cursorCount, 5);
+        verify(testCase.childNamed(pane, "searchInstallRemote").visible);
+        compare(pane.field.placeholder, "a URL home can reach");
+        verify(testCase.childNamed(pane, "searchPlugin_plugin_a") !== null);
+        verify(testCase.childNamed(pane, "searchPlugin_plugin_c") !== null);
+        // space on a plugin's row turns it off; the switch shows it at once (M12).
+        keyClick(Qt.Key_Tab);
+        keyClick(Qt.Key_J);
+        keyClick(Qt.Key_J);
+        compare(modal.paneCursor, 2);
+        keyClick(Qt.Key_Space);
+        compare(App.searchPlugins.enabledCount, 2);
+        App.loadDemoSearch("off");
     }
 }

@@ -10,6 +10,8 @@
 
 namespace omaseed::integration {
 
+class DesktopSkin;
+
 /// A flat palette: every key `omarchy-theme-color --all` prints, with its resolved value.
 using ColorMap = QHash<QString, QString>;
 
@@ -108,12 +110,41 @@ public:
     int baseSizeOverride() const { return m_baseSizeOverride; }
     void setBaseSizeOverride(int pixels);
 
+    /// Where this reader looks, for the readers beside it (DesktopSkin).
+    const Paths &paths() const { return m_paths; }
+
+    // ---- the skin (docs/DECISIONS.md C24 H11, #171) -------------------------------------
+    //
+    // Settings › Appearance › skin, which App persists under `"appearance"` like the two
+    // overrides above. The reader turns the choice into the skin Theme draws, so the choice
+    // and the desktop's skin reach Theme through the one object it already follows.
+
+    /// The choice: "omarchy" (the default), "console", or "desktop" (Follow the desktop: the
+    /// built-in Console while omarchy-console's skin is on, Omarchy otherwise). Anything else
+    /// reads as "omarchy".
+    QString skinChoice() const { return m_skinChoice; }
+    void setSkinChoice(const QString &choice);
+    /// The choice in force: `OMASEED_SKIN` when it is set (tests and walks pin the skin with
+    /// it, and it may name "desktop" too), else skinChoice().
+    QString skinChoiceInForce() const;
+    /// The built-in skin to draw: the choice, with "desktop" resolved through DesktopSkin.
+    QString skinName() const;
+    /// Following the desktop, whose console.json says `fx.fonts = system`: the skin's fonts
+    /// give way to the shell's (step 3 of #171 reads it through `Theme.skin.systemFonts`).
+    bool skinSystemFonts() const;
+    /// Following the desktop and its skin is on.
+    bool desktopSkinOn() const;
+
 Q_SIGNALS:
     /// The palette, the shell values or the theme name changed. Never emitted for a rewrite
     /// that resolves to the same thing.
     void changed();
+    /// skinName() or skinSystemFonts() moved: the choice, or the desktop's skin.
+    void skinChanged();
 
 private:
+    /// Make or drop the DesktopSkin watcher for the choice in force.
+    void followDesktopSkin();
     void connectWatcher();
     void rewatch();
     QString findColorsFile(bool *lightModeFile) const;
@@ -128,6 +159,9 @@ private:
     QTimer m_debounce;
     bool m_followOmarchy = true;
     int m_baseSizeOverride = 0;
+    QString m_skinChoice = QStringLiteral("omarchy");
+    /// Only while the choice in force is "desktop": nothing is watched otherwise.
+    DesktopSkin *m_desktopSkin = nullptr;
 };
 
 } // namespace omaseed::integration

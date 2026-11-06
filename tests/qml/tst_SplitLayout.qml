@@ -374,4 +374,39 @@ TestCase {
         compare(split.sideWidth, Theme.space(540));
         compare(split.shownSideWidth, split.maximumSideWidth);
     }
+
+    // #184: a size that was set (a drag, `<` `>`, a saved size restored) follows the base size
+    // live and comes back to the pixel; a default one keeps following the default, even once a
+    // caller has assigned it the default's value (MainView's restore does).
+    function test_side_sizes_follow_the_base_size() {
+        const split = createTemporaryObject(splitComponent, testCase, {
+                                                "width": 3000,
+                                                "height": 1600,
+                                                "placement": "right"
+                                            });
+        split.sideWidth = Theme.space(400);
+        split.sideHeight = split.defaultSideHeight;
+        compare(split.sideWidth, 400);
+        compare(split.sideHeight, 260);
+
+        TestTheme.setBaseSize(20); // qmllint disable unqualified
+        compare(split.sideWidth, Theme.space(400));
+        compare(split.sideWidth, 667);
+        compare(split.sideHeight, split.defaultSideHeight);
+        compare(split.sideHeight, Theme.space(260));
+        compare(split.shownSideWidth, 667);
+
+        // A drag at this size, kept in the same units on the way back.
+        split.resizeBy(-Theme.space(30));
+        compare(split.sideWidth, 667 - 50);
+        TestTheme.setBaseSize(14); // qmllint disable unqualified
+        compare(split.sideWidth, Theme.space(370));
+        TestTheme.setBaseSize(0); // qmllint disable unqualified
+        compare(split.sideWidth, 370);
+        compare(split.sideHeight, 260);
+    }
+
+    function cleanup() {
+        TestTheme.setBaseSize(0); // qmllint disable unqualified
+    }
 }

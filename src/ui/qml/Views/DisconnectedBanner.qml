@@ -28,7 +28,12 @@ Notice {
 
     // docs/35 N3 as docs/44 D11 changed it: yellow while the server is there but not
     // answering (a timeout), red when nothing is there or it needs you.
+    banded: true
     kind: root.problemKind === "waiting" || root.problemKind === "" ? "warning" : "error"
+    // Board 46 `bands()`: the problem in a word, where the skin names kinds by words.
+    tag: root.problemKind === "waiting" || root.problemKind === "" ? qsTr("no signal") : root.problemKind
+                                                                                          === "refused" || root.problemKind === "banned"
+                                                                                          ? qsTr("refused") : ""
     title: root.problem.headline || ""
     body: {
         const base = root.problem.lineBase || "";
@@ -51,10 +56,14 @@ Notice {
                                                                                                                                      "label": qsTr("retry now"),
                                                                                                                                      "key": "retry"
                                                                                                                                  };
-        return root.multiServer ? [first, {
-                                       "label": qsTr("switch server"),
-                                       "key": "switch"
-                                   }] : [first];
+        const others = {
+            "label": qsTr("switch server"),
+            "key": "switch"
+        };
+        // DECISIONS C28: another engine's server has nothing to retry or sign in to.
+        if (root.problemKind === "engine")
+            return root.multiServer ? [others] : [];
+        return root.multiServer ? [first, others] : [first];
     }
 
     onActionTriggered: key => {

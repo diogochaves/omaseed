@@ -50,16 +50,6 @@ Sheet {
         }
     ]
     glyph: Glyphs.settings
-    hints: [
-        {
-            "key": "ctrl+enter",
-            "label": qsTr("save")
-        },
-        {
-            "key": "enter",
-            "label": qsTr("new line")
-        }
-    ]
     sheetWidth: Theme.space(520)
     subtitle: qsTr("one per line · %1").arg(root.what)
 
@@ -77,8 +67,8 @@ Sheet {
         Layout.fillWidth: true
         Layout.preferredHeight: Theme.space(220)
         border.color: editor.activeFocus ? Theme.accent : Theme.fill(Theme.borderIdle)
-        border.width: 1
-        color: Theme.fill(Theme.fillIdle)
+        border.width: Theme.hairWidth
+        color: Theme.on.idle.fill
         radius: Theme.cornerRadius
 
         // The box's padding: a click there puts the caret at the end, as below the text does.
@@ -134,13 +124,15 @@ Sheet {
                 // #91: the box by the lines it holds ("tracker URLs").
                 Accessible.name: root.what.length > 0 ? root.what : root.title
                 Accessible.role: Accessible.EditableText
-                color: Theme.foreground
+                // The lines on the box's 4 % fill, a selection on the selected fill over it
+                // (docs/DECISIONS.md C30 F1, #188).
+                color: Theme.on.idle.foreground
                 font.family: Theme.fontFamily
                 font.pixelSize: Theme.font.body
                 objectName: "listEditor"
                 selectByMouse: true
-                selectedTextColor: Theme.brightForeground
-                selectionColor: Theme.fill(Theme.fillSelected)
+                selectedTextColor: Theme.on.blockSelected.brightForeground
+                selectionColor: Theme.on.blockSelected.fill
                 width: scroller.width - (listBar.needed ? listBar.width + Theme.space(4) : 0)
                 wrapMode: TextEdit.WrapAnywhere
 

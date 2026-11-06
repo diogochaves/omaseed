@@ -66,6 +66,9 @@ Column {
 
             required property int index
             readonly property var modelData: root.rows[row.index] ?? ({})
+            /// The row's ground, the hover fill under the pointer (docs/DECISIONS.md C30 F1):
+            /// every word and dot in it takes that ground's colour.
+            readonly property ThemeInk ground: Theme.ground(false, false, hover.hovered, false)
 
             /// Ask for the tracker: a tap, or a screen reader's press.
             function activate(): void {
@@ -85,7 +88,7 @@ Column {
 
             Rectangle {
                 anchors.fill: parent
-                color: hover.hovered ? Theme.fill(Theme.fillHover) : "transparent"
+                color: hover.hovered ? row.ground.fill : "transparent"
             }
 
             Rectangle {
@@ -105,8 +108,8 @@ Column {
                     spacing: Theme.space(8)
 
                     Rectangle {
-                        color: row.modelData.statusRole === "error" ? Theme.stateError
-                             : row.modelData.statusRole === "warn" ? Theme.yellow : Theme.stateSeeding
+                        color: row.modelData.statusRole === "error" ? row.ground.stateError
+                             : row.modelData.statusRole === "warn" ? row.ground.yellow : row.ground.stateSeeding
                         height: Theme.space(6)
                         radius: height / 2
                         width: height
@@ -116,7 +119,7 @@ Column {
                         id: hostText
 
                         Layout.fillWidth: true
-                        color: Theme.foreground
+                        color: row.ground.foreground
                         elide: Text.ElideRight
                         font.family: Theme.fontFamily
                         font.pixelSize: Theme.font.small
@@ -146,7 +149,7 @@ Column {
 
                 Text {
                     Layout.preferredWidth: Theme.space(72)
-                    color: Theme.foreground
+                    color: row.ground.foreground
                     font.family: Theme.fontFamily
                     font.pixelSize: Theme.font.small
                     horizontalAlignment: Text.AlignRight
@@ -156,7 +159,7 @@ Column {
 
                 Text {
                     Layout.preferredWidth: Theme.space(86)
-                    color: Theme.foreground
+                    color: row.ground.foreground
                     font.family: Theme.fontFamily
                     font.pixelSize: Theme.font.small
                     horizontalAlignment: Text.AlignRight
@@ -175,7 +178,7 @@ Column {
                     spacing: Theme.space(6)
 
                     Text {
-                        color: Theme.foreground
+                        color: row.ground.foreground
                         font.family: Theme.fontFamily
                         font.pixelSize: Theme.font.small
                         rightPadding: Theme.space(10)
@@ -185,7 +188,7 @@ Column {
                     Rectangle {
                         Layout.preferredHeight: Theme.space(3)
                         Layout.preferredWidth: Math.max(1, Theme.space(40) * row.modelData.fraction)
-                        color: Theme.stateSeeding
+                        color: row.ground.stateSeeding
                         opacity: 0.6
                     }
 
@@ -196,7 +199,7 @@ Column {
 
                 Text {
                     Layout.preferredWidth: Theme.space(92)
-                    color: row.modelData.bufferNegative ? Theme.stateError : Theme.foreground
+                    color: row.modelData.bufferNegative ? row.ground.stateError : row.ground.foreground
                     font.family: Theme.fontFamily
                     font.pixelSize: Theme.font.small
                     horizontalAlignment: Text.AlignRight
@@ -206,7 +209,7 @@ Column {
 
                 Text {
                     Layout.preferredWidth: Theme.space(80)
-                    color: row.modelData.seededGood ? Theme.stateSeeding : Theme.foreground
+                    color: row.modelData.seededGood ? row.ground.stateSeeding : row.ground.foreground
                     font.family: Theme.fontFamily
                     font.pixelSize: Theme.font.small
                     horizontalAlignment: Text.AlignRight
@@ -216,7 +219,7 @@ Column {
 
                 Text {
                     Layout.preferredWidth: Theme.space(52)
-                    color: row.modelData.rare > 0 ? Theme.yellow : Theme.dimForeground
+                    color: row.modelData.rare > 0 ? row.ground.yellow : row.ground.dimForeground
                     font.family: Theme.fontFamily
                     font.pixelSize: Theme.font.small
                     horizontalAlignment: Text.AlignRight
@@ -241,7 +244,7 @@ Column {
                         anchors.right: parent.right
                         anchors.rightMargin: Theme.space(10)
                         anchors.verticalCenter: parent.verticalCenter
-                        color: Theme.dimForeground
+                        color: row.ground.dimForeground
                         font.family: Theme.fontFamily
                         font.pixelSize: Theme.font.caption
                         text: qsTr("from today")
@@ -251,7 +254,7 @@ Column {
 
                 Text {
                     Layout.preferredWidth: Theme.space(104)
-                    color: root.statusColor(row.modelData.statusRole)
+                    color: Theme.inkOf(root.statusColor(row.modelData.statusRole), row.ground)
                     elide: Text.ElideRight
                     font.family: Theme.fontFamily
                     font.pixelSize: Theme.font.small

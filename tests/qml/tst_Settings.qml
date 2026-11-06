@@ -100,6 +100,10 @@ TestCase {
     }
 
     function cleanup() {
+        App.windowGround = "opaque";
+        // #171: every other test reads Omarchy's grounds.
+        App.skinChoice = "omarchy";
+        TestTheme.setSkinChoice("omarchy");
         // Leave no server behind: App is a singleton shared with every other test file.
         while (App.serverList.count > 0)
             App.serverList.remove(App.serverList.idAt(0));
@@ -190,6 +194,33 @@ TestCase {
         compare(modal.paneIndex, 6);
         keyClick(Qt.Key_1);
         compare(modal.paneIndex, 0);
+    }
+
+    // C32 D10 a: tab walks omaseed's own panes too: the sections one stop, then each row, the
+    // low disk threshold's caret in its field, the sections again after the last row.
+    function test_tab_walks_the_notifications_pane_as_a_form() {
+        const modal = createTemporaryObject(modalComponent, testCase);
+        modal.open();
+        keyClick(Qt.Key_3);
+        compare(modal.paneIndex, 2);
+        const field = testCase.childNamed(modal, "lowDiskThresholdField");
+        keyClick(Qt.Key_Tab);
+        compare(modal.area, "pane");
+        compare(modal.paneCursor, 0);
+        for (let i = 0; i < 5; ++i)
+            keyClick(Qt.Key_Tab);
+        compare(modal.paneCursor, 5);
+        verify(field.editing);
+        keyClick(Qt.Key_Tab);
+        compare(modal.paneCursor, 6);
+        verify(!field.editing);
+        keyClick(Qt.Key_Backtab, Qt.ShiftModifier);
+        compare(modal.paneCursor, 5);
+        verify(field.editing);
+        keyClick(Qt.Key_Tab);
+        keyClick(Qt.Key_Tab);
+        compare(modal.area, "nav");
+        compare(modal.paneIndex, 2);
     }
 
     // #31, docs/24 §3: back up, restore, automatic copies.
@@ -446,7 +477,7 @@ TestCase {
         verify(!select.listOpen);
         verify(serverChangedSpy.count > 0);
         compare(App.serverList.defaultId, second);
-        compare(modal.sheet.footerRight, "omaseed is on second now · the library too");
+        compare(modal.sheet.note, "omaseed is on second now · the library too");
         verify(modal.opened);
         verify(modal.inQbt);
     }
@@ -514,6 +545,16 @@ TestCase {
         compare(addRow.title, "add a server");
         compare(addRow.status, "a");
         verify(addRow.dashed);
+
+        // C32 D7 a: a › at each row's end, dim at rest, bright while the row is lit.
+        const chevron = testCase.childNamed(row, "serverRowChevron");
+        verify(chevron !== null && chevron.visible);
+        verify(testCase.childNamed(addRow, "serverRowChevron").visible);
+        verify(Qt.colorEqual(chevron.color, row.ink.dimForeground));
+        row.hasCursor = true;
+        verify(Qt.colorEqual(chevron.color, row.ink.brightForeground));
+        row.hasCursor = false;
+        verify(chevron.mapToItem(row, chevron.width, 0).x > row.width - Theme.space(16));
 
         // #77: each row is a button named by its server, its line and status the description.
         compare(row.Accessible.role, Accessible.Button);
@@ -631,8 +672,7 @@ TestCase {
         compare(save.enabled, false);
         compare(save.primary, false);
         verify(testCase.sheetButton(sheet, "test").primary);
-        compare(sheet.footerRight, "test first");
-        compare(sheet.hints[1].label, "test");
+        compare(sheet.note, "test first");
         verify(sheet.actionButtons().indexOf(save) < 0, "a dimmed save is in the tab cycle");
 
         // Neither the button's signal nor `enter` saves it.
@@ -650,8 +690,7 @@ TestCase {
         verify(save.enabled);
         verify(save.primary);
         compare(testCase.sheetButton(sheet, "test").primary, false);
-        compare(sheet.footerRight, "");
-        compare(sheet.hints[1].label, "save");
+        compare(sheet.note, "");
 
         // A pass is for the address it tested: another one waits for its own test.
         sheet.editUrl = "http://127.0.0.1:8082";
@@ -667,63 +706,6 @@ TestCase {
         sheet.triggerPrimary();
         compare(App.serverList.count, 1);
         verify(!sheet.opened);
-    }
-
-    // #84 (C25 K4, K7, K9): the engine row, recognise first; a test that finds Transmission
-    // names it on the chip, gives the auth chips Transmission's two, and refuses the save,
-    // keeping what was typed.
-    function test_the_engine_row_recognises_and_refuses_an_engine_not_driven_yet() {
-        const modal = createTemporaryObject(modalComponent, testCase);
-        modal.open();
-        modal.showPane(1);
-        const sheet = modal.serverSheet;
-        sheet.openNew();
-        sheet.editName = "seedbox";
-        sheet.editUrl = "http://127.0.0.1:9091";
-        compare(sheet.editEngineChoice, "recognise");
-        compare(sheet.fieldMap().engineChoice, "recognise");
-        // Before recognition, qBittorrent's three sign-ins.
-        compare(sheet.authModes, ["apiKey", "cookie", "none"]);
-        const recognise = findChild(sheet, "engineChip_recognise");
-        verify(recognise);
-        compare(recognise.text, "recognise");
-        verify(findChild(sheet, "engineChip_transmission"));
-        verify(findChild(sheet, "engineChip_deluge"));
-
-        sheet.testing = true;
-        sheet._pendingKey = sheet._connectionKey;
-        App.serverTested("", false, "4.1.3", "6.0.0", -1, 3, "omaseed can't drive Transmission yet",
-                         "This build of omaseed drives qBittorrent.", {
-                             "engine": "transmission",
-                             "engineName": "Transmission",
-                             "endpoint": "http://127.0.0.1:9091/transmission/rpc",
-                             "refused": true
-                         });
-        compare(recognise.text, "recognise: Transmission");
-        compare(sheet.engine, "transmission");
-        compare(sheet.authModes, ["cookie", "none"]);
-        verify(findChild(sheet, "authChip_cookie"));
-        compare(findChild(sheet, "authChip_apiKey"), null);
-        // K9: refused, with no "save anyway"; what was typed stays.
-        compare(sheet.saveState, "refused");
-        compare(sheet.actions.map(action => action.text), ["cancel", "test", "save"]);
-        compare(testCase.sheetButton(sheet, "save").enabled, false);
-        compare(sheet.footerRight, "can't be saved");
-        compare(sheet.testProblem.headline, "omaseed can't drive Transmission yet");
-        verify(sheet.testProblem.line.indexOf("It answered at http://127.0.0.1:9091/transmission/rpc") > 0);
-        compare(sheet.editUrl, "http://127.0.0.1:9091");
-        compare(sheet.editName, "seedbox");
-        sheet.actionTriggered("save");
-        compare(App.serverList.count, 0);
-
-        // Picking an engine asks a new test, for that one only.
-        findChild(sheet, "engineChip_deluge").clicked();
-        compare(sheet.tested, false);
-        compare(sheet.fieldMap().engineChoice, "deluge");
-        compare(sheet.authModes, ["password"]);
-        compare(sheet.editAuthMode, "password");
-        verify(findChild(sheet, "lonePassField").visible);
-        sheet.close();
     }
 
     // #68: a failed test offers `save anyway`, so a server that is down now can still be
@@ -745,7 +727,7 @@ TestCase {
         compare(anyway.primary, false);
         // `enter` tests again; the deliberate save is the button.
         verify(testCase.sheetButton(sheet, "test").primary);
-        compare(sheet.footerRight, "");
+        compare(sheet.note, "");
         verify(sheet.actionButtons().indexOf(anyway) >= 0);
 
         anyway.clicked();
@@ -804,12 +786,12 @@ TestCase {
         sheet.openFor(App.serverList.serverMap(id));
         sheet.actionTriggered("edit");
         compare(sheet.saveState, "save");
-        compare(sheet.footerRight, "");
+        compare(sheet.note, "");
 
         sheet.editUrl = "http://127.0.0.1:8082";
         compare(sheet.saveState, "wait");
         compare(testCase.sheetButton(sheet, "save").enabled, false);
-        compare(sheet.footerRight, "test first");
+        compare(sheet.note, "test first");
         sheet.editUrl = "http://127.0.0.1:8081";
         compare(sheet.saveState, "save");
 
@@ -922,6 +904,28 @@ TestCase {
         sheet.close();
     }
 
+    // #201 F1: in the server sheet, picking a credential puts the caret in its first field.
+    function test_picking_a_credential_in_the_server_sheet_puts_the_caret_in_its_field() {
+        const modal = createTemporaryObject(modalComponent, testCase);
+        modal.open();
+        const sheet = modal.serverSheet;
+        sheet.openNew();
+        verify(sheet.editing);
+        const cookie = testCase.childNamed(sheet, "authChip-cookie");
+        const apiKey = testCase.childNamed(sheet, "authChip-apiKey");
+        cookie.clicked();
+        compare(sheet.editAuthMode, "cookie");
+        tryVerify(() => testCase.childNamed(sheet, "serverUserField").editing);
+        // F2: the one picked carries an accent edge.
+        verify(cookie.accent && cookie.border.width > 0);
+        verify(!apiKey.accent);
+        apiKey.forceActiveFocus();
+        keyClick(Qt.Key_Space);
+        compare(sheet.editAuthMode, "apiKey");
+        tryVerify(() => testCase.childNamed(sheet, "serverKeyField").editing);
+        sheet.close();
+    }
+
     function test_the_server_sheet_masks_the_key_and_switches_to_the_fields() {
         const id = testCase.addTestServer("playground", "http://127.0.0.1:8081");
         const modal = createTemporaryObject(modalComponent, testCase);
@@ -930,18 +934,16 @@ TestCase {
         sheet.openFor(App.serverList.serverMap(id));
         verify(sheet.opened);
 
-        // View mode: Fig. 9's five key/value rows, in the figure's order, after the engine
-        // (C25 K12: stored, from the last contact; the name alone before one).
+        // View mode: Fig. 9's five key/value rows, in the figure's order.
         const kv = sheet.body.children[0];
-        compare(kv.items.length, 6);
-        compare(kv.items.map(item => item.key), ["Engine", "Auth", "Key", "Path map", "Torrents", "Reachable"]);
-        compare(kv.items[0].value, "qBittorrent");
-        compare(kv.items[1].value, "API key · stored in libsecret");
+        compare(kv.items.length, 5);
+        compare(kv.items.map(item => item.key), ["Auth", "Key", "Path map", "Torrents", "Reachable"]);
+        compare(kv.items[0].value, "API key · stored in libsecret");
         // The stored secret is never drawn: the Key row is a fixed mask of bullets.
-        verify(kv.items[2].value.length > 0);
-        compare(kv.items[2].value.replace(/•/g, ""), "");
-        compare(kv.items[3].value, "/downloads → /data/torrents");
-        compare(kv.items[4].value, "not tested yet");
+        verify(kv.items[1].value.length > 0);
+        compare(kv.items[1].value.replace(/•/g, ""), "");
+        compare(kv.items[2].value, "/downloads → /data/torrents");
+        compare(kv.items[3].value, "not tested yet");
 
         // Fig. 9's three actions in view mode, and three different ones once editing.
         compare(sheet.actions.map(action => action.text), ["test", "remove", "edit"]);
@@ -951,9 +953,6 @@ TestCase {
         compare(sheet.fieldMap().url, "http://127.0.0.1:8081");
         compare(sheet.fieldMap().authMode, "apiKey");
         compare(sheet.fieldMap().pathMapRemote, "/downloads");
-        // #84: a saved server is tested as the engine it is stored with (K4).
-        compare(sheet.editEngineChoice, "qbittorrent");
-        compare(sheet.fieldMap().engine, "qbittorrent");
         sheet.close();
     }
 
@@ -1054,21 +1053,6 @@ TestCase {
         modal.serverSheet.close();
     }
 
-    // Review RUN-9: the footer's `enter` names the button the keyboard is on.
-    function test_the_enter_hint_follows_the_focused_button() {
-        const id = testCase.addTestServer("playground", "http://127.0.0.1:8081");
-        const modal = createTemporaryObject(modalComponent, testCase);
-        modal.open();
-        const sheet = modal.serverSheet;
-        sheet.openFor(App.serverList.serverMap(id));
-        const buttons = sheet.actionButtons();
-        buttons[0].forceActiveFocus(); // test
-        compare(sheet.hints[0].label, "test");
-        buttons[2].forceActiveFocus(); // edit
-        compare(sheet.hints[0].label, "edit");
-        sheet.close();
-    }
-
     // #51 D4: the sheet of a server that is not the default has "switch to it", which does
     // what `d` on its row does; the default one's sheet has no such button.
     function test_the_server_sheet_makes_a_server_the_default() {
@@ -1118,7 +1102,7 @@ TestCase {
         verify(!modal.serverSheet.opened, "a right-click opened the sheet");
         compare(menu.items.filter(entry => !entry.separator).map(entry => entry.text),
                 ["edit", "test", "switch to it", "remove"]);
-        compare(item("edit").key, "enter");
+        compare(item("edit").key, "e");
         compare(item("default").key, "d");
         compare(item("remove").key, "x");
         verify(item("default").disabled, "make default on the default server");
@@ -1143,11 +1127,22 @@ TestCase {
         compare(row1.status, "in use");
         waitForItemPolished(row1.parent);
 
-        // edit opens the row's sheet; remove asks first, as `x` does.
+        // edit opens the row's sheet on its form, not its page (#201 F9), the keyboard in
+        // the first field; remove asks first, as `x` does.
         mouseClick(row0, row0.width / 2, row0.height / 2, Qt.RightButton);
         keyClick(Qt.Key_Return);
         verify(modal.serverSheet.opened);
         compare(modal.serverSheet.serverId, first);
+        verify(modal.serverSheet.editing, "edit opened the server's page");
+        modal.serverSheet.close();
+        // `e` on the row does the same; enter opens the page.
+        keyClick(Qt.Key_E);
+        verify(modal.serverSheet.opened);
+        verify(modal.serverSheet.editing);
+        modal.serverSheet.close();
+        keyClick(Qt.Key_Return);
+        verify(modal.serverSheet.opened);
+        verify(!modal.serverSheet.editing);
         modal.serverSheet.close();
         mouseClick(row0, row0.width / 2, row0.height / 2, Qt.RightButton);
         keyClick("x");
@@ -1190,12 +1185,12 @@ TestCase {
         keyClick(Qt.Key_Space);
         compare(App.pathMapEnabled, !mapping);
 
-        // Notifications: four toggle rows (Q16 dropped the tracker one, docs/28 added the
-        // errored one) bound to App.notificationsEnabled, the low-disk threshold field, then
-        // the weekly recap (#24 T8). The keyboard is already in the pane — a digit moves the
-        // nav without taking it back.
+        // Notifications: five toggle rows (Q16 dropped the tracker one, docs/28 added the
+        // errored one, docs/54 W5 the added one) bound to App.notificationsEnabled, the
+        // low-disk threshold field, then the weekly recap (#24 T8). The keyboard is already in
+        // the pane — a digit moves the nav without taking it back.
         keyClick(Qt.Key_3);
-        compare(modal.paneRowCount, 6);
+        compare(modal.paneRowCount, 7);
         compare(modal.area, "pane");
         keyClick(Qt.Key_Return);
         compare(App.notificationsEnabled["completed"] === true, !completed);
@@ -1207,7 +1202,7 @@ TestCase {
         const tray = App.trayIconMode;
         App.trayIconMode = "auto";
         compare(App.inTheBar, "tray");
-        modal.paneCursor = 3;
+        modal.paneCursor = 4;
         modal.area = "pane";
         modal.activateRow();
         compare(App.inTheBar, "none");
@@ -1216,43 +1211,29 @@ TestCase {
         compare(App.inTheBar, "tray");
         compare(App.trayIconMode, "auto");
 
-        // ...and the sixth row swaps the side the hero's speed pair sits on.
-        const speeds = App.speedsAlignment;
-        modal.paneCursor = 5;
-        modal.activateRow();
-        verify(App.speedsAlignment !== speeds);
-        compare(App.speedsAlignment, speeds === "left" ? "right" : "left");
+        // The hero's speed alignment and trends left with it (#167 assumed 6): no row names
+        // them. The surface tint came back for the rail (C32 D16 a).
+        verify(findChild(modal, "downloadTrendChip") === null);
+        verify(findChild(modal, "uploadTrendChip") === null);
 
-        // ...and the seventh steps the hero's speed trends (#24 T2): off at first, then both,
-        // download, upload, off again.
-        compare(App.downloadTrend, false);
-        compare(App.uploadTrend, false);
-        modal.paneCursor = 6;
-        const trends = [[true, true], [true, false], [false, true], [false, false]];
-        for (const [down, up] of trends) {
-            modal.activateRow();
-            compare(App.downloadTrend, down);
-            compare(App.uploadTrend, up);
-        }
-
-        // ...and the next three cycle the rail's looks (docs/08 §5).
+        // ...and the next three cycle the rail's looks (docs/08 §5, C32 D16 a).
         const hint = App.railScrollHint;
         const tint = App.surfaceTint;
         const hosts = App.trackerHostStyle;
-        modal.paneCursor = 7;
+        modal.paneCursor = 6;
         modal.activateRow();
         verify(App.railScrollHint !== hint);
-        modal.paneCursor = 8;
+        modal.paneCursor = 7;
         modal.activateRow();
         verify(App.surfaceTint !== tint);
-        modal.paneCursor = 9;
+        modal.paneCursor = 8;
         modal.activateRow();
         verify(App.trackerHostStyle !== hosts);
 
-        // ...and the last places Details (docs/10 §5): auto, right, bottom.
+        // ...and the next places Details (docs/10 §5): auto, right, bottom.
         const placement = App.detailsPlacement;
         compare(placement, "auto");
-        modal.paneCursor = 10;
+        modal.paneCursor = 9;
         modal.activateRow();
         compare(App.detailsPlacement, "right");
         modal.activateRow();
@@ -1263,14 +1244,13 @@ TestCase {
         App.pathMapEnabled = mapping;
         App.setNotificationEnabled("completed", completed);
         App.trayIconMode = tray;
-        App.speedsAlignment = speeds;
         App.railScrollHint = hint;
         App.surfaceTint = tint;
         App.trackerHostStyle = hosts;
         App.detailsPlacement = placement;
     }
 
-    // T5.5 (Q16): the low-disk threshold is the fourth row of the Notifications pane, a
+    // T5.5 (Q16): the low-disk threshold follows the toggles in the Notifications pane, a
     // field prefilled with App's value; `enter` on the row focuses it, and accepting the
     // field writes the value back (clamped to 1 or more by App).
     function test_the_notifications_pane_edits_the_low_disk_threshold() {
@@ -1297,13 +1277,11 @@ TestCase {
         const completedRow = testCase.childNamed(modal, "notifyRow-completed");
         verify(diskRow.implicitHeight > completedRow.implicitHeight);
 
-        // `j` x4 from the first row lands on the field's row; `enter` hands it the keyboard.
+        // `j` x5 from the first row lands on the field's row; `enter` hands it the keyboard.
         keyClick(Qt.Key_Tab);
-        keyClick(Qt.Key_J);
-        keyClick(Qt.Key_J);
-        keyClick(Qt.Key_J);
-        keyClick(Qt.Key_J);
-        compare(modal.paneCursor, 4);
+        for (let i = 0; i < 5; ++i)
+            keyClick(Qt.Key_J);
+        compare(modal.paneCursor, 5);
         compare(row.hasCursor, true);
         keyClick(Qt.Key_Return);
         verify(field.editing);
@@ -1330,6 +1308,113 @@ TestCase {
     }
 
     // #24 T5: the rows' pulse is the Appearance pane's last row, off until turned on.
+    // DECISIONS C24 H11 (#171): the skin, Appearance's first row: three chips, enter steps
+    // through them, the line under it follows the choice, and a choice that can draw Console
+    // names its fonts that aren't installed. App hands the choice to the theme reader in the
+    // real launch; here TestTheme does, and the skin repaints at once.
+    function test_the_skin_row_picks_the_skin() {
+        compare(App.skinChoice, "omarchy");
+        // The suite's Console run pins OMASEED_SKIN, which wins over the choice: then the
+        // choice still saves, and the skin drawn stays the pinned one.
+        const pinned = Theme.skin.requested !== App.skinChoice;
+        const modal = createTemporaryObject(modalComponent, testCase);
+        modal.open();
+        keyClick(Qt.Key_5);
+        compare(modal.paneIndex, 4);
+        const row = testCase.childNamed(modal, "skinRow");
+        verify(row !== null && row.visible);
+        compare(row.title, "Skin");
+        verify(row.description.indexOf("The default") >= 0, row.description);
+        compare(row.warning, "");
+        compare(testCase.childNamed(modal, "skinChip-omarchy").selected, true);
+
+        modal.area = "pane";
+        modal.paneCursor = 0;
+        compare(row.hasCursor, true);
+        modal.activateRow();
+        compare(App.skinChoice, "console");
+        compare(testCase.childNamed(modal, "skinChip-console").selected, true);
+        verify(row.description.indexOf("plates, labels and lamps") >= 0, row.description);
+        const missing = Theme.skin.missingFontsOf("console");
+        compare(row.warning === "", missing.length === 0);
+        for (const family of missing)
+            verify(row.warning.indexOf(family) >= 0, row.warning);
+
+        // Console's selected row is lighterBackground itself, Omarchy's an 18 % fill. (The
+        // alpha is a number, copied; a colour read here would follow the property.)
+        const selected = Theme.on.selected.fill.a;
+        TestTheme.setSkinChoice(App.skinChoice);
+        compare(Theme.skin.name, "console");
+        if (!pinned)
+            verify(Theme.on.selected.fill.a !== selected, "selected kept Omarchy's ground");
+
+        // Follow the desktop: the harness's desktop has no console skin, so Omarchy, and
+        // the line says so.
+        mouseClick(testCase.childNamed(modal, "skinChip-desktop"));
+        compare(App.skinChoice, "desktop");
+        TestTheme.setSkinChoice(App.skinChoice);
+        compare(Theme.skin.name, pinned ? "console" : "omarchy");
+        verify(row.description.indexOf(pinned ? "Now: Console" : "Now: Omarchy") >= 0,
+               row.description);
+
+        modal.activateRow(); // wraps round to Omarchy
+        compare(App.skinChoice, "omarchy");
+        TestTheme.setSkinChoice("omarchy");
+        compare(row.warning, "");
+    }
+
+    // DECISIONS C32 D16 a: Appearance › Surface tint, the rail's: off · 4 % · 8 %, after the
+    // scroll hint; enter steps it, a chip picks it.
+    function test_the_appearance_pane_tints_the_rail() {
+        const modal = createTemporaryObject(modalComponent, testCase);
+        const before = App.surfaceTint;
+        App.surfaceTint = 0;
+        modal.open();
+        keyClick(Qt.Key_5);
+        const row = testCase.childNamed(modal, "surfaceTintRow");
+        verify(row !== null && row.visible);
+        compare(row.title, "Surface tint");
+        modal.paneCursor = 7;
+        modal.area = "pane";
+        compare(row.hasCursor, true);
+        modal.activateRow();
+        compare(App.surfaceTint, 4);
+        modal.activateRow();
+        compare(App.surfaceTint, 8);
+        modal.activateRow();
+        compare(App.surfaceTint, 0);
+        const chip = testCase.childNamed(row, "tintChip-8");
+        chip.clicked();
+        compare(App.surfaceTint, 8);
+        verify(chip.selected);
+        App.surfaceTint = before;
+    }
+
+    // DECISIONS C32 D2 a: Appearance › Speeds, the title bar by default or the status line;
+    // the last row, enter steps it, a chip picks it.
+    function test_the_appearance_pane_places_the_speeds() {
+        const modal = createTemporaryObject(modalComponent, testCase);
+        const before = App.speedsPlace;
+        compare(before, "title");
+        modal.open();
+        keyClick(Qt.Key_5);
+        const row = testCase.childNamed(modal, "speedsPlaceRow");
+        verify(row !== null && row.visible);
+        compare(row.title, "Speeds");
+        modal.paneCursor = modal.paneRowCount - 1;
+        modal.area = "pane";
+        compare(row.hasCursor, true);
+        modal.activateRow();
+        compare(App.speedsPlace, "status");
+        modal.activateRow();
+        compare(App.speedsPlace, "title");
+        const chip = testCase.childNamed(row, "speedsChip-status");
+        chip.clicked();
+        compare(App.speedsPlace, "status");
+        verify(chip.selected);
+        App.speedsPlace = before;
+    }
+
     function test_the_appearance_pane_turns_the_rows_pulse_on() {
         const modal = createTemporaryObject(modalComponent, testCase);
         compare(App.pulseRows, false);
@@ -1339,13 +1424,34 @@ TestCase {
         const row = testCase.childNamed(modal, "pulseRowsRow");
         verify(row, "the Appearance pane has no pulse row");
         compare(row.title, "Pulse sending rows");
-        modal.paneCursor = 11;
+        modal.paneCursor = 10;
         modal.area = "pane";
         compare(row.hasCursor, true);
         modal.activateRow();
         compare(App.pulseRows, true);
         modal.activateRow();
         compare(App.pulseRows, false);
+    }
+
+    // Board 54 W5 (DECISIONS C35): "Torrent added" is the second row, on until turned off.
+    function test_the_notifications_pane_has_the_torrent_added_switch() {
+        const modal = createTemporaryObject(modalComponent, testCase);
+        compare(App.notificationsEnabled.added, true);
+        modal.open();
+        keyClick(Qt.Key_3);
+        compare(modal.paneIndex, 2);
+        const row = testCase.childNamed(modal, "notifyRow-added");
+        verify(row, "the Notifications pane has no torrent added row");
+        compare(row.title, "Torrent added");
+
+        keyClick(Qt.Key_Tab);
+        keyClick(Qt.Key_J);
+        compare(modal.paneCursor, 1);
+        compare(row.hasCursor, true);
+        keyClick(Qt.Key_Return);
+        compare(App.notificationsEnabled.added, false);
+        keyClick(Qt.Key_Return);
+        compare(App.notificationsEnabled.added, true);
     }
 
     // #24 T8: the weekly recap is the Notifications pane's last row, off until turned on.
@@ -1360,9 +1466,9 @@ TestCase {
         compare(row.title, "Weekly recap");
 
         keyClick(Qt.Key_Tab);
-        for (let i = 0; i < 5; ++i)
+        for (let i = 0; i < 6; ++i)
             keyClick(Qt.Key_J);
-        compare(modal.paneCursor, 5);
+        compare(modal.paneCursor, 6);
         compare(row.hasCursor, true);
         keyClick(Qt.Key_Return);
         compare(App.notificationsEnabled.weekly, true);
@@ -1415,7 +1521,11 @@ TestCase {
         compare(modal.paneIndex, 3);
         // Read-only in v1: no cursor rows at all.
         compare(modal.paneRowCount, 0);
+        // Nothing in it takes the keyboard: tab stays on the sections (C32 D10 a).
         keyClick(Qt.Key_Tab);
+        compare(modal.area, "nav");
+        compare(modal.paneIndex, 3);
+        keyClick(Qt.Key_L);
         keyClick(Qt.Key_J);
         compare(modal.paneCursor, 0);
 
@@ -1429,9 +1539,41 @@ TestCase {
         verify(scroller.contentHeight <= scroller.height + 1);
     }
 
+    // DECISIONS C24 H13 (#113): the ground is opaque by default; the Window row makes it
+    // translucent, and only then does the transparency row show, moving the rows below it.
+    function test_the_window_row_picks_the_ground() {
+        const modal = createTemporaryObject(modalComponent, testCase);
+        compare(App.windowGround, "opaque");
+        modal.open();
+        keyClick(Qt.Key_5);
+        compare(modal.paneIndex, 4);
+        const row = testCase.childNamed(modal, "windowGroundRow");
+        verify(row !== null && row.visible);
+        compare(row.title, "Window");
+        const alphaRow = testCase.childNamed(modal, "windowAlphaRow");
+        compare(alphaRow.visible, false);
+        compare(modal.paneRowCount, 12);
+
+        modal.area = "pane";
+        modal.paneCursor = 3;
+        compare(row.hasCursor, true);
+        modal.activateRow();
+        compare(App.windowGround, "translucent");
+        compare(alphaRow.visible, true);
+        compare(modal.paneRowCount, 13);
+        // "In the bar" moved down one.
+        modal.paneCursor = 5;
+        compare(testCase.childNamed(modal, "inTheBarRow").hasCursor, true);
+
+        mouseClick(testCase.childNamed(modal, "groundChip-opaque"));
+        compare(App.windowGround, "opaque");
+        compare(alphaRow.visible, false);
+    }
+
     // T5.5 Q1: the transparency row's placeholder is the shell's own default, not a
     // literal — 95 under the harness's empty shell.toml — so the user sees what "empty" means.
     function test_the_transparency_placeholder_is_the_shells_default() {
+        App.windowGround = "translucent"; // C24 H13: the field shows only then
         const modal = createTemporaryObject(modalComponent, testCase);
         modal.open();
         keyClick(Qt.Key_5);
@@ -1445,6 +1587,7 @@ TestCase {
     // Review RUN-4: an override stored earlier shows in its field, and a refused value does
     // not stay there as if it applied.
     function test_the_appearance_fields_show_the_stored_overrides() {
+        App.windowGround = "translucent"; // C24 H13: the field shows only then
         App.windowAlphaOverride = 80;
         App.baseSizeOverride = 16;
         const modal = createTemporaryObject(modalComponent, testCase);
@@ -1468,6 +1611,7 @@ TestCase {
     // to show in the field and never apply. What does not parse is the empty meaning, again
     // as on enter.
     function test_the_number_fields_apply_when_the_caret_leaves() {
+        App.windowGround = "translucent"; // C24 H13: the field shows only then
         const modal = createTemporaryObject(modalComponent, testCase);
         modal.open();
         const probe = createTemporaryObject(probeComponent, testCase);
@@ -1512,6 +1656,7 @@ TestCase {
     // value applies as a typed one does, when the caret leaves; base size steps from the size
     // it follows, and transparency stays in 50–100.
     function test_the_number_fields_step_with_the_wheel_only_with_the_caret() {
+        App.windowGround = "translucent"; // C24 H13: the field shows only then
         const modal = createTemporaryObject(modalComponent, testCase);
         modal.open();
         const probe = createTemporaryObject(probeComponent, testCase);
@@ -1671,15 +1816,22 @@ TestCase {
 
         // Walking the rows down scrolls the pane so the cursor row stays in view.
         keyClick(Qt.Key_Tab);
-        for (let i = 0; i < 10; ++i)
+        for (let i = 0; i < 9; ++i)
             keyClick(Qt.Key_J);
-        compare(modal.paneCursor, 10);
+        compare(modal.paneCursor, 9);
         tryVerify(() => scroller.contentY > 0, 1000, "the last row was left below the fold");
+
+        // The bar's room is kept while the pane shows, so a pane shorter at the narrower width
+        // cannot put the bar up and down for ever (a frozen window, seen on a qBittorrent
+        // section at one size); another pane starts without it.
+        verify(modal._paneBarKept);
+        compare(scroller.contentWidth, scroller.width - bar.width - Theme.space(8));
 
         // Another pane starts at its top.
         keyClick(Qt.Key_Tab);
         keyClick(Qt.Key_1);
         compare(scroller.contentY, 0);
+        verify(!modal._paneBarKept || bar.needed);
 
         // The wheel moves the pane as it moves the library (Kit/WheelScroll; `mouseWheel`
         // does not deliver offscreen, so through the one function its wheel calls), but not

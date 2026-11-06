@@ -60,6 +60,7 @@ export PATH="/usr/lib/qt6/bin:$PATH"            # qmllint, qmlformat, qmlls, qml
 cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug
 cmake --build build
 ctest --test-dir build --output-on-failure        # unit + qml tests
+ctest --test-dir build -L skin-console            # the QML suite again, under the Console skin
 QT_QPA_PLATFORM=offscreen ./build/omaseed --help  # headless smoke
 ./build/omaseed                                   # real run under Hyprland
 qmllint src/ui/qml/**/*.qml && qmlformat -i <file>
@@ -79,16 +80,20 @@ invisible Omarchy desktop, so nothing opens on the real one:
 scripts/dev/swarm-walk.sh [OUT] | --interactive   # every torrent state, shown in the app in an omabox
 scripts/dev/strict-walk.sh [OUT] | --interactive  # first run + cookie / API key login against :8082, in an omabox
 scripts/dev/notify-walk.sh [OUT] | --interactive  # downloads finish: one notice each, a click shows the torrent
-scripts/dev/magnet-walk.sh [OUT] | --interactive  # xdg-open a magnet / .torrent: the add sheet, closed, in the tray, duplicate
-scripts/dev/actions-walk.sh [OUT] | --interactive # renames, categories, tags, auto-TMM, set location, bar, outcome strip, mouse picks, delete, skipped files on disk: checked on server and disk (OMASEED_ACTIONS_WALK_FROM=disk)
-scripts/dev/settings-walk.sh [OUT] | --interactive  # qBittorrent settings pane on a box-owned qBittorrent: sections, switches, Web UI port and API key confirms
+scripts/dev/magnet-walk.sh [OUT] | --interactive  # xdg-open a magnet / .torrent: the add sheet, closed, in the tray, duplicate; gio open (D-Bus) while quit; adds from outside where you are (the add window on your workspace, the main window unmoved, the notice; show it; under the menu; joined on another workspace); add before the list
+scripts/dev/actions-walk.sh [OUT] | --interactive # renames, categories, tags, auto-TMM, set location, the action bar (its category and tags lists), outcome strip, mouse picks, delete, skipped files on disk: checked on server and disk (OMASEED_ACTIONS_WALK_FROM=disk)
+scripts/dev/settings-walk.sh [OUT] | --interactive  # Appearance › Skin (Omarchy, Console, following a fixture console-skin.json in the box), then the qBittorrent settings pane on a box-owned qBittorrent: sections, switches, Web UI port and API key confirms
 scripts/dev/servers-walk.sh [OUT] | --interactive # two qBittorrents: first run, add, switch three ways, an action each side, remove
 scripts/dev/backup-walk.sh [OUT] | --interactive  # a qBittorrent's torrents exported and imported through the app, checked on both servers
 scripts/dev/error-walk.sh [OUT] | --interactive   # a torrent goes into error: the row's cause, the error block, one notice
-scripts/dev/menu-walk.sh [OUT] | --interactive    # the one menu: tray and bar widget ⋯, server switches, quit
+scripts/dev/menu-walk.sh [OUT] | --interactive    # the one menu: tray, bar widget ⋯ and the window's mark (ctrl+.), a server's menu from the rail, server switches, quit
 scripts/dev/stuck-walk.sh [OUT] | --interactive   # finished into a full disk (a udisks loop image): the stuck move's red block, then a recheck moves it
-scripts/dev/move-walk.sh [OUT] | --interactive    # folder and selection moves, queue, places, partial pack, move back, recheck (~12 min; OMASEED_MOVE_WALK_FROM=selection|sheet|history|big|music|remote)
+scripts/dev/search-walk.sh [OUT] | --interactive  # search: invented plugins installed in Settings, a search filling in, failed and slow plugins, a magnet and a link (through its plugin) added and downloaded, × esc clears, uninstall, the rail (a plugin unticked, a type, recent, an off plugin and install a plugin… to the pane), folded: plugins ▾ back, manage plugins… to the pane
+scripts/dev/search-plugins.py make DIR [--slow S] # four invented nova3 search plugins answering with the offline swarm's torrents (never a real site)
+scripts/dev/create-walk.sh [OUT] | --interactive  # create a torrent (#146): + add ▾, public (strip, seeding, the .torrent read back), the band, private (saved, passkey only as dots), the round trip both ways, errors, cancel
+scripts/dev/move-walk.sh [OUT] | --interactive    # folder and selection moves, queue, places, partial pack, move back (the loose files too), recheck (~12 min; OMASEED_MOVE_WALK_FROM=loose|selection|sheet|history|big|music|remote)
 omabox check run [--approve] --base .local/visual --plugin plugin -- scripts/dev/visual-check.sh  # the walks' screens against a baseline: same, or what changed
+OMASEED_SKIN=console omabox check run [--approve] --keep fonts --base .local/visual-console --plugin plugin -- scripts/dev/visual-check.sh  # the same in the Console skin, its own baseline
 scripts/dev/manual-box.sh [--headless] | down          # throwaway desktop for manual tests: omaseed installed, two qBittorrents (public :8090, private :8091)
 scripts/dev/move-library.sh [-b BOX] [--server S]  # the move test library in a box's qBittorrent: 109 torrents (4 partial packs), /tmp/fast, a clash, a read-only dest
 scripts/dev/app-box.sh up [-b NAME] [--build DIR] [--handlers] [--qbt]  # agents: build/omaseed in a box on :8081 (--qbt: the box's own qBittorrent), swarm .torrents in ~/Downloads
@@ -99,6 +104,13 @@ scripts/dev/app-box.sh api [-b NAME] [--server public|private] [-X M] PATH [CURL
 `docs/TESTING.md` is the guide: the layers, the order (automated first, then a person's pass from
 `docs/manual-tests/`), and the rules (test scripts committed and re-runnable, research repros in
 `scripts/dev/research/`, `scripts/dev/fastresume.py` to read what qBittorrent saved).
+
+A box is a new install, so omaseed starts on the rows display there (DECISIONS C24 H4). Every
+walk pins its display with `OMASEED_DISPLAY=rows|table|space` (each scope starts on it;
+app-box.sh passes it through): the walks that read the table pin the table, the swarm walk adds a
+rows pass and ends on space, and ctest pins the table for every test.
+`OMASEED_SKIN=omarchy|console` picks the skin the same way (Omarchy's when unset; #171), and
+`omaseed --theme-roles --skin NAME` prints the grounds as that skin paints them.
 
 Anything that can open a window, reach the session D-Bus or the keyring runs in an omabox or
 through `ctest`, never straight on the desktop. Test binaries force Qt's offscreen platform

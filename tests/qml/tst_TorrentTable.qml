@@ -180,14 +180,18 @@ TestCase {
         // `grid-template-columns: minmax(0,1fr) 72px 118px 104px 62px 84px 84px 62px`, status widened to 116 (Q17).
         compare(header("size").width, Theme.space(72));
         compare(header("progress").width, Theme.space(118));
-        compare(header("status").width, Theme.space(116));
+        // #171: wider where the skin's verb voice needs it to hold "downloading" whole.
+        compare(header("status").width, Theme.space(table.defaultWidthOf("status")));
+        verify(table.defaultWidthOf("status") >= 116);
+        if (!Theme.verbCaption)
+            compare(table.defaultWidthOf("status"), 116);
         compare(header("seedsPeers").width, Theme.space(62));
         compare(header("dlspeed").width, Theme.space(84));
         compare(header("upspeed").width, Theme.space(84));
         compare(header("eta").width, Theme.space(62));
         // The Name column takes the rest. Each column is rounded on its own, so the sum is
         // of the rounded widths, not `Theme.space()` of the sum.
-        const fixed = testCase.fixedWidth([72, 118, 116, 62, 84, 84, 62]);
+        const fixed = testCase.fixedWidth([72, 118, table.defaultWidthOf("status"), 62, 84, 84, 62]);
         compare(header("name").width, table.width - table.tickWidth - fixed);
     }
 
@@ -206,7 +210,7 @@ TestCase {
     // docs/10 §4 (Diogo's ruling): a table too narrow for its columns keeps every one of them
     // and scrolls sideways; Name never goes under `minimumNameWidth`.
     function test_a_narrow_table_scrolls_instead_of_squeezing() {
-        const fixed = testCase.fixedWidth([72, 118, 116, 62, 84, 84, 62]);
+        const fixed = testCase.fixedWidth([72, 118, table.defaultWidthOf("status"), 62, 84, 84, 62]);
         table.anchors.fill = undefined;
         table.width = 600;
         table.height = 400;
@@ -273,6 +277,22 @@ TestCase {
         verify(!findChild(table, "sideways").needed);
     }
 
+    // #171: the status word in the skin's verb voice (board 46 `.verb`: Console's caption
+    // voice in the state's colour), Omarchy's body text otherwise.
+    function test_the_status_word_takes_the_skins_verb_voice() {
+        const word = findChild(table, "status_0");
+        compare(Theme.verbCaption, Theme.skin.name === "console");
+        compare(word.font.family, Theme.verbCaption ? Theme.labelFamily : Theme.valueFamily);
+        compare(word.font.pixelSize, Theme.verbCaption ? Theme.font.caption : Theme.font.body);
+        // Its column's default holds "downloading" whole in either voice (Q17).
+        compare(word.text, "downloading");
+        verify(!word.truncated, "the status word elides at the column's default width");
+        if (Theme.verbCaption) {
+            compare(word.font.capitalization, Font.AllUppercase);
+            compare(word.color, findChild(table, "statusGlyph_0").color);
+        }
+    }
+
     function test_first_row_shows_the_figure_texts() {
         compare(cellText("name_0"), "archlinux-2026.09.01-x86_64.iso");
         compare(cellText("category_0"), "linux");
@@ -285,13 +305,43 @@ TestCase {
         compare(cellText("eta_0"), "2m 40s");
     }
 
+    // DECISIONS C30 F1–F3: a selected row's dim and state words are lifted on its fill, the
+    // 24 % one under the cursor; the row beside it keeps the window's.
+    function test_a_selected_rows_dim_and_state_text_reads_on_its_fill() {
+        table.moveCursorTo(2);
+        table.selectOnly(2);
+        const row = findChild(table, "row_2");
+        const band = row.children.find(child => child.ink !== undefined);
+        // The picked ground where the skin says (#171 step 6, Theme.rowGround).
+        const both = Theme.rowGround(true, true, false, false);
+        const picked = Theme.rowGround(true, false, false, false);
+        compare(band.ink.ground, both);
+        tryCompare(findChild(table, "category_2"), "color", both.dimForeground);
+        verify(!Qt.colorEqual(both.dimForeground, Theme.dimForeground));
+        tryCompare(band.ink, "stateSeeding", both.green);
+        compare(row.stateColor, band.ink[row.stateRole]);
+        table.moveCursorTo(3);
+        compare(band.ink.ground, picked);
+        tryCompare(findChild(table, "category_2"), "color", picked.dimForeground);
+        // The row beside it is not selected: its words are its own ground's (the window's,
+        // or the hover fill's while the pointer is on it).
+        const other = findChild(table, "row_1").children.find(child => child.ink !== undefined);
+        verify(other.ink.ground !== Theme.on.selected && other.ink.ground !== Theme.on.selectedCursor);
+        tryCompare(findChild(table, "category_1"), "color", other.ink.ground.dimForeground);
+    }
+
     function test_the_name_elides_and_keeps_the_category_visible() {
         testCase.cellProbe = findChild(table, "name_4");
         verify(testCase.cellProbe);
         compare(testCase.cellProbe.elide, Text.ElideRight);
         testCase.cellProbe = findChild(table, "category_4");
         verify(testCase.cellProbe);
-        compare(testCase.cellProbe.color, Theme.dimForeground);
+        // Dim, as it reads on the row's ground (DECISIONS C30 F1): the band's ink.
+        const row = findChild(table, "row_4");
+        const band = row.children.find(child => child.ink !== undefined);
+        verify(band);
+        tryCompare(testCase.cellProbe, "color", band.ink.dimForeground);
+        tryCompare(band.ink, "dimForeground", Theme.inkOf(Theme.dimForeground, band.ink.ground));
         compare(testCase.cellProbe.font.pixelSize, Theme.font.small);
     }
 
@@ -536,7 +586,7 @@ TestCase {
         testCase.cellProbe = findChild(table, "eta_0");
         compare(testCase.cellProbe.visible, false);
         // The Name column grows by the hidden column's width.
-        const fixed = testCase.fixedWidth([72, 118, 116, 62, 84, 84]);
+        const fixed = testCase.fixedWidth([72, 118, table.defaultWidthOf("status"), 62, 84, 84]);
         compare(header("name").width, table.width - table.tickWidth - fixed);
     }
 
@@ -757,6 +807,46 @@ TestCase {
 
     // A double-click on a grip fits its column to the widest cell on screen and the caption,
     // so none of them elides; it works from a narrower or a wider width alike.
+    // #201 F13: a narrow name column keeps the name's floor: the category gives way first,
+    // then "private", never the name cut to a few letters.
+    function test_a_narrow_name_keeps_its_floor() {
+        let index = -1;
+        for (let i = 0; i < App.filtered.count && index < 0; ++i) {
+            const row = findChild(table, "row_" + i);
+            if (row !== null && row.isPrivate && row.category.length > 0)
+                index = i;
+        }
+        verify(index >= 0, "the demo has a private torrent with a category in view");
+        const name = findChild(table, "name_" + index);
+        const category = findChild(table, "category_" + index);
+        const priv = findChild(table, "private_" + index);
+        verify(category.visible && priv.visible, "a wide name column shows both");
+        // The name column alone beside size, under the window's own least name width, so the
+        // test's fonts are squeezed too; the window's width sets the name's.
+        const least = table.minimumNameWidth;
+        const width = testCase.width;
+        table.minimumNameWidth = 40;
+        table.visibleColumns = ["name", "size"];
+        table.setColumnWidth("name", 40);
+        const full = name.implicitWidth + name.parent.categoryRoom + name.parent.privateRoom;
+        for (const room of [full + 40, full - 20, name.implicitWidth, Theme.tableNameFloor + 20]) {
+            testCase.width = room + 16 + (testCase.width - name.parent.width);
+            waitForRendering(table, 250);
+            verify(name.width >= Math.min(name.implicitWidth, Theme.tableNameFloor) - 1,
+                   "the name lost its floor at " + room);
+            if (priv.visible)
+                verify(name.x + name.width + 8 <= priv.x + 1, "the name ran into private at " + room);
+        }
+        verify(!category.visible, "the category gave way");
+        verify(!priv.visible, "then private");
+        testCase.width = width;
+        table.minimumNameWidth = least;
+        table.visibleColumns = testCase.allColumns;
+        table.resetColumnWidths();
+        waitForRendering(table, 250);
+        verify(category.visible && priv.visible);
+    }
+
     function test_a_double_click_on_a_grip_fits_the_widest_visible_cell() {
         for (const key of ["size", "status", "eta", "dlspeed"]) {
             table.setColumnWidth(key, table.minimumColumnWidth);
@@ -834,7 +924,7 @@ TestCase {
                                   "size": 90,
                                   "bogus": 50,
                                   "eta": "wide",
-                                  "status": 116,
+                                  "status": table.defaultWidthOf("status"),
                                   "dlspeed": 3,
                                   "name": 40
                               });

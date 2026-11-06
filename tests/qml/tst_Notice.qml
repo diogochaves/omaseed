@@ -49,11 +49,33 @@ TestCase {
 
     function test_kinds_take_their_glyph_and_colour() {
         const notice = createTemporaryObject(noticeComponent, testCase);
-        compare(findChild(notice, "noticeGlyph").text, "!");
-        compare(findChild(notice, "noticeRule").color, Theme.yellow);
+        compare(findChild(notice, "noticeGlyph").text, Theme.labelTags ? "warning" : "!");
+        compare(findChild(notice, "noticePlate").rule, Theme.yellow);
         notice.kind = "error";
-        compare(findChild(notice, "noticeGlyph").text, Glyphs.close);
-        compare(findChild(notice, "noticeRule").color, Theme.red);
+        compare(findChild(notice, "noticeGlyph").text, Theme.labelTags ? "error" : Glyphs.close);
+        compare(findChild(notice, "noticePlate").rule, Theme.red);
+    }
+
+    // #146 (board 49 `.notice .fchip`): something of the caller's under the line.
+    function test_an_extra_under_the_line() {
+        const notice = createTemporaryObject(noticeComponent, testCase);
+        verify(!findChild(notice, "noticeExtra").visible);
+        notice.extra = extraComponent;
+        const extra = findChild(notice, "noticeExtra");
+        verify(extra.visible);
+        verify(extra.item !== null);
+        compare(extra.item.objectName, "noticeExtraItem");
+        verify(notice.fullHeight > 0);
+    }
+
+    Component {
+        id: extraComponent
+
+        Rectangle {
+            implicitHeight: 20
+            implicitWidth: 120
+            objectName: "noticeExtraItem"
+        }
     }
 
     // Board 42 (DECISIONS C15 M10, M16): a folder's move uses the band too.
@@ -61,8 +83,8 @@ TestCase {
         const notice = createTemporaryObject(noticeComponent, testCase);
         notice.kind = "info";
         notice.glyph = "↻";
-        compare(findChild(notice, "noticeGlyph").text, "↻");
-        compare(findChild(notice, "noticeRule").color, Theme.accent);
+        compare(findChild(notice, "noticeGlyph").text, Theme.labelTags ? "note" : "↻");
+        compare(findChild(notice, "noticePlate").rule, Theme.accent);
         const line = findChild(notice, "noticeProgress");
         verify(!line.visible);
         notice.progress = 0.5;
@@ -77,8 +99,31 @@ TestCase {
         compare(text.textFormat, Text.PlainText);
         notice.kind = "success";
         notice.glyph = "";
-        compare(findChild(notice, "noticeGlyph").text, Glyphs.check);
-        compare(findChild(notice, "noticeRule").color, Theme.green);
+        compare(findChild(notice, "noticeGlyph").text, Theme.labelTags ? "done" : Glyphs.check);
+        compare(findChild(notice, "noticePlate").rule, Theme.green);
+    }
+
+    // #171 (board 46 `.notice`): a skin may name the kind by a word, tint the plate in the
+    // kind's colour and hold a band off the title's rule; Omarchy does none of it.
+    function test_the_skins_tag_tint_and_band_insets() {
+        const notice = createTemporaryObject(noticeComponent, testCase);
+        notice.tag = "no signal";
+        compare(findChild(notice, "noticeGlyph").text, Theme.labelTags ? "no signal" : "!");
+        const plate = findChild(notice, "noticePlate");
+        if (Theme.noticeTint > 0)
+            compare(plate.fill, Qt.tint(Theme.background, Qt.alpha(Theme.yellow, Theme.noticeTint)));
+        else
+            compare(plate.fill, Theme.on.idle.fill);
+        const flat = notice.fullHeight;
+        notice.banded = true;
+        compare(notice.fullHeight, flat + Theme.noticeBandInsetTop);
+        compare(plate.x, Theme.noticeBandInsetStart);
+        compare(plate.width, notice.width - Theme.noticeBandInsetStart - Theme.noticeBandInsetEnd);
+        if (Theme.skin.name === "omarchy") {
+            compare(Theme.noticeBandInsetTop, 0);
+            compare(Theme.noticeTint, 0);
+            verify(!Theme.labelTags);
+        }
     }
 
     function test_actions_beside_then_under_when_narrow() {
@@ -143,6 +188,70 @@ TestCase {
         compare(copied, notice.details);
         notice.toggleDetails();
         tryCompare(notice, "height", folded, 1000);
+    }
+
+    // #173: two hundred rows (a big move's record) stop at a third of the window and scroll
+    // inside the block, clipped; what sits under the band moves down and is never drawn over.
+    // The keys scroll it while it has them, and esc folds it.
+    function test_long_details_stop_and_scroll_inside_the_band() {
+        const rows = [];
+        for (let i = 0; i < 200; ++i)
+            rows.push({
+                          "text": "moved · Torrent %1 · /mnt/slow/a → /mnt/fast/b".arg(i + 1)
+                      });
+        const column = createTemporaryQmlObject("import QtQuick; Column { width: 1100 }",
+                                                testCase);
+        const notice = noticeComponent.createObject(column, {
+                                                        "detailRows": rows
+                                                    });
+        const below = createTemporaryQmlObject(
+                        "import QtQuick; Rectangle { width: 1100; height: 40 }", column);
+        const folded = notice.height;
+        notice.toggleDetails();
+        const block = findChild(notice, "noticeDetails");
+        const scroll = findChild(notice, "noticeDetailsScroll");
+        verify(block.visible);
+        tryVerify(() => notice.height > folded, 1000);
+        verify(notice.detailsMaxHeight >= testCase.height / 3 - 1);
+        verify(block.height <= notice.detailsMaxHeight + 0.5,
+               "the block is %1 tall, past %2".arg(block.height).arg(notice.detailsMaxHeight));
+        verify(notice.height < testCase.height);
+        verify(scroll.clip);
+        verify(scroll.contentHeight > scroll.height * 3);
+        // #201 F22: a bar says there is more, in the block's margin, clear of the text.
+        const bar = findChild(notice, "noticeDetailsScrollBar");
+        verify(bar.visible);
+        verify(bar.x >= scroll.x + scroll.width, "the bar is over the text");
+        verify(bar.x + bar.width <= block.width);
+        tryVerify(() => below.y >= notice.y + notice.height, 1000);
+
+        scroll.forceActiveFocus();
+        verify(scroll.activeFocus);
+        keyClick(Qt.Key_Down);
+        verify(scroll.contentY > 0);
+        keyClick(Qt.Key_End);
+        fuzzyCompare(scroll.contentY, scroll.contentHeight - scroll.height, 1);
+        keyClick(Qt.Key_Home);
+        compare(scroll.contentY, 0);
+        keyClick(Qt.Key_Escape);
+        verify(!notice.detailsOpen);
+        tryCompare(notice, "height", folded, 1000);
+        notice.destroy();
+    }
+
+    // Short details take only their own height: nothing to scroll, Tab passes them by.
+    function test_short_details_take_their_own_height() {
+        const notice = createTemporaryObject(noticeComponent, testCase);
+        notice.toggleDetails();
+        const block = findChild(notice, "noticeDetails");
+        const scroll = findChild(notice, "noticeDetailsScroll");
+        // Once laid out: its width comes on a later polish than its height.
+        tryVerify(() => scroll.width > 0 && scroll.height > 0, 1000);
+        verify(block.height < notice.detailsMaxHeight, "%1 tall".arg(block.height));
+        compare(scroll.contentY, 0);
+        verify(!scroll.activeFocusOnTab, "content %1 in %2".arg(scroll.contentHeight).arg(
+                   scroll.height));
+        verify(!findChild(notice, "noticeDetailsScrollBar").visible);
     }
 
     // #77: the details' "copy" is a link whose press is the click, once; disabled, nothing.

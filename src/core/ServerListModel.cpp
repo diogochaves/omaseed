@@ -1,6 +1,7 @@
 #include "core/ServerListModel.hpp"
 
 #include "core/CertificatePin.hpp"
+#include "core/ErrorWords.hpp"
 #include "core/SecretStore.hpp"
 #include "core/ServerStore.hpp"
 
@@ -107,6 +108,9 @@ QVariant ServerListModel::data(const QModelIndex &index, int role) const
     case StateRole: {
         if (!server.id.isEmpty() && server.id == m_currentId)
             return m_currentState.isEmpty() ? QStringLiteral("live") : m_currentState;
+        // DECISIONS C28: a server of another engine is never asked; it stays refused.
+        if (!server.isQbittorrent())
+            return QStringLiteral("refused");
         const Seen seen = m_seen.value(server.id);
         if (!seen.error.isEmpty())
             return QStringLiteral("failed");
@@ -121,10 +125,16 @@ QVariant ServerListModel::data(const QModelIndex &index, int role) const
     case LastFailedRole:
         return !m_seen.value(server.id).error.isEmpty();
     case LastReasonRole:
+        if (!server.isQbittorrent())
+            return ErrorWords::engineReason(server); // C28
         return m_seen.value(server.id).error;
     case LastDetailRole:
+        if (!server.isQbittorrent())
+            return ErrorWords::forEngine(server).line; // C28
         return m_seen.value(server.id).detail;
     case CountTextRole: {
+        if (!server.isQbittorrent())
+            return QStringLiteral("!"); // C28: listed, never asked
         if (!server.id.isEmpty() && server.id == m_currentId) {
             if (m_currentState == QLatin1String("down"))
                 return QCoreApplication::translate("ServerListModel", "down");
@@ -415,6 +425,8 @@ bool ServerListModel::update(const QVariantMap &fields, const QString &secretIn)
     if (!fields.contains(QStringLiteral("engineVersion")))
         server.engineVersion =
             server.engine == existing->engine ? existing->engineVersion : QString();
+    // A newer build's keys (C28) are not the sheet's to drop.
+    server.extra = existing->extra;
     const QString secret = secretIn.isEmpty() ? urlPassword : secretIn;
 
     if (!m_store->update(server))
@@ -481,18 +493,32 @@ void ServerListModel::setProbeResult(const QString &id,
     const int row = indexOfId(id);
     if (row < 0)
         return;
+    // #201 F5: a probe that counted a server's torrents saw it, so the rail's row has a count
+    // from the moment it is added and tested, not only once omaseed has been on it. The
+    // current server keeps its live count.
+    const bool seen = reachable && torrentCount >= 0 && id != m_currentId;
+    if (seen) {
+        Seen &last = m_seen[id];
+        last.torrents = torrentCount;
+        last.at = QDateTime::currentDateTime();
+        last.error.clear();
+        last.detail.clear();
+    }
+    QList<int> roles{ReachableRole,
+                     ReachableTextRole,
+                     TorrentCountRole,
+                     LastErrorRole,
+                     VersionRole,
+                     ApiVersionRole,
+                     VersionTextRole};
+    if (seen)
+        roles << StateRole << LastCountRole << LastSeenRole << LastSeenAtRole << LastFailedRole
+              << LastReasonRole << LastDetailRole << CountTextRole;
     const QModelIndex changedIndex = index(row, 0);
-    Q_EMIT dataChanged(changedIndex,
-                       changedIndex,
-                       {ReachableRole,
-                        ReachableTextRole,
-                        TorrentCountRole,
-                        LastErrorRole,
-                        VersionRole,
-                        ApiVersionRole,
-                        VersionTextRole,
-                        EngineVersionRole,
-                        EngineTextRole});
+    roles << EngineVersionRole << EngineTextRole;
+    Q_EMIT dataChanged(changedIndex, changedIndex, roles);
+    if (seen)
+        Q_EMIT lastSeenChanged();
     // C25 K12: what answered is kept with the server, for the next start.
     if (reachable && !version.isEmpty())
         rememberContact(

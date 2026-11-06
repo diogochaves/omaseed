@@ -3,6 +3,7 @@
 #include "core/ServerLog.hpp"
 
 #include <QRegularExpression>
+#include <QSaveFile>
 
 #include <algorithm>
 
@@ -124,6 +125,19 @@ void LogFilterModel::clearTorrent()
         Q_EMIT narrowedChanged();
 }
 
+void LogFilterModel::setSince(qint64 since)
+{
+    since = std::max<qint64>(0, since);
+    if (m_since == since)
+        return;
+    const bool wasNarrowed = isNarrowed();
+    m_since = since;
+    refilter();
+    Q_EMIT sinceChanged();
+    if (wasNarrowed != isNarrowed())
+        Q_EMIT narrowedChanged();
+}
+
 QString LogFilterModel::torrentAt(int row) const
 {
     if (m_log.isNull() || row < 0 || row >= rowCount())
@@ -142,6 +156,8 @@ bool LogFilterModel::filterAcceptsRow(int sourceRow, const QModelIndex &) const
         return false;
     const ServerLog::Line &line = m_log->lineAt(sourceRow);
     if (!(line.level & m_levels))
+        return false;
+    if (m_since > 0 && line.at < m_since)
         return false;
     if (!matchesWords(line.message, m_words))
         return false;
@@ -282,6 +298,31 @@ int LogFilterModel::copyCount(int cursor) const
     if (marked > 0)
         return int(marked);
     return cursor >= 0 && cursor < rowCount() ? 1 : 0;
+}
+
+QString LogFilterModel::shownText() const
+{
+    if (m_log.isNull() || rowCount() == 0)
+        return {};
+    QString text;
+    for (int row = 0; row < rowCount(); ++row) {
+        text += m_log->copyLine(mapToSource(index(row, 0)).row());
+        text += QLatin1Char('\n');
+    }
+    return text;
+}
+
+QString LogFilterModel::writeShown(const QString &path) const
+{
+    if (path.isEmpty())
+        return tr("no file named");
+    QSaveFile file(path);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Text))
+        return file.errorString();
+    file.write(shownText().toUtf8());
+    if (!file.commit())
+        return file.errorString();
+    return {};
 }
 
 QVariant LogFilterModel::data(const QModelIndex &index, int role) const

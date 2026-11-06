@@ -12,6 +12,8 @@ Item {
 
     /// A drag is over the window.
     property bool shown: false
+    /// #146 (DECISIONS C27 CR1): the folder being dragged; "" for anything else.
+    property string folder: ""
 
     enabled: false
     visible: root.shown
@@ -20,8 +22,10 @@ Item {
         anchors.fill: parent
         anchors.margins: Theme.space(6)
         border.color: Theme.accent
-        border.width: 1
-        color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, Theme.fillIdle)
+        border.width: Theme.edgeWidth
+        // The accent's idle tint, a token a skin can move; the words sit on the opaque
+        // label below, not on it (docs/DECISIONS.md C30 F5).
+        color: Theme.on.accentIdle.fill
         objectName: "dropOutline"
         radius: Theme.cornerRadius
     }
@@ -29,7 +33,7 @@ Item {
     Rectangle {
         anchors.centerIn: parent
         border.color: Theme.accent
-        border.width: 1
+        border.width: Theme.edgeWidth
         color: Theme.background
         height: label.implicitHeight + 2 * Theme.space(12)
         radius: Theme.cornerRadius
@@ -43,7 +47,9 @@ Item {
             font.family: Theme.fontFamily
             font.pixelSize: Theme.font.title
             objectName: "dropLabel"
-            text: qsTr("drop to add")
+            text: root.folder.length > 0 ? qsTr("drop to create a torrent from %1").arg(
+                                               root.folder.substring(root.folder.lastIndexOf("/") + 1))
+                                         : qsTr("drop to add")
         }
     }
 }

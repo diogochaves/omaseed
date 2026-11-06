@@ -26,8 +26,11 @@ Item {
     /// The busiest other server, for the ctrl+s row; "" when none has a count yet.
     property string otherName: ""
     property int otherCount: -1
-    /// "empty" (Fig. 22), "noList" (O3) or "refused" (O4).
+    /// "empty" (Fig. 22), "noList" (O3), "refused" (O4) or "engine" (DECISIONS C28: a server
+    /// of another engine, in `problem`'s words).
     property string variant: "empty"
+    /// `App.serverProblem(…)`, read for "engine": {headline, lineBase, …}.
+    property var problem: ({})
 
     signal addRequested
     signal helpRequested
@@ -40,11 +43,13 @@ Item {
             return qsTr("Nothing from %1 yet").arg(root.serverName);
         if (root.variant === "refused")
             return qsTr("%1 refused the sign-in").arg(root.serverName);
+        if (root.variant === "engine")
+            return root.problem.headline || "";
         return root.multiServer && root.serverName.length > 0 ? qsTr("No torrents on %1 yet").arg(root.serverName)
                                                               : qsTr("No torrents yet");
     }
     /// The centred line of O3 and O4; "" for Fig. 22, whose line teaches `a`.
-    readonly property string note: root.variant === "noList" ? qsTr("omaseed hasn't reached it since it started. It tries again on its own.") : root.variant === "refused" ? qsTr("Fix the login in Settings › Servers; omaseed won't keep trying a password it knows is wrong.") : ""
+    readonly property string note: root.variant === "noList" ? qsTr("omaseed hasn't reached it since it started. It tries again on its own.") : root.variant === "refused" ? qsTr("Fix the login in Settings › Servers; omaseed won't keep trying a password it knows is wrong.") : root.variant === "engine" ? (root.problem.lineBase || "") : ""
 
     implicitHeight: Theme.space(280)
     implicitWidth: Theme.space(400)
@@ -173,6 +178,9 @@ Item {
                     required property var modelData
 
                     readonly property bool hot: mouseArea.containsMouse
+                    /// The row's ground, the hover fill under the pointer (docs/DECISIONS.md
+                    /// C30 F1).
+                    readonly property ThemeInk ground: Theme.ground(false, false, row.hot, false)
 
                     // #77: each way in is a button named by what it does, its key the
                     // description; its press is the click.
@@ -182,7 +190,7 @@ Item {
                     Accessible.onPressAction: if (row.enabled)
                                                   root.triggerRow(row.index)
                     objectName: "emptyRow_" + row.index
-                    color: row.hot ? Theme.fill(Theme.fillHover) : "transparent"
+                    color: row.hot ? row.ground.fill : "transparent"
                     height: keyValueRow.implicitHeight + Theme.space(6)
                     width: keyValueRow.implicitWidth + Theme.space(16)
 
@@ -194,7 +202,7 @@ Item {
                         x: Theme.space(8)
 
                         Text {
-                            color: Theme.brightForeground
+                            color: row.ground.brightForeground
                             font.family: Theme.fontFamily
                             font.pixelSize: Theme.font.small
                             horizontalAlignment: Text.AlignRight
@@ -203,7 +211,7 @@ Item {
                         }
 
                         Text {
-                            color: Theme.dimForeground
+                            color: row.ground.dimForeground
                             font.family: Theme.fontFamily
                             font.pixelSize: Theme.font.small
                             text: row.modelData.label

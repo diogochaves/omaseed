@@ -89,6 +89,7 @@ private slots:
     void corners_data();
     void corners();
     void followsConfigReload();
+    void skinRadiusWins();
     void eventLines();
     void noSocketIsInert();
 };
@@ -177,6 +178,27 @@ void TestThemeCorners::followsConfigReload()
     events->write("configreloaded>>\n");
     events->flush();
     QTRY_COMPARE(theme.cornerRadius(), 6);
+}
+
+/// #171: a skin whose `radius` is a number of px draws it over Hyprland's rounding, and a
+/// switch back to Omarchy's (no radius) gives Hyprland's again, each with one signal.
+void TestThemeCorners::skinRadiusWins()
+{
+    FakeHyprland hypr;
+    QVERIFY(hypr.server().isListening());
+    hypr.setRounding(10, "2.000000");
+
+    Theme theme(nullptr, Theme::Hyprland{hypr.hyprctl(), hypr.socketPath()});
+    theme.setSkin(QStringLiteral("omarchy"));
+    QTRY_COMPARE(theme.cornerRadius(), 10);
+
+    QSignalSpy radius(&theme, &Theme::cornerRadiusChanged);
+    theme.setSkin(QStringLiteral("console"));
+    QCOMPARE(theme.cornerRadius(), 0);
+    QCOMPARE(radius.count(), 1);
+    theme.setSkin(QStringLiteral("omarchy"));
+    QCOMPARE(theme.cornerRadius(), 10);
+    QCOMPARE(radius.count(), 2);
 }
 
 void TestThemeCorners::eventLines()

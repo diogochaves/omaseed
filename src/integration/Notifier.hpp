@@ -35,6 +35,14 @@ public:
                             const QString &category,
                             bool hasFolder);
 
+    /// Board 54 W5 (DECISIONS C35): "Torrent added", body "<name> · <sizeText> · <category>"
+    /// as Download complete's, with an empty size (a magnet before its metadata) or category
+    /// left out. Action "show", also the click. Event class "added", subject the torrent hash.
+    quint32 notifyAdded(const QString &hash,
+                        const QString &name,
+                        const QString &sizeText,
+                        const QString &category);
+
     /// docs/28 N1: "<name> stopped with an error" / "<headline>: <detail>". Action "show",
     /// also the click. Event class "errored", subject the torrent hash.
     quint32 notifyErrored(const QString &hash,
@@ -67,6 +75,17 @@ public:
     /// "385 moved, 2 failed · 149 loose files carried"), or when it paused itself (T2–T4).
     /// Action "show", also the click. Event class "move", subject the server id.
     quint32 notifyMove(const QString &serverId, const QString &summary, const QString &body);
+
+    /// #146 (DECISIONS C27 CR13): a creation, once, at its end when its band showed a minute
+    /// or the window was hidden ("photo-walks is made and seeds from /srv/share"). Action
+    /// "show", also the click. Event class "create", subject the server id.
+    quint32 notifyCreate(const QString &serverId, const QString &summary, const QString &body);
+
+    /// DECISIONS C36 M9: a speed pick made outside the window (the bus, the tray, the widget's
+    /// ⋯), once it has taken effect, in AltPickWords' words ("Turtle" / "↓ 1.00 MB/s ↑ 200
+    /// KB/s"). A second pick replaces it in place. Action "show", also the click. Event class
+    /// "speed", subject the server id.
+    quint32 notifyAltSpeed(const QString &serverId, const QString &summary, const QString &body);
 
 signals:
     /// Fired when the shell reports ActionInvoked for a notice this Notifier sent.

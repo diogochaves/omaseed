@@ -13,9 +13,18 @@ Column {
     id: root
 
     property string label: ""
+    /// What the group is, as the skin's `labels` know it ("categories"): its kana word
+    /// follows the head where the skin draws one (board 46 `.rg h6`, #171).
+    property string labelId: ""
     property bool collapsed: false
+    /// The count at the right even while open (board 46 `.srv h6`: the servers' head in two
+    /// parts, the word and its kana, then the count).
+    property bool countShown: false
     /// The entries a folded group hides; -1 prints none.
     property int count: -1
+    /// Words in the count's place, open or folded (board 52 `.rg h6 .hc`: the search plugins'
+    /// "2 of 3"); "" prints `count` as before.
+    property string countText: ""
     /// The rail's keyboard cursor is on this heading (only a folded group's heading is a stop).
     property bool hasCursor: false
     /// What a screen reader calls the heading when `label` carries more than the group's
@@ -23,8 +32,24 @@ Column {
     property string accessibleName: root.label
     /// Said before "folded"/"unfolded" in the heading's description; "" says nothing more.
     property string accessibleDetail: ""
+    /// The folded rail's groups go without their heading (board 46's narrow `rail()`).
+    property bool headed: true
+    /// What the heading sits on while it paints nothing: the window, or the rail's servers
+    /// block (`Theme.on.idle`, docs/DECISIONS.md C30 F1).
+    property ThemeInk block: Theme.on.window
+    /// Room above the heading's words, inside its hover fill and its click (#201 F8): the
+    /// fill no longer starts at the words' top, cut against what is above. The caller takes
+    /// it out of the space it leaves above the group, so the words stay where they were.
+    property real headPadding: Theme.space(4)
 
     readonly property alias header: header
+    /// The heading's words on its ground, the hover fill under the pointer or the cursor (over
+    /// the block, in one); the fill comes and goes at once, so do they.
+    readonly property Ink ink: Ink {
+        animated: false
+        ground: Theme.groundIn(root.block, false, false, root.hasCursor || headerMouse.containsMouse,
+                               false)
+    }
 
     signal toggled
 
@@ -44,20 +69,21 @@ Column {
         Accessible.role: Accessible.Button
         Accessible.onPressAction: if (header.enabled)
                                       root.toggled()
-        color: root.hasCursor || headerMouse.containsMouse ? Theme.fill(Theme.fillHover) :
-                                                             "transparent"
-        implicitHeight: headerText.implicitHeight + Theme.space(4)
+        color: root.ink.ground === root.block ? "transparent" : root.ink.ground.fill
+        implicitHeight: root.headPadding + headerText.implicitHeight + Theme.space(4)
+        visible: root.headed
         width: parent.width
 
-        Label {
+        Glyph {
             id: chevron
 
             anchors.left: parent.left
             anchors.leftMargin: Theme.space(4)
             anchors.top: parent.top
-            dim: true
-            size: "caption"
-            text: root.collapsed ? Glyphs.chevronRight : Glyphs.chevronDown
+            anchors.topMargin: root.headPadding
+            color: root.ink.dimForeground
+            pixelSize: Theme.font.caption
+            text: root.collapsed ? Glyphs.chevronRight : Glyphs.chevronDownGlyph
             visible: headerMouse.containsMouse || root.collapsed || root.hasCursor
         }
 
@@ -67,6 +93,9 @@ Column {
             anchors.left: parent.left
             anchors.leftMargin: Theme.space(16)
             anchors.top: parent.top
+            anchors.topMargin: root.headPadding
+            ink: root.ink
+            labelId: root.labelId
             tracked: true
             text: root.label
         }
@@ -75,10 +104,13 @@ Column {
             anchors.right: parent.right
             anchors.rightMargin: Theme.space(16)
             anchors.top: parent.top
+            anchors.topMargin: root.headPadding
             dim: true
+            ink: root.ink
             size: "caption"
-            text: String(root.count)
-            visible: root.collapsed && root.count >= 0
+            objectName: "railGroupCount"
+            text: root.countText.length > 0 ? root.countText : Theme.numeral(root.count)
+            visible: root.countText.length > 0 || (root.collapsed || root.countShown) && root.count >= 0
         }
 
         MouseArea {

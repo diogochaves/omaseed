@@ -43,6 +43,7 @@ TestCase {
         view.table.clearSelection();
         App.filtered.text = "";
         App.filtered.statusFilter = TorrentFilterModel.All;
+        App.filtered.question = TorrentFilterModel.AnyQuestion;
         App.filtered.setSortByRoleName("dlspeed");
         App.filtered.sortOrder = Qt.DescendingOrder;
         view.table.moveCursorTo(0);
@@ -151,11 +152,56 @@ TestCase {
             ["o", "openFolder"],
             ["d", "delete"]
         ];
-        for (const [key, action] of expected)
-            verify(view.actionsMenuPanel.indexOfKey(key) >= 0, "missing row for key " + key);
+        // A key runs its row from the top, in a submenu too (#201 F15).
+        for (const [key, action] of expected) {
+            const row = view.actionsMenuPanel.itemOfKey(key);
+            verify(row !== null, "missing row for key " + key);
+            compare(row.action, action, key);
+        }
         compare(view.actionsMenuPanel.indexOfKey("d") >= 0, true);
         const deleteRow = view.actionsMenuPanel.items[view.actionsMenuPanel.indexOfKey("d")];
         compare(deleteRow.danger, true);
+    }
+
+    // #201 F15 (board 46 `menuHtml()`): every row has an icon, its submenus' rows too.
+    function test_every_row_of_the_menu_has_an_icon() {
+        const rows = [];
+        for (const item of view.actionsMenuPanel.items) {
+            if (item.separator === true)
+                continue;
+            rows.push(item);
+            for (const child of item.submenu ?? [])
+                rows.push(child);
+        }
+        for (const row of rows)
+            verify(typeof row.glyph === "string" && row.glyph.length > 0, row.text);
+    }
+
+    // DECISIONS C24 H9 (board 46 `menuHtml()`): verbs grouped, keys right, delete last: run ·
+    // place · transfer · reach · delete.
+    function test_the_menu_groups_its_verbs_and_ends_with_delete() {
+        const groups = [[]];
+        for (const item of view.actionsMenuPanel.items) {
+            if (item.separator === true)
+                groups.push([]);
+            else
+                groups[groups.length - 1].push(item.action);
+        }
+        compare(groups, [["stopStart", "recheck", "reannounce"],
+                         ["location", "category", "tags", "rename"],
+                         ["limits", "transfer", "queue"],
+                         ["openFolder", "copy"],
+                         ["delete"]]);
+        // #201 F15: board 46's three submenus.
+        const submenu = action => view.actionsMenuPanel.items.find(item => item.action === action)
+                      .submenu.map(child => child.action);
+        compare(submenu("transfer"), ["forceStart", "sequential", "firstLast", "superSeeding",
+                                      "autoManagement"]);
+        compare(submenu("queue"), ["queueUp", "queueDown"]);
+        compare(submenu("copy"), ["copyMagnet", "copyHash", "copyName"]);
+        // The same groups as data, for the action bar (C32 D17).
+        compare(view.actionsMenuPanel.groups.map(group => group.name),
+                ["run", "place", "transfer", "reach", "delete"]);
     }
 
     // docs/12 G4: the four per-torrent options, checked for the cursor torrent.
@@ -166,14 +212,13 @@ TestCase {
         compare(view.actionsMenuPanel.opened, true);
         for (const [key, action] of [["s", "sequential"], ["f", "firstLast"],
                                      ["S", "superSeeding"], ["a", "autoManagement"]]) {
-            const index = view.actionsMenuPanel.indexOfKey(key);
-            verify(index >= 0, "missing row for key " + key);
-            compare(view.actionsMenuPanel.items[index].action, action);
+            const row = view.actionsMenuPanel.itemOfKey(key);
+            verify(row !== null, "missing row for key " + key);
+            compare(row.action, action);
         }
         // The demo's linux rows are automatically managed.
-        compare(view.actionsMenuPanel.items[view.actionsMenuPanel.indexOfKey("a")].glyph,
-                Glyphs.check);
-        compare(view.actionsMenuPanel.items[view.actionsMenuPanel.indexOfKey("s")].glyph, "");
+        compare(view.actionsMenuPanel.itemOfKey("a").checked, true);
+        compare(view.actionsMenuPanel.itemOfKey("s").checked, false);
         view.actionsMenuPanel.close();
     }
 
@@ -209,16 +254,21 @@ TestCase {
         const fedora = hashByName("Fedora-Workstation-Live-44-1.6.x86_64.iso");
         const bunny = hashByName("Big Buck Bunny 4K (CC-BY)");
 
-        // No selection: the menu acts on its row, no head line.
+        // No selection: the menu acts on its row, headed by its name over its state (board 46
+        // `menuHtml()`'s `.mh`, C24 H9).
+        const row = App.torrentRow(bunny);
+        const state = [row.stateText, row.progressText, row.category].join(" · ");
         view.table.moveCursorTo(App.filtered.rowOfHash(bunny));
         view.table.requestActions();
-        compare(view.actionsMenuPanel.heading, "");
+        compare(view.actionsMenuPanel.headingTitle, "Big Buck Bunny 4K (CC-BY)");
+        compare(view.actionsMenuPanel.heading, state);
         view.actionsMenuPanel.close();
 
-        // The selection is the row itself: still none.
+        // The selection is the row itself: the same.
         view.table.toggleSelection(App.filtered.rowOfHash(bunny));
         view.table.requestActions();
-        compare(view.actionsMenuPanel.heading, "");
+        compare(view.actionsMenuPanel.headingTitle, "Big Buck Bunny 4K (CC-BY)");
+        compare(view.actionsMenuPanel.heading, state);
         view.actionsMenuPanel.close();
         view.table.clearSelection();
 
@@ -229,6 +279,7 @@ TestCase {
         view.table.requestActions();
         compare(view.actionsMenuPanel.opened, true);
         compare(view.actionsMenuPanel.heading, "2 selected");
+        compare(view.actionsMenuPanel.headingTitle, "");
         compare(view.actionsMenuPanel.cursorIndex, 0);
         view.actionsMenuPanel.close();
         compare(view.table.selectedCount, 2);
@@ -570,7 +621,8 @@ TestCase {
     }
 
     // DECISIONS C18 D1 (changes C16 L7): a move that landed before its band showed is said in
-    // the strip in the selection bar's place, and on its row; the footer keeps quiet.
+    // the strip over the rows, and on its row; the footer keeps quiet. Its torrent is the
+    // cursor's row, in view: no "show" (C30 F8).
     function test_a_landed_move_says_so_in_the_strip() {
         const hash = App.filtered.hashAt(0);
         const name = App.torrentRow(hash).name;
@@ -584,9 +636,10 @@ TestCase {
         const strip = view.outcomeStrip;
         verify(strip.visible);
         compare(findChild(strip, "outcomeHeadline").text, name + " moved to /mnt/fast/films");
-        compare(findChild(strip, "outcomeMark").text, "✓");
+        compare(findChild(strip, "outcomeMark").text, Theme.labelTags ? "done" : "✓");
         compare(findChild(strip, "outcomeMark").color, Theme.green);
-        verify(findChild(strip, "outcomeShow").visible);
+        compare(view.table.cursorHash, hash);
+        verify(!findChild(strip, "outcomeShow").visible, "show for the row under the cursor");
         compare(view.footerNote, "");
         // The row says it in its status cell, in green.
         compare(findChild(view.table, "status_0").text, "moved · films");
@@ -643,7 +696,8 @@ TestCase {
         verify(!strip.visible);
     }
 
-    // C18 D3 (O3): several at once are counts, yellow when some failed; "show" selects them.
+    // C18 D3 (O3): several at once are counts, yellow when some failed; "show" selects them
+    // while they aren't (C30 F8), and goes once they are (F11).
     function test_several_are_counts_and_show_selects_them() {
         const hashes = [App.filtered.hashAt(0), App.filtered.hashAt(1), App.filtered.hashAt(2)];
         App.outcomes.reportMap({
@@ -656,13 +710,15 @@ TestCase {
                                });
         const strip = view.outcomeStrip;
         compare(findChild(strip, "outcomeHeadline").text, "2 moved to /mnt/fast/keep, 1 didn't");
-        compare(findChild(strip, "outcomeMark").text, "!");
+        compare(findChild(strip, "outcomeMark").text, Theme.labelTags ? "2 of 3" : "!");
         compare(findChild(strip, "outcomeMark").color, Theme.yellow);
+        compare(findChild(strip, "outcomeShowReason").text, "they are not selected");
         stripLaidOut(strip);
         mouseClick(findChild(strip, "outcomeShow"));
         compare(view.table.selectedCount, 2);
         compare(view.table.selectedHashes().sort(), [hashes[0], hashes[1]].sort());
-        // With a selection on, the strip sits just above the selection bar.
+        verify(!findChild(strip, "outcomeShow").visible, "show stayed with them selected");
+        // With a selection on, the strip sits just above the action bar.
         verify(view.selectionBar.visible);
         verify(strip.mapToItem(view, 0, strip.height).y <= view.selectionBar.mapToItem(view, 0, 0).y,
                "the strip sits above the bar");
@@ -673,6 +729,35 @@ TestCase {
         compare(view.table.selectedCount, 2);
         keyClick(Qt.Key_Escape);
         compare(view.table.selectedCount, 0);
+    }
+
+    // Board 44 §2: the footer's note after a free counts its files, one or several.
+    function test_the_free_note_counts_one_or_several() {
+        App.skippedSpaceFreed({
+                                  "ok": true,
+                                  "deleted": 1,
+                                  "freedText": "3.00 MB",
+                                  "kept": 1,
+                                  "rechecked": true
+                              });
+        compare(view.footerNote, "freed 3.00 MB · 1 skipped file deleted · 1 stays · rechecking");
+        App.skippedSpaceFreed({
+                                  "ok": true,
+                                  "deleted": 2,
+                                  "freedText": "16.8 MB",
+                                  "kept": 3,
+                                  "rechecked": false
+                              });
+        compare(view.footerNote, "freed 16.8 MB · 2 skipped files deleted · 3 stay");
+        App.skippedSpaceFreed({
+                                  "ok": true,
+                                  "deleted": 2,
+                                  "freedText": "16.8 MB",
+                                  "kept": 0,
+                                  "rechecked": false
+                              });
+        compare(view.footerNote, "freed 16.8 MB · 2 skipped files deleted");
+        view.footerNote = "";
     }
 
     function test_a_category_change_that_moves_shared_files_asks_first() {
@@ -833,14 +918,14 @@ TestCase {
         App.setAutoManagement([tears], true);
     }
 
-    function test_generals_auto_manage_row_asks_too() {
+    function test_facts_auto_manage_row_asks_too() {
         const sintel = hashByName("Sintel 1080p (CC-BY)");
         const tears = hashByName("Tears of Steel 4K (CC-BY)");
         shareData(sintel, tears);
         unmanage(tears, "tv");
         view.table.moveCursorTo(App.filtered.rowOfHash(tears));
         tryCompare(App.details, "hash", tears, 1000);
-        const general = findChild(view.details, "generalTab");
+        const general = findChild(view.details, "factsTab");
         tryVerify(() => general.rows.some(row => row.option === "autoManagement" && row.on === false), 1000);
         const row = general.rows.findIndex(entry => entry.option === "autoManagement");
         verify(view.details.toggleGeneralOption(row));
@@ -852,7 +937,8 @@ TestCase {
 
     // ---- the location sheet (Fig. 7) -------------------------------------------------------
     // Board 42 F1 (DECISIONS C15 M1, M2): the folders group lists the library's save paths;
-    // picking one filters the table to it and the scope line offers the move.
+    // picking one filters the table to it, and the title bar names it and offers the move
+    // (C24 H5).
     function test_folders_in_the_rail_filter_and_offer_the_move() {
         const folders = App.move.folders;
         verify(folders.total > 0);
@@ -864,12 +950,14 @@ TestCase {
         compare(App.filtered.folder, path);
         for (let i = 0; i < App.filtered.count; ++i)
             verify(App.torrentRow(App.filtered.hashAt(i)).savePath.startsWith(path));
-        verify(view.moveScope.visible);
-        compare(view.moveScope.linkText, "move this folder…");
-        verify(view.moveScope.text.indexOf(path) >= 0, view.moveScope.text);
+        verify(view.titleBar.moveFolderTool.visible);
+        compare(view.titleBar.moveFolderTool.words, "move this folder…");
+        compare(view.titleBar.title, path.substring(path.lastIndexOf("/") + 1));
+        verify(view.titleBar.sentence.endsWith(path), view.titleBar.sentence);
         mouseClick(row); // picked again: the filter goes
         compare(App.filtered.folder, "");
-        verify(!view.moveScope.visible);
+        verify(!view.titleBar.moveFolderTool.visible);
+        compare(view.titleBar.title, "Library");
         // C19 T2 (#135): the keys stayed in the table, so the row keeps no cursor fill; they
         // come to the rail and the cursor shows on the row clicked.
         verify(!view.rail.activeFocus);
@@ -894,8 +982,10 @@ TestCase {
         const menu = view.folderMenuPanel;
         compare(menu.opened, true);
         compare(menu.folder, path);
-        compare(menu.items.length, 1);
+        compare(menu.items.length, 2);
         compare(menu.items[0].text, "move this folder…");
+        // #146 (C27 CR1): create beside the move.
+        compare(menu.items[1].text, "create a torrent from a folder in it…");
         compare(App.filtered.folder, ""); // nothing picked: the menu acts on the row
         compare(view.rail.cursorIndex, row.globalIndex);
         menu.activate(0);
@@ -958,7 +1048,13 @@ TestCase {
         sheet.close();
         compare(App.filtered.onlyHashes.length, sheet.plan.moveHashes.length);
         verify(view.moveShowing);
-        compare(view.moveScope.linkText, "back to the sheet");
+        // C15 M10 (J1): the show is the title, its way back a title tool.
+        compare(view.titleBar.title, "From the move sheet");
+        compare(view.titleBar.sentence, sheet.plan.moveHashes.length === 1 ? "1 torrent the move sheet listed"
+                                                                            : sheet.plan.moveHashes.length
+                                                                              + " torrents the move sheet listed");
+        compare(view.titleBar.backText, "back to the sheet");
+        compare(view.titleBar.backKey, "esc");
         view.handleEscape();
         compare(App.filtered.onlyHashes.length, 0);
         compare(sheet.opened, true);
@@ -1397,16 +1493,65 @@ TestCase {
         // not just "it did not crash": the text really is what `y` would have copied.
     }
 
-    // docs/12 G5: `y` on a General row says what it copied.
-    function test_y_in_general_says_what_it_copied() {
+    // docs/12 G5: `y` on a facts row (General's until DECISIONS C24 H6) says what it copied.
+    function test_y_in_facts_says_what_it_copied() {
         const hash = hashByName("archlinux-2026.09.01-x86_64.iso");
         view.table.moveCursorTo(App.filtered.rowOfHash(hash));
-        view.details.activateTab(0);
-        const general = findChild(view.details, "generalTab");
+        view.details.activateTab(view.details.tabFacts);
+        const general = findChild(view.details, "factsTab");
         const hashRow = general.rows.findIndex(row => row.key === "Hash v1");
         view.details.forceActiveFocus();
         view.details.moveCursor(hashRow - view.details.cursorIndex);
         keyClick("y");
         compare(view.footerNote, "copied hash v1");
+        view.details.activateTab(view.details.tabStory);
+    }
+    // DECISIONS C32 D19 (board 51): move back's sheet draws the loose files the move carried
+    // under its own tick, each with what happens to it, and its foot names the list. (The words
+    // come from App.move: tst_movecontroller checks them on real files.)
+    function test_move_back_sheet_draws_the_loose_files_it_carries_back() {
+        const sheet = view.moveSheet;
+        sheet.openBack("", "");
+        compare(sheet.opened, true);
+        compare(sheet.carryBack, true);
+        const toggle = findChild(sheet, "moveCarryBack");
+        verify(toggle !== null);
+        compare(toggle.visible, false, "a move that carried nothing has no tick");
+        sheet.plan = {
+            "title": "Move 2 torrents back",
+            "moveText": "move 2 back · 1 file",
+            "canMove": true,
+            "footNote": "the list is the one the move kept",
+            "carryBack": {
+                "text": "Carry back the 2 loose files the move carried",
+                "note": "copied, compared, then removed at /mnt/fast/games, as the move did",
+                "count": 1,
+                "total": 2,
+                "on": true,
+                "rows": [{
+                        "name": "manual.pdf",
+                        "detail": "18 KB · as carried",
+                        "verdict": "back",
+                        "kind": "ok"
+                    }, {
+                        "name": "notes/readme.txt",
+                        "detail": "changed at 17:02, after the move",
+                        "verdict": "stays",
+                        "kind": "warn"
+                    }]
+            }
+        };
+        compare(toggle.visible, true);
+        compare(toggle.checked, true);
+        compare(toggle.text, "Carry back the 2 loose files the move carried");
+        compare(sheet.note, "the list is the one the move kept");
+        const verdict = findChild(sheet, "moveCarryBackVerdict");
+        verify(verdict !== null);
+        compare(verdict.text, "back");
+        compare(verdict.color, Theme.green);
+        sheet.close();
+        compare(sheet.note, "the list is the one the move kept");
+        sheet.plan = ({});
+        compare(sheet.note, "");
     }
 }

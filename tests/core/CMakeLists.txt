@@ -18,13 +18,43 @@ omaseed_add_test(tst_bencode
     LIBRARIES omaseed::core
 )
 
+omaseed_add_test(tst_librarydisplays
+    SOURCES tst_librarydisplays.cpp
+    LIBRARIES omaseed::core
+)
+
 omaseed_add_test(tst_librarymatch
     SOURCES tst_librarymatch.cpp
     LIBRARIES omaseed::core
 )
 
+omaseed_add_test(tst_rowwords
+    SOURCES tst_rowwords.cpp
+    LIBRARIES omaseed::core
+)
+
 omaseed_add_test(tst_searchwords
     SOURCES tst_searchwords.cpp
+    LIBRARIES omaseed::core
+)
+
+omaseed_add_test(tst_searchresults
+    SOURCES tst_searchresults.cpp
+    LIBRARIES omaseed::core
+)
+
+omaseed_add_test(tst_searchsession_fake
+    SOURCES tst_searchsession_fake.cpp
+    LIBRARIES omaseed::core
+)
+
+omaseed_add_test(tst_searchmodel
+    SOURCES tst_searchmodel.cpp
+    LIBRARIES omaseed::core
+)
+
+omaseed_add_test(tst_searchplugins_fake
+    SOURCES tst_searchplugins_fake.cpp
     LIBRARIES omaseed::core
 )
 
@@ -166,6 +196,16 @@ omaseed_add_test(tst_qbtclient_actions_fake
     LIBRARIES omaseed::core
 )
 
+omaseed_add_test(tst_qbtclient_search_fake
+    SOURCES tst_qbtclient_search_fake.cpp
+    LIBRARIES omaseed::core
+)
+
+omaseed_add_test(tst_qbtclient_creator_fake
+    SOURCES tst_qbtclient_creator_fake.cpp
+    LIBRARIES omaseed::core
+)
+
 omaseed_add_test(tst_qbtclient_actions_live LIVE
     SOURCES tst_qbtclient_actions_live.cpp
     LIBRARIES omaseed::core
@@ -226,6 +266,11 @@ omaseed_add_test(tst_globalstate
 
 omaseed_add_test(tst_filtermodel
     SOURCES tst_filtermodel.cpp
+    LIBRARIES omaseed::core
+)
+
+omaseed_add_test(tst_scopesentence
+    SOURCES tst_scopesentence.cpp
     LIBRARIES omaseed::core
 )
 
@@ -350,6 +395,28 @@ omaseed_add_test(tst_altschedule
 
 omaseed_add_test(tst_altspeed
     SOURCES tst_altspeed.cpp
+    LIBRARIES omaseed::core
+)
+
+# DECISIONS C36 M9: the notice of a speed pick made outside the window.
+omaseed_add_test(tst_altpickwords
+    SOURCES tst_altpickwords.cpp
+    LIBRARIES omaseed::core
+)
+
+# DECISIONS C32 D8 a: turtle and burst, two presets for the one alternative set.
+omaseed_add_test(tst_altpresets
+    SOURCES tst_altpresets.cpp
+    LIBRARIES omaseed::core
+)
+
+omaseed_add_test(tst_pausehold
+    SOURCES tst_pausehold.cpp
+    LIBRARIES omaseed::core
+)
+
+omaseed_add_test(tst_altpresets_live LIVE
+    SOURCES tst_altpresets_live.cpp
     LIBRARIES omaseed::core
 )
 
@@ -487,6 +554,11 @@ omaseed_add_test(tst_loosefiles
     LIBRARIES omaseed::core
 )
 
+omaseed_add_test(tst_emptyfolders
+    SOURCES tst_emptyfolders.cpp
+    LIBRARIES omaseed::core
+)
+
 omaseed_add_test(tst_loosecarry
     SOURCES tst_loosecarry.cpp
     LIBRARIES omaseed::core
@@ -538,5 +610,40 @@ omaseed_add_test(tst_skipped_ntfs3_live LIVE
 
 omaseed_add_test(tst_selectionhold
     SOURCES tst_selectionhold.cpp
+    LIBRARIES omaseed::core
+)
+
+omaseed_add_test(tst_torrentstory
+    SOURCES tst_torrentstory.cpp
+    LIBRARIES omaseed::core
+)
+
+omaseed_add_test(tst_skippedoutlook
+    SOURCES tst_skippedoutlook.cpp
+    LIBRARIES omaseed::core
+)
+
+omaseed_add_test(tst_announcemask
+    SOURCES tst_announcemask.cpp
+    LIBRARIES omaseed::core
+)
+
+omaseed_add_test(tst_createplan
+    SOURCES tst_createplan.cpp
+    LIBRARIES omaseed::core
+)
+
+omaseed_add_test(tst_createtrackers
+    SOURCES tst_createtrackers.cpp
+    LIBRARIES omaseed::core
+)
+
+omaseed_add_test(tst_madehere
+    SOURCES tst_madehere.cpp
+    LIBRARIES omaseed::core
+)
+
+omaseed_add_test(tst_createjob_fake
+    SOURCES tst_createjob_fake.cpp
     LIBRARIES omaseed::core
 )

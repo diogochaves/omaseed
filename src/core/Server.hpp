@@ -61,8 +61,9 @@ struct PathMapping
     static PathMapping fromJson(const QJsonObject &object);
 };
 
-/// A configured server. Value type: copyable, comparable, JSON round-trippable. Secrets (API
-/// key, password) are intentionally absent; see `SecretStore`.
+/// A configured server and the engine it runs (`engine`). Value type: copyable, comparable,
+/// JSON round-trippable. Secrets (API key, password) are intentionally absent; see
+/// `SecretStore`.
 class Server
 {
 public:
@@ -78,19 +79,34 @@ public:
     /// CertificatePin), 64 lowercase hex digits; empty when none was. Not a secret.
     QString certificateSha256;
     /// The engine it runs (servers.json v2; a v1 entry is qBittorrent), and the version it
-    /// reported at the last contact ("5.2.3"; empty before one). C25 K12.
+    /// reported at the last contact ("5.2.3"; empty before one). C25 K12. An engine this build
+    /// doesn't know (a newer build's) reads as Unknown, its spelling kept in `extra`.
     EngineKind engine = EngineKind::Qbittorrent;
     QString engineVersion;
+    /// The keys of this server's servers.json entry that this build doesn't read, as they
+    /// were: a newer build's, kept so a save here never drops them. An `engine` or an
+    /// `authMode` this build can't read is kept here too, and written back while the field is
+    /// still the value it fell back to (Unknown, None). DECISIONS C28.
+    QJsonObject extra;
 
     Server() = default;
 
     /// A fresh, random, stable identifier for a new server.
     static QString newId();
 
+    /// True for a qBittorrent: no engine recorded (every server before #84), or
+    /// "qbittorrent". Any other engine is listed but never connected to (C28) until this
+    /// build drives it (C25 K9, `isEngineDriven`).
+    bool isQbittorrent() const;
+    /// The engine's name for a sentence: "Transmission", "Deluge", an engine this build
+    /// doesn't know as servers.json spells it; empty for a qBittorrent or an unreadable value.
+    QString engineName() const;
+
     QJsonObject toJson() const;
 
-    /// Parses a `Server` from `object`. Unknown keys are ignored. `ok`, if given, is set to
-    /// false when the object is missing a usable `id` (the only field this refuses to guess).
+    /// Parses a `Server` from `object`. Unknown keys are kept, as they are, in `extra`. `ok`,
+    /// if given, is set to false when the object is missing a usable `id` (the only field this
+    /// refuses to guess).
     static Server fromJson(const QJsonObject &object, bool *ok = nullptr);
 
     bool operator==(const Server &other) const = default;

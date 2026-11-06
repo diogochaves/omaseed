@@ -32,7 +32,13 @@ Rectangle {
         return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
     }
 
-    color: Theme.fill(Theme.fillIdle)
+    /// docs/DECISIONS.md C30 F1: the line's words are on its idle fill.
+    readonly property Ink ink: Ink {
+        animated: false
+        ground: Theme.on.idle
+    }
+
+    color: Theme.on.idle.fill
     implicitHeight: layout.implicitHeight + 2 * Theme.space(7)
     radius: Theme.cornerRadius
 
@@ -41,7 +47,7 @@ Rectangle {
         anchors.bottom: parent.bottom
         anchors.left: parent.left
         anchors.top: parent.top
-        color: Theme.accent
+        color: root.ink.accent
         width: 1
     }
 
@@ -58,7 +64,7 @@ Rectangle {
         Label {
             Layout.alignment: Qt.AlignTop
             Layout.preferredWidth: Theme.space(10)
-            color: Theme.accent
+            color: root.ink.accent
             size: "small"
             text: Glyphs.about
         }
@@ -71,6 +77,7 @@ Rectangle {
             // "links in a sentence"): the words, and the link.
             Accessible.ignored: true
             Layout.fillWidth: true
+            ink: root.ink
             lineHeight: 1.25
             objectName: "scopeText"
             size: "small"
@@ -80,9 +87,9 @@ Rectangle {
                 if (root.linkText.length === 0 || root.oneLine)
                     return root.oneLine ? root.text : body;
                 const key = root.linkKey.length > 0
-                        ? "<font color='%1'>%2</font> ".arg(Theme.dimForeground).arg(root._escaped(root.linkKey))
+                        ? "<font color='%1'>%2</font> ".arg(root.ink.dimForeground).arg(root._escaped(root.linkKey))
                         : "";
-                return body + " " + key + "<a href='scope'><font color='%1'>%2</font></a>".arg(Theme.accent).arg(
+                return body + " " + key + "<a href='scope'><font color='%1'>%2</font></a>".arg(root.ink.accent).arg(
                             root._escaped(root.linkText));
             }
             textFormat: root.oneLine ? Text.PlainText : Text.StyledText
@@ -123,14 +130,15 @@ Rectangle {
             Accessible.name: root.linkText
             Accessible.role: Accessible.Link
             Accessible.onPressAction: root.linkActivated()
+            ink: root.ink
             lineHeight: 1.25
             objectName: "scopeLink"
             size: "small"
             text: {
                 const key = root.linkKey.length > 0
-                        ? "<font color='%1'>%2</font> ".arg(Theme.dimForeground).arg(root._escaped(root.linkKey))
+                        ? "<font color='%1'>%2</font> ".arg(root.ink.dimForeground).arg(root._escaped(root.linkKey))
                         : "";
-                return key + "<a href='scope'><font color='%1'>%2</font></a>".arg(Theme.accent).arg(root._escaped(
+                return key + "<a href='scope'><font color='%1'>%2</font></a>".arg(root.ink.accent).arg(root._escaped(
                                                                                                     root.linkText));
             }
             textFormat: Text.StyledText

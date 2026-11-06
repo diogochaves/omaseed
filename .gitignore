@@ -20,3 +20,7 @@ CLAUDE.local.md
 /packaging/arch/pkg/
 /packaging/arch/*.pkg.tar.zst
 /packaging/arch/*.tar.gz
+
+# Python bytecode: it records the absolute path it was compiled from.
+__pycache__/
+*.pyc

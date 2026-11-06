@@ -50,72 +50,6 @@ TestCase {
         compare(page._rows[1].dimmed, false);
     }
 
-    // C25 K2: one row per engine found, each naming its engine; Q20's dimmed install row is
-    // about a qBittorrent only.
-    function test_one_row_per_engine_found() {
-        const page = createTemporaryObject(pageComponent, testCase, {
-                                               "candidates": [{
-                                                       "kind": "port",
-                                                       "url": "http://127.0.0.1:9091",
-                                                       "label": "Use Transmission on this machine",
-                                                       "detail": "127.0.0.1:9091",
-                                                       "engine": "transmission"
-                                                   }, {
-                                                       "kind": "process",
-                                                       "url": "http://127.0.0.1:8112",
-                                                       "label": "Use Deluge on this machine",
-                                                       "detail": "127.0.0.1:8112 · deluge-web running",
-                                                       "engine": "deluge"
-                                                   }]
-                                           });
-        compare(page._rows.length, 4);
-        compare(page._rows[0].title, "Use Transmission on this machine");
-        compare(page._rows[1].title, "Use Deluge on this machine");
-        compare(page._rows[2].kind, "remote");
-        compare(page._rows[3].dimmed, false); // no qBittorrent on 8080 to clash with
-
-        // The Deluge row: its test asks Deluge alone (K1: nothing asked before the pick), and
-        // its sign-in is the one password (K7).
-        page.cursorIndex = 1;
-        page.chooseCursor();
-        compare(page.page, "apikey");
-        compare(page.editUrl, "http://127.0.0.1:8112");
-        compare(page._fieldMap().engineChoice, "deluge");
-        compare(page.authModes, ["password"]);
-        compare(page.editAuthMode, "password");
-        verify(findChild(page, "lonePassField").visible);
-
-        // K9: refused, said in red, and no "save anyway"; the row's fields stay.
-        page.testing = true;
-        App.serverTested("", false, "2.2.0", "", -1, 4, "omaseed can't drive Deluge yet",
-                         "This build of omaseed drives qBittorrent.", {
-                             "engine": "deluge",
-                             "engineName": "Deluge",
-                             "refused": true
-                         });
-        compare(page.testResultText, "omaseed can't drive Deluge yet");
-        verify(page.testRefused);
-        verify(!findChild(page, "saveAnywayButton").visible);
-        verify(!findChild(page, "continueButton").enabled);
-        compare(page.editUrl, "http://127.0.0.1:8112");
-    }
-
-    // A remote address is recognised by its test (K5), and the answer names the engine.
-    function test_a_remote_server_is_recognised_by_its_test() {
-        const page = createTemporaryObject(pageComponent, testCase, {
-                                               "candidates": []
-                                           });
-        page.chooseCursor();
-        compare(page._fieldMap().engineChoice, "recognise");
-        page.testing = true;
-        App.serverTested("", true, "v5.3.0", "2.16.2", 2, 4, "", "", {
-                             "engine": "qbittorrent",
-                             "engineName": "qBittorrent"
-                         });
-        compare(page.testResultText, "qBittorrent 5.3.0 · API 2.16.2 · 2 torrents");
-        compare(page._fieldMap().engine, "qbittorrent");
-    }
-
     function test_rows_with_no_candidate_offer_install() {
         const page = createTemporaryObject(pageComponent, testCase, {
                                                "candidates": []
@@ -189,6 +123,39 @@ TestCase {
         compare(page._fieldMap().username, "");
         page.editAuthMode = "none";
         compare(page.editSecret, "");
+    }
+
+    // #201 F1: picking a credential puts the caret in its first field, by the pointer or by
+    // space on the chip; "none" has no field and leaves the keyboard on the chip.
+    function test_picking_a_credential_puts_the_caret_in_its_first_field() {
+        const page = createTemporaryObject(pageComponent, testCase, {
+                                               "candidates": []
+                                           });
+        page.chooseCursor();
+        compare(page.page, "apikey");
+        const key = findChild(page, "keyField");
+        const user = findChild(page, "userField");
+        const chips = page._apiKeyTabOrder().filter(item => item.checkable === true);
+        compare(chips.length, 3);
+
+        chips[1].clicked(); // the pointer's click
+        compare(page.editAuthMode, "cookie");
+        tryVerify(() => user.editing);
+        // F2: the one picked carries an accent edge; the others don't.
+        verify(chips[1].accent && chips[1].border.width > 0);
+        verify(!chips[0].accent && !chips[2].accent);
+        chips[0].clicked();
+        compare(page.editAuthMode, "apiKey");
+        tryVerify(() => key.editing);
+
+        chips[2].forceActiveFocus();
+        keyClick(Qt.Key_Space);
+        compare(page.editAuthMode, "none");
+        wait(0);
+        verify(chips[2].activeFocus);
+        chips[1].forceActiveFocus();
+        keyClick(Qt.Key_Space);
+        tryVerify(() => user.editing);
     }
 
     // A turned-down credential reads in words, in red, with the raw error dim underneath.
@@ -279,7 +246,7 @@ TestCase {
                                                "candidates": []
                                            });
         const heading = findChild(page, "heading");
-        compare(heading.text, "Which server should omaseed talk to?"); // C25 K3
+        compare(heading.text, "Which qBittorrent should omaseed talk to?");
         page.chooseCursor(); // remote
         compare(heading.text, "Where is it, and how does omaseed sign in?");
         page.page = "install";
@@ -338,7 +305,7 @@ TestCase {
                                                "candidates": []
                                            });
         page.page = "install";
-        page.openRow("local", "http://127.0.0.1:8080", "qbittorrent");
+        page.openRow("local", "http://127.0.0.1:8080");
         compare(page.page, "apikey");
         compare(page.editUrl, "http://127.0.0.1:8080");
     }
@@ -600,6 +567,8 @@ TestCase {
         compare(page.alreadyHandler, true);
         compare(page.heading, "Magnet links and .torrent files already open with omaseed.");
         compare(findChild(page, "registerButton").text, "keep omaseed");
+        // #201 F3: the other button changes nothing, and says so.
+        compare(findChild(page, "notNowButton").text, "leave it as is");
         verify(findChild(page, "handlerText").text.startsWith("Keep it that way"));
 
         page.skipHandler();
@@ -617,6 +586,7 @@ TestCase {
         compare(page.alreadyHandler, false);
         compare(page.heading, "Open magnet links and .torrent files with omaseed?");
         compare(findChild(page, "registerButton").text, "open them with omaseed");
+        compare(findChild(page, "notNowButton").text, "not now");
         page.skipHandler();
         compare(findChild(page, "doneHandler").text,
                 "Magnet links still open elsewhere; Settings can change that.");
@@ -662,14 +632,14 @@ TestCase {
         const none = findChild(page, "detectNone");
         verify(none.visible);
         compare(none.Accessible.role, Accessible.StaticText);
-        compare(none.Accessible.name, "no torrent server on this machine yet"); // C25 K3
+        compare(none.Accessible.name, "no qBittorrent on this machine yet");
 
         const found = createTemporaryObject(pageComponent, testCase, {
                                                 "candidates": [localCandidate],
                                                 "page": "welcome"
                                             });
         compare(findChild(found, "detectFound").Accessible.name,
-                "found qBittorrent at 127.0.0.1:8080 · Docker container qbittorrent");
+                "found 127.0.0.1:8080 · Docker container qbittorrent");
 
         page.page = "choose";
         const question = findChild(page, "heading");

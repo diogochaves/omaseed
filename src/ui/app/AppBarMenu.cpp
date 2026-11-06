@@ -1,12 +1,16 @@
-// App's #73 block (docs/33 §11, D10, D24, D25; DECISIONS C13): the one menu the tray and the
-// bar widget's ⋯ show, and Settings › Appearance's "In the bar". Kept out of App.cpp so it
-// reads as one piece; the declarations sit at the end of App.hpp.
+// App's #73 block (docs/33 §11, D10, D24, D25; DECISIONS C13): the one menu the tray, the
+// bar widget's ⋯ and the window's mark (C24 H9) show, and Settings › Appearance's "In the bar".
+// Kept out of App.cpp so it reads as one piece; the declarations sit at the end of App.hpp.
 #include "ui/app/App.hpp"
 
 #include "core/AltSpeed.hpp"
 #include "core/GlobalState.hpp"
+#include "core/PauseHold.hpp"
 #include "core/ServerListModel.hpp"
 #include "core/SyncEngine.hpp"
+
+#include <QHash>
+#include <QScopedValueRollback>
 
 namespace omaseed::app {
 
@@ -21,7 +25,8 @@ QString contractState(const QString &listState, const QString &reason)
 {
     if (listState == QLatin1String("live") || listState == QLatin1String("seen"))
         return QStringLiteral("ok");
-    if (listState == QLatin1String("syncing"))
+    // #201 F4: on the way to it, as a first sync is: not a loss.
+    if (listState == QLatin1String("syncing") || listState == QLatin1String("connecting"))
         return QStringLiteral("first-sync");
     if (listState == QLatin1String("refused") || listState == QLatin1String("certificate"))
         return QStringLiteral("refused");
@@ -46,14 +51,16 @@ void App::setUpBarMenu()
         m_barMenu, &BarMenu::serverChosen, this, [this](const QString &id) { switchServer(id); });
     connect(m_barMenu, &BarMenu::triggered, this, [this](const QString &id) {
         if (id == QLatin1String("add")) {
-            Q_EMIT raiseRequested();
-            Q_EMIT addRequested();
+            // docs/DECISIONS.md C35 (amends C13): the add window where the user is, or the
+            // main window when it had focus just before; requestAdd decides and raises.
+            requestAdd({}, AddSource::Menu);
         } else if (id == QLatin1String("alt-speed")) {
-            toggleAltSpeed();
-        } else if (id == QLatin1String("stop-all")) {
-            stopAll();
-        } else if (id == QLatin1String("start-all")) {
-            startAll();
+            // C36 M9: the tray's and the widget's pick is made outside the window.
+            toggleAltSpeed(!m_appMenuInside);
+        } else if (id == QLatin1String("pause")) {
+            pauseTorrents();
+        } else if (id == QLatin1String("resume")) {
+            resumeTorrents();
         } else if (id == QLatin1String("settings")) {
             Q_EMIT openSettings();
         } else if (id == QLatin1String("quit")) {
@@ -63,6 +70,9 @@ void App::setUpBarMenu()
         }
     });
 
+    // C24 H9: the window's mark menu reads the same rows.
+    connect(m_barMenu, &BarMenu::changed, this, &App::appMenuRowsChanged);
+
     // The servers block follows the list: its rows, the last-seen figures, the switch.
     connect(m_serverList, &QAbstractItemModel::dataChanged, this, &App::updateBarMenu);
     connect(m_serverList, &QAbstractItemModel::modelReset, this, &App::updateBarMenu);
@@ -70,6 +80,9 @@ void App::setUpBarMenu()
     connect(m_serverList, &QAbstractItemModel::rowsRemoved, this, &App::updateBarMenu);
     connect(this, &App::serverChanged, this, &App::updateBarMenu);
     connect(this, &App::serverStateChanged, this, &App::updateBarMenu);
+    // C36 M10: the row says Resume Torrents while the current server holds a pause, and is
+    // off while a pause or a resume is on its way.
+    connect(m_pauseHold, &PauseHold::changed, this, &App::updateBarMenu);
 
     // D25: the choice reads from the widget being in the bar and the tray icon mode.
     connect(m_barWidget, &omaseed::integration::BarWidget::changed, this, [this]() {
@@ -97,7 +110,8 @@ void App::updateBarMenu()
         if (server.current) {
             // The current server: how it is doing now, and its live count.
             if (listState == QLatin1String("refused"))
-                reason = tr("sign-in refused");
+                // C28: another engine's server keeps the list's reason ("Transmission server").
+                reason = serverOtherEngine() ? reason : tr("sign-in refused");
             else if (listState == QLatin1String("certificate"))
                 reason = tr("certificate refused");
             else if (listState == QLatin1String("down") || listState == QLatin1String("waiting")) {
@@ -113,7 +127,8 @@ void App::updateBarMenu()
                 server.count = m_engine->torrents()->count();
         } else {
             server.count = role(ServerListModel::LastCountRole).toInt();
-            if (listState != QLatin1String("failed"))
+            // "refused" for another server is C28's another engine, with its reason.
+            if (listState != QLatin1String("failed") && listState != QLatin1String("refused"))
                 reason.clear();
         }
         server.state = contractState(listState, reason);
@@ -134,8 +149,38 @@ void App::updateBarMenu()
     if (named && !label.isEmpty())
         title = label.at(0).toUpper() + label.mid(1);
     m_barMenu->setAltSpeed(state->useAltSpeedLimits(), label, title);
+    m_barMenu->setPauseHeld(m_pauseHold->held());
+    m_barMenu->setPauseBusy(m_pauseHold->busy());
     m_barMenu->setServerAnswering(m_demoMode ||
                                   (m_hasServer && state->connected() && !m_serverLost));
+}
+
+QVariantList App::appMenuRows() const
+{
+    QHash<QString, QString> states;
+    for (const BarMenu::Server &server : m_barMenu->servers())
+        states.insert(QStringLiteral("server:") + server.id, server.state);
+    QVariantList out;
+    for (const BarMenu::Row &row : m_barMenu->rows()) {
+        out.append(QVariantMap{
+            {QStringLiteral("id"), row.id},
+            {QStringLiteral("label"), row.label},
+            {QStringLiteral("kind"), BarMenu::kindName(row.kind)},
+            {QStringLiteral("checked"), row.checked},
+            {QStringLiteral("enabled"), row.enabled},
+            {QStringLiteral("detail"), row.detail},
+            {QStringLiteral("urgent"), row.urgent},
+            {QStringLiteral("state"), states.value(row.id)},
+        });
+    }
+    return out;
+}
+
+bool App::invokeAppMenu(const QString &id)
+{
+    // C36 M9: `triggered` fires within invoke, so the flag covers exactly this row.
+    const QScopedValueRollback<bool> inside(m_appMenuInside, true);
+    return m_barMenu->invoke(id);
 }
 
 // --- D25: "In the bar" ------------------------------------------------------------------------

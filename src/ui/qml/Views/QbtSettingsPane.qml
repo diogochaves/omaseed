@@ -41,6 +41,7 @@ ColumnLayout {
     /// The section's rows the server can take, in order.
     readonly property var rows: {
         void root._keyCount;
+        void App.altPresets.loaded; // the presets' rows (C32 D8 a) answer once their server is set
         if (!root.section)
             return [];
         return root.section.rows.filter(spec => {
@@ -59,8 +60,10 @@ ColumnLayout {
                                                 if (part)
                                                     keys.push(part.key);
                                             }
-                                            // A row with nothing to read (a button) always shows.
-                                            return keys.length === 0 || keys.some(key => root.prefs.has(key));
+                                            // A row with nothing to read (a button) always shows. The
+                                            // presets' rows read App.altPresets (C32 D8 a).
+                                            const store = spec.presets ? App.altPresets : root.prefs;
+                                            return keys.length === 0 || keys.some(key => store.has(key));
                                         });
     }
     /// For each cursor position, the index of its row in `rows`.
@@ -189,7 +192,14 @@ ColumnLayout {
                 // docs/16's banners: a fact about the section, in the kit Banner's look (a
                 // 1 px rule in the kind's colour), but wrapping: these run to two lines.
                 Rectangle {
-                    color: Theme.fill(Theme.fillIdle)
+                    id: noteBlock
+
+                    /// Its words on its 4 % fill (docs/DECISIONS.md C30 F1).
+                    readonly property Ink ink: Ink {
+                        ground: Theme.on.idle
+                    }
+
+                    color: noteBlock.ink.fill
                     implicitHeight: noteText.implicitHeight + Theme.space(14)
                     radius: Theme.cornerRadius
 
@@ -209,6 +219,7 @@ ColumnLayout {
                         anchors.right: parent.right
                         anchors.rightMargin: Theme.space(12)
                         anchors.verticalCenter: parent.verticalCenter
+                        ink: noteBlock.ink
                         size: "small"
                         text: holder.modelData.note
                         wrapMode: Text.Wrap
@@ -230,7 +241,14 @@ ColumnLayout {
                                                               : App.altSpeed.scheduleSummary
                     readonly property string note: line.isSet ? "" : App.altSpeed.scheduleNote
                     readonly property bool warn: !line.isSet && App.altSpeed.scheduleWarn
+                    /// The schedule's line while the schedule is off: it reads dim, as its rows
+                    /// do, in the ground's dim role and the hairline's rule. It was the whole
+                    /// line at 0.6, which put its words under C30's floor (#188).
+                    readonly property bool off: !line.isSet && root.prefs !== null
+                                                && !root.prefs.values.scheduler_enabled
                     readonly property color tone: {
+                        if (line.off)
+                            return Theme.fill(Theme.hairlineAlpha);
                         if (line.warn)
                             return Theme.yellow;
                         if (line.isSet && App.altSpeed.setKind === "burst")
@@ -240,12 +258,15 @@ ColumnLayout {
                         return Theme.fill(Theme.hairlineAlpha);
                     }
                     readonly property bool plain: line.tone !== Theme.green && line.tone !== Theme.yellow
+                    /// Its words on its 4 % fill; `tone` is a window role, painted as that
+                    /// ground's of the same (docs/DECISIONS.md C30 F1, F3).
+                    readonly property Ink ink: Ink {
+                        ground: Theme.on.idle
+                    }
 
-                    color: Theme.fill(Theme.fillIdle)
+                    color: line.ink.fill
                     implicitHeight: lineText.implicitHeight + Theme.space(12)
                     objectName: "qbtLine-" + holder.modelData.line
-                    // The schedule's line reads dim while the schedule is off, as its rows do.
-                    opacity: !line.isSet && root.prefs && !root.prefs.values.scheduler_enabled ? 0.6 : 1
                     radius: Theme.cornerRadius
                     visible: root.loaded && line.text.length > 0
 
@@ -263,10 +284,10 @@ ColumnLayout {
                         anchors.left: parent.left
                         anchors.leftMargin: Theme.space(12)
                         anchors.top: lineText.top
-                        color: line.plain ? Theme.dimForeground : line.tone
+                        color: line.plain ? line.ink.dimForeground : line.ink.of(line.tone)
                         objectName: "qbtLineGlyph"
                         size: "small"
-                        text: line.isSet ? App.altSpeed.setGlyph : line.warn ? "!" : "◷"
+                        text: line.isSet ? App.altSpeed.setGlyph : line.warn ? Glyphs.settingWarn : Glyphs.settingPending
                     }
 
                     Column {
@@ -284,6 +305,8 @@ ColumnLayout {
                         Label {
                             Accessible.name: text
                             Accessible.role: line.warn ? Accessible.AlertMessage : Accessible.StaticText
+                            dim: line.off
+                            ink: line.ink
                             objectName: "qbtLineText"
                             size: "small"
                             text: line.text
@@ -295,6 +318,7 @@ ColumnLayout {
                             Accessible.name: text
                             Accessible.role: Accessible.StaticText
                             dim: true
+                            ink: line.ink
                             objectName: "qbtLineNote"
                             size: "caption"
                             text: line.note
@@ -320,7 +344,7 @@ ColumnLayout {
                                                                              : holder.modelData.list
                                                                                ? holder.modelData.list.key
                                                                                : holder.index))
-                    prefs: root.prefs
+                    prefs: holder.modelData.presets ? App.altPresets : root.prefs
                     sectionConfirm: root.section && root.section.webui ? "webui" : ""
                     spec: holder.modelData
 

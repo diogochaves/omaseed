@@ -13,8 +13,9 @@ Omarchy
 qBittorrent server or many: this PC, a NAS, a seedbox, or all of them at once. It looks like
 the rest of your desktop and repaints the moment the Omarchy theme changes, every action has a
 key, and it keeps the seeding history qBittorrent does not. It opens `magnet:` links and
-`.torrent` files, lives in the Omarchy bar or the tray, and speaks up when a download
-finishes, a server goes away or a disk fills up.
+`.torrent` files, lives in the Omarchy bar or the tray, and speaks up when a torrent handed
+over from outside goes in, a download finishes, a server goes away or a disk fills up, each
+notice with its own switch in Settings › Notifications.
 
 <img src="docs/screenshots/library-tokyo-night.png" alt="omaseed's library in Tokyo Night: the status, category, tag and tracker rail, the torrent table with two rows selected, and a torrent's details on the right" width="100%">
 
@@ -22,6 +23,9 @@ omaseed has no torrent engine of its own: qBittorrent, local or remote, does the
 transferring, and omaseed is the window you see it through. Built for Omarchy, it runs on any
 Linux, with a bundled theme when Omarchy is not there.
 
+- **Five questions, not columns**: the library grouped under needs you, arriving, landed
+  today, giving back and resting, each torrent saying in words what matters now; or the
+  classic table, or a map of where the space goes, remembered for each place you look
 - **The seed console**: what you give back, from the last hour to the last year, kept by
   omaseed itself
 - **Knows your library before you add**: your newest downloads waiting, files already on disk
@@ -31,6 +35,8 @@ Linux, with a bundled theme when Omarchy is not there.
 - **Keyboard first**: every action has a key, and `?` lists them all; the mouse works
   everywhere too
 - **Every Omarchy theme, live**, the light ones included
+- **Two skins**: Omarchy's own look, or Console's cut plates, brackets and kana, by hand or
+  following the desktop's console skin
 - **Any server**: an API key, a username and password, or none; secrets in the system keyring
 - **Careful with your data**: deleting files another torrent still seeds, or the last copy
   anyone has, asks first
@@ -131,8 +137,11 @@ downloads or uploads, and a click opens a popup with the speeds, an hour of uplo
 `.torrent` files to add, today's share, the torrents you keep alive, and what is downloading
 and what finished. It never talks to qBittorrent itself; it reads what omaseed writes and
 asks omaseed to act. While it runs, the tray icon steps aside, and nothing goes with it: the
-popup's ⋯ is the tray's menu (the servers, alternative limits, stop and start all, settings,
-quit).
+popup's ⋯ is the tray's menu (the servers, alternative limits, pause or resume torrents,
+settings, quit). Pause Torrents stops what is running and remembers it; Resume Torrents starts
+exactly those again, never a torrent you had kept stopped.
+A speed picked from out here, or over the bus (`PickAltSpeed` off, turtle or burst), sends a
+notice once it has taken effect: what was picked and its limits.
 
 First run offers it, Settings › Appearance › In the bar chooses the widget, the tray icon,
 both or neither, and from a terminal:
@@ -164,15 +173,58 @@ server is replaced.
 
 qBittorrent's API only says a torrent is in error, never why. omaseed reads qBittorrent's own
 log, ties each line to its torrent and says it in plain words: the table's status reads the
-short cause ("disk full", "no access"), and General opens with what went wrong, the folder,
-and the keys that fix it. A notice says so too, with its own switch in Settings ›
+short cause ("disk full", "no access"), and the torrent's story opens with what went wrong,
+the folder, and the keys that fix it. A notice says so too, with its own switch in Settings ›
 Notifications.
+
+## Search
+
+`ctrl+f` (or the rail's **search**, after log) searches through the search plugins of the
+qBittorrent you're on: the small Python files qBittorrent runs to ask a site, which you choose
+and install yourself in Settings › qBittorrent › Search plugins, from a URL or, when the server
+is this computer, a file. omaseed names, ships and suggests none, and never asks a site itself;
+every request is qBittorrent's.
+
+Each plugin is asked on its own, so the results fill in as each answers and nothing waits for
+the slowest. One row per torrent, however many plugins found it: the copy with the most seeds
+names it and the others' trackers join its magnet. A row says what is already yours ("in your
+library", "likely on disk") and reads seeds as health ("few seeds" in yellow, "?" when a plugin
+doesn't report them, never taken for dead). A plugin that fails or is slow is named, with its
+reason from qBittorrent's log. `enter` on a result opens the usual add sheet with its magnet,
+or its link fetched through the plugin; `space` shows it on the right, `c` copies its magnet,
+`o` opens its page in the browser, `/` filters the results. Search isn't offered on a server
+without plugins to run.
+
+## Create a torrent
+
+"+ add ▾", `ctrl+n`, `:` or a folder's menu in the rail opens **Create a torrent**; a folder
+dropped on the window does too. Pick the folder (or one file) with the Move sheet's places and
+browse, and say who it is for. The server's qBittorrent hashes it, in the band a move uses
+while it takes more than a few seconds; you can close the window meanwhile.
+
+- **For anyone**: it seeds at once from where the files are, nothing copied or moved, and its
+  magnet is on the clipboard. The trackers offered are the public ones your library uses most,
+  or the last ones you chose; none is fine (DHT and peer exchange).
+- **For a private tracker**: pick the tracker from your library's private ones; its announce
+  URL comes from your newest torrent there and the passkey only ever shows as dots, never in a
+  log or a file of omaseed's. The private flag, v1 and the source tag you used there are
+  filled in. The `.torrent` is saved as "NAME [HOST].torrent" in your Downloads, not added,
+  ready to drag into the site's upload form. When the site's copy comes back, the add sheet
+  knows it and points it at your folder, so it seeds without downloading anything.
+
+v1 is the default either way, and the piece size qBittorrent will choose shows before you
+create, with an override. omaseed checks the folder first and says in its own words when it is
+missing, unreadable or empty. Create needs qBittorrent's Web API 2.10.4 or later.
 
 ## Keys
 
 Every key comes from one table (`src/ui/qml/Keymap.qml`), and the `?` sheet is drawn from
 it. A capital letter is the stronger variant of its lower-case neighbour (`p` stop/start,
-`P` force start; `d` delete, `D` delete with files).
+`P` force start; `d` delete, `D` delete with files). Keys are taught where you ask for them:
+menus and tooltips name them, holding `alt` badges the controls on screen, and the `?` sheet
+lists them all, one block the keys inside a sheet (add, move, settings). With torrents
+selected, an action bar floats over the list: the torrent menu's verbs with their icons, more ›
+for the rest and "esc" at its end.
 
 <p align="center"><img src="docs/screenshots/shortcuts-tokyo-night.png" alt="The shortcuts sheet: a filter field, and the keys to move, select, view and act on torrents, each with what it does" width="560"></p>
 
@@ -183,9 +235,10 @@ it. A capital letter is the stronger variant of its lower-case neighbour (`p` st
 | `j` `k` | move down / up |
 | `g` `G` | first / last row |
 | `h` `l` | rail · table · details |
-| `/` | filter |
-| `0`–`8` | status filter |
+| `/` | filter (`is:stalled` and the like for any state) |
+| `1`–`5`, `0` | needs you, arriving, landed today, giving back, resting; the library |
 | `ctrl+k` | jump to a torrent by name, hash or tracker |
+| `ctrl+f` | search the server's search plugins (`enter` asks, `↓` the results, `enter` add…, `space` the result, `c` `o` copy magnet · its page) |
 | `ctrl+h` `ctrl+l` | scroll sideways |
 
 **Select**
@@ -203,10 +256,11 @@ it. A capital letter is the stronger variant of its lower-case neighbour (`p` st
 |---|---|
 | `` ` `` | seed console |
 | `i` | details |
-| `1`–`4` | details tab (in the details pane) |
+| `1`–`5` | story · files · swarm · trackers · facts (in the details pane; `6` web seeds) |
 | `s` | sort |
+| `:` show as … | rows, table or space, for the place on show (also the title bar's tool) |
 | `\|` | columns (`alt+↑` `alt+↓` reorder them) |
-| `ctrl+b` | rail |
+| `ctrl+b` | fold the rail to its glyphs (or the tab on its edge; drag the edge to size it) |
 | `I` | details right · bottom · auto |
 | `<` `>` | details smaller · larger |
 | `H` `L` | fold / unfold every folder (Files tab) |
@@ -217,6 +271,7 @@ it. A capital letter is the stronger variant of its lower-case neighbour (`p` st
 | Key | Does |
 |---|---|
 | `a` | add |
+| `ctrl+n` | create a torrent from a folder |
 | `enter` | actions menu |
 | `p` `P` | stop/start · force start |
 | `d` `D` | delete · delete with files |
@@ -227,16 +282,18 @@ it. A capital letter is the stronger variant of its lower-case neighbour (`p` st
 | `y` `Y` `n` | copy magnet · hash · name |
 | `p` `+` `-` `x` | file priority (Files tab) |
 | `O` `o` `r` | open · folder · rename a file (Files tab) |
-| `y` `enter` | copy a value · change an option (General tab) |
+| `F` | free the space, or add it again (Files tab) |
+| `y` `enter` | copy a value · change an option (facts tab) |
 
 **App**
 
 | Key | Does |
 |---|---|
-| `A` | alternative speed limits |
+| `A` | alternative speeds on or off (turtle, or the last preset picked; the status line's chip has both) |
 | `,` `ctrl+,` | settings |
 | `ctrl+shift+,` | qBittorrent's settings |
-| `ctrl+.` | more actions |
+| `ctrl+.` | the omaseed menu (the mark): servers, alternative speeds, add, settings, quit |
+| hold `alt` | show the keys of what is on screen |
 | `q` | hide to the tray |
 | `ctrl+q` | quit |
 | `?` `F1` | every key |
@@ -255,17 +312,27 @@ o.bind("SUPER + SHIFT + T", "omaseed", { launch = "omaseed" })
 
 omaseed reads the same `colors.toml` and `shell.toml` as the rest of the Omarchy shell and
 repaints as soon as `omarchy-theme-set` runs, on every bundled theme. Text size follows
-`shell.toml`'s `[font] base-size`, and window corners follow Hyprland's rounding. Without
-Omarchy it uses a bundled Tokyo Night at base size 12.
+`shell.toml`'s `[font] base-size`, and in the Omarchy skin window corners follow Hyprland's
+rounding. Without Omarchy it uses a bundled Tokyo Night at base size 12.
 
-Settings › Appearance has: follow the Omarchy theme, base size, window transparency, tray
-icon (`auto` hides it while the bar widget runs), bar widget, speed figures and trends,
-surface tint, tracker hosts, and where the details panel sits.
+The skin is the form the colours are drawn in. **Omarchy** (the default) is the shell's own;
+**Console** draws omarchy-console's look: cut corners, brackets on the cursor's row, square
+lamps, tracked upper-case labels with kana. **Follow the desktop** draws Console while
+omarchy-console's skin is on, and honours its `fx.fonts = system`. Console's fonts are optional
+(Chakra Petch, Share Tech Mono, Noto Sans CJK JP, Material Symbols Sharp); a missing one is
+drawn in a stand-in, and Appearance says which.
+
+Settings › Appearance has: the skin, follow the Omarchy theme, base size, the window's ground (opaque, or
+translucent with its transparency), tray icon (`auto` hides it while the bar widget runs), bar
+widget, the scroll hint, the rail's surface tint (off, 4 % or 8 %), tracker hosts, where the
+details panel sits, where the speeds are shown (the title bar or the status line), and the
+sending rows' pulse.
 
 ## Servers
 
 Settings › Servers lists every server, with **add**, **test**, **edit**, **remove** and
-**set as default**. Switch between them from the rail's Servers group or here. Passwords
+**set as default**. Switch between them from the rail's Servers group or here; a right-click
+on a server in the rail opens its menu. Passwords
 and API keys go to the system keyring through libsecret, or to a 0600 file under
 `~/.config/omaseed/secrets/` when there is no keyring.
 

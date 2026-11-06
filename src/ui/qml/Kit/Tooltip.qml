@@ -120,7 +120,9 @@ Item {
         onTriggered: root._open = true
     }
 
-    Rectangle {
+    // Its ground and edge are the skin's Plate (#171), with the small (key) cut: a tooltip
+    // is one line high.
+    Item {
         id: panel
 
         /// From the pointer (`showAt`), clear of the cursor's own shape.
@@ -138,12 +140,10 @@ Item {
                                       ? internal.itemY - panel.itemGap - panel.height
                                       : internal.wantY - panel.gap - panel.height
 
-        border.color: Theme.accent
-        border.width: 1
-        color: Theme.background
         implicitHeight: label.implicitHeight + 2 * panel.padding
-        implicitWidth: label.implicitWidth + 2 * panel.padding
-        radius: Theme.cornerRadius
+        // As wide as the widest line drawn: a text that wraps at maxWidth would otherwise
+        // keep the width it has on one line, the box running far past its words (#201 F20).
+        implicitWidth: Math.ceil(Math.min(label.width, label.contentWidth)) + 2 * panel.padding
         visible: root._open
         // Below the pointer or the item, pulled back inside the view at either edge; above it
         // when there is no room below (or the other way round for `above`).
@@ -153,13 +153,28 @@ Item {
                       : panel.underY + panel.height <= root.height ? panel.underY
                                                                    : Math.max(0, panel.overY))
 
+        // #201 F7: the ground hides what is under it, whatever alpha the theme's background
+        // carries. Its words are the window's (C30: the floor holds on the window ground).
+        Plate {
+            anchors.fill: parent
+            edgeColor: Theme.edgeColor
+            edgeWidth: Theme.edgeWidth
+            fill: Qt.rgba(Theme.background.r, Theme.background.g, Theme.background.b, 1)
+            key: true
+            objectName: "tooltipPlate"
+            radius: Theme.cornerRadius
+        }
+
         Text {
             id: label
 
-            anchors.centerIn: parent
+            anchors.left: parent.left
+            anchors.leftMargin: panel.padding
+            anchors.verticalCenter: parent.verticalCenter
             color: Theme.foreground
             font.family: Theme.fontFamily
             font.pixelSize: Theme.font.small
+            objectName: "tooltipLabel"
             text: root.text
             width: Math.min(implicitWidth, root.maxWidth)
             wrapMode: Text.WrapAtWordBoundaryOrAnywhere

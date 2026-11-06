@@ -456,6 +456,37 @@ private slots:
                  QStringLiteral("seedbox refused the sign-in: d waits until the login is fixed"));
     }
 
+    // DECISIONS C28: a server of an engine this build doesn't drive (#84, C25 K9).
+    void anotherEngine()
+    {
+        omaseed::core::Server seedbox;
+        seedbox.id = QStringLiteral("t-1");
+        seedbox.name = QStringLiteral("seedbox");
+        seedbox.url = QUrl(QStringLiteral("http://127.0.0.1:9091"));
+        seedbox.engine = omaseed::core::EngineKind::Transmission;
+        const ErrorWords::Text text = ErrorWords::forEngine(seedbox);
+        QCOMPARE(text.headline, QStringLiteral("seedbox is a Transmission server"));
+        QCOMPARE(text.line,
+                 QStringLiteral("This omaseed only talks to qBittorrent. A newer omaseed can."));
+        QCOMPARE(text.kind, QStringLiteral("engine"));
+        QVERIFY(text.details.contains(QStringLiteral("transmission")));
+        QCOMPARE(text.sentence(),
+                 QStringLiteral("seedbox is a Transmission server: this omaseed only talks to "
+                                "qBittorrent"));
+        QCOMPARE(ErrorWords::engineReason(seedbox), QStringLiteral("Transmission server"));
+        QCOMPARE(ErrorWords::guardEngine(seedbox, QStringLiteral("p")),
+                 QStringLiteral("seedbox is a Transmission server: p does nothing here"));
+
+        // An engine with no name to give, and a server with no name.
+        omaseed::core::Server odd = seedbox;
+        odd.name.clear();
+        odd.engine = omaseed::core::EngineKind::Unknown; // servers.json said `"engine": 3`
+        odd.extra.insert(QStringLiteral("engine"), 3);
+        QCOMPARE(ErrorWords::forEngine(odd).headline,
+                 QStringLiteral("127.0.0.1 isn't a qBittorrent server"));
+        QCOMPARE(ErrorWords::engineReason(odd), QStringLiteral("not qBittorrent"));
+    }
+
     void noErrorNoWords()
     {
         QVERIFY(ErrorWords::forServer(ApiError(), server()).headline.isEmpty());

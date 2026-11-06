@@ -49,6 +49,7 @@ private slots:
     void serverDetailSaysWhatTheRowShows();
     void rowsThatNeedAServerFollowIt();
     void invokeAnswersKnownEnabledRows();
+    void pauseTurnsIntoResumeWhileHeld();
     void jsonCarriesTheContractsFields();
     void changedOnlyWhenSomethingMoved();
 };
@@ -61,8 +62,7 @@ void TestBarMenu::oneServerHasNoServersBlock()
         {server(QStringLiteral("h"), QStringLiteral("home"), true, QStringLiteral("ok"), 3)});
     QCOMPARE(idsOf(menu.rows()),
              QStringList({QStringLiteral("alt-speed"),
-                          QStringLiteral("stop-all"),
-                          QStringLiteral("start-all"),
+                          QStringLiteral("pause"),
                           QStringLiteral("separator:actions"),
                           QStringLiteral("add"),
                           QStringLiteral("settings"),
@@ -72,11 +72,14 @@ void TestBarMenu::oneServerHasNoServersBlock()
     QCOMPARE(rows.first().kind, BarMenu::Kind::Check);
     QCOMPARE(rows.last().label, QStringLiteral("quit"));
     QCOMPARE(rows.last().title, QStringLiteral("Quit omaseed"));
-    QCOMPARE(rows.at(5).title, QStringLiteral("omaseed Settings…"));
-    QCOMPARE(rows.at(4).label, QStringLiteral("add torrent…"));
+    QCOMPARE(rows.at(4).title, QStringLiteral("omaseed Settings…"));
+    QCOMPARE(rows.at(3).label, QStringLiteral("add torrent…"));
+    // C36 M10: the tray's words and the widget's.
+    QCOMPARE(rows.at(1).label, QStringLiteral("pause torrents"));
+    QCOMPARE(rows.at(1).title, QStringLiteral("Pause Torrents"));
     // No server at all: the same.
     menu.setServers({});
-    QCOMPARE(menu.rows().size(), 8);
+    QCOMPARE(menu.rows().size(), 7);
 }
 
 // W1, T1: a caption, a radio row per server (the current one checked), a separator.
@@ -93,7 +96,7 @@ void TestBarMenu::twoServersAddTheBlockFirst()
                 12,
                 QStringLiteral("sign-in refused"))});
     const QList<BarMenu::Row> rows = menu.rows();
-    QCOMPARE(rows.size(), 13);
+    QCOMPARE(rows.size(), 12);
     QCOMPARE(rows.at(0).kind, BarMenu::Kind::Caption);
     QCOMPARE(rows.at(0).label, QStringLiteral("servers"));
     QCOMPARE(rows.at(1).id, QStringLiteral("server:a"));
@@ -143,15 +146,18 @@ void TestBarMenu::rowsThatNeedAServerFollowIt()
         return false;
     };
     QVERIFY(!enabled(QStringLiteral("alt-speed")));
-    QVERIFY(!enabled(QStringLiteral("stop-all")));
-    QVERIFY(!enabled(QStringLiteral("start-all")));
+    QVERIFY(!enabled(QStringLiteral("pause")));
     QVERIFY(enabled(QStringLiteral("add")));
     QVERIFY(enabled(QStringLiteral("settings")));
     QVERIFY(enabled(QStringLiteral("quit")));
     menu.setServerAnswering(true);
     QVERIFY(enabled(QStringLiteral("alt-speed")));
-    QVERIFY(enabled(QStringLiteral("stop-all")));
-    QVERIFY(enabled(QStringLiteral("start-all")));
+    QVERIFY(enabled(QStringLiteral("pause")));
+    menu.setPauseHeld(true);
+    QVERIFY(enabled(QStringLiteral("resume")));
+    menu.setServerAnswering(false);
+    QVERIFY(!enabled(QStringLiteral("resume")));
+    menu.setServerAnswering(true);
 
     menu.setAltSpeed(
         true, QStringLiteral("burst · until 07:00"), QStringLiteral("Burst · until 07:00"));
@@ -174,8 +180,10 @@ void TestBarMenu::invokeAnswersKnownEnabledRows()
     QSignalSpy triggered(&menu, &BarMenu::triggered);
     QSignalSpy chosen(&menu, &BarMenu::serverChosen);
 
-    QVERIFY(!menu.invoke(QStringLiteral("stop-all"))); // no server answering yet
+    QVERIFY(!menu.invoke(QStringLiteral("pause"))); // no server answering yet
+    QVERIFY(!menu.invoke(QStringLiteral("stop-all")));
     menu.setServerAnswering(true);
+    menu.setPauseHeld(true); // resume needs a held pause; pause is taken all the same
     for (const QString &id : BarMenu::actionIds())
         QVERIFY2(menu.invoke(id), qPrintable(id));
     QCOMPARE(triggered.size(), BarMenu::actionIds().size());
@@ -240,8 +248,56 @@ void TestBarMenu::jsonCarriesTheContractsFields()
     QCOMPARE(rows.at(4).toObject().value(QStringLiteral("label")).toString(),
              QStringLiteral("Alternative Speed Limits"));
     QCOMPARE(rows.at(5).toObject().value(QStringLiteral("label")).toString(),
-             QStringLiteral("Stop All"));
+             QStringLiteral("Pause Torrents"));
     QCOMPARE(rows.at(2).toObject().value(QStringLiteral("urgent")).toBool(), true);
+}
+
+// DECISIONS C36 M10: one row, Pause Torrents, Resume Torrents in its place while a pause is
+// held; stop-all and start-all, C13's ids, still reach them.
+void TestBarMenu::pauseTurnsIntoResumeWhileHeld()
+{
+    BarMenu menu;
+    menu.setServerAnswering(true);
+    QSignalSpy changed(&menu, &BarMenu::changed);
+    QSignalSpy triggered(&menu, &BarMenu::triggered);
+    QVERIFY(!menu.invoke(QStringLiteral("resume"))); // nothing held
+    QVERIFY(!menu.invoke(QStringLiteral("start-all")));
+    QVERIFY(menu.invoke(QStringLiteral("stop-all")));
+    QCOMPARE(triggered.last().at(0).toString(), QStringLiteral("pause"));
+
+    menu.setPauseHeld(true);
+    QCOMPARE(changed.size(), 1);
+    menu.setPauseHeld(true);
+    QCOMPARE(changed.size(), 1);
+    const BarMenu::Row row = menu.rows().at(1);
+    QCOMPARE(row.id, QStringLiteral("resume"));
+    QCOMPARE(row.label, QStringLiteral("resume torrents"));
+    QCOMPARE(row.title, QStringLiteral("Resume Torrents"));
+    QVERIFY(row.enabled);
+    QVERIFY(menu.invoke(QStringLiteral("start-all")));
+    QCOMPARE(triggered.last().at(0).toString(), QStringLiteral("resume"));
+    // A second pause while one is held adds what runs now (PauseHold).
+    QVERIFY(menu.invoke(QStringLiteral("pause")));
+    QCOMPARE(triggered.size(), 3);
+
+    menu.setPauseHeld(false);
+    QCOMPARE(menu.rows().at(1).id, QStringLiteral("pause"));
+    QCOMPARE(BarMenu::canonicalId(QStringLiteral("add")), QStringLiteral("add"));
+
+    // While a pause or a resume is on its way the row is off and neither is taken: the row
+    // reads Resume as soon as the hold is recorded, before the stop is answered.
+    menu.setPauseHeld(true);
+    menu.setPauseBusy(true);
+    QCOMPARE(menu.rows().at(1).id, QStringLiteral("resume"));
+    QVERIFY(!menu.rows().at(1).enabled);
+    QVERIFY(!menu.invoke(QStringLiteral("resume")));
+    QVERIFY(!menu.invoke(QStringLiteral("pause")));
+    QVERIFY(!menu.invoke(QStringLiteral("start-all")));
+    QCOMPARE(triggered.size(), 3);
+    menu.setPauseBusy(false);
+    QVERIFY(menu.rows().at(1).enabled);
+    QVERIFY(menu.invoke(QStringLiteral("resume")));
+    QCOMPARE(triggered.size(), 4);
 }
 
 void TestBarMenu::changedOnlyWhenSomethingMoved()

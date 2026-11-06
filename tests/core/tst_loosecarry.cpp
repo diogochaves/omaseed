@@ -6,6 +6,7 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QJsonArray>
+#include <QLocale>
 #include <QTemporaryDir>
 #include <QtTest>
 
@@ -71,6 +72,9 @@ private slots:
     void emptyFoldersGoOnlyWhenEmpty();
     void jsonRoundTrip();
     void fullDestination();
+    void asCarriedReadsTheTarget();
+    void backListKeepsWhatChangedSince();
+    void movedBackAsTheMoveDid();
 };
 
 void TestLooseCarry::sameDriveRenames()
@@ -309,6 +313,91 @@ void TestLooseCarry::fullDestination()
     QVERIFY(QFile::exists(from + u"/zz-after.txt"));
     QVERIFY(!QFile::exists(to + u"/big.bin"));
     QVERIFY(!QFile::exists(LooseCarry::tempPathFor(to + u"/big.bin")));
+}
+
+// C32 D19: the record keeps each carried file as it lies at the new place.
+void TestLooseCarry::asCarriedReadsTheTarget()
+{
+    QTemporaryDir dir;
+    const QString to = dir.filePath(QStringLiteral("fast/games"));
+    write(to + u"/manual.pdf", "the manual");
+    CarryFile carried = seen(to, QStringLiteral("manual.pdf"));
+    carried.size = 3; // as the dry run saw it at the source: the target's own wins
+    carried.outcome = CarryFile::Outcome::AlreadyThere;
+    CarryFile stayed;
+    stayed.relative = QStringLiteral("recent.txt");
+    stayed.outcome = CarryFile::Outcome::Changed;
+    const QList<CarryFile> kept = LooseCarry::asCarried(to, {carried, stayed});
+    QCOMPARE(kept.size(), 1);
+    QCOMPARE(kept.first().relative, QStringLiteral("manual.pdf"));
+    QCOMPARE(kept.first().size, qint64(10));
+    QCOMPARE(kept.first().modified, QFileInfo(to + u"/manual.pdf").lastModified());
+    QCOMPARE(kept.first().outcome, CarryFile::Outcome::ToDo);
+    QVERIFY(kept.first().why.isEmpty());
+}
+
+// C32 D19 a: unchanged goes back; changed since (size or time) stays and says when; gone stays.
+void TestLooseCarry::backListKeepsWhatChangedSince()
+{
+    QTemporaryDir dir;
+    const QString at = dir.filePath(QStringLiteral("fast/games"));
+    write(at + u"/manual.pdf", "the manual");
+    write(at + u"/notes/readme.txt", "read me");
+    write(at + u"/gone.txt", "gone soon");
+    const QList<CarryFile> carried = {seen(at, QStringLiteral("manual.pdf")),
+                                      seen(at, QStringLiteral("notes/readme.txt")),
+                                      seen(at, QStringLiteral("gone.txt"))};
+    write(at + u"/notes/readme.txt", "read me, edited");
+    QFile::remove(at + u"/gone.txt");
+    write(at + u"/new-scan.png", "put there since");
+
+    const QList<CarryFile> back = LooseCarry::backList(at, carried, QDateTime::currentDateTime());
+    QCOMPARE(back.size(), 3); // never the file the move didn't carry
+    QCOMPARE(back.at(0).outcome, CarryFile::Outcome::ToDo);
+    QCOMPARE(back.at(1).outcome, CarryFile::Outcome::Changed);
+    const QString time = QLocale().toString(
+        QFileInfo(at + u"/notes/readme.txt").lastModified().time(), QLocale::ShortFormat);
+    QCOMPARE(back.at(1).why, QStringLiteral("changed at %1, after the move").arg(time));
+    QCOMPARE(back.at(2).outcome, CarryFile::Outcome::Gone);
+
+    // Only the time changed: it stays too.
+    QFile manual(at + u"/manual.pdf");
+    QVERIFY(manual.open(QIODevice::ReadWrite));
+    QVERIFY(manual.setFileTime(QDateTime::currentDateTime().addSecs(-60),
+                               QFileDevice::FileModificationTime));
+    manual.close();
+    QCOMPARE(LooseCarry::backList(at, carried, QDateTime::currentDateTime()).at(0).outcome,
+             CarryFile::Outcome::Changed);
+}
+
+// C32 D19 a: run() from the new place to the old one carries the list back by M17's steps.
+void TestLooseCarry::movedBackAsTheMoveDid()
+{
+    QTemporaryDir dir;
+    const QString from = dir.filePath(QStringLiteral("games"));
+    const QString to = dir.filePath(QStringLiteral("fast/games"));
+    write(from + u"/manual.pdf", "the manual");
+    write(from + u"/notes/readme.txt", "read me");
+    const LooseCarry::Result there = LooseCarry::run(
+        from,
+        to,
+        {seen(from, QStringLiteral("manual.pdf")), seen(from, QStringLiteral("notes/readme.txt"))},
+        later());
+    QCOMPARE(there.carried, 2);
+    const QList<CarryFile> carried = LooseCarry::asCarried(to, there.files);
+    write(to + u"/notes/readme.txt", "read me, edited");
+    write(to + u"/new-scan.png", "put there since");
+
+    const QList<CarryFile> list = LooseCarry::backList(to, carried, later());
+    const LooseCarry::Result back = LooseCarry::run(to, from, list, later());
+    QCOMPARE(back.carried, 1);
+    QCOMPARE(back.stayed, 1);
+    QCOMPARE(read(from + u"/manual.pdf"), QByteArray("the manual"));
+    QVERIFY(!QFile::exists(to + u"/manual.pdf"));
+    QCOMPARE(read(to + u"/notes/readme.txt"), QByteArray("read me, edited"));
+    QVERIFY(!QFile::exists(from + u"/notes/readme.txt"));
+    QVERIFY(QFile::exists(to + u"/new-scan.png"));
+    QVERIFY(!QFile::exists(from + u"/new-scan.png"));
 }
 
 QTEST_GUILESS_MAIN(TestLooseCarry)

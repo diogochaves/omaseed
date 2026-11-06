@@ -593,14 +593,11 @@ Item {
         }
     }
 
-    Rectangle {
+    // The panel's ground and edge are the skin's Plate (#171), drawn under everything in it.
+    Item {
         id: panel
 
-        border.color: Theme.accent
-        border.width: 1
-        color: Theme.background
         implicitHeight: layout.implicitHeight
-        radius: Theme.cornerRadius
         width: Math.min(root.paletteWidth, root.inline ? root.paletteWidth
                 : Math.max(0, root.width - 2 * root._margin))
         x: root.inline ? 0 : Math.round((root.width - width) / 2)
@@ -745,6 +742,13 @@ Item {
                     /// This row is the one being dragged: it keeps the selected fill until
                     /// it lands.
                     readonly property bool lifted: row.index === root._dragFrom
+                    /// docs/DECISIONS.md C30 F1: the row's words on its ground, the selected
+                    /// fill while it is dragged, the cursor's on the current row.
+                    readonly property Ink ink: Ink {
+                        animated: false
+                        ground: row.lifted ? Theme.on.selected : row.current ? Theme.on.cursor
+                                                                             : Theme.on.window
+                    }
 
                     // #79: the row's second line ("linux · 2.34 GB · 12.4 %") is its
                     // description, after its meta where that is words (`metaSpoken`).
@@ -757,8 +761,7 @@ Item {
                     // as the pointer.
                     Accessible.onPressAction: if (row.enabled)
                                                   root._clickRow(row.index)
-                    color: row.lifted ? Theme.fill(Theme.fillSelected) : row.current
-                            ? Theme.fill(Theme.fillHover) : "transparent"
+                    color: row.lifted || row.current ? row.ink.fill : "transparent"
                     height: rowColumn.implicitHeight + 2 * Theme.space(6)
                     width: ListView.view.width
 
@@ -772,7 +775,7 @@ Item {
                     Rectangle {
                         anchors.fill: parent
                         border.color: Theme.fill(Theme.borderHover)
-                        border.width: 1
+                        border.width: Theme.hairWidth
                         color: "transparent"
                         visible: row.current
                     }
@@ -799,6 +802,7 @@ Item {
                             bright: row.modelData.checked === true
                             dim: row.modelData.checked !== true
                             horizontalAlignment: Text.AlignHCenter
+                            ink: row.ink
                             text: row.modelData.checked === true ? Glyphs.check : Glyphs.middot
                             visible: root.multi
                         }
@@ -819,12 +823,13 @@ Item {
                                     dim: row.disabled
                                     elide: Text.ElideRight
                                     font.weight: row.disabled ? Font.Normal : Font.Medium
+                                    ink: row.ink
                                     objectName: "paletteRowTitle"
                                     text: row.modelData.title ?? ""
                                 }
 
                                 Label {
-                                    color: row.disabled ? row.faint : Theme.dimForeground
+                                    color: row.disabled ? row.faint : row.ink.dimForeground
                                     objectName: "paletteRowVia"
                                     size: "small"
                                     text: qsTr("via")
@@ -832,7 +837,7 @@ Item {
                                 }
 
                                 Label {
-                                    color: row.disabled ? row.faint : Theme.dimForeground
+                                    color: row.disabled ? row.faint : row.ink.dimForeground
                                     objectName: "paletteRowMeta"
                                     size: "small"
                                     text: (row.modelData.via ?? "").length > 0 ? row.modelData.via
@@ -843,7 +848,7 @@ Item {
 
                             Label {
                                 Layout.fillWidth: true
-                                color: row.disabled ? row.faint : Theme.dimForeground
+                                color: row.disabled ? row.faint : row.ink.dimForeground
                                 elide: Text.ElideRight
                                 objectName: "paletteRowDetail"
                                 size: "small"
@@ -963,8 +968,8 @@ Item {
             objectName: "dropIndicator"
             visible: root.dropSlot >= 0 && dropIndicator.at >= 0
                      && dropIndicator.at <= list.height
-            width: list.width - 2 * panel.border.width
-            x: list.x + panel.border.width
+            width: list.width - 2 * Theme.edgeWidth
+            x: list.x + Theme.edgeWidth
             y: layout.y + list.y + Math.min(list.height - 1,
                     Math.max(0, Math.round(dropIndicator.at) - 1))
         }
@@ -983,8 +988,8 @@ Item {
             revealed: root._opened
             style: root.scrollHint
             topCover: root._topCover
-            width: list.width - 2 * panel.border.width
-            x: list.x + panel.border.width
+            width: list.width - 2 * Theme.edgeWidth
+            x: list.x + Theme.edgeWidth
             y: layout.y + list.y
         }
 
@@ -998,6 +1003,17 @@ Item {
             z: -1
 
             onWheel: wheel => wheel.accepted = true
+        }
+
+        // Declared last so `children[0]` stays the layout, and drawn first (z -2).
+        Plate {
+            anchors.fill: parent
+            edgeColor: Theme.edgeColor
+            edgeWidth: Theme.edgeWidth
+            fill: Theme.background
+            objectName: "palettePlate"
+            radius: Theme.cornerRadius
+            z: -2
         }
     }
 }

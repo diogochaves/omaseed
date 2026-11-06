@@ -29,15 +29,6 @@ import Omaseed.Kit
 // test only when its URL, auth mode or credentials changed: a rename, or a new path map,
 // saves straight away.
 //
-// The engine (#84, DECISIONS C25 K4–K9): an engine row of chips, "recognise · qBittorrent ·
-// Transmission · Deluge", recognise first on a new server, the stored engine on a saved one.
-// A test with "recognise" asks the engines in the order the address suggests and the chip then
-// reads "recognise: Transmission"; a picked engine is the only one asked. The auth chips follow
-// the engine (K7): qBittorrent's API key, username and password, none (also before it is
-// known), Transmission's username and password or none, Deluge's one password. A version
-// omaseed refuses, and an engine this build can't drive yet, are said in red with no "save
-// anyway", keeping what was typed (K8, K9); an answer from no engine keeps it (K8).
-//
 // A test that met a certificate the system does not trust (issue #2) shows `CertificateTrust`
 // under the rows: `trust this certificate` saves the fingerprint with a saved server straight
 // away (App.trustCertificate, which reconnects the live one), keeps it in the edit buffers
@@ -61,17 +52,13 @@ Sheet {
     property string testError: ""
     /// The raw error under a friendly one ("wrong username or password"), drawn dim.
     property string testErrorDetail: ""
-    /// serverTested's `info` (#84): which engine answered, where, and whether it is refused.
-    property var testInfo: ({})
-    readonly property bool _testRefused: !root.testing && root.tested && !root.testOk
-                                         && root.testInfo.refused === true
     readonly property bool _credentialRefused: !root.testing && root.tested && !root.testOk
                                                && root.testErrorDetail.length > 0
     /// docs/33 N5 in docs/35 N7's band: the failed test in ErrorWords' words (`{headline,
     /// line, details, kind}`), empty while none failed.
     readonly property var testProblem: !root.testing && root.tested && !root.testOk
                                        ? App.serverTestProblem(root.fieldMap(), root.testError,
-                                                               root.testErrorDetail, root.testInfo) : ({})
+                                                               root.testErrorDetail) : ({})
     readonly property bool _testFailed: (root.testProblem.headline || "").length > 0
     property bool testing: false
     /// The certificate the last test was refused (CertificatePin form); empty when it was not.
@@ -89,8 +76,6 @@ Sheet {
     /// Why `save` refused, over the fields (review RUN-15); empty hides it.
     property string errorText: ""
     property string editAuthMode: "none"
-    /// K4's chip: "recognise", or an engine ("qbittorrent", "transmission", "deluge").
-    property string editEngineChoice: "recognise"
     property string editUsername: ""
     property string editSecret: ""
     property string editRemote: ""
@@ -102,21 +87,6 @@ Sheet {
     readonly property bool isNew: root.serverId.length === 0
     /// The server the app starts on and syncs with; `make default` shows on the others.
     readonly property bool isDefault: root.server && root.server.isDefault === true
-    /// The engine the last test found, while "recognise" is picked; "" before one answered.
-    readonly property string _recognisedEngine: root.tested && root.testInfo.engine ? String(root.testInfo.engine) : ""
-    /// The engine the sheet stands for: the picked one, else the one recognised, else the
-    /// stored one (a saved server), else "" (not known yet: qBittorrent's sign-in chips).
-    readonly property string engine: root.editEngineChoice !== "recognise" ? root.editEngineChoice
-                                                                           : root._recognisedEngine.length > 0 ? root._recognisedEngine
-                                                                                                                : (root.isNew ? "" : String(root.server.engine || "qbittorrent"))
-    readonly property string engineName: ({
-                                              "qbittorrent": qsTr("qBittorrent"),
-                                              "transmission": qsTr("Transmission"),
-                                              "deluge": qsTr("Deluge")
-                                          })[root.engine] || ""
-    /// K7: the auth chips for `engine`, in its order.
-    readonly property var authModes: root.engine === "transmission" ? ["cookie", "none"] : root.engine === "deluge"
-                                                                                           ? ["password"] : ["apiKey", "cookie", "none"]
 
     /// What a test checks: the address and the login. The name and the path map are not in
     /// it, so changing them keeps a test's answer.
@@ -129,8 +99,6 @@ Sheet {
         const map = root.server;
         const mode = map.authMode ? String(map.authMode) : "none";
         if (root.editAuthMode !== mode || root.editSecret.length > 0)
-            return true;
-        if (root.editEngineChoice !== String(map.engine || "qbittorrent"))
             return true;
         if (mode === "cookie" && root.editUsername !== (map.username ? String(map.username) : ""))
             return true;
@@ -145,9 +113,6 @@ Sheet {
             return "save";
         if (!root._testCurrent)
             return "wait";
-        // K8, K9: a refused version or engine can't be saved, not even anyway.
-        if (root._testRefused)
-            return "refused";
         return root.testOk ? "save" : "anyway";
     }
 
@@ -158,20 +123,6 @@ Sheet {
     onEditAuthModeChanged: root._fieldsChanged()
     onEditUsernameChanged: root._fieldsChanged()
     onEditSecretChanged: root._fieldsChanged()
-    onEditEngineChoiceChanged: root._fieldsChanged()
-    // K7: an engine that doesn't offer the chosen sign-in gets its first one. A test's answer
-    // about the engine stands: the engine refused it, not the login.
-    onAuthModesChanged: {
-        if (!root.editing || root.authModes.indexOf(root.editAuthMode) >= 0)
-            return;
-        const keep = root.tested && root._testedKey === root._currentKey();
-        root._switchingAuth = keep;
-        root.editAuthMode = root.authModes[0];
-        if (keep)
-            root._testedKey = root._currentKey();
-        root._switchingAuth = false;
-    }
-    property bool _switchingAuth: false
 
     /// The caller saved the sheet; `id` is the server that now exists.
     signal saved(string id)
@@ -188,6 +139,14 @@ Sheet {
         root.open();
     }
 
+    /// Show an existing server straight in edit mode, the keyboard on its first field: the
+    /// Servers pane's right-click "edit" (#201 F9), which opened the view before.
+    function openEditFor(map: var): void {
+        root.openFor(map);
+        root.editing = true;
+        root.focusFirst();
+    }
+
     /// Show an existing server and test it at once: the lost banner's "review certificate".
     function reviewFor(map: var): void {
         root.openFor(map);
@@ -200,8 +159,7 @@ Sheet {
         root.openFor(map);
         root.editing = true;
         Qt.callLater(() => {
-                         const field = root.editAuthMode === "apiKey" ? keyField : root.editAuthMode === "cookie" ? passField : root.editAuthMode
-                                       === "password" ? lonePassField : urlField;
+                         const field = root.editAuthMode === "apiKey" ? keyField : root.editAuthMode === "cookie" ? passField : urlField;
                          field.focusInput();
                      });
     }
@@ -213,6 +171,16 @@ Sheet {
             return;
         root.server = App.serverList.serverMap(root.serverId);
         root.focusFirst();
+    }
+
+    /// #201 F1: a credential picked (the chip clicked, or space on it) puts the caret in its
+    /// first field, the key or the username; "none" has none and leaves the keyboard on the
+    /// chip. Later, once the field the choice shows is laid out.
+    function pickAuth(mode: string): void {
+        root.editAuthMode = mode;
+        const field = mode === "apiKey" ? keyField : mode === "cookie" ? userField : null;
+        if (field)
+            Qt.callLater(() => field.focusInput());
     }
 
     /// Show an empty sheet in edit mode (Fig. 16's "+ add a server").
@@ -235,10 +203,7 @@ Sheet {
             "username": root.editUsername,
             "pathMapRemote": root.editRemote,
             "pathMapLocal": root.editLocal,
-            "certificateSha256": root.editCertificate,
-            // #84: what the test recognised, or the chip; the engine the server is saved with.
-            "engine": root.engine.length > 0 ? root.engine : "qbittorrent",
-            "engineChoice": root.editEngineChoice
+            "certificateSha256": root.editCertificate
         };
     }
 
@@ -251,7 +216,6 @@ Sheet {
         root.testLatency = -1;
         root.testError = "";
         root.testErrorDetail = "";
-        root.testInfo = ({});
         root.testing = false;
         root.certificateSha256 = "";
         root.certificatePinned = "";
@@ -261,15 +225,12 @@ Sheet {
 
     function _currentKey(): string {
         const username = root.editAuthMode === "cookie" ? root.editUsername : "";
-        return JSON.stringify([root.editUrl.trim(), root.editAuthMode, username, root.editSecret,
-                               root.editEngineChoice]);
+        return JSON.stringify([root.editUrl.trim(), root.editAuthMode, username, root.editSecret]);
     }
 
     // Read afresh, not through `_connectionKey`: a change handler can run before that binding
     // has caught up with the field.
     function _fieldsChanged(): void {
-        if (root._switchingAuth)
-            return;
         if (root.editing && root.tested && !root.testing && root._testedKey !== root._currentKey())
             root._resetTest();
     }
@@ -281,8 +242,6 @@ Sheet {
     function _loadBuffers(): void {
         const map = root.server ? root.server : {};
         root.editAuthMode = map.authMode ? String(map.authMode) : "none";
-        // K4: recognise first on a new server; a saved one is tested as what it is stored as.
-        root.editEngineChoice = root.isNew ? "recognise" : String(map.engine || "qbittorrent");
         root.editSecret = "";
         root.editCertificate = map.certificateSha256 ? String(map.certificateSha256) : "";
         nameField.text = map.name ? String(map.name) : "";
@@ -290,7 +249,6 @@ Sheet {
         userField.text = map.username ? String(map.username) : "";
         keyField.text = "";
         passField.text = "";
-        lonePassField.text = "";
         remoteField.text = map.pathMapRemote ? String(map.pathMapRemote) : "";
         localField.text = map.pathMapLocal ? String(map.pathMapLocal) : "";
     }
@@ -320,8 +278,7 @@ Sheet {
         if (!root._testCurrent)
             return;
         App.serverList.setProbeResult(id, root.testOk, root.testVersion, root.testApiVersion,
-                                      root.testCount, root.testLatency, root.testError,
-                                      root.testInfo.engine || "");
+                                      root.testCount, root.testLatency, root.testError);
     }
 
     function _save(): void {
@@ -331,7 +288,7 @@ Sheet {
             return;
         }
         // The button is dimmed then; this is for a caller that asks anyway.
-        if (root.saveState === "wait" || root.saveState === "refused")
+        if (root.saveState === "wait")
             return;
         root.errorText = "";
         if (root.isNew) {
@@ -371,8 +328,6 @@ Sheet {
         if (root.editAuthMode === "cookie")
             return qsTr("username and password · %1").arg(root.editUsername.length > 0 ? root.editUsername :
                                                                                          qsTr("no user"));
-        if (root.editAuthMode === "password")
-            return qsTr("password · stored in %1").arg(qsTr("libsecret"));
         return qsTr("none");
     }
 
@@ -424,7 +379,7 @@ Sheet {
                                       } : {
                                           "text": qsTr("save"),
                                           "primary": root.saveState === "save",
-                                          "disabled": root.saveState === "wait" || root.saveState === "refused"
+                                          "disabled": root.saveState === "wait"
                                       }
     ] : (root.isNew || root.isDefault ? [] : [
                                                  {
@@ -444,43 +399,16 @@ Sheet {
                                                            }
                                                        ])
     // M2: why `save` is dimmed, under it.
-    footerRight: root.saveState === "wait" ? qsTr("test first") : root.saveState === "refused"
-                                                                  ? qsTr("can't be saved") : ""
+    note: root.saveState === "wait" ? qsTr("test first") : ""
     glyph: Glyphs.server
-    hints: root.editing ? [
-        {
-            "key": "tab",
-            "label": qsTr("fields")
-        },
-        {
-            "key": "enter",
-            "label": root._enterLabel
-        }
-    ] : [
-        {
-            "key": "enter",
-            "label": root._enterLabel
-        }
-    ]
-    /// What `enter` runs: the focused button, else the primary one (review RUN-9: with the
-    /// keyboard on `test` the footer still said "enter edit").
-    readonly property string _enterLabel: {
-        // Only while open: a closed sheet asking actionButtons() (which claims its buttons)
-        // whenever another overlay's button takes the focus was a binding loop.
-        const item = root.opened ? root.Window.activeFocusItem as Button : null;
-        if (item && root.actionButtons().indexOf(item) >= 0)
-            return String(item.text);
-        const primary = root._actionFlagged("primary");
-        return primary ? String(primary.text) : "";
-    }
-    // Four equal buttons need more room than three: "switch to it" sat on its outline.
+    // Four buttons need more room than three (each as wide as its words, board 46 `.shf`).
     sheetWidth: Theme.space(root.editing || root.isNew || root.isDefault ? 460 : 520)
     subtitle: {
         const parts = [];
         if (root.editUrl.length > 0)
             parts.push(root.editUrl);
         if (root.testVersion.length > 0)
-            parts.push(qsTr("%1 %2").arg(root.engineName || qsTr("qBittorrent")).arg(root.testVersion.replace(/^v/, "")));
+            parts.push(qsTr("qBittorrent %1").arg(root.testVersion.replace(/^v/, "")));
         if (root.testApiVersion.length > 0)
             parts.push(qsTr("API %1").arg(root.testApiVersion));
         return parts.join(" · ");
@@ -498,7 +426,7 @@ Sheet {
             details: root.testProblem.details || ""
             body: root.testProblem.line || ""
             edge: "both"
-            kind: root.testProblem.kind === "waiting" || root.testProblem.kind === "unrecognised" ? "warning" : "error"
+            kind: root.testProblem.kind === "waiting" ? "warning" : "error"
             objectName: "testNotice"
             shown: root.opened && root._testFailed
             title: root.testProblem.headline || ""
@@ -543,7 +471,7 @@ Sheet {
             root.certificatePinned = pinned;
         }
 
-        function onServerTested(id: string, ok: bool, version: string, apiVersion: string, torrentCount: int, latencyMs: int, error: string, errorDetail: string, info: var): void {
+        function onServerTested(id: string, ok: bool, version: string, apiVersion: string, torrentCount: int, latencyMs: int, error: string, errorDetail: string): void {
             if (id !== root.serverId)
                 return;
             const key = root.testing ? root._pendingKey : root._connectionKey;
@@ -562,7 +490,6 @@ Sheet {
             root.testLatency = latencyMs;
             root.testError = error;
             root.testErrorDetail = errorDetail;
-            root.testInfo = info || ({});
             if (ok) {
                 root.certificateSha256 = "";
                 root.certificatePinned = "";
@@ -576,11 +503,6 @@ Sheet {
     KeyValue {
         Layout.fillWidth: true
         items: [
-            {
-                // K12: the engine, and its version from the last contact.
-                "key": qsTr("Engine"),
-                "value": root.server && root.server.engineText ? String(root.server.engineText) : qsTr("qBittorrent")
-            },
             {
                 "key": qsTr("Auth"),
                 "value": root._authValueText
@@ -663,58 +585,6 @@ Sheet {
             }
         }
 
-        // K4: which engine the test asks; "recognise" asks each in the address's order.
-        FormRow {
-            Layout.fillWidth: true
-            label: qsTr("Engine")
-
-            RowLayout {
-                spacing: Theme.space(6)
-
-                Repeater {
-                    model: [
-                        {
-                            "engine": "recognise",
-                            "text": ""
-                        },
-                        {
-                            "engine": "qbittorrent",
-                            "text": qsTr("qBittorrent")
-                        },
-                        {
-                            "engine": "transmission",
-                            "text": qsTr("Transmission")
-                        },
-                        {
-                            "engine": "deluge",
-                            "text": qsTr("Deluge")
-                        }
-                    ]
-
-                    Chip {
-                        id: engineChip
-
-                        required property var modelData
-
-                        focusable: true
-                        checkable: true
-                        objectName: "engineChip_" + engineChip.modelData.engine
-                        selected: root.editEngineChoice === engineChip.modelData.engine
-                        // After a test, "recognise: Transmission".
-                        text: engineChip.modelData.engine !== "recognise" ? engineChip.modelData.text
-                                                                          : root._recognisedEngine.length > 0 && root.editEngineChoice === "recognise"
-                                                                            ? qsTr("recognise: %1").arg(root.engineName) : qsTr("recognise")
-
-                        onClicked: root.editEngineChoice = engineChip.modelData.engine
-                    }
-                }
-
-                Item {
-                    Layout.fillWidth: true
-                }
-            }
-        }
-
         FormRow {
             Layout.fillWidth: true
             label: qsTr("Auth")
@@ -723,27 +593,37 @@ Sheet {
                 spacing: Theme.space(6)
 
                 Repeater {
-                    // K7: the engine's own sign-in choices.
-                    model: root.authModes.map(mode => ({
-                                                           "mode": mode,
-                                                           // M1: as first run says it; a cookie login is a username and password.
-                                                           "text": mode === "apiKey" ? qsTr("API key") : mode === "cookie"
-                                                                                       ? qsTr("username and password") : mode === "password"
-                                                                                         ? qsTr("password") : qsTr("none")
-                                                       }))
+                    model: [
+                        {
+                            "mode": "apiKey",
+                            "text": qsTr("API key")
+                        },
+                        {
+                            "mode": "cookie",
+                            // M1: as first run says it; a cookie login is a username and password.
+                            "text": qsTr("username and password")
+                        },
+                        {
+                            "mode": "none",
+                            "text": qsTr("none")
+                        }
+                    ]
 
                     Chip {
                         id: authChip
 
                         required property var modelData
 
-                        objectName: "authChip_" + authChip.modelData.mode
                         focusable: true
                         checkable: true
+                        // #201 F2: the choice made reads as chosen, with an accent edge; the fill alone
+                        // (no border) read as a dimmed, disabled button beside the outlined others.
+                        accent: authChip.selected
+                        objectName: "authChip-" + authChip.modelData.mode
                         selected: root.editAuthMode === authChip.modelData.mode
                         text: authChip.modelData.text
 
-                        onClicked: root.editAuthMode = authChip.modelData.mode
+                        onClicked: root.pickAuth(authChip.modelData.mode)
                     }
                 }
 
@@ -763,6 +643,7 @@ Sheet {
 
                 Layout.fillWidth: true
                 escClears: false
+                objectName: "serverKeyField"
                 echoMode: TextInput.Password
                 placeholder: root.isNew ? qsTr("paste the API key") : qsTr("unchanged")
 
@@ -785,6 +666,7 @@ Sheet {
 
                     Layout.fillWidth: true
                     escClears: false
+                    objectName: "serverUserField"
 
                     onAccepted: root.triggerPrimary()
                     onTextChanged: root.editUsername = text
@@ -806,26 +688,6 @@ Sheet {
                     onAccepted: root.triggerPrimary()
                     onTextChanged: root.editSecret = text
                 }
-            }
-        }
-
-        // Deluge's one password (K7): no user name.
-        FormRow {
-            Layout.fillWidth: true
-            label: qsTr("Password")
-            visible: root.editAuthMode === "password"
-
-            Field {
-                id: lonePassField
-
-                Layout.fillWidth: true
-                escClears: false
-                echoMode: TextInput.Password
-                objectName: "lonePassField"
-                placeholder: root.isNew ? qsTr("deluge-web's password") : qsTr("unchanged")
-
-                onAccepted: root.triggerPrimary()
-                onTextChanged: root.editSecret = text
             }
         }
 
@@ -876,8 +738,8 @@ Sheet {
             objectName: "testResultText"
             size: "small"
             text: root.testing ? qsTr("testing…") : root.tested ? (root.testOk ? qsTr(
-                                                                                    "reached %1 · %2 %3 · API %4 · %5").arg(
-                                                                                    root.editUrl).arg(root.engineName || qsTr("qBittorrent")).arg(root.testVersion.replace(
+                                                                                    "reached %1 · qBittorrent %2 · API %3 · %4").arg(
+                                                                                    root.editUrl).arg(root.testVersion.replace(
                                                                                                           /^v/, "")).arg(
                                                                                     root.testApiVersion).arg(
                                                                                     root._testCountText) : root._credentialRefused

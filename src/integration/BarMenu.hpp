@@ -1,16 +1,20 @@
 #pragma once
 
 // BarMenu — the one menu the tray and the bar widget's ⋯ both show (docs/33 §11, D10, D24;
-// docs/DECISIONS.md C13). Built once in the app: the tray builds its QMenu from these rows,
-// StatusWriter writes them into status.json (`servers`, `menu`) for the widget, and
-// StatusBus's `Invoke`/`SwitchServer` come back here. A row added once shows in both.
+// docs/DECISIONS.md C13), and the window's mark menu too (C24 H9). Built once in the app: the
+// tray builds its QMenu from these rows, StatusWriter writes them into status.json (`servers`,
+// `menu`) for the widget, App hands them to the window as `appMenuRows`, and StatusBus's
+// `Invoke`/`SwitchServer` and App's `invokeAppMenu` come back here. A row added once shows in
+// all three.
 //
 // Rows, in order:
 //   servers         a caption and one radio row per server, then a separator; only with two
 //                   servers or more (D19: one server never offers to switch)
 //   alt-speed       a check row: the alternative limits, by their word (docs/31: burst, turtle)
-//   stop-all        stop every torrent
-//   start-all       start every torrent
+//   pause           Pause Torrents: stop what runs and hold it (core::PauseHold), while no
+//                   pause is held on the current server
+//   resume          Resume Torrents in its place while one is: start exactly those again
+//                   (DECISIONS C36 M10, in place of C13's stop all and start all)
 //   ---
 //   add             the app's add sheet
 //   settings        the app's settings
@@ -18,15 +22,24 @@
 //   quit            the app's last row (reverses docs/07 §1 "no quit", board 33 §11 change 2)
 //
 // The tray adds its own "show omaseed" and two figure rows above them; the widget has its head
-// and Now for those (board 33 T0).
+// and Now for those (board 33 T0). The window adds its head (version, server) and a block of
+// its own rows before quit, each with its key (board 46 `menuHtml("app")`).
 //
 // Each row has two labels: `label`, the tray's words (lower case, as the tray's menu always
 // was), and `title`, the shell's card style the widget draws (Title Case, docs/20 N2). A
 // server's row carries `detail`, what it shows at its right ("4 torrents", "sign-in
 // refused"), and `urgent` when that is a failure.
 //
-// Nothing here knows the app: App feeds the servers and the alt-speed state, and answers
-// `triggered` and `serverChosen`.
+// Nothing here knows the app: App feeds the servers, the alt-speed state and whether a pause is
+// held, and answers `triggered` and `serverChosen`.
+//
+// `invoke` takes `pause` whichever row shows (a second pause adds what runs now, PauseHold)
+// and `resume` only while a pause is held. While a pause or a resume is still on its way the
+// row is off and neither is taken: the row turns to Resume as soon as the hold is recorded,
+// before the stop is answered, and a resume then would only be refused. `stop-all` and
+// `start-all`, the ids the menu had before C36 M10 and STATUS.md documented, are kept as
+// aliases of `pause` and `resume`, so a script written against them keeps working;
+// `triggered` carries the new id.
 
 #include <QJsonArray>
 #include <QList>
@@ -72,8 +85,11 @@ public:
         bool operator==(const Server &other) const = default;
     };
 
-    /// The menu ids `Invoke` takes, besides `server:<id>`.
+    /// The menu ids `Invoke` takes, besides `server:<id>` and the two aliases.
     static QStringList actionIds();
+    /// The new id an old one stands for (`stop-all` → `pause`, `start-all` → `resume`); any
+    /// other id as it is.
+    static QString canonicalId(const QString &id);
     /// "action" · "check" · "radio" · "caption" · "separator".
     static QString kindName(Kind kind);
     /// "4 torrents", "1 torrent", "sign-in refused", "down", "first sync", "" — a server
@@ -89,8 +105,12 @@ public:
     /// The alternative limits: on or off, and their words (`label` the tray's, "burst · until
     /// 07:00"; `title` the widget's, "Burst · until 07:00").
     void setAltSpeed(bool on, const QString &label, const QString &title);
-    /// Alt-speed, stop all and start all need a server that answers; the rest never do.
+    /// Alt-speed, pause and resume need a server that answers; the rest never do.
     void setServerAnswering(bool answering);
+    /// A pause is held on the current server: the row offers Resume Torrents (C36 M10).
+    void setPauseHeld(bool held);
+    /// A pause or a resume is on its way (PauseHold::busy): the row is off until it ends.
+    void setPauseBusy(bool busy);
 
     // --- what the tray and the status file read -------------------------------------------
     QList<Row> rows() const;
@@ -108,7 +128,7 @@ public:
 Q_SIGNALS:
     /// Any row moved: a label, a check, a server.
     void changed();
-    /// add · alt-speed · stop-all · start-all · settings · quit
+    /// add · alt-speed · pause · resume · settings · quit
     void triggered(const QString &id);
     /// A server row: the app switches to it (App::switchServer).
     void serverChosen(const QString &serverId);
@@ -119,6 +139,8 @@ private:
     QString m_altLabel;
     QString m_altTitle;
     bool m_answering = false;
+    bool m_pauseHeld = false;
+    bool m_pauseBusy = false;
 };
 
 } // namespace omaseed::integration

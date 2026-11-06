@@ -87,6 +87,7 @@ private slots:
     void loadingAnotherTorrentStartsOver();
     void padFilesNeverShow();
     void filesTooBigForFat32AreNamedAndSkipped();
+    void extrasAreSaidAndMarkedNeverUnticked();
 };
 
 void TestAddFilesModel::filesTooBigForFat32AreNamedAndSkipped()
@@ -111,6 +112,64 @@ void TestAddFilesModel::filesTooBigForFat32AreNamedAndSkipped()
     QVERIFY(model.wantedFilesOfAtLeast(biggest).isEmpty());
     model.skipFilesOfAtLeast(biggest); // nothing left to skip: no change
     QCOMPARE(changed.count(), 1);
+}
+
+void TestAddFilesModel::extrasAreSaidAndMarkedNeverUnticked()
+{
+    // #63 (DECISIONS C28): the line under the tree and each extra's meta; nothing unticked.
+    constexpr qint64 kMiB = 1024 * 1024;
+    const QList<TorrentFileEntry> files{
+        {QStringLiteral("Field Recordings/01 Rain.flac"), 400 * kMiB},
+        {QStringLiteral("Field Recordings/02 Wind.flac"), 380 * kMiB},
+        {QStringLiteral("Field Recordings/release.nfo"), 4096},
+        {QStringLiteral("Field Recordings/Sample/rain-sample.flac"), 12 * kMiB - 4096},
+    };
+    AddFilesModel model;
+    model.load(files);
+    QCOMPARE(model.extraIds(), QList<int>({2, 3}));
+    QCOMPARE(model.extrasText(),
+             QStringLiteral("2 extras: an NFO and a sample (12.0 MB). Ticked, so the torrent "
+                            "seeds whole."));
+    QCOMPARE(model.wantedCount(), 4);
+    QVERIFY(!model.isCustomised());
+    const int nfo = rowNamed(model, QStringLiteral("release.nfo"));
+    const int rain = rowNamed(model, QStringLiteral("01 Rain.flac"));
+    const int sampleFolder = rowNamed(model, QStringLiteral("Sample/"));
+    QVERIFY(nfo >= 0 && rain >= 0 && sampleFolder >= 0);
+    QCOMPARE(roleAt(model, nfo, "extra").toBool(), true);
+    QCOMPARE(roleAt(model, rain, "extra").toBool(), false);
+    QCOMPARE(roleAt(model, sampleFolder, "extra").toBool(), false); // files only
+    QCOMPARE(roleAt(model, rowNamed(model, QStringLiteral("rain-sample.flac")), "extra").toBool(),
+             true);
+
+    // Skipped by hand: still named, no longer "ticked".
+    QSignalSpy changed(&model, &AddFilesModel::choicesChanged);
+    model.toggleWanted(nfo);
+    QCOMPARE(changed.count(), 1);
+    QCOMPARE(model.extrasText(), QStringLiteral("2 extras: an NFO and a sample (12.0 MB)."));
+    model.toggleWanted(nfo);
+    QVERIFY(model.extrasText().endsWith(QStringLiteral("Ticked, so the torrent seeds whole.")));
+
+    // One, and three kinds in the order the line names them.
+    model.load({files.at(0), files.at(1), files.at(2)});
+    QCOMPARE(model.extrasText(),
+             QStringLiteral("1 extra: an NFO (4 KB). Ticked, so the torrent seeds whole."));
+    model.load({{QStringLiteral("disc.iso"), 900 * kMiB},
+                {QStringLiteral("a.nfo"), 1024},
+                {QStringLiteral("b.nfo"), 1024},
+                {QStringLiteral("checksums.sfv"), 1024},
+                {QStringLiteral("Visit our site.url"), 1024}});
+    QCOMPARE(model.extrasText(),
+             QStringLiteral("4 extras: 2 NFOs, a checksum file and an advert (4 KB). Ticked, "
+                            "so the torrent seeds whole."));
+
+    // None: no line; a cleared sheet has none either.
+    model.load({files.at(0), files.at(1)});
+    QVERIFY(model.extrasText().isEmpty());
+    model.load(files);
+    model.clear();
+    QVERIFY(model.extrasText().isEmpty());
+    QVERIFY(model.extraIds().isEmpty());
 }
 
 void TestAddFilesModel::loadsTheTreeAllNormal()

@@ -161,6 +161,30 @@ quint32 Notifier::notifyCompleted(const QString &hash,
                       QStringLiteral("show"));
 }
 
+quint32 Notifier::notifyAdded(const QString &hash,
+                              const QString &name,
+                              const QString &sizeText,
+                              const QString &category)
+{
+    const QString key = QStringLiteral("added|%1").arg(hash);
+    QStringList parts{name};
+    if (!sizeText.isEmpty())
+        parts << sizeText;
+    if (!category.isEmpty())
+        parts << category;
+    const QStringList actions{QStringLiteral("show"), QStringLiteral("Show")};
+
+    return sendNotice(key,
+                      QStringLiteral("added"),
+                      hash,
+                      QStringLiteral("Torrent added"),
+                      parts.join(QStringLiteral(" · ")),
+                      actions,
+                      kUrgencyLow,
+                      QStringLiteral("transfer"),
+                      QStringLiteral("show"));
+}
+
 quint32 Notifier::notifyErrored(const QString &hash,
                                 const QString &name,
                                 const QString &headline,
@@ -287,6 +311,35 @@ quint32 Notifier::notifyMove(const QString &serverId, const QString &summary, co
                       actions,
                       kUrgencyNormal,
                       QStringLiteral("transfer"),
+                      QStringLiteral("show"));
+}
+
+quint32 Notifier::notifyCreate(const QString &serverId, const QString &summary, const QString &body)
+{
+    const QStringList actions{QStringLiteral("show"), QStringLiteral("Show")};
+    return sendNotice(QStringLiteral("create|%1").arg(serverId),
+                      QStringLiteral("create"),
+                      serverId,
+                      summary,
+                      body,
+                      actions,
+                      kUrgencyNormal,
+                      QStringLiteral("transfer"),
+                      QStringLiteral("show"));
+}
+
+quint32
+Notifier::notifyAltSpeed(const QString &serverId, const QString &summary, const QString &body)
+{
+    const QStringList actions{QStringLiteral("show"), QStringLiteral("Show")};
+    return sendNotice(QStringLiteral("speed|%1").arg(serverId),
+                      QStringLiteral("speed"),
+                      serverId,
+                      summary,
+                      body,
+                      actions,
+                      kUrgencyLow,
+                      QString(),
                       QStringLiteral("show"));
 }
 

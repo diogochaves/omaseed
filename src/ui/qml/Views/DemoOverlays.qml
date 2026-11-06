@@ -20,10 +20,17 @@ Window {
     visible: true
     width: Theme.space(1360)
 
+    // Opens at that size and keeps it, as Main.qml does: Theme.space() follows the base size
+    // live (#156), and a demo window left bound resized itself on a change (#184).
+    Component.onCompleted: {
+        root.width = root.width;
+        root.height = root.height;
+    }
+
     Rectangle {
         anchors.fill: parent
         border.color: Theme.accent
-        border.width: 1
+        border.width: Theme.edgeWidth
         color: "transparent"
         z: 100
     }
@@ -48,18 +55,8 @@ Window {
             }
         ]
         anchors.fill: parent
-        footerRight: qsTr("server: home")
+        note: qsTr("server: home")
         glyph: Glyphs.folder
-        hints: [
-            {
-                "key": "tab",
-                "label": qsTr("fields")
-            },
-            {
-                "key": "enter",
-                "label": qsTr("move")
-            }
-        ]
         sheetWidth: Theme.space(420)
         subtitle: qsTr("1 torrent · 1.31 GB moves with it")
         title: qsTr("Set location")

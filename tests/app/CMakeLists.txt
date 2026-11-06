@@ -42,6 +42,20 @@ omaseed_add_test(tst_printonly
 )
 add_dependencies(tst_printonly omaseed)
 
+# docs/DECISIONS.md C30 F7: every text role on every ground, in every theme of
+# tests/fixtures/themes and every built-in skin (#171), as the built omaseed resolves them
+# (`--theme-roles --skin`, offscreen, no window). A pair under 4.5:1 fails here.
+find_package(Python3 COMPONENTS Interpreter)
+if(Python3_FOUND)
+    add_test(
+        NAME contrast_board_check
+        COMMAND ${Python3_EXECUTABLE} "${PROJECT_SOURCE_DIR}/scripts/dev/contrast-board.py"
+                --check "$<TARGET_FILE:omaseed>"
+                --themes-root "${PROJECT_SOURCE_DIR}/tests/fixtures/themes"
+    )
+    set_tests_properties(contrast_board_check PROPERTIES TIMEOUT 120)
+endif()
+
 # docs/DECISIONS.md C20 (#107): `p` stops an errored torrent and omaseed remembers the stop.
 omaseed_add_test(tst_app_errored
     SOURCES tst_app_errored.cpp
@@ -51,6 +65,13 @@ omaseed_add_test(tst_app_errored
 # #84 (C25 K4–K9): a server's test recognises its engine, against FakeEngines.
 omaseed_add_test(tst_app_engines
     SOURCES tst_app_engines.cpp
+    LIBRARIES omaseed::app omaseed::core omaseed::integration Qt6::Network
+)
+
+# #180 (DECISIONS C17 D1–D2): the skipped files' reading follows the server's file list, against a
+# small fake server whose files sit in a temporary folder.
+omaseed_add_test(tst_app_skipped
+    SOURCES tst_app_skipped.cpp
     LIBRARIES omaseed::app omaseed::core omaseed::integration Qt6::Network
 )
 
@@ -116,12 +137,21 @@ omaseed_add_test(tst_app_files_live LIVE
     DEFINES OMASEED_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../fixtures"
 )
 
+# DECISIONS C28 (#159): a tick that doesn't fit on a FAT loop image waits, through App, live
+# against the :8081 playground (udisks mounts the image as the user).
+omaseed_add_test(tst_app_tickroom_live LIVE
+    SOURCES tst_app_tickroom_live.cpp
+    LIBRARIES omaseed::app omaseed::core omaseed::integration
+)
+
 # docs/16's settings against a real qBittorrent the test starts and throws away (never the
 # :8081/:8082 servers): every row's keys, the Web UI cut-offs, the API key rotation. Skips
 # without qbittorrent-nox. Live for the lock: it starts servers and runs for a while.
+# The schema imports Omaseed.Kit (the speed presets' Glyphs): the Kit plugin is linked in.
 omaseed_add_test(tst_qbtsettings_live LIVE
     SOURCES tst_qbtsettings_live.cpp
     LIBRARIES omaseed::app omaseed::core omaseed::integration Qt6::Network Qt6::Qml
+              omaseed-kitplugin
     DEFINES OMASEED_QML_DIR="${PROJECT_SOURCE_DIR}/src/ui/qml"
             OMASEED_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../fixtures"
 )
@@ -131,6 +161,12 @@ omaseed_add_test(tst_statusservice
     SOURCES tst_statusservice.cpp
     LIBRARIES omaseed::app omaseed::core omaseed::integration
     DEFINES OMASEED_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../fixtures"
+)
+
+# #218 (DECISIONS C35 W1, W2, W6): where an add from outside the window opens, and the raise.
+omaseed_add_test(tst_addroute
+    SOURCES tst_addroute.cpp
+    LIBRARIES omaseed::app omaseed::core omaseed::integration
 )
 
 # #13: AddSources and the alt-speed calls against the :8081 playground (skips without it).
@@ -143,6 +179,18 @@ omaseed_add_test(tst_statusservice_live LIVE
 # #44 (docs/29): a magnet's files before the add, against a small fake qBittorrent.
 omaseed_add_test(tst_app_magnet
     SOURCES tst_app_magnet.cpp
+    LIBRARIES omaseed::app omaseed::core omaseed::integration Qt6::Network
+)
+
+# #146: creating a torrent from a folder, against a fake qBittorrent.
+omaseed_add_test(tst_app_create
+    SOURCES tst_app_create.cpp
+    LIBRARIES omaseed::app omaseed::core omaseed::integration Qt6::Network Qt6::Gui
+)
+
+# #145: search, against a fake qBittorrent with invented plugins.
+omaseed_add_test(tst_app_search
+    SOURCES tst_app_search.cpp
     LIBRARIES omaseed::app omaseed::core omaseed::integration Qt6::Network
 )
 

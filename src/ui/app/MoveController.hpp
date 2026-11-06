@@ -168,13 +168,19 @@ public:
     Q_INVOKABLE QVariantList carryRows() const;
     /// The same, as text for the clipboard.
     Q_INVOKABLE QString carryText() const;
-    /// The scope line's words for a picked folder (F1).
+    /// A picked folder's sentence under the title (C24 H5, board 46; C15 M1's scope line was
+    /// F1's): count, bytes on disk, save paths, loose files, its path; while it moves, the move.
     Q_INVOKABLE QString folderLine(const QString &path) const;
     /// The folder a move starts from when nothing is picked: the save path of `hash`.
     Q_INVOKABLE QString folderOf(const QString &hash) const;
     /// Starts the move (or queues it behind the running one, M18). False when the plan
     /// can't move.
     Q_INVOKABLE bool start(const QString &root, const QString &newPath, bool carry);
+    /// DECISIONS C28 (#176): the next start (any kind) first deletes these left-out targets,
+    /// each only while the plan still finds it an empty file no torrent owns
+    /// (MovePlan::replaceable()), then plans again and moves; the move's record keeps what
+    /// went (`replaced`), for its line in the log. A start that follows forgets them either way.
+    Q_INVOKABLE void replaceNext(const QStringList &paths) { m_replace = paths; }
 
     // ---- a selection (board 43, C16) ----------------------------------------------------------
 
@@ -190,9 +196,12 @@ public:
     /// reason goes out through note().
     Q_INVOKABLE bool
     startSelection(const QStringList &hashes, const QString &newPath, const QString &rule);
-    /// L11: the sheet for moving the last job's torrents back, each to where it was.
-    Q_INVOKABLE QVariantMap planBack();
-    Q_INVOKABLE bool startBack();
+    /// L11: the sheet for moving the last job's torrents back, each to where it was. With
+    /// `carry` (the sheet's tick, C32 D19), the loose files the move carried go back too: the
+    /// sheet's `carryBack` {text, note, rows [{name, detail, verdict, kind}], count, total}
+    /// says which, `moveText` counts them, `footNote` names the list.
+    Q_INVOKABLE QVariantMap planBack(bool carry = true);
+    Q_INVOKABLE bool startBack(bool carry = true);
 
     // ---- after the summary closes (board 45 D7–D8, C18, #133) --------------------------------
 
@@ -200,8 +209,12 @@ public:
     /// (the details' "this one only"). The sheet's words, as planBack()'s; a torrent not where
     /// that move put it stays, named with the later move that took it ("move that one back
     /// first": a check line's `backFirst`) or as moved outside omaseed.
-    Q_INVOKABLE QVariantMap planBackOf(const QString &id, const QString &only = QString());
-    Q_INVOKABLE bool startBackOf(const QString &id, const QString &only = QString());
+    /// `carry` as planBack()'s; "this one only" carries no loose files (C32 D19).
+    Q_INVOKABLE QVariantMap planBackOf(const QString &id,
+                                       const QString &only = QString(),
+                                       bool carry = true);
+    Q_INVOKABLE bool
+    startBackOf(const QString &id, const QString &only = QString(), bool carry = true);
     /// The torrent's last move while the history keeps it, for its details: id, title, when,
     /// from, to, others (the other torrents in it), carried ("loose files too" or ""), canBack
     /// (some of the move can go back), canBackThis (this one can); {} for none.
@@ -321,14 +334,27 @@ private:
     QJsonObject backSpec() const;
     /// C18 D7: a history record's move back, `only` one torrent when given.
     QJsonObject backSpecOf(const QString &id, const QString &only) const;
+    /// C32 D19: a move back of `record` carries back what it carried (`carryFrom`, `carryTo`,
+    /// `carryFiles`: LooseCarry::backList() now, `carry` when one can go), when this machine
+    /// sees the disks.
+    void addCarryBack(QJsonObject *spec, const core::MoveRecord &record) const;
+    /// The sheet's words for that (planBack()'s `carryBack`), {} when there is nothing to carry.
+    QVariantMap carryBackWords(const QJsonObject &spec);
+    /// Where the job's loose files are carried from and to (a move back's run the other way).
+    QString carrySource() const;
+    QString carryTarget() const;
     /// The library's save path by hash, for MoveHistory::check().
     QHash<QString, QString> savePaths() const;
     /// The record of the job that ran last (by its start), "" for none.
     QString recordIdOfJob() const;
     /// The job landed: its record into the history, or a move back out of it.
     void recordFinished();
+    /// M17 (#203): the folders the torrents' own move left empty at its source, removed.
+    void removeEmptied();
     void saveHistory();
     bool startSpec(const QJsonObject &spec);
+    /// C28 (#176): deletes those of `paths` that `plan` finds replaceable; what went.
+    QStringList removeReplaced(const core::MovePlan &plan, const QStringList &paths) const;
     void tryPending();
     QJsonObject replan(const QJsonObject &spec) const;
     void rememberDestination(const QString &path);
@@ -360,6 +386,7 @@ private:
     core::MoveHistory m_history; ///< C18 D7–D8, the server's
     int m_historyRevision = 0;
     QJsonObject m_pending;  ///< a start waiting for file lists or listings
+    QStringList m_replace;  ///< C28 (#176): replaceNext()'s, for the next start
     QDateTime m_restoredAt; ///< J4's line shows for a while after a restore
 
     // A shown job's summary, as it read at its end, kept while the move after it runs unseen

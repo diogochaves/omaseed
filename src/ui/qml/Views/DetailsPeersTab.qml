@@ -39,12 +39,14 @@ Item {
     // fit the docked column (Fig. 4 is a 400 px mock, the pane is 340). Six columns in 340
     // means the two flexible ones elide; the address gets the larger share of what is left,
     // because it is what identifies the row for `b` ban and `y` copy.
-    readonly property int codeWidth: Theme.space(26)
-    readonly property int speedWidth: Theme.space(64)
+    // The fixed columns are also at least their caption's whole width (DetailsHeader.fitWidth),
+    // for a skin's wider caption voice (#171).
+    readonly property int codeWidth: Math.max(Theme.space(26), codeHead.fitWidth)
+    readonly property int speedWidth: Math.max(Theme.space(64), downHead.fitWidth, upHead.fitWidth)
     readonly property int addressWidth: root.width >= Theme.space(560) ? Theme.space(160)
                                                                        : Theme.space(100)
     readonly property bool showCode: root.width >= Theme.space(480)
-    readonly property int doneWidth: Theme.space(40)
+    readonly property int doneWidth: Math.max(Theme.space(40), doneHead.fitWidth)
 
     function ensureVisible() {
         list.positionViewAtIndex(root.cursorIndex, ListView.Contain);
@@ -70,6 +72,8 @@ Item {
         }
 
         DetailsHeader {
+            id: codeHead
+
             Layout.preferredWidth: root.codeWidth
             clickable: false
             text: qsTr("CC")
@@ -85,6 +89,8 @@ Item {
         }
 
         DetailsHeader {
+            id: downHead
+
             Layout.preferredWidth: root.speedWidth
             alignRight: true
             accessibleName: qsTr("Download speed")
@@ -93,6 +99,8 @@ Item {
         }
 
         DetailsHeader {
+            id: upHead
+
             Layout.preferredWidth: root.speedWidth
             alignRight: true
             accessibleName: qsTr("Upload speed")
@@ -101,6 +109,8 @@ Item {
         }
 
         DetailsHeader {
+            id: doneHead
+
             Layout.preferredWidth: root.doneWidth
             alignRight: true
             clickable: false

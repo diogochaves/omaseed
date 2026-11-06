@@ -20,6 +20,16 @@ namespace {
 
 ThemeReader *s_defaultReader = nullptr;
 
+/// The reader setDefaultReader() set; when nobody wired one up (the QML tests, a tool), one
+/// reading the desktop's theme directly. Deliberately not owned by anything; it lives as long
+/// as the process does.
+ThemeReader *defaultReader()
+{
+    if (!s_defaultReader)
+        s_defaultReader = new ThemeReader;
+    return s_defaultReader;
+}
+
 /// A shell.toml number, or the fallback when the key is absent or not a number.
 qreal number(const QHash<QString, QString> &shell, const QString &key, qreal fallback)
 {
@@ -138,6 +148,10 @@ QString Theme::defaultEventSocket()
     return HyprlandEvents::defaultSocketPath();
 }
 
+Theme::Theme()
+    : Theme(defaultReader())
+{}
+
 Theme::Theme(ThemeReader *reader, QObject *parent)
     : Theme(reader, Hyprland{}, parent)
 {}
@@ -147,9 +161,19 @@ Theme::Theme(ThemeReader *reader, const Hyprland &hyprland, QObject *parent)
     , m_reader(reader)
     , m_font(new ThemeFont(this))
     , m_hyprland(hyprland)
+    , m_on(new ThemeGrounds(this))
+    , m_skin(new ThemeSkin(this))
 {
+    const QString skin = m_reader ? m_reader->skinName() : SkinReader::requestedName();
+    m_skin->set(SkinReader::builtIn(skin), skin);
+    if (m_reader)
+        m_skin->setSystemFonts(m_reader->skinSystemFonts());
+    resolveGrounds(); // the bundled palette's, until a reader gives one
     if (m_reader) {
         connect(m_reader, &ThemeReader::changed, this, &Theme::adopt);
+        // A switch in Settings, or the desktop's skin turning on or off, repaints at once
+        // (ARCHITECTURE theme rule 8), with no restart.
+        connect(m_reader, &ThemeReader::skinChanged, this, &Theme::followSkin);
         adopt();
     }
     // The ground starts at the shell's default; only setWindowAlpha() (the Appearance
@@ -183,21 +207,11 @@ void Theme::setDefaultReader(ThemeReader *reader)
     s_defaultReader = reader;
 }
 
-Theme *Theme::createForEngine(QQmlEngine *engine)
-{
-    Q_UNUSED(engine);
-    if (!s_defaultReader) {
-        // Nobody wired one up (the QML tests, a tool): read the desktop's theme directly.
-        // Deliberately not owned by anything; it lives as long as the process does.
-        s_defaultReader = new ThemeReader;
-    }
-    return new Theme(s_defaultReader); // the QML engine takes ownership
-}
-
 void Theme::adopt()
 {
     const ColorMap palette = m_reader->palette();
     const QHash<QString, QString> shell = m_reader->shellValues();
+    const qreal spaceScaleBefore = spaceScale();
 
     m_background = colorOf(palette, QStringLiteral("background"), m_background);
     m_foreground = colorOf(palette, QStringLiteral("foreground"), m_foreground);
@@ -247,6 +261,14 @@ void Theme::adopt()
     m_borderHover = number(shell, QStringLiteral("controls.hover-cursor-border-alpha"), 0.25);
     m_defaultWindowAlpha = std::clamp(
         number(shell, QStringLiteral("launcher.background-alpha"), 0.95), qreal(0), qreal(1));
+    // C30 F6: a theme whose text reads on nothing at a fill's alpha (everforest: its foreground
+    // and bright foreground are one colour) gets that fill held where the text still reads.
+    m_fillCap = fillCapFor(m_foreground, m_foreground, m_brightForeground, m_background);
+    m_fillSelectedCursor = kFillSelectedCursor;
+    for (qreal *alpha :
+         {&m_fillIdle, &m_fillHover, &m_fillSelected, &m_fillPressed, &m_fillSelectedCursor})
+        *alpha = std::min(*alpha, m_fillCap);
+    resolveGrounds();
 
     // The font family is fontconfig's answer for "monospace", which a theme change can move.
     if (QGuiApplication::instance())
@@ -254,6 +276,154 @@ void Theme::adopt()
 
     m_font->apply(shell);
     Q_EMIT changed();
+    if (!qFuzzyCompare(spaceScale(), spaceScaleBefore))
+        Q_EMIT spaceScaleChanged();
+}
+
+void Theme::resolveGrounds()
+{
+    // Once per theme change, every role on every ground (C30 F7): a binding reads the
+    // resolved colour, it never lifts one itself.
+    ThemeInk::Roles window;
+    window[ThemeInk::Foreground] = m_foreground;
+    window[ThemeInk::DimForeground] = m_dimForeground;
+    window[ThemeInk::BrightForeground] = m_brightForeground;
+    window[ThemeInk::Accent] = m_accent;
+    window[ThemeInk::Red] = m_red;
+    window[ThemeInk::Yellow] = m_yellow;
+    window[ThemeInk::Orange] = m_orange;
+    window[ThemeInk::Green] = m_green;
+    window[ThemeInk::Cyan] = m_cyan;
+    window[ThemeInk::Blue] = m_blue;
+    window[ThemeInk::Magenta] = m_magenta;
+
+    m_on->window()->resolve(m_foreground, 0, m_background, window);
+    // Every other ground as the skin paints it, Omarchy's where it says nothing, each after
+    // the ground it lies over (the console skin's design note: its tiers are C30 grounds, so
+    // the floor covers them as it does Omarchy's fills).
+    const QHash<QString, SkinGround> recipes = SkinReader::groundsOf(m_skin->skin());
+    for (const QString &name : SkinReader::groundOrder(recipes)) {
+        const SkinGround &recipe = recipes[name];
+        const ThemeInk *over = m_on->byName(recipe.over);
+        const QColor under = over && over != m_on->window() ? over->ground() : m_background;
+        m_on->byName(name)->resolve(skinColor(recipe.tint),
+                                    recipe.shellAlpha ? shellAlpha(name) : recipe.alpha,
+                                    under,
+                                    window);
+    }
+}
+
+void Theme::setSkin(const QString &name)
+{
+    const Skin before = m_skin->skin();
+    const int radiusBefore = cornerRadius();
+    m_skin->set(SkinReader::builtIn(name), name);
+    if (m_skin->skin() == before)
+        return;
+    resolveGrounds();
+    Q_EMIT changed();
+    if (cornerRadius() != radiusBefore)
+        Q_EMIT cornerRadiusChanged();
+}
+
+int Theme::cornerRadius() const
+{
+    // The skin's `radius`: a number of px, or "hyprland" (a string) for the compositor's.
+    const QVariant radius = m_skin->skin().tokens.value(QStringLiteral("radius"));
+    if (radius.typeId() == QMetaType::Int)
+        return radius.toInt();
+    return m_cornerRadius;
+}
+
+void Theme::followSkin()
+{
+    m_skin->setSystemFonts(m_reader->skinSystemFonts());
+    setSkin(m_reader->skinName());
+}
+
+qreal Theme::shellAlpha(const QString &ground) const
+{
+    static const QHash<QString, qreal Theme::*> fills{
+        {QStringLiteral("idle"), &Theme::m_fillIdle},
+        {QStringLiteral("hover"), &Theme::m_fillHover},
+        {QStringLiteral("cursor"), &Theme::m_fillHover},
+        {QStringLiteral("selected"), &Theme::m_fillSelected},
+        {QStringLiteral("selectedCursor"), &Theme::m_fillSelectedCursor},
+        {QStringLiteral("pressed"), &Theme::m_fillPressed},
+        {QStringLiteral("danger"), &Theme::m_fillSelected},
+        {QStringLiteral("ticked"), &Theme::m_fillPressed},
+        {QStringLiteral("accentIdle"), &Theme::m_fillIdle},
+        {QStringLiteral("blockIdle"), &Theme::m_fillIdle},
+        {QStringLiteral("blockHover"), &Theme::m_fillHover},
+        {QStringLiteral("blockSelected"), &Theme::m_fillSelected},
+        {QStringLiteral("blockSelectedCursor"), &Theme::m_fillSelectedCursor},
+        {QStringLiteral("blockPressed"), &Theme::m_fillPressed},
+        {QStringLiteral("hoverIdle"), &Theme::m_fillIdle},
+        {QStringLiteral("hoverHover"), &Theme::m_fillHover},
+        {QStringLiteral("hoverSelected"), &Theme::m_fillSelected},
+        {QStringLiteral("hoverPressed"), &Theme::m_fillPressed},
+        // DECISIONS C32 D6 a: the alternative speeds' chip, the state's colour at 18 %.
+        {QStringLiteral("turtle"), &Theme::m_fillSelected},
+        {QStringLiteral("burst"), &Theme::m_fillSelected},
+    };
+    if (const auto fill = fills.constFind(ground); fill != fills.constEnd())
+        return this->**fill;
+    if (ground == QLatin1String("warning"))
+        return warningTintAlpha();
+    if (ground == QLatin1String("attention"))
+        return attentionTintAlpha();
+    if (ground == QLatin1String("highlight"))
+        return highlightAlpha();
+    if (ground == QLatin1String("picked"))
+        return pickedTintAlpha();
+    return 0; // the panel: the window's own ground
+}
+
+QColor Theme::skinColor(const QString &role) const
+{
+    static const QHash<QString, QColor Theme::*> roles{
+        {QStringLiteral("background"), &Theme::m_background},
+        {QStringLiteral("foreground"), &Theme::m_foreground},
+        {QStringLiteral("dimForeground"), &Theme::m_dimForeground},
+        {QStringLiteral("brightForeground"), &Theme::m_brightForeground},
+        {QStringLiteral("accent"), &Theme::m_accent},
+        {QStringLiteral("muted"), &Theme::m_muted},
+        {QStringLiteral("selection"), &Theme::m_selection},
+        {QStringLiteral("red"), &Theme::m_red},
+        {QStringLiteral("yellow"), &Theme::m_yellow},
+        {QStringLiteral("orange"), &Theme::m_orange},
+        {QStringLiteral("green"), &Theme::m_green},
+        {QStringLiteral("cyan"), &Theme::m_cyan},
+        {QStringLiteral("blue"), &Theme::m_blue},
+        {QStringLiteral("magenta"), &Theme::m_magenta},
+        {QStringLiteral("brown"), &Theme::m_brown},
+        {QStringLiteral("darkBackground"), &Theme::m_darkBackground},
+        {QStringLiteral("darkerBackground"), &Theme::m_darkerBackground},
+        {QStringLiteral("lighterBackground"), &Theme::m_lighterBackground},
+    };
+    // A skin role is the theme role the skin casts in it.
+    const QString name = m_skin->skin().roles.value(role, role);
+    const auto it = roles.constFind(name);
+    return it == roles.constEnd() ? QColor() : this->**it;
+}
+
+qreal Theme::fillCapFor(const QColor &tint,
+                        const QColor &foreground,
+                        const QColor &bright,
+                        const QColor &background)
+{
+    const QColor &best = contrastRatio(bright, background) > contrastRatio(foreground, background)
+                             ? bright
+                             : foreground;
+    if (contrastRatio(best, background) < kTextContrastFloor)
+        return 1.0;
+    // Board 50's measure: 0.005 steps from the bare window up, the last one that still reads.
+    int steps = 0;
+    while (steps < 200 &&
+           contrastRatio(best, ThemeInk::over(tint, background, (steps + 1) * 0.005)) >=
+               kTextContrastFloor)
+        ++steps;
+    return steps >= 200 ? 1.0 : steps * 0.005;
 }
 
 Theme::WindowCorners Theme::windowCorners(const QByteArray &rounding,
@@ -316,8 +486,10 @@ void Theme::askHyprland(const QString &option, std::function<void(const QByteArr
 void Theme::applyCorners(const WindowCorners &corners)
 {
     if (corners.radius != m_cornerRadius) {
+        const int before = cornerRadius();
         m_cornerRadius = corners.radius;
-        Q_EMIT cornerRadiusChanged();
+        if (cornerRadius() != before)
+            Q_EMIT cornerRadiusChanged();
     }
     if (corners.edge != m_windowEdge) {
         m_windowEdge = corners.edge;
@@ -426,10 +598,30 @@ QJsonObject Theme::rolesJson(const Theme &theme)
     QJsonObject roles;
     roles.insert(QStringLiteral("theme"), theme.themeName());
     roles.insert(QStringLiteral("mode"), theme.mode());
+    // #171: the skin whose grounds these are, and why it is Omarchy's when another was asked.
+    roles.insert(QStringLiteral("skin"), theme.skin()->name());
+    if (!theme.skin()->reason().isEmpty())
+        roles.insert(QStringLiteral("skinReason"), theme.skin()->reason());
     roles.insert(QStringLiteral("source"), theme.m_reader ? theme.m_reader->source() : QString());
     roles.insert(QStringLiteral("colors"), colors);
     roles.insert(QStringLiteral("alphas"), alphas);
     roles.insert(QStringLiteral("windowAlpha"), theme.windowAlpha());
+
+    // C30 F7: every role on every ground, as `Theme.on` holds them, for the contrast checks.
+    QJsonObject grounds;
+    for (const ThemeInk *ink : theme.on()->all()) {
+        QJsonObject inkColors;
+        for (int role = 0; role < ThemeInk::RoleCount; ++role)
+            inkColors.insert(QString::fromLatin1(ThemeInk::roleNames()[role]),
+                             hexColor(ink->role(static_cast<ThemeInk::Role>(role))));
+        QJsonObject ground;
+        ground.insert(QStringLiteral("alpha"), ink->alpha());
+        ground.insert(QStringLiteral("fill"), hexColor(ink->fill()));
+        ground.insert(QStringLiteral("ground"), hexColor(ink->ground()));
+        ground.insert(QStringLiteral("colors"), inkColors);
+        grounds.insert(ink->name(), ground);
+    }
+    roles.insert(QStringLiteral("grounds"), grounds);
     return roles;
 }
 

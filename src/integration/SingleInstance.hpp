@@ -86,8 +86,9 @@ signals:
     /// (a second `omaseed` launch with no arguments, or a taskbar/dock activation).
     void activateRequested();
     /// One or more URIs (magnet links or .torrent paths) should be opened, from a second
-    /// launch's arguments or, once, from this process's own.
-    void openRequested(const QStringList &uris);
+    /// launch's arguments or, once, from this process's own (`atLaunch` true), which
+    /// docs/DECISIONS.md C35 routes differently from a hand-off.
+    void openRequested(const QStringList &uris, bool atLaunch);
     /// `org.freedesktop.Application.ActivateAction` with a known action, from the bar widget:
     /// "settings" (the popup's gear) raises the window on omaseed's settings, "retry" polls an
     /// unreachable server now, with no window; and from `omaseed --quit` (#128), "quit".
@@ -98,9 +99,10 @@ private:
 
     bool startOnSessionBus(const QString &busAddress, const QStringList &uris);
     bool startOnLocalSocket(const QStringList &uris);
-    bool becomePrimaryOnBus(QDBusConnection &connection,
-                            const QString &connectionName,
-                            const QStringList &uris);
+    /// Its object exported already (exportApplication), the name just taken: primary.
+    bool becomePrimaryOnBus(const QString &connectionName, const QStringList &uris);
+    /// Puts `org.freedesktop.Application` on the app's object path of `connection` (once).
+    void exportApplication(QDBusConnection &connection);
     void deliverOwnUris(const QStringList &uris);
     void acceptLocalConnection();
 
@@ -116,6 +118,7 @@ private:
     QString m_connectionName;
     QString m_lastActivationToken;
     QLocalServer *m_localServer = nullptr;
+    SingleInstanceDBusAdaptor *m_adaptor = nullptr;
 };
 
 } // namespace omaseed::integration

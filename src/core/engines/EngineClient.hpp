@@ -60,6 +60,16 @@ struct GlobalLimits
     bool operator==(const GlobalLimits &other) const = default;
 };
 
+/// A torrent that runs (anything not stopped: queued, stalled, checking and errored ones
+/// too), and whether it was started past the queue (DECISIONS C36 M10).
+struct RunningTorrent
+{
+    QString hash;
+    bool forced = false;
+
+    bool operator==(const RunningTorrent &other) const = default;
+};
+
 class EngineClient : public QObject
 {
     Q_OBJECT
@@ -103,10 +113,13 @@ public:
     virtual Reply<SyncDelta> *sync(int cursor) = 0;
     /// The torrents (all of them, or those of `hashes`), every field the engine has.
     virtual Reply<QList<TorrentPatch>> *torrents(const QStringList &hashes = {}) = 0;
-    /// Those of `hashes` that are stopped, whatever else their state says: an engine whose
-    /// state word hides a stop behind another (qBittorrent's `error`) answers from its own
-    /// record of it (DECISIONS C20, #142).
+    /// Those of `hashes` that are stopped (every stopped torrent when `hashes` is empty),
+    /// whatever else their state says: an engine whose state word hides a stop behind another
+    /// (qBittorrent's `error`) answers from its own record of it (DECISIONS C20, #142).
     virtual Reply<QStringList> *stoppedAmong(const QStringList &hashes) = 0;
+    /// Every torrent that runs, by the engine's own record of the stop as stoppedAmong(): what
+    /// Pause Torrents stops and holds (DECISIONS C36 M10).
+    virtual Reply<QList<RunningTorrent>> *running() = 0;
     virtual Reply<QList<CategoryPatch>> *categories() = 0;
     virtual Reply<QStringList> *tags() = 0;
     virtual Reply<TorrentProperties> *properties(const QString &hash) = 0;
@@ -121,8 +134,10 @@ public:
     /// and errors when `problemsOnly`. EngineFeatures::engineLog.
     virtual Reply<QList<LogEntry>> *log(int afterId, bool problemsOnly);
     /// A magnet's or a link's metadata, without adding it: ask again until it is ready.
-    /// EngineFeatures::fetchMetadata.
-    virtual Reply<FetchedMetadata> *fetchMetadata(const QString &source);
+    /// EngineFeatures::fetchMetadata. `downloader`, a search plugin's name, fetches a link
+    /// through that plugin (C26 SR9, EngineFeatures::search); empty leaves it off.
+    virtual Reply<FetchedMetadata> *fetchMetadata(const QString &source,
+                                                  const QString &downloader = QString());
     /// What is in `path`, a folder on the server's own disks, for a server whose disks
     /// omaseed can't see (DECISIONS C16 L13). Always settles with a value: its state says
     /// listed, missing, failed, or (the default) that this engine can't list folders.

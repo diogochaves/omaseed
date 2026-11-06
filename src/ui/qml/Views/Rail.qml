@@ -3,19 +3,36 @@ import QtQuick
 import Omaseed
 import Omaseed.Kit
 
-// The left rail (spec v2 §1 Fig. 1's left column, CSS `.rail`/`.rail .grp`/`.rail .grp
-// .lbl`/`.rail .row`, and the `RAIL` array in the page script): four tracked groups — status,
-// categories, tags, trackers — plus a fifth, servers, only when there is more than one server
-// configured. Every row is a Kit `RailRow`; the rail owns no filter state of its own, it only
-// reads and writes `filtered`'s three-valued category/tag/tracker properties and its
-// statusFilter enum.
+// The left rail, the window's full height (board 46 `rail()`, DECISIONS C24 H2): the omaseed
+// mark on top (`markClicked`), the window's views (library, seed, log, search) under it, then,
+// scrolling, the five questions under "now" and the tracked groups (categories, folders,
+// tags, trackers), and the servers pinned at its foot when there is more than one. Every row is
+// a Kit `RailRow`; the rail owns no filter state of its own, it only reads and writes
+// `filtered`'s question, its three-valued category/tag/tracker properties and its folder.
 //
-// Keyboard (spec v2 §9 Fig. 26): `j`/`k` move a cursor across every visible row of every
-// group, `g`/`G` jump to the first/last row, `enter`/`space` select the cursor row, `0`-`9`
-// pick a status row directly (0 = all .. 8 = errored, 9 is unused — there are only nine status
-// rows), `l` hands focus to the table via `focusTable()`. Cursor and selection are independent
-// (the spec figure shows the cursor on "movies" while "downloading" is the selected status):
-// the keys move the cursor alone, and a click on a row selects it and moves the cursor there.
+// Keyboard: `j`/`k` move a cursor across every visible row of every group, the views first,
+// `g`/`G` jump to the first/last row, `enter`/`space` select the cursor row, `1`-`5` pick a
+// question and `0` the library (C24 H2; 6–9 do nothing), `l` hands focus to the table via
+// `focusTable()`. Cursor and selection are independent: the keys move the cursor alone, and a
+// click on a row selects it and moves the cursor there.
+//
+// #167 (assumed 4): `compact` folds the rail to board 46's narrow column of glyphs (ctrl+b):
+// the mark, the views, the questions, one row standing for the other groups, the servers' dots.
+// A row's name is then its tooltip. The views and the servers are pinned: they never scroll.
+//
+// DECISIONS C32 D3 a, D9 c: the rail's edge drags its open width (`openWidth`, the host's)
+// between `minimumOpenWidth` and `maximumOpenWidth`; let go under `foldBelowWidth` and it asks
+// to fold (`foldDragged`), and a drag out of the folded rail's edge asks to unfold
+// (`unfoldDragged`) and carries on as an open drag. A double-click on the edge goes back to
+// the default (`widthChosen(Theme.railWidth, true)`). While the pointer is on the rail, a tab
+// on its edge at the top, centred on the title bar's height (`headHeight`), folds or unfolds
+// it (`foldToggleRequested`); the drag answers along the rest of the edge.
+//
+// DECISIONS C32 D1 a: the rail's foot, under the servers, is a settings row (`settingsRequested`,
+// as `,`), the gear alone when folded. It is not a cursor stop: `,` is its key.
+//
+// C32 D16 a: `tint` (Settings › Appearance, off · 4 · 8 %) fills the rail; its rows then sit on
+// C30's nested grounds over that fill (`ground` is every row's `block`).
 //
 // docs/08 §5: groups fold. `collapsedGroups` names the folded ones (the host owns and persists
 // it, per server); a click on a heading or `z` on any row asks for a toggle through
@@ -58,14 +75,90 @@ Item {
     property bool serverRetrying: false
     /// docs/33 D18: at most this many servers open, then "… N more".
     readonly property int serversShownMax: 5
+    /// The window's face, for the views' rows: "library", "seed", "log" or "search".
+    property string view: "library"
+    /// Board 51 D5 a (C32): on the log face the rail holds the log's levels, the torrents its
+    /// lines are about and since when (RailLogGroups), in place of the torrents' groups,
+    /// which `serversOnly` keeps away there. Null leaves the log's rail bare.
+    property LogFilterModel logLines: null
+    property ServerLog serverLog: null
+    /// `serverLog.aboutTorrents()`, as the host re-reads it.
+    property var logTorrents: []
+    readonly property bool logGroupsShown: root.view === "log" && root.logLines !== null
+                                           && root.serverLog !== null && !root.compact
+    /// Board 52 D5s a (C34): on the search face, the plugins, the type and the recent searches
+    /// (RailSearchGroups), in the same place; their state is the search view's. Null leaves
+    /// the search's rail bare.
+    property SearchView searchView: null
+    readonly property bool searchGroupsShown: root.view === "search" && root.searchView !== null
+                                              && !root.compact
+    /// A face's own groups are on show (the log's or the search's).
+    readonly property bool faceGroupsShown: root.logGroupsShown || root.searchGroupsShown
+    /// #145 (C24 H16, C25 K30): the server has search plugins to offer, so the views end with
+    /// search. Gone where it can't be offered.
+    property bool searchOffered: false
+    /// #167 assumed 4: folded to its glyphs (ctrl+b).
+    property bool compact: false
+    /// DECISIONS C32 D3 a: the width open, as the edge was last dragged (the host keeps it).
+    property int openWidth: Theme.railWidth
+    /// D3 a: the drag's bounds (board 51 at its 13 px type: 160–360, folding under 120).
+    readonly property int minimumOpenWidth: Theme.space(160)
+    readonly property int maximumOpenWidth: Theme.space(360)
+    readonly property int foldBelowWidth: Theme.space(120)
+    /// The edge is being dragged, past the drag distance.
+    readonly property bool resizing: edgeGrip.pressed && edgeGrip.moved
+    /// Where the drag would leave the rail: an open width, or under `foldBelowWidth` (fold).
+    readonly property bool _dragFolds: root.resizing && edgeGrip.wanted < root.foldBelowWidth
+    readonly property int _dragWidth: Math.max(root.minimumOpenWidth,
+                                               Math.min(root.maximumOpenWidth, edgeGrip.wanted))
+    /// C32 D16 a: the rail's own fill, in percent of the foreground: 0, 4 or 8.
+    property int tint: 0
+    /// The ground the rail's rows lie in: the window's, the 4 % block (`on.idle`) or the
+    /// hover fill (`on.hover`), so their fills and words take C30's nested grounds.
+    readonly property ThemeInk ground: root.tint === 8 ? Theme.on.hover : root.tint === 4 ? Theme.on.idle
+                                                                                          : Theme.on.window
+    /// The servers block's: its own 4 % on the window's ground, or opened over the filters
+    /// (D18); on a tinted rail, the rail's.
+    readonly property ThemeInk _serversGround: root.ground === Theme.on.window || root.serversOverlay
+                                               ? Theme.on.idle : root.ground
+    /// The rail's fill as one opaque colour, for what covers the scroll (the stuck heading,
+    /// the scroll hint's fade).
+    readonly property color _opaqueGround: Qt.tint(Theme.background, root.ground.fill)
+    /// D9 c: the pointer is on the rail or its edge, so the edge tab shows.
+    readonly property bool edgeHovered: railHover.hovered || edgeGrip.containsMouse
+                                        || edgeTabMouse.containsMouse
+    /// DECISIONS C24 H10: alt is held: the mark, the views, the questions and the servers
+    /// show their keys.
+    property bool keysShown: false
+    /// The mark's height: the host gives it the hero's, so their hairlines meet.
+    property real headHeight: Theme.railHeadHeight
+    /// The mark in red, as the hero's was: the server is lost and nothing retries.
+    property bool markAlert: false
+    /// Board 51 D14 b (DECISIONS C32): the omaseed menu is open, grown out of the mark: the
+    /// mark lit, in the menu's outline on its left, top and right, its bottom open onto it.
+    property bool markLit: false
+    readonly property alias markButton: markButton
+    /// C24 H2: the library row is lit on the library face with nothing narrowing it.
+    readonly property bool libraryShown: root.view === "library"
+                                         && root.filtered.question === TorrentFilterModel.AnyQuestion
+                                         && root.filtered.category === undefined
+                                         && root.filtered.tag === undefined
+                                         && root.filtered.tracker === undefined
+                                         && root.filtered.folder.length === 0
 
     property int cursorIndex: 0
     /// DECISIONS C19 T2 (#135): the cursor's fill shows only while the rail has the keys. A
     /// click still moves `cursorIndex`, so `j`/`k` start from the row clicked, but until the
     /// rail gets the keys only the selection is painted.
     readonly property int shownCursor: root.activeFocus ? root.cursorIndex : -1
-    /// The folded groups: any of "status", "categories", "folders", "tags", "trackers",
-    /// "servers".
+    /// The row or heading at cursor stop `index` shows the cursor. One that is no stop now (-1:
+    /// an open group's heading, a row of the folded rail) never does: without the keys
+    /// `shownCursor` is -1 too, and every open heading read as under the cursor (#187).
+    function cursorOn(index: int): bool {
+        return index >= 0 && root.shownCursor === index;
+    }
+    /// The folded groups: any of "status" (the questions' "now", which kept its key),
+    /// "categories", "folders", "tags", "trackers", "servers".
     property var collapsedGroups: []
     /// How the rail says it scrolls (Settings -> Appearance, docs/08 §5): "chevrons" (a
     /// counted line at each end), "fade" or "scrollbar".
@@ -102,6 +195,10 @@ Item {
 
     function _countOutside(above: bool): int {
         root._rowsRevision;
+        // #184: the rows' places, which `mapToItem` reads and no binding follows. Anything that
+        // moves a row (a base-size change, a group folding, a row growing) moves the content's
+        // height too, and the Column sets it once every row is in its new place.
+        content.implicitHeight;
         const top = flick.contentY;
         const bottom = top + flick.height;
         let n = 0;
@@ -117,6 +214,24 @@ Item {
     }
 
     signal focusTable
+    /// C24 H2: a view row: the host shows that face. "library" comes after the rail has
+    /// cleared its filters.
+    signal viewPicked(string view)
+    /// The mark: the host opens the app's menu under it (`markButton`), as ctrl+. does.
+    signal markClicked
+    /// The folded rail's row for its other groups: the host unfolds the rail.
+    signal unfoldRequested
+    /// D3 a: the edge let go at `width` (open, clamped), or double-clicked (`isDefault`, the
+    /// default width): the host keeps it.
+    signal widthChosen(int width, bool isDefault)
+    /// D3 a: the edge let go under `foldBelowWidth`: the host folds the rail, by hand.
+    signal foldDragged
+    /// D3 a: the folded rail's edge dragged out past `foldBelowWidth`: the host unfolds it.
+    signal unfoldDragged
+    /// D9 c: the edge tab, clicked: fold the rail, or unfold it.
+    signal foldToggleRequested
+    /// D1 a: the foot's settings row, clicked: the host opens Settings, as `,` does.
+    signal settingsRequested
     /// A heading was clicked, or `z` pressed on one of the group's rows.
     signal groupToggled(string group)
     /// `enter` or a click on a server row: that server should become the default one. The
@@ -130,6 +245,9 @@ Item {
     /// menu key / `shift+F10` on the cursor's: the host opens its menu ("move this folder…")
     /// for `path` at `x`, `y` (this item's coordinates).
     signal folderMenuRequested(string path, real x, real y)
+    /// Board 51 D4 a (DECISIONS C32): a right-click on a server row, or the menu key /
+    /// `shift+F10` on the cursor's: the host opens server `id`'s menu at `x`, `y`.
+    signal serverMenuRequested(string id, real x, real y)
 
     // ---- row bookkeeping -----------------------------------------------------------
     // Every row (and every group heading) registers itself with a function that selects it;
@@ -145,9 +263,13 @@ Item {
         const map = {};
         for (const entry of root._rows) {
             const index = entry.item.globalIndex;
-            // serversOnly (D1, D7): the filter rows are hidden and take no stop.
-            if (index >= 0 && (!root.serversOnly || entry.item.pinned === true))
-                map[index] = entry;
+            // serversOnly (D1, D7): the filter rows are hidden and take no stop; folded
+            // (`compact`), only the pinned rows, the questions and the groups' row do.
+            if (index < 0 || (root.serversOnly && entry.item.pinned !== true))
+                continue;
+            if (root.compact && entry.item.pinned !== true && entry.item.compactStop !== true)
+                continue;
+            map[index] = entry;
         }
         return map;
     }
@@ -174,7 +296,8 @@ Item {
     /// is a hand unfold then, which opens upwards over the filters.
     property bool _serversForced: false
     readonly property bool serversShort: !root.serversOnly && root.serversRowCount > 0
-                                         && root.height - root._serversOpenHeight
+                                         && root.height - root._topHeight - root._serversOpenHeight
+                                         - root._footHeight
                                          < 5 * Theme.railRowHeight + Theme.space(30)
     readonly property bool serversShownFolded: root.serversFolded
                                                || (root.serversShort && !root._serversForced)
@@ -183,6 +306,8 @@ Item {
 
     /// The group the cursor position `index` falls in.
     function groupAt(index: int): string {
+        if (index < root.statusBase)
+            return "views";
         if (index >= root.serversBase && root.serversSpan > 0)
             return "servers";
         if (index >= root.trackersBase)
@@ -208,6 +333,8 @@ Item {
             return root.trackersBase;
         case "servers":
             return root.serversBase;
+        case "views":
+            return root.viewsBase;
         default:
             return root.statusBase;
         }
@@ -215,6 +342,9 @@ Item {
 
     /// Fold or unfold `group` and leave the cursor on its first stop.
     function toggleGroup(group: string): void {
+        // The views never fold, and the folded rail has no headings to fold.
+        if (group === "views" || root.compact)
+            return;
         if (group === "servers" && root.serversShort && !root.serversFolded) {
             // D18: a short rail's hand unfold is for now, not remembered.
             root._serversForced = !root._serversForced;
@@ -233,61 +363,85 @@ Item {
         return true;
     }
 
-    // ---- the status group: nine fixed rows, spec v2 §9 `RAIL[0]` -------------------
-    readonly property var statusRows: [
+    // ---- the views and the five questions (board 46 `rail()`, DECISIONS C24 H2) -------
+    readonly property var viewRows: [
         {
-            "text": qsTr("all"),
-            "glyph": Glyphs.statusAll,
-            "count": root.counts.total
+            "key": "library",
+            "text": qsTr("library"),
+            "glyph": Glyphs.viewLibrary,
+            "shortcut": "0"
         },
         {
-            "text": qsTr("downloading"),
-            "glyph": Glyphs.statusDownloading,
-            "count": root.counts.downloading
+            "key": "seed",
+            "text": qsTr("seed"),
+            "glyph": Glyphs.viewSeed,
+            "shortcut": "`"
         },
         {
-            "text": qsTr("seeding"),
-            "glyph": Glyphs.statusSeeding,
-            "count": root.counts.seeding
+            "key": "log",
+            "text": qsTr("log"),
+            "glyph": Glyphs.viewLog,
+            "shortcut": "~"
+        }
+    ].concat(root.searchOffered ? [
+                                      {
+                                          "key": "search",
+                                          "text": qsTr("search"),
+                                          "glyph": Glyphs.viewSearch,
+                                          "shortcut": "ctrl+f"
+                                      }] : [])
+
+    /// In the rail's order, which is `TorrentFilterModel.Question`'s (keys 1–5).
+    readonly property var questionRows: [
+        {
+            "key": "needsYou",
+            "question": TorrentFilterModel.NeedsYou,
+            "text": qsTr("needs you"),
+            "glyph": Glyphs.questionNeedsYou,
+            "count": root.counts.needsYou
         },
         {
-            "text": qsTr("completed"),
-            "glyph": Glyphs.statusCompleted,
-            "count": root.counts.completed
+            "key": "arriving",
+            "question": TorrentFilterModel.Arriving,
+            "text": qsTr("arriving"),
+            "glyph": Glyphs.questionArriving,
+            "count": root.counts.arriving
         },
         {
-            "text": qsTr("stopped"),
-            "glyph": Glyphs.statusStopped,
-            "count": root.counts.stopped
+            "key": "landedToday",
+            "question": TorrentFilterModel.LandedToday,
+            "text": qsTr("landed today"),
+            "glyph": Glyphs.questionLanded,
+            "count": root.counts.landedToday
         },
         {
-            "text": qsTr("active"),
-            "glyph": Glyphs.statusActive,
-            "count": root.counts.active
+            "key": "givingBack",
+            "question": TorrentFilterModel.GivingBack,
+            "text": qsTr("giving back"),
+            "glyph": Glyphs.questionGivingBack,
+            "count": root.counts.givingBack
         },
         {
-            "text": qsTr("stalled"),
-            "glyph": Glyphs.statusStalled,
-            "count": root.counts.stalled
-        },
-        {
-            "text": qsTr("checking"),
-            "glyph": Glyphs.statusChecking,
-            "count": root.counts.checking
-        },
-        {
-            "text": qsTr("errored"),
-            "glyph": Glyphs.statusErrored,
-            "count": root.counts.errored
+            "key": "resting",
+            "question": TorrentFilterModel.Resting,
+            "text": qsTr("resting"),
+            "glyph": Glyphs.questionResting,
+            "count": root.counts.resting
         }
     ]
+
+    /// A question's row, by `TorrentFilterModel.Question`; null for AnyQuestion.
+    function questionRow(question: int): var {
+        return root.questionRows.find(row => row.question === question) ?? null;
+    }
 
     // ---- group sizes and the flat cursor space --------------------------------------
     // "none"/"untagged" are hidden when their count is 0 and the group has real entries;
     // the whole categories/tags group collapses to just "all" when its model is empty.
     // Trackers need no such row: TrackerModel only carries a "trackerless" member while
     // that count is non-zero (see TrackerModel::rebuild), so it is already excluded.
-    readonly property int statusRowCount: root.statusRows.length
+    readonly property int viewRowCount: root.viewRows.length
+    readonly property int statusRowCount: root.questionRows.length
     readonly property int categoriesNamedCount: root.categories ? root.categories.count : 0
     readonly property bool categoriesNoneVisible: root.categoriesNamedCount > 0
                                                   && root.counts.uncategorised > 0
@@ -306,22 +460,28 @@ Item {
     readonly property bool serversMore: root.serversRowCount > root.serversShownMax
 
     // A folded group is one stop (its heading) in the cursor space. With `serversOnly` the
-    // filter groups have none.
-    readonly property int statusSpan: root.serversOnly ? 0 : root.statusFolded ? 1 : root.statusRowCount
-    readonly property int categoriesSpan: root.serversOnly ? 0 : root.categoriesFolded ? 1 :
-                                                                                         root.categoriesRowCount
-    readonly property int foldersSpan: root.serversOnly || root.foldersRowCount === 0 ? 0 : root.foldersFolded
-                                                                                         ? 1 : root.foldersRowCount
-    readonly property int tagsSpan: root.serversOnly ? 0 : root.tagsFolded ? 1 : root.tagsRowCount
-    readonly property int trackersSpan: root.serversOnly ? 0 : root.trackersFolded ? 1 :
-                                                                                     root.trackersRowCount
+    // filter groups have none; folded (`compact`), the questions and one row for the rest.
+    readonly property int viewsSpan: root.viewRowCount
+    readonly property int statusSpan: root.serversOnly ? 0 : root.statusFolded && !root.compact ? 1 :
+                                                                                                  root.statusRowCount
+    readonly property int groupsRowSpan: root.compact && !root.serversOnly ? 1 : 0
+    readonly property bool _groupsHidden: root.serversOnly || root.compact
+    readonly property int categoriesSpan: root._groupsHidden ? 0 : root.categoriesFolded ? 1 :
+                                                                                           root.categoriesRowCount
+    readonly property int foldersSpan: root._groupsHidden || root.foldersRowCount === 0 ? 0 : root.foldersFolded
+                                                                                           ? 1 : root.foldersRowCount
+    readonly property int tagsSpan: root._groupsHidden ? 0 : root.tagsFolded ? 1 : root.tagsRowCount
+    readonly property int trackersSpan: root._groupsHidden ? 0 : root.trackersFolded ? 1 :
+                                                                                       root.trackersRowCount
     // Folded, the block is its one line; open, its rows and "… N more".
     readonly property int serversSpan: root.serversRowCount === 0 ? 0 : root.serversShownFolded ? 1 :
                                                                                                 root.serversListed
                                                                                                 + (root.serversMore ? 1 : 0)
 
-    readonly property int statusBase: 0
-    readonly property int categoriesBase: root.statusBase + root.statusSpan
+    readonly property int viewsBase: 0
+    readonly property int statusBase: root.viewsBase + root.viewsSpan
+    readonly property int groupsRowBase: root.statusBase + root.statusSpan
+    readonly property int categoriesBase: root.groupsRowBase + root.groupsRowSpan
     readonly property int foldersBase: root.categoriesBase + root.categoriesSpan
     readonly property int tagsBase: root.foldersBase + root.foldersSpan
     readonly property int trackersBase: root.tagsBase + root.tagsSpan
@@ -330,6 +490,11 @@ Item {
 
     onTotalRowCountChanged: if (root.cursorIndex >= root.totalRowCount)
                                 root.cursorIndex = Math.max(0, root.totalRowCount - 1)
+    // #201 F11: a tip up when the rail folds or unfolds is for a row that moved under it.
+    onCompactChanged: {
+        root._hideTips();
+        edgeTip.hide(); // nor the edge tab's, naming the other way
+    }
 
     // ---- public keyboard/selection surface ------------------------------------------
     function moveCursor(delta) {
@@ -360,17 +525,25 @@ Item {
     /// shows less (elided, or a tracker host shortened), hidden otherwise.
     function _nameTip(row: RailRow, hovering: bool, full: string): void {
         if (hovering && (row.truncated || row.text !== full)) {
-            const point = row.mapToItem(root, Theme.space(16), row.height);
+            const point = row.mapToItem(hostTip, Theme.space(16), row.height);
             hostTip.showAt(point.x, point.y, full);
         } else {
-            hostTip.hide();
+            root._hideTips();
         }
+    }
+
+    /// Both tips down. A pointer that leaves a row after the rail folded or unfolded under it
+    /// asks the other tip to go: the one up would stay for good (#201 F11, ctrl+b while the
+    /// mark's tip showed).
+    function _hideTips(): void {
+        hostTip.hide();
+        compactTip.hide();
     }
 
     /// F2's hover: "4 here, 405 with the folders below" on a save path with others under it.
     function _folderTip(row: RailRow, hovering: bool, here: int, all: int, full: string): void {
         if (hovering && here !== all) {
-            const point = row.mapToItem(root, Theme.space(16), row.height);
+            const point = row.mapToItem(hostTip, Theme.space(16), row.height);
             hostTip.showAt(point.x, point.y, qsTr("%1: %2 here, %3 with the folders below").arg(full).arg(here).arg(
                                all));
         } else {
@@ -386,6 +559,7 @@ Item {
             root.folderFoldToggled();
             return;
         }
+        root._leaveQuestion();
         root.filtered.folder = root.filtered.folder === path ? "" : path;
     }
 
@@ -394,18 +568,127 @@ Item {
     function openCursorMenu(): bool {
         const entry = root._rowMap[root.cursorIndex];
         const path = entry && entry.item ? entry.item.menuFolder : undefined;
-        if (typeof path !== "string" || path.length === 0)
+        const server = entry && entry.item ? entry.item.menuServer : undefined;
+        const folder = typeof path === "string" && path.length > 0;
+        if (!folder && (typeof server !== "string" || server.length === 0))
             return false;
         root._scrollCursorIntoView();
         const point = entry.item.mapToItem(root, Theme.space(24), entry.item.height);
-        root.folderMenuRequested(path, point.x, point.y);
+        if (folder)
+            root.folderMenuRequested(path, point.x, point.y);
+        else
+            root.serverMenuRequested(server, point.x, point.y);
         return true;
     }
 
-    function selectStatus(index) {
-        if (index < 0 || index >= root.statusRowCount)
+    /// `1`–`5` and the question rows: that question (C24 H2); `0` and AnyQuestion, the
+    /// library. A question replaces the place, as the library does (DECISIONS C32,
+    /// "Questions", #201 F17): it leaves any folder, category, tag or tracker and asks across
+    /// the whole library, under its own display. Narrowing a place by state is the filter's
+    /// (`is:<state>`).
+    function selectQuestion(question: int): void {
+        if (question === TorrentFilterModel.AnyQuestion) {
+            root.pickLibrary();
             return;
-        root.filtered.statusFilter = index;
+        }
+        if (root.questionRow(question) === null)
+            return;
+        root.filtered.clearCategory();
+        root.filtered.clearTag();
+        root.filtered.clearTracker();
+        root.filtered.folder = "";
+        root.filtered.question = question;
+    }
+
+    /// A place picked (a folder, category, tag or tracker): it leaves the question, which
+    /// would otherwise narrow it (C32 "Questions", #201 F17).
+    function _leaveQuestion(): void {
+        root.filtered.question = TorrentFilterModel.AnyQuestion;
+    }
+
+    /// The library row and `0`: every torrent, so each filter the rail sets goes (board 46's
+    /// library is the scope "all"), then the host shows the library's face.
+    function pickLibrary(): void {
+        root.filtered.question = TorrentFilterModel.AnyQuestion;
+        root.filtered.clearCategory();
+        root.filtered.clearTag();
+        root.filtered.clearTracker();
+        root.filtered.folder = "";
+        root.viewPicked("library");
+    }
+
+    function pickView(key: string): void {
+        if (key === "library")
+            root.pickLibrary();
+        else
+            root.viewPicked(key);
+    }
+
+    /// DECISIONS C24 H10: a view's or a question's tooltip names it and its key, beside the
+    /// folded rail as its name, under the open one.
+    function _keyTip(row: RailRow, hovering: bool): void {
+        const text = qsTr("%1 · %2").arg(row.text).arg(row.keyText);
+        if (root.compact)
+            root._compactTip(row, hovering, text);
+        else
+            root._nameTip(row, hovering, text);
+    }
+
+    /// The mark's tooltip: what it opens and its key.
+    function _markTip(hovering: bool): void {
+        const text = qsTr("omaseed menu · %1").arg("ctrl+.");
+        if (root.compact) {
+            root._compactTip(markButton, hovering, text);
+        } else if (hovering) {
+            const point = markButton.mapToItem(hostTip, Theme.railMarkInset, markButton.height);
+            hostTip.showAt(point.x, point.y, text);
+        } else {
+            root._hideTips();
+        }
+    }
+
+    /// D9 c's edge tab: its tip beside it, level with it, open or folded. A tip of its own,
+    /// so a row the pointer just left (which hides the rail's tips) can't take it down.
+    function _edgeTip(hovering: bool): void {
+        if (hovering) {
+            root._hideTips();
+            const gap = edgeTip.panelItem.gap;
+            const point = edgeTab.mapToItem(edgeTip, edgeTab.width + Theme.railTipGap - gap,
+                                            (edgeTab.height - edgeTip.panelItem.height) / 2 - gap);
+            edgeTip.showAt(point.x, point.y, root.compact ? qsTr("unfold the rail · %1").arg("ctrl+b")
+                                                          : qsTr("fold the rail · %1").arg("ctrl+b"));
+        } else {
+            edgeTip.hide();
+        }
+    }
+
+    /// The folded rail's tooltip: a row's name beside it, since only its glyph shows.
+    function _compactTip(row: Item, hovering: bool, text: string): void {
+        if (hovering && root.compact) {
+            // showAt() keeps the panel its gap right of and below the point: level with the row.
+            const gap = compactTip.panelItem.gap;
+            const point = row.mapToItem(compactTip, row.width + Theme.railTipGap - gap,
+                                        (row.height - compactTip.panelItem.height) / 2 - gap);
+            compactTip.showAt(point.x, point.y, text);
+        } else {
+            root._hideTips();
+        }
+    }
+
+    /// A server row's tooltip (board 46: its name and address).
+    // TODO(engines, DECISIONS C25 K12): "NAME · ENGINE VERSION" here.
+    function serverTipText(index: int): string {
+        if (!root.serverList)
+            return "";
+        const map = root.serverList.serverMap(root.serverList.idAt(index));
+        return [map.name || "", map.urlText || ""].filter(part => part.length > 0).join(" · ");
+    }
+
+    function _serverTip(row: RailRow, hovering: bool, index: int): void {
+        if (root.compact)
+            root._compactTip(row, hovering, root.serverTipText(index));
+        else // never the row's own text, so always shown
+            root._nameTip(row, hovering, root.serverTipText(index));
     }
 
     function _scrollCursorIntoView() {
@@ -426,9 +709,11 @@ Item {
     Accessible.role: Accessible.List
 
     activeFocusOnTab: true
-    implicitHeight: (root.serversOnly ? 0 : content.implicitHeight)
-                    + (root.serversRowCount > 0 ? root._serversOpenHeight : 0)
-    implicitWidth: Theme.space(200)
+    implicitHeight: root._topHeight + (root.serversOnly ? (root.faceGroupsShown ? logGroups.implicitHeight : 0)
+                                                        : content.implicitHeight)
+                    + (root.serversRowCount > 0 ? root._serversOpenHeight : 0) + root._footHeight
+    implicitWidth: root.compact ? Theme.railFoldedWidth : root.resizing ? root._dragWidth
+                                                                     : root.openWidth
     width: root.implicitWidth
 
     Keys.onPressed: event => {
@@ -482,14 +767,208 @@ Item {
         case Qt.Key_3:
         case Qt.Key_4:
         case Qt.Key_5:
+            // The log face has no questions (docs/32 L1): its window swallows the digits.
+            if (root.serversOnly)
+                break;
+            root.selectQuestion(event.key - Qt.Key_0);
+            event.accepted = true;
+            break;
         case Qt.Key_6:
         case Qt.Key_7:
         case Qt.Key_8:
         case Qt.Key_9:
-            root.selectStatus(event.key - Qt.Key_0);
-            event.accepted = true;
+            event.accepted = true; // C24 H2: nothing, as in the window
             break;
         }
+    }
+
+    // ---- the mark and the views (board 46 `.mark`, `.views`), pinned ----------------------
+    /// What sits above the scroll: the mark, the views, their rule.
+    readonly property real _topHeight: root.headHeight + viewsBlock.height + 1
+
+    // C32 D16 a: the tint, under everything the rail draws.
+    Rectangle {
+        anchors.bottom: parent.bottom
+        anchors.left: parent.left
+        anchors.right: hairline.left
+        anchors.top: parent.top
+        color: root.ground.fill
+        objectName: "railTint"
+        visible: root.ground !== Theme.on.window
+        z: -1
+    }
+
+    Rectangle {
+        id: markButton
+
+        // C24 H9: the omaseed menu, as ctrl+. opens it; its key badged while alt is held (H10).
+        Accessible.description: qsTr("shortcut %1").arg("ctrl+.")
+        Accessible.name: qsTr("omaseed menu")
+        Accessible.role: Accessible.Button
+        Accessible.onPressAction: if (markButton.enabled)
+                                      root.markClicked()
+        anchors.left: parent.left
+        anchors.right: hairline.left
+        anchors.top: parent.top
+        color: markInk.ground === root.ground ? "transparent" : markInk.fill
+        height: root.headHeight
+        objectName: "railMark"
+
+        // docs/DECISIONS.md C30 F1: the mark's words on the hover fill while the pointer is on
+        // it; the fill comes and goes at once, so do they.
+        Ink {
+            id: markInk
+
+            animated: false
+            ground: Theme.within(root.ground, root.markLit ? Theme.on.selected : markMouse.containsMouse
+                                                                                  ? Theme.on.hover : Theme.on.window)
+        }
+
+        // D14 b `.mark.ring`: the menu's edge round the lit mark, open at the bottom.
+        Item {
+            anchors.fill: parent
+            objectName: "railMarkRing"
+            visible: root.markLit
+
+            Rectangle {
+                color: Theme.menuEdgeColor
+                height: parent.height
+                width: Theme.menuEdgeWidth
+            }
+
+            Rectangle {
+                color: Theme.menuEdgeColor
+                height: Theme.menuEdgeWidth
+                width: parent.width
+            }
+
+            Rectangle {
+                color: Theme.menuEdgeColor
+                height: parent.height
+                width: Theme.menuEdgeWidth
+                x: parent.width - width
+            }
+        }
+
+        // #201 F10: the same inset folded and open, so ctrl+b never moves the mark (centring it
+        // in the folded rail put it a pixel or two to the left).
+        Row {
+            anchors.left: parent.left
+            anchors.leftMargin: Theme.railMarkInset
+            anchors.verticalCenter: parent.verticalCenter
+            spacing: Theme.railMarkGap
+
+            Glyph {
+                id: markGlyph
+
+                objectName: "railMarkGlyph"
+                anchors.verticalCenter: parent.verticalCenter
+                color: root.markAlert ? markInk.red : markInk.accent
+                height: Theme.railMarkSize
+                pixelSize: Theme.railMarkSize
+                text: Glyphs.mark
+                width: Theme.railMarkSize
+            }
+
+            Text {
+                anchors.verticalCenter: parent.verticalCenter
+                color: markInk.brightForeground
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.font.body
+                font.weight: Theme.railMarkWeight
+                text: qsTr("omaseed")
+                visible: !root.compact
+            }
+
+            Glyph {
+                anchors.verticalCenter: parent.verticalCenter
+                color: markInk.dimForeground
+                pixelSize: Theme.font.small
+                text: Glyphs.chevronDownGlyph
+                visible: !root.compact
+            }
+        }
+
+        Hairline {
+            anchors.bottom: parent.bottom
+            anchors.left: parent.left
+            anchors.right: parent.right
+            visible: !root.markLit
+        }
+
+        MouseArea {
+            id: markMouse
+
+            anchors.fill: parent
+            cursorShape: Qt.PointingHandCursor
+            hoverEnabled: true
+
+            onClicked: root.markClicked()
+            onContainsMouseChanged: root._markTip(markMouse.containsMouse)
+        }
+
+        KeyBadge {
+            anchors.right: parent.right
+            anchors.rightMargin: root.compact ? Theme.keyBadgeEdge : Theme.railMarkInset
+            anchors.verticalCenter: parent.verticalCenter
+            corner: false
+            key: "ctrl+."
+            objectName: "railMarkKey"
+            shown: root.keysShown
+        }
+    }
+
+    Column {
+        id: viewsBlock
+
+        anchors.left: parent.left
+        anchors.right: hairline.left
+        anchors.top: markButton.bottom
+        bottomPadding: Theme.railViewsPadding
+        topPadding: Theme.railViewsPadding
+
+        Repeater {
+            model: root.viewRows
+
+            RailRow {
+                id: viewDelegate
+
+                block: root.ground
+                required property int index
+                required property var modelData
+
+                readonly property int globalIndex: root.viewsBase + viewDelegate.index
+                readonly property bool pinned: true
+
+                compact: root.compact
+                count: viewDelegate.modelData.key === "library" ? root.counts.total : -1
+                current: viewDelegate.modelData.key === "library" ? root.libraryShown :
+                                                                    root.view === viewDelegate.modelData.key
+                glyph: viewDelegate.modelData.glyph
+                hasCursor: root.cursorOn(viewDelegate.globalIndex)
+                keyText: viewDelegate.modelData.shortcut
+                keysShown: root.keysShown
+                objectName: "railView-" + viewDelegate.modelData.key
+                text: viewDelegate.modelData.text
+                view: true
+                width: viewsBlock.width
+
+                onClicked: root.clickRow(viewDelegate.globalIndex)
+                onHoverChanged: hovering => root._keyTip(viewDelegate, hovering)
+
+                Component.onCompleted: root._registerRow(viewDelegate, () => root.pickView(
+                                                             viewDelegate.modelData.key))
+                Component.onDestruction: root._unregisterRow(viewDelegate)
+            }
+        }
+    }
+
+    Hairline {
+        id: viewsRule
+
+        anchors.left: parent.left
+        anchors.right: hairline.left
+        anchors.top: viewsBlock.bottom
     }
 
     Flickable {
@@ -497,36 +976,41 @@ Item {
 
         // D12: the filters scroll above the servers block, never under it. Opened over the
         // filters (D18), the block keeps only its folded line's room.
-        anchors.bottom: root.serversRowCount > 0 ? serversBlock.top : parent.bottom
+        anchors.bottom: root.serversRowCount > 0 ? serversBlock.top : footBlock.top
         anchors.bottomMargin: root.serversOverlay ? -(serversBlock.height - root._serversFoldedHeight) : 0
         anchors.left: parent.left
         anchors.right: hairline.left
-        anchors.top: parent.top
+        anchors.top: viewsRule.bottom
         boundsBehavior: Flickable.StopAtBounds
         clip: true
         contentHeight: content.implicitHeight
         contentWidth: width
         interactive: content.implicitHeight > height
+        objectName: "railScroll"
         visible: !root.serversOnly
 
         Column {
             id: content
 
             bottomPadding: Theme.space(10)
-            spacing: Theme.space(14)
-            topPadding: Theme.space(10)
+            // #201 F8: the headings' own room above their words comes out of these, so the
+            // words stay put; folded, the rail has no headings.
+            spacing: Theme.space(14) - (root.compact ? 0 : statusGroup.headPadding)
+            topPadding: Theme.space(10) - (root.compact ? 0 : statusGroup.headPadding)
             width: flick.width
 
-            // ---- status ------------------------------------------------------------
+            // ---- now: the five questions (DECISIONS C24 H2) ---------------------------
             RailGroup {
                 id: statusGroup
 
-                readonly property int globalIndex: root.statusFolded ? root.statusBase : -1
+                block: root.ground
+                readonly property int globalIndex: root.statusFolded && !root.compact ? root.statusBase : -1
 
-                collapsed: root.statusFolded
+                collapsed: root.statusFolded && !root.compact
                 count: root.counts.total
-                hasCursor: root.shownCursor === statusGroup.globalIndex
-                label: qsTr("status")
+                hasCursor: root.cursorOn(statusGroup.globalIndex)
+                headed: !root.compact
+                label: qsTr("now")
                 width: content.width
 
                 onToggled: root.toggleGroup("status")
@@ -536,48 +1020,90 @@ Item {
                 Component.onDestruction: root._unregisterRow(statusGroup)
 
                 Repeater {
-                    model: root.statusRows
+                    model: root.questionRows
 
                     RailRow {
-                        id: statusDelegate
+                        id: questionDelegate
 
+                        block: root.ground
                         required property int index
                         required property var modelData
 
-                        readonly property int globalIndex: root.statusFolded ? -1 : root.statusBase
-                                                                                  + statusDelegate.index
+                        readonly property bool shown: !root.statusFolded || root.compact
+                        readonly property int globalIndex: questionDelegate.shown ? root.statusBase
+                                                                                    + questionDelegate.index : -1
+                        readonly property bool compactStop: true
+                        /// Board 46 `.ri.needs`: red while something needs you.
+                        readonly property bool alarm: questionDelegate.modelData.question
+                                                      === TorrentFilterModel.NeedsYou
+                                                      && questionDelegate.modelData.count > 0
 
-                        count: statusDelegate.modelData.count
-                        glyph: statusDelegate.modelData.glyph
-                        hasCursor: root.shownCursor === statusDelegate.globalIndex
-                        // Every group always shows its answer: with no status filter, "all"
-                        // is the selected row (docs/08 §5; the spec's RAIL array never
-                        // selected it, REVIEW §9).
-                        selected: root.filtered.statusFilter === statusDelegate.index
-                        text: statusDelegate.modelData.text
-                        visible: !root.statusFolded
+                        compact: root.compact
+                        count: questionDelegate.modelData.count
+                        countColor: questionDelegate.alarm ? Theme.red : Theme.dimForeground
+                        glyph: questionDelegate.modelData.glyph
+                        glyphColor: questionDelegate.alarm ? Theme.red : questionDelegate.selected
+                                                                         ? Theme.accent : Theme.dimForeground
+                        hasCursor: root.cursorOn(questionDelegate.globalIndex)
+                        // C24 H2: 1–5 in the rail's order.
+                        keyText: String(questionDelegate.index + 1)
+                        keysShown: root.keysShown
+                        objectName: "railQuestion-" + questionDelegate.modelData.key
+                        selected: root.filtered.question === questionDelegate.modelData.question
+                        text: questionDelegate.modelData.text
+                        visible: questionDelegate.shown
                         width: content.width
 
-                        onClicked: root.clickRow(statusDelegate.globalIndex)
+                        onClicked: root.clickRow(questionDelegate.globalIndex)
+                        onHoverChanged: hovering => root._keyTip(questionDelegate, hovering)
 
-                        Component.onCompleted: root._registerRow(statusDelegate, ()
-                                                                 => root.selectStatus(
-                                                                        statusDelegate.index))
-                        Component.onDestruction: root._unregisterRow(statusDelegate)
+                        Component.onCompleted: root._registerRow(questionDelegate, ()
+                                                                 => root.selectQuestion(
+                                                                        questionDelegate.modelData.question))
+                        Component.onDestruction: root._unregisterRow(questionDelegate)
                     }
                 }
+            }
+
+            // Folded: one row for the groups below, which unfolds the rail; lit while one of
+            // them narrows the library.
+            RailRow {
+                id: groupsRow
+
+                block: root.ground
+                readonly property int globalIndex: root.groupsRowSpan > 0 ? root.groupsRowBase : -1
+                readonly property bool compactStop: true
+
+                compact: true
+                glyph: Glyphs.railGroups
+                hasCursor: root.cursorOn(groupsRow.globalIndex)
+                objectName: "railGroupsRow"
+                selected: root.filtered.category !== undefined || root.filtered.tag !== undefined
+                          || root.filtered.tracker !== undefined || root.filtered.folder.length > 0
+                text: qsTr("categories, folders, tags, trackers")
+                visible: root.compact
+                width: content.width
+
+                onClicked: root.clickRow(groupsRow.globalIndex)
+                onHoverChanged: hovering => root._compactTip(groupsRow, hovering, groupsRow.text)
+
+                Component.onCompleted: root._registerRow(groupsRow, () => root.unfoldRequested())
+                Component.onDestruction: root._unregisterRow(groupsRow)
             }
 
             // ---- categories ----------------------------------------------------------
             RailGroup {
                 id: categoriesGroup
 
+                block: root.ground
                 readonly property int globalIndex: root.categoriesFolded ? root.categoriesBase : -1
 
                 collapsed: root.categoriesFolded
                 count: root.categoriesNamedCount
-                hasCursor: root.shownCursor === categoriesGroup.globalIndex
+                hasCursor: root.cursorOn(categoriesGroup.globalIndex)
                 label: qsTr("categories")
+                labelId: "categories"
+                visible: !root.compact
                 width: content.width
 
                 onToggled: root.toggleGroup("categories")
@@ -589,11 +1115,12 @@ Item {
                 RailRow {
                     id: categoriesAll
 
+                    block: root.ground
                     readonly property int globalIndex: root.categoriesFolded ? -1 :
                                                                                root.categoriesBase
 
                     count: root.counts.total
-                    hasCursor: root.shownCursor === categoriesAll.globalIndex
+                    hasCursor: root.cursorOn(categoriesAll.globalIndex)
                     // Selected while the group has no filter, like the status "all" row.
                     selected: root.filtered.category === undefined
                     text: qsTr("all")
@@ -613,6 +1140,7 @@ Item {
                     RailRow {
                         id: categoryDelegate
 
+                        block: root.ground
                         required property int index
                         required property string name
 
@@ -623,7 +1151,7 @@ Item {
 
                         count: root._categoryCount(categoryDelegate.name, root.counts.revision)
                         glyph: Glyphs.category
-                        hasCursor: root.shownCursor === categoryDelegate.globalIndex
+                        hasCursor: root.cursorOn(categoryDelegate.globalIndex)
                         selected: root.filtered.category === categoryDelegate.name
                         text: categoryDelegate.name
                         visible: !root.categoriesFolded
@@ -634,6 +1162,7 @@ Item {
                         onHoverChanged: hovering => root._nameTip(categoryDelegate, hovering, categoryDelegate.name)
 
                         Component.onCompleted: root._registerRow(categoryDelegate, () => {
+                                                                     root._leaveQuestion();
                                                                      root.filtered.category
                                                                              = categoryDelegate.name;
                                                                  })
@@ -644,6 +1173,7 @@ Item {
                 RailRow {
                     id: categoriesNone
 
+                    block: root.ground
                     readonly property int globalIndex: root.categoriesFolded
                                                        || !root.categoriesNoneVisible ? -1 :
                                                                                         root.categoriesBase
@@ -652,7 +1182,7 @@ Item {
 
                     count: root.counts.uncategorised
                     glyph: "·"
-                    hasCursor: root.shownCursor === categoriesNone.globalIndex
+                    hasCursor: root.cursorOn(categoriesNone.globalIndex)
                     selected: root.filtered.category === ""
                     text: qsTr("none")
                     visible: root.categoriesNoneVisible && !root.categoriesFolded
@@ -661,6 +1191,7 @@ Item {
                     onClicked: root.clickRow(categoriesNone.globalIndex)
 
                     Component.onCompleted: root._registerRow(categoriesNone, () => {
+                                                                 root._leaveQuestion();
                                                                  root.filtered.category = "";
                                                              })
                     Component.onDestruction: root._unregisterRow(categoriesNone)
@@ -671,13 +1202,15 @@ Item {
             RailGroup {
                 id: foldersGroup
 
+                block: root.ground
                 readonly property int globalIndex: root.foldersFolded ? root.foldersBase : -1
 
                 collapsed: root.foldersFolded
                 count: root.foldersRowCount
-                hasCursor: root.shownCursor === foldersGroup.globalIndex
+                hasCursor: root.cursorOn(foldersGroup.globalIndex)
                 label: qsTr("folders")
-                visible: root.foldersRowCount > 0
+                labelId: "folders"
+                visible: root.foldersRowCount > 0 && !root.compact
                 width: content.width
 
                 onToggled: root.toggleGroup("folders")
@@ -691,6 +1224,7 @@ Item {
                     RailRow {
                         id: folderDelegate
 
+                        block: root.ground
                         required property int index
                         required property string path
                         required property string name
@@ -715,10 +1249,10 @@ Item {
                         // A path below its parent row: the end tells two apart (M3).
                         elideLeft: true
                         glyph: folderDelegate.hasChildren ? (folderDelegate.folded ? Glyphs.chevronRight
-                                                                                   : Glyphs.chevronDown)
+                                                                                   : Glyphs.chevronDownGlyph)
                                                           : Glyphs.middot
                         glyphClickable: folderDelegate.hasChildren
-                        hasCursor: root.shownCursor === folderDelegate.globalIndex
+                        hasCursor: root.cursorOn(folderDelegate.globalIndex)
                         hasMenu: folderDelegate.menuFolder.length > 0
                         indent: folderDelegate.depth
                         objectName: "folderRow-" + folderDelegate.path
@@ -756,12 +1290,14 @@ Item {
             RailGroup {
                 id: tagsGroup
 
+                block: root.ground
                 readonly property int globalIndex: root.tagsFolded ? root.tagsBase : -1
 
                 collapsed: root.tagsFolded
                 count: root.tagsNamedCount
-                hasCursor: root.shownCursor === tagsGroup.globalIndex
+                hasCursor: root.cursorOn(tagsGroup.globalIndex)
                 label: qsTr("tags")
+                visible: !root.compact
                 width: content.width
 
                 onToggled: root.toggleGroup("tags")
@@ -772,10 +1308,11 @@ Item {
                 RailRow {
                     id: tagsAll
 
+                    block: root.ground
                     readonly property int globalIndex: root.tagsFolded ? -1 : root.tagsBase
 
                     count: root.counts.total
-                    hasCursor: root.shownCursor === tagsAll.globalIndex
+                    hasCursor: root.cursorOn(tagsAll.globalIndex)
                     selected: root.filtered.tag === undefined
                     text: qsTr("all")
                     visible: !root.tagsFolded
@@ -793,6 +1330,7 @@ Item {
                     RailRow {
                         id: tagDelegate
 
+                        block: root.ground
                         required property int index
                         required property string name
 
@@ -801,7 +1339,7 @@ Item {
 
                         count: root._tagCount(tagDelegate.name, root.counts.revision)
                         glyph: Glyphs.tag
-                        hasCursor: root.shownCursor === tagDelegate.globalIndex
+                        hasCursor: root.cursorOn(tagDelegate.globalIndex)
                         selected: root.filtered.tag === tagDelegate.name
                         text: tagDelegate.name
                         visible: !root.tagsFolded
@@ -812,6 +1350,7 @@ Item {
                         onHoverChanged: hovering => root._nameTip(tagDelegate, hovering, tagDelegate.name)
 
                         Component.onCompleted: root._registerRow(tagDelegate, () => {
+                                                                     root._leaveQuestion();
                                                                      root.filtered.tag
                                                                              = tagDelegate.name;
                                                                  })
@@ -822,12 +1361,13 @@ Item {
                 RailRow {
                     id: tagsUntagged
 
+                    block: root.ground
                     readonly property int globalIndex: root.tagsFolded || !root.tagsUntaggedVisible
                                                        ? -1 : root.tagsBase + 1 + root.tagsNamedCount
 
                     count: root.counts.untagged
                     glyph: "·"
-                    hasCursor: root.shownCursor === tagsUntagged.globalIndex
+                    hasCursor: root.cursorOn(tagsUntagged.globalIndex)
                     selected: root.filtered.tag === ""
                     text: qsTr("untagged")
                     visible: root.tagsUntaggedVisible && !root.tagsFolded
@@ -836,6 +1376,7 @@ Item {
                     onClicked: root.clickRow(tagsUntagged.globalIndex)
 
                     Component.onCompleted: root._registerRow(tagsUntagged, () => {
+                                                                 root._leaveQuestion();
                                                                  root.filtered.tag = "";
                                                              })
                     Component.onDestruction: root._unregisterRow(tagsUntagged)
@@ -846,12 +1387,15 @@ Item {
             RailGroup {
                 id: trackersGroup
 
+                block: root.ground
                 readonly property int globalIndex: root.trackersFolded ? root.trackersBase : -1
 
                 collapsed: root.trackersFolded
                 count: root.trackersNamedCount
-                hasCursor: root.shownCursor === trackersGroup.globalIndex
+                hasCursor: root.cursorOn(trackersGroup.globalIndex)
                 label: qsTr("trackers")
+                labelId: "trackers"
+                visible: !root.compact
                 width: content.width
 
                 onToggled: root.toggleGroup("trackers")
@@ -863,10 +1407,11 @@ Item {
                 RailRow {
                     id: trackersAll
 
+                    block: root.ground
                     readonly property int globalIndex: root.trackersFolded ? -1 : root.trackersBase
 
                     count: root.counts.total
-                    hasCursor: root.shownCursor === trackersAll.globalIndex
+                    hasCursor: root.cursorOn(trackersAll.globalIndex)
                     selected: root.filtered.tracker === undefined
                     text: qsTr("all")
                     visible: !root.trackersFolded
@@ -885,6 +1430,7 @@ Item {
                     RailRow {
                         id: trackerDelegate
 
+                        block: root.ground
                         required property int index
                         required property bool isTrackerless
                         required property string host
@@ -899,7 +1445,7 @@ Item {
                         Accessible.name: trackerDelegate.host
                         count: trackerDelegate.torrentCount
                         glyph: trackerDelegate.isTrackerless ? "·" : Glyphs.tracker
-                        hasCursor: root.shownCursor === trackerDelegate.globalIndex
+                        hasCursor: root.cursorOn(trackerDelegate.globalIndex)
                         elideLeft: root.trackerHostStyle === "left"
                         selected: root.filtered.tracker === trackerDelegate.host
                         text: trackerDelegate.isTrackerless ? trackerDelegate.host :
@@ -915,6 +1461,7 @@ Item {
                         onClicked: root.clickRow(trackerDelegate.globalIndex)
 
                         Component.onCompleted: root._registerRow(trackerDelegate, () => {
+                                                                     root._leaveQuestion();
                                                                      root.filtered.tracker
                                                                              = trackerDelegate.host;
                                                                  })
@@ -925,12 +1472,83 @@ Item {
         }
     }
 
+    // Board 51 D5 a: a face's own groups (the log's; board 52 D5s a, the search's), where the
+    // torrents' scroll is (whose place they take).
+    Flickable {
+        id: logFlick
+
+        anchors.bottom: flick.bottom
+        anchors.left: parent.left
+        anchors.right: hairline.left
+        anchors.top: viewsRule.bottom
+        boundsBehavior: Flickable.StopAtBounds
+        clip: true
+        contentHeight: logGroups.implicitHeight + Theme.space(20) - 2 * logGroups.headPadding
+        contentWidth: width
+        interactive: contentHeight > height
+        objectName: root.searchGroupsShown ? "railSearchScroll" : "railLogScroll"
+        visible: root.faceGroupsShown
+
+        Loader {
+            id: logGroups
+
+            readonly property real headPadding: (logGroups.item as RailSearchGroups)?.headPadding
+                                                ?? (logGroups.item as RailLogGroups)?.headPadding ?? 0
+
+            active: root.faceGroupsShown
+            width: logFlick.width
+            y: Theme.space(10) - logGroups.headPadding
+
+            sourceComponent: root.searchGroupsShown ? searchGroupsComponent : logGroupsComponent
+        }
+    }
+
+    Component {
+        id: searchGroupsComponent
+
+        RailSearchGroups {
+            block: root.ground
+            collapsedGroups: root.collapsedGroups
+            view: root.searchView
+            width: logFlick.width
+
+            onGroupToggled: group => root.groupToggled(group)
+            onNameTip: (row, hovering, full) => root._nameTip(row, hovering, full)
+        }
+    }
+
+    Component {
+        id: logGroupsComponent
+
+        RailLogGroups {
+            block: root.ground
+            collapsedGroups: root.collapsedGroups
+            keysShown: root.keysShown
+            lines: root.logLines
+            log: root.serverLog
+            torrents: root.logTorrents
+            width: logFlick.width
+
+            onGroupToggled: group => root.groupToggled(group)
+            onNameTip: (row, hovering, full) => root._nameTip(row, hovering, full)
+        }
+    }
+
+    WheelScroll {
+        anchors.fill: logFlick
+        flickable: logFlick
+        rowHeight: Theme.railRowHeight
+        visible: root.faceGroupsShown
+        z: 2
+    }
+
     // A wheel notch moves three rail rows, and quick notches add up (Kit/WheelScroll).
     WheelScroll {
         anchors.fill: flick
         flickable: flick
         objectName: "railWheel"
         rowHeight: Theme.railRowHeight
+        visible: flick.visible
         z: 2
     }
 
@@ -941,26 +1559,44 @@ Item {
         anchors.bottom: flick.bottom
         anchors.left: parent.left
         anchors.right: hairline.left
-        anchors.top: parent.top
+        anchors.top: flick.top
         countAbove: root.rowsAbove
         countBelow: root.rowsBelow
         flickable: flick
+        ground: root._opaqueGround
         revealed: root.activeFocus
         style: root.scrollHint
         z: 3
     }
 
+    // On the window's content item (as the hero's server line's, KIT-8), over everything: a
+    // name wider than the rail runs over the list and the title bar, and the servers block
+    // (z 5) sits over the rail's own children; under either, the tip read as translucent
+    // (#201 F7).
     Tooltip {
         id: hostTip
 
         objectName: "railTip"
-        z: 4
+        parent: root.Window.window ? root.Window.window.contentItem : root
+        z: 1000
+    }
+
+    // Folded, a row's name shows beside the 46 px column, over the window's content.
+    Tooltip {
+        id: compactTip
+
+        objectName: "railCompactTip"
+        parent: root.Window.window ? root.Window.window.contentItem : root
+        z: 1000
     }
 
     // ---- the servers block (docs/33 §9: D12, D16–D18) ----------------------------------
     /// The block's height open and folded, for the short-window rule (D18).
     readonly property real _serversFoldedHeight: Theme.railRowHeight + Theme.space(12)
-    readonly property real _serversOpenHeight: serversHeading.implicitHeight + Theme.space(12)
+    /// The heading carries the block's top room in its own padding (#201 F6, F8); folded, the
+    /// rows have it above them.
+    readonly property real _serversOpenHeight: (root.compact ? Theme.space(6) : serversHeading.implicitHeight)
+                                               + Theme.space(6)
                                                + (root.serversListed + (root.serversMore ? 1 : 0))
                                                * Theme.railRowHeight
 
@@ -979,6 +1615,7 @@ Item {
         case "certificate":
         case "failed":
             return Theme.red;
+        case "connecting": // #201 F4: a switch under way is neutral; red only on a failure
         default:
             return Theme.fill(Theme.faintAlpha);
         }
@@ -1033,36 +1670,58 @@ Item {
     Rectangle {
         id: serversBlock
 
-        anchors.bottom: parent.bottom
+        anchors.bottom: footBlock.top
         anchors.left: parent.left
         anchors.right: hairline.left
         // D16 a: a band of its own, the idle fill under a hairline. Opened over the filters
         // (D18) it is opaque, with an accent edge, like a menu.
         border.color: Theme.accent
-        border.width: root.serversOverlay ? 1 : 0
+        border.width: root.serversOverlay ? Theme.edgeWidth : 0
         color: root.serversOverlay ? Theme.background : "transparent"
         height: root.serversShownFolded ? root._serversFoldedHeight : root._serversOpenHeight
         objectName: "serversBlock"
         visible: root.serverCount > 1 && root.serversRowCount > 0
         z: 5
 
+        // docs/DECISIONS.md C30 F1: the block's rows and heading are on this fill
+        // (`block: Theme.on.idle`), hovered on the hover fill over it. On a tinted rail (C32
+        // D16 a) the block takes no fill of its own: its rows are on the rail's, under its
+        // hairline, so they stay on grounds C30 measured.
         Rectangle {
             anchors.fill: parent
             anchors.margins: parent.border.width
-            color: Theme.fill(Theme.fillIdle)
+            color: Theme.on.idle.fill
+            visible: root.ground === Theme.on.window || root.serversOverlay
         }
 
+        // Over the rows: their hover fill starts right under it (#201 F6).
         Hairline {
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.top: parent.top
+            z: 1
         }
 
+        // C24 H10: ctrl+s, the server palette, on the block's top edge while alt is held.
+        KeyBadge {
+            anchors.right: parent.right
+            anchors.rightMargin: root.compact ? Theme.keyBadgeEdge : Theme.space(16)
+            anchors.verticalCenter: parent.top
+            corner: false
+            key: "ctrl+s"
+            objectName: "serversKey"
+            shown: root.keysShown
+        }
+
+        // #201 F6: from the block's top, so a row's hover fill (the heading's, the folded
+        // line's) meets the hairline; the room above the words is inside them. Folded, the
+        // rail has no heading and its rows keep the room above them.
         Column {
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.top: parent.top
-            anchors.topMargin: Theme.space(6)
+            anchors.topMargin: serversBlock.border.width
+            topPadding: root.compact && !root.serversShownFolded ? Theme.space(6) : 0
 
             // The heading: "servers · 3" and the fold chevron (D16 a). A click folds.
             RailGroup {
@@ -1071,10 +1730,17 @@ Item {
                 // #78: "servers", the count in the description.
                 accessibleDetail: qsTr("%n server(s)", "", root.serversRowCount)
                 accessibleName: qsTr("servers")
+                block: root._serversGround
                 collapsed: false
-                label: qsTr("servers · %1").arg(root.serversRowCount)
+                // Where the head carries kana, in two parts (board 46 `.srv h6`): the word and
+                // its kana, then the count at the right.
+                count: root.serversRowCount
+                countShown: Theme.labelKana
+                headPadding: Theme.space(6)
+                label: Theme.labelKana ? qsTr("servers") : qsTr("servers · %1").arg(Theme.numeral(root.serversRowCount))
+                labelId: "servers"
                 objectName: "serversHeading"
-                visible: !root.serversShownFolded
+                visible: !root.serversShownFolded && !root.compact
                 width: parent.width
 
                 onToggled: root.toggleGroup("servers")
@@ -1094,16 +1760,23 @@ Item {
                                          serversFoldedLine.countText, qsTr("folded")].filter(
                                             part => part.length > 0).join(" · ")
                 Accessible.name: qsTr("servers")
+                block: root._serversGround
+                compact: root.compact
                 countText: qsTr("%n servers", "", root.serversRowCount)
                 glyph: Glyphs.dot
                 glyphColor: root._serverDotColor(root._currentServer.serverState || "")
-                hasCursor: root.shownCursor === serversFoldedLine.globalIndex
+                hasCursor: root.cursorOn(serversFoldedLine.globalIndex)
+                // The whole block under the hairline, its words in the middle as before (#201 F6).
+                height: root._serversFoldedHeight
+                implicitHeight: root._serversFoldedHeight
                 objectName: "serversFoldedLine"
                 text: (root._currentServer.name || "") + " " + Glyphs.chevronUp
                 visible: root.serversShownFolded
                 width: parent.width
 
                 onClicked: root.toggleGroup("servers")
+                onHoverChanged: hovering => root._compactTip(serversFoldedLine, hovering,
+                                                             root._currentServer.name || "")
 
                 Component.onCompleted: root._registerRow(serversFoldedLine, () => root.toggleGroup("servers"))
                 Component.onDestruction: root._unregisterRow(serversFoldedLine)
@@ -1128,22 +1801,33 @@ Item {
                                                        || !serverDelegate.listed ? -1 : root.serversBase
                                                                                         + serverDelegate.index
                     readonly property bool pinned: true
+                    /// D4 a: the server this row's menu is about.
+                    readonly property string menuServer: root.serverList.idAt(serverDelegate.index)
 
+                    block: root._serversGround
+                    compact: root.compact
                     countColor: root._serverCountColor(serverDelegate.countLabel)
                     countText: serverDelegate.countLabel
                     glyph: Glyphs.dot
                     glyphColor: root._serverDotColor(serverDelegate.serverState)
-                    hasCursor: root.shownCursor === serverDelegate.globalIndex
+                    hasCursor: root.cursorOn(serverDelegate.globalIndex)
+                    hasMenu: true
                     objectName: "serverRow-" + serverDelegate.name
-                    // TODO(v0.5.0 frame): C25 K12, the row's tooltip names the server, its
-                    // engine and version and its address (the model's engineText, urlText);
-                    // drawn with board 46's rail. The row itself keeps the name only.
                     selected: serverDelegate.isDefault
                     text: serverDelegate.name
                     visible: !root.serversShownFolded && serverDelegate.listed
                     width: parent.width
 
                     onClicked: root.clickRow(serverDelegate.globalIndex)
+                    onHoverChanged: hovering => root._serverTip(serverDelegate, hovering,
+                                                                serverDelegate.index)
+                    // D4 a: the menu is this row's server's; the cursor goes there, as on a
+                    // folder row.
+                    onMenuRequested: (x, y) => {
+                        root.cursorIndex = serverDelegate.globalIndex;
+                        const point = serverDelegate.mapToItem(root, x, y);
+                        root.serverMenuRequested(serverDelegate.menuServer, point.x, point.y);
+                    }
 
                     Component.onCompleted: root._registerRow(serverDelegate, () => {
                                                                  root._serversForced = false;
@@ -1166,8 +1850,10 @@ Item {
                 Accessible.description: qsTr("%1 more · shortcut %2").arg(
                                             root.serversRowCount - root.serversListed).arg("ctrl+s")
                 Accessible.name: qsTr("more servers")
+                block: root._serversGround
+                compact: root.compact
                 glyph: "…"
-                hasCursor: root.shownCursor === serversMoreRow.globalIndex
+                hasCursor: root.cursorOn(serversMoreRow.globalIndex)
                 objectName: "serversMoreRow"
                 text: qsTr("%1 more · ctrl+s").arg(root.serversRowCount - root.serversListed)
                 visible: !root.serversShownFolded && root.serversMore
@@ -1181,13 +1867,57 @@ Item {
         }
     }
 
+    // ---- the foot (board 51 D1 a, DECISIONS C32) ---------------------------------------
+    /// Its height: the row and `.rfoot`'s room round it, under a hairline.
+    readonly property real _footHeight: Theme.railRowHeight + 2 * Theme.space(6) + Theme.hairWidth
+
+    Item {
+        id: footBlock
+
+        anchors.bottom: parent.bottom
+        anchors.left: parent.left
+        anchors.right: hairline.left
+        height: root._footHeight
+        objectName: "railFoot"
+        z: 5
+
+        Hairline {
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.top: parent.top
+        }
+
+        RailRow {
+            id: settingsRow
+
+            block: root.ground
+            Accessible.description: qsTr("shortcut %1").arg(",")
+            anchors.bottom: parent.bottom
+            anchors.bottomMargin: Theme.space(6)
+            anchors.left: parent.left
+            anchors.right: parent.right
+            compact: root.compact
+            glyph: Glyphs.settings
+            keyText: ","
+            keysShown: root.keysShown
+            objectName: "railSettings"
+            text: qsTr("settings")
+
+            onClicked: {
+                root._hideTips();
+                root.settingsRequested();
+            }
+            onHoverChanged: hovering => root._keyTip(settingsRow, hovering)
+        }
+    }
+
     // docs/08 §5: while the rail is scrolled, the heading of the group the top row belongs to
     // sticks to the top edge. It is the real group's heading drawn again, so it folds too.
     readonly property var _groups: [statusGroup, categoriesGroup, tagsGroup, trackersGroup]
     /// The group whose heading has scrolled off while some of its rows are still in view.
     readonly property RailGroup stuckGroup: {
         const top = flick.contentY;
-        if (top <= 0)
+        if (top <= 0 || root.compact)
             return null;
         for (const group of root._groups) {
             if (!group.visible || group.collapsed)
@@ -1203,9 +1933,9 @@ Item {
 
         anchors.left: parent.left
         anchors.right: hairline.left
-        anchors.top: parent.top
+        anchors.top: flick.top
         anchors.topMargin: scrollHintOverlay.topInset
-        color: Theme.background
+        color: root._opaqueGround
         height: stuckLabel.implicitHeight + Theme.space(10)
         visible: root.stuckGroup !== null
         z: 2
@@ -1216,6 +1946,7 @@ Item {
             anchors.left: parent.left
             anchors.leftMargin: Theme.space(16)
             anchors.verticalCenter: parent.verticalCenter
+            labelId: root.stuckGroup ? root.stuckGroup.labelId : ""
             text: root.stuckGroup ? root.stuckGroup.label : ""
             tracked: true
         }
@@ -1250,6 +1981,153 @@ Item {
         anchors.right: parent.right
         anchors.bottom: parent.bottom
         anchors.top: parent.top
+        // D3 a: the edge lights in the accent under the pointer, as the details' split does.
+        color: edgeGrip.containsMouse || edgeGrip.pressed ? Theme.accent : Theme.hairColor
         vertical: true
+    }
+
+    // D9 c: its hover reaches every row without taking their pointer.
+    HoverHandler {
+        id: railHover
+    }
+
+    // ---- the edge: D3 a's drag, D9 c's tab ------------------------------------------------
+    // The edge's handle, `Theme.space(6)` inside the rail along its whole height below the tab.
+    // a11y-ignore A2: a drag handle; ctrl+b folds the rail and the tab is its button (#77)
+    MouseArea {
+        id: edgeGrip
+
+        /// The width the pointer asks for, in rail coordinates (its x past the press, from
+        /// the width the drag started at).
+        property int wanted: root.width
+        property real pressedX: 0
+        property int startWidth: 0
+        property bool moved: false
+
+        anchors.bottom: parent.bottom
+        anchors.right: parent.right
+        anchors.top: parent.top
+        anchors.topMargin: edgeTab.y + edgeTab.height
+        cursorShape: Qt.SplitHCursor
+        hoverEnabled: true
+        objectName: "railEdge"
+        width: Theme.space(6)
+        z: 6
+
+        onDoubleClicked: {
+            if (root.compact)
+                root.unfoldDragged();
+            root.widthChosen(Theme.railWidth, true);
+        }
+        onPositionChanged: mouse => {
+            if (!edgeGrip.pressed)
+                return;
+            const along = edgeGrip.mapToItem(root, mouse.x, mouse.y).x - edgeGrip.pressedX;
+            if (!edgeGrip.moved) {
+                if (Math.abs(along) < Application.styleHints.startDragDistance)
+                    return;
+                edgeGrip.moved = true;
+            }
+            edgeGrip.wanted = Math.round(edgeGrip.startWidth + along);
+            // Out of the folded column: open, and the drag carries on as an open one.
+            if (root.compact && edgeGrip.wanted >= root.foldBelowWidth)
+                root.unfoldDragged();
+        }
+        onPressed: mouse => {
+            edgeGrip.pressedX = edgeGrip.mapToItem(root, mouse.x, mouse.y).x;
+            edgeGrip.startWidth = root.width;
+            edgeGrip.wanted = root.width;
+            edgeGrip.moved = false;
+        }
+        onReleased: {
+            const was = edgeGrip.moved;
+            const folds = root._dragFolds;
+            const width = root._dragWidth;
+            edgeGrip.moved = false;
+            if (!was || root.compact)
+                return;
+            if (folds)
+                root.foldDragged();
+            else
+                root.widthChosen(width, false);
+        }
+        onCanceled: edgeGrip.moved = false
+    }
+
+    // D3 a: the width while dragging, "fold" in the accent under `foldBelowWidth`.
+    Rectangle {
+        id: widthTip
+
+        border.color: root._dragFolds ? Theme.accent : Theme.fill(Theme.hairlineAlpha)
+        border.width: Theme.hairWidth
+        color: Theme.background
+        height: widthTipText.implicitHeight + Theme.space(6)
+        objectName: "railWidthTip"
+        radius: Theme.cornerRadius
+        visible: root.resizing
+        width: widthTipText.implicitWidth + Theme.space(16)
+        x: root.width + Theme.space(8)
+        y: Math.round(root.height * 0.46)
+        z: 7
+
+        Label {
+            id: widthTipText
+
+            anchors.centerIn: parent
+            color: root._dragFolds ? Theme.accent : Theme.foreground
+            size: "small"
+            text: root._dragFolds ? qsTr("fold") : qsTr("↔ %1").arg(root._dragWidth)
+        }
+    }
+
+    // D9 c (C32: moved to the top): ‹ on the edge while the pointer is on the rail, centred on
+    // the title bar's height; › on the folded rail. Over the title bar beside it: the host
+    // keeps the rail above the content.
+    Rectangle {
+        id: edgeTab
+
+        Accessible.name: root.compact ? qsTr("unfold the rail") : qsTr("fold the rail")
+        Accessible.role: Accessible.Button
+        Accessible.onPressAction: root.foldToggleRequested()
+
+        border.color: Theme.accent
+        border.width: Theme.edgeWidth
+        color: edgeTabMouse.containsMouse ? Qt.tint(Theme.background, Theme.on.hover.fill) : Theme.background
+        height: Math.min(Theme.space(44), Math.round(root.headHeight) - 2 * Theme.space(6))
+        objectName: "railEdgeTab"
+        opacity: root.edgeHovered && !root.resizing ? 1 : 0
+        width: Theme.space(14)
+        x: root.width - Math.round(width / 2)
+        y: Math.round((root.headHeight - height) / 2)
+        z: 8
+
+        Glyph {
+            anchors.centerIn: parent
+            color: Theme.accent
+            pixelSize: Theme.font.small
+            text: root.compact ? Glyphs.chevronRight : Glyphs.chevronLeft
+        }
+
+        MouseArea {
+            id: edgeTabMouse
+
+            anchors.fill: parent
+            cursorShape: Qt.PointingHandCursor
+            hoverEnabled: true
+
+            onClicked: {
+                edgeTip.hide();
+                root.foldToggleRequested();
+            }
+            onContainsMouseChanged: root._edgeTip(edgeTabMouse.containsMouse)
+        }
+    }
+
+    Tooltip {
+        id: edgeTip
+
+        objectName: "railEdgeTip"
+        parent: root.Window.window ? root.Window.window.contentItem : root
+        z: 1000
     }
 }

@@ -38,6 +38,35 @@ Rectangle {
     /// The row has a menu (DECISIONS C19 T3: a folder row's "move this folder…"): a
     /// right-click sends `menuRequested` instead of selecting it.
     property bool hasMenu: false
+    /// DECISIONS C24 H2 (board 46 `.views .ri.on`): the view on show, the hover fill with an
+    /// accent edge on the left, so a view and the filter it shows never look alike.
+    property bool current: false
+    /// A view's row (board 46 `.views .ri`): its name in the skin's control voice (Console:
+    /// upper case, tracked .16 em), where a place's is a name (`.ri`, `Theme.nameTrack`).
+    property bool view: false
+    /// The folded rail (board 46's narrow `rail()`): the glyph alone; the name goes into the
+    /// tooltip the rail shows.
+    property bool compact: false
+    /// DECISIONS C24 H10: the row's key ("1", "`"), badged while `keysShown` (alt held), just
+    /// before the count, or at the folded row's edge. "" for a row with no key of its own.
+    property string keyText: ""
+    property bool keysShown: false
+    /// Board 51 D5 a (`.ri .tk2`): a tick box in the glyph's column, filled in `tickColor`
+    /// while `ticked` (the log's levels). `toneName` paints the name in it too (`.lvw`: the
+    /// warning and critical levels).
+    property bool tick: false
+    property bool ticked: false
+    property color tickColor: Theme.accent
+    property bool toneName: false
+    /// DECISIONS C34 D5s a (board 52 `.pa .dt`): a state's lamp just before the count, in
+    /// `lampColor` (a search plugin's answer: answered, asking, slow, failed). `lampPulse`
+    /// breathes it while the state still moves; the caller leaves it off for reduced motion.
+    property bool lamp: false
+    property color lampColor: Theme.accent
+    property bool lampPulse: false
+    /// What the row sits on while it paints nothing (docs/DECISIONS.md C30 F1): the window,
+    /// or the block it is in (the rail's servers, `Theme.on.idle`).
+    property ThemeInk block: Theme.on.window
 
     signal clicked
     /// A right-click on the row, while `hasMenu`, at `x`, `y` in the row's coordinates.
@@ -55,6 +84,14 @@ Rectangle {
     /// the name's width is computed clear of it rather than by clipping after the fact.
     readonly property bool truncated: nameText.truncated
     readonly property real countRight: countText.x + countText.width
+    /// The ground under the row's words, as `color` paints it (C30 F1, F4).
+    readonly property ThemeInk ground: Theme.groundIn(root.block, root.selected, false,
+                                                      root.hot || root.current, false)
+    /// The words' colours on that ground, eased with the fill. `countColor` and `glyphColor`
+    /// are window roles; the row paints that ground's of the same (C30 F3).
+    readonly property Ink ink: Ink {
+        ground: root.ground
+    }
 
     // #79: the count at the row's right ("8") is its description.
     Accessible.description: root.countText.length > 0 ? root.countText : root.count >= 0 ? String(
@@ -70,15 +107,26 @@ Rectangle {
     Accessible.onPressAction: if (root.enabled)
                                   root.clicked()
 
-    color: root.selected ? Theme.fill(Theme.fillSelected) : root.hot ? Theme.fill(Theme.fillHover) :
-                                                                       "transparent"
+    // The ground's own fill; resting in a block, nothing: the block's is under it already.
+    color: root.ground === root.block ? "transparent" : root.ground.fill
     height: Theme.railRowHeight
     implicitHeight: Theme.railRowHeight
 
     Behavior on color {
         ColorAnimation {
-            duration: 120
+            duration: Theme.fillChangeDuration
         }
+    }
+
+    // The current row's mark (the skin's SelectionMark face): Omarchy's leading rule,
+    // Console's brackets (board 46 `.ri.on::after`).
+    SelectionMark {
+        anchors.fill: parent
+        color: Theme.accent
+        objectName: "railRowCurrentEdge"
+        rule: true
+        ruleWidth: Theme.railCurrentEdge
+        visible: root.current
     }
 
     Row {
@@ -87,7 +135,8 @@ Rectangle {
         objectName: "railRowLabel"
         anchors.left: parent.left
         anchors.leftMargin: Theme.space(16) + root.indent * Theme.space(12)
-        anchors.right: countText.visible ? countText.left : parent.right
+        anchors.right: lampItem.visible ? lampItem.left : countText.visible ? countText.left
+                                                                             : parent.right
         anchors.rightMargin: Theme.space(16)
         anchors.verticalCenter: parent.verticalCenter
         spacing: Theme.space(8)
@@ -96,25 +145,84 @@ Rectangle {
             id: glyphText
 
             anchors.verticalCenter: parent.verticalCenter
-            color: root.glyphColor
+            color: root.ink.of(root.glyphColor)
             height: Theme.font.small
             pixelSize: Theme.font.small
             text: root.glyph
+            visible: !root.tick
             width: Theme.space(14)
+        }
+
+        // The tick, in the glyph's place and room.
+        Item {
+            anchors.verticalCenter: parent.verticalCenter
+            height: Theme.font.small
+            visible: root.tick
+            width: Theme.space(14)
+
+            Rectangle {
+                anchors.centerIn: parent
+                border.color: root.ticked ? "transparent" : root.ink.dimForeground
+                border.width: root.ticked ? 0 : Theme.hairWidth
+                color: root.ticked ? root.ink.of(root.tickColor) : "transparent"
+                height: Theme.space(11)
+                objectName: "railRowTick"
+                width: Theme.space(11)
+            }
         }
 
         Text {
             id: nameText
 
             anchors.verticalCenter: parent.verticalCenter
-            color: root.selected ? Theme.brightForeground : root.dimText ? Theme.dimForeground :
-                                                                           Theme.foreground
+            color: root.toneName ? root.ink.of(root.tickColor) : root.selected || root.current
+                                                                 ? root.ink.brightForeground : root.dimText
+                                                                                               ? root.ink.dimForeground
+                                                                                               : root.ink.foreground
 
             elide: root.elideLeft ? Text.ElideLeft : Text.ElideRight
-            font.family: Theme.fontFamily
+            // Board 46 `.ri`: a place's name in the label family, its count a value; a view's
+            // in the control voice (`.views .ri`).
+            font.capitalization: root.view && Theme.controlUpper ? Font.AllUppercase : Font.MixedCase
+            font.family: Theme.labelFamily
+            font.letterSpacing: Theme.font.body * (root.view ? Theme.controlTrack : Theme.nameTrack)
             font.pixelSize: Theme.font.body
+            font.weight: root.view ? Theme.controlWeight : Font.Normal
             text: root.text
-            width: Math.max(0, label.width - glyphText.width - label.spacing)
+            visible: !root.compact
+            width: Math.max(0, label.width - Theme.space(14) - label.spacing)
+        }
+    }
+
+    // The state's lamp in the skin's face (Console's square), as the plugins' line's pills.
+    Lamp {
+        id: lampItem
+
+        anchors.right: countText.left
+        anchors.rightMargin: Theme.searchPillGap
+        anchors.verticalCenter: parent.verticalCenter
+        color: root.ink.of(root.lampColor)
+        objectName: "railRowLamp"
+        size: Theme.searchPillDot
+        visible: root.lamp && countText.visible
+
+        SequentialAnimation on opacity {
+            loops: Animation.Infinite
+            running: root.lampPulse && lampItem.visible
+
+            // The row outlives the state: a lamp that stops breathing is whole again.
+            onRunningChanged: if (!running)
+                                  lampItem.opacity = 1
+
+            NumberAnimation {
+                duration: Theme.searchPulseDuration / 2
+                to: Theme.searchPulseLow
+            }
+
+            NumberAnimation {
+                duration: Theme.searchPulseDuration / 2
+                to: 1
+            }
         }
     }
 
@@ -124,12 +232,23 @@ Rectangle {
         anchors.right: parent.right
         anchors.rightMargin: Theme.space(16)
         anchors.verticalCenter: parent.verticalCenter
-        color: root.countColor
-        font.family: Theme.fontFamily
+        color: root.ink.of(root.countColor)
+        font.family: Theme.valueFamily
         font.pixelSize: Theme.font.small
         objectName: "railRowCount"
-        text: root.countText.length > 0 ? root.countText : String(root.count)
-        visible: root.countText.length > 0 || root.count >= 0
+        text: root.countText.length > 0 ? root.countText : Theme.numeral(root.count)
+        visible: !root.compact && (root.countText.length > 0 || root.count >= 0)
+    }
+
+    KeyBadge {
+        anchors.right: countText.visible ? countText.left : parent.right
+        anchors.rightMargin: countText.visible ? Theme.keyBadgeRowGap : root.compact ? Theme.keyBadgeEdge
+                                                                                     : Theme.space(16)
+        anchors.verticalCenter: parent.verticalCenter
+        corner: false
+        key: root.keyText
+        objectName: "railRowKey"
+        shown: root.keysShown
     }
 
     MouseArea {

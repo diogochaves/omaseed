@@ -6,6 +6,26 @@ servers up (`~/.config/omaseed/dev.env` loaded). A patch to a line already relea
 [A maintenance release](#a-maintenance-release). `scripts/release.sh` automates steps 5–7;
 this file is the order to run them in and what to check by hand around them.
 
+## When to release
+
+A release ships what is ready; it never waits for a review (DECISIONS C33).
+
+- **The gate is automated.** `main` is releasable when CI is green and steps 1–2 below pass
+  (ctest, lint, the walks the release touches, the visual check in both skins). Nothing else
+  holds a release.
+- **The maintainer's review never blocks one.** He uses the latest release on his own machine
+  and files what he notices as issues, whenever he notices it; each lands in the next release
+  that is ready. A scheduled manual pass, when there is one, feeds the next release, not this
+  one.
+- **Boards never block one.** A feature waiting for a ruling waits on its own, unmerged or
+  unreleased; everything else ships.
+- **Small releases, often.** A minor version is one feature or one board; fixes go out as
+  patch versions (`X.Y.1`, `X.Y.2`) as soon as they are merged and the gate passes. Aim for
+  something to release every week or two, never a month of unreleased work on `main`.
+- **What needs a person's eyes** gets at most a short list (five minutes, what only a person
+  can judge), in the release's issue or checkpoint. It is optional: an unanswered list
+  doesn't hold the release.
+
 1. **Full test pass, both test servers up.**
    ```
    set -a; . ~/.config/omaseed/dev.env; set +a

@@ -33,6 +33,8 @@ Item {
     property string version: ""
     /// The server omaseed is on answers.
     property bool connected: false
+    /// #201 F4: a switch to it is under way (App.serverConnecting): its dot is neutral, not red.
+    property bool connecting: false
     /// The keyboard's cursor is on it (Settings' nav).
     property bool hasCursor: false
     /// The item the list opens over.
@@ -75,7 +77,7 @@ Item {
             out.push({
                          "text": map.name,
                          "glyph": Glyphs.dot,
-                         "glyphColor": current && !root.connected ? Theme.red
+                         "glyphColor": current && !root.connected ? (root.connecting ? Theme.dimForeground : Theme.red)
                                        : answers ? Theme.green : Theme.dimForeground,
                          "note": note,
                          "dim": !current && failing,
@@ -140,6 +142,12 @@ Item {
     Rectangle {
         id: selectBox
 
+        /// Its words on its fill, idle or hot (docs/DECISIONS.md C30 F1).
+        readonly property Ink ink: Ink {
+            animated: false
+            ground: root.hot || list.opened ? Theme.on.hover : Theme.on.idle
+        }
+
         // #77: a "switch server" button, the server it edits its description; its press
         // opens the list, as the click does.
         Accessible.description: root.currentName
@@ -149,8 +157,8 @@ Item {
                                       root.openList()
         anchors.fill: parent
         border.color: root.hot || list.opened ? Theme.accent : Theme.fill(Theme.borderIdle)
-        border.width: 1
-        color: root.hot || list.opened ? Theme.fill(Theme.fillHover) : Theme.fill(Theme.fillIdle)
+        border.width: Theme.hairWidth
+        color: selectBox.ink.fill
         objectName: "serverSelectBox"
         radius: Theme.cornerRadius
         visible: root.switches
@@ -165,12 +173,13 @@ Item {
             anchors.verticalCenter: parent.verticalCenter
             spacing: Theme.space(6)
 
-            Rectangle {
+            Lamp {
                 Layout.preferredHeight: Theme.space(7)
                 Layout.preferredWidth: Theme.space(7)
-                color: root.connected ? Theme.green : Theme.red
+                color: root.connected ? selectBox.ink.green : root.connecting ? selectBox.ink.dimForeground
+                                                                              : selectBox.ink.red
                 objectName: "serverSelectDot"
-                radius: width / 2
+                size: Theme.space(7)
             }
 
             Label {
@@ -178,6 +187,7 @@ Item {
                 Layout.minimumWidth: Theme.space(24)
                 bright: true
                 elide: Text.ElideRight
+                ink: selectBox.ink
                 objectName: "serverSelectName"
                 size: "small"
                 text: root.currentName
@@ -185,6 +195,7 @@ Item {
 
             Label {
                 dim: true
+                ink: selectBox.ink
                 size: "small"
                 text: root.version
                 visible: root.version.length > 0
@@ -192,6 +203,7 @@ Item {
 
             Label {
                 dim: true
+                ink: selectBox.ink
                 objectName: "serverSelectKey"
                 size: "caption"
                 text: "s " + Glyphs.chevronDown

@@ -323,14 +323,18 @@ int runHeadlessTableDemo(int rows)
 /// Omarchy theme, as JSON on stdout, for tools (a contrast check across themes) that must not
 /// re-implement the palette's cascade or the dim foreground's lift. The reader is the app's,
 /// on XDG_STATE_HOME and XDG_CONFIG_HOME; the Appearance pane's overrides are not applied.
-int runThemeRoles()
+/// `skin` (`--skin`, #171) draws the grounds in that skin; "" keeps OMASEED_SKIN's, or
+/// Omarchy's.
+int runThemeRoles(const QString &skin)
 {
     using omaseed::integration::Theme;
 
     omaseed::integration::ThemeReader reader;
     // No Hyprland: an empty hyprctl fails to start on the spot (nothing is spawned) and no
     // event socket is opened. Neither feeds a colour or an alpha.
-    const Theme theme(&reader, Theme::Hyprland{QString(), QString()});
+    Theme theme(&reader, Theme::Hyprland{QString(), QString()});
+    if (!skin.isEmpty())
+        theme.setSkin(skin);
     QTextStream(stdout) << QJsonDocument(Theme::rolesJson(theme)).toJson(QJsonDocument::Indented);
     return 0;
 }
@@ -427,6 +431,11 @@ struct CommandLine
         QStringList{QStringLiteral("theme-roles")},
         QStringLiteral("Print the current theme's colour and alpha roles, as omaseed resolves "
                        "them, as JSON, and exit. Opens no window.")};
+    QCommandLineOption skin{
+        QStringList{QStringLiteral("skin")},
+        QStringLiteral("With --theme-roles: resolve the grounds in this skin (omarchy, "
+                       "console) instead of OMASEED_SKIN's."),
+        QStringLiteral("name")};
     // Handled before the application starts (runInstallBarWidget); listed for --help.
     QCommandLineOption installBarWidget{
         QStringList{QStringLiteral("install-bar-widget")},
@@ -445,7 +454,7 @@ struct CommandLine
             QStringLiteral("omaseed — torrents for Omarchy, powered by qBittorrent."));
         parser.addHelpOption();
         parser.addVersionOption();
-        parser.addOptions({demo, rows, headless, hidden, themeRoles, installBarWidget, quit});
+        parser.addOptions({demo, rows, headless, hidden, themeRoles, skin, installBarWidget, quit});
         parser.addPositionalArgument(QStringLiteral("uris"),
                                      QStringLiteral("magnet: links or .torrent files to add."),
                                      QStringLiteral("[uris...]"));
@@ -493,7 +502,7 @@ int runPrintOnly(int argc, char *argv[])
     qputenv("QT_QPA_PLATFORM", QByteArrayLiteral("offscreen"));
     QGuiApplication app(argc, argv);
     setApplicationNames();
-    return runThemeRoles();
+    return runThemeRoles(parser.value(options.skin));
 }
 
 } // namespace
@@ -532,7 +541,7 @@ int main(int argc, char *argv[])
     parser.process(app);
 
     if (parser.isSet(options.themeRoles))
-        return runThemeRoles();
+        return runThemeRoles(parser.value(options.skin));
 
     qInfo().noquote() << omaseed::core::versionLine() << QStringLiteral("as") << applicationId();
 
@@ -578,25 +587,31 @@ int main(int argc, char *argv[])
     // activation, if none) to the running process over D-Bus (org.freedesktop.Application) —
     // or a QLocalServer when the session bus is unreachable — and exits here, before any QML
     // engine or window is created. The URIs this very process was started with travel the
-    // same openRequested() path, so there is exactly one place that logs a URI and raises the
-    // window (wired up below, once that window exists).
+    // same openRequested() path, so there is exactly one place that logs a URI; App routes
+    // it (wired up below, once App exists).
     auto *singleInstance = new omaseed::integration::SingleInstance(&app);
     QWindow *window = nullptr;
-    auto raiseWindow = [&window](omaseed::integration::SingleInstance *instance) {
-        if (!window)
-            return;
-        // Best-effort Wayland focus hand-off: Qt 6.11 has no public API to apply an XDG
-        // activation token to an already-mapped window, so this only helps on platforms
-        // where requestActivate() alone is enough (notably X11); on Wayland compositors
-        // that require a fresh token per activation, the window still raises but may not
-        // receive focus until the user clicks it.
+    // Best-effort Wayland focus hand-off: Qt 6.11 has no public API to apply an XDG
+    // activation token to an already-mapped window, so this only helps on platforms where
+    // requestActivate() alone is enough (notably X11); on Wayland compositors that require a
+    // fresh token per activation, the window still raises but may not receive focus until
+    // the user clicks it. A hand-off applies it too, for whichever window it maps.
+    auto applyActivationToken = [](omaseed::integration::SingleInstance *instance) {
         const QString token = instance->takeLastActivationToken();
         if (!token.isEmpty())
             qputenv("XDG_ACTIVATION_TOKEN", token.toUtf8());
+    };
+    auto raiseWindow = [&window,
+                        applyActivationToken](omaseed::integration::SingleInstance *instance) {
+        if (!window)
+            return;
+        applyActivationToken(instance);
         window->show();
         window->raise();
         window->requestActivate();
     };
+    // A plain activation (a second launch with no URI, the launcher, a dock) still raises.
+    // docs/DECISIONS.md C35: a hand-off with URIs no longer does; App decides where it opens.
     QObject::connect(singleInstance,
                      &omaseed::integration::SingleInstance::activateRequested,
                      &app,
@@ -604,10 +619,10 @@ int main(int argc, char *argv[])
     QObject::connect(singleInstance,
                      &omaseed::integration::SingleInstance::openRequested,
                      &app,
-                     [singleInstance, raiseWindow](const QStringList &openedUris) {
+                     [singleInstance, applyActivationToken](const QStringList &openedUris) {
                          for (const QString &uri : openedUris)
                              qInfo().noquote() << QStringLiteral("uri: %1").arg(uri);
-                         raiseWindow(singleInstance);
+                         applyActivationToken(singleInstance);
                      });
     // A `--demo` run never receives URIs and must never take the name: two agents' demos
     // (and a demo beside a real omaseed) have to coexist on one session bus.
@@ -719,7 +734,7 @@ int main(int argc, char *argv[])
     QObject::connect(&tray, &omaseed::integration::Tray::showRequested, &app, showWindow);
 
     // Everything else in the menu is the shared menu (docs/33 §11, D10, D24), App's: the
-    // servers, alt-speed, stop all and start all go out as real requests, add and settings
+    // servers, alt-speed, pause and resume torrents go out as real requests, add and settings
     // bring the window up, and quit is a real quit. The bar widget's ⋯ shows the same rows.
     // The quit is queued, so a widget's Invoke("quit") still gets its answer.
     omaseedApp.attachTray(&tray);
@@ -787,15 +802,25 @@ int main(int argc, char *argv[])
     // --- T4.2: add flow ---
     // The URI hand-off. `SingleInstance` emits openRequested for the URIs this process was
     // started with as well as for every one a second launch forwards, always through a queued
-    // singleShot, so connecting here — after the App exists — still catches our own argv. QML
-    // picks them up as `App.addUrisRequested` and queues them into the add sheet.
-    QObject::connect(
-        singleInstance,
-        &omaseed::integration::SingleInstance::openRequested,
-        &omaseedApp,
-        [&omaseedApp](const QStringList &openedUris) { omaseedApp.openUris(openedUris); });
-    // `App::addRequested` (the tray, the hero's `+`, `a`) no longer needs a log line here:
-    // MainView opens `Views/AddSheet.qml` on it.
+    // singleShot, so connecting here — after the App exists — still catches our own argv.
+    // docs/DECISIONS.md C35: App::requestAdd decides where they open (the add window where
+    // the user is, or the main window's sheet) and whether the main window comes up.
+    QObject::connect(singleInstance,
+                     &omaseed::integration::SingleInstance::openRequested,
+                     &omaseedApp,
+                     [&omaseedApp](const QStringList &openedUris, bool atLaunch) {
+                         omaseedApp.requestAdd(openedUris,
+                                               atLaunch ? omaseed::app::AddSource::Startup
+                                                        : omaseed::app::AddSource::Handoff);
+                     });
+    // C35 W2: "the main window had focus just before" is read from its focus over time.
+    if (rootWindow) {
+        omaseedApp.setMainWindowActive(rootWindow->isActive());
+        QObject::connect(
+            rootWindow, &QWindow::activeChanged, &omaseedApp, [&omaseedApp, rootWindow]() {
+                omaseedApp.setMainWindowActive(rootWindow->isActive());
+            });
+    }
     // --- end T4.2 ---
 
     // #12: the bar widget's status file (plugin/STATUS.md). A real launch only: a demo must

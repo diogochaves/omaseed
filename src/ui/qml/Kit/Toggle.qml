@@ -13,6 +13,9 @@ Item {
     property bool checked: false
     property string text: ""
     property bool hasCursor: false
+    /// What the switch lies on (docs/DECISIONS.md C30 F1): the window, or a block or hovered
+    /// settings row (`block: row.ground`) whose fill its idle track nests over (#188).
+    property ThemeInk block: Theme.on.window
 
     signal toggled
 
@@ -24,6 +27,9 @@ Item {
     }
 
     readonly property bool hot: root.hasCursor || mouseArea.containsMouse
+    /// The track's ground: the ticked tint when on, else the idle fill over `block`.
+    readonly property ThemeInk ground: root.checked ? Theme.on.ticked
+                                                    : Theme.within(root.block, Theme.on.idle)
     readonly property int knobSize: root.trackHeight - Theme.space(4)
     readonly property int trackHeight: Theme.space(14)
     readonly property int trackWidth: Theme.space(28)
@@ -52,16 +58,17 @@ Item {
         objectName: "toggleTrack"
         anchors.verticalCenter: parent.verticalCenter
         border.color: root.hot ? Theme.fill(Theme.borderHover) : Theme.fill(Theme.borderIdle)
-        border.width: root.checked ? 0 : 1
-        color: root.checked ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, Theme.fillPressed) :
-                              Theme.fill(Theme.fillIdle)
+        border.width: root.checked ? 0 : Theme.hairWidth
+        // The ticked tint and the idle fill (docs/DECISIONS.md C30 F5); the knob is no text,
+        // but takes the ground's colour so it reads as the ✓ on a ticked box does.
+        color: root.ground.fill
         height: root.trackHeight
         radius: Theme.cornerRadius
         width: root.trackWidth
 
         Behavior on color {
             ColorAnimation {
-                duration: 120
+                duration: Theme.fillChangeDuration
             }
         }
 
@@ -69,7 +76,7 @@ Item {
             id: knob
 
             anchors.verticalCenter: parent.verticalCenter
-            color: root.checked ? Theme.brightForeground : Theme.dimForeground
+            color: root.checked ? root.ground.brightForeground : root.ground.dimForeground
             height: root.knobSize
             radius: Theme.cornerRadius
             width: root.knobSize

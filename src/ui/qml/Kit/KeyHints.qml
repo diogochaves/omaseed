@@ -39,6 +39,8 @@ RowLayout {
     /// `.hints`); a sheet's or a palette's own hint line is `caption` (spec `.sheet .ft`,
     /// `.palette .ft`).
     property string size: "small"
+    /// The ground the row is painted on (docs/DECISIONS.md C30 F1); null is the window.
+    property Ink ink: null
 
     /// A click on a `clickable` hint: its index in `model` and the hint itself.
     signal hintClicked(int index, var hint)
@@ -48,6 +50,9 @@ RowLayout {
     readonly property bool hasPinned: root.pinned !== null
     readonly property bool hasPinnedLead: root.pinnedLead !== null
     readonly property int _pixelSize: Theme.font[root.size]
+    readonly property color _foreground: root.ink !== null ? root.ink.foreground : Theme.foreground
+    readonly property color _dim: root.ink !== null ? root.ink.dimForeground : Theme.dimForeground
+    readonly property color _accent: root.ink !== null ? root.ink.accent : Theme.accent
     /// Which of `model`'s hints are shown, by index: every `keep` hint that fits (left to
     /// right), then the others from the left while there is room.
     readonly property var _shown: {
@@ -118,14 +123,14 @@ RowLayout {
                     spacing: Theme.space(6)
 
                     Text {
-                        color: hintArea.containsMouse ? Theme.accent : Theme.foreground
+                        color: hintArea.containsMouse ? root._accent : root._foreground
                         font.family: Theme.fontFamily
                         font.pixelSize: root._pixelSize
                         text: hintRow.modelData.key
                     }
 
                     Text {
-                        color: hintArea.containsMouse ? Theme.accent : Theme.dimForeground
+                        color: hintArea.containsMouse ? root._accent : root._dim
                         font.family: Theme.fontFamily
                         font.pixelSize: root._pixelSize
                         text: hintRow.modelData.label
@@ -170,14 +175,14 @@ RowLayout {
             spacing: Theme.space(6)
 
             Text {
-                color: Theme.foreground
+                color: root._foreground
                 font.family: Theme.fontFamily
                 font.pixelSize: root._pixelSize
                 text: root.pinnedLead ? root.pinnedLead.key : ""
             }
 
             Text {
-                color: Theme.dimForeground
+                color: root._dim
                 font.family: Theme.fontFamily
                 font.pixelSize: root._pixelSize
                 text: root.pinnedLead ? root.pinnedLead.label : ""
@@ -199,14 +204,14 @@ RowLayout {
             spacing: Theme.space(6)
 
             Text {
-                color: pinnedArea.containsMouse ? Theme.accent : Theme.foreground
+                color: pinnedArea.containsMouse ? root._accent : root._foreground
                 font.family: Theme.fontFamily
                 font.pixelSize: root._pixelSize
                 text: root.pinned ? root.pinned.key : ""
             }
 
             Text {
-                color: pinnedArea.containsMouse ? Theme.accent : Theme.dimForeground
+                color: pinnedArea.containsMouse ? root._accent : root._dim
                 font.family: Theme.fontFamily
                 font.pixelSize: root._pixelSize
                 text: root.pinned ? root.pinned.label : ""

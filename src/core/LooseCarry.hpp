@@ -101,6 +101,20 @@ public:
     /// Counts a list as run() does (for a list read back from disk).
     static Result tally(const QList<CarryFile> &files);
 
+    /// DECISIONS C32 D19: what a move carried, as it lies at `at` (the folder's new place, on
+    /// this machine) right after the carry: the carried() files only, each with the size and
+    /// time read there (one that was already there keeps its own), outcome ToDo, no why. What
+    /// the move's record keeps for move back.
+    static QList<CarryFile> asCarried(const QString &at, const QList<CarryFile> &files);
+
+    /// DECISIONS C32 D19: move back's list, from what the move carried (asCarried()), each
+    /// checked at `at` (the new place) now. Unchanged it goes back (ToDo); changed since the
+    /// move, size or time, it stays (Changed, `why` "changed at 17:02, after the move"); no
+    /// longer there it stays as Gone. Nothing else: a file the move didn't carry is never on
+    /// it. run() from the new place to the old one then carries the ToDo ones as the move did.
+    static QList<CarryFile>
+    backList(const QString &at, const QList<CarryFile> &carried, const QDateTime &now);
+
     static QJsonArray toJson(const QList<CarryFile> &files);
     static QList<CarryFile> fromJson(const QJsonArray &array);
 };

@@ -47,6 +47,9 @@ struct AddOptions
     /// already looked up (EngineClient::fetchMetadata, docs/29 §2); empty leaves it off.
     QList<FilePriority> filePriorities;
     std::optional<StopCondition> stopCondition;
+    /// The search plugin that fetches a link to a `.torrent` (a search result's, DECISIONS C26
+    /// SR9; EngineFeatures::search). Unset leaves it off.
+    std::optional<QString> downloader;
 };
 
 /// One `.torrent` of an add: the name it is uploaded under and its bytes.

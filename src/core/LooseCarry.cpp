@@ -5,6 +5,7 @@
 #include <QDir>
 #include <QFileInfo>
 #include <QJsonObject>
+#include <QLocale>
 #include <QSet>
 
 #include <cerrno>
@@ -449,6 +450,71 @@ LooseCarry::Result LooseCarry::tally(const QList<CarryFile> &files)
             result.full = true;
     }
     return result;
+}
+
+namespace {
+
+/// "17:02" today, "20 Oct 17:02" another day (C18 D7's words for a time).
+QString whenOf(const QDateTime &at, const QDateTime &now)
+{
+    const QDateTime here = at.toLocalTime();
+    const QString time = QLocale().toString(here.time(), QLocale::ShortFormat);
+    if (here.date() == now.toLocalTime().date())
+        return time;
+    return QLocale().toString(here.date(), QStringLiteral("d MMM")) + QLatin1Char(' ') + time;
+}
+
+QDateTime modifiedOf(const struct stat &st)
+{
+    return QDateTime::fromMSecsSinceEpoch(qint64(st.st_mtim.tv_sec) * 1000 +
+                                          st.st_mtim.tv_nsec / 1000000);
+}
+
+} // namespace
+
+QList<CarryFile> LooseCarry::asCarried(const QString &at, const QList<CarryFile> &files)
+{
+    const QString root = QDir::cleanPath(at);
+    QList<CarryFile> out;
+    for (const CarryFile &file : files) {
+        if (!file.carried())
+            continue;
+        CarryFile kept;
+        kept.relative = file.relative;
+        kept.size = file.size;
+        kept.modified = file.modified;
+        struct stat st{};
+        const QString path = root + QLatin1Char('/') + file.relative;
+        if (::lstat(local(path).constData(), &st) == 0 && S_ISREG(st.st_mode)) {
+            kept.size = qint64(st.st_size);
+            kept.modified = modifiedOf(st);
+        }
+        out << kept;
+    }
+    return out;
+}
+
+QList<CarryFile>
+LooseCarry::backList(const QString &at, const QList<CarryFile> &carried, const QDateTime &now)
+{
+    const QString root = QDir::cleanPath(at);
+    QList<CarryFile> out;
+    for (const CarryFile &file : carried) {
+        CarryFile item = file;
+        item.outcome = CarryFile::Outcome::ToDo;
+        item.why.clear();
+        struct stat st{};
+        const QString path = root + QLatin1Char('/') + file.relative;
+        if (::lstat(local(path).constData(), &st) != 0) {
+            item.outcome = CarryFile::Outcome::Gone;
+            item.why = tr("no longer there");
+        } else if (!S_ISREG(st.st_mode) || !sameAs(st, file)) {
+            item.outcome = CarryFile::Outcome::Changed;
+            item.why = tr("changed at %1, after the move").arg(whenOf(modifiedOf(st), now));
+        }
+        out << item;
+    }
+    return out;
 }
 
 namespace {

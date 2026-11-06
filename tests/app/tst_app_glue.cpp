@@ -3,6 +3,7 @@
 
 #include "QbtFeed.hpp"
 #include "core/Server.hpp"
+#include "core/ServerListModel.hpp"
 #include "core/ServerStore.hpp"
 #include "core/SyncEngine.hpp"
 #include "core/TorrentFile.hpp"
@@ -16,6 +17,7 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QJsonArray>
+#include <QJsonDocument>
 #include <QJsonObject>
 #include <QSignalSpy>
 #include <QStandardPaths>
@@ -79,6 +81,12 @@ private slots:
     // Review rulings Q9, Q10
     void anUnreadableServersFileIsNamedWhereItWasKept();
     void secretsInAPlainFileAreNamed();
+
+    // DECISIONS C28 (#84)
+    void aServerOfAnotherEngineIsNeverPolled();
+
+    // #201 F4, F5
+    void aSwitchReadsConnectingNeverDown();
 
     // Manual box M7
     void theDownloadsListMarksWhatTheLibraryHolds();
@@ -412,6 +420,8 @@ protected:
                 body = "v5.2.3";
             else if (target.startsWith("/api/v2/app/webapiVersion"))
                 body = "2.15.1";
+            else if (target.startsWith("/api/v2/torrents/info"))
+                body = QStringLiteral(R"([{"hash":"%1","name":"t"}])").arg(hash).toUtf8();
             else if (target.startsWith("/api/v2/sync/maindata"))
                 body = QStringLiteral(R"({"rid":1,"full_update":true,"torrents":{"%1":)"
                                       R"({"name":"t","seq_dl":false,"state":"downloading",)"
@@ -603,6 +613,190 @@ void TestAppGlue::anUnreadableServersFileIsNamedWhereItWasKept()
     QFile file(kept);
     QVERIFY(file.open(QIODevice::ReadOnly));
     QCOMPARE(file.readAll(), corrupt);
+}
+
+void TestAppGlue::aSwitchReadsConnectingNeverDown()
+{
+    using omaseed::core::ServerListModel;
+    ToggleServer first;
+    ToggleServer second;
+    QVERIFY(first.listen(QHostAddress::LocalHost));
+    QVERIFY(second.listen(QHostAddress::LocalHost));
+    QTcpServer closed; // a port nothing answers on once it is closed
+    QVERIFY(closed.listen(QHostAddress::LocalHost));
+    const quint16 deadPort = closed.serverPort();
+    closed.close();
+    QTemporaryDir home;
+    qputenv("XDG_CONFIG_HOME", home.path().toUtf8());
+    qunsetenv("OMASEED_SERVER_URL");
+
+    App app;
+    app.start();
+    ServerListModel *list = app.serverList();
+    const auto field = [list](const QString &id, int role) {
+        return list->data(list->index(list->indexOfId(id), 0), role).toString();
+    };
+    const auto fields = [](const QString &name, quint16 port) {
+        return QVariantMap{
+            {QStringLiteral("name"), name},
+            {QStringLiteral("url"), QStringLiteral("http://127.0.0.1:%1").arg(port)},
+            {QStringLiteral("authMode"), QStringLiteral("none")},
+        };
+    };
+
+    // F4: before its first answer the server is on its way, not down.
+    const QString one = app.addServer(fields(QStringLiteral("one"), first.serverPort()), QString());
+    QVERIFY(app.serverConnecting());
+    QCOMPARE(field(one, ServerListModel::StateRole), QStringLiteral("connecting"));
+    QTRY_VERIFY_WITH_TIMEOUT(app.globalState()->connected(), 5000);
+    QVERIFY(!app.serverConnecting());
+    QCOMPARE(field(one, ServerListModel::StateRole), QStringLiteral("live"));
+
+    // F5: a server added beside it is counted at once, before omaseed has been on it.
+    const QString two =
+        app.addServer(fields(QStringLiteral("two"), second.serverPort()), QString());
+    QTRY_COMPARE_WITH_TIMEOUT(
+        field(two, ServerListModel::CountTextRole), QStringLiteral("1"), 5000);
+    QCOMPARE(field(two, ServerListModel::StateRole), QStringLiteral("seen"));
+
+    // F4: every state the row goes through on a switch; "down" is never one of them.
+    QStringList states;
+    connect(list, &QAbstractItemModel::dataChanged, &app, [&]() {
+        const QString state = field(two, ServerListModel::StateRole);
+        if (states.isEmpty() || states.constLast() != state)
+            states << state;
+    });
+    QVERIFY(app.switchServer(two));
+    QTRY_VERIFY_WITH_TIMEOUT(app.globalState()->connected() && !app.serverConnecting(), 5000);
+    QCOMPARE(field(two, ServerListModel::StateRole), QStringLiteral("live"));
+    QVERIFY2(states.contains(QStringLiteral("connecting")), qPrintable(states.join(u',')));
+    QVERIFY2(!states.contains(QStringLiteral("down")), qPrintable(states.join(u',')));
+
+    // A real failure is red: nothing answers there.
+    const QString dead = app.addServer(fields(QStringLiteral("dead"), deadPort), QString());
+    QVERIFY(app.switchServer(dead));
+    QCOMPARE(field(dead, ServerListModel::StateRole), QStringLiteral("connecting"));
+    QTRY_COMPARE_WITH_TIMEOUT(
+        field(dead, ServerListModel::StateRole), QStringLiteral("down"), 15000);
+    QVERIFY(!app.serverConnecting());
+    app.engine()->stop();
+}
+
+void TestAppGlue::aServerOfAnotherEngineIsNeverPolled()
+{
+    // DECISIONS C28, C25 K9: servers.json (v2, #84) with a Transmission server as the
+    // default. This build lists it, says why it can't use it, and polls it never: not at
+    // start, not on "retry now", not when the others are probed. Only a test from its sheet
+    // asks it, as the Transmission it is, to say so in K9's words.
+    QTcpServer transmission;
+    QVERIFY(transmission.listen(QHostAddress::LocalHost));
+    int connections = 0;
+    connect(&transmission, &QTcpServer::newConnection, this, [&]() {
+        while (QTcpSocket *socket = transmission.nextPendingConnection()) {
+            ++connections;
+            socket->abort();
+            socket->deleteLater();
+        }
+    });
+
+    QTemporaryDir home;
+    qputenv("XDG_CONFIG_HOME", home.path().toUtf8());
+    qunsetenv("OMASEED_SERVER_URL");
+    const QString configDir = home.path() + QStringLiteral("/omaseed");
+    QVERIFY(QDir().mkpath(configDir));
+    const QString filePath = configDir + QStringLiteral("/servers.json");
+    const QJsonObject seedbox{
+        {QStringLiteral("id"), QStringLiteral("t-1")},
+        {QStringLiteral("name"), QStringLiteral("seedbox")},
+        {QStringLiteral("url"),
+         QStringLiteral("http://127.0.0.1:%1").arg(transmission.serverPort())},
+        {QStringLiteral("authMode"), QStringLiteral("none")},
+        {QStringLiteral("engine"), QStringLiteral("transmission")},
+        {QStringLiteral("engineVersion"), QStringLiteral("4.1.0")},
+    };
+    const QJsonObject other{
+        {QStringLiteral("id"), QStringLiteral("q-1")},
+        {QStringLiteral("name"), QStringLiteral("public")},
+        {QStringLiteral("url"), QStringLiteral("http://127.0.0.1:9")}, // nobody listens
+        {QStringLiteral("authMode"), QStringLiteral("none")},
+        {QStringLiteral("engine"), QStringLiteral("qbittorrent")},
+    };
+    {
+        QFile file(filePath);
+        QVERIFY(file.open(QIODevice::WriteOnly));
+        file.write(
+            QJsonDocument(QJsonObject{{QStringLiteral("version"), 2},
+                                      {QStringLiteral("servers"), QJsonArray{seedbox, other}},
+                                      {QStringLiteral("defaultId"), QStringLiteral("t-1")}})
+                .toJson());
+    }
+
+    App app;
+    QSignalSpy tested(&app, &App::serverTested);
+    app.start();
+    QVERIFY(!app.firstRunNeeded());
+    QCOMPARE(app.serverList()->count(), 2);
+    QCOMPARE(app.serverName(), QStringLiteral("seedbox"));
+    QVERIFY(app.serverOtherEngine());
+    QVERIFY(app.serverRefused());
+    QVERIFY(app.isServerLost());
+    QVERIFY(!app.engine()->isRunning());
+
+    const QVariantMap problem = app.serverProblem(QString(), -1);
+    QCOMPARE(problem.value(QStringLiteral("kind")).toString(), QStringLiteral("engine"));
+    QCOMPARE(problem.value(QStringLiteral("headline")).toString(),
+             QStringLiteral("seedbox is a Transmission server"));
+    QCOMPARE(problem.value(QStringLiteral("retry")).toString(), QString());
+    QCOMPARE(app.guardNote(QStringLiteral("p")),
+             QStringLiteral("seedbox is a Transmission server: p does nothing here"));
+
+    app.retryNow();
+    QVERIFY(!app.engine()->isRunning());
+    QTest::qWait(300);
+    QCOMPARE(connections, 0); // nothing at start, nor on "retry now"
+    // The engines build's test asks it as the Transmission it is (C25 K5, K9; the refusal's
+    // words are tst_app_engines'), never as a qBittorrent.
+    app.testServer(app.serverList()->serverMap(QStringLiteral("t-1")), QString());
+    QVERIFY(tested.wait(5000));
+    QCOMPARE(tested.constFirst().at(1).toBool(), false);
+    QVERIFY2(!tested.constFirst().at(6).toString().contains(QStringLiteral("api/v2")),
+             qPrintable(tested.constFirst().at(6).toString()));
+    QTest::qWait(300);
+    const int fromTheTest = connections;
+
+    // The rows say it too, and the server is never rewritten as a qBittorrent.
+    const QVariantList rows = app.serverRows();
+    QCOMPARE(rows.constFirst().toMap().value(QStringLiteral("state")).toString(),
+             QStringLiteral("refused"));
+    QVERIFY(rows.constFirst()
+                .toMap()
+                .value(QStringLiteral("detail"))
+                .toString()
+                .contains(QStringLiteral("Transmission server")));
+
+    // On the other server, the Transmission one is still listed and still not asked.
+    QVERIFY(app.switchServer(QStringLiteral("q-1")));
+    QVERIFY(!app.serverOtherEngine());
+    QVERIFY(!app.serverRefused());
+    const QVariantMap seedboxRow = app.serverRows().at(1).toMap();
+    QCOMPARE(seedboxRow.value(QStringLiteral("key")).toString(), QStringLiteral("t-1"));
+    QCOMPARE(seedboxRow.value(QStringLiteral("state")).toString(), QStringLiteral("refused"));
+    QCOMPARE(seedboxRow.value(QStringLiteral("meta")).toString(),
+             QStringLiteral("Transmission server"));
+    QVERIFY(app.switchServer(QStringLiteral("t-1")));
+    QVERIFY(app.serverOtherEngine());
+    QVERIFY(!app.engine()->isRunning());
+
+    QTest::qWait(300); // anything sent would have connected by now
+    QCOMPARE(connections, fromTheTest);
+
+    QFile file(filePath);
+    QVERIFY(file.open(QIODevice::ReadOnly));
+    const QJsonObject root = QJsonDocument::fromJson(file.readAll()).object();
+    QCOMPARE(root.value(QStringLiteral("version")).toInt(), 2);
+    const QJsonObject saved = root.value(QStringLiteral("servers")).toArray().at(0).toObject();
+    QCOMPARE(saved.value(QStringLiteral("engine")).toString(), QStringLiteral("transmission"));
+    QCOMPARE(saved.value(QStringLiteral("engineVersion")).toString(), QStringLiteral("4.1.0"));
 }
 
 void TestAppGlue::secretsInAPlainFileAreNamed()

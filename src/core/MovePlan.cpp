@@ -193,6 +193,18 @@ MovePlan::WriteCheck writeCheckOf(const QString &folder,
     return check;
 }
 
+/// C28 (#176): the file goes only if it is still what the plan saw, an empty regular file;
+/// lstat, so a link to an empty file is never followed.
+bool removeEmptyFile(const QString &path)
+{
+    struct stat st{};
+    if (::lstat(QFile::encodeName(path).constData(), &st) != 0)
+        return false;
+    if (!S_ISREG(st.st_mode) || st.st_size != 0)
+        return false;
+    return ::unlink(QFile::encodeName(path).constData()) == 0;
+}
+
 } // namespace
 
 MoveDisk MoveDisk::real()
@@ -201,7 +213,24 @@ MoveDisk MoveDisk::real()
     disk.exists = lexists;
     disk.sizeOf = sizeOfLocal;
     disk.canWrite = canWriteAs;
+    disk.removeEmpty = removeEmptyFile;
     return disk;
+}
+
+bool MovePlan::isReplaceable(const Item &item)
+{
+    return item.kind == Item::Kind::LeftOut && item.thereBytes == 0 && !item.thereIsFolder &&
+           item.thereOwnerKnown && item.thereOwner.isEmpty() && !item.why.isEmpty();
+}
+
+QStringList MovePlan::replaceable() const
+{
+    QStringList out;
+    for (const Item &item : m_items) {
+        if (isReplaceable(item) && !out.contains(item.why))
+            out << item.why;
+    }
+    return out;
 }
 
 QString MovePlan::commonFolder(const QStringList &paths)

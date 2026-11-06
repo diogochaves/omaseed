@@ -59,6 +59,23 @@ TestCase {
         compare(sheet.matchedRows.map(row => row.action), ["mouse:middle"]);
     }
 
+    // DECISIONS C24 H10: what sheets' feet printed (v2's hints, C11 D4's "s next server") is
+    // a block of its own, "in a sheet", after view: the first column's last, so "act on
+    // torrents" still heads the second.
+    function test_the_sheets_keys_have_a_block_after_view() {
+        const sheet = init();
+        const keys = sheet.sections.map(section => section.key);
+        compare(keys.indexOf("sheet"), keys.indexOf("view") + 1);
+        compare(sheet._columnSections(1)[0].key, "act");
+        const block = sheet.sections[keys.indexOf("sheet")];
+        compare(block.title, "in a sheet");
+        const helpKeys = block.rows.map(row => row.helpKeys);
+        for (const key of ["enter", "shift+enter", "tab", "esc", "ctrl+o", "↓", "ctrl+s", "alt+s", "s"])
+            verify(helpKeys.indexOf(key) >= 0, key + " is not in the block");
+        sheet.filterField.text = "next server";
+        compare(sheet.matchedRows.map(row => row.action), ["sheet:nextServer"]);
+    }
+
     function test_scrollbarShowsWhenRowsOverflow() {
         const sheet = init();
         const bar = childNamed(sheet, "helpScrollBar");

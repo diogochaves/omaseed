@@ -28,6 +28,9 @@ import Omaseed.Kit
 // field, before `trailing`, in the accent: a click emits `openerClicked`, and its arrow follows
 // `openerExpanded` (▾ closed, ▴ open). A screen reader reads the field as text, then the
 // opener as a button of its own, collapsed or expanded (#91).
+//
+// With `tokenChips` (board 51 D18 a: the title bar's filter), each `word:value` token typed
+// (`cat:games`, `is:stalled`) sits on a chip, the selected fill (18 %) behind its words.
 Rectangle {
     id: root
 
@@ -35,11 +38,32 @@ Rectangle {
     /// Where the caret is. A value written from outside leaves it at the end, which scrolls a
     /// long text to its tail; 0 shows it from the start (docs/16's long path fields).
     property alias cursorPosition: input.cursorPosition
+    /// Board 51 D18 a: `word:value` tokens drawn as chips.
+    property bool tokenChips: false
+    /// The tokens' spans in the text, `[{start, end}]`, as the chips draw them.
+    readonly property var tokenSpans: {
+        if (!root.tokenChips)
+            return [];
+        const spans = [];
+        const pattern = /(^|\s)([A-Za-z]+:\S+)/g;
+        let match;
+        while ((match = pattern.exec(input.text)) !== null) {
+            const start = match.index + match[1].length;
+            spans.push({
+                           "start": start,
+                           "end": start + match[2].length
+                       });
+        }
+        return spans;
+    }
     property string placeholder: ""
     property string hint: ""
     property string trailing: ""
     /// A key drawn as a cap after `trailing` (docs/12 F1: the Files filter's `esc`); "" none.
     property string trailingKey: ""
+    /// Draw `trailingKey`'s cap. False keeps the key for a screen reader only (a sheet's
+    /// `browse`: keys on demand, DECISIONS C24 H10).
+    property bool trailingKeyShown: true
     /// The trailing text and cap act as a button (the add sheet's `browse`, manual box M6):
     /// a pointing hand and the accent under the mouse, and a click emits `trailingClicked`.
     /// The key it names still has to be handled by the caller.
@@ -67,6 +91,9 @@ Rectangle {
     readonly property string spokenName: root.accessibleName.length > 0 ? root.accessibleName :
                                          root._rowCaption.length > 0 ? root._rowCaption : root.placeholder
     property bool hasCursor: false
+    /// What the field lies on (docs/DECISIONS.md C30 F1): the window, or a block or hovered
+    /// row whose fill its own fills nest over (`Theme.within`, #188).
+    property ThemeInk block: Theme.on.window
     /// `TextInput.Password` for a secret (spec §3 Fig. 9's `Key` field). Normal by default.
     property int echoMode: TextInput.Normal
     /// Whether `esc` clears the text first. A filter wants that (the escape ladder); a form
@@ -163,18 +190,22 @@ Rectangle {
     }
 
     readonly property bool hot: root.hasCursor || hoverHandler.hovered || input.activeFocus
+    /// docs/DECISIONS.md C30 F1: the field's words on its fill, idle or hot, eased with it.
+    readonly property Ink ink: Ink {
+        ground: Theme.within(root.block, root.hot ? Theme.on.hover : Theme.on.idle)
+    }
 
     border.color: input.activeFocus ? Theme.accent : root.hot ? Theme.fill(Theme.borderHover) :
                                                                 Theme.fill(Theme.borderIdle)
-    border.width: 1
-    color: root.hot ? Theme.fill(Theme.fillHover) : Theme.fill(Theme.fillIdle)
+    border.width: Theme.hairWidth
+    color: root.ink.ground.fill
     height: Theme.controlHeight
     implicitWidth: Theme.space(220)
     radius: Theme.cornerRadius
 
     Behavior on color {
         ColorAnimation {
-            duration: 120
+            duration: Theme.fillChangeDuration
         }
     }
 
@@ -187,6 +218,50 @@ Rectangle {
         anchors.fill: parent
         input: input
         objectName: "fieldMouse"
+    }
+
+    // D18 a: the tokens' chips, under the text and cut to the input's box as the text is.
+    Item {
+        id: chips
+
+        clip: true
+        height: input.height
+        objectName: "fieldChips"
+        visible: root.tokenSpans.length > 0
+        width: input.width
+        x: input.x
+        y: input.y
+
+        Repeater {
+            model: root.tokenSpans
+
+            Rectangle {
+                id: chip
+
+                required property var modelData
+                // Re-read as the text scrolls under the caret, and as it is typed.
+                readonly property rect from: {
+                    void input.cursorPosition;
+                    void input.contentWidth;
+                    void input.width;
+                    return input.positionToRectangle(chip.modelData.start);
+                }
+                readonly property rect to: {
+                    void input.cursorPosition;
+                    void input.contentWidth;
+                    void input.width;
+                    return input.positionToRectangle(chip.modelData.end);
+                }
+
+                color: Theme.on.selected.fill
+                height: chip.from.height + Theme.space(2)
+                objectName: "fieldChip"
+                radius: Theme.cornerRadius
+                width: chip.to.x - chip.from.x + Theme.space(8)
+                x: chip.from.x - Theme.space(4)
+                y: chip.from.y - Theme.space(1)
+            }
+        }
     }
 
     // #91: the input comes first among the parts a screen reader reads (Qt publishes children
@@ -214,13 +289,13 @@ Rectangle {
                              ? Theme.space(6) : Theme.space(10)
         anchors.verticalCenter: parent.verticalCenter
         clip: true
-        color: Theme.brightForeground
+        color: root.ink.brightForeground
         // Qt shows a delegate caret when the field gains the keyboard but can leave it drawn
         // when the keyboard moves on in the same frame: Speed limits opened on its alt-speed
         // pair focused Download first, and Download kept a caret over its `∞` (batch-2 P2).
         // Opacity rather than `visible`, which Qt itself toggles to blink.
         cursorDelegate: Rectangle {
-            color: Theme.accent
+            color: root.ink.accent
             objectName: "fieldCaret"
             opacity: input.activeFocus ? 1 : 0
             width: 1
@@ -237,7 +312,7 @@ Rectangle {
         // the caret is in, as most text fields do (batch-2 J6).
         Text {
             anchors.verticalCenter: parent.verticalCenter
-            color: Theme.dimForeground
+            color: root.ink.dimForeground
             font.family: Theme.fontFamily
             font.pixelSize: Theme.font.body
             objectName: "fieldPlaceholder"
@@ -275,15 +350,15 @@ Rectangle {
         Keys.onEnterPressed: event => root._onEnter(event)
     }
 
-    Text {
+    // A glyph slot, so a skin's icon for the hint (Glyphs.search) draws as one (#171).
+    Glyph {
         id: hintText
 
         anchors.left: parent.left
         anchors.leftMargin: Theme.space(10)
         anchors.verticalCenter: parent.verticalCenter
-        color: Theme.dimForeground
-        font.family: Theme.fontFamily
-        font.pixelSize: Theme.font.body
+        color: root.ink.dimForeground
+        pixelSize: Theme.font.body
         text: root.hint
         visible: root.hint.length > 0
     }
@@ -294,9 +369,10 @@ Rectangle {
         anchors.right: parent.right
         anchors.rightMargin: Theme.space(8)
         anchors.verticalCenter: parent.verticalCenter
+        ink: root.ink
         objectName: "fieldTrailingKey"
         text: root.trailingKey
-        visible: root.trailingKey.length > 0
+        visible: root.trailingKey.length > 0 && root.trailingKeyShown
     }
 
     Text {
@@ -305,7 +381,7 @@ Rectangle {
         anchors.right: trailingCap.visible ? trailingCap.left : parent.right
         anchors.rightMargin: trailingCap.visible ? Theme.space(8) : Theme.space(10)
         anchors.verticalCenter: parent.verticalCenter
-        color: trailingButton.containsMouse ? Theme.accent : Theme.dimForeground
+        color: trailingButton.containsMouse ? root.ink.accent : root.ink.dimForeground
         font.family: Theme.fontFamily
         font.pixelSize: Theme.font.caption
         objectName: "fieldTrailingText"
@@ -321,7 +397,7 @@ Rectangle {
         anchors.rightMargin: trailingText.visible || trailingCap.visible ? Theme.space(12)
                                                                         : Theme.space(10)
         anchors.verticalCenter: parent.verticalCenter
-        color: openerButton.containsMouse ? Theme.brightForeground : Theme.accent
+        color: openerButton.containsMouse ? root.ink.brightForeground : root.ink.accent
         font.family: Theme.fontFamily
         font.pixelSize: Theme.font.caption
         objectName: "fieldOpenerText"

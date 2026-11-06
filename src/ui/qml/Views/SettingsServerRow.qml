@@ -6,7 +6,7 @@ import Omaseed.Kit
 // dot, the name in bright over a dim `url · auth · N torrents` line, and a right-hand status
 // word — `default` for the one the engine is on, `retrying` in dim red for one that stopped
 // answering. `dashed` draws the figure's "+ add a server" row, which has no dot and a dim
-// title.
+// title. A › ends every row, brightening while the row is lit (C32 D7 a).
 //
 // A right-click sends `menuRequested` with the point in the row's own coordinates; the
 // Servers pane opens the row's menu there (#51 D4).
@@ -31,6 +31,11 @@ Rectangle {
     signal menuRequested(real x, real y)
 
     readonly property bool hot: root.hasCursor || mouseArea.containsMouse
+    /// The row's words on its ground, the hover fill while it is hot, eased with the fill
+    /// (docs/DECISIONS.md C30 F1, F4).
+    readonly property Ink ink: Ink {
+        ground: Theme.ground(false, false, root.hot, false)
+    }
 
     // #77: a button named by the server (or "add a server"), its line and status the
     // description; its press is a left click, and does nothing while disabled.
@@ -42,14 +47,14 @@ Rectangle {
                                   root.clicked()
 
     border.color: root.hasCursor ? Theme.accent : Theme.fill(Theme.hairlineAlpha)
-    border.width: 1
-    color: root.hot ? Theme.fill(Theme.fillHover) : "transparent"
+    border.width: Theme.hairWidth
+    color: root.hot ? root.ink.fill : "transparent"
     implicitHeight: Math.max(Theme.space(40), layout.implicitHeight + Theme.space(16))
     radius: Theme.cornerRadius
 
     Behavior on color {
         ColorAnimation {
-            duration: 120
+            duration: Theme.fillChangeDuration
         }
     }
 
@@ -81,17 +86,17 @@ Rectangle {
 
         // `.srv .it .dot` — green when the last test answered, red when it did not, dim
         // while nothing is known.
-        Rectangle {
+        Lamp {
             Layout.preferredHeight: Theme.space(7)
             Layout.preferredWidth: Theme.space(7)
             objectName: "serverDot"
-            color: root.failing ? Theme.red : root.untested ? Theme.dimForeground : Theme.green
-            radius: width / 2
+            color: root.failing ? root.ink.red : root.untested ? root.ink.dimForeground : root.ink.green
+            size: Theme.space(7)
             visible: !root.dashed
         }
 
         Glyph {
-            color: Theme.dimForeground
+            color: root.ink.dimForeground
             text: root.glyph
             visible: root.dashed && root.glyph.length > 0
         }
@@ -106,6 +111,7 @@ Rectangle {
                 dim: root.dashed
                 elide: Text.ElideRight
                 font.weight: root.dashed ? Font.Normal : Font.Medium
+                ink: root.ink
                 text: root.title
             }
 
@@ -115,6 +121,7 @@ Rectangle {
                 Layout.fillWidth: true
                 dim: true
                 elide: Text.ElideRight
+                ink: root.ink
                 objectName: "serverRowDescription"
                 size: "small"
                 text: root.description
@@ -142,11 +149,21 @@ Rectangle {
         }
 
         Text {
-            color: root.failing ? Theme.red : Theme.dimForeground
+            color: root.failing ? root.ink.red : root.ink.dimForeground
             font.family: Theme.fontFamily
             font.pixelSize: Theme.font.small
             text: root.status
             visible: root.status.length > 0
+        }
+
+        // docs/DECISIONS.md C32 D7 a (board 51): a › at the row's end says a click opens it;
+        // dim at rest, bright while the row is lit under the pointer or has the cursor.
+        Glyph {
+            Layout.preferredWidth: Theme.font.title
+            color: root.hot ? root.ink.brightForeground : root.ink.dimForeground
+            objectName: "serverRowChevron"
+            pixelSize: Theme.font.title
+            text: Glyphs.chevronRight
         }
     }
 }

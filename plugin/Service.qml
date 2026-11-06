@@ -172,7 +172,7 @@ Item {
   function showTorrent(hash) { if (hash) call("ShowTorrent", "s", [String(hash)]) }
   function openFolder(hash) { if (hash) call("OpenFolder", "s", [String(hash)]) }
   // docs/33 §11 (D24): the shared menu. A server row switches the app; any other row is the
-  // app's to do (add, alt-speed, stop-all, start-all, settings, quit), by its id.
+  // app's to do (add, alt-speed, pause, resume, settings, quit), by its id.
   function switchServer(id) { if (id) call("SwitchServer", "s", [String(id)]) }
   function invoke(id) { if (id) call("Invoke", "s", [String(id)]) }
   function openAddSheet(sources) {

@@ -45,6 +45,11 @@ public:
         altSpeed = on;
         return on;
     }
+    bool pickAltSpeed(const QString &kind) override
+    {
+        calls << QStringLiteral("pick ") + kind;
+        return kind != QLatin1String("bogus");
+    }
     void describeSources(const QStringList &sources, Reply reply) override
     {
         calls << QStringLiteral("describe %1").arg(sources.join(QLatin1Char(',')));
@@ -186,12 +191,14 @@ void TestStatusBus::introspectionShowsTheInterface()
     QVERIFY(
         xml.contains(QStringLiteral("interface name=\"io.github.diogochaves.omaseed.Status\"")));
 
-    // Exactly the methods of docs/20 §5 and board 33 §11 change 6 (SwitchServer, Invoke), and
+    // Exactly the methods of docs/20 §5, board 33 §11 change 6 (SwitchServer, Invoke) and
+    // DECISIONS C36 M8 (PickAltSpeed), and
     // nothing that pauses or reads the clipboard.
     const QString status = xml.mid(xml.indexOf(QStringLiteral("omaseed.Status")));
     const QString block = status.left(status.indexOf(QStringLiteral("</interface>")));
     for (const char *method : {"ToggleAltSpeed",
                                "SetAltSpeed",
+                               "PickAltSpeed",
                                "DescribeSources",
                                "AddSources",
                                "OpenAddSheet",
@@ -201,7 +208,7 @@ void TestStatusBus::introspectionShowsTheInterface()
                                "Invoke"})
         QVERIFY2(block.contains(QStringLiteral("method name=\"%1\"").arg(QLatin1String(method))),
                  method);
-    QCOMPARE(block.count(QStringLiteral("<method ")), 9);
+    QCOMPARE(block.count(QStringLiteral("<method ")), 10);
     QVERIFY(!block.contains(QStringLiteral("PauseAll")));
     QVERIFY(!block.contains(QStringLiteral("AddFromClipboard")));
     QVERIFY(!block.contains(QStringLiteral("<property")));
@@ -223,7 +230,20 @@ void TestStatusBus::altSpeedAnswersAtOnce()
     reply = call(QStringLiteral("SetAltSpeed"), {false});
     QCOMPARE(reply.type(), QDBusMessage::ReplyMessage);
     QCOMPARE(reply.arguments().value(0).toBool(), false);
-    QCOMPARE(m_handler.calls, QStringList({QStringLiteral("toggle"), QStringLiteral("set 0")}));
+
+    // DECISIONS C36 M8: PickAltSpeed(s) → b, the handler's answer as it is.
+    reply = call(QStringLiteral("PickAltSpeed"), {QStringLiteral("turtle")});
+    QCOMPARE(reply.type(), QDBusMessage::ReplyMessage);
+    QCOMPARE(reply.signature(), QStringLiteral("b"));
+    QCOMPARE(reply.arguments().value(0).toBool(), true);
+    reply = call(QStringLiteral("PickAltSpeed"), {QStringLiteral("bogus")});
+    QCOMPARE(reply.type(), QDBusMessage::ReplyMessage);
+    QCOMPARE(reply.arguments().value(0).toBool(), false);
+    QCOMPARE(m_handler.calls,
+             QStringList({QStringLiteral("toggle"),
+                          QStringLiteral("set 0"),
+                          QStringLiteral("pick turtle"),
+                          QStringLiteral("pick bogus")}));
 }
 
 void TestStatusBus::describeAndAddAnswerLater()
@@ -268,7 +288,7 @@ void TestStatusBus::theSharedMenuAnswersAtOnce()
     reply = call(QStringLiteral("SwitchServer"), {QStringLiteral("nowhere")});
     QCOMPARE(reply.arguments().value(0).toBool(), false);
 
-    reply = call(QStringLiteral("Invoke"), {QStringLiteral("stop-all")});
+    reply = call(QStringLiteral("Invoke"), {QStringLiteral("pause")});
     QCOMPARE(reply.type(), QDBusMessage::ReplyMessage);
     QCOMPARE(reply.arguments().value(0).toBool(), true);
     reply = call(QStringLiteral("Invoke"), {QStringLiteral("bogus")});
@@ -276,7 +296,7 @@ void TestStatusBus::theSharedMenuAnswersAtOnce()
     QCOMPARE(m_handler.calls,
              QStringList({QStringLiteral("switch private"),
                           QStringLiteral("switch nowhere"),
-                          QStringLiteral("invoke stop-all"),
+                          QStringLiteral("invoke pause"),
                           QStringLiteral("invoke bogus")}));
 }
 

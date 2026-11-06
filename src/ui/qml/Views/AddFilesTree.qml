@@ -51,6 +51,8 @@ Rectangle {
     property string renameError: ""
 
     readonly property int count: root.model ? root.model.count : 0
+    /// The box with every row shown: what it would take with no `maximumHeight`.
+    readonly property real contentHeight: (root.count + 1) * Theme.railRowHeight + 2
     /// The head tick: 2 every file wanted, 1 some, 0 none.
     readonly property int headWanted: !root.model || root.model.wantedCount === root.model.fileCount
                                       ? 2 : root.model.wantedCount === 0 ? 0 : 1
@@ -163,10 +165,10 @@ Rectangle {
     activeFocusOnTab: true
     border.color: root.activeFocus ? Theme.accent : hover.hovered ? Theme.fill(Theme.borderHover)
                                                                   : Theme.fill(Theme.borderIdle)
-    border.width: 1
+    border.width: Theme.hairWidth
     clip: true
-    color: Theme.fill(Theme.fillIdle)
-    implicitHeight: Math.min((root.count + 1) * Theme.railRowHeight + 2, root.maximumHeight)
+    color: Theme.on.idle.fill
+    implicitHeight: Math.min(root.contentHeight, root.maximumHeight)
     implicitWidth: Theme.space(400)
     radius: Theme.cornerRadius
 
@@ -237,8 +239,14 @@ Rectangle {
         anchors.margins: 1
         anchors.right: parent.right
         anchors.top: parent.top
-        color: Theme.fill(Theme.fillIdle)
+        color: Theme.on.blockIdle.fill
         height: Theme.railRowHeight
+
+        /// docs/DECISIONS.md C30 F1: the head's words on its 4 % over the tree's own.
+        readonly property Ink ink: Ink {
+            animated: false
+            ground: Theme.on.blockIdle
+        }
 
         RowLayout {
             anchors.left: parent.left
@@ -256,6 +264,7 @@ Rectangle {
                 objectName: "addFilesHeadTick"
                 tip: root.headWanted === 2 ? qsTr("skip every file · ctrl+a")
                                            : qsTr("tick every file · ctrl+a")
+                ink: header.ink
                 tooltip: headTip
                 wanted: root.headWanted
 
@@ -267,7 +276,7 @@ Rectangle {
 
             Text {
                 Layout.fillWidth: true
-                color: Theme.dimForeground
+                color: header.ink.dimForeground
                 font.family: Theme.fontFamily
                 font.pixelSize: Theme.font.caption
                 text: qsTr("Name")
@@ -275,7 +284,7 @@ Rectangle {
 
             Text {
                 Layout.preferredWidth: root.sizeWidth
-                color: Theme.dimForeground
+                color: header.ink.dimForeground
                 font.family: Theme.fontFamily
                 font.pixelSize: Theme.font.caption
                 horizontalAlignment: Text.AlignRight
@@ -284,7 +293,7 @@ Rectangle {
 
             Text {
                 Layout.preferredWidth: root.priorityWidth
-                color: Theme.dimForeground
+                color: header.ink.dimForeground
                 font.family: Theme.fontFamily
                 font.pixelSize: Theme.font.caption
                 text: qsTr("Priority")
@@ -329,9 +338,18 @@ Rectangle {
             required property int wanted
             required property bool renamed
             required property string originalName
+            /// #63 (DECISIONS C28): an NFO, a sample, an advert: a dim "extra", still ticked.
+            required property bool extra
 
+            /// docs/DECISIONS.md C30 F1: the row's words on the tree's 4 % block, and under the
+            /// cursor on the hover fill over it (the band's own `ink` is over the window). A
+            /// part's own hover fill (fold, pencil, priority) on a resting row is that hover too.
+            readonly property Ink blockInk: Ink {
+                ground: Theme.groundIn(Theme.on.idle, false, row.hasCursor, false, false)
+            }
             readonly property color priorityColor: row.priority === 6 || row.priority === 7
-                                                   ? Theme.yellow : Theme.dimForeground
+                                                   ? row.blockInk.yellow
+                                                   : row.blockInk.dimForeground
             /// The pointer is anywhere on the row: the pencil shows.
             readonly property bool hovered: rowHover.containsMouse || markTick.hovered
                                             || foldMouse.containsMouse
@@ -391,6 +409,7 @@ Rectangle {
 
                     Layout.preferredHeight: Theme.railRowHeight
                     Layout.preferredWidth: root.checkWidth
+                    ink: row.blockInk
                     objectName: "addFilesMark"
                     wanted: row.wanted
 
@@ -404,7 +423,7 @@ Rectangle {
 
                     Rectangle {
                         anchors.centerIn: foldGlyph
-                        color: foldMouse.containsMouse ? Theme.fill(Theme.fillHover)
+                        color: foldMouse.containsMouse ? Theme.on.blockHover.fill
                                                        : "transparent"
                         height: Theme.railRowHeight - Theme.space(6)
                         radius: Theme.cornerRadius
@@ -417,8 +436,8 @@ Rectangle {
 
                         anchors.left: parent.left
                         anchors.verticalCenter: parent.verticalCenter
-                        color: foldMouse.containsMouse ? Theme.brightForeground
-                                                       : Theme.dimForeground
+                        color: foldMouse.containsMouse ? Theme.on.blockHover.brightForeground
+                                                       : row.blockInk.dimForeground
                         font.family: Theme.fontFamily
                         font.pixelSize: Theme.font.small
                         text: row.expanded ? Glyphs.chevronDown : Glyphs.chevronRight
@@ -457,7 +476,8 @@ Rectangle {
                         anchors.left: row.isFolder ? foldGlyph.right : parent.left
                         anchors.leftMargin: row.isFolder ? Theme.space(6) : 0
                         anchors.verticalCenter: parent.verticalCenter
-                        color: row.wanted === 0 ? Theme.dimForeground : row.textColor
+                        color: row.wanted === 0 ? row.blockInk.dimForeground
+                                                : row.blockInk.foreground
                         elide: Text.ElideMiddle
                         font.family: Theme.fontFamily
                         font.pixelSize: Theme.font.small
@@ -478,7 +498,7 @@ Rectangle {
                         anchors.leftMargin: Theme.space(8)
                         anchors.right: parent.right
                         anchors.verticalCenter: parent.verticalCenter
-                        color: Theme.dimForeground
+                        color: row.blockInk.dimForeground
                         elide: Text.ElideRight
                         font.family: Theme.fontFamily
                         font.pixelSize: Theme.font.small
@@ -493,7 +513,7 @@ Rectangle {
                         anchors.right: parent.right
                         anchors.verticalCenter: parent.verticalCenter
                         border.color: root.renameError.length > 0 ? Theme.red : Theme.accent
-                        border.width: 1
+                        border.width: Theme.hairWidth
                         color: Theme.background
                         height: Theme.railRowHeight - Theme.space(4)
                         radius: Theme.cornerRadius
@@ -571,6 +591,18 @@ Rectangle {
                     }
                 }
 
+                // #63 (DECISIONS C28): the extra's meta, dim; the line under the tree says why.
+                Text {
+                    Accessible.name: text
+                    Accessible.role: Accessible.StaticText
+                    color: row.blockInk.dimForeground
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.font.caption
+                    objectName: "addFilesExtra"
+                    text: qsTr("extra")
+                    visible: row.extra && !row.editing
+                }
+
                 // M18: the pencil on the hovered row.
                 Item {
                     Layout.preferredHeight: Theme.railRowHeight
@@ -578,7 +610,7 @@ Rectangle {
 
                     Rectangle {
                         anchors.centerIn: parent
-                        color: pencilMouse.containsMouse ? Theme.fill(Theme.fillHover)
+                        color: pencilMouse.containsMouse ? Theme.on.blockHover.fill
                                                          : "transparent"
                         height: Theme.railRowHeight - Theme.space(6)
                         radius: Theme.cornerRadius
@@ -590,8 +622,8 @@ Rectangle {
                         id: pencilText
 
                         anchors.centerIn: parent
-                        color: pencilMouse.containsMouse ? Theme.brightForeground
-                                                         : Theme.dimForeground
+                        color: pencilMouse.containsMouse ? Theme.on.blockHover.brightForeground
+                                                         : row.blockInk.dimForeground
                         font.family: Theme.fontFamily
                         font.pixelSize: Theme.font.small
                         text: Glyphs.rename
@@ -619,7 +651,7 @@ Rectangle {
 
                 Text {
                     Layout.preferredWidth: root.sizeWidth
-                    color: row.wanted === 0 ? Theme.dimForeground : row.textColor
+                    color: row.wanted === 0 ? row.blockInk.dimForeground : row.blockInk.foreground
                     elide: Text.ElideRight
                     font.family: Theme.fontFamily
                     font.pixelSize: Theme.font.small
@@ -636,7 +668,7 @@ Rectangle {
                         anchors.bottomMargin: Theme.space(3)
                         anchors.leftMargin: -Theme.space(4)
                         anchors.topMargin: Theme.space(3)
-                        color: priorityMouse.containsMouse ? Theme.fill(Theme.fillHover)
+                        color: priorityMouse.containsMouse ? Theme.on.blockHover.fill
                                                            : "transparent"
                         radius: Theme.cornerRadius
                     }
@@ -645,7 +677,7 @@ Rectangle {
                         anchors.left: parent.left
                         anchors.right: parent.right
                         anchors.verticalCenter: parent.verticalCenter
-                        color: priorityMouse.containsMouse ? Theme.brightForeground
+                        color: priorityMouse.containsMouse ? Theme.on.blockHover.brightForeground
                                                            : row.priorityColor
                         elide: Text.ElideRight
                         font.family: Theme.fontFamily

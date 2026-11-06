@@ -11,6 +11,9 @@ The window's ground defaults to the shell's `[launcher] background-alpha` from `
 (0.95 on a stock Omarchy), so omaseed sits on the wallpaper the way the launcher does.
 Settings → Appearance overrides it. Sheets, palettes and popups stay opaque.
 
+Changed by C24 H13 (v0.5.0): the ground is opaque by default; this alpha is Appearance's
+"translucent" choice.
+
 ## Q16 — Formatting, states and notices
 
 - Sizes and speeds print three significant digits everywhere (`641 MB`).
@@ -61,6 +64,14 @@ as recommended). The floor is **4.5:1**, WCAG 2.2 AA for normal-size text
   red on red at `fillSelected`; the warning and attention bands at 7–8 %) reads at least as
   well as before in every theme but is still under 4.5:1 in some: board 38 §4 lists them, and
   they are not ruled yet.
+
+**Changed by C30** (2026-10-23, #90, board [50](50-frame-and-details-notes.html) F1–F7): the
+floor holds against the ground each text is painted on, not only the window. The roles above
+stay the window's; `Theme.on` resolves every role again on each fill and tint (the least lift
+towards the foreground, only where it sits on that fill), so the "not against the row fills"
+bullet and the tints left open above are settled there: a caption on a selected row sits a
+median 1.91:1 under the row's main text (board 50 §1). A theme whose text reads on nothing at a
+fill's alpha has that fill held lower (everforest 0.215).
 
 ## Q23 — A server tested before it is saved keeps its result
 
@@ -113,7 +124,7 @@ a move or rename that then fails, and a dead web seed or a .torrent copy it can'
 the torrent looking fine: the reason is in `log/main` only. D9–D15 (the log as a face of its
 own) are #56, ruled as C3.
 
-- **D1** A move, rename or part file that failed gets #54's block at the top of General, in
+- **D1** A move, rename or part file that failed gets #54's block at the top of General (the story since C24 H6), in
   yellow (the torrent still works), under the red one when it is also errored. Two failures on
   one torrent show the newest. The block's actions: set location (the sheet holds the
   destination), open folder, rename in Files (the cursor on that file), copy the line, dismiss.
@@ -161,7 +172,7 @@ Board [32](32-log-and-failures.html) (#56), D9–D15 as recommended:
   footer says "● following" or "○ paused". The face opens on its newest line, following.
 - **D13** "its lines in the log" on #54's red block and #55's yellow one opens the face narrowed
   to that torrent (a chip, `esc` clears it); `t` does the same for the cursor line's torrent and
-  `enter` shows it in the library with General open. A line is about a torrent when a quoted
+  `enter` shows it in the library with General open (its story since C24 H6). A line is about a torrent when a quoted
   part is its name, or starts with libtorrent's hash prefix (or its name, on libtorrent 2.0) and
   a space. In a narrow pane the block's actions that don't fit go to a second line, so the
   keyless link is never dropped.
@@ -203,7 +214,7 @@ Board [31](31-burst.html) (#62), D1–D14 as recommended:
 - **D8** Settings › qBittorrent › Speed has a "nights" preset (`n`): 23:00 to 07:00 every day,
   all four time keys at once. **D9** A plain summary under Days says what the schedule will
   do by qBittorrent's rule, and warns in yellow when a window past midnight reads the days
-  backwards (on a day that is not picked it is on all day; diogochaves/upstream#84). A line
+  backwards (on a day that is not picked it is on all day). A line
   under the four limits names the set; the schedule's row title follows the word.
 - **D10** The guidance line under the alternative upload limit ("85–90 % of your real upload
   speed") is **not shipped**: the measurement it waited for did not support it (2026-10-15, two
@@ -234,18 +245,23 @@ Board [29](29-magnet-files.html) (#44), D1–D11 as recommended:
 - **D1** As soon as one magnet (or one link to a `.torrent`) is in the add sheet and isn't a
   duplicate, qBittorrent is asked for its metadata (`torrents/fetchMetadata`), on the current
   server's client: the answer is kept in the Web UI session, so every poll and the add after it
-  must share that session's cookie or API key (diogochaves/upstream#86). A magnet is keyed by its
+  must share that session's cookie or API key. A magnet is keyed by its
   infohash, so typing `&dn=…` after a whole hash starts nothing new.
 - **D2** Nothing shows for the first 0.5 s, so a quick answer just shows the tree. **D3**
   "Fetching" until 10 s, "still looking" until 60 s, then "may never come" in yellow. The polls
   go at 0, 0.25, 0.5 and 1 s, then every second, and every 5 s after a minute, one at a time; they
   never stop while the sheet is open.
-- **D4** `add` before the list is in adds every file, as before. **D5** "add stopped" before the
+- **D4** `add` before the list is in adds every file, as before. (#193: on qBittorrent 5.3.0 a
+  magnet added while its lookup still runs crashes the server once the metadata comes in, and the
+  API can't end a lookup (D6), so the add of a magnet the lookup is still asking about waits for
+  the answer, the sheet's line saying so; F4's minute is the way out, as its words already say
+  `enter` adds every file. Closing the sheet doesn't drop it, as an add already out goes on, C20.
+  Kept for every version until a fixed qBittorrent ships.) **D5** "add stopped" before the
   list is a started add with `stopCondition=MetadataReceived`: it stops as soon as its list
   arrives, with nothing downloaded (a plain stopped magnet never connects).
 - **D6** Closing the sheet, another source over it or a batch leaves an unanswered lookup running
   on the server until it restarts or that hash is added: there is no cancel
-  (diogochaves/upstream#87), and add-then-delete would flash a row everywhere. The 60 s line says
+  in the API, and add-then-delete would flash a row everywhere. The 60 s line says
   so. Any add of the magnet ends it.
 - **D7** A magnet whose `tr=` host is one the library's private torrents announce to (maindata's
   `private`, every announce URL in the tracker map) is not looked up: libtorrent never hands a
@@ -492,7 +508,8 @@ left open, or what building it decided:
   stays as it was, and `enter`, `space` or `l` open the list. `s` works from every qBittorrent
   pane and from the select; every one of their footers, Backup's too, says "s next server".
   Below 700 px the nav folds into tabs and there is no select; `s` still switches —
-  *confirmed 2026-10-22 (C20).*
+  *confirmed 2026-10-22 (C20).* Since v0.5.0 (C24 H10, #170) no footer says it: the `?`
+  sheet's block "in a sheet" (also Settings › Keybindings) has `s` next server.
 - **After a switch** (D5 a) from the select or `s`, the footer's right end says "omaseed is on
   private now · the library too" for 8 s; Settings › Servers' `d` doesn't add it.
 - **Copy from another server** (D6 a) is a row of its own between Import settings and the
@@ -555,6 +572,9 @@ more a way to the others is always on screen; with one, nothing offers to switch
   lone dot at step 4); its tooltip adds "switch server · ctrl+s". `:` lists "switch server…" and
   one "switch to NAME" per other server (`switchTo:<id>`), and both run while the server is lost
   (`Keymap.isOffline`). The read-only guard lets `ctrl+s` through.
+  *Changed by C24 H15 (v0.5.0): the server line, its ▾, hover and click are the status line's
+  server lane (`MainView.serverLaneText()`), the same words; the footer's "last sync HH:MM" is
+  "list from HH:MM", as the notice says it, and a live server's line ends in "synced now".*
 - **One server (D19 a):** no block, no ▾, no `:` rows, no hint; `ctrl+s` answers in the footer
   "one server · add another in Settings › Servers"; the `?` sheet lists it dim as "Switch
   server, with two servers or more".
@@ -671,6 +691,16 @@ status file's contract as built.
   one choice in Settings.
 - **The manifest version** stays: the contract changes within v2 and the widget ships with the
   app.
+- **The window, a third place (C24 H9, v0.5.0, as built):** the rail's mark and `ctrl+.` open
+  the omaseed menu (`Views/AppMenu`) under the mark. Its rows are these, in this order, from
+  the same `BarMenu` (`App.appMenuRows`, in the tray's words; a pick goes through
+  `App.invokeAppMenu`, the tray's and the widget's invoke), with a head (omaseed, its version,
+  the status line's server words) and, before quit's rule, a "this window only" block of the
+  window's own rows: seed console `` ` ``, log `~`, commands `:`, keys and help `?`, hide window
+  `q`. Each row teaches its key (alternative limits `A`, add `a`, settings `,`, quit
+  `ctrl+q`); quit reads "quit omaseed" and asks first while a move runs, as `ctrl+q` does, and
+  alternative limits leaves `A`'s note. The old ⋯ menu's other rows (speed limits…, alt-speed
+  limits…, columns…, select all, fold rail) are `:` rows and keys.
 
 ## C14 — Engines beyond qBittorrent (board 36, ruled 2026-10-16)
 
@@ -727,6 +757,13 @@ job's whole life, not 30 s. Set location keeps D2.
   paths and loose files go in the scope line and the row's tooltip. The scope line offers
   "move this folder…"; so do `shift+m`, the row's menu and `:` "move folder…" (`m` stays set
   location). The Save path column cuts from the left.
+  *Changed by C24 H5 (v0.5.0): the scope line is the title bar's: the folder's name is the
+  title, and its sentence takes the facts in board 46's order, "49 torrents · 1.32 MB on disk ·
+  2 loose files · PATH" ("loose files" for "files no torrent owns", the save paths when there
+  are several); while that folder moves, "moving to PATH · 17 of 49 landed". "move this
+  folder…" is a title-bar tool. A move's "show" (M10) is the title too ("The move of NAME",
+  "From the move sheet"), the line's link a tool beside it: "all torrents", or "back to the
+  sheet" with esc.*
 - **The field (M4):** the folder's new path, prefilled with its current one; browse picks a
   parent and the sheet adds the folder's name. Each torrent's new save path is the new path
   plus its save path below the folder.
@@ -735,7 +772,7 @@ job's whole life, not 30 s. Set location keeps D2.
   (Q16). Short turns the move off with the figures; can't tell is a yellow line and the move is
   allowed; the same drive needs no room. Read again before every send.
 - **Writable (M6):** qBittorrent 5.2.3 answers 200 for a folder it can't write
-  (diogochaves/upstream#120). A local check against the owner of the folder's files when
+  (seen on a server). A local check against the owner of the folder's files when
   omaseed sees the disks, and always the smallest torrent alone first: if it fails, the job
   stops with its reason before anything else moves.
 - **Automatic management (M7):** a yellow line with the count and the category's folder;
@@ -776,6 +813,14 @@ job's whole life, not 30 s. Set location keeps D2.
   (#98) The sheet's dry run is what is carried, kept beside the job so a restart carries the
   same list; a file changed since (size or time) or in the last 15 min stays. A full
   destination drops the partial copy and stops the carry; pause does the same and waits.
+  (#203, assumed, to confirm) "Folders left empty" covers the torrents' own move too, both
+  ways: qBittorrent removes each torrent's own subfolders, never the save path it leaves, so
+  after the move omaseed removes the save paths it emptied and the folders above them, up to
+  and with the folder (a folder's move), or up to the move's destination below which they sat
+  (a move back; the folder at its new place too when the move was a folder's). Empty folders
+  only (rmdir: a hidden file keeps one), on disks omaseed sees; never a destination, a folder
+  a torrent is saved in, qBittorrent's default save path, or a folder holding one. A
+  selection's own move leaves its folders as they are.
 - **More than one move (M18):** one job per server at a time; a second is queued after it.
 - **Words (M19):** core/ErrorWords, board 42 §8: 409 "qBittorrent can't create FOLDER", 403
   and a 200 followed by "Permission denied" in the log "qBittorrent can't write to FOLDER",
@@ -854,10 +899,14 @@ shows that space and frees it where it can see the disk.
   (board 25's FreeSpaceProbe check). #118.
 - **The band (D2):** yellow, when skipped files hold more than 1 GiB or 5 % of the torrent. #118.
 - **Free the space (D3):** stop, delete the skipped files with no downloaded piece (inside the
-  content path, not shared, not open), start, no recheck. Files with pieces: on v1-only and
-  v2-only torrents included with a recheck after the start; on a hybrid left, with "add it
+  content path, not shared, not open), start, no recheck. Files with pieces: on v1-only
+  torrents included with a recheck after the start; on a hybrid left, with "add it
   again" and its cost named, because a recheck there hits libtorrent 2.1.2's
-  `torrent_inconsistent_hashes` (#115). Board 28 names that error on a hybrid. #118.
+  `torrent_inconsistent_hashes` (#115). Board 28 names that error on a hybrid. #118. A v2-only
+  torrent is treated like a hybrid (C29, #182).
+  `shift+f` has its keymap row (the `?` sheet's "F free the space") and the Files tab's `:`
+  palette offers "free the space…" (#160); both, like the key, whenever a skipped file holds
+  space on a disk omaseed sees, the band or not.
 - **Disks omaseed can't see (D4):** an "at least" hint from skipped files with progress above 0 %,
   pointing to path maps, no action. A NAS share mounted here and mapped counts as seen. #118.
 - **Hold back a big selection (D5–D7):** a widening that adds more than 1 GiB, or the whole
@@ -866,6 +915,8 @@ shows that space and frees it where it can see the disk.
 - **Name the driver (D8):** for `ntfs3`, `exfat` and `vfat` only, Save to, the Move sheet and a
   Files tab tick name the driver and count the full size of every newly ticked file at the
   tick. The newer `ntfs` driver, Linux filesystems and unmeasured types get no line. #120.
+  A tick that doesn't fit there always waits in D5's band, whatever its size, so it can be
+  undone before anything is written (C28, #159).
 - **FAT32 (D9):** files of 4 GiB or more on `vfat`: a red line naming them, with "Skip these";
   the add stays possible. #120.
 - **No incomplete-folder hint (D10):** omaseed never suggests one: it doubles the space a
@@ -882,8 +933,9 @@ shows that space and frees it where it can see the disk.
   left" when there are none, otherwise "may be left". *Not as the board drew it:* "Set
   location…" opens board 43's sheet as for any move, not aimed at the destination it never
   reached: qBittorrent ignores a move to the save path it already has, and a recheck is what
-  moves it once room is made (`scripts/dev/research/121-stuck-move`). Whether the block should
-  offer that recheck is #158.
+  moves it once room is made (`scripts/dev/research/121-stuck-move`). The block offers that
+  recheck, `c recheck`, between the two, and says "Once there is room, a recheck moves it
+  there." (C28, #158).
 - **Words (D11):** a timeout reads "home isn't answering" (yellow, waiting); refused or no route
   "home is unreachable" (red). #122. Built: `ErrorWords` gives a timeout the kind `waiting`
   (W1's line, the seconds since the server last replied, `GlobalState::silentSeconds`, and
@@ -995,8 +1047,8 @@ C15 M1's "the row's menu" as the rail's folder row (T3).**
   all stop it, so the keyboard and the bar agree. "retry" stays first on the error block and is
   its own row in the actions menu. Once omaseed has stopped it, the row reads "error · stopped"
   (qBittorrent reports only `error`). Ruled after the build: the row reads "stopped" in the
-  error colour with the ! glyph, since "error · stopped" doesn't fit the column; General keeps
-  "error · stopped · CAUSE". Whether it is stopped comes from qBittorrent (its `stopped`
+  error colour with the ! glyph, since "error · stopped" doesn't fit the column; General (facts since C24
+  H6) keeps "error · stopped · CAUSE". Whether it is stopped comes from qBittorrent (its `stopped`
   filter lists an errored torrent only while it is stopped), so it survives a restart and
   counts a stop sent from elsewhere (#142).
 - **The widget's server line (#127):** at the popup's width, the engine's version gives way
@@ -1040,7 +1092,7 @@ they meet: case aside, every run of `.`, `_`, `-` and spaces is one space.
 The add sheet's library match (docs/25) compares files, not typed words, so it has no fold.
 `core/SearchWords` is the one implementation.
 
-## C23 — Three move fixes before the post (v0.3.3, ruled 2026-10-22)
+## C23 — The move fixes before the post (v0.3.3, ruled 2026-10-22)
 
 From Diogo's own moves on qBittorrent 5.3, each issue's recommended option. They ship in a
 patch, v0.3.3, cut from v0.3.2 on `release/0.3`, so the version people install for the post
@@ -1057,7 +1109,21 @@ about moves has none of these bugs; main keeps them for v0.4.0.
 - **What is in the way (#161 a):** the Move sheet's "left out" line says what is at the
   destination and whose it is: "(an empty file no torrent owns)", "(a file of SIZE that NAME
   owns)"; on a server omaseed can't see, only whose. *Adds to C15 M8.* Offering to replace an
-  empty file no torrent owns (#161 b) waits for its own ruling.
+  empty file no torrent owns (#161 b) waits for its own ruling. *C28 rules it for v0.4.0
+  (#176):* the line's "replace it" (only for an empty regular file no torrent owns, seen
+  here) deletes it as the move starts, checked again then, and the move's line in the log
+  ends "after deleting the empty file no torrent owned at PATH".
+
+Two more from the same day's big folder move, added to the patch:
+
+- **Long details (#173):** a notice's unfolded details (docs/35 N4) stop at a third of the
+  window, never under a few lines, and scroll inside their block, clipped; the band stays a
+  band and what is below it moves down. The keys scroll the block while it has them (Tab
+  reaches it when there is something to scroll); esc folds it. Every notice, not only moves.
+- **The record's words (#174):** the move record's "later" line uses the status cell's word
+  and what fixes it ("later: missing files · set location… or recheck it"), never
+  qBittorrent's state name; the record starts at "started …", since the band above already
+  says its headline and line.
 
 ## C24 — The whole app on v0.3 (board 46, ruled 2026-10-22)
 
@@ -1081,23 +1147,79 @@ the call says so.
 - **The library (H3–H4):** grouped under the questions in the rows display; the table stays one
   sorted list. Rows is the default for new installs; an existing install keeps the table until
   it picks another. The display is remembered per scope, folders included.
+  Built in v0.5.0's library step (#168), with its assumed answers: inside a question the
+  library's sort; a scope without a display of its own shows the library's; an install is
+  existing when its state.json holds anything besides `version` as the build first finds it; a
+  scope's key is its folder, else its category, tag or tracker, else its question; a move's
+  torrents on show stay the table; the overview is board 46's shelves (one per category, "no
+  category" last), covers and rows drawing progress, not pieces; no display key (the title
+  bar's tool, its menu, three palette rows). Rows and shelves are faces of the table, which
+  keeps the cursor, the selection and the keys (core/RowWords has a row's words).
 - **A folder picked (H5):** the title becomes the folder, its sentence takes the scope line's
   facts, "move this folder…" is a title-bar button; shift+m, the row's menu and `:` keep it.
 - **Details (H6):** 41's story: one fact, a sentence, then story · files · swarm · trackers ·
   facts. The error block and the last move open the story; C17's on-disk column and band sit in
   files. N1 unchanged.
+  Built in v0.5.0's details step (#169), with its assumed answers: inside the details `1`–`5`
+  pick the tabs (elsewhere the questions), web seeds stay a tab of their own on `6` while a
+  torrent has any; the pane opens on the story wherever it opened on General; the head keeps
+  the name and its meta line, then the rows display's fact (in the state's colour) and its
+  caption, then its sentence (core/RowWords, the library's words), in place of the four-up
+  strip, beside the name under the table; swarm is the Peers list, trackers the Trackers list,
+  unchanged; facts is General's three groups led by the strip's size, done, ratio and ETA,
+  with category, tags and added in Information; the story is the error block, the failure
+  block, the last move, the pieces bar, then what happened (core/TorrentStory: added, each
+  move the history keeps, finished downloading, the error and the failure at their logged
+  times; no record of alternative limits is kept, so board 46's "slowed by" line is not
+  drawn) and "its lines in the log". The palette's and `?` sheet's groups read "swarm" and
+  "web seeds".
 - **The add sheet (H7):** today's sheet in the new skins. 39's additions (type bar, guessed
   category, ready time, program check) wait for the add sheet's own board.
+  Built in v0.5.0's sheets step (#170) for every sheet at once, in Kit/Sheet: board 46's
+  `.sheet`, the head on a hairline (the title, the dim subtitle beside it while the whole of
+  it fits there and under it otherwise, `esc` at the right), the rows, and a foot on a
+  hairline with a dim note at its left (words only) and the buttons at its right, each as wide
+  as its words, the primary filled with the accent (background on accent, the key badge's
+  pair, already held at 4.5:1); a red action stays an outline. No glyph square in the head
+  (board 46 draws none). On a window too narrow for its buttons the foot wraps them onto a
+  second line inside the panel; the mixed free sheet (C30 F15) is 680 wide, not 880. The
+  form is `Theme.sheet*` tokens, the filled primary `Theme.sheetPrimaryFilled`. The confirm
+  card (delete, add it again) keeps its own shape.
 - **Acting on a selection (H8):** the status line becomes the action bar; C18's outcome strip
   floats bottom middle of the rows, just above the bar while a selection is on. C18 D2–D3
   unchanged; D6's first-times hint moves to the bar.
+  Its contents built in the sheets step (#170) as board 46 draws them: "N selected" and the
+  ledger (#24 T1: size, given, ratio, a click to the seed console), then words: stop or start
+  as the selection needs (`p`'s word; both when it holds running and stopped torrents),
+  recheck, move…, category, tags, limits, delete in red; D6's hint after them; "all actions"
+  (the actions menu, as `enter`) and "esc" (clear the selection, #51 D2) at the right end. Each
+  word's key is in its tooltip and, while alt is held, its badge; "all actions" and "esc" have
+  none. Reannounce and open folder are in all actions only. Narrow, the hint goes first, then
+  the ledger, then limits, tags, category and recheck fold into all actions (listed first
+  there), so stop, move… and delete stay, as board 46's narrow bar; the count drops its word
+  last.
 - **Menus (H9):** right-click and enter: verbs grouped, keys right, delete last. The omaseed mark
   (ctrl+.) opens C13's rows in the same order, plus a block for the window (seed console, log,
   commands, help, hide). C13 gains the window as a third place.
+  The torrent menu built in the sheets step (#170) with the same rows and words, in board
+  46's groups: stop/start, retry, force start, recheck, reannounce · move…, category, tags,
+  rename · limits, the four options, queue up, queue down · open folder, copy magnet, hash and
+  name · delete. Board 46's "transfer ›", "queue ›" and "copy ›" are drawn as their groups'
+  rows (the kit's menu has no submenus), and "move back…" stays in details, the log and the
+  palette (C18 D7). Its head is the torrent's name over "state · NN % · category" for one
+  torrent, Q24's "N selected" for several. Every menu's head is board 46's `.mh`: a bright
+  title over its dim words (the mark's "omaseed" over its version line).
 - **Keys (H10):** taught on demand (menus, tooltips, the palette, `?`), badges while alt is held.
+  Sheets built so in the sheets step (#170): no sheet's foot prints keys (v2's hints and C11
+  D4's "s next server" went with Kit/Sheet's hint line, as did the `ctrl+o` cap after the add
+  and Move sheets' "browse", kept for a screen reader). Board 46's mocks still draw a few key
+  lines in sheets' feet; law 4 is read as ruling over them. What those lines taught is a block of
+  the `?` sheet after view, "in a sheet", also in Settings › Keybindings; the window's alt badges
+  stay off while a sheet is up (frame S6). Kit/KeyHints stays for the palettes' and the places
+  list's own lines, the error and move blocks' actions and first run.
 - **Skins (H11–H12):** Settings › Appearance › skin: Omarchy (the default), Console, Follow the
   desktop (the console when omarchy-console's skin is on). Clean glow only. How the console skin
-  is built is decided at its build step.
+  is built is decided at its build step: C31.
 - **The ground (H13, #113):** opaque by default in both skins; super+backspace works as for any
   app; Appearance keeps "translucent" (the launcher's alpha).
 - **Bands (H14):** a server's notice, a job, a creation: under the title, across the content
@@ -1179,6 +1301,410 @@ K26: Deluge's prefetch works through deluge-web by repeated calls, and a long ca
 other session's answers. K10: deluge-web keeps one daemon for all its sessions, so connecting
 it switches everyone, and the daemon step says so before it connects.
 
+## C26 — Search through qBittorrent's search plugins (board 48, ruled 2026-10-22)
+
+Board [48](48-search.html) SR1–SR14, all as recommended, in board 46's frame (C24 H16: a rail view
+after log, ctrl+f). The rule from #145 holds throughout: omaseed never names, ships or scrapes a
+site; search goes through qBittorrent's own search API and the plugins the user installs. On
+Transmission and Deluge the view isn't offered (C25 K30). #145, v0.5.0.
+
+**This entry adds** a Search plugins section to C11's qBittorrent sections (SR10) and a second
+no-match row to C1 D8's palette (SR14).
+
+- **Asking (SR1–SR2):** one job per plugin that is on, at most four at once (one of qBittorrent's
+  five left for others), the rest queued; done when every plugin has answered or 30 s have
+  passed. "1 of 3 plugins didn't answer ›" opens each one: failed (its reason from qBittorrent's
+  log, search it again, turn it off) or slow (still heard until qBittorrent's 3 min, stop
+  asking). Nothing found is "0 results", not a failure.
+- **Rows (SR3–SR5):** one per info hash; the copy with the most seeds names it and the others'
+  trackers fold into its magnet, said on line 2. A copy on a tracker the library knows as private
+  is never folded, nor given another's trackers (C5 D7, board 25). Seeds a plugin doesn't report
+  (−1) read "?", sorted below every known count and above 0; hide dead hides only a reported 0.
+  Rows sort live as plugins answer; the cursor's row never moves, with a line when rows land
+  above it.
+- **The bar (SR6):** the field, plugins ▾, type ▾, hide dead (off), sort ▾ (most seeds, newest,
+  size, name); plugins and type ask again; a plugin without the chosen type is named as skipped;
+  at 720 px the filters fold into "filters ▾".
+- **Seed first (SR7–SR8):** "in your library" by hash (add… becomes trackers…), "likely on disk"
+  by name and size (the add sheet checks the files), "added" after the hand-off; seeds as words
+  and one colour (five or more green, one to four "few seeds" yellow, "?" and 0 dim) until the
+  seeding coach (#25) has its words.
+- **The hand-off (SR9):** add… (enter) opens today's add sheet with the folded magnet, or the
+  .torrent fetched through its plugin (`downloader`); its line names the plugins and trackers; esc
+  returns to the results.
+- **Plugins (SR10–SR11):** Settings › qBittorrent › Search plugins: install from a URL, or from a
+  file only when the server is this computer; omaseed watches the list for 30 s and says
+  installed or didn't install (qBittorrent answers 200 either way); a switch per plugin,
+  uninstall, check for updates (outcome from its log). No catalogue, no suggested plugin, no link
+  to any list; a result's page opens only on `o`; a site's host never in a row.
+- **Servers and jobs (SR12–SR13):** the current server only, said in the title's sentence; each
+  server's last results kept for the session; omaseed deletes the jobs it started when replaced
+  and on quit, never others'. With no plugins, all off, or no Python on the server, the view stays
+  in the rail with one sentence each (naming no plugin) and a link to the pane.
+- **Keys (SR14):** ctrl+f from anywhere; enter asks; ↓ into rows; enter add…, space the result,
+  `c` copy magnet, `o` open its page, `/` filter the rows; esc back out step by step; `:` "search…"
+  and "search plugins for '…'".
+
+Built in v0.5.0 (#145) as core/SearchSession (one job per plugin), core/SearchResults (the
+fold), core/SearchModel (the rows) and core/SearchPlugins (the pane), drawn by Views/SearchView
+and Views/SearchPluginsPane in `Theme.search*` tokens, with these assumed answers (recorded in
+#145):
+
+- **Switching servers mid-search:** the jobs left on the old server are deleted the next time
+  omaseed is on it (before its next search, or at a quit there); each server's last rows come
+  back with it. A quit deletes the current server's jobs, waiting at most a second.
+- **Failed or "0 results":** a job that stopped with nothing is failed only when log/main has a
+  warning naming its plugin since the search began (read when it stops, and once more as the
+  search ends); its reason is the traceback's last line. "search it again" asks that plugin
+  alone and replaces its rows; "turn it off…" turns it off with no confirm, and its row in the
+  pane says why ("turned off · it failed in the last search, HH:MM").
+- **The bar:** type ▾ lists the types of the plugins that are on, in qBittorrent's words; a
+  plugin without the chosen type is "skipped" in its pill. Hide dead and the order last for
+  the session. The field prints no key words (H10, as for the sheets in #170): the bar's
+  tooltips name them, and the `?` sheet has an "in search" block.
+- **Marks:** "likely on disk" is a library torrent with the same name (C22's fold) and size
+  in bytes and another hash; a link to a .torrent has no hash, so it can be "likely on disk"
+  but never "in your library". "added" stays for the session; "new" and "+1 copy" for 4 s.
+- **The result** opens in the search face's own right-hand pane (the details' place and
+  width), not the torrent details. `o` and its button open the page with the desktop's
+  browser, nothing else does.
+- **The hand-off:** the add sheet's subtitle is the name, the size and "from search · PLUGINS ·
+  a magnet with N trackers" (or "a link to a .torrent"); a link carries its plugin as
+  `downloader` into the lookup and the add. The add sheet's empty state offers "search your
+  plugins…", and words it can't add "search plugins for ‘…’".
+- **Plugins pane:** Search plugins sits between Advanced and Backup; `0` stays Backup's and
+  the pane has no digit. The server is "this computer" when its address is a loopback or this
+  machine's name. An install counts when the plugin its file names (NAME.py → NAME) shows up
+  new or with a new version; a URL with no .py name takes the first new one. ⋯ on a plugin
+  has uninstall only: qBittorrent's `url` is the plugin's site, not where it came from (SR11).
+  Each search reads the plugin list again first.
+- **The face:** like the log's, it hides the rail's filter groups; while the server isn't
+  answering its rows dim as a stale list's and the sentence says it waits.
+
+## C27 — Create a torrent from a folder (board 49, ruled 2026-10-22)
+
+Board [49](49-create-a-torrent.html) CR1–CR19, all as recommended, in board 46's frame (C24 H17,
+H14). qBittorrent 5.x hashes on the server (`torrentcreator/addTask`, `status`, `torrentFile`,
+`deleteTask`); left to its defaults it makes a hybrid and seeds it at once, and if that start
+fails the `.torrent` is lost (409), so omaseed sends every field itself. #146, v0.5.0, in H18's
+sheets step (#170).
+
+**This entry adds** a dropped folder to the window's drop handling (CR1), the made-here record as
+a candidate for board 25's files match (CR8, superseding §3's "library torrents only"), one
+exception to board 25's "no merging for private torrents" that you ask for (CR9), a creation to
+C15 M10's band and C16 L6–L8 (CR13), and §7's rows to C12's ErrorWords (CR17). It supersedes
+#146's "short default list" of trackers (CR4).
+
+- **Starting (CR1–CR3):** + add ▾ "create a torrent from a folder…" (ctrl+n), `:` "create
+  torrent…" (offering the folder picked in the rail), a folder row's menu, a folder dropped on the
+  window. One sheet; "for": anyone / a private tracker, remembered per server. The folder through
+  the Move sheet's field, places and browse (the server's own folder list when omaseed can't see
+  its disks); a single file allowed.
+- **Public (CR4):** no tracker list shipped; the library's most used public trackers (top 2–3) and
+  last time's, editable; none is fine (DHT and peer exchange).
+- **Private (CR5–CR7):** the library's private trackers by host; the announce URL from the newest
+  torrent from that tracker (`torrents/trackers`). **The passkey is never stored by omaseed,
+  never shown (the host, then dots, no reveal), never logged:** creator `status` replies, which
+  echo it, are not logged at all, and one masking function cleans any text that could hold an
+  announce URL. A pasted URL for another tracker is used for that creation only. Two passkeys for
+  one host (a reset, or two accounts): the newest torrent's wins, the line names which torrent and
+  when. Private flag on (locked), v1, the source tag of the newest torrent from that tracker (or
+  the last typed for it) as facts with a change link. The private torrent is **not added**: the
+  `.torrent` is saved and the folder remembered in a made-here record (both hashes, the files, the
+  host, no passkey) until the site's copy is added, 30 days, or you forget it.
+- **The round trip (CR8–CR9):** in the add sheet, the site's copy with the same hash is added at
+  the folder in seed mode; another hash is matched file by file and added there with a check.
+  Something made here already in the library: another hash, offer to replace it (files kept);
+  same hash, offer to put the site's announce on it; the made `.torrent` itself added by mistake,
+  a warning.
+- **Format and pieces (CR10–CR12):** v1 by default on both paths (C21 is one reason), hybrid and
+  v2 offered with a line each; piece size automatic and shown before creating, overridable 16 KiB
+  to 64 MiB; web seeds, comment and hidden files (left out) under more ▾. Always `startSeeding`
+  off and no `torrentFilePath`: omaseed fetches the file, then adds a public one itself with
+  `seedMode` at the folder's parent.
+- **While and after (CR13–CR15):** a job in the move's band (none under 3 s), followed by task id
+  while hidden, one notice when long or hidden, one creation per server at a time. Public
+  summary: seeding, magnet copied. Private summary: the `.torrent` saved as "NAME [HOST].torrent"
+  in this machine's Downloads (XDG), a file chip to drag into the site's upload form.
+- **The rest (CR16–CR19):** the seeding coach (#25) stays parked; the sheet's own lines explain
+  the private flag and the source tag. Errors checked through the server first, in §7's words,
+  qBittorrent's text under details. Transmission: no create entry; Deluge: no source row and no
+  %, said once (C25). Built in 46's frame, in the sheets step.
+
+Built in v0.5.0 (#146) as core/CreateJob (one task, addTask to the `.torrent` in hand and a
+public one's add), core/CreatePlan (the piece size, the folder's check, the saved name),
+core/CreateTrackers (the library's public and private trackers), core/MadeHere (the record),
+core/AnnounceMask (the one masking function), App's create block (AppCreate.cpp), and
+Views/CreateSheet, AddMenu, AddMadeLine and CreateFileChip in `Theme.create*` tokens, with these
+assumed answers (recorded in #146):
+
+- **The automatic piece size**, measured on 5.3.0 at 17 sizes from 100 KB to 32 GiB, is the
+  smallest power of two from 16 KiB whose square over 100 is at least the content's size (about
+  ten times its square root, rounded up), at most 16 MiB; the sheet shows it exactly.
+- **Where it starts:** a folder row's menu says "create a torrent from a folder in it…" and opens
+  the sheet with that folder in the field (browse starts there); `:` has "create torrent…" and,
+  while a folder is picked in the rail, "create torrent from NAME…". ctrl+n works wherever `a`
+  does. A server below Web API 2.10.4 has no create entry anywhere, as C25's servers that can't.
+- **The sheet:** captions over the controls, as the app's other sheets; format and pieces side by
+  side while their words fit, one over the other when narrow. The tracker, format and pieces
+  lists take ↑↓, enter and esc. Where this machine sees the server's disks, browse is the
+  portal's folder picker; elsewhere a list of the server's own folders under the field (names
+  only): enter goes into a folder, ctrl+backspace up.
+- **Trackers:** last time's are the public trackers of the last public creation on that server;
+  while there are none, the library's three most used. **The source tag** comes from the newest
+  torrent of that host (its `.torrent` read through `torrents/export`); one typed for a host is
+  remembered per server and wins next time. The announce shows as the host and dots; "paste an
+  announce URL…" is the tracker list's last row, and a pasted URL shows in full only while typed.
+- **The folder's check** reads this machine's disk where it sees the server's, else the server's
+  list: qBittorrent answers 404 for a missing folder and for a file alike (the parent's list
+  tells a file) and [] for an empty folder and one closed to it alike ("lists nothing: empty, or
+  closed to SERVER's qBittorrent"). Hidden files are left out by default, the tick under more.
+- **When done:** public: a category picker (tags are the details' afterwards); "save .torrent"
+  writes NAME.torrent into Downloads straight away, then offers "show the file". Under 3 s a
+  public one is the outcome strip; a private one is always summed up in a band, which carries
+  its file chip; a cancel is a dim strip with "create again…". One creation per server at a time:
+  meanwhile the sheet's button reads "wait for NAME".
+- **The task's id** and the choices that end it (never a tracker URL) wait in state.json's
+  "create" while it runs; the next run (or the way back to that server) takes it up. A task the
+  server forgot (404) is "SERVER restarted while hashing".
+- **The private file** is "NAME [HOST].torrent" in the Downloads folder (Settings' downloads
+  folder when set), "NAME [HOST] (2).torrent" when taken. **The made-here record** keeps a
+  SHA-256 of the saved bytes (to know the made file itself) and the source tag it was made with
+  (to say what the site changed), never a passkey or an announce URL.
+- **The round trip** applies itself: Save to, the layout and the hash check are set as the line
+  says (seed mode for the same hash, a check for another), with no "use it" link. A made one in
+  the library under another hash is replaced by default (deleted, files kept, then the site's
+  copy added), or kept beside it; the same hash goes to the duplicate sheet, which may put the
+  site's announce on it although it is private (CR9's exception).
+
+## C28 — What the v0.4.0 builds asked (ruled 2026-10-22)
+
+Diogo's answers, all as recommended, to the questions the v0.4.0 builders recorded as assumed.
+
+- **The row's □ (#157, C18 D6):** the 16 u space at every row's start stays as built; shift+click
+  on the □ adds the range and keeps the rest; the selection bar's hint is dim, not faint (Q19).
+- **A stuck move's retry (#158, C17 D13):** qBittorrent ignores a move to the save path a torrent
+  already has, so the stuck-move block offers `c recheck`, which moves it once there is room;
+  "set location…" opens the Move sheet with no preset.
+- **A small tick that doesn't fit (#159, C17 D8):** on `ntfs3`, `exfat` and `vfat`, a tick that
+  doesn't fit always waits in D5's band, whatever its size, so it can be undone before anything
+  is written.
+- **Extras in the add sheet (#63):** the issue's wording as written: a dim line under the file
+  tree ("2 extras: an NFO and a sample (12 MB). Ticked, so the torrent seeds whole.") and a dim
+  "extra" meta on each; nothing is unticked.
+- **An empty file in a move's way (#161 b):** when the file at the destination is empty and no
+  torrent owns it, the Move sheet offers "replace it": delete it, then move, said in the log.
+  v0.4.0 (v0.3.3 ships #161 a only).
+- **Fills and contrast (#90):** ruled in v0.5.0's frame step (#167), on every fill at once
+  (selected, cursor, hover, pressed, idle controls, tinted bands).
+- **Theme bindings (#156):** a QML Theme wrapper so spacing follows the shell's base size live;
+  built first, before v0.5.0's frame.
+- **The view behind a sheet (#155):** left as it is: Qt can't hide a subtree from screen readers;
+  revisit when Qt can.
+- **servers.json from an engines build (#178, #84):** servers.json written by an engines build
+  (v2) is read and kept by v0.4.0; a non-qBittorrent server is listed but not used. A file v0.4
+  starts is version 1; one it read is written back at its version, with the keys it doesn't
+  know as they were (`Server::extra`); 3 and up are still moved aside. A server whose `engine` is
+  anything but absent or `"qbittorrent"` is never asked anything (no sync, test, probe or copy)
+  and shows in the refused state's places in ErrorWords' words: "seedbox is a Transmission
+  server" / "This omaseed only talks to qBittorrent. A newer omaseed can.", with only "switch
+  server" to offer.
+
+## C29 — v2-only in the free plan (#182, ruled 2026-10-23)
+
+Diogo's answer, as recommended. On a v2-only torrent, deleting a skipped file that holds
+downloaded pieces and rechecking leaves the torrent short of 100 % for good: libtorrent 2.1.2
+then counts each wanted piece at its full size, the last piece of a file included, but counts
+only the file's real bytes as done, and since it reads the torrent as finished it never
+downloads anything to close the gap (98.6 % in the manual box). A recheck with the file still
+there reads 100 %, and so does a v1-only torrent, whose missing pieces it downloads again
+(`scripts/dev/research/182-v2-free`).
+
+**This entry changes C17 D3:** a v2-only torrent is a hybrid in the free plan.
+
+- **What stays:** on a v2-only torrent (qBittorrent gives a v2 hash and no v1), a skipped file
+  with downloaded pieces stays ("has downloaded pieces · stays"), and nothing is rechecked. A
+  skipped file with no downloaded piece still goes, as on v1.
+- **Its words:** the sheet says why in words of its own: "1 file stays (SIZE) because this
+  torrent is v2 and pieces of it were downloaded: deleting it leaves the torrent short of
+  100 % for good, a libtorrent bug." ("N files stay … pieces of them … deleting them …").
+- **Add it again:** offered as on a hybrid ("Free it too by adding the torrent again…"), with
+  the same confirm and cost. It is sound on v2: added again from its own .torrent, with its
+  files checked from scratch and that file gone, libtorrent counts what is wanted from the
+  real bytes, and the torrent reads 100 % (the research's `readd-after` and `readd-at`, and
+  the actions walk's disk stage, `b44-v2`).
+
+## C30 — Fills, show and free (board 50, ruled 2026-10-23)
+
+Board [50](50-frame-and-details-notes.html) F1–F19, all as recommended. #90's call, which C28
+left for the frame step, and the drawings of the v0.4.0 manual pass's notes on #167 (the
+outcome strip's "show") and #169 (nothing to free; the size of a skipped file still on disk).
+
+**This entry amends** Q19 (the floor holds on every ground, not only the window), C18 O3's
+"show" (offered only when it brings something back) and C17's band and free sheet (the words
+when only adding the torrent again frees the space).
+
+- **The floor (F1–F7, #90):** 4.5:1 against the ground each text is painted on: the window and
+  every fill (idle, hover, cursor, selected, selected + cursor, pressed, tints). Every role, dim
+  text and state colours included, gets the least lift against that fill, only where it sits on
+  it, so captions stay distinct (1.91:1 under the main text on a selected row, median over 28
+  themes; #90's full strength would have made them 1.00:1). Hover and pressed follow the same
+  rule, the lift following the fill's 120 ms change. On a tinted band the tint's colour and its
+  dim words are lifted against the tint. A theme whose palette reads on nothing at a fill's
+  alpha gets that fill capped (everforest 0.215). Theme resolves each role on each fill once
+  per theme change and the Kit asks for the ground it paints on; `tst_themecontrast` and
+  `contrast-board.py` cover every pair, so a theme that fails is a failing test.
+  Built in v0.5.0's frame (S7) as `Theme.on.<ground>` and `Kit/Ink` (ARCHITECTURE's theme rule
+  3). Read as the board reads it: the lift ends at the better of the foreground and the bright
+  foreground, never past the palette (F6 a); a tint is capped the same way against its own
+  colour; a fill inside a 4 % block (a picker's hovered row, a notice's details, the selected
+  text of a rename) is a ground of its own, over the block's. Over the 28 installed themes,
+  board 50's measure finds 1722 of 4648 pairs (15 grounds, 11 roles, and the key badge's
+  background on its accent) under 4.5:1 before and none after; the ctest `contrast_board_check`
+  and `tst_themecontrast` hold Omarchy's 23 at none, under three shell fill sets.
+  **Nested fills (#188):** the stronger fills inside a 4 % block (`blockSelected`,
+  `blockSelectedCursor`, `blockPressed`: the add sheet's ticked rows, the rail's selected
+  server, QbtListSheet's text selection, a button pressed in a notice) and every fill over the hover fill (`hoverIdle`,
+  `hoverHover`, `hoverSelected`, `hoverPressed`: a button on the action bar, the controls on a
+  hovered settings row) are grounds of their own as well, each over the ground it lies in:
+  taken over the window, their text read as low as 3.5:1. Console paints the selected and
+  hovered ones board 46's panel2 (`.srv .ri.on`, `.status.sel .ab:hover`, `.chip.on`), the
+  rest by Omarchy's recipe over its own grounds. The Files tab's rename field paints the idle
+  ground itself, as the table's plate does; a Toggle's knob, on, keeps the ticked tint's
+  colours (no text, at 3:1 over the hover fill). Chip's key (0.8) and suffix (0.72) and the schedule
+  line (0.6) lost their opacities, which read under the floor: the floor wins over docs/31
+  D5's "a little fainter", and the schedule line, while the schedule is off, reads dim instead.
+- **"show" (F8–F11, #167):** offered only when one of the strip's torrents is out of view, out
+  of the scope (folder, question, category, tag, filter) or not selected, and live while the
+  strip is up. It selects them, puts the cursor on the first and scrolls to it; when one left
+  the scope, the rail goes where they all are (their folder, their question), else library, and
+  the filter clears. Never a filter of its own (42 J1). A dim line under the strip's words says
+  why it is there ("they are out of view, under giving back").
+  Built with the action bar (C24 H8, #167), as the board reads it: "in view" is the row wholly
+  inside the list's visible part, the strip over it aside; one torrent acted on alone counts as
+  selected while it is the cursor's row and nothing is selected. The line names the first reason
+  that holds, in the order scope, view, selection: "they are resting now, out of giving back"
+  (a question picked, all in one question now), "it is in keep now, out of films" (a folder),
+  "they are out of the filter" (the words alone hide them), "they are out of keep" (a category,
+  tag or tracker), "they are out of view" (", under giving back" while no question is picked
+  and they share one), "it is not selected"; "1 of them is …" when only some are.
+  The rail goes to a question only when a question was picked, to a folder only when a folder
+  was; else the library. The table keeps room for the strip with its line, so the line coming
+  and going never scrolls the rows it is read from.
+- **Nothing to free (F12–F16, #169):** on a hybrid (or v2-only, C29) torrent whose space-holding
+  skipped files all have downloaded pieces, the band keeps its title, says "They were written
+  while wanted, and pieces of them were downloaded. qBittorrent keeps them; on this torrent only
+  adding it again frees them.", and offers Add it again… (F) · Why? ›. shift+f goes to the
+  add-again confirm, which says why in one line; the palette row reads "add it again to free
+  SIZE…", the ? sheet's F "free the space, or add it again". The free sheet, when its plan finds
+  nothing after all, is titled "Only adding it again frees this" with "Re-add to delete them…"
+  ("…it…" for one) as its main button; when some can be freed, the main button frees them and
+  "re-add to free all SIZE…" sits beside it. The Files tab's reading decides (hashes, each
+  file's progress, pieceStates as it reads now); shift+f from the table reads the files first,
+  and the plan at delete time checks again and falls back to the "only adding it again" sheet.
+- **The size (F17–F19, #169):** the size fact and the files head say "· 2 skipped, 16.0 MB still
+  on disk"; on a disk omaseed can't see, "2.43 GB · 1.03 GB of it in skipped files", from
+  torrents/files' progress. Ships with the details step (#169), in the new details only.
+- **Built (F12–F18, #169),** as the board reads it: core/SkippedOutlook decides from the Files
+  tab's reading (free, mixed, readd); the band's action reads "Add it again…  F", its Why?
+  board 50's hybrid or v2 words; shift+f and the band go straight to the confirm while the
+  reading says readd, and to the sheet otherwise, also before the reading is this torrent's
+  (the sheet's plan reads first); the confirm's line is "Nothing else frees them: this
+  torrent is hybrid, and pieces of them were downloaded." (v2's words on a v2-only torrent),
+  its "why?" opening the band's longer words in place, its sentence naming the size; "add it
+  again" with no plan in hand reads the plan first, so the leftovers still go. The `?` sheet's
+  F row reads "In the files tab: free the space, or add it again. …". F17's count is every
+  skipped file, its bytes what they hold on disk (shown while files or facts reads them); F18
+  is the size fact only, the files head keeping "N skipped" where D4's hint speaks.
+
+## C31 — How a skin is built (#171, boards 46 and 49, ruled 2026-10-24)
+
+The three questions of the console skin's design note, all as recommended, and the mechanism
+as built in #171's six steps. C24 H11–H12 said there would be two skins and left how to the
+build; this is how. **This entry amends** ARCHITECTURE's theme rules 6 and 7: rounding and the
+font are the skin's, and Omarchy's skin keeps today's answers.
+
+- **A skin is data:** a versioned `skin.json` of form tokens (`roles`, `grounds`, `line`, `cut`,
+  `radius`, `font`, `label`, `numerals`, `density`, `glyphs`, `labels`, `tint`, `plates`,
+  `select`, `meter`, `glow`, `faces`), names borrowed from omarchy-console's
+  `console-skin.json` so a later mapping is cheap. `integration/SkinReader` (pure Qt, beside
+  ThemeReader) reads and checks it, all or nothing at the file: one that doesn't parse, has no
+  integer `version`, is newer than omaseed or names an unknown skin is drawn whole as Omarchy,
+  with the reason logged. Inside a file that reads, each malformed token is Omarchy's (named in
+  `dropped`) and the rest stand. Colours stay theme roles: a skin picks which role and alpha
+  over which ground (C30's recipe), never a hex, and C30's floor covers every ground it sets.
+- **Omarchy is the skin with no overrides** (`{"skin": "omarchy", "version": 1}`): every
+  default stays in `Kit/Theme.qml` and `Kit/Glyphs.qml` beside its board citation, so under
+  Omarchy nothing moved in any of the six steps. **Console** is the same kind of file with
+  values, and its values come from board [46](46-the-whole-app-on-v03.html)'s `.sk-con` pass
+  (and board [49](49-create-a-torrent.html)'s plate facts for create). Two instances, one
+  mechanism.
+- **Four seams with faces:** `Plate` (a panel's ground and edge), `SelectionMark` (the cursor's
+  mark), `Meter` (a progress line or a grid of cells) and `Lamp` (a server's or a tracker's
+  dot). Each is a Kit component with a fixed API that loads its body, a whole QML file, from the
+  skin's `faces/` (else Omarchy's, today's drawing moved verbatim). More seams only when a skin
+  needs one.
+- **No file selectors and no Style singleton.** A `+console/` selector is fixed per engine, so
+  switching would rebuild the window (sheets, scroll and drags lost) and a skin outside the
+  module could never use it; a second singleton beside Theme would have to branch on the skin
+  or be swapped by a selector, the two things ruled out.
+- **No branching on a skin's name:** a component may read a token's value
+  (`Theme.token(group, key, fallback)`), never ask which skin is drawn. The ctest `skin_lint`
+  fails on `skin ===` in `src/ui/qml` (Settings' chooser, which compares the saved choice,
+  aside) and on a literal `border.width` in the Kit and the Views.
+- **The switch (H11):** Settings › Appearance › Skin: Omarchy, Console, follow the desktop,
+  saved as `appearance.skin` in state.json; `OMASEED_SKIN` pins it for a run. Everything is a
+  binding, so a switch repaints live, as a theme change does. **Follow the desktop** draws
+  Console while omarchy-console's skin is on: the theme's `console-skin.json`
+  (`~/.local/state/omarchy/current/theme/`), else `~/.config/omarchy/console-skin.json`, the
+  first that exists parsing with a positive integer `version`, and `~/.config/omarchy/
+  console.json`'s `fx.skin` not `off`. `fx.fonts = system` sends every family back to the
+  system's (icons too) while following, and only then. In v0.5.0 it switches to omaseed's
+  built-in Console only; the desktop file's own values (cuts, tracking, roles) are not read.
+- **Fonts are not bundled:** Chakra Petch, Share Tech Mono, Noto Sans CJK JP and Material
+  Symbols Sharp are the PKGBUILD's `optdepends`. A missing family falls back on its own
+  (fontconfig's monospace; Omarchy's glyph for a missing icon font), and Appearance's Skin row
+  names what is missing.
+- **User skins later:** from `~/.config/omaseed/skins/<name>/skin.json`, listed in Appearance,
+  under the same version rule. The first user-skin version is data only; faces from a user
+  folder are code (QML runs JavaScript) and need their own ruling. Nothing in v0.5.0 depends on
+  it.
+- **Not in the skin:** board 46's Console overview, numbered plates and a specials column, is
+  another arrangement of the view, not its form; a skin must not fork View layout, so it waits
+  for a board of its own (#199).
+
+**Assumed, to confirm in the manual pass** (each recorded on #171 as its step was built; the
+manual page `docs/manual-tests/skins.md` has a box for each):
+
+- Grounds: only the tiers board 46 states are Console's (panel `lighterBackground` 45 %, the
+  cursor and selected `lighterBackground`, picked the accent at 20 %, the warning band the warn
+  role at 9 %); two new grounds, `panel` and `picked`; no `band` ground.
+- Lines: Console's menu edge is the hair; line widths and a numeric radius are px as written,
+  densities and cuts are spec px through `space()`; a skin's `density` reaches every Theme.qml
+  token of the form `space(N)`.
+- Voices: one heading track (.22 em) for the title bar, sheet heads, panes and menu heads;
+  buttons at the caption size; names tracked .05 at 600, the rows' names upper case, captions
+  .18 at 600; the views' and menu rows in the control voice.
+- Kana: "Noto Sans CJK JP"; on the title bar for questions, places' kinds, search and the
+  library; sheets add, move, create (作成); panes 外観, 検索, else 設定; none on menu heads; the
+  servers head in two parts.
+- Tags: a notice's word by kind (error, warning, note, done; "no signal", "refused"; moving or
+  moved, creating or made); the outcome strip's done, failed, "N of M", cancelled; the fix a
+  filled accent tag.
+- The cursor is marked with Console's brackets in every list, the table and the details' lists
+  included (board 46 draws none on the table); a pick is the `picked` ground with no rule.
+- Plates: the details' hero, create's round-trip note, the outcome strip, the confirm, the
+  palette and the error and move blocks on cut plates; the tooltip and inline renames on the
+  small cut. The error and move blocks' ground is their colour at 8 % over the panel.
+- Meters: the line meter in 3 spec px cells; the pieces in 34 columns of square cells, as many
+  rows as the pieces fill (at most 10 spec px a cell), in the app's own colours.
+- The Status column 120 u under Console (Q17's 116 stays Omarchy's); its word in the caption
+  voice. The current tab on the lit line (2 px accent); Omarchy keeps its 1 px bright line.
+- Follow the desktop: any positive integer `version` turns it on; the watcher runs only while
+  following; `OMASEED_SKIN` may also be `desktop`; anything else in state.json reads as Omarchy.
+- optdepends: `ttf-chakra-petch` and `ttf-share-gf` (AUR), `noto-fonts-cjk`,
+  `ttf-material-symbols-variable`.
+
 ## M8 — A click leaves the keyboard focus where it was
 
 Buttons and toggles do not take the focus when clicked. Otherwise an overlay gives the focus
@@ -1219,10 +1745,17 @@ folders.
 Changed by C17 D5: a priority change that adds more than 1 GiB (or the whole torrent) still
 changes the rows at once, but waits 3 s before it is sent, with Undo.
 
+Named "files" since C24 H6 (v0.5.0): the second of story · files · swarm · trackers · facts,
+on `2` as before; what it does is unchanged.
+
 ## S1 — The status keys are `0`–`8`
 
 The rail has nine status rows, `0` (all) to `8` (errored), so the help sheet and the rail's
 footer print `0–8`. The approved design's figure prints `0–9`; `9` does nothing.
+
+Changed by C24 H2 (v0.5.0): the rail's five questions take `1`–`5`, `0` is the library and
+`6`–`9` do nothing; the states are `is:` words in the filter. Inside the details `1`–`5` pick
+its tabs and `6` web seeds (C24 H6).
 
 ## The click rules every list follows
 
@@ -1258,3 +1791,317 @@ From the mouse pass (#51 D6, #52). What the issue left open:
   accent mark, as the split's grip has. While a column is being moved, the grips are away.
 - The columns palette's "default order" row (and `ctrl+r`) puts back the widths too, and shows
   whenever the order or a width differs.
+
+## C32 — What the v0.5.0 pass asked (board 51, ruled 2026-10-25)
+
+Board [51](51-the-v050-pass.html) D1–D19 (#201's ids), all as recommended except D9, which
+takes c moved to the top. From Diogo's manual pass of v0.5.0 (#201); built into v0.5.0 with
+#201's fixes before the release. D11 (#172, the add sheet's own board) was not drawn.
+
+**This entry supersedes** C24 H8 (the status line turning into the action bar: D17), C24 H3–H4's
+shelves (D12), #167's assumed 4 (ctrl+b the only fold: D9) and 6 (the surface tint gone: D16),
+docs/32 L1 (the log's rail: D5) and Fig. 16's tab keys (D10). It **amends** C24 H2 (the rail
+gets a foot: D1), H6 (the story's order: D15), H9 (the mark's menu head: D14), H15 (the speeds'
+place: D2), docs/31 D5 (D6), C4 D1–D2 and C13's alternative-limits row (D8) and C16 L11 (D19).
+
+- **The mark and its menu.** D1 a: a settings row at the rail's foot, the gear alone when
+  folded. D14 b: the menu grows from the lit mark inside one accent outline (292 px), no head
+  of its own, the version line first, then servers and the rest.
+  Built as the board reads it, assumed where it is silent: under Console the menu keeps its
+  cut-plate outline all round (the open top is Omarchy's).
+- **Menus (F15, ruled in the pass).** The torrent menu as board 46's `menuHtml()` draws it, an
+  icon on every row, transfer ›, queue › and copy › as submenus. Built, assumed: "category…"
+  and "tags…" take an ellipsis, since a › now means a submenu; force start sits in transfer ›;
+  the rows carry no counts for a selection ("stop", not "stop 3"); under Console every menu's
+  icons are Material Symbols ligatures.
+- **The rail.** D3 a: its edge drags between 160 and 360 px; let go under 120 and it folds;
+  double-click goes back to 214; the width is the window's, not a server's. D9 c, **moved**:
+  the fold toggle is board 51's tab on the rail's edge (‹, shown on hover, tooltip "fold the
+  rail · ctrl+b"), placed at the top, within the title bar's height and centred on it, not
+  halfway down the rail. The rail folds by itself when the list would get narrower than
+  520 px (the open details pane counted) and unfolds when there is room, unless folded or
+  unfolded by hand, which holds until the next hand one (answers F13); assumed: a hand fold
+  holds for the session (it isn't saved), and a double-click on the folded edge unfolds it at
+  the default width. D4 a: right-click on a
+  server: on the current one, its alternative speeds, stop all, start all; on another,
+  "switch to it" first; both then edit…, test the connection, open its web UI, copy its
+  address, remove… (asks first). D5 a: on the log the rail holds the four levels (normal,
+  info, warning, critical) ticked with counts, the torrents the lines are about and since
+  when; the title bar's / filter as for torrents; "export log…" in + add's place. Search's
+  rail waits for the pass's section 5. D16 a: a surface tint on the rail only, off · 4 % · 8 %,
+  its rows on C30's nested grounds.
+- **Title bar and status line.** D2 a: the speeds' place is a setting, the title bar by default
+  (a line each); the status line keeps count, free and sync. D6 a: alternative speeds on show
+  as a chip tinted 18 % in the state's colour, each speed against its cap. D8 a: two presets,
+  turtle and burst; turtle stays qBittorrent's alternative set at rest (the schedule keeps
+  meaning turtle), burst is written over it while on and turtle written back after (also when
+  omaseed quits mid-burst); the chip opens a picker. D18 a: the filter field takes the title
+  bar's free room, the title kept, tokens as chips, the count and "× esc".
+  Built as the board reads it, assumed where it is silent: the speeds give way from the
+  title bar's step 2 and the status line takes them back; ↑ opens the seed console in the
+  title bar too (#24); a cap shows whenever the set in force has one (burst's ↑ 2 MB/s as
+  well). `A` flips the last pick (it is shift+a, so burst has no key of its own; the choice
+  says so at its foot); the choice's burst length is three radio rows, Kit/Menu having no
+  chip row. A burst ends with the turtle written back and the limits as the schedule has
+  them (off with the schedule off); one found at start with no end ("until I stop it") is
+  ended then. A switch to another server leaves its burst to end when omaseed is next on
+  that server (the switch cancels the shared client's requests). The tray's and the bar
+  widget's row stays the flip (A); the window's menus open the choice. Settings › Speed
+  drops the set line (the presets name the set now). The filter's field is open while the
+  caret is in it or a filter is set.
+- **Acting on a selection (D17).** 1 a: a floating action bar over the list, bottom middle, from
+  the torrent menu's groups (F15), icons and words, category › and more › opening upward; the
+  outcome strip floats above it. 2 a: at narrow widths the words go before the icons. 3 a: the
+  status line stays on the server's status while a selection is on.
+  Built as the board reads it, assumed where it is silent: the bar's buttons are the menu's
+  rows by name (`ActionsMenu.groups`), so a word or icon changed in the menu changes on the
+  bar; more › lists the menu's rows the bar doesn't show (rename and retry too), those it
+  folded first, with no head. Category › is a list of the categories (a ✓ where all of the
+  selection has it, "2 of 3" where some do), then new category… (the palette) and no
+  category; tags › ticks a tag all of them have and a row turns it for all of them, new tag…
+  opens the palette. The ledger reads size · ratio as the board draws it ("given" is in its
+  description and in the seed console it opens). Narrow, the ledger goes first, then the
+  words, the count's "selected", then the folds; it folds only when the icons no longer fit,
+  so a 480 px list keeps every icon. C18 D6's hint (the first three times) sits before esc
+  and stays while it fits, the ledger and then the words giving way to it. No shadow (the
+  kit has none); the bar's edge and ground are the outcome strip's.
+- **The library.** D12 a: the third display is "space", a size map by folder then torrent,
+  in place of shelves. D13 a: a sort block in the display tool's menu; its word reads
+  "rows · added". Assumed: the word names the sort after rows and table; a sort newly picked
+  starts in the direction a header click would.
+  Space built as the board reads it, assumed where it is silent: the folders are save paths,
+  the largest first, and inside each the torrents the largest first, whatever the sort (size
+  lays the map out, so j/k follow the map); the menu has no sort block in space, its footer
+  says "size orders the map, the largest first", and the tool reads "space" alone. A folder
+  under 1 % of the scope's size, or a torrent under 1 % of its folder's, goes to the "under
+  1 %" line (a lone torrent's folder as that torrent); a folder's chip takes the cursor to its
+  first torrent. With more than one folder drawn, each is outlined under its path and size;
+  the line over the map names the cursor's folder with "move this folder…". A block's ground
+  is its state colour at 18 % under a 2 px line of it, the whole block whatever its progress
+  (the fact says it); the cursor's block has the accent's edge, a selected one the
+  selection's fill. The map never scrolls and keeps the action bar's room free at its foot.
+  `state.json`'s and `OMASEED_DISPLAY`'s "overview" (and "shelves") read as space.
+- **Questions (F17, ruled in the pass).** A question picked from the rail or by 1–5
+  replaces the place, as the library does: it leaves any folder, category, tag or tracker and
+  asks across the whole library, under its own remembered display. Narrowing a place by state
+  stays with the filter (`is:<state>`). This replaces #168's assumed "a question inside a
+  place shares the place's display" (C24 H4). Built with the reverse, assumed: a place picked
+  from the rail leaves the question.
+- **Details.** D15 a: the story's "what happened" newest first.
+- **Settings.** D7 a: a › at each server row's end, the row lit under the pointer. D10 a: tab
+  walks the modal as any form; j/k and enter stay for rows. With #201 F2, assumed: only the
+  sign-in choice's chips take the accent edge that marks the picked one; other choice chips
+  are unchanged.
+- **Moves.** D19 a: move back carries back the loose files the move carried (the list it kept,
+  #98), under the same tick; a file changed at the target since stays, and is named.
+  Built as the board reads it, assumed where it is silent: the move's record keeps each file
+  as it lies at the new place after the carry, so move back's size-or-time check is against
+  that; the list goes in the move back's spec (saved with the job), so a restart or a queued
+  move back carries the same files and never walks a folder. The sheet heads the block "files
+  no torrent owns · the move carried", its note drops board 51's "(M17)" (the app's words cite
+  no rulings), lists 6 files the move carried and 2 put there since at most, then "and N
+  more", and its button reads "move 46 back · 1 file · 3 stay" when both apply. A move back
+  that carries files shows its band as a folder's move does (not quiet, C16 L6), so the
+  summary can name what stayed ("notes/readme.txt (changed after the move)", up to 3 names).
+  Room on the old drive doesn't count the loose files (they are small; a full drive stops the
+  carry as M17 says). A record from before v0.5.0 has no list: its sheet still says the files
+  stay, as does one whose disks omaseed can't see.
+
+## C33 — Releases ship what is ready (ruled 2026-11-04)
+
+v0.5.0 sat unreleased for two weeks: the plan was to finish the whole manual pass, build every
+finding and every board's ruled change, then release, and each review turned up more design to
+draw, rule, build and review again. Diogo, 2026-11-04: release what is on `main`, and release
+more often. From now on:
+
+- The gate is automated: CI green, the test pass, the walks the release touches and the visual
+  check ([RELEASING.md](RELEASING.md), "When to release").
+- The maintainer's review never blocks a release. What he finds, in use or in a pass, is an
+  issue that lands in the next release that is ready.
+- A board never blocks a release. Its feature waits for the ruling on its own.
+- A minor version is one feature or one board; fixes ship as patch versions once merged.
+- What needs a person's eyes gets an optional list of at most five minutes.
+
+This **supersedes** #201's plan (the pass's findings and board 51's changes all in v0.5.0 before
+the release): v0.5.0 ships with #201's fixes built so far; the rest goes to v0.5.1 (fixes) and
+v0.6.0 (board 52 and later D items).
+
+## C34 — Search's rail and clearing (board 52, ruled 2026-11-04)
+
+Board [52](52-search-rail-and-clear.html), #201's D5s, D20 and D21 (#205), all as recommended.
+It **amends** C26 SR6 (plugins ▾ and type ▾ leave the bar while the rail is open), SR2 (the
+plugins' line loses its pills to the rail), SR10/SR13 (a way to the plugins' pane from search
+with plugins installed) and SR14 (esc's order), and settles C32 D5's search half.
+
+- **D5s a, the rail on search.** Three groups. *plugins*: every installed plugin with a tick
+  (asked or not), its dot and how it answered (a count, … asking, slow, failed, skipped); a click
+  ticks or unticks it and asks again. *type*: any, or one of the plugins' types; one pick, asks
+  again. *recent*: this server's searches this session, in memory only, never saved (search
+  words can be private); a click asks again. While the rail is open, plugins ▾, type ▾ and the
+  line's pills leave the bar (the line keeps "N of M plugins didn't answer ›"); folded (ctrl+b or
+  a narrow window), they come back.
+- **D20 a, a way to the plugins.** "install a plugin…" at the foot of the rail's plugins group
+  opens Settings › qBittorrent › Search plugins with its install field focused; esc goes back to
+  the search. With the rail folded, plugins ▾ ends with "manage plugins…", opening the same pane.
+- **D21 a, clearing.** While the field has words or there are results, it ends in "× esc", as the
+  title bar's filter (C32 D18). A click, or esc in the field, clears the words and the results
+  together, stops any plugin still asking and shows the face before search. esc's order: the pane
+  → the rows → the words and results → leave search.
+
+The builder's own calls, accepted with the board: a plugin turned off in Settings shows dimmed in
+the rail with no tick ("off"), and a click on it opens the pane on it. Assumed (the board left it
+open): the group heading says **type**, the bar's word, not "kind", in both places.
+
+## C35 — Adds from outside open where you are (board 54, ruled 2026-11-05)
+
+Board [54](54-add-where-you-are.html), from #211's follow-up, W1–W9 all as recommended. It
+**amends** C13 (the shared menu's add: it opens the add window where you are, so the tray, the
+widget's ⋯, the window's mark and board 53's Add Torrent follow), C20 (#124: in the add window,
+the window closes with the sheet on qBittorrent's OK) and Q16/C6 (a sixth notification switch),
+and changes the hand-off of charter T1.4 (the second instance no longer raises the main window
+for an add; a plain activation with no URI still does).
+
+Why: in an omabox, every add from outside (a `.torrent`, a magnet, `Invoke add`) took the user
+to omaseed's workspace, because Omarchy sets `misc:focus_on_activate = true`; hidden in the
+tray, the window came back on the current workspace but tiled, squeezing the user's window.
+
+- **W1 a.** An add from outside the window opens the add sheet in its own small window,
+  floating and centred on the workspace you are on, with focus. The main window is left where
+  it is, or stays hidden.
+- **W2 a.** When the main window had focus just before, the add opens in it, as today.
+- **W3 a.** The add window fixes its size to the sheet's (minimum = maximum, up to 80 % of the
+  screen's height, set again when the sheet grows), so Hyprland floats it with no rule; the
+  shipped snippet adds a rule on its first title, `omaseed · add` (Qt gives every window of an
+  app one app id, so a rule can't tell the windows apart by class).
+- **W4 a.** Already in your library: board 25's Fig. 10 in the add window; "show it" closes it
+  and raises the main window on the torrent; a merge sends W5's notice.
+- **W5 a.** After an add from the add window, one "Torrent added" notice (NAME · SIZE ·
+  CATEGORY, as Download complete's); a click shows the torrent. Its own switch in
+  Settings › Notifications, on by default.
+- **W6 a.** First run (no server yet) keeps the main window on the first-run page, holding the
+  adds, as today.
+- **W7 a.** Hand-offs while the add window is open join its list, and the window maps again
+  where you are.
+- **W8 a.** esc, cancel and closing as today: esc moves to cancel, cancel drops the add and all
+  waiting and closes; closing the window is a cancel; an add already sent goes on.
+- **W9 a.** No setting to bring back the jump.
+
+Settled 2026-11-05, at #217's first step (the board was silent): in the add window, the
+server palette's "manage…" opens Settings in the main window, raising it on purpose as "show
+it" does; the sheet's one-server note stays at its foot; an add started from search is made
+inside the window, so it stays there (W2). Settled at #218 (the board was silent): the URIs
+omaseed is launched with open in the main window, which maps fresh where the user is anyway,
+and it comes up for them even when launched `--hidden`. W2's "just before", for the shared
+menu's add and the bus (a bar popup or Omarchy's menu holds the keyboard while open, measured in
+a box): the main window had focus at most 5 s ago, and the main window is raised for it, as the
+menu's add always did, so a workspace switch inside those 5 s doesn't leave the sheet out of sight.
+
+## C36 — Torrents in the Omarchy menu (board 53, ruled 2026-11-05)
+
+Board [53](53-the-omarchy-menu-row.html), from #211, M1–M15 all as recommended, plus one call
+made at the ruling: Speeds › and Pause / Resume hide while the server doesn't answer. It
+**amends** C13 D24 a and C20 (the shared menu's stop all and start all become pause torrents and
+resume torrents, M10), retires charter T1.8's first-page menu row, and uses C32 D8 a's two
+presets (turtle, burst) as they are.
+
+Why: the shipped row (`"torrents"`, copied by hand into the menu's file) only opened omaseed,
+which Apps and the launcher already do, and sat last on a first page that holds Omarchy's
+sections, never apps; the menu has no position field. Omarchy puts an app's actions inside the
+section for what you do (Share › Receive starts LocalSend), names on and off as a pair of rows
+with `when`, and uses ✓ for one pick among several.
+
+- **M1 a.** **Trigger › Torrents**, a submenu with the alias `torrents`
+  (`omarchy menu summon torrents`), in place of the first-page row.
+- **M2 a.** Its rows: Open omaseed · Add Torrent · Search Torrents · Speeds › · Pause Torrents /
+  Resume Torrents · Servers › · Settings. No Quit (Omarchy's menu offers none for any app), no
+  Add from Clipboard (the blank add sheet already takes a magnet, link or path from the
+  clipboard).
+- **M3 a, M4 a.** The rule: a row that opens the window runs a launch option and always shows,
+  starting omaseed when it isn't running (Open, Add, Search, Settings); a row that changes
+  state calls the Status bus with `busctl --user` and shows while omaseed runs. `when` and ✓
+  read `busctl --user status` and the status file with `jq` (Omarchy ships it). Ruled at the
+  ruling: Speeds › and Pause / Resume also hide while the server doesn't answer
+  (`server.reachable`); Servers › stays, to move off such a server.
+- **M5 a.** One launch option, `omaseed --open add|search|settings`, forwarded to a running
+  omaseed through `ActivateAction` (which already takes `settings`). Add opens the add sheet
+  where C35 rules it opens.
+- **M6 a, M7 a.** **Speeds ›**: three rows, Normal · Turtle · Burst, Omarchy's ✓ on the one in
+  force.
+- **M8 a.** A new `PickAltSpeed(s off|turtle|burst)` on the Status bus, through AltPresets, and
+  a status field `alt.pick` (AltPresets' current pick) for the ✓.
+- **M9 a.** A notice for every speed pick made outside the window: what was picked, its limits,
+  how long a burst lasts; for turtle at qBittorrent's untouched defaults (10 KiB/s each way),
+  a line saying so and pointing at Settings › qBittorrent › Speed.
+- **M10 a.** **Pause Torrents / Resume Torrents** everywhere (Omarchy's menu, the tray, the
+  widget's ⋯, the window's mark): pause stops what is running and remembers those torrents, per
+  server, across restarts; resume restarts exactly those and shows only while a pause is held
+  (a status field for the `when`). Today's start all started torrents kept stopped on purpose.
+- **M11 a.** **Servers ›**: a row per server, ✓ on the current one, with two servers or more,
+  while omaseed runs, calling `SwitchServer`; omaseed writes the block again when the server
+  list changes.
+- **M12 a.** One switch, Settings › Appearance › **In the Omarchy menu**, after Widget; off until
+  asked: neither the package nor the first run writes the menu's file.
+- **M13 a.** omaseed changes only its own block between two marker comments, never parsing the
+  file and writing it back; it adds the block before the file's last `}` (or creates the file
+  holding only it), removes it marker to marker, writes atomically, watches the file; the first
+  on replaces today's one-line first-page row. A file whose last row ends in a comment is left
+  alone, and the row says so.
+- **M14 a.** A `trigger.torrents` row outside the block is the user's: the switch shows dimmed and
+  says where, and touches nothing.
+- **M15 a.** Without Omarchy's menu the row stays, dimmed: "needs Omarchy's menu".
+
+Settled 2026-11-05, at #213's first step (the board was silent): the rail's server menu
+(right-click on a server) takes Pause / Resume too, in place of its stop all and start all.
+Settled at #214 (the board was silent): the speed pick's notice (M9) has no switch of its
+own in Settings › Notifications and is always sent, as the move and creation notices are; a
+click raises the window. Picks from the window (A, the speed chip, the status line's menu, the
+window's mark menu) send none.
+
+## C37 — Made by your agent: user skins (board 55, ruled 2026-11-05)
+
+Board [55](55-made-by-your-agent.html), #221, U1–U10 all as recommended. A person asks their own
+coding agent for a look ("make it warmer, and rounder") and gets one, without a display and
+without the agent seeing their library. For skins only. It **amends** C31: "user skins later"
+is now, data only, and the question it left open (faces from a user folder) is answered by U2.
+#163's commands join U10's family, and its skill becomes U4's guide. ARCHITECTURE's theme rules
+stand, for user skins too; under Omarchy's and Console's skins nothing is drawn differently.
+
+Why: herdr's desktop app is reshaped by agents because its interface is files, a guide for
+agents is written beside them on every start, and the agent checks its own work with no
+display. omaseed already had skins as data (C31); this is the rest, without letting code from
+the person's folder run.
+
+- **U1 a.** omaseed reads `skins/<name>/skin.json` under `$XDG_CONFIG_HOME/omaseed/` with the
+  built-ins' reader and version rule. The name is the folder; a folder named like a built-in is
+  ignored, with the reason logged. The Skin row lists them after the built-ins (a second line;
+  past three, one **yours ▾** chip opening Settings' list palette), with **open folder**; a
+  yellow line names what the drawn skin dropped, or why it isn't drawn. The folder is watched:
+  saving the drawn skin repaints, as a theme change does.
+- **U2 a.** Data only. In a user skin, `faces` names a built-in skin per seam
+  (`{"Plate": "console"}`); a path or a `faces/` folder is dropped and named.
+- **U3 a.** `omaseed skin clone <from> <name>` writes every token out, with
+  `"cloned_from": {"skin", "version"}`; an existing name is refused; the copy never follows
+  omaseed's changes. A new optional `description` is the Skin row's caption.
+- **U4 a.** On every start omaseed writes, when they differ, `AGENTS.md` (headed "Written by
+  omaseed on every start. Edits here are overwritten."), a one-line `CLAUDE.md` (`@AGENTS.md`)
+  and `skin.schema.json` (generated from the reader's table) into `~/.config/omaseed/`; a file
+  of that name without omaseed's header is left alone. `omaseed --skill` prints the guide.
+- **U5 a.** `omaseed check <skin> [--json] [--theme NAME]`: no window, D-Bus or server. The
+  reader's verdict, `dropped`, `missingFonts`, `lifted` (what C30's floor had to lift) and a
+  picture of one fixed sheet on the demo library, in the person's theme, base size and fonts,
+  under `~/.cache/omaseed/check/`. Exit 0 drawn, 1 drawn whole as Omarchy's, 2 usage.
+- **U6 a.** `omaseed skin use <name>` (the running instance over its D-Bus name, else the
+  saved choice) and `omaseed skin list [--json]`. No capture of the open window: it shows the
+  person's library, and a picture sent to an agent goes to its model's provider.
+- **U7 a.** omabox in the PKGBUILD's `optdepends`; `/usr/share/omaseed/agents/skin-check.sh`
+  for `omabox check run` (`omaseed --demo` with the skin, each Omarchy theme, a baseline);
+  without omabox, `check` ends with one line naming it. No qBittorrent in that box.
+- **U8 a.** No new key: `omaseed skin use omarchy`, the Skin row, `OMASEED_SKIN` for a run.
+- **U9 a.** A shared skin is a folder with `skin.json`, `RECIPE.md` and `preview.png`, topic
+  `omaseed-skin`; the guide says how to share one and how to add one (read it, copy, never
+  overwrite, check). No gallery yet.
+- **U10 a.** Words after `omaseed` (`check`, `skin clone|list|use`); a first argument that is
+  one of them is a command, and a file of that name is opened as `./check`.
+
+Not ruled here, each for a board of its own: panels that add features, faces as code, other
+arrangements of a view (#199).

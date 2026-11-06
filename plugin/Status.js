@@ -478,12 +478,14 @@ function menuKey(id) {
 }
 
 // What picking a row does: "switch" (a server: the popup stays and refills, W1), "stay"
-// (alt-speed, stop and start all: the menu closes, the popup stays), "close" (anything that
-// brings the window up or quits: the popup closes too).
+// (alt-speed, pause and resume torrents: the menu closes, the popup stays), "close" (anything
+// that brings the window up or quits: the popup closes too). stop-all and start-all are the
+// rows an app before DECISIONS C36 M10 writes in pause's and resume's place.
 function menuEffect(id) {
   var key = String(id || "")
   if (key.indexOf("server:") === 0) return "switch"
-  if (key === "alt-speed" || key === "stop-all" || key === "start-all") return "stay"
+  if (key === "alt-speed" || key === "pause" || key === "resume" ||
+      key === "stop-all" || key === "start-all") return "stay"
   return "close"
 }
 

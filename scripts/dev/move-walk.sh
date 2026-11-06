@@ -2,7 +2,8 @@
 # omaseed — moving a folder (board 42, DECISIONS C15), walked through the app's own UI on a
 # library of a few hundred small torrents: a folder with a nested save path and loose files
 # moved to another filesystem, omaseed killed mid-move and started again, the loose files
-# carried after the torrents; pause, end and "move the rest…"; three that fail and the
+# carried after the torrents; a small folder moved and moved back, the loose files it carried
+# going back with it but the one changed since (DECISIONS C32 D19); pause, end and "move the rest…"; three that fail and the
 # summary's recheck, which starts only the one that was running (#138) and leaves out the
 # hybrid, moved again instead (DECISIONS C21); a destination
 # qBittorrent can't write; a destination that fills up. Then a selection moved through the Move… sheet
@@ -10,7 +11,7 @@
 # places, one queued behind a folder's move and the folder moved back from its summary, a name
 # already at the destination; one big torrent whose file qBittorrent makes at full length before
 # it copies (#162), the summary's count of torrents added during it (#164), and what a file
-# already at the destination is and whose (#161); and a second box whose omaseed is on the playground, whose disks
+# already at the destination is and whose (#161), an empty one replaced (#176); and a second box whose omaseed is on the playground, whose disks
 # it can't see (L13). After each step it checks what qBittorrent says and what is on disk, and
 # stops at the first mismatch.
 # Run it again after any change to the move sheet, the job, the carry or their words.
@@ -20,6 +21,8 @@
 #                                             # lists every check
 #   scripts/dev/move-walk.sh --interactive    # Diogo: the box is a window on workspace 9; each
 #                                             # step says what it will do and waits for enter
+#   OMASEED_MOVE_WALK_FROM=loose …            # only extras' loose files moved there and back (C32 D19),
+#                                             # and spare's emptied folders gone both ways (#203)
 #   OMASEED_MOVE_WALK_FROM=selection …        # from the selections on (no folder moves first)
 #   OMASEED_MOVE_WALK_FROM=sheet …            # from the places, names and partial pack on
 #   OMASEED_MOVE_WALK_FROM=history …          # from move back after the summary (C18) on
@@ -42,6 +45,10 @@
 set -euo pipefail
 
 repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+# DECISIONS C24 H4: a new install shows the rows display, and a box is a new install. This
+# walk reads the table (its columns, its rows' order), so it pins the table: every scope starts
+# on it (App's OMASEED_DISPLAY), passed to each launch here and by app-box.sh.
+export OMASEED_DISPLAY="${OMASEED_DISPLAY:-table}"
 cd "$repo"
 APP_BOX="$repo/scripts/dev/app-box.sh"
 BOX="${OMASEED_MOVE_BOX:-move-walk}"
@@ -67,7 +74,23 @@ esac
 api() { "$APP_BOX" api -b "$BOX" "$@"; }
 in_box() { omabox run -b "$BOX" -- "$@" >/dev/null 2>&1; }
 keys() { omabox keys -b "$BOX" --window omaseed --wait "$@" >/dev/null 2>&1 || true; }
-table_on() { keys ctrl+k -t "$1" Tab; keys Escape; }
+# The palette is waited for before the name, and the name for a match before tab: a torrent
+# just added reaches the app at its next sync, and with no match tab does nothing and esc only
+# clears the query, so the next key lands in the palette (a full run typed m there).
+table_on() {
+    keys ctrl+k
+    for _ in $(seq 1 20); do
+        find_text "jump to a torrent" && break
+        sleep 0.25
+    done
+    keys -t "$1"
+    for _ in $(seq 1 60); do
+        omabox tree -b "$BOX" --window omaseed 2>/dev/null | grep -qE 'label "0 of [0-9]+"' || break
+        sleep 0.25
+    done
+    keys Tab
+    keys Escape
+}
 
 # count_under PATH: how many torrents qBittorrent saves at PATH or below it.
 count_under() {
@@ -161,6 +184,16 @@ expect_tree() {
     fail "$what (after ${limit}s no $text in the window's tree)"
 }
 
+# expect_tree_re "WHAT" ERE [SECONDS]: as expect_tree, for a pattern (grep -E).
+expect_tree_re() {
+    local what="$1" pattern="$2" limit="${3:-10}"
+    for _ in $(seq 1 "$limit"); do
+        omabox tree -b "$BOX" --window omaseed 2>/dev/null | grep -qE -- "$pattern" && { pass "$what"; return 0; }
+        sleep 1
+    done
+    fail "$what (after ${limit}s no /$pattern/ in the tree)"
+}
+
 # press NAME [top]: click the middle of the node (a button first) whose accessible name is NAME;
 # the leftmost such node, or with `top` the topmost of any role (the band's link, under the top
 # bar, when the details pane offers the same action as a button further down).
@@ -247,6 +280,30 @@ expect_checked() {
     fail "$what (after ${limit}s \"$name\" is not a checked radio button)"
 }
 
+# hold_strip TEXT: the pointer rests on the outcome strip's words TEXT, which holds a done
+# strip's 6 s (DECISIONS C18) while the walk looks at it.
+hold_strip() {
+    local at
+    at="$(omabox tree -b "$BOX" --window omaseed --json 2>/dev/null | python3 -c '
+import json, sys
+for node in json.load(sys.stdin):
+    if sys.argv[1] in (node.get("name") or "") and node.get("w", 0) > 0:
+        print(node["x"] + node["w"] // 2, node["y"] + node["h"] // 2)
+        break' "$1")"
+    [ -n "$at" ] || fail "no \"$1\" to rest the pointer on"
+    # shellcheck disable=SC2086 # "X Y"
+    omabox pointer -b "$BOX" --window omaseed -- move $at >/dev/null 2>&1 || true
+}
+
+# no_tree "WHAT" STRING: the window's tree, as text, doesn't hold STRING.
+no_tree() {
+    if omabox tree -b "$BOX" --window omaseed 2>/dev/null | grep -qF -- "$2"; then
+        fail "$1 ($2 is in the window's tree)"
+    else
+        pass "$1"
+    fi
+}
+
 # no_text "WHAT" TEXT: the window doesn't show TEXT.
 no_text() {
     if find_text "$2"; then fail "$1 (\"$2\" is in the window)"; else pass "$1"; fi
@@ -257,7 +314,14 @@ no_text() {
 open_move() {
     table_on "$1"
     keys shift+m
-    expect_text "the move sheet is open" "New path of the folder" 10
+    # Once more if it didn't open: right after the box's qBittorrent restarted, a full run lost
+    # the key while the app read the library again.
+    for _ in $(seq 1 20); do
+        find_text "new path of the folder" && break
+        sleep 0.5
+    done
+    find_text "new path of the folder" || { table_on "$1"; keys shift+m; }
+    expect_text "the move sheet is open" "new path of the folder" 10
     keys -t "$2"
     expect_text "the sheet offers \"move $3 torrents\"" "move $3 torrents" 30
 }
@@ -342,6 +406,10 @@ else
     "$APP_BOX" up --qbt -b "$BOX" >/dev/null
 fi
 home="$(omabox path -b "$BOX")/home"
+# The desktop's do-not-disturb: "Download complete" toasts come every few seconds while the
+# library downloads, and under the title bar (DECISIONS C24 H5) the move band's links sit where
+# a toast covers them, so a press there hit the toast. Nothing here checks a toast.
+in_box omarchy-shell -q notifications setDnd on >/dev/null || true
 echo "box $BOX is up; making $((GAMES + FILMS + MUSIC)) torrents and their files"
 
 # The library: each torrent a folder with one file, its .torrent beside the walk's own files.
@@ -393,6 +461,13 @@ for i in range(1, films + 1):
     make("films", "Short Film %03d" % i, 8192 + 983 * i, "f%d" % i)
 for i in range(1, music + 1):
     make("music", "Album %02d" % i, 600 * 1024 + i, "m%d" % i)
+# Move back and the loose files the move carried (DECISIONS C32 D19).
+for i in range(1, 4):
+    make("extras", "Extras Pack %02d" % i, 8192 + 977 * i, "x%d" % i)
+# The folders a folder's own move empties, both ways (#203): spare and spare/inner, no loose
+# files, so only the torrents' move empties them.
+make("spare", "Spare Part 1", 8192 + 971, "s1")
+make("spare/inner", "Spare Part 2", 8192 + 2 * 971, "s2")
 # The recheck after a move (#138): one that moves (the smallest, sent alone first) and three
 # below it that can't, the last a hybrid (v1+v2) that the recheck leaves out (DECISIONS C21).
 make("recheck", "Recheck One", 8192, "r1")
@@ -415,29 +490,36 @@ loose("games/handheld/saves/slot1.sav", 64 * 1024)
 loose("games/Thumbs.db", 4096)
 loose("games/capture-in-progress.mkv", 100 * 1024, old=False)
 loose("films/poster.jpg", 120 * 1024)
+loose("extras/manual.pdf", 18 * 1024)
+loose("extras/notes/readme.txt", 2048)
 PY
 
+# Web API 2.16 (qBittorrent 5.3) reads the skip-check option as seedMode and ignores
+# skip_checking: both are sent, or every torrent is hash-checked on add.
 add_root() { # add_root DIR SAVE_PATH: every .torrent in the walk's DIR, 40 a request
     local dir="$1" save="$2" args=() file n=0
     for file in "$home/walk-torrents/$dir"/*.torrent; do
         args+=(-F "torrents=@$BOX_HOME/walk-torrents/$dir/$(basename "$file")")
         n=$((n + 1))
         if [ "$n" = 40 ]; then
-            api torrents/add "${args[@]}" -F "savepath=$save" -F skip_checking=true >/dev/null
+            api torrents/add "${args[@]}" -F "savepath=$save" -F skip_checking=true -F seedMode=true >/dev/null
             args=()
             n=0
         fi
     done
-    [ ${#args[@]} = 0 ] || api torrents/add "${args[@]}" -F "savepath=$save" -F skip_checking=true >/dev/null
+    [ ${#args[@]} = 0 ] || api torrents/add "${args[@]}" -F "savepath=$save" -F skip_checking=true -F seedMode=true >/dev/null
 }
 add_root games "$LIB/games"
 add_root games-handheld "$LIB/games/handheld"
 add_root films "$LIB/films"
 add_root music "$LIB/music"
+add_root extras "$LIB/extras"
+add_root spare "$LIB/spare"
+add_root spare-inner "$LIB/spare/inner"
 add_root recheck "$LIB/recheck"
 add_root recheck-locked "$LIB/recheck/locked"
 
-step "The library" "$((GAMES + FILMS + MUSIC)) torrents added as complete: games ($GAMES, $HANDHELD of them in games/handheld), films ($FILMS), music ($MUSIC), and four in recheck (one a hybrid); six files no torrent owns beside them."
+step "The library" "$((GAMES + FILMS + MUSIC)) torrents added as complete: games ($GAMES, $HANDHELD of them in games/handheld), films ($FILMS), music ($MUSIC), and four in recheck (one a hybrid); six files no torrent owns beside them; and extras (3), with two of its own; and spare (2, one in spare/inner)."
 expect_count "games holds $GAMES torrents" count_under "$LIB/games" -eq "$GAMES" 60
 expect_count "games/handheld holds $HANDHELD" count_at "$LIB/games/handheld" -eq "$HANDHELD"
 expect_count "films holds $FILMS" count_under "$LIB/films" -eq "$FILMS"
@@ -446,7 +528,7 @@ expect_text "the rail lists the folders" "handheld" 30
 shot "The library: the rail's folders group lists library, games with handheld under it, films and music."
 
 # OMASEED_MOVE_WALK_FROM skips what comes before: selection, sheet, history, big, music or
-# remote.
+# remote; loose walks only extras' round trip.
 FROM="${OMASEED_MOVE_WALK_FROM:-games}"
 if [ "$FROM" = games ]; then
 
@@ -493,6 +575,26 @@ expect_disk "a torrent's file is at the new place" -f "/tmp/fast/games/Arcade Se
 expect_disk "no temporary copy is left" ! /tmp/fast/games/.manual.pdf.omaseed-carry
 if [ -z "$(bad_states)" ]; then pass "no torrent in error or missing files"; else fail "in error: $(bad_states)"; fi
 shot "The green summary: torrents and files at /tmp/fast/games, what stayed and why, the empty folder removed; show what stayed." summary
+# #173: the record of $GAMES torrents unfolds inside the band, a third of the window at most,
+# and scrolls there; the table moves down under it and nothing draws over it.
+band_height() {
+    omabox tree -b "$BOX" --window omaseed --find "games moved" 2>/dev/null |
+        sed -nE 's/^alert "[^"]*"[^@>]*@-?[0-9]+,-?[0-9]+ [0-9]+x([0-9]+)$/\1/p' | head -n1
+}
+folded="$(band_height)"
+press details top
+expect_tree "the summary's details unfold, scrollable" 'started ' 10
+unfolded="$(band_height)"
+# The box's screen is 1080 px tall: a third for the block, the band's own lines above it.
+if [ -n "$unfolded" ] && [ -n "$folded" ] && [ "$unfolded" -gt "$folded" ] && [ "$unfolded" -le 540 ]; then
+    pass "unfolded, the band is $unfolded px tall (folded $folded; at most half the screen)"
+else
+    fail "the unfolded band is ${unfolded:-?} px tall (folded ${folded:-?}; wanted more, and at most 540)"
+fi
+expect_text "the table is still there under it" "Progress" 5
+shot "The summary's details unfolded: $GAMES torrents' lines in a block a third of the window tall, scrolling inside it, the table moved down under the band (#173)." details
+press details top
+no_text "folded again" "started "
 press "show what stayed"
 expect_text "the record opens: Loose files of games" "Loose files of games" 10
 shot "What stayed: the recent capture, with its reason." stayed
@@ -529,12 +631,101 @@ expect_count "nothing is left in films" count_under "$LIB/films" -eq 0 5
 
 fi
 
+# ---- extras: move back carries back what the move carried (DECISIONS C32 D19) --------------
+
+if [ "$FROM" = games ] || [ "$FROM" = loose ]; then
+
+step "Move extras, loose files too" "The cursor on Extras Pack 01, shift+m, /tmp/fast/extras, enter: its 3 torrents land on /tmp, then manual.pdf and notes/readme.txt are carried (another filesystem: copied, checked, removed here)."
+open_move "Extras Pack 01" /tmp/fast/extras 3
+expect_text "the dry run counts its 2 loose files" "2 files" 20
+keys Return
+expect_count "the 3 extras land on /tmp/fast/extras" count_at /tmp/fast/extras -eq 3 120
+expect_text "the end reads \"extras moved, loose files too\"" "extras moved, loose files too" 60
+expect_disk "manual.pdf is at the new place" -f /tmp/fast/extras/manual.pdf
+expect_disk "notes/readme.txt too" -f /tmp/fast/extras/notes/readme.txt
+expect_disk "manual.pdf left the old place" ! "$LIB/extras/manual.pdf"
+# M17 (#203): the torrents and the carry left extras empty, and a folder's move takes it.
+expect_disk "the emptied extras folder is gone" ! "$LIB/extras"
+
+step "Since the move" "At /tmp/fast/extras, notes/readme.txt is edited and new-scan.png is put there (neither by omaseed)."
+in_box sh -c 'printf "edited after the move\n" >>/tmp/fast/extras/notes/readme.txt'
+in_box sh -c 'printf "a scan\n" >/tmp/fast/extras/new-scan.png'
+expect_disk "new-scan.png is there" -f /tmp/fast/extras/new-scan.png
+
+step "Move extras back, with what it carried" "The summary's move back…: the sheet carries back the 2 loose files the move carried, under its tick: manual.pdf back, notes/readme.txt changed after the move, so it stays; new-scan.png was put there since, the move didn't carry it, so it stays. The foot says the list is the one the move kept; the button reads move 3 back · 1 file. It moves: the torrents land in extras, then manual.pdf follows."
+press "move back…" top
+expect_text "the sheet offers to carry back the 2" "Carry back the 2 loose files the move carried" 30
+expect_text "the changed one stays, and says when" "after the move" 10
+expect_text "the new one stays: the move didn't carry it" "the move didn't carry it" 20
+expect_text "the foot names the list" "the list is the one the move kept" 5
+expect_text "the button counts the file" "move 3 back · 1 file" 10
+shot "Move back: the tick, manual.pdf back, notes/readme.txt changed after the move and new-scan.png put there since, both staying; move 3 back · 1 file." sheet
+press "move 3 back · 1 file"
+expect_count "the 3 are back in extras" count_at "$LIB/extras" -eq 3 120
+expect_text "the end reads \"3 torrents moved back, loose files too\"" "moved back, loose files too" 60
+expect_disk "manual.pdf is back" -f "$LIB/extras/manual.pdf"
+expect_disk "and gone from /tmp/fast/extras" ! /tmp/fast/extras/manual.pdf
+expect_disk "notes/readme.txt, changed since, stayed" -f /tmp/fast/extras/notes/readme.txt
+expect_disk "it was not carried back" ! "$LIB/extras/notes/readme.txt"
+expect_disk "new-scan.png stayed" -f /tmp/fast/extras/new-scan.png
+expect_disk "and never went to extras" ! "$LIB/extras/new-scan.png"
+expect_disk "no temporary copy is left" ! "$LIB/extras/.manual.pdf.omaseed-carry"
+# The band's line is cut short in the tree: "show what stayed" names it whole.
+expect_text "the summary says the move back carried files" "1 file back at $LIB/extras" 10
+if in_box grep -aq "edited after the move" /tmp/fast/extras/notes/readme.txt; then pass "the edit is untouched"; else fail "notes/readme.txt at /tmp/fast/extras lost its edit"; fi
+shot "The end of the move back: 3 torrents and 1 file back at extras; notes/readme.txt stayed at /tmp/fast/extras, changed after the move." summary
+press "show what stayed"
+expect_text "what stayed opens" "Loose files of extras" 10
+# Each row is one line in the tree: path, size, what happened and why (#201 F24).
+expect_tree_re "the record's row: notes/readme.txt stayed, changed after the move" \
+    'extras/notes/readme\.txt, [^:]+: stays: changed at [^"]*after the move'
+expect_tree_re "the record's row: manual.pdf was carried back" 'extras/manual\.pdf, [^:]+: carried'
+shot "What stayed: notes/readme.txt, changed after the move." stayed
+keys Escape
+press close
+expect_disk "/tmp/fast/extras stays: it holds what stayed" -f /tmp/fast/extras/new-scan.png
+
+step "Move spare there and back: its emptied folders go, both ways" "spare holds Spare Part 1, and spare/inner Spare Part 2; no loose files. The cursor on Spare Part 1, shift+m, /tmp/fast/spare, enter: both land, and spare/inner and spare, which only their move emptied, are removed (qBittorrent removes each torrent's own folder, never the save path it leaves; M17, #203). Then the summary's move back…, move 2 back: they land in spare again, and /tmp/fast/spare/inner and /tmp/fast/spare go; /tmp/fast stays."
+open_move "Spare Part 1" /tmp/fast/spare 2
+keys Return
+expect_count "the 2 spare land on /tmp/fast/spare" count_under /tmp/fast/spare -eq 2 120
+expect_count "Spare Part 2 kept its place below spare" count_at /tmp/fast/spare/inner -eq 1 10
+expect_text "the end reads \"spare moved to /tmp/fast/spare\"" "spare moved to /tmp/fast/spare" 60
+expect_disk "the emptied spare/inner is gone" ! "$LIB/spare/inner"
+expect_disk "and spare itself" ! "$LIB/spare"
+expect_disk "the library folder above it stays" -d "$LIB"
+shot "spare moved: its old folders, emptied by the torrents' move, are gone." summary
+press "move back…" top
+expect_text "the sheet moves the 2 back" "move 2 back" 30
+press "move 2 back"
+expect_count "the 2 are back below spare" count_under "$LIB/spare" -eq 2 120
+expect_count "Spare Part 2 back in spare/inner" count_at "$LIB/spare/inner" -eq 1 10
+expect_disk "/tmp/fast/spare/inner, emptied by the move back, is gone" ! /tmp/fast/spare/inner 30
+expect_disk "and /tmp/fast/spare" ! /tmp/fast/spare
+expect_disk "/tmp/fast, above it, stays" -d /tmp/fast
+# A quick move back leaves only the strip, which goes by itself; one that ran past 3 s leaves a
+# summary to close. Either way nothing of it is left over the next step. (grep reads the whole
+# tree: with -q, pipefail would count the tree's broken pipe.)
+for _ in $(seq 1 15); do
+    omabox tree -b "$BOX" --window omaseed 2>/dev/null | grep '"close"' >/dev/null || break
+    sleep 1
+done
+if omabox tree -b "$BOX" --window omaseed 2>/dev/null | grep '"close"' >/dev/null; then press close; fi
+
+if [ "$FROM" = loose ]; then
+    echo
+    echo "all $CHECKS checks passed"
+    [ "$INTERACTIVE" = 1 ] || printf '\n**All %s checks passed.**\n' "$CHECKS" >>"$OUT/index.md"
+    exit 0
+fi
+fi
+
 # ---- a selection (board 43, C16) ------------------------------------------------------------
 
 if [ "$FROM" = games ] || [ "$FROM" = selection ]; then
 SEL="$BOX_HOME/sel"
 
-step "One torrent, a quick move" "The cursor on Handheld Pack 040, m: the Move… sheet on that torrent. ~/sel/one typed over the field: one green line (L3). enter: it lands within 3 s, so no band; the strip in the selection bar's place says it moved, and the row's status reads ✓ moved · one (C18 D1). esc closes the strip."
+step "One torrent, a quick move" "The cursor on Handheld Pack 040, m: the Move… sheet on that torrent. ~/sel/one typed over the field: one green line (L3). enter: it lands within 3 s, so no band; the strip over the rows says it moved, and the row's status reads ✓ moved · one (C18 D1). No show: it is the cursor's row, in view (C30 F8). With the pointer holding the strip, j takes the cursor off it and show comes, saying why (F10, F11); show puts the cursor back and goes. esc closes the strip."
 table_on "Handheld Pack 040"
 keys m
 expect_text "the Move… sheet is open" "Move Handheld Pack 040" 10
@@ -546,7 +737,17 @@ expect_at "Handheld Pack 040 saves at ~/sel/one" "Handheld Pack 040" "$SEL/one"
 expect_disk "its file is there" -f "$SEL/one/Handheld Pack 040/data.bin"
 expect_text "the strip says it moved" "Handheld Pack 040 moved to $SEL/one" 20
 no_text "no band for it" "Moving Handheld Pack 040"
-shot "The strip at the table's bottom middle: ✓ Handheld Pack 040 moved to ~/sel/one, show, ×, its green line running down; the row's status reads ✓ moved · one in green; the footer has only its counts and keys." strip
+hold_strip "Handheld Pack 040 moved to $SEL/one"
+no_tree "no show for the cursor's own row" 'button "show"'
+shot "The strip at the rows' bottom middle: ✓ Handheld Pack 040 moved to ~/sel/one and ×, no show, its green line held under the pointer; the row's status reads ✓ moved · one in green." strip
+keys j
+expect_tree "j: show comes" 'button "show"' 5
+expect_text "…and says why" "it is not selected" 5
+shot "The cursor one row down: the strip offers show, a dim line under its words, \"it is not selected\" (C30 F8, F10)." show
+press show
+expect_text "show put the cursor back on it" "Handheld Pack 040" 5
+for _ in $(seq 1 10); do omabox tree -b "$BOX" --window omaseed 2>/dev/null | grep -qF 'button "show"' || break; sleep 0.5; done
+no_tree "…and show went (F11)" 'button "show"'
 keys Escape
 no_text "esc closed the strip" "Handheld Pack 040 moved to $SEL/one"
 
@@ -600,7 +801,7 @@ press "move 3 torrents"
 # one (a busy machine) gets the band and its summary ("3 torrents moved to …"). Either is right.
 # Looked for first: the note lasts 6 s, and the server checks below take seconds.
 expect_text "the strip or the band says 3 moved" "moved to $SEL/keep" 30
-shot "With the three still selected, the strip (3 moved to ~/sel/keep, or the band's summary when it ran past 3 s) sits just above the selection bar (C18 D1, O3)." strip
+shot "With the three still selected, the action bar floats over the list, and the strip (3 moved to ~/sel/keep, or the band's summary when it ran past 3 s) just above it, with no show: they are in view and selected (C32 D17, C30 F8)." strip
 expect_at "Arcade Set 002 is at ~/sel/keep$arcade_rel" "Arcade Set 002" "$SEL/keep$arcade_rel"
 expect_at "Handheld Pack 002 at ~/sel/keep$handheld_rel" "Handheld Pack 002" "$SEL/keep$handheld_rel"
 expect_at "Short Film 002 at ~/sel/keep$film_rel" "Short Film 002" "$SEL/keep$film_rel"
@@ -635,14 +836,17 @@ expect_at "Arcade Set 003 moved after them" "Arcade Set 003" "$SEL/after" 60
 expect_text "the films' summary is still there" "films moved" 5
 shot "The films summary, still there under the top bar after the queued move landed under it (C18 D4)." summary
 
-step "Move back" "The films summary's move back…: the sheet sends each of the $nfilms back to $films; move $nfilms back. Arcade Set 003, moved after it, stays."
+step "Move back" "The films summary's move back…: the sheet sends each of the $nfilms back to $films, and ticks carrying back poster.jpg, the loose file the folder's move carried (C32 D19); move $nfilms back · 1 file. Arcade Set 003, moved after it, stays."
 # The band's, not the details pane's: that one is the cursor torrent's own last move (C18 D7).
 press "move back…" top
-expect_text "the sheet moves the films back" "move $nfilms back" 30
-shot "Move back: each to where it was." sheet
-press "move $nfilms back"
+expect_text "the sheet moves the films back, and the loose file the move carried" \
+    "move $nfilms back · 1 file" 30
+shot "Move back: each to where it was, poster.jpg ticked to go back with them." sheet
+press "move $nfilms back · 1 file"
 expect_count "the films are back at $films" count_at "$films" -eq "$nfilms" 400
 expect_count "none left on ~/sel/films" count_at "$SEL/films" -eq 0 5
+expect_disk "poster.jpg is back at $films" -f "$films/poster.jpg" 60
+expect_disk "and gone from ~/sel/films" ! "$SEL/films/poster.jpg"
 expect_at "Arcade Set 003 stays at ~/sel/after" "Arcade Set 003" "$SEL/after" 1
 expect_text "the band says they moved back" "moved back" 60
 shot "The end of the move back." back
@@ -723,7 +927,7 @@ expect_at "still nothing moved" "Short Film 020" "$places_from" 3
 keys Return
 expect_at "the next enter moves it to the place filled in" "Short Film 020" "$second" 30
 
-step "The names" "The : palette finds move… when set location is typed; the actions menu (enter) and the selection bar (space) say move…; the actions menu has no move folder… (C19 T3: that is the rail folder row's)."
+step "The names" "The : palette finds move… when set location is typed; the actions menu (enter) and the action bar (space) say move…; the actions menu has no move folder… (C19 T3: that is the rail folder row's)."
 keys colon
 keys -t "set location"
 expect_tree "the palette finds move… for \"set location\"" 'list item "move…"' 10
@@ -743,8 +947,8 @@ shot "The actions menu: move…, no move folder…." actions
 keys Escape
 table_on "Short Film 021"
 keys space
-expect_tree "the selection bar says move…" 'button "move…"' 10
-shot "The selection bar: move…." bar
+expect_tree "the action bar says move…" 'button "move…"' 10
+shot "The action bar, floating over the list: move…." bar
 keys space
 keys Escape
 
@@ -830,7 +1034,7 @@ expect_prios "x on the half-ticked Disc 1 unticks it" 000000
 shot "The Files tab: Disc 1 unticked by one x on its half tick." files
 keys x
 expect_prios "x again brings back parts 0 and 1 only" 110000
-# The details back on General and hidden, as the steps after this one expect them.
+# The details back on the story and hidden, as the steps after this one expect them.
 keys 1 i
 keys Escape
 table_on "Big Collection 1"
@@ -905,10 +1109,10 @@ expect_text "and the second's" "omaseed moved 3 torrents to $SEL/hist2" 5
 shot "The log: a line for each move, with move back… at its end." log
 keys asciitilde
 
-step "The first move back, from a torrent's details" "Short Film 023's General tab shows its last move (B1). move back…: the sheet for the four; 3 were moved again since, by the move to ~/sel/hist2, with move that one back first; the button reads move 1 back · 3 stay. move that one back first opens the second move's sheet: move 3 back, and they land on ~/sel/hist. Short Film 023's move back… again: move 4 back, whole again; they all land where they were."
+step "The first move back, from a torrent's details" "Short Film 023's story shows its last move (B1). move back…: the sheet for the four; 3 were moved again since, by the move to ~/sel/hist2, with move that one back first; the button reads move 1 back · 3 stay. move that one back first opens the second move's sheet: move 3 back, and they land on ~/sel/hist. Short Film 023's move back… again: move 4 back, whole again; they all land where they were."
 table_on "Short Film 023"
 find_text "Moved today" || keys i
-expect_text "General shows its last move" "Moved today" 20
+expect_text "the story shows its last move" "Moved today" 20
 expect_text "from where it was" "from ${hist_from[023]} to $SEL/hist" 5
 shot "Short Film 023's details: its last move, move back…, this one only, show the move." details
 press "move back…"
@@ -1093,6 +1297,7 @@ keys Escape
 no_text "the sheet is closed" "Move Big Neighbour 1.bin"
 hash_at "Big Neighbour 1.bin stayed" "${H[nb1]}" "$BIG" 1
 if [ "$(omabox run -b "$BOX" -- stat -c %s "/tmp/fast/big/Big Neighbour 1.bin")" = 0 ]; then pass "the empty file is untouched"; else fail "the empty file changed"; fi
+
 table_on "Big Neighbour 3.bin"
 keys m
 expect_text "the Move… sheet is open" "Move Big Neighbour 3.bin" 10
@@ -1112,7 +1317,43 @@ keys Escape
 keys Escape
 no_text "the sheet is closed" "Move Twin of Neighbour 3"
 hash_at "the twin stayed below" "${H[twin]}" "$BIG/twin" 1
+
+step "Replace the leftover" "The same sheet again: the line's replace it (DECISIONS C28, #176) deletes the empty file, then moves Big Neighbour 1.bin there; its whole 16 KB lands, and the log's line for the move says it deleted the empty file no torrent owned."
+table_on "Big Neighbour 1.bin"
+keys m
+expect_text "the Move… sheet is open" "Move Big Neighbour 1.bin" 10
+keys ctrl+a -t /tmp/fast/big
+expect_text "one is left out" "1 left out" 20
+expect_tree "the line offers replace it" 'link "replace it"' 10
+# Typing opened the places list: esc closes it, so the line's link is in reach.
+keys Escape
+shot "The Move… sheet: 1 left out, (an empty file no torrent owns), replace it at the line's end and its note under it." replace
+press "replace it"
+hash_at "Big Neighbour 1.bin lands at /tmp/fast/big" "${H[nb1]}" /tmp/fast/big 30
+no_text "the sheet is closed" "Move Big Neighbour 1.bin"
+for _ in $(seq 1 30); do
+    [ "$(omabox run -b "$BOX" -- stat -c %s "/tmp/fast/big/Big Neighbour 1.bin")" = 16384 ] && break
+    sleep 1
+done
+if [ "$(omabox run -b "$BOX" -- stat -c %s "/tmp/fast/big/Big Neighbour 1.bin")" = 16384 ]; then pass "its whole file is there, not the empty one"; else fail "/tmp/fast/big/Big Neighbour 1.bin is not its 16384 bytes"; fi
+keys Escape
+keys asciitilde
+# qBittorrent's own lines bury it: the log's filter finds it.
+keys slash -t "after deleting" Return
+# The line itself is in the tree only while it has the cursor; its "move back…" link always
+# is, named after it and cut at 80 characters: its start is enough, the shot has the rest.
+expect_text "the log's line says what was deleted" "move back: omaseed moved \"Big Neighbour 1.bin\" to /tmp/fast/big after deleting" 20
+shot "The log, filtered: omaseed moved \"Big Neighbour 1.bin\" to /tmp/fast/big after deleting the empty file no torrent owned at /tmp/fast/big/Big Neighbour 1.bin." log
+keys Escape
+keys asciitilde
+
 rm -f "$OUT_READ"
+# Gone again, files and all, so the rail's folders are as the later steps expect (a click on
+# fast/games needs it on screen) and the tmpfs has its 2 GiB back.
+api torrents/delete -d "hashes=$(IFS='|'; echo "${H[*]}")" -d deleteFiles=true >/dev/null
+in_box rm -rf /tmp/fast/big "$BIG"
+expect_count "the big step's torrents are gone" count_under "$BIG" -eq 0 30
+expect_count "and none is left at /tmp/fast/big" count_at /tmp/fast/big -eq 0 5
 fi
 
 # ---- music: a folder qBittorrent can't write, then a full one ------------------------------
@@ -1261,7 +1502,7 @@ shot "The paused band: the drive is full, the move is paused." full
 
 # The rail's fast/games exists only once the games step moved it there.
 if [ "$FROM" = games ]; then
-step "A folder picked in the rail" "A click on fast/games in the rail's folders group: the table narrows to it and the folder line above it keeps \"move this folder…\" on its one line, the text cut short instead. A right-click on the row opens its menu, \"move this folder…\" (C19 T3); esc closes it."
+step "A folder picked in the rail" "A click on fast/games in the rail's folders group: the table narrows to it, the title bar's title is games and its sentence the folder's facts (N torrents · bytes on disk · its path, cut short at the end when the bar is short), and \"move this folder…\" is a title-bar tool (C24 H5). A right-click on the row opens its menu, \"move this folder…\" (C19 T3); esc closes it."
 where="$(omabox tree -b "$BOX" --window omaseed --find "fast/games" 2>/dev/null | python3 -c '
 import re, sys
 for line in sys.stdin:
@@ -1273,8 +1514,8 @@ for line in sys.stdin:
 [ -n "$where" ] || fail "no fast/games row in the rail"
 # shellcheck disable=SC2086 # two numbers
 omabox click -b "$BOX" --window omaseed --wait $where >/dev/null 2>&1 || true
-expect_text "the folder line offers to move it" "move this folder…" 10
-shot "The folder line: one line, its text cut short, \"shift+m move this folder…\" whole at its end."
+expect_text "the title bar offers to move it" "move this folder…" 10
+shot "The title bar: games, its sentence on one line, the move this folder… tool whole before the filter."
 # shellcheck disable=SC2086 # two numbers
 omabox click -b "$BOX" --window omaseed --wait $where right >/dev/null 2>&1 || true
 expect_tree "a right-click on the folder row opens its menu" 'menu item "move this folder…"' 10

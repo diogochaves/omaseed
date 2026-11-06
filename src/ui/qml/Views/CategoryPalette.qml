@@ -143,13 +143,21 @@ Palette {
             root.chosen(item.key);
             return;
         }
-        const change = {
-            "hashes": root.hashes,
-            "name": item.key,
-            "create": item.isCreate === true,
-            "moved": App.movedByCategory(root.hashes, item.key)
-        };
         root.close();
+        root.applyTo(root.hashes, item.key, item.isCreate === true);
+    }
+    onRejected: root.close()
+
+    /// Set `name` on `hashes` as a pick here does: at once, or once the shared-data check
+    /// has its answer (#28, #35). The action bar's category list (board 51 D17) picks
+    /// through it with the palette closed.
+    function applyTo(hashes: var, name: string, create: bool): void {
+        const change = {
+            "hashes": hashes,
+            "name": name,
+            "create": create,
+            "moved": App.movedByCategory(hashes, name)
+        };
         if (change.moved.length === 0) {
             root._apply(change);
             return;
@@ -163,7 +171,6 @@ Palette {
         else
             root._settle(change, shared);
     }
-    onRejected: root.close()
 
     Connections {
         function onServerChanged(): void {

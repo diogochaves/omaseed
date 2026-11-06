@@ -73,6 +73,9 @@ class TorrentFilesModel : public QAbstractListModel
     Q_PROPERTY(int folderCount READ folderCount NOTIFY summaryChanged)
     Q_PROPERTY(int skippedCount READ skippedCount NOTIFY summaryChanged)
     Q_PROPERTY(qint64 totalSize READ totalSize NOTIFY summaryChanged)
+    /// DECISIONS C30 F18: what the skipped files were downloaded to, each one's size × its
+    /// progress, from torrents/files alone (the size line on a disk omaseed can't see).
+    Q_PROPERTY(qint64 skippedDownloaded READ skippedDownloaded NOTIFY summaryChanged)
     Q_PROPERTY(QString totalSizeText READ totalSizeText NOTIFY summaryChanged)
     Q_PROPERTY(QString filterText READ filterText WRITE setFilterText NOTIFY filterTextChanged)
     Q_PROPERTY(bool hideSkipped READ hideSkipped WRITE setHideSkipped NOTIFY hideSkippedChanged)
@@ -137,6 +140,7 @@ public:
     int matchCount() const { return m_matchCount; }
     int folderCount() const { return m_folderCount; }
     int skippedCount() const { return m_skippedCount; }
+    qint64 skippedDownloaded() const { return m_skippedDownloaded; }
     int headWanted() const { return m_headWanted; }
     int headFileCount() const { return m_headFileCount; }
     qint64 heldOnDisk() const { return m_heldOnDisk; }
@@ -280,6 +284,8 @@ Q_SIGNALS:
     void summaryChanged();
     void headWantedChanged();
     void onDiskChanged();
+    /// applyFiles() took a torrents/files array, changed or not: files() is that array now.
+    void filesApplied();
     /// The same rows changed places (a sort, or a poll moving the number sorted by). The
     /// cursor is a row number, so the view re-finds its file by path (rowOfPath).
     void reordered();
@@ -365,6 +371,7 @@ private:
     int m_matchCount = 0;
     int m_folderCount = 0;
     int m_skippedCount = 0;
+    qint64 m_skippedDownloaded = 0;
     int m_headWanted = 2;
     int m_headFileCount = 0;
     QHash<int, qint64> m_onDisk;

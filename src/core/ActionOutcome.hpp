@@ -85,6 +85,10 @@ public:
     void report(const ActionOutcome &outcome);
     /// The same from QML (the demo, the tests): ActionOutcome's fields by name.
     Q_INVOKABLE void reportMap(const QVariantMap &map);
+    /// A strip whose words are already made (#146: a quick creation, or a cancelled one):
+    /// `{kind ("done", "failed", "dim"), mark, headline, line, doneHashes, more {id, text}}`.
+    /// No row marks.
+    void reportWords(const QVariantMap &words);
     /// × / esc, or the done strip's time ran out: the strip goes, and a failure's row marks
     /// with it. A done row's mark keeps its own 6 s.
     Q_INVOKABLE void dismiss();

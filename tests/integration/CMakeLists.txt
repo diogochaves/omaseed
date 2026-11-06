@@ -28,6 +28,18 @@ omaseed_add_test(tst_themereader
     LIBRARIES omaseed::integration
 )
 
+# #171: a skin file read and checked, all or nothing (the console skin's design note).
+omaseed_add_test(tst_skinreader
+    SOURCES tst_skinreader.cpp
+    LIBRARIES omaseed::integration
+)
+
+# #171 step 2: Follow the desktop's rule and watcher, and the reader's skin choice.
+omaseed_add_test(tst_desktopskin
+    SOURCES tst_desktopskin.cpp
+    LIBRARIES omaseed::integration
+)
+
 omaseed_add_test(tst_themeresolver
     SOURCES tst_themeresolver.cpp
     LIBRARIES omaseed::integration
@@ -44,9 +56,12 @@ omaseed_add_test(tst_tray
     LIBRARIES omaseed::integration Qt6::Svg Qt6::Widgets
 )
 
+# tests/fixtures/themes: Omarchy's own themes' colors.toml (MIT), every one checked on every
+# ground (docs/DECISIONS.md C30 F7).
 omaseed_add_test(tst_themecontrast
     SOURCES tst_themecontrast.cpp
     LIBRARIES omaseed::integration
+    DEFINES OMASEED_FIXTURES_DIR="${CMAKE_SOURCE_DIR}/tests/fixtures"
 )
 
 # #76: `omaseed --theme-roles`, the roles as Theme resolved them, as JSON.

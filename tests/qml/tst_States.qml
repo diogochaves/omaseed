@@ -73,7 +73,7 @@ TestCase {
         clear.Accessible.pressAction();
         compare(clearSpy.count, 1);
         const all = findChild(filtered, "allStatusesLink");
-        compare(all.Accessible.name, "show all statuses");
+        compare(all.Accessible.name, "show the library");
         all.Accessible.pressAction();
         compare(allSpy.count, 1);
         compare(clearSpy.count, 1);

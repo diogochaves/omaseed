@@ -126,6 +126,15 @@ public:
     /// answers".
     static QString
     guard(const QString &server, const QString &key, bool refused, bool waiting = false);
+    /// DECISIONS C28: a server an engines build (#84) recorded with another engine, listed
+    /// but never connected to. "NAME is a Transmission server" / "This omaseed only talks to
+    /// qBittorrent. A newer omaseed can."; kind "engine" (red: it needs you, nothing retries).
+    static Text forEngine(const Server &server);
+    /// Its short reason, for a server row and the menu: "Transmission server"; "not
+    /// qBittorrent" when the engine has no name.
+    static QString engineReason(const Server &server);
+    /// The read-only guard for it: "seedbox is a Transmission server: p does nothing here".
+    static QString guardEngine(const Server &server, const QString &key);
     /// True when the error is a refused sign-in (401, or 403 to a key or to no credential).
     static bool isRefusedSignIn(const ApiError &error, AuthMode mode);
 

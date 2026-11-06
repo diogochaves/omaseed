@@ -16,9 +16,9 @@ a schema change is one commit touching both sides. Design: `docs/20-companion-wi
 - The widget treats the file as dead (the "not running" state) when it is missing, when
   `now - t > 30`, or when `v` is not `2` (Q12: no compatibility).
 - Fields may be added within v2 (`alt.kind`, `alt.until`, `alt.byHand`, docs/31; `servers`
-  and `menu`, docs/33 §11 and docs/DECISIONS.md C13; `server.engine`, #84): a reader ignores what it does not know
-  and reads a missing field as the default the schema names. Changing or removing a field is a
-  new `v`.
+  and `menu`, docs/33 §11 and docs/DECISIONS.md C13; `server.engine`, #84; `paused`, C36 M10;
+  `alt.pick`, C36 M8): a reader ignores what it does not know and reads a missing field as the
+  default the schema names. Changing or removing a field is a new `v`.
 
 ## Rules for values
 
@@ -60,12 +60,18 @@ a schema change is one commit touching both sides. Design: `docs/20-companion-wi
     // docs/31 (added within v2; a reader that does not know them keeps today's yellow):
     "kind": "burst",                  // which way the alternative set goes against the normal
                                       // one: "burst" (faster), "turtle" (slower), "alt" (mixed,
-                                      // the same, or not read yet). Written on or off.
+                                      // the same, or not read yet). Written on or off. The
+                                      // limits' comparison, not the preset: see `pick`.
     "until": "07:00",                 // when the schedule ends the current state, on or off:
                                       // "07:00", "Mon 07:00" (more than a day away), "" with
                                       // no schedule. The server's clock read as this computer's.
-    "byHand": false                   // the state goes against the schedule: a hand toggle,
+    "byHand": false,                  // the state goes against the schedule: a hand toggle,
                                       // which lasts until the schedule next flips the other way
+    // DECISIONS C36 M8 (added within v2; missing reads "off"):
+    "pick": "turtle"                  // the preset in force (C32 D8 a): "off" (the limits
+                                      // off), "turtle" (on, the server's own set) or "burst"
+                                      // (on, omaseed's burst written over the set). What
+                                      // PickAltSpeed takes; Omarchy's Speeds › ticks it
   },
   "counts": { "all": 142, "downloading": 6, "seeding": 118, "completed": 121,
               "stopped": 12, "stalled": 3, "checking": 1, "errored": 2 },
@@ -148,13 +154,23 @@ a schema change is one commit touching both sides. Design: `docs/20-companion-wi
   // they come (a row the app adds shows without the widget learning it). The servers part
   // (a caption, a radio row per server, a separator) is there only with two servers or more.
   //   kind     "action" · "check" · "radio" · "caption" · "separator"
-  //   label    the card-style words (docs/20 N2): "Stop All", "Quit omaseed"
+  //   label    the card-style words (docs/20 N2): "Pause Torrents", "Quit omaseed"
+  //   enabled  false while the row can't be picked: alt-speed, pause and resume while the
+  //            server doesn't answer, and pause or resume while one is still on its way
   //   detail   what the row shows at its right: a server's "4 torrents", "sign-in refused"
   //   urgent   the detail is a failure
-  // Ids: "server:<id>" (SwitchServer), and add, alt-speed, stop-all, start-all, settings,
-  // quit (Invoke); captions and separators have ids of their own that do nothing.
+  // Ids: "server:<id>" (SwitchServer), and add, alt-speed, pause, resume, settings, quit
+  // (Invoke); captions and separators have ids of their own that do nothing. pause and resume
+  // are one row (C36 M10): pause while no pause is held on the current server, resume while
+  // one is. Invoke still takes stop-all and start-all, the ids before C36, as aliases of pause
+  // and resume, so a script written against them keeps working.
   "menu": [ { "id": "alt-speed", "label": "Alternative Speed Limits", "kind": "check",
-              "checked": false, "enabled": true, "detail": "", "urgent": false } ]
+              "checked": false, "enabled": true, "detail": "", "urgent": false } ],
+
+  // C36 M10 (added within v2): how many torrents Pause Torrents stopped and holds on the
+  // current server, 0 when no pause is held there. Omarchy's menu shows Resume Torrents
+  // `when` `jq -e '.paused.count > 0'`; a missing field reads as 0.
+  "paused": { "count": 0 }
 }
 ```
 
@@ -179,13 +195,18 @@ busctl --user call io.github.diogochaves.omaseed /io/github/diogochaves/omaseed 
 |---|---|---|
 | `ToggleAltSpeed` | `() → b` | flips alternative speed limits; returns the state asked for |
 | `SetAltSpeed` | `(b on) → b` | sets them; returns `on` (the current state when there is no server) |
+| `PickAltSpeed` | `(s kind) → b` | picks a preset (DECISIONS C36 M8, C32 D8 a): `off`, `turtle` or `burst`, as `alt.pick` names them; false for another word, the demo, no server, or a pick that can't be made yet (the server's preferences not read) |
 | `DescribeSources` | `(as sources) → s` | JSON, below: pasted or browsed sources, before they are listed |
 | `AddSources` | `(as sources, s category, b stopped) → s` | adds them; JSON, below. Never raises the window |
 | `OpenAddSheet` | `(as sources)` | raises omaseed on its own add sheet with these sources (`m`); none: the sheet as `a` opens it |
 | `ShowTorrent` | `(s hash)` | raises omaseed with the cursor on that torrent |
 | `OpenFolder` | `(s hash)` | shows the torrent's content in the file manager |
 | `SwitchServer` | `(s id) → b` | moves the app onto that server (docs/33 D24); false for an unknown id |
-| `Invoke` | `(s id) → b` | a row of `menu`, by its id; false for an unknown or disabled row. `quit` quits the app after answering |
+| `Invoke` | `(s id) → b` | a row of `menu`, by its id; false for an unknown or disabled row. `pause` stops what runs and holds it, `resume` starts exactly those again (only while a pause is held); `stop-all` and `start-all` are their old ids, still taken. `quit` quits the app after answering |
+
+A speed picked through the bus (`ToggleAltSpeed`, `SetAltSpeed`, `PickAltSpeed`, `Invoke` of
+`alt-speed`) sends a desktop notice once it has taken effect: what was picked and its limits
+(DECISIONS C36 M9). The window's own picks send none.
 
 A source is a magnet link, an `http(s)` URL, or a `.torrent` path (or `file://` URI).
 

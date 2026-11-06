@@ -253,6 +253,19 @@ private Q_SLOTS:
         QCOMPARE(outcomes.current().value(QStringLiteral("headline")).toString(),
                  QStringLiteral("Film started"));
     }
+
+    // #146: a creation's strip comes with its words made, and marks no row.
+    void wordsAsGiven()
+    {
+        ActionOutcomes outcomes;
+        outcomes.report(outcome(QStringLiteral("stop"), {QStringLiteral("a")}));
+        outcomes.reportWords({{QStringLiteral("kind"), QStringLiteral("dim")},
+                              {QStringLiteral("headline"), QStringLiteral("x wasn't made")}});
+        QCOMPARE(outcomes.current().value(QStringLiteral("kind")).toString(),
+                 QStringLiteral("dim"));
+        QVERIFY(outcomes.current().value(QStringLiteral("serial")).toInt() > 0);
+        QVERIFY(outcomes.rowMark(QStringLiteral("a")).isEmpty());
+    }
 };
 
 QTEST_GUILESS_MAIN(TestActionOutcome)

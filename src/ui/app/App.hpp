@@ -25,17 +25,24 @@
 
 #include "core/ActionOutcome.hpp"
 #include "core/AddFilesModel.hpp"
+#include "core/AltPresets.hpp"
 #include "core/AltSpeed.hpp"
 #include "core/AutoBackup.hpp"
 #include "core/CategoryModel.hpp"
+#include "core/CreateTrackers.hpp"
 #include "core/ErrorWords.hpp"
 #include "core/FilterCounts.hpp"
 #include "core/FreeSpace.hpp"
 #include "core/GlobalState.hpp"
+#include "core/LibraryDisplays.hpp"
 #include "core/LogFilterModel.hpp"
+#include "core/MadeHere.hpp"
 #include "core/MetadataLookup.hpp"
 #include "core/OmaseedBackup.hpp"
+#include "core/PauseHold.hpp"
+#include "core/PrivateTrackers.hpp"
 #include "core/RenameDisk.hpp"
+#include "core/SearchModel.hpp"
 #include "core/SecretStore.hpp"
 #include "core/SeedConsole.hpp"
 #include "core/SeedLedger.hpp"
@@ -55,18 +62,23 @@
 #include "core/TorrentsBackup.hpp"
 #include "core/TrackerModel.hpp"
 #include "core/engines/EngineClient.hpp"
+#include "core/engines/qbt/CreateJob.hpp"
 #include "core/engines/qbt/QbtSettingsExport.hpp"
 #include "core/engines/qbt/QbtSettingsFetch.hpp"
+#include "core/engines/qbt/SearchPlugins.hpp"
+#include "core/engines/qbt/SearchSession.hpp"
 #include "core/engines/qbt/ServerPreferences.hpp"
 #include "core/engines/qbt/TorrentsExport.hpp"
 #include "core/engines/qbt/TorrentsImport.hpp"
 #include "integration/BarMenu.hpp"
 #include "integration/BarWidget.hpp"
 #include "integration/Tray.hpp"
+#include "ui/app/AddRoute.hpp"
 #include "ui/app/MoveController.hpp"
 
 #include <QDate>
 #include <QDateTime>
+#include <QDeadlineTimer>
 #include <QElapsedTimer>
 #include <QHash>
 #include <QJsonObject>
@@ -205,6 +217,9 @@ public:
     bool isDemoMode() const { return m_demoMode; }
     /// True after serverLost/authRequired until a sync succeeds again (drives the tray).
     bool isServerLost() const { return m_serverLost; }
+    /// #201 F4: a server is being reached (a switch, or the launch) and has neither answered
+    /// nor failed yet: its dots are neutral, never red.
+    bool serverConnecting() const { return m_serverConnecting; }
 
     /// The tray's icon state for a given world (spec §6 Fig. 17). Highest priority first:
     /// disconnected, error, alt-speed, downloading, idle. Static and pure so the mapping is
@@ -215,16 +230,25 @@ public:
 public Q_SLOTS:
     /// Skips the reconnect countdown and polls now (spec §7 Fig. 23's "retry now").
     void retryNow();
-    /// The window's visibility: the poll loop slows to 5 s while it is false.
+    /// The window's visibility: the poll loop slows to 5 s while it is false. Hidden (in the
+    /// tray), the main window also counts as unfocused for C35 W2 (`setMainWindowActive`).
     void setVisible(bool visible);
 
-    /// Flips the alternative speed limits. The tray's checkbox is not moved here — it
+    /// A: off while the alternative limits are on, else the last preset picked (turtle or
+    /// burst, DECISIONS C32 D8 a; AltPresets). The tray's checkbox is not moved here — it
     /// follows `globalState.useAltSpeedLimits`, which the next poll brings back.
-    void toggleAltSpeed();
-    /// Stops every torrent on the server.
-    void stopAll();
-    /// Starts every torrent on the server.
-    void startAll();
+    /// `outside` (DECISIONS C36 M9): asked from outside the window (the bus, the tray, the
+    /// widget's ⋯), so a notice says what was picked once it has taken effect. The window's
+    /// own (A, the chip, the status line's menu, the mark menu) send none.
+    void toggleAltSpeed(bool outside = false);
+    /// C32 D8 a: "off", "turtle" or "burst", picked from the chip's choice, a menu or the bus
+    /// (C36 M8). False in the demo, with no server, or when the presets can't make it yet.
+    /// `outside` as for toggleAltSpeed.
+    Q_INVOKABLE bool pickAltSpeed(const QString &kind, bool outside = false);
+    /// DECISIONS C36 M10: stops what runs on the current server and holds it (PauseHold).
+    void pauseTorrents();
+    /// C36 M10: starts again exactly what the current server's pause holds.
+    void resumeTorrents();
 
 Q_SIGNALS:
     void serverChanged();
@@ -235,7 +259,9 @@ Q_SIGNALS:
     /// Raised by the tray menu, the hero's gear, `,` and a notice's "settings". MainView opens
     /// the settings modal on it; main.cpp brings the window up.
     void openSettings();
-    /// Raised by the tray menu, the hero's `+` and `a`. MainView opens the add sheet.
+    /// The add sheet in the main window, blank: the hero's `+`, `a` and "+ add" from inside
+    /// it, and `requestAdd`'s `main` route for the shared menu and the bus (C35 W2, W6).
+    /// MainView opens the sheet (or holds it during first run).
     void addRequested();
 
 private:
@@ -258,10 +284,24 @@ private:
     QPointer<omaseed::integration::Tray> m_tray;
     QPointer<QWindow> m_dialogParent;
 
+    /// C35 W2 (requestAdd): the main window's focus now, and when it last lost it (-1: never
+    /// had it), on m_addClock. Focus is Qt's `isActive()` while the window is shown: hidden to
+    /// the tray, Qt on Wayland goes on saying active (#220), and a hand-off then opened its
+    /// sheet in the hidden window, out of sight.
+    bool m_mainActive = false;
+    bool m_mainFocused = false;
+    bool m_mainShown = true;
+    void updateMainActive();
+    qint64 m_mainInactiveSinceMs = -1;
+    std::function<qint64()> m_addClock;
+    qint64 addClockNow() const;
+
     omaseed::core::Server m_server;
     bool m_hasServer = false;
     bool m_demoMode = false;
     bool m_serverLost = false;
+    bool m_serverConnecting = false; ///< #201 F4: see serverConnecting()
+    void setServerConnecting(bool connecting);
     /// Bumped whenever the live server changes; late keychain answers compare against it.
     quint64 m_serverGeneration = 0;
 
@@ -311,9 +351,14 @@ public:
 
     /// The fields `Details.qml`'s `torrent` property expects, for one hash: name, category,
     /// tagsText, addedOnText, sizeText, progressText, ratioText, etaLongText, stateText,
-    /// stateRole, hasTrackerError. An unknown hash gives an empty map. It is a snapshot, not
-    /// a binding — rebind it on `App.torrents.updated` to follow a live torrent.
+    /// stateRole, hasTrackerError, and the rows display's words (rowFact, rowCaption,
+    /// rowSentence: the details' head, DECISIONS C24 H6). An unknown hash gives an empty map.
+    /// It is a snapshot, not a binding — rebind it on `App.torrents.updated` to follow a live
+    /// torrent.
     Q_INVOKABLE QVariantMap torrentRow(const QString &hash) const;
+    /// The details' story (board 46 H6, core::TorrentStory): what happened to `hash`, oldest
+    /// first, as `[{time, kind ("plain", "move", "warn", "error"), title, detail}]`.
+    Q_INVOKABLE QVariantList torrentStory(const QString &hash) const;
 
     /// `OMASEED_DEMO_TAB` — which tab `--demo details` opens on ("", "files", "trackers",
     /// "peers"). Only the demo host reads it.
@@ -351,6 +396,9 @@ public:
     Q_INVOKABLE static QString limitShortText(qint64 bytesPerSecond);
     /// A speed in the same short form ("4.21M", "812K", "0"), for the hero's last step.
     Q_INVOKABLE static QString speedShortText(qint64 bytesPerSecond);
+    /// A speed split for drawing, against its cap when there is one (`Format::speedParts`,
+    /// DECISIONS C32 D6 a): `{value, cap, unit}`, `cap` "" with none.
+    Q_INVOKABLE static QVariantMap speedParts(qint64 bytesPerSecond, qint64 capBytesPerSecond);
 
     /// A client error ("network: GET sync/maindata: Connection refused") stripped to the
     /// reason Fig. 21's notice and Fig. 23's banner print ("connection refused").
@@ -378,15 +426,25 @@ public:
     /// `xdg` reveals a completed torrent's folder ("open folder"). Not owned.
     void attachXdg(omaseed::integration::Xdg *xdg);
 
-    /// Booleans QML can read as `enabled.completed`, `.errored`, `.serverLost`, `.diskFull`
-    /// and `.weekly`; `serverLost` covers both the lost and the back notice. Persisted under
-    /// `"notifications"` in `~/.config/omaseed/state.json`, default true, but the weekly
-    /// recap's (#24 T8), off. An older file's `trackerError` key is ignored.
+    /// Booleans QML can read as `enabled.completed`, `.added`, `.errored`, `.serverLost`,
+    /// `.diskFull` and `.weekly`; `serverLost` covers both the lost and the back notice.
+    /// Persisted under `"notifications"` in `~/.config/omaseed/state.json`, default true, but
+    /// the weekly recap's (#24 T8), off. An older file's `trackerError` key is ignored.
     Q_PROPERTY(QVariantMap notificationsEnabled READ notificationsEnabled NOTIFY
                    notificationsEnabledChanged)
     QVariantMap notificationsEnabled() const;
-    /// `key` is one of "completed", "errored", "serverLost", "diskFull", "weekly".
+    /// `key` is one of "completed", "added", "errored", "serverLost", "diskFull", "weekly".
     Q_INVOKABLE void setNotificationEnabled(const QString &key, bool enabled);
+
+    /// Board 54 W5 (DECISIONS C35): "Torrent added" for `hash`, with its name, size and
+    /// category from the sync model, when the `added` switch is on and a notifier is attached.
+    /// A hash the model doesn't have yet (qBittorrent's OK comes before the sync that brings
+    /// the row) waits for the syncs that follow and is sent once, when it arrives; after
+    /// `addedNoticeWait` with no row it is dropped quietly. Asking again for a hash already
+    /// waiting changes nothing.
+    Q_INVOKABLE void notifyAdded(const QString &hash);
+    /// How long notifyAdded() waits for its row; 15 s until set (tests).
+    void setAddedNoticeWait(std::chrono::milliseconds wait) { m_addedNoticeWait = wait; }
 
     /// #24 T8 (docs/DECISIONS.md C6): sends the weekly recap when it is due (Sunday evening,
     /// once) and switched on. Every sync asks; tests call it with their own clock.
@@ -410,6 +468,10 @@ Q_SIGNALS:
     /// "show": raise the window and move the table cursor to this hash. MainView's
     /// `Connections { target: App }` block, when it has one, is where this lands.
     void showTorrentRequested(const QString &hash);
+    /// An add's new torrent turned up in a sync: the table's cursor goes to it. Unlike
+    /// `showTorrentRequested` it never raises the main window, so an add made in the add
+    /// window leaves the main window where it is, or in the tray (DECISIONS C35 W1, #220).
+    void addLanded(const QString &hash);
     /// #24 T8: "open the console" on the weekly recap: raise the window and show the seed
     /// console on `range`.
     void showConsoleRequested(const QString &range);
@@ -422,6 +484,10 @@ private:
     void onNotifierActionInvoked(const QString &eventClass,
                                  const QString &subjectId,
                                  const QString &actionKey);
+    /// Sends "Torrent added" for `hash` from its row; false while the model has no row.
+    bool sendAddedNotice(const QString &hash);
+    /// Every sync: the waiting "added" notices whose row came are sent, the late are dropped.
+    void flushAddedNotices();
 
 public:
     /// The chosen server's PathMap applied to a server-side content path; the input unchanged
@@ -461,6 +527,10 @@ private:
     std::function<QDateTime()> m_recapClock;
     int m_lowDiskThresholdGiB = 2;
     bool m_notificationTogglesLoaded = false;
+    bool m_notifyAddedEnabled = true; ///< board 54 W5 a
+    /// notifyAdded()'s hashes still waiting for their row, each with when it gives up.
+    QHash<QString, QDeadlineTimer> m_addedNoticesWaiting;
+    std::chrono::milliseconds m_addedNoticeWait{std::chrono::seconds(15)};
 
     // --- T4.5: settings ------------------------------------------------------------------
     // Everything the settings modal (spec v2 §5 Fig. 16) and the server sheet (§3 Fig. 9)
@@ -509,6 +579,14 @@ public:
     void setPathMapEnabled(bool enabled);
 
     // Appearance pane --------------------------------------------------------------------
+    /// The skin (docs/DECISIONS.md C24 H11, #171): "omarchy" (the default), "console", or
+    /// "desktop", Follow the desktop: the built-in Console while omarchy-console's skin is on.
+    /// The theme reader resolves it (ThemeReader::skinName), and `OMASEED_SKIN`, when set,
+    /// wins over it for the run without changing what is saved.
+    Q_PROPERTY(QString skinChoice READ skinChoice WRITE setSkinChoice NOTIFY settingsChanged)
+    QString skinChoice() const;
+    void setSkinChoice(const QString &choice);
+
     /// Off pins the bundled Tokyo Night instead of following `omarchy-theme-set`.
     Q_PROPERTY(bool followOmarchyTheme READ followOmarchyTheme WRITE setFollowOmarchyTheme NOTIFY
                    settingsChanged)
@@ -521,9 +599,16 @@ public:
     int baseSizeOverride() const;
     void setBaseSizeOverride(int pixels);
 
-    /// Window transparency in percent, 50…100; 0 means "the default", which is
-    /// `Theme.defaultWindowAlpha` (docs/DECISIONS.md Q1: `shell.toml` `[launcher]
-    /// background-alpha`, 0.95 when missing); this is its override.
+    /// The window's ground (DECISIONS C24 H13, #113): "opaque", the default as for every
+    /// Omarchy 4.5 app, or "translucent", the launcher's alpha (Q1) or windowAlphaOverride.
+    /// A state.json from before it, with an override set, reads as translucent.
+    Q_PROPERTY(QString windowGround READ windowGround WRITE setWindowGround NOTIFY settingsChanged)
+    QString windowGround() const;
+    void setWindowGround(const QString &ground);
+
+    /// Window transparency in percent, 50…100, while the ground is translucent; 0 means "the
+    /// default", which is `Theme.defaultWindowAlpha` (docs/DECISIONS.md Q1: `shell.toml`
+    /// `[launcher] background-alpha`, 0.95 when missing); this is its override.
     Q_PROPERTY(int windowAlphaOverride READ windowAlphaOverride WRITE setWindowAlphaOverride NOTIFY
                    settingsChanged)
     int windowAlphaOverride() const;
@@ -531,7 +616,8 @@ public:
 
     /// Which side of the hero the download/upload pair sits on: "left" (the spec's own
     /// placement, beside the server name) or "right" (against the search field). Anything
-    /// else is read back as "left".
+    /// else is read back as "left". The hero went (DECISIONS C24 H5, #167 assumed 6): nothing
+    /// reads it or offers it any more; it is kept so state.json keeps the value.
     Q_PROPERTY(QString speedsAlignment READ speedsAlignment WRITE setSpeedsAlignment NOTIFY
                    settingsChanged)
     QString speedsAlignment() const;
@@ -539,6 +625,7 @@ public:
 
     /// #24 T2: the last 60 s of upload (and of download) drawn faintly behind the hero's ↑
     /// (↓) number. Both off by default: Diogo found them crowding the figures (2026-10-03).
+    /// Kept but read by nothing since the hero went (#167 assumed 6), as speedsAlignment.
     Q_PROPERTY(bool uploadTrend READ uploadTrend WRITE setUploadTrend NOTIFY settingsChanged)
     bool uploadTrend() const;
     void setUploadTrend(bool on);
@@ -567,11 +654,16 @@ public:
         QString railScrollHint READ railScrollHint WRITE setRailScrollHint NOTIFY settingsChanged)
     QString railScrollHint() const;
     void setRailScrollHint(const QString &hint);
-    /// The fill the rail and details sit on, as a percentage of the foreground: 0 (none, the
-    /// default), 4 or 8 — the plan's own fill steps, so every theme still holds together.
+    /// The rail's own fill, as a percentage of the foreground: 0 (none, the default), 4 or 8
+    /// (DECISIONS C32 D16 a: the rail only, its rows on C30's nested grounds over it).
     Q_PROPERTY(int surfaceTint READ surfaceTint WRITE setSurfaceTint NOTIFY settingsChanged)
     int surfaceTint() const;
     void setSurfaceTint(int percent);
+    /// Where ↓ and ↑ are drawn: "title" (the title bar, a line under each; the default) or
+    /// "status" (the status line, as C24 H15 had them). DECISIONS C32 D2 a.
+    Q_PROPERTY(QString speedsPlace READ speedsPlace WRITE setSpeedsPlace NOTIFY settingsChanged)
+    QString speedsPlace() const;
+    void setSpeedsPlace(const QString &place);
     /// How a tracker host is fitted into the rail: "prefix" (drop a leading tracker./announce./
     /// open., the default), "left" (elide the start) or "right" (elide the end).
     Q_PROPERTY(QString trackerHostStyle READ trackerHostStyle WRITE setTrackerHostStyle NOTIFY
@@ -588,6 +680,12 @@ public:
     Q_PROPERTY(bool railHidden READ railHidden WRITE setRailHidden NOTIFY settingsChanged)
     bool railHidden() const;
     void setRailHidden(bool hidden);
+    /// DECISIONS C32 D3: the open rail's width as its edge was dragged, in Theme.space units
+    /// (so a base size change keeps the proportion); 0 is the default. The window's, not a
+    /// server's. Negative values read as 0.
+    Q_PROPERTY(int railWidth READ railWidth WRITE setRailWidth NOTIFY settingsChanged)
+    int railWidth() const;
+    void setRailWidth(int units);
 
     /// "auto" | "always" | "never" (plan Phase 6 T6.3). `auto` behaves as `always` until the
     /// companion widget exists; the row is here now because it is cheap.
@@ -691,6 +789,8 @@ private:
     bool m_followOmarchyTheme = true;
     int m_baseSizeOverride = 0;
     int m_windowAlphaOverride = 0;
+    QString m_windowGround = QStringLiteral("opaque");
+    QString m_skinChoice = QStringLiteral("omarchy");
     QString m_trayIconMode = QStringLiteral("auto");
     bool m_launchHidden = false;
     QString m_speedsAlignment = QStringLiteral("left");
@@ -702,14 +802,16 @@ private:
     QString m_detailsPlacement = QStringLiteral("auto");
     int m_surfaceTint = 0;
     QString m_trackerHostStyle = QStringLiteral("prefix");
+    QString m_speedsPlace = QStringLiteral("title");
     bool m_railHidden = false;
+    int m_railWidth = 0;
     bool m_settingsLoaded = false;
     // --- end T4.5 --------------------------------------------------------------------------
     // --- T4.3: torrent actions ---
     // Every action of spec §3 Fig. 6/7/8/11 and Fig. 26's "act" column that touches the
     // server lives here, over the engine client. Each one no-ops in demo mode (logging
     // "demo: <action> <n>") and otherwise reports a failure through `actionFailed` rather
-    // than throwing it away, the way `toggleAltSpeed`/`stopAll` do above.
+    // than throwing it away, the way `toggleAltSpeed`/`pauseTorrents` do above.
 public:
     /// The remembered state of Fig. 6's "also delete files from disk" toggle. Persisted under
     /// the `"deleteFiles"` section of `~/.config/omaseed/state.json`.
@@ -1017,10 +1119,14 @@ private:
     Q_PROPERTY(omaseed::core::AddFilesModel *addFiles READ addFiles CONSTANT)
     /// docs/29 (#44): the lookup of the magnet or link the add sheet shows (its Files row).
     Q_PROPERTY(omaseed::core::MetadataLookup *addLookup READ addLookup CONSTANT)
+    /// #193: an add pressed while `addLookup` was still asking qBittorrent for that magnet's
+    /// files waits for the answer (see holdAddForLookup); the sheet's Files row says so.
+    Q_PROPERTY(bool addWaitsForList READ addWaitsForList NOTIFY addWaitsForListChanged)
 
 public:
     omaseed::core::AddFilesModel *addFiles() const { return m_addFiles; }
     omaseed::core::MetadataLookup *addLookup() const { return m_addLookup; }
+    bool addWaitsForList() const { return !m_addAfterLookup.isEmpty(); }
 
     /// docs/29 D1: asks the current server for the metadata of the magnet or link in
     /// `addable` (parseAddable's map), on its own client so the session keeps the answer.
@@ -1107,12 +1213,15 @@ public:
     /// when any of them is not "normal" the torrent is added stopped, the priorities are set
     /// with `torrents/filePrio`, and it is started unless `stopped` asked otherwise.
     /// Answers with `addFinished`; on success the new hash, once the next sync
-    /// brings it, also travels as `showTorrentRequested` so the table's cursor lands on it.
+    /// brings it, also travels as `addLanded` so the table's cursor lands on it.
     /// In demo mode nothing is sent: the add is logged and reported as a success.
     ///
     /// #40, the sheet's batch: a request with `items` (a list of `parseAddable` maps) adds
     /// all of them in one `torrents/add` under the request's options (no rename, no file
     /// choices), and answers one `addFinished` with the first one's hash.
+    ///
+    /// Board 54 W5 (#219): a request with `notifyAdded: true` (the add window's) asks for
+    /// `notifyAdded` on every torrent qBittorrent took, a batch's each, once it answers OK.
     Q_INVOKABLE void addTorrent(const QVariantMap &request);
 
     /// `OMASEED_DEMO_ADD`: the text a `--demo` run drops into the sheet when it opens, so
@@ -1159,8 +1268,21 @@ public:
     Q_INVOKABLE QVariantMap freeSpaceFor(const QString &savePath) const;
     int freeSpaceRevision() const { return m_freeSpaceRevision; }
 
-    /// The URI hand-off: this process's own argv and every `SingleInstance::openRequested`
-    /// from a second launch. Re-emitted as `addUrisRequested` for the sheet to queue.
+    /// docs/DECISIONS.md C35: the one entry for an add from outside the window (a hand-off,
+    /// this process's own URIs, the shared menu's add, the Status bus's OpenAddSheet). Asks
+    /// AddRoute where it opens: `main` emits `addRequested` (no URIs) or, through `openUris`,
+    /// `addUrisRequested`; `window` emits `addWindowRequested`. `raiseRequested` goes first,
+    /// only when the route says the main window comes up (first run, a launch's own URIs).
+    /// Adds made inside the window never come here.
+    void requestAdd(const QStringList &uris, omaseed::app::AddSource source);
+    /// The main window's focus, from `QWindow::activeChanged` (main.cpp): C35 W2's "had focus
+    /// just before" is read from it, with when it last lost focus.
+    void setMainWindowActive(bool active);
+    /// A test seam: the steady clock `requestAdd` and `setMainWindowActive` read, in ms.
+    void setAddClock(std::function<qint64()> clock) { m_addClock = std::move(clock); }
+
+    /// The add sheet in the main window, for these URIs: re-emitted as `addUrisRequested`
+    /// with file:// URIs made paths. `requestAdd`'s `main` route.
     void openUris(const QStringList &uris);
 
 Q_SIGNALS:
@@ -1170,6 +1292,9 @@ Q_SIGNALS:
     void addableParsed(QVariantMap result);
     /// `openUris` reached QML: the first one opens the sheet, the rest queue behind it.
     void addUrisRequested(QStringList uris);
+    /// docs/DECISIONS.md C35 W1: an add from outside opens in the add window, where the user
+    /// is, with these URIs (file:// URIs made paths), or the blank sheet when empty.
+    void addWindowRequested(QStringList uris);
     /// `ok` false: `message` is what the sheet prints in red while staying open. `ok` true:
     /// `hash` is the new torrent's infohash, or empty when the source did not say.
     void addFinished(bool ok, QString message, QString hash);
@@ -1177,6 +1302,7 @@ Q_SIGNALS:
     /// sheet holds, now with `token` (its files, for loadAddFiles and findFilesMatch, as a
     /// parsed .torrent's), `fileCount`, `totalSize`, `sizeText`, the info-hashes and `name`.
     void metadataFetched(QVariantMap addable);
+    void addWaitsForListChanged();
     void downloadsTorrentsChanged();
     void downloadsFolderChanged();
 
@@ -1217,6 +1343,8 @@ private:
     void forgetTorrentFile(const QString &token);
     /// #40: addTorrent's batch half.
     void addBatch(const QVariantMap &request);
+    /// W5 (#219): `notifyAdded` for each of `ids` when `request` asked for it.
+    void noticeAdds(const QVariantMap &request, const QStringList &ids);
 
 public:
     /// The thread that ran the most recent .torrent parse, so a test can check it was not the
@@ -1271,6 +1399,8 @@ private:
     void updateLookupServer();
     /// The library's private tracker hosts, read from the torrents and the tracker model.
     QString privateTrackerOf(const QStringList &trackers) const;
+    /// The same hosts, once, for a search's many results (C26 SR3).
+    core::PrivateTrackers libraryPrivateTrackers() const;
     /// #44: torrents/add answered 400 to `filePriorities`: the session that fetched the
     /// metadata was replaced (a re-login). Asks for the metadata once more (quick: the peers
     /// are known) and adds again; failing that, adds the magnet to stop once its metadata is in
@@ -1285,7 +1415,20 @@ private:
                      const QVariantMap &request,
                      const QString &torrentId,
                      const QVariantList &laterPriorities);
+    /// #193: qBittorrent 5.3.0 crashes on its next sync once the metadata comes in for a
+    /// magnet that `torrents/add` took while a `torrents/fetchMetadata` lookup of the same
+    /// magnet was still running. The API can't end a lookup (docs/29 D6), so an add of the
+    /// magnet the lookup is asking about (quiet, fetching or slow) waits in
+    /// `m_addAfterLookup` for its answer. F4's minute is the way out its words already give
+    /// ("enter adds every file"): a magnet nobody seeds never answers, and never crashes it.
+    /// Kept for every version until a fixed qBittorrent ships. True when it held `request`.
+    bool holdAddForLookup(const QVariantMap &request);
+    /// The held add goes once the lookup has answered, reached F4, or let go of its magnet.
+    void releaseHeldAdd();
+    QVariantMap m_addAfterLookup;
     omaseed::core::MetadataLookup *m_addLookup = nullptr;
+    /// C26 SR9: the search plugin that fetches the lookup's link (`downloader`), or "".
+    QString m_lookupDownloader;
     /// The addable the lookup was started for, and the token its files were kept under.
     QVariantMap m_lookupAddable;
     QString m_lookupToken;
@@ -1430,6 +1573,12 @@ public:
     /// server the app is on. The preferences are read again whenever they flip (D13).
     Q_PROPERTY(omaseed::core::AltSpeed *altSpeed READ altSpeed CONSTANT)
     omaseed::core::AltSpeed *altSpeed() const { return m_altSpeed; }
+    /// DECISIONS C32 D8 a: turtle and burst, two presets for the one alternative set, for the
+    /// server the app is on.
+    Q_PROPERTY(omaseed::core::AltPresets *altPresets READ altPresets CONSTANT)
+    omaseed::core::AltPresets *altPresets() const { return m_altPresets; }
+    /// DECISIONS C36 M10: what Pause Torrents stopped, per server, until Resume Torrents.
+    omaseed::core::PauseHold *pauseHold() const { return m_pauseHold; }
 
 private:
     /// A change the server took may move omaseed's own way in (docs/16 §3): the Web UI's
@@ -1444,6 +1593,14 @@ private:
     void probeWebUi(const QUrl &base, std::function<void(bool)> done, int attempts);
     omaseed::core::ServerPreferences *m_prefs = nullptr;
     omaseed::core::AltSpeed *m_altSpeed = nullptr;
+    omaseed::core::AltPresets *m_altPresets = nullptr;
+    /// C36 M9: the pick made outside the window whose landing (AltPresets::picked) sends a
+    /// notice; "" for none. A pick from the window clears it.
+    QString m_altNoticeFor;
+    /// C36 M9: true while the window's mark menu fires a row, so the shared menu's
+    /// `triggered` knows the pick is the window's, not the tray's or the widget's.
+    bool m_appMenuInside = false;
+    omaseed::core::PauseHold *m_pauseHold = nullptr;
     QNetworkAccessManager *m_probeNam = nullptr;
 
 public:
@@ -1697,6 +1854,10 @@ public:
     /// The portal's save dialog, proposing `~/qbittorrent-<server>-<date>.json`. Empty when
     /// cancelled.
     Q_INVOKABLE QString pickQbtExportPath() const;
+    /// Board 51 D5 a, "export log…": where to save the log's lines as shown, through the
+    /// portal's chooser as the other exports ("qbittorrent-log-public-2026-10-26.txt" in the
+    /// home folder proposed); "" when cancelled. `App.logLines.writeShown()` writes it.
+    Q_INVOKABLE QString pickLogExportPath() const;
     /// Reads the server's settings and writes them to `path`; `qbtExportFinished` says how it
     /// went.
     Q_INVOKABLE void exportQbtSettings(const QString &path);
@@ -1881,9 +2042,13 @@ public:
     /// itself (D8). True when it moved, or was already there.
     Q_INVOKABLE bool switchServer(const QString &id);
     /// D9: the server refused the sign-in. No automatic retry until the login changes or
-    /// someone asks for one; the hero says "sign-in refused", not "unreachable".
+    /// someone asks for one; the hero says "sign-in refused", not "unreachable". Also true on
+    /// a server of another engine (C28), which is never asked anything.
     Q_PROPERTY(bool serverRefused READ serverRefused NOTIFY serverStateChanged)
-    bool serverRefused() const { return m_serverRefused; }
+    bool serverRefused() const { return m_serverRefused || serverOtherEngine(); }
+    /// DECISIONS C28: the current server is one an engines build (#84) recorded with another
+    /// engine: listed, never connected to, its problem ErrorWords::forEngine's.
+    bool serverOtherEngine() const { return m_hasServer && !m_server.isQbittorrent(); }
     /// docs/35 N6: the engine declared the server lost (or refused), and it hasn't answered
     /// since. Not while a switch waits for the keychain: the window shows no loss for that.
     Q_PROPERTY(bool serverLost READ isServerLost NOTIFY serverStateChanged)
@@ -1898,6 +2063,9 @@ public:
     /// unreachable (red).
     Q_PROPERTY(bool serverWaiting READ serverWaiting NOTIFY serverStateChanged)
     bool serverWaiting() const;
+    /// #201 F4: on the way to a server (a switch or the launch) until its first answer or a
+    /// failure: the rail's dot and the status line's read "connecting", neutral, not red.
+    Q_PROPERTY(bool serverConnecting READ serverConnecting NOTIFY serverStateChanged)
     /// D23: what the read-only guard says when it stops `key`: "private is unreachable: p
     /// waits until it answers".
     Q_INVOKABLE QString guardNote(const QString &key) const;
@@ -2011,8 +2179,8 @@ private:
     // --- #73: one menu for the tray and the bar widget ----------------------------------------
     // docs/33 §11 (D10, D24, D25; DECISIONS C13). The tray and the widget's ⋯ show one menu,
     // built here once (integration::BarMenu): the servers with two or more, alternative
-    // limits, stop all, start all, add, settings, quit. Settings › Appearance offers the tray
-    // and the widget as one choice. The methods live in AppBarMenu.cpp.
+    // limits, pause or resume torrents (C36 M10), add, settings, quit. Settings › Appearance
+    // offers the tray and the widget as one choice. The methods live in AppBarMenu.cpp.
 public:
     /// The shared menu. The tray builds its QMenu from it, the status file writes it as
     /// `servers` and `menu`, and the widget's Invoke and SwitchServer come back to it.
@@ -2026,11 +2194,21 @@ public:
     void setInTheBar(const QString &choice);
     /// The choice a widget in the bar (or not) and a tray icon mode read as (DECISIONS C13).
     static QString inTheBarFor(bool widgetInBar, const QString &trayIconMode);
+    /// The window's mark menu (DECISIONS C24 H9, C13's third place): the same rows, in the
+    /// same order, as the tray and the widget, `[{id, label, kind, checked, enabled, detail,
+    /// urgent, state}]`. `label` is the tray's lower-case words; `state` is a server row's
+    /// (status.json's `servers` state), "" for the others.
+    Q_PROPERTY(QVariantList appMenuRows READ appMenuRows NOTIFY appMenuRowsChanged)
+    QVariantList appMenuRows() const;
+    /// A row of it picked in the window: the tray's and the widget's `invoke`. False for an
+    /// unknown id, a disabled row, a caption or a separator.
+    Q_INVOKABLE bool invokeAppMenu(const QString &id);
 
 Q_SIGNALS:
     void inTheBarChanged();
-    /// The menu's "add torrent…" from the tray or the widget: main.cpp brings the window up
-    /// (MainView opens the sheet on addRequested).
+    void appMenuRowsChanged();
+    /// main.cpp brings the main window up: `requestAdd` when its route says so (first run,
+    /// a launch's own URIs; C35), a move's or a creation's notice, a move's ask before quit.
     void raiseRequested();
     /// The menu's "quit": main.cpp quits, queued, so a D-Bus caller still gets its answer.
     void quitRequested();
@@ -2077,33 +2255,37 @@ private:
     // --- #118: skipped files that still take space --------------------------------------------
     // Board 44 §2 (DECISIONS C17 D1–D4). The Files tab reads what the details torrent's skipped
     // files hold on this machine's disk when it opens and after a priority change, never on a
-    // poll; "Free the space…" plans and runs the deletes, and a hybrid's leftovers (or a hybrid
-    // in libtorrent's torrent_inconsistent_hashes) are freed by adding it again. AppSkipped.cpp.
+    // poll; "Free the space…" plans and runs the deletes, and a hybrid's or a v2-only torrent's
+    // leftovers (C29), or a hybrid in libtorrent's torrent_inconsistent_hashes, are freed by
+    // adding it again. AppSkipped.cpp.
 public:
     /// The details torrent's reading: `{hash, seen, held, heldText, holding, band, where,
     /// fileSystem, partlyWritten, busy, step}`. `seen` false is D4 (a server whose disks this
     /// machine can't see); `band` is D2; `busy` while a free or an add-again runs.
     Q_PROPERTY(QVariantMap skippedOnDisk READ skippedOnDiskMap NOTIFY skippedOnDiskChanged)
     QVariantMap skippedOnDiskMap() const;
-    /// The Files tab is the one on show: its skipped files are read now, and after every
-    /// priority change while it shows.
+    /// The Files tab, or facts (whose size line says what they hold, C30 F17), is the one on
+    /// show: the skipped files are read now, and after every priority change while it shows.
     Q_INVOKABLE void setFilesTabActive(bool active);
     /// Reads the details torrent's skipped files again (after a free, or on demand).
     Q_INVOKABLE void refreshSkippedOnDisk();
     /// F2's sheet: reads the files, pieces and open files now and answers with
-    /// `freeSkippedPlanned(plan)`: `{hash, name, folder, hybrid, running, freed, freedText,
-    /// deletes, recheck, leftWithPieces, leftText, kept, items: [{name, holdsText, verdict,
-    /// openBy}], more, error}`. `verdict` is "delete", "open", "pieces", "shared" or "outside".
+    /// `freeSkippedPlanned(plan)`: `{hash, name, folder, hybrid, version ("v1", "v2" or
+    /// "hybrid", C29), running, freed, freedText, deletes, recheck, leftWithPieces, leftText,
+    /// allText (freed and left together, C30 F15),
+    /// kept, items: [{name, holdsText, verdict, openBy}], more, error}`. `verdict` is "delete",
+    /// "open", "pieces", "shared" or "outside".
     Q_INVOKABLE void planFreeSkipped(const QString &hash);
-    /// D3: stop, delete, start (and a recheck on a v1-only or v2-only torrent whose files with
-    /// pieces went). Answers with `skippedSpaceFreed({hash, ok, error, deleted, freedText,
-    /// kept, rechecked})`.
+    /// D3: stop, delete, start (and a recheck on a v1-only torrent whose files with pieces
+    /// went; C29: on a v2-only torrent, as on a hybrid, those files stay). Answers with
+    /// `skippedSpaceFreed({hash, ok, error, deleted, freedText, kept, rechecked})`.
     Q_INVOKABLE void freeSkippedSpace(const QString &hash);
     /// D3's "add it again": remove `hash` keeping its files, add it back stopped with the same
     /// selection, names, category, tags and limits, start it if it was started. With
-    /// `freeLeftovers`, the files the last plan would delete and the hybrid's leftovers with
-    /// pieces go while it is away. Answers with `torrentAddedAgain({hash, ok, error, name,
-    /// deleted})`.
+    /// `freeLeftovers`, the files the last plan would delete and the leftovers with pieces (a
+    /// hybrid's or a v2-only torrent's, C29) go while it is away; with no plan for `hash` in
+    /// hand (shift+f straight to the confirm, C30 F13), it is read first. Answers with
+    /// `torrentAddedAgain({hash, ok, error, name, deleted})`.
     Q_INVOKABLE void addTorrentAgain(const QString &hash, bool freeLeftovers);
 
 Q_SIGNALS:
@@ -2117,10 +2299,21 @@ private:
     /// What the free and the plan need about `torrent` on this machine.
     core::FreeSkippedJob::Input freeInputFor(const core::Torrent &torrent) const;
     core::SkippedOnDisk::LocalPathOf localPathOfFiles(const core::Torrent &torrent) const;
+    /// Reads `hash`'s files, pieces and open files now, keeps the plan (m_lastFreePlan) and
+    /// answers `done` with planFreeSkipped()'s map.
+    void makeFreePlan(const QString &hash, const std::function<void(QVariantMap)> &done);
+    /// #180: the file list just came in; while the Files tab shows, reads the disk again if
+    /// m_skippedAfterRefresh asks, or if its priorities are not m_skippedPriorities.
+    void readSkippedIfDue();
+    /// A torrents/files array's priorities by file id (its `index`, else its place).
+    static QHash<int, int> serverPrioritiesOf(const QList<core::ContentFile> &files);
     core::SkippedOnDisk *m_skipped = nullptr;
     bool m_filesTabActive = false;
-    /// Read again once the next file list has come in (a priority change, a new torrent).
+    /// Read again once the next file list has come in (the tab opened before it, a new
+    /// torrent, a free).
     bool m_skippedAfterRefresh = false;
+    /// The server's priorities the last reading was taken with (serverPrioritiesOf).
+    QHash<int, int> m_skippedPriorities;
     QString m_skippedStep; ///< the running free's or add-again's step, "" when none
     core::FreePlan m_lastFreePlan;
     QString m_lastFreePlanHash;
@@ -2156,6 +2349,260 @@ private:
     void sendFilePriority(const QString &hash, const QList<int> &ids, int priority);
     core::SelectionHold *m_hold = new core::SelectionHold(this);
     // --- end #119 -----------------------------------------------------------------------------
+
+    // --- #167: the title bar's sentence ---------------------------------------------------------
+    // Board 46 `titleBar()` (DECISIONS C24 H5): under the title, one sentence for the scope the
+    // rail picked, from core/ScopeSentence over TorrentFilterModel::scopeFacts() (the rail's
+    // filters, not the filter's words). A folder's is MoveController::folderLine(); a move's
+    // "show", the seed console's and the log's are the window's (they know its faces).
+    // AppScope.cpp.
+public:
+    Q_PROPERTY(QString scopeSentence READ scopeSentence NOTIFY scopeSentenceChanged)
+    QString scopeSentence() const { return m_scopeSentence; }
+    /// The sentences the window words from what it knows (core/ScopeSentence's): a lost
+    /// server's, the log's, the seed console's, a move's torrents on show from its band or
+    /// from the move sheet.
+    Q_INVOKABLE QString lostSentence(const QString &listTime, const QString &headline) const;
+    Q_INVOKABLE QString logSentence(const QString &server,
+                                    int lines,
+                                    const QString &since,
+                                    int warnings = 0,
+                                    int critical = 0,
+                                    bool following = false) const;
+    Q_INVOKABLE QString seedSentence(const QString &upSpeed,
+                                     const QString &today,
+                                     const QString &scope) const;
+    Q_INVOKABLE QString moveJobSentence(int torrents, int withServer) const;
+    Q_INVOKABLE QString moveSheetSentence(int torrents) const;
+
+Q_SIGNALS:
+    void scopeSentenceChanged();
+
+private:
+    void setUpScope();
+    void updateScopeSentence();
+    QString m_scopeSentence;
+    // --- end #167 -----------------------------------------------------------------------------
+
+    // --- #168: the library's displays -------------------------------------------------------
+    // Board 46 H3–H4 (DECISIONS C24): rows grouped under the questions, the table, or space
+    // (board 51 D12 a, C32: a size map by folder, in the shelves' place), remembered per
+    // scope (core/LibraryDisplays) in state.json's `displays`, and `filtered`'s grouping set
+    // to match. AppLibrary.cpp.
+public:
+    /// The display the rail's scope shows now: "rows", "table" or "space". A move's
+    /// torrents on show (C15 M10) are always the table (#168 assumed 5).
+    Q_PROPERTY(QString display READ display NOTIFY displayChanged)
+    QString display() const { return m_display; }
+    /// The scope's key (LibraryDisplays::scopeKey) the display is remembered under.
+    Q_PROPERTY(QString displayScope READ displayScope NOTIFY displayChanged)
+    QString displayScope() const { return m_displayScope; }
+    /// The display tool's pick: `display` for the scope shown now (the library's is every
+    /// scope's that has none of its own); "overview", the shelves' old name, is space. A
+    /// move's show changes nothing.
+    Q_INVOKABLE void setDisplay(const QString &display);
+    /// What `scopeKey` shows.
+    Q_INVOKABLE QString displayFor(const QString &scopeKey) const;
+    /// A test seam: forget every scope's pick and start the library on the display a new
+    /// (false) or an existing (true) install gets, as if this build read state.json first now.
+    Q_INVOKABLE void resetDisplays(bool existingInstall);
+
+Q_SIGNALS:
+    void displayChanged();
+
+private:
+    void setUpLibraryDisplays();
+    void updateDisplay();
+    void saveDisplays();
+    /// Writes the displays when this run decided them and has not written them yet: the first
+    /// write to state.json takes them along (writeStateSection()).
+    void saveDisplaysFirst();
+    core::LibraryDisplays m_displays;
+    bool m_displaysUnsaved = false;
+    QString m_display = QStringLiteral("rows");
+    QString m_displayScope = core::LibraryDisplays::libraryKey();
+    // --- end #168 -----------------------------------------------------------------------------
+    // --- #145: search ------------------------------------------------------------------------
+    // Board 48 (DECISIONS C26): search through the server's own search plugins, a view in the
+    // rail (C24 H16). core/SearchSession asks, core/SearchModel lists, core/SearchPlugins is
+    // Settings › qBittorrent › Search plugins. Each server's last search is kept for the
+    // session (SR12); the jobs a search started are deleted when it is replaced and on quit.
+    // AppSearch.cpp.
+public:
+    Q_PROPERTY(omaseed::core::SearchSession *search READ search CONSTANT)
+    Q_PROPERTY(omaseed::core::SearchModel *searchResults READ searchResults CONSTANT)
+    Q_PROPERTY(omaseed::core::SearchPlugins *searchPlugins READ searchPlugins CONSTANT)
+    /// The server has search plugins to offer: a qBittorrent (C25 K30), or the demo.
+    Q_PROPERTY(bool searchOffered READ searchOffered NOTIFY serverChanged)
+    /// SR10: the server is this computer, so a plugin file here reaches it.
+    Q_PROPERTY(bool searchServerLocal READ searchServerLocal NOTIFY serverChanged)
+    core::SearchSession *search() const { return m_search; }
+    core::SearchModel *searchResults() const { return m_searchModel; }
+    core::SearchPlugins *searchPlugins() const { return m_searchPlugins; }
+    bool searchOffered() const;
+    bool searchServerLocal() const;
+
+    /// enter in the field (SR14): asks `plugins` (names; empty: every plugin that is on) for
+    /// `pattern` in `category` ("all" or a type's id). Replaces the last search.
+    Q_INVOKABLE void startSearch(const QString &pattern,
+                                 const QString &category = QStringLiteral("all"),
+                                 const QStringList &plugins = {});
+    /// DECISIONS C34 D21 a, the field's "× esc" (or esc in it): the words and the results
+    /// go together, every plugin still asking stops (its job deleted, SR13), and the view is
+    /// the face before search. This server's kept search (SR12) goes too.
+    Q_INVOKABLE void clearSearch();
+    /// The plugins' list again (the view or the pane opened).
+    Q_INVOKABLE void refreshSearchPlugins();
+    /// SR9: what add… hands the add sheet for row `key`: `{text, downloader, fromLine, key,
+    /// libraryHash}`; `fromLine` is "from search · plugin a and plugin c · a magnet with 5
+    /// trackers" (the sheet's head adds the name and size).
+    Q_INVOKABLE QVariantMap searchAddable(const QString &key) const;
+    /// The add sheet sent row `key`'s torrent: the row says "added" (SR7).
+    Q_INVOKABLE void searchAdded(const QString &key);
+    /// SR2's "turn it off…": the plugin off, its row in the pane saying why.
+    Q_INVOKABLE void turnOffSearchPlugin(const QString &name);
+    /// SR10's browse…: a search plugin file on this computer (the portal's picker); its path,
+    /// or "" when cancelled.
+    Q_INVOKABLE QString pickSearchPluginFile();
+    /// Test seam: the session's poll, deadline and how many jobs run at once.
+    Q_INVOKABLE void setSearchTimings(int pollMs, int deadlineMs, int maxRunning);
+    /// The demo's search (board 48's invented plugins and rows), for the QML tests and
+    /// `--demo` shots: `stage` "none" (no plugins), "off" (all off), "idle" (all on, nothing
+    /// asked yet), "nopython", "asking" (nothing yet), "one" (plugin a answered), "done" (plugin
+    /// b failed).
+    Q_INVOKABLE void loadDemoSearch(const QString &stage);
+
+private:
+    void setUpSearch();
+    void switchSearchServer();
+    void shutdownSearch();
+    core::SearchModel::LibraryMatch searchLibraryMatch(const core::SearchRow &row) const;
+    void rebuildSearchIndex();
+    core::SearchSession *m_search = nullptr;
+    core::SearchModel *m_searchModel = nullptr;
+    core::SearchPlugins *m_searchPlugins = nullptr;
+    QString m_searchServerId;
+    QHash<QString, core::SearchSession::Snapshot> m_searchKept;
+    QHash<QString, QList<int>> m_searchLeftJobs;
+    /// Counts startSearch() and clearSearch() calls: a start still waiting for the plugins'
+    /// list is dropped once a clear (or a newer start) has come after it.
+    quint64 m_searchAsk = 0;
+    QTimer *m_searchMarksTimer = nullptr;
+    /// The library by hash ({hash, words}) and by folded name and size ({name}).
+    QHash<QString, core::SearchModel::LibraryMatch> m_searchByHash;
+    QHash<QString, QString> m_searchByNameSize;
+    // --- end #145 -----------------------------------------------------------------------------
+    // --- #146: create a torrent from a folder ---------------------------------------------------
+    // Board 49 (DECISIONS C27): the server's qBittorrent hashes a folder (core/CreateJob); a
+    // public torrent then seeds from where its files are and its magnet is on the clipboard, a
+    // private one is saved as "NAME [HOST].torrent" in Downloads and remembered (core/MadeHere)
+    // for the round trip. The sheet's lists come from the library (core/CreateTrackers); the
+    // band is the move's (C24 H14); a quick one, or a cancel, is the outcome strip. A passkey
+    // never reaches QML, a log line or state.json (C27 CR5). AppCreate.cpp.
+public:
+    /// This server can create: a qBittorrent with Web API 2.10.4 or later (C27: no create
+    /// entry otherwise), or the demo.
+    Q_PROPERTY(bool createOffered READ createOffered NOTIFY createChanged)
+    /// The creation's band: `{kind (accent, green, yellow, red), glyph, headline, line,
+    /// progress (0–1 or -1), actions [{id, text}], file {path, name, sizeText} (a private
+    /// one's saved .torrent, to drag)}`; {} for none.
+    Q_PROPERTY(QVariantMap createBand READ createBand NOTIFY createChanged)
+    /// The band shows: a creation that has run 3 s (CR13), or its summary until closed.
+    Q_PROPERTY(bool createShown READ createShown NOTIFY createChanged)
+    /// The name of the creation running on this server, "" for none: one at a time (CR13).
+    Q_PROPERTY(QString createRunning READ createRunning NOTIFY createChanged)
+    bool createOffered() const;
+    QVariantMap createBand() const { return m_createBand; }
+    bool createShown() const { return !m_createBand.isEmpty(); }
+    QString createRunning() const;
+
+    /// What the sheet offers on this server: `publicTrackers` [{url, count}] (the library's top
+    /// 3, CR4), `lastTrackers` (the last public creation's), `privateHosts` [{host, count,
+    /// newestName, newestText, masked, otherKeys}] (CR5: the announce URL only as
+    /// AnnounceMask shows it), `forWhom` ("anyone" or "private", per server), `host` (the last
+    /// private one), `seesDisks` (this machine reads the server's folders), `downloads`.
+    Q_INVOKABLE QVariantMap createSheet() const;
+    /// Reads `path` before anything is hashed (CR17): on this machine when it sees the
+    /// server's disks, else through qBittorrent (app/getDirectoryContent). Answered through
+    /// `createFolderChecked(path, check)`, `check` = `{state (ok, missing, unreadable, empty,
+    /// hidden, unknown), isFile, sized, files, bytes, hidden, hiddenNames, line, blocking}`.
+    Q_INVOKABLE void checkCreateFolder(const QString &path, bool ignoreDotfiles);
+    /// The piece size's list for `bytes` in `files` files (board 49 §5): [{size, text,
+    /// countText, torrentText, automatic}].
+    Q_INVOKABLE QVariantList createPieceRows(double bytes, int files) const;
+    /// "512 KiB", "1 MiB": a piece size's words.
+    Q_INVOKABLE QString pieceSizeText(double bytes) const;
+    /// Browse on a server whose disks omaseed can't see (C27 CR3, C16 L13): `path`'s entries
+    /// as qBittorrent lists them (names only), through `serverFolderListed(path, entries,
+    /// found)`.
+    Q_INVOKABLE void listServerFolder(const QString &path);
+    /// CR6: the source tag for private `host`: the last typed for it on this server, else the
+    /// newest torrent's from that host (its .torrent read through torrents/export). Answered
+    /// through `createSourceLoaded(host, source)`.
+    Q_INVOKABLE void loadCreateSource(const QString &host);
+    /// CR5: `url` as the sheet may show it (AnnounceMask).
+    Q_INVOKABLE QString maskAnnounce(const QString &url) const;
+    /// The folder a drop holds, as the server writes it (CR1: a dropped folder opens Create);
+    /// "" when the drop is not one folder (or one file) of this machine's.
+    Q_INVOKABLE QString droppedFolder(const QList<QUrl> &urls) const;
+    /// Starts a creation: `folder`, `forWhom` ("anyone" | "private"), `trackers` (public),
+    /// `host` and `announce` (private: a pasted URL, used for this creation only; empty takes
+    /// the library's newest for the host), `format`, `pieceSize` (0 automatic), `source`,
+    /// `comment`, `webSeeds`, `ignoreDotfiles`, `category`, `totalBytes`, `files`. False when
+    /// one already runs on this server or nothing can be sent.
+    Q_INVOKABLE bool startCreate(const QVariantMap &request);
+    /// A band or strip action: cancel, copyMagnet, saveTorrent, show, showFile, copyPath,
+    /// again, close.
+    Q_INVOKABLE void createAction(const QString &id);
+    /// Test seam: the status poll's interval and how long before the band shows (CR13's 3 s).
+    Q_INVOKABLE void setCreateTimings(int pollMs, int bandMs);
+    /// The round trip (CR8, CR9, board 49 §4) for the `.torrent` parsed under `token`: `{kind
+    /// ("made": the file saved here itself; "same": the site's copy, the same info hash;
+    /// "files": another hash, every file matching), name, folder, host, madeText ("made here
+    /// today 14:20"), savePath and layout (where the files are), check (false: seed mode),
+    /// madeHash and madeName (the made one, when it is in the library)}`; {} for none.
+    Q_INVOKABLE QVariantMap madeHereFor(const QString &token) const;
+
+Q_SIGNALS:
+    void createChanged();
+    void createFolderChecked(const QString &path, const QVariantMap &check);
+    void serverFolderListed(const QString &path, const QStringList &entries, bool found);
+    void createSourceLoaded(const QString &host, const QString &source);
+    /// "create again…" / "try again": the sheet opens on these choices again.
+    void createAgainRequested(const QVariantMap &request);
+
+private:
+    void setUpCreate();
+    void switchCreateServer();
+    void resumeStoredCreate();
+    void createJobChanged();
+    void createJobFinished();
+    void updateCreateBand();
+    void finishPrivateCreate();
+    QString saveCreatedTorrent(const QString &fileName, QString *error) const;
+    core::CreateTrackers createTrackers() const;
+    QJsonObject createState() const;
+    void writeCreateState(const QJsonObject &server);
+    core::MadeHere madeHere() const;
+    void writeMadeHere(const core::MadeHere &made);
+    /// The records the `.torrent` in `bytes` matches go: the site's copy was added.
+    void forgetMadeHere(const QByteArray &bytes);
+    core::CreateJob *m_createJob = nullptr;
+    QTimer *m_createBandTimer = nullptr;
+    QVariantMap m_createBand;
+    /// The request the job runs, as the sheet sent it (no announce URL: it is in the job).
+    QVariantMap m_createRequest;
+    /// The server the job belongs to.
+    QString m_createServerId;
+    /// The band showed for this job (it ran past CR13's 3 s).
+    bool m_createBandShown = false;
+    /// The summary's facts once it ended: the saved file's path, the magnet, the made id.
+    QString m_createSavedPath;
+    QString m_createMagnet;
+    QString m_createHash;
+    QString m_createSaveError;
+    int m_createBandMs = 3000;
+    // --- end #146 -----------------------------------------------------------------------------
 };
 
 } // namespace omaseed::app

@@ -13,6 +13,18 @@ Item {
 
     property var model: []
     property int currentIndex: 0
+    /// #201 F16: a strip that heads one of the window's columns (the details pane's) says
+    /// with its current tab's line whether that column has the keys: the lit line (2 px of
+    /// the accent) while it has them (`keysHere`), a dim hairline while another column does.
+    /// Off (Settings' strips), the line is the skin's.
+    property bool keysShown: false
+    property bool keysHere: true
+    /// #201 F18: the window teaches keys on demand (frame step 9, DECISIONS C24 H10), so its
+    /// strips draw no digits at rest (board 46: "story · files · swarm …"); each tab's key
+    /// shows as an alt badge while `badgesShown` (the window's `keysShown`: alt is held).
+    /// Off (the standalone figures, Settings), the digit sits after the word.
+    property bool keyBadges: false
+    property bool badgesShown: false
 
     /// The wheel over the strip moves the current tab, a notch a tab, as a click would
     /// (Settings' folded sections, which clip at the right edge and only slide to keep the
@@ -122,36 +134,52 @@ Item {
                     Text {
                         anchors.verticalCenter: parent.verticalCenter
                         color: tab.current ? Theme.brightForeground : Theme.dimForeground
-                        font.family: Theme.fontFamily
+                        // Board 46 `.tab`: the skin's caption voice.
+                        font.capitalization: Theme.captionUpper ? Font.AllUppercase : Font.MixedCase
+                        font.family: Theme.labelFamily
+                        font.letterSpacing: Theme.font.small * Theme.captionTrack(0)
                         font.pixelSize: Theme.font.small
+                        font.weight: Theme.captionWeight(Font.Normal)
                         text: tab.modelData.text
                     }
 
                     Text {
                         anchors.verticalCenter: parent.verticalCenter
                         color: tab.current ? Theme.brightForeground : Theme.dimForeground
-                        font.family: Theme.fontFamily
+                        font.family: Theme.valueFamily
                         font.pixelSize: Theme.font.caption
+                        objectName: "tabDigit"
                         text: tab.modelData.key ? tab.modelData.key : ""
-                        visible: !!tab.modelData.key
+                        visible: !!tab.modelData.key && !root.keyBadges
                     }
 
-                    Rectangle {
+                    // The skin's lamp (Console's square, board 46 `.dot`).
+                    Lamp {
                         anchors.verticalCenter: parent.verticalCenter
                         color: Theme.yellow
-                        height: Theme.space(6)
-                        radius: width / 2
+                        size: Theme.space(6)
                         visible: !!tab.modelData.badge
-                        width: Theme.space(6)
                     }
+                }
+
+                // F18: the key on demand, over the tab's top-right corner, above its words so
+                // the next tab's stay clear.
+                KeyBadge {
+                    key: root.keyBadges && tab.modelData.key ? tab.modelData.key : ""
+                    shown: root.badgesShown
                 }
 
                 Rectangle {
                     anchors.bottom: parent.bottom
                     anchors.left: parent.left
                     anchors.right: parent.right
-                    color: Theme.brightForeground
-                    height: 1
+                    // Board 46 `.tab.on`: the skin's underline (Console's lit line); with
+                    // keysShown, lit while the keys are here and dim while they aren't (F16).
+                    color: !root.keysShown ? Theme.tabLineColor
+                                           : root.keysHere ? Theme.litColor : Theme.fill(Theme.borderHover)
+                    height: !root.keysShown ? Theme.tabLineWidth
+                                            : root.keysHere ? Theme.litWidth : Theme.hairWidth
+                    objectName: "tabLine"
                     visible: tab.current
                 }
 

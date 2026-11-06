@@ -1,5 +1,7 @@
 #include "core/FilterCounts.hpp"
 
+#include "core/LocalDay.hpp"
+#include "core/TorrentFilterModel.hpp"
 #include "core/TorrentModel.hpp"
 
 #include <algorithm>
@@ -58,9 +60,31 @@ void FilterCounts::setModel(TorrentModel *model)
     if (m_model != nullptr)
         disconnect(m_model, nullptr, this, nullptr);
     m_model = model;
-    if (m_model != nullptr)
+    if (m_model != nullptr) {
         connect(m_model, &TorrentModel::updated, this, &FilterCounts::recompute);
+        // C24 H2: a problem or failure in the log moves a torrent under needs you.
+        connect(m_model, &TorrentModel::problemsChanged, this, &FilterCounts::recompute);
+    }
     recompute();
+}
+
+void FilterCounts::setDay(LocalDay *day)
+{
+    if (m_day == day)
+        return;
+    if (m_day != nullptr)
+        disconnect(m_day, nullptr, this, nullptr);
+    m_day = day;
+    if (m_day != nullptr)
+        connect(m_day, &LocalDay::dayChanged, this, &FilterCounts::recompute);
+    recompute();
+}
+
+int FilterCounts::questionCount(int question) const
+{
+    if (question <= TorrentFilterModel::AnyQuestion || question > TorrentFilterModel::Resting)
+        return m_total;
+    return m_questionCounts[question];
 }
 
 int FilterCounts::count(StatusGroup group) const
@@ -99,6 +123,8 @@ void FilterCounts::recompute()
     const QHash<QString, int> oldTrackers = m_trackerCounts;
     int oldGroups[8];
     std::copy(std::begin(m_groupCounts), std::end(m_groupCounts), std::begin(oldGroups));
+    int oldQuestions[6];
+    std::copy(std::begin(m_questionCounts), std::end(m_questionCounts), std::begin(oldQuestions));
 
     m_total = 0;
     m_untagged = 0;
@@ -106,6 +132,11 @@ void FilterCounts::recompute()
     m_private = 0;
     for (int &slot : m_groupCounts)
         slot = 0;
+    for (int &slot : m_questionCounts)
+        slot = 0;
+    const qint64 dayStart = m_day != nullptr
+                                ? m_day->startMSecs()
+                                : QDateTime(QDate::currentDate(), QTime(0, 0)).toMSecsSinceEpoch();
     m_categoryCounts.clear();
     m_tagCounts.clear();
     m_trackerCounts.clear();
@@ -125,6 +156,8 @@ void FilterCounts::recompute()
         }
         if (groups.testFlag(StatusGroup::Downloading) && !groups.testFlag(StatusGroup::Stopped))
             ++m_inProgress;
+        ++m_questionCounts[TorrentFilterModel::questionOf(
+            t, m_model->hasLoggedTrouble(t.hash), dayStart)];
 
         ++m_categoryCounts[t.category];
         if (t.isPrivate)
@@ -151,7 +184,9 @@ void FilterCounts::recompute()
     }
 
     const bool sameGroups =
-        std::equal(std::begin(m_groupCounts), std::end(m_groupCounts), std::begin(oldGroups));
+        std::equal(std::begin(m_groupCounts), std::end(m_groupCounts), std::begin(oldGroups)) &&
+        std::equal(
+            std::begin(m_questionCounts), std::end(m_questionCounts), std::begin(oldQuestions));
     if (oldTotal == m_total && oldInProgress == m_inProgress && oldPrivate == m_private &&
         sameGroups && oldCategories == m_categoryCounts && oldTags == m_tagCounts &&
         oldTrackers == m_trackerCounts)

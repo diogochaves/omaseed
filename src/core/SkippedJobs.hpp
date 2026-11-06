@@ -6,10 +6,11 @@
 // again (the files' priorities, its pieces and what is open now, so a file wanted again since
 // the sheet opened, or opened by a player, stays), delete those SkippedOnDisk::plan() says go,
 // start it again if it was running, and recheck only when a file holding downloaded pieces
-// went on a v1-only or v2-only torrent. Never a recheck on a hybrid (#115).
+// went on a v1-only torrent. Never a recheck on a hybrid (#115) or a v2-only torrent (C29,
+// #182): such files stay there.
 //
-// It talks to the server through EngineClient. Adding a hybrid again, which frees what this
-// can't, is qBittorrent's: engines/qbt/AddAgainJob.
+// It talks to the server through EngineClient. Adding a hybrid or a v2-only torrent again
+// (C29), which frees what this can't, is qBittorrent's: engines/qbt/AddAgainJob.
 //
 // Each step is logged ("free space: …"), the way omaseed logs what it does to a server.
 
@@ -36,7 +37,7 @@ public:
         QString hash;
         QString name;
         bool running = false; ///< started before: stopped first, started after
-        bool hybrid = false;
+        HashVersion version = HashVersion::V1;
         qint64 torrentSize = 0;
         SkippedOnDisk::LocalPathOf localPathOf;
         QString contentLocal;

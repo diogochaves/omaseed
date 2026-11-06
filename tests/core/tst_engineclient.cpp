@@ -76,6 +76,7 @@ public:
 
     OMASEED_FAKE(QList<TorrentPatch>, torrents(const QStringList &))
     OMASEED_FAKE(QStringList, stoppedAmong(const QStringList &))
+    OMASEED_FAKE(QList<RunningTorrent>, running())
     OMASEED_FAKE(QList<CategoryPatch>, categories())
     OMASEED_FAKE(QStringList, tags())
     OMASEED_FAKE(TorrentProperties, properties(const QString &))

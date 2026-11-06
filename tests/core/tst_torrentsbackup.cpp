@@ -202,9 +202,12 @@ QList<QPair<QByteArray, QByteArray>> uploads(const QByteArray &contentType, cons
     return out;
 }
 
-/// Speaks just enough of qBittorrent's API for an import's add: torrents/add loads each file
-/// as libtorrent would, adds the good ones until it comes to one it can't load, and answers
-/// that with 415 (as 5.2.3 does); a torrent already there is 409. Everything else is "".
+/// Speaks just enough of qBittorrent's API for an import's add and check: torrents/add loads
+/// each file as libtorrent would, adds the good ones until it comes to one it can't load, and
+/// answers that with 415 (as 5.2.3 does); a torrent already there is 409. After a
+/// torrents/recheck, torrents/info lists each torrent as `checked(id, poll)` says (poll counts
+/// the info requests since the recheck, from 1); torrents/start is recorded in `started`.
+/// Everything else is "".
 class FakeQbt : public QTcpServer
 {
 public:
@@ -217,6 +220,8 @@ public:
 
     QHash<QString, QByteArray> added; ///< id -> the bytes it was added from
     int adds = 0;
+    std::function<QJsonObject(const QString &id, int poll)> checked;
+    QStringList started;
 
 protected:
     void incomingConnection(qintptr descriptor) override
@@ -267,12 +272,27 @@ private:
             const QStringList asked = QUrlQuery(url)
                                           .queryItemValue(QStringLiteral("hashes"))
                                           .split(QLatin1Char('|'), Qt::SkipEmptyParts);
+            if (m_rechecked)
+                ++m_polls;
             QJsonArray listed;
             for (const QString &id : asked) {
-                if (added.contains(id))
-                    listed.append(QJsonObject{{QStringLiteral("hash"), id}});
+                if (!added.contains(id))
+                    continue;
+                QJsonObject t = m_rechecked && checked ? checked(id, m_polls) : QJsonObject();
+                t.insert(QStringLiteral("hash"), id);
+                listed.append(t);
             }
             return httpResponse(200, "OK", QJsonDocument(listed).toJson(QJsonDocument::Compact));
+        }
+        if (path.endsWith(u"/torrents/recheck")) {
+            m_rechecked = true;
+            return httpResponse(200, "OK", "");
+        }
+        if (path.endsWith(u"/torrents/start")) {
+            started += QUrlQuery(QString::fromUtf8(body))
+                           .queryItemValue(QStringLiteral("hashes"), QUrl::FullyDecoded)
+                           .split(QLatin1Char('|'), Qt::SkipEmptyParts);
+            return httpResponse(200, "OK", "");
         }
         if (path.endsWith(u"/torrents/add")) {
             ++adds;
@@ -292,6 +312,9 @@ private:
         }
         return httpResponse(200, "OK", "");
     }
+
+    bool m_rechecked = false;
+    int m_polls = 0;
 };
 
 } // namespace
@@ -813,6 +836,78 @@ private Q_SLOTS:
         QCOMPARE(server.adds, 4);
         // Nothing left for a next run: the refused one was never added.
         QVERIFY(!QFile::exists(options.journalPath));
+    }
+
+    // D6 a, #208: qBittorrent checks one torrent at a time, and the one waiting for its turn
+    // shows stopped at 0 %, the way one checked with nothing on disk does. It is started once
+    // its turn has come and its files are found complete, not left stopped while it waits.
+    void startsATorrentWhoseCheckWaitsItsTurn()
+    {
+        QTemporaryDir dir;
+        const QByteArray first = fixture(QStringLiteral("single_file_v1.torrent"));
+        const QByteArray second = fixture(QStringLiteral("multi_file_v1_unicode.torrent"));
+        QVERIFY(!first.isEmpty() && !second.isEmpty());
+        const auto recordOf = [](const QByteArray &bytes) {
+            const TorrentFile parsed = TorrentFile::parse(bytes);
+            TorrentRecord r = record(parsed.torrentId(), QStringLiteral("/d"));
+            r.infohashV1 = parsed.infoHashV2.isEmpty() ? parsed.infoHashV1 : QString();
+            r.infohashV2 = parsed.infoHashV2;
+            return r;
+        };
+        const TorrentRecord checksFirst = recordOf(first);
+        const TorrentRecord waits = recordOf(second);
+        const QString path = dir.filePath(QStringLiteral("t.omaseed-torrents"));
+        {
+            QFile file(path);
+            QVERIFY(file.open(QIODevice::WriteOnly));
+            TarWriter writer(&file);
+            QVERIFY(writer.add(
+                TorrentsBackup::kManifest, QJsonDocument(manifest().toJson()).toJson(), 0));
+            for (const auto &[r, bytes] : {std::pair{checksFirst, first}, {waits, second}}) {
+                QVERIFY(writer.add(
+                    TorrentsBackup::recordEntry(r.id), QJsonDocument(r.toJson()).toJson(), 0));
+                QVERIFY(writer.add(TorrentsBackup::torrentEntry(r.id), bytes, 0));
+            }
+            QVERIFY(writer.finish());
+        }
+        QString error;
+        const auto contents = TorrentsBackup::read(path, &error);
+        QVERIFY2(contents.has_value(), qPrintable(error));
+        const TorrentsImport::Plan plan = TorrentsImport::plan(*contents, {});
+        QCOMPARE(plan.add.size(), 2);
+
+        FakeQbt server;
+        // The first checks for five polls; the second waits (stopped, 0 %) one poll longer,
+        // checks for one, then both are complete.
+        server.checked = [&checksFirst](const QString &id, int poll) {
+            const int checkedAfter = id == checksFirst.id ? 5 : 7;
+            const int checkingFrom = id == checksFirst.id ? 1 : 7;
+            if (poll > checkedAfter)
+                return QJsonObject{{QStringLiteral("state"), QStringLiteral("stoppedUP")},
+                                   {QStringLiteral("progress"), 1.0},
+                                   {QStringLiteral("amount_left"), 0}};
+            return QJsonObject{
+                {QStringLiteral("state"),
+                 poll >= checkingFrom ? QStringLiteral("checkingUP") : QStringLiteral("stoppedDL")},
+                {QStringLiteral("progress"), 0.0},
+                {QStringLiteral("amount_left"), 100}};
+        };
+        omaseed::core::QbtEngine client;
+        client.setBaseUrl(server.url());
+        TorrentsImport import(&client);
+        TorrentsImport::Options options;
+        options.journalPath = dir.filePath(QStringLiteral("imports/fake.json"));
+        options.pollMs = 20;
+        QSignalSpy finished(&import, &TorrentsImport::finished);
+        import.start(*contents, plan, options);
+        QVERIFY(finished.wait(20000));
+        const auto outcome = finished.constFirst().constFirst().value<TorrentsImport::Outcome>();
+
+        QVERIFY2(outcome.complete, qPrintable(outcome.errors.join(u"; ")));
+        QCOMPARE(outcome.started, 2);
+        QCOMPARE(outcome.leftStopped, 0);
+        QCOMPARE(server.started.size(), 2);
+        QVERIFY(server.started.contains(waits.id));
     }
 
     // ---- the rename guard (#64, #67) ---------------------------------------------------

@@ -99,9 +99,50 @@ PathMapping PathMapping::fromJson(const QJsonObject &object)
     return mapping;
 }
 
+namespace {
+
+/// The keys toJson() writes: anything else in an entry is a newer build's, kept in `extra`.
+bool isKnownKey(const QString &key)
+{
+    static const QStringList keys{
+        QStringLiteral("id"),
+        QStringLiteral("name"),
+        QStringLiteral("url"),
+        QStringLiteral("authMode"),
+        QStringLiteral("username"),
+        QStringLiteral("pathMap"),
+        QStringLiteral("isDefault"),
+        QStringLiteral("addedAt"),
+        QStringLiteral("certificateSha256"),
+        QStringLiteral("engine"),
+        QStringLiteral("engineVersion"),
+    };
+    return keys.contains(key);
+}
+
+} // namespace
+
 QString Server::newId()
 {
     return QUuid::createUuid().toString(QUuid::WithoutBraces);
+}
+
+bool Server::isQbittorrent() const
+{
+    return engine == EngineKind::Qbittorrent;
+}
+
+QString Server::engineName() const
+{
+    if (isQbittorrent())
+        return {};
+    if (engine != EngineKind::Unknown)
+        return engineDisplayName(engine);
+    const QString stored = extra.value(QStringLiteral("engine")).toString();
+    // "qBittorrent" isn't servers.json's spelling, and naming it would read as nonsense.
+    if (stored.compare(QStringLiteral("qbittorrent"), Qt::CaseInsensitive) == 0)
+        return {};
+    return stored;
 }
 
 QJsonObject Server::toJson() const
@@ -123,11 +164,24 @@ QJsonObject Server::toJson() const
         object[QStringLiteral("addedAt")] = addedAt.toUTC().toString(Qt::ISODate);
     if (!certificateSha256.isEmpty())
         object[QStringLiteral("certificateSha256")] = certificateSha256;
-    // servers.json v2 (#84): the engine always, its last version once one was seen.
-    object[QStringLiteral("engine")] =
-        engineKindToString(engine == EngineKind::Unknown ? EngineKind::Qbittorrent : engine);
+    // servers.json v2 (#84): the engine always, its last version once one was seen. An engine
+    // this build couldn't read goes back as it was (in `extra`, below).
+    if (engine != EngineKind::Unknown || !extra.contains(QStringLiteral("engine")))
+        object[QStringLiteral("engine")] =
+            engineKindToString(engine == EngineKind::Unknown ? EngineKind::Qbittorrent : engine);
     if (!engineVersion.isEmpty())
         object[QStringLiteral("engineVersion")] = engineVersion;
+
+    // A newer build's keys, as they were read (C28). An authMode this build couldn't read
+    // goes back as it was, unless a mode was picked here since.
+    for (auto it = extra.constBegin(); it != extra.constEnd(); ++it) {
+        if (it.key() == QStringLiteral("authMode")) {
+            if (authMode == AuthMode::None)
+                object.insert(it.key(), it.value());
+        } else if (!object.contains(it.key())) {
+            object.insert(it.key(), it.value());
+        }
+    }
     return object;
 }
 
@@ -137,7 +191,9 @@ Server Server::fromJson(const QJsonObject &object, bool *ok)
     server.id = object.value(QStringLiteral("id")).toString();
     server.name = object.value(QStringLiteral("name")).toString();
     server.url = QUrl(object.value(QStringLiteral("url")).toString());
-    server.authMode = authModeFromString(object.value(QStringLiteral("authMode")).toString());
+    bool authModeRead = false;
+    server.authMode =
+        authModeFromString(object.value(QStringLiteral("authMode")).toString(), &authModeRead);
     server.username = object.value(QStringLiteral("username")).toString();
 
     for (const QJsonValue &value : object.value(QStringLiteral("pathMap")).toArray()) {
@@ -157,11 +213,22 @@ Server Server::fromJson(const QJsonObject &object, bool *ok)
         CertificatePin::normalized(object.value(QStringLiteral("certificateSha256")).toString());
 
     // A v1 entry has no engine: every server was a qBittorrent then. An engine this build
-    // doesn't know (a newer one's) reads as Unknown and is refused on use, never guessed.
+    // doesn't know (a newer one's) reads as Unknown and is refused on use, never guessed; its
+    // spelling is kept, as it was, in `extra`.
     const QJsonValue engine = object.value(QStringLiteral("engine"));
     server.engine =
         engine.isUndefined() ? EngineKind::Qbittorrent : engineKindFromString(engine.toString());
+    if (server.engine == EngineKind::Unknown && !engine.isUndefined())
+        server.extra.insert(QStringLiteral("engine"), engine);
     server.engineVersion = object.value(QStringLiteral("engineVersion")).toString();
+
+    for (auto it = object.constBegin(); it != object.constEnd(); ++it) {
+        if (!isKnownKey(it.key()))
+            server.extra.insert(it.key(), it.value());
+    }
+    // A newer build's mode reads as None here and is written back as it was.
+    if (!authModeRead && object.contains(QStringLiteral("authMode")))
+        server.extra.insert(QStringLiteral("authMode"), object.value(QStringLiteral("authMode")));
 
     if (ok)
         *ok = !server.id.isEmpty();

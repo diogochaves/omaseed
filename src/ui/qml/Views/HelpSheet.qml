@@ -30,18 +30,27 @@ FocusScope {
     property string altKind: "alt"
     readonly property string query: filterField.text.trim().toLowerCase()
     /// The sections that still have rows, each `{key, title, about, rows}`. DECISIONS C18 D6:
-    /// the mouse's block follows the select keys.
+    /// the mouse's block follows the select keys; C24 H10: a sheet's block follows view.
     readonly property var sections: root._sectionKeys.map(column => ({
                                                                          "key": column,
                                                                          "title": column === "mouse" ? Keymap.mouseTitle
-                                                                                                     : Keymap.columnTitles[column],
+                                                                                                     : column === "sheet" ? Keymap.sheetTitle
+                                                                                                     : column === "search" ? Keymap.searchTitle
+                                                                                                                          : Keymap.columnTitles[column],
                                                                          "about": column === "mouse" ? Keymap.mouseAbout
-                                                                                                     : Keymap.columnAbout[column],
+                                                                                                     : column === "sheet" ? Keymap.sheetAbout
+                                                                                                     : column === "search" ? Keymap.searchAbout
+                                                                                                                          : Keymap.columnAbout[column],
                                                                          "rows": root._rowsOf(column).filter(row => root.matches(row))
                                                                      })).filter(section => section.rows.length > 0)
     readonly property var _sectionKeys: {
         const keys = Keymap.columns.slice();
         keys.splice(keys.indexOf("select") + 1, 0, "mouse");
+        // DECISIONS C24 H10: the keys sheets' feet printed, after view: the first column's
+        // last block, so "act on torrents" still heads the second.
+        keys.splice(keys.indexOf("view") + 1, 0, "sheet");
+        // #145 (C26 SR14): search's own keys, last.
+        keys.push("search");
         return keys;
     }
     /// Every row still shown, in reading order (left column first).
@@ -70,8 +79,12 @@ FocusScope {
                                                                         (w, row) => row.helpKeys.length > w.length ? row.helpKeys : w,
                                                                         widest), "")
 
-    /// A section's rows: the keys of a Keymap column, or the mouse's.
+    /// A section's rows: the keys of a Keymap column, the mouse's, or a sheet's.
     function _rowsOf(column: string): var {
+        if (column === "sheet")
+            return Keymap.sheetRows;
+        if (column === "search")
+            return Keymap.searchRows;
         return column === "mouse" ? Keymap.mouseRows : Keymap.helpRows(column, root.altKind, App.features);
     }
 
@@ -241,7 +254,12 @@ FocusScope {
                 id: columns
 
                 spacing: root._gap
-                width: scroller.width - (scrollHint.needed ? scrollHint.width + Theme.space(8) : 0)
+                // Clear of the bar while the rows overflow the cap: by the rows' own height,
+                // not the list's laid-out one, which lags a pass behind and could put the bar
+                // up and down for ever on a row a bar's width from wrapping (#201 F23, as
+                // Kit/Sheet's body).
+                width: scroller.width - (columns.implicitHeight > root.maxListHeight
+                                         ? scrollHint.width + Theme.space(8) : 0)
 
                 Repeater {
                     model: root._twoColumns ? 2 : 1
@@ -297,6 +315,11 @@ FocusScope {
                                         readonly property bool current: root.cursorRow !== null
                                                                         && root.cursorRow.action
                                                                         === keyRow.modelData.action
+                                        /// The row's ground, the cursor's fill on the current
+                                        /// row (docs/DECISIONS.md C30 F1).
+                                        readonly property ThemeInk ground: keyRow.current
+                                                                           ? Theme.on.cursor
+                                                                           : Theme.on.window
 
                                         // #77: a list item named by what the key does, the
                                         // keys its description, selected under the cursor.
@@ -309,8 +332,7 @@ FocusScope {
                                         Accessible.onPressAction: if (keyRow.enabled)
                                                                       root.clickRow(keyRow.modelData)
                                         Layout.fillWidth: true
-                                        color: keyRow.current ? Theme.fill(Theme.fillHover) :
-                                                                "transparent"
+                                        color: keyRow.current ? keyRow.ground.fill : "transparent"
                                         implicitHeight: Math.max(keysText.implicitHeight,
                                                                  aboutText.implicitHeight)
                                                         + Theme.space(8)
@@ -340,7 +362,8 @@ FocusScope {
                                             anchors.leftMargin: Theme.space(6)
                                             anchors.top: parent.top
                                             anchors.topMargin: Theme.space(4)
-                                            color: keyRow.waiting ? Theme.dimForeground : Theme.brightForeground
+                                            color: keyRow.waiting ? keyRow.ground.dimForeground
+                                                                  : keyRow.ground.brightForeground
                                             font.family: Theme.fontFamily
                                             font.pixelSize: Theme.font.small
                                             font.weight: Font.Medium
@@ -358,7 +381,8 @@ FocusScope {
                                             anchors.topMargin: Theme.space(4)
                                             // docs/33 D19: a key that needs two servers is
                                             // listed dim, saying so, while there is one.
-                                            color: keyRow.waiting ? Theme.dimForeground : Theme.foreground
+                                            color: keyRow.waiting ? keyRow.ground.dimForeground
+                                                                  : keyRow.ground.foreground
                                             font.family: Theme.fontFamily
                                             font.pixelSize: Theme.font.small
                                             text: keyRow.waiting ? keyRow.modelData.aboutOne : keyRow.modelData.about

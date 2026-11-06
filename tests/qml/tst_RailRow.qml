@@ -45,7 +45,19 @@ TestCase {
                                               "text": "downloading",
                                               "selected": true
                                           });
-        fuzzyCompare(row.color.a, Theme.fill(Theme.fillSelected).a, 0.01);
+        fuzzyCompare(row.color.a, Theme.on.selected.fill.a, 0.01);
+    }
+
+    // #188: the servers block's selected row is the selected fill over the block's 4 %, its
+    // words lifted against that.
+    function test_selected_in_a_block_is_the_blocks_selected_ground() {
+        const row = createTemporaryObject(railRowComponent, testCase, {
+                                              "text": "home",
+                                              "selected": true,
+                                              "block": Theme.on.idle
+                                          });
+        compare(row.ground, Theme.on.blockSelected);
+        compare(row.color, Theme.on.blockSelected.fill);
     }
 
     function test_has_cursor_fills_at_the_hover_alpha() {
@@ -53,7 +65,7 @@ TestCase {
                                               "text": "downloading",
                                               "hasCursor": true
                                           });
-        fuzzyCompare(row.color.a, Theme.fill(Theme.fillHover).a, 0.01);
+        fuzzyCompare(row.color.a, Theme.on.hover.fill.a, 0.01);
     }
 
     function test_count_of_minus_one_hides_the_count() {
@@ -89,7 +101,7 @@ TestCase {
         compare(count.color, Theme.red);
         row.countText = "";
         row.count = 4;
-        compare(count.text, "4");
+        compare(count.text, Theme.numeral(4)); // "04" where the skin pads (#171)
         compare(count.color, Theme.red);
     }
 
@@ -122,6 +134,58 @@ TestCase {
         compare(clicks.count, 0);
         mouseClick(row, row.width - 20, row.height / 2);
         compare(clicks.count, 1);
+    }
+
+    // Board 51 D5 a: the log's level rows: a tick in the glyph's place, filled in the level's
+    // colour while ticked, an outline while not; the warning's name in its colour.
+    function test_a_tick_takes_the_glyphs_place() {
+        const row = createTemporaryObject(railRowComponent, testCase, {
+                                              "text": "warning",
+                                              "glyph": "x",
+                                              "count": 31,
+                                              "tick": true,
+                                              "ticked": true,
+                                              "tickColor": Theme.yellow,
+                                              "toneName": true,
+                                              "width": 214
+                                          });
+        const tick = findChild(row, "railRowTick");
+        verify(tick.visible);
+        verify(Qt.colorEqual(tick.color, Theme.yellow));
+        compare(tick.border.width, 0);
+        row.ticked = false;
+        compare(tick.color, Qt.rgba(0, 0, 0, 0));
+        compare(tick.border.width, Theme.hairWidth);
+        row.tick = false;
+        verify(!tick.visible);
+    }
+
+    // Board 52 D5s a (DECISIONS C34): a search plugin's answer, its lamp just before the
+    // words, in the state's colour; the name keeps clear of both. No words, no lamp.
+    function test_a_lamp_sits_before_the_count() {
+        const row = createTemporaryObject(railRowComponent, testCase, {
+                                              "text": "plugin a",
+                                              "countText": "failed",
+                                              "countColor": Theme.yellow,
+                                              "lamp": true,
+                                              "lampColor": Theme.yellow,
+                                              "width": 214
+                                          });
+        const lamp = findChild(row, "railRowLamp");
+        const count = findChild(row, "railRowCount");
+        verify(lamp.visible);
+        verify(Qt.colorEqual(lamp.color, Theme.yellow));
+        compare(lamp.x + lamp.width + Theme.searchPillGap, count.x);
+        const label = findChild(row, "railRowLabel");
+        verify(label.x + label.width <= lamp.x);
+        row.lampPulse = true;
+        row.lampPulse = false;
+        compare(lamp.opacity, 1);
+        row.countText = "";
+        verify(!lamp.visible);
+        row.countText = "2";
+        row.lamp = false;
+        verify(!lamp.visible);
     }
 
     function test_click_emits_clicked() {

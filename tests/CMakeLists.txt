@@ -31,8 +31,11 @@ function(omaseed_add_test name)
     add_test(NAME ${name} COMMAND ${name})
     # XDG_DATA_HOME: an App that start()s opens its seed ledger and makes automatic backups
     # (#31) under the data home; a test must never write into the real one.
+    # OMASEED_DISPLAY: every App starts on the table (DECISIONS C24 H4 would give a new
+    # install's state.json the rows), so a test sees the table's one sorted list unless it
+    # picks another display; tst_app unsets it to test the default itself.
     set_tests_properties(${name} PROPERTIES
-        ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_LOGGING_RULES=qt.qml.*=false;XDG_DATA_HOME=${CMAKE_BINARY_DIR}/tests/data-home"
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_LOGGING_RULES=qt.qml.*=false;XDG_DATA_HOME=${CMAKE_BINARY_DIR}/tests/data-home;OMASEED_DISPLAY=table"
     )
     if(arg_LIVE)
         set_tests_properties(${name} PROPERTIES RESOURCE_LOCK test-servers LABELS "live")
@@ -90,6 +93,14 @@ if(NOT WIN32)
         COMMAND bash "${CMAKE_SOURCE_DIR}/tests/dev/test_install_extras.sh"
     )
     set_tests_properties(dev_install_extras PROPERTIES TIMEOUT 60 SKIP_RETURN_CODE 77)
+
+    # No QML branches on a skin's name, and no literal border.width in the Kit (#171): a skin
+    # is only its tokens. Reads the source tree.
+    add_test(
+        NAME skin_lint
+        COMMAND bash "${CMAKE_SOURCE_DIR}/tests/dev/test_skin_lint.sh"
+    )
+    set_tests_properties(skin_lint PROPERTIES LABELS "lint" TIMEOUT 60)
 
     # Every tracked shell script is shellcheck-clean (settings in .shellcheckrc). Skips
     # when shellcheck is not installed.

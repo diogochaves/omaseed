@@ -99,6 +99,7 @@ QbtClient::AddOptions wireAddOptions(const AddOptions &options, const QString &a
         wire.filePriorities.append(wirePriority(priority));
     if (options.stopCondition)
         wire.stopCondition = wireStopCondition(*options.stopCondition);
+    wire.downloader = options.downloader;
     return wire;
 }
 
@@ -304,6 +305,26 @@ Reply<QStringList> *QbtEngine::stoppedAmong(const QStringList &hashes)
     });
 }
 
+Reply<QList<RunningTorrent>> *QbtEngine::running()
+{
+    // `running` is qBittorrent's own test of the stop, as `stopped` is (stoppedAmong):
+    // queued, stalled, checking and errored torrents are in it.
+    TorrentsInfoQuery query;
+    query.filter = QStringLiteral("running");
+    return mapReply<QList<RunningTorrent>>(
+        m_client->torrentsInfo(query), this, [](const QJsonArray &array) {
+            QList<RunningTorrent> running;
+            running.reserve(array.size());
+            for (const QJsonValue &value : array) {
+                const QJsonObject torrent = value.toObject();
+                running.append(
+                    RunningTorrent{torrent.value(QStringLiteral("hash")).toString(),
+                                   torrent.value(QStringLiteral("force_start")).toBool()});
+            }
+            return running;
+        });
+}
+
 Reply<QList<CategoryPatch>> *QbtEngine::categories()
 {
     return mapReply<QList<CategoryPatch>>(
@@ -362,9 +383,9 @@ Reply<QList<LogEntry>> *QbtEngine::log(int afterId, bool problemsOnly)
     return mapReply<QList<LogEntry>>(reply, this, QbtTranslate::log);
 }
 
-Reply<FetchedMetadata> *QbtEngine::fetchMetadata(const QString &source)
+Reply<FetchedMetadata> *QbtEngine::fetchMetadata(const QString &source, const QString &downloader)
 {
-    return mapReply<FetchedMetadata>(m_client->torrentsFetchMetadata(source),
+    return mapReply<FetchedMetadata>(m_client->torrentsFetchMetadata(source, downloader),
                                      this,
                                      [](const QbtClient::FetchedMetadata &answer) {
                                          FetchedMetadata fetched;

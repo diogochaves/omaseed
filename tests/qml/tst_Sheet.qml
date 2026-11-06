@@ -47,14 +47,8 @@ TestCase {
                 }
             ]
             anchors.fill: parent
-            footerRight: "server: home"
             glyph: "H"
-            hints: [
-                {
-                    "key": "tab",
-                    "label": "fields"
-                }
-            ]
+            note: "waves of 3, smallest first"
             sheetWidth: Theme.space(420)
             subtitle: "1 torrent · 1.31 GB moves with it"
             title: "Set location"
@@ -176,9 +170,19 @@ TestCase {
     // ---- geometry ---------------------------------------------------------------------
     function test_the_panel_is_opaque_with_a_one_pixel_accent_edge() {
         const sheet = createTemporaryObject(plainSheetComponent, testCase);
-        compare(sheet.panel.color, Theme.background);
-        compare(sheet.panel.border.color, Theme.accent);
-        compare(sheet.panel.border.width, 1);
+        // The skin's Plate draws it (#171): Omarchy's is a rectangle.
+        const plate = findChild(sheet, "sheetPlate");
+        compare(plate.fill, Theme.background);
+        compare(plate.edgeColor, Theme.edgeColor);
+        compare(plate.edgeWidth, Theme.edgeWidth);
+        compare(plate.height, sheet.panel.height);
+        if (Theme.skin.name === "omarchy") {
+            compare(plate.edgeColor, Theme.accent);
+            compare(plate.edgeWidth, 1);
+            compare(plate.face.objectName, "plateFaceOmarchy");
+        } else {
+            compare(plate.face.objectName, "plateFaceConsole");
+        }
     }
 
     function test_the_panel_is_as_wide_as_sheet_width_and_centred() {
@@ -222,41 +226,90 @@ TestCase {
         verify(!line.truncated);
     }
 
-    function test_the_padding_is_sixteen() {
-        const sheet = createTemporaryObject(plainSheetComponent, testCase);
-        compare(sheet.panel.padding, Theme.space(16));
-    }
-
-    function test_the_head_square_is_thirty_with_a_hairline_border() {
+    // Board 46 `.shh`, `.shb`, `.shf`: one inset at the sides, the head and the foot each on a
+    // hairline, from the `Theme.sheet*` tokens (frame plan, "form in tokens").
+    function test_the_form_is_the_sheet_tokens() {
         const sheet = createTemporaryObject(formSheetComponent, testCase);
         sheet.open();
-        const square = findHeadSquare(sheet);
-        verify(square, "the head has no icon square");
-        compare(square.width, Theme.space(30));
-        compare(square.height, Theme.space(30));
-        compare(square.border.color, Theme.fill(Theme.borderIdle));
+        waitForRendering(sheet);
+        compare(findChild(sheet, "sheetPlate").edgeWidth, Theme.sheetEdge);
+        compare(findChild(sheet, "sheetPlate").radius, Theme.sheetRadius);
+        const title = findChild(sheet, "sheetTitle");
+        const at = title.mapToItem(sheet.panel, 0, 0);
+        compare(Math.round(at.x), Theme.sheetEdge + Theme.sheetInset);
+        compare(title.font.pixelSize, Theme.sheetTitleSize);
+        compare(title.font.weight, Theme.sheetTitleWeight);
+        const headRule = findChild(sheet, "sheetHeadRule");
+        const footRule = findChild(sheet, "sheetFootRule");
+        verify(headRule.visible && footRule.visible, "the head or the foot has no rule");
+        compare(headRule.width, sheet.panel.width - 2 * Theme.sheetEdge);
+        const body = findChild(sheet, "sheetBody");
+        const bodyAt = body.mapToItem(sheet.panel, 0, 0);
+        compare(Math.round(bodyAt.x), Theme.sheetEdge + Theme.sheetInset - Theme.focusExtent);
+        verify(bodyAt.y > headRule.mapToItem(sheet.panel, 0, 0).y, "the rows are over the head's rule");
     }
 
-    function findHeadSquare(sheet) {
-        const rows = sheet.panel.children[0].children;
-        for (let i = 0; i < rows.length; ++i) {
-            if (rows[i].children.length > 0 && rows[i].children[0].border !== undefined
-                    && rows[i].children[0].width === Theme.space(30))
-                return rows[i].children[0];
-        }
-        return null;
-    }
-
-    // ---- the buttons (`.acts`) --------------------------------------------------------
-    function test_the_actions_share_the_width_equally() {
+    // Board 46 draws no glyph square in a sheet's head (`Theme.sheetHeadGlyph`).
+    function test_the_head_draws_no_glyph_square_in_this_skin() {
         const sheet = createTemporaryObject(formSheetComponent, testCase);
+        sheet.open();
+        compare(Theme.sheetHeadGlyph, false);
+        verify(!findChild(sheet, "sheetGlyph").visible, "the glyph square shows");
+    }
+
+    // Board 46's move sheet: "Move 3 torrents  81 KB on disk · on public" on one line; a
+    // subtitle that doesn't fit goes under the title.
+    function test_a_short_subtitle_sits_beside_the_title_a_long_one_under_it() {
+        const sheet = createTemporaryObject(formSheetComponent, testCase);
+        sheet.open();
+        waitForRendering(sheet);
+        const title = findChild(sheet, "sheetTitle");
+        const line = findChild(sheet, "sheetSubtitle");
+        tryVerify(() => line.visible, 1000);
+        compare(Math.round(line.mapToItem(sheet.panel, 0, line.baselineOffset).y),
+                Math.round(title.mapToItem(sheet.panel, 0, title.baselineOffset).y));
+        verify(line.mapToItem(sheet.panel, 0, 0).x >= title.mapToItem(sheet.panel, title.width, 0).x,
+               "the subtitle is not after the title");
+        compare(line.font.pixelSize, Theme.sheetSubtitleSize);
+        sheet.subtitle = "a name long enough that it never fits beside the title of a sheet this narrow, said twice over";
+        tryVerify(() => findChild(sheet, "sheetSubtitle").mapToItem(sheet.panel, 0, 0).y
+                  > title.mapToItem(sheet.panel, 0, title.height / 2).y, 1000);
+    }
+
+    // ---- the buttons (board 46 `.shf .btn`) ------------------------------------------
+    // Each as wide as its words, at the foot's right, in the order given; spec v2's equal
+    // widths made the mixed free sheet 880 wide (#169).
+    function test_the_actions_are_as_wide_as_their_words_at_the_right() {
+        const sheet = createTemporaryObject(formSheetComponent, testCase);
+        sheet.open();
+        waitForRendering(sheet);
         const buttons = sheet.actionButtons();
         compare(buttons.length, 3);
-        compare(buttons[0].width, buttons[1].width);
-        compare(buttons[1].width, buttons[2].width);
-        verify(buttons[0].width > 0, "the buttons have no width");
+        for (let i = 0; i < buttons.length; ++i) {
+            compare(buttons[i].width, Math.max(Theme.sheetButtonMinWidth, buttons[i].implicitWidth));
+            compare(buttons[i].sidePadding, Theme.sheetButtonPadding);
+        }
+        verify(buttons[1].width > buttons[0].width, "\"add stopped\" is no wider than \"cancel\"");
+        const last = buttons[2].mapToItem(sheet.panel, buttons[2].width, 0);
+        compare(Math.round(last.x), sheet.panel.width - Theme.sheetEdge - Theme.sheetInset);
+        for (let i = 1; i < buttons.length; ++i) {
+            const gap = buttons[i].mapToItem(sheet.panel, 0, 0).x
+                    - buttons[i - 1].mapToItem(sheet.panel, buttons[i - 1].width, 0).x;
+            verify(Math.abs(gap - Theme.sheetButtonGap) <= 1, "the gap is " + gap);
+        }
         compare(buttons[2].primary, true);
         compare(buttons[0].primary, false);
+    }
+
+    // Board 46 `.btn.pri`: the primary filled with the accent, its words in the ground.
+    function test_the_primary_is_filled_with_the_accent() {
+        const sheet = createTemporaryObject(formSheetComponent, testCase);
+        sheet.open();
+        const primary = sheet.primaryButton();
+        compare(primary.filled, Theme.sheetPrimaryFilled);
+        verify(Qt.colorEqual(primary.color, Theme.accent), "the primary is not filled");
+        const cancel = sheet.actionButtons()[0];
+        verify(!Qt.colorEqual(cancel.color, Theme.accent), "cancel is filled too");
     }
 
     // T5.4: spec §3 draws every `.sheet .acts .btn` as `.btn b` — an idle hairline outline.
@@ -525,6 +578,26 @@ TestCase {
         verify(probe.activeFocus, "the focus was not restored on close");
     }
 
+    // #229: Fig. 10 opens over the add sheet that found it, which then closes behind it. The
+    // sheet on top keeps the keyboard, and gives back, when it closes, what the one under it
+    // would have.
+    function test_a_sheet_closing_under_another_leaves_it_the_keyboard() {
+        const probe = createTemporaryObject(probeComponent, testCase);
+        probe.forceActiveFocus();
+        const under = createTemporaryObject(formSheetComponent, testCase);
+        under.open();
+        const over = createTemporaryObject(confirmSheetComponent, testCase);
+        over.open();
+        const primary = over.primaryButton();
+        verify(primary.activeFocus, "the sheet on top did not take the keyboard");
+
+        under.close();
+        verify(primary.activeFocus, "the sheet closing underneath took the keyboard back");
+
+        over.close();
+        verify(probe.activeFocus, "the focus did not go back to what had it before both");
+    }
+
     // T4.8: `open()` used to land on the first action button, which is `cancel` in every
     // figure, so `enter` cancelled the sheet it had just opened.
     function test_a_body_with_nothing_focusable_puts_the_keyboard_on_the_primary_action() {
@@ -672,11 +745,26 @@ TestCase {
         compare(sheet.opened, false, "escape did not reach a sheet with nothing focusable");
     }
 
-    // ---- the footer (`.ft`) -----------------------------------------------------------
-    function test_the_footer_prints_its_hints_at_caption_size() {
+    // ---- the foot's note (board 46 `.shf`'s dim words) --------------------------------
+    // C24 H10: words at the foot's left, never key hints.
+    function test_the_note_sits_at_the_foots_left_and_the_foot_has_no_key_hints() {
         const sheet = createTemporaryObject(formSheetComponent, testCase);
-        compare(sheet.hints.length, 1);
-        compare(sheet.footerRight, "server: home");
+        sheet.open();
+        waitForRendering(sheet);
+        const note = findChild(sheet, "sheetNote");
+        compare(note.text, "waves of 3, smallest first");
+        compare(note.font.pixelSize, Theme.sheetNoteSize);
+        compare(Math.round(note.mapToItem(sheet.panel, 0, 0).x), Theme.sheetEdge + Theme.sheetInset);
+        verify(note.mapToItem(sheet.panel, note.width, 0).x
+               <= sheet.actionButtons()[0].mapToItem(sheet.panel, 0, 0).x, "the note runs under the buttons");
+        verify(sheet.hints === undefined, "the sheet still takes key hints");
+        verify(!findChild(sheet, "keyHint_tab"), "a key hint is drawn");
+    }
+
+    function test_no_actions_and_no_note_draw_no_foot() {
+        const sheet = createTemporaryObject(plainSheetComponent, testCase);
+        sheet.open();
+        verify(!findChild(sheet, "sheetFootRule").visible, "an empty foot draws its rule");
     }
 
     // ---- inline (the gallery) ---------------------------------------------------------
@@ -824,6 +912,101 @@ TestCase {
         const short = createTemporaryObject(keySheetComponent, testCase);
         short.open();
         compare(short.bodyScrollBar.visible, false);
+    }
+
+    // A line that wraps when the body is a scroll bar narrower: the move sheet's "extras goes
+    // inside …", whose one line is just under the body's width (#201 F23).
+    Component {
+        id: edgeSheetComponent
+
+        Sheet {
+            id: edgeSheet
+
+            property string line: ""
+
+            anchors.fill: parent
+            title: "Edge"
+
+            Label {
+                property int widthChanges: 0
+
+                Layout.fillWidth: true
+                objectName: "edgeLine"
+                size: "small"
+                text: edgeSheet.line
+                wrapMode: Text.Wrap
+
+                onWidthChanged: ++widthChanges
+            }
+
+            Label {
+                Layout.fillWidth: true
+                size: "small"
+                text: "a line under it"
+                wrapMode: Text.Wrap
+            }
+        }
+    }
+
+    Label {
+        id: edgeProbe
+
+        size: "small"
+        visible: false
+    }
+
+    TextMetrics {
+        id: edgeMetrics
+
+        font: edgeProbe.font
+    }
+
+    /// Words, then x's, up to just under `room` px on one line.
+    function lineJustUnder(room) {
+        const words = "extras goes inside the library each torrent keeps its place below".split(" ");
+        let line = words[0];
+        for (let i = 1;; ++i) {
+            edgeMetrics.text = line + " " + words[i % words.length];
+            if (edgeMetrics.advanceWidth > room - 1)
+                break;
+            line = edgeMetrics.text;
+        }
+        for (;;) {
+            edgeMetrics.text = line + "x";
+            if (edgeMetrics.advanceWidth > room - 1)
+                break;
+            line = edgeMetrics.text;
+        }
+        return line;
+    }
+
+    // #201 F23: a body that fits never makes room for the scroll bar. The room once followed
+    // the body's laid-out height, which lags a pass behind its rows': the bar came, the line
+    // wrapped, the bar went, the line unwrapped, every frame, and the window froze (before the
+    // fix this test never returns, and ctest's TIMEOUT on the suite ends it).
+    function test_a_line_a_bar_short_of_wrapping_does_not_loop() {
+        const probe = createTemporaryObject(edgeSheetComponent, testCase);
+        probe.open();
+        const room = findChild(probe, "sheetBody").width - 2 * Theme.focusExtent;
+        const barRoom = probe.bodyScrollBar.width + Theme.space(4);
+        probe.close();
+        edgeMetrics.text = lineJustUnder(room);
+        verify(edgeMetrics.advanceWidth > room - barRoom && edgeMetrics.advanceWidth <= room,
+               "the line is not a bar's width short of wrapping: " + edgeMetrics.advanceWidth);
+
+        const sheet = createTemporaryObject(edgeSheetComponent, testCase, {
+                                                "line": edgeMetrics.text
+                                            });
+        sheet.open();
+        const line = findChild(sheet, "edgeLine");
+        wait(200);
+        verify(!sheet.bodyOverflows);
+        compare(sheet.bodyScrollBar.needed, false);
+        compare(line.lineCount, 1);
+        compare(line.width, room);
+        const changes = line.widthChanges;
+        wait(200);
+        compare(line.widthChanges, changes, "the line's width keeps changing: a layout loop");
     }
 
     // docs/33 A1: the add sheet's server chip sits on the title's line, right after it.

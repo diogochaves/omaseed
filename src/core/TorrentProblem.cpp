@@ -310,6 +310,7 @@ QVariantMap TorrentProblem::toMap() const
         {QStringLiteral("file"), file},
         {QStringLiteral("folder"), folder},
         {QStringLiteral("loggedAtText"), Format::relativeTime(loggedAt)},
+        {QStringLiteral("loggedAt"), loggedAt},
         {QStringLiteral("count"), count},
         {QStringLiteral("line"), line},
         {QStringLiteral("ambiguous"), ambiguous},
@@ -333,6 +334,7 @@ QVariantMap TorrentFailure::toMap() const
         {QStringLiteral("destination"), destination},
         {QStringLiteral("torrentFile"), torrentFile},
         {QStringLiteral("loggedAtText"), Format::relativeTime(loggedAt)},
+        {QStringLiteral("loggedAt"), loggedAt},
         {QStringLiteral("count"), count},
         {QStringLiteral("line"), line},
         {QStringLiteral("ambiguous"), ambiguous},
@@ -554,9 +556,14 @@ TorrentProblem describeStuckMove(const Torrent &torrent, const ProblemLine *line
     const QString why = line && !line->systemMessage.isEmpty()
                             ? tr("qBittorrent couldn't move them: %1.").arg(line->systemMessage)
                             : tr("Its files are still in its incomplete folder.");
-    problem.detail = why + QLatin1Char(' ') + tr("It's seeding from %1.").arg(problem.source);
+    // DECISIONS C28 (#158): qBittorrent ignores a move to the save path it already has, so the
+    // retry is a recheck: once it checks complete, qBittorrent moves the files there
+    // (scripts/dev/research/121-stuck-move).
+    problem.detail = why + QLatin1Char(' ') + tr("It's seeding from %1.").arg(problem.source) +
+                     QLatin1Char(' ') + tr("Once there is room, a recheck moves it there.");
     problem.advice = tr("Partial copies may be left in the destination.");
-    problem.actions = {QStringLiteral("bothFolders"), QStringLiteral("location")};
+    problem.actions = {
+        QStringLiteral("bothFolders"), QStringLiteral("recheck"), QStringLiteral("location")};
     return problem;
 }
 

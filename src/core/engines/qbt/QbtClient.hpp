@@ -107,8 +107,32 @@
 //   POST torrents/add (urls=)           torrentsAddUrls(urls, options)
 //   POST torrents/add (multipart file)  torrentsAddFile(fileName, bytes, options)
 //   POST torrents/add (multipart, many) torrentsAddMany(files, urls, options)
-//   POST torrents/fetchMetadata         torrentsFetchMetadata(source)  -- 202 still looking,
-//                                          200 the metadata; kept per Web UI session (#44)
+//   POST torrents/fetchMetadata         torrentsFetchMetadata(source, downloader)  -- 202 still
+//                                          looking, 200 the metadata; kept per Web UI session (#44)
+//
+// Search (#145, DECISIONS C26), checked on the 5.3.0 playground (Web API 2.16.2) with invented
+// local plugins (scripts/dev/search-plugins.py):
+//   POST search/start                   searchStart(pattern, category, plugins) -- {id}; 409
+//                                          "Python must be installed…" or at five running
+//   GET  search/status                  searchStatus(id)  -- [{id, status, total, …}]
+//   GET  search/results                 searchResults(id, limit, offset)
+//   POST search/stop, search/delete     searchStop(id), searchDelete(id)
+//   GET  search/plugins                 searchPlugins()
+//   POST search/installPlugin           searchInstallPlugin(sources)  -- 200 whatever happens
+//   POST search/uninstallPlugin         searchUninstallPlugin(names)
+//   POST search/enablePlugin            searchEnablePlugin(names, enable)
+//   POST search/updatePlugins           searchUpdatePlugins()  -- the outcome is in log/main
+//
+// The torrent creator (#146, DECISIONS C27), checked on the 5.3.0 playground (Web API 2.16.2;
+// scripts/dev/research/146-torrent-creator):
+//   POST torrentcreator/addTask         torrentCreatorAddTask(task)  -- {taskID}
+//   GET  torrentcreator/status          torrentCreatorStatus(id)  -- [{status, progress, …}];
+//                                          404 for a task it doesn't know (a restart). Its
+//                                          reply echoes the trackers, passkeys included: it is
+//                                          never logged, and neither is any error's body
+//   GET  torrentcreator/torrentFile     torrentCreatorTorrentFile(id)  -- the bytes; 409 with
+//                                          qBittorrent's words while unfinished or failed
+//   POST torrentcreator/deleteTask      torrentCreatorDeleteTask(id)  -- a running one stops
 // Anything else goes through the generic get() / post().
 
 #include "core/ApiError.hpp"
@@ -376,6 +400,9 @@ public:
         /// session already fetched (torrentsFetchMetadata); qBittorrent answers 400 otherwise,
         /// and with a file upload (docs/11 D1). Empty leaves it off.
         QList<int> filePriorities;
+        /// Web API 2.13.1's `downloader`: the search plugin that fetches a link to a `.torrent`
+        /// (a search result's, DECISIONS C26 SR9). Unset leaves it off.
+        std::optional<QString> downloader;
         /// qBittorrent's `stopCondition`: "MetadataReceived" stops the torrent as soon as its
         /// metadata is in (docs/29 D5), "FilesChecked" after the check. Unset leaves it off.
         std::optional<QString> stopCondition;
@@ -401,7 +428,13 @@ public:
     /// (docs/29 §3). The result is kept in the Web UI session, so every poll and the add that
     /// follows must go through this one client. A 404 is a server
     /// without the endpoint.
-    Reply<FetchedMetadata> *torrentsFetchMetadata(const QString &source);
+    /// `downloader` (a search plugin's name, C26 SR9) fetches a link through that plugin; empty
+    /// leaves it off.
+    Reply<FetchedMetadata> *torrentsFetchMetadata(const QString &source,
+                                                  const QString &downloader = QString());
+    /// True when a server with this app/webapiVersion has torrents/fetchMetadata and takes
+    /// `filePriorities` on an add: 2.11.9 and later.
+    static bool supportsFetchMetadata(const QString &apiVersion);
     /// True when a server with this app/webapiVersion skips the add's check through
     /// `seedMode`: Web API 2.16.0 (qBittorrent 5.3) added it and stopped reading
     /// `skip_checking`, which every earlier version reads instead.
@@ -431,6 +464,62 @@ public:
 
     Reply<QByteArray> *transferSetDownloadLimit(qint64 bytesPerSec);
     Reply<QByteArray> *transferSetUploadLimit(qint64 bytesPerSec);
+
+    // --- search (#145, DECISIONS C26) ------------------------------------------------------
+    /// POST search/start: `category` "all" or a type's id, `plugins` names (or "enabled",
+    /// "all"), joined with '|'. Resolves to the job's id. Its 409 keeps qBittorrent's words:
+    /// "Python must be installed to use the Search Engine." or "Unable to create more than 5
+    /// concurrent searches.".
+    Reply<int> *
+    searchStart(const QString &pattern, const QString &category, const QStringList &plugins);
+    /// GET search/status: every job's, or job `id`'s (-1: all). 404 for an unknown id.
+    Reply<QJsonArray> *searchStatus(int id = -1);
+    /// GET search/results: `{results, status, total}` from `offset`, at most `limit` (0: all).
+    Reply<QJsonObject> *searchResults(int id, int limit = 0, int offset = 0);
+    Reply<QByteArray> *searchStop(int id);   ///< POST search/stop
+    Reply<QByteArray> *searchDelete(int id); ///< POST search/delete
+    /// GET search/plugins: `[{name, fullName, version, url, enabled, supportedCategories}]`.
+    Reply<QJsonArray> *searchPlugins();
+    /// POST search/installPlugin: URLs, or paths on the server's own machine, joined with '|'.
+    Reply<QByteArray> *searchInstallPlugin(const QStringList &sources);
+    Reply<QByteArray> *searchUninstallPlugin(const QStringList &names);
+    Reply<QByteArray> *searchEnablePlugin(const QStringList &names, bool enable);
+    Reply<QByteArray> *searchUpdatePlugins();
+
+    // --- the torrent creator (#146, DECISIONS C27) -------------------------------------------
+    /// Everything omaseed sends to addTask: always every field, so qBittorrent's defaults
+    /// (hybrid, startSeeding on, which loses the .torrent when the start fails) never apply.
+    struct CreateTask
+    {
+        QString sourcePath;
+        /// "v1", "v2" or "hybrid".
+        QString format = QStringLiteral("v1");
+        /// Bytes; 0 lets qBittorrent choose (CreatePlan::autoPieceSize says what it will).
+        qint64 pieceSize = 0;
+        bool isPrivate = false;
+        /// Hidden files (names starting with a dot) left out.
+        bool ignoreDotfiles = true;
+        /// One tier each, in order: joined with `||`, which starts a new tier (`|` would put
+        /// them in one).
+        QStringList trackers;
+        QStringList urlSeeds;
+        QString source;
+        QString comment;
+    };
+    /// POST torrentcreator/addTask (Web API 2.10.4): the new task's id. `startSeeding` is
+    /// always false and `torrentFilePath` never sent: omaseed fetches the file itself (C27
+    /// CR12).
+    Reply<QString> *torrentCreatorAddTask(const CreateTask &task);
+    /// GET torrentcreator/status for one task: its entry (`status` Queued, Running, Finished or
+    /// Failed, `progress`, `pieceSize`, `errorMessage`, …). 404 when the server doesn't know it.
+    /// The reply holds the trackers in full: never log it.
+    Reply<QJsonObject> *torrentCreatorStatus(const QString &taskId);
+    /// GET torrentcreator/torrentFile: the .torrent's bytes. 409 keeps qBittorrent's words.
+    Reply<QByteArray> *torrentCreatorTorrentFile(const QString &taskId);
+    /// POST torrentcreator/deleteTask: forgets a finished task, stops a running one.
+    Reply<QByteArray> *torrentCreatorDeleteTask(const QString &taskId);
+    /// True when a server with this app/webapiVersion has the torrent creator: 2.10.4 on.
+    static bool supportsTorrentCreator(const QString &apiVersion);
 
     /// A POST whose body is a multipart form (e.g. torrentsAddFile). `buildMultiPart` makes
     /// a fresh, unparented QHttpMultiPart for every attempt (the client parents it to the
@@ -470,6 +559,11 @@ private:
         /// message, where the status alone doesn't say what went wrong (getDirectoryContent's
         /// 404 is a missing folder or a missing endpoint).
         bool errorKeepsBody = false;
+        /// Sent on a slot of its own, beside the maxConcurrentRequests() the rest share:
+        /// sync/maindata, which is how a server that stopped answering is found out (#201).
+        /// Queued behind the details pane's requests to a frozen server, it waited out their
+        /// 15 s before its own, and the notice came twice as late.
+        bool ownSlot = false;
         /// Set instead of `form` for a multipart POST: called once per attempt, see
         /// postMultipart().
         std::function<QHttpMultiPart *()> buildMultiPart;

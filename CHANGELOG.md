@@ -5,7 +5,227 @@ All notable changes to omaseed are logged here, newest first. Loosely follows
 versioning stability (pre-1.0). `scripts/release.sh` requires a `## v<version>` section here
 before it will tag a release.
 
-## Unreleased
+## v0.7.0 — 2026-11-05
+
+### Added
+
+- **A speed picked outside the window says so.** The bus gains `PickAltSpeed` (off, turtle or
+  burst) and the status file `alt.pick`; a pick from the bus, the tray or the widget's ⋯ sends
+  a notice once it has taken effect, with what was picked and its limits (and a pointer to
+  Settings › qBittorrent › Speed while turtle is still at qBittorrent's defaults). (#214)
+- **Torrent added.** An add from the add window (a browser's or file manager's hand-off, the
+  tray's or the widget's add) sends a notice once qBittorrent has it: its name, size and
+  category, one per torrent when you added several, a merge of trackers into one you already
+  have too. A click shows the torrent. Adds made in the main window stay quiet. Its own switch
+  is in Settings › Notifications, on by default. (#219)
+
+### Changed
+
+- **Adds from outside open where you are.** A `.torrent` or magnet handed over by a browser or
+  file manager, and the add from the tray, the widget's ⋯ or the bus, open the add sheet in a
+  small window of its own, floating on the workspace you are on, with focus. The main window
+  stays where it was, or hidden. When you were in the main window a moment before, the add
+  opens there, as before; first run still holds adds on its page. A plain launch (the
+  launcher) still brings the main window up. (#217, #218)
+- **Pause Torrents and Resume Torrents, in place of stop all and start all.** Start all
+  started every torrent on the server, the ones you had kept stopped on purpose too. Pause
+  Torrents stops what is running and remembers exactly those, per server, across a restart of
+  omaseed; while a pause is held the row reads Resume Torrents, which starts those again (a
+  force-started one comes back forced) and leaves the rest as they were. One row in the tray,
+  the widget's ⋯, the window's menu and a server's menu in the rail; it is off while a pause or
+  a resume is on its way. The status file gains `paused.count` (`plugin/STATUS.md`); the bus's
+  `Invoke` takes `pause` and `resume`, and still `stop-all` and `start-all`, so scripts written
+  against them keep working. (#213)
+
+### Fixed
+
+- **"Already in your library" answers the keyboard again.** When it showed alone, after a
+  duplicate was handed over or dropped, esc didn't close it and its buttons had no keyboard,
+  in the main window as well. (#229)
+
+## v0.6.0 — 2026-11-05
+
+### Added
+
+- **Search has a rail of its own.** On the search view the rail holds what a search is made of:
+  your plugins, each ticked or not and with how it answered (a count, still asking, slow,
+  failed), a click to leave one out or bring it back; the type to search in; and this
+  session's recent searches, a click to ask again. Recent searches stay in memory only and are
+  never saved. While the rail is open the plugins and type menus leave the search bar; fold the
+  rail (`ctrl+b`) and they come back. (#205)
+- **A way to your plugins from search.** "install a plugin…" at the foot of the rail's plugins
+  (or "manage plugins…" in the plugins menu with the rail folded) opens Settings › qBittorrent ›
+  Search plugins with the install field ready; esc goes back to the search. A plugin turned off
+  in Settings shows dimmed, and a click opens its settings. (#205)
+- **Clear a search.** The search field ends in "× esc" while it has words or results: a click,
+  or esc, clears both and stops any plugin still asking. esc backs out one step at a time: an
+  open pane, then the rows, then the search, then the view. (#205)
+
+### Fixed
+
+- v0.5.0 listed a Settings freeze as a known limit; it was already fixed in that release, and a
+  check of every other scrolling pane found none like it. (#186)
+
+## v0.5.1 — 2026-11-04
+
+### Fixed
+
+- **An interrupted import starts what it should.** When qBittorrent checks the imported
+  torrents one at a time, a complete torrent waiting for its turn could be taken for one with
+  nothing on disk and left stopped. The import now waits while any of its torrents is still
+  being checked. (#208)
+- **A move tidies up after itself.** The folders a torrent's own move leaves empty are removed,
+  on the first move and on the move back, up to the folder you moved; a folder that still
+  holds anything, a hidden file included, stays, as do every destination and qBittorrent's
+  default save path. Only on disks omaseed can see. (#203)
+- **The floating action bar is opaque** over the list, in both skins, and so is the outcome
+  strip above it. (#202)
+- **Search's idle sentence** names the server before its plugins ("asks public's 3 plugins
+  that are on"), instead of "that is on on public". (#206)
+- The title bar no longer fills the log with "anchors on an item managed by a layout". (#204)
+
+## v0.5.0 — 2026-11-04
+
+### Added
+
+- **The window answers five questions.** The rail now lists what needs you, what is arriving,
+  what landed today, what is giving back and what is resting, keys `1`–`5` (`0` is the whole
+  library), under the views library, seed, log and search, with the servers and settings at
+  its foot. Drag its edge to size it; it folds to a column of icons by itself when the window
+  gets narrow, or by hand with `ctrl+b` or the tab on its edge. Right-click a server for its
+  menu: switch to it, its alternative speeds, stop or start all, edit, test, open its web UI,
+  copy its address. A question asks across the whole library, whatever folder you were in.
+  Every state is still in the filter (`is:stalled`) and the `:` palette. (#167, #201)
+- **Rows, table or space.** The library can show rows grouped under the five questions, in
+  words before numbers ("waiting · no seed", "ready in 3 min"), the table as one sorted list,
+  or space: where the space goes, a size map by folder, then torrent. The display tool in the
+  title bar or `:` "show as…" picks one, and each folder, category, tag and question remembers
+  its own; the tool's menu also sorts, and its word says how ("rows · added"). New installs
+  start on rows; an existing install keeps the table. (#168, #201)
+- **Details tell the story.** The pane opens on one fact and a sentence, then story · files ·
+  swarm · trackers · facts (`1`–`5` while the pane has the keys). The story starts with what
+  went wrong or the last move, then what happened to the torrent, newest first, and its lines
+  in the log. The size says what skipped files still hold on disk. (#169, #201)
+- **Search through your qBittorrent's search plugins.** `ctrl+f` searches with the plugins you
+  install on your server (Settings › qBittorrent › Search plugins); omaseed names, ships and
+  scrapes no site. Results arrive as each plugin answers, one row per torrent with the other
+  copies' trackers folded in, unknown seed counts shown as "?", and a plugin that fails or is
+  slow named with the reason. Rows you already have read "in your library" or "likely on
+  disk"; adding goes through the add sheet. (#145)
+- **Create a torrent from a folder.** "+ add ▾" › create (`ctrl+n`), also from `:` and a
+  folder's menu. For anyone, it seeds at once from where the files are and copies the magnet.
+  For a private tracker, it fills in the announce from your library (the passkey only ever
+  shown as dots), sets the private flag, v1 and the source tag, and saves the `.torrent` for
+  the upload without adding it; when you add the site's copy back, omaseed recognises the
+  files and seeds it in place without downloading. (#146)
+- **Turtle and burst.** qBittorrent keeps one set of alternative speeds; omaseed now gives you
+  two presets for it. Turtle is that set, as qBittorrent's schedule and other clients see it;
+  burst is written over it for 30 minutes, an hour or until you stop it, and turtle is written
+  back after, also when omaseed quits mid-burst. The status line's chip, or the menus'
+  alternative speeds row, opens the choice; `A` flips the last one picked; both presets are in
+  Settings › qBittorrent › Speed. While one is on, the chip is tinted in its colour and each
+  speed reads against its cap ("↓ 290 / 300 KB/s"). (#201)
+- **The log has its own rail.** The four levels with their counts, ticked on and off (`1`–`4`),
+  the torrents its lines are about, and since when; `/` filters its lines in the title bar, and
+  "export log…" saves them as shown. (#201)
+- **A second skin, Console.** Settings › Appearance › Skin: Omarchy, Console, or follow the
+  desktop (Console while the console desktop's skin is on). The whole window repaints at
+  once, no restart. (#171)
+
+### Changed
+
+- **A floating action bar.** Select torrents and a bar floats over the list with the torrent
+  menu's own actions, icons and words: stop or start, recheck, move…, category › and tags ›
+  (lists that set them for the whole selection), limits…, more › for the rest, delete…, esc;
+  narrow, the words go before the icons. The status line stays on the server meanwhile. The
+  outcome strip floats above the bar, and its "show" appears only when it brings something
+  back into view, and says why. (#167, #170, #201)
+- **A title bar instead of the hero.** The title and a sentence name what you are looking at
+  ("2 need you · 7 arriving, the next in 3 min"); a picked folder gets "move this folder…".
+  The speeds sit beside it, each with its last minute drawn under it (Settings › Appearance ›
+  Speeds puts them in the status line instead), and the filter takes the free room when you
+  use it, `cat:` and the like on chips. Notices, moves and creations sit in bands under it,
+  beside a rail you can still use. (#167, #201)
+- **Keys when you ask for them.** Hold alt for badges on every control, the details tabs
+  included, read them in tooltips, menus, the palette and `?`. Sheets no longer print key
+  lines at their foot; `?` has an "in a sheet" block. Moving the keys between the rail, the
+  list and the details shows which one has them. (#167, #170, #201)
+- **The omaseed menu** (`ctrl+.` or the mark) grows out of the mark, the version first: the
+  tray's rows plus the window's own (seed console, log, commands, keys and help, hide).
+  (#167, #170, #201)
+- **One look for every sheet and menu.** Sheets share one head and foot, the main button
+  filled; the torrent menu has an icon on every row and groups its verbs (run, place,
+  transfer, reach, delete), with transfer, queue and copy as submenus, keys on the right and
+  the torrent's state in its head. (#170, #201)
+- **Settings works as a form.** Tab goes to the next field; each server row ends in a ›, and
+  "edit" from its menu (or `e`) opens its form. Picking an API key or a username when signing
+  in puts the caret in its field. (#201)
+- **Move back brings back the loose files** a folder move carried, under their own tick; a file
+  changed at the new place since stays there, and the summary names it. (#201)
+- **The surface tint is back**, on the rail only: Settings › Appearance › Surface tint, off,
+  4 % or 8 %. (#201)
+- **Opaque by default,** like the other apps; Settings › Appearance › Window keeps
+  "translucent". (#167)
+- **Text reads on every fill.** Selected, hovered, pressed and tinted rows lift their dim and
+  coloured words just enough to read at 4.5:1 in every theme, without flattening captions into
+  the main text; also inside blocks, on the action bar's buttons and on hovered settings rows.
+  (#90, #188)
+- **When only adding it again frees the space,** on a hybrid or v2-only torrent, the band, `F`
+  and the free sheet say so up front and offer "Add it again…" instead of a free that frees
+  nothing. (#169)
+
+### Fixed
+
+- **Adding a magnet before its file list arrives no longer crashes qBittorrent 5.3.0.** The add
+  sheet holds the add until the list is in, or a minute has passed, and says so. (#193)
+- **A base-size change applies at once.** Spacing, column widths, the details pane and the
+  rail's "N below" hint follow the shell's base size (or Appearance's) without a restart.
+  (#156, #184)
+- **The rail's group headings** no longer show the hover fill when nothing hovers them, and their
+  fill no longer cuts against the line above. (#187, #201)
+- **Switching servers no longer flashes red**: the dot reads "connecting" until the server
+  answers. A server just added shows its torrent count at once. (#201)
+- **Tooltips** are opaque, as wide as their words, and no longer stay on screen after `ctrl+b`.
+  (#201)
+- **A narrow window** keeps room for the names: no words drawn over others, the category, time
+  and state giving way first. (#201)
+- **A sheet could freeze the window** when one of its lines was just short of wrapping (the
+  folder Move sheet, on some folders). (#201)
+- **A move's long details** in its band show a scroll bar. (#201)
+
+### Known limits
+
+- The floating action bar is see-through over the list; it becomes opaque in v0.5.1. (#202)
+- Settings' pane can, in rare window sizes, flip its scroll bar on and off and freeze the
+  window. (#186)
+- Once a search plugin is installed, the search view has no way to the plugins: add or remove
+  them in Settings › qBittorrent › Search plugins. A later release links them from search.
+
+## v0.4.0 — 2026-10-23
+
+### Added
+
+- **Skipped files that still take space.** A file you skip after it was written stays on disk:
+  qBittorrent never deletes it. The Files tab now has an "On disk" column, the footer says what
+  skipped files hold, and past 1 GiB or 5 % of the torrent a yellow band says so with "Why?".
+  **Free the space** (the band's button, `shift+f`, or "free the space…" in the `:` palette)
+  stops the torrent, deletes those files, starts it and rechecks, after a sheet that says
+  exactly what goes. On a hybrid or v2-only torrent a file that holds downloaded pieces stays
+  (a recheck there would leave the torrent short of 100 % for good); the sheet says why and
+  offers to add the torrent again instead, which keeps your other files and choices.
+- **A big tick waits 3 s, with Undo.** Ticking files that are skipped makes qBittorrent create
+  them at full size at once, even on a stopped torrent. A tick that adds more than 1 GiB, or
+  wants the whole torrent, now waits 3 s in a band with Undo (`u`) and Send now (`⏎`); a
+  misclick undone in time never reaches qBittorrent.
+- **Drives that can't hold part of a file.** On ntfs3, exFAT and FAT, a ticked file takes its
+  whole size the moment it is wanted. The add sheet and the Files tab say so, check the room
+  before a tick is sent (one that doesn't fit always waits), and name files of 4 GiB or more on
+  FAT32, with "Skip these".
+- **The add sheet names a torrent's extras.** NFO files, samples and adverts get a dim "extra"
+  on their row and a line under the tree; they stay ticked, so the torrent seeds whole.
+- **Search by words.** The library filter and the Files filter match words in any order and
+  ignore the dots, dashes and underscores between them: "big buck bunny" finds
+  Big.Buck.Bunny.
 
 ### Changed
 
@@ -31,8 +251,25 @@ before it will tag a release.
   seeding from there in no error state. omaseed now marks the row "move failed", in red, and
   General says where the files never arrived, why (from qBittorrent's log), where it is seeding
   from and what partial copies were left, with "show both folders" and "set location…".
+- **A stuck move offers a recheck.** When a finished torrent couldn't move because the
+  destination was full, its red block now offers `c recheck`: once there is room, the recheck
+  moves it, where moving it to the same folder again did nothing.
+- **"replace it" for an empty file in a move's way.** When a move's destination already holds
+  an empty file that no torrent owns, the Move sheet offers to replace it instead of leaving
+  that torrent out.
+- **Ready for other engines.** A `servers.json` written by a future omaseed that talks to
+  Transmission or Deluge is read and kept as it is; a server of another engine is listed and
+  never contacted.
+- **Screen readers** hear every field by its name, which rail row and which choices are
+  selected, a notice's line before its actions, and nothing of a sheet's background.
 
 ### Fixed
+
+- **A magnet clicked while omaseed is closed opens the add sheet.** From a browser or the file
+  manager the link was lost on the way in (the app started, with no sheet); it now opens the
+  sheet, or says at once that the torrent is already in your list.
+- **The library table's Status cells line up.** About one start in eight drew a row's glyph
+  and word 4 px to the left.
 
 - **"Skip hash check" works with qBittorrent 5.3.** 5.3 reads the option under a new name and
   silently ignored the old one, so a torrent added with it for files already on disk came in
@@ -44,6 +281,33 @@ before it will tag a release.
   server doesn't have (such as 5.3's dropped folders for copies of .torrent files) is left out.
 - **`omaseed --help`, `--version` and `--theme-roles` work with no display.** Over SSH, in a
   container or in a package check they print and exit, instead of aborting before a word.
+
+## v0.3.3 — 2026-10-22
+
+### Fixed
+
+- **A big torrent's move no longer reads 100 % from its first second.** qBittorrent makes a
+  torrent's file at its new place at full length before it copies into it, so the band
+  measured the whole size there at once and its bar sat at 100 % for the whole move. It now
+  says how long the torrent has been moving, and that qBittorrent doesn't report a single
+  move's progress, until it lands.
+- **"Added during the move" counts only torrents added during the move.** After moving one
+  torrent, the summary could say that dozens were "added during the move" and still at the
+  old place: every other torrent saved in the same folder. It now counts only those added
+  after the move started.
+- **A file already at the destination says what it is.** When a torrent is left out because a
+  file with its name is already where it would go, the Move sheet now says what that file is
+  and whose: "an empty file no torrent owns" (often what an earlier failed copy left), or "a
+  file of 4.2 GB that NAME owns". On a server whose disks omaseed can't see, it says only
+  whose it is.
+- **A big move's details stay inside its band.** "details" on the summary of a move of many
+  torrents listed every one of them down to the bottom of the window, with the details pane
+  and the footer drawn over the list. Long details now take at most a third of the window and
+  scroll inside it (with the arrow keys, j/k, page up/down, home and end once Tab reaches
+  them); the library moves down under them. This holds for every notice with long details.
+- **A moved torrent's later trouble is said in plain words.** The move's record said
+  "later: missingFiles"; it now says "later: missing files · set location… or recheck it", as
+  the table does, and starts where the band's own words end instead of repeating them.
 
 ## v0.3.2 — 2026-10-22
 

@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
 # omaseed — the shared-menu walkthrough (#73, docs/33 §11: D10, D24, D25). One menu, built once
-# in the app, shown by the tray and by the bar widget popup's ⋯: first run puts the widget in
-# the bar; with one server the ⋯ has no servers and the server line no ▾ (D19); "private" is
-# added; ctrl+. opens the menu and switches to private, ctrl+s opens the servers and a click
-# goes back to public; quit from the ⋯. Then "In the bar: both" (D25, read from the two old
+# in the app, shown by the tray, by the bar widget popup's ⋯ and by the window's mark (ctrl+.,
+# DECISIONS C24 H9): first run puts the widget in the bar; with one server the ⋯ and the
+# window's menu have no servers and the server line no ▾ (D19); "private" is added; the
+# window's menu switches to private and back, and opens settings… by its key; the widget's
+# ctrl+. opens its menu and switches to private, ctrl+s opens the servers and a click goes
+# back to public; quit from the ⋯. Then "In the bar: both" (D25, read from the two old
 # settings), the tray's menu with its servers block, a switch from it, and quit from it. What
 # each action must leave is checked in servers.json and the process list, not only in shots.
 #
@@ -19,6 +21,10 @@
 set -euo pipefail
 
 repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+# DECISIONS C24 H4: a new install shows the rows display, and a box is a new install. This
+# walk reads the table (its columns, its rows' order), so it pins the table: every scope starts
+# on it (App's OMASEED_DISPLAY), passed to each launch here and by app-box.sh.
+export OMASEED_DISPLAY="${OMASEED_DISPLAY:-table}"
 cd "$repo"
 APP_BOX="$repo/scripts/dev/app-box.sh"
 APP_ID=io.github.diogochaves.omaseed
@@ -195,17 +201,39 @@ elif command == "bands":
 PY
 }
 
-# bar_rect: "X Y W H" of the stock bar (its layer surface, omarchy-bar).
+# bar_rect: "X Y W H" of the stock bar's strip. Its layer surface (omarchy-bar) is the strip
+# itself in Omarchy 4.5.0; since 4.5.0-3 the layer covers the whole screen (its popups draw in
+# it), so the strip is then the edge of its monitor the bar reserves, as `monitors` reports it
+# ([left, top, right, bottom]).
 bar_rect() {
-    omabox hyprctl -b "$BOX" layers -j | python3 -I -c '
+    local layers
+    layers="$(omabox hyprctl -b "$BOX" layers -j)" || return 1
+    omabox hyprctl -b "$BOX" monitors -j | python3 -I -c '
 import json, sys
-for monitor in json.load(sys.stdin).values():
+monitors = {m["name"]: m for m in json.load(sys.stdin)}
+for name, monitor in json.loads(sys.argv[1]).items():
     for layers in monitor["levels"].values():
         for layer in layers:
-            if layer["namespace"] == "omarchy-bar":
-                print(layer["x"], layer["y"], layer["w"], layer["h"])
+            if layer["namespace"] != "omarchy-bar":
+                continue
+            x, y, w, h = layer["x"], layer["y"], layer["w"], layer["h"]
+            m = monitors.get(name)
+            if m is None:
+                sys.exit("omarchy-bar is on %s, which monitors does not list" % name)
+            mw, mh = round(m["width"] / m["scale"]), round(m["height"] / m["scale"])
+            if w < mw or h < mh:
+                print(x, y, w, h)
                 sys.exit(0)
-sys.exit(1)'
+            left, top, right, bottom = m["reserved"]
+            if top > 0:
+                print(m["x"], m["y"], mw, top)
+            elif bottom > 0:
+                print(m["x"], m["y"] + mh - bottom, mw, bottom)
+            else:
+                sys.exit("omarchy-bar covers %s (%dx%d) and reserves no top or bottom strip (reserved %s)"
+                         % (name, mw, mh, m["reserved"]))
+            sys.exit(0)
+sys.exit("no omarchy-bar layer")' "$layers"
 }
 
 # tray_id: omaseed's tray item's Id, the name the tray pins it by.
@@ -247,8 +275,17 @@ PY
 # park: the pointer on the bar's far end from the tray, so nothing near the tray is hovered (no
 # tooltip over the menu) and the shots see the same thing each time.
 park() { omabox pointer -b "$BOX" -- move "$((BAR_X + 2))" "$((BAR_Y + BAR_H / 2))" >/dev/null 2>&1 || true; }
-bar_shot() { omabox shot -b "$BOX" --no-pointer -g "$BAR_X,$BAR_Y ${BAR_W}x$BAR_H" -o "$1" >/dev/null 2>&1; }
-under_shot() { omabox shot -b "$BOX" --no-pointer -g "$UNDER" -o "$1" >/dev/null 2>&1; }
+# shoot WHAT ARGS…: `omabox shot ARGS…`, or the walk ends here saying what it could not take
+# and why (under set -e a failed shot would end it with no word).
+shoot() {
+    local what="$1" err
+    shift
+    err="$(omabox shot -b "$BOX" "$@" 2>&1 >/dev/null)" && return 0
+    echo "menu-walk: could not take $what (omabox shot $*): ${err:-no message}" >&2
+    exit 1
+}
+bar_shot() { shoot "the bar" --no-pointer -g "$BAR_X,$BAR_Y ${BAR_W}x$BAR_H" -o "$1"; }
+under_shot() { shoot "what is under the bar" --no-pointer -g "$UNDER" -o "$1"; }
 bar_changed() { omabox wait -b "$BOX" --timeout 5s change -g "$BAR_X,$BAR_Y ${BAR_W}x$BAR_H" >/dev/null 2>&1 || true; }
 # bar_until as|unlike SHOT: until the bar looks as SHOT shows it, or not (10 s at most), then
 # until it is still. The shell may redraw before a `wait change` could start, so it is polled.
@@ -272,7 +309,9 @@ bar_until() {
 # "<", or what sits before the tray) is further in.
 tray_find() {
     local pinned run
-    read -r BAR_X BAR_Y BAR_W BAR_H < <(bar_rect) || return 1
+    local rect
+    rect="$(bar_rect)" || { echo "  the stock bar's strip was not found" >&2; return 1; }
+    read -r BAR_X BAR_Y BAR_W BAR_H <<<"$rect"
     park
     settle
     bar_shot "$OUT_ROWS.bar-drawer.png"
@@ -330,6 +369,15 @@ tray_menu_row() {
 
 running() { omabox run -b "$BOX" -- pgrep -x omaseed >/dev/null 2>&1; }
 not_running() { ! running; }
+# gone: until omaseed's process has ended (10 s). Its window can be gone, or hidden, well before
+# the process is: a quit still writes what it writes on quit, so the check waits on the process.
+gone() {
+    omabox wait -b "$BOX" --timeout 10s window "$APP_ID" --gone >/dev/null 2>&1 || true
+    for _ in $(seq 1 40); do
+        running || return 0
+        sleep 0.25
+    done
+}
 
 popup() { omabox run -b "$BOX" -- omarchy-shell chaves.omaseed toggle >/dev/null; settle; }
 settle() { omabox wait -b "$BOX" --timeout 5s still >/dev/null 2>&1 || true; }
@@ -348,9 +396,9 @@ step() {
     else
         settle
         if [ -n "${3:-}" ]; then
-            omabox shot -b "$BOX" -g "$3" -o "$OUT/$file" >/dev/null 2>&1
+            shoot "step $STEP's shot" -g "$3" -o "$OUT/$file"
         else
-            omabox shot -b "$BOX" -o "$OUT/$file" >/dev/null 2>&1
+            shoot "step $STEP's shot" -o "$OUT/$file"
         fi
         printf -- '- **%02d %s**: %s\n  ![](%s)\n' "$STEP" "$1" "$2" "$file" >>"$OUT/index.md"
         echo "$(printf '%02d' "$STEP") $1 -> $OUT/$file"
@@ -389,13 +437,14 @@ OUT_ROWS="$(mktemp -d "${TMPDIR:-/tmp}/omaseed-menu-walk-tray-XXXX")/tray"
 
 # ---- first run, the widget put in the bar ----------------------------------------------------
 "$APP_BOX" restart -b "$BOX" >/dev/null
-keys Return -s 800
+keys Return -s 800ms
 clip public
-keys Return -s 600 Tab ctrl+a -t public Tab Tab space Tab Tab -t admin Tab ctrl+v Tab Return -s 2500
+# space on the cookie chip puts the caret in Username (#201 F1).
+keys Return -s 600ms Tab ctrl+a -t public Tab Tab space -t admin Tab ctrl+v Tab Return -s 2500ms
 unclip
 # continue, "not now" on links, then the bar step's own focus: "add to the bar".
-keys Tab Tab Return -s 1500 Tab Return -s 1500 Return -s 4000
-keys Return -s 3000
+keys Tab Tab Return -s 1500ms Tab Return -s 1500ms Return -s 4000ms
+keys Return -s 3000ms
 check "the widget is in the bar: its plugin is linked" test -L "$home/.config/omarchy/plugins/chaves.omaseed"
 check "status.json lists one server and the menu (v stays 2)" \
     status_has 's["v"] == 2 and len(s["servers"]) == 1 and s["menu"][-1]["id"] == "quit"'
@@ -403,34 +452,54 @@ check "one server: no servers rows in the menu (D19)" \
     status_has 'not any(r["id"].startswith("server:") for r in s["menu"])'
 
 popup
-keys ctrl+period -s 600
-step "One server, the menu" "W1 with one server (T0): ⋯ lit in the head, the server line with no ▾; the menu: Alternative Speed Limits (or Turtle/Burst) with A, Stop All, Start All, a hairline, Add Torrent… with m, omaseed Settings…, a hairline, Quit omaseed. No SERVERS." "$POPUP"
-keys ctrl+period -s 400 Escape -s 600
+keys ctrl+period -s 600ms
+step "One server, the menu" "W1 with one server (T0): ⋯ lit in the head, the server line with no ▾; the menu: Alternative Speed Limits (or Turtle/Burst) with A, Pause Torrents, a hairline, Add Torrent… with m, omaseed Settings…, a hairline, Quit omaseed. No SERVERS." "$POPUP"
+keys ctrl+period -s 400ms Escape -s 600ms
+
+# ---- the window: the mark's menu, C13's third place (DECISIONS C24 H9) ---------------------
+keys --window "$APP_ID" ctrl+period -s 600ms
+step "One server, the window's menu" "Grown out of the lit mark in one accent outline, 292 px, no head of its own (board 51 D14 b): its first line the version, public · qBittorrent …; turtle (or the alternative limits' word) with A, pause torrents, a rule, add torrent… a, settings… comma, a rule, THIS WINDOW ONLY: seed console, log, commands, keys and help, hide window, each with its key, a rule, quit omaseed ctrl+q. No servers (D19)."
+keys Escape -s 400ms
 
 # ---- the second server ---------------------------------------------------------------------
 clip private
-keys --window "$APP_ID" comma -s 600 2 -s 300 a -s 800 -t private Tab -t http://127.0.0.1:8091 Tab Tab Tab Tab Tab Tab space Tab Tab \
-    -t admin Tab ctrl+v Tab Tab Tab Tab -s 800 Tab Return -s 2500 Return -s 1200
+keys --window "$APP_ID" comma -s 600ms 2 -s 300ms a -s 800ms -t private Tab -t http://127.0.0.1:8091 Tab Tab space \
+    -t admin Tab ctrl+v Tab Tab Tab Tab -s 800ms Tab Return -s 2500ms Return -s 1200ms
 unclip
-keys Escape -s 1500
+keys Escape -s 1500ms
 check "two servers in status.json, two server rows in the menu" \
     status_has 'len(s["servers"]) == 2 and sum(r["kind"] == "radio" for r in s["menu"]) == 2'
 
+# ---- the window's menu with two servers: a switch, back, and settings… ----------------------
+keys --window "$APP_ID" ctrl+period -s 600ms
+step "Two servers, the window's menu" "As the widget's: SERVERS, ● public ✓ (0 torrents) and ● private (its torrents, or nothing before its first sync), a rule, then the rows of the one-server shot. The cursor on public."
+keys j -s 300ms Return -s 3000ms
+check "the window's menu switched to private" default_is private
+keys --window "$APP_ID" ctrl+period -s 600ms Return -s 3000ms
+check "the window's menu switched back to public" default_is public
+# Board 51 D4 a: the rail's last row is private; the menu key there opens its menu.
+keys --window "$APP_ID" h -s 300ms shift+g -s 300ms Menu -s 600ms
+step "Another server's menu, from the rail" "private's menu under its row: private over 127.0.0.1:8091 and its torrents; switch to it (enter), a rule, edit…, test the connection, open its web UI, copy its address, a rule, remove… in red. Each row with its icon."
+keys Escape -s 300ms l -s 300ms
+keys --window "$APP_ID" ctrl+period -s 600ms comma -s 1200ms
+step "Settings, from the window's menu" "settings… picked by its key (,): Settings open over the window, on the pane it was last on (Servers, from adding private)."
+keys Escape -s 800ms
+
 # ---- the widget: ⋯ and ▾ -------------------------------------------------------------------
 popup
-keys ctrl+period -s 600
+keys ctrl+period -s 600ms
 step "Two servers, the menu" "W1: SERVERS, ● public (0 torrents) and ○ private, a hairline, then the rows of the last shot. The server line ends in ▾. The cursor on public." "$POPUP"
-keys j -s 300 Return -s 3000
+keys j -s 300ms Return -s 3000ms
 check "the ⋯ menu switched to private" default_is private
 step "Switched from the widget" "The popup stayed open and refilled: PRIVATE · QBITTORRENT in the head, the menu closed, Add lists the Downloads files with \"already on private\"." "$POPUP"
-keys ctrl+s -s 600
-step "The server line's ▾" "W2: just the servers, ○ public 0 torrents, ● private 4 torrents (the cursor on it); the ▾ turned ▴ in the accent." "$POPUP"
-keys k -s 300 Return -s 3000
+keys ctrl+s -s 600ms
+step "The server line's ▾" "W2: just the servers, ○ public 0 torrents, ● private 5 torrents (the cursor on it); the ▾ turned ▴ in the accent." "$POPUP"
+keys k -s 300ms Return -s 3000ms
 check "the servers part switched back to public" default_is public
-keys ctrl+period -s 600 j j j j j j j -s 400
+keys ctrl+period -s 600ms j j j j j j j -s 400ms
 step "Quit, from the widget" "The cursor on Quit omaseed, the menu's last row after a hairline (§11 change 2)." "$POPUP"
 keys Return
-omabox wait -b "$BOX" --timeout 10s window "$APP_ID" --gone >/dev/null 2>&1 || true
+gone
 check "quit from the widget: omaseed is gone" not_running
 
 # ---- D25: "In the bar: both", from the old settings ----------------------------------------
@@ -444,9 +513,9 @@ state.setdefault("appearance", {})["trayIconMode"] = "always"
 json.dump(state, open(path, "w", encoding="utf-8"))
 PY
 "$APP_BOX" restart -b "$BOX" >/dev/null
-keys --window "$APP_ID" comma -s 700 5 -s 700
+keys --window "$APP_ID" comma -s 700ms 5 -s 700ms
 step "In the bar: both" "D25 (W3): Settings › Appearance, \"In the bar\" with both selected (widget in the bar, tray icon always), its line naming what both carry; then Widget with customize."
-keys Escape -s 800
+keys Escape -s 800ms
 
 # ---- the tray ------------------------------------------------------------------------------
 # Found from the bar, its menu's rows from the menu: no coordinates of one Omarchy's bar (#139).
@@ -457,25 +526,27 @@ else
 fi
 if [ -n "${TRAY_X:-}" ]; then
     tray_menu_open
-    step "The tray's menu" "D10 (T1): show omaseed, the figures, servers with ✓ public · 0 torrents and private · 4 torrents, then the alternative limits, stop all, start all, add torrent…, settings…, and quit last after a separator." "$TRAY_MENU"
-    if tray_menu_row "private · 4 torrents"; then
+    step "The tray's menu" "D10 (T1): show omaseed, the figures, servers with ✓ public · 0 torrents and private · 5 torrents, then the alternative limits, pause torrents, add torrent…, settings…, and quit last after a separator." "$TRAY_MENU"
+    # private's row by its name: its figure is whatever the box's private holds.
+    PRIVATE_ROW="$(tray_rows | cut -f3 | grep -m1 '^private · ' || true)"
+    if [ -n "$PRIVATE_ROW" ] && tray_menu_row "$PRIVATE_ROW"; then
         omabox click -b "$BOX" "$TRAY_ROW_X" "$TRAY_ROW_Y" >/dev/null
         settle
     else
-        echo "  the menu's row \"private · 4 torrents\" was not found: ${TRAY_LINES:-no menu under the bar}" >&2
+        echo "  the menu's row \"${PRIVATE_ROW:-private · …}\" was not found: ${TRAY_LINES:-no menu under the bar}" >&2
     fi
 fi
 check "the tray switched to private" default_is private
-keys Escape -s 400
+keys Escape -s 400ms
 if [ -n "${TRAY_X:-}" ]; then
     tray_menu_open
-    step "The tray on private" "✓ private · 4 torrents now; public · 0 torrents (last seen)." "$TRAY_MENU"
-    keys Escape -s 400
+    step "The tray on private" "✓ private · 5 torrents now; public · 0 torrents (last seen)." "$TRAY_MENU"
+    keys Escape -s 400ms
 fi
-check "the tray's exported menu has private checked" tray_checked "private · 4 torrents"
+check "the tray's exported menu has private checked" tray_checked "${PRIVATE_ROW:-private}"
 check "the tray's exported menu ends with quit" tray_ends_with_quit
 tray_click quit
-omabox wait -b "$BOX" --timeout 10s window "$APP_ID" --gone >/dev/null 2>&1 || true
+gone
 check "quit from the tray: omaseed is gone" not_running
 
 if [ "$INTERACTIVE" = 0 ]; then

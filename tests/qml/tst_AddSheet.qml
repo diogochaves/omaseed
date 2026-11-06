@@ -36,8 +36,10 @@ TestCase {
     Component {
         id: shortSheetComponent
 
+        // 720 rather than 700 since #63's extras line (the fixture's README is one) takes a
+        // caption line under the tree: the tree, at its four rows, still has to scroll.
         AddSheet {
-            height: 700
+            height: 720
             width: 1100
         }
     }
@@ -196,7 +198,6 @@ TestCase {
                                                 "target": sheet
                                             });
         sheet.downloadsList.forceActiveFocus();
-        compare(sheet.hints, sheet._downloadsHints);
         keyClick("j");
         compare(sheet.downloadsList.cursorIndex, 1);
         keyClick("k");
@@ -245,7 +246,7 @@ TestCase {
                 "Fedora-Workstation-Live-44-1.6.x86_64.iso · 2.34 GB · from clipboard");
         compare(sheet.title, "Add torrent");
         // docs/33 D20: with one server nothing names it, the foot included.
-        compare(sheet.footerRight, "");
+        compare(sheet.note, "");
     }
 
     function test_an_empty_sheet_asks_for_a_source() {
@@ -818,6 +819,7 @@ TestCase {
     function test_the_cancel_button_still_closes_it() {
         const sheet = createTemporaryObject(addSheetComponent, testCase);
         sheet.openWith(testCase.freshMagnet, "clipboard");
+        waitForRendering(sheet); // the foot's Flow places its buttons when it lays out
         mouseClick(sheet.cancelButton());
         compare(sheet.opened, false);
     }
@@ -1172,14 +1174,28 @@ TestCase {
         compare(sheet.sourceText, "from file");
     }
 
+    // #63 (DECISIONS C28): its README is an extra: a dim line under the tree, a dim "extra" on
+    // its row, and nothing unticked.
+    function test_extras_are_said_under_the_tree() {
+        const sheet = testCase.openTorrent(addSheetComponent);
+        compare(App.addFiles.wantedCount, 8);
+        const line = findChild(sheet, "addExtrasLine");
+        verify(line.visible);
+        compare(line.text.indexOf("1 extra: a text file ("), 0);
+        verify(line.text.endsWith(" Ticked, so the torrent seeds whole."), line.text);
+        const readme = testCase.rowItem(sheet, "README.txt");
+        verify(findChild(readme, "addFilesExtra").visible);
+        const film = testCase.rowItem(sheet, "Sintel/");
+        verify(!findChild(film, "addFilesExtra").visible);
+    }
+
     function test_the_tree_is_keyboard_driven() {
         const sheet = testCase.openTorrent(addSheetComponent);
         const tree = sheet.filesTree;
         tree.forceActiveFocus();
         compare(tree.activeFocus, true);
-        // The hint line teaches the tree's keys while it has the keyboard.
-        compare(sheet.hints[0].key, "j k");
-        compare(sheet.hints[1].key, "space");
+        // C24 H10: the foot teaches no keys; the `?` sheet's block "in a sheet" does.
+        compare(findChild(sheet, "keyHint_j k"), null);
 
         keyClick("j");
         compare(tree.cursorIndex, 1);
@@ -1302,9 +1318,6 @@ TestCase {
         compare(App.addFiles.wantedCount, 0);
         keyClick(Qt.Key_A, Qt.ControlModifier);
         compare(App.addFiles.wantedCount, 8);
-        const keys = sheet._treeHints.map(hint => hint.key);
-        verify(keys.indexOf("ctrl+a") >= 0, "ctrl+a in the hint line");
-        verify(keys.indexOf("x") < 0, "x leaves the line (space does the same)");
     }
 
     // docs/27 D3: a folder skipped and ticked again keeps the priority it had.
@@ -1343,15 +1356,12 @@ TestCase {
                                                 "target": sheet
                                             });
         testCase.focusRow(sheet, "README.txt");
-        compare(sheet.hints[5].key, "r");
         keyClick("r");
         verify(sheet.filesTree.editing);
         const input = testCase.renameInput(sheet);
         tryVerify(() => input.activeFocus, 1000, "the field takes the keyboard");
         // The stem is selected, the extension kept.
         compare(input.selectedText, "README");
-        compare(sheet.hints[0].key, "enter");
-        compare(sheet.hints[1].key, "esc");
         keyClick("n");
         keyClick("o");
         keyClick("t");
@@ -1533,7 +1543,6 @@ TestCase {
         compare(sheet.actions.length, 2);
         compare(sheet.actions[1].text, "add stopped");
         verify(sheet.actions[1].primary === true);
-        compare(sheet._formHints[1].label, "add stopped");
 
         sheet.submit(false); // `enter`, or the primary button
         compare(added.count, 1);
@@ -1548,7 +1557,7 @@ TestCase {
         const tree = sheet.filesTree;
         tryVerify(() => tree.height > 0);
         verify(tree.height < tree.count * Theme.railRowHeight,
-               "14 rows cannot fit under the form in 700 px");
+               "14 rows cannot fit under the form in 720 px");
         compare(tree.scrollBar.needed, true);
         // The panel still fits the window, margins included.
         verify(sheet.panel.height <= sheet.height - 2 * Theme.space(16) + 1,
@@ -1628,7 +1637,6 @@ TestCase {
         const sheet = createTemporaryObject(addSheetComponent, testCase);
         sheet.openList([testCase.freshMagnet, testCase.secondMagnet], "handoff");
         sheet.batchList.forceActiveFocus();
-        compare(sheet.hints, sheet._batchHints);
         keyClick("j");
         keyClick("d");
         compare(sheet.batchMode, false);
@@ -1915,7 +1923,6 @@ TestCase {
         compare(sheet.matchLine.headText,
                 "<b>These files are already on disk.</b> Same 8 files and sizes as <b>Blender Open Movies</b>, seeding from tracker.a.example.");
         compare(sheet.matchLine.subText, "/media/films · nothing to download if it's saved there");
-        compare(sheet.hints[sheet.hints.length - 1].key, "alt+s");
     }
 
     function test_save_there_and_undo() {
@@ -2007,11 +2014,10 @@ TestCase {
         const sheet = createTemporaryObject(addSheetComponent, testCase);
         sheet.openWith(testCase.freshMagnet, "clipboard");
         compare(sheet.title, "Add torrent to");
-        compare(sheet.footerRight, "");
+        compare(sheet.note, "");
         const chip = findChild(sheet, "addServerChip");
         verify(chip !== null);
         compare(findChild(chip, "addServerName").text, App.serverName);
-        verify(sheet._baseFormHints.some(hint => hint.key === "ctrl+s"));
         let asked = 0;
         sheet.serverPaletteRequested.connect(() => asked++);
         keyClick(Qt.Key_S, Qt.ControlModifier);
@@ -2025,7 +2031,6 @@ TestCase {
         const sheet = createTemporaryObject(addSheetComponent, testCase);
         sheet.openBlank();
         compare(findChild(sheet, "addServerChip"), null);
-        verify(!sheet._baseFormHints.some(hint => hint.key === "ctrl+s"));
         sheet.dismiss();
     }
 
@@ -2215,5 +2220,66 @@ TestCase {
         choice.enabled = false;
         second.Accessible.pressAction();
         compare(choice.choice, 0, "a disabled choice picked");
+    }
+
+    // ---- search's hand-off (#145, DECISIONS C26 SR9, C24 H16) ----------------------------
+    Component {
+        id: searchRequestSpy
+
+        SignalSpy {
+            signalName: "searchRequested"
+        }
+    }
+
+    // SR9: add… opens today's sheet on the folded magnet, its line naming the plugins and
+    // trackers; a link carries its plugin as `downloader` into the add.
+    function test_a_search_result_opens_the_sheet_with_its_line() {
+        const sheet = createTemporaryObject(addSheetComponent, testCase);
+        sheet.openFromSearch({
+                                 "key": "k1",
+                                 "text": testCase.freshMagnet,
+                                 "downloader": "",
+                                 "fromLine": "from search · plugin a and plugin c · a magnet with 5 trackers"
+                             });
+        verify(sheet.opened);
+        compare(sheet.source, "search");
+        verify(sheet.subtitle.indexOf("from search · plugin a and plugin c · a magnet with 5 trackers") > 0, sheet.subtitle);
+        compare(sheet.request(false).downloader, undefined);
+        sheet.dismiss();
+
+        const link = "http://plugin-a.invalid/get/1.torrent";
+        sheet.openFromSearch({
+                                 "key": "link:" + link,
+                                 "text": link,
+                                 "downloader": "plugin_a",
+                                 "fromLine": "from search · plugin a · a link to a .torrent"
+                             });
+        compare(sheet.addable.kind, "url");
+        compare(sheet.request(true).downloader, "plugin_a");
+        sheet.dismiss();
+        verify(sheet.searchFrom === null || !sheet.opened);
+    }
+
+    // C24 H16: the empty state offers search; words no add takes are offered to the plugins.
+    function test_the_empty_state_offers_search() {
+        const sheet = createTemporaryObject(addSheetComponent, testCase);
+        const searches = createTemporaryObject(searchRequestSpy, testCase, {
+                                                   "target": sheet
+                                               });
+        sheet.openWith("", "");
+        const row = findChild(sheet, "addSearchRow");
+        verify(row.visible);
+        compare(findChild(sheet, "addSearchButton").text, "search your plugins…");
+        sheet.sourceField.focusInput();
+        keyClick("o");
+        keyClick("p");
+        keyClick("e");
+        keyClick("n");
+        tryVerify(() => sheet.addable === null);
+        compare(findChild(sheet, "addSearchButton").text, "search plugins for “open”");
+        findChild(sheet, "addSearchButton").clicked();
+        compare(searches.count, 1);
+        compare(searches.signalArguments[0][0], "open");
+        verify(!sheet.opened);
     }
 }

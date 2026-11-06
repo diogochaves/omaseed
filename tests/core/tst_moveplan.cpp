@@ -336,6 +336,59 @@ private slots:
         QVERIFY(plan.item(film.hash)->thereOwner.isEmpty());
     }
 
+    void anEmptyFileNoTorrentOwnsCanBeReplaced()
+    {
+        // DECISIONS C28 (#176): only an empty file, owned by no torrent, seen here.
+        const QString games = m_archive + QStringLiteral("/games");
+        const QString to = m_fast + QStringLiteral("/movies");
+        const Torrent film = torrent(QStringLiteral("Feature.mkv"), games, 5);
+        const Torrent full = torrent(QStringLiteral("Trailer.mkv"), games, 6);
+        const Torrent pack = torrent(QStringLiteral("Pack"), games, 7);
+        touch(to + QStringLiteral("/Feature.mkv"));
+        {
+            QFile big(to + QStringLiteral("/Trailer.mkv"));
+            QVERIFY(big.open(QIODevice::WriteOnly));
+            big.write(QByteArray(10, 'x'));
+        }
+        QDir().mkpath(to + QStringLiteral("/Pack")); // an empty folder is not a file
+        MovePlan plan = MovePlan::make(input({film, full, pack}, to));
+        QCOMPARE(plan.leftOut().size(), 3);
+        QCOMPARE(plan.replaceable(), QStringList({to + QStringLiteral("/Feature.mkv")}));
+        QVERIFY(MovePlan::isReplaceable(*plan.item(film.hash)));
+        QVERIFY(!MovePlan::isReplaceable(*plan.item(full.hash)));
+        QVERIFY(!MovePlan::isReplaceable(*plan.item(pack.hash)));
+
+        // A torrent saved there owns it: not a leftover.
+        const Torrent owner = torrent(QStringLiteral("Feature.mkv"), to, 8);
+        plan = MovePlan::make(input({film, owner}, to));
+        QVERIFY(plan.replaceable().isEmpty());
+
+        // Whose it is not known yet (a no-subfolder torrent's files not in): not offered.
+        const Torrent loose = torrent(QStringLiteral("Extras"), to, 9, to);
+        plan = MovePlan::make(input({film, loose}, to));
+        QVERIFY(plan.replaceable().isEmpty());
+
+        // The real disk removes only an empty regular file, never through a link.
+        const MoveDisk disk = MoveDisk::real();
+        const QString empty = to + QStringLiteral("/Feature.mkv");
+        const QString link = to + QStringLiteral("/link.mkv");
+        touch(m_fast + QStringLiteral("/target.mkv"));
+        QVERIFY(QFile::link(m_fast + QStringLiteral("/target.mkv"), link));
+        QVERIFY(!disk.removeEmpty(link));
+        QVERIFY(QFileInfo(link).isSymLink());
+        QVERIFY(!disk.removeEmpty(to + QStringLiteral("/Trailer.mkv")));
+        QVERIFY(QFileInfo::exists(to + QStringLiteral("/Trailer.mkv")));
+        QVERIFY(!disk.removeEmpty(to + QStringLiteral("/Pack")));
+        QVERIFY(QFileInfo(to + QStringLiteral("/Pack")).isDir());
+        QVERIFY(disk.removeEmpty(empty));
+        QVERIFY(!QFileInfo::exists(empty));
+        QVERIFY(!disk.removeEmpty(empty)); // gone already
+        // Once it is gone the torrent moves.
+        plan = MovePlan::make(input({film}, to));
+        QVERIFY(plan.leftOut().isEmpty());
+        QCOMPARE(plan.toMove(), QStringList({film.hash}));
+    }
+
     void aNoSubfolderTorrentIsCheckedFileByFile()
     {
         const QString games = m_archive + QStringLiteral("/games");

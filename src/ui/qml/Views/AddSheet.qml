@@ -25,7 +25,8 @@ import Omaseed.Kit
 // A magnet, or a link to a `.torrent`, has no file list until qBittorrent fetches its
 // metadata: the sheet asks for it as soon as one is in the field (docs/29 D1, `App.addLookup`),
 // the Files row says how the wait goes (`AddFetchLine`, F1-F8), and the 200 brings the same
-// tree, choices and renames as a `.torrent` (D9 a). `add` never waits for it (D4 a). No
+// tree, choices and renames as a `.torrent` (D9 a). `add` takes every file (D4 a), but App
+// holds a magnet's add until its lookup answers or reaches F4 (#193: qBittorrent 5.3.0). No
 // lookups in a batch (D10 a).
 //
 // The sheet never talks to the server itself: it emits `addRequested(request)` with the map
@@ -70,6 +71,10 @@ Sheet {
     /// What the server can do (App.features, docs/DECISIONS.md C14 E4): a field for what it
     /// can't is not offered. A key it lacks counts as on.
     readonly property var _can: App.features
+    /// #145 (DECISIONS C26 SR9): the search result the sheet was opened on, App.searchAddable's
+    /// `{key, text, downloader, fromLine}`, or null. Its link goes through its plugin
+    /// (`downloader`), its line names the plugins and trackers, and the row says "added".
+    property var searchFrom: null
     /// Where the current text came from: "clipboard", "magnet", "file", "drop", "handoff" (a
     /// browser or a file manager opened it with omaseed), or "" when it was typed. Only the
     /// head's subtitle reads it.
@@ -105,6 +110,9 @@ Sheet {
     property string _serverId: ""
     /// A switch whose first sync has not come yet: the moved line waits for it.
     property bool _switchPending: false
+    /// docs/25 D1 a: the source was checked against a library that wasn't in yet (a link that
+    /// started the app, which is still on its first sync): checked again once it is.
+    property bool _duplicateUnknown: false
     /// A test seam: the QML tests run on the demo library, whose server never goes.
     property bool _testServerDown: false
     /// docs/33 D13: there is another server to send it to.
@@ -265,135 +273,43 @@ Sheet {
     /// What the tree may take: the body's room less every other row, so the sheet fits the
     /// window and only the tree scrolls. Siblings' heights never depend on the tree's, so
     /// this binding cannot loop.
-    readonly property real _treeRoom: {
+    readonly property real _treeRoom: sheet.bodyRoom - sheet._besideTree
+    /// The body's rows but the tree, with the gaps between them.
+    readonly property real _besideTree: {
         let used = filesHead.height + filesSection.spacing
-                + (nothingTickedLine.visible ? nothingTickedLine.height + filesSection.spacing : 0);
+                + (nothingTickedLine.visible ? nothingTickedLine.height + filesSection.spacing : 0)
+                + (extrasLine.visible ? extrasLine.height + filesSection.spacing : 0);
         const rows = sheet.body.children;
         for (let i = 0; i < rows.length; ++i) {
             const row = rows[i];
             if (row !== filesSection && row.visible)
                 used += row.height + sheet.body.spacing;
         }
-        return sheet.bodyRoom - used;
+        return used;
     }
 
-    /// The hint line: the tree's own keys while it has the keyboard (Keymap "addFiles").
-    readonly property var _formHints: sheet.filesMatches.length > 0 && !sheet.savedThere
-                                      ? sheet._baseFormHints.concat([{
-                                                                         "key": "alt+s",
-                                                                         "label": qsTr("save there")
-                                                                     }])
-                                      : sheet._baseFormHints
+    /// The panel's height with every row at its own height and the tree showing all its rows:
+    /// what a window sized to the sheet takes (the add window, docs/54 W3, which caps it at
+    /// 80 % of the screen). It never reads the window's height: the tree's room comes from
+    /// that (`_treeRoom`), so it adds the tree's full height to the other rows instead of
+    /// the panel's own height, which holds the tree as the room left it.
+    readonly property real naturalHeight: sheet.showFiles
+                                          ? sheet.chromeHeight + sheet._besideTree + filesTree.contentHeight
+                                          : sheet.panel.implicitHeight
+
+    /// A few words in the foot's note for five seconds, as the main window's footer says them
+    /// (the add window's one-server note, DECISIONS C35, settled 2026-11-05).
+    function flashNote(text: string): void {
+        sheet.note = text;
+        noteTimer.restart();
+    }
+
     /// The keys every field of the form hands to the sheet instead of typing them.
     readonly property var _fieldShortcuts: sheet.filesMatches.length > 0 && !sheet.savedThere
                                            ? [{
                                                   "key": Qt.Key_S,
                                                   "modifiers": Qt.AltModifier
                                               }] : []
-    readonly property var _baseFormHints: [
-        {
-            "key": "tab",
-            "label": qsTr("fields")
-        },
-        {
-            "key": "enter",
-            "label": sheet._nothingTicked ? sheet._addStoppedText : sheet._addText
-        }
-    ].concat(sheet.multiServer ? [
-                                     {
-                                         "key": "ctrl+s",
-                                         "label": qsTr("server")
-                                     }] : [], [
-                 {
-                     "key": "shift+enter",
-                     "label": qsTr("add stopped")
-                 }])
-    /// … and the "in Downloads" list's (Keymap "addDownloads").
-    readonly property var _downloadsHints: [
-        {
-            "key": "j k",
-            "label": Keymap.labelOf("addDownloads", "j")
-        },
-        {
-            "key": "space",
-            "label": Keymap.labelOf("addDownloads", "space")
-        },
-        {
-            "key": "enter",
-            "label": Keymap.labelOf("addDownloads", "enter")
-        },
-        {
-            "key": "tab",
-            "label": qsTr("fields")
-        }
-    ]
-    /// … and the batch list's (Keymap "addBatch").
-    readonly property var _batchHints: [
-        {
-            "key": "j k",
-            "label": Keymap.labelOf("addBatch", "j")
-        },
-        {
-            "key": "d",
-            "label": Keymap.labelOf("addBatch", "d")
-        },
-        {
-            "key": "tab",
-            "label": qsTr("fields")
-        },
-        {
-            "key": "enter",
-            "label": sheet._addText
-        },
-        {
-            "key": "shift+enter",
-            "label": qsTr("add stopped")
-        }
-    ]
-    readonly property var _treeHints: [
-        {
-            "key": "j k",
-            "label": Keymap.labelOf("addFiles", "j")
-        },
-        {
-            "key": "space",
-            "label": Keymap.labelOf("addFiles", "space")
-        },
-        {
-            "key": "ctrl+a",
-            "label": Keymap.labelOf("addFiles", "ctrl+a")
-        },
-        {
-            "key": "+ -",
-            "label": Keymap.labelOf("addFiles", "+")
-        },
-        {
-            "key": "h l",
-            "label": Keymap.labelOf("addFiles", "h")
-        },
-        {
-            "key": "r",
-            "label": Keymap.labelOf("addFiles", "r")
-        },
-        {
-            "key": "enter",
-            "label": sheet._nothingTicked ? sheet._addStoppedText : sheet._addText,
-            // #8: at the sheet's 600 wide the tree's keys run out of room; these go first.
-            "keep": true
-        }
-    ]
-    /// While a file tree row is being renamed (M18): its field takes both keys.
-    readonly property var _renameHints: [
-        {
-            "key": "enter",
-            "label": qsTr("rename")
-        },
-        {
-            "key": "esc",
-            "label": qsTr("cancel")
-        }
-    ]
-
     /// `add` / `add stopped`: the map `App.addTorrent` takes.
     signal addRequested(var request)
     /// This infohash is already on the server: `row` is `App.torrentRow`'s map, `source`
@@ -405,6 +321,9 @@ Sheet {
     signal tagPaletteRequested
     /// docs/33 D14: the head's server chip or ctrl+s: the host opens the server palette.
     signal serverPaletteRequested
+    /// C24 H16: the empty state's "search your plugins…", or "search plugins for ‘…’" under
+    /// typed words that no add takes: the search face, asking for `text` when it isn't empty.
+    signal searchRequested(string text)
 
     /// How many the add hands over: the batch's, or the ticks in In Downloads while it shows,
     /// less those in the library, which the batch they make leaves out.
@@ -452,6 +371,8 @@ Sheet {
         if (sheet.addable && sheet.addable.bareHash === true)
             return qsTr("from an info hash");
         switch (sheet.source) {
+        case "search":
+            return sheet.searchFrom !== null ? sheet.searchFrom.fromLine : qsTr("from search");
         case "clipboard":
             return qsTr("from clipboard");
         case "magnet":
@@ -480,6 +401,8 @@ Sheet {
     /// (`App.filesMatchFound`), the copy picked, and whether `save there` was pressed, with
     /// what Save to, its automatic management and the layout were before it (for `undo`).
     property var filesMatches: []
+    /// #146 (C27 CR8, CR9): App.madeHereFor for the `.torrent` in the field; {} for none.
+    property var madeHere: ({})
     property int matchIndex: 0
     property bool savedThere: false
     property var _beforeSaveThere: null
@@ -542,6 +465,20 @@ Sheet {
     sheet.loadText(prefill, demo.length > 0 && parsed.kind === "file" ? "file" : "clipboard");
     sheet.open();
     sheet._checkDuplicate(); // only a demo prefill can still be one: Fig. 10 on `--demo`
+}
+
+    /// #145 (C26 SR9): add… on a search result: today's sheet on its folded magnet, or its
+    /// link fetched through its plugin. esc goes back to the results (the window's face).
+    function openFromSearch(item: var): void {
+    if (!item || (item.text ?? "").length === 0)
+    return;
+    if (sheet.opened)
+    sheet.dismiss();
+    sheet.reset();
+    sheet.searchFrom = item;
+    sheet.loadText(item.text, "search");
+    sheet.open();
+    sheet._checkDuplicate();
 }
 
     /// One source, from a known place ("drop", "handoff", …).
@@ -740,6 +677,10 @@ Sheet {
     /// Re-read the field. Called on every keystroke, so the head follows a paste live.
     function parseField(): void {
                                const map = App.parseAddable(sourceField.text);
+                               // C26 SR9: a search result's link is fetched through its plugin.
+                               if (sheet.searchFrom !== null && sourceField.text === sheet.searchFrom.text
+                                   && (sheet.searchFrom.downloader ?? "").length > 0)
+                               map.downloader = sheet.searchFrom.downloader;
                                sheet._pendingToken = map.token;
                                sheet.addable = (map.valid || map.pending) ? map : null;
                                sheet._parseError = map.error || "";
@@ -772,6 +713,13 @@ Sheet {
     map["skipChecking"] = skipCheckToggle.checked;
     map["stopped"] = stopped;
     map["untilMetadata"] = stopped && sheet._untilMetadata;
+    // #146 (C27 CR7–CR9): the site's copy of a torrent made here forgets its record, and
+    // replaces the made one in the library when asked.
+    const made = sheet.madeHere.kind ?? "";
+    if (made === "same" || made === "files")
+        map["forgetMade"] = true;
+    if (madeLine.replace)
+        map["replaceHash"] = sheet.madeHere.madeHash;
     return map;
 }
 
@@ -990,6 +938,9 @@ Sheet {
                 return;
             }
             sheet.failure = {};
+            // C26 SR7: the result it came from says "added".
+            if (sheet.searchFrom !== null)
+                App.searchAdded(sheet.searchFrom.key);
             if (sheet.queue.length > 0) {
                 const next = sheet.queue[0];
                 sheet.queue = sheet.queue.slice(1);
@@ -1022,6 +973,7 @@ Sheet {
                 sheet._programmatic = false;
                 sheet.addable = null;
                 sheet.source = "";
+                sheet.searchFrom = null;
                 sheet.queue = [];
                 sheet.batch = [];
                 sheet._batchMatches = {};
@@ -1031,6 +983,7 @@ Sheet {
                 sheet.movedText = "";
                 sheet._held = null;
                 sheet._switchPending = false;
+                sheet._duplicateUnknown = false;
                 sheet.autoTMM = true;
                 sheet._savePathEdited = false;
                 sheet._pendingToken = "";
@@ -1071,11 +1024,17 @@ Sheet {
                 function _checkDuplicate() {
                     const addable = sheet.addable;
                     const duplicate = sheet._duplicateOf(addable);
-                    if (!duplicate)
+                    if (!duplicate) {
+                        sheet._duplicateUnknown = App.globalState.syncing;
                         return false;
+                    }
+                    sheet._duplicateUnknown = false;
                     sheet.duplicateFound(duplicate, {
                                              "trackers": addable.trackers || [],
-                                             "isPrivate": addable.isPrivate === true
+                                             "isPrivate": addable.isPrivate === true,
+                                             // C27 CR9: the site's copy of a torrent made here.
+                                             "madeHere": (addable.token || "").length > 0
+                                                         && App.madeHereFor(addable.token).kind === "same"
                                          });
                     if (sheet.queue.length > 0) {
                         const next = sheet.queue[0];
@@ -1104,8 +1063,25 @@ Sheet {
                     sheet.matchIndex = 0;
                     if (sheet.savedThere)
                         sheet.undoSaveThere();
+                    sheet._applyMadeHere(token.length > 0 ? App.madeHereFor(token) : ({}));
                     if (token.length > 0)
                         App.findFilesMatch(token);
+                }
+
+                /// #146 (C27 CR8): the site's copy of a torrent made here goes where its files are,
+                /// in seed mode when the hash is the same, checked when it isn't.
+                function _applyMadeHere(made) {
+                    sheet.madeHere = made;
+                    const kind = made.kind ?? "";
+                    if (kind !== "same" && kind !== "files")
+                        return;
+                    sheet._programmatic = true;
+                    savePathField.text = made.savePath;
+                    sheet._programmatic = false;
+                    sheet.autoTMM = false;
+                    sheet._savePathEdited = true;
+                    layoutChips.current = sheet._layoutOptions[Math.max(0, sheet._layoutValues.indexOf(made.layout))];
+                    skipCheckToggle.checked = made.check !== true;
                 }
 
                 /// `save there` (X2): Save to and the layout put the files where the match's are,
@@ -1222,19 +1198,11 @@ Sheet {
                                                 ]
                 // docs/33 D13, D20: the server is named in the head with two servers, nowhere
                 // with one; the foot's "server: NAME" is gone.
-                footerRight: ""
                 glyph: Glyphs.add
                 headBand: noticeBand
                 titleTrailer: sheet.multiServer ? serverChip : null
                 // Manual box M5: a stray click or `esc` must not lose a half-filled add.
                 guarded: true
-                hints: filesTree.editing ? sheet._renameHints : filesTree.activeFocus
-                                                                ? sheet._treeHints
-                                                                : batchList.activeFocus
-                                                                  ? sheet._batchHints
-                                                                  : downloadsList.activeFocus
-                                                                  ? sheet._downloadsHints
-                                                                  : sheet._formHints
                 sheetWidth: Theme.space(600)
                 subtitle: {
                     if (sheet.batchMode) {
@@ -1264,6 +1232,7 @@ Sheet {
                 title: sheet.multiServer ? (sheet.batchMode ? qsTr("Add %1 torrents to").arg(sheet.batchCount)
                                                             : qsTr("Add torrent to"))
                                          : sheet.batchMode ? qsTr("Add %1 torrents").arg(sheet.batchCount) : qsTr("Add torrent")
+                titleId: "add"
 
                 onAddableChanged: {
                     sheet._syncFiles();
@@ -1296,6 +1265,8 @@ Sheet {
                         // D6 a: closing leaves a lookup that has not answered running on the
                         // server (F4 says so); only the polling stops.
                         App.stopMetadataLookup();
+                        noteTimer.stop();
+                        sheet.note = "";
                     }
                 }
                 onRejected: sheet.dismiss()
@@ -1304,6 +1275,14 @@ Sheet {
                         sheet.submit(false);
                     else if (text === sheet._addStoppedText)
                         sheet.submit(true);
+                }
+
+                // `flashNote`'s five seconds.
+                Timer {
+                    id: noteTimer
+
+                    interval: 5000
+                    onTriggered: sheet.note = ""
                 }
 
                 // #124: the add has been out this long: the button says it is still going.
@@ -1422,6 +1401,16 @@ Sheet {
                                 sheet._releaseHeld();
                         }
 
+                        // D1 a: the library is in now; a source loaded before it was is
+                        // checked again, so a duplicate still turns into Fig. 10 up front.
+                        function onSyncingChanged(): void {
+                            if (!sheet.opened || App.globalState.syncing || !sheet._duplicateUnknown)
+                                return;
+                            sheet._duplicateUnknown = false;
+                            if (!sheet.batchMode && !sheet._typing)
+                                sheet._checkDuplicate();
+                        }
+
                         target: App.globalState
                     }
 
@@ -1475,6 +1464,11 @@ Sheet {
                         Rectangle {
                             id: serverChipBox
 
+                            /// docs/DECISIONS.md C30 F1: the chip's words on its hover fill.
+                            readonly property Ink ink: Ink {
+                                ground: chipMouse.containsMouse ? Theme.on.hover : Theme.on.window
+                            }
+
                             // #77: a "switch server" button, as the hero's server line; the
                             // server is its description. Its press is the click.
                             Accessible.description: App.serverName
@@ -1483,8 +1477,8 @@ Sheet {
                             Accessible.onPressAction: if (serverChipBox.enabled)
                                                           sheet.serverPaletteRequested()
                             border.color: chipMouse.containsMouse ? Theme.fill(Theme.borderHover) : Theme.fill(Theme.borderIdle)
-                            border.width: 1
-                            color: chipMouse.containsMouse ? Theme.fill(Theme.fillHover) : "transparent"
+                            border.width: Theme.hairWidth
+                            color: chipMouse.containsMouse ? serverChipBox.ink.fill : "transparent"
                             implicitHeight: chipRow.implicitHeight + Theme.space(4)
                             implicitWidth: chipRow.implicitWidth + Theme.space(12)
                             objectName: "addServerChip"
@@ -1496,25 +1490,28 @@ Sheet {
                                 anchors.centerIn: parent
                                 spacing: Theme.space(6)
 
-                                Rectangle {
+                                // The skin's lamp (Console's square, board 46 `.dot`).
+                                Lamp {
                                     anchors.verticalCenter: parent.verticalCenter
                                     // docs/35 N3, docs/44 D11: yellow while it isn't answering, red when nothing
                                     // is there or it needs you.
-                                    color: !sheet.serverDown ? Theme.green : App.serverWaiting ? Theme.yellow : Theme.red
-                                    height: Theme.space(7)
-                                    radius: width / 2
-                                    width: Theme.space(7)
+                                    color: !sheet.serverDown ? serverChipBox.ink.green
+                                           : App.serverWaiting ? serverChipBox.ink.yellow
+                                                               : serverChipBox.ink.red
+                                    size: Theme.space(7)
                                 }
 
                                 Label {
                                     bright: true
                                     font.weight: Font.DemiBold
+                                    ink: serverChipBox.ink
                                     objectName: "addServerName"
                                     text: App.serverName
                                 }
 
                                 Label {
                                     dim: true
+                                    ink: serverChipBox.ink
                                     size: "caption"
                                     text: Glyphs.chevronDown
                                 }
@@ -1613,6 +1610,8 @@ Sheet {
                             trailing: qsTr("browse")
                             trailingClickable: true
                             trailingKey: "ctrl+o"
+                            // C24 H10: keys on demand; the `?` sheet and a screen reader have it.
+                            trailingKeyShown: false
 
                             onAccepted: {
                                 // In a batch the field is for more: `enter` with text adds it
@@ -1665,11 +1664,21 @@ Sheet {
                         }
                     }
 
+                    // #146 (C27 CR8, CR9): a torrent made here, or the site's copy of one.
+                    AddMadeLine {
+                        id: madeLine
+
+                        Layout.fillWidth: true
+                        made: sheet.madeHere
+                    }
+
                     // docs/25 §3 (#27): these files are already on disk under another torrent.
                     AddMatchLine {
                         id: matchLine
 
                         Layout.fillWidth: true
+                        // The made-here line already says where the files are (C27 CR8).
+                        visible: matchLine.matches.length > 0 && madeLine.kind !== "same" && madeLine.kind !== "files"
                         index: sheet.matchIndex
                         matches: sheet.filesMatches
                         saved: sheet.savedThere
@@ -1723,6 +1732,41 @@ Sheet {
                                 sheet.addToBatch(paths, "file");
                                 sheet.focusFirst();
                             }
+                        }
+                    }
+
+                    // C24 H16 (#145): the empty state offers search; words no add takes are
+                    // offered to the plugins instead (C26 SR14's "search plugins for ‘…’").
+                    RowLayout {
+                        Layout.fillWidth: true
+                        objectName: "addSearchRow"
+                        spacing: Theme.space(10)
+                        visible: App.searchOffered && !sheet.batchMode && sheet.searchFrom === null
+                                 && (sourceField.text.trim().length === 0
+                                     || (sheet.addable === null && sheet._typing))
+
+                        Label {
+                            dim: true
+                            size: "small"
+                            text: sourceField.text.trim().length === 0 ? qsTr("Not a link yet?")
+                                                                      : qsTr("Not a magnet, a link or a file.")
+                        }
+
+                        Button {
+                            objectName: "addSearchButton"
+                            text: sourceField.text.trim().length === 0 ? qsTr("search your plugins…")
+                                                                      : qsTr("search plugins for “%1”").arg(sourceField.text.trim())
+                            tooltip: qsTr("search · ctrl+f")
+
+                            onClicked: {
+                                const words = sourceField.text.trim();
+                                sheet.dismiss();
+                                sheet.searchRequested(words);
+                            }
+                        }
+
+                        Item {
+                            Layout.fillWidth: true
                         }
                     }
 
@@ -2039,6 +2083,7 @@ Sheet {
                             id: fetchLine
 
                             Layout.fillWidth: true
+                            addWaiting: App.addWaitsForList
                             kind: sheet.addable ? sheet.addable.kind : "magnet"
                             objectName: "addFetchLine"
                             phase: App.addLookup.phase
@@ -2057,6 +2102,22 @@ Sheet {
                             // The header and four rows at least: below that the whole body scrolls.
                             maximumHeight: Math.max(5 * Theme.railRowHeight + 2, sheet._treeRoom)
                             model: App.addFiles
+                        }
+
+                        // #63 (DECISIONS C28): the torrent carries extras (an NFO, a sample, an
+                        // advert); said once, dim like the free-space line, and nothing unticked.
+                        Label {
+                            id: extrasLine
+
+                            Accessible.name: text
+                            Accessible.role: Accessible.StaticText
+                            Layout.fillWidth: true
+                            dim: true
+                            objectName: "addExtrasLine"
+                            size: "caption"
+                            text: App.addFiles.extrasText
+                            visible: sheet.showFiles && text.length > 0
+                            wrapMode: Text.Wrap
                         }
 
                         // #43: why the button reads "add stopped".

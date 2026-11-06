@@ -47,6 +47,12 @@ struct EngineFeatures
     /// Remove a torrent keeping its files and add its own .torrent back with its settings
     /// (engines/qbt/AddAgainJob; C17 D3): what clears a hybrid's libtorrent error.
     bool addAgain = false;
+    /// qBittorrent's search plugins (search/*; DECISIONS C26, #145): the search view and
+    /// Settings › qBittorrent › Search plugins.
+    bool search = false;
+    /// qBittorrent's torrent creator (torrentcreator/*, Web API 2.10.4; DECISIONS C27, #146):
+    /// "create a torrent" and its sheet.
+    bool createTorrent = false;
 
     bool shareLimitAction() const { return !shareLimitActions.isEmpty(); }
 

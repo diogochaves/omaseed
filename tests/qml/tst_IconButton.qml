@@ -53,7 +53,7 @@ TestCase {
                                                  "glyph": "+",
                                                  "hasCursor": true
                                              });
-        fuzzyCompare(button.color.a, Theme.fill(Theme.fillHover).a, 0.01);
+        fuzzyCompare(button.color.a, Theme.on.hover.fill.a, 0.01);
     }
 
     function test_selected_fills_at_the_selected_alpha() {
@@ -61,7 +61,7 @@ TestCase {
                                                  "glyph": "+",
                                                  "selected": true
                                              });
-        fuzzyCompare(button.color.a, Theme.fill(Theme.fillSelected).a, 0.01);
+        fuzzyCompare(button.color.a, Theme.on.selected.fill.a, 0.01);
     }
 
     function test_primary_border_is_accent() {
@@ -100,7 +100,7 @@ TestCase {
         tryCompare(tip, "shown", true);
         compare(tip.text, "add torrent");
         const panel = tip.panelItem;
-        compare(panel.border.color, Theme.accent);
+        compare(findChild(tip, "tooltipPlate").edgeColor, Theme.accent);
         const under = button.mapToItem(tip, 0, button.height);
         verify(panel.y >= under.y, "the tip is not under the button");
         button.focus = false;
@@ -108,8 +108,8 @@ TestCase {
     }
 
     // M8: a click leaves the keyboard where it was, so no ring stays behind and the tip is
-    // the hover's alone (tst_Main checks it goes once settings closes over the hero's gear;
-    // this runner never delivers the hover leaving a lone button).
+    // the hover's alone (tst_Main checks it with the title bar's + add; this runner never
+    // delivers the hover leaving a lone button).
     function test_a_click_does_not_take_the_focus() {
         const holder = createTemporaryQmlObject("import QtQuick; Item { width: 10; height: 10 }",
                                                 testCase);

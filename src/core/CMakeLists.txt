@@ -10,6 +10,10 @@ qt_add_library(omaseed-core STATIC
     AltSchedule.hpp
     AltSpeed.cpp
     AltSpeed.hpp
+    AltPresets.cpp
+    AltPresets.hpp
+    AltPickWords.cpp
+    AltPickWords.hpp
     AutoBackup.cpp
     AutoBackup.hpp
     ApiError.cpp
@@ -24,6 +28,8 @@ qt_add_library(omaseed-core STATIC
     CategoryModel.hpp
     CertificatePin.cpp
     CertificatePin.hpp
+    EmptyFolders.cpp
+    EmptyFolders.hpp
     engines/AddOptions.hpp
     engines/DetailsData.hpp
     engines/EngineClient.cpp
@@ -46,6 +52,8 @@ qt_add_library(omaseed-core STATIC
     engines/TorrentStatus.hpp
     engines/qbt/AddAgainJob.cpp
     engines/qbt/AddAgainJob.hpp
+    engines/qbt/CreateJob.cpp
+    engines/qbt/CreateJob.hpp
     engines/qbt/QbtFingerprint.cpp
     engines/qbt/QbtFingerprint.hpp
     engines/qbt/QbtClient.cpp
@@ -60,6 +68,10 @@ qt_add_library(omaseed-core STATIC
     engines/qbt/QbtSettingsImport.hpp
     engines/qbt/QbtTranslate.cpp
     engines/qbt/QbtTranslate.hpp
+    engines/qbt/SearchPlugins.cpp
+    engines/qbt/SearchPlugins.hpp
+    engines/qbt/SearchSession.cpp
+    engines/qbt/SearchSession.hpp
     engines/qbt/ServerPreferences.cpp
     engines/qbt/ServerPreferences.hpp
     engines/qbt/TorrentsExport.cpp
@@ -85,12 +97,18 @@ qt_add_library(omaseed-core STATIC
     GlobalState.cpp
     GlobalState.hpp
     HomeGuard.hpp
+    LibraryDisplays.cpp
+    LibraryDisplays.hpp
     LibraryMatch.cpp
     LibraryMatch.hpp
+    LocalDay.cpp
+    LocalDay.hpp
     LooseCarry.cpp
     LooseCarry.hpp
     LooseFiles.cpp
     LooseFiles.hpp
+    MadeHere.cpp
+    MadeHere.hpp
     MoveHistory.cpp
     MoveHistory.hpp
     MoveJob.cpp
@@ -109,6 +127,8 @@ qt_add_library(omaseed-core STATIC
     PartialCopies.hpp
     PathMap.cpp
     PathMap.hpp
+    PauseHold.cpp
+    PauseHold.hpp
     PeerInput.cpp
     PeerInput.hpp
     Paths.cpp
@@ -127,6 +147,20 @@ qt_add_library(omaseed-core STATIC
     RenameDisk.hpp
     RenamePlan.cpp
     RenamePlan.hpp
+    RowWords.cpp
+    RowWords.hpp
+    ScopeSentence.cpp
+    ScopeSentence.hpp
+    AnnounceMask.cpp
+    AnnounceMask.hpp
+    CreatePlan.cpp
+    CreatePlan.hpp
+    CreateTrackers.cpp
+    CreateTrackers.hpp
+    SearchModel.cpp
+    SearchModel.hpp
+    SearchResults.cpp
+    SearchResults.hpp
     SearchWords.cpp
     SearchWords.hpp
     SecretStore.cpp
@@ -156,6 +190,8 @@ qt_add_library(omaseed-core STATIC
     SkippedJobs.hpp
     SkippedOnDisk.cpp
     SkippedOnDisk.hpp
+    SkippedOutlook.cpp
+    SkippedOutlook.hpp
     StateFile.cpp
     StateFile.hpp
     StatusDigest.cpp
@@ -186,6 +222,8 @@ qt_add_library(omaseed-core STATIC
     TorrentPeersModel.hpp
     TorrentProblem.cpp
     TorrentProblem.hpp
+    TorrentStory.cpp
+    TorrentStory.hpp
     TorrentsBackup.cpp
     TorrentsBackup.hpp
     TorrentTrackersModel.cpp

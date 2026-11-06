@@ -156,27 +156,32 @@ Window {
         {
             "name": "idle",
             "fill": Theme.fillIdle,
-            "border": Theme.borderIdle
+            "border": Theme.borderIdle,
+            "ground": Theme.on.idle
         },
         {
             "name": "hover / cursor",
             "fill": Theme.fillHover,
-            "border": Theme.borderHover
+            "border": Theme.borderHover,
+            "ground": Theme.on.hover
         },
         {
             "name": "selected",
             "fill": Theme.fillSelected,
-            "border": 0
+            "border": 0,
+            "ground": Theme.on.selected
         },
         {
             "name": "pressed",
             "fill": Theme.fillPressed,
-            "border": 0
+            "border": 0,
+            "ground": Theme.on.pressed
         },
         {
             "name": "hairline",
             "fill": Theme.hairlineAlpha,
-            "border": 0
+            "border": 0,
+            "ground": null
         }
     ]
     readonly property var spacingSteps: [2, 4, 6, 8, 12, 16, 24, 32]
@@ -191,7 +196,7 @@ Window {
     Rectangle {
         anchors.fill: parent
         border.color: root.active ? Theme.accent : Theme.muted
-        border.width: 1
+        border.width: Theme.hairWidth
         color: "transparent"
         radius: Theme.cornerRadius
         z: 1
@@ -836,31 +841,28 @@ Window {
                     }
                 }
 
-                // Hero: the full row, sample data (spec v2 §1 Fig. 1).
+                // The title bar (board 46 `titleBar()`, DECISIONS C24 H5): sample data.
                 Column {
                     spacing: Theme.space(6)
                     width: parent.width
 
                     KitGroupLabel {
-                        text: qsTr("hero")
+                        text: qsTr("title bar")
                     }
 
                     Rectangle {
                         border.color: Theme.accent
-                        border.width: 1
+                        border.width: Theme.hairWidth
                         color: Theme.background
-                        height: heroSample.implicitHeight
+                        height: titleSample.implicitHeight
                         width: parent.width
 
-                        Hero {
-                            id: heroSample
+                        TitleBar {
+                            id: titleSample
 
-                            appName: "omaseed"
-                            connected: true
-                            downSpeed: qsTr("4.21 MB/s")
-                            searchCount: 142
-                            serverLine: qsTr("home · qBittorrent 5.2.3")
-                            upSpeed: qsTr("812 KB/s")
+                            searchCountText: "142"
+                            sentence: qsTr("2 need you · 7 arriving, the next in 3 min · 2 landed today · giving back 41 KB/s")
+                            title: qsTr("Library")
                             width: parent.width
                         }
                     }
@@ -884,7 +886,7 @@ Window {
 
                             Rectangle {
                                 border.color: Theme.fill(Theme.hairlineAlpha)
-                                border.width: 1
+                                border.width: Theme.hairWidth
                                 color: Theme.background
                                 height: railIdle.implicitHeight
                                 width: Theme.space(180)
@@ -905,7 +907,7 @@ Window {
 
                             Rectangle {
                                 border.color: Theme.fill(Theme.hairlineAlpha)
-                                border.width: 1
+                                border.width: Theme.hairWidth
                                 color: Theme.background
                                 height: railCursor.implicitHeight
                                 width: Theme.space(180)
@@ -927,7 +929,7 @@ Window {
 
                             Rectangle {
                                 border.color: Theme.fill(Theme.hairlineAlpha)
-                                border.width: 1
+                                border.width: Theme.hairWidth
                                 color: Theme.background
                                 height: railSelected.implicitHeight
                                 width: Theme.space(180)
@@ -949,7 +951,7 @@ Window {
 
                             Rectangle {
                                 border.color: Theme.fill(Theme.hairlineAlpha)
-                                border.width: 1
+                                border.width: Theme.hairWidth
                                 color: Theme.background
                                 height: railBoth.implicitHeight
                                 width: Theme.space(180)
@@ -1071,9 +1073,10 @@ Window {
                                         text: tableRowSample.modelData.name
                                     }
 
+                                    // docs/DECISIONS.md C30 F2: the caption on the row's own ground.
                                     Text {
                                         anchors.verticalCenter: parent.verticalCenter
-                                        color: Theme.dimForeground
+                                        color: tableRowSample.ink.dimForeground
                                         font.family: Theme.fontFamily
                                         font.pixelSize: Theme.font.caption
                                         text: tableRowSample.modelData.caption
@@ -1128,7 +1131,7 @@ Window {
 
                     Rectangle {
                         border.color: Theme.fill(Theme.hairlineAlpha)
-                        border.width: 1
+                        border.width: Theme.hairWidth
                         color: Theme.background
                         height: stripSample.implicitHeight
                         width: Theme.space(420)
@@ -1170,7 +1173,7 @@ Window {
 
                     Rectangle {
                         border.color: Theme.fill(Theme.hairlineAlpha)
-                        border.width: 1
+                        border.width: Theme.hairWidth
                         color: Theme.background
                         height: keyValueSample.implicitHeight
                         width: Theme.space(340)
@@ -1209,7 +1212,7 @@ Window {
 
                     Rectangle {
                         border.color: Theme.fill(Theme.hairlineAlpha)
-                        border.width: 1
+                        border.width: Theme.hairWidth
                         color: Theme.background
                         height: tabsSample.implicitHeight
                         width: Theme.space(340)
@@ -1261,7 +1264,7 @@ Window {
 
                             Rectangle {
                                 border.color: Theme.accent
-                                border.width: 1
+                                border.width: Theme.hairWidth
                                 color: Theme.background
                                 height: Theme.space(160)
                                 width: Theme.space(1105)
@@ -1276,11 +1279,11 @@ Window {
                                     Rectangle {
                                         id: splitWideMain
 
-                                        color: Theme.fill(Theme.fillIdle)
+                                        color: Theme.on.idle.fill
 
                                         Text {
                                             anchors.centerIn: parent
-                                            color: Theme.dimForeground
+                                            color: Theme.on.idle.dimForeground
                                             font.family: Theme.fontFamily
                                             font.pixelSize: Theme.font.small
                                             text: splitWide.docked ? qsTr("main · docked") : qsTr(
@@ -1291,11 +1294,11 @@ Window {
                                     Rectangle {
                                         id: splitWideSide
 
-                                        color: Theme.fill(Theme.fillHover)
+                                        color: Theme.on.hover.fill
 
                                         Text {
                                             anchors.centerIn: parent
-                                            color: Theme.dimForeground
+                                            color: Theme.on.hover.dimForeground
                                             font.family: Theme.fontFamily
                                             font.pixelSize: Theme.font.small
                                             text: qsTr("side")
@@ -1310,7 +1313,7 @@ Window {
 
                             Rectangle {
                                 border.color: Theme.accent
-                                border.width: 1
+                                border.width: Theme.hairWidth
                                 color: Theme.background
                                 height: Theme.space(260)
                                 width: Theme.space(480)
@@ -1325,11 +1328,11 @@ Window {
                                     Rectangle {
                                         id: splitNarrowMain
 
-                                        color: Theme.fill(Theme.fillIdle)
+                                        color: Theme.on.idle.fill
 
                                         Text {
                                             anchors.centerIn: parent
-                                            color: Theme.dimForeground
+                                            color: Theme.on.idle.dimForeground
                                             font.family: Theme.fontFamily
                                             font.pixelSize: Theme.font.small
                                             text: splitNarrow.docked ? qsTr("main · docked") : qsTr(
@@ -1340,11 +1343,11 @@ Window {
                                     Rectangle {
                                         id: splitNarrowSide
 
-                                        color: Theme.fill(Theme.fillHover)
+                                        color: Theme.on.hover.fill
 
                                         Text {
                                             anchors.centerIn: parent
-                                            color: Theme.dimForeground
+                                            color: Theme.on.hover.dimForeground
                                             font.family: Theme.fontFamily
                                             font.pixelSize: Theme.font.small
                                             text: qsTr("side")
@@ -1387,18 +1390,8 @@ Window {
                                     "primary": true
                                 }
                             ]
-                            footerRight: qsTr("server: home")
+                            note: qsTr("server: home")
                             glyph: Glyphs.folder
-                            hints: [
-                                {
-                                    "key": "tab",
-                                    "label": qsTr("fields")
-                                },
-                                {
-                                    "key": "enter",
-                                    "label": qsTr("move")
-                                }
-                            ]
                             inline: true
                             sheetWidth: Theme.space(420)
                             subtitle: qsTr("1 torrent \u00b7 1.31 GB moves with it")
@@ -1653,20 +1646,36 @@ Window {
                             required property var modelData
 
                             border.color: Theme.fill(stateBox.modelData.border)
-                            border.width: stateBox.modelData.border > 0 ? 1 : 0
+                            border.width: stateBox.modelData.border > 0 ? Theme.hairWidth : 0
                             color: Theme.fill(stateBox.modelData.fill)
                             height: Theme.controlHeight
                             radius: Theme.cornerRadius
                             width: Theme.space(180)
 
-                            Text {
+                            // docs/DECISIONS.md C30 F1: each fill's words in its ground's roles,
+                            // a caption beside them; the hairline is no ground for text.
+                            Row {
                                 anchors.centerIn: parent
-                                color: Theme.foreground
-                                font.family: Theme.fontFamily
-                                font.pixelSize: Theme.font.small
-                                text: qsTr("%1 · %2 %").arg(stateBox.modelData.name).arg(Math.round(
-                                                                                             stateBox.modelData.fill
-                                                                                             * 100))
+                                spacing: Theme.space(6)
+
+                                Text {
+                                    color: stateBox.modelData.ground ? stateBox.modelData.ground.foreground
+                                                                     : Theme.foreground
+                                    font.family: Theme.fontFamily
+                                    font.pixelSize: Theme.font.small
+                                    text: qsTr("%1 · %2 %").arg(stateBox.modelData.name).arg(Math.round(
+                                                                                                 stateBox.modelData.fill
+                                                                                                 * 100))
+                                }
+
+                                Text {
+                                    color: stateBox.modelData.ground ? stateBox.modelData.ground.dimForeground
+                                                                     : Theme.dimForeground
+                                    font.family: Theme.fontFamily
+                                    font.pixelSize: Theme.font.small
+                                    text: qsTr("dim")
+                                    visible: stateBox.modelData.ground !== null
+                                }
                             }
                         }
                     }
@@ -1816,7 +1825,7 @@ Window {
 
         Rectangle {
             border.color: Theme.fill(Theme.hairlineAlpha)
-            border.width: 1
+            border.width: Theme.hairWidth
             color: swatch.value
             height: Theme.space(46)
             radius: Theme.cornerRadius
@@ -1849,7 +1858,7 @@ Window {
 
         Rectangle {
             border.color: Theme.fill(Theme.borderIdle)
-            border.width: 1
+            border.width: Theme.hairWidth
             color: Theme.fill(Theme.fillIdle)
             height: box.boxHeight
             radius: Theme.cornerRadius

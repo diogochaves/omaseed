@@ -49,6 +49,9 @@ public:
     int count() const { return int(m_groups.size()); }
     QStringList hosts() const;
     Q_INVOKABLE QStringList hashesFor(const QString &host) const;
+    /// The API's map as it stands: announce URL → the torrents announcing to it (#146: which
+    /// URL a private host's newest torrent uses).
+    const QHash<QString, QStringList> &byUrl() const { return m_byUrl; }
 
     /// Announce URL → the torrents announcing to it.
     void applyFullUpdate(const QHash<QString, QStringList> &trackers);

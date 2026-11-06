@@ -106,6 +106,15 @@ bool isStopped(const QJsonObject &info)
            state.startsWith(QStringLiteral("paused"), Qt::CaseInsensitive);
 }
 
+/// Whether `torrents/info` says this one was started. Not merely "not stopped": a torrent
+/// added stopped is "checkingResumeData" first, which is neither, and a check that took that
+/// for started read the file priorities while the app was still sending them (#151).
+bool isStarted(const QJsonObject &info)
+{
+    const QString state = info.value(QStringLiteral("state")).toString();
+    return !state.isEmpty() && !isStopped(info) && state != QLatin1String("checkingResumeData");
+}
+
 /// Every OMASEED_* key App reads, cleared so a developer's own shell cannot change a test.
 void clearServerEnvironment()
 {
@@ -484,8 +493,11 @@ void TestAppAdd::addsATorrentFileWithItsOptions()
     request.insert(QStringLiteral("contentLayout"), QStringLiteral("Original"));
 
     QSignalSpy finished(&app, &App::addFinished);
-    // A successful add also moves the table's cursor once the new hash turns up in a sync.
-    QSignalSpy shown(&app, &App::showTorrentRequested);
+    // A successful add also moves the table's cursor once the new hash turns up in a sync,
+    // without raising the main window: an add from the add window leaves it where it is (C35
+    // W1, #220), so the landing is not a "show".
+    QSignalSpy shown(&app, &App::addLanded);
+    QSignalSpy raised(&app, &App::showTorrentRequested);
     app.addTorrent(request);
     QVERIFY(finished.wait(20000));
     QVERIFY2(finished.first().at(0).toBool(), qPrintable(finished.first().at(1).toString()));
@@ -520,6 +532,7 @@ void TestAppAdd::addsATorrentFileWithItsOptions()
     QVERIFY2(waitFor([&shown]() { return shown.count() > 0; }, 15000),
              "the add never asked the table to show the new torrent");
     QCOMPARE(shown.first().first().toString(), QString::fromLatin1(kFixtureHash));
+    QCOMPARE(raised.count(), 0);
 
     app.engine()->stop();
     await(this, probe.torrentsRemoveCategories(QStringList{QStringLiteral(kCategory)}));
@@ -643,11 +656,13 @@ void TestAppAdd::addsWithFileChoicesRenameAndLimits()
     QCOMPARE(info.value(QStringLiteral("name")).toString(), QString::fromLatin1(kTreeRename));
     QCOMPARE(info.value(QStringLiteral("dl_limit")).toInt(), 300 * 1024);
     QVERIFY(info.value(QStringLiteral("f_l_piece_prio")).toBool());
-    // Added stopped for the priorities, then started, because `stopped` was false.
+    // Added stopped for the priorities, then started, because `stopped` was false. The app
+    // starts it only once every torrents/filePrio has been answered, so a started torrent is
+    // the server's word that the choices are in: the list below is read once, exactly (#151).
     QVERIFY2(waitFor(
                  [&]() {
                      info = infoFor(probe, QString::fromLatin1(kTreeHash));
-                     return !info.isEmpty() && !isStopped(info);
+                     return isStarted(info);
                  },
                  15000),
              qPrintable(info.value(QStringLiteral("state")).toString()));

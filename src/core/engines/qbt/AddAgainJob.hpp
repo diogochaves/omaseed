@@ -1,6 +1,7 @@
 #pragma once
 
-// AddAgainJob — what frees a hybrid's leftover files, and clears libtorrent's
+// AddAgainJob — what frees a hybrid's or a v2-only torrent's leftover files (C29: added
+// again, a v2-only torrent reads 100 % of what it wants), and clears libtorrent's
 // torrent_inconsistent_hashes on a hybrid already in it (board 28; docs/44 §2 F2, DECISIONS
 // C17 D3, #118): remove the torrent keeping its files, delete the leftovers, add the same
 // .torrent (torrents/export) stopped with its save path, layout, category, tags, limits, file
@@ -39,8 +40,9 @@ public:
     struct Input
     {
         QString hash;
-        /// Local paths deleted once the torrent is gone and before it comes back: a hybrid's
-        /// skipped files that hold downloaded pieces. Empty for an errored hybrid (board 28).
+        /// Local paths deleted once the torrent is gone and before it comes back: a hybrid's or
+        /// a v2-only torrent's skipped files that hold downloaded pieces (C29). Empty for an
+        /// errored hybrid (board 28).
         QStringList deletePaths;
         std::function<bool(const QString &)> remove = [](const QString &path) {
             return QFile::remove(path);

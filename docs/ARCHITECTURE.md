@@ -53,8 +53,12 @@ Three static libraries and the executable. Each layer only depends on the ones a
   server's read aside), `TorrentsExport` and `TorrentsImport` (C9's file holds qBittorrent's
   rows). The log face and the problem log read the engine's log through `EngineClient::log`
   (`engineLog`), and the add sheet's metadata lookup through `fetchMetadata`.
-  `AddAgainJob` (board 28's add again, C17 D3) is one too (`addAgain`); `FreeSkippedJob`
-  goes through `EngineClient`.
+  `AddAgainJob` (board 28's add again, C17 D3) is one too (`addAgain`), and so are
+  `SearchSession` and `SearchPlugins` (search through its plugins, C26; `search`) and
+  `CreateJob` (a torrent made by its torrent creator, C27; `createTorrent`, Web API 2.10.4).
+  `FreeSkippedJob` goes through `EngineClient`, as do Pause Torrents and Resume Torrents
+  (`PauseHold`, C36 M10: `running()` and `stoppedAmong()`) and the turtle and burst presets
+  (`AltPresets`, C32 D8 a: `setGlobalLimits()` and `setAltSpeed()`).
 - Which engine a server runs (#84, [DECISIONS.md](DECISIONS.md) C25 K1–K12): `Server` stores
   its `EngineKind` and the version from the last contact (servers.json v2; a v1 entry is a
   qBittorrent). `EngineRecognizer` answers a server's test before it signs in: the address
@@ -89,7 +93,7 @@ Three static libraries and the executable. Each layer only depends on the ones a
   the technical text for "details" ([DECISIONS.md](DECISIONS.md) C12).
 - `ActionOutcome` words what a quick action on torrents came to ("3 stopped", "NAME didn't
   move", "2 moved to PATH, 1 didn't"), and `ActionOutcomes` holds the one strip on show and
-  each row's mark, for the strip in the selection bar's place (C18 D1–D3).
+  each row's mark, for the strip over the rows' foot (C18 D1–D3, C24 H8).
 - Servers and settings: `Server`, `ServerStore` (`servers.json`), `SecretStore` (the keyring
   through qtkeychain, a 0600 file under `secrets/` when there is none), `StateFile`,
   `CertificatePin` (trust on first use).
@@ -101,7 +105,8 @@ Three static libraries and the executable. Each layer only depends on the ones a
   disk), `RenamePlan` and `RenameDisk` (what a rename would land on).
 - Skipped files and the disk ([DECISIONS.md](DECISIONS.md) C17): `SkippedOnDisk` (what a
   torrent's skipped files hold on this machine's disk, and the plan to free it),
-  `FreeSkippedJob` and `AddAgainJob` (`SkippedJobs`: the free, and a hybrid added again), and
+  `FreeSkippedJob` and `AddAgainJob` (`SkippedJobs`: the free, and a hybrid or a v2-only
+  torrent added again, C29), and
   `SelectionHold` (a big widening of a selection waits 3 s before it is sent).
 - Moving a folder or a selection ([DECISIONS.md](DECISIONS.md) C15, C16: every move is a job):
   `FolderTree` (the library's save paths as the rail's folders), `MovePlan` (the preflight:
@@ -121,7 +126,10 @@ Three static libraries and the executable. Each layer only depends on the ones a
 
 - `ThemeReader` and `Theme`: read the current Omarchy theme's `colors.toml` and `shell.toml`
   (the bundled Tokyo Night when Omarchy is absent), watch them, and repaint live. A theme hook
-  can also ask for a reload over D-Bus.
+  can also ask for a reload over D-Bus. QML never sees `Theme` by that name: `Omaseed.Kit`
+  registers it as `ThemeBase`, and its `Theme` singleton is `Kit/Theme.qml`, which derives from
+  it and adds the one thing C++ can't give a binding, a `space(px)` that reads `spaceScale`
+  ([DECISIONS.md](DECISIONS.md) C28, #156).
 - `SingleInstance`: `org.freedesktop.Application` on `io.github.diogochaves.omaseed`; a second
   launch hands its magnets and `.torrent` files to the first one and raises it, and
   `omaseed --quit` asks it to quit. `QuitSignals` turns SIGTERM, SIGINT and SIGHUP into the
@@ -146,10 +154,10 @@ version, and shows it to QML as `App.features`.
   take only `Theme` tokens and each has a `tests/qml/tst_<Name>.qml`.
 - `qml/Views/`: the screens, built from the kit; views take models. The window has three
   faces: the library, the seed console (`Console`) and qBittorrent's log (`LogView`).
-- `Keymap.qml` maps keys to actions per focus area and feeds the key hints. It also says which
-  action needs which engine feature (`offered()`): the actions menu, the palette, the `?`
-  sheet and the keys leave out what `App.features` says the server can't do, as the add and
-  Limits sheets do with their fields ([DECISIONS.md](DECISIONS.md) C14 E4).
+- `Keymap.qml` maps keys to actions per focus area and feeds the command palette and the `?`
+  sheet. It also says which action needs which engine feature (`offered()`): the actions menu,
+  the palette, the `?` sheet and the keys leave out what `App.features` says the server can't
+  do, as the add and Limits sheets do with their fields ([DECISIONS.md](DECISIONS.md) C14 E4).
 
 **`plugin/`** is the bar widget itself, a Quickshell plugin (`chaves.omaseed`). It never talks
 to qBittorrent: it reads the status file and sends commands over D-Bus.
@@ -168,17 +176,65 @@ theme changes.
 1. Colours only through `Theme.<role>`: `background`, `foreground`, `dimForeground`,
    `brightForeground`, `accent`, `muted`, `red`, `yellow`, `orange`, `green`, `cyan`, `blue`,
    `magenta`, and the torrent states (`stateDownloading`, `stateSeeding`, `stateStopped`,
-   `stateError`, `stateChecking`, `stateQueued`, `stateStalled`). No hex colours in QML.
-2. Fills through `Theme.fill(alpha)`: 0.04 idle, 0.08 hover or cursor, 0.18 selected, 0.22
-   pressed. Borders 0.40 idle, 0.25 hover. Hairlines 0.12.
-3. Sizes from the shell's `base-size`: `Theme.font.caption|small|body|subtitle|title|heading|display`
-   (× 0.833 / 0.917 / 1 / 1.083 / 1.167 / 1.333 / 2), spacing through `Theme.space(px)`.
-4. The window is `Theme.background` at `Theme.windowAlpha` with a 1 px edge, `accent` when
-   active and `muted` when not. Popups, sheets and palettes are opaque with an `accent` edge.
-5. Corner radius comes from Hyprland, 0 by default. Never hardcode rounding.
-6. The font is fontconfig's `monospace`; icons are Nerd Font glyphs chosen once in
-   `Kit/Glyphs.qml`.
-7. Every colour is a binding, never a copy: a theme change repaints without a restart.
+   `stateError`, `stateChecking`, `stateQueued`, `stateStalled`). No hex colours in QML. These
+   are the colours on the window's own ground.
+2. Fills through `Theme.fill(alpha)`: 0.04 idle, 0.08 hover or cursor, 0.18 selected, 0.24
+   selected under the cursor, 0.22 pressed. Borders 0.40 idle, 0.25 hover. Hairlines 0.12. A
+   theme whose text reads on nothing at a fill's alpha has that fill held lower
+   (`Theme.fillCap`; everforest 0.215, DECISIONS C30 F6).
+3. Text on a fill takes its colour from the ground it is painted on, never from rule 1
+   (DECISIONS C30 F1–F7). `Theme.on.<ground>` holds every text role (`foreground`,
+   `dimForeground`, `brightForeground`, the palette, the states) resolved on that ground at
+   4.5:1 with the least lift, once per theme change, and the ground's `fill`, which is what
+   to paint: `window`, `idle`, `hover`, `cursor`, `selected`, `selectedCursor`, `pressed`; the
+   tints `warning` (the yellow bands), `attention`, `danger` (a selected danger button),
+   `ticked`, `accentIdle`, `turtle` and `burst` (the alternative speeds' chip); fills inside a 4 % block, `blockIdle`, `blockHover`,
+   `blockSelected`, `blockSelectedCursor`, `blockPressed`, `highlight`; and fills over the
+   hover fill (the action bar, a hovered settings row), `hoverIdle`, `hoverHover`,
+   `hoverSelected`, `hoverPressed` (#188). A control with states keeps a `Kit/Ink` on
+   `Theme.ground(selected, cursor, hovered, pressed)` (`Theme.groundIn(block, …)` inside a
+   block; `Theme.within(block, plain)` nests any plain ground), which eases the colours with
+   the fill's 120 ms change; its words read `ink.dimForeground`, `ink[stateRole]`, and a
+   colour handed in by a caller goes through `ink.of(colour)`. A static band reads
+   `Theme.on.warning.dimForeground` and paints `Theme.on.warning.fill`. Kit text (`Label`,
+   `KeyHints`, `KeyCap`, `TableHeader`) takes the `ink` it sits on; `Button`, `IconButton`,
+   `Chip`, `Field`, `Toggle` and `RailRow` take the `block` they rest on (a settings row's control,
+   `block: row.ground`). A new ground is a ThemeInk in
+   `ThemeGrounds`, which `tst_themecontrast` and `contrast-board.py --check` then cover.
+4. Sizes from the shell's `base-size`: `Theme.font.caption|small|body|subtitle|title|heading|display`
+   (× 0.833 / 0.917 / 1 / 1.083 / 1.167 / 1.333 / 2), spacing through `Theme.space(px)`. A
+   binding of `Theme.space(…)` alone follows a base-size change like one of `Theme.font.*`.
+5. The window is `Theme.background` at `Theme.windowAlpha` with a 1 px edge, `accent` when
+   active and `muted` when not. The ground is opaque (`windowAlpha` 1) unless Settings ›
+   Appearance › Window is translucent, which takes the launcher's alpha or the transparency
+   set there (DECISIONS C24 H13). Popups, sheets and palettes are opaque with an `accent` edge.
+6. Corner radius is the skin's (`Theme.cornerRadius`): Omarchy's skin takes Hyprland's
+   rounding, 0 by default; a skin may set px or keep `"hyprland"` (DECISIONS C31). Never
+   hardcode rounding.
+7. The font is the skin's: `Theme.valueFamily` for values and `Theme.labelFamily` for labels,
+   both fontconfig's `monospace` in Omarchy's skin. Icons are glyphs named once in
+   `Kit/Glyphs.qml`, Nerd Font glyphs in Omarchy's skin; a skin may map a name to its own
+   glyph or an icon font's ligature (`ms:<name>`), with Omarchy's glyph as the fallback.
+8. Every colour is a binding, never a copy: a theme change repaints without a restart. A skin
+   change does too.
+
+## Skins
+
+A skin is the form, never the colours (DECISIONS C31): which roles and alphas paint which
+grounds, line widths, cuts, rounding, fonts, the voices of labels, densities, glyphs and kana.
+Each built-in skin is `src/ui/skins/<name>/skin.json`, with its faces in
+`src/ui/skins/<name>/faces/<Seam>.qml`, compiled into `Omaseed.Kit` (kept out of qmldir).
+Omarchy's file sets nothing: its values are Theme.qml's and Glyphs.qml's defaults, its faces
+today's drawing. `integration/SkinReader` reads a file into `Theme.skin` (name, version, what
+it dropped, the missing fonts); QML reads tokens through `Theme.skinTokens`, `Theme.token(group,
+key, fallback)` and `Theme.n(name, px)` for a density, always with Omarchy's value as the
+fallback, and a component branches on a token's value, never on the skin's name (the ctest
+`skin_lint`). Four seams draw what is not a value: `Plate`, `SelectionMark`, `Meter`, `Lamp`,
+each a Kit component with a fixed API whose body `Kit/FaceLoader` loads from `Theme.face(seam)`.
+The choice is Settings › Appearance › Skin (state.json's `appearance.skin`); `OMASEED_SKIN`
+(`omarchy`, `console`, `desktop`) pins it for a run, as tests and walks do. The QML suite runs
+once per skin, ctest labels `skin-omarchy` (`tst_qml`) and `skin-console` (`tst_qml_console`);
+`scripts/dev/visual-check.sh` has a pass per skin, each with its own baseline.
 
 ## Design
 

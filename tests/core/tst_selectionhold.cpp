@@ -29,6 +29,7 @@ class TestSelectionHold : public QObject
 
 private Q_SLOTS:
     void whatWaits();
+    void aTickThatDoesntFitWaits();
     void changesMergeAndTheNetIsSent();
     void aChangeThatNetsToZeroSendsNothing();
     void undoGivesBackTheServersPriorities();
@@ -47,6 +48,27 @@ void TestSelectionHold::whatWaits()
     // A skip never waits (D5), nor a change among files already wanted.
     QVERIFY(!SelectionHold::mustWait(priorities(), sizes(), {0, 1, 2, 3, 4}, 0));
     QVERIFY(!SelectionHold::mustWait(priorities(), sizes(), {0, 1}, 7));
+}
+
+// DECISIONS C28 (#159): on a disk that takes every ticked file's full size at once, a widening
+// that doesn't fit waits whatever its size; one that fits, or any change elsewhere, as D5 says.
+void TestSelectionHold::aTickThatDoesntFitWaits()
+{
+    const qint64 sixHundred = sizes().value(2);
+    QCOMPARE(SelectionHold::widening(priorities(), sizes(), {2}, 1), sixHundred);
+    QCOMPARE(SelectionHold::widening(priorities(), sizes(), {0, 2}, 1), sixHundred);
+    QCOMPARE(SelectionHold::widening(priorities(), sizes(), {2}, 0), qint64(0));
+    // 600 MiB with less free: it waits.
+    QVERIFY(SelectionHold::mustWait(priorities(), sizes(), {2}, 1, sixHundred - 1));
+    QVERIFY(SelectionHold::mustWait(priorities(), sizes(), {2}, 1, 0));
+    // Exactly enough, or more: sent at once.
+    QVERIFY(!SelectionHold::mustWait(priorities(), sizes(), {2}, 1, sixHundred));
+    QVERIFY(!SelectionHold::mustWait(priorities(), sizes(), {2}, 1, 10 * sixHundred));
+    // A disk that allocates as it writes (-1): as before.
+    QVERIFY(!SelectionHold::mustWait(priorities(), sizes(), {2}, 1, -1));
+    // A skip, or a change among files already wanted, never takes room.
+    QVERIFY(!SelectionHold::mustWait(priorities(), sizes(), {2}, 0, 0));
+    QVERIFY(!SelectionHold::mustWait(priorities(), sizes(), {0, 1}, 7, 0));
 }
 
 void TestSelectionHold::changesMergeAndTheNetIsSent()

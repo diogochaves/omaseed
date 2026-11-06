@@ -19,11 +19,10 @@ import Omaseed.Kit
 //               as it runs; `enter` sets up, `esc` quits.
 // Three steps, named above the question ("server · sign in · links", the current one bright;
 // no numbers, manual box M3):
-//   1 choose    `App.detectServers()` on `Component.onCompleted`; one row per engine found on
-//               this machine (C25 K1, K2: qBittorrent, Transmission, Deluge, each named), then
-//               "connect to a remote server", and "install qbittorrent-nox here" —
+//   1 choose    `App.detectServers()` on `Component.onCompleted`; rows for a detected local
+//               server, "connect to a remote server", and "install qbittorrent-nox here" —
 //               the last one dimmed and captioned "a local server was already found" when
-//               step 1 found a qBittorrent (Q20: still selectable, since a second engine is possible
+//               step 1 found one (Q20: still selectable, since a second engine is possible
 //               with its own profile and port, but the packaged service is one instance on
 //               8080 and would not start next to a server already answering there).
 //   2 details   either the API-key page (URL/name/auth/key, `test`, `continue`) for "local"
@@ -67,25 +66,20 @@ Item {
     property bool anotherRunning: false
     readonly property bool hasLocal: root.candidates.length > 0
     readonly property var _localCandidate: root.hasLocal ? root.candidates[0] : ({})
-    /// Q20's clash is with a qBittorrent on 8080: the install row dims for that one only.
-    readonly property bool hasLocalQbt: root.candidates.some(candidate => (candidate.engine || "qbittorrent") === "qbittorrent")
 
     readonly property var _rows: {
         const rows = [];
-        // K2: one row per engine found, in the detector's order, each naming its engine.
-        for (const candidate of root.candidates)
+        if (root.hasLocal)
             rows.push({
                           "kind": "local",
-                          "glyph": "⛁",
-                          "title": candidate.label || qsTr("Use the server on this machine"),
-                          "detail": candidate.detail || "",
-                          "dimmed": false,
-                          "url": candidate.url || "",
-                          "engine": candidate.engine || "qbittorrent"
+                          "glyph": Glyphs.serverLocal,
+                          "title": qsTr("Use the server on this machine"),
+                          "detail": root._localCandidate.detail || "",
+                          "dimmed": false
                       });
         rows.push({
                       "kind": "remote",
-                      "glyph": "⇢",
+                      "glyph": Glyphs.serverRemote,
                       "title": qsTr("Connect to a remote server"),
                       // docs/14's wording: an API key is only one of the ways to sign in (M1).
                       "detail": qsTr("A seedbox, a NAS, or qui's proxy."),
@@ -95,9 +89,9 @@ Item {
                       "kind": "install",
                       "glyph": "+",
                       "title": qsTr("Install qbittorrent-nox here"),
-                      "detail": root.hasLocalQbt ? qsTr("a local server was already found") : qsTr(
+                      "detail": root.hasLocal ? qsTr("a local server was already found") : qsTr(
                                                                                               "Adds the package and a user service. Offered because you can, not because you must."),
-                      "dimmed": root.hasLocalQbt
+                      "dimmed": root.hasLocal
                   });
         return rows;
     }
@@ -177,7 +171,7 @@ Item {
                                                                                   qsTr("Open magnet links and .torrent files with omaseed?")) :
                                       root.page === "bar" ? qsTr("Show omaseed in the Omarchy bar?") :
                                       root.page === "done" ? qsTr("You're connected to %1.").arg(root.connectedName) :
-                                      qsTr("Which server should omaseed talk to?")
+                                      qsTr("Which qBittorrent should omaseed talk to?")
 
     // ---- step 2 buffers --------------------------------------------------------------------
     property string chosenKind: ""
@@ -186,33 +180,12 @@ Item {
     property string editAuthMode: "none"
     property string editUsername: ""
     property string editSecret: ""
-    /// The engine the chosen row names (K1: the detector's, before any request); "" for a
-    /// remote server, whose test recognises it (K5).
-    property string pickedEngine: ""
-    /// serverTested's `info`: which engine answered, and whether it is refused (K8, K9).
-    property var testInfo: ({})
-    readonly property bool testRefused: root.tested && !root.testOk && root.testInfo.refused === true
-    /// The engine the page stands for: the one a test recognised, else the row's.
-    readonly property string engine: root.tested && root.testInfo.engine ? String(root.testInfo.engine) : root.pickedEngine
-    readonly property string engineName: ({
-                                              "qbittorrent": qsTr("qBittorrent"),
-                                              "transmission": qsTr("Transmission"),
-                                              "deluge": qsTr("Deluge")
-                                          })[root.engine] || qsTr("qBittorrent")
-    /// K7: the sign-in chips for `engine`; qBittorrent's three until it is known.
-    readonly property var authModes: root.engine === "transmission" ? ["cookie", "none"] : root.engine === "deluge"
-                                                                                           ? ["password"] : ["apiKey", "cookie", "none"]
-    onAuthModesChanged: {
-        if (root.authModes.indexOf(root.editAuthMode) < 0)
-            root.editAuthMode = root.authModes[0];
-    }
 
     // The secret is the visible field's: a key typed, then "cookie" chosen, must not go out
     // as the password.
     onEditAuthModeChanged: {
         root.editSecret = root.editAuthMode === "apiKey" ? keyField.text : root.editAuthMode
-                                                                          === "cookie" ? passField.text : root.editAuthMode
-                                                                                         === "password" ? lonePassField.text : "";
+                                                                          === "cookie" ? passField.text : "";
         root._resetTest();
     }
     // M2: a pass is for the address and login it tested; changing either asks for a new test.
@@ -259,10 +232,7 @@ Item {
     "url": root.editUrl,
     "authMode": root.editAuthMode,
     "username": root.editAuthMode === "cookie" ? root.editUsername : "",
-"certificateSha256": root.trustedCertificate,
-// #84: the row's engine, or "recognise" for an address typed (K4, K5).
-"engine": root.engine.length > 0 ? root.engine : "qbittorrent",
-"engineChoice": root.pickedEngine.length > 0 ? root.pickedEngine : "recognise"
+"certificateSha256": root.trustedCertificate
 };
 }
 
@@ -277,14 +247,12 @@ function _resetTest(): void {
     root.testLatency = -1;
     root.testError = "";
     root.testErrorDetail = "";
-    root.testInfo = ({});
     root.certificateSha256 = "";
     root.certificatePinned = "";
 }
 
-function openRow(kind: string, url: string, engine: string): void {
+function openRow(kind: string, url: string): void {
     root.chosenKind = kind;
-    root.pickedEngine = kind === "local" ? (engine || "qbittorrent") : kind === "install" ? "qbittorrent" : "";
     root._resetTest();
     if (kind === "install") {
         root.page = "install";
@@ -292,8 +260,7 @@ function openRow(kind: string, url: string, engine: string): void {
     }
     root.editUrl = url;
     root.editName = kind === "local" ? qsTr("home") : "";
-    // K7: none where the engine offers it; deluge-web always wants its password.
-    root.editAuthMode = root.authModes.indexOf("none") >= 0 ? "none" : root.authModes[0];
+    root.editAuthMode = "none";
     root.editUsername = "";
     root.editSecret = "";
     root.trustedCertificate = "";
@@ -306,7 +273,6 @@ function openRow(kind: string, url: string, engine: string): void {
     keyField.text = "";
     userField.text = "";
     passField.text = "";
-    lonePassField.text = "";
     root.page = "apikey";
 }
 
@@ -314,7 +280,7 @@ function chooseCursor(): void {
     const row = root._rows[root.cursorIndex];
     if (!row)
         return;
-    root.openRow(row.kind, row.kind === "remote" ? "" : row.url || root._localCandidate.url || "", row.engine || "");
+    root.openRow(row.kind, row.kind === "remote" ? "" : root._localCandidate.url || "");
 }
 
 function moveCursor(delta: int): void {
@@ -354,8 +320,7 @@ function continueFromApiKey(): void {
     // so Settings → Servers shows the version and count straight away (docs/DECISIONS.md Q23).
     if (root.tested)
         App.serverList.setProbeResult(id, root.testOk, root.testVersion, root.testApiVersion,
-                                      root.testCount, root.testLatency, root.testError,
-                                      root.testInfo.engine || "");
+                                      root.testCount, root.testLatency, root.testError);
     App.setDefaultServer(id);
     root.connectedName = root.editName.length > 0 ? root.editName : App.serverName;
     root._openHandlerStep();
@@ -448,7 +413,7 @@ Connections {
     }
 
     function onServerTested(id: string, ok: bool, version: string, apiVersion: string, torrentCount: int,
-                            latencyMs: int, error: string, errorDetail: string, info: var): void {
+                            latencyMs: int, error: string, errorDetail: string): void {
         if (id.length > 0)
         return; // a saved server's own test, not first run's throwaway probe
         if (!root.testing)
@@ -462,12 +427,11 @@ Connections {
         root.testLatency = latencyMs;
         root.testError = error;
         root.testErrorDetail = errorDetail;
-        root.testInfo = info || ({});
         if (ok) {
             root.certificateSha256 = "";
             root.certificatePinned = "";
         }
-        root.testResultText = ok ? qsTr("%1 %2 · API %3 · %4").arg(root.engineName).arg(version.replace(
+        root.testResultText = ok ? qsTr("qBittorrent %1 · API %2 · %3").arg(version.replace(
                                                                                 /^v/, "")).arg(apiVersion).arg(
                                        torrentCount === 1 ? qsTr("1 torrent") : qsTr("%1 torrents").arg(
                                                                 torrentCount)) : error;
@@ -495,8 +459,6 @@ function _apiKeyTabOrder(): list<Item> {
         order.push(keyField);
     else if (root.editAuthMode === "cookie")
         order.push(userField, passField);
-    else if (root.editAuthMode === "password")
-        order.push(lonePassField);
     if (certificateTrust.visible)
         order.push(certificateTrust.trustButton);
     order.push(testButton, openWebUiButton);
@@ -505,6 +467,19 @@ function _apiKeyTabOrder(): list<Item> {
     if (continueButton.enabled)
         order.push(continueButton);
     return order;
+}
+
+/// #201 F1: a credential picked (the chip clicked, or space on it) puts the caret in its
+/// first field, the key or the username; "none" has none and leaves the keyboard on the chip.
+/// Later, once the field the choice shows is laid out.
+function _pickAuth(mode: string): void {
+    root.editAuthMode = mode;
+    const field = mode === "apiKey" ? keyField : mode === "cookie" ? userField : null;
+    if (field)
+        Qt.callLater(() => {
+                         field.focusInput();
+                         root._scrollIntoView(field);
+                     });
 }
 
 /// Only matters when the column scrolls (a big font on a small screen): keep what the
@@ -672,12 +647,12 @@ Flickable {
 
             // Each line by its words, without the leading · or ✓.
             Label {
-                Accessible.name: qsTr("looking for torrent servers on this machine…")
+                Accessible.name: qsTr("looking for qBittorrent on this machine…")
                 Accessible.role: Accessible.StaticText
                 Layout.fillWidth: true
                 dim: true
                 size: "small"
-                text: qsTr("· looking for torrent servers on this machine…")
+                text: qsTr("· looking for qBittorrent on this machine…")
                 visible: root.detecting
             }
 
@@ -687,31 +662,25 @@ Flickable {
                 Label {
                     required property var modelData
 
-                    // K2: each find names its engine.
-                    readonly property string _engineName: ({
-                                                               "qbittorrent": qsTr("qBittorrent"),
-                                                               "transmission": qsTr("Transmission"),
-                                                               "deluge": qsTr("Deluge")
-                                                           })[modelData.engine || "qbittorrent"] || ""
-                    Accessible.name: qsTr("found %1 at %2").arg(_engineName).arg(modelData.detail || modelData.url || "")
+                    Accessible.name: qsTr("found %1").arg(modelData.detail || modelData.url || "")
                     Accessible.role: Accessible.StaticText
                     Layout.fillWidth: true
                     color: Theme.green
                     objectName: "detectFound"
                     size: "small"
-                    text: qsTr("✓ found %1 at %2").arg(_engineName).arg(modelData.detail || modelData.url || "")
+                    text: qsTr("✓ found %1").arg(modelData.detail || modelData.url || "")
                     wrapMode: Text.WordWrap
                 }
             }
 
             Label {
-                Accessible.name: qsTr("no torrent server on this machine yet")
+                Accessible.name: qsTr("no qBittorrent on this machine yet")
                 Accessible.role: Accessible.StaticText
                 Layout.fillWidth: true
                 dim: true
                 objectName: "detectNone"
                 size: "small"
-                text: qsTr("· no torrent server on this machine yet")
+                text: qsTr("· no qBittorrent on this machine yet")
                 visible: !root.detecting && !root.hasLocal
                 wrapMode: Text.WordWrap
             }
@@ -858,6 +827,12 @@ Flickable {
                     // Q20: the install row under a found server. Only the ink dims; cursor,
                     // hover, enter and click work as on the other rows.
                     readonly property bool dimmed: optionRow.modelData.dimmed
+                    /// The row's words on its ground, the hover fill while it is hot
+                    /// (docs/DECISIONS.md C30 F1).
+                    readonly property Ink ink: Ink {
+                        animated: false
+                        ground: Theme.ground(false, false, optionRow.hot, false)
+                    }
 
                     /// Choose this row: a click, or a screen reader's press.
                     function choose(): void {
@@ -874,7 +849,7 @@ Flickable {
                                                   optionRow.choose()
                     Layout.fillWidth: true
                     objectName: "setupOption" + optionRow.index
-                    color: optionRow.hot ? Theme.fill(Theme.fillHover) : "transparent"
+                    color: optionRow.hot ? optionRow.ink.fill : "transparent"
                     implicitHeight: rowLayout.implicitHeight + Theme.space(16)
                     radius: Theme.cornerRadius
 
@@ -901,14 +876,14 @@ Flickable {
                         Rectangle {
                             color: "transparent"
                             border.color: Theme.fill(Theme.borderIdle)
-                            border.width: 1
+                            border.width: Theme.hairWidth
                             implicitHeight: Theme.space(28)
                             implicitWidth: Theme.space(28)
                             radius: Theme.cornerRadius
 
                             Text {
                                 anchors.centerIn: parent
-                                color: optionRow.dimmed ? Theme.dimForeground : Theme.accent
+                                color: optionRow.dimmed ? optionRow.ink.dimForeground : optionRow.ink.accent
                                 font.family: Theme.fontFamily
                                 font.pixelSize: Theme.font.body
                                 text: optionRow.modelData.glyph
@@ -923,12 +898,14 @@ Flickable {
                                 Layout.fillWidth: true
                                 bright: !optionRow.dimmed
                                 dim: optionRow.dimmed
+                                ink: optionRow.ink
                                 text: optionRow.modelData.title
                             }
 
                             Label {
                                 Layout.fillWidth: true
                                 dim: true
+                                ink: optionRow.ink
                                 size: "small"
                                 text: optionRow.modelData.detail
                                 wrapMode: Text.WordWrap
@@ -940,6 +917,7 @@ Flickable {
                             // case is meaningful in every key chip (T3.5/T3.6), and `tracked`
                             // would print it as "ENTER".
                             dim: true
+                            ink: optionRow.ink
                             size: "caption"
                             text: qsTr("enter")
                             visible: optionRow.hasCursor
@@ -972,7 +950,7 @@ Flickable {
                 Layout.fillWidth: true
                 objectName: "portWarning"
                 spacing: Theme.space(8)
-                visible: root.hasLocalQbt
+                visible: root.hasLocal
 
                 Rectangle {
                     Layout.alignment: Qt.AlignTop
@@ -1035,7 +1013,7 @@ Flickable {
                 Button {
                     text: qsTr("continue")
 
-                    onClicked: root.openRow("local", "http://127.0.0.1:8080", "qbittorrent")
+                    onClicked: root.openRow("local", "http://127.0.0.1:8080")
                 }
             }
 
@@ -1114,14 +1092,21 @@ Flickable {
                     Repeater {
                         id: authChips
 
-                        // K7: the engine's own sign-in choices; M1: a cookie login is a
-                        // username and a password, say so.
-                        model: root.authModes.map(mode => ({
-                                                               "mode": mode,
-                                                               "text": mode === "apiKey" ? qsTr("API key") : mode === "cookie"
-                                                                                           ? qsTr("username and password") : mode === "password"
-                                                                                             ? qsTr("password") : qsTr("none")
-                                                           }))
+                        model: [
+                            {
+                                "mode": "apiKey",
+                                "text": qsTr("API key")
+                            },
+                            {
+                                "mode": "cookie",
+                                // M1: a cookie login is a username and a password; say so.
+                                "text": qsTr("username and password")
+                            },
+                            {
+                                "mode": "none",
+                                "text": qsTr("none")
+                            }
+                        ]
 
                         Chip {
                             id: authChip
@@ -1132,10 +1117,13 @@ Flickable {
 
                             focusable: true
                             checkable: true
+                            // #201 F2: the choice made reads as chosen, with an accent edge; the fill alone
+                            // (no border) read as a dimmed, disabled button beside the outlined others.
+                            accent: authChip.selected
                             selected: root.editAuthMode === authChip.modelData.mode
                             text: authChip.modelData.text
 
-                            onClicked: root.editAuthMode = authChip.modelData.mode
+                            onClicked: root._pickAuth(authChip.modelData.mode)
                         }
                     }
 
@@ -1198,25 +1186,6 @@ Flickable {
                         onAccepted: root.enterOnApiKey()
                         onTextChanged: root.editSecret = text
                     }
-                }
-            }
-
-            // Deluge's one password (K7), no user name.
-            FormRow {
-                Layout.fillWidth: true
-                label: qsTr("Password")
-                visible: root.editAuthMode === "password"
-
-                Field {
-                    id: lonePassField
-
-                    Layout.fillWidth: true
-                    objectName: "lonePassField"
-                    echoMode: TextInput.Password
-                    placeholder: qsTr("deluge-web's password")
-
-                    onAccepted: root.enterOnApiKey()
-                    onTextChanged: root.editSecret = text
                 }
             }
 
@@ -1321,8 +1290,7 @@ Flickable {
 
                     objectName: "saveAnywayButton"
                     text: qsTr("save anyway")
-                    // K8, K9: not for a version or an engine omaseed refuses.
-                    visible: root.tested && !root.testOk && !root.testRefused
+                    visible: root.tested && !root.testOk
 
                     onClicked: root.continueFromApiKey()
                 }
@@ -1400,7 +1368,11 @@ Flickable {
 
                     activeFocusOnTab: false // the page cycles tab itself (see _cycleApiKeyFocus)
 
-                    text: qsTr("not now")
+                    objectName: "notNowButton"
+                    // #201 F3: when omaseed already opens them (the system's own default, with
+                    // no line of ours in mimeapps.list), this button changes nothing, and
+                    // "not now" read as turning it down.
+                    text: root.alreadyHandler ? qsTr("leave it as is") : qsTr("not now")
 
                     onClicked: root.skipHandler()
                 }
@@ -1476,7 +1448,7 @@ Flickable {
                     const parts = [];
                     const version = (root.testVersion || App.globalState.serverVersion).replace(/^v/, "");
                     if (version.length > 0)
-                        parts.push(qsTr("%1 %2").arg(root.engineName).arg(version));
+                        parts.push(qsTr("qBittorrent %1").arg(version));
                     const count = App.torrents.count > 0 ? App.torrents.count : root.testCount;
                     if (count >= 0)
                         parts.push(count === 1 ? qsTr("1 torrent") : qsTr("%1 torrents").arg(count));

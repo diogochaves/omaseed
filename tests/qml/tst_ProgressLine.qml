@@ -18,6 +18,19 @@ TestCase {
         compare(line.implicitHeight, Theme.space(2));
     }
 
+    // #171 step 6: the line is the skin's Meter, drawn to the fraction as it always was.
+    function test_line_is_the_skins_meter() {
+        const line = createTemporaryObject(progressComponent, testCase, {
+                                               "value": 0.5,
+                                               "showText": false
+                                           });
+        const meter = findChild(line, "progressLineMeter");
+        verify(meter !== null);
+        compare(meter.height, Theme.progressLineThickness);
+        compare(meter.value, 0.5);
+        verify(!meter.snap);
+    }
+
     function test_default_colour_is_accent() {
         const line = createTemporaryObject(progressComponent, testCase);
         compare(line.color, Theme.accent);

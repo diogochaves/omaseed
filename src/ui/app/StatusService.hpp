@@ -32,6 +32,7 @@ public:
 
     bool toggleAltSpeed() override;
     bool setAltSpeed(bool on) override;
+    bool pickAltSpeed(const QString &kind) override;
     void describeSources(const QStringList &sources, Reply reply) override;
     void addSources(const QStringList &sources,
                     const QString &category,
@@ -66,7 +67,8 @@ public:
     static QString rememberedCategory();
 
 Q_SIGNALS:
-    /// The window should come up (OpenAddSheet): main.cpp raises it.
+    /// The window should come up (ShowTorrent with no hash): main.cpp raises it. OpenAddSheet
+    /// no longer raises here: App::requestAdd decides (docs/DECISIONS.md C35).
     void raiseRequested();
     /// AddSources wrote the category it used to state.json ("widgetAdd" › "category"):
     /// main.cpp has the StatusWriter read it again.

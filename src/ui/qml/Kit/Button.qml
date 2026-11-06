@@ -26,23 +26,60 @@ Rectangle {
 
     property string text: ""
     property string glyph: ""
+    /// A glyph after the words, dim (board 46 `.tool .c`: a menu's chevron drawn in the skin's
+    /// icon font); "" draws none.
+    property string trailingGlyph: ""
+    /// The leading glyph dim while the button rests, its words' colour under the pointer or
+    /// selected (board 51 `.ab2 .ic`, the action bar's icons). A danger glyph stays red.
+    property bool glyphDim: false
     property bool primary: false
     property bool danger: false
     property bool hasCursor: false
     property bool selected: false
     property bool bordered: false
+    /// A `primary` drawn filled with the accent, its words in the window's ground (board 46
+    /// `.btn.pri`, a sheet's main button: `Theme.sheetPrimaryFilled`). Background on accent is
+    /// the key badge's pair, held at 4.5:1 by tst_themecontrast (C30 F1). Not for `danger`.
+    property bool filled: false
+    /// A tooltip under the button (over it with `tooltipAbove`), on hover and on keyboard
+    /// focus, as IconButton's: the word button's key (DECISIONS C24 H10). Empty shows none.
+    property string tooltip: ""
+    property bool tooltipAbove: false
+    /// The room either side of the words (spec v2 `.btn`: 10 px; a sheet's foot, 12 px).
+    property int sidePadding: Theme.space(10)
     // The label's type size. Body everywhere (spec `.btn`), except the confirm dialog's two
     // buttons, which the spec prints at caption (`.confirm .bts .btn`).
-    property int fontSize: Theme.font.body
+    property int fontSize: Theme.controlFontSize
     // Debug-only override so the ThemeGallery can show the pressed fill without a held mouse
     // button; a real press (mouseArea.pressed) always wins over this.
     property bool pressed: false
+    /// What the button sits on while it paints nothing (docs/DECISIONS.md C30 F1): the window,
+    /// or the block it is in (`Theme.on.idle` for a notice's or a sheet block's 4 %, the hover
+    /// fill on the action bar or a hovered row); its fills nest over it (`Theme.within`).
+    property ThemeInk block: Theme.on.window
 
     signal clicked
 
     readonly property bool hot: root.hasCursor || mouseArea.containsMouse
-    readonly property color _textColor: root.danger ? Theme.red : (root.primary ? Theme.accent :
-                                                                                  Theme.foreground)
+    readonly property alias tooltipItem: tip
+    /// The ground under the label in each state, as `color` paints it (C30 F1, F4).
+    readonly property ThemeInk ground: {
+        if (mouseArea.pressed || root.pressed)
+            return Theme.within(root.block, Theme.on.pressed);
+        if (root.activeFocus || root.hot)
+            return Theme.within(root.block, Theme.on.hover);
+        if (root.selected)
+            return root.danger ? Theme.on.danger : Theme.within(root.block, Theme.on.selected);
+        return root.bordered && root.block === Theme.on.window ? Theme.on.idle : root.block;
+    }
+    /// The label's colours on that ground, eased with the fill.
+    readonly property Ink ink: Ink {
+        ground: root.ground
+    }
+    readonly property bool _filled: root.filled && root.primary && !root.danger
+    readonly property color _textColor: root._filled ? Theme.background : root.danger ? root.ink.red
+                                                                                     : (root.primary ? root.ink.accent
+                                                                                                     : root.ink.foreground)
     readonly property color _borderColor: (root.danger && (root.selected || root.primary))
                                           ? Theme.red : root.primary ? Theme.accent : root.hot
                                                                        ? Theme.fill(
@@ -65,33 +102,21 @@ Rectangle {
 
     activeFocusOnTab: root.enabled
     border.color: root._borderColor
-    border.width: (root.primary || root.hot || root.bordered || root.selected) ? 1 : 0
-    color: (mouseArea.pressed || root.pressed) ? Theme.fill(Theme.fillPressed) : (root.activeFocus
-                                                                                  || root.hot)
-                                                 ? Theme.fill(Theme.fillHover) : root.selected ? (
-                                                                                                     root.danger
-                                                                                                     ? Qt.rgba(
-                                                                                                           Theme.red.r,
-                                                                                                           Theme.red.g,
-                                                                                                           Theme.red.b,
-                                                                                                           Theme.fillSelected) :
-                                                                                                       Theme.fill(
-                                                                                                           Theme.fillSelected)) :
-                                                                                                 root.bordered
-                                                                                                 ? Theme.fill(
-                                                                                                       Theme.fillIdle) :
-                                                                                                   "transparent"
+    border.width: (root.primary || root.hot || root.bordered || root.selected) ? Theme.hairWidth : 0
+    // The ground's own fill; resting in a block, nothing: the block's is under it already.
+    color: root._filled ? Theme.accent : root.ground === root.block ? "transparent" : root.ground.fill
     height: Theme.controlHeight
-    implicitWidth: label.implicitWidth + glyphLabel.implicitWidth + Theme.space(20) + (root.glyph.length
+    implicitWidth: label.implicitWidth + glyphLabel.implicitWidth + 2 * root.sidePadding + (root.glyph.length
                                                                                        > 0 && root.text.length
                                                                                        > 0 ? Theme.space(
                                                                                                  6) : 0)
+                   + (trailing.visible ? trailing.implicitWidth + Theme.space(6) : 0)
     opacity: root.enabled ? 1.0 : 0.4
     radius: Theme.cornerRadius
 
     Behavior on color {
         ColorAnimation {
-            duration: 120
+            duration: Theme.fillChangeDuration
         }
     }
 
@@ -103,7 +128,9 @@ Rectangle {
             id: glyphLabel
 
             anchors.verticalCenter: parent.verticalCenter
-            color: root._textColor
+            color: root.glyphDim && !root.danger && !root.hot && !root.selected ? root.ink.dimForeground
+                                                                                : root._textColor
+            objectName: "buttonGlyph"
             pixelSize: Theme.font.icon
             text: root.glyph
             visible: root.glyph.length > 0
@@ -114,10 +141,25 @@ Rectangle {
 
             anchors.verticalCenter: parent.verticalCenter
             color: root._textColor
-            font.family: Theme.fontFamily
+            // The skin's control voice (board 46 `.btn`, `.tool .pi`, `.status.sel .ab`).
+            font.capitalization: Theme.controlUpper ? Font.AllUppercase : Font.MixedCase
+            font.family: Theme.labelFamily
+            font.letterSpacing: root.fontSize * Theme.controlTrack
             font.pixelSize: root.fontSize
+            font.weight: Theme.controlWeight
             text: root.text
             visible: root.text.length > 0
+        }
+
+        Glyph {
+            id: trailing
+
+            anchors.verticalCenter: parent.verticalCenter
+            color: root._filled ? root._textColor : root.ink.dimForeground
+            objectName: "buttonTrailingGlyph"
+            pixelSize: Theme.font.icon
+            text: root.trailingGlyph
+            visible: root.trailingGlyph.length > 0
         }
     }
 
@@ -134,6 +176,22 @@ Rectangle {
         // A click leaves the keyboard where it was (see Button's header).
         onClicked: root.clicked()
     }
+
+    // On the window's content item, not in the button, as IconButton's (KIT-8).
+    Tooltip {
+        id: tip
+
+        readonly property bool wanted: root.visible && root.tooltip.length > 0 && (mouseArea.containsMouse
+                                                                                   || root.activeFocus)
+
+        objectName: "buttonTip"
+        parent: root.Window.window ? root.Window.window.contentItem : root
+        z: 1000
+
+        onWantedChanged: tip.wanted ? tip.showFor(root, root.tooltip, root.tooltipAbove) : tip.hide()
+    }
+
+    onTooltipChanged: tip.wanted ? tip.showFor(root, root.tooltip, root.tooltipAbove) : tip.hide()
 
     // Keypad `enter` is its own key (`Qt.Key_Enter`); without it the key went on to the
     // Sheet, which ran its primary action instead of this button (KIT-7).

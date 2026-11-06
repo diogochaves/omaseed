@@ -151,12 +151,14 @@ void App::updateServerState()
     const int count = m_engine->torrents()->count();
     QString word = QStringLiteral("live");
     if (!m_demoMode) {
-        if (m_serverRefused)
+        if (serverRefused()) // a refused sign-in, or a server of another engine (C28)
             word = QStringLiteral("refused");
         else if (m_serverLost && m_serverError.kind() == ApiError::Kind::Certificate)
             word = QStringLiteral("certificate");
         else if (serverWaiting())
             word = QStringLiteral("waiting"); // docs/44 D11: a timeout
+        else if (m_serverConnecting && !m_serverLost)
+            word = QStringLiteral("connecting"); // #201 F4: a switch under way, not a loss
         else if (m_serverLost || (!state->connected() && !state->syncing()))
             word = QStringLiteral("down");
         else if (!state->connected())
@@ -199,14 +201,32 @@ ErrorWords::Subject App::errorSubject() const
     return subject;
 }
 
+void App::setServerConnecting(bool connecting)
+{
+    if (m_serverConnecting == connecting)
+        return;
+    m_serverConnecting = connecting;
+    Q_EMIT serverStateChanged();
+    updateServerState();
+}
+
 bool App::serverWaiting() const
 {
-    return m_serverLost && !m_serverRefused && m_lostWaiting;
+    return m_serverLost && !serverRefused() && m_lostWaiting;
 }
 
 QVariantMap
 App::serverProblem(const QString &lastError, int retryInSeconds, int silentSeconds) const
 {
+    if (serverOtherEngine() && !m_demoMode) {
+        // C28: never asked, so no retry and nothing technical but the engine on record.
+        QVariantMap words = ErrorWords::forEngine(m_server).toMap();
+        words.insert(QStringLiteral("lineBase"), words.value(QStringLiteral("line")));
+        words.insert(QStringLiteral("retry"), QString());
+        words.insert(QStringLiteral("retryChars"), 0);
+        words.insert(QStringLiteral("reason"), ErrorWords::engineReason(m_server));
+        return words;
+    }
     if (lastError.isEmpty() && !m_serverRefused)
         return {};
     ApiError error = m_serverError;
@@ -298,6 +318,8 @@ QVariantMap App::serverTestProblem(const QVariantMap &fields,
 
 QString App::guardNote(const QString &key) const
 {
+    if (serverOtherEngine())
+        return ErrorWords::guardEngine(m_server, key);
     return ErrorWords::guard(m_server.name, key, m_serverRefused, serverWaiting());
 }
 
@@ -346,11 +368,14 @@ QVariantList App::serverRows() const
             else if (state == QLatin1String("down"))
                 detail << tr("unreachable");
             else if (state == QLatin1String("refused"))
-                detail << tr("sign-in refused");
+                detail << (serverOtherEngine() ? ErrorWords::engineReason(m_server)
+                                               : tr("sign-in refused"));
             else if (state == QLatin1String("certificate"))
                 detail << tr("certificate refused");
             else if (state == QLatin1String("syncing"))
                 detail << tr("first sync");
+            else if (state == QLatin1String("connecting"))
+                detail << tr("connecting");
             else
                 detail << torrentsText(m_engine->torrents()->count());
             const QString version = m_engine->globalState()->serverVersion();
@@ -358,6 +383,10 @@ QVariantList App::serverRows() const
                 state != QLatin1String("waiting") && state != QLatin1String("refused"))
                 detail << tr("qBittorrent %1")
                               .arg(version.startsWith(QLatin1Char('v')) ? version.mid(1) : version);
+        } else if (state == QLatin1String("refused")) {
+            // C28: another engine's server, never asked.
+            meta = role(ServerListModel::LastReasonRole).toString();
+            detail << role(ServerListModel::LastDetailRole).toString();
         } else if (state == QLatin1String("failed")) {
             meta = role(ServerListModel::LastReasonRole).toString();
             detail << tr("last try %1").arg(role(ServerListModel::LastSeenRole).toString());

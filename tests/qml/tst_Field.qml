@@ -58,6 +58,29 @@ TestCase {
         }
     }
 
+    // Board 51 D18 a: with `tokenChips`, each word:value token sits on the selected fill.
+    function test_tokens_as_chips() {
+        const field = createTemporaryObject(fieldComponent, testCase, {
+                                                "width": 400,
+                                                "text": "tag:keep arcade is:stalled"
+                                            });
+        compare(field.tokenSpans.length, 0);
+        verify(!findChild(field, "fieldChips").visible);
+        field.tokenChips = true;
+        compare(field.tokenSpans, [{
+                                       "start": 0,
+                                       "end": 8
+                                   }, {
+                                       "start": 16,
+                                       "end": 26
+                                   }]);
+        const chips = findChild(field, "fieldChips");
+        verify(chips.visible);
+        // Not a token: a colon with nothing after it, a path in the middle of a word.
+        field.text = "a: b/c:d";
+        compare(field.tokenSpans.length, 0);
+    }
+
     function test_height_is_control_height() {
         const field = createTemporaryObject(fieldComponent, testCase);
         compare(field.height, Theme.controlHeight);
@@ -66,6 +89,18 @@ TestCase {
     function test_idle_fill_and_border_match_theme() {
         const field = createTemporaryObject(fieldComponent, testCase);
         fuzzyCompare(field.color.a, Theme.fill(Theme.fillIdle).a, 0.01);
+    }
+
+    // #188: on a hovered settings row (`block: row.ground`) the field's fills nest over the
+    // hover fill, and its words are lifted against that.
+    function test_on_a_hovered_row_its_fills_nest_over_the_hover_fill() {
+        const field = createTemporaryObject(fieldComponent, testCase, {
+                                                "block": Theme.on.hover
+                                            });
+        compare(field.ink.ground, Theme.on.hoverIdle);
+        compare(field.color, Theme.on.hoverIdle.fill);
+        field.hasCursor = true;
+        compare(field.ink.ground, Theme.on.hoverHover);
     }
 
     function test_escape_clears_and_emits_cleared() {
@@ -222,7 +257,8 @@ TestCase {
         mouseClick(text);
         compare(clicks, 0);
         compare(findChild(field, "fieldTrailingButton").enabled, false);
-        compare(text.color, Theme.dimForeground);
+        // On the field's idle fill (DECISIONS C30 F1).
+        compare(text.color, Theme.on.idle.dimForeground);
     }
 
     function test_a_clickable_trailing_lights_up_under_the_mouse() {
@@ -232,9 +268,10 @@ TestCase {
                                                 "trailingClickable": true
                                             });
         const text = findChild(field, "fieldTrailingText");
-        compare(text.color, Theme.dimForeground);
+        compare(text.color, Theme.on.idle.dimForeground);
         mouseMove(text, text.width / 2, text.height / 2);
-        tryCompare(text, "color", Theme.accent);
+        // The pointer brings the hover fill, and the accent as it reads there (C30 F4).
+        tryCompare(text, "color", Theme.on.hover.accent);
     }
 
     // #11: a key in `shortcuts` is handed on as shortcutPressed and typed nothing; others type.

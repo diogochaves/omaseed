@@ -57,18 +57,36 @@ Rectangle {
         return parts.join(", ");
     }
 
+    /// docs/DECISIONS.md C30 F1: the block's words on its own 4 % fill, or on the panel where
+    /// the skin plates the blocks.
+    readonly property Ink ink: Ink {
+        animated: false
+        ground: Theme.platedBlocks ? Theme.on.panel : Theme.on.idle
+    }
+
     // The block is a note named by its headline; its lines are text under it.
     Accessible.name: root.headline
     Accessible.role: Accessible.Note
-    color: Theme.fill(Theme.fillIdle)
+    color: Theme.platedBlocks ? "transparent" : root.ink.fill
     implicitHeight: column.implicitHeight + Theme.space(12)
     objectName: "moveBlock"
+
+    // Its plate, where the skin stands blocks on one (board 46 `.blk.pn`), in the accent.
+    Plate {
+        anchors.fill: parent
+        edgeColor: root.ink.accent
+        edgeWidth: Theme.hairWidth
+        fill: Qt.tint(Theme.on.panel.fill, Qt.alpha(root.ink.accent, Theme.blockTint))
+        objectName: "moveBlockPlate"
+        visible: Theme.platedBlocks
+    }
 
     Rectangle {
         anchors.bottom: parent.bottom
         anchors.left: parent.left
         anchors.top: parent.top
-        color: Theme.accent
+        color: root.ink.accent
+        visible: !Theme.platedBlocks
         width: 1
     }
 
@@ -83,8 +101,10 @@ Rectangle {
         spacing: Theme.space(3)
 
         Text {
-            color: Theme.brightForeground
-            font.family: Theme.fontFamily
+            color: root.ink.brightForeground
+            // Board 46 `.blk b`: the label family, the name's tracking.
+            font.family: Theme.labelFamily
+            font.letterSpacing: Theme.font.body * Theme.nameTrack
             font.pixelSize: Theme.font.body
             font.weight: Font.Medium
             objectName: "moveHeadline"
@@ -97,8 +117,8 @@ Rectangle {
         Text {
             Accessible.name: text
             Accessible.role: Accessible.StaticText
-            color: Theme.foreground
-            font.family: Theme.fontFamily
+            color: root.ink.foreground
+            font.family: Theme.valueFamily
             font.pixelSize: Theme.font.small
             objectName: "movePaths"
             text: qsTr("from %1 to %2").arg(root.move.from ?? "").arg(root.move.to ?? "")
@@ -110,8 +130,8 @@ Rectangle {
         Text {
             Accessible.name: text
             Accessible.role: Accessible.StaticText
-            color: Theme.dimForeground
-            font.family: Theme.fontFamily
+            color: root.ink.dimForeground
+            font.family: Theme.valueFamily
             font.pixelSize: Theme.font.small
             objectName: "moveMeta"
             text: root.metaText
@@ -128,6 +148,7 @@ Rectangle {
         }
 
         KeyHints {
+            ink: root.ink
             model: root.hints
             objectName: "moveActions"
             size: "small"

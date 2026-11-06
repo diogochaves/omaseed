@@ -212,21 +212,18 @@ void TorrentFilesModel::applyFiles(const QList<ContentFile> &files)
 {
     if (files.isEmpty()) {
         clear();
-        return;
-    }
-
-    if (shapeOf(files) == m_shape) {
+    } else if (shapeOf(files) == m_shape) {
         updateInPlace(files);
         updateSummary();
-        return;
+    } else {
+        beginResetModel();
+        rebuild(files);
+        endResetModel();
+        Q_EMIT countChanged();
+        Q_EMIT selectionChanged();
+        updateSummary();
     }
-
-    beginResetModel();
-    rebuild(files);
-    endResetModel();
-    Q_EMIT countChanged();
-    Q_EMIT selectionChanged();
-    updateSummary();
+    Q_EMIT filesApplied();
 }
 
 void TorrentFilesModel::clear()
@@ -874,14 +871,17 @@ void TorrentFilesModel::updateSummary()
     int folders = 0;
     int skipped = 0;
     qint64 size = 0;
+    qint64 skippedDownloaded = 0;
     for (const Node &node : std::as_const(m_nodes)) {
         if (node.isFolder) {
             ++folders;
             continue;
         }
         size += node.size;
-        if (node.priority == int(FilePriority::Skip))
+        if (node.priority == int(FilePriority::Skip)) {
             ++skipped;
+            skippedDownloaded += qint64(double(node.size) * std::clamp(node.progress, 0.0, 1.0));
+        }
     }
     qint64 held = 0;
     int holding = 0;
@@ -896,10 +896,12 @@ void TorrentFilesModel::updateSummary()
         m_holdingOnDisk = holding;
         Q_EMIT onDiskChanged();
     }
-    if (folders == m_folderCount && skipped == m_skippedCount && size == m_totalSize)
+    if (folders == m_folderCount && skipped == m_skippedCount && size == m_totalSize &&
+        skippedDownloaded == m_skippedDownloaded)
         return;
     m_folderCount = folders;
     m_skippedCount = skipped;
+    m_skippedDownloaded = skippedDownloaded;
     m_totalSize = size;
     Q_EMIT summaryChanged();
 }

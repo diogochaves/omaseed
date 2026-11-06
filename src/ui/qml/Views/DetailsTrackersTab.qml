@@ -35,9 +35,11 @@ Item {
     // trimmed to fit the docked column: Fig. 3 is a 400 px mock, the real pane is 340, and
     // the host is the column that has to stay readable.
     readonly property int dotWidth: Theme.space(10)
-    readonly property int seedsWidth: Theme.space(40)
-    readonly property int peersWidth: Theme.space(34)
-    readonly property int statusWidth: Theme.space(118)
+    // Each also at least its caption's whole width (DetailsHeader.fitWidth): a skin's wider
+    // caption voice ran "Seeds" into "Peers" (#171).
+    readonly property int seedsWidth: Math.max(Theme.space(40), seedsHead.fitWidth)
+    readonly property int peersWidth: Math.max(Theme.space(34), peersHead.fitWidth)
+    readonly property int statusWidth: Math.max(Theme.space(118), statusHead.fitWidth)
 
     function ensureVisible() {
         list.positionViewAtIndex(root.cursorIndex, ListView.Contain);
@@ -69,6 +71,8 @@ Item {
         }
 
         DetailsHeader {
+            id: seedsHead
+
             Layout.preferredWidth: root.seedsWidth
             alignRight: true
             clickable: false
@@ -76,6 +80,8 @@ Item {
         }
 
         DetailsHeader {
+            id: peersHead
+
             Layout.preferredWidth: root.peersWidth
             alignRight: true
             clickable: false
@@ -83,6 +89,8 @@ Item {
         }
 
         DetailsHeader {
+            id: statusHead
+
             Layout.preferredWidth: root.statusWidth
             clickable: false
             text: qsTr("Status")
@@ -116,9 +124,11 @@ Item {
             required property string leechesText
             required property bool isPseudo
 
-            readonly property color rowColor: row.isPseudo ? Theme.dimForeground : row.textColor
-            readonly property color statusColor: row.isPseudo ? Theme.dimForeground : row.status
-                                                                === 4 ? Theme.yellow : row.textColor
+            // Every cell's words are the row's ground's (docs/DECISIONS.md C30 F1): `row.ink`.
+            readonly property color rowColor: row.isPseudo ? row.ink.dimForeground : row.textColor
+            readonly property color statusColor: row.isPseudo ? row.ink.dimForeground
+                                                              : row.status === 4 ? row.ink.yellow
+                                                                                 : row.textColor
 
             // #77: a screen reader finds a tracker by its URL (DHT, PeX and LSD, which have
             // none, by their word), and only a real tracker can be selected.
@@ -159,13 +169,12 @@ Item {
                     Layout.preferredHeight: Theme.space(6)
                     Layout.preferredWidth: root.dotWidth
 
-                    Rectangle {
+                    // The skin's lamp (Console's square, board 46 `.trk .dot`).
+                    Lamp {
                         anchors.left: parent.left
                         anchors.verticalCenter: parent.verticalCenter
-                        color: Theme[row.dotRole]
-                        height: Theme.space(6)
-                        radius: width / 2
-                        width: Theme.space(6)
+                        color: row.ink[row.dotRole]
+                        size: Theme.space(6)
                     }
                 }
 

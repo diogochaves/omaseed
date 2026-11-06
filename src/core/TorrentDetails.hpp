@@ -40,6 +40,7 @@
 #include "core/TorrentWebSeedsModel.hpp"
 #include "core/engines/DetailsData.hpp"
 
+#include <QElapsedTimer>
 #include <QObject>
 #include <QPointer>
 #include <QString>
@@ -124,6 +125,9 @@ public:
     void refreshWebSeeds();
 
     int pieceCount() const { return int(m_pieceStates.size()); }
+    /// The last torrents/pieceStates answer, one PieceStates::State per piece; empty while
+    /// the story tab has not asked (the skipped files' reading takes it when it is there).
+    QByteArray pieceStates() const { return m_pieceStates; }
     int piecesHaveCount() const;
     /// The pieces bar's cells for a bar `buckets` pixels wide: PieceStates::bucket().
     Q_INVOKABLE QList<int> pieceBuckets(int buckets) const;
@@ -157,6 +161,9 @@ private:
     void saveFilesFilter();
     void poll();
     void pollPeers();
+    /// The timers' ticks: a poll, unless the last one's requests are still out.
+    void pollTick();
+    void pollPeersTick();
     void pollPieceStates();
     void pollWebSeeds();
     void updateTimers();
@@ -200,6 +207,20 @@ private:
     bool m_rememberViewState = false;
     bool m_switching = false; ///< switchModels() is clearing and refilling the Files filter
     bool m_gone = false;      ///< the server answered 404 for m_hash: deleted under the pane
+
+    /// Requests a poll sent and not yet answered. A tick waits for them, so a server that
+    /// stops answering isn't sent a new round every 2 s: those would fill the client's
+    /// connections, and sync/maindata, which finds out that it stopped, would queue behind.
+    struct Outstanding
+    {
+        int count = 0;
+        QElapsedTimer since; ///< the oldest still out; past kPollStale a tick goes anyway
+        void sent();
+        void answered();
+        bool busy() const;
+    };
+    Outstanding m_pollOut;
+    Outstanding m_peersOut;
 };
 
 } // namespace omaseed::core

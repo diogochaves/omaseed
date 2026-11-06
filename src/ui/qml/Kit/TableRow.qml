@@ -8,7 +8,16 @@ import Omaseed.Kit
 // `brightForeground` (`.tbl .r.sel > div`); `hasCursor` fills at the hover alpha and draws a
 // 1 px inset border at `Theme.borderHover` on every side, since this row is one band rather
 // than the spec's per-`div` box-shadow trick (`.tbl .r.cur > div`); both together use a single
-// 24 % fill (`.tbl .r.sel.cur > div`) instead of stacking the two.
+// 24 % fill (`.tbl .r.sel.cur > div`) instead of stacking the two. `hovered` (the caller's
+// pointer, `.tbl .r:hover`) fills at the hover alpha.
+//
+// A skin may mark the cursor instead (#171 step 6, `Theme.cursorMarked`: board 46 `.row.sel`,
+// Console's brackets through `SelectionMark`) and show a pick by the `picked` ground alone
+// (`Theme.rowGround`, `.row.picked`); Omarchy's face draws no mark, so there it is as above.
+//
+// Every word in a cell takes its colour from `ink` (docs/DECISIONS.md C30 F1–F4): the text
+// roles on the ground this row paints, eased with its fill. A cell's caption is
+// `band.ink.dimForeground`, its state colour `band.ink[stateRole]`, never `Theme.*`.
 //
 // A screen reader finds it as a row (#77): the caller names it with the row's identifying text
 // (a torrent's name, a peer's address) through `Accessible.name`, never a live value; its
@@ -19,6 +28,10 @@ Rectangle {
     default property alias content: cells.data
     property bool selected: false
     property bool hasCursor: false
+    /// #201 F16: the list this row is in has the keys. Without them the cursor keeps its fill
+    /// and drops its edge (the hairline, or the skin's mark), so h / l show where they went.
+    property bool keysHere: true
+    property bool hovered: false
 
     /// `modifiers` is the click's Qt.KeyboardModifiers, for a list that selects on ctrl / shift.
     signal clicked(int modifiers)
@@ -26,7 +39,13 @@ Rectangle {
     signal doubleClicked
 
     readonly property bool both: root.selected && root.hasCursor
-    readonly property color textColor: root.selected ? Theme.brightForeground : Theme.foreground
+    /// The cursor's hairline, where the skin doesn't mark the cursor and the keys are here.
+    readonly property bool _edged: root.hasCursor && root.keysHere && !root.both && !Theme.cursorMarked
+    /// The text roles on this row's ground (C30 F7).
+    readonly property Ink ink: Ink {
+        ground: Theme.rowGround(root.selected, root.hasCursor, root.hovered, false)
+    }
+    readonly property color textColor: root.selected ? root.ink.brightForeground : root.ink.foreground
 
     Accessible.role: Accessible.ListItem
     Accessible.selectable: true
@@ -35,17 +54,15 @@ Rectangle {
     Accessible.onPressAction: if (root.enabled)
                                   root.clicked(Qt.NoModifier)
 
-    border.color: root.hasCursor && !root.both ? Theme.fill(Theme.borderHover) : "transparent"
-    border.width: root.hasCursor && !root.both ? 1 : 0
-    color: root.both ? Theme.fill(Theme.fillSelectedCursor)
-                     : root.selected ? Theme.fill(Theme.fillSelected)
-                                     : root.hasCursor ? Theme.fill(Theme.fillHover) : "transparent"
+    border.color: root._edged ? Theme.fill(Theme.borderHover) : "transparent"
+    border.width: root._edged ? Theme.hairWidth : 0
+    color: root.ink.ground.fill
     height: Theme.rowHeight
     implicitHeight: Theme.rowHeight
 
     Behavior on color {
         ColorAnimation {
-            duration: 120
+            duration: Theme.fillChangeDuration
         }
     }
 
@@ -61,6 +78,14 @@ Rectangle {
         anchors.right: parent.right
         color: Theme.fill(Theme.rowRuleAlpha)
         height: 1
+    }
+
+    // The cursor's mark: nothing in Omarchy's face, Console's brackets.
+    SelectionMark {
+        anchors.fill: parent
+        color: Theme.accent
+        objectName: "tableRowCursor"
+        visible: root.hasCursor && root.keysHere
     }
 
     MouseArea {

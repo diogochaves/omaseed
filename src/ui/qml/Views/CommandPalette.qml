@@ -11,8 +11,10 @@ import Omaseed.Kit
 // With nothing typed the rows come in commandRows' order (P1). Typing filters by title and
 // area word with `Fuzzy.match`, sorted by `Fuzzy.score`, then rows that can run before rows
 // that can't, then recent ones (P2). No match leaves one row that hands the text to the
-// jump palette (D8, P4). `enter` closes the palette, which gives the focus back, then asks
-// MainView to run the row (`runRequested`) or to jump (`jumpRequested`).
+// jump palette (D8, P4) and, on a server with search, a second that searches its plugins for
+// it (DECISIONS C26 SR14). `enter` closes the palette, which gives the focus back, then asks
+// MainView to run the row (`runRequested`), to jump (`jumpRequested`) or to search
+// (`searchRequested`).
 Palette {
     id: root
 
@@ -23,6 +25,8 @@ Palette {
     signal runRequested(string action)
     /// `enter` on P4's row: the jump palette, with `text` typed.
     signal jumpRequested(string text)
+    /// `enter` on SR14's row: the search face, asking for `text`.
+    signal searchRequested(string text)
 
     readonly property var allRows: Keymap.commandRows(root.context)
     readonly property string typed: root.query.trim()
@@ -114,7 +118,14 @@ Palette {
                                   "title": qsTr("find torrents matching “%1”").arg(root.typed),
                                   "meta": "ctrl+k",
                                   "detail": qsTr("library · opens the jump palette with your text")
-                              }] : root.matches
+                              }].concat((root.context || {}).searchOffered === false ? [] : [
+                                                                                          {
+                                                                                              "key": "searchFor",
+                                                                                              "searchFor": true,
+                                                                                              "title": qsTr("search plugins for “%1”").arg(root.typed),
+                                                                                              "meta": "ctrl+f",
+                                                                                              "detail": qsTr("search · asks the plugins that are on")
+                                                                                          }]) : root.matches
     title: root._title()
 
     // Every opening starts from an empty query, like the other palettes.
@@ -127,6 +138,8 @@ Palette {
         root.close();
         if (item.jump === true)
             root.jumpRequested(text);
+        else if (item.searchFor === true)
+            root.searchRequested(text);
         else
             root.runRequested(item.action);
     }

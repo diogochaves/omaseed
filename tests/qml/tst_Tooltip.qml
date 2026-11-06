@@ -55,8 +55,11 @@ TestCase {
     // Review Q8: one look, IconButton's: an accent edge and a 400 ms rest.
     function test_one_look_accent_edge_and_four_hundred_ms() {
         const item = createTemporaryObject(host, testCase);
-        compare(item.tip.panelItem.border.color, Theme.accent);
-        compare(item.tip.panelItem.border.width, 1);
+        // The skin's Plate draws the edge (#171), with the small cut.
+        const plate = findChild(item.tip, "tooltipPlate");
+        compare(plate.edgeColor, Theme.accent);
+        compare(plate.edgeWidth, 1);
+        verify(plate.key);
         const plain = createTemporaryObject(plainHost, testCase);
         compare(plain.tip.delay, 400);
     }
@@ -157,5 +160,42 @@ TestCase {
         const panel = item.tip.panelItem;
         verify(panel.y < item.height - 2, "panel was not flipped above the pointer");
         verify(panel.y >= 0, "panel hangs off the top");
+    }
+
+    // #201 F20: a text that wraps keeps the box to its widest line, its words from the left
+    // edge, not the width the text would have on one line with the lines centred in it.
+    function test_a_wrapped_text_keeps_the_box_to_its_lines() {
+        const item = createTemporaryObject(host, testCase);
+        item.tip.maxWidth = 160;
+        item.tip.showAt(10, 10,
+                        "playground · qBittorrent 5.3.0\nan explanation long enough to wrap "
+                        + "over several lines of the panel\nswitch server · ctrl+s");
+        tryCompare(item.tip, "shown", true);
+        const panel = item.tip.panelItem;
+        const label = findChild(panel, "tooltipLabel");
+        verify(label.lineCount > 3, "%1 lines".arg(label.lineCount));
+        verify(panel.width <= 160 + 2 * panel.padding + 1, "the box is %1 wide".arg(panel.width));
+        fuzzyCompare(panel.width, label.contentWidth + 2 * panel.padding, 1);
+        compare(label.x, panel.padding);
+    }
+
+    // A text on one line: the box is the text and its padding.
+    function test_a_short_text_is_the_box() {
+        const item = createTemporaryObject(host, testCase);
+        item.tip.showAt(10, 10, "omaseed menu · ctrl+.");
+        tryCompare(item.tip, "shown", true);
+        const panel = item.tip.panelItem;
+        const label = findChild(panel, "tooltipLabel");
+        compare(label.lineCount, 1);
+        fuzzyCompare(panel.width, label.implicitWidth + 2 * panel.padding, 1);
+    }
+
+    // #201 F7: the ground hides what is under it.
+    function test_the_ground_is_opaque() {
+        const item = createTemporaryObject(host, testCase);
+        item.tip.showAt(10, 10, "a name");
+        tryCompare(item.tip, "shown", true);
+        const plate = findChild(item.tip.panelItem, "tooltipPlate");
+        compare(plate.fill.a, 1);
     }
 }

@@ -64,6 +64,9 @@ struct MoveDisk
     /// tested on its nearest existing parent, by that owner's permissions, and No on a
     /// read-only mount.
     std::function<Access(const QString &localTarget, const QString &ownerOf)> canWrite;
+    /// DECISIONS C28 (#176): removes `localPath` only when it is still an empty regular file
+    /// (not a folder, not a link). True when it went.
+    std::function<bool(const QString &localPath)> removeEmpty;
 
     static MoveDisk real();
 };
@@ -246,6 +249,11 @@ public:
     QStringList intoItself() const { return hashesOf(Item::Kind::IntoItself); }
     QStringList spans() const { return hashesOf(Item::Kind::Spans); }
     QStringList leftOut() const { return hashesOf(Item::Kind::LeftOut); }
+    /// DECISIONS C28 (#176): a torrent left out by an empty file no torrent owns, seen here:
+    /// the sheet offers "replace it", which deletes that file, then moves.
+    static bool isReplaceable(const Item &item);
+    /// The left-out targets (`why`, as the server writes them) that are replaceable.
+    QStringList replaceable() const;
     QStringList alreadyThere() const { return hashesOf(Item::Kind::AlreadyThere); }
     /// Moving torrents with automatic management on (M7), and the categories they use.
     QStringList autoManaged() const;

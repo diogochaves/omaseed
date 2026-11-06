@@ -122,6 +122,9 @@ struct Torrent
     /// A hybrid torrent (BEP 52 v1+v2): the engine gives it both hashes. libtorrent 2.1.2
     /// errors on a recheck of one that it downloaded when a file is missing (DECISIONS C21).
     bool isHybrid() const { return !infohashV1.isEmpty() && !infohashV2.isEmpty(); }
+    /// A v2-only torrent (BEP 52): a v2 hash and no v1. libtorrent 2.1.2 counts one short of
+    /// 100 % for good after a recheck that found a skipped file's pieces gone (DECISIONS C29).
+    bool isV2Only() const { return infohashV1.isEmpty() && !infohashV2.isEmpty(); }
 
     /// Merges the fields present in `patch` and returns the ones whose value changed.
     TorrentFields apply(const TorrentPatch &patch);

@@ -1,5 +1,6 @@
 #include "ui/app/App.hpp"
 
+#include "core/AltPickWords.hpp"
 #include "core/BackupFormat.hpp"
 #include "core/CertificatePin.hpp"
 #include "core/Format.hpp"
@@ -17,6 +18,7 @@
 #include "core/StateFile.hpp"
 #include "core/TorrentFile.hpp"
 #include "core/TorrentFolderScan.hpp"
+#include "core/TorrentStory.hpp"
 #include "core/TrackerMerge.hpp"
 #include "core/Version.hpp"
 #include "core/WeeklyRecap.hpp"
@@ -130,9 +132,56 @@ App::App(QObject *parent)
     m_altSpeed = new AltSpeed(this);
     m_altSpeed->setGlobalState(m_engine->globalState());
     m_altSpeed->setPreferences(m_prefs);
+    // C32 D8 a: turtle and burst; burst ends (turtle written back) on quit, and a burst a
+    // crash left running is ended at its time once its server answers.
+    m_altPresets = new AltPresets(this);
+    m_altPresets->setClient(m_client);
+    m_altPresets->setPreferences(m_prefs);
+    m_altPresets->setGlobalState(m_engine->globalState());
+    m_altSpeed->setPresets(m_altPresets);
+    m_altPresets->setStore(StateFile::readSection(QStringLiteral("altPresets")));
+    connect(m_altPresets, &AltPresets::storeChanged, this, [this]() {
+        writeStateSection(QStringLiteral("altPresets"), m_altPresets->store());
+    });
+    // C36 M9: a pick made outside the window says what it put in force, once it has.
+    connect(m_altPresets,
+            &AltPresets::picked,
+            this,
+            [this](const QString &kind, qint64 dl, qint64 up, int minutes) {
+                if (m_altNoticeFor != kind)
+                    return;
+                m_altNoticeFor.clear();
+                if (m_notifier.isNull() || m_demoMode || !m_hasServer)
+                    return;
+                const AltPickWords::Notice words = AltPickWords::notice(kind, dl, up, minutes);
+                m_notifier->notifyAltSpeed(m_server.id, words.summary, words.body);
+            });
+    if (QCoreApplication::instance() != nullptr)
+        connect(QCoreApplication::instance(), &QCoreApplication::aboutToQuit, this, [this]() {
+            m_altPresets->endBurstAndWait(2000);
+        });
+    // DECISIONS C36 M10: what Pause Torrents stopped, per server, kept across restarts.
+    m_pauseHold = new PauseHold(this);
+    m_pauseHold->setClient(m_client);
+    m_pauseHold->setStore(StateFile::readSection(QStringLiteral("pauseHold")));
+    connect(m_pauseHold, &PauseHold::storeChanged, this, [this]() {
+        writeStateSection(QStringLiteral("pauseHold"), m_pauseHold->store());
+    });
+    connect(m_pauseHold, &PauseHold::paused, this, [this](int, const QString &error) {
+        if (!error.isEmpty())
+            qWarning().noquote() << QStringLiteral("pause torrents failed: %1").arg(error);
+        m_engine->readErrorStops();
+    });
+    connect(m_pauseHold, &PauseHold::resumed, this, [this](int, int, const QString &error) {
+        if (!error.isEmpty())
+            qWarning().noquote() << QStringLiteral("resume torrents failed: %1").arg(error);
+        m_engine->readErrorStops();
+    });
     m_filtered->setSourceModel(m_engine->torrents());
     // A tracker row lists what the rail counts for it: every torrent on that host.
     m_filtered->setTrackerModel(m_engine->trackers());
+    // DECISIONS C24 H2: "landed today" turns over at the same midnight as the counts.
+    m_filtered->setDay(m_engine->day());
     // The add sheet's "in library" follows the library, not the moment of the last scan: a
     // torrent added from the bar widget while the sheet is up is marked at the next sync.
     // `updated` comes after the model's own bookkeeping (rowsRemoved comes before it).
@@ -174,6 +223,14 @@ App::App(QObject *parent)
         m_engine->globalState(), &GlobalState::freeSpaceOnDiskChanged, this, &App::updateFreeSpace);
     connect(m_prefs, &ServerPreferences::valuesChanged, this, &App::updateFreeSpace);
     connect(this, &App::serverChanged, this, &App::updateFreeSpace);
+    connect(this, &App::serverChanged, this, [this]() {
+        // The demo's presets are its own, in its state (they write nothing to a server).
+        m_altPresets->setServer(!m_hasServer ? QString()
+                                : m_demoMode ? QStringLiteral("demo")
+                                             : m_server.id);
+        // The demo has no torrents to stop: its menu's pause does nothing.
+        m_pauseHold->setServer(m_demoMode || !m_hasServer ? QString() : m_server.id);
+    });
     connect(this, &App::settingsChanged, this, &App::updateFreeSpace);
     connect(m_engine->globalState(), &GlobalState::serverNameChanged, this, &App::updateTray);
     connect(m_engine->counts(), &FilterCounts::changed, this, &App::updateTray);
@@ -190,6 +247,7 @@ App::App(QObject *parent)
     });
     connect(m_engine, &SyncEngine::serverLost, this, [this](const ApiError &error) {
         m_serverLost = true;
+        setServerConnecting(false); // #201 F4: a real failure, now red
         // docs/44 D11: a timeout is a server there but silent, not a lost one.
         qWarning().noquote() << (error.kind() == ApiError::Kind::Timeout
                                      ? QStringLiteral("server isn't answering: %1")
@@ -206,12 +264,14 @@ App::App(QObject *parent)
     });
     connect(m_engine, &SyncEngine::authRequired, this, [this](const ApiError &error) {
         m_serverLost = true;
+        setServerConnecting(false);
         qWarning().noquote() << QStringLiteral("authentication required: %1").arg(error.toString());
         updateTray();
     });
     // serverBack only follows serverLost; after authRequired (a retry, a fixed password) the
     // first good sync is what says the server is back.
     connect(m_engine, &SyncEngine::synced, this, [this]() {
+        setServerConnecting(false); // #201 F4: it answered
         if (!m_serverLost)
             return;
         m_serverLost = false;
@@ -279,6 +339,10 @@ App::App(QObject *parent)
     setUpBarMenu();
     setUpMove();
     setUpSkipped();
+    setUpScope();
+    setUpLibraryDisplays();
+    setUpSearch();
+    setUpCreate();
 }
 
 App::~App()
@@ -371,6 +435,8 @@ void App::start()
     // #9: a real run keeps the Files tab's per-torrent filter and hide-skipped in state.json
     // (demos and QML tests never call start(), so they never write it).
     m_details->setRememberViewState(true);
+    // DECISIONS C24 H4: a real run writes the display it decided (or was told) at once.
+    saveDisplaysFirst();
 
     // #31: a copy when one is due, a minute in (the ledger has its first polls by then), then
     // a check every hour.
@@ -468,21 +534,30 @@ void App::applyServer(const Server &server)
     // backing off for the previous server (EngineClient::cancelAll).
     m_client->clearAuth();
     m_client->setPinnedCertificate(server.certificateSha256);
-    m_client->setBaseUrl(server.url);
     m_prefs->reset();
     m_engine->globalState()->setServerName(server.name);
 
-    // C25 K9: a server of an engine this build can't drive (written by a newer build, or by
-    // hand) is never polled as a qBittorrent: it stays down until E4/E6 bring its engine.
+    // DECISIONS C28, C25 K9: a server of an engine this build can't drive (a Transmission or a
+    // Deluge until E4/E6, or one a newer build recorded) is listed, never asked anything: the
+    // client points nowhere, the engine stays stopped, and the window says why in
+    // ErrorWords::forEngine's words (serverProblem).
     // TODO(E4): pick the EngineClient for server.engine here.
     if (!isEngineDriven(server.engine)) {
-        qWarning().noquote() << QStringLiteral("server %1 runs %2, which this build can't drive")
-                                    .arg(server.name,
-                                         server.engine == EngineKind::Unknown
-                                             ? QStringLiteral("an unknown engine")
-                                             : engineDisplayName(server.engine));
+        qInfo().noquote() << QStringLiteral("server: %1 runs %2; not connecting")
+                                 .arg(server.name,
+                                      server.engine == EngineKind::Unknown
+                                          ? QStringLiteral("an unknown engine")
+                                          : engineDisplayName(server.engine));
+        m_client->setBaseUrl(QUrl());
+        m_serverLost = true;
+        setServerConnecting(false);
+        Q_EMIT serverStateChanged();
         return;
     }
+    // #201 F4: until it answers or fails, the dots say "connecting", not "down".
+    if (!m_demoMode)
+        setServerConnecting(true);
+    m_client->setBaseUrl(server.url);
 
     // The secret is a keychain round trip, so the engine starts in the callback: polling
     // before the key is set would spend one request on a guaranteed 403.
@@ -531,7 +606,7 @@ void App::applyServer(const Server &server)
 
 void App::startEngine()
 {
-    if (m_demoMode || !m_hasServer)
+    if (m_demoMode || !m_hasServer || serverOtherEngine())
         return;
     openLedger();
     loadDismissedFailures();
@@ -685,7 +760,8 @@ void App::applyDemoData(const QJsonObject &maindata)
 
 void App::retryNow()
 {
-    if (m_demoMode || !m_hasServer)
+    // C28: nothing to retry on a server of another engine.
+    if (m_demoMode || !m_hasServer || serverOtherEngine())
         return;
     // A retry the user asked for is one deliberate attempt: after a refused login (the ban
     // expired, the password was fixed on the server) it may log in again (review REG-2).
@@ -699,12 +775,23 @@ void App::retryNow()
 void App::setVisible(bool visible)
 {
     m_engine->setVisible(visible);
+    m_mainShown = visible;
+    updateMainActive();
 }
 
-void App::toggleAltSpeed()
+void App::toggleAltSpeed(bool outside)
 {
     if (m_demoMode || !m_hasServer)
         return;
+    // What the toggle picks: off while the alternative limits are on, else the last pick.
+    const QString kind = m_altPresets->current() == QLatin1String("off") ? m_altPresets->lastPick()
+                                                                         : QStringLiteral("off");
+    if (m_altPresets->toggle()) {
+        m_altNoticeFor = outside ? kind : QString();
+        return;
+    }
+    // Before the presets can act (no server id yet): the engine's own toggle, as before, and
+    // no notice (C36 M9 speaks for the presets' picks).
     m_client->toggleAltSpeed()->then(
         this, [](const Result<Done> &result) {
             if (result.isError())
@@ -713,30 +800,34 @@ void App::toggleAltSpeed()
         });
 }
 
-void App::stopAll()
+bool App::pickAltSpeed(const QString &kind, bool outside)
 {
     if (m_demoMode || !m_hasServer)
-        return;
-    m_client->stop({QStringLiteral("all")})->then(this, [this](const Result<Done> &result) {
-        if (result.isError())
-            qWarning().noquote()
-                << QStringLiteral("stop all failed: %1").arg(result.error().toString());
-        else
-            m_engine->readErrorStops();
-    });
+        return false;
+    if (m_altPresets->pick(kind)) {
+        m_altNoticeFor = outside ? kind : QString();
+        return true;
+    }
+    qWarning().noquote() << QStringLiteral("alt-speed: %1 can't be picked yet").arg(kind);
+    return false;
 }
 
-void App::startAll()
+void App::pauseTorrents()
 {
     if (m_demoMode || !m_hasServer)
         return;
-    m_client->start({QStringLiteral("all")})->then(this, [this](const Result<Done> &result) {
-        if (result.isError())
-            qWarning().noquote()
-                << QStringLiteral("start all failed: %1").arg(result.error().toString());
-        else
-            m_engine->readErrorStops();
-    });
+    // C36 M10: never `hashes=all`; PauseHold stops exactly what runs and remembers it.
+    if (!m_pauseHold->pause())
+        qWarning().noquote() << QStringLiteral("pause torrents: not sent (one on its way)");
+}
+
+void App::resumeTorrents()
+{
+    if (m_demoMode || !m_hasServer)
+        return;
+    if (!m_pauseHold->resume())
+        qWarning().noquote() << QStringLiteral("resume torrents: not sent (nothing held, or one "
+                                               "on its way)");
 }
 
 // --- the tray ----------------------------------------------------------------------------
@@ -897,10 +988,21 @@ void App::setFilePriority(const QString &hash, const QVariantList &fileIndexes, 
         onShow ? m_details->files()->priorityByFileIndex() : QHash<int, int>();
     const QHash<int, qint64> sizes =
         onShow ? m_details->files()->sizeByFileIndex() : QHash<int, qint64>();
+    // C17 D8: the room check at the tick, on a disk where every ticked file takes its full
+    // size at once. DECISIONS C28 (#159): one that doesn't fit always waits, in D5's band,
+    // which says it in red, so it can be undone before anything is written.
+    qint64 room = -1;
+    if (onShow && !m_demoMode && m_hasServer && priority != int(FilePriority::Skip)) {
+        const QVariantMap tick =
+            tickRoom(hash, SelectionHold::widening(before, sizes, ids, priority));
+        if (tick.value(QStringLiteral("allocates")).toBool())
+            room = tick.value(QStringLiteral("free")).toLongLong();
+    }
     // D5–D7: a widening of more than 1 GiB, or of the whole torrent, waits 3 s (the tick
     // itself makes libtorrent create the files, #116); a change made while one waits joins it.
-    const bool hold = onShow && !m_demoMode && m_hasServer && !ids.isEmpty() &&
-                      (m_hold->waiting() || SelectionHold::mustWait(before, sizes, ids, priority));
+    const bool hold =
+        onShow && !m_demoMode && m_hasServer && !ids.isEmpty() &&
+        (m_hold->waiting() || SelectionHold::mustWait(before, sizes, ids, priority, room));
     // N1: the rows change at once, before the server answers (and instead of it in demo
     // mode, where there is none); the next poll confirms or corrects them.
     if (onShow)
@@ -910,18 +1012,6 @@ void App::setFilePriority(const QString &hash, const QVariantList &fileIndexes, 
     if (hold) {
         m_hold->add(hash, ids, priority, before, sizes);
         return;
-    }
-    // C17 D8: the room check at the tick, on a disk where every ticked file takes its full
-    // size at once. A change that waits says it in its band; one sent now, in the footer.
-    if (onShow && priority != int(FilePriority::Skip)) {
-        qint64 added = 0;
-        for (const int id : std::as_const(ids)) {
-            if (before.value(id, 1) == int(FilePriority::Skip))
-                added += sizes.value(id, 0);
-        }
-        const QVariantMap room = tickRoom(hash, added);
-        if (room.value(QStringLiteral("short")).toBool())
-            Q_EMIT actionFailed(QString(), room.value(QStringLiteral("text")).toString());
     }
     sendFilePriority(hash, ids, priority);
 }
@@ -954,6 +1044,9 @@ QVariantMap App::torrentRow(const QString &hash) const
     row.insert(QStringLiteral("category"), torrent.category);
     row.insert(QStringLiteral("tagsText"), torrent.tags.join(QStringLiteral(" · ")));
     row.insert(QStringLiteral("addedOnText"), Format::added(torrent.addedOn));
+    // DECISIONS C24 H6: facts' Added row, "today 10:41" (its key says "added").
+    row.insert(QStringLiteral("addedText"),
+               torrent.addedOn.isValid() ? Format::relativeTime(torrent.addedOn) : QString());
     // T4.3: the raw byte count, for the delete/location sheets' "N on disk" line — every
     // other field above is already text, this is the one a caller sums across a selection.
     row.insert(QStringLiteral("size"), torrent.size);
@@ -999,7 +1092,47 @@ QVariantMap App::torrentRow(const QString &hash) const
     row.insert(QStringLiteral("firstLastPiecePrio"), torrent.firstLastPiecePrio);
     row.insert(QStringLiteral("superSeeding"), torrent.superSeeding);
     row.insert(QStringLiteral("autoTmm"), torrent.autoTmm);
+    // DECISIONS C24 H6: the details' head says the rows display's fact and sentence.
+    const RowWords words = m_filtered->wordsOfHash(hash);
+    row.insert(QStringLiteral("rowFact"), words.fact);
+    row.insert(QStringLiteral("rowCaption"), words.caption);
+    row.insert(QStringLiteral("rowSentence"), words.sentence);
+    row.insert(QStringLiteral("hashVersion"),
+               torrent.isHybrid()   ? QStringLiteral("hybrid")
+               : torrent.isV2Only() ? QStringLiteral("v2")
+                                    : QStringLiteral("v1"));
     return row;
+}
+
+QVariantList App::torrentStory(const QString &hash) const
+{
+    if (hash.isEmpty() || m_engine->torrents()->indexOfHash(hash) < 0)
+        return {};
+    StoryInput input;
+    input.torrent = m_engine->torrents()->torrent(hash);
+    input.now = QDateTime::currentDateTime();
+    // C18 D8: the moves the history keeps for it, whatever moved with it.
+    for (const MoveRecord &record : m_move->history().records()) {
+        if (!record.from.contains(hash) || !record.finishedAt.isValid())
+            continue;
+        input.moves.append({record.finishedAt,
+                            record.to.value(hash),
+                            int(record.from.size()) - 1,
+                            record.kind == QLatin1String("folder") ? record.title : QString()});
+    }
+    const QVariantMap problem = m_engine->torrents()->problem(hash);
+    input.problem = problem.value(QStringLiteral("headline")).toString();
+    input.problemAt = problem.value(QStringLiteral("loggedAt")).toDateTime();
+    const QVariantMap failure = m_engine->torrents()->failure(hash);
+    input.failure = failure.value(QStringLiteral("headline")).toString();
+    input.failureAt = failure.value(QStringLiteral("loggedAt")).toDateTime();
+    QVariantList out;
+    for (const StoryEvent &event : TorrentStory::events(input))
+        out.append(QVariantMap{{QStringLiteral("time"), event.time},
+                               {QStringLiteral("kind"), TorrentStory::kindName(event.kind)},
+                               {QStringLiteral("title"), event.title},
+                               {QStringLiteral("detail"), event.detail}});
+    return out;
 }
 
 QString App::demoTab() const
@@ -1026,6 +1159,14 @@ QString App::limitShortText(qint64 bytesPerSecond)
     if (bytesPerSecond <= 0)
         return QStringLiteral("∞");
     return Format::speedCompact(bytesPerSecond);
+}
+
+QVariantMap App::speedParts(qint64 bytesPerSecond, qint64 capBytesPerSecond)
+{
+    const Format::SpeedParts parts = Format::speedParts(bytesPerSecond, capBytesPerSecond);
+    return {{QStringLiteral("value"), parts.value},
+            {QStringLiteral("cap"), parts.cap},
+            {QStringLiteral("unit"), parts.unit}};
 }
 
 QString App::speedShortText(qint64 bytesPerSecond)
@@ -1124,6 +1265,8 @@ void App::attachNotifier(omaseed::integration::Notifier *notifier)
     // #24 T8: every sync asks whether the weekly recap is due; most answers are one date
     // compare.
     connect(m_engine, &SyncEngine::synced, this, &App::checkWeeklyRecap);
+    // Board 54 W5: an add's row comes with a sync after qBittorrent's OK.
+    connect(m_engine, &SyncEngine::synced, this, &App::flushAddedNotices);
 
     connect(notifier,
             &omaseed::integration::Notifier::actionInvoked,
@@ -1152,6 +1295,7 @@ QVariantMap App::notificationsEnabled() const
     const_cast<App *>(this)->loadNotificationToggles();
     QVariantMap map;
     map.insert(QStringLiteral("completed"), m_notifyCompletedEnabled);
+    map.insert(QStringLiteral("added"), m_notifyAddedEnabled);
     map.insert(QStringLiteral("serverLost"), m_notifyServerLostEnabled);
     map.insert(QStringLiteral("diskFull"), m_notifyDiskFullEnabled);
     map.insert(QStringLiteral("errored"), m_notifyErroredEnabled);
@@ -1165,6 +1309,8 @@ void App::setNotificationEnabled(const QString &key, bool enabled)
     bool *flag = nullptr;
     if (key == QStringLiteral("completed"))
         flag = &m_notifyCompletedEnabled;
+    else if (key == QStringLiteral("added"))
+        flag = &m_notifyAddedEnabled;
     else if (key == QStringLiteral("serverLost"))
         flag = &m_notifyServerLostEnabled;
     else if (key == QStringLiteral("diskFull"))
@@ -1209,6 +1355,7 @@ void App::loadNotificationToggles()
 
     const QJsonObject section = stateSection(QStringLiteral("notifications"));
     m_notifyCompletedEnabled = section.value(QStringLiteral("completed")).toBool(true);
+    m_notifyAddedEnabled = section.value(QStringLiteral("added")).toBool(true);
     m_notifyServerLostEnabled = section.value(QStringLiteral("serverLost")).toBool(true);
     m_notifyDiskFullEnabled = section.value(QStringLiteral("diskFull")).toBool(true);
     m_notifyErroredEnabled = section.value(QStringLiteral("errored")).toBool(true);
@@ -1223,6 +1370,7 @@ void App::saveNotificationToggles()
 {
     QJsonObject section;
     section.insert(QStringLiteral("completed"), m_notifyCompletedEnabled);
+    section.insert(QStringLiteral("added"), m_notifyAddedEnabled);
     section.insert(QStringLiteral("serverLost"), m_notifyServerLostEnabled);
     section.insert(QStringLiteral("diskFull"), m_notifyDiskFullEnabled);
     section.insert(QStringLiteral("errored"), m_notifyErroredEnabled);
@@ -1331,7 +1479,8 @@ void App::onNotifierActionInvoked(const QString &eventClass,
                                   const QString &subjectId,
                                   const QString &actionKey)
 {
-    if (eventClass == QStringLiteral("errored")) {
+    // Board 54 W5: "Torrent added" shows the torrent as Download complete's "show" does.
+    if (eventClass == QStringLiteral("errored") || eventClass == QStringLiteral("added")) {
         if (actionKey == QStringLiteral("show"))
             Q_EMIT showTorrentRequested(subjectId);
         return;
@@ -1361,9 +1510,53 @@ void App::onNotifierActionInvoked(const QString &eventClass,
         return;
     }
 
+    // #146: a creation's notice brings the window back on its band; C36 M9's speed notice too.
+    if (eventClass == QStringLiteral("create") || eventClass == QStringLiteral("speed")) {
+        Q_EMIT raiseRequested();
+        return;
+    }
+
     // #24 T8: the weekly recap opens the console on the week it told.
     if (eventClass == QStringLiteral("recap") && actionKey == QStringLiteral("console"))
         Q_EMIT showConsoleRequested(QStringLiteral("7d"));
+}
+
+void App::notifyAdded(const QString &hash)
+{
+    loadNotificationToggles();
+    if (hash.isEmpty() || m_notifier.isNull() || !m_notifyAddedEnabled)
+        return;
+    if (m_addedNoticesWaiting.contains(hash) || sendAddedNotice(hash))
+        return;
+    m_addedNoticesWaiting.insert(hash, QDeadlineTimer(m_addedNoticeWait));
+}
+
+bool App::sendAddedNotice(const QString &hash)
+{
+    const TorrentModel *torrents = m_engine->torrents();
+    if (torrents->indexOfHash(hash) < 0)
+        return false;
+    const Torrent &t = torrents->torrent(hash);
+    // A magnet before its metadata has no size yet: left out, never "0 B".
+    const QString sizeText = t.size > 0 ? Format::size(t.size) : QString();
+    m_notifier->notifyAdded(hash, t.name, sizeText, t.category);
+    return true;
+}
+
+void App::flushAddedNotices()
+{
+    if (m_addedNoticesWaiting.isEmpty())
+        return;
+    if (m_notifier.isNull() || !m_notifyAddedEnabled) {
+        m_addedNoticesWaiting.clear();
+        return;
+    }
+    for (auto it = m_addedNoticesWaiting.begin(); it != m_addedNoticesWaiting.end();) {
+        if (it.value().hasExpired() || sendAddedNotice(it.key()))
+            it = m_addedNoticesWaiting.erase(it);
+        else
+            ++it;
+    }
 }
 
 void App::checkWeeklyRecap()
@@ -2009,6 +2202,12 @@ AddOptions App::addOptionsFrom(const QVariantMap &request) const
     if (request.value(QStringLiteral("firstLastPiecePrio")).toBool())
         options.firstLastPiece = true;
 
+    // DECISIONS C26 SR9: a search result's link to a .torrent is fetched through its plugin.
+    const QString downloader = request.value(QStringLiteral("downloader")).toString();
+    if (!downloader.isEmpty() &&
+        request.value(QStringLiteral("kind")).toString() == QLatin1String("url"))
+        options.downloader = downloader;
+
     return options;
 }
 
@@ -2016,6 +2215,22 @@ void App::addTorrent(const QVariantMap &request)
 {
     if (request.contains(QStringLiteral("items"))) {
         addBatch(request);
+        return;
+    }
+    // #146 (C27 CR9): the site's copy replaces the torrent made here, which goes first, its
+    // files kept.
+    const QString replaceHash = request.value(QStringLiteral("replaceHash")).toString();
+    if (!replaceHash.isEmpty() && !m_demoMode && m_hasServer) {
+        QVariantMap next = request;
+        next.remove(QStringLiteral("replaceHash"));
+        m_client->remove({replaceHash}, false)
+            ->then(this, [this, next](const Result<Done> &result) {
+                if (result.isError()) {
+                    failAdd(result.error(), next.value(QStringLiteral("name")).toString());
+                    return;
+                }
+                addTorrent(next);
+            });
         return;
     }
     const QString kind = request.value(QStringLiteral("kind")).toString();
@@ -2050,12 +2265,16 @@ void App::addTorrent(const QVariantMap &request)
     if (m_demoMode) {
         qInfo().noquote() << QStringLiteral("demo: would add %1 (%2)").arg(value, kind);
         Q_EMIT addFinished(true, QString(), hash);
+        noticeAdds(request, {hash});
         return;
     }
     if (!m_hasServer) {
         Q_EMIT addFinished(false, tr("no server is configured"), QString());
         return;
     }
+
+    if (!isFile && !hasList && holdAddForLookup(request))
+        return;
 
     AddOptions options = addOptionsFrom(request);
 
@@ -2130,6 +2349,9 @@ void App::addTorrent(const QVariantMap &request)
             afterUrlAdd(result.value(), request, torrentId, {});
             return;
         }
+        // #146 (C27 CR7): the site's copy is in: the made-here record has done its work.
+        if (request.value(QStringLiteral("forgetMade")).toBool())
+            forgetMadeHere(m_pendingTorrentFiles.value(token).bytes);
         if (!token.isEmpty())
             forgetTorrentFile(token);
         watchForAddedHash(torrentId);
@@ -2140,6 +2362,7 @@ void App::addTorrent(const QVariantMap &request)
         // DECISIONS C20 (#124): qBittorrent took it, so the sheet closes now; the names, file
         // choices and start below go on without it, and say in the footer if one fails.
         Q_EMIT addFinished(true, QString(), id);
+        noticeAdds(request, {id});
         if (!withPriorities && !withRenames)
             return;
         m_addsInFollowUp.insert(id, request.value(QStringLiteral("name")).toString());
@@ -2193,6 +2416,7 @@ void App::addBatch(const QVariantMap &request)
         qInfo().noquote() << QStringLiteral("demo: would add %1 torrents at once")
                                  .arg(files.size() + urls.size());
         Q_EMIT addFinished(true, QString(), first);
+        noticeAdds(request, ids);
         return;
     }
     if (!m_hasServer) {
@@ -2218,7 +2442,21 @@ void App::addBatch(const QVariantMap &request)
         if (!first.isEmpty())
             watchForAddedHash(first);
         Q_EMIT addFinished(true, QString(), first);
+        // 5.x names every torrent it took, a link's too; an older server says "Ok." and the
+        // metainfo's own ids stand in.
+        const QStringList &taken = result.value().addedIds;
+        noticeAdds(request, taken.isEmpty() ? ids : taken);
     });
+}
+
+void App::noticeAdds(const QVariantMap &request, const QStringList &ids)
+{
+    // Board 54 W5 (DECISIONS C35): only the add window asks; the main window's adds are seen
+    // where they land.
+    if (!request.value(QStringLiteral("notifyAdded")).toBool())
+        return;
+    for (const QString &id : ids)
+        notifyAdded(id);
 }
 
 void App::applyAddRenames(const QString &id,
@@ -2496,7 +2734,7 @@ void App::watchForAddedHash(const QString &hash)
         m_awaitedAddHash.clear();
         m_addWatchTimer->stop();
         QObject::disconnect(m_addWatch);
-        Q_EMIT showTorrentRequested(found);
+        Q_EMIT addLanded(found);
     });
     m_addWatchTimer->start();
 }
@@ -2538,7 +2776,7 @@ void App::setUpMetadataLookup()
     m_addLookup = new MetadataLookup(this);
     m_addLookup->setFetch([this](const QString &source) -> Reply<FetchedMetadata> * {
         if (!m_demoMode)
-            return m_client->fetchMetadata(source);
+            return m_client->fetchMetadata(source, m_lookupDownloader);
         // Demo: the demo .torrent's magnet answers with its files, anything else looks for
         // ever, as a dead magnet does. Nothing leaves the process.
         auto *reply = new Reply<FetchedMetadata>(this);
@@ -2556,6 +2794,7 @@ void App::setUpMetadataLookup()
     if (scale > 0)
         m_addLookup->setClockScale(scale);
     connect(m_addLookup, &MetadataLookup::fetched, this, &App::takeFetchedMetadata);
+    connect(m_addLookup, &MetadataLookup::changed, this, &App::releaseHeldAdd);
     connect(
         m_engine->globalState(), &GlobalState::connectedChanged, this, &App::updateLookupServer);
     connect(
@@ -2587,10 +2826,8 @@ void App::updateLookupServer()
     m_addLookup->setServer(ready, m_features.fetchMetadata);
 }
 
-QString App::privateTrackerOf(const QStringList &trackers) const
+PrivateTrackers App::libraryPrivateTrackers() const
 {
-    if (trackers.isEmpty())
-        return {};
     PrivateTrackers library;
     TorrentModel *model = m_engine->torrents();
     for (int row = 0; row < model->count(); ++row) {
@@ -2611,7 +2848,14 @@ QString App::privateTrackerOf(const QStringList &trackers) const
         if (anyPrivate)
             library.addTorrent(true, groups->data(index, TrackerModel::UrlsRole).toStringList());
     }
-    return library.match(trackers);
+    return library;
+}
+
+QString App::privateTrackerOf(const QStringList &trackers) const
+{
+    if (trackers.isEmpty())
+        return {};
+    return libraryPrivateTrackers().match(trackers);
 }
 
 void App::lookUpMetadata(const QVariantMap &addable)
@@ -2643,6 +2887,10 @@ void App::lookUpMetadata(const QVariantMap &addable)
     }
     if (key != m_addLookup->key())
         m_lookupToken.clear();
+    // C26 SR9: a search result's link goes through its plugin.
+    m_lookupDownloader = kind == QLatin1String("url")
+                             ? addable.value(QStringLiteral("downloader")).toString()
+                             : QString();
     if (kind == QLatin1String("magnet")) {
         const QString host =
             privateTrackerOf(addable.value(QStringLiteral("trackers")).toStringList());
@@ -2659,7 +2907,65 @@ void App::stopMetadataLookup()
 {
     m_lookupToken.clear();
     m_lookupAddable.clear();
+    // #193: an add pressed before the list waits on this lookup, and goes on after a close
+    // as an add already out does (DECISIONS C20): the polls go on until it can go.
+    if (!m_addAfterLookup.isEmpty())
+        return;
     m_addLookup->stop();
+}
+
+namespace {
+
+/// The phases in which qBittorrent is looking the magnet up for us: asked, and not yet at
+/// F4's "may never come".
+bool lookupAsking(MetadataLookup::Phase phase)
+{
+    return phase == MetadataLookup::Phase::Quiet || phase == MetadataLookup::Phase::Fetching ||
+           phase == MetadataLookup::Phase::Slow;
+}
+
+} // namespace
+
+bool App::holdAddForLookup(const QVariantMap &request)
+{
+    if (request.value(QStringLiteral("kind")).toString() != QLatin1String("magnet"))
+        return false;
+    const QString key =
+        TorrentFile::torrentIdFor(request.value(QStringLiteral("infoHashV1")).toString(),
+                                  request.value(QStringLiteral("infoHashV2")).toString());
+    if (key.isEmpty() || key != m_addLookup->key() || !lookupAsking(m_addLookup->phase()))
+        return false;
+    qInfo().noquote() << QStringLiteral("add: %1 waits for its file list first (#193)").arg(key);
+    m_addAfterLookup = request;
+    Q_EMIT addWaitsForListChanged();
+    return true;
+}
+
+void App::releaseHeldAdd()
+{
+    if (m_addAfterLookup.isEmpty())
+        return;
+    const QString key =
+        TorrentFile::torrentIdFor(m_addAfterLookup.value(QStringLiteral("infoHashV1")).toString(),
+                                  m_addAfterLookup.value(QStringLiteral("infoHashV2")).toString());
+    const MetadataLookup::Phase phase = m_addLookup->phase();
+    const bool sameMagnet = key == m_addLookup->key();
+    if (sameMagnet && lookupAsking(phase))
+        return;
+    QVariantMap request = std::exchange(m_addAfterLookup, {});
+    Q_EMIT addWaitsForListChanged();
+    // D5's stop condition is for a list that is not in yet. It is in now: "add stopped" is a
+    // plain stopped add.
+    if (sameMagnet && phase == MetadataLookup::Phase::Done)
+        request[QStringLiteral("untilMetadata")] = false;
+    qInfo().noquote() << QStringLiteral("add: %1 goes now, its lookup %2")
+                             .arg(key,
+                                  sameMagnet ? m_addLookup->phaseName()
+                                             : QStringLiteral("let go of it"));
+    // The sheet closed meanwhile: nothing else wants the lookup.
+    if (m_lookupAddable.isEmpty() && sameMagnet)
+        m_addLookup->stop();
+    addTorrent(request);
 }
 
 void App::setLookupTestClock(double ms)
@@ -2739,6 +3045,7 @@ void App::afterUrlAdd(const AddResult &added,
     // DECISIONS C20 (#124): taken, so the sheet closes; what follows says in the footer if it
     // fails.
     Q_EMIT addFinished(true, QString(), id);
+    noticeAdds(request, {id});
     if (!renames.isEmpty() || !AddFilesModel::priorityGroups(laterPriorities).isEmpty())
         m_addsInFollowUp.insert(id, request.value(QStringLiteral("name")).toString());
     if (!renames.isEmpty()) {
@@ -2777,31 +3084,32 @@ void App::retryUrlAdd(const QVariantMap &request,
                             request.value(QStringLiteral("filePriorities")).toList());
             });
     };
-    m_client->fetchMetadata(value)->then(this, [=, this](const Result<FetchedMetadata> &fetched) {
-        if (fetched.isError()) {
-            fallback();
-            return;
-        }
-        if (!fetched.value().ready) {
-            // The swarm is known by now: a few seconds at most.
-            if (attempt < 20) {
-                QTimer::singleShot(250, this, [=, this]() {
-                    retryUrlAdd(request, options, torrentId, attempt + 1);
-                });
-            } else {
+    m_client->fetchMetadata(value, options.downloader.value_or(QString()))
+        ->then(this, [=, this](const Result<FetchedMetadata> &fetched) {
+            if (fetched.isError()) {
                 fallback();
+                return;
             }
-            return;
-        }
-        m_client->addUrls(QStringList{value}, options)
-            ->then(this, [=, this](const Result<AddResult> &result) {
-                if (result.isError()) {
+            if (!fetched.value().ready) {
+                // The swarm is known by now: a few seconds at most.
+                if (attempt < 20) {
+                    QTimer::singleShot(250, this, [=, this]() {
+                        retryUrlAdd(request, options, torrentId, attempt + 1);
+                    });
+                } else {
                     fallback();
-                    return;
                 }
-                afterUrlAdd(result.value(), request, torrentId, {});
-            });
-    });
+                return;
+            }
+            m_client->addUrls(QStringList{value}, options)
+                ->then(this, [=, this](const Result<AddResult> &result) {
+                    if (result.isError()) {
+                        fallback();
+                        return;
+                    }
+                    afterUrlAdd(result.value(), request, torrentId, {});
+                });
+        });
 }
 
 QString App::demoAddText() const
@@ -2913,19 +3221,74 @@ void App::refreshDownloadsInLibrary()
         Q_EMIT downloadsTorrentsChanged();
 }
 
-void App::openUris(const QStringList &uris)
+namespace {
+
+/// A file manager hands over file:// URIs (%U), percent-encoded; the sheet's field shows the
+/// path as a person reads it, and the parse takes either.
+QStringList readableUris(const QStringList &uris)
 {
-    if (uris.isEmpty())
-        return;
-    // A file manager hands over file:// URIs (%U), percent-encoded; the sheet's field shows
-    // the path as a person reads it, and the parse takes either.
     QStringList readable;
     readable.reserve(uris.size());
     for (const QString &uri : uris) {
         const QUrl url(uri);
         readable.append(url.isLocalFile() ? url.toLocalFile() : uri);
     }
-    Q_EMIT addUrisRequested(readable);
+    return readable;
+}
+
+} // namespace
+
+void App::openUris(const QStringList &uris)
+{
+    if (uris.isEmpty())
+        return;
+    Q_EMIT addUrisRequested(readableUris(uris));
+}
+
+qint64 App::addClockNow() const
+{
+    if (m_addClock)
+        return m_addClock();
+    return std::chrono::duration_cast<std::chrono::milliseconds>(
+               std::chrono::steady_clock::now().time_since_epoch())
+        .count();
+}
+
+void App::setMainWindowActive(bool active)
+{
+    m_mainFocused = active;
+    updateMainActive();
+}
+
+void App::updateMainActive()
+{
+    const bool active = m_mainShown && m_mainFocused;
+    if (m_mainActive && !active)
+        m_mainInactiveSinceMs = addClockNow();
+    m_mainActive = active;
+}
+
+void App::requestAdd(const QStringList &uris, AddSource source)
+{
+    const qint64 since = m_mainInactiveSinceMs < 0 ? -1 : addClockNow() - m_mainInactiveSinceMs;
+    // C35 W6: first run is the test MainView latches its first-run page on.
+    const bool firstRun = !m_hasServer && !m_demoMode;
+    const AddRouting routing = routeAdd(source, firstRun, m_mainActive, since);
+    const bool toMain = routing.route == AddRoute::Main;
+    qInfo().noquote() << QStringLiteral("add from %1 (%2 source(s)): %3%4")
+                             .arg(addSourceName(source))
+                             .arg(uris.size())
+                             .arg(toMain ? QStringLiteral("main window")
+                                         : QStringLiteral("add window"),
+                                  routing.raise ? QStringLiteral(", raised") : QString());
+    if (routing.raise)
+        Q_EMIT raiseRequested();
+    if (!toMain)
+        Q_EMIT addWindowRequested(readableUris(uris));
+    else if (uris.isEmpty())
+        Q_EMIT addRequested();
+    else
+        openUris(uris);
 }
 // --- end T4.2 -----------------------------------------------------------------------------------
 
@@ -3466,7 +3829,20 @@ void App::setGlobalLimits(qint64 dl, qint64 up, qint64 altDl, qint64 altUp)
     const auto given = [](qint64 value) {
         return value >= 0 ? std::optional<qint64>(value) : std::nullopt;
     };
-    const GlobalLimits changes{given(dl), given(up), given(altDl), given(altUp)};
+    GlobalLimits changes{given(dl), given(up), std::nullopt, std::nullopt};
+    // C32 D8 a: while omaseed's burst holds the set, the alternative limits typed here are the
+    // turtle's, saved to be written back when the burst ends.
+    if (m_altPresets->burstOn()) {
+        QVariantMap turtle;
+        if (altDl >= 0)
+            turtle.insert(QStringLiteral("alt_dl_limit"), altDl);
+        if (altUp >= 0)
+            turtle.insert(QStringLiteral("alt_up_limit"), altUp);
+        m_altPresets->apply(turtle);
+    } else {
+        changes.altDownload = given(altDl);
+        changes.altUpload = given(altUp);
+    }
     if (changes == GlobalLimits())
         return;
     m_client->setGlobalLimits(changes)->then(this, [this](const Result<Done> &result) {
@@ -3935,10 +4311,23 @@ QString App::addServer(const QVariantMap &fields, const QString &secret)
     qInfo().noquote() << QStringLiteral("server added: %1").arg(id);
     // The first server ever added is made default by the model, and there is no engine
     // running yet: move onto it so the table fills without a restart.
-    if (!m_hasServer && m_servers->defaultId() == id)
+    if (!m_hasServer && m_servers->defaultId() == id) {
         setDefaultServer(id);
-    else
+    } else {
         Q_EMIT serverChanged();
+        // #201 F5: count what the new server holds, so the rail's row has a number at once
+        // (ServerListModel::setProbeResult keeps it as last seen).
+        const std::optional<Server> added = m_servers->byId(id);
+        if (!m_demoMode && added && added->isQbittorrent() && !m_probing.contains(id)) {
+            m_probing.insert(id);
+            if (!secret.isEmpty())
+                runServerTest(*added, secret, false, added->engine);
+            else
+                withStoredSecret(*added, [this, server = *added](const QString &stored) {
+                    runServerTest(server, stored, false, server.engine);
+                });
+        }
+    }
     return id;
 }
 
@@ -3975,6 +4364,7 @@ bool App::removeServer(const QString &id)
         m_prefs->reset();
         m_engine->globalState()->setServerName(QString());
         m_serverLost = false;
+        setServerConnecting(false);
         m_hasServer = false;
         m_server = Server();
         updateTray();
@@ -4035,6 +4425,23 @@ void App::testServer(const QVariantMap &fields, const QString &secret)
                                 QString(),
                                 QString(),
                                 testInfo(EngineKind::Qbittorrent, server.url));
+        });
+        return;
+    }
+
+    // C28: a saved server of an engine this build doesn't know (a newer build's) is never
+    // asked; the sheet says why instead. A Transmission or a Deluge is: its test recognises it
+    // and says in K9's words that this build can't drive it yet (C25, runServerTest).
+    if (const std::optional<Server> stored =
+            server.id.isEmpty() ? std::nullopt : m_servers->byId(server.id);
+        stored && stored->engine == EngineKind::Unknown) {
+        const ErrorWords::Text words = ErrorWords::forEngine(*stored);
+        QString line = words.line;
+        if (!line.isEmpty())
+            line.replace(0, 1, line.at(0).toLower());
+        const QString error = words.headline + QStringLiteral(": ") + line;
+        QTimer::singleShot(0, this, [this, id = server.id, error]() {
+            Q_EMIT serverTested(id, false, QString(), QString(), -1, -1, error, QString());
         });
         return;
     }
@@ -4317,6 +4724,24 @@ void App::setBaseSizeOverride(int pixels)
     Q_EMIT settingsChanged();
 }
 
+QString App::windowGround() const
+{
+    const_cast<App *>(this)->loadSettings();
+    return m_windowGround;
+}
+
+void App::setWindowGround(const QString &ground)
+{
+    loadSettings();
+    const QString wanted = ground == QLatin1String("translucent") ? QStringLiteral("translucent")
+                                                                  : QStringLiteral("opaque");
+    if (m_windowGround == wanted)
+        return;
+    m_windowGround = wanted;
+    saveSettings();
+    Q_EMIT settingsChanged();
+}
+
 int App::windowAlphaOverride() const
 {
     const_cast<App *>(this)->loadSettings();
@@ -4420,10 +4845,14 @@ const QStringList kRailScrollHints{
     QStringLiteral("chevrons"), QStringLiteral("fade"), QStringLiteral("scrollbar")};
 const QStringList kDetailsPlacements{
     QStringLiteral("auto"), QStringLiteral("right"), QStringLiteral("bottom")};
+const QStringList kSpeedsPlaces{QStringLiteral("title"), QStringLiteral("status")};
 const QStringList kTrackerHostStyles{
     QStringLiteral("prefix"), QStringLiteral("left"), QStringLiteral("right")};
 const QStringList kTrayIconModes{
     QStringLiteral("auto"), QStringLiteral("always"), QStringLiteral("never")};
+// DECISIONS C24 H11: Omarchy (the default), Console, Follow the desktop.
+const QStringList kSkinChoices{
+    QStringLiteral("omarchy"), QStringLiteral("console"), QStringLiteral("desktop")};
 
 int tintStep(int percent)
 {
@@ -4431,6 +4860,24 @@ int tintStep(int percent)
 }
 
 } // namespace
+
+QString App::skinChoice() const
+{
+    const_cast<App *>(this)->loadSettings();
+    return m_skinChoice;
+}
+
+void App::setSkinChoice(const QString &choice)
+{
+    loadSettings();
+    const QString wanted = oneOf(choice, kSkinChoices);
+    if (m_skinChoice == wanted)
+        return;
+    m_skinChoice = wanted;
+    saveSettings();
+    applyAppearance();
+    Q_EMIT settingsChanged();
+}
 
 QString App::railScrollHint() const
 {
@@ -4483,6 +4930,23 @@ void App::setSurfaceTint(int percent)
     Q_EMIT settingsChanged();
 }
 
+QString App::speedsPlace() const
+{
+    const_cast<App *>(this)->loadSettings();
+    return m_speedsPlace;
+}
+
+void App::setSpeedsPlace(const QString &place)
+{
+    loadSettings();
+    const QString wanted = oneOf(place, kSpeedsPlaces);
+    if (m_speedsPlace == wanted)
+        return;
+    m_speedsPlace = wanted;
+    saveSettings();
+    Q_EMIT settingsChanged();
+}
+
 QString App::trackerHostStyle() const
 {
     const_cast<App *>(this)->loadSettings();
@@ -4512,6 +4976,23 @@ void App::setRailHidden(bool hidden)
     if (m_railHidden == hidden)
         return;
     m_railHidden = hidden;
+    saveSettings();
+    Q_EMIT settingsChanged();
+}
+
+int App::railWidth() const
+{
+    const_cast<App *>(this)->loadSettings();
+    return m_railWidth;
+}
+
+void App::setRailWidth(int units)
+{
+    loadSettings();
+    const int wanted = qMax(0, units);
+    if (m_railWidth == wanted)
+        return;
+    m_railWidth = wanted;
     saveSettings();
     Q_EMIT settingsChanged();
 }
@@ -4592,6 +5073,9 @@ void App::writeStateSection(const QString &key, const QJsonObject &value)
         m_demoState.insert(key, value);
         return;
     }
+    // DECISIONS C24 H4: the display this run decided goes with its first write (AppLibrary).
+    if (key != QLatin1String("displays"))
+        saveDisplaysFirst();
     StateFile::writeSection(key, value);
 }
 
@@ -4611,6 +5095,17 @@ void App::loadSettings()
     m_followOmarchyTheme = appearance.value(QStringLiteral("followOmarchyTheme")).toBool(true);
     m_baseSizeOverride = appearance.value(QStringLiteral("baseSizeOverride")).toInt(0);
     m_windowAlphaOverride = appearance.value(QStringLiteral("windowAlphaOverride")).toInt(0);
+    m_skinChoice = oneOf(appearance.value(QStringLiteral("skin")).toString(), kSkinChoices);
+    // DECISIONS C24 H13: opaque by default. Before the choice existed, a transparency set by
+    // hand was the only way to ask for a ground of one's own, so it reads as translucent.
+    const QJsonValue ground = appearance.value(QStringLiteral("windowGround"));
+    if (ground.isString())
+        m_windowGround = ground.toString() == QLatin1String("translucent")
+                             ? QStringLiteral("translucent")
+                             : QStringLiteral("opaque");
+    else
+        m_windowGround =
+            m_windowAlphaOverride > 0 ? QStringLiteral("translucent") : QStringLiteral("opaque");
     m_trayIconMode =
         oneOf(appearance.value(QStringLiteral("trayIconMode")).toString(), kTrayIconModes);
     m_speedsAlignment =
@@ -4624,9 +5119,12 @@ void App::loadSettings()
     m_railScrollHint =
         oneOf(appearance.value(QStringLiteral("railScrollHint")).toString(), kRailScrollHints);
     m_surfaceTint = tintStep(appearance.value(QStringLiteral("surfaceTint")).toInt(0));
+    m_speedsPlace =
+        oneOf(appearance.value(QStringLiteral("speedsPlace")).toString(), kSpeedsPlaces);
     m_trackerHostStyle =
         oneOf(appearance.value(QStringLiteral("trackerHostStyle")).toString(), kTrackerHostStyles);
     m_railHidden = appearance.value(QStringLiteral("railHidden")).toBool(false);
+    m_railWidth = qMax(0, appearance.value(QStringLiteral("railWidth")).toInt(0));
     m_detailsPlacement =
         oneOf(appearance.value(QStringLiteral("detailsPlacement")).toString(), kDetailsPlacements);
 }
@@ -4643,6 +5141,8 @@ void App::saveSettings()
     appearance[QStringLiteral("followOmarchyTheme")] = m_followOmarchyTheme;
     appearance[QStringLiteral("baseSizeOverride")] = m_baseSizeOverride;
     appearance[QStringLiteral("windowAlphaOverride")] = m_windowAlphaOverride;
+    appearance[QStringLiteral("windowGround")] = m_windowGround;
+    appearance[QStringLiteral("skin")] = m_skinChoice;
     appearance[QStringLiteral("trayIconMode")] = m_trayIconMode;
     appearance[QStringLiteral("speedsAlignment")] = m_speedsAlignment;
     appearance[QStringLiteral("uploadTrend")] = m_uploadTrend;
@@ -4650,8 +5150,10 @@ void App::saveSettings()
     appearance[QStringLiteral("pulseRows")] = m_pulseRows;
     appearance[QStringLiteral("railScrollHint")] = m_railScrollHint;
     appearance[QStringLiteral("surfaceTint")] = m_surfaceTint;
+    appearance[QStringLiteral("speedsPlace")] = m_speedsPlace;
     appearance[QStringLiteral("trackerHostStyle")] = m_trackerHostStyle;
     appearance[QStringLiteral("railHidden")] = m_railHidden;
+    appearance[QStringLiteral("railWidth")] = m_railWidth;
     appearance[QStringLiteral("detailsPlacement")] = m_detailsPlacement;
     writeStateSection(QStringLiteral("appearance"), appearance);
 }
@@ -4662,6 +5164,7 @@ void App::applyAppearance()
         return;
     m_themeReader->setFollowOmarchy(m_followOmarchyTheme);
     m_themeReader->setBaseSizeOverride(m_baseSizeOverride);
+    m_themeReader->setSkinChoice(m_skinChoice);
 }
 
 // --- end T4.5 --------------------------------------------------------------------------------
@@ -4808,6 +5311,8 @@ QVariantMap App::featuresMap() const
         {QStringLiteral("torrentsBackup"), f.torrentsBackup},
         {QStringLiteral("rss"), f.rss},
         {QStringLiteral("addAgain"), f.addAgain},
+        {QStringLiteral("search"), f.search},
+        {QStringLiteral("createTorrent"), f.createTorrent},
     };
 }
 
@@ -5220,8 +5725,12 @@ void App::attachStatusWriter(omaseed::integration::StatusWriter *writer)
     writer->setEngine(m_engine);
     writer->setPreferences(m_prefs);
     writer->setAltSpeed(m_altSpeed);
+    // DECISIONS C36 M8: `alt.pick`, the preset Omarchy's Speeds › ticks.
+    writer->setAltPresets(m_altPresets);
     // docs/33 §11 (D24): `servers` and `menu`, the shared menu the widget draws.
     writer->setMenu(m_barMenu);
+    // DECISIONS C36 M10: `paused.count`, for Omarchy's menu's Resume Torrents.
+    writer->setPauseHold(m_pauseHold);
     writer->setLedger(m_ledger.get());
     writer->setPathMapper([this](const QString &path) { return mapContentPathToLocal(path); });
     writer->setLibraryCheck(
@@ -5839,6 +6348,16 @@ void App::refreshQbtBackupInfo()
     });
 }
 
+QString App::pickLogExportPath() const
+{
+    const QString suggested = QDir::homePath() + QStringLiteral("/qbittorrent-log-") +
+                              fileStem(m_server.name) + QLatin1Char('-') +
+                              QDate::currentDate().toString(Qt::ISODate) + QStringLiteral(".txt");
+    QFileDialog dialog(nullptr, tr("Export qBittorrent's log"), suggested, tr("Text (*.txt)"));
+    dialog.setAcceptMode(QFileDialog::AcceptSave);
+    return runPicker(dialog, m_dialogParent).value(0);
+}
+
 QString App::pickQbtExportPath() const
 {
     const QString suggested = QDir::homePath() + QLatin1Char('/') + qbtExportName(m_server.name);
@@ -6054,6 +6573,8 @@ QString App::copyQbtSettingsFrom(const QString &id)
     const std::optional<Server> source = m_servers->byId(id);
     if (!source)
         return tr("That server is no longer in the list.");
+    if (!source->isQbittorrent()) // C28
+        return ErrorWords::forEngine(*source).sentence();
     if (source->id == m_server.id)
         return tr("omaseed is on %1: copy from another server.").arg(source->name);
     m_importFile.reset();
@@ -6142,7 +6663,8 @@ void App::probeOtherServers()
     if (m_demoMode)
         return;
     for (const Server &server : m_servers->servers()) {
-        if (server.id == m_server.id || m_probing.contains(server.id))
+        // C28: a server of another engine is never asked.
+        if (server.id == m_server.id || m_probing.contains(server.id) || !server.isQbittorrent())
             continue;
         m_probing.insert(server.id);
         withStoredSecret(server, [this, server](const QString &secret) {

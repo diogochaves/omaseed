@@ -15,8 +15,9 @@ Rectangle {
     property bool warn: false
     /// The role `warn` draws in: the warning colour, or the hero's burst green (docs/31 D3).
     property color warnColor: Theme.yellow
-    /// Words after the text in the same colour, a little fainter ("· until 07:00", docs/31
-    /// D5); "" draws none.
+    /// Words after the text in the same colour ("· until 07:00", docs/31 D5); "" draws none.
+    /// D5's "a little fainter" (0.72) read under 4.5:1 on most themes, so C30's floor wins and
+    /// the "·" alone sets them apart (#188).
     property string suffix: ""
     property bool selected: false
     /// #91: the chip is a choice (an option of a few, a switch), so a screen reader hears
@@ -25,7 +26,8 @@ Rectangle {
     property bool hasCursor: false
     /// A switch rather than a label (docs/32 L1's level chips): off, its text reads dim.
     property bool toggle: false
-    /// A key drawn faint before the text (the level chips' `1`–`4`); "" draws none.
+    /// A key drawn dim before the text (the level chips' `1`–`4`); "" draws none. It was the
+    /// dim role at 0.8, under C30's floor on most themes; the dim role alone reads (#188).
     property string keyText: ""
     /// A number drawn dim after the text (a level's lines); "" draws none.
     property string count: ""
@@ -44,9 +46,22 @@ Rectangle {
     /// The chip's tooltip, which lives on the window's content item (the tests read it).
     readonly property alias tooltipItem: tip
 
+    /// What the chip sits on (docs/DECISIONS.md C30 F1): the window, or the block it is in.
+    /// Its own idle fill is painted over it either way.
+    property ThemeInk block: Theme.on.window
+
     signal clicked
 
     readonly property bool hot: root.hasCursor || mouseArea.containsMouse
+    /// The ground under the words in each state, as `color` paints it (C30 F1, F4): the
+    /// chip's idle fill resting; in a block, its fills sit over the block's.
+    readonly property ThemeInk ground: Theme.within(root.block, root.selected ? Theme.on.selected
+                                                                              : root.hot ? Theme.on.hover
+                                                                                         : Theme.on.idle)
+    /// The words' colours on that ground, eased with the fill.
+    readonly property Ink ink: Ink {
+        ground: root.ground
+    }
 
     // #79: the count it shows ("19") and its key are the description, as a rail row's count.
     Accessible.description: [root.count, root.keyText.length > 0 ? qsTr("shortcut %1").arg(root.keyText) : ""].filter(
@@ -64,16 +79,17 @@ Rectangle {
     border.color: root.warn ? root.warnColor : root.accent ? Theme.accent : root.hot ? Theme.fill(
                                                                                           Theme.borderHover)
                                                                                     : Theme.fill(Theme.borderIdle)
-    border.width: root.selected && !root.accent ? 0 : 1
-    color: root.selected ? Theme.fill(Theme.fillSelected) : root.hot ? Theme.fill(Theme.fillHover) :
-                                                                       Theme.fill(Theme.fillIdle)
+    border.width: root.selected && !root.accent ? 0 : Theme.hairWidth
+    // The ground's own fill, so the words are lifted against what is painted (a skin's tier,
+    // a fill nested in a block or on a hovered row: #188).
+    color: root.ground.fill
     height: Theme.space(22)
     implicitWidth: content.implicitWidth + Theme.space(16)
     radius: Theme.cornerRadius
 
     Behavior on color {
         ColorAnimation {
-            duration: 120
+            duration: Theme.fillChangeDuration
         }
     }
 
@@ -95,11 +111,10 @@ Rectangle {
 
         Text {
             anchors.verticalCenter: parent.verticalCenter
-            color: Theme.dimForeground
+            color: root.ink.dimForeground
             font.family: Theme.fontFamily
             font.pixelSize: Theme.font.caption
             objectName: "chipKey"
-            opacity: 0.8
             text: root.keyText
             visible: root.keyText.length > 0
         }
@@ -108,12 +123,13 @@ Rectangle {
             id: label
 
             anchors.verticalCenter: parent.verticalCenter
+            // A caller's colour is one of the window's roles: the ground's of the same (C30 F3).
             color: {
                 if (root.warn)
-                    return root.warnColor;
+                    return root.ink.of(root.warnColor);
                 if (root.selected)
-                    return root.tone.a > 0 ? root.tone : Theme.brightForeground;
-                return root.toggle ? Theme.dimForeground : Theme.foreground;
+                    return root.tone.a > 0 ? root.ink.of(root.tone) : root.ink.brightForeground;
+                return root.toggle ? root.ink.dimForeground : root.ink.foreground;
             }
 
             font.family: Theme.fontFamily
@@ -128,14 +144,13 @@ Rectangle {
             font.family: Theme.fontFamily
             font.pixelSize: Theme.font.small
             objectName: "chipSuffix"
-            opacity: 0.72
             text: root.suffix
             visible: root.suffix.length > 0
         }
 
         Text {
             anchors.verticalCenter: parent.verticalCenter
-            color: Theme.dimForeground
+            color: root.ink.dimForeground
             font.family: Theme.fontFamily
             font.features: {
                 "tnum": 1

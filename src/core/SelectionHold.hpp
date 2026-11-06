@@ -9,7 +9,9 @@
 // priority); only the request waits.
 //
 //   * what waits (D5, D6): a change that wants files now skipped, adding more than 1 GiB, or
-//     wanting the whole torrent, running or stopped alike. A skip alone never waits;
+//     wanting the whole torrent, running or stopped alike; and, on a disk that takes every
+//     ticked file's full size at once, any widening that doesn't fit (C28, #159). A skip alone
+//     never waits;
 //   * the window (D7): 3 s, starting again with each change;
 //   * several changes: what is made while one waits joins it; the net change per file is what
 //     is sent, and nothing at all when it nets to zero;
@@ -45,10 +47,19 @@ public:
     /// D5–D6: whether setting `ids` to `priority` on a torrent whose files are now at
     /// `current` (id → priority) with `sizes` (id → bytes) must wait: it wants files now
     /// skipped, adding more than 1 GiB of them or leaving none of the torrent skipped.
+    /// `roomBytes` is the free space where the torrent saves when that disk takes every
+    /// ticked file's full size at once (ntfs3, exfat, vfat: C17 D8), -1 elsewhere: a widening
+    /// that doesn't fit there always waits, whatever its size (DECISIONS C28, #159).
     static bool mustWait(const QHash<int, int> &current,
                          const QHash<int, qint64> &sizes,
                          const QList<int> &ids,
-                         int priority);
+                         int priority,
+                         qint64 roomBytes = -1);
+    /// The bytes of the files now skipped that setting `ids` to `priority` would want.
+    static qint64 widening(const QHash<int, int> &current,
+                           const QHash<int, qint64> &sizes,
+                           const QList<int> &ids,
+                           int priority);
 
     bool waiting() const { return !m_target.isEmpty(); }
     QString hash() const { return m_hash; }

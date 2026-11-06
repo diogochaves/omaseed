@@ -11,6 +11,7 @@ import Omaseed.Kit
 //   slow      F3  from 10 s: names the two ways out
 //   never     F4  from 60 s, yellow: and that closing leaves the lookup on the server (D6 a)
 //   private   F5  the library's private tracker: nothing asked, use the site's .torrent (D7 a)
+// While an add waits for the list (#193, `addWaiting`), fetching and slow say so instead.
 // Anything else draws nothing (`shown` false): "quiet" so a quick answer just shows the tree,
 // "done" because the tree is there, "unsupported" and "failed" because the sheet is today's
 // (D11 a). `summaryText` is what the Files head prints on its right, with the seconds.
@@ -31,6 +32,8 @@ Rectangle {
     property string privateHost: ""
     /// F7: the server it waits for.
     property string serverName: ""
+    /// #193: an add was pressed and waits for the list (App.addWaitsForList).
+    property bool addWaiting: false
 
     readonly property bool shown: ["waiting", "fetching", "slow", "never", "private"].indexOf(root.phase) >= 0
     readonly property bool isLink: root.kind === "url"
@@ -48,7 +51,7 @@ Rectangle {
 
     /// A key or a name inside a dim line, in the foreground colour (a binding: it repaints).
     function keyText(text: string): string {
-        return "<font color=\"" + Theme.foreground + "\">" + text + "</font>";
+        return "<font color=\"" + root.ink.foreground + "\">" + text + "</font>";
     }
 
     readonly property string summaryText: {
@@ -75,9 +78,15 @@ Rectangle {
                                   : root.phase === "never" ? Glyphs.lookupNever
                                   : root.phase === "private" ? Glyphs.privateTracker
                                   : Glyphs.lookup
-    readonly property color glyphColor: root.phase === "slow" || root.phase === "never" ? Theme.yellow
-                                        : root.phase === "private" ? Theme.magenta
-                                        : Theme.dimForeground
+    /// docs/DECISIONS.md C30 F1: the line's words on its own 4 % fill.
+    readonly property Ink ink: Ink {
+        animated: false
+        ground: Theme.on.idle
+    }
+    readonly property color glyphColor: root.phase === "slow" || root.phase === "never"
+                                        ? root.ink.yellow
+                                        : root.phase === "private" ? root.ink.magenta
+                                        : root.ink.dimForeground
 
     readonly property string headline: {
         switch (root.phase) {
@@ -103,6 +112,10 @@ Rectangle {
         const add = root.keyText(qsTr("add"));
         const leftRunning = qsTr("qBittorrent goes on looking until it restarts, even after you close this sheet.");
         const noReport = qsTr("qBittorrent doesn't report a failed download here.");
+        // #193: qBittorrent 5.3 can crash when a magnet is added while it is still fetching
+        // that magnet's list, so the add waits for it, up to F4's minute.
+        if (root.addWaiting && !root.isLink && ["fetching", "slow"].indexOf(root.phase) >= 0)
+            return [qsTr("Your %1 goes out as soon as the list is in, or after a minute without one: adding a magnet while qBittorrent is still fetching its list can crash qBittorrent 5.3.").arg(add)];
         switch (root.phase) {
         case "waiting":
             return [qsTr("The file list is asked for as soon as it answers. %1 works now: it goes out once the server is up.").arg(add)];
@@ -126,8 +139,8 @@ Rectangle {
     }
 
     border.color: Theme.fill(Theme.hairlineAlpha)
-    border.width: 1
-    color: Theme.fill(Theme.fillIdle)
+    border.width: Theme.hairWidth
+    color: root.ink.fill
     implicitHeight: content.implicitHeight + 2 * Theme.space(9)
     visible: root.shown
 
@@ -159,6 +172,7 @@ Rectangle {
                 Accessible.role: Accessible.StaticText
                 Layout.fillWidth: true
                 bright: true
+                ink: root.ink
                 objectName: "addFetchHeadline"
                 size: "small"
                 text: root.headline
@@ -179,6 +193,7 @@ Rectangle {
                     Accessible.role: Accessible.StaticText
                     Layout.fillWidth: true
                     dim: true
+                    ink: root.ink
                     lineHeight: 1.1
                     objectName: "addFetchLine"
                     size: "caption"

@@ -28,9 +28,15 @@ Item {
     /// The caption elides to the cell's width instead of running past it: the torrent table,
     /// whose columns can be dragged narrower than their captions (#52).
     property bool elides: false
+    /// The ground the caption is on (a dragged column's selected fill, docs/DECISIONS.md C30
+    /// F1); null is the window.
+    property Ink ink: null
     /// How wide the cell must be to show its whole caption and a sort chevron (#52's fit).
     readonly property real fitWidth: 2 * Theme.space(8) + caption.implicitWidth + Theme.space(4)
                                      + chevron.implicitWidth
+    /// The caption's whole width in the skin's caption voice, padding left out: a column at
+    /// least this wide never elides it (the details lists size their fixed columns by it).
+    readonly property real captionWidth: caption.implicitWidth
 
     signal clicked
     signal rightClicked
@@ -58,11 +64,15 @@ Item {
             id: caption
 
             anchors.verticalCenter: parent.verticalCenter
-            color: root.sorted ? Theme.foreground : Theme.dimForeground
+            color: root.ink !== null ? (root.sorted ? root.ink.foreground : root.ink.dimForeground)
+                                     : (root.sorted ? Theme.foreground : Theme.dimForeground)
             elide: root.elides ? Text.ElideRight : Text.ElideNone
-            font.family: Theme.fontFamily
-            font.letterSpacing: root._pixelSize * 0.04
+            // Board 46 `.tbl th`: the skin's caption voice.
+            font.capitalization: Theme.captionUpper ? Font.AllUppercase : Font.MixedCase
+            font.family: Theme.labelFamily
+            font.letterSpacing: root._pixelSize * Theme.captionTrack(0.04)
             font.pixelSize: root._pixelSize
+            font.weight: Theme.captionWeight(Font.Normal)
             objectName: "caption"
             text: root.text
             width: root.elides ? Math.max(0, Math.min(caption.implicitWidth, root.width - 2
@@ -76,7 +86,7 @@ Item {
             id: chevron
 
             anchors.verticalCenter: parent.verticalCenter
-            color: Theme.foreground
+            color: root.ink !== null ? root.ink.foreground : Theme.foreground
             font.family: Theme.fontFamily
             font.pixelSize: root._pixelSize
             text: root.descending ? Glyphs.chevronDown : Glyphs.chevronUp

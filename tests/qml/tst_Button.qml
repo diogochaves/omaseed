@@ -63,7 +63,7 @@ TestCase {
                                                  "bordered": true
                                              });
         fuzzyCompare(button.color.a, Theme.fill(Theme.fillIdle).a, 0.01);
-        compare(button.border.width, 1);
+        compare(button.border.width, Theme.hairWidth);
     }
 
     function test_hover_or_cursor_fills_at_the_hover_alpha() {
@@ -71,7 +71,9 @@ TestCase {
                                                  "text": "Add",
                                                  "hasCursor": true
                                              });
-        const expected = Theme.fill(Theme.fillHover);
+        // A control's cursor is its hover ground (#171: Omarchy's is the hover alpha, a skin
+        // may paint another).
+        const expected = Theme.on.hover.fill;
         fuzzyCompare(button.color.a, expected.a, 0.01);
         compare(button.border.width, 1);
     }
@@ -81,7 +83,33 @@ TestCase {
                                                  "text": "Add",
                                                  "selected": true
                                              });
-        fuzzyCompare(button.color.a, Theme.fill(Theme.fillSelected).a, 0.01);
+        fuzzyCompare(button.color.a, Theme.on.selected.fill.a, 0.01);
+    }
+
+    // #188: on the action bar (its block the hover fill) a hovered or pressed button's fill
+    // sits over the bar's, and its words take that nested ground's colours; in a 4 % block,
+    // a pressed or selected one the block's.
+    function test_its_fills_nest_over_its_block() {
+        const bar = createTemporaryObject(buttonComponent, testCase, {
+                                              "text": "pause",
+                                              "block": Theme.on.hover
+                                          });
+        compare(bar.ground, Theme.on.hover);
+        compare(bar.color.a, 0);
+        bar.hasCursor = true;
+        compare(bar.ground, Theme.on.hoverHover);
+        tryCompare(bar, "color", Theme.on.hoverHover.fill);
+        bar.pressed = true;
+        compare(bar.ground, Theme.on.hoverPressed);
+        const inBlock = createTemporaryObject(buttonComponent, testCase, {
+                                                  "text": "retry",
+                                                  "block": Theme.on.idle,
+                                                  "pressed": true
+                                              });
+        compare(inBlock.ground, Theme.on.blockPressed);
+        inBlock.pressed = false;
+        inBlock.selected = true;
+        compare(inBlock.ground, Theme.on.blockSelected);
     }
 
     function test_pressed_fills_at_the_pressed_alpha() {
@@ -152,6 +180,26 @@ TestCase {
                                                  "danger": true
                                              });
         compare(button._textColor, Theme.red);
+    }
+
+    // Board 51 D17 (`.ab2 .ic`): the action bar's icons rest dim and light with the words.
+    function test_a_dim_glyph_rests_dim_and_lights_when_selected() {
+        const button = createTemporaryObject(buttonComponent, testCase, {
+                                                 "text": "move",
+                                                 "glyph": "+",
+                                                 "glyphDim": true
+                                             });
+        const glyph = findChild(button, "buttonGlyph");
+        compare(glyph.color, button.ink.dimForeground);
+        button.selected = true;
+        compare(glyph.color, button._textColor);
+        const danger = createTemporaryObject(buttonComponent, testCase, {
+                                                 "text": "delete",
+                                                 "glyph": "+",
+                                                 "glyphDim": true,
+                                                 "danger": true
+                                             });
+        compare(findChild(danger, "buttonGlyph").color, Theme.red);
     }
 
     function test_danger_selected_border_is_red() {

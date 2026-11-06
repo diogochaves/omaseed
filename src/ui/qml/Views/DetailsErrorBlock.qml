@@ -9,7 +9,8 @@ import Omaseed.Kit
 // actions that fit the cause as clickable key hints. `problem` is TorrentProblem::toMap().
 //
 // docs/44 D13 (#121): a stuck move (`problem.stuckMove`) is red in the same place, with
-// "show both folders" and "set location…", and its partial copies named when they are seen.
+// "show both folders", "c recheck" (DECISIONS C28, #158: once there is room, a recheck moves
+// it) and "set location…", and its partial copies named when they are seen.
 //
 // docs/32 F1–F3 (#55): the same block for a move, rename or part file that failed while the
 // torrent kept working (`problem` is then TorrentFailure::toMap(), which has a `kind`): always
@@ -39,7 +40,14 @@ Rectangle {
     /// docs/44 D13 (#121): finished, but its files never left the incomplete folder. Red, in
     /// board 28's place, on a torrent that still seeds.
     readonly property bool stuckMove: root.problem.stuckMove === true
-    readonly property color kindColor: root.missingFiles || root.failure ? Theme.yellow : Theme.red
+    /// docs/DECISIONS.md C30 F1: the block's words on its own 4 % fill, or on the panel where
+    /// the skin plates the blocks.
+    readonly property Ink ink: Ink {
+        animated: false
+        ground: Theme.platedBlocks ? Theme.on.panel : Theme.on.idle
+    }
+    readonly property color kindColor: root.missingFiles || root.failure ? root.ink.yellow
+                                                                         : root.ink.red
     readonly property var hints: {
         const keys = {
             // docs/44 M1: board 43's sheet.
@@ -119,15 +127,27 @@ Rectangle {
     // kind's glyph stays out.
     Accessible.name: root.problem.headline || ""
     Accessible.role: Accessible.AlertMessage
-    color: Theme.fill(Theme.fillIdle)
+    color: Theme.platedBlocks ? "transparent" : root.ink.fill
     implicitHeight: column.implicitHeight + Theme.space(12)
     objectName: "errorBlock"
+
+    // Its plate, where the skin stands blocks on one (board 46 `.blk.pn`): the panel tinted by
+    // the kind's colour, edged in it all round.
+    Plate {
+        anchors.fill: parent
+        edgeColor: root.kindColor
+        edgeWidth: Theme.hairWidth
+        fill: Qt.tint(Theme.on.panel.fill, Qt.alpha(root.kindColor, Theme.blockTint))
+        objectName: "errorBlockPlate"
+        visible: Theme.platedBlocks
+    }
 
     Rectangle {
         anchors.bottom: parent.bottom
         anchors.left: parent.left
         anchors.top: parent.top
         color: root.kindColor
+        visible: !Theme.platedBlocks
         width: 1
     }
 
@@ -138,7 +158,7 @@ Rectangle {
         anchors.leftMargin: Theme.space(12)
         anchors.top: column.top
         color: root.kindColor
-        font.family: Theme.fontFamily
+        font.family: Theme.valueFamily
         font.pixelSize: Theme.font.body
         text: root.missingFiles || root.failure ? Glyphs.statusErrored : Glyphs.close
     }
@@ -154,8 +174,10 @@ Rectangle {
         spacing: Theme.space(3)
 
         Text {
-            color: Theme.brightForeground
-            font.family: Theme.fontFamily
+            color: root.ink.brightForeground
+            // Board 46 `.blk b`: the label family, the name's tracking.
+            font.family: Theme.labelFamily
+            font.letterSpacing: Theme.font.body * Theme.nameTrack
             font.pixelSize: Theme.font.body
             font.weight: Font.Medium
             objectName: "errorHeadline"
@@ -168,8 +190,8 @@ Rectangle {
         Text {
             Accessible.name: text
             Accessible.role: Accessible.StaticText
-            color: Theme.foreground
-            font.family: Theme.fontFamily
+            color: root.ink.foreground
+            font.family: Theme.valueFamily
             font.pixelSize: Theme.font.small
             objectName: "errorDetail"
             text: root.problem.detail || ""
@@ -183,8 +205,8 @@ Rectangle {
         Text {
             Accessible.name: text
             Accessible.role: Accessible.StaticText
-            color: Theme.foreground
-            font.family: Theme.fontFamily
+            color: root.ink.foreground
+            font.family: Theme.valueFamily
             font.pixelSize: Theme.font.small
             objectName: "errorAdvice"
             text: root.partialText.length > 0 ? root.partialText : root.problem.advice || ""
@@ -197,8 +219,8 @@ Rectangle {
         Text {
             Accessible.name: text
             Accessible.role: Accessible.StaticText
-            color: Theme.dimForeground
-            font.family: Theme.fontFamily
+            color: root.ink.dimForeground
+            font.family: Theme.valueFamily
             font.pixelSize: Theme.font.small
             objectName: "errorFolder"
             text: root.folderText
@@ -211,8 +233,8 @@ Rectangle {
         Text {
             Accessible.name: text
             Accessible.role: Accessible.StaticText
-            color: Theme.dimForeground
-            font.family: Theme.fontFamily
+            color: root.ink.dimForeground
+            font.family: Theme.valueFamily
             font.pixelSize: Theme.font.small
             objectName: "errorMeta"
             text: root.metaText
@@ -231,6 +253,7 @@ Rectangle {
         KeyHints {
             id: actions
 
+            ink: root.ink
             model: root.hints
             objectName: "errorActions"
             size: "small"
@@ -243,6 +266,7 @@ Rectangle {
         // keyless "copy the line" and "its lines in the log" (docs/32 D13) would otherwise be
         // dropped, and the log link has no key to stand in for it.
         KeyHints {
+            ink: root.ink
             model: root.hints.filter((hint, index) => actions._shown[index] !== true)
             objectName: "errorActionsMore"
             size: "small"

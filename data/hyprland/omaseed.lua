@@ -28,13 +28,13 @@ local class = "io.github.diogochaves.omaseed"
 -- Omarchy 4.0.x tags every window `+default-opacity` and then applies `opacity 0.985 0.96`
 -- to whatever still carries that tag once every app-specific file has had a chance to remove
 -- it (see /usr/share/omarchy/default/hypr/windows.lua, loaded before this file). omaseed
--- paints its own translucent "ground" panel per the approved spec (docs/05-ui-spec-v2.html:
--- the base surface reads as ~90% of the theme background colour over the wallpaper, via
--- Theme.windowAlpha in QML). Compositor-level opacity multiplies on top of window content,
--- so leaving the tag in place would double the effect (the ground would read closer to 86%,
--- not 90%) and any fully-opaque chrome (menus, the tray icon, notifications) would also pick
--- up an unwanted 1.5-4% translucency. omaseed is the only source of its own translucency:
--- drop the tag and force the window itself to full opacity.
+-- paints its own ground panel (Theme.windowAlpha in QML): opaque by default, like every
+-- Omarchy 4.5 app (docs/DECISIONS.md C24 H13), or, when Settings > Appearance > Window says
+-- translucent, the shell launcher's alpha (Q1). Compositor-level opacity multiplies on top
+-- of window content, so leaving the tag in place would double a translucent ground and give
+-- any fully-opaque chrome (menus, the tray icon, notifications) an unwanted 1.5-4%
+-- translucency. omaseed is the only source of its own translucency: drop the tag and force
+-- the window itself to full opacity.
 --
 -- Omarchy 4.5 has no `default-opacity` tag: apps are opaque unless they opt in
 -- (`o.transparent_window`), so there the tag removal does nothing and `opacity "1 1"` only
@@ -47,6 +47,21 @@ o.window(class, { tag = "-default-opacity", opacity = "1 1" })
 -- Hyprland floats and centres by itself, and it maps again unlocked, so tiled, when setup is
 -- done (src/ui/qml/Main.qml). The title-matched rule that used to sit here never matched:
 -- the window never took the "omaseed · first run" title it expected.
+
+-- The add window (docs/DECISIONS.md C35 W3, docs/54 §3): an add from outside the main window
+-- opens the add sheet in a window of its own, floating and centred where you are. It fixes its
+-- size to the sheet's, so Hyprland floats it without this rule; the rule covers the moment
+-- between a size change and the next frame. It matches the title, not the class: Qt on
+-- Wayland gives every window of an app the one app id, so the class can't tell the add window
+-- from the main one. The title is fixed, `omaseed · add`, never translated
+-- (src/ui/qml/Views/AddWindow.qml).
+--
+-- Deviation from the board's line, which also matched `class`: `o.window` records the class
+-- of a float rule as an app that floats on its own, and Omarchy's floating workspace modes
+-- leave such apps out of their open rule (/usr/share/omarchy/default/hypr/workspace-modes.lua),
+-- so naming the class here would take the main window out of those modes too. Matching the
+-- title as well records only the add window.
+o.window({ initial_title = "^omaseed · add$", title = "^omaseed · add$" }, { float = true, center = true })
 
 -- Touchpad scrolling at the terminals' pace. Omarchy slows every touchpad to
 -- `scroll_factor = 0.4` and gives terminals 1.5 back per window

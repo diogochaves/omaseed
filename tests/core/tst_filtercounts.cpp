@@ -3,7 +3,9 @@
 
 #include "QbtFeed.hpp"
 #include "core/FilterCounts.hpp"
+#include "core/LocalDay.hpp"
 #include "core/Torrent.hpp"
+#include "core/TorrentFilterModel.hpp"
 #include "core/TorrentModel.hpp"
 
 #include <QElapsedTimer>
@@ -69,6 +71,7 @@ class TestFilterCounts : public QObject
 private slots:
     void countsTheRecordedFixture();
     void countsEveryStatusGroup();
+    void countsTheFiveQuestions();
     void countsCategoriesTagsAndTrackers();
     void recomputesWhenTheModelChanges();
     void revisionMovesWhenOnlyACategoryCountDoes();
@@ -147,6 +150,57 @@ void TestFilterCounts::countsEveryStatusGroup()
     QCOMPARE(counts.errored(), 1);     // e
     QCOMPARE(counts.statusCount(int(StatusGroup::NoGroup)), 6);
     QCOMPARE(counts.statusCount(int(StatusGroup::Errored)), 1);
+}
+
+// DECISIONS C24 H2: one count per question, disjoint, from the same rule the library filter
+// uses; a failure in the log and a new day count again with no poll.
+void TestFilterCounts::countsTheFiveQuestions()
+{
+    QDateTime now(QDate(2026, 10, 23), QTime(18, 0));
+    LocalDay day;
+    day.setClock([&now]() { return now; });
+    TorrentModel model;
+    FilterCounts counts;
+    counts.setDay(&day);
+    counts.setModel(&model);
+    const qint64 thisMorning = QDateTime(QDate(2026, 10, 23), QTime(7, 0)).toSecsSinceEpoch();
+    qbtfeed::full(model,
+                  QJsonObject{
+                      {QStringLiteral("a"),
+                       QJsonObject{{QStringLiteral("state"), QStringLiteral("downloading")},
+                                   {QStringLiteral("progress"), 0.5}}},
+                      {QStringLiteral("b"),
+                       QJsonObject{{QStringLiteral("state"), QStringLiteral("uploading")},
+                                   {QStringLiteral("progress"), 1.0},
+                                   {QStringLiteral("completion_on"), thisMorning}}},
+                      {QStringLiteral("c"),
+                       QJsonObject{{QStringLiteral("state"), QStringLiteral("stalledUP")},
+                                   {QStringLiteral("progress"), 1.0}}},
+                      {QStringLiteral("d"),
+                       QJsonObject{{QStringLiteral("state"), QStringLiteral("stoppedDL")},
+                                   {QStringLiteral("progress"), 0.2}}},
+                      {QStringLiteral("e"),
+                       QJsonObject{{QStringLiteral("state"), QStringLiteral("error")},
+                                   {QStringLiteral("progress"), 0.0}}},
+                  });
+    QCOMPARE(counts.needsYou(), 1);
+    QCOMPARE(counts.arriving(), 1);
+    QCOMPARE(counts.landedToday(), 1);
+    QCOMPARE(counts.givingBack(), 1);
+    QCOMPARE(counts.resting(), 1);
+    QCOMPARE(counts.questionCount(TorrentFilterModel::AnyQuestion), 5);
+
+    QSignalSpy changed(&counts, &FilterCounts::changed);
+    model.setFailure(QStringLiteral("c"), {{QStringLiteral("headline"), QStringLiteral("x")}});
+    QCOMPARE(changed.count(), 1);
+    QCOMPARE(counts.needsYou(), 2);
+    QCOMPARE(counts.givingBack(), 0);
+
+    now = QDateTime(QDate(2026, 10, 24), QTime(0, 0, 2));
+    day.check();
+    QCOMPARE(changed.count(), 2);
+    QCOMPARE(counts.landedToday(), 0);
+    QCOMPARE(counts.givingBack(), 1);
 }
 
 void TestFilterCounts::countsCategoriesTagsAndTrackers()

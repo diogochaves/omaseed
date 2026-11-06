@@ -14,10 +14,13 @@ import Omaseed.Kit
 //
 // Keyboard (Fig. 16's own footer):
 //   j k / 1–7   move the nav
-//   tab         hand the keyboard to the pane, and back
+//   tab         as in any form (C32 D10 a): the nav one stop, then every row of the pane, a
+//               row's text fields one stop each with the caret in them; shift+tab back
+//   h l         hand the keyboard to the nav, or to the pane
 //   j k         inside a pane, move the row cursor
 //   enter space act on the cursor row (toggle, open the server sheet, copy)
-//   a x d       Servers pane only: add, remove (confirmed), switch to it (docs/33 D11)
+//   a x d e     Servers pane only: add, remove (confirmed), switch to it (docs/33 D11), edit
+//               (the server's form straight away, #201 F9)
 //   esc         close — or, while the server sheet is up, close that first, because the
 //               sheet has the keyboard and traps the key itself.
 //
@@ -91,7 +94,9 @@ Item {
         },
         {
             "glyph": Glyphs.appearance,
-            "text": qsTr("Appearance")
+            "text": qsTr("Appearance"),
+            // Its own kana word (board 46 `.shh h4 .kn`); every other pane's is settings'.
+            "labelId": "appearance"
         },
         {
             // #31, docs/24 §3: omaseed's own backup, after Appearance.
@@ -108,6 +113,15 @@ Item {
     /// which is drawn by `qbtBackupPane` rather than from rows.
     /// Only a server whose engine has them (App.features.qbtSettings, docs/36 §4.4); none else.
     readonly property var qbtSections: App.features.qbtSettings === false ? [] : qbtSchema.sections.concat([{
+                                                                      // #145 (DECISIONS C26 SR10): the server's
+                                                                      // search plugins, drawn by searchPluginsPane.
+                                                                      "id": "search",
+                                                                      "glyph": Glyphs.viewSearch,
+                                                                      "name": qsTr("Search plugins"),
+                                                                      "shortName": qsTr("Search"),
+                                                                      "sub": qsTr("the plugins search asks, on this server"),
+                                                                      "rows": []
+                                                                  }, {
                                                                       "id": "backup",
                                                                       "glyph": Glyphs.backup,
                                                                       "name": qsTr("Backup"),
@@ -117,6 +131,8 @@ Item {
                                                                   }])
     /// The qBittorrent group's Backup pane is on show.
     readonly property bool inQbtBackup: root.qbtSection !== null && root.qbtSection.id === "backup"
+    /// The qBittorrent group's Search plugins pane is on show (#145).
+    readonly property bool inQbtSearch: root.qbtSection !== null && root.qbtSection.id === "search"
     /// Where the qBittorrent group starts in `paneIndex`.
     readonly property int qbtStart: root.navRows.length
     readonly property int paneCount: root.navRows.length + root.qbtSections.length
@@ -128,7 +144,8 @@ Item {
     readonly property var allRows: root.navRows.concat(root.qbtSections.map(section => ({
                                                                                           "glyph": section.glyph,
                                                                                           "text": section.name,
-                                                                                          "shortText": section.shortName
+                                                                                          "shortText": section.shortName,
+                                                                                          "labelId": section.id === "search" ? "search" : "settings"
                                                                                       })))
     /// The qBittorrent group's head: "playground 5.2.3".
     readonly property string qbtServerText: {
@@ -184,6 +201,8 @@ Item {
     readonly property int paneRowCount: {
         if (root.inQbtBackup)
             return 5; // settings: export, import (#32), copy (#70); torrents: export, import (#33)
+        if (root.inQbtSearch)
+            return searchPluginsPane.cursorCount;
         if (root.inQbt)
             return qbtPane.cursorCount;
         switch (root.paneIndex) {
@@ -192,13 +211,15 @@ Item {
         case 1:
             return App.serverList.count + 1; // the servers, then "+ add a server"
         case 2:
-            return 6; // four toggles, the low-disk threshold field, the weekly recap (#24 T8)
+            return 7; // five toggles (W5 added, docs/54), the low-disk threshold field, the weekly recap (#24 T8)
         case 4:
-            // theme, base size, transparency, tray icon, the bar widget (#17), speed alignment,
-            // the speed trends (#24 T2), then the rail's scroll hint, surface tint and tracker
-            // hosts (docs/08 §5), then where Details sits (docs/10), then the rows' pulse
-            // (#24 T5)
-            return 12;
+            // the skin (C24 H11), theme, base size, the window's ground (C24 H13) and, while
+            // translucent, its transparency, tray icon, the bar widget (#17), then the rail's scroll hint,
+            // its tint (C32 D16 a) and tracker hosts (docs/08 §5), then where Details sits
+            // (docs/10), then the rows' pulse (#24 T5), then where the speeds are (C32 D2 a).
+            // The hero's speed alignment and trends left with the hero (#167 assumed 6): their
+            // saved values are kept, and ignored.
+            return 12 + root._groundShift;
         case 5:
             return 3; // back up, restore, automatic copies (#31)
         case 6:
@@ -251,7 +272,49 @@ Item {
         serverSheet.editLogin(map);
     }
 
-    /// ctrl+shift+, (docs/16 §2): Settings, on the qBittorrent group.
+    /// #145 (C26 SR13): search's empty state's link: Settings › qBittorrent › Search plugins.
+    function openSearchPlugins(): void {
+        root.showPane(root.qbtStart + root.qbtSections.length - 2);
+        root.open();
+    }
+
+    /// DECISIONS C34 D20 a: search's way to its plugins (plugins ▾'s "manage plugins…", the
+    /// search rail's "install a plugin…"): Settings › qBittorrent › Search plugins with the
+    /// caret in its install field. esc there goes straight back to the search, as it was (the
+    /// sheet gives the keys back to what had them).
+    function openSearchPluginsInstall(): void {
+        root.openSearchPlugins();
+        root.area = "pane";
+        root.paneCursor = 0;
+        root._backToSearch = true;
+        searchPluginsPane.field.focusInput();
+    }
+
+    /// DECISIONS C34 (the accepted call): a plugin turned off, clicked in search's rail: the
+    /// same pane, the cursor on that plugin's row (space turns it on); esc goes back to the
+    /// search, as the modal closes on it.
+    function openSearchPluginsOn(name: string): void {
+        root.openSearchPlugins();
+        const plugins = App.searchPlugins;
+        let row = -1;
+        for (let i = 0; i < plugins.count && row < 0; ++i) {
+            if (plugins.data(plugins.index(i, 0), SearchPlugins.NameRole) === name)
+                row = i;
+        }
+        root.area = "pane";
+        root.paneCursor = row >= 0 ? row + 2 : 0;
+    }
+
+    /// Opened by openSearchPluginsInstall(): the install field's esc closes the modal.
+    property bool _backToSearch: false
+
+    /// C32 D8 a: the alternative speeds' choice's "edit the presets…": qBittorrent › Speed.
+    function openSpeed(): void {
+        root.showPane(root.qbtStart);
+        root.open();
+    }
+
+        /// ctrl+shift+, (docs/16 §2): Settings, on the qBittorrent group.
     function openQbt(): void {
         if (root.qbtSections.length === 0)
             return;
@@ -267,6 +330,8 @@ Item {
             App.serverPrefs.reload();
         if (root.inQbtBackup)
             App.refreshQbtBackupInfo();
+        if (root.inQbtSearch)
+            App.refreshSearchPlugins();
         if (root.qbtSection && root.qbtSection.id === "connection")
             App.serverPrefs.loadInterfaces(App.serverPrefs.values.current_network_interface ?? "");
     }
@@ -281,7 +346,11 @@ Item {
     /// (docs/16 §3), straight to the server otherwise.
     function qbtRequest(changes: var, confirmKind: string, what: string): void {
         if (confirmKind.length === 0) {
-            App.serverPrefs.apply(changes);
+            // C32 D8 a: the turtle's and burst's keys go through the presets.
+            if (App.altPresets.owns(changes))
+                App.altPresets.apply(changes);
+            else
+                App.serverPrefs.apply(changes);
             return;
         }
         const first = Object.keys(changes)[0];
@@ -466,6 +535,10 @@ Item {
     /// `enter` / `space` on the cursor row of the pane on show. `how` is "enter" or "space":
     /// on a qBittorrent row with a switch and a field, space flips and enter edits.
     function activateRow(how = "enter"): void {
+        if (root.inQbtSearch) {
+            searchPluginsPane.activate(root.paneCursor, how);
+            return;
+        }
         if (root.inQbtBackup) {
             if (root.paneCursor === 0)
                 root.exportQbt();
@@ -509,7 +582,7 @@ Item {
             return;
         }
         if (root.paneIndex === 2) {
-            const keys = ["completed", "errored", "serverLost", "diskFull"];
+            const keys = ["completed", "added", "errored", "serverLost", "diskFull"];
             if (root.paneCursor === keys.length + 1) { // #24 T8: the weekly recap
                 App.setNotificationEnabled("weekly", !App.notificationsEnabled.weekly);
                 return;
@@ -524,29 +597,31 @@ Item {
         }
         if (root.paneIndex === 4) {
             if (root.paneCursor === 0)
-                App.followOmarchyTheme = !App.followOmarchyTheme;
+                App.skinChoice = root._next(root.skinChoices, App.skinChoice);
             else if (root.paneCursor === 1)
-                baseSizeField.focusInput();
+                App.followOmarchyTheme = !App.followOmarchyTheme;
             else if (root.paneCursor === 2)
-                alphaField.focusInput();
+                baseSizeField.focusInput();
             else if (root.paneCursor === 3)
+                root._toggleGround();
+            else if (root.paneCursor === 4 && root._groundShift > 0)
+                alphaField.focusInput();
+            else if (root.paneCursor === 4 + root._groundShift)
                 App.inTheBar = root._nextInTheBar();
-            else if (root.paneCursor === 4)
+            else if (root.paneCursor === 5 + root._groundShift)
                 root.customizeBarWidget();
-            else if (root.paneCursor === 5)
-                App.speedsAlignment = App.speedsAlignment === "left" ? "right" : "left";
-            else if (root.paneCursor === 6)
-                root.cycleTrends();
-            else if (root.paneCursor === 7)
+            else if (root.paneCursor === 6 + root._groundShift)
                 App.railScrollHint = root._next(root.scrollHints, App.railScrollHint);
-            else if (root.paneCursor === 8)
+            else if (root.paneCursor === 7 + root._groundShift)
                 App.surfaceTint = root._next(root.tints, App.surfaceTint);
-            else if (root.paneCursor === 9)
+            else if (root.paneCursor === 8 + root._groundShift)
                 App.trackerHostStyle = root._next(root.hostStyles, App.trackerHostStyle);
-            else if (root.paneCursor === 10)
+            else if (root.paneCursor === 9 + root._groundShift)
                 App.detailsPlacement = root._next(root.placements, App.detailsPlacement);
-            else if (root.paneCursor === 11)
+            else if (root.paneCursor === 10 + root._groundShift)
                 App.pulseRows = !App.pulseRows;
+            else if (root.paneCursor === 11 + root._groundShift)
+                App.speedsPlace = root._next(root.speedsPlaces, App.speedsPlace);
             return;
         }
         if (root.paneIndex === 5) {
@@ -668,29 +743,40 @@ Item {
     // Start at login (charter §2, opt-in): no entry, in the tray (`--hidden`), or the window.
     readonly property var loginStarts: [["off", qsTr("off")], ["tray", qsTr("in the tray")], ["window",
                                                                                           qsTr("window")]]
-    readonly property var tints: [[0, qsTr("none")], [4, qsTr("4 %")], [8, qsTr("8 %")]]
+    /// C32 D2 a: where ↓ and ↑ are drawn, as [place, chip text].
+    readonly property var speedsPlaces: [["title", qsTr("title bar")], ["status", qsTr("status line")]]
+    /// C32 D16 a: the rail's tint, as [percent, chip text].
+    readonly property var tints: [[0, qsTr("off")], [4, qsTr("4 %")], [8, qsTr("8 %")]]
     readonly property var hostStyles: [["prefix", qsTr("drop prefix")], ["left", qsTr("cut start")],
         ["right", qsTr("cut end")]]
     // docs/10 §5: where Details sits.
     readonly property var placements: [["auto", qsTr("auto")], ["right", qsTr("right")], ["bottom",
                                                                                           qsTr("bottom")]]
 
-    /// #24 T2: enter on Speed trends steps off → both → download → upload → off.
-    function cycleTrends(): void {
-        const down = App.downloadTrend;
-        const up = App.uploadTrend;
-        if (!down && !up) {
-            App.downloadTrend = true;
-            App.uploadTrend = true;
-        } else if (down && up) {
-            App.uploadTrend = false;
-        } else if (down) {
-            App.downloadTrend = false;
-            App.uploadTrend = true;
-        } else {
-            App.uploadTrend = false;
-        }
+    // DECISIONS C24 H11 (#171): the skins, board 46's three choices in its order.
+    readonly property var skinChoices: [["omarchy", qsTr("Omarchy")], ["console", qsTr("Console")],
+        ["desktop", qsTr("follow the desktop")]]
+    /// Board 46's line under each choice; following the desktop also says what it draws now.
+    readonly property string _skinDescription: {
+        if (App.skinChoice === "console")
+            return qsTr("BASELINE's plates, labels and lamps, in any theme.");
+        if (App.skinChoice === "desktop")
+            return qsTr("The console when omarchy-console's skin is on, Omarchy otherwise. Now: %1.")
+                .arg(root._skinTitle(Theme.skin.name));
+        return qsTr("Quiet and monospace, in any theme. The default.");
     }
+    /// A built-in skin's name as the chips print it.
+    function _skinTitle(name: string): string {
+        const choice = root.skinChoices.find(option => option[0] === name);
+        return choice ? choice[1] : name;
+    }
+    /// The skin note's question 1, ruled: no font is bundled, so a choice that can draw
+    /// Console names its fonts that aren't installed (none when the desktop asks for the
+    /// shell's font, fx.fonts = system).
+    readonly property var _consoleFontsMissing: App.skinChoice === "omarchy" || Theme.skin.systemFonts
+        ? [] : Theme.skin.missingFontsOf("console")
+    readonly property string _skinFontsLine: root._consoleFontsMissing.length === 0 ? ""
+        : qsTr("Not installed: %1. Console uses stand-ins for them.").arg(root._consoleFontsMissing.join(", "))
 
     /// The value after `current` in `options` (`[[value, text]]`), wrapping round.
     function _next(options: var, current: var): var {
@@ -721,6 +807,15 @@ Item {
         confirm.open();
     }
 
+    /// `e`, or the row menu's "edit": the server's form straight away, the keyboard on its
+    /// first field (#201 F9); a click or `enter` on the row opens its page.
+    function editCursorServer(): void {
+        const id = root.cursorServerId();
+        const map = id.length > 0 ? App.serverList.serverMap(id) : ({});
+        if (map.id !== undefined)
+            serverSheet.openEditFor(map);
+    }
+
     /// A right-click on a server row (the cursor already moved there): its menu at `x`, `y`
     /// in the modal's coordinates, the mouse's way to what `enter`, `d` and `x` do (#51 D4).
     function openServerMenu(x: int, y: int): void {
@@ -737,7 +832,7 @@ Item {
         const id = serverMenu.serverId;
         root.paneCursor = Math.max(0, App.serverList.indexOfId(id));
         if (action === "edit") {
-            root.activateRow();
+            root.editCursorServer();
         } else if (action === "test") {
             const map = App.serverList.serverMap(id);
             if (map.id !== undefined)
@@ -747,6 +842,16 @@ Item {
         } else if (action === "remove") {
             root.removeCursorServer();
         }
+    }
+
+    /// Board 51 D4 a: the rail's server menu's edit…, test the connection and remove…, as
+    /// this pane's own row menu runs them, on server `id`'s row.
+    function serverAction(id: string, action: string): void {
+        if (App.serverList.indexOfId(id) < 0)
+            return;
+        root.showServer(id);
+        serverMenu.serverId = id;
+        root.serverMenuAction(action);
     }
 
     /// The About pane's copyable `omaseed --install-bar-widget` line.
@@ -776,6 +881,14 @@ Item {
     function _applyBaseSize(): void {
         App.baseSizeOverride = parseInt(baseSizeField.text, 10) || 0;
         root._syncAppearanceFields();
+    }
+
+    /// C24 H13: the transparency row shows only while the ground is translucent; the rows
+    /// after it move down one then.
+    readonly property int _groundShift: App.windowGround === "translucent" ? 1 : 0
+
+    function _toggleGround(): void {
+        App.windowGround = App.windowGround === "translucent" ? "opaque" : "translucent";
     }
 
     function _applyAlpha(): void {
@@ -845,7 +958,7 @@ Item {
             return App.barWidget.inBar ? qsTr("taking the widget out of the bar…") : qsTr("putting the widget in the bar…");
         if (App.barWidget.message.length > 0 && !App.barWidget.lastOk)
             return App.barWidget.message;
-        const words = qsTr("widget: the tray icon hides while the widget runs. Both carry the same menu: servers, alternative limits, stop and start all, settings, quit.");
+        const words = qsTr("widget: the tray icon hides while the widget runs. Both carry the same menu: servers, alternative limits, pause or resume torrents, settings, quit.");
         if (!App.barWidget.available && !App.barWidget.inBar)
             return words + "\n" + qsTr("The widget needs the Omarchy shell and omaseed's installed widget.");
         return words;
@@ -863,8 +976,15 @@ Item {
                                               * Theme.space(16) - Theme.space(12) - Theme.space(8) - 1
                                               - Math.ceil(captionMetrics.height))
 
+    /// The pane's scroll bar, once it was needed on the pane on show: its room is kept until
+    /// another pane shows. A pane that is shorter at the narrower width the bar leaves would
+    /// otherwise put the bar up and take it down again for ever, freezing the window (a
+    /// qBittorrent section, when Appearance lost three rows and the modal got shorter).
+    property bool _paneBarKept: false
+
     /// The pane on show, in `navRows` order; every qBittorrent section is the one pane.
     readonly property Item _paneOnShow: root.inQbtBackup ? qbtBackupPane
+                                                         : root.inQbtSearch ? searchPluginsPane
                                                          : root.inQbt ? qbtPane
                                                                       : [generalPane, serversPane,
                                                                          notificationsPane, keysPane,
@@ -938,12 +1058,87 @@ Item {
         root.paneCursor = (root.paneCursor + delta + root.paneRowCount) % root.paneRowCount;
     }
 
+    /// The text fields of the pane's row `cursor`, in order; [] for a row without one (a
+    /// switch, a choice, a button) or one that is greyed out.
+    function _rowFields(cursor: int): var {
+        if (root.inQbtSearch || root.inQbtBackup)
+            return [];
+        if (root.inQbt) {
+            const item = qbtPane.rowItem(cursor);
+            return item && item.enabled && typeof item.fieldItems === "function" ? item.fieldItems() : [];
+        }
+        if (root.paneIndex === 2 && cursor === 5)
+            return [thresholdField];
+        if (root.paneIndex === 4 && cursor === 2)
+            return [baseSizeField];
+        if (root.paneIndex === 4 && cursor === 4 && root._groundShift > 0)
+            return [alphaField];
+        return [];
+    }
+
+    /// The caret into `field`, its text selected, as tab into a form's field does.
+    function _tabInto(field: var): void {
+        field.focusInput();
+        field.selectAll();
+    }
+
+    /// docs/DECISIONS.md C32 D10 a: tab walks the modal as any form. The section list is one
+    /// stop; then every row of the pane in order, a row of text fields one stop per field with
+    /// the caret in it (what a field holds is sent as it loses the caret, as before); after the
+    /// last row, the section list again. shift+tab walks back. Folded, there is no list: the
+    /// walk wraps within the pane. j/k and enter still move and act on rows.
+    function _tabStep(forward: bool): void {
+        root.navOnServer = false;
+        const step = forward ? 1 : -1;
+        if (root.area === "pane") {
+            const fields = root._rowFields(root.paneCursor);
+            const at = fields.findIndex(field => field.editing);
+            if (at >= 0) {
+                const next = at + step;
+                if (next >= 0 && next < fields.length) {
+                    root._tabInto(fields[next]);
+                    return;
+                }
+                bodyItem.forceActiveFocus();
+            }
+        }
+        if (root.paneRowCount <= 0) {
+            if (!root.folded)
+                root.area = "nav";
+            return;
+        }
+        let cursor;
+        if (root.area === "nav") {
+            cursor = forward ? 0 : root.paneRowCount - 1;
+        } else {
+            cursor = root.paneCursor + step;
+            if (cursor < 0 || cursor >= root.paneRowCount) {
+                if (!root.folded) {
+                    root.area = "nav";
+                    return;
+                }
+                cursor = (cursor + root.paneRowCount) % root.paneRowCount;
+            }
+        }
+        root.area = "pane";
+        root.paneCursor = cursor;
+        const fields = root._rowFields(cursor);
+        if (fields.length > 0)
+            root._tabInto(fields[forward ? 0 : fields.length - 1]);
+    }
+
     /// Every key the modal owns. `esc` is deliberately left alone — the Sheet closes on it —
     /// and everything else is swallowed, so nothing typed over the modal reaches the window
     /// behind it.
     function _onKey(event: var): void {
         if (event.key === Qt.Key_Escape)
             return;
+        // C32 D10 a: before anything else, so tab from a field with the caret walks on too.
+        if (event.key === Qt.Key_Tab || event.key === Qt.Key_Backtab) {
+            root._tabStep(event.key === Qt.Key_Tab && !(event.modifiers & Qt.ShiftModifier));
+            event.accepted = true;
+            return;
+        }
         // Folded, there is no nav to hand the keyboard to: the sideways keys move the tabs.
         if (root.folded) {
             switch (event.key) {
@@ -959,28 +1154,17 @@ Item {
                 root._moveNav(1);
                 event.accepted = true;
                 return;
-            case Qt.Key_Tab:
-            case Qt.Key_Backtab:
-                event.accepted = true;
-                return;
             default:
                 break;
             }
         }
-        if (event.key === Qt.Key_Tab || event.key === Qt.Key_Backtab) {
-            root.navOnServer = false;
-            root.area = root.area === "nav" ? "pane" : "nav";
-            if (root.area === "pane" && root.paneCursor < 0)
-                root.paneCursor = 0;
-            event.accepted = true;
-            return;
-        }
         // The digits pick a section of the group on show: 1–7 in omaseed's, 1–9 and 0 for the
-        // tenth (Backup, #32) in the qBittorrent group's.
+        // last (Backup, #32) in the qBittorrent group's; Search plugins (#145), before it, has
+        // no digit of its own.
         if ((event.key >= Qt.Key_1 && event.key <= Qt.Key_9) || event.key === Qt.Key_0) {
             const base = root.inQbt ? root.qbtStart : 0;
             const count = root.inQbt ? root.qbtSections.length : root.navRows.length;
-            const at = event.key === Qt.Key_0 ? 9 : event.key - Qt.Key_1;
+            const at = event.key === Qt.Key_0 ? (root.inQbt ? count - 1 : 9) : event.key - Qt.Key_1;
             if (at < count)
                 root.showPane(base + at);
             event.accepted = true;
@@ -1071,6 +1255,10 @@ Item {
         case Qt.Key_Delete:
             if (root.paneIndex === 1)
                 root.removeCursorServer();
+            break;
+        case Qt.Key_E:
+            if (root.paneIndex === 1)
+                root.editCursorServer();
             break;
         case Qt.Key_D:
             if (root.paneIndex === 1)
@@ -1165,10 +1353,13 @@ Item {
         } else {
             root.navOnServer = false;
             root.switchNote = "";
+            root._backToSearch = false;
         }
     }
     onPaneIndexChanged: {
         paneStack.contentY = 0;
+        // The new pane's own need, which its bindings may have settled before this ran.
+        root._paneBarKept = paneBar.needed;
         // A click on a tab sets the tabs' own index, which ends a binding; keep them in step.
         // From paneIndex itself: `inQbt` may not have caught up yet inside this handler.
         const qbt = root.paneIndex >= root.qbtStart;
@@ -1224,74 +1415,8 @@ Item {
         // The head belongs to the pane in this figure, not to the sheet: no glyph, no title,
         // and no `esc` chip up there either.
         escText: ""
-        hints: {
-            const hints = [{
-                               "key": "j k",
-                               "label": qsTr("move")
-                           }, root.folded ? {
-                                                "key": "h l",
-                                                "label": qsTr("section")
-                                            } : {
-                                                "key": "tab",
-                                                "label": qsTr("pane")
-                                            }];
-            // docs/34 D4 a: `s` goes to the next server from every qBittorrent pane and from
-            // the select, and every one of their footers says so.
-            const next = {
-                "key": "s",
-                "label": qsTr("next server")
-            };
-            if (root.navOnServer)
-                return hints.concat([{
-                                         "key": "enter",
-                                         "label": qsTr("servers")
-                                     }, next]);
-            if (!root.inQbt || root.inQbtBackup) {
-                const out = hints.concat([{
-                                              "key": "enter",
-                                              "label": qsTr("act")
-                                          }]);
-                if (root.paneIndex === 5) // docs/34 D1 a
-                    out.push({
-                                 "key": "t",
-                                 "label": qsTr("torrents: qBittorrent › Backup")
-                             });
-                // docs/33 D11: the Servers pane names its keys, `d` only with two servers.
-                if (root.paneIndex === 1) {
-                    if (App.serverList.count > 1)
-                        out.push({
-                                     "key": "d",
-                                     "label": qsTr("switch to it")
-                                 });
-                    out.push({
-                                 "key": "a",
-                                 "label": qsTr("add")
-                             });
-                }
-                if (root.inQbtBackup && App.serverList.count > 1)
-                    out.push(next);
-                return out;
-            }
-            hints.push({
-                           "key": "space",
-                           "label": qsTr("toggle")
-                       }, {
-                           "key": "enter",
-                           "label": qsTr("edit")
-                       });
-            if (root.qbtSection && root.qbtSection.id === "advanced")
-                hints.push({
-                               "key": "d",
-                               "label": qsTr("default")
-                           });
-            for (const preset of qbtPane.presets)
-                hints.push(preset);
-            if (App.serverList.count > 1)
-                hints.push(next);
-            return hints;
-        }
         // docs/34 D5 a: after a switch from here, that the library went with it.
-        footerRight: root.switchNote
+        note: root.switchNote
         sheetWidth: Theme.space(760)
         title: ""
 
@@ -1437,6 +1562,7 @@ Item {
                             Layout.leftMargin: Theme.space(4)
                             Layout.preferredHeight: implicitHeight
                             connected: App.globalState.connected
+                            connecting: App.serverConnecting
                             // Re-read on a switch (serverName) and a new default.
                             currentId: App.serverName.length >= 0 && App.serverList.defaultId.length >= 0
                                        ? root._currentServerId() : ""
@@ -1560,10 +1686,12 @@ Item {
                             Layout.fillWidth: true
                             bright: true
                             elide: Text.ElideRight
-                            font.weight: Font.DemiBold
+                            font.weight: Theme.sheetTitleWeight
+                            labelId: root.allRows[root.paneIndex].labelId ?? "settings"
                             objectName: "paneTitle"
                             size: "subtitle"
                             text: root.allRows[root.paneIndex].text
+                            voice: "title"
                         }
 
                         // docs/16 §3: which server this is, and that a change is saved as it
@@ -1582,7 +1710,7 @@ Item {
                             size: "caption"
                             text: root.qbtNote.length > 0 ? root.qbtNote
                                                           : root.paneIndex === 5 ? qsTr("omaseed · on this machine") // docs/34 D1 a
-                                                          : root.inQbtBackup ? root.qbtServerHead
+                                                          : root.inQbtBackup || root.inQbtSearch ? root.qbtServerHead
                                                                              : qsTr("%1 · saved as you change it").arg(
                                                                                    App.serverName)
                             visible: root.inQbt || root.paneIndex === 5
@@ -1630,7 +1758,8 @@ Item {
                         clip: true
                         contentHeight: root.paneIndex === 3 ? height : Math.max(height,
                                                                                 root._paneOnShow.implicitHeight)
-                        contentWidth: width - (paneBar.needed ? paneBar.width + Theme.space(8) : 0)
+                        contentWidth: width - (paneBar.needed || root._paneBarKept ? paneBar.width + Theme.space(8)
+                                                                                   : 0)
                         objectName: "paneScroller"
 
                         // The wheel as in the nav. Not over Keybindings, whose list scrolls
@@ -1656,6 +1785,11 @@ Item {
                             objectName: "settingsScrollBar"
                             parent: paneStack
                             vertical: true
+
+                            onNeededChanged: {
+                                if (paneBar.needed)
+                                    root._paneBarKept = true;
+                            }
                         }
 
                         // ---- General ---------------------------------------------------
@@ -1686,6 +1820,7 @@ Item {
                                 Toggle {
                                     // #78: named by its row, whose title is a sibling text.
                                     Accessible.name: serversRailRow.title
+                                    block: serversRailRow.ground
                                     checked: App.showServersGroup
 
                                     onToggled: App.showServersGroup = checked
@@ -1710,6 +1845,7 @@ Item {
                                 Toggle {
                                     // #78: named by its row, whose title is a sibling text.
                                     Accessible.name: pathMapRow.title
+                                    block: pathMapRow.ground
                                     checked: App.pathMapEnabled
 
                                     onToggled: App.pathMapEnabled = checked
@@ -1738,6 +1874,7 @@ Item {
                                 Toggle {
                                     // #78: named by its row, whose title is a sibling text.
                                     Accessible.name: deleteFilesRow.title
+                                    block: deleteFilesRow.ground
                                     checked: App.deleteFilesDefault
 
                                     onToggled: App.deleteFilesDefault = checked
@@ -1765,6 +1902,7 @@ Item {
                                 }
 
                                 Button {
+                                    block: handlerRow.ground
                                     enabled: !handlerRow.isDefault
                                     text: qsTr("register")
 
@@ -1792,6 +1930,8 @@ Item {
                             // (integration/Autostart), so the chips show what the next login
                             // will do. Off by default (charter §2, opt-in).
                             SettingsRow {
+                                id: startAtLoginRow
+
                                 Layout.fillWidth: true
                                 description: App.startAtLogin === "tray" ? qsTr("omaseed starts in the tray, without its window, and keeps the seed history going. Launch it to open the window.") : App.startAtLogin
                                                                            === "window" ? qsTr("omaseed opens its window when you log in.") : qsTr("The seed history only grows while omaseed runs. Start it at login, in the tray or with its window.")
@@ -1817,6 +1957,7 @@ Item {
 
                                             required property var modelData
 
+                                            block: startAtLoginRow.ground
                                             checkable: true
                                             selected: App.startAtLogin === loginChip.modelData[0]
                                             text: loginChip.modelData[1]
@@ -1991,6 +2132,12 @@ Item {
                                         "description": qsTr("One notice per finished torrent, with open folder and show.")
                                     },
                                     {
+                                        "key": "added",
+                                        "glyph": Glyphs.add,
+                                        "title": qsTr("Torrent added"),
+                                        "description": qsTr("One notice when qBittorrent takes an add made in the add window, with show.")
+                                    },
+                                    {
                                         "key": "errored",
                                         "glyph": Glyphs.statusErrored,
                                         "title": qsTr("Torrent errored"),
@@ -2034,6 +2181,7 @@ Item {
                                     Toggle {
                                         // #78: named by its row, whose title is a sibling text.
                                         Accessible.name: notifyRow.title
+                                        block: notifyRow.ground
                                         checked: App.notificationsEnabled[notifyRow.modelData.key] === true
 
                                         onToggled: App.setNotificationEnabled(notifyRow.modelData.key, checked)
@@ -2045,15 +2193,17 @@ Item {
                             // the fixed 2 GiB of T4.7. The same row + field shape as the
                             // Appearance pane's overrides.
                             SettingsRow {
+                                id: lowDiskThresholdRow
+
                                 Layout.fillWidth: true
                                 description: qsTr("The notice fires once when the free space drops below this.")
                                 glyph: Glyphs.altSpeed
-                                hasCursor: root.area === "pane" && root.paneCursor === 4
+                                hasCursor: root.area === "pane" && root.paneCursor === 5
                                 objectName: "lowDiskThresholdRow"
                                 title: qsTr("Low-disk threshold")
 
                                 onClicked: {
-                                    root.paneCursor = 4;
+                                    root.paneCursor = 5;
                                     root.area = "pane";
                                     thresholdField.focusInput();
                                 }
@@ -2061,6 +2211,7 @@ Item {
                                 Field {
                                     id: thresholdField
 
+                                    block: lowDiskThresholdRow.ground
                                     implicitWidth: Theme.space(110)
                                     minimum: 1
                                     numeric: true
@@ -2092,12 +2243,12 @@ Item {
                                 Layout.fillWidth: true
                                 description: qsTr("On Sunday evening: what the week gave, its best day, the rare torrents you kept alive. It opens the seed console on the week.")
                                 glyph: Glyphs.statusSeeding
-                                hasCursor: root.area === "pane" && root.paneCursor === 5
+                                hasCursor: root.area === "pane" && root.paneCursor === 6
                                 objectName: "notifyRow-weekly"
                                 title: qsTr("Weekly recap")
 
                                 onClicked: {
-                                    root.paneCursor = 5;
+                                    root.paneCursor = 6;
                                     root.area = "pane";
                                     App.setNotificationEnabled("weekly", !App.notificationsEnabled.weekly);
                                 }
@@ -2105,6 +2256,7 @@ Item {
                                 Toggle {
                                     // #78: named by its row, whose title is a sibling text.
                                     Accessible.name: weeklyRow.title
+                                    block: weeklyRow.ground
                                     checked: App.notificationsEnabled.weekly === true
 
                                     onToggled: App.setNotificationEnabled("weekly", checked)
@@ -2155,9 +2307,11 @@ Item {
                                     anchors.verticalCenter: parent.verticalCenter
                                     border.color: helpKeyHover.hovered ? Theme.fill(Theme.borderHover)
                                                                        : Theme.fill(Theme.borderIdle)
-                                    border.width: 1
-                                    color: helpKeyHover.hovered ? Theme.fill(Theme.fillHover)
-                                                                : Theme.fill(Theme.fillIdle)
+                                    border.width: Theme.hairWidth
+                                    // Its idle fill, the hover fill under the pointer; the
+                                    // key on that ground (docs/DECISIONS.md C30 F1).
+                                    color: helpKeyHover.hovered ? Theme.on.hover.fill
+                                                                : Theme.on.idle.fill
                                     implicitHeight: keyText.implicitHeight + Theme.space(2)
                                     implicitWidth: Math.max(implicitHeight, keyText.implicitWidth
                                                             + Theme.space(10))
@@ -2168,7 +2322,8 @@ Item {
                                         id: keyText
 
                                         anchors.centerIn: parent
-                                        color: Theme.brightForeground
+                                        color: helpKeyHover.hovered ? Theme.on.hover.brightForeground
+                                                                    : Theme.on.idle.brightForeground
                                         font.family: Theme.fontFamily
                                         font.pixelSize: Theme.font.small
                                         font.weight: Font.Medium
@@ -2221,17 +2376,60 @@ Item {
                             spacing: Theme.space(8)
                             visible: root.paneIndex === 4
 
+                            // DECISIONS C24 H11 (#171): the skin, first as board 46 draws it.
+                            // Follow the desktop switches to the built-in Console while
+                            // omarchy-console's skin is on (the skin note, ruled).
+                            SettingsRow {
+                                id: skinRow
+
+                                Layout.fillWidth: true
+                                description: root._skinDescription
+                                glyph: Glyphs.appearance
+                                hasCursor: root.area === "pane" && root.paneCursor === 0
+                                objectName: "skinRow"
+                                title: qsTr("Skin")
+                                warning: root._skinFontsLine
+
+                                onClicked: {
+                                    root.paneCursor = 0;
+                                    root.area = "pane";
+                                    App.skinChoice = root._next(root.skinChoices, App.skinChoice);
+                                }
+
+                                RowLayout {
+                                    spacing: Theme.space(6)
+
+                                    Repeater {
+                                        model: root.skinChoices
+
+                                        Chip {
+                                            id: skinChip
+
+                                            required property var modelData
+
+                                            block: skinRow.ground
+                                            checkable: true
+                                            objectName: "skinChip-" + skinChip.modelData[0]
+                                            selected: App.skinChoice === skinChip.modelData[0]
+                                            text: skinChip.modelData[1]
+
+                                            onClicked: App.skinChoice = skinChip.modelData[0]
+                                        }
+                                    }
+                                }
+                            }
+
                             SettingsRow {
                                 id: followThemeRow
 
                                 Layout.fillWidth: true
                                 description: qsTr("Off keeps the bundled Tokyo Night whatever the desktop does.")
                                 glyph: Glyphs.appearance
-                                hasCursor: root.area === "pane" && root.paneCursor === 0
+                                hasCursor: root.area === "pane" && root.paneCursor === 1
                                 title: qsTr("Follow the Omarchy theme")
 
                                 onClicked: {
-                                    root.paneCursor = 0;
+                                    root.paneCursor = 1;
                                     root.area = "pane";
                                     App.followOmarchyTheme = !App.followOmarchyTheme;
                                 }
@@ -2239,6 +2437,7 @@ Item {
                                 Toggle {
                                     // #78: named by its row, whose title is a sibling text.
                                     Accessible.name: followThemeRow.title
+                                    block: followThemeRow.ground
                                     checked: App.followOmarchyTheme
 
                                     onToggled: App.followOmarchyTheme = checked
@@ -2246,14 +2445,16 @@ Item {
                             }
 
                             SettingsRow {
+                                id: baseSizeRow
+
                                 Layout.fillWidth: true
                                 description: qsTr("Everything scales from it. Empty follows shell.toml.")
                                 glyph: Glyphs.mark
-                                hasCursor: root.area === "pane" && root.paneCursor === 1
+                                hasCursor: root.area === "pane" && root.paneCursor === 2
                                 title: qsTr("Base size")
 
                                 onClicked: {
-                                    root.paneCursor = 1;
+                                    root.paneCursor = 2;
                                     root.area = "pane";
                                     baseSizeField.focusInput();
                                 }
@@ -2261,6 +2462,7 @@ Item {
                                 Field {
                                     id: baseSizeField
 
+                                    block: baseSizeRow.ground
                                     emptyValue: Theme.font.baseSize
                                     maximum: 32
                                     minimum: 8
@@ -2285,15 +2487,61 @@ Item {
                                 }
                             }
 
+                            // DECISIONS C24 H13: opaque by default, like every Omarchy 4.5
+                            // app; translucent takes the launcher's alpha (Q1), or the
+                            // transparency the next row sets.
                             SettingsRow {
+                                id: windowGroundRow
+
+                                Layout.fillWidth: true
+                                description: qsTr("Opaque like the other apps, or translucent: the launcher's wallpaper alpha.")
+                                glyph: Glyphs.appearance
+                                hasCursor: root.area === "pane" && root.paneCursor === 3
+                                objectName: "windowGroundRow"
+                                title: qsTr("Window")
+
+                                onClicked: {
+                                    root.paneCursor = 3;
+                                    root.area = "pane";
+                                    root._toggleGround();
+                                }
+
+                                RowLayout {
+                                    spacing: Theme.space(6)
+
+                                    Repeater {
+                                        model: ["opaque", "translucent"]
+
+                                        Chip {
+                                            id: groundChip
+
+                                            required property string modelData
+
+                                            block: windowGroundRow.ground
+                                            checkable: true
+                                            objectName: "groundChip-" + groundChip.modelData
+                                            selected: App.windowGround === groundChip.modelData
+                                            text: groundChip.modelData === "opaque" ? qsTr("opaque") : qsTr("translucent")
+
+                                            onClicked: App.windowGround = groundChip.modelData
+                                        }
+                                    }
+                                }
+                            }
+
+                            SettingsRow {
+                                id: windowAlphaRow
+
                                 Layout.fillWidth: true
                                 description: qsTr("How much wallpaper shows through the window, 50–100. Empty follows shell.toml.")
                                 glyph: Glyphs.altSpeed
-                                hasCursor: root.area === "pane" && root.paneCursor === 2
+                                hasCursor: root.area === "pane" && root.paneCursor === 4
+                                objectName: "windowAlphaRow"
                                 title: qsTr("Window transparency")
+                                visible: root._groundShift > 0
 
                                 onClicked: {
-                                    root.paneCursor = 2;
+                                    root.paneCursor = 4;
                                     root.area = "pane";
                                     alphaField.focusInput();
                                 }
@@ -2301,6 +2549,7 @@ Item {
                                 Field {
                                     id: alphaField
 
+                                    block: windowAlphaRow.ground
                                     maximum: 100
                                     minimum: 50
                                     numeric: true
@@ -2328,15 +2577,17 @@ Item {
                             // choice, since both carry the same menu (D24). Replaces the
                             // "Tray icon" and "Bar widget" rows.
                             SettingsRow {
+                                id: inTheBarRow
+
                                 Layout.fillWidth: true
                                 description: root._inTheBarText()
                                 glyph: Glyphs.mark
-                                hasCursor: root.area === "pane" && root.paneCursor === 3
+                                hasCursor: root.area === "pane" && root.paneCursor === 4 + root._groundShift
                                 objectName: "inTheBarRow"
                                 title: qsTr("In the bar")
 
                                 onClicked: {
-                                    root.paneCursor = 3;
+                                    root.paneCursor = 4 + root._groundShift;
                                     root.area = "pane";
                                     App.inTheBar = root._nextInTheBar();
                                 }
@@ -2352,6 +2603,7 @@ Item {
 
                                             required property var modelData
 
+                                            block: inTheBarRow.ground
                                             enabled: root._inTheBarOffered(barChip.modelData) && !App.barWidget.busy
                                             objectName: "inTheBar_" + barChip.modelData.key
                                             opacity: enabled ? 1 : 0.45
@@ -2366,20 +2618,23 @@ Item {
                             }
 
                             SettingsRow {
+                                id: barWidgetRow
+
                                 Layout.fillWidth: true
                                 description: App.barWidget.inBar ? qsTr("what it shows and what its clicks do: the gear in its popup.") : qsTr("in the bar with widget or both.")
                                 glyph: Glyphs.settings
-                                hasCursor: root.area === "pane" && root.paneCursor === 4
+                                hasCursor: root.area === "pane" && root.paneCursor === 5 + root._groundShift
                                 objectName: "barWidgetRow"
                                 title: qsTr("Widget")
 
                                 onClicked: {
-                                    root.paneCursor = 4;
+                                    root.paneCursor = 5 + root._groundShift;
                                     root.area = "pane";
                                     root.customizeBarWidget();
                                 }
 
                                 Chip {
+                                    block: barWidgetRow.ground
                                     enabled: App.barWidget.inBar && !App.barWidget.busy
                                     objectName: "barWidgetCustomize"
                                     opacity: enabled ? 1 : 0.45
@@ -2390,84 +2645,16 @@ Item {
                             }
 
                             SettingsRow {
-                                Layout.fillWidth: true
-                                description: qsTr("which side of the hero the download and upload figures sit on.")
-                                glyph: Glyphs.arrowDown
-                                hasCursor: root.area === "pane" && root.paneCursor === 5
-                                title: qsTr("Speed figures")
+                                id: scrollHintRow
 
-                                onClicked: {
-                                    root.paneCursor = 5;
-                                    root.area = "pane";
-                                    App.speedsAlignment = App.speedsAlignment === "left" ? "right" : "left";
-                                }
-
-                                RowLayout {
-                                    spacing: Theme.space(6)
-
-                                    Repeater {
-                                        model: ["left", "right"]
-
-                                        Chip {
-                                            id: speedsChip
-
-                                            required property string modelData
-
-                                            checkable: true
-                                            selected: App.speedsAlignment === speedsChip.modelData
-                                            text: speedsChip.modelData
-
-                                            onClicked: App.speedsAlignment = speedsChip.modelData
-                                        }
-                                    }
-                                }
-                            }
-
-                            SettingsRow {
-                                Layout.fillWidth: true
-                                description: qsTr("the last minute of each speed, drawn faintly behind its figure. Each chip turns one on or off.")
-                                glyph: Glyphs.arrowUp
-                                hasCursor: root.area === "pane" && root.paneCursor === 6
-                                title: qsTr("Speed trends")
-
-                                onClicked: {
-                                    root.paneCursor = 6;
-                                    root.area = "pane";
-                                    root.cycleTrends();
-                                }
-
-                                RowLayout {
-                                    spacing: Theme.space(6)
-
-                                    Chip {
-                                        objectName: "downloadTrendChip"
-                                        checkable: true
-                                        selected: App.downloadTrend
-                                        text: qsTr("download")
-
-                                        onClicked: App.downloadTrend = !App.downloadTrend
-                                    }
-
-                                    Chip {
-                                        objectName: "uploadTrendChip"
-                                        checkable: true
-                                        selected: App.uploadTrend
-                                        text: qsTr("upload")
-
-                                        onClicked: App.uploadTrend = !App.uploadTrend
-                                    }
-                                }
-                            }
-
-                            SettingsRow {
                                 Layout.fillWidth: true
                                 description: qsTr("how lists say there is more above or below: the rail and every palette.")
                                 glyph: Glyphs.scrollHint
-                                hasCursor: root.area === "pane" && root.paneCursor === 7
+                                hasCursor: root.area === "pane" && root.paneCursor === 6 + root._groundShift
                                 title: qsTr("Scroll hint")
 
                                 onClicked: {
-                                    root.paneCursor = 7;
+                                    root.paneCursor = 6 + root._groundShift;
                                     root.area = "pane";
                                     App.railScrollHint = root._next(root.scrollHints, App.railScrollHint);
                                 }
@@ -2483,6 +2670,7 @@ Item {
 
                                             required property var modelData
 
+                                            block: scrollHintRow.ground
                                             checkable: true
                                             selected: App.railScrollHint === hintChip.modelData[0]
                                             text: hintChip.modelData[1]
@@ -2493,15 +2681,19 @@ Item {
                                 }
                             }
 
+                            // C32 D16 a: the rail only; its rows on C30's nested grounds.
                             SettingsRow {
+                                id: surfaceTintRow
+
                                 Layout.fillWidth: true
-                                description: qsTr("a light fill behind the rail and the details.")
+                                description: qsTr("a light fill behind the rail.")
                                 glyph: Glyphs.sidebar
-                                hasCursor: root.area === "pane" && root.paneCursor === 8
+                                hasCursor: root.area === "pane" && root.paneCursor === 7 + root._groundShift
+                                objectName: "surfaceTintRow"
                                 title: qsTr("Surface tint")
 
                                 onClicked: {
-                                    root.paneCursor = 8;
+                                    root.paneCursor = 7 + root._groundShift;
                                     root.area = "pane";
                                     App.surfaceTint = root._next(root.tints, App.surfaceTint);
                                 }
@@ -2517,7 +2709,9 @@ Item {
 
                                             required property var modelData
 
+                                            block: surfaceTintRow.ground
                                             checkable: true
+                                            objectName: "tintChip-" + tintChip.modelData[0]
                                             selected: App.surfaceTint === tintChip.modelData[0]
                                             text: tintChip.modelData[1]
 
@@ -2528,14 +2722,16 @@ Item {
                             }
 
                             SettingsRow {
+                                id: trackerHostsRow
+
                                 Layout.fillWidth: true
                                 description: qsTr("how a long tracker host fits the rail.")
                                 glyph: Glyphs.host
-                                hasCursor: root.area === "pane" && root.paneCursor === 9
+                                hasCursor: root.area === "pane" && root.paneCursor === 8 + root._groundShift
                                 title: qsTr("Tracker hosts")
 
                                 onClicked: {
-                                    root.paneCursor = 9;
+                                    root.paneCursor = 8 + root._groundShift;
                                     root.area = "pane";
                                     App.trackerHostStyle = root._next(root.hostStyles, App.trackerHostStyle);
                                 }
@@ -2551,6 +2747,7 @@ Item {
 
                                             required property var modelData
 
+                                            block: trackerHostsRow.ground
                                             checkable: true
                                             selected: App.trackerHostStyle === hostChip.modelData[0]
                                             text: hostChip.modelData[1]
@@ -2562,14 +2759,16 @@ Item {
                             }
 
                             SettingsRow {
+                                id: detailsPanelRow
+
                                 Layout.fillWidth: true
                                 description: qsTr("auto puts it right when the window is 16:10 or wider, else at the bottom. I cycles it.")
                                 glyph: Glyphs.sidebar
-                                hasCursor: root.area === "pane" && root.paneCursor === 10
+                                hasCursor: root.area === "pane" && root.paneCursor === 9 + root._groundShift
                                 title: qsTr("Details panel")
 
                                 onClicked: {
-                                    root.paneCursor = 10;
+                                    root.paneCursor = 9 + root._groundShift;
                                     root.area = "pane";
                                     App.detailsPlacement = root._next(root.placements, App.detailsPlacement);
                                 }
@@ -2585,6 +2784,7 @@ Item {
 
                                             required property var modelData
 
+                                            block: detailsPanelRow.ground
                                             checkable: true
                                             selected: App.detailsPlacement === placementChip.modelData[0]
                                             text: placementChip.modelData[1]
@@ -2602,12 +2802,12 @@ Item {
                                 Layout.fillWidth: true
                                 description: qsTr("a green tick at the left of each row that is uploading, breathing faster the more it sends. Still when the desktop asks for less motion.")
                                 glyph: Glyphs.statusSeeding
-                                hasCursor: root.area === "pane" && root.paneCursor === 11
+                                hasCursor: root.area === "pane" && root.paneCursor === 10 + root._groundShift
                                 objectName: "pulseRowsRow"
                                 title: qsTr("Pulse sending rows")
 
                                 onClicked: {
-                                    root.paneCursor = 11;
+                                    root.paneCursor = 10 + root._groundShift;
                                     root.area = "pane";
                                     App.pulseRows = !App.pulseRows;
                                 }
@@ -2615,9 +2815,51 @@ Item {
                                 Toggle {
                                     // #78: named by its row, whose title is a sibling text.
                                     Accessible.name: pulseRow.title
+                                    block: pulseRow.ground
                                     checked: App.pulseRows
 
                                     onToggled: App.pulseRows = checked
+                                }
+                            }
+
+                            // C32 D2 a: the title bar by default, a line under each; the status
+                            // line keeps the count, the free space and the sync either way.
+                            SettingsRow {
+                                id: speedsRow
+
+                                Layout.fillWidth: true
+                                description: qsTr("where ↓ and ↑ are shown. The title bar draws the last minute under each.")
+                                glyph: Glyphs.arrowDown
+                                hasCursor: root.area === "pane" && root.paneCursor === 11 + root._groundShift
+                                objectName: "speedsPlaceRow"
+                                title: qsTr("Speeds")
+
+                                onClicked: {
+                                    root.paneCursor = 11 + root._groundShift;
+                                    root.area = "pane";
+                                    App.speedsPlace = root._next(root.speedsPlaces, App.speedsPlace);
+                                }
+
+                                RowLayout {
+                                    spacing: Theme.space(6)
+
+                                    Repeater {
+                                        model: root.speedsPlaces
+
+                                        Chip {
+                                            id: placeChip
+
+                                            required property var modelData
+
+                                            block: speedsRow.ground
+                                            checkable: true
+                                            objectName: "speedsChip-" + placeChip.modelData[0]
+                                            selected: App.speedsPlace === placeChip.modelData[0]
+                                            text: placeChip.modelData[1]
+
+                                            onClicked: App.speedsPlace = placeChip.modelData[0]
+                                        }
+                                    }
                                 }
                             }
 
@@ -2639,7 +2881,7 @@ Item {
                             prefs: App.serverPrefs
                             section: root.qbtSection
                             serverName: App.serverName
-                            visible: root.inQbt && !root.inQbtBackup
+                            visible: root.inQbt && !root.inQbtBackup && !root.inQbtSearch
 
                             onActionRequested: action => root.qbtAction(action)
                             onChangeRequested: (changes, confirmKind, what) => root.qbtRequest(changes,
@@ -2716,6 +2958,8 @@ Item {
                             }
 
                             SettingsRow {
+                                id: qbtExportRow
+
                                 Layout.fillWidth: true
                                 description: App.globalState.connected ? App.qbtExportSummary
                                                                        : qsTr("Connect to %1 to export.").arg(qbtBackupPane.name)
@@ -2732,6 +2976,7 @@ Item {
                                 }
 
                                 Button {
+                                    block: qbtExportRow.ground
                                     bordered: true
                                     enabled: qbtBackupPane.ready
                                     primary: true
@@ -2745,6 +2990,8 @@ Item {
                             }
 
                             SettingsRow {
+                                id: qbtImportRow
+
                                 Layout.fillWidth: true
                                 description: App.globalState.connected
                                              ? qsTr("From a qBittorrent export or an omaseed backup. Every change is shown first; paths, ports and the Web UI login stay as they are unless you tick them.")
@@ -2762,6 +3009,7 @@ Item {
                                 }
 
                                 Button {
+                                    block: qbtImportRow.ground
                                     bordered: true
                                     enabled: qbtBackupPane.ready
                                     text: qsTr("import…")
@@ -2776,6 +3024,8 @@ Item {
                             // docs/34 D6 a: another server's settings, read just now through a
                             // client of their own, shown as an import into this one.
                             SettingsRow {
+                                id: qbtCopyRow
+
                                 Layout.fillWidth: true
                                 description: !App.globalState.connected
                                              ? qsTr("Connect to %1 to copy into it.").arg(qbtBackupPane.name)
@@ -2804,6 +3054,7 @@ Item {
                                         // the description, and the ▾ neither.
                                         Accessible.description: root.copySourceName
                                         Accessible.name: qsTr("copy from")
+                                        block: qbtCopyRow.ground
                                         bordered: true
                                         objectName: "copySourceButton"
                                         text: root.copySourceName + "  " + Glyphs.chevronDown
@@ -2816,6 +3067,7 @@ Item {
                                     }
 
                                     Button {
+                                        block: qbtCopyRow.ground
                                         bordered: true
                                         enabled: qbtBackupPane.copyReady
                                         objectName: "qbtCopyButton"
@@ -2862,6 +3114,7 @@ Item {
                                 }
 
                                 Button {
+                                    block: torrentsExportRow.ground
                                     bordered: true
                                     enabled: torrentsExportRow.running || qbtBackupPane.torrentsReady
                                     objectName: "torrentsExportButton"
@@ -2876,6 +3129,8 @@ Item {
                             }
 
                             SettingsRow {
+                                id: torrentsImportRow
+
                                 readonly property bool running: App.torrentsBackupRunning === "import"
                                                                 || App.torrentsBackupRunning === "read"
 
@@ -2897,6 +3152,7 @@ Item {
                                 }
 
                                 Button {
+                                    block: torrentsImportRow.ground
                                     bordered: true
                                     enabled: App.torrentsBackupRunning === "import" || qbtBackupPane.torrentsReady
                                     objectName: "torrentsImportButton"
@@ -2919,6 +3175,43 @@ Item {
                                 text: root.backupNote
                                 visible: root.backupNote.length > 0
                                 wrapMode: Text.WordWrap
+                            }
+                        }
+
+                        // ---- qBittorrent › Search plugins (#145, DECISIONS C26 SR10) ----------
+                        SearchPluginsPane {
+                            id: searchPluginsPane
+
+                            anchors.left: parent.left
+                            anchors.right: parent.right
+                            anchors.top: parent.top
+                            cursor: root.paneCursor
+                            keyboard: root.area === "pane"
+                            otherText: {
+                                const others = root.otherServerIds;
+                                if (others.length === 0)
+                                    return "";
+                                return others.length === 1 ? qsTr("%1 has its own.").arg(App.serverList.serverMap(others[0]).name)
+                                                           : qsTr("The other servers have their own.");
+                            }
+                            serverLocal: App.searchServerLocal
+                            serverName: App.serverName
+                            visible: root.inQbtSearch
+
+                            // C34 D20 a: opened from search, esc goes back to it.
+                            onFieldDone: {
+                                if (root._backToSearch)
+                                    root.dismiss();
+                                else
+                                    bodyItem.forceActiveFocus();
+                            }
+                            onNextServerRequested: {
+                                root.qbtNextServer();
+                                bodyItem.forceActiveFocus();
+                            }
+                            onRowClicked: index => {
+                                root.paneCursor = index;
+                                root.area = "pane";
                             }
                         }
 
@@ -2945,6 +3238,8 @@ Item {
                             }
 
                             SettingsRow {
+                                id: backupRow
+
                                 Layout.fillWidth: true
                                 description: App.backupSummary
                                 glyph: Glyphs.arrowDown
@@ -2959,6 +3254,7 @@ Item {
                                 }
 
                                 Button {
+                                    block: backupRow.ground
                                     bordered: true
                                     primary: true
                                     text: qsTr("back up…")
@@ -2971,6 +3267,8 @@ Item {
                             }
 
                             SettingsRow {
+                                id: restoreRow
+
                                 Layout.fillWidth: true
                                 description: qsTr("From an omaseed backup. You pick the parts; what is here now is copied aside first.")
                                 glyph: Glyphs.arrowUp
@@ -2985,6 +3283,7 @@ Item {
                                 }
 
                                 Button {
+                                    block: restoreRow.ground
                                     bordered: true
                                     text: qsTr("restore…")
 
@@ -2996,6 +3295,8 @@ Item {
                             }
 
                             SettingsRow {
+                                id: autoBackupRow
+
                                 Layout.fillWidth: true
                                 description: {
                                     // D3 a (#32): each server's qBittorrent settings go with them, which
@@ -3021,6 +3322,7 @@ Item {
                                     spacing: Theme.space(6)
 
                                     Button {
+                                        block: autoBackupRow.ground
                                         text: qsTr("open folder")
 
                                         onClicked: App.openBackupsFolder()
@@ -3034,6 +3336,7 @@ Item {
 
                                             required property var modelData
 
+                                            block: autoBackupRow.ground
                                             checkable: true
                                             selected: App.autoBackupMode === backupModeChip.modelData[0]
                                             text: backupModeChip.modelData[1]
@@ -3365,7 +3668,7 @@ Item {
         items: [
             {
                 "text": qsTr("edit"),
-                "key": "enter",
+                "key": "e",
                 "action": "edit"
             },
             {

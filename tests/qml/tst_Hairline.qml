@@ -27,7 +27,10 @@ TestCase {
 
     function test_colour_is_the_theme_hairline_fill() {
         const hairline = createTemporaryObject(hairlineComponent, testCase);
-        const expected = Theme.fill(Theme.hairlineAlpha);
+        // The skin's hair (#171): Omarchy's is the theme's hairline fill.
+        const expected = Theme.hairColor;
+        if (Theme.skin.name === "omarchy")
+            verify(Qt.colorEqual(expected, Theme.fill(Theme.hairlineAlpha)));
         fuzzyCompare(hairline.color.a, expected.a, 0.01);
         compare(hairline.color.r, expected.r);
     }

@@ -74,7 +74,8 @@ bool StatusService::toggleAltSpeed()
     if (m_app->isDemoMode() || !m_app->hasServer())
         return now;
     // The tray's request: the server flips whatever it has, and the next poll says what that is.
-    m_app->toggleAltSpeed();
+    // From outside the window, so a notice says what was picked (C36 M9).
+    m_app->toggleAltSpeed(/*outside=*/true);
     return !now;
 }
 
@@ -83,6 +84,12 @@ bool StatusService::setAltSpeed(bool on)
     const bool now = m_app->globalState()->useAltSpeedLimits();
     if (m_app->isDemoMode() || !m_app->hasServer())
         return now;
+    // DECISIONS C32 D8 a: through the presets, so "off" mid-burst writes the turtle back and
+    // "on" turns on the last one picked. From outside the window: the notice (C36 M9).
+    if (now != on &&
+        m_app->pickAltSpeed(on ? m_app->altPresets()->lastPick() : QStringLiteral("off"),
+                            /*outside=*/true))
+        return on;
     QPointer<App> app(m_app);
     m_app->client()->setAltSpeed(on)->then(this, [app, on](const Result<Done> &result) {
         if (!result.isError() || app.isNull())
@@ -97,6 +104,16 @@ bool StatusService::setAltSpeed(bool on)
             << QStringLiteral("alt-speed set failed: %1").arg(result.error().toString());
     });
     return on;
+}
+
+bool StatusService::pickAltSpeed(const QString &kind)
+{
+    // DECISIONS C36 M8: the three rows of Omarchy's Speeds ›, the presets of C32 D8 a.
+    static const QStringList kinds{
+        QStringLiteral("off"), QStringLiteral("turtle"), QStringLiteral("burst")};
+    if (!kinds.contains(kind))
+        return false;
+    return m_app->pickAltSpeed(kind, /*outside=*/true);
 }
 
 // --- sources --------------------------------------------------------------------------------
@@ -339,12 +356,9 @@ QString StatusService::rememberedCategory()
 
 void StatusService::openAddSheet(const QStringList &sources)
 {
-    Q_EMIT raiseRequested();
-    // Nothing ticked: the sheet as `a` opens it (and an open one looks at Downloads again).
-    if (sources.isEmpty())
-        Q_EMIT m_app->addRequested();
-    else
-        m_app->openUris(sources);
+    // docs/DECISIONS.md C35: where the add opens (and whether the main window comes up) is
+    // App's call, as for the menu's add. Nothing ticked: the blank sheet, as `a` opens it.
+    m_app->requestAdd(sources, AddSource::Bus);
 }
 
 void StatusService::showTorrent(const QString &hash)
