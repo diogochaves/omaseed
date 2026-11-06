@@ -139,6 +139,8 @@ Item {
     signal peerAction(string action, var addresses)
     /// The HTTP sources tab (#10): `a` add, `d` remove, as the Trackers tab.
     signal webSeedAction(string action, var urls)
+    /// C25 K30: a key for what the server's engine lacks (`action` in tab `tab`) was pressed.
+    signal missingKey(string action, string tab)
     /// `y`: the text the caller should put on the clipboard.
     /// #11: `r` on two or more selected files, or the file menu's "rename files…": the files
     /// to rename (TorrentFilesModel::renameTargets()) and whether they are the selection.
@@ -639,8 +641,10 @@ Item {
         // engine does (Keymap.tabFeatures).
         const tab = root.currentTab === 3 ? "peers" : root.currentTab === 4 ? "webseeds" : "";
         const keyAction = action === "add" ? "addRow" : action === "remove" ? "removeRow" : action;
-        if (!Keymap.offered(keyAction, App.features, tab))
+        if (!Keymap.offered(keyAction, App.features, tab)) {
+            root.missingKey(keyAction, tab); // C25 K30: the status line says so
             return;
+        }
         const selection = root._listSelection();
         if (selection === null)
             return;

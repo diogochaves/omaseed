@@ -218,8 +218,12 @@ Item {
     /// #146 (C27 CR1): ctrl+n, "+ add ▾", `:`, a folder row's menu and a dropped folder open
     /// the create sheet, on `folder` when one is given. Not on a server that can't create.
     function openCreate(folder: string): void {
-        if (root.firstRun || !App.createOffered)
+        if (root.firstRun)
             return;
+        if (!App.createOffered) {
+            root.sayMissing("create", "");
+            return;
+        }
         createSheet.openFor(folder);
     }
 
@@ -420,7 +424,7 @@ Item {
         if (root.firstRun)
             return;
         if (!App.searchOffered) {
-            root.flashFooterNote(qsTr("%1 has no search").arg(App.serverName));
+            root.sayMissing("search", "");
             return;
         }
         root.setView("search");
@@ -518,8 +522,10 @@ Item {
     /// `~` (docs/32 D9): the log, or back to where the window was.
     function toggleLog(): void {
         // C14 E7: the engine's own log; a server without one has no log face.
-        if (root.view !== "log" && !Keymap.offered("toggleLog", App.features, ""))
+        if (root.view !== "log" && !Keymap.offered("toggleLog", App.features, "")) {
+            root.sayMissing("toggleLog", "");
             return;
+        }
         root.setView(root.view === "log" ? root._viewBeforeLog : "log");
     }
 
@@ -1048,8 +1054,13 @@ Item {
     /// `category`/`tags` are T4.4's palettes to answer; this only raises the request.
     function torrentAction(action: string): void {
         const hashes = root.actionHashes();
-        // C14 E4: a key for what the server can't do does nothing, as its hidden row would.
-        if (hashes.length === 0 || !Keymap.offered(action, App.features, ""))
+        // C14 E4: a key for what the server can't do does nothing, as its hidden row would;
+        // C25 K30: the status line says so once, until the next key.
+        if (!Keymap.offered(action, App.features, "")) {
+            root.sayMissing(action, "");
+            return;
+        }
+        if (hashes.length === 0)
             return;
         switch (action) {
         case "stopStart":
@@ -2925,6 +2936,7 @@ Item {
             onPeerAction: (action, addresses) => root.detailsRowAction("peer", action, addresses)
             onTrackerAction: (action, urls) => root.detailsRowAction("tracker", action, urls)
             onWebSeedAction: (action, urls) => root.detailsRowAction("webseed", action, urls)
+            onMissingKey: (action, tab) => root.sayMissing(action, tab)
             onRenameFilesRequested: (paths, fromSelection) => renameFilesSheet.openFor(App.details.hash, paths, fromSelection)
         }
 
@@ -3132,6 +3144,19 @@ Item {
     property var footerFailure: ({})
     /// The band with the failure's details, docked above the footer.
     property bool footerNoticeOpen: false
+
+    /// C25 K30 (board 47 §I): a key whose action the server's engine lacks does nothing, and
+    /// the status line says so once, "S · seedbox (Transmission) has no super seeding", until
+    /// the next key. `tab` is the details tab the key was pressed in ("" for none).
+    function sayMissing(action: string, tab: string): void {
+        const note = Keymap.missingNote(action, App.features, tab, App.serverName, App.serverEngineName);
+        if (note.length === 0)
+            return;
+        const key = tab.length > 0 ? "" : Keymap.keyOf(action);
+        root.flashFooterNote(key.length > 0 ? qsTr("%1 · %2").arg(key).arg(note) : note);
+        footerNoteTimer.stop();
+        root.footerNoteSticky = true;
+    }
 
     /// `y`/`Y`'s "copied", and (through `Connections` below) `App.actionFailed`.
     function flashFooterNote(text: string): void {

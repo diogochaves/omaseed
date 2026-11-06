@@ -28,6 +28,16 @@ FocusScope {
     readonly property alias filterField: filterField
     /// docs/31 S1: A's line follows the alternative set, "burst", "turtle" or "alt".
     property string altKind: "alt"
+    /// What the server can do (App.features): rows it lacks are left out (C14 E4), and the
+    /// foot line names them (C25 K30). A test gives its own.
+    property var features: App.features
+    /// The server's version, "" until the probe has read it; a test gives its own.
+    property string serverVersion: App.globalState.serverVersion.replace(/^v/, "")
+    /// K30: "Not on seedbox (Transmission 4.1.3): the log, search, …", "" for none. Nothing
+    /// before the version is known: what needs one reads as missing until then.
+    readonly property string missingText: root.serverVersion.length === 0 ? ""
+                                          : Keymap.missingLine(root.features, App.serverName,
+                                                               App.serverEngineName, root.serverVersion)
     readonly property string query: filterField.text.trim().toLowerCase()
     /// The sections that still have rows, each `{key, title, about, rows}`. DECISIONS C18 D6:
     /// the mouse's block follows the select keys; C24 H10: a sheet's block follows view.
@@ -85,7 +95,7 @@ FocusScope {
             return Keymap.sheetRows;
         if (column === "search")
             return Keymap.searchRows;
-        return column === "mouse" ? Keymap.mouseRows : Keymap.helpRows(column, root.altKind, App.features);
+        return column === "mouse" ? Keymap.mouseRows : Keymap.helpRows(column, root.altKind, root.features);
     }
 
     function matches(row: var): bool {
@@ -413,6 +423,14 @@ FocusScope {
             size: "small"
             text: qsTr("Nothing matches “%1”").arg(filterField.text)
             visible: root.matchedRows.length === 0
+        }
+
+        // C25 K30 (board 47 §I): one foot line for what the server's engine lacks.
+        ScopeLine {
+            Layout.fillWidth: true
+            objectName: "helpMissingLine"
+            text: root.missingText
+            visible: root.query.length === 0 && root.missingText.length > 0
         }
     }
 }

@@ -2424,6 +2424,79 @@ QtObject {
                                             }
                                         })
 
+    /// C25 K30 (board 47 §I): what a server lacks, as "SERVER (ENGINE) has no X" says it.
+    readonly property var missingWords: ({
+                                             "categories": qsTr("categories"),
+                                             "tags": qsTr("tags"),
+                                             "queue": qsTr("queue"),
+                                             "forceStart": qsTr("force start"),
+                                             "sequentialDownload": qsTr("sequential download"),
+                                             "firstLastPiece": qsTr("first and last pieces first"),
+                                             "superSeeding": qsTr("super seeding"),
+                                             "autoManagement": qsTr("automatic management"),
+                                             "engineLog": qsTr("log"),
+                                             "qbtSettings": qsTr("qBittorrent settings"),
+                                             "altSpeeds": qsTr("turtle"),
+                                             "search": qsTr("search"),
+                                             "createTorrent": qsTr("torrent creator"),
+                                             "peerControl": qsTr("adding or banning peers"),
+                                             "editWebSeeds": qsTr("editing web seeds")
+                                         })
+    /// The ? sheet's foot line (K30): what the server lacks, in board 47's order and words.
+    readonly property var missingFoot: [["engineLog", qsTr("the log")], ["search", qsTr("search")],
+        ["createTorrent", qsTr("creating a torrent")], ["rss", qsTr("RSS")], ["categories", qsTr(
+                "categories")], ["tags", qsTr("tags")], ["altSpeeds", qsTr("turtle and its schedule")],
+        ["firstLastPiece", qsTr("first and last pieces first")], ["superSeeding", qsTr("super seeding")],
+        ["autoManagement", qsTr("automatic management")], ["peerControl", qsTr(
+                "adding and banning peers")], ["editWebSeeds", qsTr("editing web seeds")], ["qbtSettings", qsTr(
+                "settings export and import")], ["torrentsBackup", qsTr("the torrents backup")]]
+
+    /// The feature `action` needs that a server with `features` lacks, or "" when it has it
+    /// (or the action needs none).
+    function missingFeature(action, features, tab) {
+        if (root.offered(action, features, tab))
+            return "";
+        let feature = root.actionFeatures[action];
+        if (tab === "log")
+            feature = "engineLog";
+        else if (tab === "search" || String(action).startsWith("search:"))
+            feature = "search";
+        else if (tab && root.tabFeatures[tab] !== undefined)
+            feature = root.tabFeatures[tab][action] || feature;
+        return feature || "";
+    }
+
+    /// K30: the status line's note for a key whose action the server lacks, "seedbox
+    /// (Transmission) has no super seeding", or "" when it has it.
+    function missingNote(action, features, tab, serverName, engineName) {
+        const feature = root.missingFeature(action, features, tab);
+        if (feature.length === 0)
+            return "";
+        const what = root.missingWords[feature] ?? feature;
+        return engineName.length > 0 ? qsTr("%1 (%2) has no %3").arg(serverName).arg(engineName).arg(what)
+                                     : qsTr("%1 has no %2").arg(serverName).arg(what);
+    }
+
+    /// The key that runs `action` in the window or the table ("C", "~"), or "".
+    function keyOf(action) {
+        const hit = root.entries.find(entry => entry.action === action && (entry.area === "table"
+                                                                             || entry.area === "global")
+                                      && entry.key.length > 0);
+        return hit === undefined ? "" : hit.key;
+    }
+
+    /// K30: the ? sheet's foot line, "Not on seedbox (Transmission 4.1.3): the log, search, …",
+    /// or "" when the server lacks none of them.
+    function missingLine(features, serverName, engineName, version) {
+        const can = features || {};
+        const missing = root.missingFoot.filter(pair => can[pair[0]] === false).map(pair => pair[1]);
+        if (missing.length === 0)
+            return "";
+        const engine = version.length > 0 ? engineName + " " + version : engineName;
+        const who = engine.length > 0 ? qsTr("%1 (%2)").arg(serverName).arg(engine) : serverName;
+        return qsTr("Not on %1: %2.").arg(who).arg(missing.join(", "));
+    }
+
     /// Whether `action` (in details tab `tab`, or the log face's when `tab` is "log") is
     /// offered by a server that can do `features`.
     function offered(action, features, tab) {

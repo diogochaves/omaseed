@@ -737,6 +737,8 @@ TestCase {
                                              "engineLog": false,
                                              "addAgain": false,
                                              "qbtSettings": false,
+                                             "torrentsBackup": false,
+                                             "rss": false,
                                              "altSpeeds": true,
                                              "search": false,
                                              "createTorrent": false,
@@ -777,6 +779,26 @@ TestCase {
 
     // C14 E4 on a Transmission: the palette and the ? sheet keep what it does and lose what
     // it lacks; with no turtle (Deluge's K20) the alternative limits go too.
+    // Board 47 §I (C25 K30): a key the server lacks says so once in the status line, and
+    // the ? sheet's foot line names everything it lacks, in the board's order.
+    function test_what_a_transmission_lacks_is_said_in_words() {
+        compare(Keymap.missingNote("superSeeding", testCase.transmission, "", "seedbox", "Transmission"),
+                "seedbox (Transmission) has no super seeding");
+        compare(Keymap.missingNote("category", testCase.transmission, "", "seedbox", "Transmission"),
+                "seedbox (Transmission) has no categories");
+        compare(Keymap.missingNote("toggleLog", testCase.transmission, "", "seedbox", "Transmission"),
+                "seedbox (Transmission) has no log");
+        compare(Keymap.missingNote("addRow", testCase.transmission, "peers", "seedbox", "Transmission"),
+                "seedbox (Transmission) has no adding or banning peers");
+        compare(Keymap.missingNote("stop", testCase.transmission, "", "seedbox", "Transmission"), "");
+        compare(Keymap.missingNote("altSpeed", testCase.transmission, "", "seedbox", "Transmission"), "");
+        compare(Keymap.keyOf("toggleLog"), "~");
+        compare(Keymap.missingLine(testCase.transmission, "seedbox", "Transmission", "4.1.3"),
+                "Not on seedbox (Transmission 4.1.3): the log, search, creating a torrent, RSS, categories, first and last pieces first, super seeding, automatic management, adding and banning peers, editing web seeds, settings export and import, the torrents backup.");
+        // qBittorrent lacks none of them: no line.
+        compare(Keymap.missingLine({}, "public", "qBittorrent", "5.3.0"), "");
+    }
+
     function test_a_transmission_is_offered_what_it_does() {
         const rows = Keymap.commandRows(testCase._context({
                                                               "features": testCase.transmission

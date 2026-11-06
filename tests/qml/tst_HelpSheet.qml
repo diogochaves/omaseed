@@ -44,6 +44,29 @@ TestCase {
         return sheet;
     }
 
+    // Board 47 §I (C25 K30): only what the server can do, and one foot line for the rest;
+    // none on qBittorrent, and none while a filter is typed.
+    function test_the_foot_line_names_what_the_server_lacks() {
+        const sheet = init();
+        const line = testCase.childNamed(sheet, "helpMissingLine");
+        sheet.features = {}; // a server that lacks none of them
+        sheet.serverVersion = "5.3.0";
+        verify(!line.visible, "a foot line with nothing missing: " + sheet.missingText);
+        sheet.serverVersion = "";
+        sheet.features = {
+            "engineLog": false,
+            "search": false,
+            "superSeeding": false
+        };
+        verify(!line.visible, "a line before the version is known");
+        sheet.serverVersion = "4.1.3";
+        verify(line.visible);
+        verify(sheet.missingText.indexOf(": the log, search, super seeding.") > 0, sheet.missingText);
+        verify(sheet.missingText.indexOf("Not on ") === 0, sheet.missingText);
+        sheet.filterField.text = "stop";
+        verify(!line.visible);
+    }
+
     // DECISIONS C18 D6 (board 45 M2): a mouse block right after the select keys.
     function test_the_mouse_has_its_own_block_after_select() {
         const sheet = init();
