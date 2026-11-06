@@ -10,7 +10,7 @@
 pkgname=omaseed
 pkgver=0.7.0
 pkgrel=1
-pkgdesc="Torrents for Omarchy, powered by qBittorrent (local build)"
+pkgdesc="Torrents for Omarchy, powered by qBittorrent or Transmission (local build)"
 arch=('x86_64')
 url="https://github.com/diogochaves/omaseed"
 license=('MIT')

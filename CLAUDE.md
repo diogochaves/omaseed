@@ -1,6 +1,6 @@
 # omaseed — instructions for agents
 
-Native Linux desktop client for qBittorrent, Omarchy-first. C++20 + Qt 6 Quick, CMake, MIT.
+Native Linux desktop client for qBittorrent and Transmission, Omarchy-first. C++20 + Qt 6 Quick, CMake, MIT.
 Read in this order before changing anything: this file → `README.md` → `docs/ARCHITECTURE.md`
 (the layers and the theme rules) → `docs/DECISIONS.md` (rulings the code cites) →
 `docs/05-ui-spec-v2.html` and the numbered boards after it (the design; open them in a browser).

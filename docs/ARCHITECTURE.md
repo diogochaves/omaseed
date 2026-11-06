@@ -1,8 +1,8 @@
 # Architecture
 
 omaseed is one process and one binary. It has no torrent engine: everything it shows and does
-goes through a server's API, today qBittorrent's public Web UI API v2 (2.15), against one or
-more servers, local or remote. C++20 and Qt 6 Quick, built with CMake.
+goes through a server's API, qBittorrent's public Web UI API v2 (2.15) or Transmission's
+JSON-RPC 2.0 (4.1 and later), against one or more servers, local or remote. C++20 and Qt 6 Quick, built with CMake.
 
 ## Layers
 
@@ -46,6 +46,15 @@ Three static libraries and the executable. Each layer only depends on the ones a
   those types, the demo data's included; the wire's sentinels end there. `QbtEngine` does the
   way out (FilePriority's numbers, -2 and -1 share limits, the add's form, the share-limit
   action's names).
+- `TransmissionEngine` (`src/core/engines/transmission/`, C14 E3, C25) is Transmission 4.1
+  and later behind the same interface: `TransmissionRpc` is the transport (JSON-RPC 2.0, the
+  409 and its session id, Basic auth, the endpoint as given), `TransmissionTranslate` the only
+  code that reads its JSON (its feature record included), and `SnapshotDiffer` (beside the
+  interface, for any engine without deltas) turns its whole objects into a `SyncDelta`: a poll
+  asks for the torrents active in the last 60 s with the removed ids, and everything after a
+  gap. Transmission's integer ids stay inside it. Its settings are its session's:
+  `ServerPreferences` reads and writes them through `EngineClient::sessionPreferences` when
+  the feature record says `sessionSettings` (Settings › Transmission).
 - qBittorrent's own surfaces live beside its engine and take a `QbtEngine`, which App hands
   them through `App::qbtEngine()` when the feature record says the server has them
   (docs/36 §4.4): `ServerPreferences` (Settings › qBittorrent), `QbtSettingsExport`,
@@ -67,9 +76,10 @@ Three static libraries and the executable. Each layer only depends on the ones a
   `DelugeFingerprint`), and the first that answers as itself wins. `engineSupport()` says
   whether this build drives it and refuses a version too old, in words. `ServerDetector`
   (first run) only connects to each engine's usual port and reads processes and config
-  files, never HTTP. App's `testServer` then runs QbtEngine's signed-in probe for a
-  qBittorrent, as before, and names and refuses the others until their engines land.
-- `SyncEngine` polls the engine's `sync(cursor)` (qBittorrent's `sync/maindata` with `rid`) and
+  files, never HTTP. App's `testServer` then runs the engine's own signed-in probe for a
+  qBittorrent or a Transmission, and names and refuses Deluge until its engine lands (E6).
+- `SyncEngine` polls the engine's `sync(cursor)` (qBittorrent's `sync/maindata` with `rid`,
+  Transmission's diffed polls) and
   applies each answer, a `SyncDelta`, to `TorrentModel`, `CategoryModel`, `TagModel`,
   `TrackerModel` and `GlobalState`. It polls every
   1.5 s while the window shows, 5 s while hidden and 15 s after an error. It raises the events
@@ -157,14 +167,15 @@ version, and shows it to QML as `App.features`.
 - `qml/Kit/`: the component kit (buttons, fields, sheets, the table's pieces). Kit components
   take only `Theme` tokens and each has a `tests/qml/tst_<Name>.qml`.
 - `qml/Views/`: the screens, built from the kit; views take models. The window has three
-  faces: the library, the seed console (`Console`) and qBittorrent's log (`LogView`).
+  faces: the library, the seed console (`Console`) and qBittorrent's log (`LogView`, only
+  where the engine has one).
 - `Keymap.qml` maps keys to actions per focus area and feeds the command palette and the `?`
   sheet. It also says which action needs which engine feature (`offered()`): the actions menu,
   the palette, the `?` sheet and the keys leave out what `App.features` says the server can't
   do, as the add and Limits sheets do with their fields ([DECISIONS.md](DECISIONS.md) C14 E4).
 
 **`plugin/`** is the bar widget itself, a Quickshell plugin (`chaves.omaseed`). It never talks
-to qBittorrent: it reads the status file and sends commands over D-Bus.
+to the torrent server: it reads the status file and sends commands over D-Bus.
 
 Network calls run on the main thread through Qt's async API; only bencode parsing and hashing
 of large `.torrent` files go to `QtConcurrent`.

@@ -10,17 +10,17 @@
 Omarchy
 
 **Torrents, finally at home on Omarchy.** omaseed is a native desktop client for one
-qBittorrent server or many: this PC, a NAS, a seedbox, or all of them at once. It looks like
-the rest of your desktop and repaints the moment the Omarchy theme changes, every action has a
-key, and it keeps the seeding history qBittorrent does not. It opens `magnet:` links and
+qBittorrent or Transmission server or many: this PC, a NAS, a seedbox, or all of them at once.
+It looks like the rest of your desktop and repaints the moment the Omarchy theme changes, every
+action has a key, and it keeps the seeding history the server does not. It opens `magnet:` links and
 `.torrent` files, lives in the Omarchy bar or the tray, and speaks up when a torrent handed
 over from outside goes in, a download finishes, a server goes away or a disk fills up, each
 notice with its own switch in Settings › Notifications.
 
 <img src="docs/screenshots/library-tokyo-night.png" alt="omaseed's library in Tokyo Night: the status, category, tag and tracker rail, the torrent table with two rows selected, and a torrent's details on the right" width="100%">
 
-omaseed has no torrent engine of its own: qBittorrent, local or remote, does the
-transferring, and omaseed is the window you see it through. Built for Omarchy, it runs on any
+omaseed has no torrent engine of its own: qBittorrent or Transmission, local or remote, does
+the transferring, and omaseed is the window you see it through. Built for Omarchy, it runs on any
 Linux, with a bundled theme when Omarchy is not there.
 
 - **Five questions, not columns**: the library grouped under needs you, arriving, landed
@@ -64,10 +64,24 @@ what it keeps, pausing a running move) and returns once it has, so the new one c
 A logout, a shutdown or `kill` (SIGTERM, SIGINT, SIGHUP) quit it the same way. An AI agent installing omaseed for
 you cannot type your password, so it should hand you the line.
 
-**You need** qBittorrent 5.2 or newer with its Web UI turned on (`Tools → Options → Web UI`
-in the desktop app, or `qbittorrent-nox`), on this machine or another. omaseed signs in with
-an API key, a username and password, or nothing for a server that lets localhost in. It
-never installs qBittorrent itself, except when you accept first run's offer below.
+**You need** a torrent server, on this machine or another:
+
+- **qBittorrent** 5.2 or newer with its Web UI turned on (`Tools → Options → Web UI` in the
+  desktop app, or `qbittorrent-nox`). omaseed signs in with an API key, a username and
+  password, or nothing for a server that lets localhost in. It never installs qBittorrent
+  itself, except when you accept first run's offer below.
+- **Transmission** 4.1 or newer with remote access on (`transmission-daemon`, or the desktop
+  app's Preferences › Remote), signed in with a username and password or none. An older
+  daemon is refused with words that say why: 4.1 changed its RPC.
+
+omaseed does everything on Transmission that Transmission can do over its RPC: the library,
+details, adding (magnets, `.torrent` files, labels, a folder), renaming, moving, labels,
+limits and turtle with its clock, errors in its own words, the seed console, and Settings ›
+Transmission. What Transmission has no way to do is left out rather than offered and
+failing, and its key says so once in the status line: categories, a magnet's files before
+the add, super seeding, first and last pieces first, automatic management, adding or
+banning peers, editing web seeds, the log face, search, creating a torrent, and the
+qBittorrent backups (settings export and import, the torrents export).
 
 **What the package installs:** the `omaseed` binary, its `.desktop` file and D-Bus service
 file, icons, the MIT licence, the bar widget (`/usr/share/omaseed/plugin`) and three
@@ -116,12 +130,13 @@ at any point.
 
 1. **Choose a server.** omaseed looks for one on this machine (the desktop qBittorrent's own
    settings, a listening port 8080, a `qbittorrent` Docker container, a running
-   `qbittorrent-nox`) and offers what it finds. You can always connect to a remote server
+   `qbittorrent-nox`; Transmission's port 9091 and its daemon) and offers what it finds, one
+   row per engine. You can always connect to a remote server
    instead. If nothing is found, a third choice installs `qbittorrent-nox` here: two
    commands to copy, or a button that runs them through `pkexec`.
 2. **Sign in.** The address, a name, and how the server checks who you are: an API key, a
-   username and password, or none. **test** shows the qBittorrent version and how many
-   torrents it has before you go on; **open web UI** takes you to where an API key is made.
+   username and password, or none. **test** recognises the engine and shows its version and
+   how many torrents it has before you go on; **open web UI** takes you to where an API key is made.
    A server on HTTPS with its own certificate shows the certificate's fingerprint and asks
    before trusting it.
 3. **Links.** Make omaseed the app that opens magnet links and `.torrent` files, or **not
@@ -291,7 +306,7 @@ for the rest and "esc" at its end.
 |---|---|
 | `A` | alternative speeds on or off (turtle, or the last preset picked; the status line's chip has both) |
 | `,` `ctrl+,` | settings |
-| `ctrl+shift+,` | qBittorrent's settings |
+| `ctrl+shift+,` | the server's own settings (qBittorrent's or Transmission's) |
 | `ctrl+.` | the omaseed menu (the mark): servers, alternative speeds, add, settings, quit |
 | hold `alt` | show the keys of what is on screen |
 | `q` | hide to the tray |
@@ -340,14 +355,18 @@ For a server whose files appear under another path here (a NAS mount, a seedbox)
 General's **path mapping** rewrites the server's save path before open folder.
 
 Settings › qBittorrent edits the server's own settings (downloads, connection, speed,
-BitTorrent, RSS, Web UI, advanced) without opening its web UI.
+BitTorrent, RSS, Web UI, advanced) without opening its web UI; Settings › Transmission does
+the same for a Transmission (speed and turtle, discovery and privacy, connection, seeding,
+queue, downloads). Each engine with a saved server keeps its group in Settings.
 
 ## Backups
 
 Settings › Backup saves omaseed's servers, settings and seeding history to one `.omaseed`
 file, and restores from one (keeping a copy of what it replaces first). Automatic copies run
 weekly by default (or daily, or off) into `~/.local/share/omaseed/backups/`, keeping the last
-four. Passwords and API keys are not in a backup; the keyring keeps those.
+four. Passwords and API keys are not in a backup; the keyring keeps those. A backup carries a
+copy of each qBittorrent server's settings; a Transmission's settings and torrents stay on
+it, as Settings › Backup says.
 
 ## Troubleshooting
 
@@ -415,5 +434,5 @@ building for.
 
 ## License
 
-MIT. omaseed talks to qBittorrent only through its public Web UI API and contains no
-qBittorrent code.
+MIT. omaseed talks to qBittorrent and Transmission only through their public APIs (the Web UI
+API, the JSON-RPC) and contains no code of either.

@@ -26,6 +26,10 @@ Changed by C24 H13 (v0.5.0): the ground is opaque by default; this alpha is Appe
 - While the sync engine polls, the HTTP client does not retry reads on its own: the engine's
   visible "retry in 10 s" is the only retry, so a lost server shows after one failure.
 
+*Engines (board 36 §7, C14; 2026-11-06, E5):* The rail groups are read from the neutral phase and
+flags (`TorrentStatus`, `Torrent.cpp`); each engine maps its own states to them (qBittorrent's word
+for word, Transmission's from `status`, `error` and the rates), so these rules hold on any engine.
+
 ## Q17 — The Status column is 116 px
 
 The design's 104 px cannot hold `downloading` beside its glyph in JetBrains Mono. The column
@@ -85,6 +89,10 @@ On a server's first TLS error, the server sheet (and first run) shows the certif
 fingerprint and offers "trust this certificate". The fingerprint is saved with the server in
 `servers.json` (it is not a secret) and only that exact certificate is accepted afterwards.
 Turning on the Web UI's HTTPS in qBittorrent's settings warns about this first.
+
+*Engines (board 36 §7, C14; 2026-11-06, E5):* The same pin, trusted on first use, for every engine
+(`CertificatePin`); the warning before turning on qBittorrent's own HTTPS is qBittorrent's only, as
+that switch is.
 
 ## C1 — The command palette (board 30, ruled 2026-10-15)
 
@@ -152,6 +160,10 @@ segments and libtorrent's untranslated text; a URL seed message and an export by
 rename by a file path under the torrent's name; the part file and content lines in English only.
 A line older than a torrent's `added_on` is never about it.
 
+*Engines (board 36 §7, C14; 2026-11-06, E5):* qBittorrent only. On Transmission the reason comes
+from the torrent's own error text (`error_string`), with no log link (C25 K24 and its note of
+2026-11-06).
+
 ## C3 — qBittorrent's log as a face (board 32, ruled 2026-10-15)
 
 Board [32](32-log-and-failures.html) (#56), D9–D15 as recommended:
@@ -184,6 +196,9 @@ Board [32](32-log-and-failures.html) (#56), D9–D15 as recommended:
 The face's keys are the Keymap's "log" area, so the `?` sheet and the command palette list them.
 qBittorrent numbers its log from 0 again after a restart: a full update, or ids that go
 backwards, start the face over, as `ProblemLog` does.
+
+*Engines (board 36 §7, C14; 2026-11-06, E5):* qBittorrent only. On Transmission the log face and
+`~` are gone from the rail and menus, and `~` says so once in the status line (C25 K30).
 
 ## C4 — Burst: the alternative limits named from the two sets (board 31, ruled 2026-10-15)
 
@@ -238,6 +253,10 @@ another zone the time printed is right and only the day and the "by hand" guess 
 The pure parts are `core/SpeedSets` and `core/AltSchedule`; `core/AltSpeed` puts them together
 for the server the app is on.
 
+*Engines (board 36 §7, C14; 2026-11-06, E5):* Any engine with a turtle mode: Transmission's
+alternative speeds, its own clock and its forward-running days (`AltSchedule`'s Transmission rule);
+off where there is none (Deluge, C25 K20).
+
 ## C5 — A magnet's files before the add (board 29, ruled 2026-10-15)
 
 Board [29](29-magnet-files.html) (#44), D1–D11 as recommended:
@@ -283,6 +302,10 @@ Board [29](29-magnet-files.html) (#44), D1–D11 as recommended:
 The pure parts are `core/MetadataLookup` (the schedule, the phases, the 200's parse) and
 `core/PrivateTrackers`; `App.addLookup` is the one lookup the sheet shows, and
 `Views/AddFetchLine.qml` draws its waits.
+
+*Engines (board 36 §7, C14; 2026-11-06, E5):* qBittorrent's, and Deluge's when it lands (E6). On
+Transmission the add sheet shows a magnet without files, with C25 K26's one dim line; its files are
+picked in details after the add.
 
 ## C6 — The weekly recap (board 22 T8, ruled with the console)
 
@@ -380,6 +403,9 @@ open, or what the API decided:
   by id, then as the only one, since ids differ between machines (#34).
 - **Keys**: `0` picks the qBittorrent group's tenth section, Backup.
 
+*Engines (board 36 §7, C14; 2026-11-06, E5):* qBittorrent only in v1 (C25 K33 a): Settings ›
+Transmission has no export or import, and Backup's scope line names the servers that have none.
+
 ## C9 — A qBittorrent's torrents, exported and imported (board 24, ruled 2026-10-03)
 
 Board [24](24-backup-restore.html) §2, §4, §5, §7, D2 a, D3 a, D6 a, D7 a, D8 a (#33). What the
@@ -450,6 +476,10 @@ board left open, or what the API decided:
   goes again one torrent at a time (a 409 then means the batch had added it), the one refused is
   named ("qBittorrent couldn't read the .torrent of …") and the import goes on. Board 24 §7's stop
   is for a server gone or a disk full, so this keeps to it (confirmed 2026-10-22, C20).
+
+*Engines (board 36 §7, C14; 2026-11-06, E5):* The file stays engine-neutral, but only a qBittorrent
+exports and imports torrents in v1 (C25 K33 a); an import into another engine is the later "move a
+library" step (C14 E10, #88).
 
 ## C10 — A server is tested before it is saved (#68, ruled 2026-10-15)
 
@@ -535,6 +565,10 @@ left open, or what building it decided:
   is "neither a qBittorrent settings export nor an omaseed backup". Restore's picker keeps its
   name filters; the MIME type adds nothing a name filter doesn't there.
 - **D9 a:** the .desktop entry's MimeType is unchanged, and `tst_mimetypes` checks it.
+
+*Engines (board 36 §7, C14; 2026-11-06, E5):* Each engine with a saved server has its own group,
+its select listing only that engine's servers (C25 K32). omaseed's own backup and its copies carry
+qBittorrent's settings only; a Transmission's stay on it, and the scope lines say so (K33).
 
 ## C12 — Servers in any state, and the error notice (boards 33 and 35, ruled 2026-10-16)
 
@@ -623,6 +657,10 @@ more a way to the others is always on screen; with one, nothing offers to switch
   Web UI is on (Tools › Options › Web UI)."), with no actions of its own ("test" and "save
   anyway" stay the sheet's buttons, C10) and the technical text under "details" with copy. The
   line under the fields now says only "testing…" and a pass. First run keeps its own line.
+
+*Engines (board 36 §7, C14; 2026-11-06, E5):* The words name the server's engine (`ErrorWords`, the
+rows' sentences, the status line: "seedbox (Transmission) …"); what is qBittorrent's own (its log,
+its Web UI, its settings, its backups) still says qBittorrent.
 
 ## C13 — The tray and the widget share one menu, and one setting (board 33 §11, ruled 2026-10-16)
 
@@ -735,7 +773,7 @@ on Omarchy for any engine it can drive well; qBittorrent stays the reference and
   is installed on the host.
 
 The rulings board 36 §7 lists (Q16, Q27, C2–C5, C8, C9, C11, C12, M12, M18, N1) are unchanged
-for qBittorrent; each gains its line about other engines when the step that touches it lands.
+for qBittorrent; each has gained its line about other engines (E5, #86, 2026-11-06).
 
 ## C15 — Move a folder (board 42, ruled 2026-10-18)
 
@@ -1786,6 +1824,9 @@ Ticking an option (sequential download, first and last pieces, super seeding, au
 management) shows the requested state immediately, from `SyncEngine`'s pending values, instead
 of waiting for the next poll. If the server refuses, it goes back.
 
+*Engines (board 36 §7, C14; 2026-11-06, E5):* Pending values are neutral fields (`TorrentPatch`),
+confirmed by the polls on any engine.
+
 ## M16 — The footer's note stays in the footer
 
 A short note such as "details: bottom · I to change" sits in the footer's own line, after the
@@ -1796,6 +1837,10 @@ facts. It never draws over the details panel.
 qBittorrent's `torrents/add` takes no per-file names, so renames made in the add sheet are
 applied right after the add with `torrents/renameFile` and `torrents/renameFolder`, the same
 way the file priorities are.
+
+*Engines (board 36 §7, C14; 2026-11-06, E5):* The replay is per engine. Transmission takes no
+rename at add, so its add sheet offers none (C25 K27); a torrent is renamed after it is added,
+which renames its folder on disk (K28).
 
 ## N1 — The Files tab matches qBittorrent's
 
@@ -1809,6 +1854,9 @@ changes the rows at once, but waits 3 s before it is sent, with Undo.
 
 Named "files" since C24 H6 (v0.5.0): the second of story · files · swarm · trackers · facts,
 on `2` as before; what it does is unchanged.
+
+*Engines (board 36 §7, C14; 2026-11-06, E5):* The priorities offered come from the feature record
+(`filePriorities`): on Transmission, low · normal · high and skip, in its own words (C25 K17).
 
 ## S1 — The status keys are `0`–`8`
 
