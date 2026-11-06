@@ -4,7 +4,7 @@
 # (the manual box, through scripts/dev/manual-box.sh).
 #
 #   scripts/dev/app-box.sh up [-b NAME] [--interactive] [--build DIR] [--handlers] [--qbt]
-#                             [--plugin DIR] [--stock-bar]
+#                             [--transmission] [--plugin DIR] [--stock-bar]
 #       a box on its own network that reaches only :8081; servers.json pointing omaseed at the
 #       playground; every swarm .torrent in ~/Downloads (the add sheet's "In Downloads" list);
 #       then DIR/omaseed (default build/) is started and the command returns once its window
@@ -12,6 +12,9 @@
 #       --qbt: a qBittorrent of the box's own instead of the playground (127.0.0.1:8090 in the
 #       box, no login, saving to ~/Torrents), reaching only the swarm's tracker and seeder, so
 #       deletes, moves and settings changes touch nothing outside the box.
+#       --transmission: the Transmission playground instead (:8085, scripts/dev/test-server.sh
+#       start --transmission, started if it isn't), the box reaching only that port; omaseed's
+#       server is "transmission" at its web UI address (DECISIONS C14 E4, #85).
 #       --plugin DIR: that shell plugin (the repo's plugin/, the bar widget) mounted and enabled
 #       in the box's bar, beside the app.
 #       --stock-bar: Omarchy's default bar (at the top, workspaces and clock) instead of a copy
@@ -44,6 +47,9 @@ SWARM="$repo/scripts/dev/swarm.sh"
 
 PLAY_PORT=8081
 PLAY="http://127.0.0.1:$PLAY_PORT"
+# The Transmission playground (test-engine.sh), for `up --transmission`.
+TR_PORT="${OMASEED_TRANSMISSION_PORT:-8085}"
+TR_WEB="http://127.0.0.1:$TR_PORT/transmission/web/"
 BOX_HOME=/home/sbx
 BOX_QBT_PORT="${OMASEED_BOX_QBT_PORT:-8090}"
 # BOX_BT_PORT and BOX_BT2_PORT, each box's own, are set from its name once that is known.
@@ -62,7 +68,7 @@ SEEDER="http://127.0.0.1:$SEEDER_PORT/api/v2"
 TORRENTS="${OMASEED_SWARM_PROFILE:-$HOME/.local/share/omaseed-swarm}/torrents"
 # What `up` left in the box for `restart` and `api`: KEY=VALUE lines, outside omaseed's config.
 MARKER=.omaseed-box
-refuse_home "$PLAY" "$BOX_QBT_PORT" "$BOX_QBT2_PORT" "$SEEDER"
+refuse_home "$PLAY" "$TR_PORT" "$BOX_QBT_PORT" "$BOX_QBT2_PORT" "$SEEDER"
 
 die() { echo "app-box.sh: $*" >&2; exit 1; }
 
@@ -202,9 +208,16 @@ EOF
 # ---- up: the app box ---------------------------------------------------------------------
 
 up_app() {
-    local build="$1" interactive="$2" handlers="$3" qbt="$4" plugin="${5:-}" home url name up_args=()
+    local build="$1" interactive="$2" handlers="$3" qbt="$4" plugin="${5:-}" transmission="${6:-0}"
+    local home url name engine=qbittorrent up_args=()
     [ -x "$build/omaseed" ] || die "no $build/omaseed: build it first (cmake --build $build)"
-    if [ "$qbt" = 0 ] && ! "$repo/scripts/dev/test-server.sh" status >/dev/null 2>&1; then
+    if [ "$transmission" = 1 ] && [ "$qbt" = 1 ]; then die "--qbt and --transmission: pick one"; fi
+    if [ "$transmission" = 1 ]; then
+        if ! "$repo/scripts/dev/test-server.sh" status --transmission >/dev/null 2>&1; then
+            echo "starting the Transmission playground (:$TR_PORT)"
+            "$repo/scripts/dev/test-server.sh" start --transmission >/dev/null
+        fi
+    elif [ "$qbt" = 0 ] && ! "$repo/scripts/dev/test-server.sh" status >/dev/null 2>&1; then
         echo "starting the playground (:$PLAY_PORT)"
         "$repo/scripts/dev/test-server.sh" start >/dev/null
     fi
@@ -223,6 +236,8 @@ up_app() {
     if [ "$qbt" = 1 ]; then
         # Only the swarm's tracker and seeder: nothing of this machine's qBittorrents.
         up_args=(--net isolated --allow "$TRACKER_PORT,$SEEDER_BT_PORT")
+    elif [ "$transmission" = 1 ]; then
+        up_args=(--net isolated --allow "$TR_PORT")
     else
         up_args=(--net isolated --allow "$PLAY_PORT")
     fi
@@ -242,16 +257,22 @@ up_app() {
         box_qbt "$BOX_QBT_PORT" "$BOX_BT_PORT" "" "" "$BOX_HOME/Torrents"
         url="http://127.0.0.1:$BOX_QBT_PORT"
         name=box
+    elif [ "$transmission" = 1 ]; then
+        url="$TR_WEB"
+        name=transmission
+        engine=transmission
     else
         url="$PLAY"
         name=playground
     fi
-    printf '{"version":1,"defaultId":"%s","servers":[{"id":"%s","name":"%s","url":"%s","authMode":"none","username":"","pathMap":[],"isDefault":true,"addedAt":"2026-09-23T00:00:00Z"}]}' \
-        "$name" "$name" "$name" "$url" >"$home/.config/omaseed/servers.json"
+    printf '{"version":2,"defaultId":"%s","servers":[{"id":"%s","name":"%s","url":"%s","engine":"%s","authMode":"none","username":"","pathMap":[],"isDefault":true,"addedAt":"2026-09-23T00:00:00Z"}]}' \
+        "$name" "$name" "$name" "$url" "$engine" >"$home/.config/omaseed/servers.json"
     chmod 600 "$home/.config/omaseed/servers.json"
     cp "$TORRENTS"/*.torrent "$home/Downloads/"
-    printf 'kind=%s\nbinary=%s\napi=%s/api/v2\n' "$([ "$qbt" = 1 ] && echo qbt || echo app)" \
-        "$repo/$build/omaseed" "$url" >"$home/$MARKER"
+    local kind=app
+    if [ "$qbt" = 1 ]; then kind=qbt; elif [ "$transmission" = 1 ]; then kind=transmission; fi
+    printf 'kind=%s\nbinary=%s\napi=%s/api/v2\n' "$kind" "$repo/$build/omaseed" "$url" \
+        >"$home/$MARKER"
     if [ "$handlers" = 1 ]; then
         omabox run -b "$BOX" -- scripts/dev/install-desktop.sh "$repo/$build/omaseed" --set-default \
             >/dev/null 2>&1 || die "install-desktop.sh failed in the box"
@@ -452,6 +473,8 @@ case "$code" in 200 | 204) ;; *) echo "app-box.sh: the box qBittorrent refused t
 if [ -n "$method" ]; then set -- -X "$method" "$@"; fi
 curl -sS --fail-with-body -b "$dir/jar" "$@" "$url/$path"
 ' sh "$url" "$method" "$path" "$BOX_HOME/$LOGINS/$SERVER.txt" "$@"
+    elif [ "$kind" = transmission ]; then
+        die "this box runs omaseed on Transmission: ask it with scripts/dev/test-server.sh status --transmission"
     elif [ "$SERVER" != public ]; then
         die "only a manual box has a \"$SERVER\" qBittorrent"
     elif [ "$kind" = qbt ]; then
@@ -481,6 +504,7 @@ build=""
 interactive=0
 handlers=0
 qbt=0
+transmission=0
 plugin=""
 bar_args=()
 manual=0
@@ -495,6 +519,7 @@ while [ $# -gt 0 ]; do
     --headless) interactive=0 ;;
     --handlers) handlers=1 ;;
     --qbt) qbt=1 ;;
+    --transmission) transmission=1 ;;
     --plugin) [ $# -ge 2 ] || die "--plugin needs a directory"; plugin="$(cd "$2" && pwd)"; shift ;;
     --stock-bar) bar_args=(--stock-bar) ;;
     --manual) manual=1 ;;
@@ -526,7 +551,7 @@ up)
     if [ "$manual" = 1 ]; then
         up_manual "${build:-build-box}" "$interactive"
     else
-        up_app "${build:-build}" "$interactive" "$handlers" "$qbt" "$plugin"
+        up_app "${build:-build}" "$interactive" "$handlers" "$qbt" "$plugin" "$transmission"
     fi
     ;;
 restart)
