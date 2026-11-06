@@ -1397,6 +1397,29 @@ Backup links to qBittorrent's only while on one. Also: a speed limit's upper bou
 (`maxSpeedLimit`; Transmission an int of kB/s), and C28's stuck-move block is only where the
 engine has the log (Transmission's content reads from the incomplete folder until it moves).
 
+*Settings › Transmission, backups and words (2026-11-06, E5 #86, assumed, to confirm):* built from
+C14 E6, board 36 §6 E5 and board 47 §6's E5 row with these calls the boards left open. Settings ›
+Transmission takes qBittorrent's sections, order and ids (Speed, Discovery and privacy, Connection,
+Seeding, Queue, Downloads and files; no Proxy, Web UI or Advanced), so a switch between the groups
+lands on its like. Beyond K31's Basics it carries PEX, LPD, encryption (prefer · require · allow,
+Transmission 4.1's words), the blocklist and its URL, default trackers (one per line in the list
+sheet, which drops blank lines: tiers aren't kept, as for qBittorrent's add_trackers), a random
+port on start, UPnP / NAT-PMP, µTP, peers in total and per torrent, the download and seed queues
+and stalled minutes, .part, start on add, in order, trashing a .torrent, the disk cache and the
+three scripts; not the RPC's own settings, the blocklist's update, or anything session_get doesn't
+show (preallocation). Those rows go by Transmission's own field names; a count out of range or an
+unknown encryption word is refused before it is sent (4.1.3 keeps a download queue of -3). K32: the
+other engines' groups come after the one omaseed is on (the board draws one fixed order), each on
+its first saved server, as nothing remembers the last used of an engine; their sections are a pane
+that says whose settings they are and switches there (one connection reads them), landing on the
+same section. A group's select lists only its engine's servers, so one server per engine has no
+select stop; `s` still steps through every server. Backups (board 36's "per engine", read through
+K33 a): no Transmission export (K33 b not taken); omaseed's backup and its copies keep
+qBittorrent's settings only, read nothing on another engine, and the scope line says whose settings
+stay on their servers. The welcome reads "Torrents for Omarchy, powered by qBittorrent or
+Transmission." The palette's and ?'s "qBittorrent settings" stay qBittorrent's (hidden on
+Transmission, where ctrl+shift+, still opens its group, unnamed there).
+
 ## C26 — Search through qBittorrent's search plugins (board 48, ruled 2026-10-22)
 
 Board [48](48-search.html) SR1–SR14, all as recommended, in board 46's frame (C24 H16: a rail view
