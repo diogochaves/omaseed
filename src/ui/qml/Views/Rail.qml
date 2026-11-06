@@ -108,6 +108,8 @@ Item {
     /// ("labels" on Deluge, as Transmission's tags section).
     property string categoriesWord: qsTr("categories")
     property string categoriesLabelId: "categories"
+    /// The categories' row for torrents with none ("no label" on Deluge).
+    property string categoriesNoneWord: qsTr("none")
     /// The server keeps many groups per torrent (App.features.tags): Deluge has none, so the
     /// section is gone (board 47 B).
     property bool tagsOffered: true
@@ -1208,7 +1210,7 @@ Item {
                     glyph: "·"
                     hasCursor: root.cursorOn(categoriesNone.globalIndex)
                     selected: root.filtered.category === ""
-                    text: qsTr("none")
+                    text: root.categoriesNoneWord
                     visible: root.categoriesNoneVisible && !root.categoriesFolded
                     width: content.width
 

@@ -2208,6 +2208,7 @@ Item {
         categoriesOffered: App.features.categories !== false
         categoriesWord: Keymap.groupWords(App.features).catMany
         categoriesLabelId: App.features.categoriesAreLabels === true ? "labels" : "categories"
+        categoriesNoneWord: App.features.categoriesAreLabels === true ? root.uncategorizedWord : qsTr("none")
         tagsOffered: App.features.tags !== false
         tagsWord: root.tagsWord
         untaggedWord: root.untaggedWord
