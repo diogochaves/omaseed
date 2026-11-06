@@ -178,6 +178,7 @@ void TestRowWords::needsYouSaysTheCauseAndItsFix()
     RowWords words = RowWords::of(t, TorrentFilterModel::NeedsYou, trouble);
     QCOMPARE(words.fact, QStringLiteral("no access"));
     QCOMPARE(words.caption, QStringLiteral("needs you"));
+    QVERIFY(!words.captionAlert);
     QCOMPARE(words.sentence, QStringLiteral("qBittorrent can't write to its save folder"));
     QCOMPARE(words.fix, QStringLiteral("retry"));
     QCOMPARE(words.fixAction, QStringLiteral("problem:start"));
@@ -197,8 +198,8 @@ void TestRowWords::needsYouSaysTheCauseAndItsFix()
 }
 
 // DECISIONS C25 K24 (board 47 §F): on Transmission the row reads the torrent's own text: the
-// cause, "stopped" where "needs you" would be, the engine named, and "start it here" for a
-// failed move.
+// cause, "stopped" in red where "needs you" would be, the engine named, and "start it here" for
+// a failed move.
 void TestRowWords::anEnginesErrorReadsInItsWords()
 {
     const Torrent t = make({{"state", "error"}, {"progress", 1.0}});
@@ -216,6 +217,7 @@ void TestRowWords::anEnginesErrorReadsInItsWords()
         RowWords::of(t, TorrentFilterModel::NeedsYou, trouble, QStringLiteral("Transmission"));
     QCOMPARE(words.fact, QStringLiteral("didn't move"));
     QCOMPARE(words.caption, QStringLiteral("stopped"));
+    QVERIFY(words.captionAlert);
     QCOMPARE(words.sentence, trouble.problemSentence);
     QCOMPARE(words.fix, QStringLiteral("start it here"));
     QCOMPARE(words.fixAction, QStringLiteral("problem:startHere"));
@@ -244,6 +246,14 @@ void TestRowWords::anEnginesErrorReadsInItsWords()
     words = RowWords::of(t, TorrentFilterModel::NeedsYou, trouble, QStringLiteral("Deluge"));
     QCOMPARE(words.fact, QStringLiteral("didn't move"));
     QCOMPARE(words.caption, QStringLiteral("paused"));
+    QVERIFY(words.captionAlert);
+
+    // A resume Deluge kept in error isn't paused (#244): the usual caption, not red.
+    trouble.errorStopped = false;
+    trouble.errorRunning = true;
+    words = RowWords::of(t, TorrentFilterModel::NeedsYou, trouble, QStringLiteral("Deluge"));
+    QCOMPARE(words.caption, QStringLiteral("needs you"));
+    QVERIFY(!words.captionAlert);
     QCOMPARE(words.sentence, trouble.problemSentence);
     QCOMPARE(words.fix, QStringLiteral("recheck"));
     QCOMPARE(words.fixAction, QStringLiteral("problem:recheck"));

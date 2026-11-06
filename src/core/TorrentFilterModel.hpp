@@ -158,6 +158,7 @@ public:
         GroupRole,                         ///< its group's key under groupBy ("" for none)
         RowFactRole,                       ///< RowWords::fact
         RowCaptionRole,                    ///< RowWords::caption
+        RowCaptionAlertRole,               ///< RowWords::captionAlert, a bool
         RowSentenceRole,                   ///< RowWords::sentence
         RowMetaRole,                       ///< RowWords::meta
         RowFixRole,                        ///< RowWords::fix

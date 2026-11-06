@@ -32,6 +32,9 @@ Item {
     required property string rowMeta
     required property string rowFact
     required property string rowCaption
+    /// The caption is the engine's word for stopping it ("stopped", Deluge's "paused"): red,
+    /// as board 47 §F draws it (C25 K24).
+    required property bool rowCaptionAlert
     required property string rowSentence
     required property string rowFix
     required property string rowFixAction
@@ -438,7 +441,7 @@ Item {
         Text {
             id: captionText
 
-            color: row.ink.dimForeground
+            color: row.rowCaptionAlert ? row.ink.red : row.ink.dimForeground
             font.capitalization: Font.AllUppercase
             // Board 46 `.row .fact span`: the label family, the skin's caption tracking.
             font.family: Theme.labelFamily

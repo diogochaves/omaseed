@@ -604,7 +604,11 @@ TestCase {
             compare(words.font.pixelSize, Theme.font.caption);
         }
         compare(Theme.libraryRowFixTag, Theme.skin.name === "console");
-        compare(findChild(testCase.rowItem(0), "libraryRowCaption_0").text, "needs you");
+        const caption = findChild(testCase.rowItem(0), "libraryRowCaption_0");
+        compare(caption.text, "needs you");
+        // C25 K24: only an engine's "stopped" or "paused" is red; qBittorrent's caption isn't.
+        verify(!testCase.rowItem(0).rowCaptionAlert);
+        compare(caption.color, testCase.rowItem(0).ink.dimForeground);
     }
 
     // Narrow: the group's line and the meta go before the name and the fact do.

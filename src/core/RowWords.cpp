@@ -77,8 +77,10 @@ void needsYou(const Torrent &t, const RowTrouble &trouble, const QString &engine
         words.fact = trouble.failedMove               ? tr("didn't move")
                      : trouble.problemCause.isEmpty() ? tr("error")
                                                       : trouble.problemCause;
-        if (trouble.errorStopped)
+        if (trouble.errorStopped) {
             words.caption = trouble.cause; // "stopped", or Deluge's "paused"
+            words.captionAlert = true;
+        }
         // #244: a resume Deluge kept in error isn't paused: say what it is now.
         if (trouble.errorRunning && !trouble.problemSentenceRunning.isEmpty())
             words.sentence = trouble.problemSentenceRunning;

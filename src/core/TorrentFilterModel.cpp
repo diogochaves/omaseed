@@ -56,6 +56,7 @@ TorrentFilterModel::TorrentFilterModel(QObject *parent)
                                     GroupRole,
                                     RowFactRole,
                                     RowCaptionRole,
+                                    RowCaptionAlertRole,
                                     RowSentenceRole,
                                     RowMetaRole,
                                     RowFixRole,
@@ -1190,6 +1191,8 @@ QVariant TorrentFilterModel::data(const QModelIndex &index, int role) const
         return words.fact;
     case RowCaptionRole:
         return words.caption;
+    case RowCaptionAlertRole:
+        return words.captionAlert;
     case RowSentenceRole:
         return words.sentence;
     case RowMetaRole:
@@ -1210,6 +1213,7 @@ QHash<int, QByteArray> TorrentFilterModel::roleNames() const
     names.insert(GroupRole, "group");
     names.insert(RowFactRole, "rowFact");
     names.insert(RowCaptionRole, "rowCaption");
+    names.insert(RowCaptionAlertRole, "rowCaptionAlert");
     names.insert(RowSentenceRole, "rowSentence");
     names.insert(RowMetaRole, "rowMeta");
     names.insert(RowFixRole, "rowFix");

@@ -1646,12 +1646,14 @@ void TestFilterModel::rowWordsAreRolesThatFollowTheSource()
     QCOMPARE(names.value(TorrentFilterModel::RowFactRole), QByteArray("rowFact"));
     QCOMPARE(names.value(TorrentFilterModel::QuestionRole), QByteArray("question"));
     QCOMPARE(names.value(TorrentFilterModel::MonogramRole), QByteArray("monogram"));
+    QCOMPARE(names.value(TorrentFilterModel::RowCaptionAlertRole), QByteArray("rowCaptionAlert"));
     QCOMPARE(names.value(TorrentModel::NameRole), QByteArray("name"));
 
     const int row = m_proxy.rowOfHash(QStringLiteral("2222"));
     const QModelIndex at = m_proxy.index(row, 0);
     QCOMPARE(m_proxy.data(at, TorrentFilterModel::RowCaptionRole).toString(),
              QStringLiteral("given"));
+    QCOMPARE(m_proxy.data(at, TorrentFilterModel::RowCaptionAlertRole).toBool(), false);
     QCOMPARE(m_proxy.data(at, TorrentFilterModel::MonogramRole).toString(), QStringLiteral("BB"));
     QCOMPARE(m_proxy.data(at, TorrentFilterModel::RowSentenceRole).toString(),
              QStringLiteral("nobody is asking now"));

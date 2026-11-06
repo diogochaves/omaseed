@@ -53,6 +53,9 @@ struct RowWords
 {
     QString fact;
     QString caption;
+    /// The caption is the engine's word for stopping it ("stopped", Deluge's "paused"), drawn
+    /// in the error colour (board 47 §F, C25 K24).
+    bool captionAlert = false;
     QString sentence;
     QString meta;
     /// The fix's words ("retry") and what it runs: "problem:<action>" (the error block's) or
