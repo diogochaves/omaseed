@@ -1,0 +1,9 @@
+{
+ "id": 24,
+ "jsonrpc": "2.0",
+ "result": {
+  "path": "/srv/transmission/fixtures-recording/data",
+  "size_bytes": 400000000000,
+  "total_size": 1000000000000
+ }
+}

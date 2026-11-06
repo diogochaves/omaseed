@@ -118,6 +118,10 @@ struct Torrent
     QString infohashV1;
     QString infohashV2;
     QString magnetUri;
+    /// Why it errored, in the engine's own words, when the torrent itself says (Transmission's
+    /// `error_string` for a local error; C14 E7, C25 K24). Empty when it hasn't errored, or
+    /// when the engine keeps the reason elsewhere (qBittorrent: its log, C2 D1).
+    QString errorMessage;
 
     /// A hybrid torrent (BEP 52 v1+v2): the engine gives it both hashes. libtorrent 2.1.2
     /// errors on a recheck of one that it downloaded when a file is missing (DECISIONS C21).

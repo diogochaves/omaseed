@@ -15,7 +15,8 @@ namespace {
 // --- the way out: omaseed's values in qBittorrent's words -----------------------------------
 
 /// torrents/filePrio and the add's filePriorities take FilePriority's own numbers (the
-/// reference engine's, docs/36 §4.1). Mixed is not a priority a file can be given.
+/// reference engine's, docs/36 §4.1). Mixed is not a priority a file can be given, and Low is
+/// not one qBittorrent has (its feature record never offers it).
 int wirePriority(FilePriority priority)
 {
     switch (priority) {
@@ -26,6 +27,7 @@ int wirePriority(FilePriority priority)
     case FilePriority::Maximal:
         return 7;
     case FilePriority::Normal:
+    case FilePriority::Low:
     case FilePriority::Mixed:
         break;
     }

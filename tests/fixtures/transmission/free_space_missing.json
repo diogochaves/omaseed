@@ -1,0 +1,16 @@
+{
+ "error": {
+  "code": 5,
+  "data": {
+   "error_string": "No such file or directory",
+   "result": {
+    "path": "/srv/transmission/fixtures-recording/not-there",
+    "size_bytes": -1,
+    "total_size": -1
+   }
+  },
+  "message": "system error"
+ },
+ "id": 25,
+ "jsonrpc": "2.0"
+}

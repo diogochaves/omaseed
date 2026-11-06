@@ -261,7 +261,10 @@ void TestQbtTranslate::absentKeysStayAbsent()
         {QStringLiteral("magnet_uri"), QStringLiteral("magnet:?")},
     };
     const TorrentPatch all = QbtTranslate::torrent(QStringLiteral("aa"), everything);
-    QCOMPARE(all.fields, TorrentFields::all());
+    // Every field but the error's words: qBittorrent keeps those in its log (C2 D1).
+    TorrentFields expected = TorrentFields::all();
+    expected.clear(TorrentField::ErrorMessage);
+    QCOMPARE(all.fields, expected);
     QCOMPARE(all.values.tags, QStringList({QStringLiteral("a"), QStringLiteral("b")}));
 }
 

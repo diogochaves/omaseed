@@ -1,0 +1,63 @@
+{
+ "id": 19,
+ "jsonrpc": "2.0",
+ "result": {
+  "torrents": [
+   [
+    "id",
+    "hash_string",
+    "name",
+    "status",
+    "error",
+    "error_string",
+    "labels",
+    "percent_done"
+   ],
+   [
+    9,
+    "69d539c673763be3e41ba688df820be7657f1c91",
+    "Fixture Pack",
+    6,
+    0,
+    "",
+    [
+     "fixtures",
+     "pack"
+    ],
+    1.0
+   ],
+   [
+    10,
+    "2b86112ae20c6ca831cbfb3e4333c8acc6d21088",
+    "fixture-single.bin",
+    0,
+    0,
+    "",
+    [
+     "fixtures"
+    ],
+    0.0
+   ],
+   [
+    11,
+    "475ad2787551903b6374cb9358f285cbe6fd8c21",
+    "fixture-error.bin",
+    0,
+    3,
+    "Couldn't move '/srv/transmission/fixtures-recording/errdata' to '/srv/transmission/fixtures-recording/readonly/inside': Permission denied (13)",
+    [],
+    1.0
+   ],
+   [
+    12,
+    "a4f76fd25afb6b9952fa7709154af943f91a793f",
+    "fixture-magnet",
+    4,
+    0,
+    "",
+    [],
+    0.0
+   ]
+  ]
+ }
+}

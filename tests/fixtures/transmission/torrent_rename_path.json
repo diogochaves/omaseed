@@ -1,0 +1,9 @@
+{
+ "id": 26,
+ "jsonrpc": "2.0",
+ "result": {
+  "id": 9,
+  "name": "readme.txt",
+  "path": "Fixture Pack/notes.txt"
+ }
+}
