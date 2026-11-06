@@ -86,7 +86,8 @@ Item {
         // #77: the web seeds' list, for a screen reader; each row is a list item.
         Accessible.name: qsTr("HTTP sources")
         Accessible.role: Accessible.List
-        anchors.bottom: readOnlyLine.visible ? readOnlyLine.top : parent.bottom
+        anchors.bottom: parent.bottom
+        anchors.bottomMargin: readOnlyLine.visible ? readOnlyLine.height : 0
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.top: header.bottom
@@ -231,13 +232,14 @@ Item {
 
         Accessible.name: text
         Accessible.role: Accessible.StaticText
-        anchors.bottom: parent.bottom
+        // Right under the last row (board 47 §H), the list's foot once it fills the tab.
         anchors.left: parent.left
         anchors.leftMargin: Theme.space(8)
         anchors.right: parent.right
         anchors.rightMargin: Theme.space(8)
         dim: true
         objectName: "webSeedsReadOnly"
+        y: list.y + Math.min(list.contentHeight, list.height)
         size: "caption"
         text: root.readOnlyText
         topPadding: Theme.space(6)

@@ -3095,7 +3095,10 @@ Item {
                                 description: !App.globalState.connected
                                              ? qsTr("Connect to %1 to copy into it.").arg(qbtBackupPane.name)
                                              : root.otherQbtServerIds.length === 0
-                                               ? qsTr("Another server's settings, read and shown as an import into %1. Add one in Settings › Servers first.").arg(qbtBackupPane.name)
+                                               ? (root.otherServerIds.length > 0
+                                                  // C25 K33: only a qBittorrent's settings can be copied in.
+                                                  ? qsTr("Another qBittorrent server's settings, read and shown as an import into %1. Add one in Settings › Servers first.").arg(qbtBackupPane.name)
+                                                  : qsTr("Another server's settings, read and shown as an import into %1. Add one in Settings › Servers first.").arg(qbtBackupPane.name))
                                                : qsTr("Read from that server just now, then shown as an import into %1. Nothing changes on the other server.").arg(qbtBackupPane.name)
                                 glyph: Glyphs.copyFrom
                                 hasCursor: root.area === "pane" && root.paneCursor === 2

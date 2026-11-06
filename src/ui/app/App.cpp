@@ -687,8 +687,14 @@ void App::testPort(int port)
         if (id != m_portTestId)
             return;
         if (result.isError()) {
-            say(QStringLiteral("failed"),
-                tr("couldn't test port %1: %2").arg(port).arg(result.error().message()));
+            // Transmission's own words, without the method and its "Couldn't test port".
+            QString why = result.error().message();
+            for (const QString &lead :
+                 {QStringLiteral("port_test: "), QStringLiteral("Couldn't test port: ")}) {
+                if (why.startsWith(lead))
+                    why = why.mid(lead.size());
+            }
+            say(QStringLiteral("failed"), tr("couldn't test port %1: %2").arg(port).arg(why));
         } else if (result.value()) {
             say(QStringLiteral("open"), tr("port %1 is open: peers can reach it").arg(port));
         } else {

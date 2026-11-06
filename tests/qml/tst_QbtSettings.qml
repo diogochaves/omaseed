@@ -331,6 +331,7 @@ TestCase {
                 "home's own settings and torrents, read from and sent to home only. seedbox (Transmission) has no backup in omaseed yet: its settings and torrents stay on it.");
         compare(modal.otherQbtServerIds, []);
         verify(!testCase.childNamed(modal, "copySourceButton").visible);
+        verify(testCase.childNamed(modal, "qbtCopyRow").description.indexOf("Another qBittorrent server's settings") === 0);
 
         testCase.addServer("private", 8091);
         compare(testCase.childNamed(modal, "qbtScopeLine").text,

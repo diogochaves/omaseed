@@ -1663,6 +1663,8 @@ QtObject {
         const field = root.speed(key);
         field.unit = qsTr("kB/s");
         field.scale = 1000;
+        // Whole kB/s: omaseed's own burst set is kept in bytes (2 MiB/s reads 2097).
+        field.decimals = 0;
         return field;
     }
 

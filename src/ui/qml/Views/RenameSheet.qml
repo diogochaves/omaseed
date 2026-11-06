@@ -98,11 +98,12 @@ Sheet {
             Accessible.role: Accessible.StaticText
             Layout.fillWidth: true
             dim: true
-            elide: Text.ElideMiddle
             objectName: "renameOnDiskPaths"
             size: "caption"
             text: root.pathsText
             visible: text.length > 0
+            // Both paths whole: a long one broken anywhere rather than cut.
+            wrapMode: Text.WrapAnywhere
         }
     }
 }
