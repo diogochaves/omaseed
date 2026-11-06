@@ -1387,8 +1387,9 @@ QVariantMap MoveController::band() const
         glyph = QStringLiteral("✓");
         headline =
             back ? tr("%1 moved back").arg(name) : tr("%1 moved to %2").arg(name, job.newPath());
-        // Nothing moved, something failed: not a green "moved to" (assumed, C25: Deluge's
-        // silent failure ends a one-torrent job after L6's 3 s, so its band shows).
+        // Nothing moved, something failed: not a green "moved to", but board 45's failure
+        // headline (#242). A one-torrent move that fails once its band shows (L6) ends here;
+        // so does Deluge's silent failure, after L6's 3 s (assumed, C25).
         if (summary.moved == 0 && summary.failed > 0) {
             kind = QStringLiteral("red");
             glyph = QStringLiteral("✕");

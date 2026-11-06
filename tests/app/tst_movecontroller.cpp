@@ -822,6 +822,41 @@ private slots:
         QCOMPARE(notes.at(0).at(2).toBool(), true);
     }
 
+    // #242: a one-torrent move that fails once its band shows ends on its summary: nothing
+    // moved, so the band says it didn't, in red (board 45), never a green "moved to".
+    void aSlowFailureIsARedSummary()
+    {
+        m_move->setServer(QStringLiteral("home"));
+        m_move->job()->setShowDelay(std::chrono::milliseconds(0));
+        QVERIFY(m_move->startSelection(
+            {QStringLiteral("d4")}, QStringLiteral("/mnt/usb/films"), QStringLiteral("oneFolder")));
+        qbtfeed::partial(*m_engine->torrents(),
+                         {{QStringLiteral("d4"),
+                           QJsonObject{{QStringLiteral("state"), QStringLiteral("moving")}}}},
+                         {});
+        Q_EMIT m_engine->synced(false);
+        QTRY_VERIFY(m_move->shown());
+        m_move->job()->onFailed(QStringLiteral("d4"),
+                                QDateTime::currentDateTime(),
+                                QStringLiteral("Permission denied"),
+                                QStringLiteral("noAccess"),
+                                QStringLiteral("Failed to move torrent. …"));
+        QCOMPARE(m_move->stateName(), QStringLiteral("done"));
+        const QVariantMap band = m_move->band();
+        QCOMPARE(band.value(QStringLiteral("kind")).toString(), QStringLiteral("red"));
+        QCOMPARE(band.value(QStringLiteral("glyph")).toString(), QStringLiteral("✕"));
+        QCOMPARE(band.value(QStringLiteral("headline")).toString(),
+                 QStringLiteral("Big Film didn't move"));
+        const QString line = band.value(QStringLiteral("line")).toString();
+        QVERIFY2(line.startsWith(QStringLiteral("0 of 1")), qPrintable(line));
+        QVERIFY2(line.contains(QStringLiteral("1 failed")), qPrintable(line));
+        QStringList ids;
+        for (const QVariant &item : band.value(QStringLiteral("actions")).toList())
+            ids << item.toMap().value(QStringLiteral("id")).toString();
+        QVERIFY(ids.contains(QStringLiteral("retry")));
+        QVERIFY(!ids.contains(QStringLiteral("moveBack")));
+    }
+
     void aSlowSelectionShowsItsBandThenMovesBack()
     {
         m_move->setServer(QStringLiteral("home"));
