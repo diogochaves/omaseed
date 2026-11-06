@@ -2,6 +2,7 @@
 // and the other small App behaviours the 2026-09 review found broken.
 
 #include "QbtFeed.hpp"
+#include "core/MoveJob.hpp"
 #include "core/Server.hpp"
 #include "core/ServerListModel.hpp"
 #include "core/ServerStore.hpp"
@@ -11,6 +12,7 @@
 #include "integration/Tray.hpp"
 #include "integration/WidgetHeartbeat.hpp"
 #include "ui/app/App.hpp"
+#include "ui/app/MoveController.hpp"
 
 #include <QDateTime>
 #include <QDir>
@@ -88,6 +90,9 @@ private slots:
 
     // #201 F4, F5
     void aSwitchReadsConnectingNeverDown();
+
+    // #243
+    void aMoveIsSentAfterTheSheetIsSavedWhileLost();
 
     // Manual box M7
     void theDownloadsListMarksWhatTheLibraryHolds();
@@ -379,6 +384,10 @@ public:
     bool refuseLogin = false;
     int logins = 0;
     int requests = 0;
+    /// While down, every connection is dropped unanswered: the server is lost.
+    bool down = false;
+    /// Each torrents/setLocation's location, in order.
+    QStringList locations;
 
 protected:
     void incomingConnection(qintptr descriptor) override
@@ -388,6 +397,10 @@ protected:
         connect(socket, &QTcpSocket::disconnected, socket, &QObject::deleteLater);
         auto buffer = std::make_shared<QByteArray>();
         connect(socket, &QTcpSocket::readyRead, socket, [this, socket, buffer]() {
+            if (down) {
+                socket->abort();
+                return;
+            }
             buffer->append(socket->readAll());
             const qsizetype headerEnd = buffer->indexOf("\r\n\r\n");
             if (headerEnd < 0)
@@ -426,6 +439,7 @@ protected:
             else if (target.startsWith("/api/v2/sync/maindata"))
                 body = QStringLiteral(R"({"rid":1,"full_update":true,"torrents":{"%1":)"
                                       R"({"name":"t","seq_dl":false,"state":"downloading",)"
+                                      R"("save_path":"/srv/films","content_path":"/srv/films/t",)"
                                       R"("inactive_seeding_time_limit":45}}})")
                            .arg(hash)
                            .toUtf8();
@@ -433,6 +447,9 @@ protected:
                 ++toggles;
             else if (target.startsWith("/api/v2/torrents/setShareLimits"))
                 shareLimitsBody = requestBody;
+            else if (target.startsWith("/api/v2/torrents/setLocation"))
+                locations << QUrlQuery(QString::fromUtf8(requestBody))
+                                 .queryItemValue(QStringLiteral("location"), QUrl::FullyDecoded);
             socket->write("HTTP/1.1 " + status + "\r\n" + extraHeaders + "Content-Length: " +
                           QByteArray::number(body.size()) + "\r\nConnection: close\r\n\r\n" + body);
             socket->disconnectFromHost();
@@ -680,6 +697,47 @@ void TestAppGlue::aSwitchReadsConnectingNeverDown()
     QTRY_COMPARE_WITH_TIMEOUT(
         field(dead, ServerListModel::StateRole), QStringLiteral("down"), 15000);
     QVERIFY(!app.serverConnecting());
+    app.engine()->stop();
+}
+
+void TestAppGlue::aMoveIsSentAfterTheSheetIsSavedWhileLost()
+{
+    // #243: saving the live server's sheet restarts the engine (setDefaultServer). Done while
+    // the server is lost, the restart forgets the loss without a serverBack, so the move job
+    // kept "waiting for" the server and never sent a move, though the polls answered again.
+    ToggleServer server;
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+    QTemporaryDir home;
+    qputenv("XDG_CONFIG_HOME", home.path().toUtf8());
+    qunsetenv("OMASEED_SERVER_URL");
+
+    App app;
+    app.start();
+    QVariantMap fields{
+        {QStringLiteral("name"), QStringLiteral("home")},
+        {QStringLiteral("url"), QStringLiteral("http://127.0.0.1:%1").arg(server.serverPort())},
+        {QStringLiteral("authMode"), QStringLiteral("none")},
+    };
+    const QString id = app.addServer(fields, QString());
+    QVERIFY(!id.isEmpty());
+    QTRY_COMPARE_WITH_TIMEOUT(app.torrents()->count(), 1, 5000);
+    QTRY_VERIFY_WITH_TIMEOUT(app.move()->job()->isConnected(), 3000);
+
+    server.down = true;
+    QTRY_VERIFY_WITH_TIMEOUT(app.isServerLost(), 10000);
+    QVERIFY(!app.move()->job()->isConnected());
+
+    // The sheet saved while it is still lost; then the server answers again.
+    fields.insert(QStringLiteral("id"), id);
+    QVERIFY(app.updateServer(fields, QString()));
+    server.down = false;
+    const int before = server.requests;
+    QTRY_VERIFY_WITH_TIMEOUT(server.requests > before && app.globalState()->connected(), 10000);
+    QTRY_VERIFY_WITH_TIMEOUT(app.move()->job()->isConnected(), 3000);
+
+    const QString to = QStringLiteral("/srv/other/films");
+    QVERIFY(app.move()->startSelection({server.hash}, to, QString()));
+    QTRY_COMPARE_WITH_TIMEOUT(server.locations, QStringList{to}, 5000);
     app.engine()->stop();
 }
 
