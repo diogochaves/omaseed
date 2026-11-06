@@ -167,6 +167,7 @@ private slots:
     void aFullUpdateReadsFromTheTopAgain();
     void standingRenamesAskForTheFiles();
     void aStuckMoveIsARedProblemNotTheYellowBlock();
+    void anEngineWithoutTheLogHasNoStuckMove();
 
 private:
     void sync(bool full = false) { m_log->onSynced(full); }
@@ -249,6 +250,32 @@ void TestProblemLogFailures::aStuckMoveIsARedProblemNotTheYellowBlock()
                   .toMap();
     QVERIFY(problem.isEmpty());
     QVERIFY(failureOf(*m_model, hash).isEmpty());
+}
+
+// Board 47 §F (C25 K24): a Transmission's finished torrent reads from its incomplete folder
+// until it moves, and a move that fails there is an ordinary error: no stuck block.
+void TestProblemLogFailures::anEngineWithoutTheLogHasNoStuckMove()
+{
+    m_log->setEngine(QStringLiteral("Transmission"), false);
+    const QString hash = QStringLiteral("5e1d0c0000000000000000000000000000000000");
+    const QString incomplete = QStringLiteral("/mnt/fast/incomplete");
+    qbtfeed::partial(
+        *m_model,
+        QJsonObject{
+            {hash,
+             QJsonObject{
+                 {QStringLiteral("name"), QStringLiteral("stuck.bin")},
+                 {QStringLiteral("state"), QStringLiteral("stalledUP")},
+                 {QStringLiteral("progress"), 1.0},
+                 {QStringLiteral("save_path"), QStringLiteral("/mnt/media/Downloads")},
+                 {QStringLiteral("download_path"), incomplete},
+                 {QStringLiteral("content_path"), incomplete + QStringLiteral("/stuck.bin")},
+                 {QStringLiteral("added_on"), kAddedAt}}}},
+        {});
+    sync();
+    QVERIFY(m_model->data(m_model->index(m_model->indexOfHash(hash)), TorrentModel::ProblemRole)
+                .toMap()
+                .isEmpty());
 }
 
 void TestProblemLogFailures::cleanup()

@@ -202,9 +202,12 @@ void ProblemLog::updateErrored(bool fullUpdate)
         if (known && isCheckingState(phase))
             m_checkedAt.insert(hash, QDateTime::currentDateTimeUtc());
         // docs/44 D13: an error says more than a stuck move, so an errored torrent is never
-        // stuck here.
+        // stuck here. Board 47 §F (C25 K24): seeding on from the incomplete folder is
+        // libtorrent's way under qBittorrent; Transmission's failed move at done is an
+        // ordinary error, and its content reads from the incomplete folder until it moves
+        // (C28's recheck advice is qBittorrent's), so an engine without the log has none.
         const bool stuck =
-            known && !errored && ProblemMatch::isStuckMove(m_torrents->torrent(hash));
+            m_hasLog && known && !errored && ProblemMatch::isStuckMove(m_torrents->torrent(hash));
         if (stuck && !m_stuck.contains(hash)) {
             m_stuck.insert(hash);
             stuckChanged = true;
@@ -403,8 +406,7 @@ void ProblemLog::publishFromEngine()
         if (m_torrents->indexOfHash(hash) < 0)
             continue;
         const QDateTime since = m_erroredSince.value(hash);
-        publish(hash,
-                ProblemMatch::fromEngine(m_torrents->torrent(hash), m_engineName, since));
+        publish(hash, ProblemMatch::fromEngine(m_torrents->torrent(hash), m_engineName, since));
     }
     // N1: the notice goes with the engine's own words, at once (nothing to wait for).
     const QSet<QString> pending = std::exchange(m_newlyErrored, {});
