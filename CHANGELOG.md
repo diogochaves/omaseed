@@ -5,7 +5,7 @@ All notable changes to omaseed are logged here, newest first. Loosely follows
 versioning stability (pre-1.0). `scripts/release.sh` requires a `## v<version>` section here
 before it will tag a release.
 
-## Unreleased
+## v0.8.0 — 2026-11-06
 
 ### Added
 
