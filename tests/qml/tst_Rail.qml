@@ -116,14 +116,18 @@ TestCase {
     }
 
     // Board 47 §B (C25 K13): the tags section, in the tags place, headed with the engine's
-    // word; its row for torrents with none too.
+    // word and its kana (qBittorrent's タグ, Transmission's ラベル); its row for torrents with
+    // none too.
     function test_the_tags_section_takes_the_engines_word() {
         const rail = createTemporaryObject(railComponent, testCase);
+        compare(findChild(rail, "tags").labelId, "tags");
         rail.tagsWord = "labels";
+        rail.tagsLabelId = "labels";
         rail.untaggedWord = "no label";
         const group = findChild(rail, "labels");
         verify(group, "no section headed labels");
         compare(group.label, "labels");
+        compare(group.labelId, "labels");
         verify(findChild(rail, "tags") === null);
         rail.categoriesOffered = false;
         rail.compact = true;

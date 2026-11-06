@@ -118,8 +118,9 @@ Item {
     property string tagsWord: qsTr("tags")
     property string untaggedWord: qsTr("untagged")
     /// The section's id for the skin's `labels` (its kana): "labels" where they are the
-    /// engine's labels (board 47 §B draws ラベル); "" keeps qBittorrent's tags as they were.
-    property string tagsLabelId: ""
+    /// engine's labels (board 47 §B draws ラベル), "tags" for qBittorrent's (タグ; C25,
+    /// Diogo 2026-11-06: follow the board).
+    property string tagsLabelId: "tags"
     /// #167 assumed 4: folded to its glyphs (ctrl+b).
     property bool compact: false
     /// DECISIONS C32 D3 a: the width open, as the edge was last dragged (the host keeps it).

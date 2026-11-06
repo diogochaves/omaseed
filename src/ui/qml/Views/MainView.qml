@@ -2218,7 +2218,7 @@ Item {
         tagsOffered: App.features.tags !== false
         tagsWord: root.tagsWord
         untaggedWord: root.untaggedWord
-        tagsLabelId: App.features.tagsAreLabels === true ? "labels" : ""
+        tagsLabelId: App.features.tagsAreLabels === true ? "labels" : "tags"
         serversFolded: App.serversFolded
         serverRetrying: root.serverRetrying
 
@@ -2312,10 +2312,12 @@ Item {
             return "search";
         if (App.filtered.folder.length > 0)
             return "folders";
+        // Board 47 §B: a group's scope is headed by its section's kana (カテゴリ, タグ, or
+        // ラベル where the engine's groups are labels).
         if (App.filtered.category !== undefined)
-            return "categories";
+            return rail.categoriesLabelId;
         if (App.filtered.tag !== undefined)
-            return "";
+            return rail.tagsLabelId;
         if (App.filtered.tracker !== undefined)
             return "trackers";
         const row = rail.questionRow(App.filtered.question);

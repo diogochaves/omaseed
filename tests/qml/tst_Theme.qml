@@ -217,6 +217,9 @@ TestCase {
         compare(Theme.labelTrackTitle, 0.22);
         compare(Theme.labelWeight, 600);
         compare(Theme.kana("library"), "ライブラリ");
+        // Board 47 §B: qBittorrent's tags and the engines' labels each have theirs.
+        compare(Theme.kana("tags"), "タグ");
+        compare(Theme.kana("labels"), "ラベル");
         compare(Theme.kana("no-such-label"), "");
         compare(Theme.kana(""), "");
         compare(Theme.kanaRole, "cyan");
