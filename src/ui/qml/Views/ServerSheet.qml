@@ -447,6 +447,17 @@ Sheet {
     readonly property string _testCountText: root.testCount === 1 ? qsTr("1 torrent") : qsTr(
                                                                        "%1 torrents").arg(root.testCount)
 
+    /// A pass in words: "reached URL · Deluge 2.2.0 · 3 torrents", with "API 2.15.1" when the
+    /// engine has one apart from its version (Deluge doesn't).
+    readonly property string _passText: {
+        const parts = [qsTr("reached %1").arg(root.editUrl),
+                       qsTr("%1 %2").arg(root.engineName || qsTr("qBittorrent")).arg(root.testVersion.replace(/^v/, ""))];
+        if (root.testApiVersion.length > 0)
+            parts.push(qsTr("API %1").arg(root.testApiVersion));
+        parts.push(root._testCountText);
+        return parts.join(" · ");
+    }
+
     readonly property string _authValueText: {
         if (root.editAuthMode === "apiKey")
             return qsTr("API key · stored in %1").arg(qsTr("libsecret"));
@@ -970,15 +981,8 @@ Sheet {
             dim: true
             objectName: "testResultText"
             size: "small"
-            text: root.testing ? qsTr("testing…") : root.tested ? (root.testOk ? qsTr(
-                                                                                    "reached %1 · %2 %3 · API %4 · %5").arg(
-                                                                                    root.editUrl).arg(root.engineName || qsTr("qBittorrent")).arg(root.testVersion.replace(
-                                                                                                          /^v/, "")).arg(
-                                                                                    root.testApiVersion).arg(
-                                                                                    root._testCountText) : root._credentialRefused
-                                                                                   ? root.testError : qsTr(
-                                                                                    "not reachable · %1").arg(
-                                                                                    root.testError)) : ""
+            text: root.testing ? qsTr("testing…") : root.tested ? (root.testOk ? root._passText : root._credentialRefused
+                                                                                   ? root.testError : qsTr("not reachable · %1").arg(root.testError)) : ""
             color: root._credentialRefused ? Theme.red : Theme.dimForeground
             visible: (root.testing || (root.tested && !root._testFailed)) && !root.daemonStep
             wrapMode: Text.WordWrap

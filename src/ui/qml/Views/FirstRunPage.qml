@@ -469,10 +469,11 @@ Connections {
             root.certificateSha256 = "";
             root.certificatePinned = "";
         }
-        root.testResultText = ok ? qsTr("%1 %2 · API %3 · %4").arg(root.engineName).arg(version.replace(
-                                                                                /^v/, "")).arg(apiVersion).arg(
-                                       torrentCount === 1 ? qsTr("1 torrent") : qsTr("%1 torrents").arg(
-                                                                torrentCount)) : error;
+        // Deluge has no API version apart from its own: the part goes.
+        const count = torrentCount === 1 ? qsTr("1 torrent") : qsTr("%1 torrents").arg(torrentCount);
+        root.testResultText = !ok ? error : apiVersion.length > 0
+                                    ? qsTr("%1 %2 · API %3 · %4").arg(root.engineName).arg(version.replace(/^v/, "")).arg(apiVersion).arg(count)
+                                    : qsTr("%1 %2 · %3").arg(root.engineName).arg(version.replace(/^v/, "")).arg(count);
     }
 
     target: App
