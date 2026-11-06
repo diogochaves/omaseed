@@ -67,6 +67,11 @@ private Q_SLOTS:
         QCOMPARE(w.value(QStringLiteral("line")).toString(),
                  QStringLiteral("qBittorrent can't write to /tmp/locked/dest"));
         QCOMPARE(w.value(QStringLiteral("failedRow")).toString(), QStringLiteral("didn't move"));
+        QCOMPARE(w.value(QStringLiteral("startHere")).toBool(), false);
+        // C25 K24: the engine stopped it (Transmission): the strip offers "start it here".
+        o.startHere = true;
+        QCOMPARE(o.words().value(QStringLiteral("startHere")).toBool(), true);
+        QCOMPARE(ActionOutcome::fromMap({{QStringLiteral("startHere"), true}}).startHere, true);
     }
 
     // O3: counts, never a list; the line names the first that failed.

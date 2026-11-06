@@ -72,6 +72,13 @@ TestCase {
         target: strip
     }
 
+    SignalSpy {
+        id: startHereSpy
+
+        signalName: "startHereRequested"
+        target: strip
+    }
+
     readonly property var done: ({
                                      "kind": "done",
                                      "mark": "✓",
@@ -177,6 +184,25 @@ TestCase {
         compare(moveSpy.signalArguments[0][1], "/srv/locked");
         wait(1300);
         compare(expiredSpy.count, 0, "a failure has no timer");
+    }
+
+    // DECISIONS C25 K24 (board 47's strip): Transmission stopped the one that didn't move, so
+    // "start it here" takes "details"' place, then move….
+    function test_a_stopped_failure_offers_start_it_here() {
+        startHereSpy.clear();
+        strip.outcome = Object.assign({}, testCase.failed, {
+                                          "line": "Transmission can't write to /srv/locked · it stopped the torrent",
+                                          "startHere": true
+                                      });
+        verify(findChild(strip, "outcomeStartHere").visible);
+        verify(!findChild(strip, "outcomeDetails").visible);
+        verify(findChild(strip, "outcomeMove").visible);
+        laidOut();
+        mouseClick(findChild(strip, "outcomeStartHere"));
+        compare(startHereSpy.count, 1);
+        compare(startHereSpy.signalArguments[0][0], ["b"]);
+        strip.outcome = testCase.failed;
+        verify(!findChild(strip, "outcomeStartHere").visible);
     }
 
     // #146 (board 49 §7): a creation cancelled is a dim strip with its own action, no timer.

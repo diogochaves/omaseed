@@ -51,7 +51,12 @@ Item {
     /// and something it would bring back (C30 F8).
     readonly property bool canShow: root.kind !== "failed" && (root.outcome.doneRow ?? "").length > 0
                                     && (root.outcome.doneHashes ?? []).length > 0 && root.showReason.length > 0
+    /// C25 K24 (board 47's strip): the engine stopped the ones that failed; "start it here"
+    /// starts them where their files still are, and takes "details"' place.
+    readonly property bool canStartHere: root.kind !== "done" && root.outcome.startHere === true
+                                         && (root.outcome.failedHashes ?? []).length > 0
     readonly property bool canDetail: root.kind !== "done" && (root.outcome.details ?? "").length > 0
+                                      && !root.canStartHere
     /// A failed move offers to try again, as the error block's "set location" does (docs/32 D1).
     readonly property bool canMove: root.kind === "failed" && (root.outcome.action === "move")
                                     && (root.outcome.failedHashes ?? []).length > 0
@@ -60,6 +65,8 @@ Item {
     signal showRequested(var hashes)
     /// "details": the failure's band, above the strip.
     signal detailsRequested
+    /// "start it here": the failed ones started where they are (C25 K24).
+    signal startHereRequested(var hashes)
     /// "move…": the move sheet again, on the ones that didn't move.
     signal moveRequested(var hashes, string target)
     /// #146: the outcome's own action (`outcome.more`: {id, text}, "create again…").
@@ -187,6 +194,14 @@ Item {
             objectName: "outcomeActions"
             anchors.verticalCenter: parent.verticalCenter
             spacing: root._spacing
+
+            StripLink {
+                objectName: "outcomeStartHere"
+                text: qsTr("start it here")
+                visible: root.canStartHere
+
+                onActivated: root.startHereRequested(root.outcome.failedHashes)
+            }
 
             StripLink {
                 objectName: "outcomeDetails"

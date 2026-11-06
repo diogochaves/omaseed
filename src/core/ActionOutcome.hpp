@@ -52,6 +52,9 @@ struct ActionOutcome
     QString cause;
     /// The technical text, for the strip's "details".
     QString details;
+    /// DECISIONS C25 K24 (board 47's outcome strip): the engine stopped the ones that failed
+    /// (a move on Transmission), so the strip offers "start it here" in place of "details".
+    bool startHere = false;
 
     enum class Kind { Done, Failed, Mixed };
     Kind kind() const;

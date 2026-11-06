@@ -1601,6 +1601,15 @@ QVariantMap MoveController::quietOutcome(const MoveJob::Summary &summary,
         if (const MoveJob::Entry *first = m_job->entry(summary.failedHashes.constFirst()))
             failedName = first->name;
     }
+    // C25 K24 (board 47's strip): an engine that stops a torrent whose move failed
+    // (Transmission) says so, and the strip offers to start it where its files still are.
+    const bool stops = m_features.moveStopsOnFailure && !summary.failedHashes.isEmpty();
+    const QString why = stops && !cause.isEmpty()
+                            ? cause + QStringLiteral(" · ") +
+                                  (summary.failedHashes.size() == 1
+                                       ? tr("it stopped the torrent")
+                                       : tr("it stopped the torrents"))
+                            : cause;
     return {{QStringLiteral("action"),
              m_job->kind() == QLatin1String("back") ? QStringLiteral("moveBack")
                                                     : QStringLiteral("move")},
@@ -1609,8 +1618,9 @@ QVariantMap MoveController::quietOutcome(const MoveJob::Summary &summary,
             {QStringLiteral("name"), hashes.size() == 1 ? name : QString()},
             {QStringLiteral("failedName"), failedName},
             {QStringLiteral("target"), m_job->newPath()},
-            {QStringLiteral("cause"), cause},
-            {QStringLiteral("details"), details}};
+            {QStringLiteral("cause"), why},
+            {QStringLiteral("details"), details},
+            {QStringLiteral("startHere"), stops}};
 }
 
 void MoveController::onFinished()

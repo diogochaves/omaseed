@@ -344,7 +344,9 @@ void TestAppTransmission::aFailedMoveIsLearntFromTheTorrent()
     const QVariantMap outcome = outcomes.at(0).at(0).toMap();
     QCOMPARE(outcome.value(QStringLiteral("failedHashes")).toStringList(), QStringList({kPack}));
     QCOMPARE(outcome.value(QStringLiteral("cause")).toString(),
-             QStringLiteral("Transmission can't write to %1").arg(to));
+             QStringLiteral("Transmission can't write to %1 · it stopped the torrent").arg(to));
+    // C25 K24 (board 47's strip): "start it here" in place of details.
+    QVERIFY(outcome.value(QStringLiteral("startHere")).toBool());
     QVERIFY(outcome.value(QStringLiteral("details")).toString().startsWith(QStringLiteral("Couldn't move")));
     QVERIFY(!notes.isEmpty());
     QVERIFY(notes.constLast().at(2).toBool());

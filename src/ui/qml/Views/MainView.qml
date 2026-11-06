@@ -2791,6 +2791,7 @@ Item {
 
                 onCloseRequested: App.outcomes.dismiss()
                 onDetailsRequested: root.openOutcomeDetails()
+                onStartHereRequested: hashes => App.retryTorrents(hashes)
                 onMoreRequested: id => App.createAction(id)
                 onExpired: serial => App.outcomes.expire(serial)
                 onMoveRequested: (hashes, target) => moveSheet.openSelection(hashes, target)
