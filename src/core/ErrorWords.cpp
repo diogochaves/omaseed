@@ -225,6 +225,8 @@ QString ErrorWords::shortReason(const ApiError &error)
     default:
         break;
     }
+    if (isNoDaemon(error))
+        return tr("no daemon");
     return tr("error");
 }
 
@@ -315,6 +317,13 @@ QString ErrorWords::guard(const QString &server, const QString &key, bool refuse
     return tr("%1 is unreachable: %2 waits until it answers").arg(name, key);
 }
 
+bool ErrorWords::isNoDaemon(const ApiError &error)
+{
+    // DelugeEngine's words, at the probe (web.connected) and at a poll (web.update_ui).
+    return error.kind() == ApiError::Kind::Conflict &&
+           error.message().contains(QLatin1String("isn't connected to a Deluge daemon"));
+}
+
 ErrorWords::Text ErrorWords::forServer(const ApiError &error, const Subject &subject)
 {
     Text text;
@@ -322,6 +331,17 @@ ErrorWords::Text ErrorWords::forServer(const ApiError &error, const Subject &sub
     const QString name = serverName(subject);
     const QString retry = retryLine(subject.retrySeconds);
     const QString engine = engineOr(subject.engine);
+
+    if (isNoDaemon(error)) {
+        // C25 K10: deluge-web is there, the daemon isn't; omaseed connects the server's own
+        // daemon again when deluge-web has none, so it is retried as a server that is down.
+        text.kind = QStringLiteral("unreachable");
+        text.headline = tr("%1's deluge-web has no daemon").arg(name);
+        text.line = joined(tr("deluge-web answers, but no Deluge daemon is connected to it. Is "
+                              "deluged running?"),
+                           retry);
+        return text;
+    }
 
     switch (error.kind()) {
     case ApiError::Kind::None:

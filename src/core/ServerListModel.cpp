@@ -120,6 +120,8 @@ QVariant ServerListModel::data(const QModelIndex &index, int role) const
         const QString name = engineNameOf(server);
         return version.isEmpty() ? name : QStringLiteral("%1 %2").arg(name, version);
     }
+    case DaemonRole:
+        return server.daemon;
     case IsCurrentRole:
         return !server.id.isEmpty() && server.id == m_currentId;
     case StateRole: {
@@ -209,6 +211,7 @@ QHash<int, QByteArray> ServerListModel::roleNames() const
         {EngineNameRole, "engineName"},
         {EngineVersionRole, "engineVersion"},
         {EngineTextRole, "engineText"},
+        {DaemonRole, "daemon"},
     };
 }
 
@@ -443,6 +446,9 @@ bool ServerListModel::update(const QVariantMap &fields, const QString &secretIn)
     if (!fields.contains(QStringLiteral("engineVersion")))
         server.engineVersion =
             server.engine == existing->engine ? existing->engineVersion : QString();
+    // The daemon the step picked stays until another is picked, while the engine stays.
+    if (!fields.contains(QStringLiteral("daemon")))
+        server.daemon = server.engine == existing->engine ? existing->daemon : QString();
     // A newer build's keys (C28) are not the sheet's to drop. An engine this build doesn't
     // know stays as servers.json spelt it, until a test names one it does (#179).
     const QJsonValue spelled = server.extra.value(QStringLiteral("engine"));
@@ -605,6 +611,8 @@ Server ServerListModel::serverFromMap(const QVariantMap &fields, QString *urlPas
     if (server.engine == EngineKind::Unknown)
         server.extra.insert(QStringLiteral("engine"), engine);
     server.engineVersion = stringField(fields, "engineVersion");
+    // C25 K10: Deluge's daemon, as the daemon step picked it.
+    server.daemon = stringField(fields, "daemon");
     return server;
 }
 

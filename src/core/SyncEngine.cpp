@@ -1,6 +1,7 @@
 #include "core/SyncEngine.hpp"
 
 #include "core/CategoryModel.hpp"
+#include "core/ErrorWords.hpp"
 #include "core/FilterCounts.hpp"
 #include "core/GlobalState.hpp"
 #include "core/LocalDay.hpp"
@@ -223,7 +224,8 @@ void SyncEngine::poll()
                 if (!m_running)
                     return;
                 if (result.isError()) {
-                    if (result.error().kind() == ApiError::Kind::Conflict) {
+                    if (result.error().kind() == ApiError::Kind::Conflict &&
+                        !ErrorWords::isNoDaemon(result.error())) {
                         // C25 K8: the engine is there and too old; asking again won't help.
                         m_globalState->setLastError(result.error());
                         m_globalState->setConnected(false);
@@ -305,6 +307,13 @@ void SyncEngine::onPollError(const ApiError &error)
     if (error.kind() != ApiError::Kind::Cancelled)
         updateSilence(error.kind() == ApiError::Kind::Timeout);
     m_globalState->setLastError(error);
+
+    // C25 K10: deluge-web without a daemon has nothing to show; it is down until one is
+    // connected (the engine connects the server's own when deluge-web has none).
+    if (ErrorWords::isNoDaemon(error)) {
+        enterLostState(error);
+        return;
+    }
 
     switch (error.kind()) {
     case ApiError::Kind::Cancelled:

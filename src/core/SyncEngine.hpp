@@ -21,10 +21,12 @@
 //                     *partial* update — never from the full one, which would fire for the
 //                     whole library at startup.
 //   diskAlmostFull    server_state.free_space_on_disk crossed the threshold downwards.
-//   serverLost        the first network or timeout failure, once, not once per poll.
+//   serverLost        the first network or timeout failure, once, not once per poll; also
+//                     deluge-web with no daemon (C25 K10, ErrorWords::isNoDaemon).
 //   serverBack        the first success after that.
 //   authRequired      401/403: polling stops until start() is called again.
-//   versionRefused    the probe's Conflict (C25 K8, an engine too old): the same.
+//   versionRefused    the probe's Conflict (C25 K8, an engine too old; not K10's no daemon):
+//                     the same.
 //   busyTick          a poll held back because the engine is busy moving (below).
 //
 // Busy moving (C25 K22, board 47 §E): an engine that answers nothing until a move's copy ends

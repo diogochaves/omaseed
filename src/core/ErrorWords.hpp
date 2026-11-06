@@ -116,7 +116,7 @@ public:
     static QString waitingLine(int seconds);
     /// The short reason a server row prints for its last failed try: "unreachable", "not
     /// found", "not answering" (docs/44 D11), "sign-in refused", "certificate refused", "refused
-    /// omaseed", "internal error", "unreadable answer", "error".
+    /// omaseed", "internal error", "unreadable answer", "no daemon" (C25 K10), "error".
     static QString shortReason(const ApiError &error);
     /// "network error · GET sync/maindata · Connection refused · 127.0.0.1:8091": the kind
     /// (and status), the request, the API's or Qt's own text, the address.
@@ -151,6 +151,10 @@ public:
     static QString guardVersion(const Server &server, const QString &key);
     /// True when the error is a refused sign-in (401, or 403 to a key or to no credential).
     static bool isRefusedSignIn(const ApiError &error, AuthMode mode);
+    /// C25 K10: deluge-web answered, signed in, and has no Deluge daemon behind it
+    /// (DelugeEngine's Conflict, at the probe or a poll). Read as a server that is down: "NAME's
+    /// deluge-web has no daemon", retried (C12), with kind "unreachable".
+    static bool isNoDaemon(const ApiError &error);
 
     // ---- a move made by a job (C15, board 42 §8) ---------------------------------------
 

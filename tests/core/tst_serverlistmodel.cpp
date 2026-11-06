@@ -633,6 +633,18 @@ void TestServerListModel::theEngineIsKeptWithTheServer()
     QCOMPARE(store.byId(id)->engine, EngineKind::Deluge);
     QVERIFY(store.byId(id)->engineVersion.isEmpty());
     QCOMPARE(store.byId(id)->authMode, AuthMode::Password);
+
+    // C25 K10: Deluge's daemon is saved from the sheet, kept by an edit that leaves it out,
+    // and in the row's map for the sheet to load.
+    edit = model.serverMap(id);
+    edit.insert(QStringLiteral("daemon"), QStringLiteral("c0ffee"));
+    QVERIFY(model.update(edit));
+    QCOMPARE(store.byId(id)->daemon, QStringLiteral("c0ffee"));
+    QCOMPARE(model.serverMap(id).value(QStringLiteral("daemon")).toString(),
+             QStringLiteral("c0ffee"));
+    edit.remove(QStringLiteral("daemon"));
+    QVERIFY(model.update(edit));
+    QCOMPARE(store.byId(id)->daemon, QStringLiteral("c0ffee"));
 }
 
 void TestServerListModel::anEngineThisBuildDoesNotKnowIsWrittenBackAsSpelt()

@@ -315,7 +315,9 @@ void TestServer::engineRoundTrips()
     server.engine = EngineKind::Deluge;
     server.engineVersion = QStringLiteral("2.2.0");
     server.authMode = AuthMode::Password;
+    server.daemon = QStringLiteral("c0ffee"); // C25 K10: deluge-web's host id
     const QJsonObject json = server.toJson();
+    QCOMPARE(json.value(QStringLiteral("daemon")).toString(), QStringLiteral("c0ffee"));
     QCOMPARE(json.value(QStringLiteral("engine")).toString(), QStringLiteral("deluge"));
     QCOMPARE(json.value(QStringLiteral("engineVersion")).toString(), QStringLiteral("2.2.0"));
     QCOMPARE(json.value(QStringLiteral("authMode")).toString(), QStringLiteral("password"));

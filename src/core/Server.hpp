@@ -83,6 +83,10 @@ public:
     /// doesn't know (a newer build's) reads as Unknown, its spelling kept in `extra`.
     EngineKind engine = EngineKind::Qbittorrent;
     QString engineVersion;
+    /// Deluge's daemon, as deluge-web names it in its host list (web.get_hosts' id): the one
+    /// the daemon step picked, connected again when deluge-web has none (C25 K10). Empty for
+    /// any other engine, and for a Deluge none was picked for.
+    QString daemon;
     /// The keys of this server's servers.json entry that this build doesn't read, as they
     /// were: a newer build's, kept so a save here never drops them. An `engine` or an
     /// `authMode` this build can't read is kept here too, and written back while the field is

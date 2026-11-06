@@ -94,6 +94,7 @@ public:
         EngineNameRole,    ///< "qBittorrent": what the engine calls itself; "rtorrent" unknown
         EngineVersionRole, ///< the last contact's version, "5.2.3"; empty before one
         EngineTextRole,    ///< C25 K12: "qBittorrent 5.2.3", the name alone before a contact
+        DaemonRole,        ///< C25 K10: Deluge's daemon (deluge-web's host id); empty otherwise
     };
     Q_ENUM(Role)
 

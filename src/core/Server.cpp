@@ -116,6 +116,7 @@ bool isKnownKey(const QString &key)
         QStringLiteral("certificateSha256"),
         QStringLiteral("engine"),
         QStringLiteral("engineVersion"),
+        QStringLiteral("daemon"),
     };
     return keys.contains(key);
 }
@@ -171,6 +172,8 @@ QJsonObject Server::toJson() const
             engineKindToString(engine == EngineKind::Unknown ? EngineKind::Qbittorrent : engine);
     if (!engineVersion.isEmpty())
         object[QStringLiteral("engineVersion")] = engineVersion;
+    if (!daemon.isEmpty())
+        object[QStringLiteral("daemon")] = daemon;
 
     // A newer build's keys, as they were read (C28). An authMode this build couldn't read
     // goes back as it was, unless a mode was picked here since.
@@ -221,6 +224,7 @@ Server Server::fromJson(const QJsonObject &object, bool *ok)
     if (server.engine == EngineKind::Unknown && !engine.isUndefined())
         server.extra.insert(QStringLiteral("engine"), engine);
     server.engineVersion = object.value(QStringLiteral("engineVersion")).toString();
+    server.daemon = object.value(QStringLiteral("daemon")).toString();
 
     for (auto it = object.constBegin(); it != object.constEnd(); ++it) {
         if (!isKnownKey(it.key()))
