@@ -76,6 +76,7 @@ private Q_SLOTS:
     // the poll
     void theFirstPollIsFullWithTrackersRootsAndLabels();
     void laterPollsAreDiffsOfTheWholeList();
+    void aNewTorrentsTrackersAreAskedAtOnce();
     void aTorrentGoneIsRemovedWithWhatWasKept();
     void labelsComeAndGoWithThePlugin();
     void aPollWithoutADaemonSaysSo();
@@ -504,6 +505,34 @@ void TestDelugeEngine::laterPollsAreDiffsOfTheWholeList()
         askedTrackers |=
             stringsOf(call.params.at(0).toArray()).contains(QStringLiteral("trackers"));
     QVERIFY(askedTrackers);
+}
+
+// Deluge's `tracker` is empty until a torrent announces: a torrent new to the engine, seen
+// without its trackers, has them asked on the next poll, so a paused one isn't trackerless.
+void TestDelugeEngine::aNewTorrentsTrackersAreAskedAtOnce()
+{
+    signIn();
+    int cursor = *poll(0).cursor;
+    const QString fresh = QStringLiteral("ab").repeated(20);
+    QJsonObject copy = m_daemon->torrents.value(kMagnet).toObject();
+    copy.insert(QStringLiteral("tracker"), QString());
+    m_daemon->torrents.insert(fresh, copy);
+    m_web->calls.clear();
+    SyncDelta delta = poll(cursor);
+    const auto patchOf = [](const SyncDelta &d, const QString &hash) {
+        for (const TorrentPatch &patch : d.torrents) {
+            if (patch.hash == hash)
+                return patch;
+        }
+        return TorrentPatch();
+    };
+    QCOMPARE(patchOf(delta, fresh).hash, fresh);
+    QVERIFY(!patchOf(delta, fresh).has(TorrentField::TrackersCount));
+    delta = poll(*delta.cursor);
+    QVERIFY(stringsOf(m_web->callsOf(QStringLiteral("web.update_ui")).constLast().params.at(0).toArray())
+                .contains(QStringLiteral("trackers")));
+    QVERIFY(patchOf(delta, fresh).has(TorrentField::TrackersCount));
+    QVERIFY(patchOf(delta, fresh).values.trackersCount > 0);
 }
 
 void TestDelugeEngine::aTorrentGoneIsRemovedWithWhatWasKept()

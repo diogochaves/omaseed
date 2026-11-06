@@ -496,6 +496,17 @@ QList<SnapshotDiffer::Entry> DelugeEngine::entries(const QList<QJsonObject> &row
                 entry.patch.values.lastActivity = before;
         }
         entry.trackers = m_trackers.contains(hash) ? m_trackers.value(hash) : DT::trackerUrls(row);
+        // Deluge's `tracker` stays empty until a torrent announces, so a new one paused at add
+        // read as trackerless: its list (asked with its files, or on the next poll) says.
+        if (!row.contains(QStringLiteral("trackers"))) {
+            if (!m_trackers.contains(hash)) {
+                m_trackersDirty = true;
+            } else {
+                const int count = int(m_trackers.value(hash).size());
+                if (!m_differ.knows(hash) || m_differ.torrent(hash).trackersCount != count)
+                    entry.patch.set(&Torrent::trackersCount, TorrentField::TrackersCount, count);
+            }
+        }
         list.append(entry);
     }
     return list;
