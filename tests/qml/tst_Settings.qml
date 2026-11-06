@@ -765,6 +765,89 @@ TestCase {
         sheet.close();
     }
 
+    // C25 K10: a Deluge whose deluge-web has no daemon asks which one this server is: the
+    // daemons with their states, the line that connecting switches everyone, and `use this
+    // daemon` in place of `save`, which tests again with it; the pick is saved with the server.
+    function test_a_deluge_without_a_daemon_asks_which_one() {
+        const modal = createTemporaryObject(modalComponent, testCase);
+        modal.open();
+        modal.showPane(1);
+        const sheet = modal.serverSheet;
+        sheet.openNew();
+        sheet.editName = "nas";
+        sheet.editUrl = "http://127.0.0.1:8112";
+        findChild(sheet, "engineChip-deluge").clicked();
+        compare(sheet.authModes, ["password"]);
+
+        sheet.testing = true;
+        sheet._pendingKey = sheet._connectionKey;
+        App.serverTested("", false, "", "", -1, 3, "deluge-web has no daemon", "", {
+                             "engine": "deluge",
+                             "engineName": "Deluge",
+                             "daemonStep": true,
+                             "daemon": "",
+                             "hosts": [{
+                                     "id": "a",
+                                     "address": "192.0.2.30:58846",
+                                     "status": "Offline",
+                                     "version": "",
+                                     "connected": false,
+                                     "online": false
+                                 }, {
+                                     "id": "b",
+                                     "address": "127.0.0.1:58846",
+                                     "status": "Online",
+                                     "version": "2.2.0",
+                                     "connected": false,
+                                     "online": true
+                                 }]
+                         });
+        verify(sheet.daemonStep);
+        compare(sheet.saveState, "daemon");
+        compare(sheet.actions.map(action => action.text), ["cancel", "test", "use this daemon"]);
+        // The step is a question, not a failure: no notice over it.
+        compare(sheet.testProblem.headline ?? "", "");
+        const list = findChild(sheet, "daemonList");
+        verify(list.visible);
+        compare(list.rows.length, 2);
+        compare(list.rows[0].section, "deluge-web has no daemon · which one is nas?");
+        compare(list.rows[1].text, "127.0.0.1:58846 · Deluge 2.2.0");
+        compare(list.rows[0].detail, "not running");
+        compare(list.rows[1].detail, "running");
+        // The cursor starts on the first one running.
+        compare(sheet.daemonCursor, 1);
+        compare(list.current, 1);
+        verify(findChild(sheet, "daemonSwitchLine").visible);
+        verify(findChild(sheet, "daemonSwitchLine").text.indexOf("for everyone who uses it") > 0);
+        verify(!findChild(sheet, "testResultText").visible);
+        // ↑↓ choose.
+        sheet.keyHandler({
+                             "key": Qt.Key_Up,
+                             "modifiers": Qt.NoModifier,
+                             "accepted": false
+                         });
+        compare(sheet.daemonCursor, 0);
+        compare(list.current, 0);
+        sheet.keyHandler({
+                             "key": Qt.Key_Down,
+                             "modifiers": Qt.NoModifier,
+                             "accepted": false
+                         });
+        compare(sheet.pickedDaemon.id, "b");
+
+        // `use this daemon`: tested again with it (demo mode's test passes), then saved.
+        sheet.actionTriggered("use this daemon");
+        compare(sheet.editDaemon, "b");
+        verify(sheet.testing);
+        tryCompare(sheet, "testing", false);
+        verify(!sheet.daemonStep);
+        compare(sheet.saveState, "save");
+        compare(sheet.fieldMap().daemon, "b");
+        sheet.triggerPrimary();
+        compare(App.serverList.count, 1);
+        compare(App.serverList.serverMap(App.serverList.idAt(0)).daemon, "b");
+    }
+
     // #68: a failed test offers `save anyway`, so a server that is down now can still be
     // added on purpose; the failure goes onto the new row (Q23).
     function test_a_failed_test_offers_save_anyway() {

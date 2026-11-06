@@ -38,6 +38,14 @@ import Omaseed.Kit
 // omaseed refuses, and an engine this build can't drive yet, are said in red with no "save
 // anyway", keeping what was typed (K8, K9); an answer from no engine keeps it (K8).
 //
+// Deluge's daemon step (C25 K10, board 47 §2 A): deluge-web signs in with its one password,
+// then drives whichever daemon it is connected to, one for all its users. When a test finds it
+// connected to none, or knowing several and none picked yet, the sheet asks which one is this
+// server: the daemons in a pick list with each one's state, a line saying that connecting
+// switches deluge-web for everyone (shown while the pick isn't the one connected now), and
+// `use this daemon` in place of `save`. It connects deluge-web to it when needed and tests
+// again; the choice (`daemon`, deluge-web's host id) is saved with the server.
+//
 // A test that met a certificate the system does not trust (issue #2) shows `CertificateTrust`
 // under the rows: `trust this certificate` saves the fingerprint with a saved server straight
 // away (App.trustCertificate, which reconnects the live one), keeps it in the edit buffers
@@ -97,6 +105,13 @@ Sheet {
     property string editLocal: ""
     /// The trusted certificate the sheet will save (the server's own, or one just trusted).
     property string editCertificate: ""
+    /// C25 K10: Deluge's daemon, deluge-web's host id: the step's pick, or the one a test
+    /// found connected; saved with the server.
+    property string editDaemon: ""
+    /// The step's cursor row in `_daemonRows`.
+    property int daemonCursor: -1
+    // A click sets the list's own `current`, which ends its binding: keep both on the cursor.
+    onDaemonCursorChanged: daemonList.current = root.daemonCursor
 
     readonly property string serverId: root.server && root.server.id ? String(root.server.id) : ""
     readonly property bool isNew: root.serverId.length === 0
@@ -140,8 +155,32 @@ Sheet {
     /// The last answer is for what the fields hold now.
     readonly property bool _testCurrent: root.tested && !root.testing
                                          && root._testedKey === root._connectionKey
-    /// `save` (the fields can go), `wait` (dimmed: test first) or `anyway` (a test failed).
+    /// K10: the last test asks which daemon this Deluge is.
+    readonly property bool daemonStep: root.editing && root._testCurrent && root.engine === "deluge"
+                                       && root.testInfo.daemonStep === true
+    /// The daemons deluge-web knows, as the test listed them.
+    readonly property var daemonHosts: root.daemonStep && root.testInfo.hosts ? root.testInfo.hosts : []
+    /// The step's rows, as Kit/PickList takes them.
+    readonly property var _daemonRows: {
+        const many = root.daemonHosts.length;
+        const connected = root.daemonHosts.some(host => host.connected === true);
+        const name = root.editName.trim().length > 0 ? root.editName.trim() : qsTr("this server");
+        const section = connected ? qsTr("deluge-web knows %1 daemons · which one is %2?").arg(many).arg(name)
+                                  : qsTr("deluge-web has no daemon · which one is %1?").arg(name);
+        return root.daemonHosts.map(host => ({
+                                                 "section": section,
+                                                 "text": host.version ? qsTr("%1 · Deluge %2").arg(host.address).arg(host.version) : host.address,
+                                                 "detail": host.connected ? qsTr("connected now") : host.online ? qsTr("running") : qsTr("not running")
+                                             }));
+    }
+    /// The host under the step's cursor; null for none.
+    readonly property var pickedDaemon: root.daemonCursor >= 0 && root.daemonCursor < root.daemonHosts.length
+                                        ? root.daemonHosts[root.daemonCursor] : null
+    /// `save` (the fields can go), `wait` (dimmed: test first), `anyway` (a test failed),
+    /// `refused` (K8, K9) or `daemon` (K10: Deluge's daemon step).
     readonly property string saveState: {
+        if (root.daemonStep)
+            return "daemon";
         if (!root.editing || !root._connectionChanged)
             return "save";
         if (!root._testCurrent)
@@ -257,7 +296,9 @@ Sheet {
             "certificateSha256": root.editCertificate,
             // #84: what the test recognised, or the chip; the engine the server is saved with.
             "engine": root.engine.length > 0 ? root.engine : "qbittorrent",
-            "engineChoice": root.editEngineChoice
+            "engineChoice": root.editEngineChoice,
+            // K10: only a Deluge has a daemon.
+            "daemon": root.engine === "deluge" ? root.editDaemon : ""
         };
     }
 
@@ -304,6 +345,7 @@ Sheet {
         root.editEngineChoice = root.isNew ? "recognise" : String(map.engine || "qbittorrent");
         root.editSecret = "";
         root.editCertificate = map.certificateSha256 ? String(map.certificateSha256) : "";
+        root.editDaemon = map.daemon ? String(map.daemon) : "";
         nameField.text = map.name ? String(map.name) : "";
         urlField.text = map.url ? String(map.url) : "";
         userField.text = map.username ? String(map.username) : "";
@@ -315,11 +357,32 @@ Sheet {
     }
 
     function _runTest(): void {
+        root._runTestWith({});
+    }
+
+    /// A test with `extra` over the fields (K10's `connectDaemon`).
+    function _runTestWith(extra: var): void {
         root.certificateSha256 = "";
         root.certificatePinned = "";
         root.testing = true;
         root._pendingKey = root._connectionKey;
-        App.testServer(root.editing ? root.fieldMap() : root.server, root.editSecret);
+        const fields = root.editing ? root.fieldMap() : root.server;
+        App.testServer(Object.assign({}, fields, extra), root.editSecret);
+    }
+
+    /// K10's `use this daemon`: the one connected now is only kept; another is connected
+    /// first (for everyone on that deluge-web, as the step said), then tested.
+    function useDaemon(): void {
+        const host = root.pickedDaemon;
+        if (!host)
+            return;
+        root.editDaemon = String(host.id);
+        if (host.connected === true)
+            root._runTest();
+        else
+            root._runTestWith({
+                                  "connectDaemon": String(host.id)
+                              });
     }
 
     /// `trust this certificate`: a saved server keeps it now, a new one on `save`; then test
@@ -436,9 +499,13 @@ Sheet {
         },
         {
             "text": qsTr("test"),
-            "primary": root.saveState !== "save"
+            "primary": root.saveState !== "save" && root.saveState !== "daemon"
         },
-        root.saveState === "anyway" ? {
+        root.saveState === "daemon" ? {
+                                          "text": qsTr("use this daemon"),
+                                          "primary": true,
+                                          "disabled": root.pickedDaemon === null
+                                      } : root.saveState === "anyway" ? {
                                           "text": qsTr("save anyway")
                                       } : {
                                           "text": qsTr("save"),
@@ -484,6 +551,15 @@ Sheet {
     // while it isn't answering (docs/44 D11), red otherwise; no actions of its own ("test"
     // and "save anyway" stay the sheet's buttons, #68), the technical text under "details".
     headBand: testBand
+    // K10: ↑↓ move the daemon step's cursor; enter is the sheet's primary, `use this daemon`.
+    keyHandler: event => {
+        if (!root.daemonStep || (event.key !== Qt.Key_Up && event.key !== Qt.Key_Down))
+            return;
+        const last = root.daemonHosts.length - 1;
+        root.daemonCursor = root.daemonCursor < 0 ? (event.key === Qt.Key_Down ? 0 : last)
+                                                  : Math.max(0, Math.min(last, root.daemonCursor + (event.key === Qt.Key_Down ? 1 : -1)));
+        event.accepted = true;
+    }
 
     Component {
         id: testBand
@@ -518,6 +594,10 @@ Sheet {
         if (text === qsTr("remove")) {
             root.close();
             root.removeRequested(root.serverId);
+            return;
+        }
+        if (text === qsTr("use this daemon")) {
+            root.useDaemon();
             return;
         }
         if (text === qsTr("save") || text === qsTr("save anyway")) {
@@ -557,6 +637,19 @@ Sheet {
             root.testError = error;
             root.testErrorDetail = errorDetail;
             root.testInfo = info || ({});
+            // K10: the step starts on the daemon picked before, else the one connected now,
+            // else the first running one; a test without a step keeps the one it found.
+            if (root.engine === "deluge" && root.testInfo.daemonStep === true) {
+                const hosts = root.testInfo.hosts || [];
+                let at = hosts.findIndex(host => host.id === root.editDaemon);
+                if (at < 0)
+                    at = hosts.findIndex(host => host.connected === true);
+                if (at < 0)
+                    at = hosts.findIndex(host => host.online === true);
+                root.daemonCursor = at >= 0 ? at : (hosts.length > 0 ? 0 : -1);
+            } else if (ok && root.engine === "deluge" && root.testInfo.daemon !== undefined) {
+                root.editDaemon = String(root.testInfo.daemon);
+            }
             if (ok) {
                 root.certificateSha256 = "";
                 root.certificatePinned = "";
@@ -887,7 +980,55 @@ Sheet {
                                                                                     "not reachable · %1").arg(
                                                                                     root.testError)) : ""
             color: root._credentialRefused ? Theme.red : Theme.dimForeground
-            visible: root.testing || (root.tested && !root._testFailed)
+            visible: (root.testing || (root.tested && !root._testFailed)) && !root.daemonStep
+            wrapMode: Text.WordWrap
+        }
+
+        // K10: which daemon is this Deluge (board 47 §2 A, "Deluge's daemons").
+        Label {
+            Accessible.name: text
+            Accessible.role: Accessible.AlertMessage
+            Layout.fillWidth: true
+            dim: true
+            objectName: "daemonStepLine"
+            size: "small"
+            text: qsTr("reached · deluge-web · signed in · now pick the daemon it should drive")
+            visible: root.daemonStep
+            wrapMode: Text.WordWrap
+        }
+
+        PickList {
+            id: daemonList
+
+            Layout.fillWidth: true
+            current: root.daemonCursor
+            hints: [{
+                    "key": "↑↓",
+                    "label": qsTr("choose")
+                }, {
+                    "key": "enter",
+                    "label": qsTr("use it")
+                }]
+            objectName: "daemonList"
+            rows: root._daemonRows
+            visible: root.daemonStep
+
+            onPicked: index => root.daemonCursor = index
+        }
+
+        Label {
+            Accessible.name: text
+            Accessible.role: Accessible.StaticText
+            Layout.fillWidth: true
+            dim: true
+            objectName: "daemonSwitchLine"
+            size: "small"
+            // Board 47 §3's K10 check: deluge-web keeps one daemon for all its sessions, so this
+            // is said once, before it connects.
+            text: root.pickedDaemon && root.pickedDaemon.connected !== true
+                  ? qsTr("Connecting switches deluge-web to this daemon for everyone who uses it. omaseed keeps it with the server and connects it again whenever deluge-web has none.")
+                  : qsTr("omaseed keeps this daemon with the server and connects it again whenever deluge-web has none.")
+            visible: root.daemonStep && root.pickedDaemon !== null
             wrapMode: Text.WordWrap
         }
     }
