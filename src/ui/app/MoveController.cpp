@@ -6,7 +6,8 @@
 #include "core/ErrorWords.hpp"
 #include "core/Format.hpp"
 #include "core/FreeSpace.hpp"
-#include "core/QbtMoveFeed.hpp"
+#include "core/GlobalState.hpp"
+#include "core/MoveFeed.hpp"
 #include "core/ScopeSentence.hpp"
 #include "core/SharedData.hpp"
 #include "core/SyncEngine.hpp"
@@ -79,6 +80,8 @@ MoveController::MoveController(QObject *parent)
     : QObject(parent)
     , m_folders(new core::FolderModel(this))
 {
+    // qBittorrent's ways until the server's engine is known (setFeatures).
+    m_features.listFolders = true;
     m_foldersTimer.setSingleShot(true);
     m_foldersTimer.setInterval(0);
     connect(&m_foldersTimer, &QTimer::timeout, this, &MoveController::rebuildFolders);
@@ -99,6 +102,11 @@ void MoveController::setHooks(Hooks hooks)
     if (m_hooks.engine == nullptr)
         return;
     connect(m_hooks.engine, &core::SyncEngine::synced, this, &MoveController::onSynced);
+    // K22: the band says when the engine is busy moving, and when it answers again.
+    connect(m_hooks.engine->globalState(),
+            &core::GlobalState::busyMovingChanged,
+            this,
+            &MoveController::bump);
     core::TorrentModel *torrents = m_hooks.engine->torrents();
     connect(torrents, &core::TorrentModel::modelReset, this, &MoveController::scheduleFolders);
     connect(torrents, &core::TorrentModel::rowsRemoved, this, &MoveController::scheduleFolders);
@@ -116,7 +124,10 @@ void MoveController::setServer(const QString &serverId)
     m_serverFolders.clear();
     m_serverFoldersAt.clear();
     m_listingsPending.clear();
-    m_serverLists = true;
+    m_serverLists = m_features.listFolders;
+    m_serverRoom.clear();
+    m_serverRoomAt.clear();
+    m_roomPending.clear();
     m_loose.clear();
     m_rechecks.clear();
     m_recheckStarts.clear();
@@ -138,6 +149,19 @@ void MoveController::setServer(const QString &serverId)
     bump();
     Q_EMIT planChanged();
     Q_EMIT rechecksChanged();
+}
+
+void MoveController::setFeatures(const core::EngineFeatures &features)
+{
+    const bool listed = m_features.listFolders;
+    m_features = features;
+    if (listed != features.listFolders)
+        m_serverLists = features.listFolders;
+    if (m_feed != nullptr)
+        m_feed->setFeatures(features);
+    ++m_planRevision;
+    Q_EMIT planChanged();
+    bump();
 }
 
 void MoveController::attachJob()
@@ -163,8 +187,9 @@ void MoveController::attachJob()
                         {QStringLiteral("cause"), tr("nothing in it can move any more")}});
     });
     if (m_hooks.engine != nullptr) {
-        m_feed = std::make_unique<core::QbtMoveFeed>(m_hooks.engine, m_job.get());
+        m_feed = std::make_unique<core::MoveFeed>(m_hooks.engine, m_job.get());
         m_feed->setFreeSpace(m_hooks.probe);
+        m_feed->setFeatures(m_features);
     }
     if (m_job->restore()) {
         m_restoredAt = now();
@@ -228,6 +253,12 @@ QDateTime MoveController::now() const
 QString MoveController::serverName() const
 {
     return m_hooks.serverName ? m_hooks.serverName() : QString();
+}
+
+QString MoveController::engineName() const
+{
+    const QString engine = m_hooks.engineName ? m_hooks.engineName() : QString();
+    return engine.isEmpty() ? QStringLiteral("qBittorrent") : engine;
 }
 
 // ---- the folders (F1–F3) --------------------------------------------------------------------
@@ -1009,10 +1040,11 @@ QString MoveController::quitLine() const
                tr("Quitting pauses it: the rest wait until omaseed runs again.");
     return moved + QLatin1Char(' ') +
            counted(with,
-                   tr("Quitting pauses it: the %1 with qBittorrent finishes, and the rest wait "
+                   tr("Quitting pauses it: the %1 with %2 finishes, and the rest wait "
                       "until omaseed runs again."),
-                   tr("Quitting pauses it: the %1 with qBittorrent finish, and the rest wait "
-                      "until omaseed runs again."));
+                   tr("Quitting pauses it: the %1 with %2 finish, and the rest wait "
+                      "until omaseed runs again."))
+               .arg(engineName());
 }
 
 QVariantMap MoveController::band() const
@@ -1051,6 +1083,40 @@ QVariantMap MoveController::band() const
     case MoveJob::State::Running: {
         glyph = QStringLiteral("↻");
         progress = job.percent() / 100.0;
+        // C25 K22 (board 47 §E, busy): the engine answers nothing until this torrent has
+        // moved, so the band says so instead of the figures it can't read meanwhile.
+        const QStringList busy = m_hooks.engine == nullptr
+                                     ? QStringList()
+                                     : m_hooks.engine->globalState()->busyMoving();
+        if (!busy.isEmpty() && job.isConnected()) {
+            kind = QStringLiteral("yellow");
+            glyph = QStringLiteral("→");
+            const QString who = server.isEmpty() ? tr("The server") : server;
+            const MoveJob::Entry *entry = job.entry(busy.constFirst());
+            headline = tr("%1 is busy moving %2")
+                           .arg(who,
+                                entry != nullptr ? entry->name
+                                                 : (busy.size() == 1 ? tr("a torrent")
+                                                                     : tr("torrents")));
+            QStringList parts;
+            const qint64 live = entry == nullptr ? -1 : job.liveBytes(entry->hash);
+            if (live >= 0 && entry != nullptr)
+                parts << tr("%1 of %2 there")
+                             .arg(core::Format::size(live), core::Format::size(entry->bytes));
+            const QString listTime = m_hooks.engine->globalState()->lastSyncText();
+            parts << tr("%1 answers again once this torrent has moved.").arg(engineName()) +
+                         (listTime.isEmpty()
+                              ? QString()
+                              : QLatin1Char(' ') + tr("The list is from %1.").arg(listTime)) +
+                         QLatin1Char(' ') +
+                         tr("omaseed waits; it calls %1 down only if the move looks stuck.")
+                             .arg(server.isEmpty() ? tr("the server") : server);
+            line = parts.join(QStringLiteral(" · "));
+            if (!single)
+                actions << action(QStringLiteral("pause"), tr("pause"));
+            actions << action(QStringLiteral("details"), tr("details"));
+            break;
+        }
         const bool resumed = m_restoredAt.isValid() &&
                              m_restoredAt.secsTo(now()) < kRestoredLineSeconds &&
                              job.secondsAway() > 0;
@@ -1077,11 +1143,12 @@ QVariantMap MoveController::band() const
                 parts << core::Format::size(entry->bytes);
                 if (entry->movingSince.isValid())
                     parts << tr("moving for %1").arg(span(entry->movingSince.secsTo(now())));
+                // K21: Transmission doesn't say how far a move is either.
                 parts << (m_hooks.probe != nullptr && m_hooks.probe->seesServerDisks()
-                              ? tr("qBittorrent doesn't report a single move's progress")
-                              : tr("qBittorrent doesn't report a single move's progress, and "
-                                   "omaseed can't see %1's disks")
-                                    .arg(server));
+                              ? tr("%1 doesn't report a single move's progress").arg(engineName())
+                              : tr("%1 doesn't report a single move's progress, and "
+                                   "omaseed can't see %2's disks")
+                                    .arg(engineName(), server));
                 progress = -1;
             } else {
                 if (!single)
@@ -1129,9 +1196,10 @@ QVariantMap MoveController::band() const
     case MoveJob::State::Pausing:
         glyph = QStringLiteral("‖");
         headline = tr("Pausing the move of %1").arg(name);
-        line = tr("%1 · %2 still with qBittorrent, which finishes them · nothing more is sent")
+        line = tr("%1 · %2 still with %3, which finishes them · nothing more is sent")
                    .arg(moved())
-                   .arg(job.withServer());
+                   .arg(job.withServer())
+                   .arg(engineName());
         actions << action(QStringLiteral("resume"), tr("resume"))
                 << action(QStringLiteral("end"), tr("end the move"))
                 << action(QStringLiteral("details"), tr("details"));
@@ -1148,14 +1216,15 @@ QVariantMap MoveController::band() const
             const MoveJob::Entry *first = failed.isEmpty() ? nullptr : job.entry(failed.first());
             const QString target = first == nullptr ? job.newPath() : first->to;
             if (first != nullptr && first->causeKey == QLatin1String("cantCreate")) {
-                headline = tr("qBittorrent can't create %1").arg(target);
+                headline = tr("%1 can't create %2").arg(engineName(), target);
             } else {
                 const core::ErrorWords::Text words = core::ErrorWords::forMoveFailure(
                     first == nullptr ? QString() : first->name,
                     target,
                     QString(),
                     first == nullptr ? QStringLiteral("noAccess") : first->causeKey,
-                    first == nullptr ? QString() : first->reason);
+                    first == nullptr ? QString() : first->reason,
+                    engineName());
                 headline = words.headline;
             }
             line = job.pauseReason() == MoveJob::PauseReason::FirstFailed
@@ -1193,7 +1262,7 @@ QVariantMap MoveController::band() const
                            : tr("The move of %1 is paused: %2").arg(name, words.headline);
             line = (job.pauseReason() == MoveJob::PauseReason::NearlyFull
                         ? words.line
-                        : tr("qBittorrent reports “No space left on device”.")) +
+                        : tr("%1 reports “No space left on device”.").arg(engineName())) +
                    QLatin1Char(' ') +
                    tr("%1 moved, %2 waiting.").arg(job.moved()).arg(job.waiting());
             actions << action(QStringLiteral("end"), tr("end the move"));
@@ -1212,7 +1281,8 @@ QVariantMap MoveController::band() const
                 core::ErrorWords::forStuck(entry == nullptr ? QString() : entry->name,
                                            std::chrono::seconds(movingFor),
                                            job.lastLandedAt(),
-                                           job.expected());
+                                           job.expected(),
+                                           engineName());
             headline = words.headline;
             line = words.line + QLatin1Char(' ') + tr("omaseed has stopped sending.");
             actions.clear();
@@ -1235,9 +1305,10 @@ QVariantMap MoveController::band() const
     case MoveJob::State::Ending:
         glyph = QStringLiteral("‖");
         headline = tr("Ending the move of %1").arg(name);
-        line = tr("%1 · %2 still with qBittorrent, which finishes them · nothing more is sent")
+        line = tr("%1 · %2 still with %3, which finishes them · nothing more is sent")
                    .arg(moved())
-                   .arg(job.withServer());
+                   .arg(job.withServer())
+                   .arg(engineName());
         actions << action(QStringLiteral("details"), tr("details"));
         break;
     case MoveJob::State::Carrying: {
@@ -1387,7 +1458,7 @@ QVariantMap MoveController::band() const
         if (summary.removed > 0)
             parts << tr("%1 removed during the move").arg(summary.removed);
         if (summary.elsewhere > 0)
-            parts << tr("%1 moved elsewhere by qBittorrent").arg(summary.elsewhere);
+            parts << tr("%1 moved elsewhere by %2").arg(summary.elsewhere).arg(engineName());
         const int added = int(job.addedDuring().size());
         if (added > 0)
             parts << counted(added,
@@ -1573,10 +1644,10 @@ void MoveController::onFinished()
             QString why = first == nullptr ? QString() : first->reason;
             // M19: what qBittorrent refused is the folder, never the sign-in.
             if (first != nullptr && first->causeKey == QLatin1String("cantCreate"))
-                why = tr("qBittorrent can't create %1").arg(first->to);
+                why = tr("%1 can't create %2").arg(engineName(), first->to);
             else if (first != nullptr && (first->causeKey == QLatin1String("noAccess") ||
                                           first->causeKey == QLatin1String("readOnly")))
-                why = tr("qBittorrent can't write to %1").arg(first->to);
+                why = tr("%1 can't write to %2").arg(engineName(), first->to);
             Q_EMIT note(summary.total == 1 && first != nullptr
                             ? tr("%1 didn't move: %2").arg(first->name, why)
                             : tr("%1 of %2 didn't move: %3")

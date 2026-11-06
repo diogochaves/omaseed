@@ -3,7 +3,7 @@
 // MoveController — moving a folder, as the window sees it (board 42, DECISIONS C15, #97).
 //
 // The core has the parts: FolderTree / FolderModel (the rail's folders), MovePlan (the
-// preflight), LooseFiles (the files no torrent owns), MoveJob and QbtMoveFeed (the job). This
+// preflight), LooseFiles (the files no torrent owns), MoveJob and MoveFeed (the job). This
 // puts them together for the server the window is on and words them for QML:
 //
 // - `folders`, the rail's group, rebuilt after each poll (a poll that changes nothing changes
@@ -33,12 +33,14 @@
 // The sheet's half lives in MoveControllerSheet.cpp; the words both use in MoveWords.hpp.
 
 #include "core/FolderModel.hpp"
+#include "core/FreeSpace.hpp"
 #include "core/LooseCarry.hpp"
 #include "core/LooseFiles.hpp"
 #include "core/MoveHistory.hpp"
 #include "core/MoveJob.hpp"
 #include "core/MovePlan.hpp"
 #include "core/ServerFolder.hpp"
+#include "core/engines/EngineFeatures.hpp"
 
 #include <QDateTime>
 #include <QHash>
@@ -59,7 +61,7 @@
 
 namespace omaseed::core {
 class FreeSpaceProbe;
-class QbtMoveFeed;
+class MoveFeed;
 class SyncEngine;
 } // namespace omaseed::core
 
@@ -109,6 +111,8 @@ public:
         const core::FreeSpaceProbe *probe = nullptr;
         std::function<qint64()> lowDiskBytes;
         std::function<QString()> serverName;
+        /// The server's engine by name ("Transmission"); qBittorrent when empty (C25 K11).
+        std::function<QString()> engineName;
         /// One desktop notice: summary, body.
         std::function<void(const QString &, const QString &)> notify;
         /// Tests set the time; the app leaves the system clock.
@@ -130,6 +134,9 @@ public:
     /// leaves is saved and let go; that server's file takes it up again on the way back.
     void setServer(const QString &serverId);
     QString serverId() const { return m_serverId; }
+    /// The server's engine (board 47 §E, C25 K21–K23): where a failed move is learnt, how many
+    /// go at once, which checks the sheet runs on the server and how it words them.
+    void setFeatures(const core::EngineFeatures &features);
 
     core::FolderModel *folders() const { return m_folders; }
     core::MoveJob *job() const { return m_job.get(); }
@@ -319,6 +326,12 @@ private:
     QStringList foldersToList(const QString &root) const;
     core::LooseFiles::OnServer looseOnServer(const QString &root) const;
     void fetchListings(const QStringList &folders);
+    /// K23: free space read on the server for `folders` (EngineFeatures::roomOnServer).
+    void fetchRoom(const QStringList &folders);
+    /// The probe the plans read: App's, with what the server read for folders (K23).
+    core::FreeSpaceProbe planProbe() const;
+    /// Whether a room the server is asked for is still on its way, for one of `folders`.
+    bool roomPending(const QStringList &folders) const;
     void scanLoose(const QString &root);
     core::MovePlan makePlan(const QString &root, const QString &newPath, bool carry) const;
     /// A job's spec (kind, title, hashes, rule, newPath, targets, expectedAt; a folder's root
@@ -372,13 +385,15 @@ private:
     bool noticeWanted() const;
     QDateTime now() const;
     QString serverName() const;
+    /// "qBittorrent", "Transmission": who moves, in the words (C25 K11).
+    QString engineName() const;
     void recheckNext();
 
     QPointer<core::FolderModel> m_folders;
     Hooks m_hooks;
     QString m_serverId;
     std::unique_ptr<core::MoveJob> m_job;
-    std::unique_ptr<core::QbtMoveFeed> m_feed;
+    std::unique_ptr<core::MoveFeed> m_feed;
     QTimer m_foldersTimer;
     int m_revision = 0;
     int m_planRevision = 0;
@@ -433,6 +448,11 @@ private:
     QHash<QString, QDateTime> m_serverFoldersAt;
     QSet<QString> m_listingsPending;
     bool m_serverLists = true; ///< false once the server said it can't list folders
+    // K23: free space the server read, by folder as it writes it: {bytes, the folder read}.
+    QHash<QString, QPair<qint64, QString>> m_serverRoom;
+    QHash<QString, QDateTime> m_serverRoomAt;
+    QSet<QString> m_roomPending;
+    core::EngineFeatures m_features;
 
     struct LooseWalk
     {

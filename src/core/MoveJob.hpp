@@ -12,7 +12,7 @@
 // What it hears is engine-neutral: the torrents as each poll leaves them (setTorrents(),
 // onSynced()), a failure with its reason (onFailed()), the answer to a send (onSendResult()),
 // whether the server can be reached (setConnected()). What it asks for is a signal,
-// sendRequested(hashes, location). QbtMoveFeed ties it to the server through EngineClient;
+// sendRequested(hashes, location). MoveFeed ties it to the server through EngineClient;
 // another engine would feed it the same way.
 //
 // A torrent has landed when a poll shows its save path at the target and it isn't moving:
@@ -165,6 +165,13 @@ public:
     {
         m_growthProbe = std::move(probe);
         updateLiveTimer();
+    }
+    /// Whether the engine says it is moving `hash` although the torrent's state doesn't
+    /// (Transmission has no moving state, and holds every answer while it moves: C25 K22).
+    /// Read with the state on each poll; a torrent either reads as moving is the one moving.
+    void setMovingHint(std::function<bool(const QString &hash)> hint)
+    {
+        m_movingHint = std::move(hint);
     }
     void setLowDiskThreshold(qint64 bytes) { m_lowDiskThreshold = bytes; }
     /// M13: `~/.config/omaseed/moves/<serverId>.json`, where the app keeps a server's job.
@@ -342,6 +349,7 @@ private:
     std::function<QDateTime()> m_clock;
     std::function<qint64(const QString &)> m_roomProbe;
     std::function<qint64(const QString &, const QString &)> m_growthProbe;
+    std::function<bool(const QString &)> m_movingHint;
     std::function<QJsonObject(const QJsonObject &)> m_replan;
     qint64 m_lowDiskThreshold = 2LL * 1024 * 1024 * 1024;
     int m_ahead = 3;

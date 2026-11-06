@@ -105,10 +105,15 @@ bool isFolderRefusal(const ApiError &error)
            !own.contains(QLatin1String("sign-in"));
 }
 
-QString cantWrite(const QString &folder)
+QString cantWrite(const QString &folder, const QString &engine = QStringLiteral("qBittorrent"))
 {
-    return folder.isEmpty() ? tr("qBittorrent can't write to that folder")
-                            : tr("qBittorrent can't write to %1").arg(folder);
+    return folder.isEmpty() ? tr("%1 can't write to that folder").arg(engine)
+                            : tr("%1 can't write to %2").arg(engine, folder);
+}
+
+QString engineOr(const QString &engine)
+{
+    return engine.isEmpty() ? QStringLiteral("qBittorrent") : engine;
 }
 
 } // namespace
@@ -528,15 +533,17 @@ ErrorWords::Text ErrorWords::forMoveFailure(const QString &torrent,
                                             const QString &folder,
                                             const QString &drive,
                                             const QString &causeKey,
-                                            const QString &reason)
+                                            const QString &reason,
+                                            const QString &engineName)
 {
+    const QString engine = engineOr(engineName);
     Text text;
     text.kind = QStringLiteral("request");
     text.details = reason;
     const QString name = torrent.isEmpty() ? tr("the torrent") : torrent;
     if (causeKey == QLatin1String("noAccess") || causeKey == QLatin1String("readOnly")) {
         // T2: answered 200, then "Permission denied" in the log.
-        text.headline = cantWrite(folder);
+        text.headline = cantWrite(folder, engine);
         text.line = tr("%1 didn't move: “%2”.").arg(name, reason);
         return text;
     }
@@ -549,8 +556,8 @@ ErrorWords::Text ErrorWords::forMoveFailure(const QString &torrent,
     if (causeKey == QLatin1String("missing")) {
         // libtorrent names the source file even when the destination is what went away, so
         // the words don't guess which side: a drive unmounted mid-move, on either side.
-        text.headline = folder.isEmpty() ? tr("qBittorrent can't reach that folder")
-                                         : tr("qBittorrent can't reach %1").arg(folder);
+        text.headline = folder.isEmpty() ? tr("%1 can't reach that folder").arg(engine)
+                                         : tr("%1 can't reach %2").arg(engine, folder);
         text.line =
             tr("%1 didn't move: “%2”. Check that both drives are mounted.").arg(name, reason);
         return text;
@@ -576,11 +583,13 @@ ErrorWords::forNearlyFull(const QString &torrent, const QString &drive, qint64 f
 ErrorWords::Text ErrorWords::forStuck(const QString &torrent,
                                       std::chrono::seconds moving,
                                       const QDateTime &lastLanded,
-                                      std::chrono::seconds expected)
+                                      std::chrono::seconds expected,
+                                      const QString &engineName)
 {
+    const QString engine = engineOr(engineName);
     Text text;
     text.kind = QStringLiteral("request");
-    text.headline = tr("qBittorrent stopped moving");
+    text.headline = tr("%1 stopped moving").arg(engine);
     const QString name = torrent.isEmpty() ? tr("A torrent") : torrent;
     const qint64 minutes = std::max<qint64>(1, moving.count() / 60);
     QString first = tr("%1 has been moving for %2 min").arg(name).arg(minutes);
@@ -590,16 +599,42 @@ ErrorWords::Text ErrorWords::forStuck(const QString &torrent,
     QString second;
     if (expected.count() > 0)
         second = tr(" (at this move's speed it needs %1)").arg(Format::eta(expected.count()));
-    text.line = tr("%1%2. Restarting qBittorrent usually frees it.").arg(first, second);
+    text.line = tr("%1%2. Restarting %3 usually frees it.").arg(first, second, engine);
     return text;
 }
 
-ErrorWords::Text ErrorWords::forLeftOut(int count, const QString &folder, const QString &there)
+ErrorWords::Text ErrorWords::forLeftOut(int count,
+                                        const QString &folder,
+                                        const QString &there,
+                                        const QString &engineName,
+                                        bool replaces)
 {
+    const QString engine = engineOr(engineName);
     Text text;
     text.kind = QStringLiteral("request");
     text.headline = tr("%1 left out").arg(count);
     const QString where = folder.isEmpty() ? tr("The new folder") : folder;
+    // C25 K23 (board 47 §3, checked): Transmission replaces the file there with the torrent's.
+    if (replaces) {
+        text.line = there.isEmpty()
+                        ? tr("%1 already has a file with their file's name. %2 would replace "
+                             "that file with theirs.")
+                              .arg(where, engine)
+                        : tr("%1 already has a file with their file's name (%2). %3 would "
+                             "replace that file with theirs.")
+                              .arg(where, there, engine);
+        return text;
+    }
+    if (engine != QLatin1String("qBittorrent")) {
+        text.line = there.isEmpty()
+                        ? tr("%1 already has a file with their file's name. %2 would keep that "
+                             "file and report the move as done.")
+                              .arg(where, engine)
+                        : tr("%1 already has a file with their file's name (%2). %3 would keep "
+                             "that file and report the move as done.")
+                              .arg(where, there, engine);
+        return text;
+    }
     text.line = there.isEmpty()
                     ? tr("%1 already has a file with their file's name. qBittorrent would keep "
                          "that file and report the move as done.")

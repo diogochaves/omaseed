@@ -5405,6 +5405,12 @@ QVariantMap App::featuresMap() const
         {QStringLiteral("createTorrent"), f.createTorrent},
         {QStringLiteral("altSpeeds"), f.altSpeeds},
         {QStringLiteral("renameOnDisk"), f.renameOnDisk},
+        {QStringLiteral("moveProgress"), f.moveProgress},
+        {QStringLiteral("moveStopsOnFailure"), f.moveStopsOnFailure},
+        {QStringLiteral("listFolders"), f.listFolders},
+        {QStringLiteral("movesHoldAnswers"), f.movesHoldAnswers},
+        {QStringLiteral("roomOnServer"), f.roomOnServer},
+        {QStringLiteral("moveReplacesFile"), f.moveReplacesFile},
     };
 }
 
@@ -5419,6 +5425,9 @@ void App::updateFeatures()
     // C25 K17: the Files tab and the add sheet step through the engine's own priorities.
     m_details->files()->setPrioritySet(features.filePriorities);
     m_addFiles->setPrioritySet(features.filePriorities);
+    // C25 K21–K23: moves follow the engine (failures, one at a time, the sheet's checks).
+    if (m_move != nullptr)
+        m_move->setFeatures(features);
     Q_EMIT featuresChanged();
 }
 

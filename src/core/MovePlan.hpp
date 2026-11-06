@@ -228,6 +228,9 @@ public:
     };
     QList<DriveRoom> drives() const { return m_drives; }
     bool freeReadHere() const { return m_freeReadHere; }
+    /// The free space was read on the server for that folder (C25 K23), not its default
+    /// drive's figure.
+    bool freeReadOnServer() const { return m_freeReadOnServer; }
 
     // ---- the rest of the checks ------------------------------------------------------------
     Check writable() const { return m_writable; }
@@ -286,6 +289,7 @@ private:
     QString m_drive;
     QList<DriveRoom> m_drives;
     bool m_freeReadHere = false;
+    bool m_freeReadOnServer = false;
     Check m_writable = Check::Unknown;
     QList<WriteCheck> m_writeChecks;
     bool m_seesDisks = false;

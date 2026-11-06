@@ -22,6 +22,7 @@ void App::setUpMove()
     hooks.probe = &m_freeSpace;
     hooks.lowDiskBytes = [this]() { return qint64(lowDiskThresholdGiB()) * 1024 * 1024 * 1024; };
     hooks.serverName = [this]() { return m_hasServer ? m_server.name : QString(); };
+    hooks.engineName = [this]() { return serverEngineName(); };
     hooks.notify = [this](const QString &summary, const QString &body) {
         if (!m_notifier.isNull() && !m_demoMode)
             m_notifier->notifyMove(m_move->serverId(), summary, body);
@@ -58,6 +59,7 @@ void App::setUpMove()
         writeStateSection(QStringLiteral("moves"), section);
     };
     m_move->setHooks(std::move(hooks));
+    m_move->setFeatures(m_features);
     // C18 D7: each finished move is a line in the log, with "move back…" while it is kept.
     const auto feedLog = [this]() {
         QList<core::ServerLog::Line> lines;

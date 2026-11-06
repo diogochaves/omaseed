@@ -2,6 +2,8 @@
 
 #include "core/PathMap.hpp"
 
+#include <QHash>
+#include <QPair>
 #include <QString>
 
 #include <functional>
@@ -57,6 +59,7 @@ public:
     enum class Source {
         Default, ///< the server's own figure
         Local,   ///< read on this machine
+        Server,  ///< read on the server for that folder (EngineClient::freeSpace, C25 K23)
         Unknown,
     };
 
@@ -81,6 +84,14 @@ public:
                    const PathMap &pathMap,
                    bool mapEnabled);
 
+    /// Free space the server read for folders, by folder as it writes them (an engine that
+    /// reads any folder's: EngineFeatures::roomOnServer). Where this machine can't see the
+    /// server's disks, a folder read so is answered as Server, `where` the folder it was read
+    /// on. The value is {bytes free, the folder read}.
+    void setServerReadings(const QHash<QString, QPair<qint64, QString>> &readings)
+    {
+        m_serverReadings = readings;
+    }
     /// Whether local readings are trusted for this server (the calibration above).
     bool seesServerDisks() const { return m_seesServerDisks; }
     QString defaultSavePath() const { return m_defaultSavePath; }
@@ -105,6 +116,7 @@ private:
     PathMap m_pathMap;
     bool m_mapEnabled = false;
     bool m_seesServerDisks = false;
+    QHash<QString, QPair<qint64, QString>> m_serverReadings;
 };
 
 } // namespace omaseed::core

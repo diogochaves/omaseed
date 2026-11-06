@@ -1301,6 +1301,20 @@ K26: Deluge's prefetch works through deluge-web by repeated calls, and a long ca
 other session's answers. K10: deluge-web keeps one daemon for all its sessions, so connecting
 it switches everyone, and the daemon step says so before it connects.
 
+*Moves on Transmission (2026-11-06, #85, assumed, to confirm):* built from K21–K23 and §4 with
+these calls the board left open. A Transmission move goes one torrent at a time (a second
+`torrent_set_location` would wait behind the first and keep the poll waiting until both ended);
+the move's own call waits up to 24 h, and no poll is sent while it is out. "Busy moving" shows
+only once a poll's turn found the move still out (1.5 s), so a quick move shows nothing (L6's
+spirit); the busy band keeps the job's % in its bar, and leads its line with the growth
+probe's "N of M there" where omaseed sees the disks. M14's stuck pause hands the server back to C12 (the next silence
+is "didn't answer"). The failed move is the torrent in error after its send answered, with its
+folder unchanged; the cause is read from the text after the last quoted path ("Permission
+denied (13)" → noAccess). Room on the server is `free_space` on the destination, or its
+nearest parent that exists; the job reads it again between moves. The sheet's L13 line lists
+what ran on the server per engine; without a listing it says once "Names at the destination
+can't be checked on Transmission" with "may be replaced", and loose files "stay behind" unnamed.
+
 ## C26 — Search through qBittorrent's search plugins (board 48, ruled 2026-10-22)
 
 Board [48](48-search.html) SR1–SR14, all as recommended, in board 46's frame (C24 H16: a rail view

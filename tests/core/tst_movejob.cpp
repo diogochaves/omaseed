@@ -1,4 +1,5 @@
 #include "QbtFeed.hpp"
+#include "core/MoveFeed.hpp"
 #include "core/MoveJob.hpp"
 #include "core/TorrentModel.hpp"
 
@@ -9,6 +10,7 @@
 #include <QTimeZone>
 
 using omaseed::core::ApiError;
+using omaseed::core::MoveFeed;
 using omaseed::core::MoveJob;
 using omaseed::core::MovePlan;
 using omaseed::core::Torrent;
@@ -363,6 +365,59 @@ private slots:
         wait(60);
         poll();
         QCOMPARE(m_job->state(), MoveJob::State::Running);
+    }
+
+    // C25 K22: Transmission has no moving state and holds its answers while it moves; the
+    // engine's word that it is moving one makes it the one moving now, so it isn't sent again
+    // as quiet, and M14's clock runs on it. One at a time.
+    void theEnginesWordMakesOneMoving()
+    {
+        m_library.add(1, 10 * kMiB);
+        m_library.add(2, 600 * kMiB);
+        m_library.add(3, 700 * kMiB);
+        poll();
+        QString busy;
+        m_job->setMovingHint([&busy](const QString &hash) { return hash == busy; });
+        m_job->setAhead(1);
+        QSignalSpy paused(m_job, &MoveJob::pausedItself);
+        m_job->start(plan(), QStringLiteral("home"));
+        QCOMPARE(sentHashes(), QStringList({hashOf(1)}));
+        busy = hashOf(1);
+        wait(1);
+        busy.clear();
+        m_library.land(1);
+        poll();
+        QCOMPARE(sentHashes(), QStringList({hashOf(1), hashOf(2)}));
+        busy = hashOf(2);
+        // Polls that change nothing (the engine's held turns): moving, never quiet.
+        for (int i = 0; i < 5; ++i) {
+            wait(30);
+            m_job->onSynced(false);
+        }
+        QCOMPARE(m_job->current(), hashOf(2));
+        QCOMPARE(sentHashes().size(), 2);
+        QCOMPARE(m_job->entry(hashOf(2))->sends, 1);
+        // And stuck after M14's time, like any move.
+        wait(10 * 60);
+        m_job->onSynced(false);
+        QCOMPARE(m_job->pauseReason(), MoveJob::PauseReason::Stuck);
+        QCOMPARE(paused.count(), 1);
+    }
+
+    // Board 47 §4: the system's words and the cause in an engine's text about a failed move.
+    void anEnginesMoveTextGivesItsCause()
+    {
+        QCOMPARE(MoveFeed::causeOf(QStringLiteral(
+                     "Couldn't move '/srv/a: b/x' to '/tmp/locked/x': Permission denied (13)")),
+                 qMakePair(QStringLiteral("noAccess"), QStringLiteral("Permission denied")));
+        QCOMPARE(MoveFeed::causeOf(QStringLiteral(
+                     "Couldn't move '/a/x' to '/b/x': No space left on device (28)")),
+                 qMakePair(QStringLiteral("diskFull"), QStringLiteral("No space left on device")));
+        QCOMPARE(MoveFeed::causeOf(
+                     QStringLiteral("Failed to move download folder: Read-only file system")),
+                 qMakePair(QStringLiteral("readOnly"), QStringLiteral("Read-only file system")));
+        QCOMPARE(MoveFeed::causeOf(QStringLiteral("Impossible de déplacer")).first,
+                 QStringLiteral("other"));
     }
 
     void aGrowingFileIsProgress()

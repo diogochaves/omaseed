@@ -1,4 +1,4 @@
-// MoveJob and QbtMoveFeed against the :8081 playground (board 42, DECISIONS C15, #96): a small
+// MoveJob and MoveFeed against the :8081 playground (board 42, DECISIONS C15, #96): a small
 // folder with a subfolder save path is moved to another drive (/dev/shm when it is there) and
 // every torrent keeps its place below the folder; then a move to a folder qBittorrent can't
 // write stops after its first torrent, which qBittorrent answers 200 for and fails in its log
@@ -9,7 +9,7 @@
 #include "core/Bencode.hpp"
 #include "core/MoveJob.hpp"
 #include "core/MovePlan.hpp"
-#include "core/QbtMoveFeed.hpp"
+#include "core/MoveFeed.hpp"
 #include "core/ServerFolder.hpp"
 #include "core/SyncEngine.hpp"
 #include "core/TorrentModel.hpp"
@@ -38,7 +38,7 @@ using omaseed::core::MoveJob;
 using omaseed::core::MovePlan;
 using omaseed::core::QbtClient;
 using omaseed::core::QbtEngine;
-using omaseed::core::QbtMoveFeed;
+using omaseed::core::MoveFeed;
 using omaseed::core::Reply;
 using omaseed::core::Result;
 using omaseed::core::ServerFolder;
@@ -270,7 +270,7 @@ void TestMoveJobLive::movesAFolderKeepingItsShape()
     QCOMPARE(plan.toMove().size(), 3);
 
     MoveJob job;
-    QbtMoveFeed feed(&m_engine, &job);
+    MoveFeed feed(&m_engine, &job);
     QSignalSpy finished(&job, &MoveJob::finished);
     QVERIFY(job.start(plan, QStringLiteral("playground")));
     QVERIFY2(
@@ -314,7 +314,7 @@ void TestMoveJobLive::aSelectionGoesIntoOneFolderAndBack()
     QCOMPARE(plan.savePaths().size(), 2);
 
     MoveJob job;
-    QbtMoveFeed feed(&m_engine, &job);
+    MoveFeed feed(&m_engine, &job);
     QSignalSpy finished(&job, &MoveJob::finished);
     const QJsonObject spec{{QStringLiteral("kind"), QStringLiteral("selection")},
                            {QStringLiteral("title"), QStringLiteral("2 torrents")}};
@@ -382,7 +382,7 @@ void TestMoveJobLive::anUnwritableFolderStopsAfterTheFirst()
     {
         // A folder it can't create: setLocation answers 409.
         MoveJob job;
-        QbtMoveFeed feed(&m_engine, &job);
+        MoveFeed feed(&m_engine, &job);
         run(readonly + QStringLiteral("/games"), job);
         QCOMPARE(job.entries().constFirst().causeKey, QStringLiteral("cantCreate"));
         job.end();
@@ -395,7 +395,7 @@ void TestMoveJobLive::anUnwritableFolderStopsAfterTheFirst()
         QVERIFY(QDir().mkpath(there));
         QVERIFY(QFile::setPermissions(there, QFileDevice::ReadOwner | QFileDevice::ExeOwner));
         MoveJob job;
-        QbtMoveFeed feed(&m_engine, &job);
+        MoveFeed feed(&m_engine, &job);
         run(there, job);
         const MoveJob::Entry &first = job.entries().constFirst();
         QVERIFY2(first.causeKey == QLatin1String("noAccess") ||

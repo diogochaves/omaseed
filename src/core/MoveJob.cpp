@@ -726,7 +726,8 @@ void MoveJob::onSynced(bool fullUpdate)
         }
         const Torrent &torrent = m_torrents->torrent(entry.hash);
         const QString save = SharedData::normalize(torrent.savePath);
-        const bool moving = torrent.status.phase == TorrentPhase::Moving;
+        const bool moving = torrent.status.phase == TorrentPhase::Moving ||
+                            (m_movingHint && m_movingHint(entry.hash));
         if (entry.step == Step::Moved) {
             // M15: what goes wrong with it in the next 24 h belongs to the job's record.
             const TorrentPhase phase = torrent.status.phase;
@@ -784,7 +785,8 @@ void MoveJob::onSynced(bool fullUpdate)
             continue;
         const int row = m_torrents->indexOfHash(entry.hash);
         const bool moving =
-            row >= 0 && m_torrents->torrent(entry.hash).status.phase == TorrentPhase::Moving;
+            row >= 0 && (m_torrents->torrent(entry.hash).status.phase == TorrentPhase::Moving ||
+                         (m_movingHint && m_movingHint(entry.hash)));
         if (moving && (first == nullptr || entry.sentAt < first->sentAt))
             first = &entry;
     }

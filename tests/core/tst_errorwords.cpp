@@ -352,6 +352,47 @@ private slots:
                                 "the move as done."));
     }
 
+    // Board 47 §4, §E (C25 K22, K23): the engine that moves is named, and Transmission's M8
+    // outcome is "replace".
+    void moveRowsNameTheEngine()
+    {
+        const ErrorWords::Text failed =
+            ErrorWords::forMoveFailure(QStringLiteral("Short Film 07"),
+                                       QStringLiteral("/tmp/locked/dest"),
+                                       QString(),
+                                       QStringLiteral("noAccess"),
+                                       QStringLiteral("Permission denied"),
+                                       QStringLiteral("Transmission"));
+        QCOMPARE(failed.headline, QStringLiteral("Transmission can't write to /tmp/locked/dest"));
+        const ErrorWords::Text gone = ErrorWords::forMoveFailure(QStringLiteral("x"),
+                                                                 QStringLiteral("/d"),
+                                                                 QString(),
+                                                                 QStringLiteral("missing"),
+                                                                 QStringLiteral("No such file"),
+                                                                 QStringLiteral("Transmission"));
+        QCOMPARE(gone.headline, QStringLiteral("Transmission can't reach /d"));
+        const ErrorWords::Text stuck = ErrorWords::forStuck(QStringLiteral("Arcade Set 18"),
+                                                            std::chrono::minutes(12),
+                                                            QDateTime(),
+                                                            std::chrono::seconds(0),
+                                                            QStringLiteral("Transmission"));
+        QCOMPARE(stuck.headline, QStringLiteral("Transmission stopped moving"));
+        QVERIFY(stuck.line.endsWith(QStringLiteral("Restarting Transmission usually frees it.")));
+        const ErrorWords::Text replaced = ErrorWords::forLeftOut(1,
+                                                                 QStringLiteral("/tmp/fast/games"),
+                                                                 QString(),
+                                                                 QStringLiteral("Transmission"),
+                                                                 true);
+        QCOMPARE(replaced.line,
+                 QStringLiteral("/tmp/fast/games already has a file with their file's name. "
+                                "Transmission would replace that file with theirs."));
+        const ErrorWords::Text kept = ErrorWords::forLeftOut(
+            1, QStringLiteral("/d"), QStringLiteral("an empty file"), QStringLiteral("Deluge"));
+        QCOMPARE(kept.line,
+                 QStringLiteral("/d already has a file with their file's name (an empty file). "
+                                "Deluge would keep that file and report the move as done."));
+    }
+
     void leftOutSaysWhatIsThere()
     {
         // #161 (a): the size of the file there and whether a torrent owns it.

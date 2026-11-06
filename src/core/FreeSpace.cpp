@@ -155,8 +155,17 @@ FreeSpaceProbe::Answer FreeSpaceProbe::answer(const QString &savePath) const
         }
         return Answer();
     }
-    // Remote: a folder under the default one is on its drive (a mount below it is rare
-    // enough not to second-guess the server's own figure).
+    // Remote: what the server read for that folder (K23); else a folder under the default
+    // one is on its drive (a mount below it is rare enough not to second-guess the server's
+    // own figure).
+    const auto read = m_serverReadings.constFind(path);
+    if (read != m_serverReadings.cend() && read->first >= 0) {
+        Answer answer;
+        answer.source = Source::Server;
+        answer.bytesFree = read->first;
+        answer.where = read->second.isEmpty() ? path : read->second;
+        return answer;
+    }
     if (m_serverBytesFree > 0 && isUnder(path, m_defaultSavePath))
         return server;
     return Answer();

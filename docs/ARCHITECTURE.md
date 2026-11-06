@@ -115,9 +115,13 @@ Three static libraries and the executable. Each layer only depends on the ones a
   `ServerFolder` (what the server lists of a folder through `EngineClient::folderContent`,
   for a server whose disks this machine can't see: C16 L13), and
   `MoveJob`, which sends the plan in waves and follows it for hours, saved under
-  `~/.config/omaseed/moves/`. `MoveJob` hears and asks in neutral terms; `QbtMoveFeed` ties
-  it to the server (`EngineClient::setLocation`, the polls, the log's move failures through
-  `ProblemLog`, and the bytes at a target for live progress). `MoveHistory` keeps the moves that landed (the
+  `~/.config/omaseed/moves/`. `MoveJob` hears and asks in neutral terms; `MoveFeed` ties
+  it to the server (`EngineClient::setLocation`, the polls, the bytes at a target for live
+  progress, and a failed move from one source per engine: qBittorrent's log through
+  `ProblemLog`, or the torrent itself going into error, Transmission's and Deluge's; board 47
+  §4). On an engine that answers nothing while it moves (Transmission, C25 K22) it sends one
+  torrent at a time, and `SyncEngine` holds its polls meanwhile: "busy moving", not a lost
+  server. `MoveHistory` keeps the moves that landed (the
   last 20 or 30 days, per server, in `state.json`), and says what each one's move back would do
   per torrent (C18). In the app, `MoveController` puts them together for the window (its
   sheet's half in `MoveControllerSheet.cpp`); `App::setLocation` starts a job.

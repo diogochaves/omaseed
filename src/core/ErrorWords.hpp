@@ -154,11 +154,14 @@ public:
     /// A torrent of the job that qBittorrent logged as not moved (it answered 200 first).
     /// `causeKey` is TorrentProblem's (noAccess, readOnly, diskFull…), `reason` libtorrent's
     /// own text, `drive` the destination's mount point when known (for "is full").
+    /// `engine` names who can't write or reach ("Transmission can't write to FOLDER", board
+    /// 47 §4); qBittorrent when empty.
     static Text forMoveFailure(const QString &torrent,
                                const QString &folder,
                                const QString &drive,
                                const QString &causeKey,
-                               const QString &reason);
+                               const QString &reason,
+                               const QString &engine = QString());
     /// The job paused itself before a send: `torrent` would leave `drive` under the low-disk
     /// threshold.
     static Text forNearlyFull(const QString &torrent, const QString &drive, qint64 freeAfter);
@@ -168,10 +171,17 @@ public:
     static Text forStuck(const QString &torrent,
                          std::chrono::seconds moving,
                          const QDateTime &lastLanded,
-                         std::chrono::seconds expected);
+                         std::chrono::seconds expected,
+                         const QString &engine = QString());
     /// M8: `count` torrents left out because `folder` already has a file with their file's
     /// name. `there`, when given, says what that is (whatIsThere()), in brackets.
-    static Text forLeftOut(int count, const QString &folder, const QString &there = QString());
+    /// `engine` names who would keep it, or with `replaces` replace it (Transmission, C25
+    /// K23: "Transmission would replace that file with theirs").
+    static Text forLeftOut(int count,
+                           const QString &folder,
+                           const QString &there = QString(),
+                           const QString &engine = QString(),
+                           bool replaces = false);
     /// #161 (a): what is at a left-out torrent's target, "an empty file no torrent owns", "a
     /// folder of 1.2 GB that NAME owns". `bytes` -1 is unknown, `folder` whether it is one;
     /// `ownerKnown` false says nothing of whose it is, else `owner` names it (empty: none).

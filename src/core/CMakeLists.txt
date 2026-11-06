@@ -117,6 +117,8 @@ qt_add_library(omaseed-core STATIC
     LooseFiles.hpp
     MadeHere.cpp
     MadeHere.hpp
+    MoveFeed.cpp
+    MoveFeed.hpp
     MoveHistory.cpp
     MoveHistory.hpp
     MoveJob.cpp
@@ -147,8 +149,6 @@ qt_add_library(omaseed-core STATIC
     PrivateTrackers.hpp
     ProblemLog.cpp
     ProblemLog.hpp
-    QbtMoveFeed.cpp
-    QbtMoveFeed.hpp
     Reply.cpp
     Reply.hpp
     RenameDisk.cpp

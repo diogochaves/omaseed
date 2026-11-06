@@ -14,6 +14,9 @@
 #include "core/TorrentDetails.hpp"
 #include "core/TorrentFilesModel.hpp"
 #include "core/TorrentModel.hpp"
+#include "core/MoveJob.hpp"
+#include "core/engines/EngineClient.hpp"
+#include "ui/app/MoveController.hpp"
 #include "core/engines/qbt/ServerPreferences.hpp"
 #include "ui/app/App.hpp"
 
@@ -168,6 +171,9 @@ private Q_SLOTS:
     void anOldTransmissionIsRefusedInK8sWords();
     void filesStepThroughTransmissionsPriorities();
     void turtleAndItsClockAreTransmissionsSession();
+    void aLongMoveIsBusyNotLost();
+    void aFailedMoveIsLearntFromTheTorrent();
+    void theMoveSheetRunsTransmissionsChecks();
 
 private:
     /// Starts `app` on `daemon` through the environment, polling every 100 ms, and waits for
@@ -247,6 +253,140 @@ void TestAppTransmission::turtleAndItsClockAreTransmissionsSession()
     app.engine()->stop();
 }
 
+// Board 47 §E, C25 K22: Transmission answers nothing while a move's copy runs. The poll is held
+// and says "busy moving" (status, title, band), no server is lost, one torrent goes at a time,
+// and the list comes back when the move answers.
+void TestAppTransmission::aLongMoveIsBusyNotLost()
+{
+    Daemon daemon;
+    const QString to = QStringLiteral("/srv/transmission/moved");
+    daemon.wire.answer = [&daemon](const QString &method, const QJsonObject &params) {
+        if (method == QLatin1String("torrent_set_location")) {
+            // The copy starts: nothing answers until it ends; then the torrent is there.
+            daemon.server.hold = true;
+            daemon.library.byHash(kPack).insert(QStringLiteral("download_dir"),
+                                                params.value(QStringLiteral("location")));
+            return QJsonObject();
+        }
+        return daemon.library.answer(method, params);
+    };
+    App app;
+    QVERIFY(startOn(app, daemon));
+    // Polls time out quickly, so a held one would read as lost were it not the move.
+    app.engine()->client()->setTimeout(std::chrono::milliseconds(400));
+    QSignalSpy lost(app.engine(), &omaseed::core::SyncEngine::serverLost);
+
+    QVERIFY(app.move()->startSelection({kPack}, to, QString()));
+    QTRY_VERIFY_WITH_TIMEOUT(daemon.lastOf(QStringLiteral("torrent_set_location")) != nullptr,
+                             3000);
+    QCOMPARE(daemon.lastOf(QStringLiteral("torrent_set_location"))
+                 ->params.value(QStringLiteral("move"))
+                 .toBool(),
+             true);
+    QTRY_COMPARE_WITH_TIMEOUT(app.globalState()->busyMoving(), QStringList({kPack}), 3000);
+    // Past the poll's timeout: still busy, never lost, and no poll waits behind the copy.
+    QTest::qWait(1200);
+    QCOMPARE(lost.count(), 0);
+    QVERIFY(app.globalState()->connected());
+    QCOMPARE(app.globalState()->busyMoving(), QStringList({kPack}));
+    QVERIFY(daemon.server.heldCount() <= 2); // the move, and a poll already out at most
+    // The band says it in board 47's words once the quiet move shows (C16 L6, 3 s).
+    QTRY_VERIFY_WITH_TIMEOUT(app.move()->shown(), 5000);
+    const QVariantMap band = app.move()->band();
+    QCOMPARE(band.value(QStringLiteral("kind")).toString(), QStringLiteral("yellow"));
+    QVERIFY2(band.value(QStringLiteral("headline")).toString().contains(
+                 QStringLiteral("is busy moving Fixture Pack")),
+             qPrintable(band.value(QStringLiteral("headline")).toString()));
+    QVERIFY(band.value(QStringLiteral("line"))
+                .toString()
+                .contains(QStringLiteral("Transmission answers again once this torrent has moved")));
+
+    // The copy ends: the move answers, the poll goes at once and finds it there.
+    daemon.server.release();
+    QTRY_VERIFY_WITH_TIMEOUT(app.globalState()->busyMoving().isEmpty(), 3000);
+    QTRY_COMPARE_WITH_TIMEOUT(app.torrents()->torrent(kPack).savePath, to, 3000);
+    QTRY_COMPARE_WITH_TIMEOUT(app.move()->job()->moved(), 1, 3000);
+    QCOMPARE(lost.count(), 0);
+    app.engine()->stop();
+}
+
+// Board 47 §4: a failed move is learnt from the torrent (error 3 "Couldn't move…", stopped,
+// its folder unchanged) and reaches the same failure as qBittorrent's log-learnt one, in
+// Transmission's name.
+void TestAppTransmission::aFailedMoveIsLearntFromTheTorrent()
+{
+    Daemon daemon;
+    const QString to = QStringLiteral("/srv/locked/dest");
+    const QString from = daemon.library.byHash(kPack).value(QStringLiteral("download_dir")).toString();
+    daemon.wire.answer = [&](const QString &method, const QJsonObject &params) {
+        if (method == QLatin1String("torrent_set_location")) {
+            QJsonObject &pack = daemon.library.byHash(kPack);
+            pack.insert(QStringLiteral("error"), 3);
+            pack.insert(QStringLiteral("error_string"),
+                        QStringLiteral("Couldn't move '%1/Fixture Pack' to '%2/Fixture Pack': "
+                                       "Permission denied (13)")
+                            .arg(from, to));
+            pack.insert(QStringLiteral("status"), 0);
+            return QJsonObject();
+        }
+        return daemon.library.answer(method, params);
+    };
+    App app;
+    QVERIFY(startOn(app, daemon));
+    QSignalSpy notes(app.move(), &omaseed::app::MoveController::note);
+    QSignalSpy outcomes(app.move(), &omaseed::app::MoveController::outcome);
+    QVERIFY(app.move()->startSelection({kPack}, to, QString()));
+    QTRY_VERIFY_WITH_TIMEOUT(outcomes.count() == 1, 5000);
+    const QVariantMap outcome = outcomes.at(0).at(0).toMap();
+    QCOMPARE(outcome.value(QStringLiteral("failedHashes")).toStringList(), QStringList({kPack}));
+    QCOMPARE(outcome.value(QStringLiteral("cause")).toString(),
+             QStringLiteral("Transmission can't write to %1").arg(to));
+    QVERIFY(outcome.value(QStringLiteral("details")).toString().startsWith(QStringLiteral("Couldn't move")));
+    QVERIFY(!notes.isEmpty());
+    QVERIFY(notes.constLast().at(2).toBool());
+    // Sent once: the failure isn't a quiet torrent sent again.
+    QCOMPARE(daemon.idsOf(QStringLiteral("torrent_set_location")).size(), 1);
+    app.engine()->stop();
+}
+
+// Board 47 §E, K23: on a Transmission whose disks omaseed can't see, room is read on the server
+// (free_space), names at the destination can't be checked (said once), and the order goes one
+// at a time.
+void TestAppTransmission::theMoveSheetRunsTransmissionsChecks()
+{
+    Daemon daemon;
+    App app;
+    QVERIFY(startOn(app, daemon));
+    const QString to = QStringLiteral("/srv/other/games");
+    const auto texts = [&]() {
+        QStringList out;
+        const QVariantMap plan = app.move()->planSelection({kPack, kSingle}, to, QString());
+        for (const QVariant &line : plan.value(QStringLiteral("checks")).toList())
+            out << line.toMap().value(QStringLiteral("text")).toString() + QStringLiteral(" | ") +
+                       line.toMap().value(QStringLiteral("note")).toString();
+        return out;
+    };
+    QStringList lines = texts();
+    // Free space is asked of the server for the destination, then the plan reads it.
+    QTRY_VERIFY_WITH_TIMEOUT(daemon.lastOf(QStringLiteral("free_space")) != nullptr &&
+                                 daemon.lastOf(QStringLiteral("free_space"))
+                                         ->params.value(QStringLiteral("path"))
+                                         .toString() == to,
+                             3000);
+    QTRY_VERIFY_WITH_TIMEOUT((lines = texts()).join(QLatin1Char('\n'))
+                                 .contains(QStringLiteral("by Transmission's count")),
+                             3000);
+    const QString all = lines.join(QLatin1Char('\n'));
+    QVERIFY2(all.contains(QStringLiteral("through Transmission: room on that drive")), qPrintable(all));
+    QVERIFY2(all.contains(QStringLiteral("Names at the destination can't be checked on Transmission.")),
+             qPrintable(all));
+    QVERIFY2(all.contains(QStringLiteral("may be replaced by it")), qPrintable(all));
+    QVERIFY2(all.contains(QStringLiteral("the rest follow one at a time")), qPrintable(all));
+    QVERIFY2(!all.contains(QStringLiteral("qBittorrent")), qPrintable(all));
+    QVERIFY(daemon.lastOf(QStringLiteral("torrent_set_location")) == nullptr);
+    app.engine()->stop();
+}
+
 bool TestAppTransmission::startOn(App &app, Daemon &daemon)
 {
     qputenv("OMASEED_SERVER_URL", daemon.url().toString().toUtf8());
@@ -297,7 +437,17 @@ void TestAppTransmission::whatTransmissionLacksIsNotOffered()
     const QVariantMap can = app.featuresMap();
     // C14 E4, board 47 §1: what Transmission has…
     for (const char *on :
-         {"tags", "queue", "forceStart", "sequentialDownload", "altSpeeds", "renameOnDisk"})
+         {"tags",
+          "queue",
+          "forceStart",
+          "sequentialDownload",
+          "altSpeeds",
+          "renameOnDisk",
+          // Board 47 §E (C25 K21–K23): moves.
+          "moveStopsOnFailure",
+          "movesHoldAnswers",
+          "roomOnServer",
+          "moveReplacesFile"})
         QVERIFY2(can.value(QString::fromLatin1(on)).toBool(), on);
     // …and what it lacks, hidden by the views that read these.
     for (const char *off : {"categories",
@@ -315,7 +465,9 @@ void TestAppTransmission::whatTransmissionLacksIsNotOffered()
                             "rss",
                             "addAgain",
                             "search",
-                            "createTorrent"})
+                            "createTorrent",
+                            "moveProgress",
+                            "listFolders"})
         QVERIFY2(!can.value(QString::fromLatin1(off), true).toBool(), off);
     // Board 47 §B (C25 K13–K14): its tags are labels, named so wherever a person reads them.
     QVERIFY(can.value(QStringLiteral("tagsAreLabels")).toBool());

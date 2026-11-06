@@ -596,6 +596,7 @@ MovePlan MovePlan::make(const Input &input)
             plan.m_bytesFree = there.bytesFree;
             plan.m_drive = there.where;
             plan.m_freeReadHere = there.source == FreeSpaceProbe::Source::Local;
+            plan.m_freeReadOnServer = there.source == FreeSpaceProbe::Source::Server;
         }
     }
     plan.m_bytesFreeAfter = plan.m_bytesFree < 0 ? -1 : plan.m_bytesFree - plan.m_bytesToMove;
@@ -649,6 +650,7 @@ void MovePlan::roomForEach(const Input &input)
         qint64 bytes = 0;
         qint64 free = -1;
         bool local = false;
+        bool server = false;
     };
     QMap<QString, Drive> drives;
     bool unknown = false;
@@ -683,6 +685,7 @@ void MovePlan::roomForEach(const Input &input)
         drive.bytes += item.bytes;
         drive.free = there.bytesFree;
         drive.local = there.source == FreeSpaceProbe::Source::Local;
+        drive.server = there.source == FreeSpaceProbe::Source::Server;
     }
     m_sameDrive = any && allSame;
     QString worst;
@@ -704,6 +707,7 @@ void MovePlan::roomForEach(const Input &input)
         m_bytesFree = drive.free;
         m_bytesFreeAfter = drive.free - drive.bytes;
         m_freeReadHere = drive.local;
+        m_freeReadOnServer = drive.server;
     }
     if (m_sameDrive) {
         m_room = Check::Ok;
