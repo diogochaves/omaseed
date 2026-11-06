@@ -4,7 +4,7 @@
 # (the manual box, through scripts/dev/manual-box.sh).
 #
 #   scripts/dev/app-box.sh up [-b NAME] [--interactive] [--build DIR] [--handlers] [--qbt]
-#                             [--transmission] [--plugin DIR] [--stock-bar]
+#                             [--transmission [--and-playground]] [--plugin DIR] [--stock-bar]
 #       a box on its own network that reaches only :8081; servers.json pointing omaseed at the
 #       playground; every swarm .torrent in ~/Downloads (the add sheet's "In Downloads" list);
 #       then DIR/omaseed (default build/) is started and the command returns once its window
@@ -15,6 +15,9 @@
 #       --transmission: the Transmission playground instead (:8085, scripts/dev/test-server.sh
 #       start --transmission, started if it isn't), the box reaching only that port; omaseed's
 #       server is "transmission" at its web UI address (DECISIONS C14 E4, #85).
+#       --and-playground (with --transmission): the :8081 playground saved too, as a second
+#       server, "playground" (qBittorrent), and the box reaching it: a Settings group for each
+#       engine (DECISIONS C25 K32, #86).
 #       --plugin DIR: that shell plugin (the repo's plugin/, the bar widget) mounted and enabled
 #       in the box's bar, beside the app.
 #       --stock-bar: Omarchy's default bar (at the top, workspaces and clock) instead of a copy
@@ -209,9 +212,15 @@ EOF
 
 up_app() {
     local build="$1" interactive="$2" handlers="$3" qbt="$4" plugin="${5:-}" transmission="${6:-0}"
-    local home url name engine=qbittorrent up_args=()
+    local both="${7:-0}"
+    local home url name engine=qbittorrent up_args=() second=""
     [ -x "$build/omaseed" ] || die "no $build/omaseed: build it first (cmake --build $build)"
     if [ "$transmission" = 1 ] && [ "$qbt" = 1 ]; then die "--qbt and --transmission: pick one"; fi
+    if [ "$both" = 1 ] && [ "$transmission" = 0 ]; then die "--and-playground goes with --transmission"; fi
+    if [ "$both" = 1 ] && ! "$repo/scripts/dev/test-server.sh" status >/dev/null 2>&1; then
+        echo "starting the playground (:$PLAY_PORT)"
+        "$repo/scripts/dev/test-server.sh" start >/dev/null
+    fi
     if [ "$transmission" = 1 ]; then
         if ! "$repo/scripts/dev/test-server.sh" status --transmission >/dev/null 2>&1; then
             echo "starting the Transmission playground (:$TR_PORT)"
@@ -236,6 +245,8 @@ up_app() {
     if [ "$qbt" = 1 ]; then
         # Only the swarm's tracker and seeder: nothing of this machine's qBittorrents.
         up_args=(--net isolated --allow "$TRACKER_PORT,$SEEDER_BT_PORT")
+    elif [ "$transmission" = 1 ] && [ "$both" = 1 ]; then
+        up_args=(--net isolated --allow "$TR_PORT,$PLAY_PORT")
     elif [ "$transmission" = 1 ]; then
         up_args=(--net isolated --allow "$TR_PORT")
     else
@@ -265,8 +276,11 @@ up_app() {
         url="$PLAY"
         name=playground
     fi
-    printf '{"version":2,"defaultId":"%s","servers":[{"id":"%s","name":"%s","url":"%s","engine":"%s","authMode":"none","username":"","pathMap":[],"isDefault":true,"addedAt":"2026-09-23T00:00:00Z"}]}' \
-        "$name" "$name" "$name" "$url" "$engine" >"$home/.config/omaseed/servers.json"
+    if [ "$both" = 1 ]; then
+        second="$(printf ',{"id":"playground","name":"playground","url":"%s","engine":"qbittorrent","authMode":"none","username":"","pathMap":[],"isDefault":false,"addedAt":"2026-09-23T00:00:00Z"}' "$PLAY")"
+    fi
+    printf '{"version":2,"defaultId":"%s","servers":[{"id":"%s","name":"%s","url":"%s","engine":"%s","authMode":"none","username":"","pathMap":[],"isDefault":true,"addedAt":"2026-09-23T00:00:00Z"}%s]}' \
+        "$name" "$name" "$name" "$url" "$engine" "$second" >"$home/.config/omaseed/servers.json"
     chmod 600 "$home/.config/omaseed/servers.json"
     cp "$TORRENTS"/*.torrent "$home/Downloads/"
     local kind=app
@@ -505,6 +519,7 @@ interactive=0
 handlers=0
 qbt=0
 transmission=0
+both=0
 plugin=""
 bar_args=()
 manual=0
@@ -520,6 +535,7 @@ while [ $# -gt 0 ]; do
     --handlers) handlers=1 ;;
     --qbt) qbt=1 ;;
     --transmission) transmission=1 ;;
+    --and-playground) both=1 ;;
     --plugin) [ $# -ge 2 ] || die "--plugin needs a directory"; plugin="$(cd "$2" && pwd)"; shift ;;
     --stock-bar) bar_args=(--stock-bar) ;;
     --manual) manual=1 ;;
@@ -551,7 +567,7 @@ up)
     if [ "$manual" = 1 ]; then
         up_manual "${build:-build-box}" "$interactive"
     else
-        up_app "${build:-build}" "$interactive" "$handlers" "$qbt" "$plugin" "$transmission"
+        up_app "${build:-build}" "$interactive" "$handlers" "$qbt" "$plugin" "$transmission" "$both"
     fi
     ;;
 restart)
