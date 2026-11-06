@@ -642,8 +642,11 @@ EngineFeatures features(const QString &apiVersion)
     f.autoManagement = true;
     f.engineLog = true;
     f.addOptions = true;
+    f.addContentLayout = true;
     f.v2Only = true; // libtorrent 2: a v2 hash or a v2-only .torrent (#147)
     f.peerControl = true;
+    f.peerBan = true;
+    f.webSeeds = true;
     f.editWebSeeds = true;
     f.seedingTimeLimit = true;
     f.altSpeeds = true;

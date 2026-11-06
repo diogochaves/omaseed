@@ -1071,6 +1071,7 @@ EngineFeatures features(const ServerInfo &)
     f.autoManagement = false;    // I
     f.fetchMetadata = false;     // G, K26: a stopped magnet never connects
     f.addOptions = false;        // G, K27: no name, layout, first and last, skip check at add
+    f.addContentLayout = false;  // G, K27
     f.v2Only = false;            // G, K25: its magnet parser takes btih only
     f.renameOnDisk = true;       // G, K28: renaming renames its folder on disk
     f.moveProgress = false;      // E, K21: no moving state; download_dir changes at the end
@@ -1080,6 +1081,8 @@ EngineFeatures features(const ServerInfo &)
     f.roomOnServer = true;       // E, K23: free_space on any path
     f.moveReplacesFile = true;   // E, K23 (checked, §3): a file already there is replaced
     f.peerControl = false;       // H: neither add nor ban
+    f.peerBan = false;           // H
+    f.webSeeds = true;           // H, K29: listed, read only
     f.editWebSeeds = false;      // H, K29: read only
     f.engineLog = false;         // I, K30: no log face, no ~
     f.qbtSettings = false;       // I, J

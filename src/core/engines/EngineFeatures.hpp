@@ -22,6 +22,11 @@ struct EngineFeatures
     /// The many-per-torrent group is the engine's labels (Transmission, C25 K14): called
     /// "labels" wherever a person reads it, none exists without a torrent, no comma in one.
     bool tagsAreLabels = false;
+    /// The one-per-torrent group is the engine's labels (Deluge's Label plugin, C25 B,
+    /// K13–K15): called "labels" wherever a person reads it, lower case, the folder a label
+    /// moves its torrents to when they finish as its path. With `categories` off the plugin
+    /// is off: the section is gone and Settings says why in one line.
+    bool categoriesAreLabels = false;
 
     /// The file priorities a file can be given (FilePriority values), lowest first.
     QList<int> filePriorities;
@@ -34,10 +39,17 @@ struct EngineFeatures
     bool sequentialDownload = false;
     bool firstLastPiece = false; ///< first and last pieces first
     bool superSeeding = false;
-    bool autoManagement = false;   ///< automatic torrent management (categories move data)
-    bool fetchMetadata = false;    ///< a magnet's files before the add (C5)
-    bool addOptions = false;       ///< the add's content layout, skip check and rename
-    bool peerControl = false;      ///< add a peer to a torrent, ban one from all
+    bool autoManagement = false; ///< automatic torrent management (categories move data)
+    bool fetchMetadata = false;  ///< a magnet's files before the add (C5)
+    bool addOptions = false;     ///< the add's skip check and rename (with the layout below)
+    /// The add's content layout (original, a subfolder, none); Deluge takes the add's other
+    /// options but not this one (board 47 G, C25 K27).
+    bool addContentLayout = false;
+    bool peerControl = false; ///< add a peer to a torrent
+    bool peerBan = false;     ///< ban a peer from every torrent (none on Deluge, board 47 H)
+    /// The torrent's HTTP sources are reported (the web seeds' tab); Deluge has none (board 47
+    /// H: the tab never appears).
+    bool webSeeds = false;
     bool editWebSeeds = false;     ///< add and remove a torrent's HTTP sources
     bool seedingTimeLimit = false; ///< a limit on total seeding time (ratio and idle aside)
     bool engineLog = false;        ///< the engine's own log: the log face, the problem log
