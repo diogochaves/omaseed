@@ -2548,6 +2548,24 @@ TestCase {
         testCase._noServers();
     }
 
+    // Board 47 §E (C25 K22): a server busy moving says so in the lane and the title, its dot
+    // yellow, no speeds, the list's time; never C12's lost words, no notice.
+    function test_a_server_busy_moving_says_so_and_is_not_lost() {
+        testCase._twoServers();
+        view._testServerBusy = true;
+        wait(0);
+        compare(view.serverLost, false);
+        verify(!view.serverNotice.shown);
+        compare(view.statusLine.serverText, App.serverName + " · busy moving");
+        compare(view.statusLine.serverShortText, "");
+        verify(Qt.colorEqual(view.statusLine.dotColor, Theme.yellow));
+        compare(view.statusLine.downSpeed, "—");
+        verify(/^(list from \d\d:\d\d|not synced yet)$/.test(view.factsText), view.factsText);
+        verify(view.scopeSentence.endsWith(App.serverName + " is busy moving"), view.scopeSentence);
+        view._testServerBusy = false;
+        testCase._noServers();
+    }
+
     // D1: the empty library keeps the rail's servers block with two servers, and none with one.
     function test_the_empty_library_keeps_the_servers_block() {
         App.loadEmptyDemo();

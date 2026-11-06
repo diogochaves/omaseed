@@ -385,10 +385,18 @@ Item {
     readonly property bool serverRetrying: root.serverLost && !App.serverRefused
                                            && root.serverProblem.kind === "waiting"
 
+    /// C25 K22 (board 47 §E): the server answers nothing until a move's copy ends
+    /// (Transmission). The list is the last poll's, said so, and that isn't a lost server.
+    readonly property bool serverBusy: root._testServerBusy
+                                       || (App.hasServer && !App.demoMode && !root.serverLost
+                                           && App.globalState.busyMoving.length > 0)
+    /// A test seam, as `_testServerLost`: the demo library's server never moves anything.
+    property bool _testServerBusy: false
+
     /// A filter that matches nothing: Fig. 24.
     readonly property bool filterEmpty: App.torrents.count > 0 && App.filtered.count === 0
     /// There are numbers worth printing in the status line.
-    readonly property bool live: App.demoMode || App.globalState.connected
+    readonly property bool live: (App.demoMode || App.globalState.connected) && !root.serverBusy
 
     /// #24 (docs/22 D1 a): the window's face, "library" or "seed" (the seed console); docs/32
     /// D9 (#56) adds "log", qBittorrent's log.
@@ -625,7 +633,7 @@ Item {
     // the status line's facts (board 46 `statusLine()`: count · free · sync)
     /// `[{value, label}]`, drawn value-in-foreground / label-in-dim and joined with `·`.
     readonly property var factParts: {
-        if (root.serverLost)
+        if (root.serverLost || root.serverBusy)
             return [
                 {
                     "value": "",
@@ -2289,6 +2297,9 @@ Item {
         if (root.serverLost)
             return App.lostSentence(App.torrents.count > 0 ? App.globalState.lastSyncText : "",
                                     root.serverProblem.headline ?? "");
+        // Board 47 §E: "the list is from 16:24 · seedbox is busy moving".
+        if (root.serverBusy)
+            return App.lostSentence(App.globalState.lastSyncText, qsTr("%1 is busy moving").arg(App.serverName));
         if (root.logShown)
             // Board 51 D5 a: the bar's words gone with it, how many and how bad, and following.
             return App.logSentence(App.serverName, App.serverLog.total, App.serverLog.firstAtText,
@@ -3010,15 +3021,16 @@ Item {
         serverText: root.serverLaneText()
         // docs/10 §2: from the first narrow step the lane drops the version (its tooltip keeps
         // it); the states that matter more than the version keep their words.
-        serverShortText: !App.hasServer || root.serverLost || root.firstSync ? "" : App.serverName
+        serverShortText: !App.hasServer || root.serverLost || root.serverBusy || root.firstSync ? "" : App.serverName
         // docs/33 D3, H15: with two servers the lane opens the server palette.
         serverSwitchable: root.multiServer
         keysShown: root.keysShown
         serverConfigured: App.hasServer
-        connected: !root.serverLost
+        connected: !root.serverLost && !root.serverBusy
         syncing: root.firstSync
         connecting: App.serverConnecting && !root.serverLost
-        retrying: root.serverRetrying
+        // Board 47 §E: busy moving is yellow, as a server that is there but slow.
+        retrying: root.serverRetrying || root.serverBusy
         connectionStatus: App.globalState.connectionStatus
         // docs/16 §5: the port behind "not reachable", and anonymous mode with private
         // torrents in the library.
@@ -3988,6 +4000,9 @@ Item {
             return qsTr("%1 · isn't answering").arg(App.serverName);
         if (root.serverLost)
             return qsTr("%1 · unreachable").arg(App.serverName);
+        // C25 K22: the server lane says it while Transmission moves (board 47 §E).
+        if (root.serverBusy)
+            return qsTr("%1 · busy moving").arg(App.serverName);
         if (App.serverConnecting && !root.firstSync) // #201 F4
             return qsTr("%1 · connecting").arg(App.serverName);
         if (root.firstSync)
