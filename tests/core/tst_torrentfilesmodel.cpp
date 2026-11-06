@@ -46,6 +46,7 @@ private Q_SLOTS:
     void a_new_shape_resets_the_model();
     void unicode_paths_from_the_playground();
     void raise_and_lower_walk_the_ladder();
+    void transmissions_set_has_low_and_no_maximal();
     void empty_input_clears();
     void sorting_by_name_keeps_the_tree_and_puts_folders_first();
     void sorting_by_a_number_mixes_folders_and_files();
@@ -250,6 +251,45 @@ void TestTorrentFilesModel::raise_and_lower_walk_the_ladder()
     QCOMPARE(TorrentFilesModel::loweredPriority(1), 0);
     QCOMPARE(TorrentFilesModel::loweredPriority(0), 0);
     QCOMPARE(TorrentFilesModel::loweredPriority(-1), 1);
+}
+
+// C25 K17: Transmission's own set, skip · low · normal · high; its top is high.
+void TestTorrentFilesModel::transmissions_set_has_low_and_no_maximal()
+{
+    const QList<int> set{0, 2, 1, 6};
+    QCOMPARE(TorrentFilesModel::priorityText(2), QStringLiteral("low"));
+    QCOMPARE(TorrentFilesModel::raisedPriority(0, set), 2);
+    QCOMPARE(TorrentFilesModel::raisedPriority(2, set), 1);
+    QCOMPARE(TorrentFilesModel::raisedPriority(1, set), 6);
+    QCOMPARE(TorrentFilesModel::raisedPriority(6, set), 6);
+    QCOMPARE(TorrentFilesModel::loweredPriority(6, set), 1);
+    QCOMPARE(TorrentFilesModel::loweredPriority(1, set), 2);
+    QCOMPARE(TorrentFilesModel::loweredPriority(2, set), 0);
+    QCOMPARE(TorrentFilesModel::loweredPriority(-1, set), 1);
+    // The click: up and round, never to skip.
+    QCOMPARE(TorrentFilesModel::cycledPriority(1, set), 6);
+    QCOMPARE(TorrentFilesModel::cycledPriority(6, set), 2);
+    QCOMPARE(TorrentFilesModel::cycledPriority(2, set), 1);
+    QCOMPARE(TorrentFilesModel::cycledPriority(7), 1); // qBittorrent's: maximal -> normal
+
+    TorrentFilesModel model;
+    QSignalSpy changed(&model, &TorrentFilesModel::prioritySetChanged);
+    model.setPrioritySet(set);
+    QCOMPARE(changed.size(), 1);
+    QCOMPARE(model.prioritySetList(), (QVariantList{0, 2, 1, 6})); // lowest first
+    QCOMPARE(model.raised(6), 6);
+    QCOMPARE(model.lowered(1), 2);
+    model.setPrioritySet({});
+    QCOMPARE(model.prioritySet(), TorrentFilesModel::qbittorrentPrioritySet());
+
+    // "By shown file order" uses the set's three highest: high, normal, low.
+    model.setPrioritySet(set);
+    qbtfeed::files(model, fixture(QStringLiteral("files-fig2.json")));
+    const QVariantList groups = model.shownOrderGroups(0);
+    QCOMPARE(groups.size(), 3);
+    QCOMPARE(groups.at(0).toMap().value(QStringLiteral("priority")).toInt(), 6);
+    QCOMPARE(groups.at(1).toMap().value(QStringLiteral("priority")).toInt(), 1);
+    QCOMPARE(groups.at(2).toMap().value(QStringLiteral("priority")).toInt(), 2);
 }
 
 void TestTorrentFilesModel::empty_input_clears()

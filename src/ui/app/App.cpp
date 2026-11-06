@@ -5398,6 +5398,9 @@ void App::updateFeatures()
     if (features == m_features)
         return;
     m_features = features;
+    // C25 K17: the Files tab and the add sheet step through the engine's own priorities.
+    m_details->files()->setPrioritySet(features.filePriorities);
+    m_addFiles->setPrioritySet(features.filePriorities);
     Q_EMIT featuresChanged();
 }
 

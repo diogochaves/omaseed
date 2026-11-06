@@ -74,6 +74,7 @@ private slots:
     void raiseAndLowerWalkTheLadder();
     void clickCyclesPriorityAndKeepsSkipsSkipped();
     void clickOnASkippedRowBringsItBackAtNormal();
+    void transmissionsSetCyclesThroughLow();
     void allAndNone();
     void toggleAllTicksAllThenNone();
     void tickingBackRestoresThePriority();
@@ -317,6 +318,29 @@ void TestAddFilesModel::clickOnASkippedRowBringsItBackAtNormal()
     QCOMPARE(roleAt(model, sintel, "wanted").toInt(), 2);
     QCOMPARE(model.priority(sintel), 1);
     QCOMPARE(model.wantedCount(), 8);
+}
+
+// C25 K17: on Transmission the keys and the click walk skip · low · normal · high.
+void TestAddFilesModel::transmissionsSetCyclesThroughLow()
+{
+    AddFilesModel model;
+    model.setPrioritySet({0, 2, 1, 6});
+    model.load(fixture("open_movies_v1.torrent").files);
+    const int mkv = rowNamed(model, QStringLiteral("bbb_sunflower_2160p_60fps.mp4"));
+    model.cyclePriority(mkv);
+    QCOMPARE(model.priority(mkv), 6);
+    model.cyclePriority(mkv);
+    QCOMPARE(model.priority(mkv), 2); // high is the top: round to low
+    model.cyclePriority(mkv);
+    QCOMPARE(model.priority(mkv), 1);
+    model.raise(mkv);
+    model.raise(mkv);
+    QCOMPARE(model.priority(mkv), 6); // never maximal
+    model.lower(mkv);
+    model.lower(mkv);
+    QCOMPARE(model.priority(mkv), 2);
+    model.lower(mkv);
+    QCOMPARE(model.priority(mkv), 0);
 }
 
 // The header's "all" and "none".

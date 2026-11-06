@@ -26,8 +26,8 @@ import Omaseed.Kit
 //
 // The pointer (manual box M17): a click on the check mark checks or unchecks the row (a
 // folder: all of it, as `space`), on a folder's arrow folds or unfolds it, on the priority
-// cycles normal → high → maximum → normal (`AddFilesModel::cyclePriority`: a folder's skipped
-// files stay skipped, a skipped row comes back at normal). Each of those parts shows the
+// cycles up the engine's set and round (C25 K17; `AddFilesModel::cyclePriority`: a folder's
+// skipped files stay skipped, a skipped row comes back at normal). Each of those parts shows the
 // pointing hand and the hover fill; a click anywhere else on the row only moves the cursor,
 // and a double click still folds a folder or checks a file. Every click puts the cursor on
 // its row and the keyboard in the tree, as a row click always did.

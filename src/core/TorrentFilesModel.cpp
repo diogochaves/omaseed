@@ -64,12 +64,14 @@ QString filePriorityText(int priority)
         return QStringLiteral("mixed");
     case int(FilePriority::Skip):
         return QStringLiteral("skip");
+    case int(FilePriority::Low):
+        return QStringLiteral("low");
     case int(FilePriority::High):
         return QStringLiteral("high");
     case int(FilePriority::Maximal):
         return QStringLiteral("maximal");
     default:
-        // qBittorrent only ever sends 0, 1, 6 and 7, but an unknown value is still a file
+        // The engines send only these, but an unknown value is still a file
         // the user is downloading; call it normal rather than inventing a word.
         return QStringLiteral("normal");
     }
@@ -1140,8 +1142,18 @@ QVariantList TorrentFilesModel::shownOrderGroups(int cursorRow) const
     if (leaves.isEmpty())
         return {};
     const int groupSize = std::max(1, int(leaves.size()) / 3);
-    const std::array<int, 3> ladder{
+    // The set's three highest wanted priorities, highest first (C25 K17).
+    std::array<int, 3> ladder{
         int(FilePriority::Maximal), int(FilePriority::High), int(FilePriority::Normal)};
+    {
+        QList<int> wanted;
+        for (int priority : m_prioritySet) {
+            if (priority != int(FilePriority::Skip))
+                wanted.prepend(priority);
+        }
+        for (size_t at = 0; at < ladder.size() && !wanted.isEmpty(); ++at)
+            ladder[at] = wanted.at(std::min<qsizetype>(qsizetype(at), wanted.size() - 1));
+    }
     std::array<QList<int>, 3> groups;
     for (int at = 0; at < int(leaves.size()); ++at)
         groups[std::min(2, at / groupSize)].append(m_nodes.at(leaves.at(at)).fileIndex);
@@ -1293,32 +1305,108 @@ void TorrentFilesModel::renameLocal(const QString &oldPath, const QString &newPa
     applyFiles(files);
 }
 
-int TorrentFilesModel::raisedPriority(int priority)
+namespace {
+
+/// Where a priority sits on the one ladder every engine's set is a part of (Low's number, 2,
+/// sits above Normal's, so the numbers alone don't order them).
+int priorityRank(int priority)
 {
     switch (priority) {
     case int(FilePriority::Skip):
-        return int(FilePriority::Normal);
+        return 0;
+    case int(FilePriority::Low):
+        return 1;
     case int(FilePriority::Normal):
-        return int(FilePriority::High);
-    case int(FilePriority::Mixed):
-        return int(FilePriority::High);
+        return 2;
+    case int(FilePriority::High):
+        return 3;
+    case int(FilePriority::Maximal):
+        return 4;
     default:
-        return int(FilePriority::Maximal);
+        return 2; // an unknown value reads as normal (filePriorityText)
     }
 }
 
-int TorrentFilesModel::loweredPriority(int priority)
+QList<int> orderedSet(const QList<int> &set)
 {
-    switch (priority) {
-    case int(FilePriority::Maximal):
+    QList<int> ordered = set.isEmpty() ? TorrentFilesModel::qbittorrentPrioritySet() : set;
+    std::stable_sort(ordered.begin(), ordered.end(), [](int a, int b) {
+        return priorityRank(a) < priorityRank(b);
+    });
+    return ordered;
+}
+
+} // namespace
+
+QList<int> TorrentFilesModel::qbittorrentPrioritySet()
+{
+    return {int(FilePriority::Skip),
+            int(FilePriority::Normal),
+            int(FilePriority::High),
+            int(FilePriority::Maximal)};
+}
+
+int TorrentFilesModel::raisedPriority(int priority, const QList<int> &set)
+{
+    if (priority == int(FilePriority::Mixed))
         return int(FilePriority::High);
-    case int(FilePriority::High):
-        return int(FilePriority::Normal);
-    case int(FilePriority::Mixed):
-        return int(FilePriority::Normal);
-    default:
-        return int(FilePriority::Skip);
+    const QList<int> ladder = orderedSet(set);
+    for (int step : ladder) {
+        if (priorityRank(step) > priorityRank(priority))
+            return step;
     }
+    return ladder.constLast();
+}
+
+int TorrentFilesModel::loweredPriority(int priority, const QList<int> &set)
+{
+    if (priority == int(FilePriority::Mixed))
+        return int(FilePriority::Normal);
+    const QList<int> ladder = orderedSet(set);
+    for (auto it = ladder.crbegin(); it != ladder.crend(); ++it) {
+        if (priorityRank(*it) < priorityRank(priority))
+            return *it;
+    }
+    return ladder.constFirst();
+}
+
+int TorrentFilesModel::cycledPriority(int priority, const QList<int> &set)
+{
+    const QList<int> ladder = orderedSet(set);
+    const int raised = raisedPriority(priority, ladder);
+    if (raised != priority && priority != int(FilePriority::Mixed))
+        return raised;
+    // From the top (or a mixed set), back to the lowest wanted one.
+    for (int step : ladder) {
+        if (step != int(FilePriority::Skip))
+            return step;
+    }
+    return int(FilePriority::Normal);
+}
+
+QVariantList TorrentFilesModel::prioritySetList() const
+{
+    QVariantList list;
+    for (int priority : m_prioritySet)
+        list.append(priority);
+    return list;
+}
+
+void TorrentFilesModel::setPrioritySetList(const QVariantList &set)
+{
+    QList<int> list;
+    for (const QVariant &priority : set)
+        list.append(priority.toInt());
+    setPrioritySet(list);
+}
+
+void TorrentFilesModel::setPrioritySet(const QList<int> &set)
+{
+    const QList<int> next = orderedSet(set);
+    if (next == m_prioritySet)
+        return;
+    m_prioritySet = next;
+    Q_EMIT prioritySetChanged();
 }
 
 QString TorrentFilesModel::serverPathOf(const QString &contentPath,

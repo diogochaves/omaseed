@@ -58,6 +58,9 @@ public:
 
     explicit AddFilesModel(QObject *parent = nullptr);
 
+    /// The server engine's file priorities (C25 K17); empty keeps qBittorrent's.
+    void setPrioritySet(const QList<int> &set);
+
     QVariant data(const QModelIndex &index, int role) const override;
     QHash<int, QByteArray> roleNames() const override;
 
@@ -91,10 +94,12 @@ public:
     /// skipped whole; a mixed or skipped one is ticked whole, each skipped file going back to
     /// the priority it had before it was skipped (normal when it never had another).
     Q_INVOKABLE void toggleWanted(int row);
-    /// `+` / `-`: one step up or down skip → normal → high → maximal, on the whole row.
+    /// `+` / `-`: one step up or down the engine's set (skip → normal → high → maximal on
+    /// qBittorrent, skip → low → normal → high on Transmission: C25 K17), on the whole row.
     Q_INVOKABLE void raise(int row);
     Q_INVOKABLE void lower(int row);
-    /// A click on a row's priority (manual box M17): normal → high → maximal → normal, on the
+    /// A click on a row's priority (manual box M17): up the set and from its top back to its
+    /// lowest wanted one (normal → high → maximal → normal on qBittorrent), on the
     /// row's wanted files only, so a folder's skipped files stay skipped. A mixed row starts
     /// over at normal; a row with nothing wanted comes back at normal (the click reads as
     /// "stop skipping this").

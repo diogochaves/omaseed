@@ -276,8 +276,9 @@ Item {
             return;
         const files = root.details.files;
         const current = files.targetPriority(root.filesCursor);
-        const wanted = name === "skip" ? 0 : name === "raise" ? files.raisedPriority(current) :
-                                                                files.loweredPriority(current);
+        // C25 K17: up and down the engine's own set (files.prioritySet).
+        const wanted = name === "skip" ? 0 : name === "raise" ? files.raised(current)
+                                                              : files.lowered(current);
         root.applyPriority(wanted);
     }
 
@@ -292,16 +293,18 @@ Item {
             App.toggleFilesWanted(root.details.hash, ids);
     }
 
-    /// The priority menu's rows: one API priority (0 skip, 1 normal, 6 high, 7 maximal) on the
-    /// selection or the cursor row.
+    /// The priority menu's rows: one priority of the engine's set (C25 K17: 0 skip, 1 normal,
+    /// 6 high, 7 maximal on qBittorrent; 0 skip, 2 low, 1 normal, 6 high on Transmission) on
+    /// the selection or the cursor row.
     function applyPriority(priority: int) {
         const ids = root.details.files.targetFileIndexes(root.filesCursor);
         if (ids.length > 0)
             App.setFilePriority(root.details.hash, ids, priority);
     }
 
-    /// qBittorrent's "by shown file order": the first third maximal, the next high, the rest
-    /// normal, in the order the list shows them.
+    /// qBittorrent's "by shown file order": the first third at the set's top priority, the
+    /// next one step down, the rest one more (maximal, high, normal on qBittorrent), in the
+    /// order the list shows them.
     function applyShownOrder() {
         App.setFilePriorityGroups(root.details.hash,
                                   root.details.files.shownOrderGroups(root.filesCursor));
@@ -1774,6 +1777,15 @@ Item {
             readonly property int current: priorityMenu.opened
                                            ? root.details.files.targetPriority(root.filesCursor) : -1
 
+            /// Each priority's word and menu letter.
+            readonly property var words: ({
+                                              "7": [qsTr("maximal"), "m"],
+                                              "6": [qsTr("high"), "h"],
+                                              "1": [qsTr("normal"), "n"],
+                                              "2": [qsTr("low"), "l"],
+                                              "0": [qsTr("skip"), "x"]
+                                          })
+
             function row(text: string, key: string, priority: int): var {
                 return {
                     "text": text,
@@ -1784,14 +1796,17 @@ Item {
             }
 
             anchors.fill: parent
-            items: [priorityMenu.row(qsTr("maximal"), "m", 7), priorityMenu.row(qsTr("high"), "h", 6),
-                priorityMenu.row(qsTr("normal"), "n", 1), priorityMenu.row(qsTr("skip"), "x", 0), {
-                    "separator": true
-                }, {
-                    "text": qsTr("by shown file order"),
-                    "key": "b",
-                    "action": "shownOrder"
-                }]
+            // C25 K17: the engine's set, highest first.
+            items: root.details.files.prioritySet.slice().reverse()
+                   .filter(p => priorityMenu.words[p] !== undefined)
+                   .map(p => priorityMenu.row(priorityMenu.words[p][0], priorityMenu.words[p][1], p))
+                   .concat([{
+                                "separator": true
+                            }, {
+                                "text": qsTr("by shown file order"),
+                                "key": "b",
+                                "action": "shownOrder"
+                            }])
             menuWidth: Math.min(Theme.space(240), root.width - Theme.space(16))
             z: 20
 

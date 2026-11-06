@@ -322,14 +322,19 @@ void AddFilesModel::toggleWanted(int row)
     Q_EMIT choicesChanged();
 }
 
+void AddFilesModel::setPrioritySet(const QList<int> &set)
+{
+    m_tree->setPrioritySet(set);
+}
+
 void AddFilesModel::raise(int row)
 {
-    setPriority(row, TorrentFilesModel::raisedPriority(priority(row)));
+    setPriority(row, m_tree->raised(priority(row)));
 }
 
 void AddFilesModel::lower(int row)
 {
-    setPriority(row, TorrentFilesModel::loweredPriority(priority(row)));
+    setPriority(row, m_tree->lowered(priority(row)));
 }
 
 void AddFilesModel::cyclePriority(int row)
@@ -352,10 +357,8 @@ void AddFilesModel::cyclePriority(int row)
         return;
     }
     int next = kNormal;
-    if (agree && common == kNormal)
-        next = int(FilePriority::High);
-    else if (agree && common == int(FilePriority::High))
-        next = int(FilePriority::Maximal);
+    if (agree)
+        next = TorrentFilesModel::cycledPriority(common, m_tree->prioritySet());
     if (!setIds(wanted, next))
         return;
     applyToTree();

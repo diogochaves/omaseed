@@ -1633,6 +1633,31 @@ TestCase {
         compare(files.priority(2), 7);
     }
 
+    // C25 K17: on Transmission the menu and the keys walk skip · low · normal · high.
+    function test_the_priority_menu_and_keys_follow_the_engines_set() {
+        const view = testCase.filesView();
+        const files = App.details.files;
+        files.prioritySet = [0, 2, 1, 6];
+        try {
+            view.moveCursor(2); // bbb_sunflower_1080p, normal
+            keyClick("p");
+            verify(view.editing, "`p` did not open the priority menu");
+            keyClick("m"); // no maximal on Transmission: the letter does nothing
+            compare(files.priority(2), 1);
+            keyClick("l");
+            verify(!view.editing);
+            compare(files.priority(2), 2);
+            compare(files.priorityText(2), "low");
+            keyClick("+");
+            compare(files.priority(2), 1);
+            keyClick("+");
+            keyClick("+");
+            compare(files.priority(2), 6, "high is Transmission's top");
+        } finally {
+            files.prioritySet = [];
+        }
+    }
+
     function test_s_sorts_and_the_cursor_follows_its_row() {
         const view = testCase.filesView();
         const files = App.details.files;

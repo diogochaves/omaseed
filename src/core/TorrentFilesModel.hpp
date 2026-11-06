@@ -54,10 +54,12 @@
 
 namespace omaseed::core {
 
-/// qBittorrent's file priorities, plus the synthetic one a folder shows when its files
-/// disagree. The numbers are the API's own (`torrents/filePrio`).
+/// The file priorities (FilePriority's numbers, qBittorrent's API's own plus Low), and the
+/// synthetic one a folder shows when its files disagree. Which ones a server offers is the
+/// engine's set (EngineFeatures::filePriorities, DECISIONS C25 K17): qBittorrent skip, normal,
+/// high, maximal; Transmission skip, low, normal, high.
 
-/// "skip", "normal", "high", "maximal", "mixed" (spec §2 Fig. 2's Priority column).
+/// "skip", "low", "normal", "high", "maximal", "mixed" (spec §2 Fig. 2's Priority column).
 QString filePriorityText(int priority);
 
 class TorrentFilesModel : public QAbstractListModel
@@ -95,6 +97,10 @@ class TorrentFilesModel : public QAbstractListModel
     Q_PROPERTY(qint64 heldOnDisk READ heldOnDisk NOTIFY onDiskChanged)
     Q_PROPERTY(int holdingOnDisk READ holdingOnDisk NOTIFY onDiskChanged)
     Q_PROPERTY(bool showOnDisk READ showOnDisk NOTIFY onDiskChanged)
+    /// C25 K17: the priorities the server's engine keeps, lowest first (skip first); the keys
+    /// and the menu step through these. qBittorrent's until set.
+    Q_PROPERTY(QVariantList prioritySet READ prioritySetList WRITE setPrioritySetList NOTIFY
+                   prioritySetChanged)
 
 public:
     enum Role {
@@ -234,7 +240,8 @@ public:
     /// The one priority every target file shares, or -1 ("mixed") when they differ.
     Q_INVOKABLE int targetPriority(int cursorRow) const;
     /// qBittorrent's "by shown file order": the target files, in the order the list shows
-    /// them, split in thirds — maximal, high, normal (a group is at least one file). Returns
+    /// them, split in thirds — the set's three highest: maximal, high, normal on qBittorrent,
+    /// high, normal, low on Transmission (a group is at least one file). Returns
     /// `[{priority, fileIndexes}]`, one entry per group that has files.
     Q_INVOKABLE QVariantList shownOrderGroups(int cursorRow) const;
     /// Sets `priority` on the files `fileIndexes` names, locally, before the server confirms
@@ -257,11 +264,25 @@ public:
     /// for demo mode's rename. Keeps the fold state and selection of what moved.
     Q_INVOKABLE void renameLocal(const QString &oldPath, const QString &newPath);
 
-    /// The next priority up/down the ladder skip -> normal -> high -> maximal. A "mixed"
-    /// folder raises to high and lowers to normal, the way the WebUI settles a mixed set.
-    Q_INVOKABLE static int raisedPriority(int priority);
-    Q_INVOKABLE static int loweredPriority(int priority);
+    /// The next priority up/down `set`'s ladder (lowest first; qBittorrent's skip -> normal
+    /// -> high -> maximal when empty). A "mixed" folder raises to high and lowers to normal,
+    /// the way the WebUI settles a mixed set.
+    static int raisedPriority(int priority, const QList<int> &set = {});
+    static int loweredPriority(int priority, const QList<int> &set = {});
+    /// The next one a click on a wanted row's priority gives: up the set, and from its top
+    /// back to its lowest wanted one (normal -> high -> maximal -> normal on qBittorrent).
+    static int cycledPriority(int priority, const QList<int> &set = {});
+    /// qBittorrent's set, lowest first: skip, normal, high, maximal.
+    static QList<int> qbittorrentPrioritySet();
+    /// The same, on this model's set (`+` and `-` in the Files tab).
+    Q_INVOKABLE int raised(int priority) const { return raisedPriority(priority, m_prioritySet); }
+    Q_INVOKABLE int lowered(int priority) const { return loweredPriority(priority, m_prioritySet); }
     Q_INVOKABLE static QString priorityText(int priority) { return filePriorityText(priority); }
+    QList<int> prioritySet() const { return m_prioritySet; }
+    QVariantList prioritySetList() const;
+    void setPrioritySetList(const QVariantList &set);
+    /// The engine's set (EngineFeatures::filePriorities); empty keeps qBittorrent's.
+    void setPrioritySet(const QList<int> &set);
 
     /// Where a file of the torrent sits on the server's disk. `relativePath` is a row's
     /// path; `contentPath` and `savePath` are the torrent's (sync/maindata). The files'
@@ -277,6 +298,7 @@ public:
 
 Q_SIGNALS:
     void countChanged();
+    void prioritySetChanged();
     void filterTextChanged();
     void hideSkippedChanged();
     void sortChanged();
@@ -381,6 +403,7 @@ private:
     qint64 m_totalSize = 0;
     QString m_filterText;
     bool m_hideSkipped = false;
+    QList<int> m_prioritySet = qbittorrentPrioritySet();
     QString m_sortKey;
     bool m_sortDescending = false;
 };
