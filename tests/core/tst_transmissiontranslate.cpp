@@ -539,7 +539,13 @@ void TestTransmissionTranslate::featuresFollowBoard47()
     QVERIFY(f.forceStart);
     QVERIFY(f.sequentialDownload);
     QVERIFY(f.renameOnDisk);
-    for (const bool off : {f.firstLastPiece,
+    QVERIFY(f.moveStopsOnFailure);
+    QVERIFY(f.movesHoldAnswers);
+    QVERIFY(f.roomOnServer);
+    QVERIFY(f.moveReplacesFile);
+    for (const bool off : {f.moveProgress,
+                           f.listFolders,
+                           f.firstLastPiece,
                            f.superSeeding,
                            f.autoManagement,
                            f.fetchMetadata,

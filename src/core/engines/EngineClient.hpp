@@ -61,6 +61,16 @@ struct GlobalLimits
     bool operator==(const GlobalLimits &other) const = default;
 };
 
+/// Free space on the server's own disks, as the engine read it there (EngineClient::freeSpace).
+struct FreeSpaceAt
+{
+    QString path;          ///< the folder it was read on: the one asked, or its nearest parent
+    qint64 bytesFree = -1; ///< -1 unknown
+    qint64 bytesTotal = 0; ///< 0 when the engine doesn't say
+
+    bool operator==(const FreeSpaceAt &other) const = default;
+};
+
 /// A torrent that runs (anything not stopped: queued, stalled, checking and errored ones
 /// too), and whether it was started past the queue (DECISIONS C36 M10).
 struct RunningTorrent
@@ -143,6 +153,19 @@ public:
     /// omaseed can't see (DECISIONS C16 L13). Always settles with a value: its state says
     /// listed, missing, failed, or (the default) that this engine can't list folders.
     virtual Reply<ServerFolder> *folderContent(const QString &path);
+    /// Free space on the drive under `path` on the server, read there; a folder that doesn't
+    /// exist yet is read on its nearest parent that does (EngineFeatures::roomOnServer; C25
+    /// K23). Not supported by default.
+    virtual Reply<FreeSpaceAt> *freeSpace(const QString &path);
+
+    // --- a move that holds every answer (EngineFeatures::movesHoldAnswers, C25 K22) ---------
+    /// The torrents whose move the engine is busy with, holding every other answer until it
+    /// ends: a setLocation sent and not answered yet. Empty on an engine that answers while
+    /// it moves, and once releaseBusyMoving() gave up waiting.
+    virtual QStringList busyMoving() const { return {}; }
+    /// Stop counting the moves in flight as busy (M14: the move looks stuck): from here on a
+    /// timeout reads as C12's "didn't answer" again. The moves' own answers still settle.
+    virtual void releaseBusyMoving() {}
 
     // --- actions ---------------------------------------------------------------------------
     virtual Reply<Done> *start(const QStringList &hashes) = 0;
@@ -226,6 +249,10 @@ public:
     /// Several `.torrent`s and links at once, under one set of options.
     virtual Reply<AddResult> *
     addMany(const QList<AddFile> &files, const QStringList &urls, const AddOptions &options) = 0;
+
+Q_SIGNALS:
+    /// busyMoving() changed.
+    void busyMovingChanged();
 
 protected:
     /// A reply that settles, on the next turn of the event loop, as "not supported".

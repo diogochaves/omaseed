@@ -25,6 +25,15 @@
 //   serverBack        the first success after that.
 //   authRequired      401/403: polling stops until start() is called again.
 //   versionRefused    the probe's Conflict (C25 K8, an engine too old): the same.
+//   busyTick          a poll held back because the engine is busy moving (below).
+//
+// Busy moving (C25 K22, board 47 §E): an engine that answers nothing until a move's copy ends
+// (Transmission) names the torrents it is moving (EngineClient::busyMoving). Meanwhile no
+// poll is sent (it would only wait behind the copy), a poll already out that times out is the
+// move and not a lost server, GlobalState::busyMoving says so, and busyTick keeps the poll's
+// cadence for whoever follows the move (MoveFeed, for M14's stuck clock). When the move
+// answers, the next poll goes at once. A move given up as stuck (releaseBusyMoving) ends it:
+// the next silence is C12's "didn't answer" again.
 
 #include "core/ApiError.hpp"
 #include "core/Reply.hpp"
@@ -168,6 +177,8 @@ Q_SIGNALS:
     /// C25 K8: the probe refused the server's version (a Conflict: Transmission older than
     /// 4.1). Polling stops until start() is called again, as after authRequired().
     void versionRefused(const omaseed::core::ApiError &error);
+    /// A poll's turn came while the engine is busy moving: nothing was asked.
+    void busyTick();
 
 private:
     void schedule(std::chrono::milliseconds delay);
@@ -176,6 +187,9 @@ private:
     void onPollError(const ApiError &error);
     void applyData(const SyncDelta &data);
     void enterLostState(const ApiError &error);
+    /// K22: the engine is busy moving; says so and holds the poll. False when it isn't.
+    bool holdForMove();
+    void onBusyMovingChanged();
     void tickCountdown();
     /// docs/44 W1: silentSeconds from m_lastReply, and the timer that counts it, on while
     /// the latest failure is a timeout.
@@ -207,6 +221,7 @@ private:
     quint64 m_appliedPoll = 0;
 
     EngineClient *m_client = nullptr;
+    QMetaObject::Connection m_busyConnection;
 
     TorrentModel *m_torrents = nullptr;
     CategoryModel *m_categories = nullptr;

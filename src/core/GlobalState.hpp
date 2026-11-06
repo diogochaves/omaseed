@@ -55,6 +55,10 @@ class GlobalState : public QObject
     /// docs/44 W1: while the server isn't answering (a timeout), how long since it last
     /// replied, in seconds, counted up every second; 0 otherwise.
     Q_PROPERTY(int silentSeconds READ silentSeconds NOTIFY silentSecondsChanged)
+    /// C25 K22: the torrents whose move holds the server's answers (Transmission answers
+    /// nothing until a move's copy ends): the list is stale meanwhile, and that isn't a lost
+    /// server. Empty otherwise.
+    Q_PROPERTY(QStringList busyMoving READ busyMoving NOTIFY busyMovingChanged)
 
     // --- formatted, for the hero and the tray --------------------------------------------
     Q_PROPERTY(QString dlSpeedText READ dlSpeedText NOTIFY dlInfoSpeedChanged)
@@ -99,6 +103,7 @@ public:
     QString apiVersion() const { return m_apiVersion; }
     int retryInSeconds() const { return m_retryInSeconds; }
     int silentSeconds() const { return m_silentSeconds; }
+    QStringList busyMoving() const { return m_busyMoving; }
 
     QString dlSpeedText() const;
     QString upSpeedText() const;
@@ -128,6 +133,7 @@ public:
     Q_INVOKABLE void setServerVersions(const QString &version, const QString &apiVersion);
     void setRetryInSeconds(int seconds);
     void setSilentSeconds(int seconds);
+    void setBusyMoving(const QStringList &hashes);
     /// Back to the defaults, keeping the server's name: used when a server is swapped out.
     void reset();
 
@@ -155,6 +161,7 @@ Q_SIGNALS:
     void apiVersionChanged();
     void retryInSecondsChanged();
     void silentSecondsChanged();
+    void busyMovingChanged();
     void speedHistoryChanged();
 
 private:
@@ -184,6 +191,7 @@ private:
     QString m_apiVersion;
     int m_retryInSeconds = 0;
     int m_silentSeconds = 0;
+    QStringList m_busyMoving;
     QList<qint64> m_dlHistory;
     QList<qint64> m_upHistory;
 };

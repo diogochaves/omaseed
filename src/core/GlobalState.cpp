@@ -126,6 +126,11 @@ void GlobalState::setSilentSeconds(int seconds)
     assign(m_silentSeconds, seconds, this, &GlobalState::silentSecondsChanged);
 }
 
+void GlobalState::setBusyMoving(const QStringList &hashes)
+{
+    assign(m_busyMoving, hashes, this, &GlobalState::busyMovingChanged);
+}
+
 void GlobalState::reset()
 {
     ServerStatePatch defaults;
@@ -153,6 +158,7 @@ void GlobalState::reset()
     setServerVersions(QString(), QString());
     setRetryInSeconds(0);
     setSilentSeconds(0);
+    setBusyMoving({});
     if (!m_dlHistory.isEmpty() || !m_upHistory.isEmpty()) {
         m_dlHistory.clear();
         m_upHistory.clear();

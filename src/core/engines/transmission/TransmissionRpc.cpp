@@ -79,6 +79,7 @@ struct TransmissionRpc::Job
     QByteArray body;
     QString what; ///< the method(s), for errors and logs
     Retry retry = Retry::No;
+    std::chrono::milliseconds timeout{0}; ///< 0: the client's
     int attempt = 0;             ///< attempts already finished
     bool sessionRetried = false; ///< the one resend with a new session id was spent
     bool cancelled = false;
@@ -205,13 +206,17 @@ Result<QJsonObject> TransmissionRpc::answerOf(const QString &method, const QJson
 
 // --- requests -------------------------------------------------------------------------------
 
-Reply<HttpAnswer> *TransmissionRpc::post(const QByteArray &body, const QString &what, Retry retry)
+Reply<HttpAnswer> *TransmissionRpc::post(const QByteArray &body,
+                                         const QString &what,
+                                         Retry retry,
+                                         std::chrono::milliseconds timeout)
 {
     auto *reply = new Reply<HttpAnswer>(this);
     auto job = std::make_shared<Job>();
     job->body = body;
     job->what = what;
     job->retry = retry;
+    job->timeout = timeout;
     QPointer<Reply<HttpAnswer>> to(reply);
     job->deliver = [to](const HttpAnswer &answer, const ApiError &error) {
         if (to.isNull())
@@ -236,12 +241,14 @@ Reply<HttpAnswer> *TransmissionRpc::post(const QByteArray &body, const QString &
     return reply;
 }
 
-Reply<QJsonObject> *
-TransmissionRpc::call(const QString &method, const QJsonObject &params, Retry retry)
+Reply<QJsonObject> *TransmissionRpc::call(const QString &method,
+                                          const QJsonObject &params,
+                                          Retry retry,
+                                          std::chrono::milliseconds timeout)
 {
     const QByteArray body =
         QJsonDocument(request(method, params, nextId())).toJson(QJsonDocument::Compact);
-    return mapReply<QJsonObject>(post(body, method, retry), this, [method](const HttpAnswer &a) {
+    return mapReply<QJsonObject>(post(body, method, retry, timeout), this, [method](const HttpAnswer &a) {
         const QJsonDocument document = QJsonDocument::fromJson(a.body);
         if (!document.isObject())
             return Result<QJsonObject>(notJsonRpc(method));
@@ -307,7 +314,7 @@ void TransmissionRpc::send(const JobPtr &job)
         const QByteArray login = (m_username + QLatin1Char(':') + m_password).toUtf8();
         request.setRawHeader("Authorization", QByteArrayLiteral("Basic ") + login.toBase64());
     }
-    request.setTransferTimeout(m_timeout);
+    request.setTransferTimeout(job->timeout.count() > 0 ? job->timeout : m_timeout);
 
     QNetworkReply *networkReply = m_nam->post(request, job->body);
     job->networkReply = networkReply;
@@ -397,7 +404,9 @@ void TransmissionRpc::onFinished(const JobPtr &job)
                networkError == QNetworkReply::OperationCanceledError) {
         error =
             ApiError(ApiError::Kind::Timeout,
-                     QStringLiteral("%1: no reply within %2 ms").arg(where).arg(m_timeout.count()));
+                     QStringLiteral("%1: no reply within %2 ms")
+                         .arg(where)
+                         .arg((job->timeout.count() > 0 ? job->timeout : m_timeout).count()));
     } else if (!job->refusedCertificate.isEmpty()) {
         const QString why =
             job->refusedCertificateReason.isEmpty() ? networkText : job->refusedCertificateReason;

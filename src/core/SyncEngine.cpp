@@ -68,7 +68,11 @@ void SyncEngine::setClient(EngineClient *client)
     if (m_client == client)
         return;
     stop();
+    disconnect(m_busyConnection);
     m_client = client;
+    if (client != nullptr)
+        m_busyConnection = connect(
+            client, &EngineClient::busyMovingChanged, this, &SyncEngine::onBusyMovingChanged);
     m_rid = 0;
     m_probed = false;
     m_hadFullUpdate = false;
@@ -168,6 +172,7 @@ void SyncEngine::stop()
     m_countdownTimer->stop();
     m_globalState->setSyncing(false);
     m_globalState->setRetryInSeconds(0);
+    m_globalState->setBusyMoving({});
     updateSilence(false);
 
     if (m_client != nullptr && m_savedMaxRetries >= 0) {
@@ -237,6 +242,14 @@ void SyncEngine::poll()
         return;
     }
 
+    // K22: a poll now would only wait behind the move's copy.
+    if (holdForMove()) {
+        m_pollInFlight = false;
+        Q_EMIT busyTick();
+        schedule(normalInterval());
+        return;
+    }
+
     const quint64 serial = ++m_pollsSent;
     m_pollReply = m_client->sync(m_rid)->then(
         this, [this, generation, serial](const Result<SyncDelta> &result) {
@@ -263,6 +276,7 @@ void SyncEngine::onPollResult(const SyncDelta &data)
     m_globalState->setRetryInSeconds(0);
     m_lastReply.start();
     updateSilence(false);
+    m_globalState->setBusyMoving({});
     m_globalState->setLastError(ApiError());
     m_globalState->setConnected(true);
     m_globalState->setLastSyncTime(QDateTime::currentDateTime());
@@ -278,6 +292,12 @@ void SyncEngine::onPollResult(const SyncDelta &data)
 
 void SyncEngine::onPollError(const ApiError &error)
 {
+    // K22: a poll that went out before the move and timed out behind its copy is the move.
+    if (error.kind() == ApiError::Kind::Timeout && holdForMove()) {
+        m_globalState->setSyncing(false);
+        schedule(normalInterval());
+        return;
+    }
     // Any answer, even a refusal, is a reply; a timeout counts the silence on.
     if (error.kind() != ApiError::Kind::Timeout && error.kind() != ApiError::Kind::Network &&
         error.kind() != ApiError::Kind::Cancelled)
@@ -329,6 +349,36 @@ void SyncEngine::enterLostState(const ApiError &error)
 
     if (firstLoss)
         Q_EMIT serverLost(error);
+}
+
+bool SyncEngine::holdForMove()
+{
+    if (m_client == nullptr)
+        return false;
+    const QStringList busy = m_client->busyMoving();
+    m_globalState->setBusyMoving(busy);
+    if (busy.isEmpty())
+        return false;
+    // Not lost, not counted as silence: busy, with the list as the last poll left it.
+    m_countdownTimer->stop();
+    m_globalState->setRetryInSeconds(0);
+    updateSilence(false);
+    return true;
+}
+
+void SyncEngine::onBusyMovingChanged()
+{
+    if (m_client == nullptr || !m_client->busyMoving().isEmpty())
+        return;
+    // A move that is shown as busy only from a held poll on, so a quick one shows nothing.
+    if (m_globalState->busyMoving().isEmpty())
+        return;
+    m_globalState->setBusyMoving({});
+    // The move answered (or was given up): ask now what it left.
+    if (m_running && !m_pollInFlight) {
+        m_pollTimer->stop();
+        poll();
+    }
 }
 
 void SyncEngine::updateSilence(bool timedOut)

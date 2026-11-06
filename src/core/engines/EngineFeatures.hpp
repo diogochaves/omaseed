@@ -47,6 +47,26 @@ struct EngineFeatures
     /// shown: Transmission's torrent_rename_path (C25 K28). Renaming a file or folder inside
     /// it keeps it where it is there (a new name, never a new folder).
     bool renameOnDisk = false;
+    // Moves (board 47 §E, the engine matrix's §4.2; C25 K21–K23).
+    /// The engine says how far one torrent's move is, wherever its disks are (Deluge's %).
+    /// Without it, the growth probe measures the target when omaseed sees the disks (L10).
+    bool moveProgress = false;
+    /// A failed move puts the torrent in error and stops it, in the engine's own words: the
+    /// failure is learnt from the torrent, not from a log (MoveFeed, board 47 §4).
+    bool moveStopsOnFailure = false;
+    /// The server lists a folder's names (EngineClient::folderContent): M8's check and the
+    /// loose files' names where omaseed can't see the disks (C16 L13).
+    bool listFolders = false;
+    /// The engine answers nothing, polls included, until a move's copy ends (Transmission,
+    /// C25 K22): one torrent is sent at a time, and a poll that times out meanwhile reads
+    /// "busy moving", not a lost server.
+    bool movesHoldAnswers = false;
+    /// Free space is read on the server for any folder (EngineClient::freeSpace): a move's
+    /// room is checked there where omaseed can't see the disks (K23; L13's "can't run here").
+    bool roomOnServer = false;
+    /// A move replaces a file already at a torrent's target (Transmission, K23, checked in
+    /// board 47 §3); qBittorrent and Deluge keep it and call the move done (C15 M8).
+    bool moveReplacesFile = false;
     /// qBittorrent's own surfaces, reached through its engine (docs/36 §4.4, C14 E6, E7):
     /// Settings › qBittorrent with its settings export and import, the torrents export and
     /// import (C9's file holds qBittorrent's rows), RSS feeds and rules.

@@ -44,6 +44,9 @@ public:
     /// How long (ms) polls may go unanswered before the next one asks for everything
     /// (Transmission's `recently_active` covers 60 s; C14, #85).
     static constexpr qint64 kFullListGapMs = 50000;
+    /// How long a move's torrent_set_location may go unanswered: Transmission answers it only
+    /// once the copy ends (C25 K22). A move that looks stuck is M14's to call, well before.
+    static constexpr std::chrono::hours kMoveTimeout{24};
 
     // --- EngineClient ----------------------------------------------------------------------
     QUrl baseUrl() const override;
@@ -85,7 +88,13 @@ public:
     Reply<Done> *recheck(const QStringList &hashes) override;
     Reply<Done> *reannounce(const QStringList &hashes) override;
     Reply<Done> *rename(const QString &hash, const QString &name) override;
+    /// K22: torrent_set_location with `move`, which holds every other answer until the copy
+    /// ends: busyMoving() names its torrents until it answers.
     Reply<Done> *setLocation(const QStringList &hashes, const QString &path) override;
+    QStringList busyMoving() const override;
+    void releaseBusyMoving() override;
+    /// free_space, on `path` or, while Transmission says it isn't there, its parents.
+    Reply<FreeSpaceAt> *freeSpace(const QString &path) override;
     Reply<Done> *
     renameFile(const QString &hash, const QString &oldPath, const QString &newPath) override;
     Reply<Done> *
@@ -166,6 +175,10 @@ private:
     Reply<AddResult> *add(const QList<QJsonObject> &sources, const AddOptions &options);
     QList<SnapshotDiffer::Entry> entries(const QList<QJsonObject> &rows);
     void forget();
+    /// Forgets the moves in flight as busy (their answers still settle).
+    void dropMoves();
+    /// free_space on `path`, walking up to `/` while it is missing.
+    void freeSpaceUp(const QString &path, Reply<FreeSpaceAt> *reply, int depth);
 
     TransmissionRpc *m_rpc = nullptr;
     SnapshotDiffer m_differ;
@@ -175,6 +188,9 @@ private:
     int m_cursor = 0;
     std::optional<qint64> m_lastPollAt; ///< when the last answered poll was asked (ms)
     std::function<qint64()> m_now;
+    /// K22: the moves sent and not answered, by serial, oldest first.
+    QList<QPair<quint64, QStringList>> m_moves;
+    quint64 m_moveSerial = 0;
 };
 
 } // namespace omaseed::core

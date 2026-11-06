@@ -646,6 +646,10 @@ EngineFeatures features(const QString &apiVersion)
     f.editWebSeeds = true;
     f.seedingTimeLimit = true;
     f.altSpeeds = true;
+    // Moves (C15, C16 L13): app/getDirectoryContent lists a folder; a failure is in the log,
+    // the torrent keeps running; a file already there is kept (M8). No % of a move, and
+    // free space only for the default drive until 5.3 (getFreeSpaceAtPath; not used yet).
+    f.listFolders = true;
     // qBittorrent's own surfaces (docs/36 §4.4, C14 E7): Settings › qBittorrent with its
     // export and import, torrents export and import (C9's file holds its rows), RSS.
     f.qbtSettings = true;

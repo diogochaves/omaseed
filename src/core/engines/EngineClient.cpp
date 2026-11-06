@@ -14,6 +14,11 @@ Reply<FetchedMetadata> *EngineClient::fetchMetadata(const QString &, const QStri
     return unsupported<FetchedMetadata>(QStringLiteral("files before the add"));
 }
 
+Reply<FreeSpaceAt> *EngineClient::freeSpace(const QString &)
+{
+    return unsupported<FreeSpaceAt>(QStringLiteral("free space by path"));
+}
+
 Reply<ServerFolder> *EngineClient::folderContent(const QString &)
 {
     auto *reply = new Reply<ServerFolder>(this);

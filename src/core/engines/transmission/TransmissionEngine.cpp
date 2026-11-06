@@ -98,12 +98,21 @@ void TransmissionEngine::setClock(std::function<qint64()> msNow)
 
 void TransmissionEngine::forget()
 {
+    dropMoves();
     m_differ.clear();
     m_hashOf.clear();
     m_cursor = 0;
     m_lastPollAt.reset();
     m_session = {};
     m_downloadDir.clear();
+}
+
+void TransmissionEngine::dropMoves()
+{
+    if (m_moves.isEmpty())
+        return;
+    m_moves.clear();
+    Q_EMIT busyMovingChanged();
 }
 
 // --- small helpers --------------------------------------------------------------------------
@@ -259,6 +268,7 @@ void TransmissionEngine::setMaxRetries(int retries)
 void TransmissionEngine::cancelAll()
 {
     m_rpc->cancelAll();
+    dropMoves();
 }
 
 QUrl TransmissionEngine::reachableUrl(const QUrl &base) const
@@ -561,10 +571,95 @@ Reply<Done> *TransmissionEngine::rename(const QString &hash, const QString &name
 
 Reply<Done> *TransmissionEngine::setLocation(const QStringList &hashes, const QString &path)
 {
-    // K22: Transmission answers nothing else until the move's copy ends.
-    return forTorrents(QStringLiteral("torrent_set_location"),
-                       hashes,
-                       {{QStringLiteral("location"), path}, {QStringLiteral("move"), true}});
+    if (hashes.isEmpty())
+        return doneNow(); // an empty `ids` would be every torrent
+    // K22 (board 47 §3, checked on 4.1.3): Transmission answers nothing else, this call
+    // included, until the move's copy ends. Its own timeout is long; busyMoving() tells the
+    // poll that a silence meanwhile is the move, not a lost server.
+    const quint64 serial = ++m_moveSerial;
+    m_moves.append({serial, hashes});
+    Q_EMIT busyMovingChanged();
+    const QJsonObject params{{QStringLiteral("ids"), idsOf(hashes)},
+                             {QStringLiteral("location"), path},
+                             {QStringLiteral("move"), true}};
+    Reply<QJsonObject> *sent = m_rpc->call(QStringLiteral("torrent_set_location"),
+                                           params,
+                                           Retry::No,
+                                           std::chrono::milliseconds(kMoveTimeout));
+    QPointer<TransmissionEngine> self(this);
+    sent->then(this, [self, serial](const Result<QJsonObject> &) {
+        if (self.isNull())
+            return;
+        const auto mine = [serial](const QPair<quint64, QStringList> &move) {
+            return move.first == serial;
+        };
+        if (self->m_moves.removeIf(mine) > 0) {
+            // The moved torrent may be quiet now, out of recently_active: the next poll lists
+            // every torrent, so its new folder (or its error) is read whatever it did.
+            self->m_lastPollAt.reset();
+            Q_EMIT self->busyMovingChanged();
+        }
+    });
+    return done(sent);
+}
+
+QStringList TransmissionEngine::busyMoving() const
+{
+    QStringList hashes;
+    for (const auto &move : m_moves)
+        hashes << move.second;
+    return hashes;
+}
+
+void TransmissionEngine::releaseBusyMoving()
+{
+    dropMoves();
+}
+
+Reply<FreeSpaceAt> *TransmissionEngine::freeSpace(const QString &path)
+{
+    auto *reply = new Reply<FreeSpaceAt>(this);
+    if (!path.startsWith(QLatin1Char('/'))) {
+        QTimer::singleShot(0, reply, [reply, path]() {
+            reply->complete(Result<FreeSpaceAt>(ApiError(
+                ApiError::Kind::Conflict, QStringLiteral("free_space: %1 isn't absolute").arg(path))));
+        });
+        return reply;
+    }
+    freeSpaceUp(path, reply, 0);
+    return reply;
+}
+
+void TransmissionEngine::freeSpaceUp(const QString &path, Reply<FreeSpaceAt> *reply, int depth)
+{
+    QPointer<Reply<FreeSpaceAt>> to(reply);
+    m_rpc->call(QStringLiteral("free_space"), {{QStringLiteral("path"), path}}, Retry::OnTransient)
+        ->then(this, [this, to, path, depth](const Result<QJsonObject> &result) {
+            if (to.isNull())
+                return;
+            if (result.isError()) {
+                // A folder that isn't there yet (the move makes it) is read on its parent; a
+                // daemon that didn't answer is an error.
+                QString parent = path;
+                while (parent.size() > 1 && parent.endsWith(QLatin1Char('/')))
+                    parent.chop(1);
+                parent = parent.left(std::max<qsizetype>(1, parent.lastIndexOf(QLatin1Char('/'))));
+                if (result.error().kind() == ApiError::Kind::Conflict && parent != path &&
+                    depth < 32) {
+                    freeSpaceUp(parent, to.data(), depth + 1);
+                    return;
+                }
+                to->complete(Result<FreeSpaceAt>(result.error()));
+                return;
+            }
+            const QJsonObject answer = result.value();
+            FreeSpaceAt at;
+            at.path = answer.value(QStringLiteral("path")).toString(path);
+            at.bytesFree = qint64(answer.value(QStringLiteral("size_bytes")).toDouble(-1));
+            at.bytesTotal =
+                std::max<qint64>(0, qint64(answer.value(QStringLiteral("total_size")).toDouble()));
+            to->complete(Result<FreeSpaceAt>(at));
+        });
 }
 
 Reply<Done> *

@@ -874,6 +874,12 @@ EngineFeatures features(const ServerInfo &)
     f.fetchMetadata = false;     // G, K26: a stopped magnet never connects
     f.addOptions = false;        // G, K27: no name, layout, first and last, skip check at add
     f.renameOnDisk = true;       // G, K28: renaming renames its folder on disk
+    f.moveProgress = false;      // E, K21: no moving state; download_dir changes at the end
+    f.moveStopsOnFailure = true; // E, §4: error 3 "Couldn't move…", the torrent stopped
+    f.listFolders = false;       // E, K23: no listing at all
+    f.movesHoldAnswers = true;   // E, K22 (checked, §3): nothing answers until the copy ends
+    f.roomOnServer = true;       // E, K23: free_space on any path
+    f.moveReplacesFile = true;   // E, K23 (checked, §3): a file already there is replaced
     f.peerControl = false;       // H: neither add nor ban
     f.editWebSeeds = false;      // H, K29: read only
     f.engineLog = false;         // I, K30: no log face, no ~

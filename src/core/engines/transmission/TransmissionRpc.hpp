@@ -86,10 +86,17 @@ public:
 
     /// One POST of `body` as it is: a 2xx answer, whatever it holds (the probe reads it
     /// with TransmissionFingerprint, which knows both dialects). `what` names it in errors.
-    Reply<HttpAnswer> *post(const QByteArray &body, const QString &what, Retry retry);
+    /// `timeout`, when given, replaces timeout() for this request alone (a move's, which
+    /// Transmission answers only once the copy ends: C25 K22).
+    Reply<HttpAnswer> *post(const QByteArray &body,
+                            const QString &what,
+                            Retry retry,
+                            std::chrono::milliseconds timeout = std::chrono::milliseconds(0));
     /// One method: settles with the answer's `result` object.
-    Reply<QJsonObject> *
-    call(const QString &method, const QJsonObject &params = {}, Retry retry = Retry::No);
+    Reply<QJsonObject> *call(const QString &method,
+                             const QJsonObject &params = {},
+                             Retry retry = Retry::No,
+                             std::chrono::milliseconds timeout = std::chrono::milliseconds(0));
     /// Several methods in one POST (a JSON-RPC 2.0 batch): one result per call, in the order
     /// given. The reply itself errs only when the POST did.
     Reply<QList<Result<QJsonObject>>> *batch(const QList<Call> &calls, Retry retry = Retry::No);

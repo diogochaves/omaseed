@@ -92,6 +92,11 @@ private Q_SLOTS:
     void addSendsTorrentAddThenLimits();
     void whatTransmissionLacksIsNotSupported();
 
+    // moves (board 47 §E, C25 K22, K23)
+    void aMoveIsBusyUntilItsCopyEnds();
+    void aMoveGivenUpIsNoLongerBusy();
+    void freeSpaceIsReadOnTheNearestFolderThere();
+
 private:
     template<class T>
     Result<T> wait(Reply<T> *reply)
@@ -915,6 +920,117 @@ void TestTransmissionEngine::whatTransmissionLacksIsNotSupported()
     // folderContent: Transmission can't list a folder (K23), said by its state.
     QCOMPARE(wait(m_engine->folderContent(QStringLiteral("/srv"))).value().state,
              ServerFolder::State::Unsupported);
+}
+
+// K22 (board 47 §3, checked on 4.1.3): Transmission answers set_location, and everything asked
+// meanwhile, only once the copy ends. Until then the engine names the torrent it is moving; the
+// call waits past the client's own timeout; the poll after it lists every torrent, so the
+// moved one is read whatever recently_active says.
+void TestTransmissionEngine::aMoveIsBusyUntilItsCopyEnds()
+{
+    PollAnswers answers;
+    m_daemon->answer = [this, &answers](const QString &m, const QJsonObject &p) {
+        if (m == QLatin1String("torrent_set_location"))
+            m_server->hold = true; // the copy starts: nothing answers until it ends
+        return answers.answer(m, p);
+    };
+    QVERIFY(wait(m_engine->sync(0)).isValid());
+    QVERIFY(wait(m_engine->sync(1)).isValid());
+    QVERIFY(m_engine->busyMoving().isEmpty());
+
+    m_engine->setTimeout(std::chrono::milliseconds(300));
+    QSignalSpy changed(m_engine.get(), &EngineClient::busyMovingChanged);
+    Result<Done> moved{ApiError(ApiError::Kind::Unknown, QStringLiteral("not yet"))};
+    bool answered = false;
+    m_engine->setLocation({kPack}, QStringLiteral("/srv/new"))
+        ->then(this, [&](const Result<Done> &result) {
+            moved = result;
+            answered = true;
+        });
+    QCOMPARE(m_engine->busyMoving(), QStringList({kPack}));
+    QCOMPARE(changed.count(), 1);
+
+    // A poll asked meanwhile waits behind the copy and times out at the client's timeout;
+    // the move's own call doesn't.
+    const Result<SyncDelta> poll = wait(m_engine->sync(2));
+    QVERIFY(poll.isError());
+    QCOMPARE(poll.error().kind(), ApiError::Kind::Timeout);
+    QTest::qWait(400);
+    QVERIFY(!answered);
+    QCOMPARE(m_engine->busyMoving(), QStringList({kPack}));
+
+    // The copy ends: the move answers, nothing is busy, the next poll asks for everything.
+    m_server->release();
+    QTRY_VERIFY_WITH_TIMEOUT(answered, 3000);
+    QVERIFY(moved.isValid());
+    QVERIFY(m_engine->busyMoving().isEmpty());
+    QCOMPARE(changed.count(), 2);
+    m_engine->setTimeout(std::chrono::seconds(5));
+    m_daemon->calls.clear();
+    QVERIFY(wait(m_engine->sync(2)).isValid());
+    QVERIFY(!m_daemon->calls.at(0).params.contains(QStringLiteral("ids")));
+}
+
+// M14: a move that looks stuck is given up as busy; its answer, when it comes, still settles.
+void TestTransmissionEngine::aMoveGivenUpIsNoLongerBusy()
+{
+    m_daemon->answer = [this](const QString &m, const QJsonObject &) {
+        if (m == QLatin1String("torrent_set_location"))
+            m_server->hold = true;
+        return QJsonObject();
+    };
+    bool answered = false;
+    m_engine->setLocation({kPack}, QStringLiteral("/srv/new"))->then(this, [&](const Result<Done> &) {
+        answered = true;
+    });
+    QTRY_COMPARE_WITH_TIMEOUT(m_server->heldCount(), 1, 3000);
+    QCOMPARE(m_engine->busyMoving(), QStringList({kPack}));
+    QSignalSpy changed(m_engine.get(), &EngineClient::busyMovingChanged);
+    m_engine->releaseBusyMoving();
+    QVERIFY(m_engine->busyMoving().isEmpty());
+    QCOMPARE(changed.count(), 1);
+    m_server->release();
+    QTRY_VERIFY_WITH_TIMEOUT(answered, 3000);
+    QCOMPARE(changed.count(), 1); // nothing more to say
+}
+
+// K23: free_space on any path; a folder the move will make is read on its nearest parent.
+void TestTransmissionEngine::freeSpaceIsReadOnTheNearestFolderThere()
+{
+    const QJsonObject missing = fixture("free_space_missing.json").value("error").toObject();
+    m_daemon->answer = [&missing](const QString &m, const QJsonObject &p) {
+        if (m != QLatin1String("free_space"))
+            return QJsonObject();
+        const QString path = p.value(QStringLiteral("path")).toString();
+        if (path != QLatin1String("/srv"))
+            return QJsonObject{{QStringLiteral("__error"), missing}};
+        return QJsonObject{{QStringLiteral("path"), path},
+                           {QStringLiteral("size_bytes"), 30.1e9},
+                           {QStringLiteral("total_size"), 100e9}};
+    };
+    const Result<FreeSpaceAt> read = wait(m_engine->freeSpace(QStringLiteral("/srv/fast/games/")));
+    QVERIFY2(read.isValid(), qPrintable(read.error().toString()));
+    QCOMPARE(read.value().path, QStringLiteral("/srv"));
+    QCOMPARE(read.value().bytesFree, qint64(30.1e9));
+    QCOMPARE(read.value().bytesTotal, qint64(100e9));
+    QStringList asked;
+    for (const Call &call : std::as_const(m_daemon->calls))
+        asked << call.params.value(QStringLiteral("path")).toString();
+    QCOMPARE(asked,
+             QStringList({QStringLiteral("/srv/fast/games/"),
+                          QStringLiteral("/srv/fast"),
+                          QStringLiteral("/srv")}));
+
+    // A daemon that doesn't answer is an error, not a walk up.
+    m_engine->setTimeout(std::chrono::milliseconds(200));
+    m_engine->setMaxRetries(0);
+    m_server->hold = true;
+    const Result<FreeSpaceAt> silent = wait(m_engine->freeSpace(QStringLiteral("/srv")));
+    QVERIFY(silent.isError());
+    QCOMPARE(silent.error().kind(), ApiError::Kind::Timeout);
+    // A relative path is refused before it is sent.
+    m_server->release();
+    QVERIFY(wait(m_engine->freeSpace(QStringLiteral("srv"))).isError());
 }
 
 QTEST_GUILESS_MAIN(TestTransmissionEngine)

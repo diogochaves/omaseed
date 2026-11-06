@@ -9,6 +9,8 @@
 
 #include <QEventLoop>
 #include <QHostAddress>
+#include <QPair>
+#include <QPointer>
 #include <QTcpServer>
 #include <QTcpSocket>
 #include <QTest>
@@ -17,6 +19,7 @@
 
 #include <functional>
 #include <memory>
+#include <utility>
 
 namespace fakehttp {
 
@@ -75,6 +78,24 @@ public:
 
     QList<Recorded> requests;
 
+    /// While set, answers are kept instead of written, in the order they were made: a daemon
+    /// busy with one long call (Transmission during a move's copy, C25 K22). release() writes
+    /// them. A handler may set it while it answers: that answer is held too.
+    bool hold = false;
+    void release()
+    {
+        hold = false;
+        const auto held = std::exchange(m_held, {});
+        for (const auto &[socket, response] : held) {
+            if (socket.isNull())
+                continue;
+            socket->write(response);
+            socket->flush();
+            socket->disconnectFromHost();
+        }
+    }
+    int heldCount() const { return int(m_held.size()); }
+
 protected:
     void incomingConnection(qintptr socketDescriptor) override
     {
@@ -109,6 +130,10 @@ protected:
 
             const QByteArray response =
                 m_handler ? m_handler(recorded, index) : httpResponse(200, "OK", "ok");
+            if (hold) {
+                m_held.append({QPointer<QTcpSocket>(socket), response});
+                return;
+            }
             socket->write(response);
             socket->flush();
             socket->disconnectFromHost();
@@ -117,6 +142,7 @@ protected:
 
 private:
     Handler m_handler;
+    QList<QPair<QPointer<QTcpSocket>, QByteArray>> m_held;
 };
 
 template<class T>
