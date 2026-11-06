@@ -6,7 +6,8 @@
 //
 // Only what omaseed knows for sure goes in: when it was added (and where), each move the
 // history keeps for it (C18 D8: the last 20 moves or 30 days), when it finished downloading,
-// and the error (docs/28) and the failure (docs/32) at the time qBittorrent's log wrote them.
+// and the error (docs/28) and the failure (docs/32) at the time qBittorrent's log wrote them,
+// and a move an engine dropped without a word (C25, Deluge) when omaseed saw it fail.
 // The now is the details' head sentence, not a line here. Pure Qt Core; `tst_torrentstory`.
 
 #include "core/Torrent.hpp"
@@ -40,6 +41,12 @@ struct StoryInput
     /// The failure block's headline (TorrentFailure) and when the log wrote it; "" for none.
     QString failure;
     QDateTime failureAt;
+    /// DECISIONS C25 (Deluge): a move the engine took and dropped without a word (MoveJob's
+    /// cause "silent"): where it was meant to go, when omaseed saw it fail, and the engine;
+    /// "" for none. No log knows it, so it is the move job's to tell.
+    QString notMovedTo;
+    QDateTime notMovedAt;
+    QString notMovedEngine;
     QDateTime now;
     /// The engine groups torrents in categories (EngineFeatures::categories): without them
     /// "Added" says nothing about one (C14 E4, Transmission).

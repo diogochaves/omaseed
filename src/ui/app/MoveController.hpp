@@ -159,6 +159,20 @@ public:
     int historyRevision() const { return m_historyRevision; }
     const core::MoveHistory &history() const { return m_history; }
 
+    /// C25 (Deluge): a move the engine took and dropped without a word (MoveJob::notMoved):
+    /// where it was to go and when omaseed saw it fail. The history keeps only moves made,
+    /// and a quiet job's entries go with its strip, so this keeps the last one of each
+    /// torrent on this server for the session, for the details' story (#244).
+    struct NotMoved
+    {
+        QString to;
+        QDateTime at;
+    };
+    NotMoved notMovedOf(const QString &hash) const
+    {
+        return m_notMoved.value(m_serverId + QLatin1Char('\n') + hash);
+    }
+
     // ---- the sheet (S1–S3) ------------------------------------------------------------------
 
     /// The sheet for moving `root` to `newPath`, with the loose files carried when `carry`.
@@ -392,6 +406,7 @@ private:
     QPointer<core::FolderModel> m_folders;
     Hooks m_hooks;
     QString m_serverId;
+    QHash<QString, NotMoved> m_notMoved; ///< by server id, a line break, then the hash
     std::unique_ptr<core::MoveJob> m_job;
     std::unique_ptr<core::MoveFeed> m_feed;
     QTimer m_foldersTimer;

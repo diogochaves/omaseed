@@ -1250,6 +1250,11 @@ QVariantList App::torrentStory(const QString &hash) const
     const QVariantMap failure = m_engine->torrents()->failure(hash);
     input.failure = failure.value(QStringLiteral("headline")).toString();
     input.failureAt = failure.value(QStringLiteral("loggedAt")).toDateTime();
+    // C25 (Deluge, #244): a move the engine dropped without a word.
+    const MoveController::NotMoved notMoved = m_move->notMovedOf(hash);
+    input.notMovedTo = notMoved.to;
+    input.notMovedAt = notMoved.at;
+    input.notMovedEngine = engineDisplayName(m_server.engine);
     QVariantList out;
     for (const StoryEvent &event : TorrentStory::events(input))
         out.append(QVariantMap{{QStringLiteral("time"), event.time},

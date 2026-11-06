@@ -1,6 +1,7 @@
 #include "core/TorrentStory.hpp"
 
 #include "core/Format.hpp"
+#include "core/TorrentProblem.hpp"
 
 #include <QCoreApplication>
 #include <QLocale>
@@ -99,6 +100,16 @@ QList<StoryEvent> TorrentStory::events(const StoryInput &input)
 
     if (!input.failure.isEmpty())
         add(input.failureAt, StoryEvent::Kind::Warn, input.failure, tr("from qBittorrent's log"));
+    // Board 46's words for a move that didn't happen (docs/32's "The move to …"), with the
+    // strip's reason in its dim line: the engine said nothing, and the torrent kept working.
+    if (!input.notMovedTo.isEmpty()) {
+        const QString where = ProblemMatch::lastTwoFolders(input.notMovedTo);
+        add(input.notMovedAt,
+            StoryEvent::Kind::Warn,
+            where.isEmpty() ? tr("The move didn't happen")
+                            : tr("The move to %1 didn't happen").arg(where),
+            tr("%1 didn't move it and doesn't say why").arg(input.notMovedEngine));
+    }
     if (!input.problem.isEmpty())
         add(input.problemAt,
             StoryEvent::Kind::Error,

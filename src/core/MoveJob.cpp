@@ -694,9 +694,10 @@ void MoveJob::onFailed(const QString &hash,
 void MoveJob::onNotMoved(const QString &hash)
 {
     const Entry *entry = find(hash);
-    if (entry == nullptr)
+    if (entry == nullptr || !::omaseed::core::withServer(entry->step))
         return;
     const QString engine = m_engineName.isEmpty() ? QStringLiteral("qBittorrent") : m_engineName;
+    const QString to = entry->to;
     onFailed(hash,
              QDateTime(),
              tr("%1 didn't move it and doesn't say why").arg(engine),
@@ -704,6 +705,7 @@ void MoveJob::onNotMoved(const QString &hash)
              tr("%1 took the move to %2, but the torrent never started moving and is still in "
                 "%3. %1 says why only in its own log; most often it couldn't make the folder.")
                  .arg(engine, entry->to, entry->from));
+    Q_EMIT notMoved(hash, to, now());
 }
 
 void MoveJob::landed(Entry &entry)

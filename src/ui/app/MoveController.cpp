@@ -178,6 +178,12 @@ void MoveController::attachJob()
     connect(m_job.get(), &MoveJob::finished, this, &MoveController::onFinished);
     connect(m_job.get(), &MoveJob::pausedItself, this, &MoveController::onPausedItself);
     connect(m_job.get(), &MoveJob::carryWanted, this, &MoveController::onCarryWanted);
+    connect(m_job.get(),
+            &MoveJob::notMoved,
+            this,
+            [this](const QString &hash, const QString &to, const QDateTime &at) {
+                m_notMoved.insert(m_serverId + QLatin1Char('\n') + hash, {to, at});
+            });
     // L12: a queued move is checked again when its turn comes.
     m_job->setReplan([this](const QJsonObject &spec) { return replan(spec); });
     connect(m_job.get(), &MoveJob::queuedDropped, this, [this](const QString &title) {

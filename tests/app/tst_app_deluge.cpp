@@ -233,6 +233,7 @@ private Q_SLOTS:
     void aMagnetsFilesComeFromThePrefetch();
     void aMoveShowsDelugesOwnPercent();
     void aMoveDelugeNeverMadeHasFailed();
+    void theStoryTellsOfAMoveDelugeNeverMade();
     void aFolderMoveSaysWhatDelugeDidToEach();
     void aFailedMoveIsPausedUntilARecheck();
     void anErroredTorrentReadsDelugesWords();
@@ -772,6 +773,51 @@ void TestAppDeluge::aMoveDelugeNeverMadeHasFailed()
     }
     QCOMPARE(daemon.idsOf(QStringLiteral("core.move_storage")).size(), 1);
     QCOMPARE(daemon.state(kPack), QStringLiteral("Seeding"));
+    app.engine()->stop();
+}
+
+// #244: the move Deluge dropped without a word is in the details' story, as a failed move
+// is on qBittorrent (board 46's words, the strip's reason under them), and stays there once
+// its strip or band has gone.
+void TestAppDeluge::theStoryTellsOfAMoveDelugeNeverMade()
+{
+    Daemon daemon; // onMove unset: Deluge's silent refusal
+    App app;
+    QVERIFY(startOn(app, daemon));
+    const auto notMoved = [&app]() {
+        for (const QVariant &item : app.torrentStory(kPack)) {
+            const QVariantMap event = item.toMap();
+            if (event.value(QStringLiteral("title"))
+                    .toString()
+                    .contains(QStringLiteral("didn't happen")))
+                return event;
+        }
+        return QVariantMap();
+    };
+    QVERIFY(notMoved().isEmpty());
+    QVERIFY(app.move()->startSelection({kPack}, QStringLiteral("/srv/locked/new/films"), {}));
+    QTRY_VERIFY_WITH_TIMEOUT(!notMoved().isEmpty(), 8000);
+    const QVariantMap event = notMoved();
+    QCOMPARE(event.value(QStringLiteral("title")).toString(),
+             QStringLiteral("The move to new/films didn't happen"));
+    QCOMPARE(event.value(QStringLiteral("detail")).toString(),
+             QStringLiteral("Deluge didn't move it and doesn't say why"));
+    QCOMPARE(event.value(QStringLiteral("kind")).toString(), QStringLiteral("warn"));
+    // Newest first: it leads the story.
+    QCOMPARE(app.torrentStory(kPack).constFirst().toMap(), event);
+    // The job's summary closed (quiet or by hand): the story still has it.
+    QTRY_VERIFY_WITH_TIMEOUT(app.move()->stateName() == QLatin1String("done") ||
+                                 app.move()->stateName() == QLatin1String("idle"),
+                             8000);
+    app.move()->closeSummary();
+    QTRY_COMPARE_WITH_TIMEOUT(app.move()->stateName(), QStringLiteral("idle"), 3000);
+    QCOMPARE(notMoved(), event);
+    // Another torrent's story doesn't have it.
+    for (const QVariant &item : app.torrentStory(kSingle))
+        QVERIFY(!item.toMap()
+                     .value(QStringLiteral("title"))
+                     .toString()
+                     .contains(QStringLiteral("didn't happen")));
     app.engine()->stop();
 }
 

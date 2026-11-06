@@ -333,6 +333,9 @@ Q_SIGNALS:
     void queuedDropped(const QString &title);
     /// Done or Ended: the summary and the one notice.
     void finished();
+    /// onNotMoved() took it as failed: the engine dropped the move to `to` without a word
+    /// (cause "silent"), seen at `at`. The details' story keeps it after the job (#244).
+    void notMoved(const QString &hash, const QString &to, const QDateTime &at);
 
 private:
     QDateTime now() const;
