@@ -72,6 +72,7 @@ private slots:
     void aStuckMoveSaysWhereAndWhy();
     void anEnginesTextIsTakenApart();
     void anEnginesFailedMoveIsItsOwnBlock();
+    void delugesFailedMoveNeedsARecheck();
     void anEnginesErrorInPlaceReadsItsCause();
     void anEnginesTextItCantReadKeepsItsWords();
 };
@@ -569,6 +570,43 @@ void TestTorrentProblem::anEnginesFailedMoveIsItsOwnBlock()
              QStringList({QStringLiteral("startHere"),
                           QStringLiteral("bothFolders"),
                           QStringLiteral("location")}));
+}
+
+// Board 47 §F `sf07` and `unw` on Deluge (C25 K24): it paused the torrent; its failed move
+// names no folder and only a recheck clears it, so recheck leads; an error in place resumes.
+void TestTorrentProblem::delugesFailedMoveNeedsARecheck()
+{
+    using omaseed::core::ProblemMatch::EngineStop;
+    Torrent t;
+    t.hash = QStringLiteral("cc");
+    t.savePath = QStringLiteral("/srv/films");
+    t.errorMessage = QStringLiteral("Failed to move download folder: Permission denied");
+    QVERIFY(ProblemMatch::readEngineText(t.errorMessage).isMove());
+    const TorrentProblem p =
+        ProblemMatch::fromEngine(t, QStringLiteral("Deluge"), {}, EngineStop::Pauses);
+    QVERIFY(p.failedMove);
+    QCOMPARE(p.headline, QStringLiteral("Didn't move"));
+    QCOMPARE(p.detail,
+             QStringLiteral("Deluge: “Failed to move download folder: Permission denied”"));
+    QCOMPARE(p.cause, QStringLiteral("no access"));
+    QCOMPARE(p.source, QStringLiteral("/srv/films"));
+    QVERIFY(p.destination.isEmpty());
+    QCOMPARE(p.note, QStringLiteral("Deluge paused it · only a recheck clears this error"));
+    QCOMPARE(p.rowSentence,
+             QStringLiteral("Deluge couldn't move its files · it paused the torrent"));
+    QCOMPARE(p.actions, QStringList({QStringLiteral("recheck"), QStringLiteral("location")}));
+
+    // An error in place: libtorrent's, which a resume clears, so retry leads.
+    t.errorMessage = QStringLiteral("Permission denied");
+    const TorrentProblem w =
+        ProblemMatch::fromEngine(t, QStringLiteral("Deluge"), {}, EngineStop::Pauses);
+    QVERIFY(!w.failedMove);
+    QCOMPARE(w.headline, QStringLiteral("Deluge can't write to its save folder"));
+    QCOMPARE(w.detail, QStringLiteral("Deluge says: “Permission denied”"));
+    QCOMPARE(w.actions.constFirst(), QStringLiteral("start"));
+    QCOMPARE(w.note, QStringLiteral("Deluge paused it · retry resumes it"));
+    QCOMPARE(w.rowSentence,
+             QStringLiteral("Deluge can't write to its save folder · it paused the torrent"));
 }
 
 // Board 47 §F `unw`: an error in place, its cause read, the engine's words quoted, its folder;

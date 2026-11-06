@@ -77,8 +77,8 @@ void needsYou(const Torrent &t, const RowTrouble &trouble, const QString &engine
         words.fact = trouble.failedMove               ? tr("didn't move")
                      : trouble.problemCause.isEmpty() ? tr("error")
                                                       : trouble.problemCause;
-        if (trouble.cause == QLatin1String("stopped"))
-            words.caption = tr("stopped");
+        if (trouble.errorStopped)
+            words.caption = trouble.cause; // "stopped", or Deluge's "paused"
         words.sentence =
             trouble.problemSentence.isEmpty() ? trouble.headline : trouble.problemSentence;
         for (const QString &id : trouble.actions) {
@@ -93,7 +93,7 @@ void needsYou(const Torrent &t, const RowTrouble &trouble, const QString &engine
     }
     // C20: an errored torrent that was stopped says "stopped" in the Status column; the row
     // keeps the cause it stopped on, when the log has one.
-    const bool stoppedWord = trouble.cause == QLatin1String("stopped");
+    const bool stoppedWord = trouble.errorStopped;
     if (!trouble.cause.isEmpty() && !stoppedWord)
         words.fact = trouble.cause;
     else if (trouble.failureKind == QLatin1String("move"))
@@ -105,7 +105,7 @@ void needsYou(const Torrent &t, const RowTrouble &trouble, const QString &engine
     else if (!trouble.failureKind.isEmpty())
         words.fact = tr("failed");
     else
-        words.fact = stoppedWord ? tr("stopped") : tr("error");
+        words.fact = stoppedWord ? trouble.cause : tr("error");
 
     if (!trouble.headline.isEmpty())
         words.sentence = trouble.headline;

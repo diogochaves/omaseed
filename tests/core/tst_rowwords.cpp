@@ -204,6 +204,7 @@ void TestRowWords::anEnginesErrorReadsInItsWords()
     const Torrent t = make({{"state", "error"}, {"progress", 1.0}});
     RowTrouble trouble;
     trouble.cause = QStringLiteral("stopped"); // the Status column: Transmission stopped it
+    trouble.errorStopped = true;
     trouble.problemEngine = QStringLiteral("Transmission");
     trouble.problemCause = QStringLiteral("no access");
     trouble.failedMove = true;
@@ -232,6 +233,20 @@ void TestRowWords::anEnginesErrorReadsInItsWords()
     QCOMPARE(words.fixAction, QStringLiteral("problem:start"));
     QCOMPARE(RowWords::fixWords(QStringLiteral("startHere"), false),
              QStringLiteral("start it here"));
+
+    // Deluge paused it (board 47 `sf07`): "paused" where "needs you" would be, recheck first.
+    trouble.cause = QStringLiteral("paused");
+    trouble.problemEngine = QStringLiteral("Deluge");
+    trouble.failedMove = true;
+    trouble.problemSentence =
+        QStringLiteral("Deluge couldn't move its files · it paused the torrent");
+    trouble.actions = {QStringLiteral("recheck"), QStringLiteral("location")};
+    words = RowWords::of(t, TorrentFilterModel::NeedsYou, trouble, QStringLiteral("Deluge"));
+    QCOMPARE(words.fact, QStringLiteral("didn't move"));
+    QCOMPARE(words.caption, QStringLiteral("paused"));
+    QCOMPARE(words.sentence, trouble.problemSentence);
+    QCOMPARE(words.fix, QStringLiteral("recheck"));
+    QCOMPARE(words.fixAction, QStringLiteral("problem:recheck"));
 }
 
 // Where a row's sentence names who does it, it is the server's engine, never qBittorrent on a

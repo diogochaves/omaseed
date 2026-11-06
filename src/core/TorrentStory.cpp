@@ -104,6 +104,7 @@ QList<StoryEvent> TorrentStory::events(const StoryInput &input)
             StoryEvent::Kind::Error,
             input.problem,
             input.problemEngine.isEmpty() ? tr("from qBittorrent's log")
+            : input.problemPaused         ? tr("%1 paused it").arg(input.problemEngine)
                                           : tr("%1 stopped it").arg(input.problemEngine));
 
     // Newest first (DECISIONS C32 D15, amending C24 H6's order): sorted by time with two at

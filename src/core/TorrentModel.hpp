@@ -176,6 +176,9 @@ public:
     void setErrorStops(const QSet<QString> &hashes);
     /// Whether `hash` is in error and in the set setErrorStops() was given.
     bool isErrorStopped(const QString &hash) const;
+    /// C25 K24 (board 47 §F): the engine pauses a torrent in error (Deluge), so the Status
+    /// column says "paused" where it says "stopped". Off until told.
+    void setErrorPauses(bool pauses);
 
     /// What the last applyFullUpdate(), applyPartial() or clear() did (#36), so code that keeps
     /// its own state per torrent can follow the rows a poll touched instead of walking the
@@ -237,6 +240,7 @@ private:
     QHash<QString, QVariantMap> m_problems; ///< docs/28: by hash, only errored torrents
     QHash<QString, QVariantMap> m_failures; ///< docs/32: by hash, only those with a failure
     QSet<QString> m_errorStops;             ///< C20: the errored torrents that are stopped
+    bool m_errorPauses = false;             ///< C25 K24: their word is "paused"
     Change m_lastChange;
     quint64 m_revision = 0;
     QTimer *m_midnight = nullptr; ///< fires once a day, just after local midnight

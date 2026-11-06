@@ -313,7 +313,7 @@ QVariant TorrentModel::data(const QModelIndex &index, int role) const
         // C20 (#142): stopped, it says so ("error · stopped" didn't fit the column); the
         // cause stays in General's block and Status row.
         if (t.status.phase == TorrentPhase::Errored && m_errorStops.contains(t.hash))
-            return tr("stopped");
+            return m_errorPauses ? tr("paused") : tr("stopped");
         return m_problems.value(t.hash).value(QStringLiteral("cause")).toString();
     case FailureRole:
         return m_failures.value(t.hash);
@@ -667,6 +667,19 @@ void TorrentModel::setErrorStops(const QSet<QString> &hashes)
         const int row = indexOfHash(hash);
         if (row >= 0)
             Q_EMIT dataChanged(index(row), index(row), {StatusCauseRole, ErrorStoppedRole});
+    }
+    Q_EMIT problemsChanged();
+}
+
+void TorrentModel::setErrorPauses(bool pauses)
+{
+    if (pauses == m_errorPauses)
+        return;
+    m_errorPauses = pauses;
+    for (const QString &hash : std::as_const(m_errorStops)) {
+        const int row = indexOfHash(hash);
+        if (row >= 0)
+            Q_EMIT dataChanged(index(row), index(row), {StatusCauseRole});
     }
     Q_EMIT problemsChanged();
 }

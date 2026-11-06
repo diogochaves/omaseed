@@ -103,13 +103,14 @@ void ProblemLog::setClient(EngineClient *client)
         Q_EMIT logLinesChanged();
 }
 
-void ProblemLog::setEngine(const QString &name, bool hasLog)
+void ProblemLog::setEngine(const QString &name, bool hasLog, ProblemMatch::EngineStop stop)
 {
     const QString engine = name.isEmpty() ? QStringLiteral("qBittorrent") : name;
-    if (engine == m_engineName && hasLog == m_hasLog)
+    if (engine == m_engineName && hasLog == m_hasLog && stop == m_stop)
         return;
     m_engineName = engine;
     m_hasLog = hasLog;
+    m_stop = stop;
     reset();
     // What was shown came from the other source: worded again from this one.
     for (auto it = m_problems.cbegin(); it != m_problems.cend(); ++it) {
@@ -406,7 +407,8 @@ void ProblemLog::publishFromEngine()
         if (m_torrents->indexOfHash(hash) < 0)
             continue;
         const QDateTime since = m_erroredSince.value(hash);
-        publish(hash, ProblemMatch::fromEngine(m_torrents->torrent(hash), m_engineName, since));
+        publish(hash,
+                ProblemMatch::fromEngine(m_torrents->torrent(hash), m_engineName, since, m_stop));
     }
     // N1: the notice goes with the engine's own words, at once (nothing to wait for).
     const QSet<QString> pending = std::exchange(m_newlyErrored, {});

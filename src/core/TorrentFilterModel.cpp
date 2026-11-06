@@ -697,6 +697,7 @@ TorrentFilterModel::wordsAt(const TorrentModel &source, const QModelIndex &at, i
         const QVariantMap problem = source.data(at, TorrentModel::ProblemRole).toMap();
         const QVariantMap failure = source.data(at, TorrentModel::FailureRole).toMap();
         trouble.cause = source.data(at, TorrentModel::StatusCauseRole).toString();
+        trouble.errorStopped = source.data(at, TorrentModel::ErrorStoppedRole).toBool();
         trouble.headline = problem.value(QStringLiteral("headline")).toString();
         trouble.actions = problem.value(QStringLiteral("actions")).toStringList();
         trouble.missingFiles = problem.value(QStringLiteral("missingFiles")).toBool();

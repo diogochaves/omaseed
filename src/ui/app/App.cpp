@@ -1246,6 +1246,7 @@ QVariantList App::torrentStory(const QString &hash) const
     input.problem = problem.value(QStringLiteral("headline")).toString();
     input.problemAt = problem.value(QStringLiteral("loggedAt")).toDateTime();
     input.problemEngine = problem.value(QStringLiteral("engine")).toString();
+    input.problemPaused = m_features.pausesOnError;
     const QVariantMap failure = m_engine->torrents()->failure(hash);
     input.failure = failure.value(QStringLiteral("headline")).toString();
     input.failureAt = failure.value(QStringLiteral("loggedAt")).toDateTime();
@@ -5681,7 +5682,12 @@ void App::updateFeatures()
     // C25 K24: errors in the engine's words, from its log or from the torrent's own text;
     // the rows' sentences name it.
     const QString engine = m_client == m_qbt ? QStringLiteral("qBittorrent") : serverEngineName();
-    m_engine->problems()->setEngine(engine, features.engineLog);
+    m_engine->problems()->setEngine(engine,
+                                    features.engineLog,
+                                    features.pausesOnError ? ProblemMatch::EngineStop::Pauses
+                                                           : ProblemMatch::EngineStop::Stops);
+    // Board 47 §F: Deluge pauses a torrent in error; the Status column says so.
+    m_engine->torrents()->setErrorPauses(features.pausesOnError);
     m_filtered->setEngineName(engine);
     // C25 K29: web seeds read only, with no status, where there is no log to read.
     m_details->webSeeds()->setEngine(engine, features.engineLog);

@@ -35,6 +35,8 @@ struct StoryInput
     /// DECISIONS C25 K24: the engine whose own words the problem is (TorrentProblem::engine),
     /// "" for qBittorrent's log.
     QString problemEngine;
+    /// C25 K24: that engine paused it rather than stopped it (Deluge).
+    bool problemPaused = false;
     /// The failure block's headline (TorrentFailure) and when the log wrote it; "" for none.
     QString failure;
     QDateTime failureAt;

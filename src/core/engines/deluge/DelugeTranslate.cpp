@@ -891,6 +891,9 @@ EngineFeatures features(const ServerInfo &, bool labelPlugin)
     f.renameOnDisk = false;      // G, K28: the name shown only
     f.moveProgress = true;       // E, K21: its own % while Moving
     f.moveStopsOnFailure = true; // E, F: Error with its words, paused
+    f.pausesOnError = true;      // F, K24: paused; a failed move's error needs a recheck
+    f.movesShowAtOnce = true;    // E: Moving from the send on; never Moving = not moved
+    f.moveEndsWhenDone = true;   // E: a move turns move_completed off
     f.listFolders = true;        // E, L13: core.glob
     f.movesHoldAnswers = false;  // E: it answers while it moves
     f.roomOnServer = true;       // E, K23: core.get_free_space on any path

@@ -75,6 +75,16 @@ struct EngineFeatures
     /// A failed move puts the torrent in error and stops it, in the engine's own words: the
     /// failure is learnt from the torrent, not from a log (MoveFeed, board 47 §4).
     bool moveStopsOnFailure = false;
+    /// The torrent in error is paused, not stopped, and the error a failed move forces on it
+    /// clears only with a recheck: a resume leaves it (Deluge, board 47 §F, K24). Its words
+    /// say "paused", and a recheck leads where Transmission's "start it here" does.
+    bool pausesOnError = false;
+    /// The engine reads a move as Moving from its send on, so a torrent that never did and
+    /// is still in its folder wasn't moved: the move failed without a word (Deluge, which
+    /// says why only in its own log when it can't make the folder; board 47 §E).
+    bool movesShowAtOnce = false;
+    /// A move turns off the torrent's own move-when-done folder (Deluge's move_completed).
+    bool moveEndsWhenDone = false;
     /// The server lists a folder's names (EngineClient::folderContent): M8's check and the
     /// loose files' names where omaseed can't see the disks (C16 L13).
     bool listFolders = false;

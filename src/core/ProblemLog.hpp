@@ -71,7 +71,10 @@ public:
     /// (EngineFeatures::engineLog). Without one (Transmission) nothing is read: an errored
     /// torrent's problem comes from its own text (ProblemMatch::fromEngine), in the engine's
     /// name, as soon as a sync shows it, and its notice goes then. qBittorrent's log until told.
-    void setEngine(const QString &name, bool hasLog);
+    /// `stop` is what that engine does to a torrent in error (Deluge pauses it).
+    void setEngine(const QString &name,
+                   bool hasLog,
+                   ProblemMatch::EngineStop stop = ProblemMatch::EngineStop::Stops);
 
     /// What `log/main` returned, straight in, as a read that started at lastId(): the tests
     /// feed lines through this.
@@ -237,6 +240,7 @@ private:
     QHash<QString, QDateTime> m_erroredSince;
     QString m_engineName = QStringLiteral("qBittorrent");
     bool m_hasLog = true;
+    ProblemMatch::EngineStop m_stop = ProblemMatch::EngineStop::Stops;
     bool m_seenFirstSync = false;
     QHash<QString, TorrentProblem> m_problems;
 

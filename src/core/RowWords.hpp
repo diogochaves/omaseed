@@ -24,6 +24,8 @@ struct RowTrouble
 {
     /// The Status column's short cause ("no access", "stopped"), or "".
     QString cause;
+    /// C20: in error and stopped (or paused, C25 K24); `cause` is then that word.
+    bool errorStopped = false;
     /// The error block's headline and its actions' ids (TorrentProblem::toMap()).
     QString headline;
     QStringList actions;

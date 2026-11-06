@@ -184,22 +184,35 @@ TorrentProblem notLogged(bool missingFiles);
 /// Deluge "Failed to move download folder: MESSAGE", in the daemon's language; the system's
 /// words come last, after the last ": " that follows a quote (a path may hold ": " itself),
 /// with the code dropped. A move is known by its shape, two quoted absolute paths, so it reads
-/// in any language.
+/// in any language; Deluge's by its words (its core writes them in English) and names no
+/// folder.
 struct EngineText
 {
-    QString message; ///< "Permission denied"
-    QString from;    ///< a move's old folder, or ""
-    QString to;      ///< a move's new folder, or ""
-    bool isMove() const { return !from.isEmpty() && !to.isEmpty(); }
+    QString message;   ///< "Permission denied"
+    QString from;      ///< a move's old folder, or ""
+    QString to;        ///< a move's new folder, or ""
+    bool move = false; ///< a move that failed, its folders named or not
+    bool isMove() const { return move; }
 };
 EngineText readEngineText(const QString &text);
 
+/// How an engine with no log treats a torrent in error (board 47 §F, C25 K24).
+enum class EngineStop {
+    Stops,  ///< Transmission: stopped; starting it leads ("start it here" after a move)
+    Pauses, ///< Deluge: paused; a failed move's error clears only with a recheck
+};
+
 /// DECISIONS C25 K24 (board 47 §F): an errored torrent on an engine with no log
-/// (Transmission), worded from its own text (`Torrent::errorMessage`) in `engine`'s name. The
-/// cause is read from the text where it can be (describe()'s keys); the engine has stopped the
-/// torrent, so starting it leads: "start" ("retry") for an error in place, "startHere" ("start
-/// it here") for a move that failed, which starts it where its files still are.
-TorrentProblem fromEngine(const Torrent &torrent, const QString &engine, const QDateTime &seenAt);
+/// (Transmission, Deluge), worded from its own text (`Torrent::errorMessage`) in `engine`'s
+/// name. The cause is read from the text where it can be (describe()'s keys). Transmission
+/// stopped the torrent, so starting it leads: "start" ("retry") for an error in place,
+/// "startHere" ("start it here") for a move that failed, which starts it where its files
+/// still are. Deluge paused it: "start" (a resume) clears an error in place, but a failed
+/// move's error stays until a recheck, so "recheck" leads there.
+TorrentProblem fromEngine(const Torrent &torrent,
+                          const QString &engine,
+                          const QDateTime &seenAt,
+                          EngineStop stop = EngineStop::Stops);
 
 /// Board 44 §2 (DECISIONS C17 D3, #115): a hybrid (v1+v2) torrent that went into error just
 /// after a check, with nothing logged: libtorrent 2.1.2's torrent_inconsistent_hashes. Starting

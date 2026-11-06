@@ -685,7 +685,12 @@ EngineText readEngineText(const QString &engineText)
     if (found.hasMatch()) {
         said.from = SharedData::normalize(found.captured(1));
         said.to = SharedData::normalize(found.captured(2));
+        said.move = true;
     }
+    // Deluge's core, on libtorrent's storage_moved_failed: "Failed to move download folder:
+    // MESSAGE" (English, whatever the daemon's language).
+    if (message.startsWith(QLatin1String("Failed to move download folder")))
+        said.move = true;
     qsizetype cut = message.lastIndexOf(QLatin1String("': "));
     if (cut >= 0) {
         cut += 3;
@@ -700,8 +705,10 @@ EngineText readEngineText(const QString &engineText)
     return said;
 }
 
-TorrentProblem fromEngine(const Torrent &torrent, const QString &engine, const QDateTime &seenAt)
+TorrentProblem
+fromEngine(const Torrent &torrent, const QString &engine, const QDateTime &seenAt, EngineStop stop)
 {
+    const bool pauses = stop == EngineStop::Pauses;
     const QString text = torrent.errorMessage.trimmed();
     const EngineText said = readEngineText(text);
     TorrentProblem problem;
@@ -728,10 +735,26 @@ TorrentProblem fromEngine(const Torrent &torrent, const QString &engine, const Q
     problem.causeKey = problem.found ? cause.causeKey : QStringLiteral("notSaid");
     problem.cause = known ? cause.cause : tr("error");
     problem.advice = cause.advice;
-    // Board 47 §F: the row and the block say the torrent stopped; Transmission stops it.
-    const QString stopped = tr("%1 stopped it").arg(engine);
-    const QString tail = tr("it stopped the torrent");
+    // Board 47 §F: the row and the block say what the engine did to the torrent:
+    // Transmission stops it, Deluge pauses it.
+    const QString stopped =
+        pauses ? tr("%1 paused it").arg(engine) : tr("%1 stopped it").arg(engine);
+    const QString tail = pauses ? tr("it paused the torrent") : tr("it stopped the torrent");
 
+    if (said.isMove() && pauses) {
+        // Board 47 `sf07` on Deluge: "Didn't move", Deluge's words whole; its text names
+        // no folder, so the row says it couldn't move it, and only a recheck clears it.
+        problem.failedMove = true;
+        problem.source = SharedData::normalize(
+            torrent.downloadPath.isEmpty() ? torrent.savePath : torrent.downloadPath);
+        problem.headline = tr("Didn't move");
+        problem.detail = tr("%1: “%2”").arg(engine, text);
+        problem.note = stopped + QStringLiteral(" · ") + tr("only a recheck clears this error");
+        problem.rowSentence =
+            tr("%1 couldn't move its files").arg(engine) + QStringLiteral(" · ") + tail;
+        problem.actions = {QStringLiteral("recheck"), QStringLiteral("location")};
+        return problem;
+    }
     if (said.isMove()) {
         // Board 47 `sf07` and `stk`: "Didn't move", the engine's words whole, where its
         // files are; started here, it seeds from there.
@@ -785,8 +808,9 @@ TorrentProblem fromEngine(const Torrent &torrent, const QString &engine, const Q
         actions.append(QStringLiteral("folder"));
     problem.actions = actions;
     problem.note = stopped + QStringLiteral(" · ") +
-                   (actions.constFirst() == start ? tr("retry starts it again")
-                                                  : tr("a recheck finds what is there"));
+                   (actions.constFirst() != start ? tr("a recheck finds what is there")
+                    : pauses                      ? tr("retry resumes it")
+                                                  : tr("retry starts it again"));
     if (known) {
         QString sentence = problem.headline;
         if (!sentence.startsWith(engine))
