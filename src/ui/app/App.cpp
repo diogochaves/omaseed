@@ -5439,7 +5439,7 @@ QVariantMap App::featuresMap() const
         {QStringLiteral("seedingTimeLimit"), f.seedingTimeLimit},
         {QStringLiteral("engineLog"), f.engineLog},
         {QStringLiteral("qbtSettings"), f.qbtSettings},
-        {QStringLiteral("sessionBasics"), f.sessionBasics},
+        {QStringLiteral("sessionSettings"), f.sessionSettings},
         {QStringLiteral("torrentsBackup"), f.torrentsBackup},
         {QStringLiteral("rss"), f.rss},
         {QStringLiteral("addAgain"), f.addAgain},

@@ -272,7 +272,7 @@ void TestAppTransmission::basicsAreTransmissionsSessionAndItsPortTest()
     };
     App app;
     QVERIFY(startOn(app, daemon));
-    QVERIFY(app.featuresMap().value(QStringLiteral("sessionBasics")).toBool());
+    QVERIFY(app.featuresMap().value(QStringLiteral("sessionSettings")).toBool());
     QVERIFY(!app.featuresMap().value(QStringLiteral("qbtSettings")).toBool());
     QTRY_VERIFY_WITH_TIMEOUT(app.serverPrefs()->isLoaded(), 3000);
     QCOMPARE(app.serverPrefs()->value(QStringLiteral("listen_port")).toInt(), 26994);

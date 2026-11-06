@@ -272,7 +272,7 @@ TestCase {
         const modal = createTemporaryObject(modalComponent, testCase, {
                                                 "features": {
                                                     "qbtSettings": false,
-                                                    "sessionBasics": true
+                                                    "sessionSettings": true
                                                 },
                                                 "engineName": "Transmission"
                                             });

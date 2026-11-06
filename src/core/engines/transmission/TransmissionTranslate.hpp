@@ -41,6 +41,10 @@ struct Session
 /// The session_get fields the poll asks for: the units, the queues, the incomplete folder,
 /// the speed limits and turtle mode.
 QStringList sessionFields();
+/// sessionFields() and every field Settings › Transmission shows (E5, #86): the queues and
+/// their sizes, peers and the port's options, privacy (PEX, LPD, encryption, the blocklist),
+/// what happens on add, the default trackers, the cache and the scripts.
+QStringList settingsFields();
 Session session(const QJsonObject &sessionGet);
 
 /// The torrent_get fields one row of the list needs (TorrentPatch, the tracker map).
@@ -79,13 +83,16 @@ GlobalLimits globalLimits(const QJsonObject &sessionGet);
 /// and save_path (download_dir). TRANSMISSION › Basics (C25 K31) adds temp_path_enabled and
 /// temp_path (incomplete_dir), listen_port (peer_port), dht (dht_enabled), max_ratio_enabled
 /// and max_ratio (seed_ratio_limited, seed_ratio_limit), max_inactive_seeding_time_enabled
-/// and max_inactive_seeding_time in minutes (idle_seeding_limit*). A key whose field is
-/// missing is left out.
+/// and max_inactive_seeding_time in minutes (idle_seeding_limit*). Settings › Transmission
+/// (E5) reads the rest of settingsFields() by Transmission's own names (pex_enabled,
+/// download_queue_size, encryption as "required" · "preferred" · "allowed"…). A key whose
+/// field is missing is left out.
 QVariantMap speedPreferences(const QJsonObject &sessionGet);
 /// What session_set takes for `changes` (keys as speedPreferences writes them), given the
 /// session as it is (`sessionGet`, for the half of a time not changed and the units). Empty,
-/// with `why` saying so, when a key has no place in Transmission's session (or a port is out
-/// of range).
+/// with `why` saying so, when a key has no place in Transmission's session, is read only
+/// (blocklist_size), or holds what Transmission would take but shouldn't (a port or a count
+/// out of range: 4.1.3 keeps a download queue of -3; an encryption word it doesn't know).
 QJsonObject
 speedSessionSet(const QVariantMap &changes, const QJsonObject &sessionGet, QString *why = nullptr);
 /// port_test's answer: the peer port is open from outside, or not.

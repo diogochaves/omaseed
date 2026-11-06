@@ -1007,7 +1007,7 @@ Reply<QVariantMap> *TransmissionEngine::sessionPreferences()
 {
     return mapReply<QVariantMap>(
         m_rpc->call(QStringLiteral("session_get"),
-                    {{QStringLiteral("fields"), fieldsOf(TT::sessionFields())}},
+                    {{QStringLiteral("fields"), fieldsOf(TT::settingsFields())}},
                     Retry::OnTransient),
         this,
         [this](const QJsonObject &sessionGet) {

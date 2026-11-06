@@ -128,6 +128,75 @@ QString listOf(const QList<QStringList> &tiers)
     return parts.isEmpty() ? QString() : parts.join(QStringLiteral("\n\n")) + QLatin1Char('\n');
 }
 
+/// Settings › Transmission (E5, #86): the session fields its sections read and write under
+/// Transmission's own names (the rest go by app/preferences' words, so the speed surfaces and
+/// the turtle read them as on qBittorrent). `min`/`max` bound a number; `choices` are the only
+/// words session_set takes; a read-only field is never written.
+enum class SettingKind { Flag, Count, Text, Choice, ReadOnly };
+
+struct Setting
+{
+    const char *field;
+    SettingKind kind;
+    qint64 min = 0;
+    qint64 max = std::numeric_limits<int>::max();
+};
+
+const QList<Setting> &ownSettings()
+{
+    using K = SettingKind;
+    static const QList<Setting> settings{
+        {"pex_enabled", K::Flag},
+        {"lpd_enabled", K::Flag},
+        {"encryption", K::Choice},
+        {"blocklist_enabled", K::Flag},
+        {"blocklist_url", K::Text},
+        {"blocklist_size", K::ReadOnly},
+        {"peer_port_random_on_start", K::Flag},
+        {"port_forwarding_enabled", K::Flag},
+        {"utp_enabled", K::Flag},
+        {"peer_limit_global", K::Count, 1, 65535},
+        {"peer_limit_per_torrent", K::Count, 1, 65535},
+        {"download_queue_enabled", K::Flag},
+        {"download_queue_size", K::Count, 1},
+        {"seed_queue_enabled", K::Flag},
+        {"seed_queue_size", K::Count, 1},
+        {"queue_stalled_enabled", K::Flag},
+        {"queue_stalled_minutes", K::Count, 1},
+        {"start_added_torrents", K::Flag},
+        {"rename_partial_files", K::Flag},
+        {"trash_original_torrent_files", K::Flag},
+        {"sequential_download", K::Flag},
+        {"default_trackers", K::Text},
+        {"cache_size_mib", K::Count, 0, 1 << 20},
+        {"script_torrent_added_enabled", K::Flag},
+        {"script_torrent_added_filename", K::Text},
+        {"script_torrent_done_enabled", K::Flag},
+        {"script_torrent_done_filename", K::Text},
+        {"script_torrent_done_seeding_enabled", K::Flag},
+        {"script_torrent_done_seeding_filename", K::Text},
+    };
+    return settings;
+}
+
+const Setting *ownSetting(const QString &name)
+{
+    for (const Setting &setting : ownSettings()) {
+        if (name == QLatin1String(setting.field))
+            return &setting;
+    }
+    return nullptr;
+}
+
+/// The words session_set takes for `encryption` (4.1: "allowed" where older daemons said
+/// "tolerated", which reads as it).
+const QStringList &encryptionWords()
+{
+    static const QStringList words{
+        QStringLiteral("required"), QStringLiteral("preferred"), QStringLiteral("allowed")};
+    return words;
+}
+
 } // namespace
 
 // --- what to ask for ------------------------------------------------------------------------
@@ -158,6 +227,17 @@ QStringList sessionFields()
             QStringLiteral("seed_ratio_limit"),
             QStringLiteral("idle_seeding_limit_enabled"),
             QStringLiteral("idle_seeding_limit")};
+}
+
+QStringList settingsFields()
+{
+    QStringList fields = sessionFields();
+    for (const Setting &setting : ownSettings()) {
+        const QString field = QString::fromLatin1(setting.field);
+        if (!fields.contains(field))
+            fields.append(field);
+    }
+    return fields;
 }
 
 QStringList listFields()
@@ -645,6 +725,31 @@ QVariantMap speedPreferences(const QJsonObject &sessionGet)
     if (has(sessionGet, "idle_seeding_limit"))
         prefs.insert(QStringLiteral("max_inactive_seeding_time"),
                      int(number(sessionGet, "idle_seeding_limit")));
+    // Settings › Transmission (E5): the rest by Transmission's own names.
+    for (const Setting &setting : ownSettings()) {
+        if (!has(sessionGet, setting.field))
+            continue;
+        const QString name = QString::fromLatin1(setting.field);
+        const QJsonValue value = sessionGet.value(name);
+        switch (setting.kind) {
+        case SettingKind::Flag:
+            prefs.insert(name, value.toBool());
+            break;
+        case SettingKind::Count:
+        case SettingKind::ReadOnly:
+            prefs.insert(name, int(number(sessionGet, setting.field)));
+            break;
+        case SettingKind::Text:
+            prefs.insert(name, value.toString());
+            break;
+        case SettingKind::Choice: {
+            const QString word = value.toString();
+            prefs.insert(name,
+                         word == QLatin1String("tolerated") ? QStringLiteral("allowed") : word);
+            break;
+        }
+        }
+    }
     return prefs;
 }
 
@@ -715,6 +820,43 @@ QJsonObject speedSessionSet(const QVariantMap &changes, const QJsonObject &sessi
         } else if (name == QLatin1String("max_inactive_seeding_time")) {
             if (value >= 0)
                 params.insert(QStringLiteral("idle_seeding_limit"), int(value));
+        } else if (const Setting *setting = ownSetting(name);
+                   setting != nullptr && setting->kind != SettingKind::ReadOnly) {
+            QString refused;
+            switch (setting->kind) {
+            case SettingKind::Flag:
+                params.insert(name, it.value().toBool());
+                break;
+            case SettingKind::Count:
+                if (value < setting->min || value > setting->max)
+                    refused = QStringLiteral("%1 is from %2 to %3, not %4")
+                                  .arg(name)
+                                  .arg(setting->min)
+                                  .arg(setting->max)
+                                  .arg(value);
+                else
+                    params.insert(name, int(value));
+                break;
+            case SettingKind::Text:
+                params.insert(name, it.value().toString());
+                break;
+            case SettingKind::Choice:
+                if (encryptionWords().contains(it.value().toString()))
+                    params.insert(name, it.value().toString());
+                else
+                    refused = QStringLiteral("%1 is one of %2, not %3")
+                                  .arg(name,
+                                       encryptionWords().join(QStringLiteral(", ")),
+                                       it.value().toString());
+                break;
+            case SettingKind::ReadOnly:
+                break;
+            }
+            if (!refused.isEmpty()) {
+                if (why != nullptr)
+                    *why = refused;
+                return {};
+            }
         } else {
             if (why != nullptr)
                 *why = QStringLiteral("Transmission has no setting for %1").arg(name);
@@ -941,7 +1083,7 @@ EngineFeatures features(const ServerInfo &)
     f.editWebSeeds = false;      // H, K29: read only
     f.engineLog = false;         // I, K30: no log face, no ~
     f.qbtSettings = false;       // I, J
-    f.sessionBasics = true;      // J, K31: TRANSMISSION › Basics from session_get / session_set
+    f.sessionSettings = true;    // J, K31, E5: Settings › Transmission from session_get / _set
     f.torrentsBackup = false;    // I, K33
     f.rss = false;               // I
     f.addAgain = false;          // I: C17 D3's re-add is libtorrent's hybrid fix

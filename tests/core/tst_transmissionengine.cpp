@@ -9,6 +9,7 @@
 
 #include "core/engines/transmission/TransmissionEngine.hpp"
 #include "core/engines/transmission/TransmissionRpc.hpp"
+#include "core/engines/transmission/TransmissionTranslate.hpp"
 
 #include <QFile>
 #include <QJsonArray>
@@ -24,6 +25,7 @@
 using namespace fakehttp;
 using namespace faketransmission;
 using namespace omaseed::core;
+namespace TT = omaseed::core::TransmissionTranslate;
 
 namespace {
 
@@ -687,6 +689,20 @@ void TestTransmissionEngine::turtleAndGlobalLimits()
                      {{QStringLiteral("listen_port"), 51413}, {QStringLiteral("dht"), true}}))
                 .isValid());
     QCOMPARE(m_daemon->last().params, QJsonObject({{"peer_port", 51413}, {"dht_enabled", true}}));
+    // Settings › Transmission (E5): the pane reads every field it shows; the rest go by
+    // Transmission's own names.
+    m_daemon->calls.clear();
+    QVERIFY(
+        wait(m_engine->sessionPreferences()).value().contains(QStringLiteral("seed_queue_size")));
+    QCOMPARE(m_daemon->last().params.value(QStringLiteral("fields")).toArray().size(),
+             TT::settingsFields().size());
+    QVERIFY(wait(m_engine->setSessionPreferences({{QStringLiteral("seed_queue_enabled"), true},
+                                                  {QStringLiteral("seed_queue_size"), 4},
+                                                  {QStringLiteral("lpd_enabled"), true}}))
+                .isValid());
+    QCOMPARE(
+        m_daemon->last().params,
+        QJsonObject({{"seed_queue_enabled", true}, {"seed_queue_size", 4}, {"lpd_enabled", true}}));
 
     QVERIFY(wait(m_engine->setAltSpeed(true)).isValid());
     QCOMPARE(m_daemon->last().params, QJsonObject({{"alt_speed_enabled", true}}));

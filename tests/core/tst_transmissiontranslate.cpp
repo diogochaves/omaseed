@@ -71,6 +71,7 @@ private Q_SLOTS:
     void sessionFiguresAndLimits();
     void sessionAsSpeedPreferences();
     void sessionAsBasics();
+    void settingsByTransmissionsOwnNames();
     void filesWithPrioritiesAndPieces();
     void trackersEachWithItsState();
     void piecesFromTheBitfield();
@@ -414,6 +415,66 @@ void TestTransmissionTranslate::sessionAsBasics()
     QVERIFY(!TT::portIsOpen(QJsonObject{{"port_is_open", false}}));
 }
 
+// Settings › Transmission (E5, #86): the rest of the session by its own names, with what
+// session_set would take but shouldn't refused before it is sent.
+void TestTransmissionTranslate::settingsByTransmissionsOwnNames()
+{
+    const QJsonObject sessionGet = result("session_get.json");
+    const QVariantMap prefs = TT::speedPreferences(sessionGet);
+    QCOMPARE(prefs.value(QStringLiteral("download_queue_size")).toInt(), 5);
+    QCOMPARE(prefs.value(QStringLiteral("seed_queue_enabled")).toBool(), false);
+    QCOMPARE(prefs.value(QStringLiteral("encryption")).toString(), QStringLiteral("preferred"));
+    QCOMPARE(prefs.value(QStringLiteral("peer_limit_global")).toInt(), 200);
+    QCOMPARE(prefs.value(QStringLiteral("rename_partial_files")).toBool(), true);
+    QCOMPARE(prefs.value(QStringLiteral("cache_size_mib")).toInt(), 4);
+    QCOMPARE(prefs.value(QStringLiteral("blocklist_url")).toString(),
+             QStringLiteral("http://www.example.com/blocklist"));
+    // An older daemon's word for "allowed".
+    QCOMPARE(TT::speedPreferences({{"encryption", "tolerated"}})
+                 .value(QStringLiteral("encryption"))
+                 .toString(),
+             QStringLiteral("allowed"));
+    // The poll asks for less than the pane does.
+    QVERIFY(!TT::sessionFields().contains(QStringLiteral("pex_enabled")));
+    for (const QString &field : TT::sessionFields())
+        QVERIFY2(TT::settingsFields().contains(field), qPrintable(field));
+    for (const char *field : {"pex_enabled",
+                              "lpd_enabled",
+                              "encryption",
+                              "peer_limit_per_torrent",
+                              "seed_queue_size",
+                              "queue_stalled_minutes",
+                              "default_trackers",
+                              "script_torrent_done_filename"})
+        QVERIFY2(TT::settingsFields().contains(QString::fromLatin1(field)), field);
+
+    QCOMPARE(TT::speedSessionSet({{QStringLiteral("pex_enabled"), true},
+                                  {QStringLiteral("encryption"), QStringLiteral("required")},
+                                  {QStringLiteral("download_queue_size"), 3},
+                                  {QStringLiteral("peer_limit_global"), 400},
+                                  {QStringLiteral("default_trackers"),
+                                   QStringLiteral("https://a.example/announce\n")}},
+                                 sessionGet),
+             QJsonObject({{"pex_enabled", true},
+                          {"encryption", "required"},
+                          {"download_queue_size", 3},
+                          {"peer_limit_global", 400},
+                          {"default_trackers", "https://a.example/announce\n"}}));
+    QString why;
+    // 4.1.3 keeps a queue of -3 if it is sent one.
+    QVERIFY(TT::speedSessionSet({{QStringLiteral("download_queue_size"), -3}}, sessionGet, &why)
+                .isEmpty());
+    QCOMPARE(why, QStringLiteral("download_queue_size is from 1 to 2147483647, not -3"));
+    QVERIFY(TT::speedSessionSet(
+                {{QStringLiteral("encryption"), QStringLiteral("tolerated")}}, sessionGet, &why)
+                .isEmpty());
+    QCOMPARE(why,
+             QStringLiteral("encryption is one of required, preferred, allowed, not tolerated"));
+    QVERIFY(
+        TT::speedSessionSet({{QStringLiteral("blocklist_size"), 10}}, sessionGet, &why).isEmpty());
+    QCOMPARE(why, QStringLiteral("Transmission has no setting for blocklist_size"));
+}
+
 void TestTransmissionTranslate::filesWithPrioritiesAndPieces()
 {
     const QList<ContentFile> files = TT::files(recorded(kPack));
@@ -586,7 +647,7 @@ void TestTransmissionTranslate::featuresFollowBoard47()
     QVERIFY(f.forceStart);
     QVERIFY(f.sequentialDownload);
     QVERIFY(f.renameOnDisk);
-    QVERIFY(f.sessionBasics);
+    QVERIFY(f.sessionSettings);
     QVERIFY(f.moveStopsOnFailure);
     QVERIFY(f.movesHoldAnswers);
     QVERIFY(f.roomOnServer);

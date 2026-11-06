@@ -74,9 +74,9 @@ struct EngineFeatures
     /// Settings › qBittorrent with its settings export and import, the torrents export and
     /// import (C9's file holds qBittorrent's rows), RSS feeds and rules.
     bool qbtSettings = false;
-    /// The engine's basic settings, read and written through its session (EngineClient::
-    /// sessionPreferences): Settings › ENGINE › Basics until its own pane (C25 K31; E5, #86).
-    bool sessionBasics = false;
+    /// The engine's settings, read and written through its session (EngineClient::
+    /// sessionPreferences): Settings › ENGINE, its own sections (C25 K31, C14 E6; E5, #86).
+    bool sessionSettings = false;
     bool torrentsBackup = false;
     bool rss = false;
     /// Remove a torrent keeping its files and add its own .torrent back with its settings

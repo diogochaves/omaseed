@@ -119,7 +119,7 @@ Item {
     /// engine whose basic settings omaseed reads through its session gets its group's one page
     /// instead, Basics (C25 K31: TRANSMISSION › Basics); one with neither, no group.
     readonly property var qbtSections: root.features.qbtSettings === false
-                                       ? (root.features.sessionBasics === true ? qbtSchema.transmissionSections : [])
+                                       ? (root.features.sessionSettings === true ? qbtSchema.transmissionSections : [])
                                        : qbtSchema.sections.concat([{
                                                                       // #145 (DECISIONS C26 SR10): the server's
                                                                       // search plugins, drawn by searchPluginsPane.
