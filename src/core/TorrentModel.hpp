@@ -124,6 +124,9 @@ public:
         /// docs/44 D13: its problem is a stuck move (a working torrent whose status cell
         /// reads "move failed" in the error colour).
         StuckMoveRole,
+        /// C25 K24: in error, and the engine, asked, said it isn't stopped (Deluge after a
+        /// resume: `paused` false, still Error). setErrorStops()'s `asked` less its stops.
+        ErrorRunningRole,
     };
     Q_ENUM(Role)
 
@@ -172,8 +175,9 @@ public:
     /// error. maindata never carries it, so a full update keeps it. While one of them is in
     /// error, its Status column reads "stopped" (StatusCauseRole) in the error colour
     /// (ErrorStoppedRole). Emits dataChanged() on the rows that changed, then
-    /// problemsChanged().
-    void setErrorStops(const QSet<QString> &hashes);
+    /// problemsChanged(). `asked` is the errored torrents the engine was asked about: those
+    /// of them not stopped run in error (ErrorRunningRole).
+    void setErrorStops(const QSet<QString> &hashes, const QSet<QString> &asked = {});
     /// Whether `hash` is in error and in the set setErrorStops() was given.
     bool isErrorStopped(const QString &hash) const;
     /// C25 K24 (board 47 §F): the engine pauses a torrent in error (Deluge), so the Status
@@ -240,6 +244,7 @@ private:
     QHash<QString, QVariantMap> m_problems; ///< docs/28: by hash, only errored torrents
     QHash<QString, QVariantMap> m_failures; ///< docs/32: by hash, only those with a failure
     QSet<QString> m_errorStops;             ///< C20: the errored torrents that are stopped
+    QSet<QString> m_errorAsked;             ///< K24: the errored torrents the engine was asked of
     bool m_errorPauses = false;             ///< C25 K24: their word is "paused"
     Change m_lastChange;
     quint64 m_revision = 0;

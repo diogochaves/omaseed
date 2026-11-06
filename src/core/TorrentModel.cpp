@@ -321,6 +321,9 @@ QVariant TorrentModel::data(const QModelIndex &index, int role) const
         return m_problems.value(t.hash).value(QStringLiteral("stuckMove")).toBool();
     case ErrorStoppedRole:
         return t.status.phase == TorrentPhase::Errored && m_errorStops.contains(t.hash);
+    case ErrorRunningRole:
+        return t.status.phase == TorrentPhase::Errored && m_errorAsked.contains(t.hash) &&
+               !m_errorStops.contains(t.hash);
     default:
         return {};
     }
@@ -409,6 +412,7 @@ QHash<int, QByteArray> TorrentModel::roleNames() const
         {FailureRole, "failure"},
         {ErrorStoppedRole, "errorStopped"},
         {StuckMoveRole, "stuckMove"},
+        // ErrorRunningRole stays unnamed: only the rows' words (C++) read it.
     };
     return names;
 }
@@ -654,19 +658,26 @@ void TorrentModel::setFailure(const QString &hash, const QVariantMap &failure)
     Q_EMIT problemsChanged();
 }
 
-void TorrentModel::setErrorStops(const QSet<QString> &hashes)
+void TorrentModel::setErrorStops(const QSet<QString> &hashes, const QSet<QString> &asked)
 {
-    if (hashes == m_errorStops)
+    if (hashes == m_errorStops && asked == m_errorAsked)
         return;
     // The rows whose Status may read differently: in one set and not the other.
-    QSet<QString> touched = hashes;
-    touched.unite(m_errorStops);
-    touched.subtract(QSet<QString>(hashes).intersect(m_errorStops));
+    const auto changed = [](const QSet<QString> &a, const QSet<QString> &b) {
+        QSet<QString> out = a;
+        out.unite(b);
+        out.subtract(QSet<QString>(a).intersect(b));
+        return out;
+    };
+    QSet<QString> touched = changed(hashes, m_errorStops);
+    touched.unite(changed(asked, m_errorAsked));
     m_errorStops = hashes;
+    m_errorAsked = asked;
     for (const QString &hash : std::as_const(touched)) {
         const int row = indexOfHash(hash);
         if (row >= 0)
-            Q_EMIT dataChanged(index(row), index(row), {StatusCauseRole, ErrorStoppedRole});
+            Q_EMIT dataChanged(
+                index(row), index(row), {StatusCauseRole, ErrorStoppedRole, ErrorRunningRole});
     }
     Q_EMIT problemsChanged();
 }

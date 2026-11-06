@@ -268,6 +268,12 @@ void TestDelugeTranslate::stoppedGoesByTheStateWord()
     const QJsonObject resumed = result("core_get_torrent_status_error_resumed.json").toObject();
     QVERIFY(!resumed.value(QStringLiteral("paused")).toBool());
     QVERIFY(DT::isStopped(resumed));
+    // …but not paused: C20's errored-and-stopped read asks that, so it runs in error (#244).
+    QVERIFY(!DT::isPaused(resumed));
+    QVERIFY(DT::isPaused(recorded(kError)));
+    QVERIFY(DT::isPaused(recorded(kSingle)));
+    QVERIFY(!DT::isPaused(recorded(kQueued)));
+    QVERIFY(!DT::isPaused(recorded(kPack)));
 }
 
 void TestDelugeTranslate::trackerUrlsForTheRail()

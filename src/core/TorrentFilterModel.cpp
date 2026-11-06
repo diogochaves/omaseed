@@ -709,6 +709,9 @@ TorrentFilterModel::wordsAt(const TorrentModel &source, const QModelIndex &at, i
         trouble.problemCause = problem.value(QStringLiteral("cause")).toString();
         trouble.failedMove = problem.value(QStringLiteral("failedMove")).toBool();
         trouble.problemSentence = problem.value(QStringLiteral("rowSentence")).toString();
+        trouble.errorRunning = source.data(at, TorrentModel::ErrorRunningRole).toBool();
+        trouble.problemSentenceRunning =
+            problem.value(QStringLiteral("rowSentenceRunning")).toString();
     }
     return RowWords::of(source.torrentAt(at.row()), question, trouble, m_engineName);
 }

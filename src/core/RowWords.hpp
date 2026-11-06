@@ -43,6 +43,10 @@ struct RowTrouble
     QString problemCause;
     bool failedMove = false;
     QString problemSentence;
+    /// #244: in error and, asked, not stopped (TorrentModel::ErrorRunningRole), and the
+    /// sentence for that (TorrentProblem::rowSentenceRunning).
+    bool errorRunning = false;
+    QString problemSentenceRunning;
 };
 
 struct RowWords

@@ -544,7 +544,7 @@ void SyncEngine::readErrorStops()
                     if (errored.contains(hash))
                         stopped.insert(hash);
                 }
-                m_torrents->setErrorStops(stopped);
+                m_torrents->setErrorStops(stopped, QSet<QString>(errored.cbegin(), errored.cend()));
             }
             if (std::exchange(m_errorStopsAgain, false))
                 readErrorStops();

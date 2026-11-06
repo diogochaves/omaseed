@@ -93,6 +93,10 @@ QStringList trackerUrls(const QJsonObject &json);
 /// (stoppedAmong, C20; engine matrix §4.4). Its `paused` key also holds for a queued torrent
 /// (libtorrent pauses those) and not for a failed move after a resume, so it isn't read.
 bool isStopped(const QJsonObject &torrent);
+/// Paused, as C20's errored-and-stopped read is asked (stoppedAmong): Paused, or Error while
+/// `paused` (true when it isn't there). A resume leaves a failed move in Error with `paused`
+/// false: it runs in error, and the row says so rather than "paused" (#244, K24).
+bool isPaused(const QJsonObject &torrent);
 
 /// web.update_ui's stats and core.get_session_status' answer as the figures GlobalState
 /// shows. Deluge keeps no all-time totals (K34): those are left out.

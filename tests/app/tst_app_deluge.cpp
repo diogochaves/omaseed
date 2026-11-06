@@ -921,6 +921,28 @@ void TestAppDeluge::aFailedMoveIsPausedUntilARecheck()
     QTRY_COMPARE_WITH_TIMEOUT(app.engine()->torrents()->torrent(kPack).status.phase,
                               omaseed::core::TorrentPhase::Errored,
                               3000);
+    // #244: Deluge says paused false and still Error. The hero (the row's words) no longer
+    // says "paused": still in error, and the recheck still leads.
+    QTRY_VERIFY_WITH_TIMEOUT(
+        app.engine()
+            ->torrents()
+            ->data(app.engine()->torrents()->index(app.engine()->torrents()->indexOfHash(kPack)),
+                   omaseed::core::TorrentModel::ErrorRunningRole)
+            .toBool(),
+        3000);
+    const QVariantMap hero = app.torrentRow(kPack);
+    QCOMPARE(hero.value(QStringLiteral("rowFact")).toString(), QStringLiteral("didn't move"));
+    QCOMPARE(hero.value(QStringLiteral("rowCaption")).toString(), QStringLiteral("needs you"));
+    QCOMPARE(hero.value(QStringLiteral("rowSentence")).toString(),
+             QStringLiteral("Deluge couldn't move its files · still in error until a recheck"));
+    QVERIFY(!hero.value(QStringLiteral("errorStopped")).toBool());
+    QCOMPARE(app.engine()
+                 ->torrents()
+                 ->problem(kPack)
+                 .value(QStringLiteral("actions"))
+                 .toStringList()
+                 .constFirst(),
+             QStringLiteral("recheck"));
     app.recheck({kPack});
     QTRY_VERIFY_WITH_TIMEOUT(!daemon.idsOf(QStringLiteral("core.force_recheck")).isEmpty(), 3000);
     QTRY_VERIFY_WITH_TIMEOUT(app.engine()->torrents()->torrent(kPack).status.phase !=

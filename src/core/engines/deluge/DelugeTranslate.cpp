@@ -557,6 +557,14 @@ bool isStopped(const QJsonObject &torrent)
     return state == QLatin1String("Paused") || state == QLatin1String("Error");
 }
 
+bool isPaused(const QJsonObject &torrent)
+{
+    const QString state = text(torrent, "state");
+    if (state == QLatin1String("Paused"))
+        return true;
+    return state == QLatin1String("Error") && (!has(torrent, "paused") || flag(torrent, "paused"));
+}
+
 // --- the server -----------------------------------------------------------------------------
 
 ServerStatePatch serverState(const QJsonObject &stats, const QJsonObject &sessionStatus)

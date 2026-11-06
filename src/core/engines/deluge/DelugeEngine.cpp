@@ -685,11 +685,15 @@ Reply<QList<TorrentPatch>> *DelugeEngine::torrents(const QStringList &hashes)
 
 Reply<QStringList> *DelugeEngine::stoppedAmong(const QStringList &hashes)
 {
+    // #244: paused, not just stopped by its state word, so a resumed torrent Deluge keeps in
+    // Error reads as running in error.
     return mapReply<QStringList>(
-        torrentRows(hashes, {QStringLiteral("state")}), this, [](const QList<QJsonObject> &rows) {
+        torrentRows(hashes, {QStringLiteral("state"), QStringLiteral("paused")}),
+        this,
+        [](const QList<QJsonObject> &rows) {
             QStringList stopped;
             for (const QJsonObject &row : rows) {
-                if (DT::isStopped(row))
+                if (DT::isPaused(row))
                     stopped.append(row.value(QStringLiteral("hash")).toString());
             }
             return stopped;

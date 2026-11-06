@@ -299,7 +299,7 @@ ProblemLine ProblemLine::parse(const QString &message)
 
 QVariantMap TorrentProblem::toMap() const
 {
-    return {
+    QVariantMap map{
         {QStringLiteral("found"), found},
         {QStringLiteral("missingFiles"), missingFiles},
         {QStringLiteral("headline"), headline},
@@ -323,6 +323,10 @@ QVariantMap TorrentProblem::toMap() const
         {QStringLiteral("note"), note},
         {QStringLiteral("rowSentence"), rowSentence},
     };
+    // Engine problems only (#244): qBittorrent's maps stay as they were.
+    if (!rowSentenceRunning.isEmpty())
+        map.insert(QStringLiteral("rowSentenceRunning"), rowSentenceRunning);
+    return map;
 }
 
 QVariantMap TorrentFailure::toMap() const
@@ -740,6 +744,7 @@ fromEngine(const Torrent &torrent, const QString &engine, const QDateTime &seenA
     const QString stopped =
         pauses ? tr("%1 paused it").arg(engine) : tr("%1 stopped it").arg(engine);
     const QString tail = pauses ? tr("it paused the torrent") : tr("it stopped the torrent");
+    const QString running = tr("still in error");
 
     if (said.isMove() && pauses) {
         // Board 47 `sf07` on Deluge: "Didn't move", Deluge's words whole; its text names
@@ -752,6 +757,10 @@ fromEngine(const Torrent &torrent, const QString &engine, const QDateTime &seenA
         problem.note = stopped + QStringLiteral(" · ") + tr("only a recheck clears this error");
         problem.rowSentence =
             tr("%1 couldn't move its files").arg(engine) + QStringLiteral(" · ") + tail;
+        // #244: a resume leaves Deluge's error; it isn't paused any more, and a recheck is
+        // still the way out.
+        problem.rowSentenceRunning = tr("%1 couldn't move its files").arg(engine) +
+                                     QStringLiteral(" · ") + tr("still in error until a recheck");
         problem.actions = {QStringLiteral("recheck"), QStringLiteral("location")};
         return problem;
     }
@@ -770,10 +779,11 @@ fromEngine(const Torrent &torrent, const QString &engine, const QDateTime &seenA
         problem.note =
             stopped + QStringLiteral(" · ") +
             (whenDone ? tr("its files are in %1") : tr("its files are still in %1")).arg(said.from);
-        problem.rowSentence =
-            (whenDone ? tr("%1 couldn't move it out of the incomplete folder").arg(engine)
-                      : tr("%1 couldn't move it to %2").arg(engine, said.to)) +
-            QStringLiteral(" · ") + tail;
+        const QString didnt =
+            whenDone ? tr("%1 couldn't move it out of the incomplete folder").arg(engine)
+                     : tr("%1 couldn't move it to %2").arg(engine, said.to);
+        problem.rowSentence = didnt + QStringLiteral(" · ") + tail;
+        problem.rowSentenceRunning = didnt + QStringLiteral(" · ") + running;
         problem.actions =
             whenDone ? QStringList{QStringLiteral("startHere"),
                                    QStringLiteral("bothFolders"),
@@ -816,8 +826,10 @@ fromEngine(const Torrent &torrent, const QString &engine, const QDateTime &seenA
         if (!sentence.startsWith(engine))
             sentence[0] = sentence.at(0).toLower();
         problem.rowSentence = sentence + QStringLiteral(" · ") + tail;
+        problem.rowSentenceRunning = sentence + QStringLiteral(" · ") + running;
     } else {
         problem.rowSentence = problem.headline;
+        problem.rowSentenceRunning = tr("%1 reports an error").arg(engine);
     }
     return problem;
 }

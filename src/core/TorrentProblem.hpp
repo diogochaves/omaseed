@@ -119,6 +119,10 @@ struct TorrentProblem
     /// K24: the rows display's sentence, where the headline isn't it ("Transmission
     /// couldn't move it to /dest · it stopped the torrent"). Engine problems only.
     QString rowSentence;
+    /// K24: the row's sentence once the engine runs it again and still reports the error
+    /// (Deluge's resume leaves a failed move's error, `paused` false): "Deluge couldn't move
+    /// its files · still in error until a recheck". Engine problems only.
+    QString rowSentenceRunning;
 
     QVariantMap toMap() const;
     bool operator==(const TorrentProblem &other) const = default;
