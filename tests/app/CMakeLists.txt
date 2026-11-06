@@ -76,6 +76,14 @@ omaseed_add_test(tst_app_transmission
     DEFINES OMASEED_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../fixtures"
 )
 
+# #87 (C14 E6, C25): a Deluge server driven in the app, against FakeDeluge and deluge-web's
+# recorded answers.
+omaseed_add_test(tst_app_deluge
+    SOURCES tst_app_deluge.cpp
+    LIBRARIES omaseed::app omaseed::core omaseed::integration Qt6::Network
+    DEFINES OMASEED_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../fixtures"
+)
+
 # #180 (DECISIONS C17 D1–D2): the skipped files' reading follows the server's file list, against a
 # small fake server whose files sit in a temporary folder.
 omaseed_add_test(tst_app_skipped
