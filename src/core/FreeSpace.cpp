@@ -1,11 +1,14 @@
 #include "core/FreeSpace.hpp"
 
 #include <QDir>
+#include <QFile>
 #include <QFileInfo>
 #include <QStorageInfo>
 
 #include <algorithm>
 #include <cstdlib>
+
+#include <sys/stat.h>
 
 namespace omaseed::core {
 
@@ -74,7 +77,19 @@ StorageReading FreeSpaceProbe::readLocal(const QString &localPath)
     reading.bytesTotal = storage.bytesTotal();
     reading.rootPath = storage.rootPath();
     reading.fileSystem = QString::fromUtf8(storage.fileSystemType());
+    struct stat st{};
+    if (::stat(QFile::encodeName(probe).constData(), &st) == 0)
+        reading.device = quint64(st.st_dev);
     return reading;
+}
+
+bool FreeSpaceProbe::sameDrive(const Answer &a, const Answer &b)
+{
+    if (a.source != Source::Local || b.source != Source::Local)
+        return false;
+    if (a.device != 0 && b.device != 0)
+        return a.device == b.device;
+    return !a.where.isEmpty() && a.where == b.where;
 }
 
 void FreeSpaceProbe::setServer(const QString &defaultSavePath,
@@ -149,6 +164,7 @@ FreeSpaceProbe::Answer FreeSpaceProbe::answer(const QString &savePath) const
                 answer.bytesFree = reading.bytesFree;
                 answer.bytesTotal = reading.bytesTotal;
                 answer.where = reading.rootPath;
+                answer.device = reading.device;
                 answer.fileSystem = reading.fileSystem;
                 return answer;
             }

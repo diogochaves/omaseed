@@ -637,6 +637,40 @@ private slots:
         QCOMPARE(plan.drive(), m_archive);
     }
 
+    void aSubvolumeIsAnotherDrive()
+    {
+        // #240: a btrfs subvolume under the archive's mount point has its own device, so a move
+        // into it copies: room is read and counted, as for another drive.
+        const QString far = m_archive + QStringLiteral("/far");
+        m_probe = FreeSpaceProbe([this, far](const QString &path) {
+            StorageReading reading;
+            reading.valid = true;
+            reading.exists = QFileInfo::exists(path);
+            reading.rootPath = m_archive;
+            reading.device = path.startsWith(far) ? 2 : 1;
+            reading.bytesFree = 50 * kGiB;
+            reading.bytesTotal = 1000 * kGiB;
+            return reading;
+        });
+        m_probe.setServer(m_archive, 50 * kGiB, PathMap(), false);
+        const QString games = m_archive + QStringLiteral("/games");
+        const Torrent big = torrent(QStringLiteral("Retro Collection"), games, 60 * kGiB);
+        MovePlan plan = MovePlan::make(input({big}, far + QStringLiteral("/x")));
+        QVERIFY(!plan.sameDrive());
+        QCOMPARE(plan.room(), MovePlan::Check::Block);
+        QCOMPARE(plan.blocker(), MovePlan::Blocker::NoRoom);
+
+        plan = MovePlan::make(
+            selection({big}, {big.hash}, far + QStringLiteral("/x"), MovePlan::Rule::OneFolder));
+        QVERIFY(!plan.sameDrive());
+        QCOMPARE(plan.room(), MovePlan::Check::Block);
+
+        // Within one subvolume it is still a rename.
+        plan = MovePlan::make(input({big}, m_archive + QStringLiteral("/old-games")));
+        QVERIFY(plan.sameDrive());
+        QCOMPARE(plan.room(), MovePlan::Check::Ok);
+    }
+
     void aSelectionCountsRoomPerDrive()
     {
         // One torrent is renamed on the fast drive (no room needed); the other comes across.
