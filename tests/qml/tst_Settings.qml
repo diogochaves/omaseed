@@ -708,17 +708,17 @@ TestCase {
         verify(!sheet.opened);
     }
 
-    // #84 (C25 K4, K7, K9): the engine row, recognise first; a test that finds Transmission
-    // names it on the chip, gives the auth chips Transmission's two, and refuses the save,
-    // keeping what was typed.
+    // #84 (C25 K4, K7, K9): the engine row, recognise first; a test that finds Deluge (not
+    // driven yet) names it on the chip, gives the auth chips Deluge's one password, and refuses
+    // the save, keeping what was typed. Picking Transmission asks again, with its two sign-ins.
     function test_the_engine_row_recognises_and_refuses_an_engine_not_driven_yet() {
         const modal = createTemporaryObject(modalComponent, testCase);
         modal.open();
         modal.showPane(1);
         const sheet = modal.serverSheet;
         sheet.openNew();
-        sheet.editName = "seedbox";
-        sheet.editUrl = "http://127.0.0.1:9091";
+        sheet.editName = "nas";
+        sheet.editUrl = "http://127.0.0.1:8112";
         compare(sheet.editEngineChoice, "recognise");
         compare(sheet.fieldMap().engineChoice, "recognise");
         // Before recognition, qBittorrent's three sign-ins.
@@ -731,37 +731,37 @@ TestCase {
 
         sheet.testing = true;
         sheet._pendingKey = sheet._connectionKey;
-        App.serverTested("", false, "4.1.3", "6.0.0", -1, 3, "omaseed can't drive Transmission yet",
-                         "This build of omaseed drives qBittorrent.", {
-                             "engine": "transmission",
-                             "engineName": "Transmission",
-                             "endpoint": "http://127.0.0.1:9091/transmission/rpc",
+        App.serverTested("", false, "2.2.0", "", -1, 0, "omaseed can't drive Deluge yet",
+                         "This build of omaseed drives qBittorrent and Transmission.", {
+                             "engine": "deluge",
+                             "engineName": "Deluge",
+                             "endpoint": "http://127.0.0.1:8112/json",
                              "refused": true
                          });
-        compare(recognise.text, "recognise: Transmission");
-        compare(sheet.engine, "transmission");
-        compare(sheet.authModes, ["cookie", "none"]);
-        verify(findChild(sheet, "authChip-cookie"));
+        compare(recognise.text, "recognise: Deluge");
+        compare(sheet.engine, "deluge");
+        compare(sheet.authModes, ["password"]);
+        verify(findChild(sheet, "lonePassField").visible);
         compare(findChild(sheet, "authChip-apiKey"), null);
         // K9: refused, with no "save anyway"; what was typed stays.
         compare(sheet.saveState, "refused");
         compare(sheet.actions.map(action => action.text), ["cancel", "test", "save"]);
         compare(testCase.sheetButton(sheet, "save").enabled, false);
         compare(sheet.note, "can't be saved");
-        compare(sheet.testProblem.headline, "omaseed can't drive Transmission yet");
-        verify(sheet.testProblem.line.indexOf("It answered at http://127.0.0.1:9091/transmission/rpc") > 0);
-        compare(sheet.editUrl, "http://127.0.0.1:9091");
-        compare(sheet.editName, "seedbox");
+        compare(sheet.testProblem.headline, "omaseed can't drive Deluge yet");
+        verify(sheet.testProblem.line.indexOf("It answered at http://127.0.0.1:8112/json") > 0);
+        compare(sheet.editUrl, "http://127.0.0.1:8112");
+        compare(sheet.editName, "nas");
         sheet.actionTriggered("save");
         compare(App.serverList.count, 0);
 
         // Picking an engine asks a new test, for that one only.
-        findChild(sheet, "engineChip-deluge").clicked();
+        findChild(sheet, "engineChip-transmission").clicked();
         compare(sheet.tested, false);
-        compare(sheet.fieldMap().engineChoice, "deluge");
-        compare(sheet.authModes, ["password"]);
-        compare(sheet.editAuthMode, "password");
-        verify(findChild(sheet, "lonePassField").visible);
+        compare(sheet.fieldMap().engineChoice, "transmission");
+        compare(sheet.authModes, ["cookie", "none"]);
+        verify(findChild(sheet, "authChip-cookie"));
+        compare(findChild(sheet, "authChip-apiKey"), null);
         sheet.close();
     }
 

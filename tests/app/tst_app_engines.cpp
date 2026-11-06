@@ -224,26 +224,26 @@ void TestAppEngines::anAnswerFromNoEngineKeepsSaveAnyway()
 void TestAppEngines::theProblemSaysTheRefusalInWords()
 {
     App app;
-    const QVariantMap fields = fieldsFor(QUrl(QStringLiteral("http://seedbox:9091")));
-    const QVariantMap refused =
-        app.serverTestProblem(fields,
-                              QStringLiteral("omaseed can't drive Transmission yet"),
-                              QStringLiteral("This build of omaseed drives qBittorrent."),
-                              {{QStringLiteral("refused"), true}});
+    const QVariantMap fields = fieldsFor(QUrl(QStringLiteral("http://nas:8112")));
+    const QVariantMap refused = app.serverTestProblem(
+        fields,
+        QStringLiteral("omaseed can't drive Deluge yet"),
+        QStringLiteral("This build of omaseed drives qBittorrent and Transmission."),
+        {{QStringLiteral("refused"), true}});
     QCOMPARE(refused.value(QStringLiteral("headline")).toString(),
-             QStringLiteral("omaseed can't drive Transmission yet"));
+             QStringLiteral("omaseed can't drive Deluge yet"));
     QCOMPARE(refused.value(QStringLiteral("line")).toString(),
-             QStringLiteral("This build of omaseed drives qBittorrent."));
+             QStringLiteral("This build of omaseed drives qBittorrent and Transmission."));
     QCOMPARE(refused.value(QStringLiteral("kind")).toString(), QStringLiteral("refused"));
-    // K6: where Transmission answered, when it isn't the address typed.
+    // K6: where Deluge answered, when it isn't the address typed.
     const QVariantMap found = app.serverTestProblem(
         fields,
-        QStringLiteral("omaseed can't drive Transmission yet"),
+        QStringLiteral("omaseed can't drive Deluge yet"),
         QStringLiteral("Not yet."),
         {{QStringLiteral("refused"), true},
-         {QStringLiteral("endpoint"), QStringLiteral("http://seedbox:9091/transmission/rpc")}});
+         {QStringLiteral("endpoint"), QStringLiteral("http://nas:8112/json")}});
     QCOMPARE(found.value(QStringLiteral("line")).toString(),
-             QStringLiteral("Not yet. It answered at http://seedbox:9091/transmission/rpc."));
+             QStringLiteral("Not yet. It answered at http://nas:8112/json."));
     const QVariantMap unknown = app.serverTestProblem(fields,
                                                       QStringLiteral("x answered, but not as …"),
                                                       QStringLiteral("not found: GET app/version"),
