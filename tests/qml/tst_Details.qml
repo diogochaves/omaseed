@@ -38,6 +38,15 @@ TestCase {
     }
 
     Component {
+        id: storyTabComponent
+
+        DetailsStoryTab {
+            height: 400
+            width: 340
+        }
+    }
+
+    Component {
         id: errorBlockComponent
 
         DetailsErrorBlock {
@@ -386,6 +395,35 @@ TestCase {
         // Finished, newest first (C32 D15): finished downloading over the add.
         const titles = story.story.map(event => event.title);
         compare(titles.slice(-2), ["Finished downloading", "Added"]);
+    }
+
+    // #246: a time from an earlier day is whole, not "22 Oct 17…". The column fits the
+    // longest time the story writes; a story of today's times keeps the skin's column.
+    function test_times_from_earlier_days_are_whole() {
+        const earlier = [{"time": "yesterday 23:58", "kind": "move", "title": "Moved"},
+                         {"time": "22 Oct 17:26", "kind": "plain", "title": "Finished downloading"},
+                         {"time": "28 Sep 2025", "kind": "plain", "title": "Added"}];
+        const tab = createTemporaryObject(storyTabComponent, testCase, {"story": earlier});
+        wait(0);
+        let widest = 0;
+        for (let at = 0; at < earlier.length; ++at) {
+            const line = findChild(tab, "storyEvent_" + at);
+            const time = findChild(line, "storyTime");
+            compare(time.text, earlier[at].time);
+            verify(!time.truncated, "\"" + time.text + "\" is cut off");
+            verify(time.width >= time.implicitWidth, time.text + " overflows its column");
+            // One column for the whole story: every mark and event lines up past it.
+            compare(time.width, tab.timeWidth);
+            verify(findChild(line, "storyMark").x >= time.width, time.text + " runs into its mark");
+            widest = Math.max(widest, time.implicitWidth);
+        }
+        verify(tab.timeWidth > Theme.detailsEventTimeWidth);
+        verify(tab.timeWidth <= Math.ceil(widest) + 2, "the column is measured, not guessed");
+
+        tab.story = [{"time": "23:58", "kind": "plain", "title": "Added"}];
+        wait(0);
+        compare(tab.timeWidth, Theme.detailsEventTimeWidth);
+        verify(!findChild(findChild(tab, "storyEvent_0"), "storyTime").truncated);
     }
 
     // docs/32 F1 (#55): the demo's move of Spring to /mnt/archive/movies didn't happen. The

@@ -11,6 +11,8 @@ Item {
 
     /// `{time, kind ("plain", "move", "warn", "error"), title, detail}`.
     property var event: ({})
+    /// The time's column, one width for the whole story (`DetailsStoryTab.timeWidth`, #246).
+    property int timeWidth: Theme.detailsEventTimeWidth
     readonly property color markColor: {
         switch (root.event.kind) {
         case "error":
@@ -40,9 +42,10 @@ Item {
                             "tnum": 1
                         })
         font.pixelSize: Theme.detailsEventTitleSize
+        objectName: "storyTime"
         text: root.event.time ?? ""
         textFormat: Text.PlainText
-        width: Theme.detailsEventTimeWidth
+        width: root.timeWidth
     }
 
     Rectangle {
@@ -50,7 +53,7 @@ Item {
         height: Theme.detailsEventMarkSize
         objectName: "storyMark"
         width: Theme.detailsEventMarkSize
-        x: Theme.detailsEventTimeWidth + Theme.detailsEventGap
+        x: root.timeWidth + Theme.detailsEventGap
         y: Theme.detailsEventMarkTop
     }
 
@@ -58,7 +61,7 @@ Item {
         id: words
 
         width: Math.max(0, root.width - words.x)
-        x: Theme.detailsEventTimeWidth + Theme.detailsEventMarkWidth + 2 * Theme.detailsEventGap
+        x: root.timeWidth + Theme.detailsEventMarkWidth + 2 * Theme.detailsEventGap
 
         Text {
             color: Theme.foreground

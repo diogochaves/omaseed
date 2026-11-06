@@ -68,6 +68,8 @@ before it will tag a release.
   settings" or "Deluge settings" in the palette and the ? sheet on those engines, where
   "qBittorrent settings" was hidden; "qBittorrent settings" on a qBittorrent as before. (#237)
 
+## v0.7.1 — 2026-11-06
+
 ### Fixed
 
 - **"qBittorrent" keeps its small q in the details.** The details pane started its sentence
@@ -90,6 +92,10 @@ before it will tag a release.
   the server omaseed is on restarts its connection; done while the server was lost, the move
   job never heard that it came back, so a move kept "waiting for" the server and was never
   sent, though the list updated again. A move now goes out once the server answers. (#243)
+- **The story's times from an earlier day are whole.** The details' story gave its times a
+  fixed column, so any time that wasn't today's was cut short: "22 Oct 17…" for 22 Oct 17:26.
+  The column now fits the longest time the story writes ("yesterday 09:15", "22 Oct 17:26"),
+  measured in its font; a story of today's times keeps its width. (#246)
 
 ## v0.7.0 — 2026-11-05
 

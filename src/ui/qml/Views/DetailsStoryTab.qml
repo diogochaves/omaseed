@@ -56,6 +56,15 @@ Flickable {
     readonly property bool hasFailure: (root.failure.headline || "").length > 0
     readonly property bool hasMove: (root.lastMove.id || "").length > 0
     readonly property bool hasBar: root.details !== null && root.details.pieceCount > 0
+    /// #246: the time's column fits the longest time the story writes ("yesterday 09:15",
+    /// "22 Oct 17:26", "22 Oct 2025"), measured in the time's own font, and is never narrower
+    /// than the skin's column, so a story of today's times keeps it.
+    readonly property int timeWidth: {
+        let widest = 0;
+        for (const event of root.story)
+            widest = Math.max(widest, timeMetrics.advanceWidth(event.time ?? ""));
+        return Math.max(Theme.detailsEventTimeWidth, Math.ceil(widest) + 1);
+    }
 
     boundsBehavior: Flickable.StopAtBounds
     clip: true
@@ -146,6 +155,7 @@ Flickable {
 
                     event: modelData
                     objectName: "storyEvent_" + index
+                    timeWidth: root.timeWidth
                     width: parent.width
                 }
             }
@@ -190,5 +200,16 @@ Flickable {
         parent: root
         rowHeight: Theme.railRowHeight
         z: 2
+    }
+
+    // #246: DetailsStoryEvent's time font, to measure `timeWidth`.
+    FontMetrics {
+        id: timeMetrics
+
+        font.family: Theme.valueFamily
+        font.features: ({
+                            "tnum": 1
+                        })
+        font.pixelSize: Theme.detailsEventTitleSize
     }
 }
