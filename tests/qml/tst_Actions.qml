@@ -1275,6 +1275,38 @@ TestCase {
         }
     }
 
+    // Board 47 §G (C25 K28): on Transmission a rename renames the folder on disk too; the
+    // sheet says so with both paths, and `r` opens it instead of the inline editor.
+    function test_rename_says_when_the_engine_renames_on_disk() {
+        const sheet = view.renameSheetPanel;
+        const block = findChild(sheet, "renameOnDiskBlock");
+        sheet.openFor(view.cursorHash);
+        verify(!block.visible, "qBittorrent's rename grew a line");
+        sheet.close();
+
+        sheet.features = {"renameOnDisk": true};
+        sheet.engineName = "Transmission";
+        view.table.features = {"renameOnDisk": true};
+        try {
+            view.table.forceActiveFocus();
+            keyClick(Qt.Key_R);
+            verify(!view.table.renaming, "r opened the inline editor");
+            tryVerify(() => sheet.opened);
+            verify(block.visible);
+            compare(findChild(sheet, "renameOnDiskLine").text,
+                    "On Transmission this renames its folder on disk too");
+            const row = App.torrentRow(view.cursorHash);
+            sheet.focusables()[0].text = "New name";
+            compare(findChild(sheet, "renameOnDiskPaths").text,
+                    row.contentPath + " becomes …/New name");
+        } finally {
+            sheet.close();
+            sheet.features = Qt.binding(() => App.features);
+            sheet.engineName = Qt.binding(() => App.serverEngineName || "qBittorrent");
+            view.table.features = Qt.binding(() => App.features);
+        }
+    }
+
     function test_limits_a_cleared_speed_lifts_the_limit() {
         const spy = createTemporaryObject(limitsSpy, testCase);
         const sheet = view.limitsSheetPanel;

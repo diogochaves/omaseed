@@ -1114,6 +1114,8 @@ QVariantMap App::torrentRow(const QString &hash) const
     // other field above is already text, this is the one a caller sums across a selection.
     row.insert(QStringLiteral("size"), torrent.size);
     row.insert(QStringLiteral("savePath"), torrent.savePath);
+    // C25 K28: the rename sheet names what a rename on disk changes.
+    row.insert(QStringLiteral("contentPath"), torrent.contentPath);
     row.insert(QStringLiteral("magnetUri"), torrent.magnetUri);
     row.insert(QStringLiteral("infohashV1"), torrent.infohashV1);
     row.insert(QStringLiteral("isPrivate"), torrent.isPrivate);

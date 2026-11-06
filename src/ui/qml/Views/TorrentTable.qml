@@ -1040,7 +1040,8 @@ Item {
     function startRename(): void {
         if (root.filtered.count <= 0)
             return;
-        if (root.face !== null && !root.face.inlineRename) {
+        // C25 K28: where a rename renames the folder on disk too, the sheet says so.
+        if ((root.face !== null && !root.face.inlineRename) || root.features.renameOnDisk === true) {
             root.renameSheetRequested(root.filtered.hashAt(root.cursorIndex));
             return;
         }
