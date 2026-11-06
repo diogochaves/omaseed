@@ -1332,6 +1332,33 @@ trackers': `hasTrackerError` and the trackers tab, never the needs-you block. Th
 "start it here" takes "details"' place wherever the engine stops a torrent whose move failed
 (`moveStopsOnFailure`, so Deluge's recheck-first strip is still to do).
 
+*Adding, details, what goes and Settings on Transmission (2026-11-06, #85, assumed, to confirm):*
+built from K25–K33 and §G–§J with these calls the board left open. K25 covers a v2-only
+.torrent and a btmh-only magnet link as well as a bare hash (each worded as what it is; in a
+batch the line counts the rows and asks to take them out), with a new feature flag `v2Only`;
+the sheet's other fields stay drawn under the red line (the board hides them), only the two
+add buttons are off. K26's dim line also covers a link to a .torrent ("reads a link's .torrent
+only once it is added"). The ntfs3/exfat/vfat and FAT32 lines stay on every engine and name it:
+the drivers make Transmission's files whole too. K28: the line is the same for a one-file
+torrent ("its folder"); `r` opens the rename sheet instead of the inline editor wherever a
+rename renames on disk; qBittorrent's sheet gets no "only the name changes" line (unchanged).
+K29: the web seeds' head reads "URL" without a log. K30: the note leads with the key when the
+action has one ("C · …"), its words are "SERVER (ENGINE) has no X" with X from a fixed list
+per feature ("categories", "log", "torrent creator", "adding or banning peers"…); the ?
+sheet's foot line is the Kit's scope line (accent rule, not the board's yellow), in the
+board's order and words, and is left out until the server's version is known. K31: TRANSMISSION
+› Basics also carries the incomplete folder and the seeding defaults (ratio, idle), which the
+limits sheet's "global" means, and the burst presets with turtle's (so "edit the presets…"
+lands there); speeds there are in Transmission's kB/s (1000 bytes); queue sizes are left for
+Settings › Transmission (E5); "test port" is Transmission's port_test, its answer a chip by the
+port and a line in the head; ctrl+shift+, opens the engine's group. A new flag, `sessionBasics`,
+says an engine has that page. K32 is built for the current server only: the group follows the
+server omaseed is on, its select lists every server (one group per saved engine, each listing
+its own, is left to E5, #86). K33: copy settings reads only qBittorrent servers, and omaseed's own
+Backup links to qBittorrent's only while on one. Also: a speed limit's upper bound is per engine
+(`maxSpeedLimit`; Transmission an int of kB/s), and C28's stuck-move block is only where the
+engine has the log (Transmission's content reads from the incomplete folder until it moves).
+
 ## C26 — Search through qBittorrent's search plugins (board 48, ruled 2026-10-22)
 
 Board [48](48-search.html) SR1–SR14, all as recommended, in board 46's frame (C24 H16: a rail view
