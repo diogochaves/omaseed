@@ -41,6 +41,7 @@ follows. The commands themselves are listed in `CLAUDE.md`; `README.md` says how
    | `stuck-walk.sh` | a finished torrent whose move into a full disk failed (a loop image), and a recheck once room is made |
    | `move-walk.sh` | moving folders and selections: queue, places, partial packs, move back (with the loose files a folder move carried), recheck |
    | `search-walk.sh` | search through invented plugins (`scripts/dev/search-plugins.py`, whose rows are the offline swarm's): install from Settings, a failed install, a plugin off and on; a search filling in, a failed and a slow plugin and their answers; a folded magnet and a link (through its plugin) added and arriving; hide dead, `/`, uninstall |
+   | `transmission-walk.sh` | a Transmission server (`:8085`, the playground; started, seeded and wiped afterwards when it wasn't up): a `.torrent` added through the add sheet with a label and a save path, renamed (its folder on disk follows, K28), moved through the Move… sheet, a label added and one taken off, deleted with its files; each step checked on the daemon's RPC and on disk |
 
    A box is a new install, so omaseed starts on the rows display there (DECISIONS C24 H4). Each
    walk pins the display it reads with `OMASEED_DISPLAY` (`table`, `rows` or `space`, which also reads the shelves' old `overview`: every

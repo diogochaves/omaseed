@@ -93,6 +93,7 @@ scripts/dev/search-walk.sh [OUT] | --interactive  # search: invented plugins ins
 scripts/dev/search-plugins.py make DIR [--slow S] # four invented nova3 search plugins answering with the offline swarm's torrents (never a real site)
 scripts/dev/create-walk.sh [OUT] | --interactive  # create a torrent (#146): + add ▾, public (strip, seeding, the .torrent read back), the band, private (saved, passkey only as dots), the round trip both ways, errors, cancel
 scripts/dev/move-walk.sh [OUT] | --interactive    # folder and selection moves, queue, places, partial pack, move back (the loose files too), recheck (~12 min; OMASEED_MOVE_WALK_FROM=loose|selection|sheet|history|big|music|remote)
+scripts/dev/transmission-walk.sh [OUT] | --interactive  # on the Transmission playground (:8085, started, seeded and wiped if it wasn't up): add with a label and a save path, rename (its folder too), move, a label on and one off, delete with files; each checked on the daemon and on disk
 omabox check run [--approve] --base .local/visual --plugin plugin -- scripts/dev/visual-check.sh  # the walks' screens against a baseline: same, or what changed
 OMASEED_SKIN=console omabox check run [--approve] --keep fonts --base .local/visual-console --plugin plugin -- scripts/dev/visual-check.sh  # the same in the Console skin, its own baseline
 scripts/dev/manual-box.sh [--headless] | down          # throwaway desktop for manual tests: omaseed installed, two qBittorrents (public :8090, private :8091)
