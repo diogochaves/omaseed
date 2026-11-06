@@ -9,7 +9,8 @@
 //     8080, Transmission's 9091, deluge-web's 8112. Never an HTTP request, never a login
 //     (CLAUDE.md: the connect is the only permitted contact with the real library's port,
 //     and C14 E8 keeps every engine to it until the row is picked);
-//   * `docker ps` for a container whose name or image names an engine;
+//   * `docker ps` and `podman ps` (rootless podman needs no docker, #233) for a container
+//     whose name or image names an engine;
 //   * the running processes (pgrep): qbittorrent-nox/qbittorrent, transmission-daemon/-gtk/
 //     -qt, deluged/deluge-web/deluge-gtk.
 // Each engine's own config file (read, never written) gives a running process its port:
@@ -19,8 +20,8 @@
 //
 // finished() fires once, after every probe has answered (or timed out: the commands too,
 // after setCommandTimeoutMs), with at most one candidate per engine (K2), in the order
-// qBittorrent, Transmission, Deluge: for each, the docker container, else the open port,
-// else the running process.
+// qBittorrent, Transmission, Deluge: for each, the docker container, else the podman one,
+// else the open port, else the running process.
 //
 // `runningProcesses()` counts every qbittorrent/qbittorrent-nox process pgrep matched, so
 // first run can say when there is more than the one it offers (Q26: a second instance with
@@ -87,10 +88,12 @@ public:
     quint16 probePort() const { return probePort(EngineKind::Qbittorrent); }
     quint16 probePort(EngineKind engine) const;
 
-    /// Test-only: the command names used for the docker and pgrep probes, so the test can
-    /// point them at a fake script rather than relying on `docker`/`pgrep` being installed
-    /// (and rather than ever matching this machine's real processes).
+    /// Test-only: the command names used for the docker, podman and pgrep probes, so the
+    /// test can point them at a fake script rather than relying on `docker`/`podman`/`pgrep`
+    /// being installed (and rather than ever matching this machine's real processes or
+    /// containers).
     void setDockerCommand(const QString &command);
+    void setPodmanCommand(const QString &command);
     void setPgrepCommand(const QString &command);
 
     /// Test-only: the config files to read for a running process's port, first existing one
@@ -103,7 +106,7 @@ public:
 
     /// Test-only: the connect timeout, default 1000 ms.
     void setProbeTimeoutMs(int ms);
-    /// Test-only: how long `docker ps` and `pgrep` may run before they are killed and
+    /// Test-only: how long `docker ps`, `podman ps` and `pgrep` may run before they are killed and
     /// counted as "nothing found", default 3000 ms.
     void setCommandTimeoutMs(int ms);
 
@@ -120,6 +123,8 @@ private:
         bool portFound = false;
         QString dockerName;
         QString dockerHostPort;
+        QString podmanName;
+        QString podmanHostPort;
         int processCount = 0;
         QString processName;
         QStringList configPaths;
@@ -127,6 +132,10 @@ private:
 
     void startPortProbe(EngineKind engine);
     void startDockerProbe();
+    void startPodmanProbe();
+    /// Reads `ps --format '{{.Names}} {{.Image}} {{.Ports}}'` (docker's and podman's alike)
+    /// into each engine's `name`/`hostPort` fields (the docker or the podman pair).
+    void readContainers(const QString &output, QString Found::*name, QString Found::*hostPort);
     void startProcessProbe();
     /// Starts `process` and marks `*done` exactly once, on finish, error or timeout;
     /// `onFinished` reads its output only after a clean exit 0.
@@ -141,14 +150,17 @@ private:
 
     QHash<EngineKind, Found> m_found;
     QProcess *m_dockerProcess = nullptr;
+    QProcess *m_podmanProcess = nullptr;
     QProcess *m_pgrepProcess = nullptr;
 
     QString m_dockerCommand = QStringLiteral("docker");
+    QString m_podmanCommand = QStringLiteral("podman");
     QString m_pgrepCommand = QStringLiteral("pgrep");
     int m_probeTimeoutMs = 1000;
     int m_commandTimeoutMs = 3000;
 
     bool m_dockerDone = false;
+    bool m_podmanDone = false;
     bool m_processDone = false;
     bool m_finished = false;
 };

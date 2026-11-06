@@ -195,6 +195,11 @@ void ServerDetector::setDockerCommand(const QString &command)
     m_dockerCommand = command;
 }
 
+void ServerDetector::setPodmanCommand(const QString &command)
+{
+    m_podmanCommand = command;
+}
+
 void ServerDetector::setPgrepCommand(const QString &command)
 {
     m_pgrepCommand = command;
@@ -253,12 +258,14 @@ void ServerDetector::runCommand(QProcess *process,
 void ServerDetector::start()
 {
     m_finished = false;
-    m_dockerDone = m_processDone = false;
+    m_dockerDone = m_podmanDone = m_processDone = false;
     for (Found &found : m_found) {
         found.portDone = false;
         found.portFound = false;
         found.dockerName.clear();
         found.dockerHostPort.clear();
+        found.podmanName.clear();
+        found.podmanHostPort.clear();
         found.processCount = 0;
         found.processName.clear();
     }
@@ -266,6 +273,7 @@ void ServerDetector::start()
     for (const EngineKind engine : kKnownEngines)
         startPortProbe(engine);
     startDockerProbe();
+    startPodmanProbe();
     startProcessProbe();
 }
 
@@ -311,34 +319,60 @@ void ServerDetector::startDockerProbe()
          QStringLiteral("--format"),
          QStringLiteral("{{.Names}} {{.Image}} {{.Ports}}")},
         [this](QProcess *process) {
-            const QString output = QString::fromUtf8(process->readAllStandardOutput());
-            const auto lines = output.split(QLatin1Char('\n'), Qt::SkipEmptyParts);
-            for (const QString &line : lines) {
-                const QStringList parts = line.split(QLatin1Char(' '), Qt::SkipEmptyParts);
-                if (parts.size() < 2)
-                    continue;
-                const QString name = parts.at(0);
-                const QString image = parts.at(1);
-                const QString ports =
-                    parts.size() > 2 ? parts.mid(2).join(QLatin1Char(' ')) : QString();
-                for (const EngineKind engine : kKnownEngines) {
-                    const QString word = engineKindToString(engine);
-                    Found &found = m_found[engine];
-                    if (!found.dockerName.isEmpty() || !(name.contains(word, Qt::CaseInsensitive) ||
-                                                         image.contains(word, Qt::CaseInsensitive)))
-                        continue;
-                    found.dockerName = name;
-                    // Look for a "...:HOSTPORT->8080/tcp" mapping of the engine's own port.
-                    const QRegularExpression portRe(
-                        QStringLiteral(":(\\d+)->%1/tcp").arg(usualPort(engine)));
-                    const auto match = portRe.match(ports);
-                    if (match.hasMatch())
-                        found.dockerHostPort = match.captured(1);
-                    break;
-                }
-            }
+            readContainers(QString::fromUtf8(process->readAllStandardOutput()),
+                           &Found::dockerName,
+                           &Found::dockerHostPort);
         },
         &m_dockerDone);
+}
+
+// #233: rootless podman, the common way to run a container without root, has no `docker`
+// unless podman-docker is installed. Its `ps` takes the same Go template.
+void ServerDetector::startPodmanProbe()
+{
+    m_podmanProcess = new QProcess(this);
+    runCommand(
+        m_podmanProcess,
+        m_podmanCommand,
+        {QStringLiteral("ps"),
+         QStringLiteral("--format"),
+         QStringLiteral("{{.Names}} {{.Image}} {{.Ports}}")},
+        [this](QProcess *process) {
+            readContainers(QString::fromUtf8(process->readAllStandardOutput()),
+                           &Found::podmanName,
+                           &Found::podmanHostPort);
+        },
+        &m_podmanDone);
+}
+
+void ServerDetector::readContainers(const QString &output,
+                                    QString Found::*nameField,
+                                    QString Found::*hostPortField)
+{
+    const auto lines = output.split(QLatin1Char('\n'), Qt::SkipEmptyParts);
+    for (const QString &line : lines) {
+        const QStringList parts = line.split(QLatin1Char(' '), Qt::SkipEmptyParts);
+        if (parts.size() < 2)
+            continue;
+        const QString name = parts.at(0);
+        const QString image = parts.at(1);
+        const QString ports = parts.size() > 2 ? parts.mid(2).join(QLatin1Char(' ')) : QString();
+        for (const EngineKind engine : kKnownEngines) {
+            const QString word = engineKindToString(engine);
+            Found &found = m_found[engine];
+            if (!(found.*nameField).isEmpty() || !(name.contains(word, Qt::CaseInsensitive) ||
+                                                   image.contains(word, Qt::CaseInsensitive)))
+                continue;
+            found.*nameField = name;
+            // Look for a "...:HOSTPORT->8080/tcp" mapping of the engine's own port.
+            const QRegularExpression portRe(
+                QStringLiteral(":(\\d+)->%1/tcp").arg(usualPort(engine)));
+            const auto match = portRe.match(ports);
+            if (match.hasMatch())
+                found.*hostPortField = match.captured(1);
+            break;
+        }
+    }
 }
 
 void ServerDetector::startProcessProbe()
@@ -378,7 +412,7 @@ void ServerDetector::startProcessProbe()
 
 void ServerDetector::maybeFinish()
 {
-    if (m_finished || !m_dockerDone || !m_processDone)
+    if (m_finished || !m_dockerDone || !m_podmanDone || !m_processDone)
         return;
     for (const Found &found : std::as_const(m_found)) {
         if (!found.portDone)
@@ -402,13 +436,16 @@ bool ServerDetector::candidateFor(EngineKind engine, DetectedServer *candidate) 
     candidate->engine = engineKindToString(engine);
     candidate->label = tr("Use %1 on this machine").arg(name);
 
-    if (!found.dockerName.isEmpty()) {
+    // Docker's container first, then podman's: the tool's name is said, as each user knows it.
+    const bool docker = !found.dockerName.isEmpty();
+    if (docker || !found.podmanName.isEmpty()) {
         candidate->kind = QStringLiteral("docker");
-        const QString port = found.dockerHostPort.isEmpty() ? QString::number(usualPort(engine))
-                                                            : found.dockerHostPort;
+        const QString hostPort = docker ? found.dockerHostPort : found.podmanHostPort;
+        const QString port = hostPort.isEmpty() ? QString::number(usualPort(engine)) : hostPort;
         candidate->url = QStringLiteral("http://127.0.0.1:%1").arg(port);
         candidate->detail =
-            QStringLiteral("127.0.0.1:%1 · Docker container %2").arg(port, found.dockerName);
+            docker ? QStringLiteral("127.0.0.1:%1 · Docker container %2").arg(port, found.dockerName)
+                   : QStringLiteral("127.0.0.1:%1 · Podman container %2").arg(port, found.podmanName);
         return true;
     }
     if (found.portFound) {

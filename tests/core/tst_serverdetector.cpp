@@ -81,6 +81,7 @@ private slots:
     void oneRowPerEngineInOrder(); // C25 K1, K2
     void eachEnginesProcessAndConfigGiveItsAddress();
     void aDockerContainerNamesItsEngine();
+    void aPodmanContainerIsFoundToo();
 };
 
 void TestServerDetector::openPortIsFound()
@@ -97,6 +98,7 @@ void TestServerDetector::openPortIsFound()
     isolateOthers(detector);
     detector.setProbePort(fake.serverPort());
     detector.setDockerCommand(noCmd);
+    detector.setPodmanCommand(QStringLiteral("/nonexistent/omaseed-fake-podman"));
     detector.setPgrepCommand(noCmd);
 
     QSignalSpy spy(&detector, &ServerDetector::finished);
@@ -128,6 +130,7 @@ void TestServerDetector::closedPortIsNotFound()
     detector.setProbePort(freePort);
     detector.setProbeTimeoutMs(500);
     detector.setDockerCommand(noCmd);
+    detector.setPodmanCommand(QStringLiteral("/nonexistent/omaseed-fake-podman"));
     detector.setPgrepCommand(noCmd);
 
     QSignalSpy spy(&detector, &ServerDetector::finished);
@@ -163,6 +166,7 @@ void TestServerDetector::dockerFoundGivesCandidate()
     detector.setProbePort(closedPort);
     detector.setProbeTimeoutMs(500);
     detector.setDockerCommand(dockerCmd);
+    detector.setPodmanCommand(QStringLiteral("/nonexistent/omaseed-fake-podman"));
     detector.setPgrepCommand(noCmd);
 
     QSignalSpy spy(&detector, &ServerDetector::finished);
@@ -192,6 +196,7 @@ void TestServerDetector::dockerMissingBinaryIsNotFound()
     detector.setProbeTimeoutMs(500);
     // No such binary: QProcess::errorOccurred must still resolve the probe as "not found".
     detector.setDockerCommand(QStringLiteral("/nonexistent/omaseed-fake-docker"));
+    detector.setPodmanCommand(QStringLiteral("/nonexistent/omaseed-fake-podman"));
     detector.setPgrepCommand(QStringLiteral("/nonexistent/omaseed-fake-pgrep"));
 
     QSignalSpy spy(&detector, &ServerDetector::finished);
@@ -222,6 +227,7 @@ void TestServerDetector::pgrepFoundGivesCandidate()
     detector.setProbePort(closedPort);
     detector.setProbeTimeoutMs(500);
     detector.setDockerCommand(noCmd);
+    detector.setPodmanCommand(QStringLiteral("/nonexistent/omaseed-fake-podman"));
     detector.setPgrepCommand(pgrepCmd);
 
     QSignalSpy spy(&detector, &ServerDetector::finished);
@@ -251,6 +257,7 @@ void TestServerDetector::noneFoundGivesNoCandidates()
     detector.setProbePort(closedPort);
     detector.setProbeTimeoutMs(500);
     detector.setDockerCommand(noCmd);
+    detector.setPodmanCommand(QStringLiteral("/nonexistent/omaseed-fake-podman"));
     detector.setPgrepCommand(noCmd);
 
     QSignalSpy spy(&detector, &ServerDetector::finished);
@@ -290,6 +297,7 @@ void TestServerDetector::aHangingCommandTimesOut()
     detector.setProbeTimeoutMs(300);
     detector.setCommandTimeoutMs(400);
     detector.setDockerCommand(hang);
+    detector.setPodmanCommand(QStringLiteral("/nonexistent/omaseed-fake-podman"));
     detector.setPgrepCommand(noCmd);
 
     QSignalSpy spy(&detector, &ServerDetector::finished);
@@ -322,6 +330,7 @@ void TestServerDetector::pgrepNamesTheMatchedProcess()
     detector.setProbePort(closedPort);
     detector.setProbeTimeoutMs(300);
     detector.setDockerCommand(noCmd);
+    detector.setPodmanCommand(QStringLiteral("/nonexistent/omaseed-fake-podman"));
     detector.setPgrepCommand(pgrepCmd);
 
     QSignalSpy spy(&detector, &ServerDetector::finished);
@@ -360,6 +369,7 @@ void TestServerDetector::aDesktopClientsConfigGivesItsPortAndSwitch()
         detector.setProbePort(closedPort);
         detector.setProbeTimeoutMs(300);
         detector.setDockerCommand(noCmd);
+        detector.setPodmanCommand(QStringLiteral("/nonexistent/omaseed-fake-podman"));
         detector.setPgrepCommand(pgrepCmd);
         QSignalSpy spy(&detector, &ServerDetector::finished);
         detector.start();
@@ -431,6 +441,7 @@ void TestServerDetector::everyRunningProcessIsCounted()
     detector.setProbePort(closedPort);
     detector.setProbeTimeoutMs(300);
     detector.setDockerCommand(noCmd);
+    detector.setPodmanCommand(QStringLiteral("/nonexistent/omaseed-fake-podman"));
     QCOMPARE(detector.runningProcesses(), 0);
 
     for (const auto &[command, expected] :
@@ -467,6 +478,7 @@ void TestServerDetector::oneRowPerEngineInOrder()
     detector.setProbePort(EngineKind::Transmission, transmission.serverPort());
     detector.setProbePort(qbt.serverPort());
     detector.setDockerCommand(noCmd);
+    detector.setPodmanCommand(QStringLiteral("/nonexistent/omaseed-fake-podman"));
     detector.setPgrepCommand(noCmd);
     QCOMPARE(ServerDetector::usualPort(EngineKind::Qbittorrent), quint16(8080));
     QCOMPARE(ServerDetector::usualPort(EngineKind::Transmission), quint16(9091));
@@ -524,6 +536,7 @@ void TestServerDetector::eachEnginesProcessAndConfigGiveItsAddress()
         detector.setConfigPaths(EngineKind::Deluge, {webConf});
         detector.setProbeTimeoutMs(300);
         detector.setDockerCommand(noCmd);
+        detector.setPodmanCommand(QStringLiteral("/nonexistent/omaseed-fake-podman"));
         detector.setPgrepCommand(pgrep);
         QSignalSpy spy(&detector, &ServerDetector::finished);
         detector.start();
@@ -580,6 +593,7 @@ void TestServerDetector::aDockerContainerNamesItsEngine()
     }
     detector.setProbeTimeoutMs(300);
     detector.setDockerCommand(docker);
+    detector.setPodmanCommand(QStringLiteral("/nonexistent/omaseed-fake-podman"));
     detector.setPgrepCommand(noCmd);
     QSignalSpy spy(&detector, &ServerDetector::finished);
     detector.start();
@@ -590,6 +604,40 @@ void TestServerDetector::aDockerContainerNamesItsEngine()
     QCOMPARE(candidates.first().url, QStringLiteral("http://127.0.0.1:9095"));
     QCOMPARE(candidates.first().detail,
              QStringLiteral("127.0.0.1:9095 · Docker container seedbox"));
+}
+
+// #233: rootless podman, no docker: `podman ps` finds the container, by its image here, and
+// the row names podman. A docker container of the same engine would win (asked first).
+void TestServerDetector::aPodmanContainerIsFoundToo()
+{
+    QTemporaryDir dir;
+    const quint16 closed = closedPortNow();
+    const QString podman = writeFakeCommand(
+        dir,
+        QStringLiteral("podman.sh"),
+        0,
+        QStringLiteral("seeds docker.io/linuxserver/transmission:4.1.3 127.0.0.1:8087->9091/tcp"));
+    const QString noCmd = writeFakeCommand(dir, QStringLiteral("nocmd.sh"), 1, QString());
+    ServerDetector detector;
+    for (const EngineKind engine :
+         {EngineKind::Qbittorrent, EngineKind::Transmission, EngineKind::Deluge}) {
+        detector.setProbePort(engine, closed);
+        detector.setConfigPaths(engine, {});
+    }
+    detector.setProbeTimeoutMs(300);
+    detector.setDockerCommand(QStringLiteral("/nonexistent/omaseed-fake-docker"));
+    detector.setPodmanCommand(podman);
+    detector.setPgrepCommand(noCmd);
+    QSignalSpy spy(&detector, &ServerDetector::finished);
+    detector.start();
+    QVERIFY(spy.wait(3000));
+    const auto candidates = spy.first().first().value<QList<DetectedServer>>();
+    QCOMPARE(candidates.size(), 1);
+    QCOMPARE(candidates.first().kind, QStringLiteral("docker"));
+    QCOMPARE(candidates.first().engine, QStringLiteral("transmission"));
+    QCOMPARE(candidates.first().url, QStringLiteral("http://127.0.0.1:8087"));
+    QCOMPARE(candidates.first().detail,
+             QStringLiteral("127.0.0.1:8087 · Podman container seeds"));
 }
 
 QTEST_GUILESS_MAIN(TestServerDetector)

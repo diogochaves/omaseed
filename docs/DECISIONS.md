@@ -1339,6 +1339,11 @@ K26: Deluge's prefetch works through deluge-web by repeated calls, and a long ca
 other session's answers. K10: deluge-web keeps one daemon for all its sessions, so connecting
 it switches everyone, and the daemon step says so before it connects.
 
+*Finding a container under podman (2026-11-06, #233, assumed, to confirm):* K1's container probe
+asks `podman ps` beside `docker ps` (rootless podman has no `docker` without podman-docker); the
+same row, its detail "127.0.0.1:PORT · Podman container NAME" (docker's row says Docker, and wins
+when both find one engine).
+
 *Moves on Transmission (2026-11-06, #85, assumed, to confirm):* built from K21–K23 and §4 with
 these calls the board left open. A Transmission move goes one torrent at a time (a second
 `torrent_set_location` would wait behind the first and keep the poll waiting until both ended);
