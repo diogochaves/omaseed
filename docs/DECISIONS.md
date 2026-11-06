@@ -1420,6 +1420,24 @@ stay on their servers. The welcome reads "Torrents for Omarchy, powered by qBitt
 Transmission." The palette's and ?'s "qBittorrent settings" stay qBittorrent's (hidden on
 Transmission, where ctrl+shift+, still opens its group, unnamed there).
 
+*Deluge driven, and its daemon step (2026-11-06, E6 #87, assumed, to confirm):* built from K7,
+K9 and K10 and board 47 §2 A with these calls the board left open. K10's step shows when a test
+finds deluge-web connected to no daemon, or knowing several and none picked (or the picked one
+isn't the one connected); one daemon connected is kept with the server without a step. Its rows
+read "HOST:PORT · Deluge VERSION", with "connected now", "running" or "not running"; the cursor
+starts on the one picked before, else the one connected, else the first running. Because §3's
+check found that connecting switches deluge-web for everyone, K10's "connects deluge-web to it at
+each sign-in" is narrowed: omaseed connects the stored daemon only when deluge-web has none, never
+away from another one, and the step's line says so ("Connecting switches deluge-web to this daemon
+for everyone who uses it…") while the pick isn't the one connected; "use this daemon" on the
+connected one connects nothing, and the pick is saved with the server (servers.json `daemon`,
+deluge-web's host id). A deluge-web that knows no daemon fails the test in its own words ("Add one
+in deluge-web's Connection Manager"), "save anyway" kept. First run has no step: it keeps the
+daemon its passing test found. While polling, deluge-web without a daemon is C12's down server
+(red, retried, the lost notice): "NAME's deluge-web has no daemon" / "deluge-web answers, but no
+Deluge daemon is connected to it. Is deluged running?", short reason "no daemon". Pause Torrents'
+settle window (C36 M10) is Transmission's 5 s on Deluge too.
+
 ## C26 — Search through qBittorrent's search plugins (board 48, ruled 2026-10-22)
 
 Board [48](48-search.html) SR1–SR14, all as recommended, in board 46's frame (C24 H16: a rail view
