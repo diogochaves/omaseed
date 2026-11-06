@@ -17,7 +17,8 @@
 //     toggle nothing happens, and the hand's state lasts until the change after it.
 //
 // Transmission's turtle clock (alt_speed_time_*, DECISIONS C25 K20, board 47 §D "the until
-// follows Transmission's own timer"), read in libtransmission 4.1 for behaviour only:
+// follows Transmission's own timer"), read in libtransmission 4.1 for behaviour only and checked
+// on a 4.1.3 daemon across a minute's edge (#234, scripts/dev/research/234-turtle-window/):
 //   * One window, begin to end, on the days of a mask (Sunday 1, Monday 2, … Saturday 64).
 //   * The window starts on a picked day; past midnight it runs on into the next day (not
 //     backwards, unlike qBittorrent). Begin and end the same: on the whole day from begin.

@@ -6,6 +6,7 @@
 // metadata. The peers answer is written by hand from rpc-spec §3.3 (the test server has no
 // swarm).
 
+#include "core/AltSchedule.hpp"
 #include "core/PieceStates.hpp"
 #include "core/engines/transmission/TransmissionTranslate.hpp"
 
@@ -70,6 +71,11 @@ private Q_SLOTS:
     void absentFieldsStayAbsent();
     void sessionFiguresAndLimits();
     void sessionAsSpeedPreferences();
+    void turtleWindowAsTheDaemonKeepsIt_data();
+    void turtleWindowAsTheDaemonKeepsIt();
+    void turtleWindowAcrossAMinute_data();
+    void turtleWindowAcrossAMinute();
+    void turtleTurnedOffByHandInsideTheWindow();
     void sessionAsBasics();
     void settingsByTransmissionsOwnNames();
     void filesWithPrioritiesAndPieces();
@@ -367,6 +373,113 @@ void TestTransmissionTranslate::sessionAsSpeedPreferences()
                 &why)
                 .isEmpty());
     QCOMPARE(why, QStringLiteral("Transmission has no setting for web_ui_port"));
+}
+
+// #234, C25 K20's note: the turtle clock as Transmission 4.1.3 kept it on a live daemon, read
+// through the session the way omaseed reads it. The cases and what the daemon did come from
+// scripts/dev/research/234-turtle-window/ (its README has the run): Friday 2026-11-06 at 13:19,
+// minute 799; the mask's bit for Friday is 32, Thursday's 16. Offsets are from 13:19.
+namespace {
+
+const QDateTime turtleRunAt(QDate(2026, 11, 6), QTime(13, 19));
+constexpr int turtleRunMinute = 13 * 60 + 19;
+constexpr int friday = 32, thursday = 16;
+
+AltSchedule turtleClock(int begin, int end, int mask)
+{
+    const auto minute = [](int offset) {
+        return ((turtleRunMinute + offset) % 1440 + 1440) % 1440;
+    };
+    const QJsonObject sessionGet{{"alt_speed_time_enabled", true},
+                                 {"alt_speed_time_begin", minute(begin)},
+                                 {"alt_speed_time_end", minute(end)},
+                                 {"alt_speed_time_day", mask}};
+    return AltSchedule::fromPreferences(TT::speedPreferences(sessionGet));
+}
+
+} // namespace
+
+void TestTransmissionTranslate::turtleWindowAsTheDaemonKeepsIt_data()
+{
+    QTest::addColumn<int>("begin");
+    QTest::addColumn<int>("end");
+    QTest::addColumn<int>("mask");
+    QTest::addColumn<bool>("daemon");
+    // A window past midnight runs forwards into the next day, on the day it began.
+    QTest::newRow("wrap, now after midnight, every day") << 60 << 30 << 127 << true;
+    QTest::newRow("wrap, now after midnight, yesterday only") << 60 << 30 << thursday << true;
+    QTest::newRow("wrap, now after midnight, today only") << 60 << 30 << friday << false;
+    QTest::newRow("wrap, now before midnight, every day") << -60 << -120 << 127 << true;
+    QTest::newRow("wrap, now before midnight, today only") << -60 << -120 << friday << true;
+    QTest::newRow("wrap, now before midnight, yesterday only") << -60 << -120 << thursday << false;
+    QTest::newRow("wrap, now outside it") << 60 << -60 << 127 << false;
+    // Begin == end: a whole day from begin, not nothing.
+    QTest::newRow("begin == end, before now, every day") << -30 << -30 << 127 << true;
+    QTest::newRow("begin == end, after now, yesterday only") << 30 << 30 << thursday << true;
+    QTest::newRow("begin == end, after now, today only") << 30 << 30 << friday << false;
+    // The day mask on a window within the day.
+    QTest::newRow("same day, today only") << -30 << 30 << friday << true;
+    QTest::newRow("same day, every day but today") << -30 << 30 << (127 & ~friday) << false;
+    QTest::newRow("same day, no day") << -30 << 30 << 0 << false;
+}
+
+void TestTransmissionTranslate::turtleWindowAsTheDaemonKeepsIt()
+{
+    QFETCH(int, begin);
+    QFETCH(int, end);
+    QFETCH(int, mask);
+    QFETCH(bool, daemon);
+    const AltSchedule clock = turtleClock(begin, end, mask);
+    QCOMPARE(clock.rule(), AltSchedule::Rule::Transmission);
+    QCOMPARE(clock.onAt(turtleRunAt), daemon);
+    // The daemon acted at once on the new window, so its state is the schedule's, not a hand's.
+    QVERIFY(!clock.read(daemon, turtleRunAt).byHand);
+}
+
+void TestTransmissionTranslate::turtleWindowAcrossAMinute_data()
+{
+    QTest::addColumn<int>("begin");
+    QTest::addColumn<int>("end");
+    QTest::addColumn<int>("mask");
+    QTest::addColumn<bool>("before");
+    QTest::addColumn<bool>("after");
+    QTest::newRow("begins next minute") << 1 << 30 << 127 << false << true;
+    QTest::newRow("yesterday's wrap ends next minute") << 60 << 1 << 127 << true << false;
+    QTest::newRow("yesterday's whole day ends next minute") << 1 << 1 << thursday << true << false;
+    QTest::newRow("whole days meet next minute") << 1 << 1 << 127 << true << true;
+}
+
+void TestTransmissionTranslate::turtleWindowAcrossAMinute()
+{
+    QFETCH(int, begin);
+    QFETCH(int, end);
+    QFETCH(int, mask);
+    QFETCH(bool, before);
+    QFETCH(bool, after);
+    const AltSchedule clock = turtleClock(begin, end, mask);
+    const QDateTime now = turtleRunAt.addSecs(30);
+    const QDateTime edge = turtleRunAt.addSecs(60);
+    QCOMPARE(clock.onAt(now), before);
+    QCOMPARE(clock.onAt(edge), after);
+    const AltSchedule::Reading reading = clock.read(before, now);
+    QVERIFY(!reading.byHand);
+    if (before != after) {
+        // The turtle line's "until 13:20": the minute the daemon moved.
+        QCOMPARE(reading.until, edge);
+        QCOMPARE(AltSchedule::untilText(reading.until, now), QStringLiteral("13:20"));
+    } else {
+        QVERIFY(!reading.until.isValid()); // on for good: every day's window meets the next
+    }
+}
+
+// Turned off by hand inside the window, the daemon leaves it off: its scheduler acts only when
+// its own reading changes, so the hand's state lasts until the window opens again tomorrow.
+void TestTransmissionTranslate::turtleTurnedOffByHandInsideTheWindow()
+{
+    const AltSchedule clock = turtleClock(-30, 30, 127);
+    const AltSchedule::Reading reading = clock.read(false, turtleRunAt.addSecs(5));
+    QVERIFY(reading.byHand);
+    QCOMPARE(reading.until, turtleRunAt.addDays(1).addSecs(-30 * 60));
 }
 
 // TRANSMISSION › Basics (C25 K31): the port, DHT, the incomplete folder and the seeding

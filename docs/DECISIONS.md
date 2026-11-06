@@ -1561,9 +1561,13 @@ it runs in error.
 *Ruled on #234 (Diogo, 2026-11-06, "yes" to the calls above):* besides the marks in place, keep
 the words "no label" and Transmission's "a label can't hold a comma: add them one at a time"
 (K13), and the server sheet 520 wide in every mode (the engine row didn't fit 460; the board
-draws 620). Still assumed, a check rather than a ruling: Transmission's turtle by the clock was
-read from libtransmission 4.1 (a window runs past midnight, begin == end is the whole day) and
-hasn't been seen on a daemon across the boundary.
+draws 620). Transmission's turtle by the clock, read from libtransmission 4.1, was checked on
+Transmission 4.1.3, 2026-11-06 (#234, `scripts/dev/research/234-turtle-window/`): a window past
+midnight runs forwards into the next day, counted to the day it began (the mask picks that day);
+begin == end is a whole day from begin (every day picked: never off); no day, never on; a new
+window takes at once and a minute's edge within a second; a hand toggle inside the window lasts
+(the daemon acts only when its own reading changes). omaseed's reading agreed in every case;
+`tst_transmissiontranslate` holds it to the daemon's answers.
 
 *#244 (Diogo, 2026-11-06):* a finished move's summary band closes when every torrent it names is
 deleted, on every engine, held under a later move or not (so the failed move's band of one

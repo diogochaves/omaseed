@@ -16,6 +16,7 @@ issue, with a README saying what it reproduces, how to run it and what it printe
 | [151-add-file-prio](151-add-file-prio/) | Are a .torrent's file choices kept when they are set right after a stopped add? | #151 |
 | [182-v2-free](182-v2-free/) | Why does freeing a skipped file leave a v2-only torrent short of 100 %, and does adding it again fix it? | #182 |
 | [153-engines-board47](153-engines-board47/) | Board 47 §3: Transmission's RPC during a move and its move over a file; Deluge's prefetch through deluge-web and its shared daemon | #153 |
+| [234-turtle-window](234-turtle-window/) | Does Transmission's turtle clock run past midnight, and is begin == end a whole day, on a live daemon? | #234 |
 | [87-deluge-prefetch](87-deluge-prefetch/) | What Deluge's prefetch gives before an add (files, timing, failure, asked again), and is its diff safe through deluge-web? | #87 |
 | [87-deluge-moves](87-deluge-moves/) | What does Deluge show while it moves a torrent, and how does a move fail, in words and without? | #87 |
 
