@@ -451,6 +451,26 @@ TestCase {
         verify(!line.visible);
     }
 
+    // Board 47 §G (C25 K27): Deluge takes the add's name and skip check but no layout, and its
+    // labels sit in the category's row under their own word, leaving Save to as it was.
+    function test_delugesAdd_has_no_layout_and_a_label_row() {
+        const sheet = createTemporaryObject(addSheetComponent, testCase);
+        sheet.open();
+        verify(sheet.layoutChips.parent.visible, "qBittorrent's layout row went");
+        sheet._can = {
+            "addOptions": true,
+            "addContentLayout": false,
+            "categories": true,
+            "categoriesAreLabels": true,
+            "categoryWord": "label",
+            "tags": false
+        };
+        verify(!sheet.layoutChips.parent.visible, "the layout row is still there");
+        compare(sheet.categoryChips.parent.label, "Label");
+        sheet.categoryChips.pick("linux");
+        compare(sheet.savePathField.text, "", "a label's move-when-done folder became Save to");
+    }
+
     // ---- the rows -------------------------------------------------------------------------
 
     function test_the_category_chips_are_the_servers_categories() {

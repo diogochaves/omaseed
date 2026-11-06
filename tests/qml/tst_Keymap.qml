@@ -719,6 +719,7 @@ TestCase {
                                             "engineLog": false,
                                             "qbtSettings": false,
                                             "peerControl": false,
+                                            "peerBan": false,
                                             "editWebSeeds": false
                                         })
 
@@ -747,6 +748,81 @@ TestCase {
                                              "tagsWord": "labels",
                                              "untaggedWord": "no label"
                                          })
+
+    // Board 47's Deluge column (C25): its Label plugin's labels in the categories place, no
+    // tags, no turtle; it adds a peer but bans none, and reports no web seeds.
+    readonly property var deluge: ({
+                                       "categories": true,
+                                       "categoriesAreLabels": true,
+                                       "categoryWord": "label",
+                                       "categoriesWord": "labels",
+                                       "uncategorizedWord": "no label",
+                                       "labelPluginOff": false,
+                                       "tags": false,
+                                       "queue": true,
+                                       "forceStart": true,
+                                       "sequentialDownload": true,
+                                       "firstLastPiece": true,
+                                       "superSeeding": true,
+                                       "autoManagement": false,
+                                       "peerControl": true,
+                                       "peerBan": false,
+                                       "webSeeds": false,
+                                       "editWebSeeds": false,
+                                       "engineLog": false,
+                                       "addAgain": false,
+                                       "qbtSettings": false,
+                                       "torrentsBackup": false,
+                                       "rss": false,
+                                       "altSpeeds": false,
+                                       "search": false,
+                                       "createTorrent": false
+                                   })
+
+    // Board 47 §B (C25 K13, K15): Deluge's labels take C's words, its act row has no t, and
+    // with the Label plugin off the row is led by m and C says why in the status line.
+    function test_delugesLabels_are_Cs_and_the_act_row_has_no_t() {
+        const act = Keymap.helpRows("act", "alt", testCase.deluge);
+        const row = act.find(r => r.action === "category");
+        verify(row, "the act row went");
+        compare(row.helpKeys, "C m L r");
+        compare(row.help, "label · location · limits · rename");
+        compare(row.about, "Set label · location · limits; rename the cursor row");
+        verify(act.every(r => r.action !== "tags"), "t is offered on Deluge");
+        const nav = Keymap.helpRows("navigate", "alt", testCase.deluge);
+        compare(nav.find(r => r.action === "filter").about, "Filter the table by name, label or hash");
+        compare(nav.find(r => r.action === "jump").about, "Jump to any torrent or label by name");
+        const set = Keymap.commandRows(testCase._context({
+                                                             "features": testCase.deluge
+                                                         })).filter(r => r.action === "category");
+        compare(set.length, 1, "C is offered once");
+        compare(set[0].title, "set label");
+
+        const off = Object.assign({}, testCase.deluge, {
+                                      "categories": false,
+                                      "labelPluginOff": true
+                                  });
+        const plain = Keymap.helpRows("act", "alt", off).find(r => r.helpKeys === "m L r");
+        verify(plain, "the act row went with the Label plugin");
+        compare(plain.action, "location");
+        compare(plain.help, "location · limits · rename");
+        compare(Keymap.missingNote("category", off, "", "nas", "Deluge"),
+                "nas (Deluge) has no labels: its Label plugin is off");
+        verify(Keymap.missingLine(off, "nas", "Deluge", "2.2.0").indexOf("labels (its Label plugin is off)") >= 0);
+    }
+
+    // Board 47 §H–§I (C25 K29, K30): what a Deluge lacks, said once and in the ? sheet's foot.
+    function test_what_a_deluge_lacks_is_said_in_words() {
+        compare(Keymap.missingNote("altSpeed", testCase.deluge, "", "nas", "Deluge"), "nas (Deluge) has no turtle");
+        compare(Keymap.missingNote("tags", testCase.deluge, "", "nas", "Deluge"), "nas (Deluge) has no tags");
+        compare(Keymap.missingNote("ban", testCase.deluge, "peers", "nas", "Deluge"),
+                "nas (Deluge) has no banning peers");
+        compare(Keymap.missingNote("addRow", testCase.deluge, "peers", "nas", "Deluge"), "");
+        verify(Keymap.offered("addRow", testCase.deluge, "peers"));
+        verify(!Keymap.offered("ban", testCase.deluge, "peers"));
+        compare(Keymap.missingLine(testCase.deluge, "nas", "Deluge", "2.2.0"),
+                "Not on nas (Deluge 2.2.0): the log, search, creating a torrent, RSS, tags, turtle and its schedule, automatic management, banning peers, web seeds, settings export and import, the torrents backup.");
+    }
 
     // Board 47 §B (C25 K13–K14): Transmission's labels are called labels in the palette and
     // the ? sheet, and without categories the act row (C t m L r) is led by t, not dropped.

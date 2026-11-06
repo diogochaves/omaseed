@@ -1307,6 +1307,68 @@ TestCase {
         }
     }
 
+    // Board 47 §G (C25 K28): on Deluge a rename changes the name shown only; the sheet says
+    // the folder on disk keeps its name, and `r` opens it so the line is read.
+    function test_rename_says_when_only_the_name_changes() {
+        const sheet = view.renameSheetPanel;
+        const line = findChild(sheet, "renameNameOnlyLine");
+        sheet.features = {"renameNameOnly": true};
+        sheet.engineName = "Deluge";
+        view.table.features = {"renameNameOnly": true};
+        try {
+            view.table.forceActiveFocus();
+            keyClick(Qt.Key_R);
+            verify(!view.table.renaming, "r opened the inline editor");
+            tryVerify(() => sheet.opened);
+            verify(line.visible);
+            compare(line.text, "Only the name changes; the folder on disk keeps its name");
+            verify(!findChild(sheet, "renameOnDiskBlock").visible);
+        } finally {
+            sheet.close();
+            sheet.features = Qt.binding(() => App.features);
+            sheet.engineName = Qt.binding(() => App.serverEngineName || "qBittorrent");
+            view.table.features = Qt.binding(() => App.features);
+        }
+        sheet.openFor(view.cursorHash);
+        verify(!line.visible, "qBittorrent's rename grew a line");
+        sheet.close();
+    }
+
+    // Board 47 §D (C25 K18): Deluge keeps a ratio only, then stops the torrent or removes it
+    // keeping its files: no time rows, its two actions, and one line saying so.
+    function test_limits_on_deluge_are_a_ratio_and_its_action() {
+        const spy = createTemporaryObject(limitsSpy, testCase);
+        const sheet = view.limitsSheetPanel;
+        const hash = hashByName("Big Buck Bunny 4K (CC-BY)");
+        sheet.features = {
+            "seedingTimeLimit": false,
+            "idleLimit": false,
+            "shareLimitActions": ["Stop", "Remove"],
+            "shareLimitAction": true
+        };
+        sheet.engineName = "Deluge";
+        try {
+            sheet.openFor([hash]);
+            verify(!sheet.idleRow.visible, "an idle row on Deluge");
+            verify(!sheet.seedingField.parent.parent.visible, "the seeding time row is still there");
+            verify(sheet.actionRow.visible);
+            compare(sheet.actionChips.options, ["stop", "remove (keeps the files)"]);
+            verify(sheet.engineLine.visible);
+            compare(sheet.engineLine.children[0].text, "Deluge has no time limits");
+            sheet._ratioGlobal = false;
+            sheet.ratioField.text = "1.5";
+            sheet.actionChips.current = "remove (keeps the files)";
+            sheet.triggerPrimary();
+            compare(spy.count, 1);
+            const a = spy.signalArguments[0]; // hashes, dl, ul, ratio, seeding, action, inactive
+            compare(a[3], 1.5);
+            compare(a[5], "Remove");
+        } finally {
+            sheet.features = Qt.binding(() => App.features);
+            sheet.engineName = Qt.binding(() => App.serverEngineName);
+        }
+    }
+
     // Each engine's own upper bound, named (Transmission keeps an int of kB/s).
     function test_limits_refuse_past_the_engines_largest() {
         const sheet = view.limitsSheetPanel;

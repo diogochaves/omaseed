@@ -130,6 +130,28 @@ TestCase {
         compare(findChild(rail, "railGroupsRow").text, "folders, labels, trackers");
     }
 
+    // Board 47 §B (C25 K13, K15): Deluge's labels in the categories place, headed labels
+    // (the skin's ラベル), and no tags section; the cursor space closes up behind it.
+    function test_delugesLabels_take_the_categories_place_and_tags_go() {
+        const rail = createTemporaryObject(railComponent, testCase);
+        const total = rail.totalRowCount;
+        const tags = rail.tagsSpan;
+        verify(tags > 0);
+        rail.categoriesWord = "labels";
+        rail.categoriesLabelId = "labels";
+        rail.tagsOffered = false;
+        const group = findChild(rail, "labels");
+        verify(group, "no section headed labels");
+        compare(group.labelId, "labels");
+        verify(group.visible);
+        verify(!findChild(rail, "tags").visible, "the tags section stayed");
+        compare(rail.tagsSpan, 0);
+        compare(rail.trackersBase, rail.tagsBase);
+        compare(rail.totalRowCount, total - tags);
+        rail.compact = true;
+        compare(findChild(rail, "railGroupsRow").text, "labels, folders, trackers");
+    }
+
     // Board 46 `.ri.needs`: needs you is red while it counts something.
     function test_needs_you_is_red_while_something_needs_you() {
         const rail = createTemporaryObject(railComponent, testCase);

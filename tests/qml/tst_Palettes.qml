@@ -186,6 +186,39 @@ TestCase {
         compare(last.key, "brand-new-category");
     }
 
+    // Board 47 §B (C25 K13, K15): Deluge's labels. The palette speaks of labels, a typed name
+    // is shown lower case before it is applied, one Deluge can't keep offers no row and says
+    // why, and a label's folder is where it moves torrents when done.
+    function test_delugesLabels_are_shown_lower_case_before_apply() {
+        categoryPalette.features = {
+            "categories": true,
+            "categoriesAreLabels": true,
+            "categoryWord": "label",
+            "categoriesWord": "labels",
+            "uncategorizedWord": "no label"
+        };
+        categoryPalette.engineName = "Deluge";
+        try {
+            categoryPalette.openFor([App.filtered.hashAt(0)]);
+            compare(categoryPalette.title, "label for 1 torrent");
+            compare(categoryPalette.items[0].title, "no label");
+            const linux = categoryPalette.items.find(item => item.key === "linux");
+            compare(linux.detail, "moves to " + App.categories.savePathOf("linux") + " when done");
+            categoryPalette.query = "Night-Sky";
+            const create = categoryPalette.items.find(item => item.isCreate === true);
+            compare(create.title, "new label \"night-sky\"");
+            compare(create.key, "night-sky");
+            compare(categoryPalette.footerRight, "Deluge's labels are lower case: this one becomes night-sky");
+            categoryPalette.query = "night sky";
+            verify(!categoryPalette.items.some(item => item.isCreate === true), "a space made a row");
+            compare(categoryPalette.footerRight, "a label takes letters, digits, - _ and . only");
+        } finally {
+            categoryPalette.features = Qt.binding(() => App.features);
+            categoryPalette.engineName = Qt.binding(() => App.serverEngineName);
+            categoryPalette.close();
+        }
+    }
+
     function test_category_title_counts_the_torrents() {
         categoryPalette.openFor([App.filtered.hashAt(0), App.filtered.hashAt(1)]);
         compare(categoryPalette.title, "category for 2 torrents");

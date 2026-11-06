@@ -452,6 +452,29 @@ TestCase {
         view.activateTab(view.tabStory);
     }
 
+    // Board 47 §H (C25 K29): Deluge says how only the tracker in use is doing; the tab keeps
+    // its rows and says the rest in one dim line under them.
+    function test_trackers_filled_in_part_say_so() {
+        const view = testCase.select(testCase.archName);
+        view.activateTab(view.tabTrackers);
+        waitForRendering(view, 500);
+        const tab = findChild(view, "trackersTab");
+        const line = findChild(view, "trackersPartLine");
+        verify(!line.visible, "qBittorrent's trackers grew a line");
+        tab.features = {
+            "trackerStatusInUseOnly": true
+        };
+        tab.engineName = "Deluge";
+        try {
+            verify(line.visible);
+            compare(line.text, "Deluge says how the tracker in use is doing, and nothing about the others.");
+        } finally {
+            tab.features = Qt.binding(() => App.features);
+            tab.engineName = Qt.binding(() => App.serverEngineName || "qBittorrent");
+            view.activateTab(view.tabStory);
+        }
+    }
+
     // Board 47 §H (C25 K29): Transmission lists web seeds with no status and doesn't let
     // them be edited: the head is "URL", and one dim line says they are read only.
     function test_web_seeds_read_only_say_so() {

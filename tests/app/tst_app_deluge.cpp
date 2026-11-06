@@ -3,18 +3,26 @@
 // password (K7), polls the library into its models, sends each everyday action as Deluge's
 // method, offers none of what Deluge lacks (the feature record), reads deluge-web without a
 // daemon as a server that is down (K10, C12), and connects the daemon stored with the server
-// when deluge-web has none, never another one.
+// when deluge-web has none, never another one. Step 11b: the Label plugin's labels in the
+// categories place and words (K13, K15), a ratio of each torrent's own (K18), the add's
+// options (K27) and a magnet's files from the prefetch (K26), details without web seeds (H).
 
 #include "FakeDeluge.hpp"
 
+#include "core/ActionOutcome.hpp"
+#include "core/CategoryModel.hpp"
 #include "core/GlobalState.hpp"
 #include "core/SecretStore.hpp"
 #include "core/SyncEngine.hpp"
+#include "core/TorrentDetails.hpp"
+#include "core/TorrentFilterModel.hpp"
 #include "core/TorrentModel.hpp"
+#include "core/TorrentWebSeedsModel.hpp"
 #include "ui/app/App.hpp"
 
 #include <QJsonArray>
 #include <QJsonDocument>
+#include <QCryptographicHash>
 #include <QJsonObject>
 #include <QSignalSpy>
 #include <QTemporaryDir>
@@ -43,6 +51,8 @@ public:
     FakeServer server;
     FakeDeluge web;
     RecordedDeluge recorded;
+    /// What core.prefetch_magnet_metadata answers ([hash, base64 info]).
+    QJsonValue prefetch;
 
     Daemon()
     {
@@ -123,6 +133,10 @@ private:
         }
         if (method == QLatin1String("core.add_torrent_magnet"))
             return result("core_add_torrent_magnet.json");
+        if (method == QLatin1String("core.prefetch_magnet_metadata"))
+            return prefetch;
+        if (method == QLatin1String("label.set_torrent") || method == QLatin1String("label.add"))
+            return {};
         if (method == QLatin1String("core.set_torrent_options") ||
             method == QLatin1String("core.force_recheck") ||
             method == QLatin1String("core.force_reannounce") ||
@@ -149,6 +163,10 @@ private Q_SLOTS:
     void detailsAreAskedOfDeluge();
     void delugeWebWithoutADaemonIsDown();
     void theStoredDaemonIsConnectedWhenDelugeWebHasNone();
+    void labelsAreTheCategoriesInDelugesWords();
+    void aTorrentKeepsARatioOfItsOwn();
+    void anAddTakesDelugesOptions();
+    void aMagnetsFilesComeFromThePrefetch();
 
 private:
     /// Starts `app` on `daemon` through the environment with deluge-web's password, polling
@@ -352,6 +370,16 @@ void TestAppDeluge::detailsAreAskedOfDeluge()
     };
     QTRY_VERIFY_WITH_TIMEOUT(asked("files"), 3000);
     QTRY_VERIFY_WITH_TIMEOUT(asked("trackers"), 3000);
+
+    // Board 47 H: Deluge reports no web seeds, so none are asked for, and the pane keeps
+    // asking for the rest past the tenth tick (where it used to ask, and then stopped).
+    const auto statusCalls = [&daemon]() {
+        return daemon.web.callsOf(QStringLiteral("core.get_torrent_status")).size();
+    };
+    QTest::qWait(1500);
+    const qsizetype later = statusCalls();
+    QTRY_VERIFY_WITH_TIMEOUT(statusCalls() > later + 2, 3000);
+    QCOMPARE(app.details()->webSeeds()->count(), 0);
     app.engine()->stop();
 }
 
@@ -404,6 +432,147 @@ void TestAppDeluge::theStoredDaemonIsConnectedWhenDelugeWebHasNone()
     QVERIFY(!connects.isEmpty());
     for (const Call &call : connects)
         QCOMPARE(call.params.at(0).toString(), kHost);
+    app.engine()->stop();
+}
+
+void TestAppDeluge::labelsAreTheCategoriesInDelugesWords()
+{
+    Daemon daemon;
+    App app;
+    QVERIFY(startOn(app, daemon));
+    // K13, K15: the Label plugin's labels, in the categories place and called labels; no tags.
+    QVariantMap can = app.featuresMap();
+    QVERIFY(can.value(QStringLiteral("categoriesAreLabels")).toBool());
+    QCOMPARE(can.value(QStringLiteral("categoryWord")).toString(), QStringLiteral("label"));
+    QCOMPARE(can.value(QStringLiteral("categoriesWord")).toString(), QStringLiteral("labels"));
+    QCOMPARE(can.value(QStringLiteral("uncategorizedWord")).toString(), QStringLiteral("no label"));
+    QVERIFY(!can.value(QStringLiteral("labelPluginOff")).toBool());
+    QVERIFY(!can.value(QStringLiteral("tags")).toBool());
+    // H, G, D: what the views leave out on Deluge, and the one line its trackers tab says.
+    for (const char *off : {"peerBan", "webSeeds", "addContentLayout", "idleLimit", "renameOnDisk"})
+        QVERIFY2(!can.value(QString::fromLatin1(off)).toBool(), off);
+    QVERIFY(can.value(QStringLiteral("peerControl")).toBool());
+    QVERIFY(can.value(QStringLiteral("trackerStatusInUseOnly")).toBool());
+    QVERIFY(can.value(QStringLiteral("renameNameOnly")).toBool());
+
+    // A label set from the app is kept lower case, and the strip says the name Deluge kept.
+    app.setCategory({kPack}, QStringLiteral("Fixtures"));
+    QTRY_VERIFY_WITH_TIMEOUT(daemon.lastOf(QStringLiteral("label.set_torrent")).has_value(), 3000);
+    QCOMPARE(daemon.lastOf(QStringLiteral("label.set_torrent"))->params,
+             QJsonArray({kPack, QStringLiteral("fixtures")}));
+    QTRY_COMPARE_WITH_TIMEOUT(
+        app.outcomes()->current().value(QStringLiteral("headline")).toString(),
+        QStringLiteral("Fixture Pack labelled fixtures"),
+        3000);
+
+    // K15: a label's scope says where it moves torrents when done, or that it has no folder.
+    QTRY_VERIFY_WITH_TIMEOUT(!app.categories()->savePathOf(QStringLiteral("fixtures")).isEmpty(),
+                             3000);
+    app.filtered()->setCategory(QStringLiteral("fixtures"));
+    QTRY_VERIFY_WITH_TIMEOUT(
+        app.scopeSentence().contains(QStringLiteral("a label · moves to %1 when done")
+                                         .arg(app.categories()->savePathOf(
+                                             QStringLiteral("fixtures")))),
+        3000);
+    app.filtered()->setCategory(QStringLiteral("empty"));
+    QTRY_VERIFY_WITH_TIMEOUT(
+        app.scopeSentence().endsWith(QStringLiteral("a label · no folder of its own")), 3000);
+    app.filtered()->clearCategory();
+
+    // The plugin off: no labels at all, and the views say why (K15).
+    daemon.recorded.labelPlugin = false;
+    QTRY_VERIFY_WITH_TIMEOUT(
+        app.featuresMap().value(QStringLiteral("labelPluginOff")).toBool(), 3000);
+    QVERIFY(!app.featuresMap().value(QStringLiteral("categories")).toBool());
+    app.engine()->stop();
+}
+
+void TestAppDeluge::aTorrentKeepsARatioOfItsOwn()
+{
+    Daemon daemon;
+    App app;
+    QVERIFY(startOn(app, daemon));
+    const auto lastOptions = [&daemon]() {
+        return daemon.lastOf(QStringLiteral("core.set_torrent_options"))->params.at(1).toObject();
+    };
+    // D, K18: a ratio of its own, then remove (keeping the files); a speed in Deluge's KiB/s.
+    app.setLimits({kPack}, 300 * 1024, -1, 1.5, -2, QStringLiteral("Remove"), -2);
+    QTRY_COMPARE_WITH_TIMEOUT(daemon.web.callsOf(QStringLiteral("core.set_torrent_options")).size(),
+                              2,
+                              3000);
+    const QList<Call> sets = daemon.web.callsOf(QStringLiteral("core.set_torrent_options"));
+    QJsonObject merged;
+    for (const Call &call : sets) {
+        const QJsonObject options = call.params.at(1).toObject();
+        for (auto it = options.begin(); it != options.end(); ++it)
+            merged.insert(it.key(), it.value());
+    }
+    QCOMPARE(merged.value(QStringLiteral("max_download_speed")).toDouble(), 300.0);
+    QCOMPARE(merged.value(QStringLiteral("stop_at_ratio")), QJsonValue(true));
+    QCOMPARE(merged.value(QStringLiteral("stop_ratio")).toDouble(), 1.5);
+    QCOMPARE(merged.value(QStringLiteral("remove_at_ratio")), QJsonValue(true));
+
+    // "global": the server's defaults are copied onto the torrent (core.conf's).
+    app.setLimits({kPack}, -1, -1, -2, -2, QStringLiteral("Stop"), -2);
+    QTRY_VERIFY_WITH_TIMEOUT(daemon.lastOf(QStringLiteral("core.get_config_values")).has_value(),
+                             3000);
+    QTRY_COMPARE_WITH_TIMEOUT(daemon.web.callsOf(QStringLiteral("core.set_torrent_options")).size(),
+                              3,
+                              3000);
+    QCOMPARE(lastOptions().value(QStringLiteral("stop_at_ratio")), QJsonValue(false));
+    QCOMPARE(lastOptions().value(QStringLiteral("stop_ratio")).toDouble(), 2.0);
+    app.engine()->stop();
+}
+
+void TestAppDeluge::anAddTakesDelugesOptions()
+{
+    Daemon daemon;
+    App app;
+    QVERIFY(startOn(app, daemon));
+    QSignalSpy finished(&app, &App::addFinished);
+    const QString magnet = QStringLiteral("magnet:?xt=urn:btih:%1&dn=new").arg(kMagnet);
+    // K27: a name and skip check at add, the label right after; no layout.
+    app.addTorrent({{QStringLiteral("kind"), QStringLiteral("magnet")},
+                    {QStringLiteral("value"), magnet},
+                    {QStringLiteral("infoHashV1"), kMagnet},
+                    {QStringLiteral("name"), QStringLiteral("new")},
+                    {QStringLiteral("rename"), QStringLiteral("Night Sky")},
+                    {QStringLiteral("skipChecking"), true},
+                    {QStringLiteral("contentLayout"), QStringLiteral("Subfolder")},
+                    {QStringLiteral("category"), QStringLiteral("fixtures")}});
+    QTRY_COMPARE_WITH_TIMEOUT(finished.count(), 1, 3000);
+    const std::optional<Call> add = daemon.lastOf(QStringLiteral("core.add_torrent_magnet"));
+    QVERIFY(add.has_value());
+    const QJsonObject options = add->params.at(1).toObject();
+    QCOMPARE(options.value(QStringLiteral("name")).toString(), QStringLiteral("Night Sky"));
+    QCOMPARE(options.value(QStringLiteral("seed_mode")), QJsonValue(true));
+    for (auto it = options.begin(); it != options.end(); ++it)
+        QVERIFY2(!it.key().contains(QLatin1String("layout")), qPrintable(it.key()));
+    QTRY_VERIFY_WITH_TIMEOUT(daemon.lastOf(QStringLiteral("label.set_torrent")).has_value(), 3000);
+    QCOMPARE(daemon.lastOf(QStringLiteral("label.set_torrent"))->params,
+             QJsonArray({kMagnet, QStringLiteral("fixtures")}));
+    app.engine()->stop();
+}
+
+void TestAppDeluge::aMagnetsFilesComeFromThePrefetch()
+{
+    Daemon daemon;
+    const QByteArray info =
+        "d6:lengthi12e4:name5:a.bin12:piece lengthi16384e6:pieces20:xxxxxxxxxxxxxxxxxxxxe";
+    const QString hash =
+        QString::fromLatin1(QCryptographicHash::hash(info, QCryptographicHash::Sha1).toHex());
+    daemon.prefetch = QJsonArray{hash, QString::fromLatin1(info.toBase64())};
+    App app;
+    QVERIFY(startOn(app, daemon));
+    // K26: C5's lookup, through Deluge's prefetch: the files before the add.
+    QSignalSpy fetched(&app, &App::metadataFetched);
+    app.lookUpMetadata(
+        app.parseAddable(QStringLiteral("magnet:?xt=urn:btih:%1&dn=a.bin").arg(hash)));
+    QTRY_COMPARE_WITH_TIMEOUT(fetched.count(), 1, 5000);
+    const QVariantMap map = fetched.first().first().toMap();
+    QCOMPARE(map.value(QStringLiteral("name")).toString(), QStringLiteral("a.bin"));
+    QCOMPARE(map.value(QStringLiteral("fileCount")).toInt(), 1);
+    QVERIFY(!daemon.web.callsOf(QStringLiteral("core.prefetch_magnet_metadata")).isEmpty());
     app.engine()->stop();
 }
 

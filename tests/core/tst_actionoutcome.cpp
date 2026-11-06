@@ -144,6 +144,15 @@ private Q_SLOTS:
                                 << QStringLiteral("Arcade Set 01 labelled keep")
                                 << QStringLiteral("3 labelled keep")
                                 << QStringLiteral("labelled · keep");
+        // C25 K13–K15: Deluge's labels, one per torrent.
+        QTest::newRow("label") << QStringLiteral("label") << QStringLiteral("games")
+                               << QStringLiteral("Arcade Set 01 labelled games")
+                               << QStringLiteral("3 labelled games")
+                               << QStringLiteral("label · games");
+        QTest::newRow("no label") << QStringLiteral("label") << QString()
+                                  << QStringLiteral("Arcade Set 01 taken out of its label")
+                                  << QStringLiteral("3 taken out of its label")
+                                  << QStringLiteral("no label");
         QTest::newRow("unlabel") << QStringLiteral("removeLabels") << QStringLiteral("keep")
                                  << QStringLiteral("Arcade Set 01 unlabelled keep")
                                  << QStringLiteral("3 unlabelled keep")

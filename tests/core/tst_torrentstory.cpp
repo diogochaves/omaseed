@@ -77,6 +77,10 @@ void TestTorrentStory::addedSaysWhere()
     input.torrent.category.clear();
     events = TorrentStory::events(input);
     QCOMPARE(events.at(0).detail, QStringLiteral("with no category"));
+    // Deluge's labels (C25 K13).
+    input.categoriesAreLabels = true;
+    QCOMPARE(TorrentStory::events(input).at(0).detail, QStringLiteral("with no label"));
+    input.categoriesAreLabels = false;
 
     // An engine with no categories (Transmission, C14 E4) says nothing about one.
     input.categories = false;
