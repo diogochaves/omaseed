@@ -219,6 +219,7 @@ private Q_SLOTS:
     void aFolderMoveSaysWhatDelugeDidToEach();
     void aFailedMoveIsPausedUntilARecheck();
     void anErroredTorrentReadsDelugesWords();
+    void theMoveSheetSaysAMoveEndsMoveWhenDone();
 
 private:
     /// Starts `app` on `daemon` through the environment with deluge-web's password, polling
@@ -694,6 +695,16 @@ void TestAppDeluge::aMoveDelugeNeverMadeHasFailed()
             line.contains(QStringLiteral("1 failed · Deluge didn't move it and doesn't say why")),
             qPrintable(line));
         QVERIFY2(!line.contains(QStringLiteral("paused")), qPrintable(line));
+        // Nothing moved: red, "didn't move", and only a retry (nothing to recheck).
+        const QVariantMap band = app.move()->band();
+        QCOMPARE(band.value(QStringLiteral("kind")).toString(), QStringLiteral("red"));
+        QCOMPARE(band.value(QStringLiteral("headline")).toString(),
+                 QStringLiteral("Fixture Pack didn't move"));
+        QStringList ids;
+        for (const QVariant &item : band.value(QStringLiteral("actions")).toList())
+            ids << item.toMap().value(QStringLiteral("id")).toString();
+        QVERIFY2(ids.contains(QStringLiteral("retry")) && !ids.contains(QStringLiteral("recheck")),
+                 qPrintable(ids.join(QLatin1Char(','))));
     } else {
         // Done under 3 s on a fast poll: the strip says it.
         const QVariantMap outcome = outcomes.constLast().at(0).toMap();
@@ -864,6 +875,44 @@ void TestAppDeluge::anErroredTorrentReadsDelugesWords()
         }
     }
     QVERIFY(told);
+    app.engine()->stop();
+}
+
+// Board 47 §E on Deluge (assumed): a move turns a torrent's move-when-done folder off, so the
+// Move sheet says so for an unfinished one that has it.
+void TestAppDeluge::theMoveSheetSaysAMoveEndsMoveWhenDone()
+{
+    Daemon daemon;
+    QString stream;
+    for (auto it = daemon.recorded.torrents.constBegin(); it != daemon.recorded.torrents.constEnd();
+         ++it) {
+        if (it.value().toObject().value(QStringLiteral("name")).toString() ==
+            QLatin1String("fixture-stream.bin"))
+            stream = it.key();
+    }
+    QVERIFY(!stream.isEmpty());
+    daemon.set(stream, "move_completed", true);
+    daemon.set(stream, "move_completed_path", QStringLiteral("/srv/deluge/done"));
+    App app;
+    QVERIFY(startOn(app, daemon));
+    QTRY_COMPARE_WITH_TIMEOUT(app.engine()->torrents()->torrent(stream).savePath,
+                              QStringLiteral("/srv/deluge/done"),
+                              3000);
+    const auto texts = [&](const QStringList &hashes) {
+        QStringList out;
+        const QVariantMap plan =
+            app.move()->planSelection(hashes, QStringLiteral("/srv/other"), QString());
+        for (const QVariant &line : plan.value(QStringLiteral("checks")).toList())
+            out << line.toMap().value(QStringLiteral("text")).toString();
+        return out.join(QLatin1Char('\n'));
+    };
+    const QString all = texts({stream});
+    QVERIFY2(
+        all.contains(QStringLiteral("Moves when done. 1 torrent goes to another folder when "
+                                    "it finishes. Deluge turns that off for any move it makes")),
+        qPrintable(all));
+    // A finished one, or one without that folder, isn't named.
+    QVERIFY(!texts({kSingle}).contains(QStringLiteral("Moves when done")));
     app.engine()->stop();
 }
 

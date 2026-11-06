@@ -1387,6 +1387,13 @@ QVariantMap MoveController::band() const
         glyph = QStringLiteral("✓");
         headline =
             back ? tr("%1 moved back").arg(name) : tr("%1 moved to %2").arg(name, job.newPath());
+        // Nothing moved, something failed: not a green "moved to" (assumed, C25: Deluge's
+        // silent failure ends a one-torrent job after L6's 3 s, so its band shows).
+        if (summary.moved == 0 && summary.failed > 0) {
+            kind = QStringLiteral("red");
+            glyph = QStringLiteral("✕");
+            headline = tr("%1 didn't move").arg(name);
+        }
         QStringList parts;
         const qint64 took = summary.startedAt.isValid() && summary.endedAt.isValid()
                                 ? summary.startedAt.secsTo(summary.endedAt)
@@ -1523,6 +1530,9 @@ QVariantMap MoveController::band() const
                               counted(summary.failed, tr("start it here"), tr("start the %1 here")))
                     << action(QStringLiteral("retry"), tr("retry the %1").arg(summary.failed))
                     << action(QStringLiteral("recheck"), tr("recheck the %1…").arg(summary.failed));
+        } else if (summary.failed > 0 && silent == summary.failed) {
+            // Board 47 §E on Deluge: nothing happened to them; nothing to recheck.
+            actions << action(QStringLiteral("retry"), tr("retry the %1").arg(summary.failed));
         } else if (summary.failed > 0) {
             actions << action(QStringLiteral("recheck"), tr("recheck the %1…").arg(summary.failed))
                     << action(QStringLiteral("retry"), tr("retry the %1").arg(summary.failed));
