@@ -345,6 +345,9 @@ Item {
         case "retry":
             App.move.retryFailed();
             break;
+        case "startHere": // C25 K24 (#238): the torrents the engine stopped, started in place
+            App.retryTorrents(App.move.failedHashes());
+            break;
         case "stayed":
             moveLooseList.openStayed(App.move.root);
             break;

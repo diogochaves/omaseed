@@ -105,6 +105,10 @@ public:
     /// The engine's name for a sentence: "Transmission", "Deluge", an engine this build
     /// doesn't know as servers.json spells it; empty for a qBittorrent or an unreadable value.
     QString engineName() const;
+    /// The engine as servers.json spells it ("qbittorrent", "transmission"); an engine this
+    /// build doesn't know as it was stored ("rtorrent"), empty when that value wasn't text.
+    /// What the status file's `server.engine` carries (#239).
+    QString engineSpelling() const;
 
     QJsonObject toJson() const;
 

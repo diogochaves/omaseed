@@ -178,6 +178,7 @@ private Q_SLOTS:
     void settingsAreTransmissionsSessionAndItsPortTest();
     void aLongMoveIsBusyNotLost();
     void aFailedMoveIsLearntFromTheTorrent();
+    void aFoldersSummaryOffersToStartWhatTransmissionStopped();
     void theMoveSheetRunsTransmissionsChecks();
     void anErroredTorrentReadsTransmissionsWords();
     void anErrorInPlaceReadsItsCauseAndItsNotice();
@@ -423,6 +424,75 @@ void TestAppTransmission::aFailedMoveIsLearntFromTheTorrent()
     QVERIFY(notes.constLast().at(2).toBool());
     // Sent once: the failure isn't a quiet torrent sent again.
     QCOMPARE(daemon.idsOf(QStringLiteral("torrent_set_location")).size(), 1);
+    app.engine()->stop();
+}
+
+// #238, C25 K24: a folder's move where Transmission stopped the torrents it couldn't move. The
+// summary band says they are stopped, in the strip's words, and offers starting them where
+// they are ("start it here") next to the move's retry.
+void TestAppTransmission::aFoldersSummaryOffersToStartWhatTransmissionStopped()
+{
+    Daemon daemon;
+    const QString root = QStringLiteral("/srv/transmission/fixtures-recording");
+    const QString to = QStringLiteral("/srv/locked/dest");
+    const QStringList refused{kPack, kSingle};
+    daemon.wire.answer = [&](const QString &method, const QJsonObject &params) {
+        if (method == QLatin1String("torrent_set_location")) {
+            const QJsonArray ids = params.value(QStringLiteral("ids")).toArray();
+            for (const QJsonValue &id : ids) {
+                QJsonObject &torrent = daemon.library.byHash(id.toString());
+                if (!refused.contains(id.toString())) {
+                    torrent.insert(QStringLiteral("download_dir"),
+                                   params.value(QStringLiteral("location")));
+                    continue;
+                }
+                const QString from = torrent.value(QStringLiteral("download_dir")).toString();
+                const QString name = torrent.value(QStringLiteral("name")).toString();
+                torrent.insert(QStringLiteral("error"), 3);
+                torrent.insert(
+                    QStringLiteral("error_string"),
+                    QStringLiteral("Couldn't move '%1/%2' to '%3/%2': "
+                                   "Permission denied (13)")
+                        .arg(from, name, params.value(QStringLiteral("location")).toString()));
+                torrent.insert(QStringLiteral("status"), 0);
+            }
+            return QJsonObject();
+        }
+        return daemon.library.answer(method, params);
+    };
+    App app;
+    QVERIFY(startOn(app, daemon));
+    QVERIFY(app.move()->start(root, to, false));
+    QTRY_COMPARE_WITH_TIMEOUT(app.move()->stateName(), QStringLiteral("done"), 8000);
+    QCOMPARE(app.move()->failedHashes().size(), 2);
+
+    const QVariantMap band = app.move()->band();
+    QVERIFY2(band.value(QStringLiteral("line"))
+                 .toString()
+                 .contains(QStringLiteral("2 failed · Transmission stopped the torrents")),
+             qPrintable(band.value(QStringLiteral("line")).toString()));
+    QStringList ids;
+    QStringList texts;
+    for (const QVariant &item : band.value(QStringLiteral("actions")).toList()) {
+        ids << item.toMap().value(QStringLiteral("id")).toString();
+        texts << item.toMap().value(QStringLiteral("text")).toString();
+    }
+    QCOMPARE(
+        ids.mid(0, 3),
+        QStringList(
+            {QStringLiteral("startHere"), QStringLiteral("retry"), QStringLiteral("recheck")}));
+    QCOMPARE(texts.mid(0, 2),
+             QStringList({QStringLiteral("start the 2 here"), QStringLiteral("retry the 2")}));
+
+    // "start the 2 here" is the strip's start: Transmission's start on the two, in place.
+    app.retryTorrents(app.move()->failedHashes());
+    QTRY_VERIFY_WITH_TIMEOUT(daemon.lastOf(QStringLiteral("torrent_start")) != nullptr, 3000);
+    QStringList started = daemon.idsOf(QStringLiteral("torrent_start")).constLast();
+    started.sort();
+    QStringList expected = refused;
+    expected.sort();
+    QCOMPARE(started, expected);
+    QCOMPARE(daemon.idsOf(QStringLiteral("torrent_set_location")).size(), 4);
     app.engine()->stop();
 }
 

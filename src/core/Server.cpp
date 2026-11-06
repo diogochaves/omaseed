@@ -146,6 +146,13 @@ QString Server::engineName() const
     return stored;
 }
 
+QString Server::engineSpelling() const
+{
+    if (engine != EngineKind::Unknown)
+        return engineKindToString(engine);
+    return extra.value(QStringLiteral("engine")).toString();
+}
+
 QJsonObject Server::toJson() const
 {
     QJsonObject object;

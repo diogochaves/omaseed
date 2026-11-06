@@ -1368,7 +1368,12 @@ only) reads as missing files, "Its files aren't where Transmission left them". T
 caption colour (board 47 draws it red; a row role for that is left out). Errors 1 and 2 are the
 trackers': `hasTrackerError` and the trackers tab, never the needs-you block. The outcome strip's
 "start it here" takes "details"' place wherever the engine stops a torrent whose move failed
-(`moveStopsOnFailure`, so Deluge's recheck-first strip is still to do).
+(`moveStopsOnFailure`, so Deluge's recheck-first strip is still to do). The move summary band
+(#238) says it in the strip's words, "N failed · Transmission stopped the torrents" ("the
+torrent" for one), and leads its actions with the strip's start, "start it here" ("start the N
+here" for more), then "retry the N" and "recheck the N…". A retried move leaves them stopped, as
+Transmission does (it isn't started for them), and the start stays offered while the summary
+shows, even once they run.
 
 *Adding, details, what goes and Settings on Transmission (2026-11-06, #85, assumed, to confirm):*
 built from K25–K33 and §G–§J with these calls the board left open. K25 covers a v2-only
