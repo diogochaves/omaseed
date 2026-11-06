@@ -80,8 +80,12 @@ qt_add_library(omaseed-core STATIC
     engines/qbt/TorrentsExport.hpp
     engines/qbt/TorrentsImport.cpp
     engines/qbt/TorrentsImport.hpp
+    engines/transmission/TransmissionEngine.cpp
+    engines/transmission/TransmissionEngine.hpp
     engines/transmission/TransmissionFingerprint.cpp
     engines/transmission/TransmissionFingerprint.hpp
+    engines/transmission/TransmissionRpc.cpp
+    engines/transmission/TransmissionRpc.hpp
     engines/transmission/TransmissionTranslate.cpp
     engines/transmission/TransmissionTranslate.hpp
     ErrorWords.cpp

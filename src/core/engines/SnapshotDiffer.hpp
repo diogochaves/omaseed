@@ -57,7 +57,8 @@ private:
     void drop(const QString &hash);
     void countLabels(const QStringList &labels, int by);
     void countTrackers(const QString &hash, const QStringList &urls, bool add);
-    /// The labels and URLs that came or went since `labels`/`urls`, into `delta`.
+    /// The labels and URLs that came or went since `labelsBefore`/`trackersBefore`, into
+    /// `delta`.
     void finish(SyncDelta &delta,
                 const QHash<QString, int> &labelsBefore,
                 const QHash<QString, QStringList> &trackersBefore) const;

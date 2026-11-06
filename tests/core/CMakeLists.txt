@@ -553,6 +553,21 @@ omaseed_add_test(tst_transmissiontranslate
     DEFINES OMASEED_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../fixtures"
 )
 
+# #85: Transmission behind EngineClient, against a fake daemon: the session id, Basic auth,
+# the refusal below 4.1, the poll and its 50 s gap, every action's request.
+omaseed_add_test(tst_transmissionengine
+    SOURCES tst_transmissionengine.cpp
+    LIBRARIES omaseed::core Qt6::Network
+    DEFINES OMASEED_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../fixtures"
+)
+
+# The same against the real Transmission test server (:8085, test-server.sh --transmission).
+omaseed_add_test(tst_transmissionengine_live LIVE
+    SOURCES tst_transmissionengine_live.cpp
+    LIBRARIES omaseed::core Qt6::Network
+    DEFINES OMASEED_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../fixtures"
+)
+
 omaseed_add_test(tst_foldertree
     SOURCES tst_foldertree.cpp
     LIBRARIES omaseed::core
