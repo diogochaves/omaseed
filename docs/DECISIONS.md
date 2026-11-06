@@ -1311,7 +1311,9 @@ C17 D13 on Transmission and Deluge (K24), C5 D11 for Transmission (K26), and M16
   (Transmission's labels where tags are, Deluge's where categories are); Transmission: "new
   label…" only while applying, commas refused; Deluge: lower case shown before apply, Label
   plugin off removes the section with one line in Settings; Transmission's bandwidth groups left
-  out.
+  out. In the Console skin each section and its scope's title carry the board's kana:
+  qBittorrent's tags タグ, the engines' labels ラベル (*ruled, Diogo, 2026-11-06: follow the
+  board*; the build had left qBittorrent's tags bare, #234).
 - **Priorities and limits (K17–K20):** each engine's own priority words; the limits sheet shows
   only what the engine keeps (Transmission ratio and idle; Deluge ratio, then stop or remove);
   qBittorrent 5.3's share-limits mode hidden, sent as Default; no turtle on Deluge.
@@ -1374,8 +1376,10 @@ whose old folder is the incomplete one is "Didn't move when it finished" and get
 folders"; its start is "start it here" too (the board drew "start it"). An error in place leads
 with "retry", then move… and "open folder" for no access, read-only or a full disk; files gone
 put the start last (a recheck or a new place first); Transmission's own "No data found!" (English
-only) reads as missing files, "Its files aren't where Transmission left them". The row's caption is "stopped" in the usual
-caption colour (board 47 draws it red; a row role for that is left out). Errors 1 and 2 are the
+only) reads as missing files, "Its files aren't where Transmission left them". The row's caption is "stopped" in the error
+colour, as board 47 draws it, through the row's `rowCaptionAlert` role; Deluge's "paused" too
+(*ruled, Diogo, 2026-11-06: follow the board*; the build had kept the usual caption colour,
+#234). Errors 1 and 2 are the
 trackers': `hasTrackerError` and the trackers tab, never the needs-you block. The outcome strip's
 "start it here" takes "details"' place wherever the engine stops a torrent whose move failed
 (`moveStopsOnFailure`, so Deluge's recheck-first strip is still to do). The move summary band
