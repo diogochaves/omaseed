@@ -46,7 +46,9 @@ a schema change is one commit touching both sides. Design: `docs/20-companion-wi
     "url": "127.0.0.1:8080",          // host:port only, never a credential
     "version": "5.2.3",               // the engine's version, "" until known
     "engine": "qbittorrent",          // the engine it runs: "qbittorrent" | "transmission" |
-                                      // "deluge"; "" with no server (#84, added within v2)
+                                      // "deluge"; an engine this build doesn't know as
+                                      // servers.json spells it (#239); "" with no server
+                                      // (#84, added within v2)
     "reachable": true,                // false while the app cannot reach the server
     "error": "",                      // a short phrase while unreachable: "connection refused"
     "retryIn": 0                      // seconds until the next retry while unreachable

@@ -4,6 +4,7 @@
 #include "core/GlobalState.hpp"
 #include "core/PauseHold.hpp"
 #include "core/SeedLedger.hpp"
+#include "core/Server.hpp"
 #include "core/StateFile.hpp"
 #include "core/SyncEngine.hpp"
 #include "core/engines/qbt/QbtEngine.hpp"
@@ -30,9 +31,11 @@
 #error "OMASEED_FIXTURES_DIR must be defined by CMake"
 #endif
 
+using omaseed::core::EngineKind;
 using omaseed::core::GlobalState;
 using omaseed::core::QbtEngine;
 using omaseed::core::SeedLedger;
+using omaseed::core::Server;
 using omaseed::core::StateFile;
 using omaseed::core::SyncEngine;
 using omaseed::integration::StatusWriter;
@@ -138,6 +141,7 @@ private slots:
     void changesAreRateLimited();
     void idleWritesAHeartbeat();
     void unreachableServer();
+    void anEngineThisBuildDoesntKnowKeepsItsSpelling();
     void sessionShareAndWeek();
     void recentSurvivesARestart();
     void milestonesFromTheSync();
@@ -510,6 +514,38 @@ void TestStatusWriter::unreachableServer()
         qint64(0));
     // The last known lists stay.
     QCOMPARE(status.value(QStringLiteral("active")).toArray().size(), 1);
+}
+
+// #239: a newer build's engine is named in `server.engine` as servers.json spells it, so the
+// widget can name it; Server::engineSpelling is what App hands the writer.
+void TestStatusWriter::anEngineThisBuildDoesntKnowKeepsItsSpelling()
+{
+    bool parsed = false;
+    const Server invented =
+        Server::fromJson({{QStringLiteral("id"), QStringLiteral("srv-2")},
+                          {QStringLiteral("name"), QStringLiteral("attic")},
+                          {QStringLiteral("url"), QStringLiteral("http://127.0.0.1:9091/")},
+                          {QStringLiteral("engine"), QStringLiteral("Tixati")}},
+                         &parsed);
+    QVERIFY(parsed);
+    QCOMPARE(invented.engine, EngineKind::Unknown);
+    QCOMPARE(invented.engineSpelling(), QStringLiteral("Tixati"));
+    const Server known =
+        Server::fromJson({{QStringLiteral("id"), QStringLiteral("srv-3")},
+                          {QStringLiteral("engine"), QStringLiteral("transmission")}});
+    QCOMPARE(known.engineSpelling(), QStringLiteral("transmission"));
+    QCOMPARE(Server::fromJson({{QStringLiteral("id"), QStringLiteral("srv-4")}}).engineSpelling(),
+             QStringLiteral("qbittorrent")); // a v1 entry
+
+    SyncEngine engine;
+    StatusWriter writer;
+    writer.setIntervals(0, 10000);
+    startWriter(writer, engine);
+    QSignalSpy written(&writer, &StatusWriter::written);
+    writer.setServerEngine(invented.engineSpelling());
+    QVERIFY(written.wait(2000));
+    const QJsonObject server = readStatus(statusPath()).value(QStringLiteral("server")).toObject();
+    QCOMPARE(server.value(QStringLiteral("engine")).toString(), QStringLiteral("Tixati"));
 }
 
 void TestStatusWriter::sessionShareAndWeek()
