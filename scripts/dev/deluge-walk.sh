@@ -440,7 +440,7 @@ expect_call "deluge-web has no daemon" 'r is False' web.connected
 expect_text "omaseed says deluge-web has no daemon" "deluge's deluge-web has no daemon" 30
 expect_text "…and asks whether deluged is running" "no Deluge daemon is connected to it" 10
 expect_text "the status line reads no daemon" "deluge · no daemon" 10
-shot "deluge-web without a daemon: the red band, its retry; the status line \"deluge · no daemon\"."
+shot "deluge-web without a daemon: the red band, its retry; the status line \"deluge · no daemon\"." no-daemon
 keys comma
 expect_text "Settings open" "Keybindings" 10
 keys 2 l e
