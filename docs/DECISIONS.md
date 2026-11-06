@@ -1351,70 +1351,69 @@ asks `podman ps` beside `docker ps` (rootless podman has no `docker` without pod
 same row, its detail "127.0.0.1:PORT · Podman container NAME" (docker's row says Docker, and wins
 when both find one engine).
 
-*Moves on Transmission (2026-11-06, #85, assumed, to confirm):* built from K21–K23 and §4 with
-these calls the board left open. A Transmission move goes one torrent at a time (a second
-`torrent_set_location` would wait behind the first and keep the poll waiting until both ended);
-the move's own call waits up to 24 h, and no poll is sent while it is out. "Busy moving" shows
-only once a poll's turn found the move still out (1.5 s), so a quick move shows nothing (L6's
-spirit); the busy band keeps the job's % in its bar, and leads its line with the growth
-probe's "N of M there" where omaseed sees the disks. M14's stuck pause hands the server back to C12 (the next silence
-is "didn't answer"). The failed move is the torrent in error after its send answered, with its
-folder unchanged; the cause is read from the text after the last quoted path ("Permission
-denied (13)" → noAccess). Room on the server is `free_space` on the destination, or its
-nearest parent that exists; the job reads it again between moves. The sheet's L13 line lists
-what ran on the server per engine; without a listing it says once "Names at the destination
-can't be checked on Transmission" with "may be replaced", and loose files "stay behind" unnamed.
+*Moves on Transmission (2026-11-06, #85, assumed; ruled, Diogo, 2026-11-06: keep, #234):* built from
+K21–K23 and §4 with these calls the board left open. A Transmission move goes one torrent at a time
+(a second `torrent_set_location` would wait behind the first and keep the poll waiting until both
+ended); the move's own call waits up to 24 h, and no poll is sent while it is out. "Busy moving"
+shows only once a poll's turn found the move still out (1.5 s), so a quick move shows nothing (L6's
+spirit); the busy band keeps the job's % in its bar, and leads its line with the growth probe's "N
+of M there" where omaseed sees the disks. M14's stuck pause hands the server back to C12 (the next
+silence is "didn't answer"). The failed move is the torrent in error after its send answered, with
+its folder unchanged; the cause is read from the text after the last quoted path ("Permission denied
+(13)" → noAccess). Room on the server is `free_space` on the destination, or its nearest parent that
+exists; the job reads it again between moves. The sheet's L13 line lists what ran on the server per
+engine; without a listing it says once "Names at the destination can't be checked on Transmission"
+with "may be replaced", and loose files "stay behind" unnamed.
 
 *Errors on Transmission (2026-11-06, #85, assumed, to confirm):* built from K24 and §F with these
-calls the board left open. With no log, an errored torrent's problem is read from its
-`error_string` at the sync that shows it (no wait), and its notice (N1) goes then, in the
-engine's words; the block's time is when omaseed first saw the error. A move is known by the
-text's shape, two quoted absolute paths, so it reads in any daemon language; the cause is
-describe()'s key on the words after the last quoted path, and a text it can't read keeps the
-headline "Transmission stopped it with an error" with the words quoted under it. A failed move
-whose old folder is the incomplete one is "Didn't move when it finished" and gets "show both
-folders"; its start is "start it here" too (the board drew "start it"). An error in place leads
-with "retry", then move… and "open folder" for no access, read-only or a full disk; files gone
-put the start last (a recheck or a new place first); Transmission's own "No data found!" (English
-only) reads as missing files, "Its files aren't where Transmission left them". The row's caption is "stopped" in the error
-colour, as board 47 draws it, through the row's `rowCaptionAlert` role; Deluge's "paused" too
-(*ruled, Diogo, 2026-11-06: follow the board*; the build had kept the usual caption colour,
-#234). Errors 1 and 2 are the
-trackers': `hasTrackerError` and the trackers tab, never the needs-you block. The outcome strip's
-"start it here" takes "details"' place wherever the engine stops a torrent whose move failed
-(`moveStopsOnFailure`, so Deluge's recheck-first strip is still to do). The move summary band
-(#238) says it in the strip's words, "N failed · Transmission stopped the torrents" ("the
-torrent" for one), and leads its actions with the strip's start, "start it here" ("start the N
-here" for more), then "retry the N" and "recheck the N…". A retried move leaves them stopped, as
-Transmission does (it isn't started for them), and the start stays offered while the summary
-shows, even once they run.
+calls the board left open. With no log, an errored torrent's problem is read from its `error_string`
+at the sync that shows it (no wait), and its notice (N1) goes then, in the engine's words; the
+block's time is when omaseed first saw the error. A move is known by the text's shape, two quoted
+absolute paths, so it reads in any daemon language; the cause is describe()'s key on the words after
+the last quoted path, and a text it can't read keeps the headline "Transmission stopped it with an
+error" with the words quoted under it. A failed move whose old folder is the incomplete one is
+"Didn't move when it finished" and gets "show both folders"; its start is "start it here" too (the
+board drew "start it"; *ruled, Diogo, 2026-11-06: keep*, #234). An error in place leads with
+"retry", then move… and "open folder" for no access, read-only or a full disk; files gone put the
+start last (a recheck or a new place first); Transmission's own "No data found!" (English only)
+reads as missing files, "Its files aren't where Transmission left them". The row's caption is
+"stopped" in the error colour, as board 47 draws it, through the row's `rowCaptionAlert` role;
+Deluge's "paused" too (*ruled, Diogo, 2026-11-06: follow the board*; the build had kept the usual
+caption colour, #234). Errors 1 and 2 are the trackers': `hasTrackerError` and the trackers tab,
+never the needs-you block. The outcome strip's "start it here" takes "details"' place wherever the
+engine stops a torrent whose move failed (`moveStopsOnFailure`, so Deluge's recheck-first strip is
+still to do). The move summary band (#238) says it in the strip's words, "N failed · Transmission
+stopped the torrents" ("the torrent" for one), and leads its actions with the strip's start, "start
+it here" ("start the N here" for more), then "retry the N" and "recheck the N…". A retried move
+leaves them stopped, as Transmission does (it isn't started for them), and the start stays offered
+while the summary shows, even once they run.
 
 *Adding, details, what goes and Settings on Transmission (2026-11-06, #85, assumed, to confirm):*
-built from K25–K33 and §G–§J with these calls the board left open. K25 covers a v2-only
-.torrent and a btmh-only magnet link as well as a bare hash (each worded as what it is; in a
-batch the line counts the rows and asks to take them out), with a new feature flag `v2Only`;
-the sheet's other fields stay drawn under the red line (the board hides them), only the two
-add buttons are off. K26's dim line also covers a link to a .torrent ("reads a link's .torrent
-only once it is added"). The ntfs3/exfat/vfat and FAT32 lines stay on every engine and name it:
-the drivers make Transmission's files whole too. K28: the line is the same for a one-file
-torrent ("its folder"); `r` opens the rename sheet instead of the inline editor wherever a
-rename renames on disk; qBittorrent's sheet gets no "only the name changes" line (unchanged).
-K29: the web seeds' head reads "URL" without a log. K30: the note leads with the key when the
-action has one ("C · …"), its words are "SERVER (ENGINE) has no X" with X from a fixed list
-per feature ("categories", "log", "torrent creator", "adding or banning peers"…); the ?
-sheet's foot line is the Kit's scope line (accent rule, not the board's yellow), in the
-board's order and words, and is left out until the server's version is known. K31: TRANSMISSION
-› Basics also carries the incomplete folder and the seeding defaults (ratio, idle), which the
-limits sheet's "global" means, and the burst presets with turtle's (so "edit the presets…"
-lands there); speeds there are in Transmission's kB/s (1000 bytes); queue sizes are left for
-Settings › Transmission (E5); "test port" is Transmission's port_test, its answer a chip by the
-port and a line in the head; ctrl+shift+, opens the engine's group. A new flag, `sessionBasics`,
-says an engine has that page. K32 is built for the current server only: the group follows the
-server omaseed is on, its select lists every server (one group per saved engine, each listing
-its own, is left to E5, #86). K33: copy settings reads only qBittorrent servers, and omaseed's own
-Backup links to qBittorrent's only while on one. Also: a speed limit's upper bound is per engine
-(`maxSpeedLimit`; Transmission an int of kB/s), and C28's stuck-move block is only where the
-engine has the log (Transmission's content reads from the incomplete folder until it moves).
+built from K25–K33 and §G–§J with these calls the board left open. K25 covers a v2-only .torrent and
+a btmh-only magnet link as well as a bare hash (each worded as what it is; in a batch the line
+counts the rows and asks to take them out), with a new feature flag `v2Only`; the sheet's other
+fields stay drawn under the red line (the board hides them), only the two add buttons are off
+(*ruled, Diogo, 2026-11-06: keep*, #234). K26's dim line also covers a link to a .torrent ("reads a
+link's .torrent only once it is added"). The ntfs3/exfat/vfat and FAT32 lines stay on every engine
+and name it: the drivers make Transmission's files whole too. K28: the line is the same for a
+one-file torrent ("its folder"); `r` opens the rename sheet instead of the inline editor wherever a
+rename renames on disk; qBittorrent's sheet gets no "only the name changes" line (unchanged). K29:
+the web seeds' head reads "URL" without a log. K30: the note leads with the key when the action has
+one ("C · …"), its words are "SERVER (ENGINE) has no X" with X from a fixed list per feature
+("categories", "log", "torrent creator", "adding or banning peers"…); the ? sheet's foot line is the
+Kit's scope line (accent rule, not the board's yellow), in the board's order and words, and is left
+out until the server's version is known (*ruled, Diogo, 2026-11-06: keep*, #234). K31: TRANSMISSION
+› Basics also carries the incomplete folder and the seeding defaults (ratio, idle), which the limits
+sheet's "global" means, and the burst presets with turtle's (so "edit the presets…" lands there);
+speeds there are in Transmission's kB/s (1000 bytes); queue sizes are left for Settings ›
+Transmission (E5); "test port" is Transmission's port_test, its answer a chip by the port and a line
+in the head; ctrl+shift+, opens the engine's group. A new flag, `sessionBasics`, says an engine has
+that page. K32 is built for the current server only: the group follows the server omaseed is on, its
+select lists every server (one group per saved engine, each listing its own, is left to E5, #86).
+K33: copy settings reads only qBittorrent servers, and omaseed's own Backup links to qBittorrent's
+only while on one. Also: a speed limit's upper bound is per engine (`maxSpeedLimit`; Transmission an
+int of kB/s), and C28's stuck-move block is only where the engine has the log (Transmission's
+content reads from the incomplete folder until it moves).
 
 *Settings › Transmission, backups and words (2026-11-06, E5 #86, assumed, to confirm):* built from
 C14 E6, board 36 §6 E5 and board 47 §6's E5 row with these calls the boards left open. Settings ›
@@ -1422,22 +1421,23 @@ Transmission takes qBittorrent's sections, order and ids (Speed, Discovery and p
 Seeding, Queue, Downloads and files; no Proxy, Web UI or Advanced), so a switch between the groups
 lands on its like. Beyond K31's Basics it carries PEX, LPD, encryption (prefer · require · allow,
 Transmission 4.1's words), the blocklist and its URL, default trackers (one per line in the list
-sheet, which drops blank lines: tiers aren't kept, as for qBittorrent's add_trackers), a random
-port on start, UPnP / NAT-PMP, µTP, peers in total and per torrent, the download and seed queues
-and stalled minutes, .part, start on add, in order, trashing a .torrent, the disk cache and the
-three scripts; not the RPC's own settings, the blocklist's update, or anything session_get doesn't
-show (preallocation). Those rows go by Transmission's own field names; a count out of range or an
-unknown encryption word is refused before it is sent (4.1.3 keeps a download queue of -3). K32: the
-other engines' groups come after the one omaseed is on (the board draws one fixed order), each on
-its first saved server, as nothing remembers the last used of an engine; their sections are a pane
-that says whose settings they are and switches there (one connection reads them), landing on the
-same section. A group's select lists only its engine's servers, so one server per engine has no
-select stop; `s` still steps through every server. Backups (board 36's "per engine", read through
-K33 a): no Transmission export (K33 b not taken); omaseed's backup and its copies keep
-qBittorrent's settings only, read nothing on another engine, and the scope line says whose settings
-stay on their servers. The welcome reads "Torrents for Omarchy, powered by qBittorrent or
-Transmission." The palette's and ?'s "qBittorrent settings" stay qBittorrent's (hidden on
-Transmission, where ctrl+shift+, still opens its group, unnamed there).
+sheet, which drops blank lines: tiers aren't kept, as for qBittorrent's add_trackers), a random port
+on start, UPnP / NAT-PMP, µTP, peers in total and per torrent, the download and seed queues and
+stalled minutes, .part, start on add, in order, trashing a .torrent, the disk cache and the three
+scripts; not the RPC's own settings, the blocklist's update, or anything session_get doesn't show
+(preallocation) (*ruled, Diogo, 2026-11-06: keep*, #234). Those rows go by Transmission's own field
+names; a count out of range or an unknown encryption word is refused before it is sent (4.1.3 keeps
+a download queue of -3). K32: the other engines' groups come after the one omaseed is on (the board
+draws one fixed order), each on its first saved server, as nothing remembers the last used of an
+engine; their sections are a pane that says whose settings they are and switches there (one
+connection reads them), landing on the same section (*ruled, Diogo, 2026-11-06: keep*, #234). A
+group's select lists only its engine's servers, so one server per engine has no select stop; `s`
+still steps through every server. Backups (board 36's "per engine", read through K33 a): no
+Transmission export (K33 b not taken); omaseed's backup and its copies keep qBittorrent's settings
+only, read nothing on another engine, and the scope line says whose settings stay on their servers.
+The welcome reads "Torrents for Omarchy, powered by qBittorrent or Transmission." The palette's and
+?'s "qBittorrent settings" stay qBittorrent's (hidden on Transmission, where ctrl+shift+, still
+opens its group, unnamed there).
 
 *Deluge driven, and its daemon step (2026-11-06, E6 #87, assumed, to confirm):* built from K7,
 K9 and K10 and board 47 §2 A with these calls the board left open. K10's step shows when a test
@@ -1482,67 +1482,67 @@ engine adds peers or has no web seeds at all. A magnet is looked up on Deluge on
 known (it has no API version of its own), and an engine that reports no web seeds is never asked
 for them.
 
-*Moves and errors on Deluge (2026-11-06, E6 #87, assumed, to confirm):* built from K21–K24, §E
-and §F with these calls the board left open. The band reads Deluge's own % of the torrent it
-moves (its `progress` while Moving, times the bytes done), whether or not omaseed sees its disks,
-and never says "doesn't report a single move's progress". Deluge counts the files at the target,
-which libtorrent makes full length before it copies each, so its % rises file by file and a
-one-file torrent reads 100 % from the start: #162's rule holds (the band says how long it has
-been moving instead). A move into a folder Deluge can't make is taken and dropped without a word (deluged's log
-only): a torrent whose send Deluge took that, two polls and 3 s after the answer, has never read
-Moving and is still in its folder failed, with cause "silent", in the strip as "Deluge didn't move
-it and doesn't say why", in the move's record as "Deluge took the move to DEST, but the torrent
-never started moving and is still in FROM. Deluge says why only in its own log; most often it
-couldn't make the folder.", and in the first-failure band as "The first torrent, NAME, didn't
-move, and Deluge doesn't say why"; nothing is paused, nothing added, and it isn't sent again.
-A failed move in words (Deluge's "Failed to move download folder: …") reads "Didn't move" with
-Deluge's words whole and "Deluge paused it · only a recheck clears this error"; Deluge's text
-names no folder, so the row says "Deluge couldn't move its files · it paused the torrent" (the
-board's "couldn't move it to DEST" isn't known from the torrent), and "Didn't move when it
-finished" isn't told apart on Deluge. An error in place reads "Deluge paused it · retry resumes
-it", retry first. The Status column and the row's caption say "paused" where Transmission's say
-"stopped"; the story "Deluge paused it". The strip after a failed move reads "Deluge can't write
-to DEST · it paused the torrent; a recheck clears it" with "recheck" in details' place, which
-opens C21's recheck sheet (libtorrent); the summary band reads "N failed · Deluge paused the
-torrent(s); a recheck clears it (them)" and "N failed · Deluge didn't move it (them) and doesn't
-say why", with "recheck the N…" first, then "retry the N". The Move sheet warns "Moves when done.
-N torrent(s) go to another folder when they finish. Deluge turns that off for any move it makes"
-for unfinished torrents with a move-when-done folder. With deluge-web up and no daemon, the
+*Moves and errors on Deluge (2026-11-06, E6 #87, assumed, to confirm):* built from K21–K24, §E and
+§F with these calls the board left open. The band reads Deluge's own % of the torrent it moves (its
+`progress` while Moving, times the bytes done), whether or not omaseed sees its disks, and never
+says "doesn't report a single move's progress". Deluge counts the files at the target, which
+libtorrent makes full length before it copies each, so its % rises file by file and a one-file
+torrent reads 100 % from the start: #162's rule holds (the band says how long it has been moving
+instead; *ruled, Diogo, 2026-11-06: keep*, #234). A move into a folder Deluge can't make is taken
+and dropped without a word (deluged's log only): a torrent whose send Deluge took that, two polls
+and 3 s after the answer, has never read Moving and is still in its folder failed, with cause
+"silent", in the strip as "Deluge didn't move it and doesn't say why", in the move's record as
+"Deluge took the move to DEST, but the torrent never started moving and is still in FROM. Deluge
+says why only in its own log; most often it couldn't make the folder.", and in the first-failure
+band as "The first torrent, NAME, didn't move, and Deluge doesn't say why"; nothing is paused,
+nothing added, and it isn't sent again. A failed move in words (Deluge's "Failed to move download
+folder: …") reads "Didn't move" with Deluge's words whole and "Deluge paused it · only a recheck
+clears this error"; Deluge's text names no folder, so the row says "Deluge couldn't move its files ·
+it paused the torrent" (the board's "couldn't move it to DEST" isn't known from the torrent), and
+"Didn't move when it finished" isn't told apart on Deluge. An error in place reads "Deluge paused it
+· retry resumes it", retry first. The Status column and the row's caption say "paused" where
+Transmission's say "stopped"; the story "Deluge paused it". The strip after a failed move reads
+"Deluge can't write to DEST · it paused the torrent; a recheck clears it" with "recheck" in details'
+place, which opens C21's recheck sheet (libtorrent); the summary band reads "N failed · Deluge
+paused the torrent(s); a recheck clears it (them)" and "N failed · Deluge didn't move it (them) and
+doesn't say why", with "recheck the N…" first, then "retry the N". The Move sheet warns "Moves when
+done. N torrent(s) go to another folder when they finish. Deluge turns that off for any move it
+makes" for unfinished torrents with a move-when-done folder. With deluge-web up and no daemon, the
 status line's server lane reads "NAME · no daemon", as the band and the server's row do.
 
-*Settings › Deluge, its Plugins, the seed console and the settings command (2026-11-06, E6 #87
-and #237, assumed, to confirm):* built from K15, K29, K31, K32 and K34 with these calls the board
-left open. Settings › Deluge goes past K31's Basics, as E5 did for Transmission: qBittorrent's
-sections, order and ids (speed, discovery, connection, seeding, queue, downloads), filled from the
-whole of core.conf (core.get_config), then Plugins. Rows: the two global limits and each new
-torrent's own (KiB/s, empty for none), no limits on the local network, the protocol's overhead,
-and a note that Deluge has no turtle (its Scheduler plugin); DHT, PEX, LSD and one encryption
-choice "on · required · off" written to both ways (enc_in_policy, enc_out_policy; read from the
-outgoing one); the port with its test, a random port, UPnP, NAT-PMP, connections and upload slots
-in total and per torrent; the share ratio with "stop · remove (keeps the files)" and a note that
-each torrent keeps its own ratio; the queue's active, downloading and seeding counts, slow
-torrents, seeds first, new at the top, and the three limits past which a seed gives way (share
-ratio, seed time ratio, seed time); the default save path, move finished torrents, keep a copy of
-each .torrent (and delete it with its torrent), add paused, download in order, first and last
-pieces first, allocate the whole size. Left out: the proxy, interfaces, the cache (libtorrent 2
-maps files), the daemon's own keys (its port, remote access), encryption level. Counts and limits
-Deluge keeps -1 for are empty for none; values out of range are refused before sending. Plugins
-follows the board: read only ("Turning one on or off is done in Deluge's own preferences"; enter
-on a row says so), Label "on · its labels are the rail's labels, one per torrent" or, when off,
-the board's yellow line in its place; Scheduler on or off with its line; "Others" lists the rest
-Deluge has on with "N on", "none on" when none. Its head reads "NAME · Deluge VERSION", not "saved
-as you change it". A Deluge server's group shows beside other engines' as Transmission's does
-(K32). The seed console (K34): an engine without all-time totals feeds omaseed's ledger its
-session's totals (a daemon restart is a step back, a new baseline); the whole library's given,
-taken and ratio are what the ledger booked since it began, their notes "since 14 Oct", and under
-the totals the board's line "Deluge keeps no all-time totals. These count from 14 Oct, when
-omaseed began watching nas; what nas gave before then isn't known."; a scope still sums its
-torrents. #237: ctrl+shift+, is offered in the palette and the ? sheet wherever the engine has a
-group in Settings, titled "qBittorrent settings", "Transmission settings" or "Deluge settings";
-on an engine with none its key says "has no settings omaseed can change". The trackers tab drops
-its Seeds and Peers columns where only the tracker in use has a status (K29: unreported facts
-left out), and a torrent new to the engine has its trackers asked on the next poll, so one added
-paused isn't counted trackerless before it announces.
+*Settings › Deluge, its Plugins, the seed console and the settings command (2026-11-06, E6 #87 and
+#237, assumed, to confirm):* built from K15, K29, K31, K32 and K34 with these calls the board left
+open. Settings › Deluge goes past K31's Basics, as E5 did for Transmission: qBittorrent's sections,
+order and ids (speed, discovery, connection, seeding, queue, downloads), filled from the whole of
+core.conf (core.get_config), then Plugins. Rows: the two global limits and each new torrent's own
+(KiB/s, empty for none), no limits on the local network, the protocol's overhead, and a note that
+Deluge has no turtle (its Scheduler plugin); DHT, PEX, LSD and one encryption choice "on · required
+· off" written to both ways (enc_in_policy, enc_out_policy; read from the outgoing one); the port
+with its test, a random port, UPnP, NAT-PMP, connections and upload slots in total and per torrent;
+the share ratio with "stop · remove (keeps the files)" and a note that each torrent keeps its own
+ratio; the queue's active, downloading and seeding counts, slow torrents, seeds first, new at the
+top, and the three limits past which a seed gives way (share ratio, seed time ratio, seed time); the
+default save path, move finished torrents, keep a copy of each .torrent (and delete it with its
+torrent), add paused, download in order, first and last pieces first, allocate the whole size. Left
+out: the proxy, interfaces, the cache (libtorrent 2 maps files), the daemon's own keys (its port,
+remote access), encryption level. Counts and limits Deluge keeps -1 for are empty for none; values
+out of range are refused before sending. Plugins follows the board: read only ("Turning one on or
+off is done in Deluge's own preferences"; enter on a row says so; *ruled, Diogo, 2026-11-06: keep*,
+#234), Label "on · its labels are the rail's labels, one per torrent" or, when off, the board's
+yellow line in its place; Scheduler on or off with its line; "Others" lists the rest Deluge has on
+with "N on", "none on" when none. Its head reads "NAME · Deluge VERSION", not "saved as you change
+it". A Deluge server's group shows beside other engines' as Transmission's does (K32). The seed
+console (K34): an engine without all-time totals feeds omaseed's ledger its session's totals (a
+daemon restart is a step back, a new baseline); the whole library's given, taken and ratio are what
+the ledger booked since it began, their notes "since 14 Oct", and under the totals the board's line
+"Deluge keeps no all-time totals. These count from 14 Oct, when omaseed began watching nas; what nas
+gave before then isn't known."; a scope still sums its torrents. #237: ctrl+shift+, is offered in
+the palette and the ? sheet wherever the engine has a group in Settings, titled "qBittorrent
+settings", "Transmission settings" or "Deluge settings"; on an engine with none its key says "has no
+settings omaseed can change". The trackers tab drops its Seeds and Peers columns where only the
+tracker in use has a status (K29: unreported facts left out), and a torrent new to the engine has
+its trackers asked on the next poll, so one added paused isn't counted trackerless before it
+announces.
 
 *Deluge settled (2026-11-06, E6 #87 and #244, assumed, to confirm):* the move Deluge takes and
 drops without a word gets a line in the details' story, as a failed move has on qBittorrent:
@@ -1554,8 +1554,25 @@ error leaves it in Error with `paused` false: omaseed now reads it as not paused
 and stopped read asks Deluge's `paused`, while Pause Torrents' running list still leaves it
 alone), so the row and the details' head no longer say "paused": "didn't move", "needs you",
 "Deluge couldn't move its files · still in error until a recheck", recheck still its fix; `p`
-then pauses it again. Another engine's problem read the same way ("… · still in error") where
-the engine says it runs in error.
+then pauses it again (*ruled, Diogo, 2026-11-06: keep*, #234: a resume leaves it running in
+error). Another engine's problem read the same way ("… · still in error") where the engine says
+it runs in error.
+
+*Ruled on #234 (Diogo, 2026-11-06, "yes" to the calls above):* besides the marks in place, keep
+the words "no label" and Transmission's "a label can't hold a comma: add them one at a time"
+(K13), and the server sheet 520 wide in every mode (the engine row didn't fit 460; the board
+draws 620). Still assumed, a check rather than a ruling: Transmission's turtle by the clock was
+read from libtransmission 4.1 (a window runs past midnight, begin == end is the whole day) and
+hasn't been seen on a daemon across the boundary.
+
+*#244 (Diogo, 2026-11-06):* a finished move's summary band closes when every torrent it names is
+deleted, on every engine, held under a later move or not (so the failed move's band of one
+torrent closes with it). One that names several and keeps any of them stays, the deleted ones
+counted as removed and no longer offered to retry (assumed). The add sheet's label follows
+qBittorrent's category: each opening of the sheet starts without one, and only the torrents
+queued in one batch share it (VIEW-11), on every engine. The dim lines the walks read (the
+limits sheet's engine line, Settings' notes such as "Deluge has no turtle…") carry an
+accessible name.
 
 ## C26 — Search through qBittorrent's search plugins (board 48, ruled 2026-10-22)
 
@@ -1765,10 +1782,11 @@ Diogo's answers, all as recommended, to the questions the v0.4.0 builders record
   and shows in the refused state's places in ErrorWords' words: "seedbox is a Transmission
   server" / "This omaseed only talks to qBittorrent. A newer omaseed can.", with only "switch
   server" to offer.
-  *On `engines` (C25 K9, #179):* a Transmission or a Deluge reads "omaseed can't drive
-  Transmission yet. This build drives qBittorrent."; an engine this build doesn't know keeps
-  servers.json's spelling through every save, reads "This omaseed doesn't know that engine. A
-  newer omaseed may.", and is never asked, its sheet's test included.
+  *On `engines` (C25 K9, #179):* an engine this build knows but doesn't drive reads "omaseed
+  can't drive NAME yet. This build drives qBittorrent, Transmission or Deluge." (K9 naming the
+  engines it drives); an engine this build doesn't know keeps servers.json's spelling through
+  every save, reads "This omaseed doesn't know that engine. A newer omaseed may.", and is never
+  asked, its sheet's test included (the words: *ruled, Diogo, 2026-11-06: keep*, #234).
 
 ## C29 — v2-only in the free plan (#182, ruled 2026-10-23)
 
