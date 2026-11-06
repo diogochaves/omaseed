@@ -2414,9 +2414,10 @@ QtObject {
     /// The details tabs' shared keys, per tab: the same `a` adds trackers everywhere, but
     /// peers and HTTP sources only where the engine takes them.
     readonly property var tabFeatures: ({
+                                            // Board 47 H: Deluge adds a peer but bans none.
                                             "peers": {
                                                 "addRow": "peerControl",
-                                                "ban": "peerControl"
+                                                "ban": "peerBan"
                                             },
                                             "webseeds": {
                                                 "addRow": "editWebSeeds",

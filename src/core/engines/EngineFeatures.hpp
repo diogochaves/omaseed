@@ -51,7 +51,13 @@ struct EngineFeatures
     /// H: the tab never appears).
     bool webSeeds = false;
     bool editWebSeeds = false;     ///< add and remove a torrent's HTTP sources
+    /// Only the tracker in use says how it is doing; the others are listed with their tiers
+    /// alone (Deluge's tracker_status, board 47 H, C25 K29): the trackers tab says so once.
+    bool trackerStatusInUseOnly = false;
     bool seedingTimeLimit = false; ///< a limit on total seeding time (ratio and idle aside)
+    /// A limit on time without traffic (qBittorrent's inactive seeding time, Transmission's
+    /// idle limit); Deluge keeps a ratio only (board 47 D, C25 K18).
+    bool idleLimit = false;
     bool engineLog = false;        ///< the engine's own log: the log face, the problem log
     /// The alternative speed limits, turtle mode and its clock (C4); none on Deluge (C25 K20).
     bool altSpeeds = false;

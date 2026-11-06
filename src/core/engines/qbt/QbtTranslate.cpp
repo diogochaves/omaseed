@@ -649,6 +649,7 @@ EngineFeatures features(const QString &apiVersion)
     f.webSeeds = true;
     f.editWebSeeds = true;
     f.seedingTimeLimit = true;
+    f.idleLimit = true;
     f.altSpeeds = true;
     // Moves (C15, C16 L13): app/getDirectoryContent lists a folder; a failure is in the log,
     // the torrent keeps running; a file already there is kept (M8). No % of a move, and

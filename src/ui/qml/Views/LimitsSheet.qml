@@ -30,6 +30,9 @@ import Omaseed.Kit
 // time but an idle one (Transmission) gets "Idle for" in seeding time's place, in minutes with
 // its own `global` chip (the inactive limit qBittorrent's sheet only carries along), and one
 // line under the rows: NAME stops the torrent at either limit; no seeding time, no action.
+// Deluge keeps a ratio only, then stops the torrent or removes it keeping its files: no time
+// rows, its two actions as chips ("remove (keeps the files)"), and the line "NAME has no time
+// limits". A Deluge torrent keeps its own ratio, so `global` copies the server's onto it.
 Sheet {
     id: root
 
@@ -39,16 +42,40 @@ Sheet {
     /// The engine's name for the one line ("Transmission").
     property string engineName: App.serverEngineName
     /// C25 K18: idle time in seeding time's place.
-    readonly property bool idleTime: root.features.seedingTimeLimit === false
+    readonly property bool idleTime: root.features.seedingTimeLimit === false && root.features.idleLimit !== false
+    /// C25 K18: the ratio is the only limit (Deluge).
+    readonly property bool ratioOnly: root.features.seedingTimeLimit === false && root.features.idleLimit === false
     /// The fifth row and its chips, for the tests.
     readonly property alias actionRow: actionRow
     readonly property alias actionChips: actionChips
 
     /// The wire names behind `actionChips.options`, in the same order (qui's order).
-    readonly property var actionNames: ["Default", "Stop", "Remove", "RemoveWithContent",
-                                        "EnableSuperSeeding"]
-    readonly property var actionTexts: [qsTr("default"), qsTr("stop"), qsTr("remove"),
-                                        qsTr("remove with content"), qsTr("super seed")]
+    /// qBittorrent's five; an engine that names its own (Deluge's Stop and Remove) has those.
+    readonly property var actionNames: {
+        const own = root.features.shareLimitActions ?? [];
+        return own.length > 0 && own.indexOf("Default") < 0 ? own : ["Default", "Stop", "Remove", "RemoveWithContent",
+                                                                       "EnableSuperSeeding"];
+    }
+    readonly property var actionTexts: root.actionNames.map(name => root._actionWord(name))
+
+    /// A chip's words for an action's wire name; "remove" says it keeps the files where the
+    /// engine has no other remove (Deluge, K18).
+    function _actionWord(name: string): string {
+        switch (name) {
+        case "Default":
+            return qsTr("default");
+        case "Stop":
+            return qsTr("stop");
+        case "Remove":
+            return (root.features.shareLimitActions ?? []).indexOf("Default") < 0
+                    && (root.features.shareLimitActions ?? []).length > 0 ? qsTr("remove (keeps the files)") : qsTr("remove");
+        case "RemoveWithContent":
+            return qsTr("remove with content");
+        case "EnableSuperSeeding":
+            return qsTr("super seed");
+        }
+        return name;
+    }
     /// True when `hashes` disagree on their action, until the row is touched.
     property bool _actionMixed: false
     /// The fields as `openFor` filled them, to tell what the user changed.
@@ -461,7 +488,7 @@ Sheet {
             label: qsTr("Seeding time")
             spokenCaption: false // the field says it (#78)
             // C14 E4: an engine with no seeding-time limit gets no row (its value stays as is).
-            visible: !root.idleTime
+            visible: !root.idleTime && !root.ratioOnly
 
             // Ruling Q5: the ratio row's chip, for the same reason. A torrent on the global
             // seeding time used to show `∞`, which reads as "no limit".
@@ -580,11 +607,12 @@ Sheet {
             Layout.columnSpan: 2
             Layout.fillWidth: true
             spacing: Theme.space(2)
-            visible: root.idleTime && root.features.shareLimitAction !== true
+            visible: (root.idleTime && root.features.shareLimitAction !== true) || root.ratioOnly
 
             Label {
                 Layout.fillWidth: true
-                text: qsTr("%1 stops the torrent at either limit").arg(root.engineName)
+                text: root.ratioOnly ? qsTr("%1 has no time limits").arg(root.engineName) : qsTr(
+                                           "%1 stops the torrent at either limit").arg(root.engineName)
                 wrapMode: Text.WordWrap
             }
 
@@ -592,7 +620,8 @@ Sheet {
                 Layout.fillWidth: true
                 dim: true
                 size: "small"
-                text: qsTr("it has no limit on total seeding time, and no other action")
+                text: root.ratioOnly ? qsTr("the ratio is the only one; global copies the server's onto the torrent")
+                                     : qsTr("it has no limit on total seeding time, and no other action")
                 wrapMode: Text.WordWrap
             }
         }
@@ -605,7 +634,7 @@ Sheet {
             Layout.columnSpan: 2
             Layout.fillWidth: true
             label: qsTr("When the limit is reached")
-            visible: App.supportsShareLimitAction && root.features.shareLimitAction !== false
+            visible: (App.supportsShareLimitAction || root.ratioOnly) && root.features.shareLimitAction !== false
 
             RowLayout {
                 Layout.fillWidth: true

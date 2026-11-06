@@ -876,6 +876,7 @@ EngineFeatures features(const ServerInfo &, bool labelPlugin)
     // D, K18: a ratio, then stop, or remove keeping the files.
     f.shareLimitActions = {QStringLiteral("Stop"), QStringLiteral("Remove")};
     f.seedingTimeLimit = false;  // D, K18: no time limits
+    f.idleLimit = false;         // D, K18: nor one without traffic
     f.altSpeeds = false;         // D, K20: the Scheduler plugin is a week grid; no turtle
     f.queue = true;              // matrix §4.5: core.queue_up/down
     f.forceStart = true;         // matrix §4.5: auto_managed off, then resume
@@ -897,6 +898,7 @@ EngineFeatures features(const ServerInfo &, bool labelPlugin)
     f.peerControl = true;        // H: core.connect_peer
     f.peerBan = false;           // H: no ban
     f.webSeeds = false;          // H: none reported; the tab never appears
+    f.trackerStatusInUseOnly = true; // H, K29: tracker_status is the one in use's
     f.editWebSeeds = false;      // H
     f.engineLog = false;         // I, K30: no log face, no ~
     f.qbtSettings = false;       // I, J

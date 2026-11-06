@@ -1062,6 +1062,7 @@ EngineFeatures features(const ServerInfo &)
                         int(FilePriority::High)};
     f.shareLimitActions = {};    // D, K18: a limit always stops the torrent
     f.seedingTimeLimit = false;  // D, K18: ratio and idle time only
+    f.idleLimit = true;          // D, K18: idle_seeding_limit
     f.altSpeeds = true;          // D, K20: turtle mode and its clock
     f.queue = true;              // matrix §4.5: queue_move_up/down
     f.forceStart = true;         // matrix §4.5: torrent_start_now (no forced mark comes back)

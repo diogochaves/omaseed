@@ -2003,7 +2003,8 @@ Sheet {
                             Layout.fillWidth: true
                             Layout.preferredWidth: 1
                             label: qsTr("Layout")
-                            visible: sheet._can.addOptions !== false
+                            // C25 K27: Deluge takes the add's other options, not this one.
+                            visible: sheet._can.addOptions !== false && sheet._can.addContentLayout !== false
 
                             ChipSelect {
                                 id: layoutChips

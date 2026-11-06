@@ -11,6 +11,8 @@ import Omaseed.Kit
 // C25 K28 (board 47 §G): where the engine renames the torrent's top folder (or its one file)
 // on disk too (Transmission's torrent_rename_path), the sheet says so under the name, with
 // both paths; `r` opens this sheet there instead of the inline editor, so it is always read.
+// Where only the name shown changes (Deluge's name option), the line says that the folder on
+// disk keeps its name, and `r` opens the sheet there too (App.features.renameNameOnly).
 Sheet {
     id: root
 
@@ -22,6 +24,8 @@ Sheet {
     property string contentPath: ""
     /// The rename changes the name on disk too.
     readonly property bool onDisk: root.features.renameOnDisk === true
+    /// Only the name shown changes, and the sheet says so (Deluge, K28).
+    readonly property bool nameOnly: root.features.renameNameOnly === true
 
     /// "/srv/films/Old becomes …/New": the parent folder stays, so it is shortened.
     readonly property string pathsText: {
@@ -105,5 +109,17 @@ Sheet {
             // Both paths whole: a long one broken anywhere rather than cut.
             wrapMode: Text.WrapAnywhere
         }
+    }
+
+    // Board 47 §G's line for an engine that renames the name shown alone.
+    Label {
+        Accessible.name: text
+        Accessible.role: Accessible.StaticText
+        Layout.fillWidth: true
+        dim: true
+        objectName: "renameNameOnlyLine"
+        text: qsTr("Only the name changes; the folder on disk keeps its name")
+        visible: root.nameOnly && !root.onDisk
+        wrapMode: Text.Wrap
     }
 }

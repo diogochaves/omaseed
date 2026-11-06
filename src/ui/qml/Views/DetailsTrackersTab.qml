@@ -31,6 +31,15 @@ Item {
 
     readonly property int count: root.model ? root.model.count : 0
 
+    /// What the server can do (App.features) and its engine; a test gives its own.
+    property var features: App.features
+    property string engineName: App.serverEngineName || "qBittorrent"
+    /// Board 47 H (C25 K29): the one dim line under the rows where the engine fills the tab
+    /// in part (Deluge: only the tracker in use has a status), "" for none.
+    readonly property string partText: root.features.trackerStatusInUseOnly === true
+                                       ? qsTr("%1 says how the tracker in use is doing, and nothing about the others.").arg(
+                                             root.engineName) : ""
+
     // The spec's `.trk { grid-template-columns: 14px minmax(0,1fr) 50px 44px 150px }`,
     // trimmed to fit the docked column: Fig. 3 is a 400 px mock, the real pane is 340, and
     // the host is the column that has to stay readable.
@@ -252,5 +261,25 @@ Item {
     // The whole announce URL on a host, the whole status on a cut one.
     Tooltip {
         id: tip
+    }
+
+    Label {
+        id: partLine
+
+        Accessible.name: text
+        Accessible.role: Accessible.StaticText
+        // Right under the last row, as the web seeds' read-only line (board 47 §H).
+        anchors.left: parent.left
+        anchors.leftMargin: Theme.space(8)
+        anchors.right: parent.right
+        anchors.rightMargin: Theme.space(8)
+        dim: true
+        objectName: "trackersPartLine"
+        y: list.y + Math.min(list.contentHeight, list.height)
+        size: "caption"
+        text: root.partText
+        topPadding: Theme.space(6)
+        visible: text.length > 0
+        wrapMode: Text.Wrap
     }
 }

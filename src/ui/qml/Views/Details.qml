@@ -1448,6 +1448,7 @@ Item {
             id: trackersTab
 
             anchors.fill: parent
+            objectName: "trackersTab"
             cursorIndex: root.trackersCursor
             model: root.details.trackers
             visible: root.currentTab === root.tabTrackers
@@ -1645,6 +1646,7 @@ Item {
                                     "label": Keymap.labelOf("details", "ctrl+a")
                                 }
                             ];
+                // C25 K29: a ban or an add only where the engine takes it (Deluge adds, no ban).
                 return [
                             {
                                 "key": "b",
@@ -1666,7 +1668,9 @@ Item {
                                 "key": "ctrl+a",
                                 "label": Keymap.labelOf("details", "ctrl+a")
                             }
-                        ];
+                        ].filter(hint => hint.key === "b" ? Keymap.offered("ban", App.features, "peers")
+                                                          : hint.key !== "a" || Keymap.offered("addRow", App.features,
+                                                                                               "peers"));
             }
         }
     }
@@ -1910,18 +1914,20 @@ Item {
             readonly property int selected: root.peersSelection.count
 
             anchors.fill: parent
-            // C14 E4: add and ban only where the engine takes them.
+            // C14 E4: add and ban only where the engine takes them (C25 K29: Deluge adds a
+            // peer but bans none).
             items: (Keymap.offered("addRow", App.features, "peers") ? [
                 {
                     "text": qsTr("add peer…"),
                     "key": "a",
                     "action": "add"
-                },
+                }] : []).concat(Keymap.offered("ban", App.features, "peers") ? [
                 {
                     "text": peerMenu.selected > 1 ? qsTr("ban %n peers…", "", peerMenu.selected) : qsTr("ban…"),
                     "key": "b",
                     "action": "ban"
-                },
+                }] : []).concat(Keymap.offered("addRow", App.features, "peers") || Keymap.offered("ban", App.features,
+                                                                                                    "peers") ? [
                 {
                     "separator": true
                 }] : []).concat([
