@@ -36,6 +36,9 @@ struct StoryInput
     QString failure;
     QDateTime failureAt;
     QDateTime now;
+    /// The engine groups torrents in categories (EngineFeatures::categories): without them
+    /// "Added" says nothing about one (C14 E4, Transmission).
+    bool categories = true;
 };
 
 struct StoryEvent

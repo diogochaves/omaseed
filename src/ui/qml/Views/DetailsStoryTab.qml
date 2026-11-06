@@ -29,6 +29,8 @@ Flickable {
     property string partialText: ""
     /// Board 45 B1 (C18 D7): App.move.lastMoveOf() for this torrent, {} for none.
     property var lastMove: ({})
+    /// The engine has a log to narrow to this torrent (App.features.engineLog, C25 K30).
+    property bool logOffered: App.features.engineLog !== false
 
     /// docs/28: an action of the error block ("location", "start", "recheck", "rename",
     /// "copy", "log", …).
@@ -156,8 +158,9 @@ Flickable {
             objectName: "storyLogLink"
             size: "small"
             text: qsTr("its lines in the log ›")
-            visible: root.torrent !== null && root.torrent !== undefined && (root.torrent.hash
-                                                                             ?? "").length > 0
+            // C25 K30: only where the engine has a log (App.features.engineLog).
+            visible: root.logOffered && root.torrent !== null && root.torrent !== undefined && (root.torrent.hash
+                                                                                                 ?? "").length > 0
 
             MouseArea {
                 anchors.fill: parent

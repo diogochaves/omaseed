@@ -122,6 +122,20 @@ TestCase {
         verify(!button(bar, "reannounce") && !button(bar, "openFolder") && !button(bar, "rename"));
     }
 
+    // C14 E4, C25 K16: a server without categories (Transmission) has no "category ›".
+    function test_no_category_list_without_categories() {
+        const bar = makeBar({
+                                "features": {
+                                    "categories": false,
+                                    "tags": true
+                                }
+                            });
+        verify(!button(bar, "category"));
+        verify(button(bar, "tags"));
+        verify(button(bar, "location"));
+        compare(bar.items.indexOf("category"), -1);
+    }
+
     // Board 51: "limits… more ›" share the transfer group, then delete… alone, then esc.
     function test_the_groups_are_ruled_and_more_ends_transfer() {
         const bar = makeBar();

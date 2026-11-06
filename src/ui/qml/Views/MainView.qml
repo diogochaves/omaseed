@@ -1009,8 +1009,10 @@ Item {
         if (hash.length === 0)
             return "";
         const row = App.torrentRow(hash);
-        return [row.stateText ?? "", row.progressText ?? "", (row.category ?? "").length > 0
-                ? row.category : qsTr("no category")].filter(part => part.length > 0).join(" · ");
+        // C14 E4: no category to speak of on an engine without them (Transmission).
+        const category = App.features.categories === false ? "" : (row.category ?? "").length > 0
+                                                              ? row.category : qsTr("no category");
+        return [row.stateText ?? "", row.progressText ?? "", category].filter(part => part.length > 0).join(" · ");
     }
 
     /// The actions menu's bright title (board 46 `.mh b`): the torrent's name when it acts on
@@ -2783,6 +2785,7 @@ Item {
                 // The menu's groups as they stand for no torrent in particular: the open
                 // menu's own follow its cursor row, and would rebuild the bar under a click.
                 groups: barMenuRows.groups
+                features: App.features
                 height: implicitHeight
                 // #170: `p`'s word, as the selection needs it.
                 startable: root.selectionRunStates.stopped

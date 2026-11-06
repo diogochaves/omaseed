@@ -66,7 +66,9 @@ QList<StoryEvent> TorrentStory::events(const StoryInput &input)
     add(t.addedOn,
         StoryEvent::Kind::Plain,
         tr("Added"),
-        t.category.isEmpty() ? tr("with no category") : tr("into %1").arg(t.category));
+        !input.categories      ? QString()
+        : t.category.isEmpty() ? tr("with no category")
+                               : tr("into %1").arg(t.category));
 
     for (const StoryMove &move : input.moves) {
         QString detail;

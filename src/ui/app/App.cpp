@@ -1168,6 +1168,7 @@ QVariantList App::torrentStory(const QString &hash) const
     StoryInput input;
     input.torrent = m_engine->torrents()->torrent(hash);
     input.now = QDateTime::currentDateTime();
+    input.categories = m_features.categories;
     // C18 D8: the moves the history keeps for it, whatever moved with it.
     for (const MoveRecord &record : m_move->history().records()) {
         if (!record.from.contains(hash) || !record.finishedAt.isValid())

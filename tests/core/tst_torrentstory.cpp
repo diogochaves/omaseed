@@ -77,6 +77,12 @@ void TestTorrentStory::addedSaysWhere()
     input.torrent.category.clear();
     events = TorrentStory::events(input);
     QCOMPARE(events.at(0).detail, QStringLiteral("with no category"));
+
+    // An engine with no categories (Transmission, C14 E4) says nothing about one.
+    input.categories = false;
+    events = TorrentStory::events(input);
+    QCOMPARE(events.at(0).title, QStringLiteral("Added"));
+    QCOMPARE(events.at(0).detail, QString());
 }
 
 void TestTorrentStory::finishedSaysHowLong()

@@ -57,6 +57,14 @@ Item {
     property bool keysShown: false
     /// The torrent menu's groups (ActionsMenu `groups`): `[{name, items}]`.
     property var groups: []
+    /// What the server can do (App.features, DECISIONS C14 E4): "category ›" goes without
+    /// categories (Transmission, C25 K16), "tags ›" without tags. A key it lacks counts as on.
+    property var features: ({})
+    /// The feature each list button needs.
+    readonly property var listFeatures: ({
+                                             "category": "categories",
+                                             "tags": "tags"
+                                         })
     /// The button whose list is open over it ("category", "tags", "more"): lit as the menu's
     /// open row is (board 51 `.ab2.open`).
     property string openAction: ""
@@ -122,7 +130,8 @@ Item {
                                                      "glyph": Glyphs.stop,
                                                      "key": "p"
                                                  }, "stop"));
-                } else if (root.barActions.indexOf(item.action) >= 0) {
+                } else if (root.barActions.indexOf(item.action) >= 0
+                           && root.features[root.listFeatures[item.action]] !== false) {
                     entries.push(root._entry(item, item.action));
                 }
             }
