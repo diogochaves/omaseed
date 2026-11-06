@@ -42,6 +42,7 @@
 #include "core/PauseHold.hpp"
 #include "core/PrivateTrackers.hpp"
 #include "core/RenameDisk.hpp"
+#include "core/RenameHistory.hpp"
 #include "core/SearchModel.hpp"
 #include "core/SecretStore.hpp"
 #include "core/SeedConsole.hpp"
@@ -1442,9 +1443,12 @@ private:
     /// is one.
     omaseed::core::RenameDisk renameDisk(const QString &hash) const;
     QString m_demoDiskFolder;
-    /// Sends `moves[at]` of a renameTorrentFiles() run and the rest after it.
-    void
-    sendFileRename(const QString &hash, const QList<std::pair<QString, QString>> &moves, int at);
+    /// Sends `moves[at]` of a renameTorrentFiles() run and the rest after it. `serverId` is
+    /// the server it was sent to, whose rename record takes the run (DECISIONS C38 R3).
+    void sendFileRename(const QString &serverId,
+                        const QString &hash,
+                        const QList<std::pair<QString, QString>> &moves,
+                        int at);
     /// Sends `renames[at]` (paths prefixed with `root`) and the rest after it.
     void sendAddRename(const QString &id,
                        const QVariantList &renames,
@@ -2675,6 +2679,52 @@ private:
     QString m_createSaveError;
     int m_createBandMs = 3000;
     // --- end #146 -----------------------------------------------------------------------------
+
+    // --- #236: the renames the story tells (board 56, DECISIONS C38) --------------------------
+    // omaseed's own renames (R1, R3), one RenameHistory per server, saved beside the move history
+    // in state.json's "moves" (R9, C18 D8): moves.<server id>.renames. Names given in the add
+    // sheet never come here (R8). AppRenames.cpp.
+public:
+    /// Moves when the rename record changes (a rename written, another server's loaded): the
+    /// details' story reads torrentStory() again.
+    Q_PROPERTY(int renamesRevision READ renamesRevision NOTIFY renamesChanged)
+    int renamesRevision() const { return m_renamesRevision; }
+    /// The current server's record (tests read it; the story reads it through torrentStory()).
+    const core::RenameHistory &renameHistory() const { return m_renames; }
+    /// The line omaseed's last rename of `hash` landed in this session, 0 for none: the seam
+    /// for C38 R3's take-back (`renameHistory().remove(hash, id)`, through takeBackRename()).
+    int lastRenameLineOf(const QString &hash) const { return m_renameLineOf.value(hash); }
+
+Q_SIGNALS:
+    void renamesChanged();
+
+private:
+    void setUpRenames();
+    /// The server the record belongs to: the engine's, none in demo mode or first run.
+    QString renamesServerId() const;
+    /// Loads the record of the server the window is on now (C18's "server's state").
+    void loadRenames();
+    void saveRenames();
+    /// R9: after a full sync, the torrents that left the server leave the record.
+    void pruneRenames();
+    /// One rename of omaseed's, answered OK by `serverId` (captured when it was sent, so an
+    /// answer that lands after a server switch writes nothing). Returns the id of the line it is
+    /// in now (RenameHistory::record), 0 when it left none.
+    int recordRename(const QString &serverId, core::RenameRecord rename);
+    /// C38 R3 (3b): a rename the log says failed takes its line back. True when it was there.
+    bool takeBackRename(const QString &hash, int id);
+    /// R3: a run of file renames (from → to, the paths inside the torrent) is one line: a File
+    /// for one, Files with the count and folders for several. `done` of `moves` went.
+    int recordFileRun(const QString &serverId,
+                      const QString &hash,
+                      const QList<std::pair<QString, QString>> &moves,
+                      int done);
+    core::RenameHistory m_renames;
+    QString m_renamesServerId;
+    int m_renamesRevision = 0;
+    /// hash → the id of the line its last recorded rename landed in (the take-back's seam).
+    QHash<QString, int> m_renameLineOf;
+    // --- end #236 -----------------------------------------------------------------------------
 };
 
 } // namespace omaseed::app

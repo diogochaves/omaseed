@@ -768,6 +768,14 @@ void TestAppTransmission::theEverydayActionsAreTransmissionsMethods()
                  ->params.value(QStringLiteral("name"))
                  .toString(),
              QStringLiteral("Renamed Pack"));
+    // DECISIONS C38 R1, R7: the story's record says the old name, and that Transmission renamed
+    // the folder on disk too (K28).
+    QTRY_COMPARE_WITH_TIMEOUT(app.renameHistory().recordsFor(kPack).size(), 1, 3000);
+    QCOMPARE(app.renameHistory().recordsFor(kPack).constFirst().was,
+             QStringLiteral("Fixture Pack"));
+    QCOMPARE(app.renameHistory().recordsFor(kPack).constFirst().now,
+             QStringLiteral("Renamed Pack"));
+    QCOMPARE(app.renameHistory().recordsFor(kPack).constFirst().disk, true);
 
     // Delete, with and without the data.
     app.remove({kMagnet}, false);

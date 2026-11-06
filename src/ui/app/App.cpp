@@ -347,6 +347,8 @@ App::App(QObject *parent)
     // docs/33 §11 (#73): the one menu of the tray and the bar widget.
     setUpBarMenu();
     setUpMove();
+    // #236 (C38 R9): the renames the story tells, per server, beside the move history.
+    setUpRenames();
     setUpSkipped();
     setUpScope();
     setUpLibraryDisplays();
@@ -1255,6 +1257,8 @@ QVariantList App::torrentStory(const QString &hash) const
     input.notMovedTo = notMoved.to;
     input.notMovedAt = notMoved.at;
     input.notMovedEngine = engineDisplayName(m_server.engine);
+    // DECISIONS C38: the renames the server's record keeps for it, newest first.
+    input.renames = m_renames.recordsFor(hash);
     QVariantList out;
     for (const StoryEvent &event : TorrentStory::events(input))
         out.append(QVariantMap{{QStringLiteral("time"), event.time},
@@ -4191,7 +4195,25 @@ void App::rename(const QString &hash, const QString &name)
 {
     if (hash.isEmpty() || name.isEmpty() || demoGuard(QStringLiteral("rename"), 1) || !m_hasServer)
         return;
-    m_client->rename(hash, name)->then(this, tableAnswer(QStringLiteral("rename"), {hash}, name));
+    auto answer = tableAnswer(QStringLiteral("rename"), {hash}, name);
+    // DECISIONS C38 R1: the story's line says the name it had when the rename was sent, once
+    // the server answers OK; R7: on an engine that renames the folder on disk too (K28).
+    RenameRecord rename;
+    rename.hash = hash;
+    rename.what = RenameRecord::What::Torrent;
+    rename.was = m_engine->torrents()->torrent(hash).name;
+    rename.now = name;
+    rename.disk = m_features.renameOnDisk;
+    m_client->rename(hash, name)
+        ->then(this,
+               [this, answer, rename, serverId = renamesServerId()](const Result<Done> &result) {
+                   answer(result);
+                   if (result.isError())
+                       return;
+                   RenameRecord done = rename;
+                   done.at = QDateTime::currentDateTimeUtc();
+                   recordRename(serverId, done);
+               });
 }
 
 void App::queueUp(const QStringList &hashes)
@@ -5796,13 +5818,28 @@ void App::renameTorrentFile(const QString &hash,
     m_engine->problems()->watchRename(hash, 1);
     auto *reply = folder ? m_client->renameFolder(hash, oldPath, newPath)
                          : m_client->renameFile(hash, oldPath, newPath);
-    reply->then(this, [this](const Result<Done> &result) {
-        if (result.isError()) {
-            Q_EMIT actionFailed(QString(), actionFailureText(result.error()));
-            return;
-        }
-        m_details->refreshNow();
-    });
+    reply->then(this,
+                [this, hash, oldPath, newPath, folder, serverId = renamesServerId()](
+                    const Result<Done> &result) {
+                    if (result.isError()) {
+                        Q_EMIT actionFailed(QString(), actionFailureText(result.error()));
+                        return;
+                    }
+                    m_details->refreshNow();
+                    // DECISIONS C38 R3: one file or one folder is a line of the story.
+                    if (folder) {
+                        RenameRecord rename;
+                        rename.hash = hash;
+                        rename.what = RenameRecord::What::Folder;
+                        rename.was = oldPath.mid(oldPath.lastIndexOf(QLatin1Char('/')) + 1);
+                        rename.now = newPath.mid(newPath.lastIndexOf(QLatin1Char('/')) + 1);
+                        const qsizetype slash = oldPath.lastIndexOf(QLatin1Char('/'));
+                        rename.in = slash < 0 ? QString() : oldPath.left(slash);
+                        recordRename(serverId, rename);
+                    } else {
+                        recordFileRun(serverId, hash, {{oldPath, newPath}}, 1);
+                    }
+                });
 }
 
 void App::setFilesWanted(const QString &hash, const QVariantList &fileIndexes, bool wanted)
@@ -6004,27 +6041,32 @@ void App::renameTorrentFiles(const QString &hash,
         return;
     // docs/32 D2: each file's rename happens after its answer; failures are in the log.
     m_engine->problems()->watchRename(hash, int(moves.size()));
-    sendFileRename(hash, moves, 0);
+    sendFileRename(renamesServerId(), hash, moves, 0);
 }
 
-void App::sendFileRename(const QString &hash,
+void App::sendFileRename(const QString &serverId,
+                         const QString &hash,
                          const QList<std::pair<QString, QString>> &moves,
                          int at)
 {
     if (at >= moves.size()) {
         m_details->refreshNow();
+        // DECISIONS C38 R3: the run is one line of the story.
+        recordFileRun(serverId, hash, moves, at);
         Q_EMIT torrentFilesRenamed(hash, at, int(moves.size()), QString(), QString());
         return;
     }
     auto *reply = m_client->renameFile(hash, moves.at(at).first, moves.at(at).second);
-    reply->then(this, [this, hash, moves, at](const Result<Done> &result) {
+    reply->then(this, [this, serverId, hash, moves, at](const Result<Done> &result) {
         if (result.isError()) {
             m_details->refreshNow();
+            // R3: what went before the refusal still went (none: no line).
+            recordFileRun(serverId, hash, moves, at);
             Q_EMIT torrentFilesRenamed(
                 hash, at, int(moves.size()), moves.at(at).first, result.error().toString());
             return;
         }
-        sendFileRename(hash, moves, at + 1);
+        sendFileRename(serverId, hash, moves, at + 1);
     });
 }
 

@@ -98,6 +98,13 @@ omaseed_add_test(tst_app_outcomes
     LIBRARIES omaseed::app omaseed::core omaseed::integration Qt6::Network
 )
 
+# DECISIONS C38 (#236): omaseed's own renames are the story's record, per server, against a small
+# fake server.
+omaseed_add_test(tst_app_renames
+    SOURCES tst_app_renames.cpp
+    LIBRARIES omaseed::app omaseed::core omaseed::integration Qt6::Network
+)
+
 # docs/DECISIONS.md M12: a torrent option shows at once, against a small fake server.
 omaseed_add_test(tst_app_options
     SOURCES tst_app_options.cpp
