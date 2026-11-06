@@ -1299,6 +1299,13 @@ QVariantMap MoveController::band() const
         glyph = QStringLiteral("✓");
         headline =
             back ? tr("%1 moved back").arg(name) : tr("%1 moved to %2").arg(name, job.newPath());
+        // Nothing moved, something failed: not a green "moved to", but board 45's failure
+        // headline (#242). A one-torrent move that fails once its band shows (L6) ends here.
+        if (summary.moved == 0 && summary.failed > 0) {
+            kind = QStringLiteral("red");
+            glyph = QStringLiteral("✕");
+            headline = tr("%1 didn't move").arg(name);
+        }
         QStringList parts;
         const qint64 took = summary.startedAt.isValid() && summary.endedAt.isValid()
                                 ? summary.startedAt.secsTo(summary.endedAt)
