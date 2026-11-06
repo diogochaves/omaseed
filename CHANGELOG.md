@@ -57,6 +57,14 @@ before it will tag a release.
   magnet's files, renames, labels, sets a ratio limit, moves (with Deluge's percent, one it
   drops without a word, one it fails) and deletes on it in an omabox, checked on the daemon
   and on disk. (#87)
+- **The story tells renames.** The details pane's what happened now has a line for each
+  rename, in the accent like a move: "Renamed, was OLD" for the torrent's name, "Renamed a
+  file" or "a folder" (OLD → NEW), and "Renamed 14 files" for one run of the rename sheet. A
+  name changed in another client reads "renamed outside omaseed", timed at the poll that saw
+  it; on Transmission, where a rename moves the folder on disk, the line says so. A typo fixed
+  within ten minutes stays one line, a rename back to where it began leaves none, and a file
+  rename qBittorrent logs as failed takes its line back. omaseed keeps the last ten per
+  torrent, per server. Board 56, DECISIONS C38. (#236)
 
 ### Changed
 
