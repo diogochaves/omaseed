@@ -81,6 +81,7 @@ private Q_SLOTS:
     void actionsReachTheDaemon();
     void aMagnetIsLookedUpWithoutAnAdd();
     void removeShowsInThePoll();
+    void settingsReadAndWriteCoreConf();
 
 private:
     template<class T>
@@ -351,6 +352,31 @@ void TestDelugeEngineLive::removeShowsInThePoll()
     const QList<CategoryPatch> labels = ok(m_engine->categories());
     QVERIFY(std::none_of(
         labels.cbegin(), labels.cend(), [](const CategoryPatch &c) { return c.name == kLabel; }));
+}
+
+// Settings › Deluge (E6): core.conf read whole, a count and the encryption written and read
+// back, each put back as it was.
+void TestDelugeEngineLive::settingsReadAndWriteCoreConf()
+{
+    const QVariantMap before = ok(m_engine->sessionPreferences());
+    QVERIFY(before.value(QStringLiteral("enabled_plugins")).toStringList().contains(
+        QStringLiteral("Label")));
+    QVERIFY(before.contains(QStringLiteral("max_active_seeding")));
+    QVERIFY(before.contains(QStringLiteral("encryption")));
+    const int seeding = before.value(QStringLiteral("max_active_seeding")).toInt();
+    const QString encryption = before.value(QStringLiteral("encryption")).toString();
+    const QString other =
+        encryption == QLatin1String("forced") ? QStringLiteral("enabled") : QStringLiteral("forced");
+    ok(m_engine->setSessionPreferences({{QStringLiteral("max_active_seeding"), seeding + 1},
+                                        {QStringLiteral("encryption"), other}}));
+    const QVariantMap after = ok(m_engine->sessionPreferences());
+    ok(m_engine->setSessionPreferences({{QStringLiteral("max_active_seeding"), seeding},
+                                        {QStringLiteral("encryption"), encryption}}));
+    QCOMPARE(after.value(QStringLiteral("max_active_seeding")).toInt(), seeding + 1);
+    QCOMPARE(after.value(QStringLiteral("encryption")).toString(), other);
+    const QVariantMap restored = ok(m_engine->sessionPreferences());
+    QCOMPARE(restored.value(QStringLiteral("max_active_seeding")).toInt(), seeding);
+    QCOMPARE(restored.value(QStringLiteral("encryption")).toString(), encryption);
 }
 
 QTEST_GUILESS_MAIN(TestDelugeEngineLive)
