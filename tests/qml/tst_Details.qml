@@ -30,6 +30,14 @@ TestCase {
     }
 
     Component {
+        id: heroComponent
+
+        DetailsHero {
+            width: 340
+        }
+    }
+
+    Component {
         id: errorBlockComponent
 
         DetailsErrorBlock {
@@ -139,6 +147,18 @@ TestCase {
 
     // DECISIONS C24 H6: the head is the name, its meta line, then the rows display's one fact
     // in its state's colour, its caption, and the sentence; the pane opens on the story.
+    // The hero makes the row's words a sentence: a capital and a full stop, but a first word
+    // that is a name with a capital inside keeps its case ("qBittorrent", never "QBittorrent").
+    function test_the_hero_keeps_a_names_case() {
+        const hero = createTemporaryObject(heroComponent, testCase);
+        hero.torrent = {"rowFact": "error", "rowSentence": "qBittorrent stopped it with an error"};
+        compare(hero.sentenceText, "qBittorrent stopped it with an error.");
+        hero.torrent = {"rowFact": "missing", "rowSentence": "its files are gone"};
+        compare(hero.sentenceText, "Its files are gone.");
+        hero.torrent = {"rowFact": "3 min", "rowSentence": "48.9 % of 1.31 GB · from 3 seeds"};
+        compare(hero.sentenceText, "48.9 % of 1.31 GB · from 3 seeds.");
+    }
+
     function test_head_and_hero_come_from_the_cursor_row() {
         const view = testCase.select(testCase.archName);
 

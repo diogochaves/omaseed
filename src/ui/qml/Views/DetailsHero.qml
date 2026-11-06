@@ -22,12 +22,16 @@ Item {
                                            root.torrent.rowFact ?? "").length > 0
     readonly property string factText: root.hasTorrent ? root.torrent.rowFact : ""
     readonly property string captionText: root.hasTorrent ? (root.torrent.rowCaption ?? "") : ""
-    /// The row's sentence, as a sentence: a capital, and a full stop.
+    /// The row's sentence, as a sentence: a capital, and a full stop. A first word that
+    /// already has a capital inside is a name and keeps its case: "qBittorrent stopped it…"
+    /// never reads "QBittorrent".
     readonly property string sentenceText: {
         const words = root.hasTorrent ? (root.torrent.rowSentence ?? "") : "";
         if (words.length === 0)
             return "";
-        const first = words.charAt(0).toUpperCase() + words.slice(1);
+        const word = words.split(/\s/, 1)[0];
+        const named = word.slice(1) !== word.slice(1).toLowerCase();
+        const first = named ? words : words.charAt(0).toUpperCase() + words.slice(1);
         return /[.!?…]$/.test(first) ? first : first + ".";
     }
 
