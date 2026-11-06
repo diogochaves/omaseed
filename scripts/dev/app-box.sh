@@ -4,7 +4,7 @@
 # (the manual box, through scripts/dev/manual-box.sh).
 #
 #   scripts/dev/app-box.sh up [-b NAME] [--interactive] [--build DIR] [--handlers] [--qbt]
-#                             [--transmission [--and-playground] | --transmission-podman | --deluge]
+#                             [--transmission | --deluge [--and-playground] | --transmission-podman]
 #                             [--plugin DIR] [--stock-bar] [--ro-bind DIR[:DEST]]... [--first-run]
 #       a box on its own network that reaches only :8081; servers.json pointing omaseed at the
 #       playground; every swarm .torrent in ~/Downloads (the add sheet's "In Downloads" list);
@@ -16,9 +16,9 @@
 #       --transmission: the Transmission playground instead (:8085, scripts/dev/test-server.sh
 #       start --transmission, started if it isn't), the box reaching only that port; omaseed's
 #       server is "transmission" at its web UI address (DECISIONS C14 E4, #85).
-#       --and-playground (with --transmission): the :8081 playground saved too, as a second
-#       server, "playground" (qBittorrent), and the box reaching it: a Settings group for each
-#       engine (DECISIONS C25 K32, #86).
+#       --and-playground (with --transmission or --deluge): the :8081 playground saved too, as
+#       a second server, "playground" (qBittorrent), and the box reaching it: a Settings group
+#       for each engine (DECISIONS C25 K32, #86).
 #       --transmission-podman: the Transmission in rootless podman instead (:8087, test-server.sh
 #       start --transmission-podman, started if it isn't; #233), the box reaching only that port
 #       and seeing the container's two host folders (its downloads/ and far/, read-only, at their
@@ -262,7 +262,9 @@ up_app() {
     if [ "$deluge" = 1 ] && { [ "$qbt" = 1 ] || [ "$transmission" = 1 ]; }; then
         die "--deluge goes alone (not with --qbt or --transmission)"
     fi
-    if [ "$both" = 1 ] && [ "$transmission" = 0 ]; then die "--and-playground goes with --transmission"; fi
+    if [ "$both" = 1 ] && [ "$transmission" = 0 ] && [ "$deluge" = 0 ]; then
+        die "--and-playground goes with --transmission or --deluge"
+    fi
     if [ "$tpod" = 1 ] && { [ "$qbt" = 1 ] || [ "$transmission" = 1 ] || [ "$deluge" = 1 ]; }; then
         die "--transmission-podman goes alone (not with --qbt, --transmission or --deluge)"
     fi
@@ -312,6 +314,8 @@ up_app() {
     elif [ "$tpod" = 1 ]; then
         up_args=(--net isolated --allow "$TP_PORT" --ro-bind "$TP_PROFILE/downloads"
             --ro-bind "$TP_PROFILE/far")
+    elif [ "$deluge" = 1 ] && [ "$both" = 1 ]; then
+        up_args=(--net isolated --allow "$DE_PORT,$PLAY_PORT")
     elif [ "$deluge" = 1 ]; then
         up_args=(--net isolated --allow "$DE_PORT")
     else
