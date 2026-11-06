@@ -22,6 +22,9 @@ before it will tag a release.
   the trackers of the first ask, so the files of a magnet whose peers only its trackers know
   never came. A magnet typed a key at a time is now asked about once the typing stops for a
   second; a pasted one still at once. (#241)
+- **A move where nothing moved says so.** A one-torrent move that qBittorrent failed after its
+  band had shown ended on a green "✓ NAME moved to DEST" over "0 of 1 · 1 failed". A summary
+  where nothing moved and something failed now reads red "✕ NAME didn't move". (#242)
 
 ## v0.7.0 — 2026-11-05
 
