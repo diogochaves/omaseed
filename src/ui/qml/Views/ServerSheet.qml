@@ -465,16 +465,18 @@ Sheet {
     // M2: why `save` is dimmed, under it.
     note: root.saveState === "wait" ? qsTr("test first") : root.saveState === "refused" ? qsTr("can't be saved") : ""
     glyph: Glyphs.server
-    // Four buttons need more room than three (each as wide as its words, board 46 `.shf`).
-    sheetWidth: Theme.space(root.editing || root.isNew || root.isDefault ? 460 : 520)
+    // Four buttons need more room than three (each as wide as its words, board 46 `.shf`), and
+    // so does the engine row's "recognise: Transmission" with its three engines (C25 K4).
+    sheetWidth: Theme.space(520)
     subtitle: {
         const parts = [];
         if (root.editUrl.length > 0)
             parts.push(root.editUrl);
         if (root.testVersion.length > 0)
             parts.push(qsTr("%1 %2").arg(root.engineName || qsTr("qBittorrent")).arg(root.testVersion.replace(/^v/, "")));
+        // Transmission's is its RPC's version (board 47 §2 A: "RPC 6.0.0").
         if (root.testApiVersion.length > 0)
-            parts.push(qsTr("API %1").arg(root.testApiVersion));
+            parts.push((root.engine === "transmission" ? qsTr("RPC %1") : qsTr("API %1")).arg(root.testApiVersion));
         return parts.join(" · ");
     }
     title: root.editName.length > 0 ? root.editName : qsTr("New server")
@@ -660,7 +662,11 @@ Sheet {
             Layout.fillWidth: true
             label: qsTr("Engine")
 
-            RowLayout {
+            // A Flow, so a big font wraps the chips instead of widening the sheet's fields.
+            Flow {
+                Layout.fillWidth: true
+                // The sheet's width decides, never the chips' sum.
+                Layout.preferredWidth: 0
                 spacing: Theme.space(6)
 
                 Repeater {
@@ -703,9 +709,6 @@ Sheet {
                     }
                 }
 
-                Item {
-                    Layout.fillWidth: true
-                }
             }
         }
 
