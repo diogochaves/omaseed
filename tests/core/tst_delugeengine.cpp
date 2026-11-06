@@ -529,7 +529,8 @@ void TestDelugeEngine::aNewTorrentsTrackersAreAskedAtOnce()
     QCOMPARE(patchOf(delta, fresh).hash, fresh);
     QVERIFY(!patchOf(delta, fresh).has(TorrentField::TrackersCount));
     delta = poll(*delta.cursor);
-    QVERIFY(stringsOf(m_web->callsOf(QStringLiteral("web.update_ui")).constLast().params.at(0).toArray())
+    QVERIFY(stringsOf(
+                m_web->callsOf(QStringLiteral("web.update_ui")).constLast().params.at(0).toArray())
                 .contains(QStringLiteral("trackers")));
     QVERIFY(patchOf(delta, fresh).has(TorrentField::TrackersCount));
     QVERIFY(patchOf(delta, fresh).values.trackersCount > 0);
@@ -915,9 +916,9 @@ void TestDelugeEngine::globalLimitsAndPreferences()
     QCOMPARE(prefs.value().value(QStringLiteral("encryption")).toString(),
              QStringLiteral("enabled"));
     // Settings › Deluge's own keys go back under their names; the encryption both ways.
-    QVERIFY(wait(m_engine->setSessionPreferences({{QStringLiteral("max_active_seeding"), 7},
-                                                  {QStringLiteral("encryption"),
-                                                   QStringLiteral("forced")}}))
+    QVERIFY(wait(m_engine->setSessionPreferences(
+                     {{QStringLiteral("max_active_seeding"), 7},
+                      {QStringLiteral("encryption"), QStringLiteral("forced")}}))
                 .isValid());
     QCOMPARE(m_web->calls.constLast().method, QStringLiteral("core.set_config"));
     QCOMPARE(m_web->calls.constLast().params,

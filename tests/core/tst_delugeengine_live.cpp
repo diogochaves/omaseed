@@ -359,14 +359,15 @@ void TestDelugeEngineLive::removeShowsInThePoll()
 void TestDelugeEngineLive::settingsReadAndWriteCoreConf()
 {
     const QVariantMap before = ok(m_engine->sessionPreferences());
-    QVERIFY(before.value(QStringLiteral("enabled_plugins")).toStringList().contains(
-        QStringLiteral("Label")));
+    QVERIFY(before.value(QStringLiteral("enabled_plugins"))
+                .toStringList()
+                .contains(QStringLiteral("Label")));
     QVERIFY(before.contains(QStringLiteral("max_active_seeding")));
     QVERIFY(before.contains(QStringLiteral("encryption")));
     const int seeding = before.value(QStringLiteral("max_active_seeding")).toInt();
     const QString encryption = before.value(QStringLiteral("encryption")).toString();
-    const QString other =
-        encryption == QLatin1String("forced") ? QStringLiteral("enabled") : QStringLiteral("forced");
+    const QString other = encryption == QLatin1String("forced") ? QStringLiteral("enabled")
+                                                                : QStringLiteral("forced");
     ok(m_engine->setSessionPreferences({{QStringLiteral("max_active_seeding"), seeding + 1},
                                         {QStringLiteral("encryption"), other}}));
     const QVariantMap after = ok(m_engine->sessionPreferences());

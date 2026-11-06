@@ -709,9 +709,9 @@ QJsonObject configSet(const QVariantMap &changes, QString *why)
         } else if (name == QLatin1String("encryption")) {
             const qsizetype policy = encryptionWords().indexOf(value.toString());
             if (policy < 0)
-                return refuse(QStringLiteral("encryption is one of %1, not %2")
-                                  .arg(encryptionWords().join(QStringLiteral(", ")),
-                                       value.toString()));
+                return refuse(
+                    QStringLiteral("encryption is one of %1, not %2")
+                        .arg(encryptionWords().join(QStringLiteral(", ")), value.toString()));
             set.insert(QStringLiteral("enc_in_policy"), int(policy));
             set.insert(QStringLiteral("enc_out_policy"), int(policy));
         } else if (const Setting *setting = ownSetting(name)) {
@@ -725,16 +725,15 @@ QJsonObject configSet(const QVariantMap &changes, QString *why)
                 const bool none = setting->none && amount == -1.0;
                 if (!ok || (!none && amount < setting->min) ||
                     (setting->kind == SettingKind::Count && amount != std::floor(amount)))
-                    return refuse(
-                        setting->none
-                            ? QStringLiteral("%1 is -1 (no limit) or from %2, not %3")
-                                  .arg(name)
-                                  .arg(setting->min)
-                                  .arg(value.toString())
-                            : QStringLiteral("%1 is from %2, not %3")
-                                  .arg(name)
-                                  .arg(setting->min)
-                                  .arg(value.toString()));
+                    return refuse(setting->none
+                                      ? QStringLiteral("%1 is -1 (no limit) or from %2, not %3")
+                                            .arg(name)
+                                            .arg(setting->min)
+                                            .arg(value.toString())
+                                      : QStringLiteral("%1 is from %2, not %3")
+                                            .arg(name)
+                                            .arg(setting->min)
+                                            .arg(value.toString()));
                 if (setting->kind == SettingKind::Count)
                     set.insert(name, int(amount));
                 else

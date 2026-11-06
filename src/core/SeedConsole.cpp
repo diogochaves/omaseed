@@ -399,8 +399,7 @@ void SeedConsole::refreshFast()
             if (x->inGroup(StatusGroup::Seeding))
                 ++seeding;
         }
-        const bool server =
-            !m_scoped && !m_ownTotals && m_state && m_state->allTimeUpload() > 0;
+        const bool server = !m_scoped && !m_ownTotals && m_state && m_state->allTimeUpload() > 0;
         // C25 K34: an engine with no all-time totals (Deluge) counts what the ledger booked
         // since omaseed began watching the server.
         const bool own = !m_scoped && m_ownTotals && m_ledger && m_ledger->start() > 0;
@@ -414,9 +413,10 @@ void SeedConsole::refreshFast()
             given = booked.up;
             taken = booked.down;
             const QDate start = QDateTime::fromSecsSinceEpoch(m_ledger->start()).date();
-            const QString day = english().toString(
-                start, start.year() == now().date().year() ? QStringLiteral("d MMM")
-                                                           : QStringLiteral("d MMM yyyy"));
+            const QString day = english().toString(start,
+                                                   start.year() == now().date().year()
+                                                       ? QStringLiteral("d MMM")
+                                                       : QStringLiteral("d MMM yyyy"));
             const QString name = m_state && !m_state->serverName().isEmpty()
                                      ? m_state->serverName()
                                      : QStringLiteral("the server");

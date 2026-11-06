@@ -14,7 +14,6 @@
 #include "core/ActionOutcome.hpp"
 #include "core/CategoryModel.hpp"
 #include "core/GlobalState.hpp"
-#include "core/engines/qbt/ServerPreferences.hpp"
 #include "core/MoveJob.hpp"
 #include "core/ProblemLog.hpp"
 #include "core/SecretStore.hpp"
@@ -25,6 +24,7 @@
 #include "core/TorrentFilterModel.hpp"
 #include "core/TorrentModel.hpp"
 #include "core/TorrentWebSeedsModel.hpp"
+#include "core/engines/qbt/ServerPreferences.hpp"
 #include "ui/app/App.hpp"
 #include "ui/app/MoveController.hpp"
 
@@ -966,17 +966,17 @@ void TestAppDeluge::settingsAreDelugesCoreConf()
                               {QStringLiteral("max_connections_per_torrent"), 40},
                               {QStringLiteral("encryption"), QStringLiteral("forced")}});
     QTRY_VERIFY_WITH_TIMEOUT(daemon.lastOf(QStringLiteral("core.set_config")).has_value(), 3000);
-    const QJsonObject set = daemon.lastOf(QStringLiteral("core.set_config"))->params.at(0).toObject();
+    const QJsonObject set =
+        daemon.lastOf(QStringLiteral("core.set_config"))->params.at(0).toObject();
     QCOMPARE(set.value(QStringLiteral("max_active_seeding")), QJsonValue(7));
     QCOMPARE(set.value(QStringLiteral("utpex")), QJsonValue(true));
     QCOMPARE(set.value(QStringLiteral("max_connections_per_torrent")), QJsonValue(40));
     QCOMPARE(set.value(QStringLiteral("enc_in_policy")), QJsonValue(0));
     QCOMPARE(set.value(QStringLiteral("enc_out_policy")), QJsonValue(0));
     // Read back from core.conf.
-    QTRY_COMPARE_WITH_TIMEOUT(
-        app.serverPrefs()->value(QStringLiteral("encryption")).toString(),
-        QStringLiteral("forced"),
-        3000);
+    QTRY_COMPARE_WITH_TIMEOUT(app.serverPrefs()->value(QStringLiteral("encryption")).toString(),
+                              QStringLiteral("forced"),
+                              3000);
     QCOMPARE(app.serverPrefs()->value(QStringLiteral("max_active_seeding")).toInt(), 7);
 
     // Out of range: refused before sending, the value back as it was.

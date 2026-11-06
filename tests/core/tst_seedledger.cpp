@@ -112,7 +112,7 @@ private Q_SLOTS:
         ledger.observe(t, 100, 40, {});
         ledger.observe(t + 2, 400, 90, {});
         ledger.flush(t + 2);
-        ledger.observe(noon(), 400, 90, {}); // a day later, nothing moved
+        ledger.observe(noon(), 400, 90, {});   // a day later, nothing moved
         ledger.observe(noon() + 2, 30, 5, {}); // the daemon restarted: a new baseline
         ledger.observe(noon() + 4, 80, 25, {});
         const SeedLedger::Totals booked = ledger.totals();
