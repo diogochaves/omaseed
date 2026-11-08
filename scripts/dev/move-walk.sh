@@ -200,12 +200,16 @@ expect_tree_re() {
 press() {
     local where
     # The job's desktop notice (a pause, the end) sits over the band's right end, and a click
-    # on it shows the job's torrents: wait for the toast to go (the shell keeps one JSON per
-    # toast on screen), then let the window settle. Dismissed first: waiting them out took up to
-    # 20 s a press, long enough for a folder's move to end before its queue could be looked at.
+    # on it shows the job's torrents: wait for the toast to go, then let the window settle.
+    # Dismissed first: waiting them out took up to 20 s a press, long enough for a folder's move
+    # to end before its queue could be looked at. The box's own shell counts the toasts on
+    # screen; its state folder always holds history.json and quiet.json, so a glob of it waited
+    # the whole 20 s before every press, in whichever box (#177).
+    local toasts
     in_box omarchy-shell -q notifications dismissAll || true
     for _ in $(seq 1 40); do
-        compgen -G "$home/.local/state/omarchy/notifications/*.json" >/dev/null || break
+        toasts="$(omabox run -b "$BOX" -- omarchy-shell notifications count 2>/dev/null || true)"
+        case "$toasts" in '' | 0) break ;; esac
         sleep 0.5
     done
     omabox wait -b "$BOX" --window omaseed --timeout 10s still >/dev/null 2>&1 || true
@@ -1542,6 +1546,7 @@ echo planted >"$REMOTE_DEST/photo-archive-2019-2025/planted.txt"
 REMOTE_BOX="$MAIN_BOX-remote"
 "$APP_BOX" up -b "$REMOTE_BOX" >/dev/null
 BOX="$REMOTE_BOX"
+in_box omarchy-shell -q notifications setDnd on >/dev/null || true
 expect_text "omaseed is on the playground" "Public Domain Sampler" 60
 table_on "Public Domain Sampler"
 keys space
