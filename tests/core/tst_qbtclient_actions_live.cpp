@@ -122,6 +122,7 @@ private:
     QStringList m_addedCategories;
     QStringList m_addedTags;
     QStringList m_addedDirs; // removed last-to-first
+    bool m_queueingTurnedOn = false; // #247: put back off by cleanupTestCase()
 };
 
 QJsonObject TestQbtClientActionsLive::torrentInfo(const QString &hash)
@@ -211,6 +212,10 @@ void TestQbtClientActionsLive::cleanupTestCase()
         await(this, m_client->torrentsDeleteTags(m_addedTags));
     if (!m_addedCategories.isEmpty())
         await(this, m_client->torrentsRemoveCategories(m_addedCategories));
+    if (m_queueingTurnedOn)
+        await(this,
+              m_client->appSetPreferences(
+                  QJsonObject{{QStringLiteral("queueing_enabled"), false}}));
 
     // removeRecursively(), never rmpath(): rmpath also deletes empty *parent* directories,
     // which would take the shared downloads root (not ours to remove) with it.
@@ -458,6 +463,19 @@ void TestQbtClientActionsLive::queuePriorityMoves()
 {
     const QString hashOne = QStringLiteral("cccccccc2222cccccccc2222cccccccc2222cccc");
     const QString hashTwo = QStringLiteral("dddddddd3333dddddddd3333dddddddd3333dddd");
+
+    // qBittorrent refuses queue moves with 409 while queueing is off (#247): turn it on for
+    // this case, and cleanupTestCase() turns it off again.
+    const Result<QJsonObject> prefs = await(this, m_client->appPreferences());
+    QVERIFY2(!prefs.isError(), qPrintable(prefs.error().toString()));
+    if (!prefs.value().value(QStringLiteral("queueing_enabled")).toBool()) {
+        const Result<QByteArray> on = await(
+            this,
+            m_client->appSetPreferences(QJsonObject{{QStringLiteral("queueing_enabled"), true}}));
+        QVERIFY2(!on.isError(), qPrintable(on.error().toString()));
+        m_queueingTurnedOn = true;
+    }
+
     QbtClient::AddOptions options;
     options.stopped = true;
 
