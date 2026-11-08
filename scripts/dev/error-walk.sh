@@ -19,9 +19,9 @@
 # break missing: a finished torrent's file deleted and the playground restarted), and
 # `swarm.sh fix` undoes them at the end (also on ^C). What the app sent is read from the
 # box's session bus (dbus-monitor), what the shell has on screen from its notifications'
-# live.json.
-# The playground's queue is off while it runs (put back as it was), so its own downloads, as
-# the swarm walk leaves them, never queue the fixture. The box's network reaches :8081 alone.
+# live.json. The playground's queue is off while it runs (put back as it was), and its swarm
+# downloads are held (stopped; swarm.sh fix starts them again), so what the swarm walk leaves
+# never queues or starves the fixture. The box's network reaches :8081 alone.
 set -euo pipefail
 
 repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -139,11 +139,18 @@ one_notice_with_reason() {
     [ "$(errored_notices | wc -l)" = 1 ] &&
         errored_notices | grep -qF "\"body\": \"Can't write to its save folder: Permission denied, opening $BROKEN\""
 }
-still_one_notice() { [ "$(errored_notices | wc -l)" = 1 ]; }
+NOTICES_BEFORE=1
+# no_new_notice: no errored notice since NOTICES_BEFORE was counted; else each one sent, on stderr.
+no_new_notice() {
+    [ "$(errored_notices | wc -l)" = "$NOTICES_BEFORE" ] && return 0
+    errored_notices | sed 's/^/  (notice) /' >&2
+    return 1
+}
 # app_back SECONDS: until the app has logged "server back" (the playground restarted under it),
 # or reads the restarted playground without having lost it: a quick restart falls inside the
 # client's own retry, so no sync fails and there is nothing to come back from. Only the
-# restarted server knows MISSING's files are missing, so its row saying so is the proof.
+# restarted server knows MISSING's files are missing, so its details saying so (the cursor is on
+# it; the window's tree names a table row only by its torrent) are the proof.
 app_back() {
     for _ in $(seq 1 $(($1 * 2))); do
         omabox log -b "$BOX" run --grep "server back" 2>/dev/null | grep -q "server back" && return 0
@@ -242,6 +249,11 @@ check() {
 QUEUEING=""
 cleanup() {
     [ -z "$OUT" ] || "$repo/scripts/dev/look.sh" "$OUT" || true  # copies to Read (#251)
+    # What the app sent and logged, kept beside the shots for a failed check.
+    if [ -n "$OUT" ] && [ -n "${home:-}" ]; then
+        cp -- "$home/bus.log" "$OUT/bus.log" 2>/dev/null || true
+        omabox log -b "$BOX" run >"$OUT/app.log" 2>/dev/null || true
+    fi
     chmod 755 "$WRITABLE" 2>/dev/null || true
     "$SWARM" fix >/dev/null 2>&1 || true
     [ -z "$QUEUEING" ] || curl -fs -X POST "$PLAY/app/setPreferences" \
@@ -251,7 +263,22 @@ cleanup() {
 }
 trap cleanup EXIT
 
-echo "readying the swarm (every break undone)"
+# hold_downloads: stop the swarm torrents still downloading on the playground; swarm.sh fix
+# starts them again (also at the end). The fixture fails only once a piece reaches it, and a
+# seeder busy with the swarm (after the swarm or notify walk's reset) sent it nothing for a
+# minute: it stayed forcedDL, never errored, and the walk had nothing to show (#190). Not held:
+# the fixture, and MISSING (4 KB), which `break missing` needs whole.
+hold_downloads() {
+    local hashes
+    hashes="$(curl -fs "$PLAY/torrents/info?category=swarm" | python3 -c '
+import json, sys
+print("|".join(t["hash"] for t in json.load(sys.stdin)
+               if t["progress"] < 1 and not t["name"].startswith(tuple(sys.argv[1:]))))' \
+        "unwritable-fixture" "$MISSING")"
+    [ -z "$hashes" ] || curl -fs -X POST "$PLAY/torrents/stop" -d "hashes=$hashes" >/dev/null
+}
+
+echo "readying the swarm (every break undone, its downloads held)"
 "$SWARM" start >/dev/null
 "$SWARM" fix >/dev/null
 "$SWARM" seed >/dev/null
@@ -263,6 +290,7 @@ echo "readying the swarm (every break undone)"
 QUEUEING="$(curl -fs "$PLAY/app/preferences" |
     python3 -c 'import json, sys; print(str(json.load(sys.stdin)["queueing_enabled"]).lower())')"
 curl -fs -X POST "$PLAY/app/setPreferences" --data-urlencode 'json={"queueing_enabled": false}' >/dev/null
+hold_downloads
 mkdir -p "$DOWNLOADS"
 
 echo "starting the box"
@@ -329,11 +357,18 @@ mkdir -p "$WRITABLE"
 curl -fs -X POST "$PLAY/torrents/setLocation" -d "hashes=$(hash_of "$BROKEN")" \
     --data-urlencode "location=$WRITABLE" >/dev/null
 wait_state "$BROKEN" "^error" 10 || true
+# docs/28 N1: one notice each time a torrent goes into error. The start above leaves the error
+# until a piece fails to write; when a poll saw it out of error first (a busy seeder: the swarm
+# still downloading), failing again is a second entry, and a second notice. Its notice waits for
+# a log read (every 5 s while in error), long past by here. What follows counts from now.
+NOTICES_BEFORE="$(errored_notices | wc -l)"
+echo "  ($NOTICES_BEFORE errored notice(s) so far)"
+check "the start that failed again sent at most one more notice" test "$NOTICES_BEFORE" -le 2
 omabox keys -b "$BOX" --window "$APP_ID" e >/dev/null
 check "e on the errored row retries it, and it downloads from the new folder" broken_moves_again
 sleep 3
 step "Tried again" "$BROKEN downloads or seeds again from swarm-writable: no block in the story, the status cell back to a plain state."
-check "trying again sent no second notice" still_one_notice
+check "trying again sent no notice" no_new_notice
 
 # docs/32 (#55): a move that answers "OK" and fails. Once the fixture is whole, its folder
 # goes read-only and it is moved (through the API: nobody watched that one), then again from
@@ -362,14 +397,20 @@ sleep 2
 step "Moved" "$BROKEN is in swarm-moved: no block in the story, its save path ends in swarm-moved."
 
 "$SWARM" fix >/dev/null
+hold_downloads # fix started them again
 rm -rf -- "$WRITABLE" "$MOVED"
+NOTICES_BEFORE="$(errored_notices | wc -l)"
+# Whole first: the swarm walk ends on its own `break missing` and fix, which downloads MISSING
+# again; deleting a file it hasn't written yet leaves a plain download, never missing files.
+wait_state "$MISSING" "UP|^uploading" 60 || true
+show "$MISSING" # app_back reads its details: the table's rows carry only their names
 "$SWARM" break missing >/dev/null
 wait_state "$MISSING" "^missingFiles" 60 || true
 check "the app reconnects to the restarted playground by itself" app_back 40
 sleep 2 # its first poll after that reads the new log
 show "$MISSING"
 step "Missing files" "$MISSING: the row reads \"! missing\"; the story opens with the yellow-ruled block: ! Its files aren't where qBittorrent left them; Moved, deleted or changed since qBittorrent last ran (mismatching file size); the swarm folder; qBittorrent's log · today HH:MM; m set location · c recheck · copy the line."
-check "missing files at a server's start sends no notice" still_one_notice
+check "missing files at a server's start sends no notice" no_new_notice
 
 if [ "$INTERACTIVE" = 0 ]; then
     printf '\n## Checks\n\n%s' "$CHECKS" >>"$OUT/index.md"
