@@ -2434,3 +2434,19 @@ painted as `move`). K28 a, C18 D8 and C18's outcome strip are unchanged.
   library, dropped when it leaves the server.
 - **R10 a.** Other quiet edits (category or label, tags, a location set elsewhere, limits,
   priorities) get a board of their own (#248). The record is built to take them; none is drawn.
+
+## C39 — A retry that fails again stays quiet (ruled 2026-11-08)
+
+#255. **Amends docs/28 N1** (one notice per entry into error). After omaseed starts a torrent
+(`p`, retry, the actions menu, the selection bar, the bar widget, the tray: any start sent by
+omaseed), a return to error sends **no notice** when both hold:
+
+- the torrent has not reached a working state since that start (downloading, seeding, or
+  stalled either way; starting, checking and queued don't count), and
+- the error is the same one it had before the start (same headline and detail).
+
+The row, the error block and the story still show it; only the desktop notice is skipped. A
+different error, or an error after the torrent has worked again, is news and notifies as N1
+says. A start from outside omaseed changes nothing. The memory of the start is per torrent and
+in memory only: a restart forgets it. Why: the person who pressed `p` is looking at the torrent,
+and the notice would only repeat what the row already says.
