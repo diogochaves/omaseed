@@ -164,6 +164,7 @@ void SyncEngine::stop()
     // the previous server): drop it, and make sure a late answer can never be applied.
     ++m_generation;
     m_pollInFlight = false;
+    m_pollAgain = false;
     if (ReplyBase *reply = m_pollReply.data()) {
         m_pollReply.clear();
         reply->abort();
@@ -194,6 +195,18 @@ void SyncEngine::retryNow()
     m_pollTimer->stop();
     m_countdownTimer->stop();
     m_globalState->setRetryInSeconds(0);
+    poll();
+}
+
+void SyncEngine::pollSoon()
+{
+    if (!m_running || m_lost)
+        return;
+    if (m_pollInFlight) {
+        m_pollAgain = true;
+        return;
+    }
+    m_pollTimer->stop();
     poll();
 }
 
@@ -289,11 +302,12 @@ void SyncEngine::onPollResult(const SyncDelta &data)
     if (wasLost)
         Q_EMIT serverBack();
 
-    schedule(normalInterval());
+    schedule(std::exchange(m_pollAgain, false) ? std::chrono::milliseconds(0) : normalInterval());
 }
 
 void SyncEngine::onPollError(const ApiError &error)
 {
+    m_pollAgain = false; // the error's own cadence decides when the next one goes
     // K22: a poll that went out before the move and timed out behind its copy is the move.
     if (error.kind() == ApiError::Kind::Timeout && holdForMove()) {
         m_globalState->setSyncing(false);

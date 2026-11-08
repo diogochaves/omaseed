@@ -174,6 +174,7 @@ private slots:
     void ridStartsAtZeroAndFollowsTheServer();
     void onlyOnePollInFlight();
     void cadenceFollowsVisibility();
+    void pollSoonPollsNowAndAgainAfterOneOut();
     void completionIsAnnouncedOnceAndNeverOnTheFirstFullUpdate();
     void aCompletionSeenOnlyInALaterFullUpdateIsAnnounced();
     void aCompletionAfterARestartIsAnnounced();
@@ -372,6 +373,47 @@ void TestSyncEngineFixtures::cadenceFollowsVisibility()
     engine.setVisible(true);
     QVERIFY(waitFor([&] { return server.mainDataRequests > afterHiding + 1; }, 1000));
     engine.stop();
+}
+
+// #249: pollSoon() polls at once instead of an interval later; asked while a poll is out (it may
+// have been answered before the change), another goes as soon as that one is back. Never two
+// at once, and the cadence after it is the usual one.
+void TestSyncEngineFixtures::pollSoonPollsNowAndAgainAfterOneOut()
+{
+    FixtureServer server;
+    QVERIFY(server.start());
+    server.setMainData({m_full, m_speed});
+    server.setDelayMs(150);
+
+    QbtEngine client;
+    client.setBaseUrl(server.url());
+    SyncEngine engine;
+    engine.setClient(&client);
+    engine.setIntervals(std::chrono::milliseconds(60000),
+                        std::chrono::milliseconds(60000),
+                        std::chrono::milliseconds(60000),
+                        std::chrono::milliseconds(60000));
+
+    QSignalSpy synced(&engine, &SyncEngine::synced);
+    engine.start();
+    QVERIFY(waitFor([&] { return synced.count() == 1; }));
+    QCOMPARE(server.mainDataRequests, 1);
+
+    engine.pollSoon();
+    QVERIFY(waitFor([&] { return server.mainDataRequests == 2; }, 1000));
+    QCOMPARE(synced.count(), 1); // still out
+    engine.pollSoon();
+    QVERIFY(waitFor([&] { return server.mainDataRequests == 3; }, 1000));
+    QVERIFY(waitFor([&] { return synced.count() == 3; }, 1000));
+    spin(400);
+    QCOMPARE(server.mainDataRequests, 3); // then a minute, as before
+    QCOMPARE(server.maxConcurrentMainData, 1);
+
+    // Stopped, it asks nothing.
+    engine.stop();
+    engine.pollSoon();
+    spin(200);
+    QCOMPARE(server.mainDataRequests, 3);
 }
 
 void TestSyncEngineFixtures::completionIsAnnouncedOnceAndNeverOnTheFirstFullUpdate()

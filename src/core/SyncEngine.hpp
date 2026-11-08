@@ -161,6 +161,11 @@ public Q_SLOTS:
     void stop();
     /// Skips the rest of the countdown and polls now.
     void retryNow();
+    /// Polls now rather than at the next turn, so what the server just did on omaseed's word
+    /// (a rename it answered OK, #249) shows without waiting out the interval. A poll already
+    /// out may have been answered before the change: another goes as soon as it is back.
+    /// Nothing while the server is lost (its countdown runs on) or the loop is stopped.
+    void pollSoon();
 
 Q_SIGNALS:
     void runningChanged();
@@ -253,6 +258,8 @@ private:
     bool m_running = false;
     bool m_visible = true;
     bool m_pollInFlight = false;
+    /// pollSoon() asked while a poll was out: the next one goes as soon as it is answered.
+    bool m_pollAgain = false;
     /// The probe or sync/maindata request in flight, so stop() can abort it.
     QPointer<ReplyBase> m_pollReply;
     /// C20 (#142): the read of which errored torrents are stopped, in flight, and whether
