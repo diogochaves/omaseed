@@ -5,6 +5,16 @@ All notable changes to omaseed are logged here, newest first. Loosely follows
 versioning stability (pre-1.0). `scripts/release.sh` requires a `## v<version>` section here
 before it will tag a release.
 
+## Unreleased
+
+### Changed
+
+- **A retry that fails again stays quiet.** When omaseed starts a torrent in error (`p`, retry,
+  the actions menu, the selection bar, the bar widget or the tray) and it fails again with the
+  same error before it has worked, no second "stopped with an error" notice goes: the row and
+  its story already say it. A different error, or one after the torrent worked again, still
+  notifies. (#255)
+
 ## v0.8.2 — 2026-11-08
 
 ### Fixed

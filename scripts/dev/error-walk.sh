@@ -357,13 +357,13 @@ mkdir -p "$WRITABLE"
 curl -fs -X POST "$PLAY/torrents/setLocation" -d "hashes=$(hash_of "$BROKEN")" \
     --data-urlencode "location=$WRITABLE" >/dev/null
 wait_state "$BROKEN" "^error" 10 || true
-# docs/28 N1: one notice each time a torrent goes into error. The start above leaves the error
-# until a piece fails to write; when a poll saw it out of error first (a busy seeder: the swarm
-# still downloading), failing again is a second entry, and a second notice. Its notice waits for
-# a log read (every 5 s while in error), long past by here. What follows counts from now.
+# DECISIONS C39 (#255): the `p` above started it from omaseed, and it failed again with the same
+# error before it worked: no second notice, even when a poll saw it out of error in between (a
+# busy seeder: the swarm still downloading). A notice would have waited for a log read (every
+# 5 s while in error), long past by here. What follows counts from now.
 NOTICES_BEFORE="$(errored_notices | wc -l)"
 echo "  ($NOTICES_BEFORE errored notice(s) so far)"
-check "the start that failed again sent at most one more notice" test "$NOTICES_BEFORE" -le 2
+check "the start that failed again sent no new notice" test "$NOTICES_BEFORE" = 1
 omabox keys -b "$BOX" --window "$APP_ID" e >/dev/null
 check "e on the errored row retries it, and it downloads from the new folder" broken_moves_again
 sleep 3
