@@ -677,6 +677,10 @@ for name in "tiny-notes.txt" "Ünïcødé" "Public Domain Sampler" "Field Record
     done
 done
 [ ${#add_args[@]} = 10 ] || { echo "the box's ~/Downloads lacks some swarm .torrent files" >&2; exit 1; }
+# Queueing off while they download (#254): the box's qBittorrent runs three downloads at a
+# time, and a download that stalls keeps its slot, so the last one could sit queuedDL past
+# the wait below. Setup doesn't test the queue; it goes back on once every torrent is in.
+api app/setPreferences --data-urlencode 'json={"queueing_enabled": false}' >/dev/null
 api torrents/add "${add_args[@]}" >/dev/null
 
 # The 2 GiB torrent: a sparse file of zeros where qBittorrent saves, a .torrent for it (every
@@ -709,22 +713,32 @@ PY
 api torrents/add -F "torrents=@$BOX_HOME/Downloads/$BIG.torrent" -F "savepath=$TORRENTS_DIR" >/dev/null
 
 echo "waiting for the downloads and the check (up to 5 min)"
-for _ in $(seq 1 300); do
+all_in() {
     [ "$(api torrents/info | python3 -c '
 import json, sys
 every = json.load(sys.stdin)
-print(len(every) == 6 and all(t["progress"] == 1 for t in every))')" = True ] && break
+print(len(every) == 6 and all(t["progress"] == 1 for t in every))')" = True ]
+}
+for _ in $(seq 1 300); do
+    all_in && break
     sleep 1
 done
+if ! all_in; then
+    # Every torrent's state, not only the first one short of done.
+    echo "not every torrent finished in 5 min:" >&2
+    api torrents/info | python3 -c '
+import json, sys
+for t in sorted(json.load(sys.stdin), key=lambda t: t["name"]):
+    print("  %-44s %-12s %5.1f %%" % (t["name"][:44], t["state"], t["progress"] * 100))' >&2
+    exit 1
+fi
+api app/setPreferences --data-urlencode 'json={"queueing_enabled": true}' >/dev/null
 TINY="$(hash_of tiny-notes)"
 UNI="$(hash_of Ünïcødé)"
 PDS="$(hash_of "Public Domain")"
 FIELD="$(hash_of "Field Recordings")"
 NESTED="$(hash_of "Nested Library")"
 BIGH="$(hash_of "$BIG")"
-for h in "$TINY" "$UNI" "$PDS" "$FIELD" "$NESTED" "$BIGH"; do
-    [ "$(tq "$h" 't["progress"] == 1')" = True ] || { echo "not every torrent finished: $(tq "$h" 't["name"], t["state"], t["progress"]')" >&2; exit 1; }
-done
 UNI_PATH="$(tq "$UNI" 't["content_path"]')"
 keys Escape
 sleep 1
