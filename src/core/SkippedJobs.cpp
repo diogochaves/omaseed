@@ -79,6 +79,27 @@ void FreeSkippedJob::waitStopped(int waited)
         });
 }
 
+void FreeSkippedJob::waitStartedThenStop(int waited)
+{
+    // A stop sent before libtorrent has resumed the torrent pauses nothing, and the files stay
+    // open (#210): stop once it reads as started, or once a stop's time has gone by.
+    m_client->torrents({m_input.hash})
+        ->then(this, [this, waited](const Result<QList<TorrentPatch>> &r) {
+            const bool started = !r.isError() && !r.value().isEmpty() &&
+                                 r.value().first().has(TorrentField::Status) &&
+                                 !isStoppedPhase(r.value().first().values.status.phase);
+            if (!started && waited < m_input.stopTimeoutMs) {
+                QTimer::singleShot(m_input.pollMs, this, [this, waited]() {
+                    waitStartedThenStop(waited + m_input.pollMs);
+                });
+                return;
+            }
+            m_client->stop({m_input.hash})->then(this, [this](const Result<Done> &) {
+                waitStopped(0);
+            });
+        });
+}
+
 void FreeSkippedJob::readAndDelete()
 {
     // D3 at delete time: the files' priorities and pieces as they are now, and what is open.
@@ -126,9 +147,8 @@ void FreeSkippedJob::readAndDelete()
                                        "and stopping it so it lets go")
                             .arg(m_input.name));
                     Q_EMIT step(QStringLiteral("stopping"));
-                    m_client->start({m_input.hash});
-                    m_client->stop({m_input.hash})->then(this, [this](const Result<Done> &) {
-                        waitStopped(0);
+                    m_client->start({m_input.hash})->then(this, [this](const Result<Done> &) {
+                        waitStartedThenStop(0);
                     });
                     return;
                 }

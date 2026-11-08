@@ -5,6 +5,16 @@ All notable changes to omaseed are logged here, newest first. Loosely follows
 versioning stability (pre-1.0). `scripts/release.sh` requires a `## v<version>` section here
 before it will tag a release.
 
+## Unreleased
+
+### Fixed
+
+- **Free the space frees files qBittorrent was holding.** Right after a misclick on a stopped
+  torrent, qBittorrent keeps the files it made open, so freeing starts and stops the torrent
+  once to make it let go. The stop went out right behind the start, and when it reached
+  qBittorrent before the start had taken effect it stopped nothing: the files stayed, "open in
+  qBittorrent". Now the stop waits until the torrent reads as started. (#210)
+
 ## v0.8.1 — 2026-11-07
 
 ### Fixed

@@ -75,6 +75,7 @@ Q_SIGNALS:
 
 private:
     void waitStopped(int waited);
+    void waitStartedThenStop(int waited);
     void readAndDelete();
     void startAgain();
     void recheck();
