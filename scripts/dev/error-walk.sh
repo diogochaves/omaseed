@@ -18,7 +18,8 @@
 # Breaks come from scripts/dev/swarm.sh (break error: a folder with no write permission;
 # break missing: a finished torrent's file deleted and the playground restarted), and
 # `swarm.sh fix` undoes them at the end (also on ^C). What the app sent is read from the
-# box's session bus (dbus-monitor), what the shell drew from its notification state files.
+# box's session bus (dbus-monitor), what the shell has on screen from its notifications'
+# live.json.
 # The playground's queue is off while it runs (put back as it was), so its own downloads, as
 # the swarm walk leaves them, never queue the fixture. The box's network reaches :8081 alone.
 set -euo pipefail
@@ -118,12 +119,16 @@ flush()
 PY
 }
 
-# notice_up [SECONDS]: until the shell has drawn an errored notice.
+# notice_up [SECONDS]: until the shell has an errored notice on screen. Only live.json's
+# entries are on screen: the state folder also holds history.json (the toasts that left).
 notice_up() {
     local limit="${1:-30}"
     for _ in $(seq 1 $((limit * 4))); do
-        grep -rlqF -- "stopped with an error" "$home/.local/state/omarchy/notifications" 2>/dev/null &&
-            return 0
+        python3 - "$home/.local/state/omarchy/notifications/live.json" <<'PY' 2>/dev/null && return 0
+import json, sys
+sys.exit(0 if any("stopped with an error" in str(e.get("summary") or "")
+                  for e in json.load(open(sys.argv[1], encoding="utf-8"))) else 1)
+PY
         sleep 0.25
     done
     echo "  (no errored notice drawn in ${limit}s)" >&2

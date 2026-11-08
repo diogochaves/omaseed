@@ -11,9 +11,9 @@
 #                                               # to check and waits for enter
 #
 # What the app sent is read from the box's session bus (dbus-monitor), what the shell drew from
-# its state files (~/.local/state/omarchy/notifications/, one JSON per toast on screen,
-# moved to history/ when it leaves), so no check depends on catching a 5-second toast in a
-# shot. It resets the swarm (scripts/dev/swarm.sh reset + seed) and holds the playground's
+# its live.json (~/.local/state/omarchy/notifications/: the toasts on screen; a toast that
+# leaves moves to history.json beside it), so no check depends on catching a 5-second toast in
+# a shot. It resets the swarm (scripts/dev/swarm.sh reset + seed) and holds the playground's
 # downloads at 2 KiB/s: tiny-notes.txt (4 KB) finishes in seconds, the unicode torrent (5 MB)
 # only once the limit is lifted, after the window is in the tray. So a slow read of a step
 # never lets a toast come and go unseen. The limit is restored at the end (also on ^C). The
@@ -140,21 +140,36 @@ invoked_default() {
     notices | python3 -c 'import json, sys; sys.exit(0 if "default" in json.load(sys.stdin)["invoked"] else 1)'
 }
 one_each() { [ "$(completed_for "$TINY")" = 1 ] && [ "$(completed_for "$UNICODE")" = 1 ]; }
-shell_drew() {
-    grep -rlqF -- "$TINY" "$home/.local/state/omarchy/notifications" &&
-        grep -rlqF -- "$UNICODE" "$home/.local/state/omarchy/notifications"
+
+# on_screen TEXT: whether a toast the shell has on screen now carries TEXT. Its state folder
+# always holds history.json (the toasts that left) and quiet.json too, so only live.json's
+# entries count: a toast that has come and gone must not pass.
+on_screen() {
+    python3 - "$home/.local/state/omarchy/notifications/live.json" "$1" <<'PY' 2>/dev/null
+import html, json, sys
+entries = json.load(open(sys.argv[1], encoding="utf-8"))
+sys.exit(0 if any(sys.argv[2] in html.unescape(" ".join(str(e.get(k) or "") for k in ("summary", "body", "rawBody")))
+                  for e in entries) else 1)
+PY
 }
 
-# toast_up NAME [SECONDS]: until the shell has a toast on screen naming NAME.
+# toast_up NAME [SECONDS]: until the shell has a toast on screen naming NAME; DRAWN then
+# lists NAME, for shell_drew.
+DRAWN=()
 toast_up() {
     local limit="${2:-60}"
     for _ in $(seq 1 $((limit * 4))); do
-        grep -lqF -- "$1" "$home"/.local/state/omarchy/notifications/*.json 2>/dev/null && return 0
+        if on_screen "$1"; then
+            DRAWN+=("$1")
+            return 0
+        fi
         sleep 0.25
     done
     echo "  (no toast naming \"$1\" in ${limit}s)" >&2
     return 1
 }
+# shell_drew: the shell had a toast on screen for each of them, as toast_up saw it.
+shell_drew() { [[ " ${DRAWN[*]} " == *" $TINY "* && " ${DRAWN[*]} " == *" $UNICODE "* ]]; }
 
 STEP=0
 CHECKS=""
@@ -273,7 +288,7 @@ check "app omaseed, icon and desktop-entry $APP_ID, urgency low" tiny_notice \
 # action only as "default", the click, so Omarchy 4.5 draws no second button doing the same.
 check "actions: Open folder (the content is local), and Show only as default, the click" tiny_notice \
     'c["actions"] == ["open-folder", "Open folder", "default", "Show"]'
-check "the shell drew both (its state files name them)" shell_drew
+check "the shell drew both (each was on screen, in its live.json)" shell_drew
 
 # A fresh start sees both torrents already finished: that is not a completion.
 launch
