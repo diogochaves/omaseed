@@ -241,6 +241,7 @@ void PauseHold::resumeListed(const QString &server, const QStringList &stopped)
         return;
     }
     const QStringList hashes = sorted(normal);
+    Q_EMIT starting(hashes);
     m_client->start(hashes)->then(
         this,
         [this, server, forced, skipped, count = int(hashes.size())](const Result<Done> &result) {
@@ -268,6 +269,7 @@ void PauseHold::startForced(const QString &server,
     }
     // A plain start would bring a force-started torrent back under the queue; setting force
     // start starts it as it was.
+    Q_EMIT starting(forced);
     m_client->setForceStart(forced, true)->then(this, [this, done](const Result<Done> &result) {
         if (result.isError()) {
             resumeFailed(result.error());

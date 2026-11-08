@@ -94,6 +94,8 @@ Q_SIGNALS:
     void paused(int count, const QString &error);
     /// A resume ended: `count` started, `skipped` held but gone or already running.
     void resumed(int count, int skipped, const QString &error);
+    /// A resume is sending a start (or a force start) for `hashes` (DECISIONS C39).
+    void starting(const QStringList &hashes);
 
 private:
     struct Entry

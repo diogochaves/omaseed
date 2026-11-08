@@ -8,6 +8,7 @@
 #include "core/FreeSpace.hpp"
 #include "core/GlobalState.hpp"
 #include "core/MoveFeed.hpp"
+#include "core/ProblemLog.hpp"
 #include "core/ScopeSentence.hpp"
 #include "core/SharedData.hpp"
 #include "core/SyncEngine.hpp"
@@ -2228,8 +2229,10 @@ void MoveController::recheckNext()
             }
             if (!m_recheckSeenChecking && ++m_recheckPolls < kRecheckQuietPolls)
                 return;
-            if (torrent.progress >= 1.0 && m_recheckStarts.contains(m_recheckHash))
+            if (torrent.progress >= 1.0 && m_recheckStarts.contains(m_recheckHash)) {
+                m_hooks.engine->problems()->noteStarted({m_recheckHash}); // DECISIONS C39
                 m_hooks.engine->client()->start({m_recheckHash});
+            }
             m_recheckHash.clear();
         }
     }

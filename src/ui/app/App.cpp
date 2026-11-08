@@ -171,6 +171,10 @@ App::App(QObject *parent)
     connect(m_pauseHold, &PauseHold::storeChanged, this, [this]() {
         writeStateSection(QStringLiteral("pauseHold"), m_pauseHold->store());
     });
+    // DECISIONS C39: the bar widget's and the tray's resume is a start omaseed sends.
+    connect(m_pauseHold, &PauseHold::starting, this, [this](const QStringList &hashes) {
+        m_engine->problems()->noteStarted(hashes);
+    });
     connect(m_pauseHold, &PauseHold::paused, this, [this](int, const QString &error) {
         if (!error.isEmpty())
             qWarning().noquote() << QStringLiteral("pause torrents failed: %1").arg(error);
@@ -3574,6 +3578,8 @@ void App::stopStart(const QStringList &hashes)
     const bool stopped =
         index >= 0 && startsOnToggle(m_engine->torrents()->torrent(hashes.constFirst()));
 
+    if (stopped)
+        m_engine->problems()->noteStarted(hashes); // DECISIONS C39
     auto *reply = stopped ? m_client->start(hashes) : m_client->stop(hashes);
     // C18 D2: the strip says which way it went.
     auto answer = tableAnswer(stopped ? QStringLiteral("start") : QStringLiteral("stop"), hashes);
@@ -3589,6 +3595,7 @@ void App::startTorrents(const QStringList &hashes)
     if (hashes.isEmpty() || demoGuard(QStringLiteral("start"), hashes.size()) || !m_hasServer)
         return;
     auto answer = tableAnswer(QStringLiteral("start"), hashes);
+    m_engine->problems()->noteStarted(hashes); // DECISIONS C39
     m_client->start(hashes)->then(this, [this, answer](const Result<Done> &result) {
         answer(result);
         if (!result.isError())
@@ -3613,6 +3620,7 @@ void App::retryTorrents(const QStringList &hashes)
     if (hashes.isEmpty() || demoGuard(QStringLiteral("retry"), hashes.size()) || !m_hasServer)
         return;
     auto answer = tableAnswer(QStringLiteral("retry"), hashes);
+    m_engine->problems()->noteStarted(hashes); // DECISIONS C39
     m_client->start(hashes)->then(this, [this, answer](const Result<Done> &result) {
         answer(result);
         if (!result.isError())
@@ -3625,6 +3633,7 @@ void App::forceStart(const QStringList &hashes)
     if (hashes.isEmpty() || demoGuard(QStringLiteral("forceStart"), hashes.size()) || !m_hasServer)
         return;
     auto answer = tableAnswer(QStringLiteral("forceStart"), hashes);
+    m_engine->problems()->noteStarted(hashes); // DECISIONS C39
     m_client->setForceStart(hashes, true)->then(this, [this, answer](const Result<Done> &result) {
         answer(result);
         if (!result.isError())
