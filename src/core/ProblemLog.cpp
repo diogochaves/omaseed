@@ -5,6 +5,7 @@
 #include "core/engines/EngineClient.hpp"
 
 #include <QCryptographicHash>
+#include <QDebug>
 
 #include <algorithm>
 #include <optional>
@@ -20,6 +21,14 @@ constexpr qsizetype kMaxLines = 2000;
 bool isErroredState(TorrentPhase phase)
 {
     return phase == TorrentPhase::Errored || phase == TorrentPhase::Missing;
+}
+
+/// DECISIONS C39: a torrent that has worked: downloading or seeding, stalled either way.
+/// Starting, checking and queued don't count.
+bool isWorkingState(const TorrentStatus &status)
+{
+    return (status.phase == TorrentPhase::Downloading || status.phase == TorrentPhase::Seeding) &&
+           !status.has(TorrentFlag::Queued);
 }
 
 bool isCheckingState(TorrentPhase phase)
@@ -80,6 +89,7 @@ void ProblemLog::setClient(EngineClient *client)
     m_errored.clear();
     m_erroredSince.clear();
     m_newlyErrored.clear();
+    m_startedIn.clear();
     m_stuck.clear();
     // Another server: nothing of this one's failures applies there. The caller hands the next
     // server's dismissals over with setDismissed(); no dismissedChanged(), which would write
@@ -200,6 +210,9 @@ void ProblemLog::updateErrored(bool fullUpdate)
         const TorrentPhase phase =
             known ? m_torrents->torrent(hash).status.phase : TorrentPhase::Unknown;
         const bool errored = known && isErroredState(phase);
+        // C39: a torrent omaseed started that works again (or is gone) is news if it errs.
+        if (!known || isWorkingState(m_torrents->torrent(hash).status))
+            m_startedIn.remove(hash);
         if (known && isCheckingState(phase))
             m_checkedAt.insert(hash, QDateTime::currentDateTimeUtc());
         // docs/44 D13: an error says more than a stuck move, so an errored torrent is never
@@ -382,12 +395,7 @@ void ProblemLog::rematch()
     publishStuck();
 
     // The notices wait for a read, so they carry the reason (N1).
-    const QSet<QString> pending = std::exchange(m_newlyErrored, {});
-    for (const QString &hash : pending) {
-        if (!m_errored.contains(hash) || m_torrents->indexOfHash(hash) < 0)
-            continue;
-        Q_EMIT torrentErrored(hash, m_torrents->torrent(hash).name, m_problems.value(hash));
-    }
+    tellErrored();
 }
 
 void ProblemLog::publish(const QString &hash, const TorrentProblem &problem)
@@ -411,11 +419,45 @@ void ProblemLog::publishFromEngine()
                 ProblemMatch::fromEngine(m_torrents->torrent(hash), m_engineName, since, m_stop));
     }
     // N1: the notice goes with the engine's own words, at once (nothing to wait for).
+    tellErrored();
+}
+
+void ProblemLog::tellErrored()
+{
     const QSet<QString> pending = std::exchange(m_newlyErrored, {});
     for (const QString &hash : pending) {
         if (!m_errored.contains(hash) || m_torrents->indexOfHash(hash) < 0)
             continue;
+        if (repeatsAfterStart(hash)) {
+            qInfo().noquote() << QStringLiteral("errored notice for %1 skipped: the error it had "
+                                                "when omaseed started it (C39)")
+                                     .arg(hash.left(8));
+            continue;
+        }
         Q_EMIT torrentErrored(hash, m_torrents->torrent(hash).name, m_problems.value(hash));
+    }
+}
+
+// DECISIONS C39 (#255): after a start omaseed sent, the same error again, before the torrent
+// has worked, is what the row already says to the person who pressed `p`: no notice. The
+// record stays until the torrent works (updateErrored()), the next start, or another server.
+bool ProblemLog::repeatsAfterStart(const QString &hash) const
+{
+    const auto it = m_startedIn.constFind(hash);
+    if (it == m_startedIn.cend())
+        return false;
+    const TorrentProblem problem = m_problems.value(hash);
+    return it->headline == problem.headline && it->detail == problem.detail;
+}
+
+void ProblemLog::noteStarted(const QStringList &hashes)
+{
+    for (const QString &hash : hashes) {
+        const auto problem = m_problems.constFind(hash);
+        if (m_errored.contains(hash) && problem != m_problems.cend())
+            m_startedIn.insert(hash, {problem->headline, problem->detail});
+        else
+            m_startedIn.remove(hash);
     }
 }
 

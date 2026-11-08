@@ -71,6 +71,7 @@ private slots:
     void repeatedLinesAreCounted();
     void missingFilesGetsTheRestoreLine();
     void noticeOnlyForErrorsWhileWatching();
+    void aStartFromOmaseedThatFailsAlikeIsQuiet();
     void aFullUpdateReadsTheLogAgain();
     void healthyTorrentsAreLeftAlone();
     void withoutALogTheTorrentsOwnWordsAreRead();
@@ -239,6 +240,71 @@ void TestProblemLog::noticeOnlyForErrorsWhileWatching()
     // Once per entry into error, not once per read.
     qbtfeed::entries(*m_log, {});
     QCOMPARE(errored.count(), 1);
+}
+
+// DECISIONS C39 (#255): after omaseed starts an errored torrent, the same error again, before
+// the torrent has worked, sends no notice. A different error, an error after it worked, or
+// one after a start from elsewhere, does.
+void TestProblemLog::aStartFromOmaseedThatFailsAlikeIsQuiet()
+{
+    const auto state = [this](const QString &value) {
+        qbtfeed::partial(*m_model, {{kB, QJsonObject{{QStringLiteral("state"), value}}}}, {});
+        m_log->onSynced(false);
+    };
+    const QString error = QStringLiteral("error");
+    QSignalSpy errored(m_log, &ProblemLog::torrentErrored);
+    state(error);
+    qbtfeed::entries(*m_log,
+                     {entry(40,
+                            fileError(QStringLiteral("81f2da"),
+                                      QStringLiteral("b.txt"),
+                                      QStringLiteral("Permission denied")))});
+    QCOMPARE(errored.count(), 1);
+
+    // `p`: out of error, checking and queued (not working yet), then the same error again.
+    m_log->noteStarted({kB});
+    state(QStringLiteral("checkingDL"));
+    state(QStringLiteral("queuedDL"));
+    state(error);
+    qbtfeed::entries(*m_log,
+                     {entry(41,
+                            fileError(QStringLiteral("81f2da"),
+                                      QStringLiteral("b.txt"),
+                                      QStringLiteral("Permission denied")))});
+    QCOMPARE(errored.count(), 1);
+    QCOMPARE(causeOf(*m_model, kB), QStringLiteral("no access")); // the row still says it
+
+    // Started again, and it fails another way: news.
+    m_log->noteStarted({kB});
+    state(QStringLiteral("checkingDL"));
+    state(error);
+    qbtfeed::entries(*m_log,
+                     {entry(42,
+                            fileError(QStringLiteral("81f2da"),
+                                      QStringLiteral("b.txt"),
+                                      QStringLiteral("No space left on device")))});
+    QCOMPARE(errored.count(), 2);
+    QCOMPARE(errored.at(1).at(2).value<TorrentProblem>().cause, QStringLiteral("disk full"));
+
+    // Started, and it worked (stalled counts) before the same error came back: news.
+    m_log->noteStarted({kB});
+    state(QStringLiteral("stalledDL"));
+    state(error);
+    qbtfeed::entries(*m_log, {});
+    QCOMPARE(errored.count(), 3);
+
+    // Started from elsewhere (nothing noted): the same error again is news.
+    state(QStringLiteral("checkingDL"));
+    state(error);
+    qbtfeed::entries(*m_log, {});
+    QCOMPARE(errored.count(), 4);
+
+    // A start of a torrent not in error keeps nothing.
+    state(QStringLiteral("stoppedDL"));
+    m_log->noteStarted({kB});
+    state(error);
+    qbtfeed::entries(*m_log, {});
+    QCOMPARE(errored.count(), 5);
 }
 
 // DECISIONS C25 K24: an engine with no log (Transmission). Nothing is read; an errored

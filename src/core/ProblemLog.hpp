@@ -95,6 +95,13 @@ public:
     /// omaseed asked qBittorrent to recheck `hashes` (C17 D3): a hybrid that goes into error
     /// after it, with nothing logged, is libtorrent's torrent_inconsistent_hashes.
     void noteRechecked(const QStringList &hashes);
+    /// DECISIONS C39 (#255): omaseed is sending a start for `hashes` (`p`, retry, the actions
+    /// menu, the selection bar, a resume from the bar widget or the tray). Each one in error
+    /// keeps the error it has now; going back into that same error (headline and detail)
+    /// before it has worked again (downloading or seeding, stalled or not) sends no
+    /// torrentErrored(). One not in error keeps nothing, and forgets what an earlier start
+    /// kept. Call it as the start is sent. In memory only: a restart forgets it.
+    void noteStarted(const QStringList &hashes);
     /// D4: the dismissed lines, as lineKey()s, for the caller to keep per server.
     QStringList dismissed() const;
     /// What dismissed() said last time, for this server. Applies at once.
@@ -201,6 +208,11 @@ private:
     void publishFromEngine();
     /// docs/44 D13: the stuck moves' problems, from the lines read so far.
     void publishStuck();
+    /// N1: torrentErrored() for the torrents gone into error since the last call, less the
+    /// C39 repeats (repeatsAfterStart()).
+    void tellErrored();
+    /// C39: whether `hash`, back in error, has the error noteStarted() kept for it.
+    bool repeatsAfterStart(const QString &hash) const;
 
     /// The library by name and by the hash prefix libtorrent prints, as rows.
     struct Index
@@ -250,6 +262,13 @@ private:
     ProblemMatch::EngineStop m_stop = ProblemMatch::EngineStop::Stops;
     bool m_seenFirstSync = false;
     QHash<QString, TorrentProblem> m_problems;
+    /// C39: the error each torrent omaseed started had then, by hash, until it works again.
+    struct StartedIn
+    {
+        QString headline;
+        QString detail;
+    };
+    QHash<QString, StartedIn> m_startedIn;
 
     QHash<QString, TorrentFailure> m_failures;
     QSet<QString> m_dismissed;      ///< lineKey()s
