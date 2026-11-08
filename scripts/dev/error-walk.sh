@@ -19,7 +19,8 @@
 # break missing: a finished torrent's file deleted and the playground restarted), and
 # `swarm.sh fix` undoes them at the end (also on ^C). What the app sent is read from the
 # box's session bus (dbus-monitor), what the shell drew from its notification state files.
-# The box's network reaches :8081 alone.
+# The playground's queue is off while it runs (put back as it was), so its own downloads, as
+# the swarm walk leaves them, never queue the fixture. The box's network reaches :8081 alone.
 set -euo pipefail
 
 repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -233,10 +234,13 @@ check() {
     echo "  check $mark: $what"
 }
 
+QUEUEING=""
 cleanup() {
     [ -z "$OUT" ] || "$repo/scripts/dev/look.sh" "$OUT" || true  # copies to Read (#251)
     chmod 755 "$WRITABLE" 2>/dev/null || true
     "$SWARM" fix >/dev/null 2>&1 || true
+    [ -z "$QUEUEING" ] || curl -fs -X POST "$PLAY/app/setPreferences" \
+        --data-urlencode "json={\"queueing_enabled\": $QUEUEING}" >/dev/null 2>&1 || true
     rm -rf -- "$WRITABLE" "$MOVED"
     [ "$INTERACTIVE" = 1 ] || omabox down -b "$BOX" >/dev/null 2>&1 || true
 }
@@ -246,6 +250,14 @@ echo "readying the swarm (every break undone)"
 "$SWARM" start >/dev/null
 "$SWARM" fix >/dev/null
 "$SWARM" seed >/dev/null
+# The playground's queue off for the walk, put back as it was at the end (#190). `break error`
+# force-starts the fixture, but the app's `p` and `e` send a plain start, which drops the force:
+# with queueing on and the swarm still downloading (straight after the swarm walk's reset, its
+# downloads fill both slots) the started fixture sat queuedDL, wrote nothing, never failed again,
+# and every step after it read a plainly stopped torrent.
+QUEUEING="$(curl -fs "$PLAY/app/preferences" |
+    python3 -c 'import json, sys; print(str(json.load(sys.stdin)["queueing_enabled"]).lower())')"
+curl -fs -X POST "$PLAY/app/setPreferences" --data-urlencode 'json={"queueing_enabled": false}' >/dev/null
 mkdir -p "$DOWNLOADS"
 
 echo "starting the box"
