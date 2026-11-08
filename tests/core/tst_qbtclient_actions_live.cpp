@@ -121,7 +121,7 @@ private:
     QStringList m_addedHashes;
     QStringList m_addedCategories;
     QStringList m_addedTags;
-    QStringList m_addedDirs; // removed last-to-first
+    QStringList m_addedDirs;         // removed last-to-first
     bool m_queueingTurnedOn = false; // #247: put back off by cleanupTestCase()
 };
 
@@ -213,9 +213,9 @@ void TestQbtClientActionsLive::cleanupTestCase()
     if (!m_addedCategories.isEmpty())
         await(this, m_client->torrentsRemoveCategories(m_addedCategories));
     if (m_queueingTurnedOn)
-        await(this,
-              m_client->appSetPreferences(
-                  QJsonObject{{QStringLiteral("queueing_enabled"), false}}));
+        await(
+            this,
+            m_client->appSetPreferences(QJsonObject{{QStringLiteral("queueing_enabled"), false}}));
 
     // removeRecursively(), never rmpath(): rmpath also deletes empty *parent* directories,
     // which would take the shared downloads root (not ours to remove) with it.

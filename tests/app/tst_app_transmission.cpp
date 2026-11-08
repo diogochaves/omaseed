@@ -850,11 +850,10 @@ void TestAppTransmission::aRenameReadsInTheRowAtItsOk()
         app.torrents()->torrent(kPack).name, QStringLiteral("Renamed Pack"), 3000);
     QCOMPARE(polls(), beforeRename + 1);
     // The poll's torrent_get is the batch's (the errored torrent's stop read after it is not).
-    const auto poll = std::find_if(daemon.wire.calls.crbegin(),
-                                   daemon.wire.calls.crend(),
-                                   [](const Call &call) {
-                                       return call.method == "torrent_get" && call.inBatch;
-                                   });
+    const auto poll =
+        std::find_if(daemon.wire.calls.crbegin(), daemon.wire.calls.crend(), [](const Call &call) {
+            return call.method == "torrent_get" && call.inBatch;
+        });
     QVERIFY(poll != daemon.wire.calls.crend());
     QCOMPARE(poll->params.value(QStringLiteral("ids")).toString(),
              QStringLiteral("recently_active"));
