@@ -3,6 +3,7 @@
 
 #include "core/TorrentStory.hpp"
 
+#include <QRegularExpression>
 #include <QTest>
 #include <QTimeZone>
 
@@ -149,24 +150,29 @@ void TestTorrentStory::aTorrentAddedCompleteNeverFinishes()
 
 void TestTorrentStory::movesSayWithWhat()
 {
+    // #250: a form with no %1 made QString::arg warn on every rebuild.
+    QTest::failOnWarning(QRegularExpression(QStringLiteral("QString::arg")));
     StoryInput input;
     input.now = at(24, 18, 0);
     input.torrent = added(at(24, 8, 2), QStringLiteral("games"));
     input.moves = {
         {at(24, 16, 24), QStringLiteral("/data/fast/games"), 48, QStringLiteral("games")},
         {at(24, 17, 0), QStringLiteral("/data/keep"), 2, QString()},
+        {at(24, 17, 15), QStringLiteral("/data/pair"), 1, QString()},
         {at(24, 17, 30), QStringLiteral("/data/one"), 0, QString()},
         {at(24, 17, 45), QStringLiteral("/data/alone"), 0, QStringLiteral("alone")}};
     const QList<StoryEvent> events = TorrentStory::events(input);
     QCOMPARE(titles(events),
              QStringList({"Moved to /data/alone",
                           "Moved to /data/one",
+                          "Moved to /data/pair",
                           "Moved to /data/keep",
                           "Moved to /data/fast/games",
                           "Added"}));
-    QCOMPARE(events.at(3).detail, QStringLiteral("with the folder games, 49 torrents"));
-    QCOMPARE(events.at(3).kind, StoryEvent::Kind::Move);
-    QCOMPARE(events.at(2).detail, QStringLiteral("with 2 other torrents"));
+    QCOMPARE(events.at(4).detail, QStringLiteral("with the folder games, 49 torrents"));
+    QCOMPARE(events.at(4).kind, StoryEvent::Kind::Move);
+    QCOMPARE(events.at(3).detail, QStringLiteral("with 2 other torrents"));
+    QCOMPARE(events.at(2).detail, QStringLiteral("with 1 other torrent"));
     QCOMPARE(events.at(1).detail, QStringLiteral("on its own"));
     QCOMPARE(events.at(0).detail, QStringLiteral("with the folder alone"));
 }

@@ -121,7 +121,7 @@ QList<StoryEvent> TorrentStory::events(const StoryInput &input)
                     ? tr("with the folder %1, %2 torrents").arg(move.folder).arg(move.others + 1)
                     : tr("with the folder %1").arg(move.folder);
         else if (move.others > 0)
-            detail = counted(move.others, "with 1 other torrent", "with %1 other torrents");
+            detail = counted(move.others, "with %1 other torrent", "with %1 other torrents");
         else
             detail = tr("on its own");
         add(move.at, StoryEvent::Kind::Move, tr("Moved to %1").arg(move.to), detail);
