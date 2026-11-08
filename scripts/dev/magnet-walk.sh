@@ -351,6 +351,7 @@ check() {
 # tiny-notes never gets its metadata, so it goes and `seed` re-adds it from its .torrent; the
 # unicode torrent gets the swarm's category and folder back.
 cleanup() {
+    [ -z "$OUT" ] || "$repo/scripts/dev/look.sh" "$OUT" || true  # copies to Read (#251)
     local hash
     release_others 2>/dev/null || true
     take_off "$TINY" 2>/dev/null || true

@@ -198,6 +198,7 @@ install() {
 }
 
 cleanup() {
+    [ -z "$OUT" ] || "$repo/scripts/dev/look.sh" "$OUT" || true  # copies to Read (#251)
     "$APP_BOX" down -b "$BOX" >/dev/null 2>&1 || true
 }
 trap cleanup EXIT

@@ -234,6 +234,7 @@ check() {
 }
 
 cleanup() {
+    [ -z "$OUT" ] || "$repo/scripts/dev/look.sh" "$OUT" || true  # copies to Read (#251)
     chmod 755 "$WRITABLE" 2>/dev/null || true
     "$SWARM" fix >/dev/null 2>&1 || true
     rm -rf -- "$WRITABLE" "$MOVED"

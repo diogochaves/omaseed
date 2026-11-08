@@ -48,7 +48,10 @@
 #       The playground straight from here; a --qbt or manual box's own qBittorrent from inside
 #       the box, signed in with the login the box keeps (never printed). A manual box runs two
 #       qBittorrents: "public" (:8090, the default) and "private" (:8091, --server private).
-#   scripts/dev/app-box.sh shot [-b NAME] [SHOT ARGS...]     omaseed's window (omabox shot)
+#   scripts/dev/app-box.sh shot [-b NAME] [--full] [SHOT ARGS...]
+#       omaseed's window (omabox shot), scaled to 1280 px on its longest side: about half the
+#       tokens of the full 1854x1056 for an agent reading it (#251). --full (or a --fit, --zoom,
+#       --grid or --changed of your own) takes it as omabox would; -g on a part keeps 1280 too.
 #   scripts/dev/app-box.sh down [-b NAME]
 #
 # NAME defaults to app-box-<this checkout's directory>: every call from one checkout finds the
@@ -701,7 +704,16 @@ api)
     ;;
 shot)
     box_is_up || die "no box $BOX"
-    omabox shot -b "$BOX" --window omaseed "${args[@]}"
+    fit=(--fit 1280)
+    shot_args=()
+    for a in "${args[@]}"; do
+        case "$a" in
+        --full) fit=() ;;
+        --fit | --fit=* | --zoom | --zoom=* | --grid | --grid=* | --changed) fit=(); shot_args+=("$a") ;;
+        *) shot_args+=("$a") ;;
+        esac
+    done
+    omabox shot -b "$BOX" --window omaseed "${fit[@]}" "${shot_args[@]}"
     ;;
 down)
     omabox down -b "$BOX"

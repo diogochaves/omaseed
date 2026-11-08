@@ -320,6 +320,7 @@ PEER_PID=""
 OVERHEAD=""
 cleanup() {
     local status=$?
+    [ -z "$OUT" ] || "$repo/scripts/dev/look.sh" "$OUT" || true  # copies to Read (#251)
     # A daemon the walk slowed is let go whatever happened; so is its own peer.
     [ -z "$THROTTLE" ] || kill "$THROTTLE" 2>/dev/null || true
     [ -z "$SAMPLER" ] || kill "$SAMPLER" 2>/dev/null || true

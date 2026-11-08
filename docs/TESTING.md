@@ -24,7 +24,10 @@ follows. The commands themselves are listed in `CLAUDE.md`; `README.md` says how
 3. **Walks** (`scripts/dev/*-walk.sh`). The app driven through its own UI in an
    [omabox](https://github.com/diogochaves/omabox), an invisible desktop, checking what
    qBittorrent says and what is on disk after each step, with a shot per step and an `index.md`
-   in the output folder. `--interactive` shows the box as a window and waits for enter at each
+   in the output folder. When a walk ends, passed or failed, `scripts/dev/look.sh` puts a
+   1280 px copy of each shot in the folder's `look/`: an agent reviewing the walk reads those,
+   at about half the tokens of a full one, and opens the full size beside them only for a
+   detail (#251). `--interactive` shows the box as a window and waits for enter at each
    step. Most use the offline swarm (`scripts/dev/swarm.sh`): real downloads that never leave the
    machine.
 

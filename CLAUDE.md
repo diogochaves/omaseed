@@ -126,9 +126,11 @@ through `ctest`, never straight on the desktop. Test binaries force Qt's offscre
 even when run directly; `OMASEED_TEST_PLATFORM` overrides that, and only inside an omabox.
 
 Visual checks: run the app in a box, take a window shot (`app-box.sh shot`), and look at the
-image. Close what you open. A theme switch (`omarchy-theme-set <name>`) inside a box is fine;
-on a real desktop, note the theme first (`cat ~/.local/state/omarchy/current/theme.name`) and
-put it back afterwards.
+image. That shot is 1280 px wide (`--full` for the whole size), and every walk leaves 1280 px
+copies of its shots in its output's `look/` (`scripts/dev/look.sh`): read those, and a full
+shot, or `shot -g` on the part, only for a detail (#251). Close what you open. A theme switch
+(`omarchy-theme-set <name>`) inside a box is fine; on a real desktop, note the theme first
+(`cat ~/.local/state/omarchy/current/theme.name`) and put it back afterwards.
 
 ## Conventions
 

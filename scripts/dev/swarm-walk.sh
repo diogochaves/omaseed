@@ -105,6 +105,7 @@ step() {
 }
 
 cleanup() {
+    [ -z "$OUT" ] || "$repo/scripts/dev/look.sh" "$OUT" || true  # copies to Read (#251)
     "$SWARM" fix >/dev/null 2>&1 || true
     "$SWARM" rate 4096 >/dev/null 2>&1 || true
     [ "$INTERACTIVE" = 1 ] || omabox down -b "$BOX" >/dev/null 2>&1 || true

@@ -230,6 +230,7 @@ random_file() {
 }
 
 cleanup() {
+    [ -z "$OUT" ] || "$repo/scripts/dev/look.sh" "$OUT" || true  # copies to Read (#251)
     [ -n "${HOME_HOST:-}" ] && chmod -R u+rwX "$HOME_HOST/share" 2>/dev/null || true
     [ "$INTERACTIVE" = 1 ] || "$APP_BOX" down -b "$BOX" >/dev/null 2>&1 || true
 }

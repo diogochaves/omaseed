@@ -285,6 +285,7 @@ STARTED=0
 FROZEN=""
 cleanup() {
     local status=$?
+    [ -z "$OUT" ] || "$repo/scripts/dev/look.sh" "$OUT" || true  # copies to Read (#251)
     # A daemon the walk froze is let go whatever happened.
     [ -z "$FROZEN" ] || kill -CONT "$FROZEN" 2>/dev/null || true
     if [ "$INTERACTIVE" = 1 ]; then

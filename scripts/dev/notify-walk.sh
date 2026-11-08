@@ -197,6 +197,7 @@ check() {
 
 PLAY_DL_LIMIT="$(curl -fs "$PLAY/transfer/downloadLimit" || echo 0)"
 cleanup() {
+    [ -z "$OUT" ] || "$repo/scripts/dev/look.sh" "$OUT" || true  # copies to Read (#251)
     curl -fs -X POST "$PLAY/transfer/setDownloadLimit" -d "limit=$PLAY_DL_LIMIT" >/dev/null 2>&1 || true
     [ "$INTERACTIVE" = 1 ] || omabox down -b "$BOX" >/dev/null 2>&1 || true
 }

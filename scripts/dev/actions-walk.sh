@@ -305,6 +305,7 @@ shot() {
 
 cleanup() {
     local status=$?
+    [ -z "$OUT" ] || "$repo/scripts/dev/look.sh" "$OUT" || true  # copies to Read (#251)
     rm -f "$OUT_READ"
     if [ "$INTERACTIVE" = 1 ]; then
         echo

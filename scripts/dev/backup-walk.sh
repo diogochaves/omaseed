@@ -211,6 +211,7 @@ sums() {
 
 cleanup() {
     local status=$?
+    [ -z "$OUT" ] || "$repo/scripts/dev/look.sh" "$OUT" || true  # copies to Read (#251)
     if [ "$INTERACTIVE" = 1 ]; then
         echo
         echo "The box stays up for a look around; throw it away with: scripts/dev/app-box.sh down -b $BOX"
