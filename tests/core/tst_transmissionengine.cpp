@@ -73,6 +73,7 @@ private Q_SLOTS:
     // the poll
     void firstPollIsFullThenRecentlyActive();
     void aGapOverFiftySecondsAsksForEverything();
+    void aRenamedTorrentsNameComesInTheNextPoll();
     void aCursorNotHandedOutIsFull();
     void anotherServerStartsOver();
 
@@ -414,6 +415,36 @@ void TestTransmissionEngine::aGapOverFiftySecondsAsksForEverything()
     QCOMPARE(delta.value().removedTorrents, QStringList({kMagnet}));
     QVERIFY(delta.value().torrents.isEmpty()); // nothing else moved
     QCOMPARE(delta.value().removedTrackers, QStringList());
+}
+
+// #249: a torrent renamed on the daemon (by omaseed or anyone) is in recently_active at once
+// (seen on 4.1.3: torrent_rename_path marks it edited), and the poll's diff carries the name
+// alone, with the content path that follows it.
+void TestTransmissionEngine::aRenamedTorrentsNameComesInTheNextPoll()
+{
+    qint64 now = 1000;
+    m_engine->setClock([&now]() { return now; });
+    PollAnswers answers;
+    m_daemon->answer = [&answers](const QString &m, const QJsonObject &p) {
+        return answers.answer(m, p);
+    };
+    QVERIFY(wait(m_engine->sync(0)).isValid());
+
+    now += 1500;
+    m_daemon->calls.clear();
+    answers.byHash(kPack).insert(QStringLiteral("name"), QStringLiteral("Fixture Pack (2026)"));
+    const Result<SyncDelta> delta = wait(m_engine->sync(1));
+    QVERIFY(delta.isValid());
+    QCOMPARE(m_daemon->calls.at(0).params.value(QStringLiteral("ids")).toString(),
+             QStringLiteral("recently_active"));
+    QCOMPARE(delta.value().torrents.size(), 1);
+    const TorrentPatch renamed = delta.value().torrents.first();
+    QCOMPARE(renamed.hash, kPack);
+    QVERIFY(renamed.has(TorrentField::Name));
+    QCOMPARE(renamed.values.name, QStringLiteral("Fixture Pack (2026)"));
+    QVERIFY(renamed.has(TorrentField::ContentPath));
+    QVERIFY(renamed.values.contentPath.endsWith(QStringLiteral("/Fixture Pack (2026)")));
+    QVERIFY(!renamed.has(TorrentField::Status)); // only what moved
 }
 
 void TestTransmissionEngine::aCursorNotHandedOutIsFull()

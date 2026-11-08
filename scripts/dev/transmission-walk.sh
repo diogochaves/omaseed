@@ -415,7 +415,10 @@ expect_disk "the folder on disk is $RENAMED" -d "$IN/$RENAMED"
 expect_disk "…and no longer $NAME" ! "$IN/$NAME"
 expect_same "its files came with it" "$NAME/sample.bin" "$IN/$RENAMED/sample.bin"
 expect "still complete and seeding" "$HASH" "t['percent_done'] == 1 and t['status'] == 6 and t['error'] == 0" 30
-expect_text "the row reads the new name" "$RENAMED" 10
+# #249: the row itself and the details' header, not the strip's "… renamed to $RENAMED"; and at
+# once, since the OK asks for a poll (the checks above took the time a poll would have).
+expect_text "the row reads the new name" "list item \"$RENAMED\"" 1
+expect_text "the details' header reads the new name" "heading \"$RENAMED\"" 1
 # DECISIONS C38 R7: Transmission renamed the folder on disk too, so its story line says so.
 expect_text "the story: Renamed, was $NAME · its folder on disk too" "Renamed, was $NAME · its folder on disk too" 20
 shot "The row reads $RENAMED; the details' story, Renamed, was $NAME · its folder on disk too, with the accent's square."

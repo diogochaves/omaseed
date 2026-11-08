@@ -27,6 +27,7 @@
 #include <QTest>
 #include <QTimer>
 
+#include <algorithm>
 #include <memory>
 
 using omaseed::app::App;
@@ -40,8 +41,8 @@ const QString kError = QStringLiteral("475ad2787551903b6374cb9358f285cbe6fd8c21"
 const QString kMagnet = QStringLiteral("a4f76fd25afb6b9952fa7709154af943f91a793f");
 
 /// The recorded library as a daemon that changes: stops and starts move a torrent's status
-/// (after `stopLandsAfterMs` for a stop, as 4.1.3 does), a remove takes it out, and a torrent_get
-/// for some hashes answers only those.
+/// (after `stopLandsAfterMs` for a stop, as 4.1.3 does), a remove takes it out, a rename of its
+/// top renames it, and a torrent_get for some hashes answers only those.
 class Daemon
 {
 public:
@@ -145,6 +146,15 @@ public:
                 remove(hash);
             return {};
         }
+        if (method == QLatin1String("torrent_rename_path")) {
+            // The torrent's own name (its top folder) renames the torrent, as 4.1.3 does.
+            for (const QString &hash : ids) {
+                QJsonObject &t = library.byHash(hash);
+                if (t.value(QStringLiteral("name")) == params.value(QStringLiteral("path")))
+                    t.insert(QStringLiteral("name"), params.value(QStringLiteral("name")));
+            }
+            return fixture("torrent_rename_path.json").value(QStringLiteral("result")).toObject();
+        }
         if (method == QLatin1String("torrent_add"))
             return fixture("torrent_add.json").value(QStringLiteral("result")).toObject();
         if (method == QLatin1String("session_set")) {
@@ -170,6 +180,7 @@ private Q_SLOTS:
     void whatTransmissionLacksIsNotOffered();
     void theEverydayActionsAreTransmissionsMethods();
     void aRenameSeenOnTransmissionSaysItsFolderToo();
+    void aRenameReadsInTheRowAtItsOk();
     void anAddCarriesItsFolderAndLabels();
     void detailsAreAskedOfTransmission();
     void resumeRightAfterPauseWaitsForTheStopToLand();
@@ -810,6 +821,46 @@ void TestAppTransmission::aRenameSeenOnTransmissionSaysItsFolderToo()
     QCOMPARE(line.was, QStringLiteral("Fixture Pack"));
     QCOMPARE(line.now, QStringLiteral("Outside Pack"));
     QVERIFY(line.disk);
+    app.engine()->stop();
+}
+
+// #249: the strip and the story tell a rename at its OK; the row and the details' header read the
+// name from the polls, so the OK asks for one at once rather than an interval later. Its poll is
+// recently_active's, which carries the new name; the story stays one line, omaseed's.
+void TestAppTransmission::aRenameReadsInTheRowAtItsOk()
+{
+    Daemon daemon;
+    App app;
+    QVERIFY(startOn(app, daemon));
+    // From here on the polls are a minute apart: only the rename's own can bring the name.
+    using namespace std::chrono_literals;
+    app.engine()->setIntervals(60s, 60s, 60s, 60s);
+    const auto polls = [&daemon]() {
+        return std::count_if(daemon.wire.calls.cbegin(),
+                             daemon.wire.calls.cend(),
+                             [](const Call &call) { return call.method == "session_stats"; });
+    };
+    const auto before = polls();
+    QTRY_VERIFY_WITH_TIMEOUT(polls() > before, 3000);
+    QTest::qWait(300); // that poll applied: the next is a minute away
+
+    const auto beforeRename = polls();
+    app.rename(kPack, QStringLiteral("Renamed Pack"));
+    QTRY_COMPARE_WITH_TIMEOUT(
+        app.torrents()->torrent(kPack).name, QStringLiteral("Renamed Pack"), 3000);
+    QCOMPARE(polls(), beforeRename + 1);
+    // The poll's torrent_get is the batch's (the errored torrent's stop read after it is not).
+    const auto poll = std::find_if(daemon.wire.calls.crbegin(),
+                                   daemon.wire.calls.crend(),
+                                   [](const Call &call) {
+                                       return call.method == "torrent_get" && call.inBatch;
+                                   });
+    QVERIFY(poll != daemon.wire.calls.crend());
+    QCOMPARE(poll->params.value(QStringLiteral("ids")).toString(),
+             QStringLiteral("recently_active"));
+    QCOMPARE(app.renameHistory().recordsFor(kPack).size(), 1);
+    QCOMPARE(app.renameHistory().recordsFor(kPack).constFirst().by,
+             omaseed::core::RenameRecord::By::Omaseed);
     app.engine()->stop();
 }
 

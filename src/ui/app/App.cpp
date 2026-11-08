@@ -4219,6 +4219,10 @@ void App::rename(const QString &hash, const QString &name)
                 RenameRecord done = rename;
                 done.at = QDateTime::currentDateTimeUtc();
                 recordRename(serverId, done);
+                // #249: the strip and the story say it now; the row and the details' header
+                // read the name from the polls, so one goes now rather than up to an
+                // interval later.
+                m_engine->pollSoon();
             });
 }
 

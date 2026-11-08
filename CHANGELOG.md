@@ -9,6 +9,9 @@ before it will tag a release.
 
 ### Fixed
 
+- **A rename shows in the row at once.** The strip and the torrent's story said the new name
+  as soon as the server took it, but the row and the details' header kept the old one until
+  the next refresh, up to a second and a half later (five with the window hidden). (#249)
 - **No more "QString::arg: Argument missing" in the journal.** A torrent whose story had a
   move made with one other torrent logged that warning on every refresh while its details
   were open. What it showed was right. (#250)
