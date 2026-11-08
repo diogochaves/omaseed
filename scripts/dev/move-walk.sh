@@ -74,6 +74,10 @@ esac
 api() { "$APP_BOX" api -b "$BOX" "$@"; }
 in_box() { omabox run -b "$BOX" -- "$@" >/dev/null 2>&1; }
 keys() { omabox keys -b "$BOX" --window omaseed --wait "$@" >/dev/null 2>&1 || true; }
+# keys_now KEYS: as keys, not waiting for the window to settle after them: the key that starts
+# a quick move. The done strip's line runs down for its 6 s (DECISIONS C18 D3), so the window
+# settles only once the strip is gone, and a --wait sat out the whole strip (#177).
+keys_now() { omabox keys -b "$BOX" --window omaseed "$@" >/dev/null 2>&1 || true; }
 # The palette is waited for before the name, and the name for a match before tab: a torrent
 # just added reaches the app at its next sync, and with no match tab does nothing and esc only
 # clears the query, so the next key lands in the palette (a full run typed m there).
@@ -173,6 +177,17 @@ expect_text() {
     fail "$what (after ${limit}s no \"$text\" in the window)"
 }
 
+# expect_brief "WHAT" TEXT [SECONDS]: as expect_text, for words shown a moment (the outcome
+# strip's 6 s, DECISIONS C18 D3): one omabox wait reads the tree about every 100 ms, where
+# expect_text starts a new tree a second, which a read slowed by the app's redraw can push past
+# the strip's end (#177). What starts the move goes by keys_now or press --now.
+expect_brief() {
+    local what="$1" text="$2" limit="${3:-30}" said
+    said="$(omabox wait -b "$BOX" --timeout "${limit}s" tree "$text" --window omaseed 2>&1)" &&
+        { pass "$what"; return 0; }
+    fail "$what (after ${limit}s no \"$text\" in the window: ${said##*$'\n'})"
+}
+
 # expect_tree "WHAT" STRING [SECONDS]: wait until the window's tree, as text, holds STRING (a
 # role with its name, like 'menu item "move…"', or a field's value, like "'~/sel/one'").
 expect_tree() {
@@ -196,9 +211,15 @@ expect_tree_re() {
 
 # press NAME [top]: click the middle of the node (a button first) whose accessible name is NAME;
 # the leftmost such node, or with `top` the topmost of any role (the band's link, under the top
-# bar, when the details pane offers the same action as a button further down).
+# bar, when the details pane offers the same action as a button further down). With --now first,
+# the click doesn't wait for the window to settle after it: the button that starts a quick move,
+# whose strip would run out while the window settled (see keys_now).
 press() {
-    local where
+    local where settle=--wait
+    if [ "$1" = --now ]; then
+        settle=""
+        shift
+    fi
     # The job's desktop notice (a pause, the end) sits over the band's right end, and a click
     # on it shows the job's torrents: wait for the toast to go, then let the window settle.
     # Dismissed first: waiting them out took up to 20 s a press, long enough for a folder's move
@@ -227,8 +248,8 @@ for line in sys.stdin:
 if found:
     print(*sorted(found)[0][2:])' "$1" "${2:-}")"
     [ -n "$where" ] || fail "no button \"$1\" in the window"
-    # shellcheck disable=SC2086 # two numbers
-    omabox click -b "$BOX" --window omaseed --wait $where >/dev/null 2>&1 || true
+    # shellcheck disable=SC2086 # --wait or nothing, and two numbers
+    omabox click -b "$BOX" --window omaseed $settle $where >/dev/null 2>&1 || true
 }
 
 # step "TITLE" "WHAT IT DOES": interactive, say it and wait for enter; headless, a heading.
@@ -737,12 +758,14 @@ expect_text "the Move… sheet is open" "Move Handheld Pack 040" 10
 keys ctrl+a -t "$SEL/one"
 expect_text "one green line" "access are fine" 20
 shot "The Move… sheet for one torrent: the field, one green line, move." sheet
-keys Return
+keys_now Return
+# Looked for first and held at once: the strip goes after 6 s (C18 D3), and the server and disk
+# checks take seconds on a busy box, long enough for it to come and go unseen (#177).
+expect_brief "the strip says it moved" "Handheld Pack 040 moved to $SEL/one" 20
+hold_strip "Handheld Pack 040 moved to $SEL/one"
+no_text "no band for it" "Moving Handheld Pack 040"
 expect_at "Handheld Pack 040 saves at ~/sel/one" "Handheld Pack 040" "$SEL/one"
 expect_disk "its file is there" -f "$SEL/one/Handheld Pack 040/data.bin"
-expect_text "the strip says it moved" "Handheld Pack 040 moved to $SEL/one" 20
-no_text "no band for it" "Moving Handheld Pack 040"
-hold_strip "Handheld Pack 040 moved to $SEL/one"
 no_tree "no show for the cursor's own row" 'button "show"'
 shot "The strip at the rows' bottom middle: ✓ Handheld Pack 040 moved to ~/sel/one and ×, no show, its green line held under the pointer; the row's status reads ✓ moved · one in green." strip
 keys j
@@ -763,7 +786,9 @@ table_on "Handheld Pack 039"
 keys m
 expect_text "the Move… sheet is open" "Move Handheld Pack 039" 10
 keys ctrl+a -t "$BOX_HOME/locked/quick"
-expect_text "the sheet has checked it" "on $BOX_HOME" 20
+# Its room line names no drive here: one device is "the same drive" (DECISIONS C15 M5, #240),
+# so the access check's line is what says it has looked.
+expect_text "the sheet has checked it" "can't write to $BOX_HOME/locked/quick" 20
 keys Return
 expect_text "the strip says it didn't move" "Handheld Pack 039 didn't move" 60
 sleep 7
@@ -801,11 +826,11 @@ press "keep their places below $common"
 expect_checked "keep their places is picked" "keep their places below $common"
 expect_text "a row for handheld" "to $SEL/keep$handheld_rel" 10
 shot "Keep their places: three rows, each folder and where it goes; room; move 3 torrents." sheet
-press "move 3 torrents"
+press --now "move 3 torrents"
 # C16 L6, C18 D1: a move that lands within 3 s says so in the strip ("3 moved to …"); a slower
 # one (a busy machine) gets the band and its summary ("3 torrents moved to …"). Either is right.
 # Looked for first: the note lasts 6 s, and the server checks below take seconds.
-expect_text "the strip or the band says 3 moved" "moved to $SEL/keep" 30
+expect_brief "the strip or the band says 3 moved" "moved to $SEL/keep" 30
 shot "With the three still selected, the action bar floats over the list, and the strip (3 moved to ~/sel/keep, or the band's summary when it ran past 3 s) just above it, with no show: they are in view and selected (C32 D17, C30 F8)." strip
 expect_at "Arcade Set 002 is at ~/sel/keep$arcade_rel" "Arcade Set 002" "$SEL/keep$arcade_rel"
 expect_at "Handheld Pack 002 at ~/sel/keep$handheld_rel" "Handheld Pack 002" "$SEL/keep$handheld_rel"
@@ -834,7 +859,7 @@ shot "The band's details: waiting: Arcade Set 003, with cancel." details
 # Its strip, or its band's summary when it ran past 3 s (C16 L6, C18 D1). Looked for first,
 # with the details still open: the note lasts 6 s, while closing them waits out the films'
 # desktop notice (press) and the server checks below take seconds on a busy machine.
-expect_text "it says Arcade Set 003 moved" "Arcade Set 003 moved to $SEL/after" 400
+expect_brief "it says Arcade Set 003 moved" "Arcade Set 003 moved to $SEL/after" 400
 press details
 expect_count "all films land on ~/sel/films" count_at "$SEL/films" -eq "$nfilms" 400
 expect_at "Arcade Set 003 moved after them" "Arcade Set 003" "$SEL/after" 60
@@ -1560,9 +1585,9 @@ expect_text "the server's listing leaves photo-archive out" "1 left out" 30
 no_text "nothing claims room read here" "read on this machine"
 no_text "nothing claims a local write check" "is writable by the owner"
 shot "The Move… sheet on a server omaseed can't see: the remote line, room and writing can't tell, 1 left out from the server's listing." sheet
-press "move 1 torrent"
+press --now "move 1 torrent"
 # The note stays 6 s: read it first.
-expect_text "the strip says it moved" "Public Domain Sampler moved to" 20
+expect_brief "the strip says it moved" "Public Domain Sampler moved to" 20
 shot "The strip on the playground: Public Domain Sampler moved to …/remote-walk." note
 expect_at "Public Domain Sampler is in remote-walk" "Public Domain Sampler" "$REMOTE_DEST"
 expect_at "photo-archive-2019-2025 stayed" "photo-archive-2019-2025" "$photo_from" 1
