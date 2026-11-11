@@ -60,6 +60,10 @@ CONF
 cp "$TORRENTS"/*.torrent "$home/torrents/"
 omabox run -d -- qbittorrent-nox >/dev/null
 omabox wait --timeout 20s until -- curl -fs -o /dev/null "http://127.0.0.1:$QBT_PORT/api/v2/app/version"
+# #231: an alt-speed schedule the clock is always inside (all day but its last minute), so
+# Settings › Speed reads "Next: off at 23:59" at whatever hour the check runs.
+omabox run -- curl -fs -o /dev/null "http://127.0.0.1:$QBT_PORT/api/v2/app/setPreferences" \
+    --data-urlencode 'json={"schedule_from_hour":0,"schedule_from_min":0,"schedule_to_hour":23,"schedule_to_min":59}'
 # One at a time and in name order, so the table's order is the same in every run.
 # shellcheck disable=SC2016 # expanded by the box's sh
 omabox run -- sh -c 'for t in "$HOME"/torrents/*.torrent; do
@@ -98,14 +102,30 @@ FREE="750,1006 190x24"
 # qBittorrent sections (their head) than on omaseed's: the region is the tallest it can be.
 SHEET="568,78 760x875"
 ADD_SHEET="648,294 600x443"
-# Settings sections that show today's date or the clock, in window coordinates (every --ignore
-# with --window is, crop or not): the alt-speed schedule's "Next: off at 20:00", omaseed's backup
-# "seed history since <date>", qBittorrent's backup file names "…-<date>.json" (settings, torrents).
-declare -A SECTION_IGNORE=(
-    [qbt-speed]="792,673 512x38"
-    [backup]="798,293 425x52"
-    [qbt-backup]="798,262 430x52|798,533 430x52"
+# Settings panels whose words follow today's date or the clock (#231), by section, "|" between
+# them: omaseed's backup "seed history since <date>" and its automatic copies' "Last one: <day>
+# HH:MM", qBittorrent's backup file names "…-<date>.json" (settings, torrents). A panel's words
+# are not in the tree, so panel_words leaves out its text column, wherever the skin lays it out.
+# The alt-speed schedule needs none: the box's qBittorrent is given one that reads the same at
+# any hour (below).
+declare -A SECTION_CLOCK=(
+    [backup]="Back up omaseed|Automatic copies"
+    [qbt-backup]="Export box's settings|Export box's torrents"
 )
+
+# panel_words NAME: the text column of the settings panel named NAME, in window coordinates:
+# under its title, left of its first button.
+panel_words() {
+    omabox tree --window "$APP" --json 2>/dev/null | python3 -c '
+import json, sys
+nodes = [n for n in json.load(sys.stdin) if n.get("w", 0) > 0]
+for p in nodes:
+    if p.get("role") == "panel" and p.get("name") == sys.argv[1]:
+        right = min([n["x"] for n in nodes if n.get("role") == "button"
+                     and p["y"] <= n["y"] < p["y"] + p["h"] and n["x"] > p["x"]] or [p["x"] + p["w"]])
+        print("%d,%d %dx%d" % (p["x"] + 24, p["y"] + 22, right - p["x"] - 28, p["h"] - 24))
+        break' "$1"
+}
 
 # moving_point ID [ARGS]: a checkpoint of the whole window that also leaves out, wherever the
 # skin lays them out, the elements whose words follow the clock or the disk: any "HH:MM" ("added
@@ -264,8 +284,12 @@ key comma
 for i in "${!sections[@]}"; do
     [ "$i" = 0 ] || key j
     ignores=()
-    IFS='|' read -ra regions <<<"${SECTION_IGNORE[${sections[$i]}]:-}"
-    for r in "${regions[@]}"; do ignores+=(--ignore "$r"); done
+    IFS='|' read -ra panels <<<"${SECTION_CLOCK[${sections[$i]}]:-}"
+    for name in "${panels[@]}"; do
+        r=$(panel_words "$name")
+        [ -n "$r" ] || die "settings-${sections[$i]}: no panel named $name"
+        ignores+=(--ignore "$r")
+    done
     omabox check point "settings-${sections[$i]}" --window "$APP" -g "$(sheet_region settings "$SHEET")" "${ignores[@]}"
 done
 key Escape
