@@ -527,7 +527,10 @@ expect_disk "the folder on disk is still $NAME" -d "$IN/$NAME"
 expect_disk "…and there is no $RENAMED folder" ! "$IN/$RENAMED"
 expect_same "its bytes untouched" "$NAME/sample.bin" "$IN/$NAME/sample.bin"
 expect "still complete and seeding" "$HASH" "t['progress'] == 100 and t['state'] == 'Seeding'" 30
-expect_text "the row reads the new name" "$RENAMED" 10
+# #253: the row itself and the details' header, not the strip's "… renamed to $RENAMED"; and at
+# once, since the OK asks for a poll (the checks above took the time a poll would have).
+expect_text "the row reads the new name" "list item \"$RENAMED\"" 1
+expect_text "the details' header reads the new name" "heading \"$RENAMED\"" 1
 shot "The row and the details read $RENAMED."
 
 step "Relabel" "Jump to it, esc, C: the label palette for 1 torrent (one label per torrent on Deluge); \"Walk-Two\" typed: Deluge's labels are lower case, so it offers walk-two (K15); enter."
