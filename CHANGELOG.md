@@ -7,6 +7,8 @@ before it will tag a release.
 
 ## Unreleased
 
+## v0.8.3 — 2026-11-11
+
 ### Changed
 
 - **A retry that fails again stays quiet.** When omaseed starts a torrent in error (`p`, retry,
