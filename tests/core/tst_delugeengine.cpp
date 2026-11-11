@@ -20,6 +20,8 @@
 #include <QSignalSpy>
 #include <QTest>
 
+#include <optional>
+
 using namespace fakehttp;
 using namespace fakedeluge;
 using namespace omaseed::core;
@@ -223,8 +225,13 @@ void TestDelugeEngine::aSessionThatRanOutSignsInAgainOnce()
     m_web->calls.clear();
     auto *a = m_engine->start({kPack});
     auto *b = m_engine->stop({kSingle});
+    // b may finish while a is waited on, and a reply that has finished tells nobody who asks
+    // later: listen to it first (CI failed here now and then, "test never finished").
+    std::optional<Result<Done>> second;
+    b->then(this, [&second](const Result<Done> &finished) { second = finished; });
     QVERIFY(wait(a).isValid());
-    QVERIFY(wait(b).isValid());
+    QTRY_VERIFY(second.has_value());
+    QVERIFY(second->isValid());
     QCOMPARE(m_web->callsOf(QStringLiteral("auth.login")).size(), 1);
 }
 
