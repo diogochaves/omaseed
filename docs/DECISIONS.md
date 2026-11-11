@@ -2450,3 +2450,47 @@ different error, or an error after the torrent has worked again, is news and not
 says. A start from outside omaseed changes nothing. The memory of the start is per torrent and
 in memory only: a restart forgets it. Why: the person who pressed `p` is looking at the torrent,
 and the notice would only repeat what the row already says.
+
+## C40 — A library moves between engines (board 57, ruled 2026-11-11)
+
+Board [57](57-a-library-moves-between-engines.html), #88, X1–X10 all as recommended. This is
+C14 E10, and it ends C25 K33 a for torrents (settings stay qBittorrent's only).
+
+- **X1, X2, X10.** The file is the bridge: Transmission's and Deluge's settings groups get a last
+  section, **Backup**, with "Export NAME's torrents" and "Import torrents into NAME" only. Its
+  scope line ends "To move them to another server, export here and import there.", on all three
+  engines. C9's file, journal, save-path rows and result are unchanged; the manifest names the
+  engine that wrote the file (a file without it is qBittorrent's).
+- **X3.** Transmission and Deluge keep their .torrent files on the daemon's disk (`torrents/` in
+  Transmission's config folder, `state/` in Deluge's), not in the API. The export reads them
+  where the daemon says they are; when this machine can't, the row offers "their folder…" (that
+  folder as this machine sees it, remembered per server), and with none each torrent goes in as
+  its magnet link with its whole record, the row saying the cost. A record's trackers always
+  come from the API.
+- **X4.** The category is the first label, both ways: qBittorrent → Transmission, labels are the
+  category then the tags; Transmission → qBittorrent, the first label is the category and the
+  rest are tags. Deluge keeps one label (the category, or the first label) in its spelling
+  (`a-z 0-9 _ -`, anything else a `-`); its label becomes a category or the one label. The
+  sheet lists the names as they will be; they are not editable.
+- **X5.** What the target can't keep is said before the import in a "can't be kept" block, one
+  counted line per thing, and again in the result; it never blocks. No counterpart: a
+  seeding-time limit (neither), an idle limit and all but one label (Deluge), the limit's action
+  (Transmission only stops; Deluge stops or removes), automatic management and a per-torrent
+  incomplete folder (both).
+- **X6.** C9's promise on every engine: added stopped, renames and priorities before any check,
+  always checked (Transmission's own check on add counts, one more is asked after a rename;
+  Deluge is asked every time, and its `seed_mode` is never used), complete ones start if they
+  were started. C9's rule for a rename whose old and new names both exist holds on all three.
+  On Deluge, priorities go in the add (changing them after the check can leave a torrent that
+  can't be removed) and torrents are added one per call.
+- **X7.** Torrents that come as links are added stopped and counted apart; when their details
+  arrive, the journal sets their renames and priorities and asks for their check, now or at the
+  next start.
+- **X8.** An import never changes the source. When the file came from another server omaseed
+  knows, the result's last line says they are still on it and that unfinished ones stay stopped
+  here until they are stopped or removed there.
+- **X9.** Order, each step a release: Transmission exports and a qBittorrent reads a file from
+  another engine; then Transmission imports; then Deluge exports and imports.
+
+The measurements behind it (Transmission 4.1.3, Deluge 2.2.0) are board 57 §2; their repros are
+`scripts/dev/research/88-engines-backup/`.
