@@ -38,7 +38,7 @@ optdepends=(
     'ttf-material-symbols-variable: icons in the Console skin'
 )
 source=("$pkgname-$pkgver.tar.gz::https://github.com/diogochaves/omaseed/archive/refs/tags/v$pkgver.tar.gz")
-sha256sums=('SKIP')
+sha256sums=('f53f8e90024834c6bd039b71e9439fded9b2e9a98397e8c145735bc67f37a5d3')
 
 # No .install: current Arch convention leaves desktop-database, mime-database and (on the
 # rare system without it already) icon-cache updates to the libalpm hooks shipped by
