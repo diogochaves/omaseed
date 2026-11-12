@@ -249,9 +249,8 @@ void TestSearchModel::aFetchedLinkLearnsItsHash()
     QCOMPARE(role(model, 1, SearchModel::LibraryHashRole), QString());
 
     // In the library: that row only, at once, and through the marks read again later.
-    model.learnLinkHash(QStringLiteral("https://plugin.invalid/get/1.torrent"),
-                        mine.toUpper(),
-                        QString());
+    model.learnLinkHash(
+        QStringLiteral("https://plugin.invalid/get/1.torrent"), mine.toUpper(), QString());
     QCOMPARE(role(model, 0, SearchModel::MarkTextRole), QStringLiteral("in your library"));
     QCOMPARE(role(model, 0, SearchModel::LibraryHashRole), mine);
     QCOMPARE(role(model, 0, SearchModel::AddWordRole), QStringLiteral("trackers…"));

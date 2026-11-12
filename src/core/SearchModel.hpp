@@ -171,9 +171,9 @@ private:
     std::function<QString(const QStringList &)> m_privateHostOf;
     LibraryLookup m_lookup;
     QHash<QString, QString> m_pluginNames;
-    QHash<QString, QString> m_added;     ///< key -> "HH:mm" it was added
+    QHash<QString, QString> m_added;                          ///< key -> "HH:mm" it was added
     QHash<QString, std::pair<QString, QString>> m_linkHashes; ///< link -> {v1, v2} (#194)
-    QHash<QString, qint64> m_freshUntil; ///< key -> ms since epoch
+    QHash<QString, qint64> m_freshUntil;                      ///< key -> ms since epoch
     QHash<QString, QString> m_freshKind;
     QHash<QString, int> m_copiesSeen;
     std::function<qint64()> m_now;

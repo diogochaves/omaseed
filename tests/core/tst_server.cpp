@@ -33,7 +33,7 @@ private slots:
     void engineRoundTrips(); // #84
     void aVersionOneEntryIsAQbittorrent();
     void anEngineThisBuildDoesNotKnowIsUnknown();
-    void signInModesFollowTheEngine(); // C25 K7
+    void signInModesFollowTheEngine();                      // C25 K7
     void readsThisComputersFilesOnlyWithoutAPathMap_data(); // SR10, #194
     void readsThisComputersFilesOnlyWithoutAPathMap();
 };
