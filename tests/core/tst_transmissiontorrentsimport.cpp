@@ -901,10 +901,9 @@ void TestTransmissionTorrentsImport::aLinkWaitsInTheJournalAndIsFinishedLater()
     const TorrentRecord single = recordOf(kSingle);
     TorrentsBackup::Contents contents = write({link, single}, {{single.id, kSingle}});
     // A link's file choices come through the file (a Transmission writes them when it can't
-    // read the .torrent); its renames only a record made in memory has.
+    // read the .torrent), and its renames when the engine knew them anyway (a Deluge does).
     QCOMPARE(contents.records.at(0).priorities, link.priorities);
-    QVERIFY(contents.records.at(0).renamed.isEmpty());
-    contents.records[0] = link;
+    QCOMPARE(contents.records.at(0).renamed, link.renamed);
     const Import::Options o = options();
     const Import::Plan plan = Import::plan(contents, {});
     QCOMPARE(plan.magnets, QList<int>{0});

@@ -174,17 +174,20 @@ QJsonObject TorrentRecord::toJson() const
         o.insert(QStringLiteral("sequential"), true);
     if (firstLastPiecePrio)
         o.insert(QStringLiteral("firstLastPiecePrio"), true);
-    // A link keeps its file choices (a Transmission's torrent whose .torrent couldn't be
-    // read: C40 X3, X7); its names are the .torrent's own.
+    // A link keeps its file choices (a Transmission's or a Deluge's torrent whose .torrent
+    // couldn't be read: C40 X3, X7).
     if (!priorities.isEmpty()) {
         QJsonArray list;
         for (const int p : priorities)
             list.append(p);
         o.insert(QStringLiteral("priorities"), list);
     }
+    // A link whose engine knew its names anyway (a Deluge's `orig_files`) keeps its renames
+    // too; without any, its names are the .torrent's own and no layout is written.
     if (isMagnet()) {
         o.insert(QStringLiteral("magnet"), magnet);
-        return o;
+        if (renamed.isEmpty())
+            return o;
     }
     o.insert(QStringLiteral("layout"), layout);
     if (!renamed.isEmpty()) {
