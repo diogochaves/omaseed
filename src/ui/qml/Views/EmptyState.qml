@@ -3,19 +3,19 @@ import QtQuick
 import Omaseed.Kit
 
 // The teaching empty state (spec v2 §7 Fig. 22): a centred column with the headline, the
-// `Press a, drop a file here, or click a magnet link anywhere.` note (its `a` set as a key
-// chip, the same look `KeyHints` gives a key: `foreground`, tracked, `font.caption`), and a
-// left-aligned three-row key/description list (`.helpsheet`: key column right-aligned dim
-// bright, description column dim, `Theme.space(6)`/`Theme.space(14)` gaps — reused here as a
-// vertical `Theme.space(10)` gap between rows per the task brief). Every row is clickable
-// (hover fill, like a `RailRow`) and emits its own signal; the caller (Main.qml) owns what
-// happens next — opening the add dialog, settings, or the `?` help sheet.
+// `Drop a file here, or click a magnet link anywhere.` note, and the ways in as word buttons,
+// one under another, each as wide as its words. Keys are taught on demand only
+// (docs/DECISIONS.md C24 H10, board 46's law 4, as #170 did for the sheets' feet): Fig. 22's
+// key column and its `Press a` chip are not drawn; each button's key is its tooltip ("add a
+// torrent · a") and, while alt is held (`keysShown`), its badge. Every button emits its own
+// signal; the caller (MainView) owns what happens next: the add dialog, settings, or the `?`
+// sheet.
 //
 // docs/33 D6 (DECISIONS C12): with two servers or more the headline names the server ("No
-// torrents on public yet") and a row "ctrl+s switch server · private has 4" leads to the
+// torrents on public yet") and a button "switch server · private has 4" (ctrl+s) leads to the
 // busiest other one; with one server, Fig. 22 as built. D7: a server lost before it gave a
 // list ("noList") or that refused the sign-in ("refused") shows the same place with a centred
-// line saying so, and no rows.
+// line saying so, and no buttons.
 Item {
     id: root
 
@@ -23,7 +23,7 @@ Item {
     property string serverName: ""
     /// Two servers or more (D6).
     property bool multiServer: false
-    /// The busiest other server, for the ctrl+s row; "" when none has a count yet.
+    /// The busiest other server, for the switch button; "" when none has a count yet.
     property string otherName: ""
     property int otherCount: -1
     /// "empty" (Fig. 22), "noList" (O3), "refused" (O4) or "engine" (DECISIONS C28: a server
@@ -31,11 +31,13 @@ Item {
     property string variant: "empty"
     /// `App.serverProblem(…)`, read for "engine": {headline, lineBase, …}.
     property var problem: ({})
+    /// The window's `keysShown`: alt is held, so each button shows its key's badge (C24 H10).
+    property bool keysShown: false
 
     signal addRequested
     signal helpRequested
     signal settingsRequested
-    /// The ctrl+s row: the server palette (D2).
+    /// The switch server button (ctrl+s): the server palette (D2).
     signal switchRequested
 
     readonly property string headline: {
@@ -48,7 +50,7 @@ Item {
         return root.multiServer && root.serverName.length > 0 ? qsTr("No torrents on %1 yet").arg(root.serverName)
                                                               : qsTr("No torrents yet");
     }
-    /// The centred line of O3 and O4; "" for Fig. 22, whose line teaches `a`.
+    /// The centred line of O3 and O4; "" for Fig. 22, whose own line is `emptyTeach`.
     readonly property string note: root.variant === "noList" ? qsTr("omaseed hasn't reached it since it started. It tries again on its own.") : root.variant === "refused" ? qsTr("Fix the login in Settings › Servers; omaseed won't keep trying a password it knows is wrong.") : root.variant === "engine" ? (root.problem.lineBase || "") : ""
 
     implicitHeight: Theme.space(280)
@@ -82,7 +84,7 @@ Item {
     }
 
     /// What a click on `_rows[index]` does — exposed so `tst_States.qml` can exercise the
-    /// row's outcome directly (`mouseClick()` never delivers under the offscreen
+    /// button's outcome directly (`mouseClick()` never delivers under the offscreen
     /// qmltestrunner, the same limitation T3.2's Rail report found for RailRow).
     function triggerRow(index) {
         const kind = root._rows[index].signal;
@@ -129,103 +131,56 @@ Item {
             wrapMode: Text.Wrap
         }
 
-        // Three texts for the key chip in the middle; one sentence to a screen reader.
-        Row {
-            Accessible.name: qsTr("Press %1, drop a file here, or click a magnet link anywhere.").arg("a")
+        // Fig. 22's line without its `Press a` (docs/DECISIONS.md C24 H10): the add button
+        // under it carries the key.
+        Text {
+            Accessible.name: text
             Accessible.role: Accessible.StaticText
             anchors.horizontalCenter: parent.horizontalCenter
+            color: Theme.dimForeground
+            font.family: Theme.fontFamily
+            font.pixelSize: Theme.font.small
+            horizontalAlignment: Text.AlignHCenter
             objectName: "emptyTeach"
-            spacing: Theme.space(4)
+            text: qsTr("Drop a file here, or click a magnet link anywhere.")
             visible: root.variant === "empty"
-
-            Text {
-                color: Theme.dimForeground
-                font.family: Theme.fontFamily
-                font.pixelSize: Theme.font.small
-                text: qsTr("Press")
-            }
-
-            Text {
-                color: Theme.foreground
-                font.family: Theme.fontFamily
-                font.letterSpacing: Math.max(1, Math.round(Theme.font.caption * 0.08))
-                font.pixelSize: Theme.font.caption
-                text: "a"
-            }
-
-            Text {
-                color: Theme.dimForeground
-                font.family: Theme.fontFamily
-                font.pixelSize: Theme.font.small
-                text: qsTr(", drop a file here, or click a magnet link anywhere.")
-            }
+            width: Math.min(implicitWidth, root.width - Theme.space(32))
+            wrapMode: Text.Wrap
         }
 
         Column {
             id: rowsColumn
 
             anchors.horizontalCenter: parent.horizontalCenter
-            spacing: Theme.space(10)
+            spacing: Theme.space(6)
             topPadding: Theme.space(6)
 
             Repeater {
                 model: root._rows
 
-                Rectangle {
+                Button {
                     id: row
 
                     required property int index
                     required property var modelData
 
-                    readonly property bool hot: mouseArea.containsMouse
-                    /// The row's ground, the hover fill under the pointer (docs/DECISIONS.md
-                    /// C30 F1).
-                    readonly property ThemeInk ground: Theme.ground(false, false, row.hot, false)
-
-                    // #77: each way in is a button named by what it does, its key the
-                    // description; its press is the click.
+                    // #77: each way in is a button named by what it does (Button's name is its
+                    // words), its key the description; its press is the click.
                     Accessible.description: qsTr("shortcut %1").arg(row.modelData.key)
-                    Accessible.name: row.modelData.label
-                    Accessible.role: Accessible.Button
-                    Accessible.onPressAction: if (row.enabled)
-                                                  root.triggerRow(row.index)
                     objectName: "emptyRow_" + row.index
-                    color: row.hot ? row.ground.fill : "transparent"
-                    height: keyValueRow.implicitHeight + Theme.space(6)
-                    width: keyValueRow.implicitWidth + Theme.space(16)
+                    // Centred in the column; not an anchor, which a delegate the Repeater
+                    // drops reads on a null parent.
+                    x: Math.round((rowsColumn.width - row.width) / 2)
+                    text: row.modelData.label
+                    // C24 H10: the key on demand, in the tooltip as on the action bar's words.
+                    tooltip: qsTr("%1 · %2").arg(row.modelData.label).arg(row.modelData.key)
 
-                    Row {
-                        id: keyValueRow
+                    onClicked: root.triggerRow(row.index)
 
-                        anchors.verticalCenter: parent.verticalCenter
-                        spacing: Theme.space(14)
-                        x: Theme.space(8)
-
-                        Text {
-                            color: row.ground.brightForeground
-                            font.family: Theme.fontFamily
-                            font.pixelSize: Theme.font.small
-                            horizontalAlignment: Text.AlignRight
-                            text: row.modelData.key
-                            width: Theme.space(root.multiServer ? 44 : 20)
-                        }
-
-                        Text {
-                            color: row.ground.dimForeground
-                            font.family: Theme.fontFamily
-                            font.pixelSize: Theme.font.small
-                            text: row.modelData.label
-                        }
-                    }
-
-                    MouseArea {
-                        id: mouseArea
-
-                        anchors.fill: parent
-                        cursorShape: Qt.PointingHandCursor
-                        hoverEnabled: true
-
-                        onClicked: root.triggerRow(row.index)
+                    KeyBadge {
+                        key: row.modelData.key
+                        objectName: "emptyKey_" + row.index
+                        shown: root.keysShown
                     }
                 }
             }

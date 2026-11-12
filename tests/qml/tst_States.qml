@@ -53,6 +53,47 @@ TestCase {
         compare(spy.count, 1, "a disabled row ran");
     }
 
+    // The texts an item draws, its own subtree's (the badges' included, while shown).
+    function drawnTexts(item, out) {
+        if (!item.visible)
+            return out;
+        if (item.text !== undefined && item.font !== undefined && typeof item.text === "string")
+            out.push(item.text);
+        for (let i = 0; i < item.children.length; ++i)
+            drawnTexts(item.children[i], out);
+        return out;
+    }
+
+    // #191, docs/DECISIONS.md C24 H10: no key line is painted; each button carries its key in
+    // its tooltip and, while alt is held, its badge.
+    function test_empty_state_teaches_keys_on_demand() {
+        const empty = createTemporaryObject(emptyStateComponent, testCase, {
+                                                "width": 520,
+                                                "height": 400,
+                                                "multiServer": true,
+                                                "serverName": "public"
+                                            });
+        const keys = ["a", "ctrl+s", ",", "?"];
+        let drawn = drawnTexts(empty, []);
+        for (const key of keys)
+            verify(drawn.indexOf(key) < 0, "key drawn at rest: " + key);
+        verify(drawn.indexOf("Press") < 0, "the Press chip is drawn");
+        compare(findChild(empty, "emptyTeach").text, "Drop a file here, or click a magnet link anywhere.");
+        for (let i = 0; i < keys.length; ++i) {
+            const button = findChild(empty, "emptyRow_" + i);
+            compare(button.tooltip, empty._rows[i].label + " · " + keys[i]);
+            const badge = findChild(empty, "emptyKey_" + i);
+            compare(badge.key, keys[i]);
+            verify(!badge.visible, "badge shown without alt: " + keys[i]);
+        }
+        empty.keysShown = true;
+        drawn = drawnTexts(empty, []);
+        for (let i = 0; i < keys.length; ++i) {
+            verify(findChild(empty, "emptyKey_" + i).visible, "badge hidden with alt: " + keys[i]);
+            verify(drawn.indexOf(keys[i]) >= 0, "badge text missing: " + keys[i]);
+        }
+    }
+
     // #77: the note's halves are links a screen reader presses.
     function test_the_note_halves_take_the_accessible_press() {
         const filtered = createTemporaryObject(filteredEmptyComponent, testCase, {
@@ -389,7 +430,7 @@ TestCase {
         compare(headline.Accessible.name, "No torrents yet");
         const teach = findChild(empty, "emptyTeach");
         compare(teach.Accessible.role, Accessible.StaticText);
-        compare(teach.Accessible.name, "Press a, drop a file here, or click a magnet link anywhere.");
+        compare(teach.Accessible.name, "Drop a file here, or click a magnet link anywhere.");
         empty.serverName = "public";
         empty.variant = "noList";
         const note = findChild(empty, "emptyNote");

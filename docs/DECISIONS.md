@@ -1259,7 +1259,9 @@ the call says so.
   lines in sheets' feet; law 4 is read as ruling over them. What those lines taught is a block of
   the `?` sheet after view, "in a sheet", also in Settings › Keybindings; the window's alt badges
   stay off while a sheet is up (frame S6). Kit/KeyHints stays for the palettes' and the places
-  list's own lines, the error and move blocks' actions and first run.
+  list's own lines, the error and move blocks' actions and first run. The empty library
+  follows (#191): v2 Fig. 22's key column and its "Press a" go; its ways in are word buttons,
+  each key in the button's tooltip and its alt badge.
 - **Skins (H11–H12):** Settings › Appearance › skin: Omarchy (the default), Console, Follow the
   desktop (the console when omarchy-console's skin is on). Clean glow only. How the console skin
   is built is decided at its build step: C31.

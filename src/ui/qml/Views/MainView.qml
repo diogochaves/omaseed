@@ -2995,6 +2995,8 @@ Item {
             readonly property var other: App.busiestOtherServer
 
             anchors.centerIn: parent
+            // docs/DECISIONS.md C24 H10: its buttons' keys as badges while alt is held.
+            keysShown: root.keysShown
             multiServer: root.multiServer
             objectName: "emptyState"
             otherCount: emptyState.other.count !== undefined ? emptyState.other.count : -1
