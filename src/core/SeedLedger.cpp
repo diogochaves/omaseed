@@ -65,7 +65,7 @@ QString SeedLedger::defaultPath(const QString &serverId)
     return base + QStringLiteral("/omaseed/ledger/") + safe + QStringLiteral(".sqlite");
 }
 
-bool SeedLedger::open(const QString &path)
+bool SeedLedger::open(const QString &path, bool allTimeReferences)
 {
     close();
     m_path = path;
@@ -101,9 +101,162 @@ bool SeedLedger::open(const QString &path)
             return false;
         }
     }
+    repair(allTimeReferences);
     m_open = true;
     loadState();
     return true;
+}
+
+int SeedLedger::repair(bool allTimeReferences)
+{
+    QSqlDatabase db = QSqlDatabase::database(m_connection, false);
+    QSqlQuery q(db);
+    qint64 lastUp = 0;
+    qint64 lastDown = 0;
+    if (allTimeReferences &&
+        q.exec(QStringLiteral("SELECT key, value FROM meta WHERE key IN ('last_up', "
+                              "'last_down')"))) {
+        while (q.next())
+            (q.value(0).toString() == QLatin1String("last_up") ? lastUp : lastDown) =
+                q.value(1).toLongLong();
+    }
+
+    struct Row
+    {
+        qint64 t = 0;
+        qint64 up = 0;
+        qint64 down = 0;
+    };
+    // What all the torrents gave on a day, -1 for a day with no per-torrent rows.
+    QHash<QDate, qint64> dayUploads;
+    auto uploadsOf = [&](const QDate &day) {
+        const auto known = dayUploads.constFind(day);
+        if (known != dayUploads.constEnd())
+            return *known;
+        qint64 sum = -1;
+        q.prepare(QStringLiteral("SELECT COUNT(*), SUM(up) FROM torrent_days WHERE day = ?"));
+        q.addBindValue(dayKey(day));
+        if (q.exec() && q.next() && q.value(0).toLongLong() > 0)
+            sum = q.value(1).toLongLong();
+        dayUploads.insert(day, sum);
+        return sum;
+    };
+    auto wrong = [&](const Row &row) {
+        if ((lastUp > 0 && row.up > lastUp) || (lastDown > 0 && row.down > lastDown))
+            return true;
+        if (row.up <= repairFloor)
+            return false;
+        const qint64 day = uploadsOf(localDate(row.t));
+        return day >= 0 && day < row.up && row.up > repairFactor * day;
+    };
+
+    struct Mend
+    {
+        Row was;
+        qint64 up = 0;
+        qint64 down = 0;
+    };
+    // Nearly always nothing: only rows over a limit are read at all.
+    const qint64 upOver = lastUp > 0 ? std::min(lastUp, repairFloor) : repairFloor;
+    const qint64 downOver = lastDown > 0 ? lastDown : std::numeric_limits<qint64>::max();
+    auto mendsOf = [&](const QString &table) {
+        QList<Mend> mends;
+        QSet<qint64> wrongKeys;
+        q.prepare(QStringLiteral("SELECT t, up, down FROM %1 WHERE up > ? OR down > ? ORDER BY t")
+                      .arg(table));
+        q.addBindValue(upOver);
+        q.addBindValue(downOver);
+        if (!q.exec())
+            return mends;
+        QList<Row> over;
+        while (q.next())
+            over.append(
+                {q.value(0).toLongLong(), q.value(1).toLongLong(), q.value(2).toLongLong()});
+        for (const Row &row : std::as_const(over)) {
+            if (wrong(row)) {
+                mends.append({row, 0, 0});
+                wrongKeys.insert(row.t);
+            }
+        }
+        // The nearest sound row on one side.
+        auto neighbour = [&](qint64 t, bool earlier, Row *out) {
+            q.prepare(QStringLiteral("SELECT t, up, down FROM %1 WHERE t %2 ? ORDER BY t %3")
+                          .arg(table,
+                               earlier ? QStringLiteral("<") : QStringLiteral(">"),
+                               earlier ? QStringLiteral("DESC") : QStringLiteral("ASC")));
+            q.addBindValue(t);
+            if (!q.exec())
+                return false;
+            while (q.next()) {
+                if (wrongKeys.contains(q.value(0).toLongLong()))
+                    continue;
+                *out = {q.value(0).toLongLong(), q.value(1).toLongLong(), q.value(2).toLongLong()};
+                return true;
+            }
+            return false;
+        };
+        for (auto it = mends.begin(); it != mends.end();) {
+            Row before, after;
+            const bool hasBefore = neighbour(it->was.t, true, &before);
+            const bool hasAfter = neighbour(it->was.t, false, &after);
+            if (hasBefore && hasAfter) {
+                it->up = before.up / 2 + after.up / 2 + (before.up % 2 + after.up % 2) / 2;
+                it->down =
+                    before.down / 2 + after.down / 2 + (before.down % 2 + after.down % 2) / 2;
+            } else if (hasBefore || hasAfter) {
+                it->up = hasBefore ? before.up : after.up;
+                it->down = hasBefore ? before.down : after.down;
+            }
+            // Already what its neighbours say: nothing to mend, now or at the next open.
+            if (it->up == it->was.up && it->down == it->was.down)
+                it = mends.erase(it);
+            else
+                ++it;
+        }
+        return mends;
+    };
+    const QList<Mend> hours = mendsOf(QStringLiteral("hours"));
+    const QList<Mend> minutes = mendsOf(QStringLiteral("minutes"));
+    if (hours.isEmpty() && minutes.isEmpty())
+        return 0;
+
+    bool ok = db.transaction();
+    auto write = [&](const QString &table, const QList<Mend> &mends) {
+        for (const Mend &mend : mends) {
+            ok = ok &&
+                 q.prepare(QStringLiteral("UPDATE %1 SET up = ?, down = ?, gap = 1 WHERE t = ?")
+                               .arg(table));
+            q.addBindValue(mend.up);
+            q.addBindValue(mend.down);
+            q.addBindValue(mend.was.t);
+            ok = ok && q.exec();
+        }
+    };
+    write(QStringLiteral("hours"), hours);
+    write(QStringLiteral("minutes"), minutes);
+    // The day booked what its hour did, on its own: it gives up the same difference.
+    for (const Mend &mend : hours) {
+        ok = ok && q.prepare(QStringLiteral("UPDATE days SET up = max(0, up - ?), down = max(0, "
+                                            "down - ?), gap = 1 WHERE day = ?"));
+        q.addBindValue(mend.was.up - mend.up);
+        q.addBindValue(mend.was.down - mend.down);
+        q.addBindValue(dayKey(localDate(mend.was.t)));
+        ok = ok && q.exec();
+    }
+    ok = ok && db.commit();
+    if (!ok) {
+        const QString error =
+            q.lastError().isValid() ? q.lastError().text() : db.lastError().text();
+        db.rollback();
+        qWarning("SeedLedger: cannot repair %s: %s", qPrintable(m_path), qPrintable(error));
+        return 0;
+    }
+    qInfo("SeedLedger: repaired %lld hour(s) and %lld minute(s) of %s that held more than the "
+          "server could have moved (#256)",
+          qlonglong(hours.size()),
+          qlonglong(minutes.size()),
+          qPrintable(m_path));
+    return int(hours.size() + minutes.size());
 }
 
 bool SeedLedger::openFile(const QString &path, bool *broken)

@@ -13,8 +13,9 @@ before it will tag a release.
   When omaseed reconnected within seconds of a qBittorrent restart, qBittorrent answered with
   no all-time totals yet, and the next answer's whole total went into the history as if it had
   all been uploaded in that minute. Such an answer is now left out, and an amount no connection
-  could carry in the time is never counted. An hour already recorded that way stays until a
-  repair ships. (#256)
+  could carry in the time is never counted. A history that already holds such an hour is
+  repaired the next time omaseed opens it: the hour takes the level of the hours around it,
+  its day gives up the difference, and both are drawn as a gap. (#256)
 
 ## v0.8.3 — 2026-11-11
 

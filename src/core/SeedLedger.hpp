@@ -25,6 +25,8 @@
 // - A difference no link could carry in the time since the last poll (`maxBytesPerSecond`)
 //   is not traffic: nothing of it is counted, the span is marked `gap` and the baseline
 //   starts again (#256).
+// - A ledger written before those two rules can hold an hour with the server's whole
+//   all-time total in it. open() mends such hours and minutes (repair(), #256).
 // - A torrent removed and added again (a new `addedOn` under the same hash) counts everything
 //   it reports: those totals began from nothing when it was added.
 // - A torrent missing from a poll keeps its baseline for `missingKept` seconds of this run, so
@@ -94,6 +96,11 @@ public:
     /// The shortest span that bound is worked out for: two polls a second apart (or a clock
     /// that went back) are allowed what a minute could carry.
     static constexpr qint64 maxRateFloorSeconds = 60;
+    /// #256, the repair at open: an hour or a minute is wrong when it holds more than
+    /// `repairFactor` times what all the torrents gave that whole day, and more than
+    /// `repairFloor` (100 GB), so a small day's busy hour is never touched.
+    static constexpr qint64 repairFactor = 10;
+    static constexpr qint64 repairFloor = 100'000'000'000;
 
     SeedLedger();
     ~SeedLedger();
@@ -105,7 +112,11 @@ public:
     /// one started. False when SQLite cannot open it at all; the ledger then keeps working in
     /// memory only. A flush that cannot write (a full disk) keeps what it held and tries again
     /// at the next one.
-    bool open(const QString &path);
+    /// Every open mends the hours and minutes #256 booked wrong (see repair()).
+    /// `allTimeReferences`: the totals this ledger is fed are the server's all-time ones,
+    /// which no hour can exceed; false for an engine fed its session's totals (Deluge, C25
+    /// K34), which start again below what earlier hours hold.
+    bool open(const QString &path, bool allTimeReferences = true);
     /// Flushes and closes. Safe to call twice.
     void close();
     bool isOpen() const;
@@ -216,6 +227,16 @@ private:
     void prunePending(qint64 now);
     /// Opens the connection and the schema; `broken` when the file is not a ledger.
     bool openFile(const QString &path, bool *broken);
+    /// #256: mends the file's hours and minutes that hold what no hour could. A row is wrong
+    /// when (a) it holds more than the server's all-time total (meta's last_up, last_down;
+    /// only with `allTimeReferences`), or (b) its upload is over repairFloor and over
+    /// repairFactor times its local day's per-torrent uploads (a day with none is judged by
+    /// (a) alone). A wrong row takes the mean of the nearest sound rows before and after it
+    /// (the one there is; 0 with none) and is marked a gap. The day of a wrong hour gives up
+    /// what the hour did, and is marked a gap; minutes, hours and days are each booked on
+    /// their own, so a minute changes no other row. One transaction; torrent_days, baselines
+    /// and meta are not written. Returns how many rows changed: 0 on a second open.
+    int repair(bool allTimeReferences);
     bool saveMeta();
 
     QString m_connection;
