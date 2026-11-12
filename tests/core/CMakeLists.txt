@@ -93,6 +93,11 @@ omaseed_add_test(tst_shareddata
     LIBRARIES omaseed::core
 )
 
+omaseed_add_test(tst_librarycrossing
+    SOURCES tst_librarycrossing.cpp
+    LIBRARIES omaseed::core
+)
+
 omaseed_add_test(tst_renameplan
     SOURCES tst_renameplan.cpp
     LIBRARIES omaseed::core
