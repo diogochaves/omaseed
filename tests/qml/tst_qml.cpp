@@ -33,6 +33,20 @@ public:
         return file.open(QIODevice::WriteOnly) && file.write(bytes) == bytes.size();
     }
 
+    /// What `relativePath` under folder() holds, or "" when it can't be read.
+    Q_INVOKABLE QString read(const QString &relativePath) const
+    {
+        QFile file(m_dir.filePath(relativePath));
+        return file.open(QIODevice::ReadOnly) ? QString::fromUtf8(file.readAll()) : QString();
+    }
+
+    /// Removes `relativePath` under folder(); whether it is gone.
+    Q_INVOKABLE bool remove(const QString &relativePath)
+    {
+        const QString path = m_dir.filePath(relativePath);
+        return !QFileInfo::exists(path) || QFile::remove(path);
+    }
+
 private:
     QTemporaryDir m_dir;
 };

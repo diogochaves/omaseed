@@ -24,7 +24,7 @@ TestCase {
                        "questionGivingBack", "questionResting", "railGroups", "chevronDownGlyph",
                        "arrowRight", "diamond", "radioOn", "radioOff", "settingWarn",
                        "settingPending", "serverLocal", "serverRemote", "sort", "speedLimits",
-                       "move", "moveBack", "moveQuit"];
+                       "move", "moveBack", "moveQuit", "omarchyMenu"];
         for (let i = 0; i < names.length; ++i) {
             const value = Glyphs[names[i]];
             verify(typeof value === "string", names[i] + " should be a string");

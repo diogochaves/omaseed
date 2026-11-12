@@ -378,12 +378,13 @@ Item {
             return 7; // five toggles (W5 added, docs/54), the low-disk threshold field, the weekly recap (#24 T8)
         case 4:
             // the skin (C24 H11), theme, base size, the window's ground (C24 H13) and, while
-            // translucent, its transparency, tray icon, the bar widget (#17), then the rail's scroll hint,
+            // translucent, its transparency, tray icon, the bar widget (#17), Omarchy's menu
+            // (C36 M12), then the rail's scroll hint,
             // its tint (C32 D16 a) and tracker hosts (docs/08 §5), then where Details sits
             // (docs/10), then the rows' pulse (#24 T5), then where the speeds are (C32 D2 a).
             // The hero's speed alignment and trends left with the hero (#167 assumed 6): their
             // saved values are kept, and ignored.
-            return 12 + root._groundShift;
+            return 13 + root._groundShift;
         case 5:
             return 3; // back up, restore, automatic copies (#31)
         case 6:
@@ -854,16 +855,18 @@ Item {
             else if (root.paneCursor === 5 + root._groundShift)
                 root.customizeBarWidget();
             else if (root.paneCursor === 6 + root._groundShift)
-                App.railScrollHint = root._next(root.scrollHints, App.railScrollHint);
+                root._toggleOmarchyMenu();
             else if (root.paneCursor === 7 + root._groundShift)
-                App.surfaceTint = root._next(root.tints, App.surfaceTint);
+                App.railScrollHint = root._next(root.scrollHints, App.railScrollHint);
             else if (root.paneCursor === 8 + root._groundShift)
-                App.trackerHostStyle = root._next(root.hostStyles, App.trackerHostStyle);
+                App.surfaceTint = root._next(root.tints, App.surfaceTint);
             else if (root.paneCursor === 9 + root._groundShift)
-                App.detailsPlacement = root._next(root.placements, App.detailsPlacement);
+                App.trackerHostStyle = root._next(root.hostStyles, App.trackerHostStyle);
             else if (root.paneCursor === 10 + root._groundShift)
-                App.pulseRows = !App.pulseRows;
+                App.detailsPlacement = root._next(root.placements, App.detailsPlacement);
             else if (root.paneCursor === 11 + root._groundShift)
+                App.pulseRows = !App.pulseRows;
+            else if (root.paneCursor === 12 + root._groundShift)
                 App.speedsPlace = root._next(root.speedsPlaces, App.speedsPlace);
             return;
         }
@@ -1215,6 +1218,32 @@ Item {
         if (!App.barWidget.available && !App.barWidget.inBar)
             return words + "\n" + qsTr("The widget needs the Omarchy shell and omaseed's installed widget.");
         return words;
+    }
+
+    /// Board 53 §6 (C36 M12–M15): In the Omarchy menu's words. Where the switch can move, what
+    /// the block holds; where it can't (a row of the user's, no safe place for a comma, no
+    /// Omarchy menu), why, and the row is dimmed.
+    function _omarchyMenuText(): string {
+        const file = App.omarchyMenuFile;
+        const reason = App.omarchyMenuReason;
+        switch (App.omarchyMenuState) {
+        case "usersRow":
+            {
+                const line = reason.match(/^line (\d+) uses (\S+)$/);
+                return line ? qsTr("another row in %1 uses %2, on line %3.").arg(file).arg(line[2]).arg(line[1]) : qsTr("another row in %1 uses trigger.torrents.").arg(file);
+            }
+        case "noSafePlace":
+            return qsTr("couldn't add the block to %1: %2.").arg(file).arg(reason);
+        case "noMenu":
+            return qsTr("needs Omarchy's menu.");
+        default:
+            return qsTr("Trigger › Torrents: add, search, speeds, pause and resume, servers. Type torr in the menu, or bind omarchy menu summon torrents.");
+        }
+    }
+
+    function _toggleOmarchyMenu(): void {
+        if (App.omarchyMenuOffered)
+            App.inOmarchyMenu = !App.inOmarchyMenu;
     }
 
     /// The tallest pane's own height. Keybindings is left out: it is a list with a scroller of
@@ -2974,17 +3003,54 @@ Item {
                                 }
                             }
 
+                            // Board 53 §6 (C36 M12–M15): Trigger › Torrents in Omarchy's menu,
+                            // with Follow the Omarchy theme's switch. Off until asked; dimmed,
+                            // saying why, where omaseed can't write its block.
+                            SettingsRow {
+                                id: omarchyMenuRow
+
+                                Layout.fillWidth: true
+                                description: root._omarchyMenuText()
+                                glyph: Glyphs.omarchyMenu
+                                hasCursor: root.area === "pane" && root.paneCursor === 6 + root._groundShift
+                                lead: App.omarchyMenuOffered && App.omarchyMenuReason.length > 0 ? App.omarchyMenuReason + ". " : ""
+                                objectName: "omarchyMenuRow"
+                                title: qsTr("In the Omarchy menu")
+
+                                onClicked: {
+                                    root.paneCursor = 6 + root._groundShift;
+                                    root.area = "pane";
+                                    root._toggleOmarchyMenu();
+                                }
+
+                                Toggle {
+                                    Accessible.name: omarchyMenuRow.title
+                                    block: omarchyMenuRow.ground
+                                    checked: App.inOmarchyMenu
+                                    enabled: App.omarchyMenuOffered
+                                    objectName: "omarchyMenuToggle"
+                                    opacity: enabled ? 1 : 0.45
+
+                                    onToggled: {
+                                        App.inOmarchyMenu = checked;
+                                        // The file says where the switch is: a write that
+                                        // failed leaves it where it was.
+                                        checked = Qt.binding(() => App.inOmarchyMenu);
+                                    }
+                                }
+                            }
+
                             SettingsRow {
                                 id: scrollHintRow
 
                                 Layout.fillWidth: true
                                 description: qsTr("how lists say there is more above or below: the rail and every palette.")
                                 glyph: Glyphs.scrollHint
-                                hasCursor: root.area === "pane" && root.paneCursor === 6 + root._groundShift
+                                hasCursor: root.area === "pane" && root.paneCursor === 7 + root._groundShift
                                 title: qsTr("Scroll hint")
 
                                 onClicked: {
-                                    root.paneCursor = 6 + root._groundShift;
+                                    root.paneCursor = 7 + root._groundShift;
                                     root.area = "pane";
                                     App.railScrollHint = root._next(root.scrollHints, App.railScrollHint);
                                 }
@@ -3018,12 +3084,12 @@ Item {
                                 Layout.fillWidth: true
                                 description: qsTr("a light fill behind the rail.")
                                 glyph: Glyphs.sidebar
-                                hasCursor: root.area === "pane" && root.paneCursor === 7 + root._groundShift
+                                hasCursor: root.area === "pane" && root.paneCursor === 8 + root._groundShift
                                 objectName: "surfaceTintRow"
                                 title: qsTr("Surface tint")
 
                                 onClicked: {
-                                    root.paneCursor = 7 + root._groundShift;
+                                    root.paneCursor = 8 + root._groundShift;
                                     root.area = "pane";
                                     App.surfaceTint = root._next(root.tints, App.surfaceTint);
                                 }
@@ -3057,11 +3123,11 @@ Item {
                                 Layout.fillWidth: true
                                 description: qsTr("how a long tracker host fits the rail.")
                                 glyph: Glyphs.host
-                                hasCursor: root.area === "pane" && root.paneCursor === 8 + root._groundShift
+                                hasCursor: root.area === "pane" && root.paneCursor === 9 + root._groundShift
                                 title: qsTr("Tracker hosts")
 
                                 onClicked: {
-                                    root.paneCursor = 8 + root._groundShift;
+                                    root.paneCursor = 9 + root._groundShift;
                                     root.area = "pane";
                                     App.trackerHostStyle = root._next(root.hostStyles, App.trackerHostStyle);
                                 }
@@ -3094,11 +3160,11 @@ Item {
                                 Layout.fillWidth: true
                                 description: qsTr("auto puts it right when the window is 16:10 or wider, else at the bottom. I cycles it.")
                                 glyph: Glyphs.sidebar
-                                hasCursor: root.area === "pane" && root.paneCursor === 9 + root._groundShift
+                                hasCursor: root.area === "pane" && root.paneCursor === 10 + root._groundShift
                                 title: qsTr("Details panel")
 
                                 onClicked: {
-                                    root.paneCursor = 9 + root._groundShift;
+                                    root.paneCursor = 10 + root._groundShift;
                                     root.area = "pane";
                                     App.detailsPlacement = root._next(root.placements, App.detailsPlacement);
                                 }
@@ -3132,12 +3198,12 @@ Item {
                                 Layout.fillWidth: true
                                 description: qsTr("a green tick at the left of each row that is uploading, breathing faster the more it sends. Still when the desktop asks for less motion.")
                                 glyph: Glyphs.statusSeeding
-                                hasCursor: root.area === "pane" && root.paneCursor === 10 + root._groundShift
+                                hasCursor: root.area === "pane" && root.paneCursor === 11 + root._groundShift
                                 objectName: "pulseRowsRow"
                                 title: qsTr("Pulse sending rows")
 
                                 onClicked: {
-                                    root.paneCursor = 10 + root._groundShift;
+                                    root.paneCursor = 11 + root._groundShift;
                                     root.area = "pane";
                                     App.pulseRows = !App.pulseRows;
                                 }
@@ -3160,12 +3226,12 @@ Item {
                                 Layout.fillWidth: true
                                 description: qsTr("where ↓ and ↑ are shown. The title bar draws the last minute under each.")
                                 glyph: Glyphs.arrowDown
-                                hasCursor: root.area === "pane" && root.paneCursor === 11 + root._groundShift
+                                hasCursor: root.area === "pane" && root.paneCursor === 12 + root._groundShift
                                 objectName: "speedsPlaceRow"
                                 title: qsTr("Speeds")
 
                                 onClicked: {
-                                    root.paneCursor = 11 + root._groundShift;
+                                    root.paneCursor = 12 + root._groundShift;
                                     root.area = "pane";
                                     App.speedsPlace = root._next(root.speedsPlaces, App.speedsPlace);
                                 }

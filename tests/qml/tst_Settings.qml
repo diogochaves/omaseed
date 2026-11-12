@@ -1343,7 +1343,7 @@ TestCase {
         // Appearance: "In the bar" (docs/33 D25) steps through the choices it can have:
         // without the shell, tray icon and none.
         keyClick(Qt.Key_5);
-        compare(modal.paneRowCount, 12);
+        compare(modal.paneRowCount, 13);
         const tray = App.trayIconMode;
         App.trayIconMode = "auto";
         compare(App.inTheBar, "tray");
@@ -1365,20 +1365,20 @@ TestCase {
         const hint = App.railScrollHint;
         const tint = App.surfaceTint;
         const hosts = App.trackerHostStyle;
-        modal.paneCursor = 6;
-        modal.activateRow();
-        verify(App.railScrollHint !== hint);
         modal.paneCursor = 7;
         modal.activateRow();
-        verify(App.surfaceTint !== tint);
+        verify(App.railScrollHint !== hint);
         modal.paneCursor = 8;
+        modal.activateRow();
+        verify(App.surfaceTint !== tint);
+        modal.paneCursor = 9;
         modal.activateRow();
         verify(App.trackerHostStyle !== hosts);
 
         // ...and the next places Details (docs/10 §5): auto, right, bottom.
         const placement = App.detailsPlacement;
         compare(placement, "auto");
-        modal.paneCursor = 9;
+        modal.paneCursor = 10;
         modal.activateRow();
         compare(App.detailsPlacement, "right");
         modal.activateRow();
@@ -1519,7 +1519,7 @@ TestCase {
         const row = testCase.childNamed(modal, "surfaceTintRow");
         verify(row !== null && row.visible);
         compare(row.title, "Surface tint");
-        modal.paneCursor = 7;
+        modal.paneCursor = 8;
         modal.area = "pane";
         compare(row.hasCursor, true);
         modal.activateRow();
@@ -1569,7 +1569,7 @@ TestCase {
         const row = testCase.childNamed(modal, "pulseRowsRow");
         verify(row, "the Appearance pane has no pulse row");
         compare(row.title, "Pulse sending rows");
-        modal.paneCursor = 10;
+        modal.paneCursor = 11;
         modal.area = "pane";
         compare(row.hasCursor, true);
         modal.activateRow();
@@ -1697,7 +1697,7 @@ TestCase {
         compare(row.title, "Window");
         const alphaRow = testCase.childNamed(modal, "windowAlphaRow");
         compare(alphaRow.visible, false);
-        compare(modal.paneRowCount, 12);
+        compare(modal.paneRowCount, 13);
 
         modal.area = "pane";
         modal.paneCursor = 3;
@@ -1705,7 +1705,7 @@ TestCase {
         modal.activateRow();
         compare(App.windowGround, "translucent");
         compare(alphaRow.visible, true);
-        compare(modal.paneRowCount, 13);
+        compare(modal.paneRowCount, 14);
         // "In the bar" moved down one.
         modal.paneCursor = 5;
         compare(testCase.childNamed(modal, "inTheBarRow").hasCursor, true);
@@ -1909,6 +1909,83 @@ TestCase {
         App.barWidget.setPrograms("omaseed-tests-have-no-omarchy", "omaseed-tests-have-no-omarchy");
         verify(!App.barWidget.available);
         App.trayIconMode = mode;
+    }
+
+    // Board 53 §6 (C36 M12–M15, #216): In the Omarchy menu, after Widget, with Follow the
+    // Omarchy theme's switch. The tests' OMARCHY_PATH has no Omarchy, so it starts dimmed;
+    // pointed at a folder of the test's own, it adds and removes the block, and a row of the
+    // user's or a last row ending in a comment dims it again, saying why.
+    function test_in_the_omarchy_menu_adds_and_removes_the_block() {
+        const files = TestFiles; // qmllint disable unqualified
+        const modal = createTemporaryObject(modalComponent, testCase);
+        modal.open();
+        keyClick(Qt.Key_5);
+        compare(modal.paneIndex, 4);
+        const row = testCase.childNamed(modal, "omarchyMenuRow");
+        const toggle = testCase.childNamed(modal, "omarchyMenuToggle");
+        verify(row !== null && toggle !== null);
+        compare(row.title, "In the Omarchy menu");
+        // After Widget, in the pane's keyboard order too.
+        verify(row.y > testCase.childNamed(modal, "barWidgetRow").y);
+        compare(App.omarchyMenuState, "noMenu");
+        compare(row.description, "needs Omarchy's menu.");
+        verify(!toggle.enabled);
+        verify(toggle.opacity < 1);
+        verify(!toggle.checked);
+
+        const user = "omarchy-menu-test/extensions/omarchy-menu.jsonc";
+        verify(files.write("omarchy-menu-test/omarchy-menu.jsonc", "{\n}\n"));
+        const mine = "{\n  // mine\n  \"a\": {\"label\":\"A\"},\n}\n";
+        verify(files.write(user, mine));
+        App.setOmarchyMenuPaths(files.folder() + "/" + user, files.folder() + "/omarchy-menu-test/omarchy-menu.jsonc");
+        compare(App.omarchyMenuState, "noBlock");
+        verify(toggle.enabled);
+        compare(toggle.opacity, 1);
+        verify(!toggle.checked);
+        verify(row.description.indexOf("Trigger › Torrents") === 0, row.description);
+        verify(row.description.indexOf("omarchy menu summon torrents") > 0, row.description);
+
+        // The switch, a click on the row and the keyboard all flip it.
+        mouseClick(toggle);
+        verify(App.inOmarchyMenu);
+        verify(toggle.checked);
+        verify(files.read(user).indexOf("\"trigger.torrents\"") > 0);
+        mouseClick(row);
+        verify(!App.inOmarchyMenu);
+        compare(files.read(user), mine);
+        compare(modal.paneCursor, 6);
+        modal.activateRow();
+        verify(App.inOmarchyMenu);
+        modal.activateRow();
+        verify(!App.inOmarchyMenu);
+        compare(files.read(user), mine);
+
+        // A hand edit moves the switch.
+        verify(files.write(user, "{\n  \"a\": 1,\n  \"trigger.torrents\": {\"label\":\"Mine\"},\n}\n"));
+        tryCompare(App, "omarchyMenuState", "usersRow");
+        verify(!toggle.enabled);
+        compare(row.description, "another row in " + App.omarchyMenuFile + " uses trigger.torrents, on line 3.");
+        modal.activateRow();
+        verify(!App.inOmarchyMenu);
+
+        verify(files.write(user, "{\n  \"a\": 1 // mine\n}\n"));
+        tryCompare(App, "omarchyMenuState", "noSafePlace");
+        verify(!toggle.enabled);
+        compare(row.description, "couldn't add the block to " + App.omarchyMenuFile + ": the entry on line 2 ends in a comment.");
+
+        // The old first-page row reads as off, and on replaces it.
+        verify(files.write(user, "{\n  \"torrents\": {\"label\":\"Torrents\",\"action\":\"uwsm-app -- omaseed\"},\n}\n"));
+        tryCompare(App, "omarchyMenuState", "oldRow");
+        verify(toggle.enabled);
+        verify(!toggle.checked);
+        mouseClick(toggle);
+        verify(App.inOmarchyMenu);
+        verify(files.read(user).indexOf("\"torrents\":") < 0);
+
+        // Back to the tests' no-Omarchy, for the next test.
+        App.setOmarchyMenuPaths(files.folder() + "/" + user, files.folder() + "/no-omarchy");
+        compare(App.omarchyMenuState, "noMenu");
+        verify(files.remove(user));
     }
 
     function test_the_about_pane_prints_the_version_and_the_install_line() {
