@@ -2050,6 +2050,23 @@ Item {
                 settingsModal.open();
         }
 
+        /// `omaseed --open search` (DECISIONS C36 M5): the search view, as its key opens it.
+        /// Held through first run, and while the server's first answer (which says whether it
+        /// searches) is on its way: a launch asks before it has one.
+        function onOpenSearchRequested(): void {
+            root._pendingSearch = true;
+            root._openPendingSearch();
+        }
+
+        /// The first answer, or a failure: a held `--open search` is settled.
+        function onFeaturesChanged(): void {
+            Qt.callLater(root._openPendingSearch);
+        }
+
+        function onServerStateChanged(): void {
+            Qt.callLater(root._openPendingSearch);
+        }
+
         /// Issue #2: the live server's certificate was refused. Someone in Settings (HTTPS just
         /// turned on, say) gets the server sheet with it at once; anyone else, the banner's
         /// `review certificate`.
@@ -4362,9 +4379,20 @@ Item {
     /// The tray's `add…` and `settings…` during first run, held the same way.
     property bool _pendingBlankAdd: false
     property bool _pendingSettings: false
+    /// `omaseed --open search` (C36 M5), held until first run is done and the server answered.
+    property bool _pendingSearch: false
     /// The page, for the tests; `_firstRunDetect: false` keeps them off port 8080's probe.
     readonly property alias firstRunLoader: firstRunLoader
     property bool _firstRunDetect: true
+
+    function _openPendingSearch(): void {
+        if (!root._pendingSearch || root.firstRun)
+            return;
+        if (!App.searchOffered && App.serverConnecting)
+            return;
+        root._pendingSearch = false;
+        root.openSearch("");
+    }
 
     function _openPendingAdds(): void {
         const pending = root._pendingAdds;
@@ -4413,6 +4441,7 @@ Item {
                 root.focusHome();
                 root.setupFinished();
                 root._openPendingAdds();
+                root._openPendingSearch();
             }
             onQuitRequested: root.quitRequested()
         }

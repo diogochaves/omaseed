@@ -19,6 +19,8 @@ private slots:
     void help_data();
     void help();
     void version();
+    void openRefusesWithNoDisplay_data();
+    void openRefusesWithNoDisplay();
     void themeRoles();
     void themeRolesInASkin_data();
     void themeRolesInASkin();
@@ -90,6 +92,35 @@ void TestPrintOnly::help()
     QVERIFY2(m_out.contains(QLatin1String("Usage:")), qPrintable(m_out + m_err));
     QVERIFY(m_out.contains(QLatin1String("--theme-roles")));
     QVERIFY(m_out.contains(QLatin1String("--quit")));
+    QVERIFY(m_out.contains(QLatin1String("--open <page>")));
+}
+
+// DECISIONS C36 M5 (#215): a wrong `--open` is refused before anything starts, display or not.
+void TestPrintOnly::openRefusesWithNoDisplay_data()
+{
+    QTest::addColumn<QStringList>("arguments");
+    QTest::addColumn<QString>("says");
+    QTest::newRow("unknown page") << QStringList{QStringLiteral("--open"), QStringLiteral("quit")}
+                                  << QStringLiteral(
+                                         "--open takes add, search, settings, not \"quit\"");
+    QTest::newRow("with a link") << QStringList{QStringLiteral("--open"),
+                                                QStringLiteral("add"),
+                                                QStringLiteral("magnet:?xt=urn:btih:abc")}
+                                 << QStringLiteral("--open takes no links or files");
+    QTest::newRow("with a demo") << QStringList{QStringLiteral("--open=search"),
+                                                QStringLiteral("--demo"),
+                                                QStringLiteral("table")}
+                                 << QStringLiteral("--open doesn't go with --demo");
+}
+
+void TestPrintOnly::openRefusesWithNoDisplay()
+{
+    QFETCH(QStringList, arguments);
+    QFETCH(QString, says);
+    QVERIFY(run(arguments));
+    QVERIFY2(m_exitStatus == QProcess::NormalExit, qPrintable(m_err));
+    QCOMPARE(m_exitCode, 2);
+    QVERIFY2(m_err.contains(says), qPrintable(m_err));
 }
 
 void TestPrintOnly::version()

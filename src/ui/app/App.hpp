@@ -281,6 +281,10 @@ Q_SIGNALS:
     /// Raised by the tray menu, the hero's gear, `,` and a notice's "settings". MainView opens
     /// the settings modal on it; main.cpp brings the window up.
     void openSettings();
+    /// `omaseed --open search` (DECISIONS C36 M5): MainView opens the search view, as its
+    /// key does (holding it while first run or the server's first answer is pending);
+    /// main.cpp brings the window up.
+    void openSearchRequested();
     /// The add sheet in the main window, blank: the hero's `+`, `a` and "+ add" from inside
     /// it, and `requestAdd`'s `main` route for the shared menu and the bus (C35 W2, W6).
     /// MainView opens the sheet (or holds it during first run).

@@ -442,6 +442,13 @@ struct CommandLine
         QStringLiteral("Put omaseed's bar widget in the Omarchy bar: link "
                        "~/.config/omarchy/plugins/%1 to the installed widget and enable it.")
             .arg(omaseed::integration::BarWidgetInstaller::pluginId())};
+    // DECISIONS C36 M5 (#215): the Omarchy menu's window rows run it.
+    QCommandLineOption open{
+        QStringList{QStringLiteral("open")},
+        QStringLiteral("Open omaseed on a page: add (the add sheet, where you are), search or "
+                       "settings. Starts omaseed when it isn't running, else asks the running "
+                       "one."),
+        QStringLiteral("page")};
     // Handled before the application starts (runQuit); listed for --help.
     QCommandLineOption quit{
         QStringList{QStringLiteral("quit")},
@@ -454,12 +461,38 @@ struct CommandLine
             "omaseed — torrents for Omarchy, powered by qBittorrent, Transmission or Deluge."));
         parser.addHelpOption();
         parser.addVersionOption();
-        parser.addOptions({demo, rows, headless, hidden, themeRoles, skin, installBarWidget, quit});
+        parser.addOptions(
+            {demo, rows, headless, hidden, open, themeRoles, skin, installBarWidget, quit});
         parser.addPositionalArgument(QStringLiteral("uris"),
                                      QStringLiteral("magnet: links or .torrent files to add."),
                                      QStringLiteral("[uris...]"));
     }
 };
+
+/// C36 M5 (#215): `--open add|search|settings`, alone. An unknown page, or one given with
+/// links (which open the add sheet themselves) or with --demo, is refused here, before any
+/// display is needed and before anything starts or is forwarded: the message and 2, or -1.
+int refusedOpen(const QCommandLineParser &parser,
+                const QCommandLineOption &open,
+                const QCommandLineOption &demo)
+{
+    if (!parser.isSet(open))
+        return -1;
+    const QString page = parser.value(open);
+    const QStringList pages = omaseed::integration::SingleInstance::openPages();
+    QString why;
+    if (!pages.contains(page))
+        why = QStringLiteral("--open takes %1, not \"%2\"")
+                  .arg(pages.join(QStringLiteral(", ")), page);
+    else if (!parser.positionalArguments().isEmpty())
+        why = QStringLiteral("--open takes no links or files; they open the add sheet themselves");
+    else if (parser.isSet(demo))
+        why = QStringLiteral("--open doesn't go with --demo");
+    if (why.isEmpty())
+        return -1;
+    QTextStream(stderr) << QStringLiteral("omaseed: ") << why << Qt::endl;
+    return 2;
+}
 
 /// #143: the flags that only print (--help, --help-all, --version, --theme-roles) run before
 /// the GUI application exists, so they work with no display: over SSH, in a container, in a
@@ -488,6 +521,9 @@ int runPrintOnly(int argc, char *argv[])
     const QStringList given = parser.optionNames();
     const bool prints = std::any_of(
         given.cbegin(), given.cend(), [](const QString &name) { return printing.contains(name); });
+    // --help and --version win over a wrong `--open`; anything else hears of it here.
+    if (const int code = prints ? -1 : refusedOpen(parser, options.open, options.demo); code >= 0)
+        return code;
     if (!prints && !parser.isSet(options.themeRoles))
         return -1;
 
@@ -583,6 +619,12 @@ int main(int argc, char *argv[])
 
     const QStringList uris = parser.positionalArguments();
 
+    // C36 M5: `--open`'s page. Checked before the application too; again here for a command
+    // line only this parser reads (Qt's own GUI options in it).
+    if (const int code = refusedOpen(parser, options.open, options.demo); code >= 0)
+        return code;
+    const QString openPage = parser.value(options.open);
+
     // SingleInstance: one omaseed per session. A second launch forwards its URIs (or a plain
     // activation, if none) to the running process over D-Bus (org.freedesktop.Application) —
     // or a QLocalServer when the session bus is unreachable — and exits here, before any QML
@@ -629,13 +671,14 @@ int main(int argc, char *argv[])
     if (demo.isEmpty()) {
         // A login entry (`--hidden`, no URIs) that finds omaseed already running has nothing
         // to hand over: leave it as it is instead of popping its window up.
-        if (parser.isSet(options.hidden) && uris.isEmpty()) {
+        if (parser.isSet(options.hidden) && uris.isEmpty() && openPage.isEmpty()) {
             const QDBusConnection bus = QDBusConnection::sessionBus();
             if (bus.isConnected() && bus.interface() &&
                 bus.interface()->isServiceRegistered(
                     omaseed::integration::AppIdentity::dbusServiceName()))
                 return 0;
         }
+        singleInstance->setLaunchAction(openPage);
         if (!singleInstance->start(uris))
             return 0;
     } else {
@@ -757,6 +800,7 @@ int main(int argc, char *argv[])
     // MainView answers both signals (the cursor moves, the settings modal opens); this only
     // brings the window up for them.
     QObject::connect(&omaseedApp, &omaseed::app::App::openSettings, &app, showWindow);
+    QObject::connect(&omaseedApp, &omaseed::app::App::openSearchRequested, &app, showWindow);
 
     // Notifications (spec §6): the tray icon already reflects the same events through
     // App::updateTray; this is the desktop toast side. Xdg is attached so "open folder" can
@@ -857,9 +901,18 @@ int main(int argc, char *argv[])
     QObject::connect(singleInstance,
                      &omaseed::integration::SingleInstance::actionRequested,
                      &omaseedApp,
-                     [&omaseedApp](const QString &name) {
+                     [&omaseedApp](const QString &name, bool atLaunch) {
                          if (name == QLatin1String("settings"))
                              Q_EMIT omaseedApp.openSettings();
+                         // C36 M5 (`omaseed --open`), through C35's one entry for an add
+                         // from outside: Omarchy's menu holds the keyboard as the shared
+                         // menu does, and a launch's own add opens in its new main window.
+                         else if (name == QLatin1String("add"))
+                             omaseedApp.requestAdd({},
+                                                   atLaunch ? omaseed::app::AddSource::Startup
+                                                            : omaseed::app::AddSource::Menu);
+                         else if (name == QLatin1String("search"))
+                             Q_EMIT omaseedApp.openSearchRequested();
                          else if (name == QLatin1String("retry"))
                              omaseedApp.retryNow();
                          else if (name == QLatin1String("quit")) // #128: `omaseed --quit`

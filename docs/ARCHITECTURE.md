@@ -161,7 +161,9 @@ Three static libraries and the executable. Each layer only depends on the ones a
   ([DECISIONS.md](DECISIONS.md) C28, #156).
 - `SingleInstance`: `org.freedesktop.Application` on `io.github.diogochaves.omaseed`; a second
   launch hands its magnets and `.torrent` files to the first one and raises it, and
-  `omaseed --quit` asks it to quit. `QuitSignals` turns SIGTERM, SIGINT and SIGHUP into the
+  `omaseed --quit` asks it to quit; `omaseed --open add|search|settings` starts it on that page
+  or asks the running one through `ActivateAction` ([DECISIONS.md](DECISIONS.md) C36 M5).
+  `QuitSignals` turns SIGTERM, SIGINT and SIGHUP into the
   same quit as the tray's, so what the app writes on quit is written.
 - `Tray` (StatusNotifierItem), `Notifier` (`org.freedesktop.Notifications` with actions), `Xdg`
   (file manager, MIME handlers, clipboard), `Autostart`, `HyprlandEvents`.
