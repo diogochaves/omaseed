@@ -5,7 +5,9 @@
 //
 // `diff(file, here)` is what the sheet shows, and nothing changes until `apply`:
 //   * Preferences: only the keys whose values differ. A key the target lacks (another
-//     qBittorrent version) is skipped and counted; a key the file lacks stays as it is; a
+//     qBittorrent version) is skipped and counted, unless a renamed-key rule carries it
+//     over to the key that took its place (`renamedKeys`, #166); a key the file lacks stays
+//     as it is; a
 //     secret is never compared or sent. Machine-specific keys (§6: folders, network, Web UI,
 //     programs; `machineGroup`) are marked so the sheet starts them unticked.
 //   * Categories, tags, RSS feeds and rules are only added, never changed or deleted
@@ -58,12 +60,40 @@ public:
     static QString machineGroup(const QString &key);
     static bool isMachineSpecific(const QString &key) { return !machineGroup(key).isEmpty(); }
 
+    /// A key one qBittorrent version replaced with another (#166): a file from the old version
+    /// carries `from`; a target that has `to` and not `from` gets `map(file's value)` as `to`.
+    /// `map` returns an undefined value for a value it doesn't know (the key is then skipped).
+    struct KeyRename
+    {
+        QString from;
+        QString to;
+        QJsonValue (*map)(const QJsonValue &);
+    };
+    /// Every rename the import knows. Web API 2.16.0 (qBittorrent 5.3) replaced
+    /// mail_notification_ssl_enabled with mail_notification_encryption_type: SSL on is SMTPS,
+    /// off is None.
+    static const QList<KeyRename> &renamedKeys();
+    struct Renamed
+    {
+        QString from;     ///< the file's key
+        QString to;       ///< the target's key it is read as
+        QJsonValue was;   ///< the file's value under `from`
+        QJsonValue value; ///< what it becomes under `to`
+    };
+    /// The file's preferences as `here` names them: each rule in `renamedKeys` that applies
+    /// (the file has `from` and not `to`, the target has `to` and not `from`, the value maps)
+    /// moves `from`'s value to `to`. What moved is appended to `renamed` when given.
+    static QJsonObject renamedPreferences(const QJsonObject &file,
+                                          const QJsonObject &here,
+                                          QList<Renamed> *renamed = nullptr);
+
     struct PrefChange
     {
         QString key;
         QJsonValue here;
         QJsonValue file;
-        QString group; ///< machineGroup(key)
+        QString group;       ///< machineGroup(key)
+        QString renamedFrom; ///< the file's key, when a KeyRename carried it over
     };
     struct Feed
     {
@@ -75,6 +105,7 @@ public:
         QList<PrefChange> changes; ///< safe keys first, then machine-specific; each by key
         int same = 0;
         QStringList skipped;    ///< keys the target does not have
+        QList<Renamed> renamed; ///< file keys read under the target's name for them (#166)
         int secretsHere = 0;    ///< secret keys the target has: they stay as they are
         QStringList categories; ///< names to add
         int categoriesHere = 0;

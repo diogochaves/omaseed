@@ -83,7 +83,47 @@ bool namesFolder(const QJsonValue &value)
     return value.isString() && !value.toString().isEmpty();
 }
 
+/// mail_notification_ssl_enabled -> mail_notification_encryption_type, qBittorrent 5.3's
+/// SMTPEncryptionType by name ("SMTPS", "STARTTLS", "None"; read from a 5.3 server).
+QJsonValue mailSslToEncryptionType(const QJsonValue &ssl)
+{
+    if (!ssl.isBool())
+        return QJsonValue(QJsonValue::Undefined);
+    return ssl.toBool() ? QStringLiteral("SMTPS") : QStringLiteral("None");
+}
+
 } // namespace
+
+const QList<QbtSettingsImport::KeyRename> &QbtSettingsImport::renamedKeys()
+{
+    static const QList<KeyRename> rules{
+        {QStringLiteral("mail_notification_ssl_enabled"),
+         QStringLiteral("mail_notification_encryption_type"),
+         mailSslToEncryptionType},
+    };
+    return rules;
+}
+
+QJsonObject QbtSettingsImport::renamedPreferences(const QJsonObject &file,
+                                                  const QJsonObject &here,
+                                                  QList<Renamed> *renamed)
+{
+    QJsonObject out = file;
+    for (const KeyRename &rule : renamedKeys()) {
+        if (!file.contains(rule.from) || file.contains(rule.to) || here.contains(rule.from) ||
+            !here.contains(rule.to))
+            continue;
+        const QJsonValue was = file.value(rule.from);
+        const QJsonValue value = rule.map(was);
+        if (value.isUndefined())
+            continue;
+        out.remove(rule.from);
+        out.insert(rule.to, value);
+        if (renamed)
+            renamed->append({rule.from, rule.to, was, value});
+    }
+    return out;
+}
 
 QString QbtSettingsImport::machineGroup(const QString &key)
 {
@@ -151,7 +191,8 @@ QbtSettingsImport::Diff QbtSettingsImport::diff(const QbtSettingsSnapshot &file,
     Diff d;
     QList<PrefChange> safe;
     QList<PrefChange> machine;
-    QStringList keys = file.preferences.keys();
+    const QJsonObject prefs = renamedPreferences(file.preferences, here.preferences, &d.renamed);
+    QStringList keys = prefs.keys();
     keys.sort();
     for (const QString &key : std::as_const(keys)) {
         if (QbtSettingsExport::isSecretKey(key))
@@ -161,12 +202,16 @@ QbtSettingsImport::Diff QbtSettingsImport::diff(const QbtSettingsSnapshot &file,
             continue;
         }
         const QJsonValue mine = here.preferences.value(key);
-        const QJsonValue theirs = file.preferences.value(key);
+        const QJsonValue theirs = prefs.value(key);
         if (sameJson(mine, theirs)) {
             ++d.same;
             continue;
         }
-        PrefChange change{key, mine, theirs, machineGroup(key)};
+        PrefChange change{key, mine, theirs, machineGroup(key), {}};
+        for (const Renamed &moved : std::as_const(d.renamed)) {
+            if (moved.to == key)
+                change.renamedFrom = moved.from;
+        }
         (change.group.isEmpty() ? safe : machine).append(change);
     }
     d.changes = safe + machine;
@@ -268,11 +313,12 @@ QJsonObject QbtSettingsImport::preferenceChanges(const QbtSettingsSnapshot &file
                                                  const Plan &plan)
 {
     QJsonObject out;
+    const QJsonObject prefs = renamedPreferences(file.preferences, here.preferences);
     for (const QString &key : plan.keys) {
-        if (QbtSettingsExport::isSecretKey(key) || !file.preferences.contains(key) ||
+        if (QbtSettingsExport::isSecretKey(key) || !prefs.contains(key) ||
             !here.preferences.contains(key))
             continue;
-        const QJsonValue value = file.preferences.value(key);
+        const QJsonValue value = prefs.value(key);
         if (!sameJson(value, here.preferences.value(key)))
             out.insert(key, value);
     }

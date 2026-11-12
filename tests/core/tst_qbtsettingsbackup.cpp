@@ -519,6 +519,101 @@ private Q_SLOTS:
         QCOMPARE(changes, (QJsonObject{{QStringLiteral("max_uploads"), 40}}));
     }
 
+    // #166: a 5.2 file's SSL switch on a 5.3 target that has the encryption type instead.
+    void mailSslMapsToEncryptionType_data()
+    {
+        QTest::addColumn<bool>("ssl");
+        QTest::addColumn<QString>("here");
+        QTest::addColumn<QString>("expected");
+        QTest::addColumn<bool>("changes");
+        QTest::newRow("on, target None") << true << "None" << "SMTPS" << true;
+        QTest::newRow("off, target SMTPS") << false << "SMTPS" << "None" << true;
+        QTest::newRow("off, target None") << false << "None" << "None" << false;
+        QTest::newRow("on, target STARTTLS") << true << "STARTTLS" << "SMTPS" << true;
+    }
+
+    void mailSslMapsToEncryptionType()
+    {
+        QFETCH(bool, ssl);
+        QFETCH(QString, here);
+        QFETCH(QString, expected);
+        QFETCH(bool, changes);
+        const QString sslKey = QStringLiteral("mail_notification_ssl_enabled");
+        const QString typeKey = QStringLiteral("mail_notification_encryption_type");
+        QbtSettingsSnapshot file = snapshot();
+        file.preferences.insert(sslKey, ssl);
+        QbtSettingsSnapshot target = snapshot();
+        target.preferences.remove(sslKey);
+        target.preferences.insert(typeKey, here);
+
+        const QbtSettingsImport::Diff d = QbtSettingsImport::diff(file, target);
+        QVERIFY(!d.skipped.contains(sslKey));
+        QCOMPARE(d.renamed.size(), 1);
+        QCOMPARE(d.renamed.at(0).from, sslKey);
+        QCOMPARE(d.renamed.at(0).to, typeKey);
+        QCOMPARE(d.renamed.at(0).was, QJsonValue(ssl));
+        QCOMPARE(d.renamed.at(0).value, QJsonValue(expected));
+        QCOMPARE(keysOf(d.changes), (changes ? QStringList{typeKey} : QStringList{}));
+        if (changes) {
+            QCOMPARE(d.changes.at(0).renamedFrom, sslKey);
+            QCOMPARE(d.changes.at(0).file, QJsonValue(expected));
+            QCOMPARE(d.changes.at(0).here, QJsonValue(here));
+        }
+
+        QbtSettingsImport::Plan plan;
+        plan.keys = {typeKey, sslKey};
+        const QJsonObject sent = QbtSettingsImport::preferenceChanges(file, target, plan);
+        QCOMPARE(sent, (changes ? QJsonObject{{typeKey, expected}} : QJsonObject{}));
+    }
+
+    // Without a 5.3 target, or with a file that has the new key itself, nothing is renamed.
+    void mailSslUnchangedOtherwise()
+    {
+        const QString sslKey = QStringLiteral("mail_notification_ssl_enabled");
+        const QString typeKey = QStringLiteral("mail_notification_encryption_type");
+
+        // Both 5.2: the switch is compared as itself.
+        QbtSettingsSnapshot file = snapshot();
+        file.preferences.insert(sslKey, true);
+        QbtSettingsImport::Diff d = QbtSettingsImport::diff(file, snapshot());
+        QVERIFY(d.renamed.isEmpty());
+        QCOMPARE(keysOf(d.changes), QStringList{sslKey});
+        QVERIFY(d.changes.at(0).renamedFrom.isEmpty());
+
+        // A target with both keys takes each as it is.
+        QbtSettingsSnapshot both = snapshot();
+        both.preferences.insert(typeKey, QStringLiteral("None"));
+        d = QbtSettingsImport::diff(file, both);
+        QVERIFY(d.renamed.isEmpty());
+        QCOMPARE(keysOf(d.changes), QStringList{sslKey});
+
+        // A target with neither: skipped, as before.
+        QbtSettingsSnapshot neither = snapshot();
+        neither.preferences.remove(sslKey);
+        d = QbtSettingsImport::diff(file, neither);
+        QVERIFY(d.renamed.isEmpty());
+        QVERIFY(d.skipped.contains(sslKey));
+
+        // A 5.3 file on a 5.3 target: the file's own encryption type, no rename.
+        QbtSettingsSnapshot newer = snapshot();
+        newer.preferences.remove(sslKey);
+        newer.preferences.insert(typeKey, QStringLiteral("STARTTLS"));
+        QbtSettingsSnapshot target = snapshot();
+        target.preferences.remove(sslKey);
+        target.preferences.insert(typeKey, QStringLiteral("None"));
+        d = QbtSettingsImport::diff(newer, target);
+        QVERIFY(d.renamed.isEmpty());
+        QCOMPARE(keysOf(d.changes), QStringList{typeKey});
+        QCOMPARE(d.changes.at(0).file, QJsonValue(QStringLiteral("STARTTLS")));
+
+        // A value the rule doesn't know is skipped, not guessed.
+        QbtSettingsSnapshot odd = snapshot();
+        odd.preferences.insert(sslKey, QStringLiteral("yes"));
+        d = QbtSettingsImport::diff(odd, target);
+        QVERIFY(d.renamed.isEmpty());
+        QVERIFY(d.skipped.contains(sslKey));
+    }
+
     // Preferences go through ServerPreferences, so the panes show them at once.
     void applyWritesPreferencesThroughServerPreferences()
     {
