@@ -5,6 +5,26 @@ All notable changes to omaseed are logged here, newest first. Loosely follows
 versioning stability (pre-1.0). `scripts/release.sh` requires a `## v<version>` section here
 before it will tag a release.
 
+## v0.10.4 — 2026-11-12
+
+### Fixed
+
+- **Counts read in the singular for one.** "1 commands", "1 names collide", "2 server(s)" and
+  the other counted phrases now say "1 command", "1 name collides", "2 servers": omaseed
+  carries an English catalogue with each phrase's singular and plural (Qt Linguist), built into
+  the app, the base for translations later. (#197, DECISIONS C41)
+- **A search link already in your library says so** once you open it: the add sheet fetches
+  its .torrent, and the row turns from "likely on disk" to "in your library". (#194)
+- **A failed plugin's "the log line" opens the log on that line**, clearing any filter that
+  would hide it. (#194)
+- **"didn't install" goes when the plugins pane closes**, so reopening it shows a clean list.
+  (#194)
+- **browse… for a plugin file is offered only where the server reads this computer's files**:
+  a qBittorrent on 127.0.0.1 with a path map (in a container) gets the URL install instead.
+  (#194)
+- **Search asks again after Python is back.** Once qBittorrent had said it can't run plugins,
+  enter did nothing; it now searches again, so a server given Python since is searched. (#194)
+
 ## v0.10.3 — 2026-11-12
 
 ### Changed
