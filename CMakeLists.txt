@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.24)
 
 project(omaseed
-    VERSION 0.10.3
+    VERSION 0.10.4
     DESCRIPTION "Torrents for Omarchy, powered by qBittorrent, Transmission or Deluge"
     HOMEPAGE_URL "https://github.com/diogochaves/omaseed"
     LANGUAGES CXX
