@@ -2455,7 +2455,8 @@ QtObject {
         ["autoManagement", qsTr("automatic management")], ["peerControl", qsTr(
                 "adding and banning peers")], ["peerBan", qsTr("banning peers"), "peerControl"],
         ["webSeeds", qsTr("web seeds")], ["editWebSeeds", qsTr("editing web seeds"), "webSeeds"], ["qbtSettings",
-            qsTr("settings export and import")], ["torrentsBackup", qsTr("the torrents backup")]]
+            qsTr("settings export and import")], ["torrentsBackup", qsTr("the torrents backup")], ["torrentsImport",
+            qsTr("importing torrents"), "torrentsBackup"]]
 
     /// The feature `action` needs that a server with `features` lacks, or "" when it has it
     /// (or the action needs none).

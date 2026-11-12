@@ -120,8 +120,19 @@ Item {
     /// (Settings › Transmission, C14 E6, board 47 §6 E5); one with neither, no group.
     readonly property var qbtSections: root.features.qbtSettings === false
                                        ? (root.features.sessionSettings === true
-                                          ? root.sectionsOf(root.engineName.toLowerCase()) : [])
+                                          ? root._sectionsHere(root.engineName.toLowerCase()) : [])
                                        : root.qbtAllSections
+    /// docs/57 §3 (DECISIONS C40 X1, X10): the last section of another engine's group, its
+    /// torrents' Backup, drawn by `engineBackupPane`. Its id is qBittorrent's, so a switch
+    /// between groups lands on its like (K32).
+    readonly property var engineBackupSection: ({
+            "id": "backup",
+            "glyph": Glyphs.backup,
+            "name": qsTr("Backup"),
+            "shortName": qsTr("Backup"),
+            "sub": qsTr("export this server's torrents"),
+            "rows": []
+        })
     /// qBittorrent's group whole: docs/16's sections, then Search plugins and Backup.
     readonly property var qbtAllSections: qbtSchema.sections.concat([{
                                                                       // #145 (DECISIONS C26 SR10): the server's
@@ -151,15 +162,23 @@ Item {
                                           : root.engineGroupIsQbt ? "qbittorrent"
                                                                   : root.engineName.toLowerCase()
     /// An engine's sections in Settings: [] for one it has no settings for. Deluge's end with
-    /// Plugins (K15, E6).
+    /// Plugins (K15, E6), Transmission's with Backup (C40 X9: Deluge's comes later).
     function sectionsOf(engine: string): var {
         if (engine === "qbittorrent")
             return root.qbtAllSections;
         if (engine === "transmission")
-            return qbtSchema.transmissionSections;
+            return qbtSchema.transmissionSections.concat([root.engineBackupSection]);
         if (engine === "deluge")
             return qbtSchema.delugeSections;
         return [];
+    }
+    /// The sections of the group omaseed is on: its engine's, without Backup while the
+    /// server has none (features.torrentsBackup). The engine's own list as it is when
+    /// nothing is left out, so the group changes only when its sections do.
+    function _sectionsHere(engine: string): var {
+        const sections = root.sectionsOf(engine);
+        return engine === "qbittorrent" || root.features.torrentsBackup === true || sections.every(section => section.id !== "backup")
+                ? sections : sections.filter(section => section.id !== "backup");
     }
     /// An engine's name as its group's head and pane say it.
     function _engineWord(engine: string): string {
@@ -223,6 +242,17 @@ Item {
 
     /// The qBittorrent group's Backup pane is on show.
     readonly property bool inQbtBackup: root.qbtSection !== null && root.qbtSection.id === "backup"
+                                        && root.engineGroupIsQbt
+    /// Another engine's Backup pane is on show: its torrents alone (docs/57 §3, C40 X1).
+    readonly property bool inEngineBackup: root.qbtSection !== null && root.qbtSection.id === "backup"
+                                           && !root.engineGroupIsQbt
+    /// C40 X3: whether its .torrent files are read from here is asked each time the pane
+    /// shows on a connected server.
+    readonly property bool _asksReach: root.inEngineBackup && sheet.opened && App.globalState.connected
+    on_AsksReachChanged: {
+        if (root._asksReach)
+            App.refreshTorrentFilesReach();
+    }
     /// The qBittorrent group's Search plugins pane is on show (#145).
     readonly property bool inQbtSearch: root.qbtSection !== null && root.qbtSection.id === "search"
     /// Where the qBittorrent group starts in `paneIndex`.
@@ -331,6 +361,8 @@ Item {
     readonly property int paneRowCount: {
         if (root.inQbtBackup)
             return 5; // settings: export, import (#32), copy (#70); torrents: export, import (#33)
+        if (root.inEngineBackup)
+            return 1; // torrents: export (C40 X9)
         if (root.inQbtSearch)
             return searchPluginsPane.cursorCount;
         if (root.inQbt)
@@ -744,6 +776,15 @@ Item {
                 root.chooseTorrentsImport();
             return;
         }
+        if (root.inEngineBackup) {
+            // C40 X3: with the .torrent files out of sight, enter is "their folder…" and
+            // space "export links…", as the copy row's two buttons.
+            if (engineBackupPane.unseen && how !== "space")
+                root.chooseTorrentFilesFolder();
+            else if (engineBackupPane.exporting || engineBackupPane.seen || engineBackupPane.unseen)
+                root.exportTorrents();
+            return;
+        }
         if (root.inQbt) {
             qbtPane.activate(root.paneCursor, how);
             return;
@@ -910,6 +951,16 @@ Item {
         bodyItem.forceActiveFocus(); // back from the file dialog
         root.backupNote = "";
         App.exportTorrents(path);
+    }
+
+    /// "their folder…" (docs/57 §4, C40 X3): the portal's folder chooser for the daemon's
+    /// .torrent files as this machine sees them; App checks the pick and remembers it.
+    function chooseTorrentFilesFolder(): void {
+        if (!App.globalState.connected || App.torrentsBackupRunning.length > 0)
+            return;
+        root.backupNote = "";
+        App.pickTorrentFilesFolder();
+        bodyItem.forceActiveFocus(); // back from the file dialog
     }
 
     /// "import…" under torrents: the portal's open dialog, then the file and the server are
@@ -1178,6 +1229,7 @@ Item {
 
     /// The pane on show, in `navRows` order; every qBittorrent section is the one pane.
     readonly property Item _paneOnShow: root.inQbtBackup ? qbtBackupPane
+                                                         : root.inEngineBackup ? engineBackupPane
                                                          : root.inQbtSearch ? searchPluginsPane
                                                          : root.inQbt ? qbtPane
                                                          : root.inOther ? otherPane
@@ -1257,7 +1309,7 @@ Item {
     /// The text fields of the pane's row `cursor`, in order; [] for a row without one (a
     /// switch, a choice, a button) or one that is greyed out.
     function _rowFields(cursor: int): var {
-        if (root.inQbtSearch || root.inQbtBackup)
+        if (root.inQbtSearch || root.inQbtBackup || root.inEngineBackup)
             return [];
         if (root.inQbt) {
             const item = qbtPane.rowItem(cursor);
@@ -1976,7 +2028,7 @@ Item {
                             text: root.qbtNote.length > 0 ? root.qbtNote
                                                           : root.paneIndex === 5 ? qsTr("omaseed · on this machine") // docs/34 D1 a
                                                           : root.inOther ? qsTr("%1 · %2").arg(root.otherRow.serverName).arg(root.otherRow.engineName)
-                                                          : root.inQbtBackup || root.inQbtSearch
+                                                          : root.inQbtBackup || root.inQbtSearch || root.inEngineBackup
                                                             || (root.qbtSection && root.qbtSection.id === "plugins")
                                                             ? root.qbtServerHead
                                                                              : qsTr("%1 · saved as you change it").arg(
@@ -3151,7 +3203,7 @@ Item {
                             prefs: App.serverPrefs
                             section: root.qbtSection
                             serverName: App.serverName
-                            visible: root.inQbt && !root.inQbtBackup && !root.inQbtSearch
+                            visible: root.inQbt && !root.inQbtBackup && !root.inQbtSearch && !root.inEngineBackup
 
                             onActionRequested: action => root.qbtAction(action)
                             onChangeRequested: (changes, confirmKind, what) => root.qbtRequest(changes,
@@ -3260,8 +3312,9 @@ Item {
                                 linkText: root.otherServerIds.length > 0 ? qsTr("switch server") : ""
                                 objectName: "qbtScopeLine"
                                 text: {
+                                    // C40 X2: how a library moves, said on every engine.
                                     const own = qsTr("%1's own settings and torrents, read from and sent to %1 only.").arg(
-                                              qbtBackupPane.name);
+                                              qbtBackupPane.name) + " " + qsTr("To move them to another server, export here and import there.");
                                     // C25 K33: servers of another engine have no backup yet,
                                     // named before the qBittorrent servers that have their own.
                                     const none = root.otherServerIds.filter(id => !root._isQbtServer(id)).map(id => {
@@ -3516,6 +3569,36 @@ Item {
                                 text: root.backupNote
                                 visible: root.backupNote.length > 0
                                 wrapMode: Text.WordWrap
+                            }
+                        }
+
+                        // ---- ENGINE › Backup (#88, docs/57 §3, DECISIONS C40 X1) ------------
+                        // Another engine's torrents, as a file: Transmission's export.
+                        EngineBackupPane {
+                            id: engineBackupPane
+
+                            anchors.left: parent.left
+                            anchors.right: parent.right
+                            anchors.top: parent.top
+                            connected: App.globalState.connected
+                            folder: App.torrentFilesFolder
+                            folderNote: App.torrentFilesNote
+                            hasCursor: root.area === "pane" && root.paneCursor === 0
+                            note: root.backupNote
+                            noteError: root.backupNoteError
+                            objectName: "engineBackupPane"
+                            progress: App.torrentsBackupProgress
+                            reach: App.torrentFilesReach
+                            running: App.torrentsBackupRunning
+                            serverName: App.serverName
+                            summary: App.torrentsExportSummary
+                            visible: root.inEngineBackup
+
+                            onExportRequested: root.exportTorrents()
+                            onFolderRequested: root.chooseTorrentFilesFolder()
+                            onRowClicked: {
+                                root.paneCursor = 0;
+                                root.area = "pane";
                             }
                         }
 

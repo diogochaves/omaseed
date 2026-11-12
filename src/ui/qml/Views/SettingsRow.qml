@@ -16,6 +16,9 @@ import Omaseed.Kit
 //         Field { block: row.ground; text: … }
 //     }
 //
+// `lead` (docs/57 §3, DECISIONS C40 X3) is what the description opens with when the row has
+// something wrong to say before it says what to do: the same line, in the warning colour.
+//
 // `warning` (docs/32 E1, #55) is a fault in what the row sets, found elsewhere (qBittorrent's
 // log): a yellow line under the text and the control, behind a 1 px yellow rule.
 Rectangle {
@@ -24,6 +27,7 @@ Rectangle {
     property string glyph: ""
     property string title: ""
     property string description: ""
+    property string lead: ""
     property string warning: ""
     property bool hasCursor: false
 
@@ -49,7 +53,7 @@ Rectangle {
     // #77: a group named by its title around its control, so the switch or field a screen
     // reader lands on says what it is for. The row's click does what its control does, and
     // the control takes the screen reader's press, so the row has no press of its own.
-    Accessible.description: root.description
+    Accessible.description: root.lead + root.description
     Accessible.name: root.title
     Accessible.role: Accessible.Grouping
 
@@ -58,6 +62,11 @@ Rectangle {
     color: root.hot ? root.ink.fill : "transparent"
     implicitHeight: Math.max(Theme.space(40), layout.implicitHeight + Theme.space(16))
     radius: Theme.cornerRadius
+
+    /// Plain text made safe for StyledText.
+    function _escaped(text: string): string {
+        return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    }
 
     Behavior on color {
         ColorAnimation {
@@ -142,9 +151,13 @@ Rectangle {
                 Layout.fillWidth: true
                 dim: true
                 ink: root.ink
+                objectName: "settingsRowDescription"
                 size: "small"
-                text: root.description
-                visible: root.description.length > 0
+                text: root.lead.length === 0 ? root.description
+                                             : "<font color='%1'>%2</font>%3".arg(root.ink.yellow).arg(
+                                                   root._escaped(root.lead)).arg(root._escaped(root.description))
+                textFormat: root.lead.length === 0 ? Text.PlainText : Text.StyledText
+                visible: root.description.length > 0 || root.lead.length > 0
                 wrapMode: Text.Wrap
             }
         }

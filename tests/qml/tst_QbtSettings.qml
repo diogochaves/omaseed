@@ -139,7 +139,7 @@ TestCase {
         // D2 a's scope line, with no other server to point at.
         const scope = testCase.childNamed(modal, "qbtScopeLine");
         verify(scope.visible);
-        compare(scope.text, "home's own settings and torrents, read from and sent to home only.");
+        compare(scope.text, "home's own settings and torrents, read from and sent to home only. To move them to another server, export here and import there.");
         compare(scope.linkText, "");
         compare(modal.paneRowCount, 5);
         keyClick(Qt.Key_Tab);
@@ -221,7 +221,7 @@ TestCase {
         keyClick(Qt.Key_0);
         verify(modal.inQbtBackup);
         compare(testCase.childNamed(modal, "qbtScopeLine").text,
-                "home's own settings and torrents, read from and sent to home only. The other servers have their own:");
+                "home's own settings and torrents, read from and sent to home only. To move them to another server, export here and import there. The other servers have their own:");
 
         // The nav: k from Speed lands on the select, which takes the cursor from the rows.
         keyClick(Qt.Key_1);
@@ -322,6 +322,73 @@ TestCase {
         compare(modal.qbtSections.length, 0);
         compare(modal.paneIndex, 0, "the pane stayed past the group's end");
         verify(!testCase.childNamed(modal, "qbtNavHead").visible);
+    }
+
+    // docs/57 §3, §4 (DECISIONS C40 X1, X2, X3, X9; #88): Transmission's group ends with Backup,
+    // its torrents' export alone: one row, no settings rows, no import. The keyboard reaches
+    // it as qBittorrent's rows. Deluge's group has none yet.
+    function test_a_transmissions_group_ends_with_backup() {
+        const modal = createTemporaryObject(modalComponent, testCase, {
+                                                "features": {
+                                                    "qbtSettings": false,
+                                                    "sessionSettings": true,
+                                                    "torrentsBackup": true,
+                                                    "torrentsExport": true,
+                                                    "torrentsImport": false
+                                                },
+                                                "engineName": "Transmission"
+                                            });
+        compare(modal.qbtSections.map(section => section.id),
+                ["speed", "discovery", "connection", "seeding", "queue", "downloads", "backup"]);
+        compare(testCase.childNamed(modal, "qbtNavRow6").text, "Backup");
+        modal.openQbt();
+        keyClick(Qt.Key_7);
+        verify(modal.inEngineBackup);
+        verify(!modal.inQbtBackup);
+        compare(testCase.childNamed(modal, "paneTitle").text, "Backup");
+        const pane = testCase.childNamed(modal, "engineBackupPane");
+        verify(pane.visible);
+        verify(!testCase.childNamed(modal, "qbtBackupPane").visible);
+        verify(!testCase.childNamed(modal, "qbtPane").visible);
+        compare(testCase.childNamed(modal, "engineBackupScopeLine").text,
+                "home's own torrents, read from home only. To move them to another server, export here and import there.");
+        const row = testCase.childNamed(modal, "engineExportRow");
+        compare(row.title, "Export home's torrents");
+        compare(modal.paneRowCount, 1);
+        // Not asked about yet (the demo is no Transmission): the plain words, a button that waits.
+        compare(pane.reach, "");
+        compare(row.description, App.torrentsExportSummary);
+        verify(!testCase.childNamed(modal, "engineExportButton").enabled);
+        // l hands the keyboard to the row, as on qBittorrent's.
+        verify(!row.hasCursor);
+        keyClick(Qt.Key_L);
+        compare(modal.area, "pane");
+        verify(row.hasCursor);
+        keyClick(Qt.Key_J);
+        verify(row.hasCursor);
+        // Out of sight: enter is "their folder…" (the demo has no daemon to ask, so nothing
+        // opens; the note is cleared as before any run).
+        pane.reach = "unreadable";
+        verify(pane.unseen);
+        modal.backupNote = "an older result";
+        keyClick(Qt.Key_Return);
+        compare(modal.backupNote, "");
+        // The result of an export shows under the row.
+        modal.backupNote = "Exported home's 16 torrents to ~/t.omaseed-torrents.";
+        compare(testCase.childNamed(modal, "engineBackupNote").text, modal.backupNote);
+
+        // The same features without the section: none (an engine that can't yet).
+        modal.features = {
+            "qbtSettings": false,
+            "sessionSettings": true,
+            "torrentsBackup": false
+        };
+        compare(modal.qbtSections.map(section => section.id),
+                ["speed", "discovery", "connection", "seeding", "queue", "downloads"]);
+        verify(!modal.inEngineBackup);
+        // Deluge's group ends with Plugins: its Backup comes later (C40 X9).
+        compare(modal.sectionsOf("deluge").map(section => section.id).indexOf("backup"), -1);
+        compare(modal.sectionsOf("transmission").map(section => section.id).indexOf("backup"), 6);
     }
 
     // Settings › Deluge (E6, #87; board 47 §J, C25 K31, K15): DELUGE's group, in qBittorrent's
@@ -470,7 +537,8 @@ TestCase {
         compare(modal.groupEngine, "qbittorrent");
         compare(modal.otherGroups.map(group => group.engine), ["transmission"]);
         compare(modal.otherStart, modal.qbtStart + modal.qbtSections.length);
-        compare(modal.paneCount, modal.otherStart + 6);
+        // Transmission's six sections of settings, then its Backup (C40 X1).
+        compare(modal.paneCount, modal.otherStart + 7);
         compare(testCase.childNamed(modal, "otherNavHead0").text, "transmission");
         compare(testCase.childNamed(modal, "otherNavServer0").text, "seedbox");
         compare(testCase.childNamed(modal, "otherNavRow4").text, "Queue");
@@ -543,14 +611,14 @@ TestCase {
         keyClick(Qt.Key_0);
         verify(modal.inQbtBackup);
         compare(testCase.childNamed(modal, "qbtScopeLine").text,
-                "home's own settings and torrents, read from and sent to home only. seedbox (Transmission) has no backup in omaseed yet: its settings and torrents stay on it.");
+                "home's own settings and torrents, read from and sent to home only. To move them to another server, export here and import there. seedbox (Transmission) has no backup in omaseed yet: its settings and torrents stay on it.");
         compare(modal.otherQbtServerIds, []);
         verify(!testCase.childNamed(modal, "copySourceButton").visible);
         verify(testCase.childNamed(modal, "qbtCopyRow").description.indexOf("Another qBittorrent server's settings") === 0);
 
         testCase.addServer("private", 8091);
         compare(testCase.childNamed(modal, "qbtScopeLine").text,
-                "home's own settings and torrents, read from and sent to home only. seedbox (Transmission) has no backup in omaseed yet: its settings and torrents stay on it. private has its own:");
+                "home's own settings and torrents, read from and sent to home only. To move them to another server, export here and import there. seedbox (Transmission) has no backup in omaseed yet: its settings and torrents stay on it. private has its own:");
         compare(modal.copySourceName, "private");
     }
 

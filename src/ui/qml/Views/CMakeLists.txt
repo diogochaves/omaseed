@@ -71,6 +71,7 @@ qt_add_qml_module(omaseed-views
         DisconnectedBanner.qml
         DropOverlay.qml
         DuplicateSheet.qml
+        EngineBackupPane.qml
         EmptyState.qml
         FilteredEmpty.qml
         FirstRunPage.qml

@@ -738,7 +738,9 @@ TestCase {
                                              "engineLog": false,
                                              "addAgain": false,
                                              "qbtSettings": false,
-                                             "torrentsBackup": false,
+                                             "torrentsBackup": true,
+                                             "torrentsExport": true,
+                                             "torrentsImport": false,
                                              "rss": false,
                                              "altSpeeds": true,
                                              "search": false,
@@ -902,7 +904,7 @@ TestCase {
         compare(Keymap.missingNote("altSpeed", testCase.transmission, "", "seedbox", "Transmission"), "");
         compare(Keymap.keyOf("toggleLog"), "~");
         compare(Keymap.missingLine(testCase.transmission, "seedbox", "Transmission", "4.1.3"),
-                "Not on seedbox (Transmission 4.1.3): the log, search, creating a torrent, RSS, categories, first and last pieces first, super seeding, automatic management, adding and banning peers, editing web seeds, settings export and import, the torrents backup.");
+                "Not on seedbox (Transmission 4.1.3): the log, search, creating a torrent, RSS, categories, first and last pieces first, super seeding, automatic management, adding and banning peers, editing web seeds, settings export and import, importing torrents.");
         // qBittorrent lacks none of them: no line.
         compare(Keymap.missingLine({}, "public", "qBittorrent", "5.3.0"), "");
     }
