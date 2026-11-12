@@ -3189,6 +3189,12 @@ void App::takeFetchedMetadata()
     // A link names no tracker until its .torrent is read; a magnet keeps its own `tr=`.
     if (map.value(QStringLiteral("trackers")).toStringList().isEmpty())
         map[QStringLiteral("trackers")] = metadata.trackers;
+    // #194: a search result's link has no hash until now; its row learns it, so one you
+    // already have says "in your library" rather than "likely on disk".
+    if (map.value(QStringLiteral("kind")).toString() == QLatin1String("url") && m_searchModel)
+        m_searchModel->learnLinkHash(map.value(QStringLiteral("value")).toString(),
+                                     metadata.infoHashV1,
+                                     metadata.infoHashV2);
     Q_EMIT metadataFetched(map);
 }
 

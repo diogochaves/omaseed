@@ -44,6 +44,8 @@ class SearchServer : public QTcpServer
 public:
     QList<Request> requests;
     int nextId = 40;
+    /// The hash a fetched link's .torrent has (#194); empty: fetchMetadata answers 202.
+    QByteArray fetchedHash;
 
     QList<Request> all(const QByteArray &endpoint) const
     {
@@ -154,6 +156,10 @@ private:
                        .toJson(QJsonDocument::Compact);
         } else if (target.startsWith("/api/v2/log/main")) {
             body = "[]";
+        } else if (target.startsWith("/api/v2/torrents/fetchMetadata") && !fetchedHash.isEmpty()) {
+            body = R"({"hash":")" + fetchedHash + R"(","infohash_v1":")" + fetchedHash +
+                   R"(","infohash_v2":"","info":{"length":25209644,"name":"Sampler extras",)"
+                   R"("piece_length":65536,"private":false},"trackers":[],"webseeds":[]})";
         } else if (target.startsWith("/api/v2/torrents/fetchMetadata")) {
             return "HTTP/1.1 202 Accepted\r\nContent-Length: 2\r\nConnection: close\r\n\r\n{}";
         } else if (target.startsWith("/api/v2/torrents/add")) {
@@ -177,6 +183,7 @@ private slots:
 
     void eachPluginThatIsOnIsAskedAndTheRowsAreMarked();
     void addHandsOverTheMagnetOrTheLinkAndItsPlugin();
+    void aFetchedLinkSaysWhetherItIsInTheLibrary();
     void theJobsGoOnQuit();
     void theDemoSearch();
 
@@ -301,6 +308,42 @@ void TestAppSearch::addHandsOverTheMagnetOrTheLinkAndItsPlugin()
 }
 
 // SR12: omaseed deletes the jobs it started when it quits.
+// #194: a link has no hash until the add sheet's lookup fetches its .torrent; then a torrent
+// the library has says "in your library" on its row, and one it hasn't stays as it was.
+void TestAppSearch::aFetchedLinkSaysWhetherItIsInTheLibrary()
+{
+    for (const char *hash : {kOther, kMine}) {
+        const bool mine = hash == kMine;
+        SearchServer server;
+        server.fetchedHash = hash;
+        App app;
+        QVERIFY(startOn(app, server));
+        QVERIFY(searched(app));
+        SearchModel *rows = app.searchResults();
+        const QString key = rows->data(rows->index(2), SearchModel::KeyRole).toString();
+        QVERIFY(rows->data(rows->index(2), SearchModel::IsLinkRole).toBool());
+        QCOMPARE(rows->data(rows->index(2), SearchModel::MarkRole).toString(), QString());
+        const QVariantMap link = app.searchAddable(key);
+        QVariantMap addable = app.parseAddable(link.value(QStringLiteral("text")).toString());
+        addable.insert(QStringLiteral("downloader"), link.value(QStringLiteral("downloader")));
+        QSignalSpy fetched(&app, &App::metadataFetched);
+        app.lookUpMetadata(addable);
+        QVERIFY(fetched.wait(5000));
+        const int at = rows->indexOfKey(key);
+        QCOMPARE(rows->data(rows->index(at), SearchModel::MarkRole).toString(),
+                 mine ? QStringLiteral("library") : QString());
+        QCOMPARE(rows->data(rows->index(at), SearchModel::MarkTextRole).toString(),
+                 mine ? QStringLiteral("in your library") : QString());
+        // The hand-off says so too, and the library's marks read again keep it.
+        QCOMPARE(app.searchAddable(key).value(QStringLiteral("libraryHash")).toString(),
+                 mine ? QString::fromLatin1(kMine) : QString());
+        rows->refreshMarks();
+        QCOMPARE(rows->data(rows->index(at), SearchModel::MarkRole).toString(),
+                 mine ? QStringLiteral("library") : QString());
+        app.stopMetadataLookup();
+    }
+}
+
 void TestAppSearch::theJobsGoOnQuit()
 {
     SearchServer server;

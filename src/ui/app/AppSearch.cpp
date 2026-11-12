@@ -257,7 +257,8 @@ QVariantMap App::searchAddable(const QString &key) const
         parts.append(QStringLiteral("a magnet with 1 tracker"));
     else
         parts.append(QStringLiteral("a magnet with %1 trackers").arg(row->trackers.size()));
-    const SearchModel::LibraryMatch match = searchLibraryMatch(*row);
+    const SearchModel::LibraryMatch match =
+        searchLibraryMatch(m_searchModel->withLearnedHash(*row));
     return {{QStringLiteral("key"), row->key},
             {QStringLiteral("text"), row->link},
             {QStringLiteral("downloader"), row->isLink ? row->plugin : QString()},
