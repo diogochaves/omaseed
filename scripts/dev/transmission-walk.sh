@@ -2,7 +2,10 @@
 # omaseed — a Transmission server driven through the app (#85's "done when", DECISIONS C14 E4):
 # a .torrent added through the add sheet with a label and a save path, renamed in place (K28:
 # its folder on disk follows, and the story says so, C38 R7), moved through the Move… sheet, a label added and another taken
-# off, then deleted with its files. Then, where omaseed sees the daemon's disks (#233), a
+# off, then deleted with its files. Settings › Transmission › Backup (#88, DECISIONS C40 X3)
+# then says it can't see the daemon's .torrent files, and offers their folder or links. Then,
+# where omaseed sees the daemon's disks (#233), Backup reads them where the daemon says and
+# exports the library to a file (its manifest, a record and a .torrent per torrent), and a
 # second torrent's Move… sheet with a file by its name already at the destination (board 47
 # §E, M8: left out, Transmission would replace it) and a move that copies, frozen halfway so
 # the busy band shows the growth probe's "N of M there". After each step it checks what the
@@ -503,6 +506,20 @@ expect "the other $SEEDED torrents are all still there" "$HASH" "sorted(x['hash_
 expect_no_text "the row is gone" "$RENAMED" 20
 shot "The table without it; the rail without its folder and labels."
 
+# ---- Settings › Transmission › Backup, the daemon's disk out of sight (#88, C40 X3) --------
+
+# The box reaches the daemon's RPC but not its folders: its .torrent files can't be read.
+step "Backup, its .torrent files out of sight" "Settings › Transmission (ctrl+shift+,), 7 for Backup, the last section. The box doesn't see the daemon's disk, so the export row says omaseed can't see its .torrent files and offers their folder… or export links…. Esc."
+keys ctrl+shift+comma
+keys 7
+expect_text "Backup is the group's last section, with the export row" "Export transmission's torrents" 20
+expect_text "the scope line says how a library moves" "To move them to another server, export here and import there." 10
+# (A row's description is not in the tree: its two buttons say which state it is in.)
+expect_text "the .torrent files are out of sight: the row offers their folder" "their folder…" 20
+expect_text "and links" "export links…" 10
+shot "Settings › Transmission › Backup: omaseed can't see transmission's .torrent files; their folder… and export links…."
+keys Escape
+
 # ---- where omaseed sees the disks (#233) ---------------------------------------------------
 
 if [ "$FROM" = native ]; then
@@ -513,6 +530,48 @@ if [ "$FROM" = native ]; then
     [ "$INTERACTIVE" = 1 ] && up_args+=(--interactive)
     "$APP_BOX" up "${up_args[@]}" >/dev/null
     expect_text "omaseed is back, seeing the profile's folders" "$SEEDED torrents" 30
+
+    # ---- Backup: the export (#88; DECISIONS C40 X1, X3) -------------------------------------
+    EXPORT="$BOX_HOME/torrents-transmission-$(date +%F).omaseed-torrents"
+    step "Backup: export the library" "Settings › Transmission, 7 for Backup: the box now sees the daemon's folder, so the row is plain and says where the .torrent files are read from. l, enter: the portal's save dialog proposes ~/torrents-transmission-<date>.omaseed-torrents; enter saves it."
+    keys ctrl+shift+comma
+    keys 7
+    expect_text "Backup again" "Export transmission's torrents" 20
+    expect_text "the .torrent files are seen: the row's one button is export…" "export…" 20
+    expect_no_text "it offers no folder to give" "their folder…" 5
+    shot "Settings › Transmission › Backup: Export transmission's torrents, $SEEDED torrents…, its .torrent files read from PROFILE/torrents; export…." pane
+    keys l
+    keys Return
+    omabox wait -b "$BOX" --timeout 10s window "Export Transmission's torrents" >/dev/null 2>&1 || fail "no save dialog"
+    omabox keys -b "$BOX" --wait Return >/dev/null 2>&1 || true
+    expect_text "the result names the server and the file" "Exported transmission's $SEEDED torrents to ~/torrents-transmission-" 30
+    shot "Exported transmission's $SEEDED torrents to ~/torrents-transmission-<date>.omaseed-torrents."
+    # The file, read as any tar: the manifest names the engine and counts the daemon's
+    # torrents, and each has its record and its .torrent.
+    if got="$(python3 - "$home/${EXPORT#"$BOX_HOME"/}" "$OTHERS" <<'PY' 2>&1
+import ast, json, os, stat, sys, tarfile
+path, hashes = sys.argv[1], ast.literal_eval(sys.argv[2])
+assert stat.S_IMODE(os.stat(path).st_mode) == 0o600, "the file is not private (0600)"
+with tarfile.open(path) as tar:
+    names = tar.getnames()
+    manifest = json.load(tar.extractfile("manifest.json"))
+    assert names[0] == "manifest.json", names[0]
+    assert manifest["server"]["engine"] == "transmission", manifest["server"]
+    assert manifest["count"] == len(hashes), (manifest["count"], len(hashes))
+    assert manifest["magnets"] == 0, manifest["magnets"]
+    records = sorted(n for n in names if n.endswith(".json") and n.startswith("torrents/"))
+    assert len(records) == len(hashes), records
+    for record in records:
+        assert record[:-len(".json")] + ".torrent" in names, record + " has no .torrent"
+        assert not json.load(tar.extractfile(record)).get("magnet"), record + " is a link"
+print(len(records))
+PY
+    )"; then
+        pass "the file is a private tar: manifest (engine transmission, $got torrents), a record and a .torrent each"
+    else
+        fail "the exported file: $got"
+    fi
+    keys Escape
 fi
 trpc torrent_add "{\"metainfo\":\"$(base64 -w0 "$WALK/$BIG.torrent")\",\"download_dir\":\"$R_BIG_DIR\"}" >/dev/null
 expect "$BIG verified complete from its data and seeding" "$BIG_HASH" "t is not None and t['percent_done'] == 1 and t['status'] == 6" 90

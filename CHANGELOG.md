@@ -7,6 +7,18 @@ before it will tag a release.
 
 ## Unreleased
 
+### Added
+
+- **A Transmission's library moves to a qBittorrent.** Settings › Transmission has a new last
+  section, Backup, with **Export NAME's torrents**: every torrent with its folder, labels,
+  limits and renames, in one private file. Import that file into a qBittorrent (Settings ›
+  qBittorrent › Backup, as before) and the first label becomes the category and the rest
+  become tags; the import sheet lists each name as it will be, and what qBittorrent can't
+  keep, before anything is added. Transmission keeps its .torrent files on its own disk: when
+  omaseed can't see them (a container, another machine), the row says so and takes their
+  folder as this machine sees it, remembered for that server, or exports each torrent as its
+  magnet link. Importing into a Transmission comes next. (#88)
+
 ## v0.8.4 — 2026-11-11
 
 ### Fixed
