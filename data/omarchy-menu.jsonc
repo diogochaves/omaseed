@@ -1,16 +1,31 @@
 {
-  // omaseed's block for Omarchy's menu (docs/DECISIONS.md C36 M13).
+  // omaseed's block for Omarchy's menu: Trigger › Torrents (docs/DECISIONS.md C36, board 53 §4).
   //
-  // Copy the lines from ">>> omaseed" to "<<< omaseed", both included, into
+  // The template omaseed fills (src/core/OmarchyMenuBlock, built in), and a hand copy: copy the
+  // lines from ">>> omaseed" to "<<< omaseed", both included, into
   // ~/.config/omarchy/extensions/omarchy-menu.jsonc, before its last "}" (the only file the
   // menu loads; it hot-reloads on save), or run
   // `scripts/dev/install-omarchy-extras.sh --menu`, which does the same. omaseed reads a
   // block between these markers as its own: it rewrites or removes everything from one marker
   // to the other, and nothing else in the file.
   //
-  // `uwsm-app --` is the same launch wrapper Omarchy's own GUI-app rows use (see
-  // "trigger.share.receive" in /usr/share/omarchy/default/omarchy/omarchy-menu.jsonc).
+  // The window's rows run omaseed (`uwsm-app --`, the launch wrapper of Omarchy's own GUI-app
+  // rows, as "trigger.share.receive" in /usr/share/omarchy/default/omarchy/omarchy-menu.jsonc)
+  // and always show. The others call omaseed's Status bus and show while it runs (`busctl
+  // --user status`); Speeds › and Pause / Resume also while the server answers. `when` and
+  // `checked` read the status file (plugin/STATUS.md) with jq.
   // >>> omaseed · Trigger › Torrents · written by omaseed (Settings › Appearance); edits down to its end marker are replaced
-  "torrents": {"icon":"󰇚","label":"Torrents","action":"uwsm-app -- omaseed"},
+  "trigger.torrents": {"icon":"󰇚","label":"Torrents","aliases":["torrents","omaseed"]},
+  "trigger.torrents.open": {"icon":"󰏌","label":"Open omaseed","action":"uwsm-app -- omaseed"},
+  "trigger.torrents.add": {"icon":"󰐕","label":"Add Torrent","action":"uwsm-app -- omaseed --open add"},
+  "trigger.torrents.search": {"icon":"󰍉","label":"Search Torrents","action":"uwsm-app -- omaseed --open search"},
+  "trigger.torrents.speeds": {"icon":"󰓅","label":"Speeds","when":"busctl --user status io.github.diogochaves.omaseed && jq -e '.server.reachable' \"$XDG_RUNTIME_DIR/omaseed/status.json\""},
+  "trigger.torrents.speeds.normal": {"icon":"󰾅","label":"Normal","checked":"jq -e '.alt.pick == \"off\"' \"$XDG_RUNTIME_DIR/omaseed/status.json\"","action":"busctl --user call io.github.diogochaves.omaseed /io/github/diogochaves/omaseed io.github.diogochaves.omaseed.Status PickAltSpeed s off"},
+  "trigger.torrents.speeds.turtle": {"icon":"󰳗","label":"Turtle","checked":"jq -e '.alt.pick == \"turtle\"' \"$XDG_RUNTIME_DIR/omaseed/status.json\"","action":"busctl --user call io.github.diogochaves.omaseed /io/github/diogochaves/omaseed io.github.diogochaves.omaseed.Status PickAltSpeed s turtle"},
+  "trigger.torrents.speeds.burst": {"icon":"󰑣","label":"Burst","checked":"jq -e '.alt.pick == \"burst\"' \"$XDG_RUNTIME_DIR/omaseed/status.json\"","action":"busctl --user call io.github.diogochaves.omaseed /io/github/diogochaves/omaseed io.github.diogochaves.omaseed.Status PickAltSpeed s burst"},
+  "trigger.torrents.pause": {"icon":"󰏤","label":"Pause Torrents","when":"busctl --user status io.github.diogochaves.omaseed && jq -e '.server.reachable and .paused.count == 0' \"$XDG_RUNTIME_DIR/omaseed/status.json\"","action":"busctl --user call io.github.diogochaves.omaseed /io/github/diogochaves/omaseed io.github.diogochaves.omaseed.Status Invoke s pause"},
+  "trigger.torrents.resume": {"icon":"󰐊","label":"Resume Torrents","when":"busctl --user status io.github.diogochaves.omaseed && jq -e '.server.reachable and .paused.count > 0' \"$XDG_RUNTIME_DIR/omaseed/status.json\"","action":"busctl --user call io.github.diogochaves.omaseed /io/github/diogochaves/omaseed io.github.diogochaves.omaseed.Status Invoke s resume"},
+  // omaseed: Servers › goes here, a row per server, when omaseed writes the block with two servers or more (a hand copy has none)
+  "trigger.torrents.settings": {"icon":"󰒓","label":"Settings","action":"uwsm-app -- omaseed --open settings"},
   // <<< omaseed
 }

@@ -122,10 +122,12 @@ not edit your config:
   ln -sf /usr/share/omaseed/hooks/theme-set.d/omaseed ~/.config/omarchy/hooks/theme-set.d/omaseed
   ```
 
-- **A "Torrents" row for the Omarchy menu**: copy the lines from `// >>> omaseed` to
-  `// <<< omaseed` in `/usr/share/omaseed/omarchy-menu.jsonc` into
-  `~/.config/omarchy/extensions/omarchy-menu.jsonc`, before its last `}`.
-  omaseed is in the menu's Apps list without it.
+- **Torrents in the Omarchy menu**, under Trigger › Torrents (`omarchy menu summon torrents`):
+  open omaseed, add a torrent, search, pick a speed, pause and resume, settings. Copy the
+  lines from `// >>> omaseed` to `// <<< omaseed` in `/usr/share/omaseed/omarchy-menu.jsonc`
+  into `~/.config/omarchy/extensions/omarchy-menu.jsonc`, before its last `}`. A hand copy has
+  no Servers › rows: those list your servers, so only omaseed writes them. omaseed is in the
+  menu's Apps list without any of it.
 
 ### Build from source
 
