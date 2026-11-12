@@ -44,7 +44,8 @@ add_dependencies(tst_printonly omaseed)
 
 # docs/DECISIONS.md C30 F7: every text role on every ground, in every theme of
 # tests/fixtures/themes and every built-in skin (#171), as the built omaseed resolves them
-# (`--theme-roles --skin`, offscreen, no window). A pair under 4.5:1 fails here.
+# (`--theme-roles --skin`, offscreen, no window). A pair under 4.5:1 fails here, and so does
+# a mark under WCAG 1.4.11's 3:1 on any ground it sits on (#200, C30 marks: --strict-marks).
 find_package(Python3 COMPONENTS Interpreter)
 if(Python3_FOUND)
     add_test(
@@ -52,11 +53,11 @@ if(Python3_FOUND)
         COMMAND ${Python3_EXECUTABLE} "${PROJECT_SOURCE_DIR}/scripts/dev/contrast-board.py"
                 --check "$<TARGET_FILE:omaseed>"
                 --themes-root "${PROJECT_SOURCE_DIR}/tests/fixtures/themes"
+                --strict-marks
     )
     set_tests_properties(contrast_board_check PROPERTIES TIMEOUT 120)
-    # #200: the same check measures every mark at WCAG 1.4.11's 3:1 and reports what fails,
-    # without failing on it yet (--strict-marks does); this keeps that pass honest on made-up
-    # roles, a mark that reads and ones built to fail.
+    # #200: the marks pass on made-up roles, a mark that reads and ones built to fail, so the
+    # strict check above can't pass by measuring nothing.
     add_test(
         NAME contrast_board_marks_selftest
         COMMAND ${Python3_EXECUTABLE} "${PROJECT_SOURCE_DIR}/scripts/dev/contrast-board.py"

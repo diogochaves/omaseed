@@ -1869,10 +1869,20 @@ when only adding the torrent again frees the space).
   its track over its `ground`, SelectionMark against its `ground`, FocusRing against the block
   its control lies in; the table's pulse and ratio track past 1.0 against the row's ground (and
   that track). A mark that already takes its ground's ink (the files tab's line) is unchanged.
+  A mark drawn faint, at an opacity ("only you"'s box, yellow at 0.4; the ratio track to 1.0,
+  the foreground at 0.45; a toggle's outline, the border alphas; the status line's connecting
+  dot, `faintAlpha`; the console tracker's given bar, its ink at 0.6), is composited over what
+  it lies on and measured there: it keeps its alpha where that reads at 3:1, else takes the
+  least higher opacity that does (in 1/256 steps, so it keeps its own colour and stays fainter
+  than the marks drawn full), and only where even full strength falls short is it lifted as
+  above (`Theme.markAt(colour, alpha, over, against)`, Theme::liftMarkAt; the colour carries
+  the alpha, so the mark has no `opacity` of its own). An edge between two grounds is measured
+  against both: a toggle's outline lies on its block and meets the idle track, and is raised
+  against the track. The border alphas (0.40 idle, 0.25 hot) are no hairline, and stay the
+  shell's for every other border; only the toggle's outline is raised. The web seed's lamp,
+  `muted` at full strength (1.0:1 on a picked row in some themes), is `markOn` its row's ground.
   `contrast-board.py --check` measures every mark on every ground it can sit on, in both
-  skins. The marks drawn at a low opacity that fail even on the window ("only you"'s box, the
-  ratio track to 1.0, a toggle's outline, the status line's connecting dot, the tracker's given
-  bar, the web seed's lamp) follow in a later step of #200.
+  skins, and fails under 3:1 (`--strict-marks`, ctest's check).
 - **"show" (F8–F11, #167):** offered only when one of the strip's torrents is out of view, out
   of the scope (folder, question, category, tag, filter) or not selected, and live while the
   strip is up. It selects them, puts the cursor on the first and scrolls to it; when one left
