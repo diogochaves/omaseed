@@ -1,6 +1,8 @@
 #include "integration/Theme.hpp"
 #include "integration/ThemeReader.hpp"
+#include "ui/i18n/Translations.hpp"
 
+#include <QCoreApplication>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -82,6 +84,8 @@ class Setup : public QObject
 public slots:
     void applicationAvailable()
     {
+        // The app's English catalogue (C41, #197), so a `%n` string reads as people see it.
+        omaseed::i18n::installTranslations(QCoreApplication::instance());
         m_reader = std::make_unique<omaseed::integration::ThemeReader>();
         m_theme = std::make_unique<TestTheme>(m_reader.get());
         omaseed::integration::Theme::setDefaultReader(m_reader.get());

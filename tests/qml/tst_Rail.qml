@@ -676,7 +676,7 @@ TestCase {
         // #78: a screen reader hears "servers"; the count goes in the description.
         const header = findChild(rail, "serversHeading").header;
         compare(header.Accessible.name, "servers");
-        compare(header.Accessible.description, "2 server(s) · unfolded");
+        compare(header.Accessible.description, "2 servers · unfolded");
     }
 
     function test_the_servers_block_folds_to_one_line() {

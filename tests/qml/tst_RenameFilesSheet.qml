@@ -128,7 +128,8 @@ TestCase {
         compare(sheet.plan.changed, 1);
         compare(sheet.plan.collisions, 1);
         compare(sheet.plan.rows[0].status, "collides");
-        compare(sheet.primaryText, "1 names collide");
+        // #197: one collision reads in the singular.
+        compare(sheet.primaryText, "1 name collides");
         compare(sheet.primaryButton().enabled, false);
         waitForRendering(sheet.preview, 500);
         const marked = findChild(sheet.preview.itemAtIndex(0), "newName");
