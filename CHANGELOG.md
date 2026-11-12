@@ -5,6 +5,27 @@ All notable changes to omaseed are logged here, newest first. Loosely follows
 versioning stability (pre-1.0). `scripts/release.sh` requires a `## v<version>` section here
 before it will tag a release.
 
+## v0.10.1 — 2026-11-12
+
+### Fixed
+
+- **A sheet on top keeps the keyboard.** When a sheet closed under another while the window
+  was in the background (a magnet handed over from another app, already in the library, so the
+  duplicate sheet opened as the add sheet closed), the closing sheet took the keyboard back and
+  the first `esc` went to the list. A closing sheet now leaves the keyboard with any sheet
+  opened after it. (#192)
+- **Long words the add sheet can't read fit its panel.** The "search plugins for “…”" line
+  shortens the words in the middle, keeping both ends; a click still searches for all of them.
+  (#198)
+- **Every menu's footer is read by screen readers**, such as the display menu's "size orders
+  the map, the largest first". (#228)
+
+### Changed
+
+- **The empty library teaches its keys on demand.** Its ways in are buttons, each with its
+  key in the tooltip and in a badge while alt is held, instead of a painted key column, as the
+  sheets have done since v0.5.0. (#191, DECISIONS C24 H10)
+
 ## v0.10.0 — 2026-11-12
 
 ### Added
