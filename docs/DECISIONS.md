@@ -1858,6 +1858,21 @@ when only adding the torrent again frees the space).
   colours (no text, at 3:1 over the hover fill). Chip's key (0.8) and suffix (0.72) and the schedule
   line (0.6) lost their opacities, which read under the floor: the floor wins over docs/31
   D5's "a little fainter", and the schedule line, while the schedule is off, reads dim instead.
+  **Marks (#200):** a mark, anything that carries meaning without words (a progress line, the
+  pulse, the ratio track, a selection's edge or brackets, the focus ring), reads at 3:1 against
+  what it sits on (WCAG 2.2 1.4.11): its ground, or its track over the ground for a line on one.
+  A mark keeps the window's colour wherever that already reads, byte for byte, and is lifted by
+  this floor's recipe at 3:1 where it doesn't: the least lift towards the foreground, then
+  towards the better of the two foregrounds (`Theme.markOn(colour, under)`, Theme::liftMark,
+  `kMarkContrastFloor`), never a hex, never past 3:1. So a mark stays its hue and stays apart
+  from the words beside it, which take the ground's 4.5:1 ink. Kit/Meter lifts its fill against
+  its track over its `ground`, SelectionMark against its `ground`, FocusRing against the block
+  its control lies in; the table's pulse and ratio track past 1.0 against the row's ground (and
+  that track). A mark that already takes its ground's ink (the files tab's line) is unchanged.
+  `contrast-board.py --check` measures every mark on every ground it can sit on, in both
+  skins. The marks drawn at a low opacity that fail even on the window ("only you"'s box, the
+  ratio track to 1.0, a toggle's outline, the status line's connecting dot, the tracker's given
+  bar, the web seed's lamp) follow in a later step of #200.
 - **"show" (F8–F11, #167):** offered only when one of the strip's torrents is out of view, out
   of the scope (folder, question, category, tag, filter) or not selected, and live while the
   strip is up. It selects them, puts the cursor on the first and scrolls to it; when one left

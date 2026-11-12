@@ -21,10 +21,11 @@ on them too.
 
 --check then measures every mark (MARKS: a line's fill, a dot, a box, an edge: no words) on
 every ground it sits on in each skin, at WCAG 2.2 1.4.11's 3:1, its opacity composited over
-the ground or over its track (#200). C30's floor lifts words only, so marks keep the window's
-colours, and some read under 3:1 today: --check reports them and still exits 0 on them, so
-ctest's text check stays the gate it was; --strict-marks fails on them as well, for once they
-are lifted. --marks-report FILE writes them grouped by mark, worst first. --self-test checks
+the ground or over its track (#200). Marks keep the window's colours where those read at 3:1;
+the ones painted in them on a darker ground are lifted there by `Theme.markOn` (C30, marks:
+MARK_LIFT here), and the low-opacity ones that fail even on the window are left for #200's
+next step: --check reports them and still exits 0 on them, so ctest's text check stays the
+gate it was; --strict-marks fails on them as well, for once they are lifted. --marks-report FILE writes them grouped by mark, worst first. --self-test checks
 the mark pass on made-up roles. A build from
 before C30 prints no grounds: the check then paints its window roles on each fill, as that
 build did, which is board 50's "today".
@@ -99,7 +100,8 @@ def over(top, under, alpha):
 
 
 def lift(colour, toward, against, minimum):
-    """Theme::liftToContrast, for the board's one what-if (lifting against a row fill)."""
+    """Theme::liftToContrast, for the board's what-if (lifting against a row fill) and the
+    marks' lift (`lift_mark`)."""
     if ratio(colour, against) >= minimum:
         return colour
     if ratio(toward, against) < minimum:
@@ -569,34 +571,51 @@ FOCUS_GROUNDS = {"omarchy": ["window", "idle", "hover", "cursor", "selected", "s
                              "picked", "pressed", "blockIdle", "hoverIdle"]}
 STATES = list(STATE_ROLES)
 
+def lift_mark(colour, under, fg, bright):
+    """Theme::liftMark (`Theme.markOn`, C30 marks, #200): `colour` kept where it reads at 3:1
+    on `under`, else the least lift towards the foreground, then towards the better of the
+    foreground and the bright one."""
+    col = lift(colour, fg, under, NON_TEXT)
+    if ratio(col, under) < NON_TEXT:
+        best = bright if ratio(bright, under) > ratio(fg, under) else fg
+        col = lift(col, best, under, NON_TEXT)
+    return col
+
+
+# A mark's colours: a list of the window's roles as they are; ("ink", roles), its ground's
+# text ink; or (MARK_LIFT, roles, track), the window's roles lifted by `Theme.markOn` against
+# the ground, or against `track` (an alpha key) over the ground when the code lifts it there
+# (Kit/Meter lifts a line against its track, so the bare line is lifted against the table's).
+MARK_LIFT = "mark"
+
 MARKS = [
-    ("the progress line", "Views/TorrentTable.qml ProgressLine, Views/LibraryRow.qml Meter",
-     STATES + ["dimForeground"], 1, ROW_GROUNDS, None),
-    ("the progress line on the table's track", "Kit/ProgressLine.qml: trackColor fill(hairlineAlpha)",
-     STATES, 1, ROW_GROUNDS, "hairlineAlpha"),
-    ("the progress line on the rows' track", "Views/LibraryRow.qml: trackColor fill(libraryRowLineTrack = fillHover)",
-     STATES + ["dimForeground"], 1, ROW_GROUNDS, "fillHover"),
+    ("the progress line", "Views/TorrentTable.qml ProgressLine, Views/LibraryRow.qml Meter: Kit/Meter markColor",
+     (MARK_LIFT, STATES + ["dimForeground"], "hairlineAlpha"), 1, ROW_GROUNDS, None),
+    ("the progress line on the table's track", "Kit/ProgressLine.qml: Meter markColor on trackColor fill(hairlineAlpha)",
+     (MARK_LIFT, STATES, "hairlineAlpha"), 1, ROW_GROUNDS, "hairlineAlpha"),
+    ("the progress line on the rows' track", "Views/LibraryRow.qml: Meter markColor on trackColor fill(libraryRowLineTrack = fillHover)",
+     (MARK_LIFT, STATES + ["dimForeground"], "fillHover"), 1, ROW_GROUNDS, "fillHover"),
     ("the files tab's progress line, on its track", "Views/DetailsFilesTab.qml: row.ink, hairline track",
      ("ink", ["stateSeeding", "accent"]), 1, ROW_GROUNDS, "hairlineAlpha"),
-    ("the pulse, still or at its peak", "Views/TorrentTable.qml pulseTick (breathes 0.25 → 1)",
-     ["stateSeeding"], 1, ROW_GROUNDS, None),
+    ("the pulse, still or at its peak", "Views/TorrentTable.qml pulseTick: markOn (breathes 0.25 → 1)",
+     (MARK_LIFT, ["stateSeeding"], None), 1, ROW_GROUNDS, None),
     ("the ratio track to 1.0", "Views/TorrentTable.qml ratioTracks: foreground at 0.45 on fill(fillHover)",
      ["foreground"], 0.45, ROW_GROUNDS, "fillHover"),
-    ("the ratio track past 1.0", "Views/TorrentTable.qml ratioTracks: stateSeeding on fill(fillHover)",
-     ["stateSeeding"], 1, ROW_GROUNDS, "fillHover"),
+    ("the ratio track past 1.0", "Views/TorrentTable.qml ratioTracks: markOn(stateSeeding) on fill(fillHover)",
+     (MARK_LIFT, ["stateSeeding"], "fillHover"), 1, ROW_GROUNDS, "fillHover"),
     ("the tracker's given bar", "Views/ConsoleTrackers.qml: row.ground.stateSeeding at 0.6",
      ("ink", ["stateSeeding"]), 0.6, {"omarchy": ["window", "hover"], "console": ["window", "hover"]},
      None),
     ("\"only you\"'s box", "Views/TorrentTable.qml T3: border yellow at 0.4",
      ["yellow"], 0.4, ROW_GROUNDS, None),
-    ("a selected row's edge", "Views/LibraryRow.qml SelectionMark rule (not under pickedGround)",
-     ["accent"], 1, {"omarchy": ["selected", "selectedCursor"]}, None),
-    ("a selected tile's or chip's mark", "Views/SpaceTile.qml, SpaceChip.qml SelectionMark (litColor)",
-     ["accent"], 1, PICK_GROUNDS, None),
-    ("the cursor's mark", "Views/LibraryRow.qml, SearchRow.qml SelectionMark (Console's brackets)",
-     ["accent"], 1, {"console": ["cursor", "picked"]}, None),
-    ("the focus ring", "Kit/FocusRing.qml: border accent",
-     ["accent"], 1, FOCUS_GROUNDS, None),
+    ("a selected row's edge", "Views/LibraryRow.qml SelectionMark rule (not under pickedGround): markColor",
+     (MARK_LIFT, ["accent"], None), 1, {"omarchy": ["selected", "selectedCursor"]}, None),
+    ("a selected tile's or chip's mark", "Views/SpaceTile.qml, SpaceChip.qml SelectionMark (litColor): markColor",
+     (MARK_LIFT, ["accent"], None), 1, PICK_GROUNDS, None),
+    ("the cursor's mark", "Views/LibraryRow.qml, SearchRow.qml SelectionMark (Console's brackets): markColor",
+     (MARK_LIFT, ["accent"], None), 1, {"console": ["cursor", "picked"]}, None),
+    ("the focus ring", "Kit/FocusRing.qml: border markOn(accent) on its control's block",
+     (MARK_LIFT, ["accent"], None), 1, FOCUS_GROUNDS, None),
     ("a toggle's outline", "Kit/Toggle.qml: border fill(borderIdle)",
      ["foreground"], "borderIdle", {"omarchy": ["window", "idle", "blockIdle"],
                                     "console": ["window", "idle", "blockIdle"]}, None),
@@ -615,10 +634,11 @@ def mark_pairs(roles, skin, marks=None):
     on in `skin`, from a build that prints its grounds."""
     c, a, grounds = roles["colors"], roles["alphas"], roles["grounds"]
     fg = parse(c["foreground"])
+    bright = parse(c["brightForeground"]) if "brightForeground" in c else fg
     out = []
     for what, _where, colours, alpha, on, against in marks if marks is not None else MARKS:
         al = a[alpha] if isinstance(alpha, str) else alpha
-        ink = isinstance(colours, tuple)
+        kind = colours[0] if isinstance(colours, tuple) else None
         for gname in on.get(skin, []):
             g = parse(grounds[gname]["ground"])
             under = g
@@ -626,9 +646,13 @@ def mark_pairs(roles, skin, marks=None):
             if against:
                 under = tuple(round(v) for v in over(fg, g, a[against]))
                 label = f"{gname} + track"
-            for role in (colours[1] if ink else colours):
-                if ink:
+            for role in (colours[1] if kind else colours):
+                if kind == "ink":
                     col = parse(grounds[gname]["colors"][STATE_ROLES.get(role, role)])
+                elif kind == MARK_LIFT:
+                    track = colours[2]
+                    lifted_on = tuple(round(v) for v in over(fg, g, a[track])) if track else g
+                    col = lift_mark(parse(c[role]), lifted_on, fg, bright)
                 else:
                     col = parse(c[role])
                 m = tuple(round(v) for v in over(col, under, al))
@@ -689,9 +713,11 @@ def self_test():
              ("faint", "", ["muted"], 1, {"omarchy": ["window"]}, None),
              ("faint ink on a track", "", ("ink", ["accent"]), 0.2, {"omarchy": ["selected"]},
               "hairlineAlpha"),
-             ("not in this skin", "", ["muted"], 1, {"console": ["window"]}, None)]
+             ("not in this skin", "", ["muted"], 1, {"console": ["window"]}, None),
+             ("lifted", "", (MARK_LIFT, ["muted"], "hairlineAlpha"), 1, {"omarchy": ["window"]},
+              "hairlineAlpha")]
     got = {(w, g): q for w, _r, g, q in mark_pairs(roles, "omarchy", marks)}
-    ok = (len(got) == 4 and got[("reads", "window")] >= NON_TEXT
+    ok = (len(got) == 5 and got[("lifted", "window + track")] >= NON_TEXT and got[("reads", "window")] >= NON_TEXT
           and got[("reads", "selected")] >= NON_TEXT and got[("faint", "window")] < NON_TEXT
           and got[("faint ink on a track", "selected + track")] < NON_TEXT)
     print("contrast-board: marks self-test " + ("ok" if ok else f"FAILED: {got}"))
