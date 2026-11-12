@@ -200,6 +200,16 @@ of large `.torrent` files go to `QtConcurrent`.
 Everything omaseed keeps lives in `~/.config/omaseed/`: `servers.json`, `state.json` (window,
 columns, filters) and `secrets/` when there is no keyring. No database.
 
+Strings ([DECISIONS.md](DECISIONS.md) C41): every visible string is `qsTr()` in QML or `tr()`
+in C++, written in English. A new count goes in as `%n` (`qsTr("%n servers", "", count)`)
+rather than `count === 1 ? … : …` around two strings (older code still does that), and
+`translations/omaseed_en.ts` gives it its singular and plural. That file is Qt's plurals-only catalogue for the source language: lupdate
+fills it from the app's targets (`cmake --build build --target update_translations`, on demand,
+never at build), lrelease compiles it at build time into `:/i18n/omaseed_en.qm`, and
+`omaseed::i18n::installTranslations` (`src/ui/i18n/`) loads it before the QML engine. It is the
+base for real translations later. `tst_translations` fails on a `%n` string without both forms
+or one the file doesn't have.
+
 ## Theme rules
 
 Every QML file follows these, so the app looks like the Omarchy shell and repaints when the

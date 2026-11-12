@@ -68,6 +68,7 @@ QT_QPA_PLATFORM=offscreen ./build/omaseed --help  # headless smoke
 ./build/omaseed                                   # real run under Hyprland
 qmllint src/ui/qml/**/*.qml && qmlformat -i <file>
 scripts/dev/shellcheck.sh                          # every tracked shell script (also ctest -R shellcheck)
+cmake --build build --target update_translations   # after adding or changing a `%n` string: refresh translations/omaseed_en.ts, then fill its singular and plural (ctest -R tst_translations checks; DECISIONS C41)
 scripts/dev/test-server.sh start|stop|status|reset|seed [--strict]
 scripts/dev/test-server.sh rotate --strict        # new random strict login in dev.env; key kept
 scripts/dev/test-server.sh start|stop|status|reset|seed|log --transmission  # Transmission on :8085

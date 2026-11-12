@@ -418,7 +418,8 @@ one from any engine.
 
 ## Developing
 
-Needs Qt 6.8 or newer, CMake and Ninja. On Arch the Qt tools (`qmllint`, `qmlformat`,
+Needs Qt 6.8 or newer (with its Linguist tools, Arch's `qt6-tools`), CMake and Ninja. On Arch
+the Qt tools (`qmllint`, `qmlformat`,
 `qmltestrunner`) live outside `PATH`:
 
 ```
@@ -428,6 +429,7 @@ cmake --build build
 ctest --test-dir build --output-on-failure -LE live   # unit and QML tests
 ./build/omaseed
 scripts/dev/lint.sh build                             # qmllint and clang-format
+cmake --build build --target update_translations      # after adding a `%n` string
 ```
 
 `-DOMASEED_WERROR=ON` turns warnings into errors (CI uses it); `-DBUILD_TESTING=OFF` skips

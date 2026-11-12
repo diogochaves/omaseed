@@ -2521,3 +2521,26 @@ C14 E10, and it ends C25 K33 a for torrents (settings stay qBittorrent's only).
 
 The measurements behind it (Transmission 4.1.3, Deluge 2.2.0) are board 57 §2; their repros are
 `scripts/dev/research/88-engines-backup/`.
+
+## C41 — Plurals through Qt Linguist (ruled 2026-11-12)
+
+#197. A `qsTr("%n servers", "", n)` read "1 servers": `%n` only picks a form when a translation
+gives one, and omaseed shipped none. **Ruled: the Qt way**, not a per-string helper.
+
+- **The catalogue.** `translations/omaseed_en.ts` is Qt's plurals-only file for the source
+  language: every `%n` string of the app's C++ and QML targets, with its English singular and
+  plural, and nothing else (every other string falls back to its source text). lupdate writes
+  it only on demand (`cmake --build build --target update_translations`, `-no-obsolete
+  -locations relative`, then `lconvert -pluralonly`); the build never does. A new `%n` string's
+  forms are filled by hand or in Qt Linguist.
+- **In the binary.** lrelease compiles it at build time into `:/i18n/omaseed_en.qm`; nothing is
+  installed. `main()` installs it on the application before any string is made, for every
+  locale; the QML test runner installs it too, so tests read what people read.
+- **The base for translations.** A language later is another `.ts` beside it, loaded for the
+  system locale first, with English kept installed after it for the forms it lacks.
+- **Checked.** `tst_translations` fails when a `%n` string has no two forms, when the `.qm`
+  doesn't give them under lupdate's context, or when the file and the sources disagree on the
+  set of `%n` strings.
+- Guards such as `n > 1 ? qsTr("remove %n trackers", "", n) : qsTr("remove")` stay: each one's
+  other branch says something else (no count, a name). The older `n === 1 ? qsTr("1 torrent") :
+  qsTr("%1 torrents").arg(n)` pairs are left as they are; new code writes `%n`.
