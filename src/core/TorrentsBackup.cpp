@@ -174,6 +174,14 @@ QJsonObject TorrentRecord::toJson() const
         o.insert(QStringLiteral("sequential"), true);
     if (firstLastPiecePrio)
         o.insert(QStringLiteral("firstLastPiecePrio"), true);
+    // A link keeps its file choices (a Transmission's torrent whose .torrent couldn't be
+    // read: C40 X3, X7); its names are the .torrent's own.
+    if (!priorities.isEmpty()) {
+        QJsonArray list;
+        for (const int p : priorities)
+            list.append(p);
+        o.insert(QStringLiteral("priorities"), list);
+    }
     if (isMagnet()) {
         o.insert(QStringLiteral("magnet"), magnet);
         return o;
@@ -186,12 +194,6 @@ QJsonObject TorrentRecord::toJson() const
                                     {QStringLiteral("from"), r.from},
                                     {QStringLiteral("to"), r.to}});
         o.insert(QStringLiteral("renamed"), list);
-    }
-    if (!priorities.isEmpty()) {
-        QJsonArray list;
-        for (const int p : priorities)
-            list.append(p);
-        o.insert(QStringLiteral("priorities"), list);
     }
     return o;
 }

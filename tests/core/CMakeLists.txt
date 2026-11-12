@@ -588,6 +588,22 @@ omaseed_add_test(tst_transmissiontorrentsexport_live LIVE
     DEFINES OMASEED_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../fixtures"
 )
 
+# #88, C40 X4-X7: a TorrentsBackup file laid onto a Transmission, against the fake daemon: the
+# add, what follows it, renames before a verify, links finished later, the journal.
+omaseed_add_test(tst_transmissiontorrentsimport
+    SOURCES tst_transmissiontorrentsimport.cpp
+    LIBRARIES omaseed::core Qt6::Network
+    DEFINES OMASEED_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../fixtures"
+)
+
+# The same against the real Transmission test server (:8085): export, remove keeping the
+# data, import, 100 %.
+omaseed_add_test(tst_transmissiontorrentsimport_live LIVE
+    SOURCES tst_transmissiontorrentsimport_live.cpp
+    LIBRARIES omaseed::core Qt6::Network
+    DEFINES OMASEED_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../fixtures"
+)
+
 # #87: Deluge's answers in omaseed's terms, from answers recorded off a real deluge-web 2.2
 # (tests/fixtures/deluge, scripts/dev/deluge-fixtures.py).
 omaseed_add_test(tst_delugetranslate
