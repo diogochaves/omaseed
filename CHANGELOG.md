@@ -7,6 +7,8 @@ before it will tag a release.
 
 ## Unreleased
 
+## v0.8.4 — 2026-11-11
+
 ### Fixed
 
 - **Seed history no longer counts a server's whole all-time total as one minute's upload.**
