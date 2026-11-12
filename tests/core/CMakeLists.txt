@@ -785,3 +785,9 @@ omaseed_add_test(tst_omarchymenufile
     LIBRARIES omaseed::core
     DEFINES OMASEED_DATA_DIR="${PROJECT_SOURCE_DIR}/data"
 )
+
+omaseed_add_test(tst_omarchymenublock
+    SOURCES tst_omarchymenublock.cpp
+    LIBRARIES omaseed::core
+    DEFINES OMASEED_DATA_DIR="${PROJECT_SOURCE_DIR}/data"
+)

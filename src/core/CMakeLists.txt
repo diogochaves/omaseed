@@ -147,6 +147,8 @@ qt_add_library(omaseed-core STATIC
     MagnetLink.hpp
     MetadataLookup.cpp
     MetadataLookup.hpp
+    OmarchyMenuBlock.cpp
+    OmarchyMenuBlock.hpp
     OmarchyMenuFile.cpp
     OmarchyMenuFile.hpp
     OmaseedBackup.cpp
@@ -280,4 +282,12 @@ target_include_directories(omaseed-core
 target_link_libraries(omaseed-core
     PUBLIC Qt6::Core Qt6::Network Qt6::Sql
     PRIVATE omaseed::warnings Qt6Keychain::Qt6Keychain
+)
+
+# The template of omaseed's block in Omarchy's menu (OmarchyMenuBlock, DECISIONS C36): the same
+# file data/ installs to /usr/share/omaseed/ for a hand copy.
+qt_add_resources(omaseed-core "omaseed-menu-template"
+    PREFIX "/omaseed"
+    BASE "${PROJECT_SOURCE_DIR}/data"
+    FILES "${PROJECT_SOURCE_DIR}/data/omarchy-menu.jsonc"
 )
