@@ -229,6 +229,55 @@ TestCase {
         verify(!findChild(sheet, "lossNone").visible);
     }
 
+    // docs/57 §5 on a Transmission (C40 X4, X5): a qBittorrent's file. The head names the
+    // target and the file's engine; the block is "labels", the category and the tags each a
+    // label; what Transmission can't keep is counted; the "then" choice is the same; and
+    // nothing is created first, so there is no "+" line.
+    function test_a_qbittorrents_file_on_a_transmission() {
+        const sheet = createTemporaryObject(sheetComponent, testCase);
+        const map = info();
+        map.title = "Import 312 torrents into shed";
+        map.sub = "From attic's export of 11 Nov 2026 10:00, torrents-attic-2026-11-11.omaseed-torrents · qBittorrent 5.3.0";
+        map.plan[1].label = "already in shed (same hash)";
+        map.created = "";
+        map.engine = "qBittorrent";
+        map.crossing = true;
+        map.namesTitle = "labels";
+        map.names = [
+            { "name": "music", "kind": "category", "to": "label music", "left": false },
+            { "name": "flac", "kind": "tag", "to": "label flac", "left": false }
+        ];
+        map.lostTitle = "can't be kept on Transmission";
+        map.losses = ["14 have a seeding-time limit: Transmission has none",
+            "6 do something other than stop at their limit: Transmission only stops",
+            "120 are managed automatically by their category's folder: they keep the folder they are in"];
+        map.kept = "";
+        sheet.openFor(map);
+        compare(sheet.title, "Import 312 torrents into shed");
+        verify(sheet.subtitle.endsWith("· qBittorrent 5.3.0"));
+        tryVerify(() => findChild(sheet, "namesTitle").visible);
+        compare(findChild(sheet, "namesTitle").text, "labels");
+        const first = findChild(sheet, "nameRow-0");
+        compare(findChild(first, "nameFrom").text, "music");
+        compare(findChild(first, "nameKind").text, "category");
+        compare(findChild(first, "nameTo").text, "label music");
+        const second = findChild(sheet, "nameRow-1");
+        compare(findChild(second, "nameKind").text, "tag");
+        compare(findChild(second, "nameTo").text, "label flac");
+        compare(findChild(sheet, "lostTitle").text, "can't be kept on Transmission");
+        tryVerify(() => findChild(sheet, "lossRow-2") !== null);
+        compare(findChild(findChild(sheet, "lossRow-1"), "lossText").text,
+                "6 do something other than stop at their limit: Transmission only stops");
+        verify(!findChild(sheet, "lossNone").visible);
+        // The same choice, on by default.
+        compare(findChild(sheet, "thenCheck").text, "check files, start the complete ones");
+        compare(findChild(sheet, "thenStopped").text, "leave them stopped");
+        verify(sheet.check);
+        // Nothing to create first on a Transmission.
+        verify(!findChild(sheet, "importCreated").visible);
+        compare(sheet.importText, "import 299");
+    }
+
     // More names than the block lists: the first eight, then how many more.
     function test_a_crossing_folds_many_names() {
         const sheet = createTemporaryObject(sheetComponent, testCase);

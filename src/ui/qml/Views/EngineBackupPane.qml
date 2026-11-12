@@ -5,8 +5,9 @@ import Omaseed.Kit
 
 // Settings › ENGINE › Backup for an engine other than qBittorrent (docs/57 §3, §4;
 // docs/DECISIONS.md C40 X1, X2, X3; #88): the last section of its group, the torrents' rows of
-// qBittorrent's Backup and nothing of its settings. For now the one row, "Export NAME's
-// torrents" (C40 X9: the import is the next step).
+// qBittorrent's Backup and nothing of its settings: "Export NAME's torrents" and, where the
+// engine takes a file (`canImport`; C40 X9: an engine learns the two one release apart),
+// "Import torrents into NAME".
 //
 // The engine keeps its .torrent files on its own disk, so the row says before it starts
 // whether this machine reads them (`reach`): "readable", plain, with the folder they are read
@@ -14,6 +15,10 @@ import Omaseed.Kit
 // and "export links…"; anything else (asked, not asked yet), the plain words and a button
 // that waits. While an export runs the row says how far it got and its button stops it, as
 // qBittorrent's.
+//
+// The import row is qBittorrent's: "import…" opens the file chooser and then the import sheet;
+// while the file and the server are read, or an import runs, it says how far it got, and
+// "stop" ends an import.
 //
 // The pane draws; the modal owns the cursor and the keys, and App the state.
 ColumnLayout {
@@ -37,10 +42,14 @@ ColumnLayout {
     /// The last export's result, and whether it failed.
     property string note: ""
     property bool noteError: false
-    /// The modal's cursor is on the row.
-    property bool hasCursor: false
+    /// The engine takes a torrents file: the second row is there (features.torrentsImport).
+    property bool canImport: true
+    /// The modal's cursor: 0 the export row, 1 the import row, -1 neither.
+    property int cursor: -1
 
     readonly property bool exporting: root.running === "export"
+    /// An import runs, or its file and the server are being read.
+    readonly property bool importing: root.running === "import" || root.running === "read"
     readonly property bool ready: root.connected && root.running.length === 0
     /// The files can't be read from here: the row offers their folder, or links.
     readonly property bool unseen: root.connected && !root.exporting && root.reach === "unreadable"
@@ -50,18 +59,20 @@ ColumnLayout {
     signal exportRequested
     /// "their folder…" was pressed.
     signal folderRequested
-    /// The row was clicked: the cursor goes to it.
-    signal rowClicked
+    /// "import…" or its "stop" was pressed.
+    signal importRequested
+    /// Row `row` was clicked: the cursor goes to it.
+    signal rowClicked(row: int)
 
     spacing: Theme.space(8)
 
     ScopeLine {
         Layout.fillWidth: true
         objectName: "engineBackupScopeLine"
-        // C40 X2. When the import ships, "read from" becomes "read from and sent to".
+        // C40 X2.
         text: qsTr(
                   "%1's own torrents, %2 %1 only. To move them to another server, export here and import there.").arg(
-                  root.serverName).arg(qsTr("read from"))
+                  root.serverName).arg(root.canImport ? qsTr("read from and sent to") : qsTr("read from"))
     }
 
     Label {
@@ -87,7 +98,7 @@ ColumnLayout {
                                                              root.folder) : root.summary;
         }
         glyph: Glyphs.arrowDown
-        hasCursor: root.hasCursor
+        hasCursor: root.cursor === 0
         lead: root.unseen ? qsTr("omaseed can't see %1's .torrent files").arg(root.serverName) : ""
         objectName: "engineExportRow"
         opacity: root.exporting || root.ready ? 1 : 0.55
@@ -95,7 +106,7 @@ ColumnLayout {
         warning: root.unseen ? root.folderNote : ""
 
         onClicked: {
-            root.rowClicked();
+            root.rowClicked(0);
             if (root.unseen)
                 root.folderRequested();
             else if (root.exporting || root.seen)
@@ -115,7 +126,7 @@ ColumnLayout {
                 visible: root.unseen
 
                 onClicked: {
-                    root.rowClicked();
+                    root.rowClicked(0);
                     root.folderRequested();
                 }
             }
@@ -132,9 +143,44 @@ ColumnLayout {
                                                                         "export…")
 
                 onClicked: {
-                    root.rowClicked();
+                    root.rowClicked(0);
                     root.exportRequested();
                 }
+            }
+        }
+    }
+
+    // docs/57 §3 (C40 X1): a file from any engine, into this one.
+    SettingsRow {
+        id: importRow
+
+        Layout.fillWidth: true
+        description: root.importing ? root.progress : root.connected ? qsTr(
+                                                                           "From a file exported by omaseed, on any engine. Added stopped and checked against the files on disk; nothing is moved.") :
+                                                                       qsTr("Connect to %1 to import: what is new is read against it.").arg(
+                                                                           root.serverName)
+        glyph: Glyphs.arrowUp
+        hasCursor: root.cursor === 1
+        objectName: "engineImportRow"
+        opacity: root.importing || root.ready ? 1 : 0.55
+        title: qsTr("Import torrents into %1").arg(root.serverName)
+        visible: root.canImport
+
+        onClicked: {
+            root.rowClicked(1);
+            root.importRequested();
+        }
+
+        Button {
+            block: importRow.ground
+            bordered: true
+            enabled: root.running === "import" || root.ready
+            objectName: "engineImportButton"
+            text: root.running === "import" ? qsTr("stop") : qsTr("import…")
+
+            onClicked: {
+                root.rowClicked(1);
+                root.importRequested();
             }
         }
     }

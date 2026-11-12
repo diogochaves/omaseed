@@ -325,8 +325,8 @@ TestCase {
     }
 
     // docs/57 §3, §4 (DECISIONS C40 X1, X2, X3, X9; #88): Transmission's group ends with Backup,
-    // its torrents' export alone: one row, no settings rows, no import. The keyboard reaches
-    // it as qBittorrent's rows. Deluge's group has none yet.
+    // its torrents' two rows and no settings rows; an engine that only exports yet has the
+    // one. The keyboard reaches them as qBittorrent's rows. Deluge's group has none yet.
     function test_a_transmissions_group_ends_with_backup() {
         const modal = createTemporaryObject(modalComponent, testCase, {
                                                 "features": {
@@ -355,6 +355,7 @@ TestCase {
         const row = testCase.childNamed(modal, "engineExportRow");
         compare(row.title, "Export home's torrents");
         compare(modal.paneRowCount, 1);
+        verify(!testCase.childNamed(modal, "engineImportRow").visible);
         // Not asked about yet (the demo is no Transmission): the plain words, a button that waits.
         compare(pane.reach, "");
         compare(row.description, App.torrentsExportSummary);
@@ -376,6 +377,32 @@ TestCase {
         // The result of an export shows under the row.
         modal.backupNote = "Exported home's 16 torrents to ~/t.omaseed-torrents.";
         compare(testCase.childNamed(modal, "engineBackupNote").text, modal.backupNote);
+
+        // With the import (C40 X9's second step): the second row, reached with j, and the
+        // scope line says both ways. enter on it asks for a file (the demo is not connected
+        // to a Transmission, so nothing opens).
+        modal.features = {
+            "qbtSettings": false,
+            "sessionSettings": true,
+            "torrentsBackup": true,
+            "torrentsExport": true,
+            "torrentsImport": true
+        };
+        compare(modal.paneRowCount, 2);
+        const importRow = testCase.childNamed(modal, "engineImportRow");
+        verify(importRow.visible);
+        compare(importRow.title, "Import torrents into home");
+        compare(testCase.childNamed(modal, "engineBackupScopeLine").text,
+                "home's own torrents, read from and sent to home only. To move them to another server, export here and import there.");
+        verify(row.hasCursor && !importRow.hasCursor);
+        keyClick(Qt.Key_J);
+        verify(!row.hasCursor && importRow.hasCursor);
+        keyClick(Qt.Key_J);
+        verify(row.hasCursor);
+        // A click on the row takes the cursor there.
+        testCase.childNamed(modal, "engineBackupPane").rowClicked(1);
+        compare(modal.paneCursor, 1);
+        verify(importRow.hasCursor);
 
         // The same features without the section: none (an engine that can't yet).
         modal.features = {

@@ -4,9 +4,10 @@ import Omaseed.Kit
 import Omaseed.Views
 
 // Settings › ENGINE › Backup for an engine other than qBittorrent (docs/57 §3, §4; DECISIONS
-// C40 X1, X2, X3; #88): the scope line, and the export row in each of its states: the
-// engine's .torrent files read from here, out of sight, being asked about; not connected; an
-// export on its way.
+// C40 X1, X2, X3; #88): the scope line, the export row in each of its states (the engine's
+// .torrent files read from here, out of sight, being asked about; not connected; an export on
+// its way), and the import row: there where the engine takes a file, qBittorrent's while
+// reading, running and away.
 TestCase {
     id: testCase
 
@@ -53,24 +54,100 @@ TestCase {
         return null;
     }
 
+    SignalSpy {
+        id: importSpy
+
+        signalName: "importRequested"
+    }
+
+    SignalSpy {
+        id: rowSpy
+
+        signalName: "rowClicked"
+    }
+
     function make(properties) {
         const pane = createTemporaryObject(paneComponent, testCase, properties || {});
-        exportSpy.target = pane;
-        folderSpy.target = pane;
-        exportSpy.clear();
-        folderSpy.clear();
+        for (const spy of [exportSpy, folderSpy, importSpy, rowSpy]) {
+            spy.target = pane;
+            spy.clear();
+        }
         return pane;
     }
 
-    // X2: whose torrents, and how a library moves. No import yet, so "read from" alone.
+    // X2: whose torrents, and how a library moves; the two rows, nothing of the engine's
+    // settings.
     function test_the_scope_line_says_how_a_library_moves() {
         const pane = testCase.make();
         compare(testCase.childNamed(pane, "engineBackupScopeLine").text,
-                "seedbox's own torrents, read from seedbox only. To move them to another server, export here and import there.");
-        // The one row: nothing of the engine's settings, no import (C40 X9).
-        compare(testCase.childNamed(pane, "engineExportRow").title, "Export seedbox's torrents");
-        compare(testCase.childNamed(pane, "torrentsImportRow"), null);
+                "seedbox's own torrents, read from and sent to seedbox only. To move them to another server, export here and import there.");
+        const exportRow = testCase.childNamed(pane, "engineExportRow");
+        const importRow = testCase.childNamed(pane, "engineImportRow");
+        compare(exportRow.title, "Export seedbox's torrents");
+        compare(importRow.title, "Import torrents into seedbox");
+        verify(importRow.visible);
+        verify(exportRow.mapToItem(pane, 0, 0).y < importRow.mapToItem(pane, 0, 0).y);
         verify(!testCase.childNamed(pane, "engineBackupNote").visible);
+        // The modal's cursor is on one of them.
+        verify(!exportRow.hasCursor && !importRow.hasCursor);
+        pane.cursor = 1;
+        verify(!exportRow.hasCursor && importRow.hasCursor);
+        pane.cursor = 0;
+        verify(exportRow.hasCursor && !importRow.hasCursor);
+
+        // C40 X9: an engine that only exports yet. One row, and "read from" alone.
+        pane.canImport = false;
+        verify(!importRow.visible);
+        compare(testCase.childNamed(pane, "engineBackupScopeLine").text,
+                "seedbox's own torrents, read from seedbox only. To move them to another server, export here and import there.");
+    }
+
+    // docs/57 §3: the import row, as qBittorrent's. Its words, "import…", the progress line
+    // while the file and the server are read and while it runs, "stop" for a run only.
+    function test_the_import_row_is_qbittorrents() {
+        const pane = testCase.make();
+        const row = testCase.childNamed(pane, "engineImportRow");
+        const button = testCase.childNamed(pane, "engineImportButton");
+        compare(row.description,
+                "From a file exported by omaseed, on any engine. Added stopped and checked against the files on disk; nothing is moved.");
+        compare(row.opacity, 1);
+        compare(button.text, "import…");
+        verify(button.enabled);
+        button.clicked();
+        compare(importSpy.count, 1);
+        compare(rowSpy.signalArguments[0][0], 1);
+        row.clicked();
+        compare(importSpy.count, 2);
+        compare(exportSpy.count, 0);
+
+        // Reading the file and the server: the line says so, and there is nothing to stop.
+        pane.running = "read";
+        pane.progress = "reading seedbox…";
+        compare(row.description, "reading seedbox…");
+        compare(row.opacity, 1);
+        compare(button.text, "import…");
+        verify(!button.enabled);
+
+        pane.running = "import";
+        pane.progress = "checking files: 3 of 12…";
+        compare(row.description, "checking files: 3 of 12…");
+        compare(button.text, "stop");
+        verify(button.enabled);
+        // The export row waits meanwhile.
+        verify(!testCase.childNamed(pane, "engineExportButton").enabled);
+
+        // An export on its way: this row waits.
+        pane.running = "export";
+        compare(row.description,
+                "From a file exported by omaseed, on any engine. Added stopped and checked against the files on disk; nothing is moved.");
+        verify(!button.enabled);
+        verify(row.opacity < 1);
+
+        pane.running = "";
+        pane.connected = false;
+        compare(row.description, "Connect to seedbox to import: what is new is read against it.");
+        verify(!button.enabled);
+        verify(row.opacity < 1);
     }
 
     // X3: the files seen from here. The row is plain and says where they are read from.
@@ -180,7 +257,7 @@ TestCase {
         compare(exportSpy.count, 1);
         compare(row.opacity, 1);
 
-        // Another run (an import, later): the row waits.
+        // Another run (an import): the row waits.
         pane.reach = "readable";
         pane.running = "import";
         verify(!button.enabled);

@@ -362,7 +362,7 @@ Item {
         if (root.inQbtBackup)
             return 5; // settings: export, import (#32), copy (#70); torrents: export, import (#33)
         if (root.inEngineBackup)
-            return 1; // torrents: export (C40 X9)
+            return engineBackupPane.canImport ? 2 : 1; // torrents: export, import (C40 X9)
         if (root.inQbtSearch)
             return searchPluginsPane.cursorCount;
         if (root.inQbt)
@@ -777,6 +777,10 @@ Item {
             return;
         }
         if (root.inEngineBackup) {
+            if (root.paneCursor === 1) {
+                root.chooseTorrentsImport();
+                return;
+            }
             // C40 X3: with the .torrent files out of sight, enter is "their folder…" and
             // space "export links…", as the copy row's two buttons.
             if (engineBackupPane.unseen && how !== "space")
@@ -3574,17 +3578,18 @@ Item {
                         }
 
                         // ---- ENGINE › Backup (#88, docs/57 §3, DECISIONS C40 X1) ------------
-                        // Another engine's torrents, as a file: Transmission's export.
+                        // Another engine's torrents, as a file: Transmission's export and import.
                         EngineBackupPane {
                             id: engineBackupPane
 
                             anchors.left: parent.left
                             anchors.right: parent.right
                             anchors.top: parent.top
+                            canImport: root.features.torrentsImport === true
                             connected: App.globalState.connected
+                            cursor: root.area === "pane" ? root.paneCursor : -1
                             folder: App.torrentFilesFolder
                             folderNote: App.torrentFilesNote
-                            hasCursor: root.area === "pane" && root.paneCursor === 0
                             note: root.backupNote
                             noteError: root.backupNoteError
                             objectName: "engineBackupPane"
@@ -3597,8 +3602,9 @@ Item {
 
                             onExportRequested: root.exportTorrents()
                             onFolderRequested: root.chooseTorrentFilesFolder()
-                            onRowClicked: {
-                                root.paneCursor = 0;
+                            onImportRequested: root.chooseTorrentsImport()
+                            onRowClicked: row => {
+                                root.paneCursor = row;
                                 root.area = "pane";
                             }
                         }
