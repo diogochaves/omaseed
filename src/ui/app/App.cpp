@@ -6262,9 +6262,7 @@ void App::openLedger()
         return;
     m_ledgerKey = key;
     m_ledgerDemoDone = false;
-    // #256: a Deluge's ledger is fed its session's totals (C25 K34), which are no ceiling
-    // for the hours already kept; the repair at open must not judge them by it.
-    m_ledger->open(SeedLedger::defaultPath(key), m_server.engine != EngineKind::Deluge);
+    m_ledger->open(SeedLedger::defaultPath(key));
 }
 
 void App::feedLedger()

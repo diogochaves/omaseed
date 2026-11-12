@@ -113,10 +113,7 @@ public:
     /// memory only. A flush that cannot write (a full disk) keeps what it held and tries again
     /// at the next one.
     /// Every open mends the hours and minutes #256 booked wrong (see repair()).
-    /// `allTimeReferences`: the totals this ledger is fed are the server's all-time ones,
-    /// which no hour can exceed; false for an engine fed its session's totals (Deluge, C25
-    /// K34), which start again below what earlier hours hold.
-    bool open(const QString &path, bool allTimeReferences = true);
+    bool open(const QString &path);
     /// Flushes and closes. Safe to call twice.
     void close();
     bool isOpen() const;
@@ -228,15 +225,17 @@ private:
     /// Opens the connection and the schema; `broken` when the file is not a ledger.
     bool openFile(const QString &path, bool *broken);
     /// #256: mends the file's hours and minutes that hold what no hour could. A row is wrong
-    /// when (a) it holds more than the server's all-time total (meta's last_up, last_down;
-    /// only with `allTimeReferences`), or (b) its upload is over repairFloor and over
-    /// repairFactor times its local day's per-torrent uploads (a day with none is judged by
-    /// (a) alone). A wrong row takes the mean of the nearest sound rows before and after it
-    /// (the one there is; 0 with none) and is marked a gap. The day of a wrong hour gives up
-    /// what the hour did, and is marked a gap; minutes, hours and days are each booked on
-    /// their own, so a minute changes no other row. One transaction; torrent_days, baselines
-    /// and meta are not written. Returns how many rows changed: 0 on a second open.
-    int repair(bool allTimeReferences);
+    /// when (a) it holds, up or down, more than maxBytesPerSecond could carry in its hour or
+    /// its minute, or (b) its upload is over repairFloor and over repairFactor times its
+    /// local day's per-torrent uploads (a day with none is judged by (a) alone). Neither
+    /// looks at the totals the ledger last saw: a server that lost its statistics, or a
+    /// session that began again, has those under what its real hours hold. A wrong row takes the
+    /// mean of the nearest sound rows before and after it (the one there is; 0 with none) and is
+    /// marked a gap. The day of a wrong hour gives up what the hour did, and is marked a gap;
+    /// minutes, hours and days are each booked on their own, so a minute changes no other row. One
+    /// transaction; torrent_days, baselines and meta are not written. Returns how many rows
+    /// changed: 0 on a second open.
+    int repair();
     bool saveMeta();
 
     QString m_connection;

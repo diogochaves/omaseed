@@ -65,7 +65,7 @@ QString SeedLedger::defaultPath(const QString &serverId)
     return base + QStringLiteral("/omaseed/ledger/") + safe + QStringLiteral(".sqlite");
 }
 
-bool SeedLedger::open(const QString &path, bool allTimeReferences)
+bool SeedLedger::open(const QString &path)
 {
     close();
     m_path = path;
@@ -101,25 +101,16 @@ bool SeedLedger::open(const QString &path, bool allTimeReferences)
             return false;
         }
     }
-    repair(allTimeReferences);
+    repair();
     m_open = true;
     loadState();
     return true;
 }
 
-int SeedLedger::repair(bool allTimeReferences)
+int SeedLedger::repair()
 {
     QSqlDatabase db = QSqlDatabase::database(m_connection, false);
     QSqlQuery q(db);
-    qint64 lastUp = 0;
-    qint64 lastDown = 0;
-    if (allTimeReferences &&
-        q.exec(QStringLiteral("SELECT key, value FROM meta WHERE key IN ('last_up', "
-                              "'last_down')"))) {
-        while (q.next())
-            (q.value(0).toString() == QLatin1String("last_up") ? lastUp : lastDown) =
-                q.value(1).toLongLong();
-    }
 
     struct Row
     {
@@ -141,8 +132,9 @@ int SeedLedger::repair(bool allTimeReferences)
         dayUploads.insert(day, sum);
         return sum;
     };
-    auto wrong = [&](const Row &row) {
-        if ((lastUp > 0 && row.up > lastUp) || (lastDown > 0 && row.down > lastDown))
+    // `most`: what maxBytesPerSecond could carry in the row's hour or minute.
+    auto wrong = [&](const Row &row, qint64 most) {
+        if (row.up > most || row.down > most)
             return true;
         if (row.up <= repairFloor)
             return false;
@@ -157,15 +149,13 @@ int SeedLedger::repair(bool allTimeReferences)
         qint64 down = 0;
     };
     // Nearly always nothing: only rows over a limit are read at all.
-    const qint64 upOver = lastUp > 0 ? std::min(lastUp, repairFloor) : repairFloor;
-    const qint64 downOver = lastDown > 0 ? lastDown : std::numeric_limits<qint64>::max();
-    auto mendsOf = [&](const QString &table) {
+    auto mendsOf = [&](const QString &table, qint64 most) {
         QList<Mend> mends;
         QSet<qint64> wrongKeys;
         q.prepare(QStringLiteral("SELECT t, up, down FROM %1 WHERE up > ? OR down > ? ORDER BY t")
                       .arg(table));
-        q.addBindValue(upOver);
-        q.addBindValue(downOver);
+        q.addBindValue(std::min(repairFloor, most));
+        q.addBindValue(most);
         if (!q.exec())
             return mends;
         QList<Row> over;
@@ -173,7 +163,7 @@ int SeedLedger::repair(bool allTimeReferences)
             over.append(
                 {q.value(0).toLongLong(), q.value(1).toLongLong(), q.value(2).toLongLong()});
         for (const Row &row : std::as_const(over)) {
-            if (wrong(row)) {
+            if (wrong(row, most)) {
                 mends.append({row, 0, 0});
                 wrongKeys.insert(row.t);
             }
@@ -215,8 +205,8 @@ int SeedLedger::repair(bool allTimeReferences)
         }
         return mends;
     };
-    const QList<Mend> hours = mendsOf(QStringLiteral("hours"));
-    const QList<Mend> minutes = mendsOf(QStringLiteral("minutes"));
+    const QList<Mend> hours = mendsOf(QStringLiteral("hours"), maxBytesPerSecond * kHour);
+    const QList<Mend> minutes = mendsOf(QStringLiteral("minutes"), maxBytesPerSecond * kMinute);
     if (hours.isEmpty() && minutes.isEmpty())
         return 0;
 

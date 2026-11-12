@@ -79,7 +79,7 @@ QStringList rowsOf(const QString &path, const QString &table)
     return out;
 }
 
-/// An empty ledger file with the given references (#256's repair reads them).
+/// An empty ledger file with the given references (#256's repair must not go by them).
 void makeLedger(const QString &path, qint64 lastUp, qint64 lastDown)
 {
     {
@@ -101,10 +101,10 @@ void addHour(const QString &path, qint64 t, qint64 up, qint64 down)
 }
 
 /// Opens and closes the ledger: what the repair at open does to the file.
-void openOnce(const QString &path, bool allTimeReferences = true)
+void openOnce(const QString &path)
 {
     SeedLedger ledger;
-    QVERIFY(ledger.open(path, allTimeReferences));
+    QVERIFY(ledger.open(path));
 }
 
 /// Bytes this process has handed to write() so far (/proc/self/io `wchar`), -1 if unknown.
@@ -354,9 +354,9 @@ private Q_SLOTS:
     }
 
     // #256, the repair at open: the server's whole all-time total, booked twice into one
-    // hour (55.4 TB). The hour takes its neighbours' mean, the day gives up the difference,
-    // the minutes are mended on their own, and nothing else in the file moves. A second
-    // open finds nothing.
+    // hour (55.4 TB, more than an hour could carry at maxBytesPerSecond). The hour takes its
+    // neighbours' mean, the day gives up the difference, the minutes are mended on their own, and
+    // nothing else in the file moves. A second open finds nothing.
     void anAllTimeSizedHourIsRepairedAtOpen()
     {
         QTemporaryDir dir;
@@ -438,6 +438,39 @@ private Q_SLOTS:
         QVERIFY(ledger.series(h, 3600, 1).first().gap);
     }
 
+    // #256: the all-time total booked once (27.7 TB) is under what an hour could carry at
+    // maxBytesPerSecond; ten times what the day's torrents gave tells it.
+    void aSingleAllTimeSizedHourIsToldByItsDaysTorrents()
+    {
+        QTemporaryDir dir;
+        const QString path = dir.filePath(QStringLiteral("t.sqlite"));
+        const qint64 h = noon();
+        const qint64 allUp = 27'700'000'000'000;
+        const qint64 allDown = 1'330'000'000'000;
+        const qint64 GB = 1'000'000'000;
+        QVERIFY(allUp + 5 * GB < SeedLedger::maxBytesPerSecond * 3600);
+        makeLedger(path, allUp + 40 * GB, allDown + GB);
+        addHour(path, h - 3600, 4 * GB, 200);
+        addHour(path, h, allUp + 5 * GB, allDown + 300);
+        addHour(path, h + 3600, 6 * GB, 600);
+        sql(path,
+            QStringLiteral("INSERT INTO days VALUES('2026-10-03', %1, %2, 0)")
+                .arg(allUp + 15 * GB)
+                .arg(allDown + 1100));
+        sql(path,
+            QStringLiteral("INSERT INTO torrent_days VALUES('2026-10-03', 'a', 9000000000), "
+                           "('2026-10-03', 'b', 5000000000)"));
+        QTest::ignoreMessage(QtInfoMsg,
+                             QRegularExpression(QStringLiteral("repaired 1 hour.* 0 minute")));
+        openOnce(path);
+        QCOMPARE(rowsOf(path, QStringLiteral("hours")),
+                 (QStringList{QStringLiteral("%1|4000000000|200|0").arg(h - 3600),
+                              QStringLiteral("%1|5000000000|400|1").arg(h),
+                              QStringLiteral("%1|6000000000|600|0").arg(h + 3600)}));
+        QCOMPARE(rowsOf(path, QStringLiteral("days")),
+                 QStringList{QStringLiteral("2026-10-03|15000000000|1200|1")});
+    }
+
     // #256: two wrong hours in a day, side by side: each takes the mean of the nearest sound
     // hours around the pair, and the day gives up both differences.
     void twoWrongHoursInADayAreRepaired()
@@ -445,12 +478,16 @@ private Q_SLOTS:
         QTemporaryDir dir;
         const QString path = dir.filePath(QStringLiteral("t.sqlite"));
         const qint64 h = noon();
+        const qint64 most = SeedLedger::maxBytesPerSecond * 3600;
         makeLedger(path, 1'000'000, 50'000);
         addHour(path, h - 3600, 100, 10);
-        addHour(path, h, 1'000'100, 30); // only its upload is over; both columns are mended
-        addHour(path, h + 3600, 900, 50'020);
+        addHour(path, h, most + 100, 30); // only its upload is over; both columns are mended
+        addHour(path, h + 3600, 900, most + 20);
         addHour(path, h + 7200, 301, 21);
-        sql(path, QStringLiteral("INSERT INTO days VALUES('2026-10-03', 1001401, 50081, 0)"));
+        sql(path,
+            QStringLiteral("INSERT INTO days VALUES('2026-10-03', %1, %2, 0)")
+                .arg(most + 1401)
+                .arg(most + 81));
         QTest::ignoreMessage(QtInfoMsg,
                              QRegularExpression(QStringLiteral("repaired 2 hour.* 0 minute")));
         openOnce(path);
@@ -469,11 +506,13 @@ private Q_SLOTS:
     {
         QTemporaryDir dir;
         const qint64 h = noon();
+        const qint64 most = SeedLedger::maxBytesPerSecond * 3600;
         const QString first = dir.filePath(QStringLiteral("first.sqlite"));
         makeLedger(first, 1'000'000, 50'000);
-        addHour(first, h, 2'000'000, 30);
+        addHour(first, h, most + 1000, 30);
         addHour(first, h + 3600, 900, 20);
-        sql(first, QStringLiteral("INSERT INTO days VALUES('2026-10-03', 2000900, 50, 0)"));
+        sql(first,
+            QStringLiteral("INSERT INTO days VALUES('2026-10-03', %1, 50, 0)").arg(most + 1900));
         QTest::ignoreMessage(QtInfoMsg, QRegularExpression(QStringLiteral("repaired 1 hour")));
         openOnce(first);
         QCOMPARE(rowsOf(first, QStringLiteral("hours")),
@@ -485,20 +524,21 @@ private Q_SLOTS:
         const QString last = dir.filePath(QStringLiteral("last.sqlite"));
         makeLedger(last, 1'000'000, 50'000);
         addHour(last, h - 3600, 700, 20);
-        addHour(last, h, 100, 60'000); // its download is over
-        sql(last, QStringLiteral("INSERT INTO days VALUES('2026-10-03', 800, 60020, 0)"));
+        addHour(last, h, 100, most + 60'000); // its download is over
+        sql(last,
+            QStringLiteral("INSERT INTO days VALUES('2026-10-03', 800, %1, 0)").arg(most + 60'020));
         QTest::ignoreMessage(QtInfoMsg, QRegularExpression(QStringLiteral("repaired 1 hour")));
         openOnce(last);
         QCOMPARE(rowsOf(last, QStringLiteral("hours")),
                  (QStringList{QStringLiteral("%1|700|20|0").arg(h - 3600),
                               QStringLiteral("%1|700|20|1").arg(h)}));
-        // The day takes each column's own difference: 600 more up, 59980 less down.
+        // The day takes each column's own difference: 600 more up, the excess less down.
         QCOMPARE(rowsOf(last, QStringLiteral("days")),
                  QStringList{QStringLiteral("2026-10-03|1400|40|1")});
 
         const QString alone = dir.filePath(QStringLiteral("alone.sqlite"));
         makeLedger(alone, 1'000'000, 50'000);
-        addHour(alone, h, 2'000'000, 30);
+        addHour(alone, h, 2 * most, 30);
         sql(alone, QStringLiteral("INSERT INTO days VALUES('2026-10-03', 1500000, 30, 0)"));
         QTest::ignoreMessage(QtInfoMsg, QRegularExpression(QStringLiteral("repaired 1 hour")));
         openOnce(alone);
@@ -508,19 +548,21 @@ private Q_SLOTS:
                  QStringList{QStringLiteral("2026-10-03|0|0|1")});
     }
 
-    // #256: a busy hour that could be real is left alone, a byte under each rule; a byte
-    // over is mended.
+    // #256: a busy hour or minute that could be real is left alone, right at each rule; a
+    // byte over is mended.
     void aBusyHourUnderEachRuleIsLeftAlone()
     {
         QTemporaryDir dir;
         const qint64 h = noon();
         const qint64 floor = SeedLedger::repairFloor;
-        const qint64 huge = 100 * floor;
-        // (a): as much as the server's whole total, up and down; and (b): ten times the
-        // day's per-torrent uploads, or more than that but only the floor.
+        const qint64 hourMost = SeedLedger::maxBytesPerSecond * 3600;
+        const qint64 minuteMost = SeedLedger::maxBytesPerSecond * 60;
+        // (a): all that maxBytesPerSecond could carry, up and down, on a day with no
+        // per-torrent rows; and (b): ten times the day's per-torrent uploads, or more than
+        // that but only the floor.
         const QString path = dir.filePath(QStringLiteral("under.sqlite"));
-        makeLedger(path, huge, 7000);
-        addHour(path, h - 86400, huge, 7000);
+        makeLedger(path, 1000, 7);
+        addHour(path, h - 86400, hourMost, hourMost);
         addHour(path, h - 3600, 30 * floor, 1);
         addHour(path, h, floor, 1);
         addHour(path, h + 86400, floor, 1);
@@ -530,11 +572,13 @@ private Q_SLOTS:
                 .arg(2 * floor)
                 .arg(floor));
         sql(path,
-            QStringLiteral("INSERT INTO minutes VALUES(%1, %2, 7000, 0), (%3, %4, 1, 0)")
+            QStringLiteral("INSERT INTO minutes VALUES(%1, %2, %2, 0), (%3, %2, 1, 0), "
+                           "(%4, %5, 1, 0)")
                 .arg(h - 86400)
-                .arg(huge)
+                .arg(minuteMost)
                 .arg(h)
-                .arg(30 * floor));
+                .arg(h + 86400)
+                .arg(floor));
         const QStringList hours = rowsOf(path, QStringLiteral("hours"));
         const QStringList minutes = rowsOf(path, QStringLiteral("minutes"));
         openOnce(path);
@@ -542,52 +586,108 @@ private Q_SLOTS:
         QCOMPARE(rowsOf(path, QStringLiteral("minutes")), minutes);
 
         // One byte over each, one at a time.
-        const auto mended = [&](const QString &name, qint64 t, qint64 up, qint64 down) {
-            const QString file = dir.filePath(name);
-            QFile::copy(path, file);
-            sql(file,
-                QStringLiteral("UPDATE hours SET up = %1, down = %2 WHERE t = %3")
-                    .arg(up)
-                    .arg(down)
-                    .arg(t));
-            QTest::ignoreMessage(QtInfoMsg, QRegularExpression(QStringLiteral("repaired 1 hour")));
-            openOnce(file);
-            return rowsOf(file, QStringLiteral("hours")) != hours;
-        };
-        QVERIFY(mended(QStringLiteral("a-up.sqlite"), h - 86400, huge + 1, 7000));
-        QVERIFY(mended(QStringLiteral("a-down.sqlite"), h - 86400, huge, 7001));
-        QVERIFY(mended(QStringLiteral("b-factor.sqlite"), h - 3600, 30 * floor + 1, 1));
-        QVERIFY(mended(QStringLiteral("b-floor.sqlite"), h + 86400, floor + 1, 1));
+        const auto mended =
+            [&](const QString &name, const QString &table, qint64 t, qint64 up, qint64 down) {
+                const QString file = dir.filePath(name);
+                QFile::copy(path, file);
+                sql(file,
+                    QStringLiteral("UPDATE %1 SET up = %2, down = %3 WHERE t = %4")
+                        .arg(table)
+                        .arg(up)
+                        .arg(down)
+                        .arg(t));
+                QTest::ignoreMessage(
+                    QtInfoMsg,
+                    QRegularExpression(table == QLatin1String("hours")
+                                           ? QStringLiteral("repaired 1 hour.* 0 minute")
+                                           : QStringLiteral("repaired 0 hour.* 1 minute")));
+                openOnce(file);
+                return rowsOf(file, table) != (table == QLatin1String("hours") ? hours : minutes);
+            };
+        const QString hoursTable = QStringLiteral("hours");
+        const QString minutesTable = QStringLiteral("minutes");
+        QVERIFY(
+            mended(QStringLiteral("a-up.sqlite"), hoursTable, h - 86400, hourMost + 1, hourMost));
+        QVERIFY(
+            mended(QStringLiteral("a-down.sqlite"), hoursTable, h - 86400, hourMost, hourMost + 1));
+        QVERIFY(mended(QStringLiteral("b-factor.sqlite"), hoursTable, h - 3600, 30 * floor + 1, 1));
+        QVERIFY(mended(QStringLiteral("b-floor.sqlite"), hoursTable, h + 86400, floor + 1, 1));
+        QVERIFY(mended(QStringLiteral("m-up.sqlite"), minutesTable, h - 86400, minuteMost + 1, 1));
+        QVERIFY(
+            mended(QStringLiteral("m-down.sqlite"), minutesTable, h - 86400, 1, minuteMost + 1));
+        QVERIFY(mended(QStringLiteral("m-floor.sqlite"), minutesTable, h + 86400, floor + 1, 1));
     }
 
-    // #256: a day with no per-torrent rows is judged by the all-time total alone; and a
-    // ledger fed a session's totals (Deluge) not by that total at all.
-    void aDayWithoutTorrentRowsAndASessionsTotals()
+    // #256: the totals the ledger last saw are no test. A server that lost its statistics,
+    // or a session that began again (Deluge), has them far under what its real hours hold:
+    // the repair leaves such a ledger as it is, byte for byte.
+    void referencesUnderThePastAreNoReasonToRepair()
     {
         QTemporaryDir dir;
         const qint64 h = noon();
-        const qint64 floor = SeedLedger::repairFloor;
+        const qint64 GB = 1'000'000'000;
+        int n = 0;
+        // Statistics lost (small references), a session just begun (0), none kept yet.
+        for (const qint64 reference : {qint64(100), qint64(0), qint64(-1)}) {
+            const QString path = dir.filePath(QStringLiteral("t%1.sqlite").arg(n++));
+            makeLedger(path, reference, reference);
+            addHour(path, h - 3600, 300 * GB, 40 * GB);
+            addHour(path, h, 450 * GB, 2 * GB);
+            addHour(path, h + 3600, 200 * GB, 0);
+            sql(path,
+                QStringLiteral("INSERT INTO minutes VALUES(%1, %2, 5, 0), (%3, %4, 7, 0)")
+                    .arg(h)
+                    .arg(7 * GB)
+                    .arg(h + 60)
+                    .arg(110 * GB));
+            sql(path,
+                QStringLiteral("INSERT INTO days VALUES('2026-10-03', %1, %2, 0)")
+                    .arg(950 * GB)
+                    .arg(42 * GB));
+            sql(path,
+                QStringLiteral("INSERT INTO torrent_days VALUES('2026-10-03', 'a', %1), "
+                               "('2026-10-03', 'b', %2)")
+                    .arg(600 * GB)
+                    .arg(340 * GB));
+            QStringList before;
+            const QStringList tables{QStringLiteral("hours"),
+                                     QStringLiteral("minutes"),
+                                     QStringLiteral("days"),
+                                     QStringLiteral("torrent_days"),
+                                     QStringLiteral("meta")};
+            for (const QString &table : tables)
+                before += rowsOf(path, table);
+            openOnce(path);
+            QStringList after;
+            for (const QString &table : tables)
+                after += rowsOf(path, table);
+            QCOMPARE(after, before);
+        }
+    }
+
+    // #256: a day with no per-torrent rows is judged by what an hour could carry alone:
+    // under it the hour stays, however far over the floor; over it, it is mended.
+    void aDayWithoutTorrentRowsIsJudgedByTheBoundAlone()
+    {
+        QTemporaryDir dir;
+        const qint64 h = noon();
+        const qint64 most = SeedLedger::maxBytesPerSecond * 3600;
         const QString path = dir.filePath(QStringLiteral("t.sqlite"));
-        makeLedger(path, 50 * floor, 1000);
+        makeLedger(path, 100, 5);
         addHour(path, h - 3600, 500, 1);
-        addHour(path, h, 50 * floor, 1); // far over the floor, with nothing to compare it to
-        addHour(path, h + 3600, 700, 1);
+        addHour(path, h, most - 1, 1); // far over the floor, with nothing to compare it to
+        addHour(path, h + 3600, 700, 3);
         const QStringList hours = rowsOf(path, QStringLiteral("hours"));
         openOnce(path);
         QCOMPARE(rowsOf(path, QStringLiteral("hours")), hours);
 
-        // The references of a session that began again are under what the hours hold.
-        sql(path, QStringLiteral("UPDATE meta SET value = 100 WHERE key = 'last_up'"));
-        openOnce(path, false);
-        QCOMPARE(rowsOf(path, QStringLiteral("hours")), hours);
-
-        // As all-time totals they are a ceiling: every hour is over it, none is sound.
-        QTest::ignoreMessage(QtInfoMsg, QRegularExpression(QStringLiteral("repaired 3 hour")));
+        sql(path, QStringLiteral("UPDATE hours SET up = %1 WHERE t = %2").arg(most + 1).arg(h));
+        QTest::ignoreMessage(QtInfoMsg, QRegularExpression(QStringLiteral("repaired 1 hour")));
         openOnce(path);
         QCOMPARE(rowsOf(path, QStringLiteral("hours")),
-                 (QStringList{QStringLiteral("%1|0|0|1").arg(h - 3600),
-                              QStringLiteral("%1|0|0|1").arg(h),
-                              QStringLiteral("%1|0|0|1").arg(h + 3600)}));
+                 (QStringList{QStringLiteral("%1|500|1|0").arg(h - 3600),
+                              QStringLiteral("%1|600|2|1").arg(h),
+                              QStringLiteral("%1|700|3|0").arg(h + 3600)}));
     }
 
     // C25 K34: everything booked since the ledger began, flushed or not; a session's totals
