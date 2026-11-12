@@ -628,6 +628,22 @@ omaseed_add_test(tst_delugeengine_live LIVE
     DEFINES OMASEED_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../fixtures"
 )
 
+# #88, C40 X3: a Deluge's torrents written to a TorrentsBackup file, against the fake
+# deluge-web: record fields, the .torrent read from the daemon's state folder or the one
+# given, links.
+omaseed_add_test(tst_delugetorrentsexport
+    SOURCES tst_delugetorrentsexport.cpp
+    LIBRARIES omaseed::core Qt6::Network
+    DEFINES OMASEED_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../fixtures"
+)
+
+# The same against the real deluge-web test server (:8086), read back.
+omaseed_add_test(tst_delugetorrentsexport_live LIVE
+    SOURCES tst_delugetorrentsexport_live.cpp
+    LIBRARIES omaseed::core Qt6::Network
+    DEFINES OMASEED_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../fixtures"
+)
+
 omaseed_add_test(tst_foldertree
     SOURCES tst_foldertree.cpp
     LIBRARIES omaseed::core
