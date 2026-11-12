@@ -17,6 +17,9 @@
 #   - Appearance › Skin (#171): Omarchy, Console, Follow the desktop, each saved and drawn at
 #     once; following a fixture console-skin.json written inside the box (never this
 #     machine's), turned off by console.json's fx.skin, fx.fonts = system recorded, and gone;
+#   - Appearance › In the Omarchy menu (#216): on adds the block to the box's menu file;
+#     `omarchy menu summon torrents` › Speeds › Turtle turns the box qBittorrent's alternative
+#     limits on (set back after); off leaves the file as it was, byte for byte;
 #   - the nine sections, one shot each;
 #   - Downloads › Send an email on: the encryption type's chips on a 5.3 server (enter picks
 #     the next, and back), Use SSL on 5.2; then off again;
@@ -274,6 +277,60 @@ wait_skin omarchy
 keys Return
 wait_saved omarchy
 check "back to Omarchy" "$(saved_skin)" omarchy
+keys Escape Escape
+
+# ---- Appearance › In the Omarchy menu (board 53 §6, DECISIONS C36 M12–M15, #216) ------------
+# The box's own menu file (never this machine's), holding a line of its own that must come
+# back byte for byte. The row is Appearance's seventh (the window opaque): six j from Skin.
+# On adds the block; Omarchy's menu then has Trigger › Torrents › Speeds › Turtle, which picks
+# turtle on the box's qBittorrent through the Status bus; off takes the block away.
+MENU_FILE=/home/sbx/.config/omarchy/extensions/omarchy-menu.jsonc
+# shellcheck disable=SC2016 # expanded by the box's shell, from its argument
+omabox run -b "$BOX" -- sh -c '[ ! -e "$1" ] || mv "$1" "$1.walk"; mkdir -p "${1%/*}" &&
+    printf "{\n  // the walk'"'"'s own line, kept byte for byte\n}\n" >"$1"' sh "$MENU_FILE"
+menu_sum() { omabox run -b "$BOX" -- sha256sum "$MENU_FILE" 2>/dev/null | cut -d' ' -f1; }
+menu_has_block() { omabox run -b "$BOX" -- grep -c '>>> omaseed' "$MENU_FILE" 2>/dev/null || true; }
+alt_mode() {
+    omabox run -b "$BOX" -- curl -fsk "http://127.0.0.1:$QBT_PORT/api/v2/transfer/speedLimitsMode" 2>/dev/null || true
+}
+menu_before="$(menu_sum)"
+keys comma 5 l j j j j j j
+check "no block until asked" "$(menu_has_block)" 0
+step "In the Omarchy menu, off" "Appearance: In the Omarchy menu after Widget, its switch off, lit by the cursor; 'Trigger › Torrents: add, search, speeds, pause and resume, servers. Type torr in the menu, or bind omarchy menu summon torrents.'"
+keys Return
+check "on adds the block" "$(menu_has_block)" 1
+step "In the Omarchy menu, on" "The switch on; the same words."
+check "alt speeds off before the menu" "$(alt_mode)" 0
+omabox run -b "$BOX" -- omarchy menu summon torrents >/dev/null 2>&1 || true
+# The menu's rows have no names in its accessibility tree: picked by the keyboard, as a
+# person does. One server, so no Servers ›: Open, Add, Search, Speeds; then Normal, Turtle.
+omabox wait -b "$BOX" --timeout 10s layer omarchy-menu >/dev/null 2>&1 || true
+omabox wait -b "$BOX" --timeout 5s still >/dev/null 2>&1 || true
+[ -z "$OUT" ] || omabox shot -b "$BOX" -o "$OUT/menu-torrents.png" >/dev/null 2>&1 || true
+omabox keys -b "$BOX" --wait Down Down Down Return >/dev/null 2>&1 || true
+[ -z "$OUT" ] || omabox shot -b "$BOX" -o "$OUT/menu-speeds.png" >/dev/null 2>&1 || true
+omabox keys -b "$BOX" --wait Down Return >/dev/null 2>&1 || true
+for _ in $(seq 1 40); do
+    [ "$(alt_mode)" = 1 ] && break
+    sleep 0.25
+done
+check "Trigger › Torrents › Speeds › Turtle turns alt speeds on" "$(alt_mode)" 1
+# Back as it was, through the same bus the menu used.
+omabox run -b "$BOX" -- busctl --user call io.github.diogochaves.omaseed /io/github/diogochaves/omaseed \
+    io.github.diogochaves.omaseed.Status PickAltSpeed s off >/dev/null 2>&1 || true
+for _ in $(seq 1 40); do
+    [ "$(alt_mode)" = 0 ] && break
+    sleep 0.25
+done
+check "alt speeds back off" "$(alt_mode)" 0
+# The pick closed the menu; close it anyway, should it still be up.
+omabox run -b "$BOX" -- omarchy menu close >/dev/null 2>&1 || true
+keys Return
+check "off removes the block" "$(menu_has_block)" 0
+check "the menu file back byte for byte" "$(menu_sum)" "$menu_before"
+step "In the Omarchy menu, off again" "The switch off; the box's menu file as it was."
+# shellcheck disable=SC2016 # expanded by the box's shell, from its argument
+omabox run -b "$BOX" -- sh -c 'rm -f "$1"; [ ! -e "$1.walk" ] || mv "$1.walk" "$1"' sh "$MENU_FILE"
 keys Escape Escape
 
 # ---- the nine sections ----------------------------------------------------------------------
