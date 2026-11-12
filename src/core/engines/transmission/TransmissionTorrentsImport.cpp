@@ -273,33 +273,7 @@ std::optional<QStringList> TransmissionTorrentsImport::namesWanted(const Torrent
                                                                    const TorrentFile *parsed,
                                                                    const QStringList &current)
 {
-    QStringList original;
-    QStringList wanted;
-    if (parsed != nullptr && parsed->isValid()) {
-        original = TorrentsBackup::namesUnder(*parsed, kOriginal);
-        wanted = TorrentsBackup::namesUnder(*parsed, record.layout);
-    } else {
-        // A link: only the daemon knows the .torrent's names, and only under its own layout.
-        if (record.layout != kOriginal)
-            return std::nullopt;
-        original = current;
-        wanted = current;
-    }
-    for (const TorrentRecord::Rename &rename : record.renamed) {
-        if (rename.index < 0 || rename.index >= wanted.size())
-            return std::nullopt;
-        wanted[rename.index] = rename.to;
-    }
-    // The daemon's files are the record's, one for one: an earlier run may have renamed some.
-    if (current.size() == wanted.size())
-        return wanted;
-    // Or it lists files the record leaves out (padding): by the .torrent's names.
-    QStringList out;
-    for (const QString &name : current) {
-        const qsizetype at = original.indexOf(name);
-        out.append(at < 0 ? name : wanted.at(at));
-    }
-    return out;
+    return TorrentsImportPlan::namesWanted(record, parsed, current); // shared with Deluge's
 }
 
 int TransmissionTorrentsImport::linksWaiting(const QString &journalPath)

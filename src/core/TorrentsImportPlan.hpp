@@ -17,7 +17,8 @@
 //   * `Journal`, one file per server, records each torrent between its add and its last step
 //     (§7), and the links still waiting for their details (C40 X7).
 //
-// The importers: TorrentsImport (a qBittorrent), TransmissionTorrentsImport.
+// The importers: TorrentsImport (a qBittorrent), TransmissionTorrentsImport,
+// DelugeTorrentsImport.
 
 #include "core/LibraryCrossing.hpp"
 #include "core/PathMap.hpp"
@@ -35,6 +36,8 @@
 #include <optional>
 
 namespace omaseed::core {
+
+class TorrentFile;
 
 class TorrentsImportPlan
 {
@@ -125,6 +128,14 @@ public:
     static bool
     renameWouldReplace(const QString &localBase, const QString &from, const QString &to);
 
+    /// The names `record` wants its files to have, given the daemon's `current` ones:
+    /// TorrentsBackup::namesUnder its layout with its renames laid on. `parsed` is its
+    /// .torrent, or null for a link, whose names are then the daemon's with the record's
+    /// renames (nothing when its layout isn't the .torrent's own). Files the daemon lists and
+    /// the record doesn't know keep their names.
+    static std::optional<QStringList>
+    namesWanted(const TorrentRecord &record, const TorrentFile *parsed, const QStringList &current);
+
     // ---- the run ---------------------------------------------------------------------------
 
     struct Options
@@ -153,6 +164,8 @@ public:
         /// them so (a Transmission keeps a torrent's top folder): added, left stopped.
         QStringList misplaced;
         int linksWaiting = 0; ///< links whose details have not arrived yet (C40 X7)
+        /// Torrents whose label could not be set: Deluge's Label plugin is off (C40 X6).
+        int labelsNotSet = 0;
         /// What the target can't keep of the torrents sent (C40 X5), for the result to repeat.
         QList<LibraryCrossing::Loss> losses;
         QStringList errors;
