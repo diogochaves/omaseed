@@ -200,6 +200,32 @@ bool TorrentsImport::Journal::save(const QString &path) const
 
 // ---- the plan -------------------------------------------------------------------------------
 
+bool TorrentsImport::crosses(const TorrentsManifest &manifest)
+{
+    // An engine this build doesn't know is read as qBittorrent (C40 X1).
+    return manifest.engine != EngineKind::Qbittorrent && manifest.engine != EngineKind::Unknown;
+}
+
+LibraryCrossing::Grouping
+TorrentsImport::groupingHere(const TorrentsManifest &manifest, const TorrentRecord &record)
+{
+    if (!crosses(manifest))
+        return {record.category, record.tags, {}};
+    // docs/DECISIONS.md C40 X4: the first label is the category, the rest are tags.
+    LibraryCrossing::Grouping g =
+        LibraryCrossing::grouping(manifest.engine, EngineKind::Qbittorrent, record);
+    // qBittorrent's tags travel as one comma-separated list, so it would split a tag that
+    // holds a comma in two: the comma goes as a space.
+    QStringList tags;
+    for (QString tag : std::as_const(g.tags)) {
+        tag = tag.replace(QLatin1Char(','), QLatin1Char(' ')).simplified();
+        if (!tag.isEmpty() && !tags.contains(tag))
+            tags.append(tag);
+    }
+    g.tags = tags;
+    return g;
+}
+
 TorrentsImport::Plan TorrentsImport::plan(const TorrentsBackup::Contents &contents,
                                           const Here &here,
                                           const Journal &journal)
@@ -228,10 +254,11 @@ TorrentsImport::Plan TorrentsImport::plan(const TorrentsBackup::Contents &conten
             p.add.append(i);
             p.addBytes += r.size;
         }
-        if (!r.category.isEmpty() && !here.categories.contains(r.category) &&
-            !categories.contains(r.category))
-            categories.append(r.category);
-        for (const QString &tag : r.tags) {
+        const LibraryCrossing::Grouping g = groupingHere(contents.manifest, r);
+        if (!g.category.isEmpty() && !here.categories.contains(g.category) &&
+            !categories.contains(g.category))
+            categories.append(g.category);
+        for (const QString &tag : g.tags) {
             if (!here.tags.contains(tag) && !tags.contains(tag))
                 tags.append(tag);
         }
@@ -399,10 +426,14 @@ void TorrentsImport::next()
         QList<std::function<void(std::function<void()>)>> steps;
         for (const QString &name : std::as_const(m_plan.categories)) {
             steps.append([this, name](std::function<void()> go) {
-                const QString savePath = m_contents.manifest.categories.value(name)
-                                             .toObject()
-                                             .value(QStringLiteral("savePath"))
-                                             .toString();
+                // A category made from another engine's label has no folder of its own
+                // (docs/DECISIONS.md C40 X4): created without a save path.
+                const QString savePath = crosses(m_contents.manifest)
+                                             ? QString()
+                                             : m_contents.manifest.categories.value(name)
+                                                   .toObject()
+                                                   .value(QStringLiteral("savePath"))
+                                                   .toString();
                 const QString mapped =
                     savePath.isEmpty() ? QString() : mapPath(savePath, m_options.rows);
                 const int generation = m_generation;
@@ -549,9 +580,10 @@ void TorrentsImport::addBatch()
         o.useDownloadPath = !item.downloadPath.isEmpty();
         if (!item.downloadPath.isEmpty())
             o.downloadPath = item.downloadPath;
-        if (!r.category.isEmpty())
-            o.category = r.category;
-        o.tags = r.tags;
+        const LibraryCrossing::Grouping grouping = groupingHere(m_contents.manifest, r);
+        if (!grouping.category.isEmpty())
+            o.category = grouping.category;
+        o.tags = grouping.tags;
         // Every torrent with metadata comes in stopped, to be checked first (D6 a). A link
         // can't be checked: it starts as it was exported, unless all stay stopped.
         o.stopped = r.isMagnet() ? !(r.started() && m_options.check) : true;
@@ -572,8 +604,8 @@ void TorrentsImport::addBatch()
             o.firstLastPiecePrio = true;
         const QString key = QStringList{item.savePath,
                                         item.downloadPath,
-                                        r.category,
-                                        r.tags.join(QLatin1Char(',')),
+                                        grouping.category,
+                                        grouping.tags.join(QLatin1Char(',')),
                                         r.isMagnet() ? QStringLiteral("link") : r.layout,
                                         QString::number(*o.stopped),
                                         QString::number(r.upLimit),
@@ -855,7 +887,8 @@ void TorrentsImport::followUps(int at)
                 });
         });
     }
-    if (r.autoTmm) {
+    // A category crossed from a label has no folder to manage by (C40 X4): never turned on.
+    if (r.autoTmm && !crosses(m_contents.manifest)) {
         // Automatic management moves files to the category's folder: turned on only where that
         // folder is the one the files are in, and nothing sits in an incomplete folder.
         if (r.downloadPath.isEmpty() &&

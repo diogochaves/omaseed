@@ -38,7 +38,14 @@
 // the rest (§7). A .torrent the server can't read (415) is not such a failure: its batch goes
 // again one torrent at a time, that one is named in `errors` and the run goes on (#71). Each
 // .torrent is sent with its piece layers put right first (`TorrentFile::repairPieceLayers`).
+//
+// A file another engine wrote (docs/57 §5, docs/DECISIONS.md C40 X4; #88) holds labels, not a
+// category and tags: `groupingHere` is each record's grouping as this qBittorrent takes it
+// (LibraryCrossing), and the plan and the run use that. A category made from a label has no
+// folder of its own, so it is created without one and automatic management stays off for
+// those torrents. A file a qBittorrent wrote goes in exactly as before.
 
+#include "core/LibraryCrossing.hpp"
 #include "core/PathMap.hpp"
 #include "core/TorrentsBackup.hpp"
 
@@ -130,6 +137,14 @@ public:
 
         int count() const { return int(add.size() + magnets.size() + finish.size()); }
     };
+    /// The file was written by another engine (C40 X1): its grouping is crossed (X4).
+    static bool crosses(const TorrentsManifest &manifest);
+    /// `record`'s category and tags as a qBittorrent takes them (C40 X4): its own for a
+    /// qBittorrent's file; for another engine's, the first label the category and the rest
+    /// tags. qBittorrent separates tags with commas and so refuses one inside a tag: a label
+    /// with a comma becomes a tag with a space in its place.
+    static LibraryCrossing::Grouping groupingHere(const TorrentsManifest &manifest,
+                                                  const TorrentRecord &record);
     static Plan plan(const TorrentsBackup::Contents &contents,
                      const Here &here,
                      const Journal &journal = Journal());

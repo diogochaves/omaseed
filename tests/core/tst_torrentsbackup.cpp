@@ -203,6 +203,36 @@ QList<QPair<QByteArray, QByteArray>> uploads(const QByteArray &contentType, cons
     return out;
 }
 
+/// The plain fields of a multipart/form-data body (the parts without a file name).
+QHash<QByteArray, QByteArray> fields(const QByteArray &contentType, const QByteArray &body)
+{
+    QHash<QByteArray, QByteArray> out;
+    const qsizetype at = contentType.indexOf("boundary=");
+    if (at < 0)
+        return out;
+    QByteArray boundary = contentType.mid(at + 9).trimmed();
+    if (boundary.startsWith('"'))
+        boundary = boundary.mid(1, boundary.size() - 2);
+    const QByteArray mark = "--" + boundary;
+    qsizetype from = body.indexOf(mark);
+    while (from >= 0) {
+        const qsizetype start = from + mark.size() + 2;
+        const qsizetype end = body.indexOf("\r\n" + mark, start);
+        if (end < 0)
+            break;
+        const QByteArray part = body.mid(start, end - start);
+        const qsizetype split = part.indexOf("\r\n\r\n");
+        const QByteArray headers = part.left(split);
+        const qsizetype name = headers.indexOf(" name=\"");
+        if (split > 0 && name >= 0 && !headers.contains("filename=\"")) {
+            const qsizetype close = headers.indexOf('"', name + 7);
+            out.insert(headers.mid(name + 7, close - name - 7), part.mid(split + 4));
+        }
+        from = end + 2;
+    }
+    return out;
+}
+
 /// Speaks just enough of qBittorrent's API for an import's add and check: torrents/add loads
 /// each file as libtorrent would, adds the good ones until it comes to one it can't load, and
 /// answers that with 415 (as 5.2.3 does); a torrent already there is 409. After a
@@ -220,6 +250,10 @@ public:
     QUrl url() const { return QUrl(QStringLiteral("http://127.0.0.1:%1").arg(serverPort())); }
 
     QHash<QString, QByteArray> added; ///< id -> the bytes it was added from
+    /// Every POST but the add, in order: (the API path's last two parts, its form).
+    QList<QPair<QString, QUrlQuery>> posts;
+    /// The add's fields (not its files), one hash per request.
+    QList<QHash<QByteArray, QByteArray>> addFields;
     int adds = 0;
     std::function<QJsonObject(const QString &id, int poll)> checked;
     QStringList started;
@@ -297,6 +331,7 @@ private:
         }
         if (path.endsWith(u"/torrents/add")) {
             ++adds;
+            addFields.append(fields(contentType, body));
             bool any = false;
             for (const auto &[name, bytes] : uploads(contentType, body)) {
                 if (!loadsLikeLibtorrent(bytes))
@@ -311,6 +346,8 @@ private:
             }
             return any ? httpResponse(200, "OK", "Ok.") : httpResponse(409, "Conflict", "Conflict");
         }
+        if (!body.isEmpty())
+            posts.append({path.section(QLatin1Char('/'), -2), QUrlQuery(QString::fromUtf8(body))});
         return httpResponse(200, "OK", "");
     }
 
@@ -966,6 +1003,111 @@ private Q_SLOTS:
         QCOMPARE(outcome.leftStopped, 0);
         QCOMPARE(server.started.size(), 2);
         QVERIFY(server.started.contains(waits.id));
+    }
+
+    // ---- another engine's file (docs/57 §5, C40 X4) ----------------------------------
+
+    // A Transmission's record holds its labels as tags. On a qBittorrent the first is the
+    // category and the rest are tags; a label with a comma is a tag with a space, since
+    // qBittorrent splits tags at commas. A qBittorrent's own file is taken as it is.
+    void crossesATransmissionsLabels()
+    {
+        TorrentsBackup::Contents contents;
+        contents.manifest = manifest();
+        contents.manifest.engine = EngineKind::Transmission;
+        contents.manifest.categories = QJsonObject();
+        contents.manifest.tags.clear();
+        contents.records = {
+            record(hashOf('a'),
+                   QStringLiteral("/d"),
+                   100,
+                   QString(),
+                   {QStringLiteral("music"), QStringLiteral("flac"), QStringLiteral("live, 1977")}),
+            record(hashOf('b'), QStringLiteral("/d"), 100, QString(), {QStringLiteral("flac")}),
+            record(hashOf('c'), QStringLiteral("/d"), 100),
+        };
+        const auto g = TorrentsImport::groupingHere(contents.manifest, contents.records.at(0));
+        QCOMPARE(g.category, QStringLiteral("music"));
+        QCOMPARE(g.tags, (QStringList{QStringLiteral("flac"), QStringLiteral("live 1977")}));
+        QVERIFY(TorrentsImport::crosses(contents.manifest));
+
+        TorrentsImport::Here here;
+        here.tags = {QStringLiteral("flac")};
+        const TorrentsImport::Plan plan = TorrentsImport::plan(contents, here);
+        // "flac" is a tag of one torrent and the category of another.
+        QCOMPARE(plan.categories, (QStringList{QStringLiteral("music"), QStringLiteral("flac")}));
+        QCOMPARE(plan.tags, QStringList{QStringLiteral("live 1977")});
+
+        // The same records in a qBittorrent's file: no category, the tags as written.
+        contents.manifest.engine = EngineKind::Qbittorrent;
+        QVERIFY(!TorrentsImport::crosses(contents.manifest));
+        const auto own = TorrentsImport::groupingHere(contents.manifest, contents.records.at(0));
+        QCOMPARE(own.category, QString());
+        QCOMPARE(own.tags, contents.records.at(0).tags);
+        const TorrentsImport::Plan same = TorrentsImport::plan(contents, here);
+        QVERIFY(same.categories.isEmpty());
+        QCOMPARE(same.tags, (QStringList{QStringLiteral("music"), QStringLiteral("live, 1977")}));
+    }
+
+    // The run sends the crossed grouping: the category made from a label is created without a
+    // folder (even when the file's manifest has one under that name), the add carries it and
+    // the tags, and automatic management is never turned on.
+    void importsATransmissionsFile()
+    {
+        QTemporaryDir dir;
+        const QByteArray bytes = fixture(QStringLiteral("single_file_v1.torrent"));
+        const TorrentFile parsed = TorrentFile::parse(bytes);
+        TorrentRecord r = record(parsed.torrentId(), QStringLiteral("/d"));
+        r.infohashV1 = parsed.infoHashV1;
+        r.tags = {QStringLiteral("films"), QStringLiteral("hd"), QStringLiteral("a,b")};
+        r.autoTmm = true; // no Transmission writes this; were it there, it stays off
+        TorrentsManifest m = manifest(); // its "films" has a save path: not this label's
+        m.engine = EngineKind::Transmission;
+        m.version = QStringLiteral("4.1.3");
+        const QString path = dir.filePath(QStringLiteral("t.omaseed-torrents"));
+        QVERIFY(writeExport(path, m, {r}, bytes));
+        QString error;
+        const auto contents = TorrentsBackup::read(path, &error);
+        QVERIFY2(contents.has_value(), qPrintable(error));
+        QCOMPARE(contents->manifest.engine, EngineKind::Transmission);
+        const TorrentsImport::Plan plan = TorrentsImport::plan(*contents, {});
+        QCOMPARE(plan.categories, QStringList{QStringLiteral("films")});
+        QCOMPARE(plan.tags, (QStringList{QStringLiteral("hd"), QStringLiteral("a b")}));
+
+        FakeQbt server;
+        QbtEngine client;
+        client.setBaseUrl(server.url());
+        TorrentsImport import(&client);
+        TorrentsImport::Options options;
+        options.check = false;
+        options.journalPath = dir.filePath(QStringLiteral("imports/fake.json"));
+        options.pollMs = 50;
+        QSignalSpy finished(&import, &TorrentsImport::finished);
+        import.start(*contents, plan, options);
+        QVERIFY(finished.wait(20000));
+        const auto outcome = finished.constFirst().constFirst().value<TorrentsImport::Outcome>();
+        QVERIFY2(outcome.complete, qPrintable(outcome.errors.join(u"; ")));
+        QVERIFY2(outcome.errors.isEmpty(), qPrintable(outcome.errors.join(u"; ")));
+        QCOMPARE(outcome.added, 1);
+        QCOMPARE(outcome.categories, 1);
+        QCOMPARE(outcome.tags, 2);
+        QCOMPARE(outcome.keptManual, 0);
+
+        QCOMPARE(server.addFields.size(), 1);
+        const auto sent = server.addFields.constFirst();
+        QCOMPARE(sent.value("category"), QByteArray("films"));
+        QCOMPARE(sent.value("tags"), QByteArray("hd,a b"));
+        QCOMPARE(sent.value("autoTMM"), QByteArray("false"));
+        bool created = false;
+        for (const auto &[what, form] : std::as_const(server.posts)) {
+            QVERIFY2(what != QLatin1String("torrents/setAutoManagement"), "automatic management");
+            if (what != QLatin1String("torrents/createCategory"))
+                continue;
+            created = true;
+            QCOMPARE(form.queryItemValue(QStringLiteral("category")), QStringLiteral("films"));
+            QCOMPARE(form.queryItemValue(QStringLiteral("savePath")), QString());
+        }
+        QVERIFY(created);
     }
 
     // ---- the rename guard (#64, #67) ---------------------------------------------------
