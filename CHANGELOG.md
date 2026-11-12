@@ -7,6 +7,8 @@ before it will tag a release.
 
 ## Unreleased
 
+## v0.9.0 — 2026-11-11
+
 ### Added
 
 - **A Transmission's library moves to a qBittorrent.** Settings › Transmission has a new last
