@@ -5,7 +5,7 @@ All notable changes to omaseed are logged here, newest first. Loosely follows
 versioning stability (pre-1.0). `scripts/release.sh` requires a `## v<version>` section here
 before it will tag a release.
 
-## Unreleased
+## v0.10.0 — 2026-11-12
 
 ### Added
 
@@ -16,8 +16,8 @@ before it will tag a release.
   Turtle, Burst, a ✓ on the one in force), Pause Torrents or Resume Torrents, Servers › (with
   two servers or more, written again when the list changes) and Settings. It is off until you
   turn it on: neither the package nor the first run writes the file. omaseed changes only the
-  lines between its two marker comments, every other byte of the file stays as it was, and a
-  hand edit moves the switch. A `trigger.torrents` row of your own, a file whose last row ends
+  lines between its two marker comments (and adds a comma after your last row if it has none),
+  every other byte of the file stays as it was, and a hand edit moves the switch. A `trigger.torrents` row of your own, a file whose last row ends
   in a comment, or no Omarchy menu at all dim the row, saying why. The rows that open the
   window run the new `omaseed --open add|search|settings`, which starts omaseed when it isn't
   running. (#212, #215, #216)
