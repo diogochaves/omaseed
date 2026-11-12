@@ -7,6 +7,33 @@ before it will tag a release.
 
 ## Unreleased
 
+### Added
+
+- **Torrents in the Omarchy menu, with a switch.** Settings › Appearance › **In the Omarchy
+  menu**, after Widget, adds omaseed's block to `~/.config/omarchy/extensions/omarchy-menu.jsonc`
+  and takes it away again: **Trigger › Torrents** (`omarchy menu summon torrents`, or type
+  `torr` in the menu) with Open omaseed, Add Torrent, Search Torrents, Speeds › (Normal,
+  Turtle, Burst, a ✓ on the one in force), Pause Torrents or Resume Torrents, Servers › (with
+  two servers or more, written again when the list changes) and Settings. It is off until you
+  turn it on: neither the package nor the first run writes the file. omaseed changes only the
+  lines between its two marker comments, every other byte of the file stays as it was, and a
+  hand edit moves the switch. A `trigger.torrents` row of your own, a file whose last row ends
+  in a comment, or no Omarchy menu at all dim the row, saying why. The rows that open the
+  window run the new `omaseed --open add|search|settings`, which starts omaseed when it isn't
+  running. (#212, #215, #216)
+
+  Thanks to @tempest-chaoscreator, who asked for a switch for the menu's Torrents row
+  ([#211](https://github.com/diogochaves/omaseed/issues/211)): this is the answer to it. The
+  same report also led to v0.7.0's add window (board 54, DECISIONS C35).
+
+### Changed
+
+- **The first-page Torrents row moved to Trigger › Torrents.** The one-line `"torrents"` row
+  the old README had you copy into the menu's file only opened omaseed, which Apps and the
+  launcher already do, and sat among Omarchy's own sections. Turning the switch on replaces it
+  with the block; `/usr/share/omaseed/omarchy-menu.jsonc` now holds the block for a hand copy,
+  and `install-omarchy-extras.sh --menu` writes it. (DECISIONS C36)
+
 ## v0.9.2 — 2026-11-12
 
 ### Added

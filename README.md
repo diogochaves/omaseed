@@ -123,11 +123,14 @@ not edit your config:
   ```
 
 - **Torrents in the Omarchy menu**, under Trigger › Torrents (`omarchy menu summon torrents`):
-  open omaseed, add a torrent, search, pick a speed, pause and resume, settings. Copy the
-  lines from `// >>> omaseed` to `// <<< omaseed` in `/usr/share/omaseed/omarchy-menu.jsonc`
-  into `~/.config/omarchy/extensions/omarchy-menu.jsonc`, before its last `}`. A hand copy has
-  no Servers › rows: those list your servers, so only omaseed writes them. omaseed is in the
-  menu's Apps list without any of it.
+  open omaseed, add a torrent, search, pick a speed, pause and resume, switch servers,
+  settings. Turn on Settings › Appearance › **In the Omarchy menu**: omaseed adds its block to
+  `~/.config/omarchy/extensions/omarchy-menu.jsonc`, changes nothing else in that file, keeps
+  Servers › in step with your servers, and takes the block away when you turn it off. It is
+  off until you do. To copy it by hand instead, take the lines from `// >>> omaseed` to
+  `// <<< omaseed` in `/usr/share/omaseed/omarchy-menu.jsonc` and put them before the file's
+  last `}`; the switch then reads as on. A hand copy has no Servers › rows: those list your
+  servers, so only omaseed writes them. omaseed is in the menu's Apps list without any of it.
 
 ### Build from source
 
