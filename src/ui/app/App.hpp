@@ -109,6 +109,7 @@ namespace omaseed::core {
 class DelugeEngine;
 class QbtEngine;
 class TransmissionEngine;
+class TransmissionTorrentsExport;
 } // namespace omaseed::core
 
 namespace omaseed::integration {
@@ -212,6 +213,8 @@ public:
     /// the torrents backup, RSS: docs/36 §4.4); null for any other engine. Callers check the
     /// feature record (features()) for the surface first.
     omaseed::core::QbtEngine *qbtEngine() const;
+    /// The Transmission the app is on; null on any other engine.
+    omaseed::core::TransmissionEngine *transmissionEngine() const;
     /// What the chosen server can do, resolved from its engine and version after the probe.
     const omaseed::core::EngineFeatures &features() const { return m_features; }
     QVariantMap featuresMap() const;
@@ -2036,7 +2039,40 @@ public:
     /// file again finishes it.
     Q_INVOKABLE void cancelTorrentsBackup();
 
+    // A Transmission keeps its .torrent files on its own disk, not in its API (docs/57 §4,
+    // docs/DECISIONS.md C40 X3; #88): whether this machine can read them, asked when
+    // Settings › Transmission › Backup shows and after a folder is given.
+    /// "asking", "readable", "unreadable"; "" before the first answer, and on an engine
+    /// that sends its .torrent files itself.
+    Q_PROPERTY(QString torrentFilesReach READ torrentFilesReach NOTIFY torrentFilesChanged)
+    QString torrentFilesReach() const { return m_torrentFilesReach; }
+    /// Where the export reads them, the home folder as `~`: the folder given for this server
+    /// while it holds them, else the daemon's own, in its words.
+    Q_PROPERTY(QString torrentFilesFolder READ torrentFilesFolder NOTIFY torrentFilesChanged)
+    QString torrentFilesFolder() const;
+    /// The daemon's folder, as the daemon says it.
+    Q_PROPERTY(
+        QString torrentFilesDaemonFolder READ torrentFilesDaemonFolder NOTIFY torrentFilesChanged)
+    QString torrentFilesDaemonFolder() const { return m_torrentFilesDaemonFolder; }
+    /// The folder remembered for this server (servers.json's `torrentsFolder`); "" for none.
+    Q_PROPERTY(
+        QString torrentFilesRemembered READ torrentFilesRemembered NOTIFY torrentFilesChanged)
+    QString torrentFilesRemembered() const { return m_server.torrentsFolder; }
+    /// "That folder doesn't hold NAME's .torrent files.", after a folder that wasn't theirs;
+    /// "" otherwise.
+    Q_PROPERTY(QString torrentFilesNote READ torrentFilesNote NOTIFY torrentFilesChanged)
+    QString torrentFilesNote() const { return m_torrentFilesNote; }
+    /// Asks the daemon where its .torrent files are and tries them from here.
+    Q_INVOKABLE void refreshTorrentFilesReach();
+    /// "their folder…": the portal's folder chooser, then useTorrentFilesFolder().
+    Q_INVOKABLE void pickTorrentFilesFolder();
+    /// Checks `folder` against the daemon's torrents: theirs, it is remembered for this
+    /// server and the files read from it; not theirs, `torrentFilesNote` says so and
+    /// nothing is kept.
+    Q_INVOKABLE void useTorrentFilesFolder(const QString &folder);
+
 Q_SIGNALS:
+    void torrentFilesChanged();
     void torrentsBackupChanged();
     void torrentsExportFinished(const QString &text, bool ok);
     void torrentsImportRead(const QVariantMap &info);
@@ -2047,6 +2083,15 @@ private:
     QList<omaseed::core::TorrentsImport::PathRow> torrentsRows(const QVariantList &rows) const;
     QVariantMap torrentsImportInfo();
     QPointer<omaseed::core::TorrentsExport> m_torrentsExport;
+    QPointer<omaseed::core::TransmissionTorrentsExport> m_transmissionExport;
+    void setTorrentFilesReach(const QString &reach, const QString &note = QString());
+    void rememberTorrentsFolder(const QString &folder);
+    QString m_torrentFilesReach;
+    QString m_torrentFilesDaemonFolder;
+    QString m_torrentFilesNote;
+    /// The folder the last reach found the files under; "" for where the daemon says.
+    QString m_torrentFilesFrom;
+    int m_torrentFilesAsk = 0; ///< the ask on its way; an older one's answer is dropped
     QPointer<omaseed::core::TorrentsImport> m_torrentsImport;
     std::optional<omaseed::core::TorrentsBackup::Contents> m_torrentsFile;
     omaseed::core::TorrentsImport::Plan m_torrentsPlan;

@@ -569,6 +569,13 @@ void App::applyServer(const Server &server)
     // A keychain read for the previous server may still be on its way; its answer must not
     // put that server's secret on a client now pointed at this one.
     const quint64 generation = ++m_serverGeneration;
+    // What was learnt of the last server's .torrent files is not this one's (C40 X3).
+    if (m_server.id != server.id) {
+        ++m_torrentFilesAsk;
+        m_torrentFilesFrom.clear();
+        m_torrentFilesDaemonFolder.clear();
+        setTorrentFilesReach(QString());
+    }
     m_server = server;
     m_hasServer = true;
     // C14 E4: the engine the server speaks. An engine this build doesn't drive keeps the one
@@ -5704,6 +5711,8 @@ QVariantMap App::featuresMap() const
         {QStringLiteral("engineName"),
          m_client == m_qbt ? QStringLiteral("qBittorrent") : serverEngineName()},
         {QStringLiteral("torrentsBackup"), f.torrentsBackup},
+        {QStringLiteral("torrentsExport"), f.torrentsExport},
+        {QStringLiteral("torrentsImport"), f.torrentsImport},
         {QStringLiteral("rss"), f.rss},
         {QStringLiteral("addAgain"), f.addAgain},
         {QStringLiteral("search"), f.search},

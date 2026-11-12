@@ -337,6 +337,8 @@ void TestAppDeluge::whatDelugeLacksIsNotOffered()
                             "engineLog",
                             "qbtSettings",
                             "torrentsBackup",
+                            "torrentsExport",
+                            "torrentsImport",
                             "rss",
                             "search",
                             "createTorrent",

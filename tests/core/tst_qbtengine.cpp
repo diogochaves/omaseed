@@ -503,6 +503,7 @@ void TestQbtEngine::featuresFollowTheApiVersion()
         engine.features(ServerInfo{QStringLiteral("v5.2.3"), QStringLiteral("2.15.1")});
     QVERIFY(current.categories && current.tags && current.queue && current.engineLog);
     QVERIFY(current.qbtSettings && current.torrentsBackup && current.rss);
+    QVERIFY(current.torrentsExport && current.torrentsImport);
     QVERIFY(current.fetchMetadata);
     QVERIFY(current.shareLimitAction());
     const auto older =

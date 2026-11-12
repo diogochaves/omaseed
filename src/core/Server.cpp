@@ -117,6 +117,7 @@ bool isKnownKey(const QString &key)
         QStringLiteral("engine"),
         QStringLiteral("engineVersion"),
         QStringLiteral("daemon"),
+        QStringLiteral("torrentsFolder"),
     };
     return keys.contains(key);
 }
@@ -181,6 +182,8 @@ QJsonObject Server::toJson() const
         object[QStringLiteral("engineVersion")] = engineVersion;
     if (!daemon.isEmpty())
         object[QStringLiteral("daemon")] = daemon;
+    if (!torrentsFolder.isEmpty())
+        object[QStringLiteral("torrentsFolder")] = torrentsFolder;
 
     // A newer build's keys, as they were read (C28). An authMode this build couldn't read
     // goes back as it was, unless a mode was picked here since.
@@ -232,6 +235,7 @@ Server Server::fromJson(const QJsonObject &object, bool *ok)
         server.extra.insert(QStringLiteral("engine"), engine);
     server.engineVersion = object.value(QStringLiteral("engineVersion")).toString();
     server.daemon = object.value(QStringLiteral("daemon")).toString();
+    server.torrentsFolder = object.value(QStringLiteral("torrentsFolder")).toString();
 
     for (auto it = object.constBegin(); it != object.constEnd(); ++it) {
         if (!isKnownKey(it.key()))

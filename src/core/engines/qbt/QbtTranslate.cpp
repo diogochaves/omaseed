@@ -659,6 +659,8 @@ EngineFeatures features(const QString &apiVersion)
     // export and import, torrents export and import (C9's file holds its rows), RSS.
     f.qbtSettings = true;
     f.torrentsBackup = true;
+    f.torrentsExport = true;
+    f.torrentsImport = true;
     f.rss = true;
     f.addAgain = true; // torrents/export, then an add with the record's settings (C17 D3)
     f.search = true;   // search/* and its plugins (C26)

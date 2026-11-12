@@ -76,6 +76,14 @@ omaseed_add_test(tst_app_transmission
     DEFINES OMASEED_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../fixtures"
 )
 
+# #88 (C40 X1, X3): Settings › Transmission › Backup's export in the app: the engine's exporter,
+# whether its .torrent files are read from here, the folder given for them.
+omaseed_add_test(tst_app_transmissionbackup
+    SOURCES tst_app_transmissionbackup.cpp
+    LIBRARIES omaseed::app omaseed::core omaseed::integration Qt6::Network
+    DEFINES OMASEED_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../fixtures"
+)
+
 # #87 (C14 E6, C25): a Deluge server driven in the app, against FakeDeluge and deluge-web's
 # recorded answers.
 omaseed_add_test(tst_app_deluge

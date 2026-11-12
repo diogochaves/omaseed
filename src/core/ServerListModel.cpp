@@ -449,6 +449,10 @@ bool ServerListModel::update(const QVariantMap &fields, const QString &secretIn)
     // The daemon the step picked stays until another is picked, while the engine stays.
     if (!fields.contains(QStringLiteral("daemon")))
         server.daemon = server.engine == existing->engine ? existing->daemon : QString();
+    // The folder its .torrent files are read from (C40 X3) is Settings › ENGINE › Backup's,
+    // never the sheet's: kept while the engine stays.
+    server.torrentsFolder =
+        server.engine == existing->engine ? existing->torrentsFolder : QString();
     // A newer build's keys (C28) are not the sheet's to drop. An engine this build doesn't
     // know stays as servers.json spelt it, until a test names one it does (#179).
     const QJsonValue spelled = server.extra.value(QStringLiteral("engine"));

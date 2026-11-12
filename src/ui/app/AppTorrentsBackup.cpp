@@ -1,6 +1,11 @@
 // App's #33 block (docs/24 §4, §5, §7): a qBittorrent's torrents exported to a file and
 // imported back, from Settings › qBittorrent › Backup. Kept out of App.cpp so it reads as one
 // piece; the declarations sit at the end of App.hpp.
+//
+// #88 (docs/57 §3, §4; docs/DECISIONS.md C40 X1, X3): a Transmission's torrents are exported
+// from Settings › Transmission › Backup by its own exporter, which reads the .torrent files
+// from the daemon's disk; App asks beforehand whether this machine can, and remembers the
+// folder a person gives for them.
 #include "ui/app/App.hpp"
 
 #include "core/Format.hpp"
@@ -8,6 +13,8 @@
 #include "core/OmaseedBackup.hpp"
 #include "core/Version.hpp"
 #include "core/engines/qbt/QbtEngine.hpp"
+#include "core/engines/transmission/TransmissionEngine.hpp"
+#include "core/engines/transmission/TransmissionTorrentsExport.hpp"
 
 #include <QCoreApplication>
 #include <QDate>
@@ -193,12 +200,25 @@ void App::setTorrentsRunning(const QString &what, const QString &progress)
     Q_EMIT torrentsBackupChanged();
 }
 
+TransmissionEngine *App::transmissionEngine() const
+{
+    return m_transmission != nullptr && m_client == m_transmission ? m_transmission : nullptr;
+}
+
 QString App::torrentsExportSummary() const
 {
     TorrentModel *model = m_engine->torrents();
     const int n = model->count();
     if (n == 0)
         return tr("No torrents to export yet.");
+    // docs/57 §3: Transmission's words; where its .torrent files are read from follows in
+    // the row, by what torrentFilesReach says (C40 X3).
+    if (transmissionEngine() != nullptr)
+        return n == 1 ? tr("1 torrent with its folder, labels, limits and renames, in one private "
+                           "file.")
+                      : tr("%1 torrents with their folders, labels, limits and renames, in one "
+                           "private file.")
+                            .arg(n);
     qint64 bytes = 0;
     int magnets = 0;
     for (int row = 0; row < n; ++row) {
@@ -224,7 +244,11 @@ QString App::pickTorrentsExportPath() const
 {
     const QString suggested = QDir::homePath() + QLatin1Char('/') + exportName(m_server.name);
     QFileDialog dialog(nullptr,
-                       tr("Export qBittorrent's torrents"),
+                       // The engine's name: "Export qBittorrent's torrents", "Export
+                       // Transmission's torrents" (C40 X1).
+                       tr("Export %1's torrents")
+                           .arg(transmissionEngine() != nullptr ? serverEngineName()
+                                                                : QStringLiteral("qBittorrent")),
                        suggested,
                        tr("omaseed torrents (*.omaseed-torrents)"));
     dialog.setAcceptMode(QFileDialog::AcceptSave);
@@ -232,6 +256,113 @@ QString App::pickTorrentsExportPath() const
     if (!path.isEmpty() && !path.endsWith(TorrentsBackup::kSuffix))
         path += TorrentsBackup::kSuffix;
     return path;
+}
+
+// --- #88: where a Transmission's .torrent files are (C40 X3) ----------------------------------
+
+QString App::torrentFilesFolder() const
+{
+    return tilde(m_torrentFilesFrom.isEmpty() ? m_torrentFilesDaemonFolder : m_torrentFilesFrom);
+}
+
+void App::setTorrentFilesReach(const QString &reach, const QString &note)
+{
+    m_torrentFilesReach = reach;
+    m_torrentFilesNote = note;
+    Q_EMIT torrentFilesChanged();
+}
+
+void App::rememberTorrentsFolder(const QString &folder)
+{
+    m_server.torrentsFolder = folder;
+    // A server from the environment is in no file: the folder then lasts the run.
+    std::optional<Server> saved = m_servers->byId(m_server.id);
+    if (saved && saved->torrentsFolder != folder) {
+        saved->torrentsFolder = folder;
+        m_servers->update(*saved);
+    }
+}
+
+void App::refreshTorrentFilesReach()
+{
+    const int ask = ++m_torrentFilesAsk;
+    TransmissionEngine *engine = transmissionEngine();
+    if (engine == nullptr || m_demoMode || !m_hasServer || !m_engine->globalState()->connected()) {
+        m_torrentFilesFrom.clear();
+        m_torrentFilesDaemonFolder.clear();
+        setTorrentFilesReach(QString());
+        return;
+    }
+    using Reach = TransmissionTorrentsExport::Reach;
+    const QString remembered = m_server.torrentsFolder;
+    setTorrentFilesReach(QStringLiteral("asking"), m_torrentFilesNote);
+    const auto settle = [this, ask](const Result<Reach> &reach, const QString &from) {
+        if (ask != m_torrentFilesAsk)
+            return;
+        const bool readable = reach.isValid() && reach.value().readable;
+        if (reach.isValid())
+            m_torrentFilesDaemonFolder = reach.value().daemonFolder;
+        m_torrentFilesFrom = readable ? from : QString();
+        setTorrentFilesReach(readable ? QStringLiteral("readable") : QStringLiteral("unreadable"),
+                             m_torrentFilesNote);
+    };
+    TransmissionTorrentsExport::reach(engine, remembered, this)
+        ->then(this, [this, ask, remembered, settle](const Result<Reach> &reach) {
+            if (ask != m_torrentFilesAsk)
+                return;
+            TransmissionEngine *still = transmissionEngine();
+            if (remembered.isEmpty() || still == nullptr ||
+                (reach.isValid() && reach.value().readable)) {
+                settle(reach, remembered);
+                return;
+            }
+            // The folder given no longer holds them: where the daemon says, before the row
+            // goes back to offering (C40 X3).
+            TransmissionTorrentsExport::reach(still, QString(), this)
+                ->then(this, [settle](const Result<Reach> &direct) { settle(direct, QString()); });
+        });
+}
+
+void App::pickTorrentFilesFolder()
+{
+    if (transmissionEngine() == nullptr)
+        return;
+    QFileDialog dialog(nullptr,
+                       tr("The folder of %1's .torrent files").arg(m_server.name),
+                       m_server.torrentsFolder.isEmpty() ? QDir::homePath()
+                                                         : m_server.torrentsFolder);
+    dialog.setFileMode(QFileDialog::Directory);
+    dialog.setOption(QFileDialog::ShowDirsOnly);
+    useTorrentFilesFolder(pick(dialog, m_dialogParent).value(0));
+}
+
+void App::useTorrentFilesFolder(const QString &folder)
+{
+    TransmissionEngine *engine = transmissionEngine();
+    if (folder.isEmpty() || engine == nullptr || !m_engine->globalState()->connected())
+        return;
+    using Reach = TransmissionTorrentsExport::Reach;
+    const int ask = ++m_torrentFilesAsk;
+    const QString before = m_torrentFilesReach == QLatin1String("readable")
+                               ? m_torrentFilesReach
+                               : QStringLiteral("unreadable");
+    setTorrentFilesReach(QStringLiteral("asking"));
+    TransmissionTorrentsExport::reach(engine, folder, this)
+        ->then(this, [this, ask, folder, before, name = m_server.name](const Result<Reach> &reach) {
+            if (ask != m_torrentFilesAsk)
+                return;
+            if (reach.isValid())
+                m_torrentFilesDaemonFolder = reach.value().daemonFolder;
+            if (!reach.isValid() || !reach.value().readable) {
+                // Nothing is kept, and the row keeps offering.
+                setTorrentFilesReach(before,
+                                     tr("That folder doesn't hold %1's .torrent files.").arg(name));
+                return;
+            }
+            rememberTorrentsFolder(folder);
+            m_torrentFilesFrom = folder;
+            setTorrentFilesReach(QStringLiteral("readable"));
+        });
 }
 
 void App::exportTorrents(const QString &path)
@@ -248,52 +379,86 @@ void App::exportTorrents(const QString &path)
                                       false);
         return;
     }
-    // C9's file holds qBittorrent's rows: a qBittorrent surface (docs/36 §4.4).
-    if (!m_features.torrentsBackup || qbtEngine() == nullptr) {
+    // The engine's own exporter (docs/DECISIONS.md C40 X1): qBittorrent's reads the Web API,
+    // Transmission's the daemon's disk for the .torrent files.
+    TransmissionEngine *transmission = transmissionEngine();
+    if (!m_features.torrentsExport || (qbtEngine() == nullptr && transmission == nullptr)) {
         Q_EMIT torrentsExportFinished(
             tr("Not exported: %1 cannot export its torrents.").arg(m_server.name), false);
         return;
     }
-    auto *exporter = new TorrentsExport(qbtEngine(), this);
-    m_torrentsExport = exporter;
-    setTorrentsRunning(QStringLiteral("export"), tr("exporting…"));
-    connect(exporter, &TorrentsExport::progress, this, [this](int done, int total) {
+    // Magnets that never got their metadata are links on any engine; past them, a link is a
+    // .torrent this machine couldn't read (C40 X3).
+    int bare = 0;
+    for (int row = 0; row < m_engine->torrents()->count(); ++row)
+        bare += m_engine->torrents()->torrentAt(row).totalSize < 0 ? 1 : 0;
+    const auto progressed = [this](int done, int total) {
         setTorrentsRunning(QStringLiteral("export"),
                            tr("exporting %1 of %2…").arg(done).arg(total));
-    });
-    connect(
-        exporter,
-        &TorrentsExport::finished,
-        this,
-        [this, exporter, name = m_server.name](const TorrentsExport::Outcome &outcome) {
-            exporter->deleteLater();
-            setTorrentsRunning(QString());
-            if (outcome.cancelled) {
-                Q_EMIT torrentsExportFinished(tr("Export stopped; no file was written."), false);
-                return;
-            }
-            if (!outcome.ok) {
-                Q_EMIT torrentsExportFinished(tr("Not exported: %1").arg(outcome.error), false);
-                return;
-            }
-            // docs/34 D2 a: the result names the server.
-            QString text = outcome.torrents == 1
-                               ? tr("Exported %1's 1 torrent to %2.").arg(name, tilde(outcome.path))
-                               : tr("Exported %1's %2 torrents to %3.")
-                                     .arg(name)
-                                     .arg(outcome.torrents)
-                                     .arg(tilde(outcome.path));
-            if (outcome.magnets > 0)
-                text += QLatin1Char(' ') + count(outcome.magnets,
-                                                 "1 magnet went in as a link.",
-                                                 "%1 magnets went in as links.");
-            if (outcome.gone > 0)
-                text += QLatin1Char(' ') + count(outcome.gone,
-                                                 "1 torrent deleted meanwhile was left out.",
-                                                 "%1 torrents deleted meanwhile were left out.");
-            qInfo().noquote() << QStringLiteral("torrents: %1").arg(text);
-            Q_EMIT torrentsExportFinished(text, true);
-        });
+    };
+    const auto finished = [this, name = m_server.name, bare](
+                              QObject *exporter, const TorrentsExport::Outcome &outcome) {
+        exporter->deleteLater();
+        setTorrentsRunning(QString());
+        if (outcome.cancelled) {
+            Q_EMIT torrentsExportFinished(tr("Export stopped; no file was written."), false);
+            return;
+        }
+        if (!outcome.ok) {
+            Q_EMIT torrentsExportFinished(tr("Not exported: %1").arg(outcome.error), false);
+            return;
+        }
+        // docs/34 D2 a: the result names the server.
+        QString text = outcome.torrents == 1
+                           ? tr("Exported %1's 1 torrent to %2.").arg(name, tilde(outcome.path))
+                           : tr("Exported %1's %2 torrents to %3.")
+                                 .arg(name)
+                                 .arg(outcome.torrents)
+                                 .arg(tilde(outcome.path));
+        if (outcome.magnets > bare)
+            text += QLatin1Char(' ') +
+                    count(outcome.magnets,
+                          "1 went in as a link: omaseed couldn't read its .torrent file.",
+                          "%1 went in as links: omaseed couldn't read their .torrent files.");
+        else if (outcome.magnets > 0)
+            text += QLatin1Char(' ') + count(outcome.magnets,
+                                             "1 magnet went in as a link.",
+                                             "%1 magnets went in as links.");
+        if (outcome.gone > 0)
+            text += QLatin1Char(' ') + count(outcome.gone,
+                                             "1 torrent deleted meanwhile was left out.",
+                                             "%1 torrents deleted meanwhile were left out.");
+        qInfo().noquote() << QStringLiteral("torrents: %1").arg(text);
+        Q_EMIT torrentsExportFinished(text, true);
+    };
+    setTorrentsRunning(QStringLiteral("export"), tr("exporting…"));
+    if (transmission != nullptr) {
+        auto *exporter = new TransmissionTorrentsExport(transmission, this);
+        m_transmissionExport = exporter;
+        // The folder given for this server, while the last look found the files under it;
+        // otherwise where the daemon says, and a file that isn't there goes in as a link.
+        exporter->setTorrentsFolder(m_torrentFilesReach == QLatin1String("readable")
+                                        ? m_torrentFilesFrom
+                                        : m_server.torrentsFolder);
+        connect(exporter, &TransmissionTorrentsExport::progress, this, progressed);
+        connect(exporter,
+                &TransmissionTorrentsExport::finished,
+                this,
+                [exporter, finished](const TorrentsExport::Outcome &outcome) {
+                    finished(exporter, outcome);
+                });
+        exporter->start(path, m_server.name, m_server.url.toString(), omaseed::core::version());
+        return;
+    }
+    auto *exporter = new TorrentsExport(qbtEngine(), this);
+    m_torrentsExport = exporter;
+    connect(exporter, &TorrentsExport::progress, this, progressed);
+    connect(exporter,
+            &TorrentsExport::finished,
+            this,
+            [exporter, finished](const TorrentsExport::Outcome &outcome) {
+                finished(exporter, outcome);
+            });
     exporter->start(path, m_server.name, m_server.url.toString(), omaseed::core::version());
 }
 
@@ -316,6 +481,9 @@ QString App::readTorrentsImport(const QString &path)
         return tr("Another export or import is running.");
     if (m_demoMode || !m_hasServer || !m_engine->globalState()->connected())
         return tr("%1 is not connected.").arg(m_server.name);
+    // C40 X9: an engine that exports may not import yet.
+    if (!m_features.torrentsImport || qbtEngine() == nullptr)
+        return tr("%1 cannot import torrents.").arg(m_server.name);
     QString error;
     std::optional<TorrentsBackup::Contents> contents = TorrentsBackup::read(path, &error);
     if (!contents)
@@ -571,7 +739,7 @@ void App::applyTorrentsImport(const QVariantMap &choice)
         Q_EMIT torrentsImportFinished(tr("Another export or import is running."), false);
         return;
     }
-    if (!m_features.torrentsBackup || qbtEngine() == nullptr) {
+    if (!m_features.torrentsImport || qbtEngine() == nullptr) {
         Q_EMIT torrentsImportFinished(tr("%1 cannot import torrents.").arg(m_server.name), false);
         return;
     }
@@ -669,6 +837,8 @@ void App::cancelTorrentsBackup()
 {
     if (m_torrentsExport)
         m_torrentsExport->cancel();
+    else if (m_transmissionExport)
+        m_transmissionExport->cancel();
     else if (m_torrentsImport)
         m_torrentsImport->cancel();
 }

@@ -318,6 +318,14 @@ void TestServer::engineRoundTrips()
     server.daemon = QStringLiteral("c0ffee"); // C25 K10: deluge-web's host id
     const QJsonObject json = server.toJson();
     QCOMPARE(json.value(QStringLiteral("daemon")).toString(), QStringLiteral("c0ffee"));
+    // C40 X3: the folder its .torrent files are read from goes with the server.
+    QVERIFY(!json.contains(QStringLiteral("torrentsFolder")));
+    {
+        Server seen = server;
+        seen.torrentsFolder = QStringLiteral("/mnt/seedbox/torrents");
+        QCOMPARE(Server::fromJson(seen.toJson()).torrentsFolder, seen.torrentsFolder);
+        QVERIFY(!Server::fromJson(seen.toJson()).extra.contains(QStringLiteral("torrentsFolder")));
+    }
     QCOMPARE(json.value(QStringLiteral("engine")).toString(), QStringLiteral("deluge"));
     QCOMPARE(json.value(QStringLiteral("engineVersion")).toString(), QStringLiteral("2.2.0"));
     QCOMPARE(json.value(QStringLiteral("authMode")).toString(), QStringLiteral("password"));

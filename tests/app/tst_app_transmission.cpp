@@ -732,7 +732,7 @@ void TestAppTransmission::whatTransmissionLacksIsNotOffered()
                             "seedingTimeLimit",
                             "engineLog",
                             "qbtSettings",
-                            "torrentsBackup",
+                            "torrentsImport",
                             "rss",
                             "addAgain",
                             "search",
@@ -740,6 +740,9 @@ void TestAppTransmission::whatTransmissionLacksIsNotOffered()
                             "moveProgress",
                             "listFolders"})
         QVERIFY2(!can.value(QString::fromLatin1(off), true).toBool(), off);
+    // docs/DECISIONS.md C40 X9: Backup is there for its export.
+    QVERIFY(can.value(QStringLiteral("torrentsBackup")).toBool());
+    QVERIFY(can.value(QStringLiteral("torrentsExport")).toBool());
     // Board 47 §B (C25 K13–K14): its tags are labels, named so wherever a person reads them.
     QVERIFY(can.value(QStringLiteral("tagsAreLabels")).toBool());
     QCOMPARE(can.value(QStringLiteral("tagWord")).toString(), QStringLiteral("label"));

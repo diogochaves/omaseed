@@ -110,7 +110,14 @@ struct EngineFeatures
     /// The engine's settings, read and written through its session (EngineClient::
     /// sessionPreferences): Settings › ENGINE, its own sections (C25 K31, C14 E6; E5, #86).
     bool sessionSettings = false;
+    /// The engine's group in Settings ends with Backup, for its torrents (qBittorrent's holds
+    /// its settings too): the section is there when it can do either of the two below
+    /// (docs/DECISIONS.md C40 X1).
     bool torrentsBackup = false;
+    /// Its torrents can be written to a TorrentsBackup file, and a file's can be added to it.
+    /// Apart, since an engine learns them one release at a time (C40 X9).
+    bool torrentsExport = false;
+    bool torrentsImport = false;
     bool rss = false;
     /// Remove a torrent keeping its files and add its own .torrent back with its settings
     /// (engines/qbt/AddAgainJob; C17 D3): what clears a hybrid's libtorrent error.

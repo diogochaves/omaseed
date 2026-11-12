@@ -233,6 +233,8 @@ void TestApp::featuresFollowTheServersVersion()
                             "engineLog",
                             "qbtSettings",
                             "torrentsBackup",
+                            "torrentsExport",
+                            "torrentsImport",
                             "rss"})
         QVERIFY2(features.value(QLatin1String(key)).toBool(), key);
     // No version yet: nothing that needs one.

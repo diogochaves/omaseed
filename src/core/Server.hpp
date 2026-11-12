@@ -87,6 +87,11 @@ public:
     /// the daemon step picked, connected again when deluge-web has none (C25 K10). Empty for
     /// any other engine, and for a Deluge none was picked for.
     QString daemon;
+    /// The folder of the daemon's .torrent files as this machine sees it (a container's
+    /// volume, a share), given once in Settings › ENGINE › Backup and read by the torrents
+    /// export (docs/DECISIONS.md C40 X3). Empty for a daemon whose files are read where it
+    /// says they are, and for a qBittorrent, which sends them over its API.
+    QString torrentsFolder;
     /// The keys of this server's servers.json entry that this build doesn't read, as they
     /// were: a newer build's, kept so a save here never drops them. An `engine` or an
     /// `authMode` this build can't read is kept here too, and written back while the field is
