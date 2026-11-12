@@ -23,6 +23,7 @@
 #include "integration/Xdg.hpp"
 #include "ui/app/App.hpp"
 #include "ui/app/StatusService.hpp"
+#include "ui/i18n/Translations.hpp"
 
 #include <QApplication>
 #include <QCommandLineOption>
@@ -569,6 +570,9 @@ int main(int argc, char *argv[])
     // QGuiApplication; nothing else in this app touches a QWidget.
     QApplication app(argc, argv);
     setApplicationNames();
+    // Before any string is made: the English catalogue gives every `%n` string its singular
+    // and plural (C41, #197), in C++ and in QML alike.
+    omaseed::i18n::installTranslations(&app);
     QGuiApplication::setDesktopFileName(omaseed::integration::AppIdentity::desktopFileName());
 
     QCommandLineParser parser;

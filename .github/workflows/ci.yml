@@ -37,7 +37,7 @@ jobs:
         run: |
           pacman -Syu --noconfirm --needed \
             gcc cmake ninja git \
-            qt6-base qt6-declarative qt6-svg qt6-wayland qtkeychain-qt6 \
+            qt6-base qt6-declarative qt6-svg qt6-tools qt6-wayland qtkeychain-qt6 \
             librsvg hicolor-icon-theme \
             clang shellcheck python dbus systemd qbittorrent-nox diffutils \
             fontconfig ttf-jetbrains-mono-nerd ttf-liberation

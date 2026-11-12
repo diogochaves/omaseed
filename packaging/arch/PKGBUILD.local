@@ -25,7 +25,7 @@ depends=(
     'hicolor-icon-theme'
 )
 # git and rsync: prepare() copies the working tree with them (PKGBUILD downloads a tarball).
-makedepends=('cmake' 'ninja' 'librsvg' 'git' 'rsync')
+makedepends=('cmake' 'ninja' 'librsvg' 'qt6-tools' 'git' 'rsync')
 optdepends=(
     'qbittorrent-nox: local engine, if you want omaseed to manage one for you on first run'
     'xdg-desktop-portal: native file picker for choosing .torrent files and download folders'

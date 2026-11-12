@@ -6,11 +6,14 @@ qt_add_executable(omaseed
 
 add_subdirectory(app)
 add_subdirectory(qml)
+# After every target whose strings it reads (C41, #197).
+add_subdirectory(i18n)
 
 target_link_libraries(omaseed
     PRIVATE
         omaseed::app
         omaseed::core
+        omaseed::i18n
         omaseed::integration
         omaseed::warnings
         omaseed-kitplugin

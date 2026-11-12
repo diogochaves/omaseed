@@ -28,7 +28,7 @@ depends=(
     'qtkeychain-qt6'
     'hicolor-icon-theme'
 )
-makedepends=('cmake' 'ninja' 'librsvg')
+makedepends=('cmake' 'ninja' 'librsvg' 'qt6-tools')
 optdepends=(
     'qbittorrent-nox: local engine, if you want omaseed to manage one for you on first run'
     'xdg-desktop-portal: native file picker for choosing .torrent files and download folders'
