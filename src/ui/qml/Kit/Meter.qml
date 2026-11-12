@@ -20,6 +20,12 @@ Item {
     property color color: Theme.accent
     property real fillAlpha: 1
     property color trackColor: Theme.fill(Theme.hairlineAlpha)
+    /// The ground the meter lies on (a row's, `Theme.on.window` until the caller says).
+    property ThemeInk ground: Theme.on.window
+    /// What the faces fill with: `color` as a mark reads on the track over `ground`, lifted
+    /// to 3:1 only where it falls short there (DECISIONS C30, marks, #200).
+    readonly property color markColor: Theme.markOn(root.color,
+                                                    Qt.tint(root.ground.ground, root.trackColor))
     /// 0 for a line; else the grid's columns.
     property int columns: 0
     property int rows: 1

@@ -35,14 +35,14 @@ Item {
             y: corner.atBottom ? face.height - face.arm : 0
 
             Rectangle {
-                color: face.seam.color
+                color: face.seam.markColor
                 height: face.weight
                 width: face.arm
                 y: corner.atBottom ? face.arm - face.weight : 0
             }
 
             Rectangle {
-                color: face.seam.color
+                color: face.seam.markColor
                 height: face.arm
                 width: face.weight
                 x: corner.atRight ? face.arm - face.weight : 0

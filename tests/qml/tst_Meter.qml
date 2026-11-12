@@ -42,14 +42,29 @@ TestCase {
             skip("Omarchy's face is drawn under Omarchy's skin only");
         const meter = createTemporaryObject(meterComponent, testCase, {
                                                 "value": 0.5,
-                                                "color": "red",
+                                                "color": "yellow",
                                                 "trackColor": "blue"
                                             });
         const track = meter.face.children[0];
         verify(track.visible);
         compare(track.color, Qt.color("blue"));
         compare(track.children[0].width, Math.round(155 * 0.5));
-        compare(track.children[0].color, Qt.color("red"));
+        compare(track.children[0].color, Qt.color("yellow"));
+    }
+
+    // #200 (DECISIONS C30, marks): the fill is lifted against its track over its ground, to
+    // 3:1, where the colour falls short there; the faces draw that.
+    function test_the_fill_reads_at_three_to_one_on_its_track() {
+        const meter = createTemporaryObject(meterComponent, testCase, {
+                                                "value": 0.5,
+                                                "color": Theme.accent,
+                                                "trackColor": Qt.alpha(Theme.accent, 0.5),
+                                                "ground": Theme.on.selectedCursor
+                                            });
+        const under = Qt.tint(Theme.on.selectedCursor.ground, meter.trackColor);
+        compare(meter.markColor, Theme.markOn(Theme.accent, under));
+        verify(!Qt.colorEqual(meter.markColor, Theme.accent));
+        compare(meter.face.filled, meter.markColor);
     }
 
     // The table's progress cell drew its bar to the fraction (#171 step 6): `snap: false`.

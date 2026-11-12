@@ -11,7 +11,7 @@ Item {
     objectName: "selectionMarkFaceOmarchy"
 
     Rectangle {
-        color: face.seam.color
+        color: face.seam.markColor
         height: parent.height
         visible: face.seam.rule
         width: face.seam.ruleWidth

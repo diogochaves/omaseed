@@ -163,7 +163,9 @@ Rectangle {
     }
 
     // Keyboard focus rings the chip from outside (review Q6), selected or not.
-    FocusRing {}
+    FocusRing {
+        ground: root.block
+    }
 
     MouseArea {
         id: mouseArea

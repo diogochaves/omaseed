@@ -68,4 +68,14 @@ TestCase {
         verify(corners[0].visible && corners[3].visible);
         verify(!corners[1].visible && !corners[2].visible);
     }
+
+    // #200 (DECISIONS C30, marks): the mark is its colour as a mark reads on its ground.
+    function test_the_mark_is_lifted_on_its_ground() {
+        const mark = createTemporaryObject(markComponent, testCase, {
+                                               "color": Theme.accent
+                                           });
+        compare(mark.markColor, Theme.accent);
+        mark.ground = Theme.on.selectedCursor;
+        compare(mark.markColor, Theme.markOn(Theme.accent, Theme.on.selectedCursor.ground));
+    }
 }

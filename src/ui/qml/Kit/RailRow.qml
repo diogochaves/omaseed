@@ -123,6 +123,7 @@ Rectangle {
     SelectionMark {
         anchors.fill: parent
         color: Theme.accent
+        ground: root.ground
         objectName: "railRowCurrentEdge"
         rule: true
         ruleWidth: Theme.railCurrentEdge

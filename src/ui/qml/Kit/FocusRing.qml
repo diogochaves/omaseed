@@ -16,10 +16,13 @@ Rectangle {
 
     /// Whether the ring is drawn. Defaults to the parent's keyboard focus.
     property bool shown: root.parent ? root.parent.activeFocus : false
+    /// The ground the ring is drawn on, what the control lies in (its `block`): the accent is
+    /// lifted to 3:1 against it only where it falls short (DECISIONS C30, marks, #200).
+    property ThemeInk ground: Theme.on.window
 
     anchors.fill: parent
     anchors.margins: -Theme.focusExtent
-    border.color: Theme.accent
+    border.color: Theme.markOn(Theme.accent, root.ground.ground)
     border.width: Theme.hairWidth
     color: "transparent"
     // Found by name in the tests, which have no other way into a control's children.

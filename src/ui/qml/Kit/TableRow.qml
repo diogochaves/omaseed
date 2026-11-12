@@ -84,6 +84,7 @@ Rectangle {
     SelectionMark {
         anchors.fill: parent
         color: Theme.accent
+        ground: root.ink.ground
         objectName: "tableRowCursor"
         visible: root.hasCursor && root.keysHere
     }

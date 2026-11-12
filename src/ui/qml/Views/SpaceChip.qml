@@ -90,6 +90,7 @@ Item {
     SelectionMark {
         anchors.fill: parent
         cut: Theme.plateKeyCut
+        ground: chip.ground
         visible: chip.isSelected
     }
 

@@ -92,6 +92,7 @@ Item {
 
         // The whole control holds the focus; the ring goes round the track (review Q6).
         FocusRing {
+            ground: root.block
             shown: root.activeFocus
         }
     }

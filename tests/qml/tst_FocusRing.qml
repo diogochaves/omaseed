@@ -55,6 +55,13 @@ TestCase {
         compare(host.ring.color.a, 0);
     }
 
+    // #200 (DECISIONS C30, marks): on a ground of its own, the accent as a mark reads there.
+    function test_the_ring_is_lifted_on_its_ground() {
+        const host = createTemporaryObject(hostComponent, testCase);
+        host.ring.ground = Theme.on.selectedCursor;
+        compare(host.ring.border.color, Theme.markOn(Theme.accent, Theme.on.selectedCursor.ground));
+    }
+
     function test_the_caller_may_bind_when_it_shows() {
         const host = createTemporaryObject(hostComponent, testCase);
         host.ring.shown = true;

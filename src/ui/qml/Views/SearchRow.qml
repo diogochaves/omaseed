@@ -77,6 +77,7 @@ Item {
     SelectionMark {
         anchors.fill: parent
         color: Theme.accent
+        ground: row.ink.ground
         objectName: "searchRowCursor_" + row.index
         visible: row.isCursor
     }

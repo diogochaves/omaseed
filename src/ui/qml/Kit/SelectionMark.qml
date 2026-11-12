@@ -11,6 +11,11 @@ Item {
     id: root
 
     property color color: Theme.litColor
+    /// The ground of what it marks (a row's, a tile's), `Theme.on.window` until the caller says.
+    property ThemeInk ground: Theme.on.window
+    /// What the faces draw with: `color` as a mark reads on `ground`, lifted to 3:1 only where
+    /// it falls short there (DECISIONS C30, marks, #200).
+    readonly property color markColor: Theme.markOn(root.color, root.ground.ground)
     /// Omarchy's face draws its leading rule.
     property bool rule: false
     property int ruleWidth: Theme.litWidth

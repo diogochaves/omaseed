@@ -19,7 +19,7 @@ Canvas {
     readonly property int rows: face.line ? 1 : face.seam.rows
     readonly property real cellHeight: face.line ? face.height : face.seam.cellHeight
     readonly property int have: Math.floor(face.seam.clamped * face.columns * face.rows)
-    readonly property color filled: face.seam.color
+    readonly property color filled: face.seam.markColor
     readonly property color track: Theme.faintColor
     readonly property color arriving: face.seam.arrivingColor
     readonly property var states: face.seam.cells

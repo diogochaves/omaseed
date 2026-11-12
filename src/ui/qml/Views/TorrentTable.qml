@@ -1771,7 +1771,8 @@ Item {
                     readonly property bool onScreen: row.y + row.height > list.contentY
                                                      && row.y < list.contentY + list.height
 
-                    color: Theme.stateSeeding
+                    // A mark: lifted to 3:1 on the row's ground, where it falls short (C30, marks).
+                    color: Theme.markOn(Theme.stateSeeding, band.ink.ground.ground)
                     height: parent.height - 2 * pulseTick.y
                     objectName: "pulse_" + row.index
                     opacity: pulseTick.sending && root.pulseRunning && pulseTick.onScreen
@@ -1919,7 +1920,9 @@ Item {
                     x: root.columnLayout.progress.x
 
                     // The line, the pulse and the ratio tracks are marks, not words: they keep
-                    // the window's colours (DECISIONS C30 lifts text and glyphs only).
+                    // the window's colours where those read at 3:1 on the row's ground (and the
+                    // track over it), lifted only as far as that where they don't (DECISIONS
+                    // C30, marks, #200), where a word takes the ground's 4.5:1 ink.
                     ProgressLine {
                         anchors.left: parent.left
                         anchors.leftMargin: Theme.space(8)
@@ -1927,6 +1930,7 @@ Item {
                         anchors.rightMargin: Theme.space(8)
                         anchors.verticalCenter: parent.verticalCenter
                         color: Theme[row.stateRole]
+                        ground: band.ink.ground
                         height: Theme.rowHeight
                         objectName: "progressLine_" + row.index
                         showText: false
@@ -2202,7 +2206,8 @@ Item {
                                 width: Theme.space(16)
 
                                 Rectangle {
-                                    color: Theme.stateSeeding
+                                    color: Theme.markOn(Theme.stateSeeding,
+                                                        Qt.tint(band.ink.ground.ground, Theme.fill(Theme.fillHover)))
                                     height: parent.height
                                     width: parent.width * Math.max(0, Math.min(1, (textCell.ratio - 1)
                                                                                / (textCell.ratioGoal - 1)))

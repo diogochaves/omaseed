@@ -94,7 +94,9 @@ Rectangle {
         text: root.glyph
     }
 
-    FocusRing {}
+    FocusRing {
+        ground: root.block
+    }
 
     MouseArea {
         id: mouseArea

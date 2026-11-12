@@ -134,6 +134,7 @@ Item {
     SelectionMark {
         anchors.fill: parent
         color: Theme.accent
+        ground: row.ink.ground
         objectName: "libraryRowEdge_" + row.index
         rule: true
         ruleWidth: Theme.libraryRowSelectedEdge
@@ -145,6 +146,7 @@ Item {
     SelectionMark {
         anchors.fill: parent
         color: Theme.accent
+        ground: row.ink.ground
         objectName: "libraryRowCursor_" + row.index
         visible: row.isCursor && row.table.keysHere
     }
@@ -311,7 +313,8 @@ Item {
             spacing: Theme.libraryRowGap
             width: parent.width
 
-            // The progress line: a mark, so it keeps the window's colours (C30 lifts words).
+            // The progress line: a mark, so it keeps the window's colours where they read at
+            // 3:1 on the row's ground and its track, lifted that far where not (C30, marks).
             // The skin's Meter face draws it (Console's: board 46's segmented `.strip`).
             Meter {
                 id: progressLine
@@ -319,6 +322,7 @@ Item {
                 anchors.verticalCenter: parent.verticalCenter
                 color: row.question === TorrentFilterModel.Resting ? Theme.dimForeground
                                                                    : Theme[row.stateRole] ?? Theme.foreground
+                ground: row.ink.ground
                 height: Theme.libraryRowLineThickness
                 objectName: "libraryRowLine_" + row.index
                 trackColor: Theme.fill(Theme.libraryRowLineTrack)

@@ -163,7 +163,9 @@ Rectangle {
         }
     }
 
-    FocusRing {}
+    FocusRing {
+        ground: root.block
+    }
 
     MouseArea {
         id: mouseArea

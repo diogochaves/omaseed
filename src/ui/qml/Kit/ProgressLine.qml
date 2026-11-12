@@ -13,6 +13,9 @@ Item {
 
     property real value: 0
     property color color: Theme.accent
+    /// The ground the line lies on (a row's): the line is lifted to 3:1 against its track over
+    /// it, only where it falls short (Meter, DECISIONS C30, marks, #200).
+    property ThemeInk ground: Theme.on.window
     property bool showText: true
 
     readonly property real _clamped: Math.max(0, Math.min(1, root.value))
@@ -36,6 +39,7 @@ Item {
         anchors.rightMargin: percentText.visible ? Theme.space(8) : 0
         anchors.verticalCenter: parent.verticalCenter
         color: root.color
+        ground: root.ground
         height: Theme.progressLineThickness
         objectName: "progressLineMeter"
         snap: false

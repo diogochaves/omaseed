@@ -10,8 +10,8 @@ Item {
 
     required property Meter seam
 
-    readonly property color filled: face.seam.fillAlpha < 1 ? Qt.alpha(face.seam.color, face.seam.fillAlpha)
-                                                            : face.seam.color
+    readonly property color filled: face.seam.fillAlpha < 1 ? Qt.alpha(face.seam.markColor, face.seam.fillAlpha)
+                                                            : face.seam.markColor
 
     /// A line of cells is a slot per pixel (DetailsPiecesBar's canvas, as it was).
     readonly property int slots: Math.floor(face.width)

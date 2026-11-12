@@ -622,6 +622,7 @@ Item {
                         // Console's brackets (board 46 `.mi.cur::after`).
                         SelectionMark {
                             anchors.fill: parent
+                            ground: menuRow.ink.ground
                             objectName: "menuRowMark"
                             visible: menuRow.filled
                         }

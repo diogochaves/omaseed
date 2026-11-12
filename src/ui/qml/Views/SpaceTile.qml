@@ -168,6 +168,7 @@ Item {
         anchors.fill: parent
         anchors.margins: Theme.spaceTileGap
         cut: Theme.plateKeyCut
+        ground: tile.ground
         objectName: "spaceTileMark"
         visible: tile.isSelected
     }

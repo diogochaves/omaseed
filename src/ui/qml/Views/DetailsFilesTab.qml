@@ -1052,6 +1052,7 @@ Item {
                         // exactly 1, as Format::percentCompact has it (a folder's progress
                         // leaves out what it skips, so a folder that is done is exactly 1).
                         color: row.progress >= 1 ? row.ink.stateSeeding : row.ink.accent
+                        ground: row.ink.ground
                         showText: false
                         value: row.progress
                         visible: !root.compact
