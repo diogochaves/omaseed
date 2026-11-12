@@ -540,6 +540,14 @@ Item {
         logView.showTorrentLines(hash);
     }
 
+    /// SR2's "the log line" (#194): the log face on that line, marked and in view; -1, the
+    /// log as it is.
+    function showLogLine(id: int): void {
+        root.setView("log");
+        if (id >= 0)
+            logView.showLine(id);
+    }
+
     /// The log's `enter` (D13): the line's torrent in the library, its story open (C24 H6).
     function showLogTorrent(hash: string): void {
         root.setView("library");
@@ -2670,7 +2678,7 @@ Item {
             onAddRequested: key => addFlow.addSheet.openFromSearch(App.searchAddable(key))
             onCopyRequested: (text, note) => root.copyText(text, note)
             onLeaveRequested: root.setView(root._viewBeforeSearch === "search" ? "library" : root._viewBeforeSearch)
-            onLogRequested: root.setView("log")
+            onLogRequested: id => root.showLogLine(id)
             onNoteRequested: text => root.flashFooterNote(text)
             onPluginsPaneRequested: settingsModal.openSearchPlugins()
             onPluginsInstallRequested: settingsModal.openSearchPluginsInstall()

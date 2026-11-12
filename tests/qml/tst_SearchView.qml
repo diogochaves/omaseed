@@ -141,6 +141,15 @@ TestCase {
         verify(texts.indexOf("qBittorrent's log, 16:01: “URLError: timed out”") >= 0);
         verify(texts.indexOf("search it again") >= 0);
         verify(texts.indexOf("turn it off…") >= 0);
+        // #194: "the log line" says which line: the failure's in qBittorrent's log.
+        const logSpy = spy(view, "logRequested");
+        const failed = App.search.plugins.find(row => row.name === "plugin_b");
+        verify(failed.logId >= 0);
+        view.answers.activated("log:plugin_b");
+        compare(logSpy.count, 1);
+        compare(logSpy.signalArguments[0][0], failed.logId);
+        mouseClick(findChild(view, "searchDidntAnswer"));
+        tryVerify(() => view.answers.opened);
         view.answers.activated("off:plugin_b");
         verify(!view.answers.opened);
         tryCompare(App.searchPlugins, "enabledCount", 2);

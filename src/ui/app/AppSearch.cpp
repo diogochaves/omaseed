@@ -367,7 +367,8 @@ QVariantMap demoPluginRow(const QString &name,
                           int count,
                           int seconds,
                           const QString &reason = {},
-                          const QString &logTime = {})
+                          const QString &logTime = {},
+                          int logId = -1)
 {
     return {{QStringLiteral("name"), name},
             {QStringLiteral("fullName"), fullName},
@@ -375,7 +376,8 @@ QVariantMap demoPluginRow(const QString &name,
             {QStringLiteral("count"), count},
             {QStringLiteral("seconds"), seconds},
             {QStringLiteral("reason"), reason},
-            {QStringLiteral("logTime"), logTime}};
+            {QStringLiteral("logTime"), logTime},
+            {QStringLiteral("logId"), logId}};
 }
 
 } // namespace
@@ -552,6 +554,27 @@ void App::loadDemoSearch(const QString &stage)
                             t2.mid(0, 1)));
         snapshot.state = SearchSession::State::Done;
         const bool slow = stage == QLatin1String("slow");
+        // SR2's "the log line" (#194): plugin b's failure is a line in the demo's log, added
+        // once, as qBittorrent writes it.
+        int failedLine = -1;
+        core::ServerLog *log = serverLog();
+        if (!slow && log) {
+            const QString message = QStringLiteral(
+                "Error occurred in search engine. Search query: \"open movie night\". Category: "
+                "\"all\". Engines: \"plugin_b\". Error: \"Traceback (most recent call last):\n"
+                "  File \"engines/plugin_b.py\", line 41, in search\nURLError: timed out\n\".");
+            for (int row = 0; row < log->total() && failedLine < 0; ++row)
+                if (log->lineAt(row).message == message)
+                    failedLine = log->lineAt(row).id;
+            if (failedLine < 0) {
+                failedLine = log->lastId() + 1;
+                log->applyEntries(
+                    {QJsonObject{{QStringLiteral("id"), failedLine},
+                                 {QStringLiteral("timestamp"), QDateTime::currentSecsSinceEpoch()},
+                                 {QStringLiteral("type"), 4},
+                                 {QStringLiteral("message"), message}}});
+            }
+        }
         rows = {demoPluginRow(a, QStringLiteral("plugin a"), QStringLiteral("answered"), 7, 2),
                 slow ? demoPluginRow(b, QStringLiteral("plugin b"), QStringLiteral("slow"), 0, -1)
                      : demoPluginRow(b,
@@ -560,7 +583,8 @@ void App::loadDemoSearch(const QString &stage)
                                      0,
                                      3,
                                      QStringLiteral("URLError: timed out"),
-                                     QStringLiteral("16:01")),
+                                     QStringLiteral("16:01"),
+                                     failedLine),
                 demoPluginRow(c, QStringLiteral("plugin c"), QStringLiteral("answered"), 4, 6)};
     }
     snapshot.hits = hits;

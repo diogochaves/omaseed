@@ -17,7 +17,14 @@ Menu {
     signal askAgain(string name)
     signal stopAsking(string name)
     signal turnOff(string name)
-    signal logRequested
+    /// SR2's "the log line": `id` is the failure's line in qBittorrent's log, -1 when it isn't
+    /// known (#194).
+    signal logRequested(int id)
+
+    function _logIdOf(name: string): int {
+        const row = root.pluginRows.find(each => each.name === name);
+        return row && row.logId !== undefined ? row.logId : -1;
+    }
 
     function nameOf(name: string): string {
         const row = root.pluginRows.find(each => each.name === name);
@@ -130,7 +137,7 @@ Menu {
             return;
         root.close();
         if (verb === "log")
-            root.logRequested();
+            root.logRequested(root._logIdOf(name));
         else if (verb === "again")
             root.askAgain(name);
         else if (verb === "stop")

@@ -22,8 +22,9 @@
 // installed" at search/start is the server without Python.
 //
 // Plugin rows are QVariantMaps for QML: {name, fullName, state, count, seconds, reason,
-// logTime}. `state` is "queued", "asking", "answered", "failed", "slow", "stopped" or
-// "skipped" (a type the plugin doesn't have, SR6).
+// logTime, logId}: logId is the failure's line in qBittorrent's log, -1 for none. `state` is
+// "queued", "asking", "answered", "failed", "slow", "stopped" or "skipped" (a type the plugin
+// doesn't have, SR6).
 //
 // A qBittorrent surface (docs/36 §4.4): it takes the engine and talks to its transport. App
 // offers it when EngineFeatures::search says the server can.
@@ -128,8 +129,8 @@ public:
     void restore(const Snapshot &snapshot);
 
     /// A plugin's failure in qBittorrent's log: the newest warning since `sinceSecs` that names
-    /// `plugin` among its engines. `{reason, time}` (the traceback's last line, "HH:MM"), or
-    /// empty.
+    /// `plugin` among its engines. `{reason, time, id}` (the traceback's last line, "HH:MM", the
+    /// line's log id), or empty.
     static QVariantMap
     failureFromLog(const QJsonArray &lines, const QString &plugin, qint64 sinceSecs);
 
@@ -151,6 +152,7 @@ private:
         qint64 answeredMs = -1;
         QString reason;
         QString logTime;
+        int logId = -1;
         bool polling = false;
         bool deleted = false;
         /// Stopped with nothing: shown as asking until the log says failed or "0 results".

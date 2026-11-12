@@ -157,8 +157,9 @@ FocusScope {
     /// C34's accepted call: a plugin turned off in Settings, clicked in the rail: the same pane
     /// on that plugin's row.
     signal pluginPaneRequested(string name)
-    /// qBittorrent's log, for a plugin's failure (SR2's "the log line").
-    signal logRequested
+    /// qBittorrent's log, for a plugin's failure (SR2's "the log line"), on its line `id`
+    /// (-1: the log as it is; #194).
+    signal logRequested(int id)
     signal copyRequested(string text, string note)
     /// A line for the status line's note slot.
     signal noteRequested(string text)
@@ -818,7 +819,7 @@ FocusScope {
         z: 5
 
         onAskAgain: name => App.search.askAgain(name)
-        onLogRequested: root.logRequested()
+        onLogRequested: id => root.logRequested(id)
         onStopAsking: name => App.search.stopAsking(name)
         onTurnOff: name => {
             App.turnOffSearchPlugin(name);

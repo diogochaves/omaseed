@@ -75,6 +75,7 @@ QVariantList SearchSession::pluginRows() const
                        : -1);
         row.insert(QStringLiteral("reason"), job.reason);
         row.insert(QStringLiteral("logTime"), job.logTime);
+        row.insert(QStringLiteral("logId"), job.logId);
         rows.append(row);
     }
     return rows;
@@ -305,7 +306,8 @@ SearchSession::failureFromLog(const QJsonArray &lines, const QString &plugin, qi
         const qint64 when = line.value(QStringLiteral("timestamp")).toInteger();
         return {{QStringLiteral("reason"), reason},
                 {QStringLiteral("time"),
-                 QDateTime::fromSecsSinceEpoch(when).toString(QStringLiteral("HH:mm"))}};
+                 QDateTime::fromSecsSinceEpoch(when).toString(QStringLiteral("HH:mm"))},
+                {QStringLiteral("id"), line.value(QStringLiteral("id")).toInt(-1)}};
     }
     return {};
 }
@@ -497,6 +499,7 @@ void SearchSession::checkFailures()
                     job.state = QStringLiteral("failed");
                     job.reason = failure.value(QStringLiteral("reason")).toString();
                     job.logTime = failure.value(QStringLiteral("time")).toString();
+                    job.logId = failure.value(QStringLiteral("id")).toInt();
                 }
             }
             // Asked again meanwhile: read once more.

@@ -161,12 +161,57 @@ FocusScope {
             root.followNewest();
     }
 
+    /// SR2's "the log line" (#194): line `id` shown whatever narrowed it out, marked, the
+    /// cursor on it and in view. A line not read yet is found when it comes.
+    function showLine(id: int): void {
+        root._pendingLineId = -1;
+        root.following = false;
+        root.lines.clearMarks();
+        root.lines.clearTorrent();
+        root.lines.since = 0;
+        if (root.lines.text.length > 0)
+            root.filterClearRequested();
+        const every = ServerLog.Normal | ServerLog.Info | ServerLog.Warning | ServerLog.Critical;
+        if (root.lines.rowOfId(id) < 0 && root.lines.levels !== every)
+            root.lines.levels = every;
+        if (!root._goToLine(id))
+            root._pendingLineId = id;
+    }
+
+    /// showLine()'s line while the log hasn't brought it yet; given up once a read has come
+    /// without it, or when the person moves on.
+    property int _pendingLineId: -1
+
+    onVisibleChanged: root._pendingLineId = -1
+
+    function _goToLine(id: int): bool {
+        const row = root.lines.rowOfId(id);
+        if (row < 0)
+            return false;
+        root.following = false;
+        root.lines.clearMarks();
+        root.lines.toggleMark(row);
+        root.anchorId = id;
+        root.moveCursor(row);
+        return true;
+    }
+
+    function _settlePendingLine(): void {
+        if (root._pendingLineId < 0 || !root.log.loaded)
+            return;
+        const id = root._pendingLineId;
+        root._pendingLineId = -1;
+        if (!root._goToLine(id))
+            root.noteRequested(qsTr("that line is no longer in the log"));
+    }
+
     function toggleLevel(level: int): void {
         root.lines.toggleLevel(level);
     }
 
     /// `esc`: the marks, then the torrent, then the time, then the words; then back.
     function stepBack(): void {
+        root._pendingLineId = -1;
         if (root.lines.markedCount > 0) {
             root.lines.clearMarks();
             return;
@@ -204,6 +249,7 @@ FocusScope {
 
     /// A click, by the click rules every list follows (docs/DECISIONS.md).
     function clickRow(row: int, modifiers: int): void {
+        root._pendingLineId = -1;
         root.focusLines();
         const ctrl = (modifiers & Qt.ControlModifier) !== 0;
         const shift = (modifiers & Qt.ShiftModifier) !== 0;
@@ -256,6 +302,7 @@ FocusScope {
             } else {
                 root.newLines += count;
             }
+            root._settlePendingLine();
         }
 
         function onCountChanged(): void {
@@ -270,6 +317,7 @@ FocusScope {
             root.cursor = root.lines.count - 1;
             if (root.following)
                 Qt.callLater(root._toEnd);
+            root._settlePendingLine();
         }
     }
 

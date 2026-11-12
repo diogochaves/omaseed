@@ -437,7 +437,8 @@ void TestSearchSessionFake::failureFromLogReadsTheLastLine()
              QStringLiteral("Error occurred in search engine. Engines: \"p_b\". Error: \"old\".")}},
         QJsonObject{{QStringLiteral("timestamp"), 200},
                     {QStringLiteral("message"), QStringLiteral("Something else entirely")}},
-        QJsonObject{{QStringLiteral("timestamp"), 210},
+        QJsonObject{{QStringLiteral("id"), 7},
+                    {QStringLiteral("timestamp"), 210},
                     {QStringLiteral("message"),
                      QStringLiteral("Error occurred in search engine. Search query: \"x\". "
                                     "Category: \"all\". Engines: "
@@ -447,6 +448,8 @@ void TestSearchSessionFake::failureFromLogReadsTheLastLine()
     const QVariantMap failure = SearchSession::failureFromLog(lines, QStringLiteral("p_b"), 100);
     QCOMPARE(failure.value(QStringLiteral("reason")).toString(),
              QStringLiteral("URLError: timed out"));
+    // SR2's "the log line" goes to this line (#194).
+    QCOMPARE(failure.value(QStringLiteral("id")).toInt(), 7);
     QVERIFY(SearchSession::failureFromLog(lines, QStringLiteral("p_c"), 100).isEmpty());
     // Older than the search: not this search's failure.
     QVERIFY(SearchSession::failureFromLog(QJsonArray{lines.at(0)}, QStringLiteral("p_b"), 100)

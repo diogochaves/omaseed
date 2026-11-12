@@ -374,6 +374,47 @@ TestCase {
         verify(App.logLines.count >= 1);
     }
 
+    // #194: SR2's "the log line" on a failed plugin opens the log on that line, marked, with
+    // whatever narrowed it out let go; a line not read yet is found when it comes.
+    function test_a_failed_plugins_log_line_opens_on_it() {
+        App.loadDemoSearch("done");
+        const failed = App.search.plugins.find(row => row.state === "failed");
+        verify(failed !== undefined);
+        const id = failed.logId;
+        verify(id >= 0, "the demo's failed plugin has no line in the log");
+        // Narrowed elsewhere first: only critical lines, of one torrent.
+        App.logLines.levels = ServerLog.Critical;
+        App.logLines.setTorrent(App.filtered.hashAt(0));
+        view.setView("search");
+        findChild(view, "searchView").answers.activated("log:" + failed.name);
+
+        compare(view.view, "log");
+        compare(App.logLines.torrentHash, "");
+        compare(App.logLines.levels, 15);
+        const row = App.logLines.rowOfId(id);
+        verify(row >= 0);
+        compare(testCase.logView.cursor, row);
+        compare(App.logLines.markedCount, 1);
+        verify(App.logLines.isMarked(row));
+        verify(App.logLines.messageAt(row).indexOf("plugin_b") >= 0);
+        // `esc` lets the mark go first.
+        keyClick(Qt.Key_Escape);
+        compare(App.logLines.markedCount, 0);
+        compare(view.view, "log");
+
+        // A line the log hasn't brought yet: the cursor goes to it when it comes.
+        const next = App.serverLog.lastId() + 1;
+        testCase.logView.showLine(next);
+        testCase.addLines(1, 4, "Error occurred in search engine. Engines: \"plugin_c\".");
+        compare(testCase.logView.cursor, App.logLines.rowOfId(next));
+        verify(App.logLines.isMarked(testCase.logView.cursor));
+        // One that never comes says so once a read has come without it.
+        testCase.logView.showLine(next + 100);
+        testCase.addLines(1, 1, "Something else");
+        compare(view.footerNote, "that line is no longer in the log");
+        App.loadDemoSearch("off");
+    }
+
     // `w` and `W`: the next and previous warning or critical line.
     function test_w_jumps_between_warnings() {
         testCase.openLog();
