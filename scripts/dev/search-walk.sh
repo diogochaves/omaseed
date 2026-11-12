@@ -12,6 +12,8 @@
 #                                               # script still presses the keys, then says what
 #                                               # to check and waits for enter
 #   OMASEED_BUILD=DIR                           # the build to run (default build/)
+#   OMASEED_SEARCH_WALK_FROM=nopython           # only the last stage: plugin a installed
+#                                               # through the API, then no Python
 #
 # The box comes from `scripts/dev/app-box.sh up --qbt` (qbittorrent-nox on the box's
 # 127.0.0.1:8090, an empty library, reaching only the swarm's tracker and seeder). The steps:
@@ -35,7 +37,10 @@
 #     focused, esc back to the search;
 #   - ctrl+b folds the rail: plugins ▾ and type ▾ back in the bar, and plugins ▾ › "manage
 #     plugins…" (C34 D20 a): the pane with its install field focused (a path typed in with no
-#     click starts an install), esc back to the search.
+#     click starts an install), esc back to the search;
+#   - no Python (SR13): Python gone from under the box's qBittorrent (restarted with a python3 link
+#     alone on its PATH, then the link removed); a search: "qBittorrent can't run plugins here";
+#     the link back, a search clears it.
 # Each check reads the box's qBittorrent; any failed check makes the script exit 1. The box goes
 # down at the end, also on ^C.
 set -euo pipefail
@@ -51,6 +56,11 @@ QBT_PORT=8090 # app-box.sh's qBittorrent in the box
 API="http://127.0.0.1:$QBT_PORT/api/v2"
 PLUGINS=/home/sbx/search-plugins # where the plugins are, inside the box
 refuse_home "$QBT_PORT"
+FROM="${OMASEED_SEARCH_WALK_FROM:-}"
+case "$FROM" in
+"" | nopython) ;;
+*) echo "OMASEED_SEARCH_WALK_FROM: nopython, or unset for the whole walk" >&2; exit 2 ;;
+esac
 INTERACTIVE=0
 OUT=""
 case "${1:-}" in
@@ -197,6 +207,70 @@ install() {
     keys ctrl+a -t "$1" Return
 }
 
+# qbt_answers: "up" while the box's qBittorrent answers, "down" once it doesn't.
+qbt_answers() {
+    [ -n "$(api app/version)" ] && echo up || echo down
+}
+
+# plugins_listed: "yes" while the box's qBittorrent lists a plugin that is on.
+plugins_listed() {
+    api search/plugins | python3 -c 'import json, sys; print("yes" if any(p["enabled"] for p in json.load(sys.stdin)) else "no")' 2>/dev/null || echo no
+}
+
+# set_python PATH: the box's qBittorrent's Python preference ("" for python3 on its PATH). A
+# change makes qBittorrent look for its Python again at the next search.
+set_python() {
+    api app/setPreferences -X POST --data-urlencode "json={\"python_executable_path\":\"$1\"}" >/dev/null
+}
+
+# ---- no Python (SR13) ---------------------------------------------------------------------------
+# qBittorrent 5.3 refuses search/start with 409 "Python must be installed…" only when it finds no
+# Python at all (one under its minimum is logged, and searches anyway); with none from the start
+# it lists no plugins either, and omaseed says "No search plugins". The state omaseed names is
+# Python gone from under a qBittorrent that listed its plugins: the box's qBittorrent restarted
+# with a PATH holding only a python3 link, which then goes, and its preference pointed at nothing
+# so it looks again. The link back and the preference empty, it finds Python at the next search.
+# Needs a plugin that is on; the last stage, as it restarts the box's qBittorrent.
+no_python() {
+    local dir
+    dir="$(omabox path -b "$BOX")/home/no-python"
+    mkdir -p "$dir"
+    ln -sfn /usr/bin/python3 "$dir/python3"
+    api app/shutdown -X POST >/dev/null
+    wait_for "the box's qBittorrent shut down" down 20 qbt_answers
+    omabox run -b "$BOX" -d -- env PATH=/home/sbx/no-python /usr/bin/qbittorrent-nox >/dev/null 2>&1
+    wait_for "the box's qBittorrent started again, a python3 alone on its PATH" up 20 qbt_answers
+    wait_for "its plugins listed" yes 20 plugins_listed
+    # omaseed tries again on its own clock: connected before the search is asked.
+    check "omaseed back on the box's qBittorrent" \
+        "$(wait_gone "box is unreachable" 30 && echo connected || echo unreachable)" connected
+    rm -f "$dir/python3"
+    set_python /home/sbx/no-python/python3
+    keys ctrl+f ctrl+a -t "sampler" Return
+    shows "no Python: the empty state says so" "qBittorrent can't run plugins here" 20
+    shows "no Python: the plugins… link" "the plugins…" 5
+    step "No Python" "The search face's empty state: 'qBittorrent can't run plugins here', its words (search plugins are Python, box's machine has no Python, qBittorrent said so when the search started; install Python 3 there, nothing changes in omaseed) and 'the plugins…'. No rows, no plugins' line."
+    ln -sfn /usr/bin/python3 "$dir/python3"
+    set_python ""
+    keys ctrl+f ctrl+a -t "sampler" Return
+    check "Python back: a search asks again" "$(wait_gone "qBittorrent can't run plugins here" 20 && echo asked || echo stuck)" asked
+}
+
+# finish: the shell's state, the library, and the verdict.
+finish() {
+    # A crashed shell leaves windows over omaseed's that no check here sees: say so.
+    check "the box's shell never crashed" \
+        "$(compgen -G "$(omabox path -b "$BOX")/home/.cache/quickshell/crashes/*" >/dev/null && echo crashed || echo fine)" fine
+    echo "the box's library at the end:"
+    api torrents/info | python3 -c 'import json, sys; [print("  ", t["name"], t["state"]) for t in json.load(sys.stdin)]' || true
+    echo
+    if [ "$FAILED" -gt 0 ]; then
+        echo "search walk: $FAILED check(s) FAILED${OUT:+; see $OUT/checks.md}" >&2
+        exit 1
+    fi
+    echo "search walk: every check passed${OUT:+; shots and notes in $OUT/index.md}"
+}
+
 cleanup() {
     [ -z "$OUT" ] || "$repo/scripts/dev/look.sh" "$OUT" || true  # copies to Read (#251)
     "$APP_BOX" down -b "$BOX" >/dev/null 2>&1 || true
@@ -234,6 +308,14 @@ PY
 omabox pointer -b "$BOX" -- move 5 5 >/dev/null 2>&1 || true
 # The invented plugins, in the box's HOME; plugin d answers after 40 s.
 python3 -I "$repo/scripts/dev/search-plugins.py" make "$(omabox path -b "$BOX")/home/search-plugins" --slow 40 >/dev/null
+
+if [ "$FROM" = nopython ]; then
+    api search/installPlugin -X POST --data-urlencode "sources=$PLUGINS/omaseed_plugin_a.py" >/dev/null
+    wait_for "plugin a installed through the API" on 15 plugin_state omaseed_plugin_a
+    no_python
+    finish
+    exit 0
+fi
 
 # ---- no plugins (SR13) ------------------------------------------------------------------------
 keys ctrl+f
@@ -413,14 +495,5 @@ check "esc from the pane: settings closed" "$(find_text "a search plugin to inst
 shows "esc from the pane: back in search" "sampler commentary track" 5
 step "Back in the search" "The search face as it was: the rail folded, the field focused with sampler, its rows; no Settings."
 
-# A crashed shell leaves windows over omaseed's that no check here sees: say so.
-check "the box's shell never crashed" \
-    "$(compgen -G "$(omabox path -b "$BOX")/home/.cache/quickshell/crashes/*" >/dev/null && echo crashed || echo fine)" fine
-echo "the box's library at the end:"
-api torrents/info | python3 -c 'import json, sys; [print("  ", t["name"], t["state"]) for t in json.load(sys.stdin)]' || true
-echo
-if [ "$FAILED" -gt 0 ]; then
-    echo "search walk: $FAILED check(s) FAILED${OUT:+; see $OUT/checks.md}" >&2
-    exit 1
-fi
-echo "search walk: every check passed${OUT:+; shots and notes in $OUT/index.md}"
+no_python
+finish
