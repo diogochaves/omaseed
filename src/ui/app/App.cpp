@@ -1213,6 +1213,9 @@ QVariantMap App::torrentRow(const QString &hash) const
     row.insert(QStringLiteral("shareLimitAction"), torrent.shareLimitAction);
     row.insert(QStringLiteral("sizeText"), Format::size(torrent.size));
     row.insert(QStringLiteral("progressText"), Format::percent(torrent.progress));
+    // #189: the fraction itself, so the story's pieces line can tell when the wanted progress
+    // and the pieces' share part ways (skipped files) and say what its percent counts.
+    row.insert(QStringLiteral("progress"), torrent.progress);
     row.insert(QStringLiteral("ratioText"), Format::ratio(torrent.ratio));
     row.insert(QStringLiteral("etaLongText"),
                torrent.hasEta() ? Format::eta(torrent.eta) : QStringLiteral("—"));

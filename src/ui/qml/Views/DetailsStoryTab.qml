@@ -56,6 +56,17 @@ Flickable {
     readonly property bool hasFailure: (root.failure.headline || "").length > 0
     readonly property bool hasMove: (root.lastMove.id || "").length > 0
     readonly property bool hasBar: root.details !== null && root.details.pieceCount > 0
+    /// #189 (ruled 2026-11-12): the percent is the wanted progress and the bar counts every
+    /// piece, so with skipped files they can part ways ("384 of 512" beside "100 %"). Then the
+    /// percent says what it counts, "100 % of wanted"; while the two read the same, or every
+    /// file is wanted, it stays the plain percent.
+    readonly property bool someSkipped: root.details !== null && root.details.files.skippedCount > 0
+    readonly property string progressText: root.torrent ? (root.torrent.progressText ?? "") : ""
+    readonly property bool wantedDiffers: root.someSkipped && root.details.pieceCount > 0
+                                          && root._tenths(root.torrent?.progress ?? 0)
+                                          !== root._tenths(root.details.piecesHaveCount / root.details.pieceCount)
+    readonly property string percentText: root.wantedDiffers ? qsTr("%1 of wanted").arg(root.progressText)
+                                                             : root.progressText
     /// #246: the time's column fits the longest time the story writes ("yesterday 09:15",
     /// "22 Oct 17:26", "22 Oct 2025"), measured in the time's own font, and is never narrower
     /// than the skin's column, so a story of today's times keeps it.
@@ -72,6 +83,14 @@ Flickable {
     contentWidth: width
     implicitHeight: Theme.space(200)
     implicitWidth: Theme.space(300)
+
+    /// A fraction as the percent shows it, in tenths (core::Format::percentCompact): truncated,
+    /// 100 only when whole, so two fractions compare as their words would.
+    function _tenths(fraction: real): int {
+        if (!(fraction > 0))
+            return 0;
+        return fraction >= 1 ? 1000 : Math.min(999, Math.floor(fraction * 1000 + 1e-6));
+    }
 
     Column {
         id: column
@@ -121,7 +140,7 @@ Flickable {
             details: root.details
             haveText: root.details ? (root.details.properties.piecesHave || "") : ""
             objectName: "piecesBar"
-            percentText: root.torrent ? root.torrent.progressText : ""
+            percentText: root.percentText
             visible: root.hasBar
             width: parent.width
         }

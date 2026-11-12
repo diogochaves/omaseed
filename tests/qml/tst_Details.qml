@@ -708,6 +708,45 @@ TestCase {
         view.width = 340;
     }
 
+    // #189 (ruled 2026-11-12): when skipped files part the wanted progress from the pieces'
+    // share, the percent says it counts the wanted; the bar keeps counting pieces. With every
+    // file wanted, or while the two read the same, it is the plain percent.
+    function test_the_pieces_percent_says_of_wanted_only_with_skipped_files() {
+        // Every file wanted: plain, even where the progress and the pieces read apart.
+        let view = testCase.select(testCase.archName);
+        let percent = findChild(view, "piecesPercent");
+        compare(App.details.files.skippedCount, 0);
+        compare(percent.text, "48.9 %");
+        view.torrent = Object.assign({}, view.torrent, {"progress": 1, "progressText": "100 %"});
+        compare(percent.text, "100 %");
+
+        // Two skipped subtitles: a wanted progress apart from the pieces' share says so.
+        view = testCase.select(testCase.bbbName);
+        percent = findChild(view, "piecesPercent");
+        verify(App.details.files.skippedCount > 0);
+        verify(App.details.pieceCount > 0);
+        const share = App.details.piecesHaveCount / App.details.pieceCount;
+        const row = view.torrent;
+        const apart = share >= 1 ? 0.75 : 1;
+        const apartText = share >= 1 ? "75.0 %" : "100 %";
+        view.torrent = Object.assign({}, row, {"progress": apart, "progressText": apartText});
+        compare(percent.text, apartText + " of wanted");
+        compare(findChild(view, "piecesBar").percentText, apartText + " of wanted");
+        // The same figure as the pieces' (in the percent's tenths): nothing to tell apart.
+        view.torrent = Object.assign({}, row, {"progress": share, "progressText": "same"});
+        compare(percent.text, "same");
+
+        // The words never meet the longer percent in a narrow pane.
+        view.torrent = Object.assign({}, row, {"progress": apart, "progressText": apartText});
+        const label = findChild(view, "piecesLabel");
+        for (const width of [340, 240, 200]) {
+            view.width = width;
+            wait(0);
+            verify(label.x + label.width < percent.x, "the head ran into the percent at " + width);
+        }
+        view.width = 340;
+    }
+
     // docs/12 G3: the pieces bar is in the story (C24 H6), drawn from the demo's piece states.
     function test_the_pieces_bar_is_in_the_story() {
         const view = testCase.select(testCase.archName);
