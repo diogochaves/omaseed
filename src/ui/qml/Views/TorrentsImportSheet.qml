@@ -16,6 +16,11 @@ import Omaseed.Kit
 // start the complete ones, or leave them stopped. A "+" line says which categories and tags are
 // created first.
 //
+// A file another engine wrote (docs/57 §5, docs/DECISIONS.md C40 X4, X5; #88; `info.crossing`)
+// adds two blocks between "save paths" and "then": what each of its names becomes here (not
+// editable; the first `namesShown`, then "and N more"), and what this server can't keep, one
+// counted "!" line per thing or the one line saying everything has a place.
+//
 //     TorrentsImportSheet { anchors.fill: parent; onApplied: … }
 //
 // Do NOT run `qmlformat` on this file: with the project's 100-column wrap it re-indents the
@@ -38,6 +43,12 @@ Sheet {
     signal applied
 
     readonly property var plan: sheet.info.plan ?? []
+    /// C40 X4, X5: the file is another engine's.
+    readonly property bool crossing: sheet.info.crossing === true
+    readonly property var names: sheet.info.names ?? []
+    readonly property var losses: sheet.info.losses ?? []
+    /// How many names the block lists before "and N more".
+    readonly property int namesShown: 8
     readonly property int importCount: sheet.info.importCount ?? 0
     readonly property string importText: sheet.importCount > 0 ? qsTr("import %1").arg(sheet.importCount)
                                                                : qsTr("nothing to import")
@@ -313,6 +324,142 @@ Sheet {
             objectName: "pathsNote"
             size: "small"
             text: sheet.pathsNote
+            wrapMode: Text.WordWrap
+        }
+    }
+
+    // ---- categories and tags (C40 X4) ---------------------------------------------------------
+    Label {
+        Layout.fillWidth: true
+        Layout.topMargin: Theme.space(6)
+        objectName: "namesTitle"
+        text: sheet.info.namesTitle ?? ""
+        tracked: true
+        visible: sheet.crossing && sheet.names.length > 0
+    }
+
+    Repeater {
+        model: sheet.crossing ? sheet.names.slice(0, sheet.namesShown) : []
+
+        delegate: RowLayout {
+            id: nameRow
+
+            required property var modelData
+            required property int index
+
+            // One label per name ("music label"), what it becomes the description.
+            Accessible.description: nameRow.modelData.to ?? ""
+            Accessible.name: (nameRow.modelData.name ?? "") + " " + (nameRow.modelData.kind ?? "")
+            Accessible.role: Accessible.StaticText
+            Layout.fillWidth: true
+            objectName: "nameRow-" + nameRow.index
+            spacing: Theme.space(8)
+
+            Label {
+                Layout.maximumWidth: Theme.space(260)
+                bright: true
+                elide: Text.ElideRight
+                objectName: "nameFrom"
+                text: nameRow.modelData.name ?? ""
+            }
+
+            Label {
+                dim: true
+                objectName: "nameKind"
+                size: "small"
+                text: nameRow.modelData.kind ?? ""
+            }
+
+            Label {
+                dim: true
+                text: Glyphs.arrowRight
+            }
+
+            Label {
+                Layout.fillWidth: true
+                bright: nameRow.modelData.left !== true
+                dim: nameRow.modelData.left === true
+                elide: Text.ElideRight
+                objectName: "nameTo"
+                text: nameRow.modelData.to ?? ""
+            }
+        }
+    }
+
+    Label {
+        Accessible.name: text
+        Accessible.role: Accessible.StaticText
+        Layout.fillWidth: true
+        dim: true
+        objectName: "namesMore"
+        size: "small"
+        text: qsTr("and %1 more").arg(sheet.names.length - sheet.namesShown)
+        visible: sheet.crossing && sheet.names.length > sheet.namesShown
+    }
+
+    // ---- can't be kept (C40 X5) ---------------------------------------------------------------
+    Label {
+        Layout.fillWidth: true
+        Layout.topMargin: Theme.space(6)
+        objectName: "lostTitle"
+        text: sheet.info.lostTitle ?? ""
+        tracked: true
+        visible: sheet.crossing
+    }
+
+    Repeater {
+        model: sheet.crossing ? sheet.losses : []
+
+        delegate: RowLayout {
+            id: lossRow
+
+            required property string modelData
+            required property int index
+
+            Layout.fillWidth: true
+            objectName: "lossRow-" + lossRow.index
+            spacing: Theme.space(8)
+
+            Label {
+                Layout.alignment: Qt.AlignTop
+                color: Theme.yellow
+                size: "small"
+                text: "!"
+            }
+
+            Label {
+                Accessible.name: text
+                Accessible.role: Accessible.StaticText
+                Layout.fillWidth: true
+                dim: true
+                objectName: "lossText"
+                size: "small"
+                text: lossRow.modelData
+                wrapMode: Text.WordWrap
+            }
+        }
+    }
+
+    RowLayout {
+        Layout.fillWidth: true
+        spacing: Theme.space(8)
+        visible: sheet.crossing && sheet.losses.length === 0
+
+        Label {
+            Layout.alignment: Qt.AlignTop
+            color: Theme.green
+            size: "small"
+            text: Glyphs.check
+        }
+
+        Label {
+            Accessible.name: text
+            Accessible.role: Accessible.StaticText
+            Layout.fillWidth: true
+            dim: true
+            objectName: "lossNone"
+            size: "small"
+            text: sheet.info.kept ?? ""
             wrapMode: Text.WordWrap
         }
     }

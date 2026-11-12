@@ -4,6 +4,7 @@
 #include "ui/app/App.hpp"
 
 #include "core/Format.hpp"
+#include "core/LibraryCrossing.hpp"
 #include "core/OmaseedBackup.hpp"
 #include "core/Version.hpp"
 #include "core/engines/qbt/QbtEngine.hpp"
@@ -34,6 +35,120 @@ QString tr(const char *text)
 QString count(int n, const char *one, const char *many)
 {
     return n == 1 ? tr(one) : tr(many).arg(n);
+}
+
+/// An engine a file or a server names, one this build doesn't know read as qBittorrent
+/// (docs/DECISIONS.md C40 X1).
+EngineKind knownEngine(EngineKind kind)
+{
+    return kind == EngineKind::Unknown ? EngineKind::Qbittorrent : kind;
+}
+
+/// The saved server a torrents file was exported from (its manifest's address), when it is
+/// one omaseed knows other than `self`.
+std::optional<Server>
+savedSource(const QList<Server> &servers, const QString &self, const TorrentsManifest &manifest)
+{
+    const QString key = OmaseedBackup::addressKey(QUrl(manifest.serverUrl));
+    for (const Server &server : servers) {
+        if (server.id != self && OmaseedBackup::addressKey(server.url) == key)
+            return server;
+    }
+    return std::nullopt;
+}
+
+/// "category", "tag" or "label".
+QString nameKindText(LibraryCrossing::NameKind kind)
+{
+    switch (kind) {
+    case LibraryCrossing::NameKind::Category:
+        return tr("category");
+    case LibraryCrossing::NameKind::Tag:
+        return tr("tag");
+    case LibraryCrossing::NameKind::Label:
+        break;
+    }
+    return tr("label");
+}
+
+/// The names block of a crossing import (docs/57 §5, C40 X4): one row per thing a source
+/// name becomes on `to`, `{name, kind, to, left}`.
+QVariantList crossingNames(EngineKind from, EngineKind to, const QList<TorrentRecord> &records)
+{
+    QVariantList out;
+    for (const LibraryCrossing::Name &name : LibraryCrossing::names(from, to, records)) {
+        for (const LibraryCrossing::Outcome &outcome : name.outcomes) {
+            QString target = outcome.name;
+            // As TorrentsImport::groupingHere sends it: qBittorrent takes no comma in a tag.
+            if (to == EngineKind::Qbittorrent && outcome.kind == LibraryCrossing::NameKind::Tag)
+                target = target.replace(QLatin1Char(','), QLatin1Char(' ')).simplified();
+            out.append(QVariantMap{
+                {QStringLiteral("name"), name.name},
+                {QStringLiteral("kind"), nameKindText(name.kind)},
+                {QStringLiteral("to"),
+                 outcome.kept
+                     ? QStringLiteral("%1 %2").arg(nameKindText(outcome.kind), target)
+                     : tr("left behind")},
+                {QStringLiteral("left"), !outcome.kept}});
+        }
+    }
+    return out;
+}
+
+/// The "can't be kept" lines of a crossing import (C40 X5): one counted line per thing `to`
+/// has no counterpart for. Empty when it keeps everything.
+QStringList crossingLosses(EngineKind from, EngineKind to, const QList<TorrentRecord> &records)
+{
+    const QString engine = engineDisplayName(to);
+    // `one` names the engine as %1; `many` the count as %1 and the engine as %2.
+    const auto line = [&engine](int n, const char *one, const char *many) {
+        return n == 1 ? tr(one).arg(engine) : tr(many).arg(n).arg(engine);
+    };
+    QStringList out;
+    for (const LibraryCrossing::Loss &loss : LibraryCrossing::losses(from, to, records)) {
+        const int n = loss.torrents;
+        switch (loss.kind) {
+        case LibraryCrossing::LossKind::SeedingTimeLimit:
+            out.append(line(n,
+                            "1 has a seeding-time limit: %1 has none",
+                            "%1 have a seeding-time limit: %2 has none"));
+            break;
+        case LibraryCrossing::LossKind::IdleLimit:
+            out.append(
+                line(n, "1 has an idle limit: %1 has none", "%1 have an idle limit: %2 has none"));
+            break;
+        case LibraryCrossing::LossKind::ShareLimitAction:
+            out.append(to == EngineKind::Deluge
+                           ? line(n,
+                                  "1 does something other than stop at its limit: %1 stops or "
+                                  "removes",
+                                  "%1 do something other than stop at their limit: %2 stops or "
+                                  "removes")
+                           : line(n,
+                                  "1 does something other than stop at its limit: %1 only stops",
+                                  "%1 do something other than stop at their limit: %2 only "
+                                  "stops"));
+            break;
+        case LibraryCrossing::LossKind::AutoManagement:
+            out.append(count(n,
+                             "1 is managed automatically by its category's folder: it keeps the "
+                             "folder it is in",
+                             "%1 are managed automatically by their category's folder: they keep "
+                             "the folder they are in"));
+            break;
+        case LibraryCrossing::LossKind::IncompleteFolder:
+            out.append(line(n,
+                            "1 has an incomplete folder of its own: %1 has none",
+                            "%1 have an incomplete folder of their own: %2 has none"));
+            break;
+        case LibraryCrossing::LossKind::GroupingNames:
+            out.append(line(n,
+                            "1 has tags or labels %1 can't keep: it keeps one label",
+                            "%1 have tags or labels %2 can't keep: it keeps one label"));
+            break;
+        }
+    }
+    return out;
 }
 
 /// `path` with the home folder written as `~`.
@@ -317,16 +432,12 @@ QVariantMap App::torrentsImportInfo()
     // D7 a: the rows start from the path maps omaseed has (DECISIONS C9).
     std::optional<PathMap> source;
     QString sourceName;
-    const QString key = OmaseedBackup::addressKey(QUrl(file.manifest.serverUrl));
-    for (const Server &server : m_servers->servers()) {
-        if (server.id != m_server.id && OmaseedBackup::addressKey(server.url) == key) {
-            PathMap map;
-            for (const PathMapping &m : server.pathMap)
-                map.addMapping(m.remote, m.local);
-            source = map;
-            sourceName = server.name;
-            break;
-        }
+    if (const auto saved = savedSource(m_servers->servers(), m_server.id, file.manifest)) {
+        PathMap map;
+        for (const PathMapping &m : saved->pathMap)
+            map.addMapping(m.remote, m.local);
+        source = map;
+        sourceName = saved->name;
     }
     const PathMap target = pathMapEnabled() ? serverPathMap() : PathMap();
     QVariantList paths;
@@ -361,16 +472,47 @@ QVariantMap App::torrentsImportInfo()
     // docs/34 D2 a: whose torrents these are, from the file's manifest, and when.
     const QString fileName = QFileInfo(file.path).fileName();
     const QString from = file.manifest.serverName;
-    const QString fromText =
-        from.isEmpty() || !file.manifest.created.isValid()
-            ? tr("From %1 (qBittorrent %2).").arg(fileName, version)
-            : tr("From %1's export of %2 (qBittorrent %3), %4.")
-                  .arg(from,
-                       QLocale::c().toString(file.manifest.created.toLocalTime(),
-                                             QStringLiteral("d MMM yyyy HH:mm")),
-                       version,
-                       fileName);
+    // docs/57 §5 (DECISIONS C40 X4, X5): a file another engine wrote says so after its name,
+    // and the sheet gains what its names become here and what this server can't keep.
+    const EngineKind fileEngine = knownEngine(file.manifest.engine);
+    const EngineKind hereEngine = knownEngine(m_server.engine);
+    const bool crossing = fileEngine != hereEngine;
+    const QString engineName = engineDisplayName(fileEngine);
+    const QString when = QLocale::c().toString(file.manifest.created.toLocalTime(),
+                                               QStringLiteral("d MMM yyyy HH:mm"));
+    const bool plain = from.isEmpty() || !file.manifest.created.isValid();
+    QString fromText;
+    if (crossing) {
+        const QString engineText = file.manifest.version.isEmpty()
+                                       ? engineName
+                                       : QStringLiteral("%1 %2").arg(engineName, version);
+        fromText = plain ? tr("From %1 · %2").arg(fileName, engineText)
+                         : tr("From %1's export of %2, %3 · %4")
+                               .arg(from, when, fileName, engineText);
+    } else {
+        fromText = plain ? tr("From %1 (qBittorrent %2).").arg(fileName, version)
+                         : tr("From %1's export of %2 (qBittorrent %3), %4.")
+                               .arg(from, when, version, fileName);
+    }
+    QVariantList names;
+    QStringList losses;
+    if (crossing) {
+        names = crossingNames(fileEngine, hereEngine, file.records);
+        losses = crossingLosses(fileEngine, hereEngine, file.records);
+    }
+    const QString hereName = engineDisplayName(hereEngine);
     return {{QStringLiteral("ok"), true},
+            {QStringLiteral("engine"), engineName},
+            {QStringLiteral("crossing"), crossing},
+            {QStringLiteral("namesTitle"),
+             hereEngine == EngineKind::Qbittorrent ? tr("categories and tags") : tr("labels")},
+            {QStringLiteral("names"), names},
+            {QStringLiteral("lostTitle"), tr("can't be kept on %1").arg(hereName)},
+            {QStringLiteral("losses"), losses},
+            {QStringLiteral("kept"),
+             crossing && losses.isEmpty()
+                 ? tr("Everything in the file has a place on %1.").arg(hereName)
+                 : QString()},
             {QStringLiteral("title"),
              n == 1 ? tr("Import 1 torrent into %1").arg(name)
                     : tr("Import %1 torrents into %2").arg(n).arg(name)},
@@ -446,6 +588,10 @@ void App::applyTorrentsImport(const QVariantMap &choice)
     m_torrentsImport = import;
     const QString name = m_server.name;
     const int total = m_torrentsPlan.count();
+    // docs/DECISIONS.md C40 X8: the server the file came from, when omaseed has it saved. The
+    // import never talks to it; the result only says the torrents are still there.
+    const auto saved = savedSource(m_servers->servers(), m_server.id, m_torrentsFile->manifest);
+    const QString old = saved ? saved->name : QString();
     setTorrentsRunning(QStringLiteral("import"), tr("importing into %1…").arg(name));
     connect(
         import, &TorrentsImport::progress, this, [this](const QString &phase, int done, int of) {
@@ -458,7 +604,7 @@ void App::applyTorrentsImport(const QVariantMap &choice)
         import,
         &TorrentsImport::finished,
         this,
-        [this, import, name, total](const TorrentsImport::Outcome &o) {
+        [this, import, name, total, old](const TorrentsImport::Outcome &o) {
             import->deleteLater();
             setTorrentsRunning(QString());
             QStringList parts;
@@ -508,6 +654,10 @@ void App::applyTorrentsImport(const QVariantMap &choice)
                                                 : tr("Not done: %1, and %2 more.")
                                                       .arg(o.errors.constFirst())
                                                       .arg(o.errors.size() - 1));
+            if (!old.isEmpty() && !parts.isEmpty())
+                text += QLatin1Char(' ') + tr("They are still on %1. Unfinished ones stay stopped "
+                                              "here until you stop or remove them there.")
+                                               .arg(old);
             qInfo().noquote() << QStringLiteral("torrents: %1").arg(text);
             m_torrentsFile.reset();
             Q_EMIT torrentsImportFinished(text,

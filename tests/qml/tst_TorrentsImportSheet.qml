@@ -165,6 +165,95 @@ TestCase {
         verify(sheet.opened);
     }
 
+    /// A Transmission's file read for a qBittorrent (docs/57 §5, C40 X4, X5), as App hands it.
+    function crossingInfo() {
+        const map = info();
+        map.sub = "From box's export of 11 Nov 2026 10:00, box.omaseed-torrents · Transmission 4.1.3";
+        map.crossing = true;
+        map.engine = "Transmission";
+        map.namesTitle = "categories and tags";
+        map.names = [
+            { "name": "music", "kind": "label", "to": "category music", "left": false },
+            { "name": "flac", "kind": "label", "to": "tag flac", "left": false },
+            { "name": "Field Recordings", "kind": "label", "to": "left behind", "left": true }
+        ];
+        map.lostTitle = "can't be kept on qBittorrent";
+        map.losses = [];
+        map.kept = "Everything in the file has a place on qBittorrent.";
+        return map;
+    }
+
+    // C40 X4, X5: a file another engine wrote shows what its names become and what can't be
+    // kept; the head names the engine.
+    function test_a_crossing_shows_names_and_losses() {
+        const sheet = createTemporaryObject(sheetComponent, testCase);
+        sheet.openFor(crossingInfo());
+        verify(sheet.subtitle.endsWith("· Transmission 4.1.3"));
+        tryVerify(() => findChild(sheet, "namesTitle").visible);
+        compare(findChild(sheet, "namesTitle").text, "categories and tags");
+        const first = findChild(sheet, "nameRow-0");
+        compare(findChild(first, "nameFrom").text, "music");
+        compare(findChild(first, "nameKind").text, "label");
+        compare(findChild(first, "nameTo").text, "category music");
+        compare(first.Accessible.name, "music label");
+        compare(first.Accessible.description, "category music");
+        compare(findChild(findChild(sheet, "nameRow-1"), "nameTo").text, "tag flac");
+        const left = findChild(findChild(sheet, "nameRow-2"), "nameTo");
+        compare(left.text, "left behind");
+        verify(left.dim);
+        verify(!findChild(sheet, "namesMore").visible);
+        // Nothing lost: the one line, no "!" rows.
+        verify(findChild(sheet, "lostTitle").visible);
+        compare(findChild(sheet, "lostTitle").text, "can't be kept on qBittorrent");
+        tryVerify(() => findChild(sheet, "lossNone").visible);
+        compare(findChild(sheet, "lossNone").text, "Everything in the file has a place on qBittorrent.");
+        compare(findChild(sheet, "lossNone").Accessible.role, Accessible.StaticText);
+        compare(findChild(sheet, "lossRow-0"), null);
+    }
+
+    // X5: one counted line per thing the server can't keep, in place of the all-fine line.
+    function test_a_crossing_lists_what_cant_be_kept() {
+        const sheet = createTemporaryObject(sheetComponent, testCase);
+        const map = crossingInfo();
+        map.namesTitle = "labels";
+        map.lostTitle = "can't be kept on Deluge";
+        map.losses = ["14 have a seeding-time limit: Deluge has none", "9 have an idle limit: Deluge has none"];
+        map.kept = "";
+        sheet.openFor(map);
+        compare(findChild(sheet, "namesTitle").text, "labels");
+        tryVerify(() => findChild(sheet, "lossRow-1") !== null);
+        const line = findChild(findChild(sheet, "lossRow-0"), "lossText");
+        compare(line.text, "14 have a seeding-time limit: Deluge has none");
+        compare(line.Accessible.name, line.text);
+        compare(findChild(findChild(sheet, "lossRow-1"), "lossText").text, "9 have an idle limit: Deluge has none");
+        verify(!findChild(sheet, "lossNone").visible);
+    }
+
+    // More names than the block lists: the first eight, then how many more.
+    function test_a_crossing_folds_many_names() {
+        const sheet = createTemporaryObject(sheetComponent, testCase);
+        const map = crossingInfo();
+        map.names = [];
+        for (let i = 0; i < 11; i++)
+            map.names.push({ "name": "label-" + i, "kind": "label", "to": "tag label-" + i, "left": false });
+        sheet.openFor(map);
+        tryVerify(() => findChild(sheet, "nameRow-7") !== null);
+        compare(findChild(sheet, "nameRow-8"), null);
+        tryVerify(() => findChild(sheet, "namesMore").visible);
+        compare(findChild(sheet, "namesMore").text, "and 3 more");
+    }
+
+    // A file of the server's own engine: neither block.
+    function test_the_same_engine_shows_neither_block() {
+        const sheet = createTemporaryObject(sheetComponent, testCase);
+        sheet.openFor(info());
+        verify(!findChild(sheet, "namesTitle").visible);
+        verify(!findChild(sheet, "lostTitle").visible);
+        verify(!findChild(sheet, "lossNone").visible);
+        verify(!findChild(sheet, "namesMore").visible);
+        compare(findChild(sheet, "nameRow-0"), null);
+    }
+
     Component {
         id: spyComponent
 

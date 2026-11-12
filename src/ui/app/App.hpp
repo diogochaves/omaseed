@@ -2019,8 +2019,13 @@ public:
     Q_INVOKABLE QString pickTorrentsImportFile() const;
     /// Reads `path` and what the server has, then hands the sheet its rows through
     /// `torrentsImportRead`: `{ok, error, title, sub, plan: [{key, label, verb, count,
-    /// sizeText, dim}], paths: [{from, to, source}], created, importCount, check}`. "" when
-    /// the read is on its way, otherwise why the file is refused.
+    /// sizeText, dim}], paths: [{from, to, source}], created, importCount, check}`, and for a
+    /// file another engine wrote (docs/57 §5, DECISIONS C40 X4, X5) `crossing` true with
+    /// `engine` (its name, which `sub` then ends with), `namesTitle` and
+    /// `names: [{name, kind, to, left}]` (each source name and what it becomes),
+    /// `lostTitle`, `losses` (one counted line per thing the server can't keep) and `kept`
+    /// (the one line when it keeps everything). "" when the read is on its way, otherwise why
+    /// the file is refused.
     Q_INVOKABLE QString readTorrentsImport(const QString &path);
     /// The "!" line for `rows` ([{from, to}]): how many save paths none of them covers.
     Q_INVOKABLE QString torrentsImportPathsNote(const QVariantList &rows) const;
