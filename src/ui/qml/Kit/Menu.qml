@@ -774,6 +774,10 @@ Item {
             Label {
                 id: footerText
 
+                // #228: a plain Text has no accessible name of its own here, so the footer
+                // ("size orders the map, the largest first") was drawn but never read.
+                Accessible.name: footerText.text
+                Accessible.role: Accessible.StaticText
                 anchors.left: parent.left
                 anchors.leftMargin: Theme.space(14)
                 anchors.right: parent.right

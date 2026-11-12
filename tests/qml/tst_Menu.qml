@@ -181,6 +181,10 @@ TestCase {
         compare(footer.visible, true);
         verify(menu.panel.height > plain);
         verify(footer.y >= menu.rowsScroller.y + menu.rowsScroller.height);
+        // #228: the footer is read, as words, never a row.
+        const footerWords = footer.children[1];
+        compare(footerWords.Accessible.role, Accessible.StaticText);
+        compare(footerWords.Accessible.name, menu.footer);
 
         const rows = menu.rowsLayout.children;
         compare(findChild(rows[0], "menuRowGlyph").color, Theme.green);
