@@ -501,7 +501,11 @@ TestCase {
         compare(findChild(view, "webSeedDot_1").color, Theme.red);
         verify(!findChild(view, "webSeedError_0").visible);
         compare(findChild(view, "webSeedStatus_0").text, "no errors logged");
-        compare(findChild(view, "webSeedDot_0").color, Theme.muted);
+        // #200: muted as a mark reads on its row's ground, lifted to 3:1 where it falls short.
+        const dot = findChild(view, "webSeedDot_0");
+        const under = findChild(view, "webSeedRow_0").ink.ground.ground;
+        verify(Qt.colorEqual(dot.color, Theme.markOn(Theme.muted, under)),
+               "the lamp drew " + dot.color);
         view.activateTab(view.tabStory);
     }
 

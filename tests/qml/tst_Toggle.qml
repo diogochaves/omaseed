@@ -60,6 +60,33 @@ TestCase {
         tryVerify(() => Qt.colorEqual(track.color, Theme.fill(Theme.fillIdle)));
     }
 
+    // #200 (DECISIONS C30, marks): the off switch's outline, the foreground at the border
+    // alpha over its block, reads at 3:1 against the idle track it meets, idle and hot.
+    function test_the_outline_reads_against_the_track() {
+        const toggle = createTemporaryObject(toggleComponent, testCase);
+        const track = findChild(toggle, "toggleTrack");
+        const block = Theme.on.window.ground;
+        const inside = Theme.on.idle.ground;
+        verify(Qt.colorEqual(track.border.color,
+                             Theme.markAt(Theme.foreground, Theme.borderIdle, block, inside)));
+        verify(contrast(Qt.tint(block, track.border.color), inside) >= 2.99);
+        toggle.hasCursor = true;
+        verify(Qt.colorEqual(track.border.color,
+                             Theme.markAt(Theme.foreground, Theme.borderHover, block, inside)));
+        verify(contrast(Qt.tint(block, track.border.color), inside) >= 2.99);
+    }
+
+    function contrast(a, b) {
+        function linear(v) {
+            return v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+        }
+        function luminance(c) {
+            return 0.2126 * linear(c.r) + 0.7152 * linear(c.g) + 0.0722 * linear(c.b);
+        }
+        const la = luminance(a), lb = luminance(b);
+        return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
+    }
+
     // Review Q6: the ring goes round the track, outside it.
     function test_focus_rings_the_track() {
         const toggle = createTemporaryObject(toggleComponent, testCase);

@@ -134,7 +134,8 @@ Item {
                 anchors.left: parent.left
                 anchors.leftMargin: Theme.space(8)
                 anchors.verticalCenter: urlCell.verticalCenter
-                color: row.statusError.length > 0 ? row.ink.red : Theme.muted
+                // Muted, lifted to 3:1 on the row's ground where it falls short (DECISIONS C30, marks).
+                color: row.statusError.length > 0 ? row.ink.red : Theme.markOn(Theme.muted, row.ink.ground.ground)
                 objectName: "webSeedDot_" + row.index
                 size: Theme.space(6)
             }

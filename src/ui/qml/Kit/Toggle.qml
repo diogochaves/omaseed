@@ -57,7 +57,13 @@ Item {
 
         objectName: "toggleTrack"
         anchors.verticalCenter: parent.verticalCenter
-        border.color: root.hot ? Theme.fill(Theme.borderHover) : Theme.fill(Theme.borderIdle)
+        // The outline is the off switch's edge, between `block` and the idle track: the
+        // border alphas (no hairline), raised where that edge reads under 3:1 against the
+        // track (DECISIONS C30, marks, #200).
+        border.color: Theme.markAt(Theme.foreground,
+                                   root.hot ? Theme.borderHover : Theme.borderIdle,
+                                   root.block.ground,
+                                   Theme.within(root.block, Theme.on.idle).ground)
         border.width: root.checked ? 0 : Theme.hairWidth
         // The ticked tint and the idle fill (docs/DECISIONS.md C30 F5); the knob is no text,
         // but takes the ground's colour so it reads as the ✓ on a ticked box does.

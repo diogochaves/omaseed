@@ -188,8 +188,8 @@ Column {
                     Rectangle {
                         Layout.preferredHeight: Theme.space(3)
                         Layout.preferredWidth: Math.max(1, Theme.space(40) * row.modelData.fraction)
-                        color: row.ground.stateSeeding
-                        opacity: 0.6
+                        // Its ink at 0.6, raised where that reads under 3:1 (C30, marks).
+                        color: Theme.markAt(row.ground.stateSeeding, 0.6, row.ground.ground, row.ground.ground)
                     }
 
                     Item {

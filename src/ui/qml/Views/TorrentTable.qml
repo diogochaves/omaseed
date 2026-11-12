@@ -2162,10 +2162,12 @@ Item {
                         width: textCell.box.w
                         x: textCell.box.x
 
-                        // T3: "only you" boxed in the rare colour.
+                        // T3: "only you" boxed in the rare colour, at 0.4 where that reads at
+                        // 3:1 on the row, else at the least opacity that does (C30, marks).
                         Rectangle {
                             anchors.verticalCenter: parent.verticalCenter
-                            border.color: Qt.alpha(Theme.yellow, 0.4)
+                            border.color: Theme.markAt(Theme.yellow, 0.4, band.ink.ground.ground,
+                                                       band.ink.ground.ground)
                             border.width: Theme.hairWidth
                             color: "transparent"
                             height: Theme.font.body + Theme.space(4)
@@ -2192,10 +2194,13 @@ Item {
                                 height: Theme.space(4)
                                 width: Theme.space(20)
 
+                                // The foreground at 0.45, raised where it reads under 3:1
+                                // on its track (C30, marks).
                                 Rectangle {
-                                    color: Theme.foreground
+                                    color: Theme.markAt(Theme.foreground, 0.45,
+                                                        Qt.tint(band.ink.ground.ground, Theme.fill(Theme.fillHover)),
+                                                        Qt.tint(band.ink.ground.ground, Theme.fill(Theme.fillHover)))
                                     height: parent.height
-                                    opacity: 0.45
                                     width: parent.width * Math.min(1, textCell.ratio)
                                 }
                             }

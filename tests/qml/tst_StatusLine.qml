@@ -157,7 +157,10 @@ TestCase {
         const dot = findChild(line, "statusDot");
         line.connectionStatus = "disconnected";
         line.connecting = true;
-        verify(Qt.colorEqual(dot.color, Theme.fill(Theme.faintAlpha)), "a switch drew " + dot.color);
+        // Faint, raised to 3:1 on the lane where the faint alpha falls short (#200).
+        verify(Qt.colorEqual(dot.color, Theme.markAt(Theme.foreground, Theme.faintAlpha,
+                                                     Theme.on.window.ground, Theme.on.window.ground)),
+               "a switch drew " + dot.color);
         compare(line.networkWarning, "");
         line.connecting = false;
         compare(dot.color, Theme.red);

@@ -23,9 +23,9 @@ on them too.
 every ground it sits on in each skin, at WCAG 2.2 1.4.11's 3:1, its opacity composited over
 the ground or over its track (#200). Marks keep the window's colours where those read at 3:1;
 the ones painted in them on a darker ground are lifted there by `Theme.markOn` (C30, marks:
-MARK_LIFT here), and the low-opacity ones that fail even on the window are left for #200's
-next step: --check reports them and still exits 0 on them, so ctest's text check stays the
-gate it was; --strict-marks fails on them as well, for once they are lifted. --marks-report FILE writes them grouped by mark, worst first. --self-test checks
+MARK_LIFT here), and the faint ones, at an opacity, are raised by `Theme.markAt` (MARK_AT).
+--check reports a mark under 3:1 and exits 0 on it; --strict-marks (ctest's check) fails on it
+too. --marks-report FILE writes them grouped by mark, worst first. --self-test checks
 the mark pass on made-up roles. A build from
 before C30 prints no grounds: the check then paints its window roles on each fill, as that
 build did, which is board 50's "today".
@@ -582,11 +582,37 @@ def lift_mark(colour, under, fg, bright):
     return col
 
 
+def lift_mark_at(colour, alpha, under, meet, fg, bright):
+    """Theme::liftMarkAt (`Theme.markAt`, C30 marks, #200): (colour, alpha) for a faint mark,
+    `colour` at `alpha` over `under` measured against `meet`: kept where it reads at 3:1, else
+    at the least higher opacity, in 1/256 steps, that does, else opaque and `lift_mark`ed."""
+    def reads(a):
+        return ratio(tuple(round(v) for v in over(colour, under, a)), meet) >= NON_TEXT
+    if reads(alpha):
+        return colour, alpha
+    for step in range(1, 257):
+        if alpha >= 1:
+            break
+        a = alpha + (1 - alpha) * step / 256
+        if reads(a):
+            return colour, a
+    return lift_mark(colour, meet, fg, bright), 1
+
+
 # A mark's colours: a list of the window's roles as they are; ("ink", roles), its ground's
 # text ink; or (MARK_LIFT, roles, track), the window's roles lifted by `Theme.markOn` against
 # the ground, or against `track` (an alpha key) over the ground when the code lifts it there
-# (Kit/Meter lifts a line against its track, so the bare line is lifted against the table's).
+# (Kit/Meter lifts a line against its track, so the bare line is lifted against the table's);
+# or (MARK_AT, roles) and (MARK_AT_INK, roles), a faint mark at the entry's alpha, the window's
+# roles or the ground's ink, raised by `Theme.markAt` where it reads under 3:1 on what it is
+# measured against. A MARK_AT entry's grounds may be (over, against) pairs: an edge composited
+# over one ground and measured against the other it meets (a toggle's outline, block › track).
 MARK_LIFT = "mark"
+MARK_AT = "at"
+MARK_AT_INK = "at-ink"
+# A toggle's outline lies on its block (the window, a settings row's 4 % or its hover fill)
+# and meets the idle track inside it: lifted against the track, and measured against both.
+TOGGLE_EDGES = [("window", "idle"), ("idle", "blockIdle"), ("hover", "hoverIdle")]
 
 MARKS = [
     ("the progress line", "Views/TorrentTable.qml ProgressLine, Views/LibraryRow.qml Meter: Kit/Meter markColor",
@@ -599,15 +625,15 @@ MARKS = [
      ("ink", ["stateSeeding", "accent"]), 1, ROW_GROUNDS, "hairlineAlpha"),
     ("the pulse, still or at its peak", "Views/TorrentTable.qml pulseTick: markOn (breathes 0.25 → 1)",
      (MARK_LIFT, ["stateSeeding"], None), 1, ROW_GROUNDS, None),
-    ("the ratio track to 1.0", "Views/TorrentTable.qml ratioTracks: foreground at 0.45 on fill(fillHover)",
-     ["foreground"], 0.45, ROW_GROUNDS, "fillHover"),
+    ("the ratio track to 1.0", "Views/TorrentTable.qml ratioTracks: markAt(foreground, 0.45) on fill(fillHover)",
+     (MARK_AT, ["foreground"]), 0.45, ROW_GROUNDS, "fillHover"),
     ("the ratio track past 1.0", "Views/TorrentTable.qml ratioTracks: markOn(stateSeeding) on fill(fillHover)",
      (MARK_LIFT, ["stateSeeding"], "fillHover"), 1, ROW_GROUNDS, "fillHover"),
-    ("the tracker's given bar", "Views/ConsoleTrackers.qml: row.ground.stateSeeding at 0.6",
-     ("ink", ["stateSeeding"]), 0.6, {"omarchy": ["window", "hover"], "console": ["window", "hover"]},
+    ("the tracker's given bar", "Views/ConsoleTrackers.qml: markAt(row.ground.stateSeeding, 0.6)",
+     (MARK_AT_INK, ["stateSeeding"]), 0.6, {"omarchy": ["window", "hover"], "console": ["window", "hover"]},
      None),
-    ("\"only you\"'s box", "Views/TorrentTable.qml T3: border yellow at 0.4",
-     ["yellow"], 0.4, ROW_GROUNDS, None),
+    ("\"only you\"'s box", "Views/TorrentTable.qml T3: border markAt(yellow, 0.4)",
+     (MARK_AT, ["yellow"]), 0.4, ROW_GROUNDS, None),
     ("a selected row's edge", "Views/LibraryRow.qml SelectionMark rule (not under pickedGround): markColor",
      (MARK_LIFT, ["accent"], None), 1, {"omarchy": ["selected", "selectedCursor"]}, None),
     ("a selected tile's or chip's mark", "Views/SpaceTile.qml, SpaceChip.qml SelectionMark (litColor): markColor",
@@ -616,16 +642,17 @@ MARKS = [
      (MARK_LIFT, ["accent"], None), 1, {"console": ["cursor", "picked"]}, None),
     ("the focus ring", "Kit/FocusRing.qml: border markOn(accent) on its control's block",
      (MARK_LIFT, ["accent"], None), 1, FOCUS_GROUNDS, None),
-    ("a toggle's outline", "Kit/Toggle.qml: border fill(borderIdle)",
-     ["foreground"], "borderIdle", {"omarchy": ["window", "idle", "blockIdle"],
-                                    "console": ["window", "idle", "blockIdle"]}, None),
-    ("a toggle's outline, hot", "Kit/Toggle.qml: border fill(borderHover), the row hovered",
-     ["foreground"], "borderHover", {"omarchy": ["hover", "hoverHover"],
-                                     "console": ["hover", "hoverHover"]}, None),
-    ("the status line's dot, connecting", "Views/StatusLine.qml dotColor: fill(faintAlpha)",
-     ["foreground"], "faintAlpha", {"omarchy": ["window"], "console": ["window"]}, None),
-    ("a web seed's lamp", "Views/DetailsWebSeedsTab.qml: Theme.muted",
-     ["muted"], 1, ROW_GROUNDS, None),
+    ("a toggle's outline", "Kit/Toggle.qml: border markAt(foreground, borderIdle), block › track",
+     (MARK_AT, ["foreground"]), "borderIdle", {"omarchy": TOGGLE_EDGES, "console": TOGGLE_EDGES},
+     None),
+    ("a toggle's outline, hot", "Kit/Toggle.qml: border markAt(foreground, borderHover), block › track",
+     (MARK_AT, ["foreground"]), "borderHover", {"omarchy": TOGGLE_EDGES, "console": TOGGLE_EDGES},
+     None),
+    ("the status line's dot, connecting", "Views/StatusLine.qml dotColor: markAt(foreground, faintAlpha) on the lane",
+     (MARK_AT, ["foreground"]), "faintAlpha", {"omarchy": ["window", "hover"],
+                                               "console": ["window", "hover"]}, None),
+    ("a web seed's lamp", "Views/DetailsWebSeedsTab.qml: markOn(muted) on the row",
+     (MARK_LIFT, ["muted"], None), 1, ROW_GROUNDS, None),
 ]
 
 
@@ -639,14 +666,26 @@ def mark_pairs(roles, skin, marks=None):
     for what, _where, colours, alpha, on, against in marks if marks is not None else MARKS:
         al = a[alpha] if isinstance(alpha, str) else alpha
         kind = colours[0] if isinstance(colours, tuple) else None
-        for gname in on.get(skin, []):
+        for entry in on.get(skin, []):
+            gname, mname = entry if isinstance(entry, tuple) else (entry, entry)
             g = parse(grounds[gname]["ground"])
+            meet = parse(grounds[mname]["ground"])
             under = g
-            label = gname
+            label = gname if mname == gname else f"{gname} › {mname}"
             if against:
                 under = tuple(round(v) for v in over(fg, g, a[against]))
-                label = f"{gname} + track"
+                meet = tuple(round(v) for v in over(fg, meet, a[against]))
+                label = f"{label} + track"
             for role in (colours[1] if kind else colours):
+                if kind in (MARK_AT, MARK_AT_INK):
+                    src = (parse(grounds[mname]["colors"][STATE_ROLES.get(role, role)])
+                           if kind == MARK_AT_INK else parse(c[role]))
+                    col, al2 = lift_mark_at(src, al, under, meet, fg, bright)
+                    m = tuple(round(v) for v in over(col, under, al2))
+                    out.append((what, role, label, ratio(m, meet)))
+                    if mname != gname:  # an edge: the ground it lies on, outside, too
+                        out.append((what, role, f"{gname} (outside)", ratio(m, under)))
+                    continue
                 if kind == "ink":
                     col = parse(grounds[gname]["colors"][STATE_ROLES.get(role, role)])
                 elif kind == MARK_LIFT:
@@ -715,9 +754,13 @@ def self_test():
               "hairlineAlpha"),
              ("not in this skin", "", ["muted"], 1, {"console": ["window"]}, None),
              ("lifted", "", (MARK_LIFT, ["muted"], "hairlineAlpha"), 1, {"omarchy": ["window"]},
-              "hairlineAlpha")]
+              "hairlineAlpha"),
+             ("raised", "", (MARK_AT, ["accent"]), 0.1, {"omarchy": ["window"]}, None),
+             ("edge", "", (MARK_AT, ["accent"]), 0.1, {"omarchy": [("window", "selected")]}, None)]
     got = {(w, g): q for w, _r, g, q in mark_pairs(roles, "omarchy", marks)}
-    ok = (len(got) == 5 and got[("lifted", "window + track")] >= NON_TEXT and got[("reads", "window")] >= NON_TEXT
+    ok = (len(got) == 8 and got[("raised", "window")] >= NON_TEXT
+          and got[("edge", "window › selected")] >= NON_TEXT
+          and got[("edge", "window (outside)")] >= NON_TEXT and got[("lifted", "window + track")] >= NON_TEXT and got[("reads", "window")] >= NON_TEXT
           and got[("reads", "selected")] >= NON_TEXT and got[("faint", "window")] < NON_TEXT
           and got[("faint ink on a track", "selected + track")] < NON_TEXT)
     print("contrast-board: marks self-test " + ("ok" if ok else f"FAILED: {got}"))

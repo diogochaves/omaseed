@@ -83,7 +83,8 @@ Item {
     /// The dot's colour: none dim, connecting neutral, first sync yellow, lost red (yellow
     /// while retried), the network's warning in its colour, else green.
     readonly property color dotColor: !root.serverConfigured ? Theme.dimForeground
-                                    : root.connecting ? Theme.fill(Theme.faintAlpha)
+                                    : root.connecting ? Theme.markAt(Theme.foreground, Theme.faintAlpha,
+                                                                     laneInk.ground.ground, laneInk.ground.ground)
                                     : root.syncing ? Theme.yellow
                                     : !root.connected ? (root.retrying ? Theme.yellow : Theme.red)
                                     : root.networkWarning === "disconnected" ? Theme.red
