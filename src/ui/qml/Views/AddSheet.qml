@@ -1844,6 +1844,8 @@ Sheet {
                     // C24 H16 (#145): the empty state offers search; words no add takes are
                     // offered to the plugins instead (C26 SR14's "search plugins for ‘…’").
                     RowLayout {
+                        id: addSearchRow
+
                         Layout.fillWidth: true
                         objectName: "addSearchRow"
                         spacing: Theme.space(10)
@@ -1851,7 +1853,35 @@ Sheet {
                                  && (sourceField.text.trim().length === 0
                                      || (sheet.addable === null && sheet._typing))
 
+                        // #198: long words are elided in the middle, inside their quotes, so the
+                        // button ends at the panel's edge: what is left of the row after the hint,
+                        // the button's padding and the words around the quote.
+                        TextMetrics {
+                            id: searchPrefix
+
+                            font: addSearchWords.font
+                            text: qsTr("search plugins for “%1”").arg("")
+                        }
+
+                        TextMetrics {
+                            id: addSearchWords
+
+                            elide: Text.ElideMiddle
+                            elideWidth: addSearchRow.width <= 0 ? 100000
+                                                                : Math.max(0, addSearchRow.width - searchHint.implicitWidth
+                                                                           - addSearchRow.spacing - 2 * addSearchButton.sidePadding
+                                                                           - searchPrefix.advanceWidth - Theme.space(2))
+                            font.capitalization: Theme.controlUpper ? Font.AllUppercase : Font.MixedCase
+                            font.family: Theme.labelFamily
+                            font.letterSpacing: addSearchButton.fontSize * Theme.controlTrack
+                            font.pixelSize: addSearchButton.fontSize
+                            font.weight: Theme.controlWeight
+                            text: sourceField.text.trim()
+                        }
+
                         Label {
+                            id: searchHint
+
                             dim: true
                             size: "small"
                             text: sourceField.text.trim().length === 0 ? qsTr("Not a link yet?")
@@ -1859,9 +1889,11 @@ Sheet {
                         }
 
                         Button {
+                            id: addSearchButton
+
                             objectName: "addSearchButton"
                             text: sourceField.text.trim().length === 0 ? qsTr("search your plugins…")
-                                                                      : qsTr("search plugins for “%1”").arg(sourceField.text.trim())
+                                                                      : qsTr("search plugins for “%1”").arg(addSearchWords.elidedText)
                             tooltip: qsTr("search · ctrl+f")
 
                             onClicked: {

@@ -2439,4 +2439,38 @@ TestCase {
         compare(searches.signalArguments[0][0], "open");
         verify(!sheet.opened);
     }
+
+    // #198: long words no add takes are elided in the middle, inside their quotes, so the button
+    // ends inside the panel; a click still searches for all of them.
+    function test_long_words_elide_inside_the_panel() {
+        const sheet = createTemporaryObject(addSheetComponent, testCase);
+        const searches = createTemporaryObject(searchRequestSpy, testCase, {
+                                                   "target": sheet
+                                               });
+        sheet.openWith("", "");
+        sheet.sourceField.focusInput();
+        let words = "";
+        for (let i = 0; i < 24; ++i) {
+            words += "words" + i + " ";
+            keyClick("w");
+            keyClick("o");
+            keyClick("r");
+            keyClick("d");
+            keyClick("s");
+            for (const digit of String(i))
+                keyClick(digit);
+            keyClick(Qt.Key_Space);
+        }
+        words = words.trim();
+        tryVerify(() => sheet.addable === null);
+        const row = findChild(sheet, "addSearchRow");
+        const button = findChild(sheet, "addSearchButton");
+        tryVerify(() => button.text.indexOf("…") > 0);
+        verify(button.text.startsWith("search plugins for “words0"));
+        verify(button.text.endsWith("words23”"));
+        verify(button.mapToItem(row, 0, 0).x + button.width <= row.width);
+        button.clicked();
+        compare(searches.count, 1);
+        compare(searches.signalArguments[0][0], words);
+    }
 }
