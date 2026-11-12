@@ -11,12 +11,20 @@
 // from the same sheet; the result repeats what it can't keep, names the torrents it couldn't
 // put where the file says, and the links it added are finished from the journal once their
 // details arrive (finishImportedLinks).
+//
+// #88 (docs/57 §3–§6): a Deluge does both the same way, by its own exporter and importer. It
+// may not tell where its .torrent files are (the row then offers their folder at once), it
+// keeps one label per torrent, made first when the daemon lacks it, and with its Label plugin
+// off no label is set: the sheet says so before and the result after.
 #include "ui/app/App.hpp"
 
 #include "core/Format.hpp"
 #include "core/LibraryCrossing.hpp"
 #include "core/OmaseedBackup.hpp"
 #include "core/Version.hpp"
+#include "core/engines/deluge/DelugeEngine.hpp"
+#include "core/engines/deluge/DelugeTorrentsExport.hpp"
+#include "core/engines/deluge/DelugeTorrentsImport.hpp"
 #include "core/engines/qbt/QbtEngine.hpp"
 #include "core/engines/transmission/TransmissionEngine.hpp"
 #include "core/engines/transmission/TransmissionTorrentsExport.hpp"
@@ -195,6 +203,30 @@ QString exportName(const QString &server)
            QDate::currentDate().toString(Qt::ISODate) + TorrentsBackup::kSuffix;
 }
 
+/// Whether an engine's .torrent files are read from here, whichever engine answered: its
+/// exporter's Reach (C40 X3).
+struct FilesReach
+{
+    bool valid = false;
+    bool readable = false;
+    QString daemonFolder;
+};
+
+/// Asks `Exporter::reach` and hands `then` the answer in the one shape.
+template<typename Exporter, typename Engine>
+void askReach(Engine *engine,
+              const QString &folder,
+              QObject *context,
+              std::function<void(const FilesReach &)> then)
+{
+    Exporter::reach(engine, folder, context)
+        ->then(context, [then = std::move(then)](const Result<typename Exporter::Reach> &reach) {
+            then(reach.isValid()
+                     ? FilesReach{true, reach.value().readable, reach.value().daemonFolder}
+                     : FilesReach());
+        });
+}
+
 /// The portal's chooser, as a dialog of our window (App.cpp's runPicker, see there).
 QStringList pick(QFileDialog &dialog, QWindow *window)
 {
@@ -219,6 +251,11 @@ TransmissionEngine *App::transmissionEngine() const
     return m_transmission != nullptr && m_client == m_transmission ? m_transmission : nullptr;
 }
 
+DelugeEngine *App::delugeEngine() const
+{
+    return m_deluge != nullptr && m_client == m_deluge ? m_deluge : nullptr;
+}
+
 QString App::torrentsExportSummary() const
 {
     TorrentModel *model = m_engine->torrents();
@@ -231,6 +268,13 @@ QString App::torrentsExportSummary() const
         return n == 1 ? tr("1 torrent with its folder, labels, limits and renames, in one private "
                            "file.")
                       : tr("%1 torrents with their folders, labels, limits and renames, in one "
+                           "private file.")
+                            .arg(n);
+    // A Deluge keeps one label per torrent (C40 X4).
+    if (delugeEngine() != nullptr)
+        return n == 1 ? tr("1 torrent with its folder, label, limits and renames, in one private "
+                           "file.")
+                      : tr("%1 torrents with their folders, label, limits and renames, in one "
                            "private file.")
                             .arg(n);
     qint64 bytes = 0;
@@ -259,10 +303,11 @@ QString App::pickTorrentsExportPath() const
     const QString suggested = QDir::homePath() + QLatin1Char('/') + exportName(m_server.name);
     QFileDialog dialog(nullptr,
                        // The engine's name: "Export qBittorrent's torrents", "Export
-                       // Transmission's torrents" (C40 X1).
+                       // Transmission's torrents", "Export Deluge's torrents" (C40 X1).
                        tr("Export %1's torrents")
-                           .arg(transmissionEngine() != nullptr ? serverEngineName()
-                                                                : QStringLiteral("qBittorrent")),
+                           .arg(transmissionEngine() != nullptr || delugeEngine() != nullptr
+                                    ? serverEngineName()
+                                    : QStringLiteral("qBittorrent")),
                        suggested,
                        tr("omaseed torrents (*.omaseed-torrents)"));
     dialog.setAcceptMode(QFileDialog::AcceptSave);
@@ -272,7 +317,7 @@ QString App::pickTorrentsExportPath() const
     return path;
 }
 
-// --- #88: where a Transmission's .torrent files are (C40 X3) ----------------------------------
+// --- #88: where a Transmission's or a Deluge's .torrent files are (C40 X3) --------------------
 
 QString App::torrentFilesFolder() const
 {
@@ -297,49 +342,67 @@ void App::rememberTorrentsFolder(const QString &folder)
     }
 }
 
+void App::askTorrentFilesReach(const QString &folder,
+                               std::function<void(bool, bool, const QString &)> then)
+{
+    const auto answer = [then = std::move(then)](const FilesReach &reach) {
+        then(reach.valid, reach.readable, reach.daemonFolder);
+    };
+    if (TransmissionEngine *transmission = transmissionEngine())
+        askReach<TransmissionTorrentsExport>(transmission, folder, this, answer);
+    else if (DelugeEngine *deluge = delugeEngine())
+        askReach<DelugeTorrentsExport>(deluge, folder, this, answer);
+    else
+        answer(FilesReach());
+}
+
 void App::refreshTorrentFilesReach()
 {
     const int ask = ++m_torrentFilesAsk;
-    TransmissionEngine *engine = transmissionEngine();
-    if (engine == nullptr || m_demoMode || !m_hasServer || !m_engine->globalState()->connected()) {
+    const bool keepsFiles = transmissionEngine() != nullptr || delugeEngine() != nullptr;
+    if (!keepsFiles || m_demoMode || !m_hasServer || !m_engine->globalState()->connected()) {
         m_torrentFilesFrom.clear();
         m_torrentFilesDaemonFolder.clear();
         setTorrentFilesReach(QString());
         return;
     }
-    using Reach = TransmissionTorrentsExport::Reach;
     const QString remembered = m_server.torrentsFolder;
     setTorrentFilesReach(QStringLiteral("asking"), m_torrentFilesNote);
-    const auto settle = [this, ask](const Result<Reach> &reach, const QString &from) {
-        if (ask != m_torrentFilesAsk)
-            return;
-        const bool readable = reach.isValid() && reach.value().readable;
-        if (reach.isValid())
-            m_torrentFilesDaemonFolder = reach.value().daemonFolder;
-        m_torrentFilesFrom = readable ? from : QString();
-        setTorrentFilesReach(readable ? QStringLiteral("readable") : QStringLiteral("unreadable"),
-                             m_torrentFilesNote);
-    };
-    TransmissionTorrentsExport::reach(engine, remembered, this)
-        ->then(this, [this, ask, remembered, settle](const Result<Reach> &reach) {
+    // A Deluge that doesn't tell its folder answers not readable with none: the row offers
+    // "their folder…" and "export links…" straight away.
+    const auto settle =
+        [this, ask](bool valid, bool readable, const QString &daemonFolder, const QString &from) {
             if (ask != m_torrentFilesAsk)
                 return;
-            TransmissionEngine *still = transmissionEngine();
-            if (remembered.isEmpty() || still == nullptr ||
-                (reach.isValid() && reach.value().readable)) {
-                settle(reach, remembered);
+            if (valid)
+                m_torrentFilesDaemonFolder = daemonFolder;
+            m_torrentFilesFrom = readable ? from : QString();
+            setTorrentFilesReach(readable ? QStringLiteral("readable")
+                                          : QStringLiteral("unreadable"),
+                                 m_torrentFilesNote);
+        };
+    askTorrentFilesReach(
+        remembered,
+        [this, ask, remembered, settle](bool valid, bool readable, const QString &daemonFolder) {
+            if (ask != m_torrentFilesAsk)
+                return;
+            const bool still = transmissionEngine() != nullptr || delugeEngine() != nullptr;
+            if (remembered.isEmpty() || !still || (valid && readable)) {
+                settle(valid, readable, daemonFolder, remembered);
                 return;
             }
             // The folder given no longer holds them: where the daemon says, before the row
             // goes back to offering (C40 X3).
-            TransmissionTorrentsExport::reach(still, QString(), this)
-                ->then(this, [settle](const Result<Reach> &direct) { settle(direct, QString()); });
+            askTorrentFilesReach(
+                QString(), [settle](bool directValid, bool directReadable, const QString &folder) {
+                    settle(directValid, directReadable, folder, QString());
+                });
         });
 }
 
 void App::pickTorrentFilesFolder()
 {
-    if (transmissionEngine() == nullptr)
+    if (transmissionEngine() == nullptr && delugeEngine() == nullptr)
         return;
     QFileDialog dialog(nullptr,
                        tr("The folder of %1's .torrent files").arg(m_server.name),
@@ -352,31 +415,32 @@ void App::pickTorrentFilesFolder()
 
 void App::useTorrentFilesFolder(const QString &folder)
 {
-    TransmissionEngine *engine = transmissionEngine();
-    if (folder.isEmpty() || engine == nullptr || !m_engine->globalState()->connected())
+    const bool keepsFiles = transmissionEngine() != nullptr || delugeEngine() != nullptr;
+    if (folder.isEmpty() || !keepsFiles || !m_engine->globalState()->connected())
         return;
-    using Reach = TransmissionTorrentsExport::Reach;
     const int ask = ++m_torrentFilesAsk;
     const QString before = m_torrentFilesReach == QLatin1String("readable")
                                ? m_torrentFilesReach
                                : QStringLiteral("unreadable");
     setTorrentFilesReach(QStringLiteral("asking"));
-    TransmissionTorrentsExport::reach(engine, folder, this)
-        ->then(this, [this, ask, folder, before, name = m_server.name](const Result<Reach> &reach) {
-            if (ask != m_torrentFilesAsk)
-                return;
-            if (reach.isValid())
-                m_torrentFilesDaemonFolder = reach.value().daemonFolder;
-            if (!reach.isValid() || !reach.value().readable) {
-                // Nothing is kept, and the row keeps offering.
-                setTorrentFilesReach(before,
+    askTorrentFilesReach(folder,
+                         [this, ask, folder, before, name = m_server.name](
+                             bool valid, bool readable, const QString &daemonFolder) {
+                             if (ask != m_torrentFilesAsk)
+                                 return;
+                             if (valid)
+                                 m_torrentFilesDaemonFolder = daemonFolder;
+                             if (!valid || !readable) {
+                                 // Nothing is kept, and the row keeps offering.
+                                 setTorrentFilesReach(
+                                     before,
                                      tr("That folder doesn't hold %1's .torrent files.").arg(name));
-                return;
-            }
-            rememberTorrentsFolder(folder);
-            m_torrentFilesFrom = folder;
-            setTorrentFilesReach(QStringLiteral("readable"));
-        });
+                                 return;
+                             }
+                             rememberTorrentsFolder(folder);
+                             m_torrentFilesFrom = folder;
+                             setTorrentFilesReach(QStringLiteral("readable"));
+                         });
 }
 
 void App::exportTorrents(const QString &path)
@@ -394,9 +458,11 @@ void App::exportTorrents(const QString &path)
         return;
     }
     // The engine's own exporter (docs/DECISIONS.md C40 X1): qBittorrent's reads the Web API,
-    // Transmission's the daemon's disk for the .torrent files.
+    // Transmission's and Deluge's the daemon's disk for the .torrent files.
     TransmissionEngine *transmission = transmissionEngine();
-    if (!m_features.torrentsExport || (qbtEngine() == nullptr && transmission == nullptr)) {
+    DelugeEngine *deluge = delugeEngine();
+    if (!m_features.torrentsExport ||
+        (qbtEngine() == nullptr && transmission == nullptr && deluge == nullptr)) {
         Q_EMIT torrentsExportFinished(
             tr("Not exported: %1 cannot export its torrents.").arg(m_server.name), false);
         return;
@@ -446,41 +512,45 @@ void App::exportTorrents(const QString &path)
         Q_EMIT torrentsExportFinished(text, true);
     };
     setTorrentsRunning(QStringLiteral("export"), tr("exporting…"));
-    if (transmission != nullptr) {
-        auto *exporter = new TransmissionTorrentsExport(transmission, this);
-        m_transmissionExport = exporter;
-        // The folder given for this server, while the last look found the files under it;
-        // otherwise where the daemon says, and a file that isn't there goes in as a link.
-        exporter->setTorrentsFolder(m_torrentFilesReach == QLatin1String("readable")
-                                        ? m_torrentFilesFrom
-                                        : m_server.torrentsFolder);
-        connect(exporter, &TransmissionTorrentsExport::progress, this, progressed);
+    // One exporter, whichever engine's: they share start, progress and finished.
+    const auto run = [this, path, progressed, finished](auto *exporter) {
+        using Exporter = std::remove_pointer_t<decltype(exporter)>;
+        connect(exporter, &Exporter::progress, this, progressed);
         connect(exporter,
-                &TransmissionTorrentsExport::finished,
+                &Exporter::finished,
                 this,
                 [exporter, finished](const TorrentsExport::Outcome &outcome) {
                     finished(exporter, outcome);
                 });
         exporter->start(path, m_server.name, m_server.url.toString(), omaseed::core::version());
-        return;
+    };
+    // The folder given for this server, while the last look found the files under it;
+    // otherwise where the daemon says, and a file that isn't there goes in as a link.
+    const QString folder = m_torrentFilesReach == QLatin1String("readable")
+                               ? m_torrentFilesFrom
+                               : m_server.torrentsFolder;
+    if (transmission != nullptr) {
+        auto *exporter = new TransmissionTorrentsExport(transmission, this);
+        m_transmissionExport = exporter;
+        exporter->setTorrentsFolder(folder);
+        run(exporter);
+    } else if (deluge != nullptr) {
+        auto *exporter = new DelugeTorrentsExport(deluge, this);
+        m_delugeExport = exporter;
+        exporter->setTorrentsFolder(folder);
+        run(exporter);
+    } else {
+        auto *exporter = new TorrentsExport(qbtEngine(), this);
+        m_torrentsExport = exporter;
+        run(exporter);
     }
-    auto *exporter = new TorrentsExport(qbtEngine(), this);
-    m_torrentsExport = exporter;
-    connect(exporter, &TorrentsExport::progress, this, progressed);
-    connect(exporter,
-            &TorrentsExport::finished,
-            this,
-            [exporter, finished](const TorrentsExport::Outcome &outcome) {
-                finished(exporter, outcome);
-            });
-    exporter->start(path, m_server.name, m_server.url.toString(), omaseed::core::version());
 }
 
 QString App::pickTorrentsImportFile() const
 {
     QFileDialog dialog(nullptr,
-                       // A file from any engine goes into a Transmission (C40 X1).
-                       transmissionEngine() != nullptr
+                       // A file from any engine goes into a Transmission or a Deluge (C40 X1).
+                       transmissionEngine() != nullptr || delugeEngine() != nullptr
                            ? tr("Import torrents into %1").arg(m_server.name)
                            : tr("Import qBittorrent's torrents"),
                        QDir::homePath(),
@@ -498,9 +568,6 @@ QString App::readTorrentsImport(const QString &path)
         return tr("Another export or import is running.");
     if (m_demoMode || !m_hasServer || !m_engine->globalState()->connected())
         return tr("%1 is not connected.").arg(m_server.name);
-    // C40 X9: an engine that exports may not import yet.
-    if (!m_features.torrentsImport || (qbtEngine() == nullptr && transmissionEngine() == nullptr))
-        return tr("%1 cannot import torrents.").arg(m_server.name);
     QString error;
     std::optional<TorrentsBackup::Contents> contents = TorrentsBackup::read(path, &error);
     if (!contents)
@@ -530,13 +597,16 @@ QString App::readTorrentsImport(const QString &path)
                   tr("Could not read %1's torrents: %2").arg(m_server.name, read->error)}});
             return;
         }
-        // The engine's own plan (C40 X1): a Transmission has nothing to create first.
+        // The engine's own plan (C40 X1): a Transmission has nothing to create first, a
+        // Deluge the labels it lacks (`here.categories` are its labels).
         const TorrentsImport::Journal journal =
             TorrentsImport::Journal::load(TorrentsImport::Journal::pathFor(m_server.id));
-        m_torrentsPlan =
-            transmissionEngine() != nullptr
-                ? TransmissionTorrentsImport::plan(*m_torrentsFile, read->here, journal)
-                : TorrentsImport::plan(*m_torrentsFile, read->here, journal);
+        if (transmissionEngine() != nullptr)
+            m_torrentsPlan = TransmissionTorrentsImport::plan(*m_torrentsFile, read->here, journal);
+        else if (delugeEngine() != nullptr)
+            m_torrentsPlan = DelugeTorrentsImport::plan(*m_torrentsFile, read->here, journal);
+        else
+            m_torrentsPlan = TorrentsImport::plan(*m_torrentsFile, read->here, journal);
         Q_EMIT torrentsImportRead(torrentsImportInfo());
     };
     m_client->torrents()->then(this, [read, settle](const Result<QList<TorrentPatch>> &r) {
@@ -642,8 +712,27 @@ QVariantMap App::torrentsImportInfo()
                                  {QStringLiteral("to"), QString()},
                                  {QStringLiteral("source"), QString()}});
 
+    // A Deluge sets a label only with its Label plugin on (C40 X6): off, none is made or set,
+    // and the sheet says so when the torrents it sends have one.
+    const DelugeEngine *deluge = delugeEngine();
+    const bool labelsOff = deluge != nullptr && !deluge->labelPlugin();
+    bool labelled = false;
+    if (labelsOff) {
+        for (const QList<int> &sent : {plan.add, plan.magnets, plan.finish}) {
+            for (const int i : sent)
+                labelled =
+                    labelled ||
+                    !DelugeTorrentsImport::labelHere(file.manifest, file.records.at(i)).isEmpty();
+        }
+    }
     QString created;
-    if (!plan.categories.isEmpty() && !plan.tags.isEmpty())
+    if (deluge != nullptr) {
+        // Deluge makes a label before a torrent can have it (label.add).
+        if (!labelsOff && !plan.categories.isEmpty())
+            created = count(int(plan.categories.size()),
+                            "1 label they use is made first",
+                            "%1 labels they use are made first");
+    } else if (!plan.categories.isEmpty() && !plan.tags.isEmpty())
         created = tr("%1 and %2 they use are created first")
                       .arg(count(int(plan.categories.size()), "1 category", "%1 categories"),
                            count(int(plan.tags.size()), "1 tag", "%1 tags"));
@@ -699,6 +788,8 @@ QVariantMap App::torrentsImportInfo()
             {QStringLiteral("namesTitle"),
              hereEngine == EngineKind::Qbittorrent ? tr("categories and tags") : tr("labels")},
             {QStringLiteral("names"), names},
+            {QStringLiteral("namesWarning"),
+             labelled ? tr("Deluge's Label plugin is off: no label will be set.") : QString()},
             {QStringLiteral("lostTitle"), tr("can't be kept on %1").arg(hereName)},
             {QStringLiteral("losses"), losses},
             {QStringLiteral("kept"),
@@ -813,6 +904,12 @@ QString App::torrentsImportResult(const TorrentsImport::Outcome &o,
                                  : tr("Not done: %1, and %2 more.")
                                        .arg(o.errors.constFirst())
                                        .arg(o.errors.size() - 1));
+    // C40 X6: the sheet said so beforehand; where to turn it on.
+    if (o.labelsNotSet > 0)
+        say(count(o.labelsNotSet,
+                  "1 kept no label: Deluge's Label plugin is off (Settings › Deluge › Plugins).",
+                  "%1 kept no label: Deluge's Label plugin is off (Settings › Deluge › "
+                  "Plugins)."));
     // C40 X5: what the sheet said can't be kept, again, in the same sentences.
     for (const QString &line : lossLines(knownEngine(m_server.engine), o.losses))
         say(line + QLatin1Char('.'));
@@ -837,13 +934,12 @@ void App::applyTorrentsImport(const QVariantMap &choice)
     }
     // The engine's own importer (docs/DECISIONS.md C40 X1), in the one shape.
     TransmissionEngine *transmission = transmissionEngine();
-    if (!m_features.torrentsImport || (qbtEngine() == nullptr && transmission == nullptr)) {
-        Q_EMIT torrentsImportFinished(tr("%1 cannot import torrents.").arg(m_server.name), false);
-        return;
-    }
+    DelugeEngine *deluge = delugeEngine();
     // The journal is one run's at a time: a look at its links (C40 X7) gives way.
     if (m_linksFinisher)
         m_linksFinisher->cancel();
+    if (m_delugeLinksFinisher)
+        m_delugeLinksFinisher->cancel();
     TorrentsImport::Options options;
     options.rows = torrentsRows(choice.value(QStringLiteral("rows")).toList());
     options.check = choice.value(QStringLiteral("check"), true).toBool();
@@ -876,41 +972,48 @@ void App::applyTorrentsImport(const QVariantMap &choice)
         Q_EMIT torrentsImportFinished(
             text, o.complete && o.errors.isEmpty() && o.refused.isEmpty() && o.misplaced.isEmpty());
     };
-    if (transmission != nullptr) {
-        auto *import = new TransmissionTorrentsImport(transmission, this);
-        m_transmissionImport = import;
-        connect(import, &TransmissionTorrentsImport::progress, this, progressed);
+    // One importer, whichever engine's: they share start, progress and finished.
+    const auto run = [this, options, progressed, finished](auto *import) {
+        using Importer = std::remove_pointer_t<decltype(import)>;
+        connect(import, &Importer::progress, this, progressed);
         connect(import,
-                &TransmissionTorrentsImport::finished,
+                &Importer::finished,
                 this,
                 [import, finished](const TorrentsImport::Outcome &o) { finished(import, o); });
         import->start(*m_torrentsFile, m_torrentsPlan, options);
-        return;
+    };
+    if (transmission != nullptr) {
+        auto *import = new TransmissionTorrentsImport(transmission, this);
+        m_transmissionImport = import;
+        run(import);
+    } else if (deluge != nullptr) {
+        auto *import = new DelugeTorrentsImport(deluge, this);
+        m_delugeImport = import;
+        run(import);
+    } else {
+        auto *import = new TorrentsImport(qbtEngine(), this);
+        m_torrentsImport = import;
+        run(import);
     }
-    auto *import = new TorrentsImport(qbtEngine(), this);
-    m_torrentsImport = import;
-    connect(import, &TorrentsImport::progress, this, progressed);
-    connect(import,
-            &TorrentsImport::finished,
-            this,
-            [import, finished](const TorrentsImport::Outcome &o) { finished(import, o); });
-    import->start(*m_torrentsFile, m_torrentsPlan, options);
 }
 
 // --- #88: links finish later (C40 X7) ----------------------------------------------------------
 
 void App::finishImportedLinks()
 {
-    TransmissionEngine *engine = transmissionEngine();
-    if (engine == nullptr || m_demoMode || !m_hasServer || !m_engine->globalState()->connected())
+    TransmissionEngine *transmission = transmissionEngine();
+    DelugeEngine *deluge = delugeEngine();
+    if ((transmission == nullptr && deluge == nullptr) || m_demoMode || !m_hasServer ||
+        !m_engine->globalState()->connected())
         return;
     // Never beside an export or an import, nor a look still on its way; and calmly.
-    if (!m_torrentsRunning.isEmpty() || m_linksFinisher)
+    if (!m_torrentsRunning.isEmpty() || m_linksFinisher || m_delugeLinksFinisher)
         return;
     if (m_linksAsked.isValid() && m_linksAsked.durationElapsed() < m_linksInterval)
         return;
     m_linksAsked.start();
     const QString journal = TorrentsImport::Journal::pathFor(m_server.id);
+    // The journal's shape is one (TorrentsImportPlan), so either engine's count reads it.
     if (TransmissionTorrentsImport::linksWaiting(journal) == 0)
         return;
     TorrentsImport::Options options;
@@ -918,26 +1021,34 @@ void App::finishImportedLinks()
     options.localPathFor = [this](const QString &serverPath) {
         return m_freeSpace.localPathFor(serverPath);
     };
-    auto *finisher = new TransmissionTorrentsImport(engine, this);
-    m_linksFinisher = finisher;
-    connect(finisher,
-            &TransmissionTorrentsImport::finished,
-            this,
-            [this, finisher](const TorrentsImport::Outcome &o) {
-                finisher->deleteLater();
-                if (m_linksFinisher == finisher)
-                    m_linksFinisher.clear();
-                if (o.finished == 0)
-                    return;
-                const QString text = count(o.finished,
-                                           "1 imported link got its details and was checked.",
-                                           "%1 imported links got their details and were checked.");
-                qInfo().noquote() << QStringLiteral("torrents: %1").arg(text);
-                m_outcomes->reportWords({{QStringLiteral("kind"), QStringLiteral("done")},
-                                         {QStringLiteral("mark"), QStringLiteral("✓")},
-                                         {QStringLiteral("headline"), text}});
-            });
-    finisher->finishLinks(options);
+    // One finisher, whichever engine's; `held` is the member that keeps it.
+    const auto run = [this, options](auto *finisher, auto *held) {
+        using Importer = std::remove_pointer_t<decltype(finisher)>;
+        *held = finisher;
+        connect(finisher,
+                &Importer::finished,
+                this,
+                [this, finisher, held](const TorrentsImport::Outcome &o) {
+                    finisher->deleteLater();
+                    if (*held == finisher)
+                        held->clear();
+                    if (o.finished == 0)
+                        return;
+                    const QString text =
+                        count(o.finished,
+                              "1 imported link got its details and was checked.",
+                              "%1 imported links got their details and were checked.");
+                    qInfo().noquote() << QStringLiteral("torrents: %1").arg(text);
+                    m_outcomes->reportWords({{QStringLiteral("kind"), QStringLiteral("done")},
+                                             {QStringLiteral("mark"), QStringLiteral("✓")},
+                                             {QStringLiteral("headline"), text}});
+                });
+        finisher->finishLinks(options);
+    };
+    if (transmission != nullptr)
+        run(new TransmissionTorrentsImport(transmission, this), &m_linksFinisher);
+    else
+        run(new DelugeTorrentsImport(deluge, this), &m_delugeLinksFinisher);
 }
 
 void App::cancelTorrentsBackup()
@@ -946,10 +1057,14 @@ void App::cancelTorrentsBackup()
         m_torrentsExport->cancel();
     else if (m_transmissionExport)
         m_transmissionExport->cancel();
+    else if (m_delugeExport)
+        m_delugeExport->cancel();
     else if (m_torrentsImport)
         m_torrentsImport->cancel();
     else if (m_transmissionImport)
         m_transmissionImport->cancel();
+    else if (m_delugeImport)
+        m_delugeImport->cancel();
 }
 
 } // namespace omaseed::app

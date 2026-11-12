@@ -97,7 +97,9 @@ the seed console (counted from when omaseed began watching: Deluge keeps no all-
 totals), and Settings › Deluge with its Plugins. A move Deluge fails pauses the torrent until
 a recheck, so recheck comes first; a move it takes and drops without a word reads as failed.
 Left out: tags, turtle, time limits, automatic management, banning peers, web seeds, the log
-face, search, creating a torrent, and the qBittorrent backups.
+face, search, creating a torrent, and qBittorrent's settings export and import. Its torrents
+move too: Settings › Deluge › Backup exports them to a file and imports a file exported on
+any engine, keeping one label per torrent (Deluge has one) and saying what is left behind.
 
 **What the package installs:** the `omaseed` binary, its `.desktop` file and D-Bus service
 file, icons, the MIT licence, the bar widget (`/usr/share/omaseed/plugin`) and three
@@ -383,8 +385,10 @@ Settings › Backup saves omaseed's servers, settings and seeding history to one
 file, and restores from one (keeping a copy of what it replaces first). Automatic copies run
 weekly by default (or daily, or off) into `~/.local/share/omaseed/backups/`, keeping the last
 four. Passwords and API keys are not in a backup; the keyring keeps those. A backup carries a
-copy of each qBittorrent server's settings; a Transmission's or a Deluge's settings and
-torrents stay on it, as Settings › Backup says.
+copy of each qBittorrent server's settings; a Transmission's or a Deluge's settings stay on
+it, as Settings › Backup says. Torrents are in no backup of omaseed's: each engine's group in
+Settings ends with its own Backup, which exports a server's torrents to a file and imports
+one from any engine.
 
 ## Troubleshooting
 

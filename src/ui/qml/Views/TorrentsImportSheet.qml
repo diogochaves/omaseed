@@ -19,7 +19,9 @@ import Omaseed.Kit
 // A file another engine wrote (docs/57 §5, docs/DECISIONS.md C40 X4, X5; #88; `info.crossing`)
 // adds two blocks between "save paths" and "then": what each of its names becomes here (not
 // editable; the first `namesShown`, then "and N more"), and what this server can't keep, one
-// counted "!" line per thing or the one line saying everything has a place.
+// counted "!" line per thing or the one line saying everything has a place. On a Deluge whose
+// Label plugin is off, a "!" line under the names says no label will be set
+// (`info.namesWarning`, C40 X6), and the "+" line counts the labels made first.
 //
 //     TorrentsImportSheet { anchors.fill: parent; onApplied: … }
 //
@@ -395,6 +397,32 @@ Sheet {
         size: "small"
         text: qsTr("and %1 more").arg(sheet.names.length - sheet.namesShown)
         visible: sheet.crossing && sheet.names.length > sheet.namesShown
+    }
+
+    // C40 X6: a Deluge whose Label plugin is off sets no label; said before the import.
+    RowLayout {
+        Layout.fillWidth: true
+        objectName: "namesWarningRow"
+        spacing: Theme.space(8)
+        visible: (sheet.info.namesWarning ?? "").length > 0
+
+        Label {
+            Layout.alignment: Qt.AlignTop
+            color: Theme.yellow
+            size: "small"
+            text: "!"
+        }
+
+        Label {
+            Accessible.name: text
+            Accessible.role: Accessible.StaticText
+            Layout.fillWidth: true
+            dim: true
+            objectName: "namesWarning"
+            size: "small"
+            text: sheet.info.namesWarning ?? ""
+            wrapMode: Text.WordWrap
+        }
     }
 
     // ---- can't be kept (C40 X5) ---------------------------------------------------------------

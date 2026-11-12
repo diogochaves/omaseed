@@ -102,6 +102,40 @@ TestCase {
                 "seedbox's own torrents, read from seedbox only. To move them to another server, export here and import there.");
     }
 
+    // C40 X3 on a Deluge: its row says "label", and its files are in the daemon's state
+    // folder. A daemon that doesn't tell where they are is out of sight from the first answer,
+    // with no folder to show: the warning lead and both buttons, at once.
+    function test_a_deluge_says_label_and_may_tell_no_folder() {
+        const summary = "214 torrents with their folders, label, limits and renames, in one private file.";
+        const pane = testCase.make({
+                                       "folder": "~/.config/deluge/state",
+                                       "serverName": "cellar",
+                                       "summary": summary
+                                   });
+        const row = testCase.childNamed(pane, "engineExportRow");
+        compare(row.description, summary + " Its .torrent files are read from ~/.config/deluge/state.");
+        compare(row.lead, "");
+        verify(!testCase.childNamed(pane, "engineFolderButton").visible);
+        compare(testCase.childNamed(pane, "engineExportButton").text, "export…");
+
+        pane.folder = "";
+        pane.reach = "unreadable";
+        verify(pane.unseen);
+        compare(row.lead, "omaseed can't see cellar's .torrent files");
+        verify(row.description.indexOf("Give their folder as this machine sees it, or export links") >= 0);
+        const folder = testCase.childNamed(pane, "engineFolderButton");
+        verify(folder.visible);
+        compare(folder.text, "their folder…");
+        const button = testCase.childNamed(pane, "engineExportButton");
+        compare(button.text, "export links…");
+        verify(button.enabled);
+        folder.clicked();
+        compare(folderSpy.count, 1);
+        button.clicked();
+        compare(exportSpy.count, 1);
+        compare(testCase.childNamed(pane, "engineImportRow").title, "Import torrents into cellar");
+    }
+
     // docs/57 §3: the import row, as qBittorrent's. Its words, "import…", the progress line
     // while the file and the server are read and while it runs, "stop" for a run only.
     function test_the_import_row_is_qbittorrents() {

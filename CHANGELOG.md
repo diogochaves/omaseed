@@ -7,6 +7,23 @@ before it will tag a release.
 
 ## Unreleased
 
+### Added
+
+- **A Deluge's library moves too.** Settings › Deluge has a last section, **Backup**, with
+  the same two rows as Transmission's: **Export NAME's torrents** and **Import torrents into
+  NAME**. The export reads the `.torrent` files from the daemon's state folder; when Deluge
+  doesn't tell where that is, or this machine can't see it, the row says so at once and
+  offers their folder or an export of links. On import a torrent keeps one label, as Deluge
+  has one: a qBittorrent's category or a Transmission's first label, in Deluge's spelling
+  (`Field Recordings` becomes `field-recordings`); the import sheet lists every name with
+  what it becomes or "left behind", counts what Deluge can't keep (tags and further labels,
+  a seeding-time or idle limit, an action other than stop or remove at a limit, automatic
+  management, an incomplete folder of a torrent's own) and says again in the result. Labels
+  the daemon lacks are made first. With Deluge's Label plugin off no label is set: the sheet
+  says so before the import and the result counts the torrents that kept none. Links are
+  checked once their details arrive, as on Transmission. omaseed's own Backup now links to
+  the engine's Backup on every engine that has one. (#88)
+
 ## v0.9.1 — 2026-11-12
 
 ### Added

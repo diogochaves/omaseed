@@ -326,7 +326,11 @@ void TestAppDeluge::whatDelugeLacksIsNotOffered()
                            "moveStopsOnFailure",
                            "roomOnServer",
                            "listFolders",
-                           "sessionSettings"})
+                           "sessionSettings",
+                           // C40 X1: its torrents go to a file and come from one.
+                           "torrentsBackup",
+                           "torrentsExport",
+                           "torrentsImport"})
         QVERIFY2(can.value(QString::fromLatin1(on)).toBool(), on);
     // …and what it lacks, hidden by the views that read these.
     for (const char *off : {"tags",
@@ -336,9 +340,6 @@ void TestAppDeluge::whatDelugeLacksIsNotOffered()
                             "seedingTimeLimit",
                             "engineLog",
                             "qbtSettings",
-                            "torrentsBackup",
-                            "torrentsExport",
-                            "torrentsImport",
                             "rss",
                             "search",
                             "createTorrent",

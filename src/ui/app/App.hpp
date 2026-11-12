@@ -109,6 +109,8 @@ namespace omaseed::core {
 class DelugeEngine;
 class QbtEngine;
 class TransmissionEngine;
+class DelugeTorrentsExport;
+class DelugeTorrentsImport;
 class TransmissionTorrentsExport;
 class TransmissionTorrentsImport;
 } // namespace omaseed::core
@@ -216,6 +218,8 @@ public:
     omaseed::core::QbtEngine *qbtEngine() const;
     /// The Transmission the app is on; null on any other engine.
     omaseed::core::TransmissionEngine *transmissionEngine() const;
+    /// The Deluge the app is on; null on any other engine.
+    omaseed::core::DelugeEngine *delugeEngine() const;
     /// What the chosen server can do, resolved from its engine and version after the probe.
     const omaseed::core::EngineFeatures &features() const { return m_features; }
     QVariantMap featuresMap() const;
@@ -2039,8 +2043,8 @@ public:
     /// Stops the export or import on its way. What an import added stays; running the same
     /// file again finishes it.
     Q_INVOKABLE void cancelTorrentsBackup();
-    /// docs/DECISIONS.md C40 X7: the links an import added to the Transmission the app is
-    /// on, finished from its journal once their details have arrived (their file choices and
+    /// docs/DECISIONS.md C40 X7: the links an import added to the Transmission or Deluge the
+    /// app is on, finished from its journal once their details have arrived (their file choices and
     /// renames, their check). Looked at after a connect and then on a poll, never more often
     /// than `setLinksInterval` (a minute) and never while an export or import runs; one
     /// outcome strip says how many were finished.
@@ -2048,9 +2052,10 @@ public:
     /// How long between two looks at the journal's links; a test shortens it.
     void setLinksInterval(std::chrono::milliseconds interval) { m_linksInterval = interval; }
 
-    // A Transmission keeps its .torrent files on its own disk, not in its API (docs/57 §4,
-    // docs/DECISIONS.md C40 X3; #88): whether this machine can read them, asked when
-    // Settings › Transmission › Backup shows and after a folder is given.
+    // A Transmission and a Deluge keep their .torrent files on their own disk, not in their
+    // API (docs/57 §4, docs/DECISIONS.md C40 X3; #88): whether this machine can read them,
+    // asked when Settings › ENGINE › Backup shows and after a folder is given. A Deluge may
+    // not tell where they are: the answer is then "unreadable" at once, with no folder.
     /// "asking", "readable", "unreadable"; "" before the first answer, and on an engine
     /// that sends its .torrent files itself.
     Q_PROPERTY(QString torrentFilesReach READ torrentFilesReach NOTIFY torrentFilesChanged)
@@ -2099,8 +2104,13 @@ private:
     QVariantMap torrentsImportInfo();
     QPointer<omaseed::core::TorrentsExport> m_torrentsExport;
     QPointer<omaseed::core::TransmissionTorrentsExport> m_transmissionExport;
+    QPointer<omaseed::core::DelugeTorrentsExport> m_delugeExport;
     void setTorrentFilesReach(const QString &reach, const QString &note = QString());
     void rememberTorrentsFolder(const QString &folder);
+    /// Asks the engine the app is on (a Transmission or a Deluge) whether its .torrent files
+    /// are read from here, under `folder` when given: `then(valid, readable, daemonFolder)`.
+    void askTorrentFilesReach(const QString &folder,
+                              std::function<void(bool, bool, const QString &)> then);
     QString m_torrentFilesReach;
     QString m_torrentFilesDaemonFolder;
     QString m_torrentFilesNote;
@@ -2111,6 +2121,8 @@ private:
     QPointer<omaseed::core::TransmissionTorrentsImport> m_transmissionImport;
     /// The run finishing imported links (C40 X7), while one is on its way.
     QPointer<omaseed::core::TransmissionTorrentsImport> m_linksFinisher;
+    QPointer<omaseed::core::DelugeTorrentsImport> m_delugeImport;
+    QPointer<omaseed::core::DelugeTorrentsImport> m_delugeLinksFinisher;
     QElapsedTimer m_linksAsked; ///< when the journal's links were last looked at
     std::chrono::milliseconds m_linksInterval = std::chrono::minutes(1);
     std::optional<omaseed::core::TorrentsBackup::Contents> m_torrentsFile;

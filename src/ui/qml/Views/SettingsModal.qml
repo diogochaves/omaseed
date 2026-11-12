@@ -161,15 +161,15 @@ Item {
     readonly property string groupEngine: root.qbtSections.length === 0 ? ""
                                           : root.engineGroupIsQbt ? "qbittorrent"
                                                                   : root.engineName.toLowerCase()
-    /// An engine's sections in Settings: [] for one it has no settings for. Deluge's end with
-    /// Plugins (K15, E6), Transmission's with Backup (C40 X9: Deluge's comes later).
+    /// An engine's sections in Settings: [] for one it has no settings for. Every group ends
+    /// with Backup (C40 X1); Deluge's has Plugins before it (K15, E6).
     function sectionsOf(engine: string): var {
         if (engine === "qbittorrent")
             return root.qbtAllSections;
         if (engine === "transmission")
             return qbtSchema.transmissionSections.concat([root.engineBackupSection]);
         if (engine === "deluge")
-            return qbtSchema.delugeSections;
+            return qbtSchema.delugeSections.concat([root.engineBackupSection]);
         return [];
     }
     /// The sections of the group omaseed is on: its engine's, without Backup while the
@@ -655,13 +655,17 @@ Item {
         root.qbtSwitchTo(row.serverId);
     }
 
-    /// docs/34 D1 a: `t` (or the scope line's link) in omaseed's Backup: qBittorrent's, the
-    /// cursor on Export torrents.
+    /// The group omaseed is on ends with a Backup holding its torrents: qBittorrent's, or
+    /// another engine's that exports or imports them (C40 X1).
+    readonly property bool hasTorrentsBackup: root.qbtSections.length > 0
+                                              && root.qbtSections[root.qbtSections.length - 1].id === "backup"
+    /// docs/34 D1 a: `t` (or the scope line's link) in omaseed's Backup: the engine's own, the
+    /// cursor on Export torrents (qBittorrent's fourth row, another engine's first).
     function openTorrentsBackup(): void {
-        if (!root.engineGroupIsQbt)
-            return; // C25 K33: no Backup but qBittorrent's
+        if (!root.hasTorrentsBackup)
+            return; // an engine with no Backup of its own
         root.showPane(root.qbtStart + root.qbtSections.length - 1);
-        root.paneCursor = 3;
+        root.paneCursor = root.engineGroupIsQbt ? 3 : 0;
         root.area = "pane";
         bodyItem.forceActiveFocus();
     }
@@ -3578,7 +3582,8 @@ Item {
                         }
 
                         // ---- ENGINE › Backup (#88, docs/57 §3, DECISIONS C40 X1) ------------
-                        // Another engine's torrents, as a file: Transmission's export and import.
+                        // Another engine's torrents, as a file: a Transmission's or a Deluge's export and
+                        // import.
                         EngineBackupPane {
                             id: engineBackupPane
 
@@ -3657,12 +3662,16 @@ Item {
 
                             ScopeLine {
                                 Layout.fillWidth: true
-                                // C25 K33: only a qBittorrent has a Backup of its own.
-                                linkKey: root.engineGroupIsQbt ? "t" : ""
-                                linkText: root.engineGroupIsQbt ? qsTr("qBittorrent › Backup ›") : ""
+                                // C40 X1: every engine's torrents have a Backup of their own,
+                                // in its group.
+                                linkKey: root.hasTorrentsBackup ? "t" : ""
+                                linkText: !root.hasTorrentsBackup ? ""
+                                          : root.engineGroupIsQbt ? qsTr("qBittorrent › Backup ›")
+                                                                  : qsTr("%1 › Backup ›").arg(root.engineName)
                                 objectName: "backupScopeLine"
                                 // C25 K33: only a qBittorrent's settings go with it; another
-                                // engine's stay on its server, as its torrents do.
+                                // engine's stay on its server. Torrents are in no engine's:
+                                // the link leads to where they export and import.
                                 text: {
                                     void App.serverName; // a switch, or the list changed
                                     const count = App.serverList.count;

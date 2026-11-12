@@ -1062,11 +1062,15 @@ EngineFeatures features(const ServerInfo &, bool labelPlugin)
     f.qbtSettings = false;       // I, J
     f.sessionSettings = true;    // J, K31: Settings › Deluge, from core.conf (E6)
     f.allTimeTotals = false;     // K, K34: what omaseed saw, from when it began watching
-    f.torrentsBackup = false;    // I, K33
-    f.rss = false;               // I
-    f.addAgain = false;          // I: no .torrent to add back over the API
-    f.search = false;            // I (#145)
-    f.createTorrent = false;     // I (#146): core.create_torrent, not driven yet
+    // C40 X1: its torrents go to a file and come from one (DelugeTorrentsExport, …Import);
+    // its settings have no backup (K33).
+    f.torrentsBackup = true;
+    f.torrentsExport = true;
+    f.torrentsImport = true;
+    f.rss = false;           // I
+    f.addAgain = false;      // I: no .torrent to add back over the API
+    f.search = false;        // I (#145)
+    f.createTorrent = false; // I (#146): core.create_torrent, not driven yet
     // H, K29: tracker_status is the one in use's; the others are listed with their tiers.
     f.trackerStatusInUseOnly = true;
     return f;

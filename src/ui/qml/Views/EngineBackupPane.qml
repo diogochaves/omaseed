@@ -6,14 +6,15 @@ import Omaseed.Kit
 // Settings › ENGINE › Backup for an engine other than qBittorrent (docs/57 §3, §4;
 // docs/DECISIONS.md C40 X1, X2, X3; #88): the last section of its group, the torrents' rows of
 // qBittorrent's Backup and nothing of its settings: "Export NAME's torrents" and, where the
-// engine takes a file (`canImport`; C40 X9: an engine learns the two one release apart),
-// "Import torrents into NAME".
+// engine takes a file (`canImport`; C40 X9: an engine may learn the two one release apart),
+// "Import torrents into NAME". A Transmission's and a Deluge's.
 //
 // The engine keeps its .torrent files on its own disk, so the row says before it starts
 // whether this machine reads them (`reach`): "readable", plain, with the folder they are read
 // from; "unreadable", the warning lead, what a link costs, and two buttons, "their folder…"
 // and "export links…"; anything else (asked, not asked yet), the plain words and a button
-// that waits. While an export runs the row says how far it got and its button stops it, as
+// that waits. A Deluge that doesn't tell where its files are is "unreadable" at once, with no
+// folder. While an export runs the row says how far it got and its button stops it, as
 // qBittorrent's.
 //
 // The import row is qBittorrent's: "import…" opens the file chooser and then the import sheet;

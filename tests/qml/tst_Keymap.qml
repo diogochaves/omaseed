@@ -774,7 +774,9 @@ TestCase {
                                        "engineLog": false,
                                        "addAgain": false,
                                        "qbtSettings": false,
-                                       "torrentsBackup": false,
+                                       "torrentsBackup": true,
+                                       "torrentsExport": true,
+                                       "torrentsImport": true,
                                        "rss": false,
                                        "altSpeeds": false,
                                        "search": false,
@@ -855,7 +857,7 @@ TestCase {
         verify(Keymap.offered("addRow", testCase.deluge, "peers"));
         verify(!Keymap.offered("ban", testCase.deluge, "peers"));
         compare(Keymap.missingLine(testCase.deluge, "nas", "Deluge", "2.2.0"),
-                "Not on nas (Deluge 2.2.0): the log, search, creating a torrent, RSS, tags, turtle and its schedule, automatic management, banning peers, web seeds, settings export and import, the torrents backup.");
+                "Not on nas (Deluge 2.2.0): the log, search, creating a torrent, RSS, tags, turtle and its schedule, automatic management, banning peers, web seeds, settings export and import.");
     }
 
     // Board 47 §B (C25 K13–K14): Transmission's labels are called labels in the palette and

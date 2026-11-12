@@ -625,8 +625,9 @@ void TestDelugeTranslate::featuresAreDeluges()
     QVERIFY(f.moveProgress && f.moveStopsOnFailure && f.listFolders && f.roomOnServer);
     QVERIFY(!f.movesHoldAnswers && !f.moveReplacesFile);
     QVERIFY(f.peerControl && !f.peerBan && !f.webSeeds && !f.editWebSeeds);
-    QVERIFY(!f.engineLog && !f.qbtSettings && !f.torrentsBackup);
-    QVERIFY(!f.torrentsExport && !f.torrentsImport);
+    QVERIFY(!f.engineLog && !f.qbtSettings);
+    // docs/DECISIONS.md C40 X1: its torrents' backup, both ways; never its settings'.
+    QVERIFY(f.torrentsBackup && f.torrentsExport && f.torrentsImport);
     QVERIFY(f.sessionSettings); // Settings › Deluge (E6)
     QVERIFY(!f.rss && !f.addAgain && !f.search && !f.createTorrent);
 

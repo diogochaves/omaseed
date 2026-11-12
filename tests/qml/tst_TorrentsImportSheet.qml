@@ -278,6 +278,89 @@ TestCase {
         compare(sheet.importText, "import 299");
     }
 
+    // docs/57 §5 on a Deluge (C40 X4, X5, X6): a qBittorrent's file. The block is "labels":
+    // the category becomes the one label, in Deluge's spelling, and a tag is left behind,
+    // dim; the "+" line counts the labels made first; what Deluge can't keep is counted.
+    function delugeInfo() {
+        const map = info();
+        map.title = "Import 312 torrents into cellar";
+        map.sub = "From attic's export of 11 Nov 2026 10:00, torrents-attic-2026-11-11.omaseed-torrents · qBittorrent 5.3.0";
+        map.plan[1].label = "already in cellar (same hash)";
+        map.created = "2 labels they use are made first";
+        map.engine = "qBittorrent";
+        map.crossing = true;
+        map.namesTitle = "labels";
+        map.names = [
+            { "name": "music", "kind": "category", "to": "label music", "left": false },
+            { "name": "Field Recordings", "kind": "category", "to": "label field-recordings", "left": false },
+            { "name": "Field Recordings", "kind": "tag", "to": "left behind", "left": true }
+        ];
+        map.namesWarning = "";
+        map.lostTitle = "can't be kept on Deluge";
+        map.losses = ["31 have tags or labels Deluge can't keep: it keeps one label",
+            "9 have an idle limit: Deluge has none", "14 have a seeding-time limit: Deluge has none",
+            "6 do something other than stop at their limit: Deluge stops or removes"];
+        map.kept = "";
+        return map;
+    }
+
+    function test_a_qbittorrents_file_on_a_deluge() {
+        const sheet = createTemporaryObject(sheetComponent, testCase);
+        sheet.openFor(delugeInfo());
+        compare(sheet.title, "Import 312 torrents into cellar");
+        tryVerify(() => findChild(sheet, "namesTitle").visible);
+        compare(findChild(sheet, "namesTitle").text, "labels");
+        const first = findChild(sheet, "nameRow-0");
+        compare(findChild(first, "nameFrom").text, "music");
+        compare(findChild(first, "nameKind").text, "category");
+        compare(findChild(first, "nameTo").text, "label music");
+        verify(!findChild(first, "nameTo").dim);
+        const spelled = findChild(sheet, "nameRow-1");
+        compare(findChild(spelled, "nameFrom").text, "Field Recordings");
+        compare(findChild(spelled, "nameTo").text, "label field-recordings");
+        const left = findChild(sheet, "nameRow-2");
+        compare(findChild(left, "nameKind").text, "tag");
+        compare(findChild(left, "nameTo").text, "left behind");
+        verify(findChild(left, "nameTo").dim);
+        // The plugin is on: no warning.
+        verify(!findChild(sheet, "namesWarningRow").visible);
+        compare(findChild(sheet, "lostTitle").text, "can't be kept on Deluge");
+        tryVerify(() => findChild(sheet, "lossRow-3") !== null);
+        compare(findChild(findChild(sheet, "lossRow-0"), "lossText").text,
+                "31 have tags or labels Deluge can't keep: it keeps one label");
+        compare(findChild(findChild(sheet, "lossRow-3"), "lossText").text,
+                "6 do something other than stop at their limit: Deluge stops or removes");
+        verify(!findChild(sheet, "lossNone").visible);
+        // Deluge needs a label made before a torrent has it.
+        verify(findChild(sheet, "importCreated").visible);
+        compare(findChild(sheet, "importCreated").text, "2 labels they use are made first");
+    }
+
+    // C40 X6: the Label plugin is off. Said under the names, before the import; nothing is
+    // made first. The names block still says what each would become.
+    function test_a_deluge_with_its_label_plugin_off_warns() {
+        const sheet = createTemporaryObject(sheetComponent, testCase);
+        const map = delugeInfo();
+        map.namesWarning = "Deluge's Label plugin is off: no label will be set.";
+        map.created = "";
+        sheet.openFor(map);
+        tryVerify(() => findChild(sheet, "namesWarningRow").visible);
+        const warning = findChild(sheet, "namesWarning");
+        compare(warning.text, "Deluge's Label plugin is off: no label will be set.");
+        // Under the names, above what can't be kept.
+        tryVerify(() => warning.mapToItem(sheet, 0, 0).y > findChild(sheet, "nameRow-2").mapToItem(sheet, 0, 0).y);
+        tryVerify(() => warning.mapToItem(sheet, 0, 0).y < findChild(sheet, "lostTitle").mapToItem(sheet, 0, 0).y);
+        verify(!findChild(sheet, "importCreated").visible);
+
+        // A Deluge's own file: neither block, the warning alone.
+        const same = info();
+        same.created = "";
+        same.namesWarning = map.namesWarning;
+        sheet.openFor(same);
+        verify(!findChild(sheet, "namesTitle").visible);
+        tryVerify(() => findChild(sheet, "namesWarningRow").visible);
+    }
+
     // More names than the block lists: the first eight, then how many more.
     function test_a_crossing_folds_many_names() {
         const sheet = createTemporaryObject(sheetComponent, testCase);
@@ -300,6 +383,7 @@ TestCase {
         verify(!findChild(sheet, "lostTitle").visible);
         verify(!findChild(sheet, "lossNone").visible);
         verify(!findChild(sheet, "namesMore").visible);
+        verify(!findChild(sheet, "namesWarningRow").visible);
         compare(findChild(sheet, "nameRow-0"), null);
     }
 

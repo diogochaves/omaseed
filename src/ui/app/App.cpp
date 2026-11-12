@@ -24,6 +24,7 @@
 #include "core/WeeklyRecap.hpp"
 #include "core/engines/EngineRecognizer.hpp"
 #include "core/engines/deluge/DelugeEngine.hpp"
+#include "core/engines/deluge/DelugeTorrentsImport.hpp"
 #include "core/engines/qbt/QbtEngine.hpp"
 #include "core/engines/qbt/QbtSettingsImport.hpp"
 #include "core/engines/qbt/QbtTranslate.hpp"
@@ -582,6 +583,8 @@ void App::applyServer(const Server &server)
         // once it answers.
         if (m_linksFinisher)
             m_linksFinisher->cancel();
+        if (m_delugeLinksFinisher)
+            m_delugeLinksFinisher->cancel();
         m_linksAsked.invalidate();
     }
     m_server = server;

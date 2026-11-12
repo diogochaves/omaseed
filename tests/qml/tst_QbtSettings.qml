@@ -326,7 +326,7 @@ TestCase {
 
     // docs/57 §3, §4 (DECISIONS C40 X1, X2, X3, X9; #88): Transmission's group ends with Backup,
     // its torrents' two rows and no settings rows; an engine that only exports yet has the
-    // one. The keyboard reaches them as qBittorrent's rows. Deluge's group has none yet.
+    // one. The keyboard reaches them as qBittorrent's rows.
     function test_a_transmissions_group_ends_with_backup() {
         const modal = createTemporaryObject(modalComponent, testCase, {
                                                 "features": {
@@ -413,9 +413,56 @@ TestCase {
         compare(modal.qbtSections.map(section => section.id),
                 ["speed", "discovery", "connection", "seeding", "queue", "downloads"]);
         verify(!modal.inEngineBackup);
-        // Deluge's group ends with Plugins: its Backup comes later (C40 X9).
-        compare(modal.sectionsOf("deluge").map(section => section.id).indexOf("backup"), -1);
+        // Deluge's group ends with Backup too, after its Plugins (C40 X1).
+        compare(modal.sectionsOf("deluge").map(section => section.id).slice(-2), ["plugins", "backup"]);
         compare(modal.sectionsOf("transmission").map(section => section.id).indexOf("backup"), 6);
+    }
+
+    // docs/57 §3 (DECISIONS C40 X1; #88): Deluge's group ends with Backup too, after Plugins:
+    // the same pane, its two rows, reached by its number.
+    function test_a_deluges_group_ends_with_backup() {
+        const modal = createTemporaryObject(modalComponent, testCase, {
+                                                "features": {
+                                                    "qbtSettings": false,
+                                                    "sessionSettings": true,
+                                                    "torrentsBackup": true,
+                                                    "torrentsExport": true,
+                                                    "torrentsImport": true
+                                                },
+                                                "engineName": "Deluge"
+                                            });
+        compare(modal.qbtSections.map(section => section.id),
+                ["speed", "discovery", "connection", "seeding", "queue", "downloads", "plugins", "backup"]);
+        compare(testCase.childNamed(modal, "qbtNavHead").text, "deluge");
+        compare(testCase.childNamed(modal, "qbtNavRow6").text, "Plugins");
+        compare(testCase.childNamed(modal, "qbtNavRow7").text, "Backup");
+        modal.openQbt();
+        keyClick(Qt.Key_8);
+        verify(modal.inEngineBackup);
+        verify(!modal.inQbtBackup);
+        compare(testCase.childNamed(modal, "paneTitle").text, "Backup");
+        const pane = testCase.childNamed(modal, "engineBackupPane");
+        verify(pane.visible);
+        verify(!testCase.childNamed(modal, "qbtBackupPane").visible);
+        verify(!testCase.childNamed(modal, "qbtPane").visible);
+        compare(testCase.childNamed(modal, "engineBackupScopeLine").text,
+                "home's own torrents, read from and sent to home only. To move them to another server, export here and import there.");
+        compare(modal.paneRowCount, 2);
+        compare(testCase.childNamed(modal, "engineExportRow").title, "Export home's torrents");
+        const importRow = testCase.childNamed(modal, "engineImportRow");
+        verify(importRow.visible);
+        compare(importRow.title, "Import torrents into home");
+        // The keyboard reaches both rows.
+        keyClick(Qt.Key_L);
+        compare(modal.area, "pane");
+        keyClick(Qt.Key_J);
+        verify(importRow.hasCursor);
+        // Plugins is still its own section, one above.
+        keyClick(Qt.Key_Escape);
+        modal.openQbt();
+        keyClick(Qt.Key_7);
+        compare(modal.qbtSection.id, "plugins");
+        verify(!modal.inEngineBackup);
     }
 
     // Settings › Deluge (E6, #87; board 47 §J, C25 K31, K15): DELUGE's group, in qBittorrent's
@@ -516,7 +563,9 @@ TestCase {
     }
 
     // C25 K33: omaseed's own Backup carries a qBittorrent's settings only; on a Transmission
-    // it says they stay on the server, with no link to a Backup it has none of.
+    // it says they stay on the server. An engine with no Backup of its own gets no link; one
+    // whose torrents export (C40 X1: Transmission, Deluge) gets the link to it, as
+    // qBittorrent's.
     function test_omaseeds_backup_on_a_transmission() {
         const seedbox = App.serverList.add({
                                                "name": "seedbox",
@@ -538,6 +587,20 @@ TestCase {
         compare(line.text,
                 "omaseed's own: its settings, your server (no password) and its seed history. Its torrents and its Transmission settings aren't in it: the server keeps them.");
         compare(line.linkKey, "");
+        modal.features = {
+            "qbtSettings": false,
+            "sessionSettings": true,
+            "torrentsBackup": true,
+            "torrentsExport": true,
+            "torrentsImport": true
+        };
+        compare(line.linkKey, "t");
+        compare(line.linkText, "Transmission › Backup ›");
+        modal.openTorrentsBackup();
+        verify(modal.inEngineBackup);
+        compare(modal.paneCursor, 0);
+        verify(testCase.childNamed(modal, "engineExportRow").hasCursor);
+        modal.showPane(5);
         testCase.addServer("home", 8081);
         compare(line.text,
                 "omaseed's own: its settings, your 2 servers (no passwords) and their seed history, with a copy of each qBittorrent server's settings. Torrents and other engines' settings aren't in it: each server keeps its own.");
