@@ -7,6 +7,8 @@ before it will tag a release.
 
 ## Unreleased
 
+## v0.9.2 — 2026-11-12
+
 ### Added
 
 - **A Deluge's library moves too.** Settings › Deluge has a last section, **Backup**, with
