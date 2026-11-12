@@ -7,6 +7,8 @@ before it will tag a release.
 
 ## Unreleased
 
+## v0.9.1 — 2026-11-12
+
 ### Added
 
 - **A library moves into a Transmission.** Settings › Transmission › Backup has its second
