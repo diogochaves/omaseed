@@ -1282,4 +1282,48 @@ TestCase {
         compare(App.searchPlugins.enabledCount, 2);
         App.loadDemoSearch("off");
     }
+
+    // #194: "didn't install" stays while the pane is open and goes when it closes, as ok
+    // would: back on the pane, or Settings opened again, the list shows without it.
+    function test_an_install_outcome_goes_with_the_pane() {
+        App.loadDemoSearch("done");
+        const modal = createTemporaryObject(modalComponent, testCase);
+        modal.openQbt();
+        modal.showPane(modal.qbtStart + 9);
+        const pane = testCase.childNamed(modal, "searchPluginsPane");
+        const line = testCase.childNamed(pane, "searchInstallLine");
+        pane.field.text = "~/Downloads/plugin_x.py";
+        App.searchPlugins.showInstallOutcome("failed", "~/Downloads/plugin_x.py");
+        verify(line.visible);
+        verify(testCase.childNamed(pane, "searchInstallWords").text.indexOf("plugin_x.py didn't install") >= 0);
+        // Still there while the pane stays open.
+        keyClick(Qt.Key_Tab);
+        verify(line.visible);
+        compare(App.searchPlugins.installState, "failed");
+
+        // Another pane: it goes, and the field with it.
+        modal.showPane(modal.qbtStart);
+        compare(App.searchPlugins.installState, "");
+        modal.showPane(modal.qbtStart + 9);
+        verify(pane.visible);
+        verify(!line.visible);
+        compare(pane.field.text, "");
+
+        // Settings closed: the same.
+        App.searchPlugins.showInstallOutcome("failed", "~/Downloads/plugin_x.py");
+        verify(line.visible);
+        modal.close();
+        tryCompare(App.searchPlugins, "installState", "");
+        modal.openQbt();
+        modal.showPane(modal.qbtStart + 9);
+        verify(pane.visible);
+        verify(!line.visible);
+
+        // One still installing is kept for when the pane opens again.
+        App.searchPlugins.showInstallOutcome("installing", "https://plugins.example/p.py");
+        modal.showPane(modal.qbtStart);
+        compare(App.searchPlugins.installState, "installing");
+        App.searchPlugins.dismissInstall();
+        App.loadDemoSearch("off");
+    }
 }

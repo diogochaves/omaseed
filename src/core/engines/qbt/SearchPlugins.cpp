@@ -273,6 +273,15 @@ void SearchPlugins::watchInstall()
         });
 }
 
+void SearchPlugins::showInstallOutcome(const QString &state, const QString &source)
+{
+    m_installTimer.stop();
+    m_installState = state;
+    m_installSource = source;
+    m_installName = state == QLatin1String("installed") ? source : QString();
+    Q_EMIT installChanged();
+}
+
 void SearchPlugins::dismissInstall()
 {
     m_installTimer.stop();

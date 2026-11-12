@@ -100,6 +100,8 @@ public:
     void clear();
     /// search/plugins' answer, as if it had come in (the demo's plugins).
     void applyList(const QJsonArray &list) { apply(list); }
+    /// Test seam: an install's outcome ("installed", "failed") as if its watch had ended.
+    Q_INVOKABLE void showInstallOutcome(const QString &state, const QString &source);
 
     /// `{name, fullName, categories}` of each plugin that is on.
     QVariantList enabledPlugins() const;

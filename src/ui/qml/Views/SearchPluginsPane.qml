@@ -37,6 +37,20 @@ Item {
     /// The pane's own keys are done (the field left): the modal takes them back.
     signal fieldDone
 
+    /// ok on the install's line: its outcome goes, and with it the source it was about.
+    function dismissOutcome(): void {
+        root.plugins.dismissInstall();
+        if (root.plugins.installState === "")
+            installField.text = "";
+    }
+
+    // #194: an outcome said (installed, didn't install) stays while the pane is open and goes
+    // when it closes, as ok would; one still installing is said when the pane opens again.
+    onVisibleChanged: {
+        if (!root.visible && root.plugins.installState.length > 0 && root.plugins.installState !== "installing")
+            root.dismissOutcome();
+    }
+
     function activate(index: int, how: string): void {
         if (index === 0) {
             installField.focusInput();
@@ -212,11 +226,7 @@ Item {
                 text: qsTr("ok")
                 visible: root.plugins.installState !== "installing"
 
-                onClicked: {
-                    root.plugins.dismissInstall();
-                    if (root.plugins.installState === "")
-                        installField.text = "";
-                }
+                onClicked: root.dismissOutcome()
             }
         }
 
