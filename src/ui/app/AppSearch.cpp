@@ -11,8 +11,6 @@
 #include <QDateTime>
 #include <QEventLoop>
 #include <QFileDialog>
-#include <QHostAddress>
-#include <QHostInfo>
 #include <QJsonArray>
 #include <QJsonObject>
 #include <QTimer>
@@ -86,16 +84,8 @@ bool App::searchOffered() const
 
 bool App::searchServerLocal() const
 {
-    if (!m_hasServer)
-        return false;
-    // #145 assumed: the address is this computer (a loopback address, or its own name).
-    const QString host = m_server.url.host();
-    if (host.compare(QStringLiteral("localhost"), Qt::CaseInsensitive) == 0)
-        return true;
-    if (host.compare(QHostInfo::localHostName(), Qt::CaseInsensitive) == 0)
-        return true;
-    const QHostAddress address(host);
-    return !address.isNull() && address.isLoopback();
+    // #145 assumed, #194: this computer, and no path map (a container on 127.0.0.1 has one).
+    return m_hasServer && m_server.readsThisComputersFiles();
 }
 
 QString App::pickSearchPluginFile()

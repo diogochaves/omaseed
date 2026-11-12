@@ -107,6 +107,12 @@ public:
     /// "qbittorrent". Any other engine is listed but never connected to (C28) until this
     /// build drives it (C25 K9, `isEngineDriven`).
     bool isQbittorrent() const;
+    /// A file on this computer, named by its path here, is one the server can read (SR10,
+    /// #194): the address is this computer (a loopback address, or its own name) and no path
+    /// map is configured, on or off. A path map says the server sees other folders, as a
+    /// qBittorrent in a container on 127.0.0.1 does, so it reads a URL, not a path here. Only
+    /// the file-picking meaning of "local": localhost's auth bypass is the server's own call.
+    bool readsThisComputersFiles() const;
     /// The engine's name for a sentence: "Transmission", "Deluge", an engine this build
     /// doesn't know as servers.json spells it; empty for a qBittorrent or an unreadable value.
     QString engineName() const;

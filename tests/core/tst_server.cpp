@@ -34,6 +34,8 @@ private slots:
     void aVersionOneEntryIsAQbittorrent();
     void anEngineThisBuildDoesNotKnowIsUnknown();
     void signInModesFollowTheEngine(); // C25 K7
+    void readsThisComputersFilesOnlyWithoutAPathMap_data(); // SR10, #194
+    void readsThisComputersFilesOnlyWithoutAPathMap();
 };
 
 void TestServer::newIdIsStableAndUnique()
@@ -374,6 +376,33 @@ void TestServer::signInModesFollowTheEngine()
     QCOMPARE(omaseed::core::credentialRefusedText(ApiError(ApiError::Kind::Unauthorized, {}),
                                                   AuthMode::Password),
              QStringLiteral("wrong password"));
+}
+
+void TestServer::readsThisComputersFilesOnlyWithoutAPathMap_data()
+{
+    QTest::addColumn<QString>("url");
+    QTest::addColumn<bool>("mapped");
+    QTest::addColumn<bool>("reads");
+    QTest::newRow("127.0.0.1") << "http://127.0.0.1:8080" << false << true;
+    QTest::newRow("localhost") << "http://LocalHost:8080" << false << true;
+    QTest::newRow("::1") << "http://[::1]:8080" << false << true;
+    QTest::newRow("another machine") << "http://192.0.2.7:8080" << false << false;
+    QTest::newRow("a name elsewhere") << "http://nas.example:8080" << false << false;
+    // A container on this computer's loopback: its folders aren't this computer's.
+    QTest::newRow("127.0.0.1, a path map") << "http://127.0.0.1:8080" << true << false;
+    QTest::newRow("localhost, a path map") << "http://localhost:8080" << true << false;
+}
+
+void TestServer::readsThisComputersFilesOnlyWithoutAPathMap()
+{
+    QFETCH(QString, url);
+    QFETCH(bool, mapped);
+    QFETCH(bool, reads);
+    Server server;
+    server.url = QUrl(url);
+    if (mapped)
+        server.pathMap.append(PathMapping{QStringLiteral("/downloads"), QStringLiteral("/srv/t")});
+    QCOMPARE(server.readsThisComputersFiles(), reads);
 }
 
 QTEST_APPLESS_MAIN(TestServer)

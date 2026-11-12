@@ -2659,7 +2659,8 @@ public:
     Q_PROPERTY(omaseed::core::SearchPlugins *searchPlugins READ searchPlugins CONSTANT)
     /// The server has search plugins to offer: a qBittorrent (C25 K30), or the demo.
     Q_PROPERTY(bool searchOffered READ searchOffered NOTIFY serverChanged)
-    /// SR10: the server is this computer, so a plugin file here reaches it.
+    /// SR10: the server is this computer and sees its folders (no path map, #194), so a
+    /// plugin file here reaches it (Server::readsThisComputersFiles).
     Q_PROPERTY(bool searchServerLocal READ searchServerLocal NOTIFY serverChanged)
     core::SearchSession *search() const { return m_search; }
     core::SearchModel *searchResults() const { return m_searchModel; }

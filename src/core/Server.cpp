@@ -3,6 +3,8 @@
 #include "core/ApiError.hpp"
 #include "core/CertificatePin.hpp"
 
+#include <QHostAddress>
+#include <QHostInfo>
 #include <QJsonArray>
 #include <QUuid>
 
@@ -132,6 +134,19 @@ QString Server::newId()
 bool Server::isQbittorrent() const
 {
     return engine == EngineKind::Qbittorrent;
+}
+
+bool Server::readsThisComputersFiles() const
+{
+    if (!pathMap.isEmpty())
+        return false;
+    const QString host = url.host();
+    if (host.compare(QStringLiteral("localhost"), Qt::CaseInsensitive) == 0)
+        return true;
+    if (!host.isEmpty() && host.compare(QHostInfo::localHostName(), Qt::CaseInsensitive) == 0)
+        return true;
+    const QHostAddress address(host);
+    return !address.isNull() && address.isLoopback();
 }
 
 QString Server::engineName() const
