@@ -615,7 +615,8 @@ void TorrentsImport::followUps(int at)
     if (!r.isMagnet() && !r.priorities.isEmpty()) {
         QHash<int, QList<int>> byPriority;
         for (int i = 0; i < r.priorities.size(); ++i) {
-            if (r.priorities.at(i) != 1)
+            // 2 is another engine's "low" (C40 X6): qBittorrent has none, so it stays normal.
+            if (r.priorities.at(i) != 1 && r.priorities.at(i) != 2)
                 byPriority[r.priorities.at(i)].append(i);
         }
         for (auto it = byPriority.constBegin(); it != byPriority.constEnd(); ++it) {

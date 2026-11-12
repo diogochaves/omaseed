@@ -112,9 +112,11 @@ struct TorrentRecord
     bool firstLastPiecePrio = false;
     QString layout = QStringLiteral("Original"); ///< contentLayout for the add
     QList<Rename> renamed;
-    QList<int> priorities; ///< one per file, in index order; empty when every file is normal
-    QStringList trackers;  ///< every tracker, in tier order
-    QString magnet;        ///< a magnet without metadata: the link; empty otherwise
+    /// One per file, in index order; empty when every file is normal. qBittorrent's values
+    /// (0 not wanted, 1 normal, 6 high, 7 maximal), and 2 for another engine's low.
+    QList<int> priorities;
+    QStringList trackers; ///< every tracker, in tier order
+    QString magnet;       ///< a magnet without metadata: the link; empty otherwise
 
     bool isMagnet() const { return !magnet.isEmpty(); }
     bool started() const { return state != QLatin1String("stopped"); }

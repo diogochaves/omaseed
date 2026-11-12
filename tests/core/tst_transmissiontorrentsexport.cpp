@@ -424,7 +424,8 @@ void TestTransmissionTorrentsExport::trackersPrioritiesAndUnits()
                            tracker(1, "http://c/announce"),
                            tracker(2, "http://a/announce")});
     QJsonArray stats = json.value(QStringLiteral("file_stats")).toArray();
-    // Low is normal in a record: qBittorrent, whose values these are, has no low.
+    // Low is 2 in a record (C40 X6): a Transmission reads it back as low, a qBittorrent,
+    // which has no low, as normal.
     stats[0] = QJsonObject{{QStringLiteral("wanted"), true}, {QStringLiteral("priority"), -1}};
     json.insert(QStringLiteral("file_stats"), stats);
     json.insert(QStringLiteral("upload_limited"), true);
@@ -434,7 +435,9 @@ void TestTransmissionTorrentsExport::trackersPrioritiesAndUnits()
     TorrentRecord r = Export::recordFrom(json, 1024, 7, bytes);
     QCOMPARE(r.trackers,
              QStringList({"http://a/announce", "http://b/announce", "http://c/announce"}));
-    QCOMPARE(r.priorities, QList<int>()); // every file normal
+    QList<int> low(stats.size(), 1);
+    low[0] = 2;
+    QCOMPARE(r.priorities, low);
     QCOMPARE(r.upLimit, qint64(3072));
     QCOMPARE(r.queuePosition, 7);
     QVERIFY(!r.isMagnet());

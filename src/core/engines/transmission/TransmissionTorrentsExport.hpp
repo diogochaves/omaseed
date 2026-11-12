@@ -22,8 +22,8 @@
 //
 // A record keeps qBittorrent's fields (TorrentsBackup's header): `category` empty and `tags`
 // the labels in the daemon's order; the queue position counted among the unfinished torrents
-// from 1, as qBittorrent's; file priorities in qBittorrent's values (not wanted 0, high 6,
-// low and normal 1, which has no low).
+// from 1, as qBittorrent's; file priorities in qBittorrent's values (not wanted 0, normal 1,
+// high 6) and 2 for low, which qBittorrent has not: its importer reads a 2 as normal.
 //
 // The file is written to a temporary name beside the target and only takes its place when
 // every torrent is in; it is private (0600) from the start (DECISIONS C9).

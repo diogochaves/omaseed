@@ -174,8 +174,9 @@ TorrentRecord TransmissionTorrentsExport::recordFrom(const QJsonObject &json,
             r.trackers.append(url);
     }
 
-    // The record's priorities are qBittorrent's (TorrentsBackup): not wanted 0, high 6, and
-    // low with normal, as qBittorrent has no low.
+    // The record's priorities are qBittorrent's (TorrentsBackup): not wanted 0, normal 1,
+    // high 6. Low is 2 (FilePriority::Low), which qBittorrent has no place for: its importer
+    // takes it as normal, a Transmission's as low again (C40 X6).
     QStringList names;
     const QJsonArray files = json.value(QLatin1String("files")).toArray();
     const QJsonArray stats = json.value(QLatin1String("file_stats")).toArray();
@@ -184,10 +185,8 @@ TorrentRecord TransmissionTorrentsExport::recordFrom(const QJsonObject &json,
     for (qsizetype i = 0; i < files.size(); ++i) {
         names.append(files.at(i).toObject().value(QLatin1String("name")).toString());
         const QJsonObject stat = stats.at(i).toObject();
-        int priority = TT::filePriority(stat.value(QLatin1String("wanted")).toBool(true),
-                                        int(integer(stat, "priority")));
-        if (priority == int(FilePriority::Low))
-            priority = int(FilePriority::Normal);
+        const int priority = TT::filePriority(stat.value(QLatin1String("wanted")).toBool(true),
+                                              int(integer(stat, "priority")));
         priorities.append(priority);
         allNormal = allNormal && priority == int(FilePriority::Normal);
     }

@@ -303,6 +303,8 @@ private:
             return httpResponse(200, "OK", R"({"save_path":"/d"})");
         if (path.endsWith(u"/torrents/categories"))
             return httpResponse(200, "OK", "{}");
+        if (path.endsWith(u"/torrents/files"))
+            return httpResponse(200, "OK", "[]");
         if (path.endsWith(u"/torrents/info")) {
             const QStringList asked = QUrlQuery(url)
                                           .queryItemValue(QStringLiteral("hashes"))
@@ -1108,6 +1110,52 @@ private Q_SLOTS:
             QCOMPARE(form.queryItemValue(QStringLiteral("savePath")), QString());
         }
         QVERIFY(created);
+    }
+
+    // A Transmission's record says 2 for a file of low priority (C40 X6). qBittorrent has no
+    // low and refuses the value, so such a file stays normal: only the other choices are sent.
+    void aLowFromAnotherEngineStaysNormal()
+    {
+        QTemporaryDir dir;
+        const QByteArray bytes = fixture(QStringLiteral("multi_file_v1_unicode.torrent"));
+        const TorrentFile parsed = TorrentFile::parse(bytes);
+        QVERIFY(parsed.files.size() >= 3);
+        TorrentRecord r = record(parsed.torrentId(), QStringLiteral("/d"));
+        r.infohashV1 = parsed.infoHashV1;
+        r.priorities = QList<int>(parsed.files.size(), 1);
+        r.priorities[0] = 2;
+        r.priorities[1] = 6;
+        r.priorities[2] = 0;
+        TorrentsManifest m = manifest();
+        m.engine = EngineKind::Transmission;
+        const QString path = dir.filePath(QStringLiteral("t.omaseed-torrents"));
+        QVERIFY(writeExport(path, m, {r}, bytes));
+        const auto contents = TorrentsBackup::read(path);
+        QVERIFY(contents.has_value());
+
+        FakeQbt server;
+        QbtEngine client;
+        client.setBaseUrl(server.url());
+        TorrentsImport import(&client);
+        TorrentsImport::Options options;
+        options.check = false;
+        options.journalPath = dir.filePath(QStringLiteral("imports/fake.json"));
+        QSignalSpy finished(&import, &TorrentsImport::finished);
+        import.start(*contents, TorrentsImport::plan(*contents, {}), options);
+        QVERIFY(finished.wait(20000));
+        const auto outcome = finished.constFirst().constFirst().value<TorrentsImport::Outcome>();
+        QVERIFY2(outcome.complete, qPrintable(outcome.errors.join(u"; ")));
+        QVERIFY2(outcome.errors.isEmpty(), qPrintable(outcome.errors.join(u"; ")));
+
+        QHash<QString, QString> sent; // priority -> the files it was set for
+        for (const auto &[what, form] : std::as_const(server.posts)) {
+            if (what == QLatin1String("torrents/filePrio"))
+                sent.insert(form.queryItemValue(QStringLiteral("priority")),
+                            form.queryItemValue(QStringLiteral("id"), QUrl::FullyDecoded));
+        }
+        QCOMPARE(sent.size(), 2);
+        QCOMPARE(sent.value(QStringLiteral("6")), QStringLiteral("1"));
+        QCOMPARE(sent.value(QStringLiteral("0")), QStringLiteral("2"));
     }
 
     // ---- the rename guard (#64, #67) ---------------------------------------------------
