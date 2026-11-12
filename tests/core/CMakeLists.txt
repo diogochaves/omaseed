@@ -779,3 +779,9 @@ omaseed_add_test(tst_createjob_fake
     SOURCES tst_createjob_fake.cpp
     LIBRARIES omaseed::core
 )
+
+omaseed_add_test(tst_omarchymenufile
+    SOURCES tst_omarchymenufile.cpp
+    LIBRARIES omaseed::core
+    DEFINES OMASEED_DATA_DIR="${PROJECT_SOURCE_DIR}/data"
+)

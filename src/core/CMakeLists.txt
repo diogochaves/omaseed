@@ -147,6 +147,8 @@ qt_add_library(omaseed-core STATIC
     MagnetLink.hpp
     MetadataLookup.cpp
     MetadataLookup.hpp
+    OmarchyMenuFile.cpp
+    OmarchyMenuFile.hpp
     OmaseedBackup.cpp
     OmaseedBackup.hpp
     PartialCopies.cpp
