@@ -624,6 +624,19 @@ void TestDelugeTorrentsExport::anUnreadableOrForeignTorrentIsALink()
     QVERIFY(!Export::readTorrent(QDir(m_folder).filePath(m_single + QStringLiteral(".torrent")),
                                  m_single.toUpper())
                  .isEmpty());
+    // A v2 torrent goes by its v2 hash cut short, the id a Deluge with libtorrent 2 gives it
+    // (and a hybrid): its .torrent is its own under that id too.
+    const QByteArray v2 = torrentBytes("v2_stub.torrent");
+    const TorrentFile parsed = TorrentFile::parse(v2);
+    QVERIFY(parsed.isValid());
+    QVERIFY(parsed.torrentId() != parsed.infoHashV1);
+    const QString v2Path = QDir(m_folder).filePath(parsed.torrentId() + QStringLiteral(".torrent"));
+    QFile stored(v2Path);
+    QVERIFY(stored.open(QIODevice::WriteOnly));
+    stored.write(v2);
+    stored.close();
+    QCOMPARE(Export::readTorrent(v2Path, parsed.torrentId()), v2);
+    QVERIFY(Export::readTorrent(v2Path, m_single).isEmpty());
 }
 
 void TestDelugeTorrentsExport::withoutTheDaemonsLinkOmaseedMakesOne()

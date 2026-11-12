@@ -115,7 +115,10 @@ QByteArray DelugeTorrentsExport::readTorrent(const QString &path, const QString 
         return {};
     const QByteArray bytes = file.readAll();
     const TorrentFile parsed = TorrentFile::parse(bytes);
-    if (!parsed.isValid() || parsed.infoHashV1 != hash.toLower())
+    // A hybrid or a v2 torrent goes by its v2 hash cut short on a Deluge with libtorrent 2,
+    // as on qBittorrent (TorrentFile::torrentId).
+    const QString id = hash.toLower();
+    if (!parsed.isValid() || (parsed.infoHashV1 != id && parsed.torrentId() != id))
         return {};
     return bytes;
 }
@@ -247,6 +250,7 @@ TorrentRecord DelugeTorrentsExport::recordFrom(const QJsonObject &json,
     }
     // The id is qBittorrent's (TorrentFile::torrentIdFor), so a hybrid's is its v2 hash cut
     // short: what a qBittorrent will call it once it is added there.
+    r.infohashV1 = parsed.infoHashV1; // the daemon's id may be the v2 hash cut short
     r.infohashV2 = parsed.infoHashV2;
     r.id = parsed.torrentId();
     if (!names.isEmpty()) {

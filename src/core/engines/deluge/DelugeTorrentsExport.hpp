@@ -110,8 +110,8 @@ public:
     /// when one is given, else under `daemonFolder`. Empty with neither, or no id.
     static QString
     localTorrentPath(const QString &id, const QString &daemonFolder, const QString &torrentsFolder);
-    /// The .torrent at `path` when it can be read and is `hash`'s (its v1 info hash, which is
-    /// Deluge's id for a torrent); empty otherwise.
+    /// The .torrent at `path` when it can be read and is `hash`'s (Deluge's id for a torrent:
+    /// its v1 info hash, or for a hybrid or v2 torrent its v2 hash cut short); empty otherwise.
     static QByteArray readTorrent(const QString &path, const QString &hash);
     /// The status keys a record is made of.
     static QStringList recordFields();
