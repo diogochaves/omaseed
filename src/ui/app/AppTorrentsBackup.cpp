@@ -86,9 +86,8 @@ QVariantList crossingNames(EngineKind from, EngineKind to, const QList<TorrentRe
                 {QStringLiteral("name"), name.name},
                 {QStringLiteral("kind"), nameKindText(name.kind)},
                 {QStringLiteral("to"),
-                 outcome.kept
-                     ? QStringLiteral("%1 %2").arg(nameKindText(outcome.kind), target)
-                     : tr("left behind")},
+                 outcome.kept ? QStringLiteral("%1 %2").arg(nameKindText(outcome.kind), target)
+                              : tr("left behind")},
                 {QStringLiteral("left"), !outcome.kept}});
         }
     }
@@ -486,9 +485,9 @@ QVariantMap App::torrentsImportInfo()
         const QString engineText = file.manifest.version.isEmpty()
                                        ? engineName
                                        : QStringLiteral("%1 %2").arg(engineName, version);
-        fromText = plain ? tr("From %1 · %2").arg(fileName, engineText)
-                         : tr("From %1's export of %2, %3 · %4")
-                               .arg(from, when, fileName, engineText);
+        fromText =
+            plain ? tr("From %1 · %2").arg(fileName, engineText)
+                  : tr("From %1's export of %2, %3 · %4").arg(from, when, fileName, engineText);
     } else {
         fromText = plain ? tr("From %1 (qBittorrent %2).").arg(fileName, version)
                          : tr("From %1's export of %2 (qBittorrent %3), %4.")

@@ -1060,7 +1060,7 @@ private Q_SLOTS:
         TorrentRecord r = record(parsed.torrentId(), QStringLiteral("/d"));
         r.infohashV1 = parsed.infoHashV1;
         r.tags = {QStringLiteral("films"), QStringLiteral("hd"), QStringLiteral("a,b")};
-        r.autoTmm = true; // no Transmission writes this; were it there, it stays off
+        r.autoTmm = true;                // no Transmission writes this; were it there, it stays off
         TorrentsManifest m = manifest(); // its "films" has a save path: not this label's
         m.engine = EngineKind::Transmission;
         m.version = QStringLiteral("4.1.3");

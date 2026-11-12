@@ -206,8 +206,8 @@ bool TorrentsImport::crosses(const TorrentsManifest &manifest)
     return manifest.engine != EngineKind::Qbittorrent && manifest.engine != EngineKind::Unknown;
 }
 
-LibraryCrossing::Grouping
-TorrentsImport::groupingHere(const TorrentsManifest &manifest, const TorrentRecord &record)
+LibraryCrossing::Grouping TorrentsImport::groupingHere(const TorrentsManifest &manifest,
+                                                       const TorrentRecord &record)
 {
     if (!crosses(manifest))
         return {record.category, record.tags, {}};
