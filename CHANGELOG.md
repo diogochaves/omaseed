@@ -5,6 +5,26 @@ All notable changes to omaseed are logged here, newest first. Loosely follows
 versioning stability (pre-1.0). `scripts/release.sh` requires a `## v<version>` section here
 before it will tag a release.
 
+## v0.10.3 — 2026-11-12
+
+### Changed
+
+- **Marks read at 3:1 on every ground, in every theme.** The progress line, the pulse, the
+  ratio track, a selected row's edge, a tile's mark, the cursor's mark and the focus ring now
+  lift against the row they sit on, as text already did, so they stay visible on selected and
+  hovered rows. The faint ones (a toggle's outline, "only you"'s box, the ratio track below
+  1.0, the status line's connecting dot, the console tracker's bar, a web seed's lamp) gain
+  only as much strength as they need on the themes where they were too faint, mostly the light
+  ones. A mark that already read is unchanged. (#200, DECISIONS C30)
+
+### Fixed
+
+- **The pieces line says what its percent counts.** With files skipped, a finished torrent's
+  story read "100 %" beside a bar three-quarters full; it now reads "100 % of wanted", and the
+  bar keeps counting pieces. (#189)
+- **A narrow files head shortens its long tail first.** "N skipped, SIZE still on disk" gives
+  way before the file count and size, and never runs under the filter. (#189)
+
 ## v0.10.2 — 2026-11-12
 
 ### Added
