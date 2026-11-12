@@ -598,6 +598,38 @@ TestCase {
         verify(probe.activeFocus, "the focus did not go back to what had it before both");
     }
 
+    // #192: the same, with the window in the background as Fig. 10 opens over the add sheet
+    // and the add sheet closes (a magnet handed over from another app). The window then has no
+    // `activeFocusItem`, and the closing sheet gave the focus back to what had it before, over
+    // the sheet on top: back in front, `esc` went there and the sheet on top stayed. Clearing
+    // the content item's focus is what Qt does to a window that loses the focus; it is cleared
+    // again after `open()`, because the offscreen window always has the focus, so the sheet's
+    // `forceActiveFocus()` gives it back where a window in the background would not.
+    function test_a_sheet_closing_under_another_in_a_background_window_leaves_it_the_keyboard() {
+        const probe = createTemporaryObject(probeComponent, testCase);
+        probe.forceActiveFocus();
+        const under = createTemporaryObject(formSheetComponent, testCase);
+        under.open();
+        const content = testCase.Window.contentItem;
+        content.focus = false;
+        compare(testCase.Window.activeFocusItem, null, "the window still has an active focus item");
+        const over = createTemporaryObject(confirmSheetComponent, testCase);
+        let rejected = 0;
+        over.rejected.connect(() => ++rejected);
+        over.open();
+        content.focus = false;
+        verify(over.primaryButton().focus, "the sheet on top did not take the keyboard");
+
+        under.close();
+        content.focus = true;
+        verify(over.primaryButton().activeFocus, "the sheet closing underneath took the keyboard back");
+
+        keyClick(Qt.Key_Escape);
+        compare(over.opened, false, "esc did not close the sheet on top");
+        compare(rejected, 1);
+        verify(probe.activeFocus, "the focus did not go back to what had it before both");
+    }
+
     // T4.8: `open()` used to land on the first action button, which is `cancel` in every
     // figure, so `enter` cancelled the sheet it had just opened.
     function test_a_body_with_nothing_focusable_puts_the_keyboard_on_the_primary_action() {

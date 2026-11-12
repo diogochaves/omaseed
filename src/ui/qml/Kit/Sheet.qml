@@ -2,6 +2,7 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Layouts
 import Omaseed.Kit
+import "SheetStack.js" as SheetStack
 
 // The centred sheet (spec v2 §3 `.sheet`, in board 46's frame: `.sheet`, `.shh`, `.shb`, `.shf`,
 // DECISIONS C24 H7): an opaque panel with a 1 px accent edge over the scrim; a head on a
@@ -37,7 +38,8 @@ import Omaseed.Kit
 // body; when the body has nothing focusable it goes to the `primary` action's button (so
 // `enter` runs the primary and not the first button, which is usually `cancel`), else to the
 // first button, else to the body's first child, so a sheet of plain content still owns the
-// keyboard. `close()` gives the focus back, unless a sheet opened over this one holds it.
+// keyboard. `close()` gives the focus back, unless a sheet opened over this one holds it
+// (`SheetStack` says so, even while the window is in the background: #192).
 //
 // The mouse: the head's `esc` is a button that does what the key does for this sheet
 // (`pressEscape()`: a guarded sheet puts the keyboard on `cancel` first). A body taller than the
@@ -156,6 +158,8 @@ Item {
     property Item _handBack: null
     /// Everything `focusables()` has ever recognised (see its comment).
     property var _known: []
+    /// The window this sheet is in, for `SheetStack` (a JS library sees no attached property).
+    readonly property var _window: root.Window.window
 
     readonly property int _margin: Theme.sheetMargin
 
@@ -166,6 +170,7 @@ Item {
         root._previousFocus = root.Window.activeFocusItem;
         root._handBack = null;
         root._opened = true;
+        SheetStack.push(root);
         root.focusFirst();
     }
 
@@ -179,6 +184,17 @@ Item {
         root._opened = false;
         const previous = root._previousFocus;
         root._previousFocus = null;
+        // #192: a sheet opened over this one keeps the keyboard, and takes over what this one
+        // had to give back (its own `previous` was inside this sheet, or nothing when the window
+        // was in the background as it opened). The window is not asked: in the background it
+        // has no `activeFocusItem`, and giving the focus back then took it from the sheet on top.
+        const over = SheetStack.above(root, root._window);
+        SheetStack.remove(root);
+        if (over) {
+            if (!over._previousFocus || root._holds(over._previousFocus))
+                over._previousFocus = previous;
+            return;
+        }
         const focused = root.Window.activeFocusItem;
         if (focused && !root._holds(focused)) {
             root._handBack = previous;
@@ -449,6 +465,7 @@ Item {
     implicitWidth: root.sheetWidth
     visible: root.inline || root._opened
 
+    Component.onDestruction: SheetStack.remove(root)
     Keys.onPressed: event => {
         root._onKey(event);
         if (root.modal && root._opened && !event.accepted)

@@ -74,6 +74,7 @@ qt_add_qml_module(omaseed-kit
         ScrollHint.qml
         SelectionMark.qml
         Sheet.qml
+        SheetStack.js
         Sparkline.qml
         SplitLayout.qml
         StackStrip.qml
