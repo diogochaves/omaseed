@@ -110,6 +110,7 @@ class DelugeEngine;
 class QbtEngine;
 class TransmissionEngine;
 class TransmissionTorrentsExport;
+class TransmissionTorrentsImport;
 } // namespace omaseed::core
 
 namespace omaseed::integration {
@@ -2038,6 +2039,14 @@ public:
     /// Stops the export or import on its way. What an import added stays; running the same
     /// file again finishes it.
     Q_INVOKABLE void cancelTorrentsBackup();
+    /// docs/DECISIONS.md C40 X7: the links an import added to the Transmission the app is
+    /// on, finished from its journal once their details have arrived (their file choices and
+    /// renames, their check). Looked at after a connect and then on a poll, never more often
+    /// than `setLinksInterval` (a minute) and never while an export or import runs; one
+    /// outcome strip says how many were finished.
+    void finishImportedLinks();
+    /// How long between two looks at the journal's links; a test shortens it.
+    void setLinksInterval(std::chrono::milliseconds interval) { m_linksInterval = interval; }
 
     // A Transmission keeps its .torrent files on its own disk, not in its API (docs/57 §4,
     // docs/DECISIONS.md C40 X3; #88): whether this machine can read them, asked when
@@ -2080,6 +2089,12 @@ Q_SIGNALS:
 
 private:
     void setTorrentsRunning(const QString &what, const QString &progress = QString());
+    /// The words after an import (docs/24 §7; docs/DECISIONS.md C40 X5, X7, X8): `total` what
+    /// the plan was to send, `source` the saved server the file came from ("" for none).
+    QString torrentsImportResult(const omaseed::core::TorrentsImportPlan::Outcome &outcome,
+                                 const QString &name,
+                                 int total,
+                                 const QString &source) const;
     QList<omaseed::core::TorrentsImport::PathRow> torrentsRows(const QVariantList &rows) const;
     QVariantMap torrentsImportInfo();
     QPointer<omaseed::core::TorrentsExport> m_torrentsExport;
@@ -2093,6 +2108,11 @@ private:
     QString m_torrentFilesFrom;
     int m_torrentFilesAsk = 0; ///< the ask on its way; an older one's answer is dropped
     QPointer<omaseed::core::TorrentsImport> m_torrentsImport;
+    QPointer<omaseed::core::TransmissionTorrentsImport> m_transmissionImport;
+    /// The run finishing imported links (C40 X7), while one is on its way.
+    QPointer<omaseed::core::TransmissionTorrentsImport> m_linksFinisher;
+    QElapsedTimer m_linksAsked; ///< when the journal's links were last looked at
+    std::chrono::milliseconds m_linksInterval = std::chrono::minutes(1);
     std::optional<omaseed::core::TorrentsBackup::Contents> m_torrentsFile;
     omaseed::core::TorrentsImport::Plan m_torrentsPlan;
     QString m_torrentsRunning;

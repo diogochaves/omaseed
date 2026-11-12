@@ -228,12 +228,15 @@ void TestAppTransmissionBackup::theExportIsTransmissionsOwn()
     QCOMPARE(contents->manifest.count, 3);
     QCOMPARE(contents->manifest.magnets, 1);
 
-    // Its import is the next step (C40 X9): refused in words, nothing read.
-    QCOMPARE(app.readTorrentsImport(path), QStringLiteral("seedbox cannot import torrents."));
-    QSignalSpy imported(&app, &App::torrentsImportFinished);
-    app.applyTorrentsImport({});
-    QCOMPARE(imported.size(), 1);
-    QVERIFY(!imported.at(0).at(1).toBool());
+    // The file read back for an import (tst_app_transmissionimport has the rest): all three
+    // are here already, so there is nothing to send.
+    QSignalSpy read(&app, &App::torrentsImportRead);
+    QCOMPARE(app.readTorrentsImport(path), QString());
+    QVERIFY(read.wait(5000));
+    const QVariantMap info = read.at(0).at(0).toMap();
+    QVERIFY(info.value(QStringLiteral("ok")).toBool());
+    QCOMPARE(info.value(QStringLiteral("crossing")).toBool(), false);
+    QCOMPARE(info.value(QStringLiteral("importCount")).toInt(), 0);
     app.engine()->stop();
 }
 

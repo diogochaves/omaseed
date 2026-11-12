@@ -28,6 +28,7 @@
 #include "core/engines/qbt/QbtSettingsImport.hpp"
 #include "core/engines/qbt/QbtTranslate.hpp"
 #include "core/engines/transmission/TransmissionEngine.hpp"
+#include "core/engines/transmission/TransmissionTorrentsImport.hpp"
 #include "integration/Autostart.hpp"
 #include "integration/Notifier.hpp"
 #include "integration/StatusWriter.hpp"
@@ -339,6 +340,8 @@ App::App(QObject *parent)
     connect(m_engine->tags(), &TagModel::countChanged, this, &App::qbtBackupChanged);
     // #33: the torrents export summary counts the library.
     connect(m_engine->torrents(), &TorrentModel::countChanged, this, &App::torrentsBackupChanged);
+    // #88 (C40 X7): an import's links are finished from the journal on a poll, calmly.
+    connect(m_engine, &SyncEngine::synced, this, &App::finishImportedLinks);
     connect(this, &App::serverChanged, this, [this] {
         m_qbtRssFeeds = m_qbtRssRules = -1;
         Q_EMIT qbtBackupChanged();
@@ -575,6 +578,11 @@ void App::applyServer(const Server &server)
         m_torrentFilesFrom.clear();
         m_torrentFilesDaemonFolder.clear();
         setTorrentFilesReach(QString());
+        // Nor are the links a look was finishing (C40 X7); the next server's are looked at
+        // once it answers.
+        if (m_linksFinisher)
+            m_linksFinisher->cancel();
+        m_linksAsked.invalidate();
     }
     m_server = server;
     m_hasServer = true;

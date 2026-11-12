@@ -84,6 +84,14 @@ omaseed_add_test(tst_app_transmissionbackup
     DEFINES OMASEED_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../fixtures"
 )
 
+# #88 (C40 X1, X4-X8): a torrents file imported into a Transmission in the app: the engine's
+# importer, the sheet's data, the result's words, the links finished later.
+omaseed_add_test(tst_app_transmissionimport
+    SOURCES tst_app_transmissionimport.cpp
+    LIBRARIES omaseed::app omaseed::core omaseed::integration Qt6::Network
+    DEFINES OMASEED_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../fixtures"
+)
+
 # #87 (C14 E6, C25): a Deluge server driven in the app, against FakeDeluge and deluge-web's
 # recorded answers.
 omaseed_add_test(tst_app_deluge

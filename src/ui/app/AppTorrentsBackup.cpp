@@ -6,6 +6,11 @@
 // from Settings › Transmission › Backup by its own exporter, which reads the .torrent files
 // from the daemon's disk; App asks beforehand whether this machine can, and remembers the
 // folder a person gives for them.
+//
+// #88 (docs/57 §5, §6; C40 X4–X8): a file is imported into a Transmission by its own importer,
+// from the same sheet; the result repeats what it can't keep, names the torrents it couldn't
+// put where the file says, and the links it added are finished from the journal once their
+// details arrive (finishImportedLinks).
 #include "ui/app/App.hpp"
 
 #include "core/Format.hpp"
@@ -15,6 +20,7 @@
 #include "core/engines/qbt/QbtEngine.hpp"
 #include "core/engines/transmission/TransmissionEngine.hpp"
 #include "core/engines/transmission/TransmissionTorrentsExport.hpp"
+#include "core/engines/transmission/TransmissionTorrentsImport.hpp"
 
 #include <QCoreApplication>
 #include <QDate>
@@ -102,8 +108,9 @@ QVariantList crossingNames(EngineKind from, EngineKind to, const QList<TorrentRe
 }
 
 /// The "can't be kept" lines of a crossing import (C40 X5): one counted line per thing `to`
-/// has no counterpart for. Empty when it keeps everything.
-QStringList crossingLosses(EngineKind from, EngineKind to, const QList<TorrentRecord> &records)
+/// has no counterpart for, the same before the import (the sheet) and after it (the result).
+/// Empty when it keeps everything.
+QStringList lossLines(EngineKind to, const QList<LibraryCrossing::Loss> &losses)
 {
     const QString engine = engineDisplayName(to);
     // `one` names the engine as %1; `many` the count as %1 and the engine as %2.
@@ -111,7 +118,7 @@ QStringList crossingLosses(EngineKind from, EngineKind to, const QList<TorrentRe
         return n == 1 ? tr(one).arg(engine) : tr(many).arg(n).arg(engine);
     };
     QStringList out;
-    for (const LibraryCrossing::Loss &loss : LibraryCrossing::losses(from, to, records)) {
+    for (const LibraryCrossing::Loss &loss : losses) {
         const int n = loss.torrents;
         switch (loss.kind) {
         case LibraryCrossing::LossKind::SeedingTimeLimit:
@@ -155,6 +162,13 @@ QStringList crossingLosses(EngineKind from, EngineKind to, const QList<TorrentRe
         }
     }
     return out;
+}
+
+/// Up to three of `names`, then "and N more".
+QString firstNames(const QStringList &names)
+{
+    const QString shown = names.mid(0, 3).join(QStringLiteral(", "));
+    return names.size() > 3 ? tr("%1, and %2 more").arg(shown).arg(names.size() - 3) : shown;
 }
 
 /// `path` with the home folder written as `~`.
@@ -465,7 +479,10 @@ void App::exportTorrents(const QString &path)
 QString App::pickTorrentsImportFile() const
 {
     QFileDialog dialog(nullptr,
-                       tr("Import qBittorrent's torrents"),
+                       // A file from any engine goes into a Transmission (C40 X1).
+                       transmissionEngine() != nullptr
+                           ? tr("Import torrents into %1").arg(m_server.name)
+                           : tr("Import qBittorrent's torrents"),
                        QDir::homePath(),
                        tr("omaseed torrents (*.omaseed-torrents);;All files (*)"));
     dialog.setFileMode(QFileDialog::ExistingFile);
@@ -482,7 +499,7 @@ QString App::readTorrentsImport(const QString &path)
     if (m_demoMode || !m_hasServer || !m_engine->globalState()->connected())
         return tr("%1 is not connected.").arg(m_server.name);
     // C40 X9: an engine that exports may not import yet.
-    if (!m_features.torrentsImport || qbtEngine() == nullptr)
+    if (!m_features.torrentsImport || (qbtEngine() == nullptr && transmissionEngine() == nullptr))
         return tr("%1 cannot import torrents.").arg(m_server.name);
     QString error;
     std::optional<TorrentsBackup::Contents> contents = TorrentsBackup::read(path, &error);
@@ -513,10 +530,13 @@ QString App::readTorrentsImport(const QString &path)
                   tr("Could not read %1's torrents: %2").arg(m_server.name, read->error)}});
             return;
         }
-        m_torrentsPlan = TorrentsImport::plan(
-            *m_torrentsFile,
-            read->here,
-            TorrentsImport::Journal::load(TorrentsImport::Journal::pathFor(m_server.id)));
+        // The engine's own plan (C40 X1): a Transmission has nothing to create first.
+        const TorrentsImport::Journal journal =
+            TorrentsImport::Journal::load(TorrentsImport::Journal::pathFor(m_server.id));
+        m_torrentsPlan =
+            transmissionEngine() != nullptr
+                ? TransmissionTorrentsImport::plan(*m_torrentsFile, read->here, journal)
+                : TorrentsImport::plan(*m_torrentsFile, read->here, journal);
         Q_EMIT torrentsImportRead(torrentsImportInfo());
     };
     m_client->torrents()->then(this, [read, settle](const Result<QList<TorrentPatch>> &r) {
@@ -578,8 +598,12 @@ QVariantMap App::torrentsImportInfo()
         int(plan.skipped.size()),
         Format::size(plan.skippedBytes),
         true);
+    // Another engine's file also holds as links the torrents whose .torrent files its export
+    // couldn't read (C40 X3).
     row(QStringLiteral("magnets"),
-        tr("magnets without metadata"),
+        knownEngine(file.manifest.engine) == EngineKind::Qbittorrent
+            ? tr("magnets without metadata")
+            : tr("links, without their .torrent files"),
         tr("added as links"),
         int(plan.magnets.size()),
         QStringLiteral("—"),
@@ -657,15 +681,16 @@ QVariantMap App::torrentsImportInfo()
             plain ? tr("From %1 · %2").arg(fileName, engineText)
                   : tr("From %1's export of %2, %3 · %4").arg(from, when, fileName, engineText);
     } else {
-        fromText = plain ? tr("From %1 (qBittorrent %2).").arg(fileName, version)
-                         : tr("From %1's export of %2 (qBittorrent %3), %4.")
-                               .arg(from, when, version, fileName);
+        fromText = plain ? tr("From %1 (%2 %3).").arg(fileName, engineName, version)
+                         : tr("From %1's export of %2 (%3 %4), %5.")
+                               .arg(from, when, engineName, version, fileName);
     }
     QVariantList names;
     QStringList losses;
     if (crossing) {
         names = crossingNames(fileEngine, hereEngine, file.records);
-        losses = crossingLosses(fileEngine, hereEngine, file.records);
+        losses =
+            lossLines(hereEngine, LibraryCrossing::losses(fileEngine, hereEngine, file.records));
     }
     const QString hereName = engineDisplayName(hereEngine);
     return {{QStringLiteral("ok"), true},
@@ -729,6 +754,77 @@ QString App::torrentsImportPathsNote(const QVariantList &rows) const
                  "%1 save paths no row covers are kept as they are");
 }
 
+QString App::torrentsImportResult(const TorrentsImport::Outcome &o,
+                                  const QString &name,
+                                  int total,
+                                  const QString &source) const
+{
+    QStringList parts;
+    const int torrents = o.added + o.finished;
+    if (torrents > 0)
+        parts.append(count(torrents, "1 torrent", "%1 torrents"));
+    if (o.magnets > 0)
+        parts.append(count(o.magnets, "1 link", "%1 links"));
+    QString text = parts.isEmpty()
+                       ? tr("Nothing was imported into %1.").arg(name)
+                       : tr("Imported into %1: %2.").arg(name, parts.join(QStringLiteral(", ")));
+    const auto say = [&text](const QString &sentence) { text += QLatin1Char(' ') + sentence; };
+    if (o.started > 0 || o.leftStopped > 0) {
+        QStringList state;
+        if (o.started > 0)
+            state.append(tr("%1 started").arg(o.started));
+        if (o.leftStopped > 0)
+            state.append(tr("%1 left stopped").arg(o.leftStopped));
+        say(tr("After the check: %1.").arg(state.join(QStringLiteral(", "))));
+    }
+    if (!o.refused.isEmpty())
+        say(tr("Kept stopped, its files not renamed: the rename would replace a file "
+               "already on disk (%1).")
+                .arg(o.refused.join(QStringLiteral(", "))));
+    // The target can't name their files as the file does (a Transmission keeps a torrent's
+    // top folder): added, never started, and named so they can be put right by hand.
+    if (o.misplaced.size() == 1)
+        say(tr("1 is not where the file says and stays stopped: %1.")
+                .arg(o.misplaced.constFirst()));
+    else if (!o.misplaced.isEmpty())
+        say(tr("%1 are not where the file says and stay stopped: %2.")
+                .arg(o.misplaced.size())
+                .arg(firstNames(o.misplaced)));
+    if (o.keptManual > 0)
+        say(count(o.keptManual,
+                  "1 torrent kept its folder by hand: automatic management "
+                  "would move it here.",
+                  "%1 torrents kept their folders by hand: automatic "
+                  "management would move them here."));
+    // C40 X7: finishImportedLinks does it, now or at a later start.
+    if (o.linksWaiting > 0)
+        say(count(o.linksWaiting,
+                  "1 came as a link: it is checked once its details arrive.",
+                  "%1 came as links: they are checked once their details arrive."));
+    if (o.cancelled || !o.complete) {
+        const int done = o.added + o.magnets + o.finished;
+        say((o.cancelled ? tr("Stopped after %1 of %2.") : tr("It stopped after %1 of %2."))
+                .arg(done)
+                .arg(total));
+        say(tr("Import the same file again to finish: what is here is kept."));
+    }
+    if (!o.errors.isEmpty())
+        say(o.errors.size() == 1 ? tr("Not done: %1.").arg(o.errors.constFirst())
+                                 : tr("Not done: %1, and %2 more.")
+                                       .arg(o.errors.constFirst())
+                                       .arg(o.errors.size() - 1));
+    // C40 X5: what the sheet said can't be kept, again, in the same sentences.
+    for (const QString &line : lossLines(knownEngine(m_server.engine), o.losses))
+        say(line + QLatin1Char('.'));
+    // C40 X8: the import never talks to the server the file came from; the result only says
+    // the torrents are still there.
+    if (!source.isEmpty() && !parts.isEmpty())
+        say(tr("They are still on %1. Unfinished ones stay stopped here until you stop or "
+               "remove them there.")
+                .arg(source));
+    return text;
+}
+
 void App::applyTorrentsImport(const QVariantMap &choice)
 {
     if (!m_torrentsFile) {
@@ -739,10 +835,15 @@ void App::applyTorrentsImport(const QVariantMap &choice)
         Q_EMIT torrentsImportFinished(tr("Another export or import is running."), false);
         return;
     }
-    if (!m_features.torrentsImport || qbtEngine() == nullptr) {
+    // The engine's own importer (docs/DECISIONS.md C40 X1), in the one shape.
+    TransmissionEngine *transmission = transmissionEngine();
+    if (!m_features.torrentsImport || (qbtEngine() == nullptr && transmission == nullptr)) {
         Q_EMIT torrentsImportFinished(tr("%1 cannot import torrents.").arg(m_server.name), false);
         return;
     }
+    // The journal is one run's at a time: a look at its links (C40 X7) gives way.
+    if (m_linksFinisher)
+        m_linksFinisher->cancel();
     TorrentsImport::Options options;
     options.rows = torrentsRows(choice.value(QStringLiteral("rows")).toList());
     options.check = choice.value(QStringLiteral("check"), true).toBool();
@@ -751,86 +852,92 @@ void App::applyTorrentsImport(const QVariantMap &choice)
     options.localPathFor = [this](const QString &serverPath) {
         return m_freeSpace.localPathFor(serverPath);
     };
-    auto *import = new TorrentsImport(qbtEngine(), this);
-    m_torrentsImport = import;
     const QString name = m_server.name;
     const int total = m_torrentsPlan.count();
-    // docs/DECISIONS.md C40 X8: the server the file came from, when omaseed has it saved. The
-    // import never talks to it; the result only says the torrents are still there.
+    // docs/DECISIONS.md C40 X8: the server the file came from, when omaseed has it saved.
     const auto saved = savedSource(m_servers->servers(), m_server.id, m_torrentsFile->manifest);
     const QString old = saved ? saved->name : QString();
     setTorrentsRunning(QStringLiteral("import"), tr("importing into %1…").arg(name));
-    connect(
-        import, &TorrentsImport::progress, this, [this](const QString &phase, int done, int of) {
-            setTorrentsRunning(QStringLiteral("import"),
-                               phase == QLatin1String("checking")
-                                   ? tr("checking files: %1 of %2…").arg(done).arg(of)
-                                   : tr("adding %1 of %2…").arg(done).arg(of));
-        });
-    connect(
-        import,
-        &TorrentsImport::finished,
-        this,
-        [this, import, name, total, old](const TorrentsImport::Outcome &o) {
-            import->deleteLater();
-            setTorrentsRunning(QString());
-            QStringList parts;
-            const int torrents = o.added + o.finished;
-            if (torrents > 0)
-                parts.append(count(torrents, "1 torrent", "%1 torrents"));
-            if (o.magnets > 0)
-                parts.append(count(o.magnets, "1 link", "%1 links"));
-            QString text =
-                parts.isEmpty()
-                    ? tr("Nothing was imported into %1.").arg(name)
-                    : tr("Imported into %1: %2.").arg(name, parts.join(QStringLiteral(", ")));
-            if (o.started > 0 || o.leftStopped > 0) {
-                QStringList state;
-                if (o.started > 0)
-                    state.append(tr("%1 started").arg(o.started));
-                if (o.leftStopped > 0)
-                    state.append(tr("%1 left stopped").arg(o.leftStopped));
-                text += QLatin1Char(' ') +
-                        tr("After the check: %1.").arg(state.join(QStringLiteral(", ")));
-            }
-            if (!o.refused.isEmpty())
-                text += QLatin1Char(' ') +
-                        tr("Kept stopped, its files not renamed: the rename would replace a file "
-                           "already on disk (%1).")
-                            .arg(o.refused.join(QStringLiteral(", ")));
-            if (o.keptManual > 0)
-                text += QLatin1Char(' ') +
-                        count(o.keptManual,
-                              "1 torrent kept its folder by hand: automatic management "
-                              "would move it here.",
-                              "%1 torrents kept their folders by hand: automatic "
-                              "management would move them here.");
-            if (o.cancelled || !o.complete) {
-                const int done = o.added + o.magnets + o.finished;
-                text +=
-                    QLatin1Char(' ') +
-                    (o.cancelled ? tr("Stopped after %1 of %2.") : tr("It stopped after %1 of %2."))
-                        .arg(done)
-                        .arg(total) +
-                    QLatin1Char(' ') +
-                    tr("Import the same file again to finish: what is here is kept.");
-            }
-            if (!o.errors.isEmpty())
-                text += QLatin1Char(' ') + (o.errors.size() == 1
-                                                ? tr("Not done: %1.").arg(o.errors.constFirst())
-                                                : tr("Not done: %1, and %2 more.")
-                                                      .arg(o.errors.constFirst())
-                                                      .arg(o.errors.size() - 1));
-            if (!old.isEmpty() && !parts.isEmpty())
-                text += QLatin1Char(' ') + tr("They are still on %1. Unfinished ones stay stopped "
-                                              "here until you stop or remove them there.")
-                                               .arg(old);
-            qInfo().noquote() << QStringLiteral("torrents: %1").arg(text);
-            m_torrentsFile.reset();
-            Q_EMIT torrentsImportFinished(text,
-                                          o.complete && o.errors.isEmpty() && o.refused.isEmpty());
-        });
+    const auto progressed = [this](const QString &phase, int done, int of) {
+        setTorrentsRunning(QStringLiteral("import"),
+                           phase == QLatin1String("checking")
+                               ? tr("checking files: %1 of %2…").arg(done).arg(of)
+                               : tr("adding %1 of %2…").arg(done).arg(of));
+    };
+    const auto finished = [this, name, total, old](QObject *import,
+                                                   const TorrentsImport::Outcome &o) {
+        import->deleteLater();
+        setTorrentsRunning(QString());
+        const QString text = torrentsImportResult(o, name, total, old);
+        qInfo().noquote() << QStringLiteral("torrents: %1").arg(text);
+        m_torrentsFile.reset();
+        // Its links wait a full interval from here: their details can't be there yet.
+        m_linksAsked.start();
+        Q_EMIT torrentsImportFinished(
+            text, o.complete && o.errors.isEmpty() && o.refused.isEmpty() && o.misplaced.isEmpty());
+    };
+    if (transmission != nullptr) {
+        auto *import = new TransmissionTorrentsImport(transmission, this);
+        m_transmissionImport = import;
+        connect(import, &TransmissionTorrentsImport::progress, this, progressed);
+        connect(import,
+                &TransmissionTorrentsImport::finished,
+                this,
+                [import, finished](const TorrentsImport::Outcome &o) { finished(import, o); });
+        import->start(*m_torrentsFile, m_torrentsPlan, options);
+        return;
+    }
+    auto *import = new TorrentsImport(qbtEngine(), this);
+    m_torrentsImport = import;
+    connect(import, &TorrentsImport::progress, this, progressed);
+    connect(import,
+            &TorrentsImport::finished,
+            this,
+            [import, finished](const TorrentsImport::Outcome &o) { finished(import, o); });
     import->start(*m_torrentsFile, m_torrentsPlan, options);
+}
+
+// --- #88: links finish later (C40 X7) ----------------------------------------------------------
+
+void App::finishImportedLinks()
+{
+    TransmissionEngine *engine = transmissionEngine();
+    if (engine == nullptr || m_demoMode || !m_hasServer || !m_engine->globalState()->connected())
+        return;
+    // Never beside an export or an import, nor a look still on its way; and calmly.
+    if (!m_torrentsRunning.isEmpty() || m_linksFinisher)
+        return;
+    if (m_linksAsked.isValid() && m_linksAsked.durationElapsed() < m_linksInterval)
+        return;
+    m_linksAsked.start();
+    const QString journal = TorrentsImport::Journal::pathFor(m_server.id);
+    if (TransmissionTorrentsImport::linksWaiting(journal) == 0)
+        return;
+    TorrentsImport::Options options;
+    options.journalPath = journal;
+    options.localPathFor = [this](const QString &serverPath) {
+        return m_freeSpace.localPathFor(serverPath);
+    };
+    auto *finisher = new TransmissionTorrentsImport(engine, this);
+    m_linksFinisher = finisher;
+    connect(finisher,
+            &TransmissionTorrentsImport::finished,
+            this,
+            [this, finisher](const TorrentsImport::Outcome &o) {
+                finisher->deleteLater();
+                if (m_linksFinisher == finisher)
+                    m_linksFinisher.clear();
+                if (o.finished == 0)
+                    return;
+                const QString text = count(o.finished,
+                                           "1 imported link got its details and was checked.",
+                                           "%1 imported links got their details and were checked.");
+                qInfo().noquote() << QStringLiteral("torrents: %1").arg(text);
+                m_outcomes->reportWords({{QStringLiteral("kind"), QStringLiteral("done")},
+                                         {QStringLiteral("mark"), QStringLiteral("✓")},
+                                         {QStringLiteral("headline"), text}});
+            });
+    finisher->finishLinks(options);
 }
 
 void App::cancelTorrentsBackup()
@@ -841,6 +948,8 @@ void App::cancelTorrentsBackup()
         m_transmissionExport->cancel();
     else if (m_torrentsImport)
         m_torrentsImport->cancel();
+    else if (m_transmissionImport)
+        m_transmissionImport->cancel();
 }
 
 } // namespace omaseed::app

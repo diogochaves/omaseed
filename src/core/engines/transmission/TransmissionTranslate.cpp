@@ -1088,10 +1088,10 @@ EngineFeatures features(const ServerInfo &)
     f.engineLog = false;         // I, K30: no log face, no ~
     f.qbtSettings = false;       // I, J
     f.sessionSettings = true;    // J, K31, E5: Settings › Transmission from session_get / _set
-    // docs/DECISIONS.md C40 X9: its torrents export; the import is the next step.
+    // docs/DECISIONS.md C40 X9: its torrents export, then their import.
     f.torrentsBackup = true;
     f.torrentsExport = true;
-    f.torrentsImport = false;
+    f.torrentsImport = true;
     f.rss = false;                         // I
     f.addAgain = false;                    // I: C17 D3's re-add is libtorrent's hybrid fix
     f.search = false;                      // I (#145)

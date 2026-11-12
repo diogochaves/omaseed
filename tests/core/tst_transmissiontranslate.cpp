@@ -777,14 +777,13 @@ void TestTransmissionTranslate::featuresFollowBoard47()
                            f.editWebSeeds,
                            f.engineLog,
                            f.qbtSettings,
-                           f.torrentsImport,
                            f.rss,
                            f.addAgain,
                            f.search,
                            f.createTorrent})
         QVERIFY(!off);
-    // docs/DECISIONS.md C40 X9: its torrents export; the import is the next step.
-    QVERIFY(f.torrentsBackup && f.torrentsExport);
+    // docs/DECISIONS.md C40 X9: its torrents export, then their import.
+    QVERIFY(f.torrentsBackup && f.torrentsExport && f.torrentsImport);
 }
 
 void TestTransmissionTranslate::speedsLeaveInKilobytes()
