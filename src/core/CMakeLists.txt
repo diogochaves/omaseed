@@ -49,6 +49,8 @@ qt_add_library(omaseed-core STATIC
     engines/deluge/DelugeTranslate.hpp
     engines/deluge/DelugeTorrentsExport.cpp
     engines/deluge/DelugeTorrentsExport.hpp
+    engines/deluge/DelugeTorrentsImport.cpp
+    engines/deluge/DelugeTorrentsImport.hpp
     engines/EngineFeatures.hpp
     engines/LogEntry.hpp
     engines/ServerInfo.hpp

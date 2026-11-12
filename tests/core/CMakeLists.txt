@@ -604,6 +604,23 @@ omaseed_add_test(tst_transmissiontorrentsimport_live LIVE
     DEFINES OMASEED_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../fixtures"
 )
 
+# #88, C40 X4-X7: a TorrentsBackup file laid onto a Deluge, against the fake deluge-web: the
+# add and its options, the label, renames waited for before the recheck, links finished
+# later, the journal.
+omaseed_add_test(tst_delugetorrentsimport
+    SOURCES tst_delugetorrentsimport.cpp
+    LIBRARIES omaseed::core Qt6::Network
+    DEFINES OMASEED_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../fixtures"
+)
+
+# The same against the real deluge-web test server (:8086; DELUGE_TEST_PASS in the
+# environment): data on disk under other names, a skipped file, a label; no top folder.
+omaseed_add_test(tst_delugetorrentsimport_live LIVE
+    SOURCES tst_delugetorrentsimport_live.cpp
+    LIBRARIES omaseed::core Qt6::Network
+    DEFINES OMASEED_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../fixtures"
+)
+
 # #87: Deluge's answers in omaseed's terms, from answers recorded off a real deluge-web 2.2
 # (tests/fixtures/deluge, scripts/dev/deluge-fixtures.py).
 omaseed_add_test(tst_delugetranslate
