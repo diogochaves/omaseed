@@ -13,6 +13,7 @@
 #include <QVariant>
 
 #include <cmath>
+#include <limits>
 
 namespace omaseed::core {
 
@@ -214,7 +215,7 @@ void SeedLedger::observe(qint64 now,
                          qint64 allTimeDown,
                          const QList<TorrentTotals> &torrents)
 {
-    if (now <= 0)
+    if (now <= 0 || notReady(allTimeUp, allTimeDown))
         return;
     if (m_start == 0) {
         m_start = now;
@@ -271,7 +272,7 @@ void SeedLedger::observeChanges(qint64 now,
                                 const QList<TorrentTotals> &changed,
                                 const QStringList &removed)
 {
-    if (now <= 0)
+    if (now <= 0 || notReady(allTimeUp, allTimeDown))
         return;
     if (m_start == 0) {
         m_start = now;
@@ -336,6 +337,43 @@ void SeedLedger::observeChanges(qint64 now,
     finishPoll(now, allTimeUp, allTimeDown, perTorrent);
 }
 
+bool SeedLedger::notReady(qint64 allTimeUp, qint64 allTimeDown)
+{
+    // #256: a qBittorrent that has just started answers with alltime_ul and alltime_dl at 0
+    // until its first statistics refresh. Taking that as a step backwards made 0 the
+    // reference, and the next poll booked the server's whole all-time total. Lower totals
+    // that are not both 0 (statistics lost, a Deluge session starting again) still re-base
+    // in finishPoll(); 0 and 0 with nothing counted yet is an ordinary first poll.
+    const bool haveServer = m_lastUp >= 0 && m_lastDown >= 0 && m_lastTime > 0;
+    if (!haveServer || allTimeUp != 0 || allTimeDown != 0 || (m_lastUp == 0 && m_lastDown == 0))
+        return false;
+    // Nothing of this poll is taken, its torrents neither: whether a server in that state
+    // reports each torrent's own totals right is not known, and a low one taken as a
+    // baseline would book that torrent's whole total next. What it skipped (a change, a
+    // removal) comes with the whole list, asked for again.
+    m_wholeSeen = false;
+    return true;
+}
+
+qint64 SeedLedger::mostBytes(qint64 from, qint64 to)
+{
+    const qint64 span = std::max(to - from, maxRateFloorSeconds);
+    if (span > std::numeric_limits<qint64>::max() / maxBytesPerSecond)
+        return std::numeric_limits<qint64>::max();
+    return span * maxBytesPerSecond;
+}
+
+void SeedLedger::markGap(qint64 from, qint64 to, qint64 now)
+{
+    from = std::min(from, to);
+    for (qint64 t = (std::max(from, now - minutesKept) / kMinute) * kMinute; t <= to; t += kMinute)
+        addTo(m_pendingMinutes, t, 0, 0, true);
+    for (qint64 t = (std::max(from, now - hoursKept) / kHour) * kHour; t <= to; t += kHour)
+        addTo(m_pendingHours, t, 0, 0, true);
+    for (QDate day = localDate(from); day <= localDate(to); day = day.addDays(1))
+        m_pendingDays[day].gap = true;
+}
+
 void SeedLedger::finishPoll(qint64 now,
                             qint64 allTimeUp,
                             qint64 allTimeDown,
@@ -347,9 +385,24 @@ void SeedLedger::finishPoll(qint64 now,
     if (haveServer && !backwards) {
         const qint64 up = allTimeUp - m_lastUp;
         const qint64 down = allTimeDown - m_lastDown;
-        // A clock that went back still books the poll, at its own (earlier) time.
-        if (up > 0 || down > 0 || !perTorrent.isEmpty())
+        // #256, the backstop: more than the span could carry is a wrong reference, whatever
+        // made it so. Nothing of it is booked; the span is a gap and the baseline starts again
+        // below. Each torrent has its own baseline, so what it gave still counts, held to the
+        // same bound.
+        const qint64 most = mostBytes(from, now);
+        if (up > most || down > most) {
+            markGap(from, now, now);
+            QHash<QString, qint64> real;
+            for (auto it = perTorrent.cbegin(); it != perTorrent.cend(); ++it) {
+                if (it.value() <= most)
+                    real.insert(it.key(), it.value());
+            }
+            if (!real.isEmpty())
+                book(std::min(from, now), now, 0, 0, real, now);
+        } else if (up > 0 || down > 0 || !perTorrent.isEmpty()) {
+            // A clock that went back still books the poll, at its own (earlier) time.
             book(std::min(from, now), now, up, down, perTorrent, now);
+        }
     }
 
     m_lastTime = now;

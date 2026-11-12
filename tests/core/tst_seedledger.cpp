@@ -100,6 +100,193 @@ private Q_SLOTS:
         QCOMPARE(ledger.days(QDate(2026, 10, 3), QDate(2026, 10, 3)).first().up, 60);
     }
 
+    // #256: a qBittorrent that has just started answers sync/maindata before its first
+    // statistics refresh, with alltime_ul and alltime_dl at 0. That read is not a new
+    // baseline: the next poll's real totals must not be booked whole.
+    void aRestartingServersZeroTotalsAreNotABaseline()
+    {
+        SeedLedger ledger;
+        const qint64 t = noon();
+        const qint64 allUp = 27'000'000'000'000;
+        const qint64 allDown = 1'300'000'000'000;
+        ledger.observe(t, allUp, allDown, totals({{"a", 1000}}));
+        ledger.observe(t + 2, allUp + 500, allDown + 20, totals({{"a", 1500}}));
+        // The server went away and came back: its first answer has no totals yet.
+        ledger.observe(t + 60, 0, 0, {});
+        ledger.observe(t + 62, allUp + 800, allDown + 30, totals({{"a", 1800}}));
+        ledger.observe(t + 64, allUp + 900, allDown + 35, totals({{"a", 1900}}));
+        const qint64 up = ledger.days(QDate(2026, 10, 3), QDate(2026, 10, 3)).first().up;
+        QVERIFY2(up <= 900, qPrintable(QStringLiteral("booked %1 up").arg(up)));
+    }
+
+    // #256: the poll after a not-ready one books what moved since the last good one, in
+    // total and per torrent, and as any span under gapSeconds: whole, in its own minute.
+    void aNotReadyReadThenTheRealDifference()
+    {
+        SeedLedger ledger;
+        const qint64 t = noon();
+        const QDate day(2026, 10, 3);
+        ledger.observe(t, 5000, 700, totals({{"a", 1000}}));
+        ledger.observe(t + 2, 5100, 700, totals({{"a", 1100}}));
+        // Not ready, and its torrents read low too: nothing of this poll is taken.
+        ledger.observe(t + 40, 0, 0, totals({{"a", 0}}));
+        QVERIFY(ledger.wantsWholeList()); // what it skipped comes with the whole list
+        ledger.observe(t + 42, 5400, 760, totals({{"a", 1400}}));
+        QVERIFY(!ledger.wantsWholeList());
+        QCOMPARE(ledger.totals().up, 100 + 300);
+        QCOMPARE(ledger.totals().down, 60);
+        QCOMPARE(ledger.torrentTotals(day, day).value(QStringLiteral("a")), 100 + 300);
+        const auto minutes = ledger.series(t + 42, 60, 2);
+        QCOMPARE(qint64(std::llround(minutes.last().up * 60)), 400);
+        QVERIFY(!minutes.first().gap && !minutes.last().gap);
+    }
+
+    // #256: an outage longer than gapSeconds is a gap as any other, measured from the last
+    // good poll: exact in total, spread over the span and marked.
+    void aNotReadyReadAfterALongOutageIsAGap()
+    {
+        SeedLedger ledger;
+        const qint64 t = noon();
+        ledger.observe(t, 5000, 0, {});
+        ledger.observe(t + 2, 5100, 0, {});
+        ledger.observe(t + 300, 0, 0, {});
+        ledger.observe(t + 302, 5700, 0, {});
+        QCOMPARE(ledger.totals().up, 100 + 600);
+        const auto minutes = ledger.series(t + 302, 60, 6);
+        int gaps = 0;
+        for (const auto &p : minutes) {
+            gaps += p.gap ? 1 : 0;
+            QVERIFY(p.up * 60 <= 100 + 600 / 5.0 + 1); // spread, not in one minute
+        }
+        QVERIFY(gaps >= 5);
+    }
+
+    // #256: restarted twice before it was ready once.
+    void twoNotReadyReadsInARow()
+    {
+        SeedLedger ledger;
+        const qint64 t = noon();
+        ledger.observe(t, 5000, 300, {});
+        ledger.observe(t + 2, 5100, 300, {});
+        ledger.observe(t + 20, 0, 0, {});
+        ledger.observe(t + 22, 0, 0, {});
+        ledger.observe(t + 40, 0, 0, {});
+        ledger.observe(t + 42, 5150, 310, {});
+        ledger.observe(t + 44, 5160, 310, {});
+        QCOMPARE(ledger.totals().up, 100 + 50 + 10);
+        QCOMPARE(ledger.totals().down, 10);
+    }
+
+    // #256: the same through observeChanges(), and across a run: the reference a file kept
+    // is not given up for a not-ready first poll.
+    void aNotReadyReadOfChangesAndAfterAReopen()
+    {
+        QTemporaryDir dir;
+        const QString path = dir.filePath(QStringLiteral("t.sqlite"));
+        const qint64 t = noon();
+        {
+            SeedLedger ledger;
+            QVERIFY(ledger.open(path));
+            ledger.observe(t, 5000, 0, totals({{"a", 1000}}));
+            ledger.observeChanges(t + 2, 5100, 0, totals({{"a", 1100}}), {});
+            ledger.observeChanges(t + 4, 0, 0, totals({{"a", 0}}), {QStringLiteral("a")});
+            QVERIFY(ledger.wantsWholeList());
+            ledger.observe(t + 6, 5130, 0, totals({{"a", 1130}}));
+            QCOMPARE(ledger.totals().up, 130);
+        }
+        SeedLedger ledger;
+        QVERIFY(ledger.open(path));
+        ledger.observe(t + 30, 0, 0, {});
+        ledger.observe(t + 32, 5200, 0, totals({{"a", 1200}}));
+        QCOMPARE(ledger.totals().up, 200);
+        const QDate day(2026, 10, 3);
+        QCOMPARE(ledger.torrentTotals(day, day).value(QStringLiteral("a")), 200);
+    }
+
+    // #256: 0 and 0 with nothing counted before is a first poll like any other, and a server
+    // that stays at 0 is no outage.
+    void aFirstPollOfZeroTotalsIsABaseline()
+    {
+        SeedLedger ledger;
+        const qint64 t = noon();
+        ledger.observe(t, 0, 0, totals({{"a", 0}}));
+        QVERIFY(!ledger.wantsWholeList());
+        ledger.observe(t + 2, 0, 0, totals({{"a", 0}}));
+        ledger.observe(t + 4, 70, 5, totals({{"a", 70}}));
+        QCOMPARE(ledger.totals().up, 70);
+        QCOMPARE(ledger.totals().down, 5);
+    }
+
+    // #256: one total at 0 and the other not is a step backwards, not a not-ready read.
+    void oneZeroTotalStillStartsANewBaseline()
+    {
+        SeedLedger ledger;
+        const qint64 t = noon();
+        ledger.observe(t, 5000, 800, {});
+        ledger.observe(t + 2, 0, 20, {});
+        ledger.observe(t + 4, 40, 25, {});
+        QCOMPARE(ledger.totals().up, 40);
+        QCOMPARE(ledger.totals().down, 5);
+    }
+
+    // #256, the backstop: what the span could carry at maxBytesPerSecond is booked, down to
+    // the last byte; a short span is allowed what maxRateFloorSeconds could carry.
+    void aDifferenceTheSpanCouldCarryIsBooked()
+    {
+        const qint64 t = noon();
+        const qint64 floor = SeedLedger::maxBytesPerSecond * SeedLedger::maxRateFloorSeconds;
+        {
+            SeedLedger ledger;
+            ledger.observe(t, 1000, 1000, {});
+            ledger.observe(t + 2, 1000 + floor, 1000 + floor, {});
+            QCOMPARE(ledger.totals().up, floor);
+            QCOMPARE(ledger.totals().down, floor);
+        }
+        SeedLedger ledger;
+        const qint64 span = 600;
+        ledger.observe(t, 1000, 0, {});
+        ledger.observe(t + span, 1000 + SeedLedger::maxBytesPerSecond * span, 0, {});
+        QCOMPARE(ledger.totals().up, SeedLedger::maxBytesPerSecond * span);
+    }
+
+    // #256, the backstop: a byte more than the span could carry is no traffic. Nothing is
+    // booked, the span is a gap, and the next poll counts from the new baseline. What each
+    // torrent gave has its own baseline and still counts.
+    void aDifferenceNoSpanCouldCarryIsAGap()
+    {
+        const qint64 t = noon();
+        const QDate day(2026, 10, 3);
+        const qint64 floor = SeedLedger::maxBytesPerSecond * SeedLedger::maxRateFloorSeconds;
+        for (const bool download : {false, true}) {
+            SeedLedger ledger;
+            ledger.observe(t, 1000, 1000, totals({{"a", 100}}));
+            ledger.observe(t + 2,
+                           1000 + (download ? 10 : floor + 1),
+                           1000 + (download ? floor + 1 : 10),
+                           totals({{"a", 160}}));
+            QCOMPARE(ledger.totals().up, 0);
+            QCOMPARE(ledger.totals().down, 0);
+            QCOMPARE(ledger.torrentTotals(day, day).value(QStringLiteral("a")), 60);
+            QVERIFY(ledger.series(t + 2, 60, 1).first().gap);
+            QVERIFY(ledger.series(t + 2, 3600, 1).first().gap);
+            // The baseline is that poll's totals: the next one counts from them.
+            ledger.observe(t + 4,
+                           1000 + (download ? 10 : floor + 1) + 300,
+                           1000 + (download ? floor + 1 : 10) + 20,
+                           totals({{"a", 160}}));
+            QCOMPARE(ledger.totals().up, 300);
+            QCOMPARE(ledger.totals().down, 20);
+        }
+        // Over a longer span the bound grows with it.
+        SeedLedger ledger;
+        const qint64 span = 600;
+        ledger.observe(t, 1000, 0, {});
+        ledger.observe(t + span, 1001 + SeedLedger::maxBytesPerSecond * span, 0, {});
+        QCOMPARE(ledger.totals().up, 0);
+        ledger.observe(t + span + 2, 1001 + SeedLedger::maxBytesPerSecond * span + 45, 0, {});
+        QCOMPARE(ledger.totals().up, 45);
+    }
+
     // C25 K34: everything booked since the ledger began, flushed or not; a session's totals
     // fed in place of all-time ones (Deluge) start afresh after a daemon restart.
     void totalsAreEverythingBookedSinceTheStart()

@@ -18,6 +18,13 @@
 // - The first observation ever only sets the baseline; nothing is counted until the next.
 // - A step backwards (qBittorrent reinstalled, its statistics lost, a crash that lost its
 //   last minutes) starts a new baseline instead of counting as a loss.
+// - Totals of 0 and 0 after totals that were not are no step backwards but a server that is
+//   not ready: qBittorrent answers so between its start and its first statistics refresh.
+//   That poll is left out whole, its torrents too, and the next one counts from the last
+//   good one (#256).
+// - A difference no link could carry in the time since the last poll (`maxBytesPerSecond`)
+//   is not traffic: nothing of it is counted, the span is marked `gap` and the baseline
+//   starts again (#256).
 // - A torrent removed and added again (a new `addedOn` under the same hash) counts everything
 //   it reports: those totals began from nothing when it was added.
 // - A torrent missing from a poll keeps its baseline for `missingKept` seconds of this run, so
@@ -80,6 +87,13 @@ public:
     static constexpr qint64 minutesKept = 48 * 3600;
     static constexpr qint64 hoursKept = 90 * 86400;
     static constexpr qint64 missingKept = 86400;
+    /// #256: the most a server can move between two polls, per second of the span: 100 Gbit/s,
+    /// some ten times the fastest link a torrent server sits on, so no real traffic is ever
+    /// over it. A difference above it comes from a wrong reference, not from traffic.
+    static constexpr qint64 maxBytesPerSecond = 12'500'000'000;
+    /// The shortest span that bound is worked out for: two polls a second apart (or a clock
+    /// that went back) are allowed what a minute could carry.
+    static constexpr qint64 maxRateFloorSeconds = 60;
 
     SeedLedger();
     ~SeedLedger();
@@ -186,6 +200,13 @@ private:
               const QHash<QString, qint64> &perTorrent,
               qint64 now);
     void addTo(QMap<qint64, Bucket> &map, qint64 key, qint64 up, qint64 down, bool gap);
+    /// #256: true for a poll whose totals are both 0 while the ledger's are not: the server
+    /// is not ready. The poll is then dropped, and the next one must bring the whole list.
+    bool notReady(qint64 allTimeUp, qint64 allTimeDown);
+    /// The most that can have moved from `from` to `to` (maxBytesPerSecond).
+    static qint64 mostBytes(qint64 from, qint64 to);
+    /// Marks every bucket from `from` to `to` a gap, booking nothing.
+    void markGap(qint64 from, qint64 to, qint64 now);
     QMap<qint64, Bucket> readBuckets(const QString &table, qint64 from, qint64 to) const;
     QMap<QDate, Bucket> readDays(const QDate &from, const QDate &to) const;
     void loadState();
