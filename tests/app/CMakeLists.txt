@@ -54,6 +54,14 @@ if(Python3_FOUND)
                 --themes-root "${PROJECT_SOURCE_DIR}/tests/fixtures/themes"
     )
     set_tests_properties(contrast_board_check PROPERTIES TIMEOUT 120)
+    # #200: the same check measures every mark at WCAG 1.4.11's 3:1 and reports what fails,
+    # without failing on it yet (--strict-marks does); this keeps that pass honest on made-up
+    # roles, a mark that reads and ones built to fail.
+    add_test(
+        NAME contrast_board_marks_selftest
+        COMMAND ${Python3_EXECUTABLE} "${PROJECT_SOURCE_DIR}/scripts/dev/contrast-board.py"
+                --self-test
+    )
 endif()
 
 # docs/DECISIONS.md C20 (#107): `p` stops an errored torrent and omaseed remembers the stop.

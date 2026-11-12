@@ -7,7 +7,9 @@ every ground it is painted on (docs/DECISIONS.md C30 F7).
                                   [--before-label TEXT] [--after-label TEXT]
                                   [--themes-root DIR]...
     scripts/dev/contrast-board.py --check BIN [--themes-root DIR]... [--skins LIST]
-                                  [--json OUT] [--quiet]
+                                  [--json OUT] [--quiet] [--strict-marks]
+                                  [--marks-report FILE]
+    scripts/dev/contrast-board.py --self-test
 
 --check reads each theme's `grounds` (Theme.on: the window, every fill, every tint) from
 `BIN --theme-roles --skin SKIN`, once per skin in --skins (default omarchy,console: #171, so a
@@ -15,7 +17,15 @@ skin's ground that fails in one theme fails the check), and measures each text r
 background on accent and the fills nested in a block that keep their plain ground's colours
 (#188, NESTED_KEPT); it prints the failing pairs and exits 1 when there is one. The nested
 grounds (blockSelected, hoverPressed, …) are grounds like the rest, so every role is measured
-on them too. A build from
+on them too.
+
+--check then measures every mark (MARKS: a line's fill, a dot, a box, an edge: no words) on
+every ground it sits on in each skin, at WCAG 2.2 1.4.11's 3:1, its opacity composited over
+the ground or over its track (#200). C30's floor lifts words only, so marks keep the window's
+colours, and some read under 3:1 today: --check reports them and still exits 0 on them, so
+ctest's text check stays the gate it was; --strict-marks fails on them as well, for once they
+are lifted. --marks-report FILE writes them grouped by mark, worst first. --self-test checks
+the mark pass on made-up roles. A build from
 before C30 prints no grounds: the check then paints its window roles on each fill, as that
 build did, which is board 50's "today".
 
@@ -532,6 +542,162 @@ def check(data):
             "sep": statistics.median(seps) if seps else 0, "sep_min": min(seps) if seps else 0}
 
 
+# ---- every mark on every ground it sits on (WCAG 2.2 1.4.11, #200) --------------------------
+# A mark is a colour that carries meaning without words: a line's fill, a dot, a box, an edge.
+# 1.4.11 asks 3:1 between it and what is next to it. C30's floor lifts words only, so a mark
+# keeps the window's colours (TorrentTable's comment on the progress cell) and may read under
+# 3:1 on a darker ground. Each entry:
+#   (what, where, colours, alpha, grounds, against)
+# colours: window roles (Theme.<role>, as `colors` prints them), or ("ink", [roles]) for the
+#   ground's own lifted colours (row.ink.<role>, row.ground.<role>);
+# alpha: the mark's opacity, a number or an `alphas` name; the mark is composited over what it
+#   is measured against, as the text pass composites a fill over its ground;
+# grounds: {skin: [ground]}, the grounds the mark is painted on in that skin;
+# against: None for the ground itself, or an `alphas` name: the mark lies on a track of the
+#   foreground at that alpha over the ground (the track's unfilled part is what it meets).
+# Rows only paint the grounds `Theme.rowGround(…, false)` gives: never `pressed`, and under a
+# skin with `select.pickedGround` (Console) a selected row is `picked`.
+ROW_GROUNDS = {"omarchy": ["window", "hover", "cursor", "selected", "selectedCursor"],
+               "console": ["window", "hover", "cursor", "picked"]}
+# Tiles and chips (Views/SpaceTile.qml, SpaceChip.qml) take `Theme.ground()`, not rowGround.
+PICK_GROUNDS = {"omarchy": ["selected", "selectedCursor"],
+                "console": ["selected", "selectedCursor"]}
+# A focus ring is drawn on whatever holds the focus.
+FOCUS_GROUNDS = {"omarchy": ["window", "idle", "hover", "cursor", "selected", "selectedCursor",
+                             "pressed", "blockIdle", "hoverIdle"],
+                 "console": ["window", "idle", "hover", "cursor", "selected", "selectedCursor",
+                             "picked", "pressed", "blockIdle", "hoverIdle"]}
+STATES = list(STATE_ROLES)
+
+MARKS = [
+    ("the progress line", "Views/TorrentTable.qml ProgressLine, Views/LibraryRow.qml Meter",
+     STATES + ["dimForeground"], 1, ROW_GROUNDS, None),
+    ("the progress line on the table's track", "Kit/ProgressLine.qml: trackColor fill(hairlineAlpha)",
+     STATES, 1, ROW_GROUNDS, "hairlineAlpha"),
+    ("the progress line on the rows' track", "Views/LibraryRow.qml: trackColor fill(libraryRowLineTrack = fillHover)",
+     STATES + ["dimForeground"], 1, ROW_GROUNDS, "fillHover"),
+    ("the files tab's progress line, on its track", "Views/DetailsFilesTab.qml: row.ink, hairline track",
+     ("ink", ["stateSeeding", "accent"]), 1, ROW_GROUNDS, "hairlineAlpha"),
+    ("the pulse, still or at its peak", "Views/TorrentTable.qml pulseTick (breathes 0.25 → 1)",
+     ["stateSeeding"], 1, ROW_GROUNDS, None),
+    ("the ratio track to 1.0", "Views/TorrentTable.qml ratioTracks: foreground at 0.45 on fill(fillHover)",
+     ["foreground"], 0.45, ROW_GROUNDS, "fillHover"),
+    ("the ratio track past 1.0", "Views/TorrentTable.qml ratioTracks: stateSeeding on fill(fillHover)",
+     ["stateSeeding"], 1, ROW_GROUNDS, "fillHover"),
+    ("the tracker's given bar", "Views/ConsoleTrackers.qml: row.ground.stateSeeding at 0.6",
+     ("ink", ["stateSeeding"]), 0.6, {"omarchy": ["window", "hover"], "console": ["window", "hover"]},
+     None),
+    ("\"only you\"'s box", "Views/TorrentTable.qml T3: border yellow at 0.4",
+     ["yellow"], 0.4, ROW_GROUNDS, None),
+    ("a selected row's edge", "Views/LibraryRow.qml SelectionMark rule (not under pickedGround)",
+     ["accent"], 1, {"omarchy": ["selected", "selectedCursor"]}, None),
+    ("a selected tile's or chip's mark", "Views/SpaceTile.qml, SpaceChip.qml SelectionMark (litColor)",
+     ["accent"], 1, PICK_GROUNDS, None),
+    ("the cursor's mark", "Views/LibraryRow.qml, SearchRow.qml SelectionMark (Console's brackets)",
+     ["accent"], 1, {"console": ["cursor", "picked"]}, None),
+    ("the focus ring", "Kit/FocusRing.qml: border accent",
+     ["accent"], 1, FOCUS_GROUNDS, None),
+    ("a toggle's outline", "Kit/Toggle.qml: border fill(borderIdle)",
+     ["foreground"], "borderIdle", {"omarchy": ["window", "idle", "blockIdle"],
+                                    "console": ["window", "idle", "blockIdle"]}, None),
+    ("a toggle's outline, hot", "Kit/Toggle.qml: border fill(borderHover), the row hovered",
+     ["foreground"], "borderHover", {"omarchy": ["hover", "hoverHover"],
+                                     "console": ["hover", "hoverHover"]}, None),
+    ("the status line's dot, connecting", "Views/StatusLine.qml dotColor: fill(faintAlpha)",
+     ["foreground"], "faintAlpha", {"omarchy": ["window"], "console": ["window"]}, None),
+    ("a web seed's lamp", "Views/DetailsWebSeedsTab.qml: Theme.muted",
+     ["muted"], 1, ROW_GROUNDS, None),
+]
+
+
+def mark_pairs(roles, skin, marks=None):
+    """[(what, role, ground, ratio)] for every mark in `marks` (MARKS) on every ground it sits
+    on in `skin`, from a build that prints its grounds."""
+    c, a, grounds = roles["colors"], roles["alphas"], roles["grounds"]
+    fg = parse(c["foreground"])
+    out = []
+    for what, _where, colours, alpha, on, against in marks if marks is not None else MARKS:
+        al = a[alpha] if isinstance(alpha, str) else alpha
+        ink = isinstance(colours, tuple)
+        for gname in on.get(skin, []):
+            g = parse(grounds[gname]["ground"])
+            under = g
+            label = gname
+            if against:
+                under = tuple(round(v) for v in over(fg, g, a[against]))
+                label = f"{gname} + track"
+            for role in (colours[1] if ink else colours):
+                if ink:
+                    col = parse(grounds[gname]["colors"][STATE_ROLES.get(role, role)])
+                else:
+                    col = parse(c[role])
+                m = tuple(round(v) for v in over(col, under, al))
+                out.append((what, role, label, ratio(m, under)))
+    return out
+
+
+def check_marks(data):
+    """Every mark pair: {"pairs", "fails": [(theme, what, role, ground, ratio)]}."""
+    pairs, fails = 0, []
+    for key, roles in data.items():
+        if "grounds" not in roles:
+            continue
+        for what, role, ground, q in mark_pairs(roles, key.split(" · ")[0]):
+            pairs += 1
+            if q < NON_TEXT:
+                fails.append((key, what, role, ground, q))
+    return {"pairs": pairs, "fails": fails}
+
+
+def marks_report(res, skins, themes_n):
+    """The failing marks as Markdown, grouped by mark, worst first (#200 step 2's input)."""
+    by_mark = {}
+    for theme, what, role, ground, q in res["fails"]:
+        by_mark.setdefault(what, []).append((q, theme, role, ground))
+    where = {m[0]: m[1] for m in MARKS}
+    order = sorted(by_mark, key=lambda w: min(r[0] for r in by_mark[w]))
+    lines = [f"# Marks under {NON_TEXT:g}:1 (WCAG 2.2 1.4.11)", "",
+             f"Generated by `scripts/dev/contrast-board.py --check BIN --marks-report FILE`: "
+             f"{len(skins)} skins ({', '.join(skins)}) × {themes_n} themes, {res['pairs']} mark "
+             f"pairs, {len(res['fails'])} under {NON_TEXT:g}:1, in {len(by_mark)} of "
+             f"{len(MARKS)} marks. A mark is composited over what it is measured against (its "
+             "ground, or its track over the ground: \"+ track\"); colours are the window's unless "
+             "the mark takes its ground's ink.", ""]
+    lines.append("| mark | failing | worst |")
+    lines.append("|---|---:|---|")
+    for w in order:
+        rows = sorted(by_mark[w])
+        q, theme, role, ground = rows[0]
+        lines.append(f"| {w} | {len(rows)} | {q:.2f} {role} on {ground} ({theme}) |")
+    lines.append("")
+    for w in order:
+        rows = sorted(by_mark[w])
+        lines += [f"## {w} ({len(rows)})", "", f"`{where.get(w, '')}`", "",
+                  "| ratio | skin · theme | colour | ground |", "|---:|---|---|---|"]
+        lines += [f"| {q:.2f} | {theme} | {role} | {ground} |" for q, theme, role, ground in rows]
+        lines.append("")
+    return "\n".join(lines)
+
+
+def self_test():
+    """The mark pass on two made-up marks, one that reads and one built to fail (ctest)."""
+    roles = {"colors": {"foreground": "#000000", "accent": "#000000", "muted": "#cccccc"},
+             "alphas": {"hairlineAlpha": 0.12},
+             "grounds": {"window": {"ground": "#ffffff", "colors": {"accent": "#000000"}},
+                         "selected": {"ground": "#d0d0d0", "colors": {"accent": "#000000"}}}}
+    marks = [("reads", "", ["accent"], 1, {"omarchy": ["window", "selected"]}, None),
+             ("faint", "", ["muted"], 1, {"omarchy": ["window"]}, None),
+             ("faint ink on a track", "", ("ink", ["accent"]), 0.2, {"omarchy": ["selected"]},
+              "hairlineAlpha"),
+             ("not in this skin", "", ["muted"], 1, {"console": ["window"]}, None)]
+    got = {(w, g): q for w, _r, g, q in mark_pairs(roles, "omarchy", marks)}
+    ok = (len(got) == 4 and got[("reads", "window")] >= NON_TEXT
+          and got[("reads", "selected")] >= NON_TEXT and got[("faint", "window")] < NON_TEXT
+          and got[("faint ink on a track", "selected + track")] < NON_TEXT)
+    print("contrast-board: marks self-test " + ("ok" if ok else f"FAILED: {got}"))
+    return 0 if ok else 1
+
+
 def check_main(a, found):
     skins = [s for s in a.skins.split(",") if s]
     data = {f"{skin} · {name}": roles_for(a.check, d, name, skin)
@@ -557,10 +723,24 @@ def check_main(a, found):
           f"{len(res['fails'])} under {FLOOR:g}:1; caption under a selected row's text, median "
           f"{res['sep']:.2f}:1 (closest {res['sep_min']:.2f}); fills held: "
           + (", ".join(f"{t} {v:g}" for t, v in sorted(capped.items())) or "none"))
+    marks = check_marks(data)
+    by_mark = {}
+    for theme, what, role, ground, q in marks["fails"]:
+        by_mark.setdefault(what, []).append((q, theme, role, ground))
+    if not a.quiet:
+        for what, rows in sorted(by_mark.items(), key=lambda kv: min(kv[1])[0]):
+            q, theme, role, ground = min(rows)
+            print(f"mark {what}: {len(rows)} failing, worst {role} on {ground} {q:.2f} ({theme})")
+    print(f"contrast-board: {marks['pairs']} mark pairs, {len(marks['fails'])} under "
+          f"{NON_TEXT:g}:1 in {len(by_mark)} of {len(MARKS)} marks"
+          + ("" if a.strict_marks else " (reported; --strict-marks fails on them)"))
+    if a.marks_report:
+        with open(a.marks_report, "w", encoding="utf-8") as f:
+            f.write(marks_report(marks, skins, len(found)) + "\n")
     if a.json:
         with open(a.json, "w", encoding="utf-8") as f:
-            json.dump({**res, "caps": caps}, f, indent=1)
-    return 1 if res["fails"] else 0
+            json.dump({**res, "caps": caps, "marks": marks}, f, indent=1)
+    return 1 if res["fails"] or (a.strict_marks and marks["fails"]) else 0
 
 
 def main(argv=None):
@@ -577,7 +757,15 @@ def main(argv=None):
     ap.add_argument("--themes-root", action="append", default=[])
     ap.add_argument("--skins", default="omarchy,console",
                     help="--check: the skins to check, comma-separated")
+    ap.add_argument("--strict-marks", action="store_true",
+                    help="--check: fail on a mark under 3:1 too (#200), not only report it")
+    ap.add_argument("--marks-report", metavar="FILE",
+                    help="--check: write the failing marks here, as Markdown")
+    ap.add_argument("--self-test", action="store_true",
+                    help="test the mark pass on made-up roles; needs no build")
     a = ap.parse_args(argv)
+    if a.self_test:
+        return self_test()
     found = themes(a.themes_root or DEFAULT_ROOTS)
     if not found:
         sys.exit("contrast-board: no themes found")
