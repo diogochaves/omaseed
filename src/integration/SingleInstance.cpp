@@ -100,7 +100,8 @@ public slots:
                         const QVariantMap &platform_data)
     {
         // The bar widget's two actions (docs/20 §3): "settings" (the popup's gear) and "retry"
-        // (`r` while the server is unreachable); and `omaseed --quit`'s "quit" (#128). Any
+        // (`r` while the server is unreachable); `omaseed --quit`'s "quit" (#128); and
+        // `omaseed --open`'s "add", "search", "settings" (DECISIONS C36 M5). Any
         // other name is accepted and ignored, as the spec allows. The tray and the notices
         // talk to the running process directly.
         Q_UNUSED(parameter);
@@ -170,11 +171,22 @@ bool SingleInstance::start(const QStringList &arguments)
     return startOnLocalSocket(uris);
 }
 
+QStringList SingleInstance::openPages()
+{
+    return {QStringLiteral("add"), QStringLiteral("search"), QStringLiteral("settings")};
+}
+
 void SingleInstance::deliverOwnUris(const QStringList &uris)
 {
-    if (uris.isEmpty())
+    if (!uris.isEmpty()) {
+        QTimer::singleShot(0, this, [this, uris]() { emit openRequested(uris, true); });
         return;
-    QTimer::singleShot(0, this, [this, uris]() { emit openRequested(uris, true); });
+    }
+    // C36 M5: `--open PAGE` on the process that became the instance opens it on that page.
+    if (!m_launchAction.isEmpty()) {
+        const QString name = m_launchAction;
+        QTimer::singleShot(0, this, [this, name]() { emit actionRequested(name, true); });
+    }
 }
 
 bool SingleInstance::becomePrimaryOnBus(const QString &connectionName, const QStringList &uris)
@@ -235,7 +247,11 @@ bool SingleInstance::startOnSessionBus(const QString &busAddress, const QStringL
     // nested loop was observed to starve the sender's other connections for ~25s before
     // delivering the message at all — asyncCall() plus a bounded processEvents() loop below
     // delivers it immediately instead.
-    const QString methodName = uris.isEmpty() ? QStringLiteral("Activate") : QStringLiteral("Open");
+    // C36 M5: `--open PAGE` with no URIs goes over as ActivateAction(PAGE).
+    const bool action = uris.isEmpty() && !m_launchAction.isEmpty();
+    const QString methodName = !uris.isEmpty() ? QStringLiteral("Open")
+                               : action        ? QStringLiteral("ActivateAction")
+                                               : QStringLiteral("Activate");
     QDBusMessage message =
         QDBusMessage::createMethodCall(serviceName,
                                        AppIdentity::dbusObjectPath(),
@@ -244,6 +260,8 @@ bool SingleInstance::startOnSessionBus(const QString &busAddress, const QStringL
     const QVariantMap platformData = outgoingPlatformData();
     if (!uris.isEmpty())
         message << QVariant(uris) << QVariant(platformData);
+    else if (action)
+        message << m_launchAction << QVariant::fromValue(QVariantList()) << QVariant(platformData);
     else
         message << QVariant(platformData);
 
@@ -301,10 +319,15 @@ bool SingleInstance::startOnLocalSocket(const QStringList &uris)
         if (!probe.waitForConnected(200))
             return false;
         QJsonObject payload;
+        const bool action = uris.isEmpty() && !m_launchAction.isEmpty();
         payload.insert(QStringLiteral("command"),
-                       uris.isEmpty() ? QStringLiteral("activate") : QStringLiteral("open"));
+                       !uris.isEmpty() ? QStringLiteral("open")
+                       : action        ? QStringLiteral("action")
+                                       : QStringLiteral("activate"));
         if (!uris.isEmpty())
             payload.insert(QStringLiteral("uris"), QJsonArray::fromStringList(uris));
+        if (action) // C36 M5: `--open PAGE`
+            payload.insert(QStringLiteral("name"), m_launchAction);
         QByteArray line = QJsonDocument(payload).toJson(QJsonDocument::Compact);
         line.append('\n');
         probe.write(line);
@@ -445,6 +468,8 @@ void SingleInstance::acceptLocalConnection()
                 handleOpen(uris, {});
             } else if (command == QLatin1String("quit")) {
                 handleActivateAction(command, {});
+            } else if (command == QLatin1String("action")) { // C36 M5: `--open PAGE`
+                handleActivateAction(payload.value(QStringLiteral("name")).toString(), {});
             } else {
                 handleActivate({});
             }
@@ -462,13 +487,14 @@ void SingleInstance::handleActivate(const QVariantMap &platformData)
 
 void SingleInstance::handleActivateAction(const QString &name, const QVariantMap &platformData)
 {
-    if (name != QLatin1String("settings") && name != QLatin1String("retry") &&
+    // "add" and "search" join "settings" for `omaseed --open` (C36 M5).
+    if (!openPages().contains(name) && name != QLatin1String("retry") &&
         name != QLatin1String("quit")) {
         qCInfo(lcInstance).noquote() << QStringLiteral("unknown action %1 ignored").arg(name);
         return;
     }
     m_lastActivationToken = activationTokenFrom(platformData);
-    emit actionRequested(name);
+    emit actionRequested(name, false);
 }
 
 void SingleInstance::handleOpen(const QStringList &uris, const QVariantMap &platformData)

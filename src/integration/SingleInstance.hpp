@@ -47,6 +47,15 @@ public:
     /// immediately, without creating any windows.
     bool start(const QStringList &uris);
 
+    /// docs/DECISIONS.md C36 M5 (#215): `omaseed --open PAGE`, set before start(). A secondary
+    /// sends it as `ActivateAction(PAGE)` instead of a plain activation; a primary delivers it
+    /// back through `actionRequested(PAGE, true)` once the event loop starts, as its own URIs
+    /// travel `openRequested`. Not with URIs: main.cpp refuses the two together.
+    void setLaunchAction(const QString &name) { m_launchAction = name; }
+
+    /// The pages `--open` takes: "add", "search", "settings" (C36 M5).
+    static QStringList openPages();
+
     bool isPrimary() const { return m_isPrimary; }
 
     /// What `askToQuit()` found.
@@ -91,8 +100,10 @@ signals:
     void openRequested(const QStringList &uris, bool atLaunch);
     /// `org.freedesktop.Application.ActivateAction` with a known action, from the bar widget:
     /// "settings" (the popup's gear) raises the window on omaseed's settings, "retry" polls an
-    /// unreachable server now, with no window; and from `omaseed --quit` (#128), "quit".
-    void actionRequested(const QString &name);
+    /// unreachable server now, with no window; from `omaseed --quit` (#128), "quit"; and from
+    /// `omaseed --open` (C36 M5), "add", "search" and "settings". `atLaunch` is true for this
+    /// process's own `--open`, which C35 routes as a launch's own URIs.
+    void actionRequested(const QString &name, bool atLaunch);
 
 private:
     friend class SingleInstanceDBusAdaptor;
@@ -103,6 +114,7 @@ private:
     bool becomePrimaryOnBus(const QString &connectionName, const QStringList &uris);
     /// Puts `org.freedesktop.Application` on the app's object path of `connection` (once).
     void exportApplication(QDBusConnection &connection);
+    /// What a primary hands itself once the loop runs: its URIs, else its launch action.
     void deliverOwnUris(const QStringList &uris);
     void acceptLocalConnection();
 
@@ -117,6 +129,7 @@ private:
     bool m_isPrimary = false;
     QString m_connectionName;
     QString m_lastActivationToken;
+    QString m_launchAction;
     QLocalServer *m_localServer = nullptr;
     SingleInstanceDBusAdaptor *m_adaptor = nullptr;
 };

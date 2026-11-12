@@ -303,8 +303,11 @@ void TestStatusBus::theSharedMenuAnswersAtOnce()
 void TestStatusBus::theWidgetsActionsAreSignals()
 {
     QSignalSpy actions(m_primary, &SingleInstance::actionRequested);
-    for (const QString &name :
-         {QStringLiteral("bogus"), QStringLiteral("settings"), QStringLiteral("retry")}) {
+    for (const QString &name : {QStringLiteral("bogus"),
+                                QStringLiteral("settings"),
+                                QStringLiteral("retry"),
+                                QStringLiteral("add"),
+                                QStringLiteral("search")}) {
         QDBusMessage message =
             QDBusMessage::createMethodCall(Identity::dbusServiceName(),
                                            Identity::dbusObjectPath(),
@@ -315,10 +318,13 @@ void TestStatusBus::theWidgetsActionsAreSignals()
         QTRY_VERIFY_WITH_TIMEOUT(pending.isFinished(), 5000);
         QVERIFY2(!pending.isError(), qPrintable(pending.error().message()));
     }
-    // An unknown action is accepted and ignored; "settings" and "retry" reach the app.
-    QCOMPARE(actions.count(), 2);
+    // An unknown action is accepted and ignored; "settings", "retry" and `--open`'s "add" and
+    // "search" (DECISIONS C36 M5) reach the app.
+    QCOMPARE(actions.count(), 4);
     QCOMPARE(actions.at(0).first().toString(), QStringLiteral("settings"));
     QCOMPARE(actions.at(1).first().toString(), QStringLiteral("retry"));
+    QCOMPARE(actions.at(2).first().toString(), QStringLiteral("add"));
+    QCOMPARE(actions.at(3).first().toString(), QStringLiteral("search"));
 }
 
 QTEST_GUILESS_MAIN(TestStatusBus)

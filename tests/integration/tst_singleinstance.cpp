@@ -71,6 +71,10 @@ private slots:
     void secondInstanceForwardsOpenToThePrimary();
     void secondInstanceWithNoUrisSendsActivate();
     void primaryForwardsItsOwnUris();
+    void secondInstanceForwardsItsOpenPage_data();
+    void secondInstanceForwardsItsOpenPage();
+    void primaryOpensItsOwnPage();
+    void anUnknownPageIsRefused();
 
     // INT-1: the theme-set hook calls Reload on the app's *name*.
     void themeReloadReachesThePrimaryByName();
@@ -172,6 +176,69 @@ void TestSingleInstance::primaryForwardsItsOwnUris()
     QCOMPARE(openSpy.count(), 1);
     QCOMPARE(openSpy.constFirst().constFirst().toStringList(), uris);
     QCOMPARE(openSpy.constFirst().at(1).toBool(), true);
+}
+
+// DECISIONS C36 M5 (#215): `omaseed --open PAGE` on a second launch is ActivateAction(PAGE).
+void TestSingleInstance::secondInstanceForwardsItsOpenPage_data()
+{
+    QTest::addColumn<QString>("page");
+    for (const QString &page : SingleInstance::openPages())
+        QTest::newRow(qPrintable(page)) << page;
+}
+
+void TestSingleInstance::secondInstanceForwardsItsOpenPage()
+{
+    QFETCH(QString, page);
+    SingleInstance primary;
+    QVERIFY(primary.start({}));
+    QSignalSpy actionSpy(&primary, &SingleInstance::actionRequested);
+    QSignalSpy activateSpy(&primary, &SingleInstance::activateRequested);
+
+    SingleInstance secondary;
+    secondary.setLaunchAction(page);
+    QVERIFY(!secondary.start({}));
+
+    QVERIFY(actionSpy.count() > 0 || actionSpy.wait(2000));
+    QCOMPARE(actionSpy.count(), 1);
+    QCOMPARE(actionSpy.constFirst().constFirst().toString(), page);
+    QCOMPARE(actionSpy.constFirst().at(1).toBool(), false); // asked from outside
+    QCOMPARE(activateSpy.count(), 0);                       // not a plain activation
+}
+
+void TestSingleInstance::primaryOpensItsOwnPage()
+{
+    SingleInstance primary;
+    primary.setLaunchAction(QStringLiteral("search"));
+    QSignalSpy actionSpy(&primary, &SingleInstance::actionRequested);
+    QSignalSpy openSpy(&primary, &SingleInstance::openRequested);
+    QVERIFY(primary.start({}));
+    QVERIFY(primary.isPrimary());
+
+    // Posted like its own URIs, once the loop runs; `atLaunch` true.
+    QVERIFY(actionSpy.wait(2000));
+    QCOMPARE(actionSpy.count(), 1);
+    QCOMPARE(actionSpy.constFirst().constFirst().toString(), QStringLiteral("search"));
+    QCOMPARE(actionSpy.constFirst().at(1).toBool(), true);
+    QCOMPARE(openSpy.count(), 0);
+}
+
+void TestSingleInstance::anUnknownPageIsRefused()
+{
+    // main.cpp refuses a page outside these before forwarding (tst_printonly runs it); the
+    // instance ignores one that comes over the bus anyway.
+    QCOMPARE(
+        SingleInstance::openPages(),
+        QStringList({QStringLiteral("add"), QStringLiteral("search"), QStringLiteral("settings")}));
+    SingleInstance primary;
+    QVERIFY(primary.start({}));
+    QSignalSpy actionSpy(&primary, &SingleInstance::actionRequested);
+
+    SingleInstance secondary;
+    secondary.setLaunchAction(QStringLiteral("bogus"));
+    QVERIFY(!secondary.start({}));
+    // The call was answered (start() returned false), so the primary has seen it by now.
+    QCoreApplication::processEvents();
+    QCOMPARE(actionSpy.count(), 0);
 }
 
 void TestSingleInstance::themeReloadReachesThePrimaryByName()
@@ -389,6 +456,15 @@ void TestSingleInstance::localSocketFallbackLivesInTheRuntimeDir()
         QVERIFY(!secondary.start(uris));
         QVERIFY(openSpy.count() > 0 || openSpy.wait(2000));
         QCOMPARE(openSpy.constFirst().constFirst().toStringList(), uris);
+
+        // C36 M5: `--open add` goes over the socket too.
+        QSignalSpy actionSpy(&primary, &SingleInstance::actionRequested);
+        SingleInstance opener;
+        opener.setLaunchAction(QStringLiteral("add"));
+        QVERIFY(!opener.start({}));
+        QVERIFY(actionSpy.count() > 0 || actionSpy.wait(2000));
+        QCOMPARE(actionSpy.constFirst().constFirst().toString(), QStringLiteral("add"));
+        QCOMPARE(actionSpy.constFirst().at(1).toBool(), false);
     }
 
     qputenv("DBUS_SESSION_BUS_ADDRESS", savedBus);
