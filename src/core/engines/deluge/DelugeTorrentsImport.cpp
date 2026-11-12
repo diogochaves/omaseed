@@ -1017,6 +1017,12 @@ void DelugeTorrentsImport::poll()
                 const bool complete = isComplete(t);
                 if (!m_seenChecking.contains(hash) && !complete && m_quietPolls < kQuietPolls)
                     continue; // its check may not have begun yet
+                // Deluge resumes a paused torrent to check it and pauses it again when the
+                // check's alert is handled, a moment after the state stops reading Checking:
+                // a resume sent in between is undone by that pause (seen on 2.2.0, where a
+                // complete torrent that was started came back Paused). Wait for the pause.
+                if (text(t, "state") != QLatin1String("Paused") && m_quietPolls < kQuietPolls)
+                    continue;
                 const Tracked tracked = forget(hash);
                 // "Complete ones start", if they were started (DECISIONS C9, C40 X6).
                 if (complete && tracked.started && !tracked.keepStopped) {

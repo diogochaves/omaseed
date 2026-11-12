@@ -333,8 +333,6 @@ void TestDelugeTorrentsImportLive::renamedWithASkippedFileComesBackSeedingAndLab
     const QJsonObject t = status({QStringLiteral("state"),
                                   QStringLiteral("progress"),
                                   QStringLiteral("is_finished"),
-                                  QStringLiteral("total_wanted"),
-                                  QStringLiteral("total_wanted_done"),
                                   QStringLiteral("download_location"),
                                   QStringLiteral("label"),
                                   QStringLiteral("files"),
@@ -347,12 +345,18 @@ void TestDelugeTorrentsImportLive::renamedWithASkippedFileComesBackSeedingAndLab
                                   QStringLiteral("seed_mode")});
     QCOMPARE(t.value(QStringLiteral("is_finished")).toBool(), true);
     QCOMPARE(t.value(QStringLiteral("progress")).toDouble(), 100.0);
-    QCOMPARE(t.value(QStringLiteral("total_wanted_done")).toInteger(),
-             t.value(QStringLiteral("total_wanted")).toInteger());
-    QCOMPARE(t.value(QStringLiteral("total_wanted")).toInteger(), kSizes.at(0) + kSizes.at(1));
-    const QString state = t.value(QStringLiteral("state")).toString();
-    QVERIFY2(state == QLatin1String("Seeding") || state == QLatin1String("Queued"),
-             qPrintable(state));
+    // Deluge has no "wanted done" count, and its total_wanted is the whole torrent even with
+    // a file skipped: finished at 100 % is what it says of the wanted files.
+    // Started, as it was exported: Deluge takes a moment to show it after the check's pause.
+    QString state;
+    QElapsedTimer sinceImport;
+    sinceImport.start();
+    const bool startedInTime = waitFor([this, &state] {
+        state = status({QStringLiteral("state")}).value(QStringLiteral("state")).toString();
+        return state == QLatin1String("Seeding") || state == QLatin1String("Queued");
+    });
+    qInfo() << "started after" << sinceImport.elapsed() << "ms:" << state;
+    QVERIFY2(startedInTime, qPrintable(state));
     QCOMPARE(t.value(QStringLiteral("download_location")).toString(), data);
     QCOMPARE(t.value(QStringLiteral("label")).toString(), kLabel);
     QStringList names;
