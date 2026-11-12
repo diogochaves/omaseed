@@ -1216,6 +1216,44 @@ TestCase {
         compare(findChild(view, "filesSkippedText").text, "2 skipped");
     }
 
+    // #189: in a narrow pane the files head's long tail gives way first, the count and the
+    // facts ahead of it stay whole, and nothing runs under the filter at its right.
+    function test_a_narrow_files_head_shortens_its_tail_first() {
+        const view = testCase.filesView();
+        const tab = findChild(view, "filesTab");
+        tab.skipped = testCase.heldReading("free", "v1");
+        const summary = findChild(view, "filesSummary");
+        const count = findChild(view, "filesSummaryCount");
+        const facts = findChild(view, "filesSummaryFacts");
+        const tail = findChild(view, "filesSkippedText");
+        const go = findChild(view, "filesSummaryGo");
+        compare(tail.text, "2 skipped, 1.03 GB still on disk");
+        const wide = view.width;
+        view.width = 1000;
+        wait(0);
+        verify(!tail.truncated, "a wide pane shortens the tail");
+
+        // Narrow enough that the whole line no longer fits: the tail is cut, the facts not.
+        const margins = view.width - summary.width;
+        const whole = count.implicitWidth + facts.implicitWidth + tail.implicitWidth + go.width
+                + Theme.space(8) + Theme.space(20);
+        view.width = whole - Theme.space(60) + margins;
+        wait(0);
+        verify(tail.truncated, "the tail is whole at " + view.width);
+        verify(!facts.truncated, "the facts gave way before the tail at " + view.width);
+        compare(facts.width, facts.implicitWidth);
+
+        for (const width of [view.width, 540, 420, 360, 300]) {
+            view.width = width;
+            wait(0);
+            const right = tail.mapToItem(summary, tail.width, 0).x;
+            verify(right <= go.x, "the tail ran under the filter at " + width + ": " + right + " > " + go.x);
+            const factsRight = facts.mapToItem(summary, facts.width, 0).x;
+            verify(factsRight <= go.x, "the facts ran under the filter at " + width);
+        }
+        view.width = wide;
+    }
+
     // C30 F16: shift+f before the reading is this torrent's goes up anyway, so the sheet reads
     // first; with no skipped file at all it does nothing.
     function test_shift_f_before_the_reading_asks_for_the_sheet() {

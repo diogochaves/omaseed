@@ -317,7 +317,7 @@ Item {
                 objectName: "filesSummaryFacts"
                 text: root.summaryFactsText
                 width: Math.max(0, Math.min(implicitWidth, summary.width - summaryCount.width
-                                            - (skippedToggle.visible ? skippedToggle.width : 0)
+                                            - (skippedToggle.visible ? skippedToggle.lineWidth : 0)
                                             - (summaryGo.visible ? summaryGo.width
                                                                    + Theme.space(8) : 0)))
             }
@@ -329,6 +329,12 @@ Item {
             Row {
                 id: skippedToggle
 
+                /// #189: the Row's own width as its children will make it, read by the facts
+                /// before the Row has laid them out again (its width follows only at polish).
+                readonly property real lineWidth: skippedDot.implicitWidth + skippedToggle.spacing
+                                                  + skippedText.width
+                                                  + (skippedKey.visible ? skippedToggle.spacing
+                                                                          + skippedKey.width : 0)
                 readonly property bool keyFits: summary.width - summaryCount.implicitWidth
                                                 - summaryFacts.implicitWidth - skippedDot.implicitWidth
                                                 - skippedText.implicitWidth - skippedKey.implicitWidth
@@ -360,9 +366,21 @@ Item {
                                                                          : Theme.dimForeground
                     font.family: Theme.valueFamily
                     font.pixelSize: Theme.font.small
+                    elide: Text.ElideRight
                     objectName: "filesSkippedText"
                     // DECISIONS C30 F17: "2 skipped, 16.0 MB still on disk".
                     text: root.skippedText + (root.stillText.length > 0 ? ", " + root.stillText : "")
+                    // #189: the long tail gives way first, before the facts ahead of it, and
+                    // stops short of the filter at the right: it takes what the count, the
+                    // whole facts, the dot and the filter leave.
+                    // Whole pixels down, so the facts never lose a fraction of one to it.
+                    width: Math.max(0, Math.min(implicitWidth, Math.floor(summary.width - summaryCount.width
+                                                - summaryFacts.implicitWidth - skippedDot.implicitWidth
+                                                - skippedToggle.spacing
+                                                - (skippedKey.visible ? skippedKey.width
+                                                                        + skippedToggle.spacing : 0)
+                                                - (summaryGo.visible ? summaryGo.width
+                                                                       + Theme.space(8) : 0))))
                 }
 
                 KeyCap {
