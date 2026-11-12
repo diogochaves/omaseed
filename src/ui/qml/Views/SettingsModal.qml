@@ -3315,7 +3315,8 @@ Item {
                                     // C40 X2: how a library moves, said on every engine.
                                     const own = qsTr("%1's own settings and torrents, read from and sent to %1 only.").arg(
                                               qbtBackupPane.name) + " " + qsTr("To move them to another server, export here and import there.");
-                                    // C25 K33: servers of another engine have no backup yet,
+                                    // C25 K33, C40: servers of another engine have no settings backup (their torrents
+                                    // may export from their own group),
                                     // named before the qBittorrent servers that have their own.
                                     const none = root.otherServerIds.filter(id => !root._isQbtServer(id)).map(id => {
                                         const server = App.serverList.serverMap(id);
@@ -3323,8 +3324,8 @@ Item {
                                     });
                                     const noneText = none.length === 0 ? ""
                                                    : " " + (none.length === 1
-                                                            ? qsTr("%1 has no backup in omaseed yet: its settings and torrents stay on it.").arg(none[0])
-                                                            : qsTr("%1 have no backup in omaseed yet: their settings and torrents stay on them.").arg(
+                                                            ? qsTr("%1 has no settings backup in omaseed: its settings stay on it.").arg(none[0])
+                                                            : qsTr("%1 have no settings backup in omaseed: their settings stay on them.").arg(
                                                                   none.slice(0, -1).join(", ") + " " + qsTr("and") + " " + none[none.length - 1]));
                                     const others = root.otherQbtServerIds;
                                     if (others.length === 0)

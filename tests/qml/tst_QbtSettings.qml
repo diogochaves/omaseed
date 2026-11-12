@@ -611,14 +611,14 @@ TestCase {
         keyClick(Qt.Key_0);
         verify(modal.inQbtBackup);
         compare(testCase.childNamed(modal, "qbtScopeLine").text,
-                "home's own settings and torrents, read from and sent to home only. To move them to another server, export here and import there. seedbox (Transmission) has no backup in omaseed yet: its settings and torrents stay on it.");
+                "home's own settings and torrents, read from and sent to home only. To move them to another server, export here and import there. seedbox (Transmission) has no settings backup in omaseed: its settings stay on it.");
         compare(modal.otherQbtServerIds, []);
         verify(!testCase.childNamed(modal, "copySourceButton").visible);
         verify(testCase.childNamed(modal, "qbtCopyRow").description.indexOf("Another qBittorrent server's settings") === 0);
 
         testCase.addServer("private", 8091);
         compare(testCase.childNamed(modal, "qbtScopeLine").text,
-                "home's own settings and torrents, read from and sent to home only. To move them to another server, export here and import there. seedbox (Transmission) has no backup in omaseed yet: its settings and torrents stay on it. private has its own:");
+                "home's own settings and torrents, read from and sent to home only. To move them to another server, export here and import there. seedbox (Transmission) has no settings backup in omaseed: its settings stay on it. private has its own:");
         compare(modal.copySourceName, "private");
     }
 
