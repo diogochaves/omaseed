@@ -122,8 +122,9 @@ not edit your config:
   ln -sf /usr/share/omaseed/hooks/theme-set.d/omaseed ~/.config/omarchy/hooks/theme-set.d/omaseed
   ```
 
-- **A "Torrents" row for the Omarchy menu**: copy it from
-  `/usr/share/omaseed/omarchy-menu.jsonc` into `~/.config/omarchy/extensions/omarchy-menu.jsonc`.
+- **A "Torrents" row for the Omarchy menu**: copy the lines from `// >>> omaseed` to
+  `// <<< omaseed` in `/usr/share/omaseed/omarchy-menu.jsonc` into
+  `~/.config/omarchy/extensions/omarchy-menu.jsonc`, before its last `}`.
   omaseed is in the menu's Apps list without it.
 
 ### Build from source

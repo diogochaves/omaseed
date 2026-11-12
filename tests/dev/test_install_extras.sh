@@ -54,8 +54,18 @@ print(" ".join(json.loads(clean).keys()))
 EOF
 }
 
-install_menu() { HOME="$1" bash "$extras" --menu >/dev/null 2>"$1.err"; }
+# Omarchy's own menu, so --menu sees Omarchy installed (C36 M15).
+omarchy="$dir/omarchy"
+mkdir -p "$omarchy/default/omarchy"
+printf '{\n  "trigger": {"label":"Trigger"},\n}\n' >"$omarchy/default/omarchy/omarchy-menu.jsonc"
+
+install_menu() { HOME="$1" OMARCHY_PATH="$omarchy" bash "$extras" --menu >/dev/null 2>"$1.err"; }
 uninstall_all() { HOME="$1" bash "$extras" --uninstall >/dev/null 2>&1; }
+
+# The ids the block in data/omarchy-menu.jsonc adds (C36 M13).
+block_keys="$(keys_of "$repo/data/omarchy-menu.jsonc")"
+open_marker='// >>> omaseed'
+close_marker='// <<< omaseed'
 
 check_installed() {
     local name="$1" home="$2" expected="$3" keys
@@ -64,19 +74,29 @@ check_installed() {
         return
     fi
     [[ "$keys" == "$expected" ]] || fail "$name: keys are '$keys', wanted '$expected'"
+    [[ "$(grep -cF "$open_marker" "$(menu_of "$home")")" == 1 ]] ||
+        fail "$name: not one opening marker"
+    [[ "$(grep -cF "$close_marker" "$(menu_of "$home")")" == 1 ]] ||
+        fail "$name: not one closing marker"
 }
 
-# 1. The plain case: last entry has its comma, "}" is the last line.
+# 1. The plain case: last entry has its comma, "}" is the last line. Uninstall gives the file
+# back byte for byte, and --menu again puts back one block.
 h="$(new_home plain <<'EOF'
 {
   "a": {"label":"A"},
 }
 EOF
 )"
+cp "$(menu_of "$h")" "$dir/plain.before"
 install_menu "$h"
-check_installed plain "$h" "a torrents"
+check_installed plain "$h" "a $block_keys"
+install_menu "$h"
+check_installed plain-again "$h" "a $block_keys"
+uninstall_all "$h"
+cmp -s "$dir/plain.before" "$(menu_of "$h")" || fail "plain: uninstall did not give the file back"
 
-# 2. Blank lines after the closing brace: the row still goes inside the object.
+# 2. Blank lines after the closing brace: the block still goes inside the object.
 h="$(new_home blank-tail <<'EOF'
 {
   "a": {"label":"A"},
@@ -86,7 +106,7 @@ h="$(new_home blank-tail <<'EOF'
 EOF
 )"
 install_menu "$h"
-check_installed blank-tail "$h" "a torrents"
+check_installed blank-tail "$h" "a $block_keys"
 
 # 3. The last entry has no comma: one is added.
 h="$(new_home no-comma <<'EOF'
@@ -98,7 +118,7 @@ h="$(new_home no-comma <<'EOF'
 EOF
 )"
 install_menu "$h"
-check_installed no-comma "$h" "a b torrents"
+check_installed no-comma "$h" "a b $block_keys"
 
 # 4. A "//" inside a string is not a comment; a comma is still added.
 h="$(new_home url <<'EOF'
@@ -108,7 +128,7 @@ h="$(new_home url <<'EOF'
 EOF
 )"
 install_menu "$h"
-check_installed url "$h" "web torrents"
+check_installed url "$h" "web $block_keys"
 
 # 5. The last entry ends in a comment: no safe place for a comma, the file is left as it was.
 h="$(new_home trailing-comment <<'EOF'
@@ -122,7 +142,47 @@ install_menu "$h"
 [[ "$(cat "$(menu_of "$h")")" == "$before" ]] || fail "trailing-comment: the file was changed"
 grep -q "untouched" "$h.err" || fail "trailing-comment: no message said why"
 
-# 6. The file keeps its mode (mktemp's 0600 must not replace it).
+# 6. The old one-line first-page row, as the old --menu wrote it: replaced by the block.
+h="$(new_home old-row <<'EOF'
+{
+  "a": {"label":"A"},
+  // ---- omaseed T1.8 (scripts/dev/install-omarchy-extras.sh --menu) ----
+  "torrents": {"icon":"x","label":"Torrents","action":"uwsm-app -- omaseed"},
+}
+EOF
+)"
+install_menu "$h"
+check_installed old-row "$h" "a $block_keys"
+grep -q 'omaseed T1.8' "$(menu_of "$h")" && fail "old-row: the old marker comment is still there"
+
+# 7. A Torrents row that isn't omaseed's is the user's (C36 M14): the file is left as it was.
+for row in '"trigger.torrents": {"label":"Mine"},' '"torrents": {"label":"Mine","action":"qbittorrent"},'; do
+    h="$(new_home users-row <<EOF
+{
+  "a": {"label":"A"},
+  $row
+}
+EOF
+)"
+    before="$(cat "$(menu_of "$h")")"
+    install_menu "$h"
+    [[ "$(cat "$(menu_of "$h")")" == "$before" ]] || fail "users-row: the file was changed ($row)"
+    grep -q "untouched" "$h.err" || fail "users-row: no message said why ($row)"
+done
+
+# 8. No menu file, Omarchy's menu installed: created holding only the block. Without Omarchy's
+# menu nothing is written.
+h="$dir/no-file"
+mkdir -p "$h"
+install_menu "$h"
+check_installed no-file "$h" "$block_keys"
+h="$dir/no-omarchy"
+mkdir -p "$h"
+HOME="$h" OMARCHY_PATH="$dir/nowhere" bash "$extras" --menu >/dev/null 2>"$h.err"
+[[ -e "$(menu_of "$h")" ]] && fail "no-omarchy: a menu file was written"
+grep -q "not installed" "$h.err" || fail "no-omarchy: no message said why"
+
+# 9. The file keeps its mode (mktemp's 0600 must not replace it).
 h="$(new_home mode <<'EOF'
 {
   "a": {"label":"A"},
@@ -133,17 +193,17 @@ install_menu "$h"
 mode="$(stat -c %a "$(menu_of "$h")")"
 [[ "$mode" == "644" ]] || fail "mode: the menu file is $mode after --menu, wanted 644"
 
-# 7. Uninstall removes only the row it added; a user's own "torrents": line stays.
+# 10. Uninstall removes only the block, marker to marker; a user's own "torrents": line stays.
 printf '  "mine": {"torrents": {"label":"kept"}},\n' >"$dir/user-line"
 sed -i '1r '"$dir/user-line" "$(menu_of "$h")"
 uninstall_all "$h"
 grep -q '"label":"kept"' "$(menu_of "$h")" || fail "uninstall: the user's own \"torrents\" line was removed"
-grep -q 'install-omarchy-extras.sh --menu' "$(menu_of "$h")" && fail "uninstall: the marker comment is still there"
-grep -q '"Torrents"' "$(menu_of "$h")" && fail "uninstall: the installed row is still there"
+grep -qF "$open_marker" "$(menu_of "$h")" && fail "uninstall: the opening marker is still there"
+grep -qF "$close_marker" "$(menu_of "$h")" && fail "uninstall: the closing marker is still there"
 keys="$(keys_of "$(menu_of "$h")")" || fail "uninstall: not valid JSONC afterwards"
 [[ "$keys" == "mine a" ]] || fail "uninstall: keys are '$keys', wanted 'mine a'"
 
-# 8. install-desktop.sh refuses a binary path that sed or Exec= would misread.
+# 11. install-desktop.sh refuses a binary path that sed or Exec= would misread.
 for bad in 'with#hash' 'with&amp' 'with\backslash' 'with space'; do
     mkdir -p "$dir/bin/$bad"
     printf '#!/bin/sh\n' >"$dir/bin/$bad/omaseed"
