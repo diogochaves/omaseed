@@ -7,6 +7,19 @@ before it will tag a release.
 
 ## Unreleased
 
+### Added
+
+- **A library moves into a Transmission.** Settings › Transmission › Backup has its second
+  row, **Import torrents into NAME**: a file exported by omaseed on any engine is added
+  stopped, checked against the files on disk, and the complete torrents that were started
+  start; nothing is moved. From a qBittorrent's file the category becomes the first label and
+  the tags the rest. What Transmission can't keep (a seeding-time limit, an action other than
+  stop at a limit, automatic management, an incomplete folder of a torrent's own) is counted
+  in the import sheet before anything is added, and again in the result. A torrent that was
+  saved without its top folder can't be laid out that way on Transmission: it is added, left
+  stopped and named. Torrents that come as links are counted apart and checked once their
+  details arrive, now or the next time omaseed is on that server. (#88)
+
 ## v0.9.0 — 2026-11-11
 
 ### Added

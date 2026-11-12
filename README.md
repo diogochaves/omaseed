@@ -85,8 +85,9 @@ limits and turtle with its clock, errors in its own words, the seed console, and
 Transmission. What Transmission has no way to do is left out rather than offered and
 failing, and its key says so once in the status line: categories, a magnet's files before
 the add, super seeding, first and last pieces first, automatic management, adding or
-banning peers, editing web seeds, the log face, search, creating a torrent, and the
-qBittorrent backups (settings export and import, the torrents export).
+banning peers, editing web seeds, the log face, search, creating a torrent, and
+qBittorrent's settings export and import. Its torrents do move: Settings › Transmission ›
+Backup exports them to a file and imports a file exported on any engine.
 
 The same goes for Deluge: the library, details, adding (magnets with their files read before
 the add, `.torrent` files, a label, a folder), renaming (the name Deluge shows; the folder
