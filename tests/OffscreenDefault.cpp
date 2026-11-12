@@ -10,6 +10,13 @@
 // read and wrote the developer's real ~/.config/omaseed/state.json (an agent's run did,
 // 2026-10-12). So a home that does not already point inside the build tree is pointed at the
 // tests' own folder here, before anything reads it, and the desktop's `omarchy` is never run.
+//
+// And for the input method. Omarchy exports QT_IM_MODULE=fcitx, and a test inherits it with
+// the session bus: on offscreen, fcitx5-qt still opened an input context in the desktop's own
+// fcitx5, filed beside the developer's windows, and every text field a test focused took the
+// input focus from the window he was typing in, so his dead keys dropped in every app (one
+// tst_qml run sent ~13 400 focus calls, 2026-11-12; #261). No test types through an input
+// method, so none loads one, whatever the platform.
 
 #include <QByteArray>
 #include <QtGlobal>
@@ -25,6 +32,9 @@ void keepInsideBuild(const char *name, const QByteArray &fallback)
 const bool offscreenByDefault = [] {
     const QByteArray wanted = qgetenv("OMASEED_TEST_PLATFORM");
     qputenv("QT_QPA_PLATFORM", wanted.isEmpty() ? QByteArrayLiteral("offscreen") : wanted);
+    // Qt 6.8+ reads the plural first.
+    qputenv("QT_IM_MODULE", QByteArray());
+    qputenv("QT_IM_MODULES", QByteArray());
 
     const QByteArray homes = QByteArrayLiteral(OMASEED_TEST_XDG_DIR);
     keepInsideBuild("XDG_CONFIG_HOME", homes);

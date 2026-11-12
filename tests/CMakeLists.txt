@@ -37,8 +37,10 @@ function(omaseed_add_test name)
     # OMARCHY_PATH: an App reads Omarchy's menu file under the real $HOME (#216); pointed at a
     # folder with no Omarchy, it finds no menu and never writes there. A test that wants the
     # file points App at its own (setOmarchyMenuPaths).
+    # QT_IM_MODULE(S): no input-method plugin, so a test never joins the desktop's fcitx5 and
+    # takes its input focus (#261; tests/OffscreenDefault.cpp says the same for a direct run).
     set_tests_properties(${name} PROPERTIES
-        ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_LOGGING_RULES=qt.qml.*=false;XDG_DATA_HOME=${CMAKE_BINARY_DIR}/tests/data-home;OMASEED_DISPLAY=table;OMARCHY_PATH=${CMAKE_BINARY_DIR}/tests/no-omarchy"
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_IM_MODULE=;QT_IM_MODULES=;QT_LOGGING_RULES=qt.qml.*=false;XDG_DATA_HOME=${CMAKE_BINARY_DIR}/tests/data-home;OMASEED_DISPLAY=table;OMARCHY_PATH=${CMAKE_BINARY_DIR}/tests/no-omarchy"
     )
     if(arg_LIVE)
         set_tests_properties(${name} PROPERTIES RESOURCE_LOCK test-servers LABELS "live")
