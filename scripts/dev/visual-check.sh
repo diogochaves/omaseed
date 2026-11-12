@@ -280,6 +280,13 @@ key Escape Escape
 sections=(general servers notifications keybindings appearance backup about
     qbt-speed qbt-discovery qbt-connection qbt-proxy qbt-seeding qbt-queue qbt-downloads qbt-webui
     qbt-advanced qbt-search qbt-backup)
+# Backup's "Automatic copies" says "Last one: <day> HH:MM" once the app's first copy is made, a
+# minute after it starts (#31), and "the first one is made within the hour" before: a line more
+# or less, so the panel's height and its buttons would follow how fast the run got here. The
+# words themselves are left out (SECTION_CLOCK); the copy is waited for, so they are always there.
+omabox wait --timeout 90s until -- sh -c \
+    'find /home/sbx/.local/share/omaseed/backups -type f -print -quit 2>/dev/null | grep -q .' \
+    || die "settings-backup: no automatic copy in the box after 90 s"
 key comma
 for i in "${!sections[@]}"; do
     [ "$i" = 0 ] || key j
