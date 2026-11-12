@@ -3,7 +3,8 @@
 // TorrentsImport — a TorrentsBackup file laid onto a qBittorrent (docs/24 §5 "Import torrents",
 // §7; D6 a, D7 a, D8 a; #33).
 //
-// What the sheet shows comes from the pure half, and nothing changes until `start`:
+// What the sheet shows comes from the pure half (TorrentsImportPlan, shared with the other
+// engines' importers), and nothing changes until `start`:
 //   * `plan`: each torrent is new (added), already on the server by any of its hashes (skipped,
 //     D8 a), a magnet without metadata (added as a link), or one an earlier run added and did
 //     not finish (the journal says so: finished, not skipped, §7 "running it again"). The
@@ -48,6 +49,7 @@
 #include "core/LibraryCrossing.hpp"
 #include "core/PathMap.hpp"
 #include "core/TorrentsBackup.hpp"
+#include "core/TorrentsImportPlan.hpp"
 
 #include <QFile>
 #include <QHash>
@@ -74,69 +76,34 @@ class TorrentsImport : public QObject
     Q_OBJECT
 
 public:
-    static constexpr int kBatch = 20;
+    static constexpr int kBatch = TorrentsImportPlan::kBatch;
 
-    // ---- save paths (D7 a) -----------------------------------------------------------------
+    // The plan's data, the journal, the choice and the result are every engine's
+    // (TorrentsImportPlan); they keep their names here.
+    using PathRow = TorrentsImportPlan::PathRow;
+    using Journal = TorrentsImportPlan::Journal;
+    using Here = TorrentsImportPlan::Here;
+    using Plan = TorrentsImportPlan::Plan;
+    using Options = TorrentsImportPlan::Options;
+    using Outcome = TorrentsImportPlan::Outcome;
 
-    struct PathRow
+    static QString mapPath(const QString &path, const QList<PathRow> &rows)
     {
-        QString from;
-        QString to;
-        QString source; ///< the server whose path map made the row; empty for one typed in
-        bool operator==(const PathRow &other) const = default;
-    };
-    /// `path` with the longest row `from` it starts with (at a folder boundary) replaced by
-    /// that row's `to`; unchanged when no row with both ends filled covers it.
-    static QString mapPath(const QString &path, const QList<PathRow> &rows);
-    static bool covers(const QList<PathRow> &rows, const QString &path);
-    /// The rows the sheet starts with: the exporting server's path map (when omaseed knows that
-    /// server: `source`), each remote folder to where the target sees that same folder, and
-    /// the target's own map read backwards, for a file whose paths are this machine's. Only
-    /// rows that change a path some torrent has.
+        return TorrentsImportPlan::mapPath(path, rows);
+    }
+    static bool covers(const QList<PathRow> &rows, const QString &path)
+    {
+        return TorrentsImportPlan::covers(rows, path);
+    }
     static QList<PathRow> prefill(const TorrentsBackup::Contents &contents,
                                   const std::optional<PathMap> &source,
                                   const QString &sourceName,
                                   const PathMap &target,
-                                  const QString &targetName);
-
-    // ---- the journal (§7) ------------------------------------------------------------------
-
-    struct Journal
+                                  const QString &targetName)
     {
-        QString key;                    ///< which export it is about (`keyFor`)
-        QHash<QString, QString> stages; ///< id -> "added" (steps left) or "check"
+        return TorrentsImportPlan::prefill(contents, source, sourceName, target, targetName);
+    }
 
-        static QString keyFor(const TorrentsManifest &manifest);
-        /// `$XDG_DATA_HOME/omaseed/imports/<server id>.json`.
-        static QString pathFor(const QString &serverId);
-        /// An empty journal when there is none (or it is damaged).
-        static Journal load(const QString &path);
-        /// Writes it, or removes the file when nothing is left in it.
-        bool save(const QString &path) const;
-    };
-
-    // ---- the plan --------------------------------------------------------------------------
-
-    /// What the server has now.
-    struct Here
-    {
-        QSet<QString> ids; ///< every torrent id, v1 and v2 hash, lower case
-        QStringList categories;
-        QStringList tags;
-    };
-    struct Plan
-    {
-        QList<int> add;     ///< record indexes: new, with metadata
-        QList<int> magnets; ///< new links without metadata
-        QList<int> finish;  ///< here, left unfinished by an earlier run of this file
-        QList<int> skipped; ///< here already (D8 a)
-        qint64 addBytes = 0;
-        qint64 skippedBytes = 0;
-        QStringList categories; ///< to create first
-        QStringList tags;       ///< to create first
-
-        int count() const { return int(add.size() + magnets.size() + finish.size()); }
-    };
     /// The file was written by another engine (C40 X1): its grouping is crossed (X4).
     static bool crosses(const TorrentsManifest &manifest);
     /// `record`'s category and tags as a qBittorrent takes them (C40 X4): its own for a
@@ -148,45 +115,16 @@ public:
     static Plan plan(const TorrentsBackup::Contents &contents,
                      const Here &here,
                      const Journal &journal = Journal());
-    /// How many of the torrents the plan sends keep their save path because no row covers it.
     static int uncovered(const TorrentsBackup::Contents &contents,
                          const Plan &plan,
-                         const QList<PathRow> &rows);
-
-    /// A rename from `from` to `to` (relative to `localBase`, the torrent's folder as this
-    /// machine sees it) would replace a file that is there: both names are on disk. An empty
-    /// `localBase` sees nothing and allows it.
-    static bool
-    renameWouldReplace(const QString &localBase, const QString &from, const QString &to);
-
-    // ---- the run ---------------------------------------------------------------------------
-
-    struct Options
+                         const QList<PathRow> &rows)
     {
-        QList<PathRow> rows;
-        bool check = true; ///< D6 a; false: "leave them stopped"
-        QString journalPath;
-        /// The folder on this machine for a server path, "" where it can't see it (App's
-        /// FreeSpaceProbe::localPathFor).
-        std::function<QString(const QString &)> localPathFor;
-        int batch = kBatch;
-        int pollMs = 2000;
-    };
-    struct Outcome
+        return TorrentsImportPlan::uncovered(contents, plan, rows);
+    }
+    static bool renameWouldReplace(const QString &localBase, const QString &from, const QString &to)
     {
-        int added = 0;    ///< with metadata
-        int magnets = 0;  ///< links
-        int finished = 0; ///< from an earlier run
-        int started = 0;
-        int leftStopped = 0; ///< checked, and not complete (or kept stopped)
-        int categories = 0;  ///< created
-        int tags = 0;        ///< created
-        int keptManual = 0;  ///< exported under automatic management, kept manual here
-        QStringList refused; ///< torrents whose renames would have replaced a file on disk
-        QStringList errors;
-        bool cancelled = false;
-        bool complete = false; ///< every step ran
-    };
+        return TorrentsImportPlan::renameWouldReplace(localBase, from, to);
+    }
 
     /// Talks to `engine`'s transport (docs/36 §4.4: a qBittorrent surface); null for none.
     explicit TorrentsImport(QbtEngine *engine, QObject *parent = nullptr);
@@ -200,7 +138,7 @@ public:
 Q_SIGNALS:
     /// `phase` "adding" or "checking"; `done` of `total`.
     void progress(const QString &phase, int done, int total);
-    void finished(const omaseed::core::TorrentsImport::Outcome &outcome);
+    void finished(const omaseed::core::TorrentsImportPlan::Outcome &outcome);
 
 private:
     struct Item
@@ -260,5 +198,3 @@ private:
 };
 
 } // namespace omaseed::core
-
-Q_DECLARE_METATYPE(omaseed::core::TorrentsImport::Outcome)

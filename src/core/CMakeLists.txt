@@ -246,6 +246,8 @@ qt_add_library(omaseed-core STATIC
     TorrentStory.hpp
     TorrentsBackup.cpp
     TorrentsBackup.hpp
+    TorrentsImportPlan.cpp
+    TorrentsImportPlan.hpp
     TorrentTrackersModel.cpp
     TorrentTrackersModel.hpp
     TorrentWebSeedsModel.cpp
