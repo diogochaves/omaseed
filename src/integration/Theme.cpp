@@ -585,6 +585,32 @@ QColor Theme::liftMark(const QColor &mark,
     return colour;
 }
 
+QColor Theme::liftMarkAt(const QColor &mark,
+                         qreal alpha,
+                         const QColor &over,
+                         const QColor &against,
+                         const QColor &foreground,
+                         const QColor &bright)
+{
+    constexpr qreal floor = kMarkContrastFloor;
+    const QColor opaque = QColor::fromRgb(mark.red(), mark.green(), mark.blue());
+    const auto at = [&opaque](qreal a) {
+        QColor colour = opaque;
+        colour.setAlphaF(static_cast<float>(a));
+        return colour;
+    };
+    const qreal start = std::clamp(alpha, qreal(0), qreal(1));
+    if (contrastRatio(ThemeInk::over(opaque, over, start), against) >= floor)
+        return at(start); // byte for byte: a mark that reads already is not touched
+    // A faint mark's opacity is what makes it faint: raise it first, so it keeps its colour.
+    for (int step = 1; start < 1 && step <= 256; ++step) {
+        const qreal a = start + (1 - start) * step / 256.0;
+        if (contrastRatio(ThemeInk::over(opaque, over, a), against) >= floor)
+            return at(a);
+    }
+    return liftMark(opaque, against, foreground, bright);
+}
+
 QString Theme::hexColor(const QColor &colour)
 {
     QString hex = colour.name(QColor::HexRgb);

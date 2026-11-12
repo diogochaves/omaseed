@@ -329,6 +329,19 @@ public:
                                        const QColor &under,
                                        const QColor &foreground,
                                        const QColor &bright);
+    /// `mark` at `alpha`, a faint mark (an outline, a dot, a track at an opacity), as it reads
+    /// against `against` once composited over `over` (the opaque colour under it; `against`
+    /// is `over` unless the mark is an edge between two grounds, as a toggle's outline is
+    /// between its block and its track): `mark` at `alpha` byte for byte where that reads at
+    /// kMarkContrastFloor; else at the least higher opacity that does, in 1/256 steps, so it
+    /// keeps its hue; else, opaque, liftMark's lift against `against` (docs/DECISIONS.md C30,
+    /// marks, #200). QML calls it as `Theme.markAt(colour, alpha, over, against)`.
+    Q_INVOKABLE static QColor liftMarkAt(const QColor &mark,
+                                         qreal alpha,
+                                         const QColor &over,
+                                         const QColor &against,
+                                         const QColor &foreground,
+                                         const QColor &bright);
 
     /// `#rrggbb`, or `#rrggbbaa` when the colour is not opaque. (Qt's own HexArgb puts the
     /// alpha first; CSS and every contrast tool put it last.)

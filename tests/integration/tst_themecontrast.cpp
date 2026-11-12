@@ -151,6 +151,10 @@ private slots:
     void aMarkThatReadsIsKept();
     void aMarkIsLiftedToThreeToOneAndNoFurther();
     void aMarkPastTheForegroundGoesToTheBetterOne();
+    void aFaintMarkThatReadsIsKept();
+    void aFaintMarkIsRaisedToTheLeastOpacityThatReads();
+    void aToggleOutlineReadsOnALightThemesWindow();
+    void aFaintMarkThatNeverReadsIsLifted();
 };
 
 void TestThemeContrast::theFloorIsWcagAaForNormalText()
@@ -317,6 +321,72 @@ void TestThemeContrast::aMarkPastTheForegroundGoesToTheBetterOne()
     const QColor lifted = Theme::liftMark(mark, ground, foreground, bright);
     QVERIFY(Theme::contrastRatio(lifted, ground) >= Theme::kMarkContrastFloor);
     QVERIFY(lifted != bright);
+}
+
+void TestThemeContrast::aFaintMarkThatReadsIsKept()
+{
+    // A faint mark at 3:1 already keeps its colour and its alpha, so it paints as it did.
+    const QColor ground(QStringLiteral("#1a1b26"));
+    const QColor foreground(QStringLiteral("#c0caf5"));
+    QVERIFY(Theme::contrastRatio(ThemeInk::over(foreground, ground, 0.6), ground) >=
+            Theme::kMarkContrastFloor);
+    QColor expected = foreground;
+    expected.setAlphaF(0.6f);
+    QCOMPARE(Theme::liftMarkAt(foreground, 0.6, ground, ground, foreground, foreground), expected);
+}
+
+void TestThemeContrast::aFaintMarkIsRaisedToTheLeastOpacityThatReads()
+{
+    // A red at 0.4 on a light ground reads under 3:1 (3.84:1 at full): the opacity goes up,
+    // the colour stays the red, and one step less would not read.
+    const QColor ground(QStringLiteral("#faf4ed"));
+    const QColor red(QStringLiteral("#b4637a"));
+    const QColor foreground(QStringLiteral("#575279"));
+    QVERIFY(Theme::contrastRatio(ThemeInk::over(red, ground, 0.4), ground) <
+            Theme::kMarkContrastFloor);
+    const QColor raised = Theme::liftMarkAt(red, 0.4, ground, ground, foreground, foreground);
+    QCOMPARE(raised.rgb(), red.rgb());
+    QVERIFY(raised.alphaF() > 0.4f);
+    QVERIFY(raised.alphaF() <= 1.0f);
+    QVERIFY(Theme::contrastRatio(ThemeInk::over(red, ground, raised.alphaF()), ground) >=
+            Theme::kMarkContrastFloor);
+    const qreal less = raised.alphaF() - 0.6 / 256.0;
+    QVERIFY(Theme::contrastRatio(ThemeInk::over(red, ground, less), ground) <
+            Theme::kMarkContrastFloor);
+}
+
+void TestThemeContrast::aToggleOutlineReadsOnALightThemesWindow()
+{
+    // Kit/Toggle: the foreground at borderIdle over the window, against the idle track it
+    // meets, on rose-pine (light), where 0.4 read under 3:1 (#200).
+    FixtureTheme fixture(QStringLiteral("rose-pine"), QByteArray());
+    const Theme &theme = fixture.theme();
+    const QColor window = theme.on()->window()->ground();
+    const QColor track = theme.on()->idle()->ground();
+    QVERIFY(Theme::contrastRatio(ThemeInk::over(theme.foreground(), window, theme.borderIdle()),
+                                 track) < Theme::kMarkContrastFloor);
+    const QColor outline = Theme::liftMarkAt(theme.foreground(),
+                                             theme.borderIdle(),
+                                             window,
+                                             track,
+                                             theme.foreground(),
+                                             theme.brightForeground());
+    const QColor painted = ThemeInk::over(outline, window, outline.alphaF());
+    QVERIFY(Theme::contrastRatio(painted, track) >= Theme::kMarkContrastFloor);
+    QVERIFY(Theme::contrastRatio(painted, window) >= Theme::kMarkContrastFloor);
+}
+
+void TestThemeContrast::aFaintMarkThatNeverReadsIsLifted()
+{
+    // Where the colour itself reads under 3:1 at full opacity, the mark goes opaque and is
+    // lifted as liftMark lifts it.
+    const QColor ground(QStringLiteral("#faf4ed"));
+    const QColor muted(QStringLiteral("#cecacd"));
+    const QColor foreground(QStringLiteral("#575279"));
+    QVERIFY(Theme::contrastRatio(muted, ground) < Theme::kMarkContrastFloor);
+    const QColor lifted = Theme::liftMarkAt(muted, 0.5, ground, ground, foreground, foreground);
+    QCOMPARE(lifted, Theme::liftMark(muted, ground, foreground, foreground));
+    QVERIFY(Theme::contrastRatio(lifted, ground) >= Theme::kMarkContrastFloor);
 }
 
 void TestThemeContrast::theFixturesAreThere()

@@ -185,6 +185,29 @@ TestCase {
         verify(contrast(lifted, under) < 3.1, contrast(lifted, under));
     }
 
+    // #200: the web seed's muted lamp, 1.0:1 on a selected row in some themes, is lifted to 3:1
+    // on the selected ground under the cursor (the darkest a row gets).
+    function test_a_muted_lamp_is_lifted_on_a_selected_ground() {
+        const under = Theme.on.selectedCursor.ground;
+        const lamp = Theme.markOn(Theme.muted, under);
+        verify(contrast(lamp, under) >= 2.999, contrast(lamp, under));
+        if (contrast(Theme.muted, under) >= 3)
+            verify(Qt.colorEqual(lamp, Theme.muted), "a muted that reads was moved");
+    }
+
+    // #200: a faint mark (an outline, a dot, a track at an opacity) keeps its alpha where it
+    // reads at 3:1, and else gets the least higher opacity that does, in its own colour.
+    function test_a_faint_mark_is_raised_to_three_to_one() {
+        const kept = Theme.markAt(Theme.foreground, 0.9, Theme.background, Theme.background);
+        verify(Qt.colorEqual(kept, Qt.alpha(Theme.foreground, 0.9)), kept);
+        const raised = Theme.markAt(Theme.foreground, 0.1, Theme.background, Theme.background);
+        verify(raised.a > 0.1 && raised.a < 1, raised.a);
+        verify(Qt.colorEqual(Qt.alpha(raised, 1), Theme.foreground), raised);
+        const painted = Qt.tint(Theme.background, raised);
+        verify(contrast(painted, Theme.background) >= 2.99, contrast(painted, Theme.background));
+        verify(contrast(painted, Theme.background) < 3.1, contrast(painted, Theme.background));
+    }
+
     // #171: Omarchy is the skin with no overrides, so every token the skin could set comes
     // out as the kit's own value.
     function test_omarchy_s_skin_tokens_are_the_kit_s_own() {

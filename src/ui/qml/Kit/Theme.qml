@@ -107,6 +107,14 @@ ThemeBase {
     function markOn(colour: color, under: color): color {
         return liftMark(colour, under, foreground, brightForeground);
     }
+    /// A faint mark, `colour` at `alpha` over `over` (an outline, a dot, a track at an
+    /// opacity), as it reads against `against` (`over` itself, or the other ground an edge
+    /// meets, as a toggle's track): kept where it reads at 3:1, else at the least higher
+    /// opacity that does, else opaque and lifted as `markOn` (DECISIONS C30, marks, #200).
+    /// The answer carries its own alpha, so the mark drops any `opacity` of its own.
+    function markAt(colour: color, alpha: real, over: color, against: color): color {
+        return liftMarkAt(colour, alpha, over, against, foreground, brightForeground);
+    }
     /// How long a fill takes to change colour (the rows', the buttons'), and the text on it
     /// with it (C30 F4).
     readonly property int fillChangeDuration: 120
