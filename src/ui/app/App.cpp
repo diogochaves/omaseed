@@ -6751,6 +6751,15 @@ QString countText(int n, const QString &one, const QString &many)
     return n == 1 ? one : many.arg(n);
 }
 
+/// A preference's value in a note: on / off for a switch, else as the server writes it.
+QString jsonWord(const QJsonValue &value)
+{
+    if (value.isBool())
+        return value.toBool() ? QCoreApplication::translate("App", "on")
+                              : QCoreApplication::translate("App", "off");
+    return value.toVariant().toString();
+}
+
 /// "2 feeds, 5 rules", "1 feed", "none".
 QString rssText(int feeds, int rules)
 {
@@ -7172,6 +7181,7 @@ QVariantMap App::qbtImportInfo(const QbtImportSource &source)
                            {QStringLiteral("group"), change.group},
                            {QStringLiteral("now"), change.here.toVariant()},
                            {QStringLiteral("from"), change.file.toVariant()},
+                           {QStringLiteral("renamedFrom"), change.renamedFrom},
                            {QStringLiteral("checked"), change.group.isEmpty()}};
     };
     for (const QbtSettingsImport::PrefChange &change : d.changes) {
@@ -7231,6 +7241,20 @@ QVariantMap App::qbtImportInfo(const QbtImportSource &source)
                                tr("1 setting this qBittorrent doesn't have is left out: %2."),
                                tr("%1 settings this qBittorrent doesn't have are left out: %2."))
                          .arg(d.skipped.join(QStringLiteral(", "))));
+    // #166: a key this qBittorrent renamed is carried over, and the note says how.
+    if (!d.renamed.isEmpty()) {
+        QStringList moves;
+        for (const QbtSettingsImport::Renamed &moved : d.renamed)
+            moves.append(
+                QStringLiteral("%1 %2 → %3 %4")
+                    .arg(moved.from, jsonWord(moved.was), moved.to, jsonWord(moved.value)));
+        notes.append(countText(int(d.renamed.size()),
+                               tr("1 setting this qBittorrent names differently is read as its "
+                                  "own: %2."),
+                               tr("%1 settings this qBittorrent names differently are read as "
+                                  "its own: %2."))
+                         .arg(moves.join(QStringLiteral(", "))));
+    }
     if (d.categoryLimitsLeftOut > 0)
         notes.append(countText(d.categoryLimitsLeftOut,
                                tr("The share limits of 1 new category are left out: "

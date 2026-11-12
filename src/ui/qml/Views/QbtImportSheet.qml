@@ -119,15 +119,23 @@ Sheet {
             "max_inactive_seeding_time_enabled": qsTr("inactive seeding time limit on")
         })
 
-    /// A row's words: the group's own title for the key, else the key in plain letters.
+    /// A row's words: the group's own title for the key, else the key in plain letters. A key
+    /// carried over from the one this qBittorrent replaced names that one too (#166).
     function labelFor(row: var): string {
         if (row.label !== undefined)
             return row.label;
-        if (sheet.words[row.key] !== undefined)
-            return sheet.words[row.key];
-        const known = sheet.meta[row.key];
+        const words = sheet.keyWords(row.key);
+        if ((row.renamedFrom ?? "").length === 0)
+            return words;
+        return qsTr("%1 · was %2").arg(words).arg(sheet.keyWords(row.renamedFrom));
+    }
+
+    function keyWords(key: string): string {
+        if (sheet.words[key] !== undefined)
+            return sheet.words[key];
+        const known = sheet.meta[key];
         if (!known)
-            return row.key.replace(/_/g, " ");
+            return key.replace(/_/g, " ");
         const title = known.title;
         // "Upload slots" reads "upload slots"; "SSL port" and "DHT" keep their capitals.
         return title.length > 1 && title.charAt(1) === title.charAt(1).toLowerCase()

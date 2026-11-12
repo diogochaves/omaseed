@@ -92,6 +92,25 @@ TestCase {
         verify(!findChild(sheet, "importNothing").visible);
     }
 
+    // #166: a 5.2 file's SSL switch carried over to a 5.3 target's encryption type: the row
+    // names both, the cells read as the encryption choice, the note says how it was read.
+    function test_a_renamed_key_names_the_one_it_replaced() {
+        const sheet = createTemporaryObject(sheetComponent, testCase);
+        const map = info();
+        map.rows = [{ "key": "mail_notification_encryption_type", "kind": "pref", "group": "", "now": "None",
+                      "from": "SMTPS", "renamedFrom": "mail_notification_ssl_enabled", "checked": true }];
+        map.notes = ["1 setting this qBittorrent names differently is read as its own: "
+                     + "mail_notification_ssl_enabled on → mail_notification_encryption_type SMTPS."];
+        map.changeCount = 1;
+        sheet.openFor(map);
+        const key = "mail_notification_encryption_type";
+        compare(cell(sheet, key, "importLabel"), "email encryption · was email over SSL");
+        compare(cell(sheet, key, "importFrom"), "SMTPS");
+        compare(row(sheet, key).Accessible.name, "email encryption · was email over SSL");
+        compare(findChild(sheet, "importNote").text, map.notes[0]);
+        compare(sheet.choice().keys, [key]);
+    }
+
     // The machine-specific rows come after the head, and start unticked.
     function test_machine_rows_sit_under_their_head_unticked() {
         const sheet = createTemporaryObject(sheetComponent, testCase);
