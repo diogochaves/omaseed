@@ -354,6 +354,8 @@ App::App(QObject *parent)
     setUpServers();
     // docs/33 §11 (#73): the one menu of the tray and the bar widget.
     setUpBarMenu();
+    // Board 53 §6 (#216): the switch for Trigger › Torrents in Omarchy's menu.
+    setUpOmarchyMenu();
     setUpMove();
     // #236 (C38 R9): the renames the story tells, per server, beside the move history.
     setUpRenames();

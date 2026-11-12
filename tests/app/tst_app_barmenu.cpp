@@ -4,6 +4,7 @@
 // Appearance's "In the bar" reads and writes the two old settings as one. Demo mode: no
 // server is contacted.
 
+#include "core/OmarchyMenuFile.hpp"
 #include "core/PauseHold.hpp"
 #include "core/ServerStore.hpp"
 #include "core/StateFile.hpp"
@@ -16,6 +17,9 @@
 #include "ui/app/StatusService.hpp"
 
 #include <QAction>
+#include <QDir>
+#include <QFile>
+#include <QFileInfo>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -33,6 +37,7 @@
 
 using omaseed::app::App;
 using omaseed::app::StatusService;
+using omaseed::core::OmarchyMenuFile;
 using omaseed::integration::BarMenu;
 
 namespace {
@@ -170,6 +175,10 @@ private slots:
     void theWindowShowsTheSameMenu();
     void inTheBarReadsTheTwoOldSettings();
     void inTheBarWritesTheTrayIconMode();
+    void inTheOmarchyMenuAddsAndRemovesTheBlock();
+    void inTheOmarchyMenuSeesAHandEdit();
+    void inTheOmarchyMenuIsDimmedWhereItCannotWrite();
+    void inTheOmarchyMenuFollowsTheServerList();
 
 private:
     QTemporaryDir m_dir;
@@ -488,6 +497,202 @@ void TestAppBarMenu::inTheBarWritesTheTrayIconMode()
     QCOMPARE(app.inTheBar(), QStringLiteral("tray"));
     app.setInTheBar(QStringLiteral("bogus"));
     QCOMPARE(app.inTheBar(), QStringLiteral("tray"));
+}
+
+// --- #216: Settings › Appearance › In the Omarchy menu (board 53 §6, C36 M11–M15) -----------
+
+namespace {
+
+QByteArray readBytes(const QString &path)
+{
+    QFile file(path);
+    return file.open(QIODevice::ReadOnly) ? file.readAll() : QByteArray();
+}
+
+bool writeBytes(const QString &path, const QByteArray &bytes)
+{
+    QDir().mkpath(QFileInfo(path).absolutePath());
+    QFile file(path);
+    return file.open(QIODevice::WriteOnly | QIODevice::Truncate) &&
+           file.write(bytes) == bytes.size();
+}
+
+/// A folder with Omarchy's own menu in it, and the user's file's place (no file yet).
+struct MenuFolder
+{
+    QTemporaryDir dir;
+    QString user() const { return dir.filePath(QStringLiteral("extensions/omarchy-menu.jsonc")); }
+    QString omarchy() const { return dir.filePath(QStringLiteral("omarchy-menu.jsonc")); }
+    MenuFolder() { writeBytes(omarchy(), "{\n}\n"); }
+};
+
+QVariantMap serverFields(const QString &name)
+{
+    return {
+        {QStringLiteral("name"), name},
+        {QStringLiteral("url"), QStringLiteral("http://127.0.0.1:9")},
+        {QStringLiteral("authMode"), QStringLiteral("none")},
+    };
+}
+
+} // namespace
+
+// M12, M13: off until asked; on adds the block, off takes it away and leaves every other byte.
+void TestAppBarMenu::inTheOmarchyMenuAddsAndRemovesTheBlock()
+{
+    App app;
+    // The tests' OMARCHY_PATH has no Omarchy (tests/CMakeLists.txt): no menu, nothing written.
+    QCOMPARE(app.omarchyMenuState(), QStringLiteral("noMenu"));
+    QVERIFY(!app.omarchyMenuOffered());
+    QVERIFY(!app.inOmarchyMenu());
+
+    MenuFolder folder;
+    QSignalSpy changed(&app, &App::omarchyMenuChanged);
+    app.setOmarchyMenuPaths(folder.user(), folder.omarchy());
+    QCOMPARE(app.omarchyMenuState(), QStringLiteral("noFile"));
+    QVERIFY(app.omarchyMenuOffered());
+    QVERIFY(!app.inOmarchyMenu());
+    QVERIFY(changed.size() > 0);
+    QVERIFY(!QFileInfo::exists(folder.user()));
+
+    // No file: on creates it holding only the block.
+    app.setInOmarchyMenu(true);
+    QVERIFY(app.inOmarchyMenu());
+    QCOMPARE(app.omarchyMenuState(), QStringLiteral("block"));
+    const QByteArray made = readBytes(folder.user());
+    QVERIFY(made.startsWith("{\n  " + OmarchyMenuFile::openMarkerPrefix()));
+    QVERIFY(made.contains("\"trigger.torrents\""));
+    app.setInOmarchyMenu(false);
+    QVERIFY(!app.inOmarchyMenu());
+    QCOMPARE(readBytes(folder.user()), QByteArray("{\n}\n"));
+
+    // The user's own rows and comments, byte for byte after an on and an off.
+    const QByteArray mine =
+        "{\n  // my rows\n  \"a\": {\"label\":\"A\"}, // keep\n"
+        "  \"b\": {\"label\":\"B\",\"action\":\"xdg-open https://x.y/z\"},\n}\n";
+    QVERIFY(writeBytes(folder.user(), mine));
+    QTRY_COMPARE(app.omarchyMenuState(), QStringLiteral("noBlock"));
+    app.setInOmarchyMenu(true);
+    QVERIFY(app.inOmarchyMenu());
+    QVERIFY(readBytes(folder.user()).contains("// my rows"));
+    app.setInOmarchyMenu(false);
+    QCOMPARE(readBytes(folder.user()), mine);
+
+    // M13: the old first-page row reads as off, and on replaces it.
+    const QByteArray old = "{\n  \"a\": 1,\n  \"torrents\": {\"icon\":\"x\",\"label\":\"Torrents\","
+                           "\"action\":\"uwsm-app -- omaseed\"},\n}\n";
+    QVERIFY(writeBytes(folder.user(), old));
+    QTRY_COMPARE(app.omarchyMenuState(), QStringLiteral("oldRow"));
+    QVERIFY(!app.inOmarchyMenu());
+    QVERIFY(app.omarchyMenuOffered());
+    app.setInOmarchyMenu(true);
+    QVERIFY(app.inOmarchyMenu());
+    QVERIFY(!readBytes(folder.user()).contains("\"torrents\":"));
+}
+
+// M13: the file is watched, so a hand edit (an atomic replace too) moves the switch.
+void TestAppBarMenu::inTheOmarchyMenuSeesAHandEdit()
+{
+    App app;
+    MenuFolder folder;
+    app.setOmarchyMenuPaths(folder.user(), folder.omarchy());
+    app.setInOmarchyMenu(true);
+    QVERIFY(app.inOmarchyMenu());
+
+    // Taken out by hand: the switch goes off.
+    QVERIFY(writeBytes(folder.user(), "{\n}\n"));
+    QTRY_VERIFY(!app.inOmarchyMenu());
+    QCOMPARE(app.omarchyMenuState(), QStringLiteral("noBlock"));
+
+    // Put back through a rename over the file, as editors and QSaveFile write.
+    OmarchyMenuFile other(folder.user(), folder.omarchy());
+    QVERIFY(other.add(QStringLiteral("  \"trigger.torrents\": {\"label\":\"Torrents\"},\n")));
+    QTRY_VERIFY(app.inOmarchyMenu());
+    // And again: the watch outlived the replace.
+    QVERIFY(other.remove());
+    QTRY_VERIFY(!app.inOmarchyMenu());
+
+    // The file gone, then its folder: still watched from above.
+    QVERIFY(QFile::remove(folder.user()));
+    QTRY_COMPARE(app.omarchyMenuState(), QStringLiteral("noFile"));
+    QVERIFY(QDir(QFileInfo(folder.user()).absolutePath()).removeRecursively());
+    QTest::qWait(100);
+    QVERIFY(writeBytes(folder.user(), "{\n  \"trigger.torrents\": {\"label\":\"Mine\"},\n}\n"));
+    QTRY_COMPARE(app.omarchyMenuState(), QStringLiteral("usersRow"));
+}
+
+// M13–M15: a row of the user's, no safe place for a comma, no Omarchy menu: dimmed, saying
+// why, and the file untouched.
+void TestAppBarMenu::inTheOmarchyMenuIsDimmedWhereItCannotWrite()
+{
+    App app;
+    MenuFolder folder;
+    const QByteArray users = "{\n  \"a\": 1,\n  \"trigger.torrents\": {\"label\":\"Mine\"},\n}\n";
+    QVERIFY(writeBytes(folder.user(), users));
+    app.setOmarchyMenuPaths(folder.user(), folder.omarchy());
+    QCOMPARE(app.omarchyMenuState(), QStringLiteral("usersRow"));
+    QVERIFY(!app.omarchyMenuOffered());
+    QVERIFY(!app.inOmarchyMenu());
+    QVERIFY2(app.omarchyMenuReason().contains(QStringLiteral("line 3")),
+             qPrintable(app.omarchyMenuReason()));
+    app.setInOmarchyMenu(true);
+    QVERIFY(!app.inOmarchyMenu());
+    QCOMPARE(readBytes(folder.user()), users);
+
+    const QByteArray comment = "{\n  \"a\": 1 // mine\n}\n";
+    QVERIFY(writeBytes(folder.user(), comment));
+    QTRY_COMPARE(app.omarchyMenuState(), QStringLiteral("noSafePlace"));
+    QVERIFY(!app.omarchyMenuOffered());
+    QVERIFY2(app.omarchyMenuReason().contains(QStringLiteral("ends in a comment")),
+             qPrintable(app.omarchyMenuReason()));
+    app.setInOmarchyMenu(true);
+    QCOMPARE(readBytes(folder.user()), comment);
+
+    QVERIFY(QFile::remove(folder.omarchy()));
+    app.setOmarchyMenuPaths(folder.user(), folder.omarchy());
+    QCOMPARE(app.omarchyMenuState(), QStringLiteral("noMenu"));
+    QVERIFY(!app.omarchyMenuOffered());
+    QCOMPARE(app.omarchyMenuReason(), QString());
+
+    // The row names the file from the home folder.
+    app.setOmarchyMenuPaths(QDir::homePath() + QStringLiteral("/x/omarchy-menu.jsonc"),
+                            folder.omarchy());
+    QCOMPARE(app.omarchyMenuFile(), QStringLiteral("~/x/omarchy-menu.jsonc"));
+}
+
+// M11: while on, a server added, renamed or removed writes the block again; off, nothing.
+void TestAppBarMenu::inTheOmarchyMenuFollowsTheServerList()
+{
+    App app;
+    QVERIFY(!app.addServer(serverFields(QStringLiteral("playground"))).isEmpty());
+    MenuFolder folder;
+    app.setOmarchyMenuPaths(folder.user(), folder.omarchy());
+    app.setInOmarchyMenu(true);
+    QVERIFY(app.inOmarchyMenu());
+    // One server: no Servers › rows.
+    QVERIFY(!readBytes(folder.user()).contains("SwitchServer"));
+
+    const QString second = app.addServer(serverFields(QStringLiteral("seedbox")));
+    QVERIFY(!second.isEmpty());
+    QTRY_VERIFY(readBytes(folder.user()).contains("\"label\":\"seedbox\""));
+    QVERIFY(readBytes(folder.user()).contains("SwitchServer"));
+    QVERIFY(app.inOmarchyMenu());
+
+    QVariantMap renamed = serverFields(QStringLiteral("far box"));
+    renamed.insert(QStringLiteral("id"), second);
+    QVERIFY(app.updateServer(renamed));
+    QTRY_VERIFY(readBytes(folder.user()).contains("\"label\":\"far box\""));
+    QVERIFY(!readBytes(folder.user()).contains("seedbox"));
+
+    QVERIFY(app.removeServer(second));
+    QTRY_VERIFY(!readBytes(folder.user()).contains("SwitchServer"));
+    QVERIFY(app.inOmarchyMenu());
+
+    app.setInOmarchyMenu(false);
+    const QByteArray off = readBytes(folder.user());
+    QVERIFY(!app.addServer(serverFields(QStringLiteral("third"))).isEmpty());
+    QTest::qWait(200);
+    QCOMPARE(readBytes(folder.user()), off);
 }
 
 QTEST_MAIN(TestAppBarMenu)

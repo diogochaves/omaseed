@@ -38,6 +38,8 @@
 #include "core/LogFilterModel.hpp"
 #include "core/MadeHere.hpp"
 #include "core/MetadataLookup.hpp"
+#include "core/OmarchyMenuBlock.hpp"
+#include "core/OmarchyMenuFile.hpp"
 #include "core/OmaseedBackup.hpp"
 #include "core/PauseHold.hpp"
 #include "core/PrivateTrackers.hpp"
@@ -101,6 +103,7 @@
 #include <optional>
 
 QT_BEGIN_NAMESPACE
+class QFileSystemWatcher;
 class QNetworkAccessManager;
 class QQmlEngine;
 QT_END_NAMESPACE
@@ -2386,6 +2389,64 @@ private:
     /// While the widget goes in or out of the bar: the choice that asked for it.
     QString m_inTheBarWanted;
     // --- end #73 ------------------------------------------------------------------------------
+
+    // --- #216: In the Omarchy menu ------------------------------------------------------------
+    // Board 53 §6 (DECISIONS C36 M11–M15). Settings › Appearance's switch adds omaseed's block
+    // (Trigger › Torrents) to Omarchy's menu file and takes it away; the file is watched, so a
+    // hand edit moves the switch. Off until asked: nothing writes the file unless the switch is
+    // turned on. While the block is there, it is written again when the server list changes
+    // (M11). The methods live in AppOmarchyMenu.cpp.
+public:
+    /// On while the file holds omaseed's block. Writing true adds the block (replacing the old
+    /// first-page row, M13), false removes it; neither is tried while `omarchyMenuOffered` is
+    /// false.
+    Q_PROPERTY(
+        bool inOmarchyMenu READ inOmarchyMenu WRITE setInOmarchyMenu NOTIFY omarchyMenuChanged)
+    bool inOmarchyMenu() const;
+    void setInOmarchyMenu(bool on);
+    /// What the file holds, OmarchyMenuFile::State in lower camel case: "noBlock", "block",
+    /// "oldRow", "usersRow", "noSafePlace", "noFile" or "noMenu".
+    Q_PROPERTY(QString omarchyMenuState READ omarchyMenuState NOTIFY omarchyMenuChanged)
+    QString omarchyMenuState() const;
+    /// Whether the switch can move: false for "usersRow", "noSafePlace" and "noMenu" (the row
+    /// dimmed, M14, M15).
+    Q_PROPERTY(bool omarchyMenuOffered READ omarchyMenuOffered NOTIFY omarchyMenuChanged)
+    bool omarchyMenuOffered() const;
+    /// Why, for "usersRow" and "noSafePlace" (OmarchyMenuFile's detail: "line 12 uses
+    /// trigger.torrents"), or the last add or remove that failed; empty otherwise.
+    Q_PROPERTY(QString omarchyMenuReason READ omarchyMenuReason NOTIFY omarchyMenuChanged)
+    QString omarchyMenuReason() const;
+    /// The menu's file as the row names it, `~/` for the home folder.
+    Q_PROPERTY(QString omarchyMenuFile READ omarchyMenuFile NOTIFY omarchyMenuChanged)
+    QString omarchyMenuFile() const;
+    /// A test seam: the menu's file and Omarchy's own menu (whose presence is "Omarchy's menu
+    /// installed"), in place of OmarchyMenuFile's defaults. Read and watched at once.
+    Q_INVOKABLE void setOmarchyMenuPaths(const QString &userFile, const QString &omarchyMenu);
+    /// The block's servers, from the server list, in its order.
+    QList<omaseed::core::OmarchyMenuBlock::Server> omarchyMenuServers() const;
+
+Q_SIGNALS:
+    void omarchyMenuChanged();
+
+private:
+    void setUpOmarchyMenu();
+    /// Reads the file's state afresh and watches the file and its folder again (an atomic
+    /// replace drops a watched file).
+    void readOmarchyMenu();
+    /// M11: while the block is there, writes it again when its text for today's servers
+    /// differs from the file's.
+    void followOmarchyMenuServers();
+    omaseed::core::OmarchyMenuFile m_omarchyMenu;
+    omaseed::core::OmarchyMenuFile::State m_omarchyMenuState =
+        omaseed::core::OmarchyMenuFile::State::NoMenu;
+    QString m_omarchyMenuDetail;
+    QString m_omarchyMenuError;
+    /// The block's text last found in the file (or written there); cleared on every read.
+    QByteArray m_omarchyMenuBlockSeen;
+    QFileSystemWatcher *m_omarchyMenuWatcher = nullptr;
+    /// Watcher events gathered into one read.
+    QTimer *m_omarchyMenuRead = nullptr;
+    // --- end #216 -----------------------------------------------------------------------------
 
     // --- #97: moving a folder -----------------------------------------------------------------
     // Board 42 (DECISIONS C15). MoveController has the rail's folders, the move sheet and the
