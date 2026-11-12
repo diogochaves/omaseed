@@ -25,6 +25,7 @@
 #include <QTimer>
 
 #include <functional>
+#include <utility>
 
 namespace omaseed::core {
 
@@ -121,6 +122,12 @@ public:
     Q_INVOKABLE void refreshMarks();
     /// The add sheet sent `key`'s torrent (SR7's "added").
     Q_INVOKABLE void markAdded(const QString &key);
+    /// #194: a link's `.torrent` was fetched (the add sheet's lookup), so its hashes are known:
+    /// every link row for `link` is looked up by them from now on, until the next search. Only
+    /// a link someone opened is ever fetched; the others stay "likely on disk" at best.
+    void learnLinkHash(const QString &link, const QString &hashV1, const QString &hashV2);
+    /// `row` as the library lookup sees it: a link given the hashes its fetch taught (#194).
+    SearchRow withLearnedHash(const SearchRow &row) const;
     /// SR5's line was read: the counts go back to 0.
     Q_INVOKABLE void clearLanded();
     /// Test seam: the clock ages read from (seconds), and how long new / +1 copy last.
@@ -165,6 +172,7 @@ private:
     LibraryLookup m_lookup;
     QHash<QString, QString> m_pluginNames;
     QHash<QString, QString> m_added;     ///< key -> "HH:mm" it was added
+    QHash<QString, std::pair<QString, QString>> m_linkHashes; ///< link -> {v1, v2} (#194)
     QHash<QString, qint64> m_freshUntil; ///< key -> ms since epoch
     QHash<QString, QString> m_freshKind;
     QHash<QString, int> m_copiesSeen;

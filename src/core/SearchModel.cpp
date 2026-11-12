@@ -319,6 +319,7 @@ void SearchModel::startOver()
     m_freshUntil.clear();
     m_freshKind.clear();
     m_added.clear();
+    m_linkHashes.clear();
     clearLanded();
 }
 
@@ -346,7 +347,7 @@ void SearchModel::setPluginNames(const QHash<QString, QString> &names)
 void SearchModel::refreshMarks()
 {
     for (int i = 0; i < m_rows.size(); ++i)
-        m_rows[i].match = m_lookup ? m_lookup(m_rows.at(i).row) : LibraryMatch();
+        m_rows[i].match = m_lookup ? m_lookup(withLearnedHash(m_rows.at(i).row)) : LibraryMatch();
     if (!m_rows.isEmpty())
         Q_EMIT dataChanged(index(0), index(int(m_rows.size()) - 1));
 }
@@ -357,6 +358,36 @@ void SearchModel::markAdded(const QString &key)
     const int row = indexOfKey(key);
     if (row >= 0)
         Q_EMIT dataChanged(index(row), index(row));
+}
+
+void SearchModel::learnLinkHash(const QString &link, const QString &hashV1, const QString &hashV2)
+{
+    if (link.isEmpty() || (hashV1.isEmpty() && hashV2.isEmpty()))
+        return;
+    const std::pair<QString, QString> hashes{hashV1.toLower(), hashV2.toLower()};
+    if (m_linkHashes.value(link) == hashes)
+        return;
+    m_linkHashes.insert(link, hashes);
+    for (int i = 0; i < m_rows.size(); ++i) {
+        Shown &shown = m_rows[i];
+        if (!shown.row.isLink || shown.row.link != link)
+            continue;
+        shown.match = m_lookup ? m_lookup(withLearnedHash(shown.row)) : LibraryMatch();
+        Q_EMIT dataChanged(index(i), index(i));
+    }
+}
+
+SearchRow SearchModel::withLearnedHash(const SearchRow &row) const
+{
+    if (!row.isLink || !row.hashV1.isEmpty() || !row.hashV2.isEmpty())
+        return row;
+    const auto found = m_linkHashes.constFind(row.link);
+    if (found == m_linkHashes.cend())
+        return row;
+    SearchRow learned = row;
+    learned.hashV1 = found->first;
+    learned.hashV2 = found->second;
+    return learned;
 }
 
 void SearchModel::clearLanded()
@@ -486,7 +517,7 @@ void SearchModel::rebuild(bool countLanded)
         }
         Shown shown;
         shown.row = row;
-        shown.match = m_lookup ? m_lookup(row) : LibraryMatch();
+        shown.match = m_lookup ? m_lookup(withLearnedHash(row)) : LibraryMatch();
         shown.fresh = m_freshUntil.value(row.key, 0) > now ? m_freshKind.value(row.key) : QString();
         target.append(shown);
     }

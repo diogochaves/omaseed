@@ -62,6 +62,7 @@ private slots:
     void filterNarrowsWithoutAsking();
     void wordsOfARow();
     void marksFromTheLibrary();
+    void aFetchedLinkLearnsItsHash();
     void newAndCopyMarksFade();
     void countsWhatLandsAboveTheCursor();
     void rowsMoveRatherThanReset();
@@ -209,6 +210,61 @@ void TestSearchModel::marksFromTheLibrary()
     model.startOver();
     model.setHits({});
     QCOMPARE(model.rowCount(), 0);
+}
+
+// #194: a link has no hash, so one you have is at best "likely on disk"; once the add sheet
+// fetched its .torrent, the hash it read is the row's, and a match says "in your library".
+void TestSearchModel::aFetchedLinkLearnsItsHash()
+{
+    SearchModel model;
+    QAbstractItemModelTester tester(&model);
+    const QString mine = QStringLiteral("ab").repeated(20);
+    model.setLibraryLookup([&mine](const SearchRow &row) {
+        SearchModel::LibraryMatch match;
+        if (row.hashV1 == mine)
+            match.hash = mine;
+        else if (row.size > 0)
+            match.name = row.name;
+        return match;
+    });
+    const auto link = [](int n) {
+        return SearchHit::fromJson(
+            QJsonObject{{QStringLiteral("fileName"), QStringLiteral("Open Movie Night %1").arg(n)},
+                        {QStringLiteral("fileSize"), 1024 * 1024 * (n + 1)},
+                        {QStringLiteral("fileUrl"),
+                         QStringLiteral("https://plugin.invalid/get/%1.torrent").arg(n)},
+                        {QStringLiteral("nbSeeders"), 10 - n},
+                        {QStringLiteral("engineName"), QStringLiteral("a")}});
+    };
+    model.setHits({link(1), link(2)});
+    QCOMPARE(role(model, 0, SearchModel::MarkTextRole), QStringLiteral("likely on disk"));
+    QCOMPARE(role(model, 1, SearchModel::MarkTextRole), QStringLiteral("likely on disk"));
+
+    // Not in the library: the row stays as it was.
+    QSignalSpy changed(&model, &QAbstractItemModel::dataChanged);
+    model.learnLinkHash(QStringLiteral("https://plugin.invalid/get/2.torrent"),
+                        QStringLiteral("cd").repeated(20),
+                        QString());
+    QCOMPARE(role(model, 1, SearchModel::MarkTextRole), QStringLiteral("likely on disk"));
+    QCOMPARE(role(model, 1, SearchModel::LibraryHashRole), QString());
+
+    // In the library: that row only, at once, and through the marks read again later.
+    model.learnLinkHash(QStringLiteral("https://plugin.invalid/get/1.torrent"),
+                        mine.toUpper(),
+                        QString());
+    QCOMPARE(role(model, 0, SearchModel::MarkTextRole), QStringLiteral("in your library"));
+    QCOMPARE(role(model, 0, SearchModel::LibraryHashRole), mine);
+    QCOMPARE(role(model, 0, SearchModel::AddWordRole), QStringLiteral("trackers…"));
+    QCOMPARE(role(model, 1, SearchModel::MarkTextRole), QStringLiteral("likely on disk"));
+    QVERIFY(changed.count() >= 1);
+    model.refreshMarks();
+    model.setHits({link(1), link(2)});
+    QCOMPARE(role(model, 0, SearchModel::MarkTextRole), QStringLiteral("in your library"));
+
+    // A new search forgets it.
+    model.startOver();
+    model.setHits({link(1)});
+    QCOMPARE(role(model, 0, SearchModel::MarkTextRole), QStringLiteral("likely on disk"));
 }
 
 void TestSearchModel::newAndCopyMarksFade()
