@@ -198,7 +198,9 @@ FocusScope {
     /// enter (SR14): every plugin that is on (or the pick) asks for the field's words.
     function ask(): void {
         const words = searchBar.field.text.trim();
-        if (words.length === 0 || root.emptyKind.length > 0)
+        // No Python is the last search's answer, not the plugins' state: enter asks again, so
+        // a server given Python since is searched (SR13, #194).
+        if (words.length === 0 || (root.emptyKind.length > 0 && root.emptyKind !== "nopython"))
             return;
         root.currentIndex = -1;
         root.paneOpen = false;

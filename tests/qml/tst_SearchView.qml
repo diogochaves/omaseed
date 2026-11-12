@@ -89,6 +89,16 @@ TestCase {
         verify(view.bar.visible);
     }
 
+    // SR13, #194: no Python was the last search's answer; enter asks again (Python may be
+    // there now). The demo's ask answers "done".
+    function test_no_python_asks_again() {
+        const view = make("nopython");
+        view.field.text = "sampler";
+        view.ask();
+        tryCompare(view.search, "state", "done");
+        compare(view.emptyKind, "");
+    }
+
     // #206: before the first search, the title says whose plugins enter asks; the server's
     // name goes before them, never after "on" ("that is on on public").
     function test_idle_sentence() {
