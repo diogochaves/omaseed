@@ -5,6 +5,15 @@ All notable changes to omaseed are logged here, newest first. Loosely follows
 versioning stability (pre-1.0). `scripts/release.sh` requires a `## v<version>` section here
 before it will tag a release.
 
+## Unreleased
+
+### Added
+
+- **qBittorrent 5.3's backup of .torrent files can be set.** 5.3 replaced the folders for
+  copies of .torrent files with its own backup; the qBittorrent settings' Downloads section now
+  has its rows on a 5.3 server: back up to a folder, move a finished torrent's backup to
+  another, and remove the backup with its torrent. (#165)
+
 ## v0.10.1 — 2026-11-12
 
 ### Fixed

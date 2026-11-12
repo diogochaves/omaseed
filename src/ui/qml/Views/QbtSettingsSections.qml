@@ -887,6 +887,28 @@ QtObject {
                             "sep": "·"
                         }]
                 },
+                // qBittorrent 5.3 (Web API 2.16) replaced the copies above with a backup of
+                // each .torrent file; a server shows one set of rows or the other (#150, #165).
+                {
+                    "glyph": "⎘",
+                    "title": qsTr("Back up .torrent files to"),
+                    "desc": qsTr("A path on the server."),
+                    "toggle": "torrent_files_backup_enabled",
+                    "fields": [root.text("torrent_files_backup_dir", 200, "")]
+                },
+                {
+                    "title": qsTr("Move a finished torrent's backup to"),
+                    "sub": true,
+                    "dep": "torrent_files_backup_enabled",
+                    "toggle": "torrent_files_finished_backup_dir_enabled",
+                    "fields": [root.text("torrent_files_finished_backup_dir", 200, "")]
+                },
+                {
+                    "title": qsTr("Remove the backup when its torrent is removed"),
+                    "sub": true,
+                    "dep": "torrent_files_backup_enabled",
+                    "toggle": "remove_torrent_file_backup"
+                },
                 {
                     "group": qsTr("files")
                 },

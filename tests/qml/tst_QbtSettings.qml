@@ -1164,19 +1164,40 @@ TestCase {
 
     // #150: a row whose keys the server does not report is left out. The demo is a 5.2 server
     // (mail over SSL is a switch, .torrent copies have folders); qBittorrent 5.3 dropped those
-    // keys and reports the mail's encryption type instead, a choice of three.
+    // keys and reports the mail's encryption type instead, a choice of three, and its own backup
+    // of .torrent files (#165).
     function test_rows_follow_the_keys_the_server_has() {
+        const backupRows = ["torrent_files_backup_enabled", "torrent_files_finished_backup_dir_enabled",
+                            "remove_torrent_file_backup"];
         let modal = openOn(6); // Downloads and files
         verify(testCase.childNamed(modal, "qbtRow-export_dir") !== null);
         verify(testCase.childNamed(modal, "qbtRow-mail_notification_ssl_enabled") !== null);
         compare(testCase.childNamed(modal, "qbtRow-mail_notification_encryption_type"), null);
+        for (const key of backupRows)
+            compare(testCase.childNamed(modal, "qbtRow-" + key), null);
         modal.destroy();
 
+        // The keys and defaults qBittorrent 5.3.0 reports (#165).
         App.patchDemoPrefs({
-                               "mail_notification_encryption_type": "SMTPS"
+                               "mail_notification_encryption_type": "SMTPS",
+                               "torrent_files_backup_enabled": false,
+                               "torrent_files_backup_dir": "backup",
+                               "torrent_files_finished_backup_dir_enabled": false,
+                               "torrent_files_finished_backup_dir": "backup",
+                               "remove_torrent_file_backup": false
                            }, ["export_dir", "export_dir_fin", "mail_notification_ssl_enabled"]);
         modal = openOn(6);
         compare(testCase.childNamed(modal, "qbtRow-export_dir"), null);
+        for (const key of backupRows)
+            verify(testCase.childNamed(modal, "qbtRow-" + key) !== null);
+        // The finished folder and the removal follow the backup, dim while it is off.
+        const finished = testCase.childNamed(modal, "qbtRow-torrent_files_finished_backup_dir_enabled");
+        verify(!finished.enabled);
+        App.serverPrefs.apply({
+                                  "torrent_files_backup_enabled": true
+                              });
+        verify(finished.enabled);
+        verify(testCase.childNamed(modal, "qbtRow-remove_torrent_file_backup").enabled);
         compare(testCase.childNamed(modal, "qbtRow-mail_notification_ssl_enabled"), null);
         const row = testCase.childNamed(modal, "qbtRow-mail_notification_encryption_type");
         verify(row !== null);
