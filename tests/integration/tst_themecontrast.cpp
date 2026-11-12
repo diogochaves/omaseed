@@ -1,5 +1,6 @@
 #include "integration/SkinReader.hpp"
 #include "integration/Theme.hpp"
+#include "integration/ThemeInk.hpp"
 #include "integration/ThemeReader.hpp"
 
 #include <QColor>
@@ -144,6 +145,12 @@ private slots:
     void aSkinChangeRepaintsTheGrounds();
     void nestedFillsLeftOnTheirGroundRead_data();
     void nestedFillsLeftOnTheirGroundRead();
+
+    // #200: marks at 3:1 on the ground they sit on.
+    void theMarkFloorIsWcagsNonText();
+    void aMarkThatReadsIsKept();
+    void aMarkIsLiftedToThreeToOneAndNoFurther();
+    void aMarkPastTheForegroundGoesToTheBetterOne();
 };
 
 void TestThemeContrast::theFloorIsWcagAaForNormalText()
@@ -260,6 +267,56 @@ void TestThemeContrast::degeneratePaletteGetsTheForeground()
     const QColor dim(QStringLiteral("#282828"));
     QVERIFY(Theme::contrastRatio(foreground, background) < kFloor);
     QCOMPARE(Theme::liftToContrast(dim, foreground, background, kFloor).name(), foreground.name());
+}
+
+void TestThemeContrast::theMarkFloorIsWcagsNonText()
+{
+    // WCAG 2.2 1.4.11: 3:1 for the parts of a control and the graphics that carry meaning.
+    QCOMPARE(Theme::kMarkContrastFloor, 3.0);
+}
+
+void TestThemeContrast::aMarkThatReadsIsKept()
+{
+    // A mark at 3:1 already (and under the text floor) is not touched: only lightness that
+    // the floor needs moves.
+    const QColor ground(QStringLiteral("#1a1b26"));
+    const QColor mark(QStringLiteral("#737aa2"));
+    QVERIFY(Theme::contrastRatio(mark, ground) >= Theme::kMarkContrastFloor);
+    QVERIFY(Theme::contrastRatio(mark, ground) < kFloor);
+    QCOMPARE(
+        Theme::liftMark(
+            mark, ground, QColor(QStringLiteral("#a9b1d6")), QColor(QStringLiteral("#c0caf5"))),
+        mark);
+}
+
+void TestThemeContrast::aMarkIsLiftedToThreeToOneAndNoFurther()
+{
+    // The accent on a selected row's ground (a light fill over a dark window), short of 3:1:
+    // the least lift towards the foreground that reaches it, not the 4.5:1 a word gets.
+    const QColor foreground(QStringLiteral("#d8dee9"));
+    const QColor ground = ThemeInk::over(foreground, QColor(QStringLiteral("#2e3440")), 0.24);
+    const QColor accent(QStringLiteral("#5e81ac"));
+    QVERIFY(Theme::contrastRatio(accent, ground) < Theme::kMarkContrastFloor);
+    const QColor lifted = Theme::liftMark(accent, ground, foreground, foreground);
+    QVERIFY(Theme::contrastRatio(lifted, ground) >= Theme::kMarkContrastFloor);
+    QCOMPARE(lifted, Theme::liftToContrast(accent, foreground, ground, Theme::kMarkContrastFloor));
+    QVERIFY(
+        Theme::contrastRatio(lifted, ground) <
+        Theme::contrastRatio(Theme::liftToContrast(accent, foreground, ground, kFloor), ground));
+}
+
+void TestThemeContrast::aMarkPastTheForegroundGoesToTheBetterOne()
+{
+    // Where even the foreground reads under 3:1 on the ground, the lift goes on towards the
+    // bright foreground, as a role's does (C30 F6 a), and stops at the floor.
+    const QColor ground(QStringLiteral("#808080"));
+    const QColor foreground(QStringLiteral("#a0a0a0"));
+    const QColor bright(QStringLiteral("#ffffff"));
+    const QColor mark(QStringLiteral("#8a8a90"));
+    QVERIFY(Theme::contrastRatio(foreground, ground) < Theme::kMarkContrastFloor);
+    const QColor lifted = Theme::liftMark(mark, ground, foreground, bright);
+    QVERIFY(Theme::contrastRatio(lifted, ground) >= Theme::kMarkContrastFloor);
+    QVERIFY(lifted != bright);
 }
 
 void TestThemeContrast::theFixturesAreThere()

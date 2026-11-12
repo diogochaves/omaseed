@@ -292,6 +292,10 @@ public:
     /// window's background; `on` resolves them on every fill and tint (C30 F1), each with the
     /// least lift, so a caption on a selected row stays a caption.
     static constexpr qreal kTextContrastFloor = 4.5;
+    /// The contrast a mark (a progress line, the pulse, a selection's edge, the focus ring:
+    /// anything that carries meaning without words) reaches against what it sits on: WCAG 2.2
+    /// 1.4.11's 3:1 for non-text contrast (docs/DECISIONS.md C30, marks, #200).
+    static constexpr qreal kMarkContrastFloor = 3.0;
     /// The selected fill under the cursor as the spec has it (`.tbl .r.sel.cur`, 24 %), before
     /// C30 F6's cap.
     static constexpr qreal kFillSelectedCursor = 0.24;
@@ -314,6 +318,17 @@ public:
     /// `toward` when even that falls short (docs/DECISIONS.md Q19, the floor on text colours).
     static QColor
     liftToContrast(const QColor &dim, const QColor &toward, const QColor &against, qreal minimum);
+    /// `mark`, one of the window's colours, as a mark reads on `under` (the opaque colour it
+    /// sits on: a row's ground, or a line's track over it), C30's recipe at
+    /// kMarkContrastFloor (docs/DECISIONS.md C30, marks, #200): kept byte for byte where it
+    /// reads at 3:1; else the least lift towards `foreground`, and past it towards the better
+    /// of `foreground` and `bright` there, as ThemeInk::resolveOn lifts a role. QML calls it
+    /// as `Theme.markOn(colour, under)`, which passes the window's two foregrounds, so a
+    /// binding follows a theme change.
+    Q_INVOKABLE static QColor liftMark(const QColor &mark,
+                                       const QColor &under,
+                                       const QColor &foreground,
+                                       const QColor &bright);
 
     /// `#rrggbb`, or `#rrggbbaa` when the colour is not opaque. (Qt's own HexArgb puts the
     /// alpha first; CSS and every contrast tool put it last.)

@@ -99,6 +99,14 @@ ThemeBase {
             return ground.magenta;
         return colour;
     }
+    /// `colour`, one of the window's colours, as a mark reads on `under`, the opaque colour it
+    /// sits on (a ground's `ground`, or `Qt.tint` of a line's track over it): kept where it
+    /// reads at 3:1, else lifted by C30's recipe to that floor and no further (DECISIONS C30,
+    /// marks, #200). A mark is no text, so it keeps its own colour where a word would take
+    /// its ground's 4.5:1 ink. Reads the foregrounds, so a binding follows a theme change.
+    function markOn(colour: color, under: color): color {
+        return liftMark(colour, under, foreground, brightForeground);
+    }
     /// How long a fill takes to change colour (the rows', the buttons'), and the text on it
     /// with it (C30 F4).
     readonly property int fillChangeDuration: 120

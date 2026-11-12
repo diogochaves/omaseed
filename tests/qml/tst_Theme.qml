@@ -174,6 +174,17 @@ TestCase {
             verify(contrast(Theme[name], Theme.background) >= 4.5, name);
     }
 
+    // #200 (DECISIONS C30, marks): a mark keeps its colour where it reads at 3:1 on what it
+    // sits on, and is lifted to 3:1, and no further, where it doesn't.
+    function test_a_mark_reads_at_three_to_one_on_its_ground() {
+        compare(Theme.markOn(Theme.accent, Theme.background), Theme.accent);
+        const under = Qt.tint(Theme.background, Qt.alpha(Theme.accent, 0.5));
+        verify(contrast(Theme.accent, under) < 3);
+        const lifted = Theme.markOn(Theme.accent, under);
+        verify(contrast(lifted, under) >= 2.999, contrast(lifted, under));
+        verify(contrast(lifted, under) < 3.1, contrast(lifted, under));
+    }
+
     // #171: Omarchy is the skin with no overrides, so every token the skin could set comes
     // out as the kit's own value.
     function test_omarchy_s_skin_tokens_are_the_kit_s_own() {

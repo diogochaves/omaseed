@@ -570,6 +570,21 @@ Theme::liftToContrast(const QColor &dim, const QColor &toward, const QColor &aga
     return toward;
 }
 
+QColor Theme::liftMark(const QColor &mark,
+                       const QColor &under,
+                       const QColor &foreground,
+                       const QColor &bright)
+{
+    constexpr qreal floor = kMarkContrastFloor;
+    QColor colour = liftToContrast(mark, foreground, under, floor);
+    if (contrastRatio(colour, under) < floor) {
+        const QColor &best =
+            contrastRatio(bright, under) > contrastRatio(foreground, under) ? bright : foreground;
+        colour = liftToContrast(colour, best, under, floor);
+    }
+    return colour;
+}
+
 QString Theme::hexColor(const QColor &colour)
 {
     QString hex = colour.name(QColor::HexRgb);
