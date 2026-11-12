@@ -4,7 +4,7 @@
 # (the manual box, through scripts/dev/manual-box.sh).
 #
 #   scripts/dev/app-box.sh up [-b NAME] [--interactive] [--build DIR] [--handlers]
-#                             [--qbt [--and-transmission]]
+#                             [--qbt [--and-transmission] [--and-deluge]]
 #                             [--transmission | --deluge [--and-playground] | --transmission-podman]
 #                             [--plugin DIR] [--stock-bar] [--ro-bind DIR[:DEST]]... [--first-run]
 #       a box on its own network that reaches only :8081; servers.json pointing omaseed at the
@@ -18,6 +18,10 @@
 #       isn't), the box reaching its port as well, saved as a second server, "transmission",
 #       with a path map from the box's ~/Torrents as that daemon sees it (a folder of this
 #       machine's) to ~/Torrents: one library's files seen by both engines (#88).
+#       --and-deluge (with --qbt): the Deluge playground too (deluge-web on :8086, started if
+#       it isn't), the box reaching its port as well, saved as another server, "deluge", with
+#       the same path map and its password in the box's keyring as --deluge puts it: one
+#       library's files seen by every engine (#88).
 #       --transmission: the Transmission playground instead (:8085, scripts/dev/test-server.sh
 #       start --transmission, started if it isn't), the box reaching only that port; omaseed's
 #       server is "transmission" at its web UI address (DECISIONS C14 E4, #85).
@@ -272,6 +276,14 @@ up_app() {
         echo "starting the Transmission playground (:$TR_PORT)"
         "$repo/scripts/dev/test-server.sh" start --transmission >/dev/null
     fi
+    if [ "$also_de" = 1 ] && [ "$qbt" = 0 ]; then die "--and-deluge goes with --qbt"; fi
+    if [ "$also_de" = 1 ]; then
+        if ! "$repo/scripts/dev/test-server.sh" status --deluge >/dev/null 2>&1; then
+            echo "starting the Deluge playground (:$DE_PORT)"
+            "$repo/scripts/dev/test-server.sh" start --deluge >/dev/null
+        fi
+        [ -n "$(deluge_pass)" ] || die "no DELUGE_TEST_PASS in $DEV_ENV (test-server.sh start --deluge makes it)"
+    fi
     if [ "$deluge" = 1 ] && { [ "$qbt" = 1 ] || [ "$transmission" = 1 ]; }; then
         die "--deluge goes alone (not with --qbt or --transmission)"
     fi
@@ -319,9 +331,11 @@ up_app() {
     omabox down -b "$BOX" >/dev/null 2>&1 || true
     if [ "$qbt" = 1 ]; then
         # Only the swarm's tracker and seeder: nothing of this machine's qBittorrents.
-        up_args=(--net isolated --allow "$TRACKER_PORT,$SEEDER_BT_PORT")
-        # --and-transmission: and the Transmission playground's port.
-        [ "$also_tr" = 0 ] || up_args=(--net isolated --allow "$TRACKER_PORT,$SEEDER_BT_PORT,$TR_PORT")
+        # --and-transmission, --and-deluge: and those playgrounds' ports.
+        local ports="$TRACKER_PORT,$SEEDER_BT_PORT"
+        [ "$also_tr" = 0 ] || ports="$ports,$TR_PORT"
+        [ "$also_de" = 0 ] || ports="$ports,$DE_PORT"
+        up_args=(--net isolated --allow "$ports")
     elif [ "$transmission" = 1 ] && [ "$both" = 1 ]; then
         up_args=(--net isolated --allow "$TR_PORT,$PLAY_PORT")
     elif [ "$transmission" = 1 ]; then
@@ -396,6 +410,15 @@ SHIM
         # box's HOME here.
         second="$(python3 -c 'import json, sys; print("," + json.dumps({"id": "transmission", "name": "transmission", "url": sys.argv[1], "engine": "transmission", "authMode": "none", "username": "", "pathMap": [{"remote": sys.argv[2], "local": sys.argv[3]}], "isDefault": False, "addedAt": "2026-09-23T00:00:00Z"}))' \
             "$TR_WEB" "$home/Torrents" "$BOX_HOME/Torrents")"
+    fi
+    if [ "$also_de" = 1 ]; then
+        # The same for the Deluge playground's daemon, and deluge-web's password in the box's
+        # keyring under that server's id, as --deluge puts it (piped, never on a command line).
+        second="$second$(python3 -c 'import json, sys; print("," + json.dumps({"id": "deluge", "name": "deluge", "url": sys.argv[1], "engine": "deluge", "authMode": "password", "username": "", "pathMap": [{"remote": sys.argv[2], "local": sys.argv[3]}], "isDefault": False, "addedAt": "2026-09-23T00:00:00Z"}))' \
+            "$DE_WEB" "$home/Torrents" "$BOX_HOME/Torrents")"
+        deluge_pass | omabox run -b "$BOX" -- secret-tool store --label="omaseed deluge" \
+            user "deluge/password" server io.github.diogochaves.omaseed type plaintext ||
+            die "the box's keyring did not take deluge-web's password"
     fi
     local servers="$home/.config/omaseed/servers.json"
     [ "$first_run" = 1 ] && servers="$home/.omaseed-servers.json"
@@ -648,6 +671,7 @@ first_run=0
 ro_binds=()
 both=0
 also_tr=0
+also_de=0
 plugin=""
 bar_args=()
 manual=0
@@ -669,6 +693,7 @@ while [ $# -gt 0 ]; do
     --ro-bind) [ $# -ge 2 ] || die "--ro-bind needs a folder"; ro_binds+=(--ro-bind "$2"); shift ;;
     --and-playground) both=1 ;;
     --and-transmission) also_tr=1 ;;
+    --and-deluge) also_de=1 ;;
     --plugin) [ $# -ge 2 ] || die "--plugin needs a directory"; plugin="$(cd "$2" && pwd)"; shift ;;
     --stock-bar) bar_args=(--stock-bar) ;;
     --manual) manual=1 ;;

@@ -41,7 +41,7 @@ follows. The commands themselves are listed in `CLAUDE.md`; `README.md` says how
    | `actions-walk.sh` | renames (and the story telling them: own, outside omaseed, files, folders, a sheet run), categories, tags, automatic management, the Move… sheet, the floating action bar (a category and a new tag from its lists, the status line staying the server's), delete, skipped files that hold space (free the space, add it again) |
    | `settings-walk.sh` | the qBittorrent settings pane, against a qBittorrent in the box |
    | `servers-walk.sh` | two qBittorrents: first run, add, switch, an action on each, remove |
-   | `backup-walk.sh` | a qBittorrent's torrents exported and imported through the app; `OMASEED_BACKUP_WALK_FROM=crossing`: into a Transmission and back (#88) |
+   | `backup-walk.sh` | a qBittorrent's torrents exported and imported through the app; `OMASEED_BACKUP_WALK_FROM=crossing`: into a Transmission, from it into a Deluge, and back (#88) |
    | `error-walk.sh` | a torrent going into error, and the app saying why |
    | `menu-walk.sh` | the one menu shown by the tray, the bar widget and the window's mark, and a server's menu from the rail |
    | `stuck-walk.sh` | a finished torrent whose move into a full disk failed (a loop image), and a recheck once room is made |

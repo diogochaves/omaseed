@@ -26,13 +26,24 @@
 # Transmission › Backup's import row and the sheet's "labels" and "can't be kept" blocks;
 # checked on the daemon (labels the category then the tags, the rename, the skipped file,
 # every one verified, the started ones seeding, the stopped one stopped, the link waiting);
-# exported from Transmission; imported into the empty target qBittorrent; and compared with
-# the source: categories and tags back, names, priorities, trackers, state. Both engines read
-# the one copy of the files, the box's ~/Torrents: the daemon sees it as a folder of the box's
-# HOME on this machine, omaseed knows that through the server's path map (app-box.sh up --qbt
-# --and-transmission), and the sheet's "from → to" row comes from it both ways. The files are
-# never copied or moved: their sha256 is the same at the end. The walk's torrents are taken
-# off the playground afterwards, their files left.
+# exported from Transmission; imported into the Deluge playground (deluge-web on :8086, the
+# same way: started and stopped if it wasn't up) through Settings › Deluge › Backup: the
+# sheet's "labels" block (each torrent's first label kept, the others left behind), its "can't
+# be kept on Deluge" line and the labels made first; checked on deluge-web's /json (the one
+# label, the rename, the skipped file, 100 %, paused or seeding as exported, the link waiting);
+# exported from Deluge, whose .torrent files the box reads in the daemon's state folder;
+# imported into the empty target qBittorrent; and compared with the source: categories back
+# (the tags were left behind at the Deluge, as its sheet said), names, priorities, trackers,
+# state. Every engine reads the one copy of the files, the box's ~/Torrents: a daemon sees it
+# as a folder of the box's HOME on this machine, omaseed knows that through the server's path
+# map (app-box.sh up --qbt --and-transmission --and-deluge), and the sheet's "from → to" row
+# comes from it. The files are never copied or moved: their sha256 is the same at the end.
+# The walk's torrents are taken off the playgrounds afterwards, their files left, and the
+# labels it made on the Deluge removed.
+#
+# The Deluge stage needs deluge-web's password (DELUGE_TEST_PASS in the environment or in
+# dev.env, which test-server.sh start --deluge makes). Without it the stage is skipped, said
+# plainly, and the library goes from the Transmission straight back to the qBittorrent.
 #
 #   scripts/dev/backup-walk.sh [OUT_DIR]        # agents: a headless box, a shot per step,
 #                                               # OUT_DIR/index.md says what each shot shows
@@ -72,6 +83,16 @@ TR_PROFILE="${OMASEED_ENGINES_ROOT:-$HOME/.local/share/omaseed-test}/transmissio
 TR_EXPORT="$BOX_HOME/torrents-transmission-$(date +%F).omaseed-torrents"
 TR_STARTED=0
 TR_MADE=0
+# The Deluge playground (test-server.sh --deluge), the crossing's third engine.
+DE_PORT="${OMASEED_DELUGE_WEB_PORT:-8086}"
+export DE_JSON="http://127.0.0.1:$DE_PORT/json"
+DE_PROFILE="${OMASEED_ENGINES_ROOT:-$HOME/.local/share/omaseed-test}/deluge"
+DE_EXPORT="$BOX_HOME/torrents-deluge-$(date +%F).omaseed-torrents"
+DE_DAEMON=omaseed0test0daemon  # test-engine.sh's hostlist id
+export DEV_ENV="${OMASEED_DEV_ENV:-$HOME/.config/omaseed/dev.env}"
+DE_ON=0
+DE_STARTED=0
+DE_LABELS=""  # the labels the import made, removed afterwards
 INTERACTIVE=0
 OUT=""
 case "${1:-}" in
@@ -85,6 +106,21 @@ if [ "$FROM" = crossing ]; then
     command -v transmission-create >/dev/null || { echo "missing: transmission-create (transmission-cli)" >&2; exit 1; }
 fi
 case "$TR_PORT" in 8080) echo "refusing :8080, the real library" >&2; exit 1 ;; esac
+case "$DE_PORT" in 8080) echo "refusing :8080, the real library" >&2; exit 1 ;; esac
+# deluge_pass_known: deluge-web's password is in the environment or in dev.env (never printed).
+deluge_pass_known() {
+    [ -n "${DELUGE_TEST_PASS:-}" ] && return 0
+    [ -r "$DEV_ENV" ] && grep -q '^[[:space:]]*\(export[[:space:]]\{1,\}\)\{0,1\}DELUGE_TEST_PASS=.' "$DEV_ENV" 2>/dev/null
+}
+if [ "$FROM" = crossing ]; then
+    if ! command -v deluged >/dev/null; then
+        echo "no deluged (deluge): the Deluge stage is skipped; the library goes Transmission → qBittorrent"
+    elif ! deluge_pass_known; then
+        echo "DELUGE_TEST_PASS is unset (and not in $DEV_ENV): the Deluge stage is skipped; the library goes Transmission → qBittorrent"
+    else
+        DE_ON=1
+    fi
+fi
 
 # The target's BitTorrent port: the one app-box.sh keeps for a box's second qBittorrent, so
 # two boxes are never one peer to the swarm's tracker (#22).
@@ -111,6 +147,40 @@ trpc() {
         --data "$body" "$TR_RPC"
 }
 
+# dcall METHOD [PARAMS-JSON]: one call to the Deluge playground's deluge-web, signed in with
+# DELUGE_TEST_PASS (the environment, else dev.env; never printed); prints the result's JSON.
+dcall() {
+    python3 -I - "$@" <<'PY'
+import http.cookiejar, json, os, sys, urllib.request
+
+def password():
+    if os.environ.get("DELUGE_TEST_PASS"):
+        return os.environ["DELUGE_TEST_PASS"]
+    for line in open(os.environ["DEV_ENV"], encoding="utf-8"):
+        line = line.strip()
+        if line.startswith("export "):
+            line = line[7:].strip()
+        if line.startswith("DELUGE_TEST_PASS="):
+            return line.split("=", 1)[1].strip().strip("'\"")
+    raise SystemExit("no DELUGE_TEST_PASS")
+
+opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
+
+def call(method, params):
+    body = json.dumps({"method": method, "params": params, "id": 1}).encode()
+    request = urllib.request.Request(os.environ["DE_JSON"], body, {"Content-Type": "application/json"})
+    with opener.open(request, timeout=15) as reply:
+        answer = json.load(reply)
+    if answer.get("error"):
+        raise SystemExit("%s: %s" % (method, answer["error"]))
+    return answer["result"]
+
+if not call("auth.login", [password()]):
+    raise SystemExit("deluge-web refuses DELUGE_TEST_PASS")
+print(json.dumps(call(sys.argv[1], json.loads(sys.argv[2]) if len(sys.argv) > 2 else [])))
+PY
+}
+
 # expect_text "WHAT" TEXT [SECONDS]: wait until omaseed's window shows TEXT (its
 # accessibility tree has a node holding it).
 expect_text() {
@@ -121,21 +191,25 @@ expect_text() {
     fi
 }
 
-# write_servers DEFAULT: omaseed's three servers in the box, DEFAULT the one it starts on.
-# The Transmission is on this machine: the box's ~/Torrents is, to it, a folder of the box's
-# HOME here, which its path map says.
+# write_servers DEFAULT: omaseed's servers in the box (the Deluge among them when its stage
+# runs), DEFAULT the one it starts on. The Transmission and the Deluge are on this machine:
+# the box's ~/Torrents is, to them, a folder of the box's HOME here, which their path maps
+# say. The Deluge's password is in the box's keyring (app-box.sh --and-deluge).
 write_servers() {
     python3 - "$1" "$TARGET_PORT" "http://127.0.0.1:$TR_PORT/transmission/web/" "$home/Torrents" "$SOURCE_DIR" \
-        >"$home/.config/omaseed/servers.json" <<'PY'
+        "$DE_ON" "http://127.0.0.1:$DE_PORT/" "$DE_DAEMON" >"$home/.config/omaseed/servers.json" <<'PY'
 import json, sys
-default, target_port, tr_web, remote, local = sys.argv[1:]
-def server(name, url, engine, path_map=()):
-    return {"id": name, "name": name, "url": url, "engine": engine, "authMode": "none", "username": "",
-            "pathMap": list(path_map), "isDefault": name == default, "addedAt": "2026-10-15T00:00:00Z"}
-print(json.dumps({"version": 2, "defaultId": default, "servers": [
-    server("box", "http://127.0.0.1:8090", "qbittorrent"),
-    server("transmission", tr_web, "transmission", [{"remote": remote, "local": local}]),
-    server("target", "http://127.0.0.1:" + target_port, "qbittorrent")]}))
+default, target_port, tr_web, remote, local, deluge_on, de_web, de_daemon = sys.argv[1:]
+def server(name, url, engine, path_map=(), **more):
+    return dict({"id": name, "name": name, "url": url, "engine": engine, "authMode": "none", "username": "",
+                 "pathMap": list(path_map), "isDefault": name == default, "addedAt": "2026-10-15T00:00:00Z"}, **more)
+path_map = [{"remote": remote, "local": local}]
+servers = [server("box", "http://127.0.0.1:8090", "qbittorrent"),
+           server("transmission", tr_web, "transmission", path_map)]
+if deluge_on == "1":
+    servers.append(server("deluge", de_web, "deluge", path_map, authMode="password", daemon=de_daemon))
+servers.append(server("target", "http://127.0.0.1:" + target_port, "qbittorrent"))
+print(json.dumps({"version": 2, "defaultId": default, "servers": servers}))
 PY
 }
 
@@ -287,6 +361,18 @@ off_transmission() {
         >/dev/null 2>&1 || true
 }
 
+# off_deluge: the walk's torrents taken off the Deluge playground, their files left, and the
+# labels its import made removed.
+off_deluge() {
+    [ "$DE_ON" = 1 ] && [ -n "${TR_TINY:-}" ] || return 0
+    dcall core.remove_torrents "[[\"$TINY\",\"$TR_TINY\",\"$ALBUM\",\"$UNICODE\",\"$NESTED\",\"$MAGNET_HASH\"],false]" \
+        >/dev/null 2>&1 || true
+    local label
+    for label in $DE_LABELS; do
+        dcall label.remove "[\"$label\"]" >/dev/null 2>&1 || true
+    done
+}
+
 cleanup() {
     local status=$?
     [ -z "$OUT" ] || "$repo/scripts/dev/look.sh" "$OUT" || true  # copies to Read (#251)
@@ -301,6 +387,10 @@ cleanup() {
         if [ "$TR_STARTED" = 1 ] && [ "$INTERACTIVE" = 0 ]; then
             "$repo/scripts/dev/test-server.sh" stop --transmission >/dev/null 2>&1 || true
             [ "$TR_MADE" = 0 ] || rm -rf "${TR_PROFILE:?}"
+        fi
+        off_deluge
+        if [ "$DE_STARTED" = 1 ] && [ "$INTERACTIVE" = 0 ]; then
+            "$repo/scripts/dev/test-server.sh" stop --deluge >/dev/null 2>&1 || true
         fi
     fi
     rm -rf -- "$work"
@@ -322,6 +412,17 @@ if [ "$FROM" = crossing ]; then
         "$repo/scripts/dev/test-server.sh" start --transmission >/dev/null
     fi
     up_args+=(--and-transmission --ro-bind "$TR_PROFILE")
+    if [ "$DE_ON" = 1 ]; then
+        # The same for the Deluge playground. The box sees only its state folder, where the
+        # daemon keeps the .torrent files: nothing else of its profile.
+        if ! "$repo/scripts/dev/test-server.sh" status --deluge >/dev/null 2>&1; then
+            echo "starting the Deluge playground (:$DE_PORT)"
+            DE_STARTED=1
+            "$repo/scripts/dev/test-server.sh" start --deluge >/dev/null
+        fi
+        mkdir -p "$DE_PROFILE/state"
+        up_args+=(--and-deluge --ro-bind "$DE_PROFILE/state")
+    fi
 fi
 if [ "$INTERACTIVE" = 1 ]; then
     "$APP_BOX" up "${up_args[@]}" --interactive >/dev/null
@@ -330,7 +431,7 @@ else
     # shellcheck disable=SC2016 # backticks are Markdown, not command substitution
     printf '# Backup walk %s (%s)\n\nBuild `%s`, one box (`app-box.sh up --qbt`) with two qBittorrents: the source (:8090) and an empty target (:8091)%s. Each step: what was done, every check on the servers and on disk, and shots.\n' \
         "$(date '+%Y-%m-%d %H:%M')" "$FROM" "$(git rev-parse --short HEAD)" \
-        "$([ "$FROM" = crossing ] && echo ", reaching the Transmission playground (:$TR_PORT)")" >"$OUT/index.md"
+        "$([ "$FROM" = crossing ] && echo ", reaching the Transmission playground (:$TR_PORT)$([ "$DE_ON" = 1 ] && echo " and the Deluge playground (:$DE_PORT)")")" >"$OUT/index.md"
     "$APP_BOX" up "${up_args[@]}" >/dev/null
 fi
 home="$(omabox path -b "$BOX")/home"
@@ -436,6 +537,7 @@ if [ "$FROM" = crossing ]; then
 import json, sys
 print(next(t["infohash_v1"] for t in json.load(sys.stdin) if t["hash"] == sys.argv[1]))' "$TINY")"
     off_transmission  # what an earlier run may have left
+    off_deluge
 fi
 
 # omaseed knows both servers, on the source.
@@ -451,12 +553,15 @@ snapshot source_api "$work/source"
 # compare OLD NEW [crossing]: every torrent of the source against the target's, save paths
 # read through OLD → NEW; prints "ok WHAT" or "NO WHAT" lines into $work/compare. After a
 # crossing a speed limit is in Transmission's unit (kB/s), the seeding-time limit is gone
-# (X5), and a category's own folder is not in the file.
+# (X5), and a category's own folder is not in the file. "deluge": a crossing that went
+# through a Deluge too, which keeps one label, so the tags stayed behind (X4), and a limit
+# crossed two units.
 compare() {
     python3 - "$work/source" "$work/target" "$1" "$2" "$MAGNET_HASH" "${3:-}" <<'PY' >"$work/compare" || true
 import json, sys
 src, dst, old, new, magnet, mode = sys.argv[1:]
-crossing = mode == "crossing"
+deluge = mode == "deluge"
+crossing = mode == "crossing" or deluge
 def load(prefix):
     info = {t["hash"]: t for t in json.load(open(prefix + ".info"))}
     parts = json.load(open(prefix + ".parts"))
@@ -480,9 +585,12 @@ for h, s in si.items():
     n = s["name"]
     say(t["save_path"] == mapped(s["save_path"]), "%s: save path %s" % (n, t["save_path"]))
     say(t["category"] == s["category"], "%s: category %r" % (n, t["category"]))
-    say(sorted(t["tags"].split(", ")) == sorted(s["tags"].split(", ")), "%s: tags %r" % (n, t["tags"]))
+    if deluge:
+        say(t["tags"] == "", "%s: no tags (%r were left behind at the Deluge)" % (n, s["tags"]))
+    else:
+        say(sorted(t["tags"].split(", ")) == sorted(s["tags"].split(", ")), "%s: tags %r" % (n, t["tags"]))
     if crossing:
-        say(abs(t["up_limit"] - s["up_limit"]) < 1024 and t["dl_limit"] == s["dl_limit"], "%s: speed limits %s/%s (through kB/s)" % (n, t["up_limit"], t["dl_limit"]))
+        say(abs(t["up_limit"] - s["up_limit"]) < (2048 if deluge else 1024) and t["dl_limit"] == s["dl_limit"], "%s: speed limits %s/%s (through kB/s)" % (n, t["up_limit"], t["dl_limit"]))
         say(t["ratio_limit"] == s["ratio_limit"], "%s: ratio limit %s" % (n, t["ratio_limit"]))
     else:
         say(t["up_limit"] == s["up_limit"] and t["dl_limit"] == s["dl_limit"], "%s: speed limits %s/%s" % (n, t["up_limit"], t["dl_limit"]))
@@ -507,6 +615,150 @@ PY
         if [ "$verdict" = ok ]; then pass "$what"; else fail "$what"; fi
     done <"$work/compare"
     [ -s "$work/compare" ] || fail "the comparison printed nothing"
+}
+
+# ---- the crossing's Deluge stage (#88) ------------------------------------------------------
+
+# deluge_stage: Transmission's file into the Deluge playground, checked on deluge-web's /json,
+# and exported from it. Called between the Transmission's export and the way back.
+deluge_stage() {
+    local daemon_dir="$home/Torrents" missing
+    step "Switch to the Deluge" "omaseed's default server becomes the Deluge playground and it starts again on it. Settings › Deluge (ctrl+shift+,), 8 for Backup (the last section, after Plugins), l to the rows, j to the second."
+    # The labels the import will have to make: the daemon lacks them now.
+    missing="$(dcall label.get_labels | python3 -c '
+import json, sys
+have = json.load(sys.stdin)
+print(" ".join(l for l in ("notes", "music") if l not in have))')"
+    write_servers deluge
+    "$APP_BOX" restart -b "$BOX" >/dev/null
+    keys ctrl+shift+comma
+    keys 8
+    expect_text "Backup has the export row" "Export deluge's torrents"
+    expect_text "and the import row" "Import torrents into deluge"
+    expect_text "the scope line says both ways" "read from and sent to deluge only"
+    keys l
+    keys j
+    shot "Settings › Deluge › Backup, the last section of DELUGE's group: the scope line (read from and sent to deluge only…), Export deluge's torrents (what it holds, then: Its .torrent files are read from …/deluge/state; export…), and Import torrents into deluge (cursor): From a file exported by omaseed, on any engine…; import…." pane
+
+    step "Import into the Deluge" "enter on Import torrents; Transmission's file typed into the portal's open dialog. The sheet: 4 new, 1 link; labels: each torrent's first label kept (notes, music), the others left behind; can't be kept on Deluge: 2 have tags or labels Deluge can't keep; the + line counts the labels made first. enter imports."
+    keys Return
+    omabox wait -b "$BOX" --timeout 10s window "Import torrents into deluge" >/dev/null 2>&1 || fail "no open dialog"
+    dialog_keys -t "$TR_EXPORT"
+    dialog_keys Return
+    omabox wait -b "$BOX" --timeout 10s window --gone "Import torrents into deluge" >/dev/null 2>&1 || true
+    expect_text "the sheet is for the Deluge" "Import 5 torrents into deluge"
+    expect_text "the file is Transmission's" "· Transmission"
+    expect_text "the block is headed labels" "labels"
+    # What each becomes ("label notes", "left behind") is the row's description, which the
+    # tree's text search doesn't read: the shot shows it, and the daemon's check below proves it.
+    expect_text "the names block lists the first label" "notes label"
+    expect_text "and the others" "keep label"
+    expect_text "what can't be kept is said: the tags are lost here, by design" "2 have tags or labels Deluge can't keep: it keeps one label"
+    case "$(echo "$missing" | wc -w)" in
+    2) expect_text "the labels are made first" "2 labels they use are made first" ;;
+    1) expect_text "the label the daemon lacks is made first" "1 label they use is made first" ;;
+    *) pass "the daemon has both labels already: nothing to make first" ;;
+    esac
+    DE_LABELS="$missing"
+    shot "Import 5 torrents into deluge, From transmission's export … · Transmission 4.x: new 4, links 1; labels: notes label → label notes, keep label → left behind (dim), music label → label music, flac and field labels → left behind; can't be kept on Deluge: 2 have tags or labels Deluge can't keep: it keeps one label; then: check files, start the complete ones; + N labels they use are made first; import 5." sheet
+    keys Return
+    # (tiny-notes, a hybrid, goes by either of its hashes on a Deluge: both are passed.)
+    # Deluge takes a moment after its recheck: wait for the started state, as the live test does.
+    # shellcheck disable=SC2329 # wait_for calls it
+    de_settled() {
+        dcall core.get_torrents_status '[{}, ["state", "progress", "paused"]]' | python3 -c '
+import json, sys
+every = json.load(sys.stdin)
+ours = [every[h] for h in sys.argv[1:] if h in every]
+busy = [t for t in ours if t["state"] in ("Checking", "Allocating", "Moving")]
+# Started and complete: seeding, or queued behind other seeds (Deluge caps the active ones).
+seeding = [t for t in ours if t["state"] in ("Seeding", "Queued") and t["progress"] == 100]
+sys.exit(0 if len(ours) == 5 and not busy and len(seeding) == 3 else 1)' \
+            "$TINY" "$TR_TINY" "$ALBUM" "$UNICODE" "$NESTED" "$MAGNET_HASH"
+    }
+    wait_for "the daemon has all 5, checked, the three complete started ones started" 180 de_settled
+    expect_text "the result: counted, the link apart" "Imported into deluge: 4 torrents, 1 link." 60
+    expect_text "the link is checked later (X7)" "1 came as a link: it is checked once its details arrive."
+    expect_text "what can't be kept, again (X5)" "2 have tags or labels Deluge can't keep: it keeps one label."
+    expect_text "the Transmission still has them (X8)" "They are still on transmission."
+    shot "The note under the rows: Imported into deluge: 4 torrents, 1 link. After the check: 3 started, 1 left stopped. 1 came as a link…. 2 have tags or labels Deluge can't keep: it keeps one label. They are still on transmission…." note
+
+    step "Check on the Deluge" "Every torrent as deluge-web's /json lists it, and the files on disk."
+    dcall core.get_torrents_status '[{}, ["name","label","save_path","state","progress","paused","files","file_priorities","max_upload_speed","stop_at_ratio","stop_ratio","total_size"]]' >"$work/deluge.json"
+    dcall label.get_labels >"$work/deluge-labels.json"
+    python3 - "$work/deluge.json" "$work/deluge-labels.json" "$daemon_dir" "$TINY" "$TR_TINY" "$ALBUM" "$UNICODE" "$NESTED" "$MAGNET_HASH" "$RENAMED" <<'PY' >"$work/compare" || true
+import json, sys
+path, labels_path, folder, tiny, tiny_v1, album, uni, nested, magnet, renamed = sys.argv[1:]
+every = json.load(open(path))
+# tiny-notes is a hybrid: Deluge knows it by its v2 hash cut short, as qBittorrent does, or
+# by its v1 hash where its libtorrent has no v2.
+tiny = tiny if tiny in every else tiny_v1
+labels = json.load(open(labels_path))
+def say(ok, what):
+    print(("ok " if ok else "NO ") + what)
+for h in (tiny, album, uni, nested, magnet):
+    say(h in every, "%s is on the daemon" % h[:8])
+if not all(h in every for h in (tiny, album, uni, nested, magnet)):
+    sys.exit(0)
+say("notes" in labels and "music" in labels, "the daemon has the labels notes and music (%s)" % ", ".join(labels))
+t = every[tiny]
+say(t["label"] == "notes", "tiny-notes: its one label is %r, Transmission's first (keep was left behind)" % t["label"])
+say(9 <= t["max_upload_speed"] <= 11, "tiny-notes: its upload limit of 10 KiB/s, %s KiB/s through kB/s" % t["max_upload_speed"])
+a = every[album]
+say(a["label"] == "music", "the album: its one label is %r (flac and field were left behind)" % a["label"])
+names = [f["path"] for f in a["files"]]
+say(renamed in names, "the album: the renamed file is %s" % renamed)
+cover = next(i for i, n in enumerate(names) if n.endswith("cover.jpg"))
+say(a["file_priorities"][cover] == 0, "the album: cover.jpg is not wanted")
+say(sum(1 for p in a["file_priorities"] if p == 0) == 1, "the album: every other file is wanted")
+say(a["stop_at_ratio"] and a["stop_ratio"] == 2, "the album: it stops at its ratio, %s" % a["stop_ratio"])
+say(every[uni]["label"] == "" and every[nested]["label"] == "", "the two without a label have none")
+for h in (tiny, album, uni, nested):
+    t = every[h]
+    say(t["save_path"].rstrip("/") == folder, "%s: in the box's ~/Torrents as the daemon sees it" % t["name"])
+    say(t["progress"] == 100, "%s: checked, 100 %% of what is wanted" % t["name"])
+    if h == uni:
+        say(t["state"] == "Paused", "%s: paused, as exported" % t["name"])
+    else:
+        say(t["state"] in ("Seeding", "Queued"), "%s: started (%s)" % (t["name"], t["state"]))
+m = every[magnet]
+say(m["paused"] and not m["files"], "the link: paused, waiting for its details")
+PY
+    while read -r verdict what; do
+        if [ "$verdict" = ok ]; then pass "$what"; else fail "$what"; fi
+    done <"$work/compare"
+    [ -s "$work/compare" ] || fail "the daemon's check printed nothing"
+    sums "$SOURCE_DIR" >"$work/sums-after"
+    if cmp -s "$work/sums-before" "$work/sums-after"; then
+        pass "the files in ~/Torrents are as they were (sha256)"
+    else
+        fail "the files in ~/Torrents changed"
+    fi
+
+    step "Export from the Deluge" "The cursor is on the import row: k to Export deluge's torrents (the box sees the daemon's state folder, so its one button is export…), enter; the portal's save dialog, enter."
+    keys k
+    keys Return
+    omabox wait -b "$BOX" --timeout 10s window "Export Deluge's torrents" >/dev/null 2>&1 || fail "no save dialog"
+    dialog_keys Return
+    wait_for "the file is written" 30 in_box test -s "$DE_EXPORT"
+    if python3 - "$home/${DE_EXPORT#"$BOX_HOME"/}" "$TINY" "$TR_TINY" "$ALBUM" "$UNICODE" "$NESTED" "$MAGNET_HASH" <<'PY' 2>"$work/tar-error"; then
+import json, sys, tarfile
+path, tiny, tiny_v1, magnet = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[-1]
+with tarfile.open(path) as tar:
+    names = tar.getnames()
+    manifest = json.load(tar.extractfile("manifest.json"))
+    assert manifest["server"]["engine"] == "deluge", manifest["server"]
+    # tiny-notes is a hybrid: its record goes by either of its hashes.
+    assert any("torrents/%s.json" % h in names and "torrents/%s.torrent" % h in names for h in (tiny, tiny_v1)), "tiny-notes"
+    for h in sys.argv[4:]:
+        assert "torrents/%s.json" % h in names, "no record of " + h
+        assert ("torrents/%s.torrent" % h in names) == (h != magnet), ".torrent of " + h
+PY
+        pass "Deluge's file: its engine named, the 5 records, the 4 .torrent files read from its state folder"
+    else
+        fail "Deluge's file: $(tail -n 1 "$work/tar-error")"
+    fi
+    shot "The note under the rows: Exported deluge's 5 torrents to ~/torrents-deluge-<date>.omaseed-torrents." note
 }
 
 # ---- the crossing (#88) -------------------------------------------------------------------
@@ -641,7 +893,16 @@ PY
     fi
     shot "The note under the rows: Exported transmission's torrents to ~/torrents-transmission-<date>.omaseed-torrents." note
 
-    step "Import back into an empty qBittorrent" "omaseed's default server becomes the empty target and it starts again on it. Settings › qBittorrent, 0, tab, j j j j to Import torrents, enter; Transmission's file typed into the dialog. The sheet: the row from the box's ~/Torrents on this machine back to ~/Torrents, from transmission's path map; categories and tags: each first label a category, the rest tags. enter imports."
+    local back_export="$TR_EXPORT" back_engine=Transmission back_server=transmission
+    if [ "$DE_ON" = 1 ]; then
+        deluge_stage
+        back_export="$DE_EXPORT" back_engine=Deluge back_server=deluge
+    else
+        printf '\n\033[33mThe Deluge stage was skipped: no DELUGE_TEST_PASS (or no deluged).\033[0m\n'
+        [ "$INTERACTIVE" = 1 ] || printf '\n**The Deluge stage was skipped**: no DELUGE_TEST_PASS (or no deluged). The library goes from the Transmission straight back to the qBittorrent.\n' >>"$OUT/index.md"
+    fi
+
+    step "Import back into an empty qBittorrent" "omaseed's default server becomes the empty target and it starts again on it. Settings › qBittorrent, 0, tab, j j j j to Import torrents, enter; $back_engine's file typed into the dialog. The sheet: the row from the box's ~/Torrents on this machine back to ~/Torrents, from $back_server's path map; categories and tags: each first label a category, the rest (a Transmission's) tags. enter imports."
     write_servers target
     "$APP_BOX" restart -b "$BOX" >/dev/null
     count="$(target_api torrents/info | python3 -c 'import json, sys; print(len(json.load(sys.stdin)))')"
@@ -652,14 +913,19 @@ PY
     keys j j j j
     keys Return
     omabox wait -b "$BOX" --timeout 10s window "Import qBittorrent's torrents" >/dev/null 2>&1 || fail "no open dialog"
-    dialog_keys -t "$TR_EXPORT"
+    dialog_keys -t "$back_export"
     dialog_keys Return
     omabox wait -b "$BOX" --timeout 10s window --gone "Import qBittorrent's torrents" >/dev/null 2>&1 || true
-    expect_text "the sheet says the file is Transmission's" "· Transmission"
-    expect_text "the row comes from the path map" "from transmission's path map"
+    expect_text "the sheet says the file is $back_engine's" "· $back_engine"
+    expect_text "the row comes from the path map" "from $back_server's path map"
     expect_text "the names block lists the first label" "notes label"
-    expect_text "and the others" "keep label"
-    shot "Import torrents into target, From transmission's export … · Transmission 4.x: the save path row back to /home/sbx/Torrents, from transmission's path map; categories and tags: notes → category notes, keep → tag keep, music → category music, flac and field → tags; Everything in the file has a place on qBittorrent." sheet
+    if [ "$DE_ON" = 1 ]; then
+        expect_text "and the album's" "music label"
+        shot "Import torrents into target, From deluge's export … · Deluge 2.x: the save path row back to /home/sbx/Torrents, from deluge's path map; categories and tags: notes label → category notes, music label → category music (a Deluge has one label per torrent, so no tags come back)." sheet
+    else
+        expect_text "and the others" "keep label"
+        shot "Import torrents into target, From transmission's export … · Transmission 4.x: the save path row back to /home/sbx/Torrents, from transmission's path map; categories and tags: notes → category notes, keep → tag keep, music → category music, flac and field → tags; Everything in the file has a place on qBittorrent." sheet
+    fi
     keys Return
     # shellcheck disable=SC2329 # wait_for calls it
     back() {
@@ -673,11 +939,12 @@ sys.exit(0 if len(ours) == 5 and not busy and len(running) == 3 else 1)' \
     }
     wait_for "the target has all 5, checked, the three complete started ones running" 180 back
     wait_for "the import is through: its journal is gone" 30 import_done
-    shot "The note under the rows: Imported into target: 4 torrents, 1 link. After the check: 3 started, 1 left stopped. They are still on transmission…." note
+    expect_text "the result says where they still are (X8)" "They are still on $back_server."
+    shot "The note under the rows: Imported into target: 4 torrents, 1 link. After the check: 3 started, 1 left stopped. They are still on $back_server…." note
 
     step "Compare with the source" "Every torrent on the source and on the target, and the files on disk."
     snapshot target_api "$work/target"
-    compare "$SOURCE_DIR" "$SOURCE_DIR" crossing
+    compare "$SOURCE_DIR" "$SOURCE_DIR" "$([ "$DE_ON" = 1 ] && echo deluge || echo crossing)"
     sums "$SOURCE_DIR" >"$work/sums-after"
     if cmp -s "$work/sums-before" "$work/sums-after"; then
         pass "the files in ~/Torrents are as they were (sha256)"
