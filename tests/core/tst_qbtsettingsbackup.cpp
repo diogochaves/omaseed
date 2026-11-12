@@ -257,6 +257,8 @@ private Q_SLOTS:
             {"temp_path", "folders"},
             {"export_dir", "folders"},
             {"export_dir_fin", "folders"},
+            {"torrent_files_backup_dir", "folders"},
+            {"torrent_files_finished_backup_dir", "folders"},
             {"scan_dirs", "folders"},
             {"file_log_path", "folders"},
             {"ip_filter_path", "folders"},

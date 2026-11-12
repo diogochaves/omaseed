@@ -1190,13 +1190,9 @@ TestCase {
         compare(testCase.childNamed(modal, "qbtRow-export_dir"), null);
         for (const key of backupRows)
             verify(testCase.childNamed(modal, "qbtRow-" + key) !== null);
-        // The finished folder and the removal follow the backup, dim while it is off.
-        const finished = testCase.childNamed(modal, "qbtRow-torrent_files_finished_backup_dir_enabled");
-        verify(!finished.enabled);
-        App.serverPrefs.apply({
-                                  "torrent_files_backup_enabled": true
-                              });
-        verify(finished.enabled);
+        // The finished folder and the removal stay live while the backup is off, as in
+        // qBittorrent's Web UI: a switch left on there can still be turned off.
+        verify(testCase.childNamed(modal, "qbtRow-torrent_files_finished_backup_dir_enabled").enabled);
         verify(testCase.childNamed(modal, "qbtRow-remove_torrent_file_backup").enabled);
         compare(testCase.childNamed(modal, "qbtRow-mail_notification_ssl_enabled"), null);
         const row = testCase.childNamed(modal, "qbtRow-mail_notification_encryption_type");

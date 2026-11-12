@@ -134,6 +134,8 @@ QString QbtSettingsImport::machineGroup(const QString &key)
         {QStringLiteral("temp_path"), QStringLiteral("folders")},
         {QStringLiteral("export_dir"), QStringLiteral("folders")},
         {QStringLiteral("export_dir_fin"), QStringLiteral("folders")},
+        {QStringLiteral("torrent_files_backup_dir"), QStringLiteral("folders")},
+        {QStringLiteral("torrent_files_finished_backup_dir"), QStringLiteral("folders")},
         {QStringLiteral("scan_dirs"), QStringLiteral("folders")},
         {QStringLiteral("file_log_path"), QStringLiteral("folders")},
         {QStringLiteral("ip_filter_path"), QStringLiteral("folders")},
