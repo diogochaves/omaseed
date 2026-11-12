@@ -58,11 +58,20 @@ QString withoutExtension(const QString &name)
 
 QJsonObject TorrentsManifest::toJson() const
 {
-    QJsonObject server{{QStringLiteral("name"), serverName},
-                       {QStringLiteral("url"), serverUrl},
-                       {QStringLiteral("qbittorrent"), version},
-                       {QStringLiteral("webApi"), apiVersion},
-                       {QStringLiteral("savePath"), savePath}};
+    // DECISIONS C40 X1: the engine by name; qBittorrent's version keys as they always were,
+    // so an older omaseed still reads a qBittorrent's file.
+    const bool qbt = engine == EngineKind::Qbittorrent || engine == EngineKind::Unknown;
+    QJsonObject server{
+        {QStringLiteral("name"), serverName},
+        {QStringLiteral("url"), serverUrl},
+        {QStringLiteral("engine"), engineKindToString(qbt ? EngineKind::Qbittorrent : engine)},
+        {QStringLiteral("savePath"), savePath}};
+    if (qbt) {
+        server.insert(QStringLiteral("qbittorrent"), version);
+        server.insert(QStringLiteral("webApi"), apiVersion);
+    } else {
+        server.insert(QStringLiteral("version"), version);
+    }
     if (!downloadPath.isEmpty())
         server.insert(QStringLiteral("downloadPath"), downloadPath);
     return {{QStringLiteral("format"), TorrentsBackup::kFormat},
@@ -96,7 +105,21 @@ std::optional<TorrentsManifest> TorrentsManifest::fromJson(const QJsonObject &ob
     const QJsonObject server = object.value(QStringLiteral("server")).toObject();
     m.serverName = server.value(QStringLiteral("name")).toString();
     m.serverUrl = server.value(QStringLiteral("url")).toString();
-    m.version = server.value(QStringLiteral("qbittorrent")).toString();
+    // A file without an engine is a qBittorrent's (C40 X1); a name this build doesn't know
+    // is a later omaseed's.
+    const QString engine = server.value(QStringLiteral("engine")).toString();
+    if (!engine.isEmpty()) {
+        bool ok = false;
+        m.engine = engineKindFromString(engine, &ok);
+        if (!ok)
+            return refuse<TorrentsManifest>(
+                error,
+                QStringLiteral("made by a newer omaseed (engine %1); update to import it")
+                    .arg(engine));
+    }
+    m.version = server.contains(QStringLiteral("qbittorrent"))
+                    ? server.value(QStringLiteral("qbittorrent")).toString()
+                    : server.value(QStringLiteral("version")).toString();
     m.apiVersion = server.value(QStringLiteral("webApi")).toString();
     m.savePath = server.value(QStringLiteral("savePath")).toString();
     m.downloadPath = server.value(QStringLiteral("downloadPath")).toString();

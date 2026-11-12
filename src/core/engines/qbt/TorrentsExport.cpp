@@ -34,6 +34,7 @@ void TorrentsExport::start(const QString &path,
     ++m_generation;
     m_path = path;
     m_manifest = TorrentsManifest();
+    m_manifest.engine = EngineKind::Qbittorrent; // DECISIONS C40 X1
     m_manifest.created = QDateTime::currentDateTimeUtc();
     m_manifest.appVersion = appVersion;
     m_manifest.serverName = serverName;

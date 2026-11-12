@@ -28,6 +28,7 @@
 #include <memory>
 
 namespace bencode = omaseed::core::bencode;
+using omaseed::core::EngineKind;
 using omaseed::core::PathMap;
 using omaseed::core::QbtEngine;
 using omaseed::core::TarArchive;
@@ -399,6 +400,9 @@ private Q_SLOTS:
         QCOMPARE(back->savePath, m.savePath);
         QCOMPARE(back->categories, m.categories);
         QCOMPARE(back->tags, m.tags);
+        QCOMPARE(back->engine, EngineKind::Qbittorrent);
+        QCOMPARE(back->version, m.version);
+        QCOMPARE(back->apiVersion, m.apiVersion);
 
         QString error;
         QJsonObject other = m.toJson();
@@ -409,6 +413,60 @@ private Q_SLOTS:
         newer.insert(QStringLiteral("version"), 9);
         QVERIFY(!TorrentsManifest::fromJson(newer, &error));
         QVERIFY(error.contains(QStringLiteral("newer")));
+    }
+
+    // DECISIONS C40 X1: the manifest names its engine. A qBittorrent's file keeps the keys an
+    // older omaseed reads; another engine's version goes under "version"; a file without an
+    // engine is a qBittorrent's; a name this build doesn't know is refused.
+    void manifestNamesItsEngine()
+    {
+        const TorrentsManifest qbt = manifest();
+        const QJsonObject qbtServer = qbt.toJson().value(QStringLiteral("server")).toObject();
+        QCOMPARE(qbtServer.value(QStringLiteral("engine")).toString(),
+                 QStringLiteral("qbittorrent"));
+        QCOMPARE(qbtServer.value(QStringLiteral("qbittorrent")).toString(),
+                 QStringLiteral("v5.1.2"));
+        QCOMPARE(qbtServer.value(QStringLiteral("webApi")).toString(), QStringLiteral("2.11.4"));
+        QVERIFY(!qbtServer.contains(QStringLiteral("version")));
+
+        for (const EngineKind engine : {EngineKind::Transmission, EngineKind::Deluge}) {
+            TorrentsManifest m = manifest();
+            m.engine = engine;
+            m.version = QStringLiteral("4.1.3");
+            m.apiVersion.clear();
+            const QJsonObject json = m.toJson();
+            const QJsonObject server = json.value(QStringLiteral("server")).toObject();
+            QCOMPARE(server.value(QStringLiteral("engine")).toString(),
+                     omaseed::core::engineKindToString(engine));
+            QCOMPARE(server.value(QStringLiteral("version")).toString(), QStringLiteral("4.1.3"));
+            QVERIFY(!server.contains(QStringLiteral("qbittorrent")));
+            QVERIFY(!server.contains(QStringLiteral("webApi")));
+            QCOMPARE(json.value(QStringLiteral("version")).toInt(), TorrentsBackup::kVersion);
+            const auto back = TorrentsManifest::fromJson(json);
+            QVERIFY(back.has_value());
+            QCOMPARE(back->engine, engine);
+            QCOMPARE(back->version, QStringLiteral("4.1.3"));
+            QVERIFY(back->apiVersion.isEmpty());
+        }
+
+        // A file from before C40: no engine, qBittorrent's.
+        QJsonObject older = qbt.toJson();
+        QJsonObject olderServer = qbtServer;
+        olderServer.remove(QStringLiteral("engine"));
+        older.insert(QStringLiteral("server"), olderServer);
+        const auto fromOlder = TorrentsManifest::fromJson(older);
+        QVERIFY(fromOlder.has_value());
+        QCOMPARE(fromOlder->engine, EngineKind::Qbittorrent);
+        QCOMPARE(fromOlder->version, QStringLiteral("v5.1.2"));
+
+        QString error;
+        QJsonObject unknown = qbt.toJson();
+        QJsonObject unknownServer = qbtServer;
+        unknownServer.insert(QStringLiteral("engine"), QStringLiteral("rtorrent"));
+        unknown.insert(QStringLiteral("server"), unknownServer);
+        QVERIFY(!TorrentsManifest::fromJson(unknown, &error));
+        QVERIFY(error.contains(QStringLiteral("newer omaseed")));
+        QVERIFY(error.contains(QStringLiteral("rtorrent")));
     }
 
     // docs/24 §2: everything the record holds comes back from its JSON.

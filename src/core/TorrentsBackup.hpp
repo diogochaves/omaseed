@@ -1,11 +1,12 @@
 #pragma once
 
-// TorrentsBackup — a qBittorrent's torrents as one file (docs/24 §2, §4; D2 a; #33).
+// TorrentsBackup — a server's torrents as one file (docs/24 §2, §4; D2 a; #33), whatever its
+// engine (docs/57, DECISIONS C40; #88).
 //
 // A plain tar (TarArchive), so any tool can open one and see what is in it:
 //
 //   manifest.json            { "format": "omaseed-torrents", "version": 1, "created": ISO date,
-//                              "app": omaseed's version, "server": {"name", "url",
+//                              "app": omaseed's version, "server": {"name", "url", "engine",
 //                              "qbittorrent", "webApi", "savePath", "downloadPath"},
 //                              "count", "magnets", "categories": {...}, "tags": [...] }
 //   torrents/<id>.json       one torrent: what the server keeps about it beyond its .torrent
@@ -22,10 +23,23 @@
 // priorities, every tracker it announces to, and for a magnet that never got its metadata
 // (torrents/export answers 409) the link instead of a .torrent.
 //
+// The manifest names the engine that wrote the file (C40 X1): "server"."engine" is EngineKind's
+// name, and a file without it is a qBittorrent's (every file before C40). A qBittorrent's
+// version stays under "qbittorrent" (with "webApi"), so an older omaseed reads the file as it
+// always did; another engine's goes under "version" and those two keys are left out.
+//
+// A record keeps qBittorrent's two grouping fields whatever engine wrote it (C40 X4), so an
+// older omaseed still imports the file sensibly:
+//   - a Transmission's record has `category` empty and `tags` = its labels, in the daemon's
+//     order;
+//   - a Deluge's record has `category` = its one label and no tags.
+// What those become on another engine is LibraryCrossing's.
+//
 // The file is private (0600): a private tracker's announce URL carries the account's passkey,
 // in the .torrent files and the records' tracker lists alike (DECISIONS C9).
 
 #include "core/TarArchive.hpp"
+#include "core/engines/EngineKind.hpp"
 
 #include <QDateTime>
 #include <QHash>
@@ -48,8 +62,10 @@ struct TorrentsManifest
     QString appVersion;
     QString serverName;
     QString serverUrl;
-    QString version;        ///< qBittorrent's, "v5.2.3"
-    QString apiVersion;     ///< "2.15.1"
+    /// The engine that wrote the file (DECISIONS C40 X1); qBittorrent for a file without one.
+    EngineKind engine = EngineKind::Qbittorrent;
+    QString version;        ///< the engine's own: "v5.2.3", "4.1.3", "2.2.0"
+    QString apiVersion;     ///< qBittorrent's Web API, "2.15.1"; empty for the other engines
     QString savePath;       ///< the server's default save path then
     QString downloadPath;   ///< its incomplete folder, when it used one
     int count = 0;          ///< torrents in the file
