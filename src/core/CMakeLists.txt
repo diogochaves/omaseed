@@ -92,6 +92,8 @@ qt_add_library(omaseed-core STATIC
     engines/transmission/TransmissionFingerprint.hpp
     engines/transmission/TransmissionRpc.cpp
     engines/transmission/TransmissionRpc.hpp
+    engines/transmission/TransmissionTorrentsExport.cpp
+    engines/transmission/TransmissionTorrentsExport.hpp
     engines/transmission/TransmissionTranslate.cpp
     engines/transmission/TransmissionTranslate.hpp
     ErrorWords.cpp
