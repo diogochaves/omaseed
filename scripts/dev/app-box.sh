@@ -3,7 +3,8 @@
 # build against the :8081 playground (agents), or the installed app with its own qBittorrent
 # (the manual box, through scripts/dev/manual-box.sh).
 #
-#   scripts/dev/app-box.sh up [-b NAME] [--interactive] [--build DIR] [--handlers] [--qbt]
+#   scripts/dev/app-box.sh up [-b NAME] [--interactive] [--build DIR] [--handlers]
+#                             [--qbt [--and-transmission]]
 #                             [--transmission | --deluge [--and-playground] | --transmission-podman]
 #                             [--plugin DIR] [--stock-bar] [--ro-bind DIR[:DEST]]... [--first-run]
 #       a box on its own network that reaches only :8081; servers.json pointing omaseed at the
@@ -13,6 +14,10 @@
 #       --qbt: a qBittorrent of the box's own instead of the playground (127.0.0.1:8090 in the
 #       box, no login, saving to ~/Torrents), reaching only the swarm's tracker and seeder, so
 #       deletes, moves and settings changes touch nothing outside the box.
+#       --and-transmission (with --qbt): the Transmission playground too (:8085, started if it
+#       isn't), the box reaching its port as well, saved as a second server, "transmission",
+#       with a path map from the box's ~/Torrents as that daemon sees it (a folder of this
+#       machine's) to ~/Torrents: one library's files seen by both engines (#88).
 #       --transmission: the Transmission playground instead (:8085, scripts/dev/test-server.sh
 #       start --transmission, started if it isn't), the box reaching only that port; omaseed's
 #       server is "transmission" at its web UI address (DECISIONS C14 E4, #85).
@@ -262,6 +267,11 @@ up_app() {
     local home url name engine=qbittorrent auth=none up_args=() second="" pathmap='[]'
     [ -x "$build/omaseed" ] || die "no $build/omaseed: build it first (cmake --build $build)"
     if [ "$transmission" = 1 ] && [ "$qbt" = 1 ]; then die "--qbt and --transmission: pick one"; fi
+    if [ "$also_tr" = 1 ] && [ "$qbt" = 0 ]; then die "--and-transmission goes with --qbt"; fi
+    if [ "$also_tr" = 1 ] && ! "$repo/scripts/dev/test-server.sh" status --transmission >/dev/null 2>&1; then
+        echo "starting the Transmission playground (:$TR_PORT)"
+        "$repo/scripts/dev/test-server.sh" start --transmission >/dev/null
+    fi
     if [ "$deluge" = 1 ] && { [ "$qbt" = 1 ] || [ "$transmission" = 1 ]; }; then
         die "--deluge goes alone (not with --qbt or --transmission)"
     fi
@@ -310,6 +320,8 @@ up_app() {
     if [ "$qbt" = 1 ]; then
         # Only the swarm's tracker and seeder: nothing of this machine's qBittorrents.
         up_args=(--net isolated --allow "$TRACKER_PORT,$SEEDER_BT_PORT")
+        # --and-transmission: and the Transmission playground's port.
+        [ "$also_tr" = 0 ] || up_args=(--net isolated --allow "$TRACKER_PORT,$SEEDER_BT_PORT,$TR_PORT")
     elif [ "$transmission" = 1 ] && [ "$both" = 1 ]; then
         up_args=(--net isolated --allow "$TR_PORT,$PLAY_PORT")
     elif [ "$transmission" = 1 ]; then
@@ -378,6 +390,12 @@ SHIM
     fi
     if [ "$both" = 1 ]; then
         second="$(printf ',{"id":"playground","name":"playground","url":"%s","engine":"qbittorrent","authMode":"none","username":"","pathMap":[],"isDefault":false,"addedAt":"2026-09-23T00:00:00Z"}' "$PLAY")"
+    fi
+    if [ "$also_tr" = 1 ]; then
+        # The daemon runs on this machine: the box's ~/Torrents is, to it, a folder of the
+        # box's HOME here.
+        second="$(python3 -c 'import json, sys; print("," + json.dumps({"id": "transmission", "name": "transmission", "url": sys.argv[1], "engine": "transmission", "authMode": "none", "username": "", "pathMap": [{"remote": sys.argv[2], "local": sys.argv[3]}], "isDefault": False, "addedAt": "2026-09-23T00:00:00Z"}))' \
+            "$TR_WEB" "$home/Torrents" "$BOX_HOME/Torrents")"
     fi
     local servers="$home/.config/omaseed/servers.json"
     [ "$first_run" = 1 ] && servers="$home/.omaseed-servers.json"
@@ -629,6 +647,7 @@ tpod=0
 first_run=0
 ro_binds=()
 both=0
+also_tr=0
 plugin=""
 bar_args=()
 manual=0
@@ -649,6 +668,7 @@ while [ $# -gt 0 ]; do
     --first-run) first_run=1 ;;
     --ro-bind) [ $# -ge 2 ] || die "--ro-bind needs a folder"; ro_binds+=(--ro-bind "$2"); shift ;;
     --and-playground) both=1 ;;
+    --and-transmission) also_tr=1 ;;
     --plugin) [ $# -ge 2 ] || die "--plugin needs a directory"; plugin="$(cd "$2" && pwd)"; shift ;;
     --stock-bar) bar_args=(--stock-bar) ;;
     --manual) manual=1 ;;
