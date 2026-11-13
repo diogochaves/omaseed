@@ -154,11 +154,27 @@
 <context>
     <name>EverythingPalette</name>
     <message numerus="yes">
-        <location filename="../src/ui/qml/Views/EverythingPalette.qml" line="+207"/>
+        <location filename="../src/ui/qml/Views/EverythingPalette.qml" line="+313"/>
         <source>%n that make sense now</source>
         <translation>
             <numerusform>%n that makes sense now</numerusform>
             <numerusform>%n that make sense now</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <location line="+1"/>
+        <source>%n on omaseed and %1</source>
+        <translation>
+            <numerusform>%n on omaseed and %1</numerusform>
+            <numerusform>%n on omaseed and %1</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <location line="+1"/>
+        <source>%n on omaseed</source>
+        <translation>
+            <numerusform>%n on omaseed</numerusform>
+            <numerusform>%n on omaseed</numerusform>
         </translation>
     </message>
     <message numerus="yes">
@@ -170,11 +186,19 @@
         </translation>
     </message>
     <message numerus="yes">
-        <location line="+72"/>
+        <location line="+78"/>
         <source>%n more commands</source>
         <translation>
             <numerusform>%n more command</numerusform>
             <numerusform>%n more commands</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <location line="+1"/>
+        <source>%n more settings</source>
+        <translation>
+            <numerusform>%n more setting</numerusform>
+            <numerusform>%n more settings</numerusform>
         </translation>
     </message>
     <message numerus="yes">
@@ -231,6 +255,14 @@
         <translation>
             <numerusform>%n command</numerusform>
             <numerusform>%n commands</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <location line="+3"/>
+        <source>%n settings</source>
+        <translation>
+            <numerusform>%n setting</numerusform>
+            <numerusform>%n settings</numerusform>
         </translation>
     </message>
     <message numerus="yes">

@@ -1887,6 +1887,31 @@ TestCase {
         view.details.activateTab(view.details.tabStory);
     }
 
+    // docs/63 §6 (DECISIONS C42 Z7, Z8): a setting found in the palette opens Settings on its
+    // row: the pane, the keyboard in it, the cursor on the row.
+    function test_a_setting_in_the_palette_opens_settings_on_its_row() {
+        keyClick(":");
+        verify(view.everythingPalette.opened);
+        for (const c of "pulse sending")
+            keyClick(c);
+        compare(view.everythingPalette.currentItem.title, "Pulse sending rows");
+        compare(view.everythingPalette.currentItem.detail, "Settings › Appearance");
+        const was = App.pulseRows;
+        keyClick(Qt.Key_Return);
+        compare(view.everythingPalette.opened, false);
+        compare(view.settingsModal.opened, true);
+        compare(view.activeOverlay, view.settingsModal);
+        compare(view.settingsModal.paneIndex, 4);
+        compare(view.settingsModal.area, "pane");
+        compare(view.settingsModal.paneCursor, view.settingsModal.settings.cursorOf("appearance.pulseRows"));
+        compare(App.pulseRows, was);
+        // `enter` there is the row's own.
+        keyClick(Qt.Key_Return);
+        compare(App.pulseRows, !was);
+        App.pulseRows = was;
+        view.settingsModal.close();
+    }
+
     // ---- the command palette's keys (docs/30 D1) -------------------------------------------
     function test_colon_opens_the_command_palette_from_the_table() {
         view.table.toggleCursorSelection();
@@ -1943,6 +1968,7 @@ TestCase {
         keyClick(":");
         compare(view.everythingPalette.chip, "");
         testCase._type("bunny");
+        // Its letters scattered through a setting's long title find no setting.
         compare(view.everythingPalette.items.length, 1);
         compare(view.everythingPalette.items[0].kind, "torrents");
         keyClick(Qt.Key_Return);

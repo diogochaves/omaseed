@@ -103,6 +103,79 @@ TestCase {
     }
 
     Component {
+        id: tableComponent
+
+        SettingsTable {}
+    }
+
+    // A server that has every key the schema names, each one on (tst_SettingsTable's).
+    Component {
+        id: fullServerComponent
+
+        QtObject {
+            property var applied: []
+            property bool loaded: true
+            property var values: new Proxy({}, {
+                                               "get": (target, key) => key === "enabled_plugins" ? ["Label", "Scheduler"] : true
+                                           })
+
+            function apply(changes) {
+                applied.push(changes);
+            }
+
+            function has(key) {
+                return true;
+            }
+
+            function owns(changes) {
+                return false;
+            }
+        }
+    }
+
+    Component {
+        id: settingsSpy
+
+        SignalSpy {
+            signalName: "settingsRequested"
+        }
+    }
+
+    /// A table with omaseed's own rows only: no server has answered.
+    function _ownTable() {
+        return createTemporaryObject(tableComponent, testCase, {
+                                         "connected": false
+                                     });
+    }
+
+    /// A table on a server with everything, speaking `engine` ("" for qBittorrent).
+    function _serverTable(engine) {
+        const server = createTemporaryObject(fullServerComponent, testCase);
+        return createTemporaryObject(tableComponent, testCase, {
+                                         "connected": true,
+                                         "prefs": server,
+                                         "presets": server,
+                                         "serverName": "public",
+                                         "features": engine.length === 0 ? ({}) : ({
+                                                                                      "qbtSettings": false,
+                                                                                      "sessionSettings": true
+                                                                                  }),
+                                         "engineName": engine
+                                     });
+    }
+
+    /// The palette on `kind` over the settings of `table`.
+    function _openWith(table, kind) {
+        const palette = createTemporaryObject(paletteComponent, testCase, {
+                                                  "context": testCase._context({}),
+                                                  "serverRows": testCase.servers,
+                                                  "settings": table
+                                              });
+        palette.openFor(kind);
+        return palette;
+    }
+
+    Component {
         id: runSpy
 
         SignalSpy {
@@ -416,19 +489,22 @@ TestCase {
     function test_slash_lists_the_kinds() {
         const palette = testCase._openOn("", {});
         testCase._type("/");
-        compare(palette.items.map(row => row.title + " " + row.meta), ["commands /commands", "servers /servers",
-                                                                       "torrents /torrents"]);
+        compare(palette.items.map(row => row.title + " " + row.meta), ["commands /commands", "settings /settings",
+                                                                       "servers /servers", "torrents /torrents"]);
         compare(palette.items[0].detail, "58 that make sense now");
-        compare(palette.items[1].detail, "2 saved");
-        verify(palette.items[2].detail.startsWith("16"), palette.items[2].detail);
-        compare(palette.counter, "3 kinds");
+        compare(palette.items[2].detail, "2 saved");
+        verify(palette.items[3].detail.startsWith("16"), palette.items[3].detail);
+        compare(palette.counter, "4 kinds");
         compare(testCase._hints(palette), ["↑↓ move", "enter filter", "space filter and go on typing", "esc clear"]);
         compare(palette.footerRight, "");
+        // The plan's call 10: `/s` names two kinds, the settings first (Z2's order).
         testCase._type("s");
+        compare(palette.items.map(row => row.title), ["settings", "servers"]);
+        testCase._type("er");
         compare(palette.items.map(row => row.title), ["servers"]);
         testCase._type("x");
         compare(palette.items.length, 0);
-        compare(palette.emptyText, "No kind matches “/sx”.");
+        compare(palette.emptyText, "No kind matches “/serx”.");
         palette.close();
     }
 
@@ -460,7 +536,7 @@ TestCase {
     function test_slash_all_clears_a_chip() {
         const palette = testCase._openOn("servers", {});
         testCase._type("/");
-        compare(palette.items.map(row => row.meta), ["/commands", "/servers", "/torrents", "/all"]);
+        compare(palette.items.map(row => row.meta), ["/commands", "/settings", "/servers", "/torrents", "/all"]);
         testCase._type("a");
         keyClick(Qt.Key_Return);
         compare(palette.filter, "");
@@ -483,16 +559,16 @@ TestCase {
         palette.close();
     }
 
-    // shift+tab steps all → commands → servers → torrents → all, the text kept.
+    // shift+tab steps all → commands → settings → servers → torrents → all, the text kept.
     function test_shift_tab_steps_the_kinds() {
         const palette = testCase._openOn("", {});
         testCase._type("p");
         const seen = [];
-        for (let i = 0; i < 4; ++i) {
+        for (let i = 0; i < 5; ++i) {
             keyClick(Qt.Key_Backtab, Qt.ShiftModifier);
             seen.push(palette.chip);
         }
-        compare(seen, ["commands", "servers", "torrents", ""]);
+        compare(seen, ["commands", "settings", "servers", "torrents", ""]);
         compare(palette.query, "p");
         palette.close();
     }
@@ -599,6 +675,219 @@ TestCase {
         compare(palette.items.map(row => row.title), ["public", "private"]);
         testCase._type("/");
         compare(palette.items.length, 0, "a / listed the kinds in a palette held to one");
+        palette.close();
+    }
+
+    // ---- settings as rows (board 63 §6, C42 Z2, Z7, Z8; #266) ------------------------------
+    // Z2: the settings are the second section; four rows, then "N more settings".
+    function test_settings_are_the_second_section() {
+        const palette = testCase._openWith(testCase._ownTable(), "");
+        testCase._type("p");
+        const settings = palette._settings("p").length;
+        verify(settings > 4, "the fixture: p finds " + settings + " settings");
+        compare(testCase._headings(palette).map(heading => heading.split(" ")[0]), ["commands", "settings", "servers",
+                                                                                    "torrents"]);
+        compare(testCase._headings(palette)[1], "settings " + settings);
+        const rows = palette.items;
+        const at = rows.findIndex(row => row.heading === true && row.title === "settings");
+        compare(rows.slice(at + 1, at + 5).map(row => row.kind), ["settings", "settings", "settings", "settings"]);
+        compare(rows[at + 5].more, true);
+        compare(rows[at + 5].title, (settings - 4) + " more settings");
+        compare(rows[at + 6].heading, true);
+        compare(rows[at + 1].spokenTitle, rows[at + 1].title + ", setting");
+        // "N more" narrows to the settings, the text kept.
+        palette.cursorToKey("more:settings");
+        compare(testCase._hints(palette)[1], "enter show");
+        keyClick(Qt.Key_Return);
+        compare(palette.chip, "settings");
+        compare(palette.query, "p");
+        compare(palette.items.length, settings);
+        compare(palette.counter, settings + " of " + palette.allSettings.length);
+        palette.close();
+    }
+
+    // Z6: nothing typed and no filter is still the commands alone.
+    function test_no_settings_with_nothing_typed() {
+        const palette = testCase._openWith(testCase._ownTable(), "");
+        compare(palette.items.length, 58);
+        verify(palette.items.every(row => row.kind === "commands"));
+        compare(palette.footerRight, "type to find settings, servers, torrents");
+        palette.close();
+    }
+
+    // Z4: `/se` and space set the chip; nothing typed lists every setting in the table's
+    // order, less the rows that are no setting to find (the plan's calls 1 and 13).
+    function test_slash_se_and_space_set_the_settings_chip() {
+        const table = testCase._ownTable();
+        const palette = testCase._openWith(table, "");
+        testCase._type("/");
+        compare(palette.items[1].detail, "26 on omaseed");
+        testCase._type("se ");
+        compare(palette.filter, "settings");
+        compare(palette.chip, "settings");
+        compare(palette.query, "");
+        compare(palette.title, "find a setting");
+        compare(palette.counter, "26 settings");
+        const listed = table.rows().map(row => row.id).filter(id => ["backup.backUp", "backup.restore",
+                                                                     "about.widgetLine"].indexOf(id) < 0);
+        // 30, less those three and Window transparency, which an opaque ground has no row for.
+        compare(listed.length, 26);
+        compare(palette.items.map(row => row.key), listed);
+        compare(testCase._headings(palette), []);
+        compare(testCase._hints(palette), ["↑↓ move", "enter open in Settings", "shift+tab kind", "esc close"]);
+        testCase._type("zzzz");
+        compare(palette.items.length, 0);
+        compare(palette.emptyText, "No setting matches “zzzz”.");
+        palette.close();
+    }
+
+    // Board 63 S1: the pane's name matches too, so `notif` lists the Notifications pane, as
+    // Settings orders it, with no heading (one kind matched, Z3).
+    function test_a_panes_name_lists_its_rows() {
+        const table = testCase._ownTable();
+        const palette = testCase._openWith(table, "");
+        testCase._type("notif");
+        compare(testCase._headings(palette), []);
+        const pane = table.rows().filter(row => row.pane === "notifications").map(row => row.id);
+        compare(pane.length, 7);
+        compare(palette.items.map(row => row.key), pane);
+        compare(palette.counter, "7 matches");
+        verify(palette.items.every(row => row.kind === "settings" && row.detail === "Settings › Notifications"));
+        // The six switches show theirs before "on" or "off"; the threshold says its number.
+        compare(palette.items.filter(row => typeof row.toggle === "boolean").length, 6);
+        const completed = palette.items[0];
+        compare(completed.title, table.row(completed.key).title);
+        compare(completed.toggle, table.row(completed.key).value);
+        compare(completed.meta, completed.toggle ? "on" : "off");
+        const threshold = palette.items.find(row => typeof row.toggle !== "boolean");
+        compare(threshold.toggle, undefined);
+        compare(threshold.meta, table.row(threshold.key).valueText);
+        // A title's hit goes before a pane's.
+        palette.query = "weekly";
+        compare(palette.items[0].key, "notifications.weekly");
+        // Words over both find it; letters scattered through a title do not (a torrent's
+        // name would find settings by chance).
+        palette.query = "notif weekly";
+        compare(palette.items.map(row => row.key), ["notifications.weekly"]);
+        palette.query = "wkly";
+        verify(palette.items.every(row => row.kind !== "settings"));
+        palette.close();
+    }
+
+    // A setting's row: its value as the meta, a screen reader hears it, and where it lives
+    // as the second line; a choice says its option and draws no switch.
+    function test_a_settings_row() {
+        const table = testCase._ownTable();
+        const palette = testCase._openWith(table, "settings");
+        const was = App.pulseRows;
+        App.pulseRows = true;
+        let pulse = palette.items.find(row => row.key === "appearance.pulseRows");
+        compare(pulse.title, "Pulse sending rows");
+        compare(pulse.detail, "Settings › Appearance");
+        compare(pulse.meta, "on");
+        compare(pulse.toggle, true);
+        compare(pulse.metaSpoken, true);
+        waitForRendering(palette.listView);
+        palette.cursorToKey("appearance.pulseRows");
+        const drawn = palette.listView.itemAtIndex(palette.cursorIndex);
+        compare(drawn.Accessible.description, "on · Settings › Appearance");
+        verify(findChild(drawn, "paletteRowToggle").visible);
+        // The list follows the value.
+        App.pulseRows = false;
+        pulse = palette.items.find(row => row.key === "appearance.pulseRows");
+        compare(pulse.meta, "off");
+        compare(pulse.toggle, false);
+        App.pulseRows = was;
+        const skin = palette.items.find(row => row.key === "appearance.skin");
+        compare(skin.toggle, undefined);
+        compare(skin.meta, table.row("appearance.skin").valueText);
+        verify(skin.meta.length > 0);
+        palette.close();
+    }
+
+    // Z7, Z8 (board 63 S3): for now `enter` and `tab` on any setting both close the palette
+    // and ask for Settings on that row.
+    function test_enter_and_tab_ask_for_settings_on_the_row() {
+        const palette = testCase._openWith(testCase._ownTable(), "");
+        const asked = createTemporaryObject(settingsSpy, testCase, {
+                                                "target": palette
+                                            });
+        const run = createTemporaryObject(runSpy, testCase, {
+                                              "target": palette
+                                          });
+        testCase._type("pulse sending");
+        compare(palette.currentItem.key, "appearance.pulseRows");
+        compare(testCase._hints(palette), ["↑↓ move", "enter open in Settings", "shift+tab kind", "esc clear"]);
+        const was = App.pulseRows;
+        keyClick(Qt.Key_Return);
+        compare(palette.opened, false);
+        compare(asked.count, 1);
+        compare(asked.signalArguments[0][0], "appearance.pulseRows");
+        compare(App.pulseRows, was, "enter flipped the switch");
+        palette.openFor("");
+        // Commands match "skin" too, and theirs is the first section.
+        testCase._type("skin");
+        palette.cursorToKey("appearance.skin");
+        compare(palette.currentItem.key, "appearance.skin");
+        keyClick(Qt.Key_Tab);
+        compare(palette.opened, false);
+        compare(asked.count, 2);
+        compare(asked.signalArguments[1][0], "appearance.skin");
+        compare(run.count, 0);
+    }
+
+    // The server's settings are rows only once it has answered, and only its engine's.
+    function test_the_server_on_shows_settings() {
+        const none = testCase._openWith(testCase._ownTable(), "settings");
+        verify(none.items.every(row => !row.server));
+        none.close();
+
+        const qbt = testCase._serverTable("");
+        const palette = testCase._openWith(qbt, "settings");
+        const server = palette.items.filter(row => row.server);
+        compare(server.length, qbt.serverRows().length);
+        compare(palette.items.length, 26 + server.length);
+        // After omaseed's own, section by section.
+        compare(palette.items.findIndex(row => row.server), 26);
+        const port = palette.items.find(row => row.key === "server.connection.listen_port");
+        verify(port !== undefined);
+        compare(port.detail, "Settings › qBittorrent › Connection");
+        compare(port.toggle, undefined);
+        testCase._type("/");
+        compare(palette.items[1].detail, (26 + server.length) + " on omaseed and public");
+        palette.query = "";
+        // A row the pane asks about first is no switch here: it says its value in words.
+        const webui = palette.items.filter(row => row.key.startsWith("server.webui."));
+        verify(webui.length > 0);
+        verify(webui.every(row => row.toggle === undefined));
+        // The section's name finds its rows.
+        palette.query = "connection";
+        verify(palette.items.some(row => row.key === "server.connection.listen_port"));
+        palette.close();
+
+        const transmission = testCase._serverTable("Transmission");
+        const other = testCase._openWith(transmission, "settings");
+        const theirs = other.items.filter(row => row.server);
+        compare(theirs.length, transmission.serverRows().length);
+        verify(theirs.length > 0 && theirs.length < server.length);
+        verify(theirs.every(row => row.detail.startsWith("Settings › Transmission › ")), theirs[0].detail);
+        other.close();
+
+        // Deluge's plugin rows are the pane's to show (the plan's call 6).
+        const deluge = testCase._serverTable("Deluge");
+        const readOnly = deluge.serverRows().filter(row => row.readOnly).map(row => row.id);
+        compare(readOnly.length, 3);
+        const third = testCase._openWith(deluge, "settings");
+        compare(third.items.filter(row => row.server).length, deluge.serverRows().length - 3);
+        verify(third.items.every(row => readOnly.indexOf(row.key) < 0));
+        third.close();
+    }
+
+    // No table, no settings: the palette as it was (the add sheet's, a test's).
+    function test_without_a_table_there_are_no_settings() {
+        const palette = testCase._openOn("settings", {});
+        compare(palette.items.length, 0);
+        compare(palette.counter, "0 settings");
         palette.close();
     }
 }

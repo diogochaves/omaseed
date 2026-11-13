@@ -4,16 +4,26 @@ import Omaseed
 import Omaseed.Kit
 
 // The everything palette (board 63, docs/DECISIONS.md C42): the command, jump and server
-// palettes as one palette over three kinds of row. `:` and `ctrl+shift+p` open it on every
-// kind, `ctrl+k` with the "torrents" filter on, `ctrl+s` with "servers" (Z5); MainView calls
-// `openFor(kind)`. Settings will be a fourth kind, second in the order (Z2, #266).
+// palettes as one palette, with the settings as a fourth kind of row (Z7, #266). `:` and
+// `ctrl+shift+p` open it on every kind, `ctrl+k` with the "torrents" filter on, `ctrl+s` with
+// "servers" (Z5); MainView calls `openFor(kind)`.
 //
-// Each kind keeps the rows, ranking and `enter` its own palette had:
+// The three kinds that had a palette keep its rows, ranking and `enter`:
 //  - commands (docs/30, C1): `Keymap.commandRows(context)`; MainView takes the context as it
 //    opens the palette, which then holds the keyboard. Nothing typed lists them in
 //    commandRows' order (P1); typing filters by title and area word with `Fuzzy.match`,
 //    sorted by `Fuzzy.score`, then rows that can run, then recent ones (P2). `enter` closes
 //    the palette, which gives the focus back, then asks MainView to run the row.
+//  - settings (board 63 §6, C42 Z7): `settings.rows()`, omaseed's own pane by pane and then
+//    those of the server on show, as its engine offers them; none without a table. Nothing
+//    typed lists them in that order; typing finds a row by the words in its title and in
+//    its pane's name (so `notif` lists the Notifications pane), a title's hit first. A row's meta is its
+//    value, after a switch where `enter` will flip it (the kit's `toggle`); its second line
+//    is where it lives ("Settings › Appearance"). For now `enter` and `tab` both close the
+//    palette and ask for Settings on that row (`settingsRequested`, board 63 S3, Z8);
+//    changing a switch or a choice in its row is #266's next step. Rows the pane only
+//    shows (Deluge's plugins) and the panes' actions that are no setting (back up,
+//    restore, the widget's install line) are left out.
 //  - servers (docs/33 S1, C12): `App.serverRows` in Settings' order, filtered by name or
 //    address. `enter` switches (App.switchServer); `tab` asks for the server's menu, the one
 //    the rail opens (Z8); `,` opens Settings › Servers on the cursor's row while the filter
@@ -44,6 +54,8 @@ Palette {
     property TorrentTable table: null
     /// `Keymap.commandRows()`'s plain context.
     property var context: ({})
+    /// C42 Z7: every setting as a row; null lists none.
+    property SettingsTable settings: null
     /// The server kind's rows: `{key, title, meta, detail, address}`.
     property var serverRows: App.serverRows
     /// C42 Z4: the kind the palette is narrowed to, "" for every kind.
@@ -63,8 +75,11 @@ Palette {
     /// palette's own coordinates, which are its host's).
     signal serverMenuRequested(string id, real x, real y)
 
+    /// `enter` or `tab` on a setting (C42 Z7, Z8): Settings, on the row `id` of the table.
+    signal settingsRequested(string id)
+
     /// C42 Z2: the sections' order.
-    readonly property var kinds: ["commands", "servers", "torrents"]
+    readonly property var kinds: ["commands", "settings", "servers", "torrents"]
     /// C42 Z3: the rows a section shows before its "N more".
     readonly property int sectionRows: 4
     readonly property string scope: root.only.length > 0 ? root.only : root.filter
@@ -72,6 +87,13 @@ Palette {
     /// C42 Z4: the query is naming a kind.
     readonly property bool slash: root.only.length === 0 && root.query.startsWith("/")
     readonly property var allCommands: Keymap.commandRows(root.context)
+    /// The table's rows that are not settings to find here: the Backup pane's actions are
+    /// commands (C42 Z7) and the About line is a thing to copy.
+    readonly property var unlisted: ["backup.backUp", "backup.restore", "about.widgetLine"]
+    /// The settings as rows of this palette, in the table's order. Read while open only: the
+    /// table's rows are snapshots, and this follows what they read (a value, the server's
+    /// answer) without being built again at every letter typed.
+    readonly property var allSettings: root.opened && root.settings !== null ? root._settingRows() : []
     /// `{mode, items, total, none}`: `mode` is "kinds", a kind's name or "all" (sections, or
     /// the one kind that matched); `none` when nothing matched.
     readonly property var view: root._build()
@@ -85,6 +107,8 @@ Palette {
         switch (kind) {
         case "commands":
             return qsTr("commands");
+        case "settings":
+            return qsTr("settings");
         case "servers":
             return qsTr("servers");
         case "torrents":
@@ -162,6 +186,84 @@ Palette {
         return text.length === 0 ? root.allCommands : root._ranked(root.allCommands, text);
     }
 
+    /// A table row as a row here. `word` is its pane's name, which a query matches too
+    /// (board 63 S1). The switch is drawn only where `enter` can flip it: a row the pane
+    /// would ask about or refuse says its value in words alone, and leads to the pane.
+    function _settingRows(): var {
+        const table = root.settings;
+        const paneWords = {};
+        for (const pane of table.panes)
+            paneWords[pane.id] = pane.text;
+        for (const section of table.serverSections)
+            paneWords["server." + section.id] = table.engineGroupName + " " + section.name;
+        const rows = [];
+        for (const setting of table.rows()) {
+            if (setting.readOnly || root.unlisted.indexOf(setting.id) >= 0)
+                continue;
+            const row = {
+                "key": setting.id,
+                "title": setting.title,
+                "meta": setting.valueText,
+                "detail": setting.paneText,
+                "metaSpoken": true,
+                "word": paneWords[setting.pane] ?? "",
+                "settingKind": setting.kind,
+                "server": setting.server,
+                "disabled": false
+            };
+            if (setting.kind === "switch")
+                row.toggle = setting.value === true;
+            rows.push(row);
+        }
+        return rows;
+    }
+
+    /// Where every word of `words` is found whole in `text`: the sum of the places, lower
+    /// being better, or -1. A setting is found by the words in it only, not by letters
+    /// spread through it as `Fuzzy` allows a command or a torrent: there are some two
+    /// hundred, many a sentence long, and a torrent's name would find a few by chance.
+    function _wordsIn(text: string, words: var): int {
+        const haystack = Fuzzy.fold(text);
+        let total = 0;
+        for (const word of words) {
+            const at = haystack.indexOf(word);
+            if (at < 0)
+                return -1;
+            total += at;
+        }
+        return total;
+    }
+
+    /// The settings `text` finds: by title first, the best hit ahead; then those of a pane
+    /// whose name it finds, in the pane's order (`notif` lists Notifications as Settings
+    /// has it, board 63 S1); then those found by words spread over both.
+    function _settings(text: string): var {
+        if (text.length === 0)
+            return root.allSettings;
+        const words = Fuzzy.words(text);
+        const hits = [];
+        root.allSettings.forEach((row, index) => {
+                                     const scores = [root._wordsIn(row.title, words), root._wordsIn(row.word, words),
+                                                     root._wordsIn(row.title + " " + row.word, words)];
+                                     const tier = scores.findIndex(score => score >= 0);
+                                     if (tier >= 0)
+                                         hits.push({
+                                                       "row": row,
+                                                       "tier": tier,
+                                                       "score": scores[tier],
+                                                       "index": index
+                                                   });
+                                 });
+        hits.sort((a, b) => a.tier - b.tier || a.score - b.score || a.index - b.index);
+        return hits.map(hit => hit.row);
+    }
+
+    /// C42 Z7, Z8: the palette goes, and Settings opens on the row.
+    function _showInSettings(id: string): void {
+        root.close();
+        root.settingsRequested(id);
+    }
+
     function _servers(text: string): var {
         const rows = root.serverRows || [];
         return text.length === 0 ? rows : rows.filter(row => Fuzzy.match(row.title + " " + row.address, text));
@@ -178,8 +280,9 @@ Palette {
             row.kind = kind;
             if (spoken)
                 row.spokenTitle = kind === "commands" ? qsTr("%1, command").arg(row.title)
-                                                      : kind === "servers" ? qsTr("%1, server").arg(row.title)
-                                                                           : qsTr("%1, torrent").arg(row.title);
+                                : kind === "settings" ? qsTr("%1, setting").arg(row.title)
+                                : kind === "servers" ? qsTr("%1, server").arg(row.title)
+                                : qsTr("%1, torrent").arg(row.title);
             out.push(row);
         }
         return out;
@@ -203,8 +306,13 @@ Palette {
     /// C42 Z4: the kinds a `/` query names, and `/all` while a filter is on.
     function _kindRows(): var {
         const word = root.query.substring(1).trim().toLowerCase();
+        // The settings are omaseed's and, once it has answered, the server's on show.
+        const settingCount = root.allSettings.length;
+        const withServer = root.allSettings.some(row => row.server) && root.settings.serverName.length > 0;
         const details = {
             "commands": qsTr("%n that make sense now", "", root.allCommands.length),
+            "settings": withServer ? qsTr("%n on omaseed and %1", "", settingCount).arg(root.settings.serverName)
+                                   : qsTr("%n on omaseed", "", settingCount),
             "servers": qsTr("%n saved", "", (root.serverRows || []).length),
             "torrents": App.serverName.length > 0 ? qsTr("%1 on %2").arg(App.torrents.count).arg(App.serverName)
                                                   : String(App.torrents.count),
@@ -250,6 +358,10 @@ Palette {
             return one("commands", rows.length > 0 ? root._as("commands", rows, false) : root._searchRow(text),
                        rows.length);
         }
+        if (root.scope === "settings") {
+            const rows = root._settings(text);
+            return one("settings", root._as("settings", rows, false), rows.length);
+        }
         if (root.scope === "servers") {
             const rows = root._servers(text);
             return one("servers", root._as("servers", rows, false), rows.length);
@@ -260,15 +372,17 @@ Palette {
                        App.jumpMatchCount(root.query));
         const found = {
             "commands": root._commands(text),
+            "settings": root._settings(text),
             "servers": root._servers(text)
         };
         const counts = {
             "commands": found.commands.length,
+            "settings": found.settings.length,
             "servers": found.servers.length,
             "torrents": App.jumpMatchCount(text)
         };
         const matched = root.kinds.filter(kind => counts[kind] > 0);
-        const total = counts.commands + counts.servers + counts.torrents;
+        const total = counts.commands + counts.settings + counts.servers + counts.torrents;
         const rowsOf = (kind, limit) => root._as(kind, kind === "torrents" ? App.jumpMatches(text, limit)
                                                                            : found[kind].slice(0, limit), true);
         if (matched.length === 0)
@@ -278,6 +392,7 @@ Palette {
             return one("all", rowsOf(matched[0], 50), total);
         const more = {
             "commands": n => qsTr("%n more commands", "", n),
+            "settings": n => qsTr("%n more settings", "", n),
             "servers": n => qsTr("%n more servers", "", n),
             "torrents": n => qsTr("%n more torrents", "", n)
         };
@@ -330,6 +445,9 @@ Palette {
         case "commands":
             return root.typed.length === 0 ? qsTr("%n commands", "", root.allCommands.length) : qsTr("%1 of %2").arg(
                                                  root.view.total).arg(root.allCommands.length);
+        case "settings":
+            return root.typed.length === 0 ? qsTr("%n settings", "", root.allSettings.length) : qsTr("%1 of %2").arg(
+                                                 root.view.total).arg(root.allSettings.length);
         case "servers":
             return qsTr("%n servers", "", (root.serverRows || []).length);
         case "torrents":
@@ -346,6 +464,8 @@ Palette {
             return qsTr("No kind matches “%1”.").arg(root.typed);
         case "commands":
             return qsTr("No command matches “%1”.").arg(root.typed);
+        case "settings":
+            return qsTr("No setting matches “%1”.").arg(root.typed);
         case "servers":
             return qsTr("No server matches “%1”.").arg(root.typed);
         case "torrents": // Fig. 12 has no line: the counter says 0
@@ -356,17 +476,19 @@ Palette {
     }
     filterable: root.only.length === 0
     footerRight: {
-        if (root.slash || root.scope === "servers")
+        if (root.slash || root.scope === "servers" || root.scope === "settings")
             return "";
         if (root.scope === "torrents")
             return qsTr("also matches hash and tracker");
         // C42 Z6: what typing adds to the commands.
         if (root.scope.length === 0 && root.typed.length === 0)
-            return qsTr("type to find torrents, servers");
+            return root.settings !== null ? qsTr("type to find settings, servers, torrents")
+                                          : qsTr("type to find torrents, servers");
         return qsTr("? lists every key");
     }
-    glyph: root.scope === "torrents" ? Glyphs.jump : root.scope === "servers" ? Glyphs.server : Glyphs.commands
-    // A torrent's or a server's `tab`, and a right-click on its row.
+    glyph: root.scope === "torrents" ? Glyphs.jump : root.scope === "servers" ? Glyphs.server
+                                                   : root.scope === "settings" ? Glyphs.settings : Glyphs.commands
+    // A torrent's, a server's or a setting's `tab`, and a right-click on its row.
     hasSecondary: root.only.length === 0
     hints: {
         const esc = {
@@ -404,6 +526,8 @@ Palette {
         // P3) there is nothing for `enter` to do.
         const words = {
             "commands": qsTr("run"),
+            // Board 63 S3. `tab` does the same for now, so it is not said twice (Z8).
+            "settings": qsTr("open in Settings"),
             "servers": qsTr("switch"),
             "torrents": qsTr("jump"),
             "more": qsTr("show")
@@ -460,7 +584,7 @@ Palette {
     // Board 63 Z3 draws it 560 wide; held to the servers it is docs/33's 520.
     paletteWidth: root.only.length > 0 ? Theme.space(520) : Theme.space(560)
     title: root.scope === "torrents" ? qsTr("jump to a torrent") : root.scope === "servers" ? qsTr("switch server")
-                                                                                         : root._title()
+                                     : root.scope === "settings" ? qsTr("find a setting") : root._title()
 
     // Every opening starts from an empty query: the last one's text would otherwise stay in
     // the row and the next name be typed after it.
@@ -485,6 +609,9 @@ Palette {
         case "torrents":
             root.jumpTo(item.key);
             root.close();
+            break;
+        case "settings":
+            root._showInSettings(item.key);
             break;
         case "servers":
             root.close();
@@ -517,6 +644,8 @@ Palette {
             root.close();
             // MainView answers it with Fig. 11 on that row.
             App.showActionsRequested(hash);
+        } else if (item.kind === "settings") {
+            root._showInSettings(item.key);
         } else if (item.kind === "servers") {
             const corner = root.panel.mapToItem(root, 0, 0);
             root.close();

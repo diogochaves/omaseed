@@ -4063,10 +4063,13 @@ Item {
 
         anchors.fill: parent
         scrollHint: App.railScrollHint
+        settings: settingsTable
         table: table
         z: 15
 
         onManageRequested: id => settingsModal.showServer(id)
+        // C42 Z7, Z8: a setting's `enter` and `tab` are Settings, on its row.
+        onSettingsRequested: id => settingsModal.openOn(id)
         onRunRequested: action => root.runCommand(action)
         // C26 SR14: the no-match row.
         onSearchRequested: text => root.openSearch(text)
