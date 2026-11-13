@@ -2582,3 +2582,55 @@ and board 33's server palette are drawn as before, now with a filter chip.
 
 Torrents are those of the server on show, as `App.jumpMatches()` gives them. Built in two
 steps: the merge of the three palettes (#265), then settings as rows (#266).
+
+## C43 — The story's quiet edits (board 58, ruled 2026-11-13)
+
+Board [58](58-the-storys-quiet-edits.html), #248, Y1–Y10 all as recommended. Filing edits and
+places the server changes become lines of the details pane's what happened story, as C38 made
+renames. **Amends** C38 R9 (`core/RenameHistory` becomes `core/StoryRecord`) and C24 H6
+(Added's category, Y5). C18 D7's words and the outcome strip are unchanged.
+
+- **Y1 a.** Story lines: a category (qBittorrent) or a label (Deluge); tags (qBittorrent) or
+  labels (Transmission); a location set outside omaseed; a move the server makes by itself.
+  Not lines (they stay in facts, files and trackers): speed and share limits, queue position,
+  file priorities, options (sequential, first and last, super seeding, automatic management),
+  trackers and web seeds.
+- **Y2 a.** The outcome strip's words, capitalised: **Put in NEW** · `was in OLD` or `had no
+  category`; **Taken out of its category** · `was in OLD`. Deluge: **Labelled NEW** · `was OLD`
+  or `had no label`; **Taken out of its label** · `was OLD`. An edit to a selection gives each
+  torrent its own line, with no count.
+- **Y3 a.** One line per edit: **Tagged A, B**, **Untagged C**, both at once **Tags changed** ·
+  `tagged … · untagged …` (Transmission: **Labelled**, **Unlabelled**, **Labels changed**).
+  Names in the tag list's order, the first three, then `and N more`.
+- **Y4 a.** The accent, as renames and moves (C38 R2). In code a new kind, `edit`, painted as
+  `move`; a move seen in a poll is a `move`.
+- **Y5 a.** Added's dim line names the category (or label) it came with: the oldest category
+  line's `was`. With no such line, the category now, as today. Tags stay out of Added; a
+  category or tag given in the add sheet is no line (C38 R8).
+- **Y6 a.** A new `save_path` no omaseed move made: **Moved to PATH** · `moved outside omaseed`
+  (C18 D7), at the poll that saw it; **Will land in PATH** while the torrent still waits in its
+  incomplete folder. The last-move block then reads "moved since outside omaseed: nothing to
+  move back". Not a move: omaseed's own move seen in a poll (a running job, or a record landed
+  in the last minute), a finish out of the incomplete folder, a magnet's first path.
+- **Y7 a.** A move the server makes by itself is the same line with its cause when omaseed can
+  tell it: `by its category NAME · automatic management` (qBittorrent), `by its label NAME`
+  (Deluge, as Will land in; Deluge moves it when it finishes). Transmission moves nothing by
+  itself. A category line and the move it causes in the same poll read the move above it.
+- **Y8 a.** Filing edits made outside omaseed get the same lines, the dim line ending in
+  `changed outside omaseed`. A category, label or tag that leaves the server's list in the
+  same poll reads `the category was removed` (`the label…`, `the tag…`) on every torrent that
+  had it. omaseed's own edit seen in the next poll (pending, or answered in the last minute) is
+  no second line. Edits while omaseed wasn't running, the first sync after start and a
+  torrent's first appearance are no line.
+- **Y9 a.** C38 R6's fold, per kind: category (or label) edits of one torrent within 10 minutes
+  with no line between are one line, the last one's time, the first one's `was`; a run back to
+  the start leaves none. Tag edits fold to their net change. Seen edits fold with each other,
+  never with omaseed's. Places never fold.
+- **Y10 a.** One record grows: `core/RenameHistory` becomes `core/StoryRecord`, its kinds gain
+  `category`, `tags` and `place` (`by` gains `server`, with a `cause`; `removed` for Y8;
+  `landed` false for Will land in). Saved where it is now, beside the move history per server;
+  C38's records read as before. Kept while the torrent is in the library; the last 10 per
+  torrent per kind (names, filing, places).
+
+Still to check in the build (the board's open points): the folder Deluge's Label plugin moves a
+torrent to (Y7, on the Deluge playground), and when qBittorrent changes `save_path` during a move.
