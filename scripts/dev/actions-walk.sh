@@ -521,21 +521,24 @@ disk_walk() {
     # DECISIONS C30 F12-F17: on a hybrid whose space-holding skipped files all have downloaded
     # pieces, only adding it again frees them, and the band, the palette and shift+f say so up
     # front; the size says what is still on disk.
-    step "Only adding it again frees them, hybrid" "b44-hybrid, its Files tab: c.bin and d.bin hold downloaded pieces, and a recheck on a hybrid hits libtorrent's bug (#115). The band keeps its title, says only adding it again frees them, and offers Add it again… F; Why? says hybrid. The files head: 2 skipped, 16.0 MB still on disk."
+    step "Only adding it again frees them, hybrid" "b44-hybrid, its Files tab: c.bin and d.bin hold downloaded pieces, and a recheck on a hybrid hits libtorrent's bug (#115). The band keeps its title, says only adding it again frees them, and offers Add it again… F; Why? says hybrid. The files head: 2 skipped, then what is still on disk as far as the pane leaves room (#189: at this width it is cut after the count; facts, next, has it whole)."
     table_on "b44-hybrid"
     keys l 2
     expect_text "the band shows on the hybrid" "2 skipped files hold"
     expect_read "the band says only adding it again frees them (F12)" "They were written while wanted, and pieces of them" "only adding it again frees them"
     expect_text "its action is Add it again (F12)" "Add it again…"
-    expect_read "the files head says what is still on disk (F17)" "hide skipped files" "MB still on disk"
+    # #189: the tail gives way before the facts, so this pane cuts it after "2 skipped,";
+    # the whole sentence is read in facts, the next step.
+    expect_read "the files head says how many are skipped (F17)" "hide skipped files" "2 skipped"
     click_text "Why?"
     expect_text "Why? says hybrid" "This torrent is hybrid (v1 and v2)"
-    shot "The band: 2 skipped files hold 16.0 MB, only adding it again frees them, Add it again… F, Why? open on hybrid; the files head 2 skipped, 16.0 MB still on disk." band
+    shot "The band: 2 skipped files hold 16.0 MB, only adding it again frees them, Add it again… F, Why? open on hybrid; the files head 2 skipped, its size cut short (#189)." band
     click_text "Why?"
 
     step "The size in facts" "5: facts, its Size row: 32.0 MB · 2 skipped, 16.0 MB still on disk (F17)."
     keys 5
-    expect_read "facts' size says what is still on disk (F17)" "Size" "still on disk"
+    # Up to "on": tesseract reads the line's last word as "dis k" at this size.
+    expect_read "facts' size says what is still on disk (F17)" "Size" "16.0 MB still on"
     shot "Facts: Size 32.0 MB · 2 skipped, 16.0 MB still on disk; Done, Ratio, then Status." facts
     keys 2
 
