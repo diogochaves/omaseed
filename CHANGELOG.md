@@ -5,6 +5,24 @@ All notable changes to omaseed are logged here, newest first. Loosely follows
 versioning stability (pre-1.0). `scripts/release.sh` requires a `## v<version>` section here
 before it will tag a release.
 
+## v0.12.0 — 2026-11-13
+
+### Added
+
+- **Settings in the palette.** `:` now finds settings too, as a fourth section between
+  commands and servers: omaseed's own and those of the server on show, as its engine offers
+  them, each with its value and where it lives ("Settings › Appearance"). `enter` on a switch
+  flips it and the palette stays open, so several can be changed in one visit; on a choice
+  (Skin, Start at login) it lists the options in the palette, `enter` uses one, `esc` goes
+  back; on anything else (a number, a path, a setting Settings confirms first) it opens
+  Settings on that row. `tab` on any setting shows it in Settings. `/se` and a space narrows
+  the palette to settings; `/s` alone now means settings, `/ser` servers, and `ctrl+s` still
+  opens on servers. (#266, DECISIONS C42 Z7)
+
+### Fixed
+
+- **A palette row with a long value keeps its title**: the value is cut, not the title.
+
 ## v0.11.0 — 2026-11-13
 
 ### Changed
