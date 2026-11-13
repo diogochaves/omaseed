@@ -20,6 +20,11 @@
 #   - Appearance › In the Omarchy menu (#216): on adds the block to the box's menu file;
 #     `omarchy menu summon torrents` › Speeds › Turtle turns the box qBittorrent's alternative
 #     limits on (set back after); off leaves the file as it was, byte for byte;
+#   - the everything palette's settings (#266, DECISIONS C42 Z7, Z8): `:` `/se` space `dht`,
+#     enter turns DHT off on the box qBittorrent with the palette still open, tab shows it in
+#     Settings (off there too), space there turns it back on; Skin's options listed in the
+#     palette, Console picked and Omarchy put back; `port`, enter on Listening port: Settings
+#     on that row;
 #   - the nine sections, one shot each;
 #   - Downloads › Send an email on: the encryption type's chips on a 5.3 server (enter picks
 #     the next, and back), Use SSL on 5.2; then off again;
@@ -331,6 +336,96 @@ check "the menu file back byte for byte" "$(menu_sum)" "$menu_before"
 step "In the Omarchy menu, off again" "The switch off; the box's menu file as it was."
 # shellcheck disable=SC2016 # expanded by the box's shell, from its argument
 omabox run -b "$BOX" -- sh -c 'rm -f "$1"; [ ! -e "$1.walk" ] || mv "$1.walk" "$1"' sh "$MENU_FILE"
+keys Escape Escape
+
+# ---- the everything palette's settings (board 63 S1–S3, DECISIONS C42 Z7, Z8, #266) ---------
+# in_tree TEXT: yes when omaseed's accessibility tree has TEXT, else no.
+in_tree() {
+    local tree
+    tree="$(omabox tree -b "$BOX" --window omaseed 2>/dev/null || true)"
+    case "$tree" in *"$1"*) echo yes ;; *) echo no ;; esac
+}
+
+# wait_tree TEXT: until in_tree TEXT (10 s).
+wait_tree() {
+    for _ in $(seq 1 40); do
+        [ "$(in_tree "$1")" = yes ] && return 0
+        sleep 0.25
+    done
+    return 0
+}
+
+# palette_settings QUERY: the palette (:) held to settings (/se, space sets the chip: unfiltered,
+# a command can outrank a setting), QUERY typed.
+palette_settings() {
+    keys colon -s 600ms -t "/se" space -s 300ms -t "$1" -s 800ms
+}
+
+# A switch (Z7): enter flips it on the server and the palette stays; tab (Z8) shows it in
+# Settings, where space flips it back, so the pane's cursor is on that row.
+check "DHT on before the palette" "$(pref dht)" true
+palette_settings dht
+wait_tree 'list item "DHT"'
+check "the palette finds DHT" "$(in_tree 'list item "DHT" [selected]')" yes
+check "enter would turn it off" "$(in_tree 'label "turn off"')" yes
+step "The palette: a switch" "board 63 S1: the settings chip and dht typed: one row, DHT, its switch on and the word on at its right, Settings › qBittorrent › Discovery and privacy under it. Hints: ↑↓ move, enter turn off, tab show in Settings, shift+tab kind, esc clear."
+keys Return
+wait_pref dht false
+check "enter in the palette turns DHT off on the server" "$(pref dht)" false
+wait_tree 'label "turn on"'
+check "the palette stays open, the row now off" "$(in_tree 'label "turn on"')" yes
+keys Tab
+wait_tree 'check box "DHT" [unchecked]'
+check "tab shows it in Settings, off there too" "$(in_tree 'check box "DHT" [unchecked]')" yes
+check "the palette is gone" "$(in_tree 'find a setting')" no
+step "The switch, read back in Settings" "Settings › qBittorrent › Discovery and privacy, the cursor on DHT, its switch off; Bootstrap nodes under it dimmed."
+keys space
+wait_pref dht true
+check "space on the pane's cursor row turns DHT back on" "$(pref dht)" true
+keys Escape Escape
+
+# A choice (Z7): enter lists its options in the palette; one picked, the matches are back.
+palette_settings skin
+wait_tree 'list item "Skin"'
+keys Return
+wait_tree 'list item "Omarchy, in use"'
+check "enter on Skin lists its options" "$(in_tree 'list item "Omarchy, in use" [selected]')" yes
+step "The palette: a choice" "board 63 S2: Skin in the query row, 3 options: Omarchy (in use, the cursor), Console, follow the desktop. Hints: ↑↓ move, enter use, esc back; Settings › Appearance at the right."
+keys Down Return
+wait_skin console
+check "Console picked in the palette, saved" "$(saved_skin)" console
+check "Console drawn at once" "$(drawn_skin)" "console (choice console, fonts the skin's)"
+wait_tree 'list item "Skin"'
+check "back on the matches, the palette open" "$(in_tree 'list item "Skin" [selected]')" yes
+keys Return
+wait_tree 'list item "Console, in use"'
+keys Up Return
+wait_skin omarchy
+wait_saved omarchy
+check "Omarchy put back from the palette" "$(saved_skin)" omarchy
+keys Escape Escape
+
+# A value the pane edits (Z7): enter opens Settings on its row. "port" finds a dozen settings,
+# the best title first; the cursor goes down to Listening port, wherever it is listed.
+palette_settings port
+wait_tree 'list item "Listening port"'
+palette_rows="$(omabox tree -b "$BOX" --window omaseed 2>/dev/null | sed -n '/list "find a setting"/,$p' || true)"
+downs="$(awk '/list item "Listening port"/ { print n + 0; found = 1; exit } /list item/ { n++ } END { if (!found) print -1 }' <<<"$palette_rows")"
+check "port finds Listening port" "$([ "$downs" -ge 0 ] && echo yes || echo no)" yes
+step "The palette: a value" "board 63 S3: the settings chip and port typed: every setting with port in its title, Listening port among them with the box's port at its right and Settings › qBittorrent › Connection under it; no switch on a row with a number. Hints: enter open in Settings, tab show in Settings."
+for _ in $(seq 1 "$downs"); do
+    keys Down
+done
+keys Return
+wait_tree 'list item "Connection" [selected]'
+check "enter opens Settings on Connection" "$(in_tree 'list item "Connection" [selected]')" yes
+check "the palette is gone" "$(in_tree 'find a setting')" no
+step "Landed on Listening port" "Settings › qBittorrent › Connection, the cursor (the outlined row) on Listening port, the first row."
+# enter on the pane's cursor row edits its field: the cursor is on Listening port.
+keys Return
+wait_tree "text '$(pref listen_port)' [focused editable]"
+check "the pane's cursor is on Listening port" "$(in_tree "text '$(pref listen_port)' [focused editable]")" yes
+keys Escape
 keys Escape Escape
 
 # ---- the nine sections ----------------------------------------------------------------------
