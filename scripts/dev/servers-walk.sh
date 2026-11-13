@@ -322,9 +322,9 @@ check "the box's keyring holds private's password" keyring_has "$private_id"
 keys Escape -s 1500ms
 step "Empty public, two servers" "docs/33 E1, D6: the rail is its mark and views, no filters, and the servers block pinned at its bottom on its band (servers · 2 ▾, ● public selected, ● private faint, never seen); the body: No torrents on public yet, then a, ctrl+s switch server, , and ?. The status line's lane reads ● public · qBittorrent and its version, then ▾; no key hints in the line, only ? keys at its right (C24 H10)."
 
-# ---- switch: ctrl+s, the server palette (D2) -----------------------------------------------
+# ---- switch: ctrl+s, the palette held to servers (D2, C42 Z5) ----------------------------
 keys ctrl+s -s 800ms
-step "The server palette" "docs/33 S1: switch server · 2 servers; public first, on it now, 127.0.0.1:8090 · 0 torrents · qBittorrent 5.2.3; private under it with the cursor, 127.0.0.1:8091 · not seen yet. Hints: ↑↓ move, enter switch, , manage servers, esc close."
+step "The palette, servers" "docs/33 S1, C42 Z5: the one palette with its servers chip, switch server · 2 servers; public first, on it now, 127.0.0.1:8090 · 0 torrents · qBittorrent 5.2.3; private under it with the cursor, 127.0.0.1:8091 · not seen yet. Hints: ↑↓ move, enter switch, tab menu, , manage servers, shift+tab kind, esc close."
 keys Return -s 2500ms
 step "Switched to private" "The status line's lane says private · qBittorrent and its version, then ▾; the table has private's five torrents (tiny-notes, Ünïcødé, Field Recordings, Nested Library Sampler, Sketchbook Scans (v1)); the rail's filters above, its servers block pinned below with private selected and its count, public 0 (seen just now)."
 check "servers.json: private is the default" servers_are "public private" private
@@ -340,9 +340,9 @@ step "Stopped on private" "tiny-notes.txt reads completed (a finished torrent, s
 "$APP_BOX" restart -b "$BOX" >/dev/null
 step "Private after a restart" "Straight back to private's five torrents (tiny-notes still completed, resting 1 in the rail), signed in from the keyring: no first run, no banner, the status line says private."
 
-# ---- the status line's server lane (D3, C24 H15), the command palette (D4) ------------------
+# ---- the status line's server lane (D3, C24 H15), the palette's commands (D4) -----------------
 if click_text "switch server"; then
-    step "The status line's server lane" "docs/33 S2, C24 H15: a click on private · qBittorrent … ▾ at the status line's left opened the server palette, the cursor on public."
+    step "The status line's server lane" "docs/33 S2, C24 H15: a click on private · qBittorrent … ▾ at the status line's left opened the palette on its servers (the servers chip), the cursor on public."
     keys Escape -s 600ms
     # The pointer off the status line, so its tooltip stays out of the next shots.
     omabox pointer -b "$BOX" -- move 960 1000 >/dev/null
@@ -350,7 +350,7 @@ else
     check "the status line's server lane is in the window's accessibility tree" false
 fi
 keys colon -s 600ms -t switch -s 800ms
-step "Command palette: switch" "docs/33 S3: switch server… (ctrl+s, app · 2 servers) and switch to public (app · 0 torrents last time)."
+step "The palette: switch" "docs/33 S3, C42 Z1: : and \"switch\" typed, no chip: switch server… (ctrl+s, app · 2 servers) and switch to public (app · 0 torrents last time). Only commands match (no server or torrent is named switch), so no section heading: 2 matches, enter run, shift+tab kind."
 keys Escape -s 300ms Escape -s 600ms
 
 # ---- fold the servers block (D17) ----------------------------------------------------------
@@ -366,7 +366,7 @@ keys l -s 300ms
 keys a -s 1000ms ctrl+a -t /home/sbx/sampler.torrent -s 1500ms
 step "Add sheet on private" "docs/33 A1: the head reads Add torrent to [● private ▾], Public Domain Sampler · … · its size; no server: NAME and no key hints in the foot (C24 H10: ctrl+s is in the ? sheet); save to's placeholder private's default."
 keys ctrl+s -s 800ms
-step "Server palette over the sheet" "D14: the server palette over the add sheet, the cursor on public."
+step "The palette's servers over the sheet" "D14: the palette held to servers over the add sheet (no chip, no tab menu, no shift+tab kind: only servers here), the cursor on public."
 keys Return -s 4000ms
 step "Sheet moved to public" "D14 (A2): the sheet is still open with the same file; its head reads Add torrent to [● public ▾]; a yellow line: Moved to public: save path back to its default. The status line behind says public."
 check "servers.json: the sheet moved the app to public" servers_are "public private" public
@@ -471,7 +471,7 @@ fi
 keys p -s 800ms
 step "The guard says why" "D23, docs/44 D11: p did nothing, and the status line's note says private isn't answering: p waits until it answers."
 keys ctrl+s -s 800ms
-step "Switching away while down" "D4: ctrl+s went through the read-only guard: the server palette, private on it now with isn't answering, the cursor on public, 1 torrent."
+step "Switching away while down" "D4: ctrl+s went through the read-only guard: the palette on its servers, private on it now with isn't answering, the cursor on public, 1 torrent."
 keys Escape -s 600ms
 omabox run -b "$BOX" -- pkill -CONT -f qbittorrent-private >/dev/null
 sleep 15
