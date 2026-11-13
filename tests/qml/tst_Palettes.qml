@@ -24,7 +24,8 @@ TestCase {
         filtered: App.filtered
     }
 
-    JumpPalette {
+    // The everything palette on its torrents (DECISIONS C42 Z5): Fig. 12's jump palette.
+    EverythingPalette {
         id: jumpPalette
 
         anchors.fill: parent
@@ -106,14 +107,14 @@ TestCase {
 
     // ---- jump (ctrl+k, Fig. 12) ---------------------------------------------------------
     function test_jump_matches_by_a_fuzzy_name_hit() {
-        jumpPalette.open();
+        jumpPalette.openFor("torrents");
         jumpPalette.query = "bunny";
         compare(jumpPalette.items.length, 1, "only Big Buck Bunny should match");
         verify(jumpPalette.items[0].title.indexOf("Bunny") >= 0);
     }
 
     function test_jump_matches_by_hash_and_tracker_too() {
-        jumpPalette.open();
+        jumpPalette.openFor("torrents");
         const hash = App.filtered.hashAt(0);
         jumpPalette.query = hash.substring(0, 8);
         verify(jumpPalette.items.length >= 1, "a hash prefix should match its own torrent");
@@ -127,7 +128,7 @@ TestCase {
         App.filtered.text = "archlinux";
         verify(App.filtered.rowOfHash(hashFor("Bunny")) < 0, "the fixture is not hiding it");
 
-        jumpPalette.open();
+        jumpPalette.openFor("torrents");
         jumpPalette.query = "bunny";
         jumpPalette.activate();
 
@@ -137,7 +138,7 @@ TestCase {
     }
 
     function test_jump_tab_jumps_and_asks_for_the_actions_menu() {
-        jumpPalette.open();
+        jumpPalette.openFor("torrents");
         jumpPalette.query = "bunny";
         keyClick(Qt.Key_Tab);
 
@@ -149,7 +150,7 @@ TestCase {
 
     // A right-click on a row is that row's `tab`: jump there and ask for its actions menu.
     function test_jump_right_click_is_tab_on_that_row() {
-        jumpPalette.open();
+        jumpPalette.openFor("torrents");
         jumpPalette.query = "bunny";
         waitForRendering(jumpPalette.listView, 500);
         const row = jumpPalette.listView.itemAtIndex(0);

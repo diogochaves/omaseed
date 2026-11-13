@@ -44,7 +44,7 @@ TestCase {
 
     function init() {
         App.loadDemo(16); // the demo's own log, whatever the last case added
-        view.commandPalette.close();
+        view.everythingPalette.close();
         view.sortPalette.close();
         view.helpOpen = false;
         view.setView("library");
@@ -504,13 +504,13 @@ TestCase {
     function test_the_palette_lists_the_log_commands_on_its_face() {
         testCase.openLog();
         keyClick(":");
-        verify(view.commandPalette.opened);
-        compare(view.commandPalette.title, "commands for the log");
-        compare(view.commandPalette.items[0].group, "log");
-        verify(view.commandPalette.items.some(row => row.action === "toggleLog" && row.title === "back from the log"));
+        verify(view.everythingPalette.opened);
+        compare(view.everythingPalette.title, "commands for the log");
+        compare(view.everythingPalette.items[0].group, "log");
+        verify(view.everythingPalette.items.some(row => row.action === "toggleLog" && row.title === "back from the log"));
         // Board 51 D5 a: export log… has no key; the palette has it.
-        verify(view.commandPalette.items.some(row => row.action === "logExport" && row.title === "export log…"));
-        view.commandPalette.close();
+        verify(view.everythingPalette.items.some(row => row.action === "logExport" && row.title === "export log…"));
+        view.everythingPalette.close();
         // And it runs: `G` by name.
         testCase.logView.moveCursor(0);
         verify(view.runAction("logNewest"));

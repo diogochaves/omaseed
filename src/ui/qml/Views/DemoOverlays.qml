@@ -101,12 +101,12 @@ Window {
 
     // Fig. 12 — jump to torrent.
     Palette {
-        accessibleName: qsTr("jump to a torrent") // as JumpPalette's (#91)
+        accessibleName: qsTr("jump to a torrent") // as the palette on torrents (#91)
         anchors.fill: parent
         counter: qsTr("2 of 142")
         footerRight: qsTr("also matches hash and tracker")
         glyph: Glyphs.search
-        metaSpoken: true // as JumpPalette's (#79)
+        metaSpoken: true // as the palette on torrents (#79)
         hints: [
             {
                 "key": "↑↓",

@@ -30,7 +30,6 @@ qt_add_qml_module(omaseed-views
         CertificateTrust.qml
         ChipSelect.qml
         ColumnsPalette.qml
-        CommandPalette.qml
         Console.qml
         ConsoleHead.qml
         ConsoleRow.qml
@@ -73,11 +72,11 @@ qt_add_qml_module(omaseed-views
         DuplicateSheet.qml
         EngineBackupPane.qml
         EmptyState.qml
+        EverythingPalette.qml
         FilteredEmpty.qml
         FirstRunPage.qml
         GlobalLimitsSheet.qml
         HelpSheet.qml
-        JumpPalette.qml
         LibraryGroupHead.qml
         LibraryRow.qml
         LibraryRows.qml
@@ -120,7 +119,6 @@ qt_add_qml_module(omaseed-views
         SearchView.qml
         SeedToast.qml
         SelectionBar.qml
-        ServerPalette.qml
         ServerSelect.qml
         ServerSheet.qml
         SettingsModal.qml

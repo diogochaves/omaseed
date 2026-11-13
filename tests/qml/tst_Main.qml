@@ -73,13 +73,12 @@ TestCase {
         view.renameSheetPanel.close();
         view.detailsAddSheet.close();
         view.banPeerConfirm.close();
-        view.jumpPalette.close();
+        view.everythingPalette.close();
         view.categoryPalette.close();
         view.tagPalette.close();
         view.barListMenu.close();
         view.sortPalette.close();
         view.columnsPalette.close();
-        view.commandPalette.close();
         view.appMenu.close();
         view.globalLimitsSheet.close();
         view.createSheet.close();
@@ -247,7 +246,7 @@ TestCase {
         const lane = view.statusLine.serverLane;
         compare(lane.Accessible.role, Accessible.StaticText);
         mouseClick(lane);
-        verify(!view.serverPalette.opened, "one server opened the palette");
+        verify(!view.everythingPalette.opened, "one server opened the palette");
         keyClick(Qt.Key_S, Qt.ControlModifier);
         compare(view.footerNote, "one server · add another in Settings › Servers");
         view.footerNote = "";
@@ -656,11 +655,11 @@ TestCase {
         keyClick(Qt.Key_K, Qt.ControlModifier);
         keyClick("f");
         keyClick("e");
-        compare(view.jumpPalette.query, "fe");
+        compare(view.everythingPalette.query, "fe");
         keyClick(Qt.Key_Return);
-        compare(view.jumpPalette.opened, false);
+        compare(view.everythingPalette.opened, false);
         keyClick(Qt.Key_K, Qt.ControlModifier);
-        compare(view.jumpPalette.query, "");
+        compare(view.everythingPalette.query, "");
     }
 
     // The details pane takes bare letters (`k` moves its cursor), but ctrl chords still
@@ -668,7 +667,7 @@ TestCase {
     function test_ctrl_chords_pass_through_the_details_pane() {
         view.details.forceActiveFocus();
         keyClick(Qt.Key_K, Qt.ControlModifier);
-        compare(view.jumpPalette.opened, true, "ctrl+k in the details pane did not open jump");
+        compare(view.everythingPalette.opened, true, "ctrl+k in the details pane did not open jump");
     }
 
     // docs/08 §4: `ctrl+,` is the desktop's settings key, so it opens them too.
@@ -705,8 +704,8 @@ TestCase {
         const row = view.appMenu.items.find(item => item.action === "commands");
         compare(row.key, ":");
         view.appMenuAction("commands");
-        compare(view.commandPalette.opened, true);
-        view.commandPalette.close();
+        compare(view.everythingPalette.opened, true);
+        view.everythingPalette.close();
         verify(view.helpSheetPanel.subtitle.endsWith(": runs any of them by name"));
     }
 
@@ -1313,7 +1312,7 @@ TestCase {
         // `Kit/Palette` leaves ctrl chords and `i` unaccepted; they used to travel on to the
         // window and open a second overlay underneath the first.
         keyClick(Qt.Key_K, Qt.ControlModifier);
-        compare(view.jumpPalette.opened, false, "ctrl+k opened a palette under the palette");
+        compare(view.everythingPalette.opened, false, "ctrl+k opened a palette under the palette");
         const collapsed = view.details.collapsed;
         keyClick("i");
         compare(view.details.collapsed, collapsed, "`i` reached the window under the palette");
@@ -1377,7 +1376,7 @@ TestCase {
                                       "the actions menu");
         testCase._checkFocusComesBack(() => keyClick("s"), view.sortPalette, "the sort palette");
         testCase._checkFocusComesBack(() => keyClick(Qt.Key_K, Qt.ControlModifier),
-                                      view.jumpPalette, "the jump palette");
+                                      view.everythingPalette, "the jump palette");
         testCase._checkFocusComesBack(() => keyClick("d"), view.deleteConfirmPanel,
                                       "the delete confirm");
         // The move sheet opens with the torrent's save path already in its field.
@@ -1452,7 +1451,7 @@ TestCase {
         testCase._checkFooterStandsAside(() => keyClick("s"), view.sortPalette,
                                          "the sort palette");
         testCase._checkFooterStandsAside(() => keyClick(Qt.Key_K, Qt.ControlModifier),
-                                         view.jumpPalette, "the jump palette");
+                                         view.everythingPalette, "the jump palette");
         testCase._checkFooterStandsAside(() => keyClick("d"), view.deleteConfirmPanel,
                                          "the delete confirm");
         testCase._checkFooterStandsAside(() => keyClick(Qt.Key_Return), view.actionsMenuPanel,
@@ -1479,7 +1478,7 @@ TestCase {
         verify(hash.length > 0);
         verify(view.table.cursorHash !== hash);
 
-        // What `JumpPalette`'s `tab` raises once it has closed itself.
+        // What the palette's `tab` on a torrent raises once it has closed itself.
         App.showActionsRequested(hash);
 
         compare(view.table.cursorHash, hash, "the cursor did not land on the row");
@@ -1753,7 +1752,7 @@ TestCase {
         const hash = App.filtered.hashAt(2);
         view.titleBar.searchField.text = "archlinux";
         verify(App.filtered.rowOfHash(hash) < 0 || App.filtered.hashAt(0) === hash);
-        view.jumpPalette.jumpTo(hash);
+        view.everythingPalette.jumpTo(hash);
         compare(view.cursorHash, hash);
         compare(App.filtered.text, "");
         compare(view.titleBar.searchField.text, "", "the title bar kept a word that no longer filters");
@@ -1892,13 +1891,13 @@ TestCase {
     function test_colon_opens_the_command_palette_from_the_table() {
         view.table.toggleCursorSelection();
         keyClick(":");
-        compare(view.commandPalette.opened, true, ": did not open the command palette");
-        compare(view.activeOverlay, view.commandPalette);
-        compare(view.commandPalette.context.area, "table");
-        compare(view.commandPalette.title, "commands for 1 selected");
-        compare(view.commandPalette.query, "", "the : was typed into the query");
+        compare(view.everythingPalette.opened, true, ": did not open the command palette");
+        compare(view.activeOverlay, view.everythingPalette);
+        compare(view.everythingPalette.context.area, "table");
+        compare(view.everythingPalette.title, "commands for 1 selected");
+        compare(view.everythingPalette.query, "", "the : was typed into the query");
         keyClick(Qt.Key_Escape);
-        compare(view.commandPalette.opened, false);
+        compare(view.everythingPalette.opened, false);
         verify(view.table.activeFocus, "the keyboard did not come back to the table");
     }
 
@@ -1908,18 +1907,18 @@ TestCase {
         keyClick("/");
         verify(view.titleBar.searchField.editing);
         keyClick(Qt.Key_P, Qt.ControlModifier | Qt.ShiftModifier);
-        compare(view.commandPalette.opened, true, "ctrl+shift+p did not open it from the field");
-        view.commandPalette.close();
+        compare(view.everythingPalette.opened, true, "ctrl+shift+p did not open it from the field");
+        view.everythingPalette.close();
         view.focusHome();
 
         testCase._cursorOn("Big Buck Bunny 4K (CC-BY)");
         view.details.activateTab(1);
         view.details.forceActiveFocus();
         keyClick(":");
-        compare(view.commandPalette.opened, true);
-        compare(view.commandPalette.context.area, "files");
-        compare(view.commandPalette.items[0].action, "priorityMenu");
-        view.commandPalette.close();
+        compare(view.everythingPalette.opened, true);
+        compare(view.everythingPalette.context.area, "files");
+        compare(view.everythingPalette.items[0].action, "priorityMenu");
+        view.everythingPalette.close();
         view.details.activateTab(view.details.tabStory);
     }
 
@@ -1927,26 +1926,41 @@ TestCase {
     function test_a_command_runs_and_is_remembered() {
         keyClick(":");
         testCase._type("set location");
-        compare(view.commandPalette.currentItem.action, "location");
+        compare(view.everythingPalette.currentItem.action, "location");
         keyClick(Qt.Key_Return);
-        compare(view.commandPalette.opened, false);
+        compare(view.everythingPalette.opened, false);
         compare(view.moveSheet.opened, true, "move… did not run (found by its old name)");
         view.moveSheet.close();
         compare(App.recentCommands()[0], "location");
         keyClick(":");
-        compare(view.commandPalette.items[0].action, "location");
-        view.commandPalette.close();
+        compare(view.everythingPalette.items[0].action, "location");
+        view.everythingPalette.close();
     }
 
-    // P4: no match, and enter opens the jump palette with the text.
-    function test_no_match_opens_the_jump_palette_with_the_text() {
+    // DECISIONS C42 Z1, Z11: a torrent's name typed after `:` finds the torrent (C1 D8's row
+    // to the jump palette is gone), and enter jumps to it.
+    function test_a_torrents_name_after_colon_jumps_to_it() {
         keyClick(":");
+        compare(view.everythingPalette.chip, "");
         testCase._type("bunny");
+        compare(view.everythingPalette.items.length, 1);
+        compare(view.everythingPalette.items[0].kind, "torrents");
         keyClick(Qt.Key_Return);
-        compare(view.commandPalette.opened, false);
-        compare(view.jumpPalette.opened, true);
-        compare(view.jumpPalette.query, "bunny");
-        view.jumpPalette.close();
+        compare(view.everythingPalette.opened, false);
+        compare(view.cursorHash, App.jumpMatches("bunny", 1)[0].key);
+    }
+
+    // C42 Z5: `ctrl+k` opens it on torrents, and backspace widens it to every kind, whose
+    // commands know what the window showed.
+    function test_ctrl_k_opens_on_torrents_and_backspace_widens() {
+        view.table.toggleCursorSelection();
+        keyClick(Qt.Key_K, Qt.ControlModifier);
+        compare(view.everythingPalette.chip, "torrents");
+        compare(view.everythingPalette.title, "jump to a torrent");
+        keyClick(Qt.Key_Backspace);
+        compare(view.everythingPalette.chip, "");
+        compare(view.everythingPalette.title, "commands for 1 selected");
+        view.everythingPalette.close();
     }
 
     // P6: the lost server's guard lets : through, and the palette shows the rest dim.
@@ -1954,18 +1968,18 @@ TestCase {
         view._testServerLost = true;
         view.focusHome();
         keyClick(":");
-        compare(view.commandPalette.opened, true, ": did not get through the read-only guard");
-        compare(view.commandPalette.items[0].action, "settings");
-        compare(view.commandPalette.items.filter(row => !row.disabled).length, 4);
-        view.commandPalette.close();
+        compare(view.everythingPalette.opened, true, ": did not get through the read-only guard");
+        compare(view.everythingPalette.items[0].action, "settings");
+        compare(view.everythingPalette.items.filter(row => !row.disabled).length, 4);
+        view.everythingPalette.close();
         view._testServerLost = false;
     }
 
     // D9: the ? sheet's row for the palette runs it.
     function test_the_help_sheet_row_opens_the_palette() {
         compare(view.runAction("commands"), true);
-        compare(view.commandPalette.opened, true);
-        view.commandPalette.close();
+        compare(view.everythingPalette.opened, true);
+        view.everythingPalette.close();
     }
 
     // P6, Fig. 23: only settings, shortcuts, hide and quit get through a lost server.
@@ -1987,7 +2001,7 @@ TestCase {
         view.rail.forceActiveFocus();
         const cursor = view.rail.cursorIndex;
         keyClick(Qt.Key_K, Qt.ControlModifier);
-        compare(view.jumpPalette.opened, true, "ctrl+k in the rail did not open jump");
+        compare(view.everythingPalette.opened, true, "ctrl+k in the rail did not open jump");
         compare(view.rail.cursorIndex, cursor, "ctrl+k moved the rail's cursor");
     }
 
@@ -2409,7 +2423,7 @@ TestCase {
     }
 
     function _noServers() {
-        view.serverPalette.close();
+        view.everythingPalette.close();
         while (App.serverList.count > 0)
             App.serverList.remove(App.serverList.idAt(0));
     }
@@ -2418,7 +2432,7 @@ TestCase {
     function test_ctrl_s_with_one_server_answers_in_the_footer() {
         testCase._noServers();
         keyClick(Qt.Key_S, Qt.ControlModifier);
-        compare(view.serverPalette.opened, false);
+        compare(view.everythingPalette.opened, false);
         compare(view.footerNote, "one server · add another in Settings › Servers");
         verify(!view.statusLine.serverSwitchable);
     }
@@ -2437,25 +2451,41 @@ TestCase {
         verify(view.statusLine.serverTipText.endsWith("\nswitch server · ctrl+s"),
                view.statusLine.serverTipText);
         mouseClick(lane);
-        compare(view.serverPalette.opened, true);
-        view.serverPalette.close();
+        compare(view.everythingPalette.opened, true);
+        view.everythingPalette.close();
         view.focusHome();
         keyClick(Qt.Key_S, Qt.ControlModifier);
-        compare(view.serverPalette.opened, true);
-        compare(view.serverPalette.items.length, 2);
-        compare(view.serverPalette.items.map(row => row.title), ["public", "private"]);
+        compare(view.everythingPalette.opened, true);
+        compare(view.everythingPalette.chip, "servers");
+        compare(view.everythingPalette.items.length, 2);
+        compare(view.everythingPalette.items.map(row => row.title), ["public", "private"]);
         // The cursor starts on the next one.
-        compare(view.serverPalette.cursorIndex, 1);
-        verify(view.serverPalette.items[1].detail.indexOf("10.99.0.3:8080") === 0);
+        compare(view.everythingPalette.cursorIndex, 1);
+        verify(view.everythingPalette.items[1].detail.indexOf("10.99.0.3:8080") === 0);
         // `,` hands it to Settings › Servers on the cursor's row.
         keyClick(Qt.Key_Comma);
-        compare(view.serverPalette.opened, false);
+        compare(view.everythingPalette.opened, false);
         compare(view.settingsModal.opened, true);
         compare(view.settingsModal.paneIndex, 1);
         view.settingsModal.close();
         // Settings remembers where it was; the next case expects it as it starts.
         view.settingsModal.showPane(0);
         view.settingsModal.area = "nav";
+        testCase._noServers();
+    }
+
+    // DECISIONS C42 Z8: tab on a server in the palette opens its menu, the one the rail opens.
+    function test_tab_on_a_palette_server_opens_its_menu() {
+        testCase._twoServers();
+        view.focusHome();
+        keyClick(Qt.Key_S, Qt.ControlModifier);
+        const id = view.everythingPalette.currentItem.key;
+        keyClick(Qt.Key_Tab);
+        compare(view.everythingPalette.opened, false);
+        compare(view.serverMenuPanel.opened, true);
+        compare(view.serverMenuPanel.serverId, id);
+        compare(view.activeOverlay, view.serverMenuPanel);
+        view.serverMenuPanel.close();
         testCase._noServers();
     }
 
@@ -2542,8 +2572,8 @@ TestCase {
         verify(Qt.colorEqual(view.statusLine.dotColor, view.serverRetrying ? Theme.yellow : Theme.red));
         verify(/^(list from \d\d:\d\d|not synced yet)$/.test(view.factsText), view.factsText);
         keyClick(Qt.Key_S, Qt.ControlModifier);
-        compare(view.serverPalette.opened, true);
-        view.serverPalette.close();
+        compare(view.everythingPalette.opened, true);
+        view.everythingPalette.close();
         view._testServerLost = false;
         testCase._noServers();
     }

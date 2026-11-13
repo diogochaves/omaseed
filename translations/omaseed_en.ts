@@ -43,41 +43,6 @@
     </message>
 </context>
 <context>
-    <name>CommandPalette</name>
-    <message numerus="yes">
-        <location filename="../src/ui/qml/Views/CommandPalette.qml" line="+71"/>
-        <source>commands for %n marked files</source>
-        <translation>
-            <numerusform>commands for %n marked file</numerusform>
-            <numerusform>commands for %n marked files</numerusform>
-        </translation>
-    </message>
-    <message numerus="yes">
-        <location line="+2"/>
-        <source>commands for %n marked</source>
-        <translation>
-            <numerusform>commands for %n marked</numerusform>
-            <numerusform>commands for %n marked</numerusform>
-        </translation>
-    </message>
-    <message numerus="yes">
-        <location line="+2"/>
-        <source>commands for %n selected</source>
-        <translation>
-            <numerusform>commands for %n selected</numerusform>
-            <numerusform>commands for %n selected</numerusform>
-        </translation>
-    </message>
-    <message numerus="yes">
-        <location line="+6"/>
-        <source>%n commands</source>
-        <translation>
-            <numerusform>%n command</numerusform>
-            <numerusform>%n commands</numerusform>
-        </translation>
-    </message>
-</context>
-<context>
     <name>Details</name>
     <message numerus="yes">
         <location filename="../src/ui/qml/Views/Details.qml" line="+1725"/>
@@ -187,6 +152,105 @@
     </message>
 </context>
 <context>
+    <name>EverythingPalette</name>
+    <message numerus="yes">
+        <location filename="../src/ui/qml/Views/EverythingPalette.qml" line="+207"/>
+        <source>%n that make sense now</source>
+        <translation>
+            <numerusform>%n that makes sense now</numerusform>
+            <numerusform>%n that make sense now</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <location line="+1"/>
+        <source>%n saved</source>
+        <translation>
+            <numerusform>%n saved</numerusform>
+            <numerusform>%n saved</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <location line="+72"/>
+        <source>%n more commands</source>
+        <translation>
+            <numerusform>%n more command</numerusform>
+            <numerusform>%n more commands</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <location line="+1"/>
+        <source>%n more servers</source>
+        <translation>
+            <numerusform>%n more server</numerusform>
+            <numerusform>%n more servers</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <location line="+1"/>
+        <source>%n more torrents</source>
+        <translation>
+            <numerusform>%n more torrent</numerusform>
+            <numerusform>%n more torrents</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <location line="+33"/>
+        <source>commands for %n marked files</source>
+        <translation>
+            <numerusform>commands for %n marked file</numerusform>
+            <numerusform>commands for %n marked files</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <location line="+2"/>
+        <source>commands for %n marked</source>
+        <translation>
+            <numerusform>commands for %n marked</numerusform>
+            <numerusform>commands for %n marked</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <location line="+2"/>
+        <source>commands for %n selected</source>
+        <translation>
+            <numerusform>commands for %n selected</numerusform>
+            <numerusform>commands for %n selected</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <location line="+10"/>
+        <source>%n kinds</source>
+        <translation>
+            <numerusform>%n kind</numerusform>
+            <numerusform>%n kinds</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <location line="+2"/>
+        <source>%n commands</source>
+        <translation>
+            <numerusform>%n command</numerusform>
+            <numerusform>%n commands</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <location line="+3"/>
+        <source>%n servers</source>
+        <translation>
+            <numerusform>%n server</numerusform>
+            <numerusform>%n servers</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <location line="+4"/>
+        <source>%n matches</source>
+        <translation>
+            <numerusform>%n match</numerusform>
+            <numerusform>%n matches</numerusform>
+        </translation>
+    </message>
+</context>
+<context>
     <name>FreeSpaceSheet</name>
     <message numerus="yes">
         <location filename="../src/ui/qml/Views/FreeSpaceSheet.qml" line="+258"/>
@@ -228,7 +292,7 @@
 <context>
     <name>MainView</name>
     <message numerus="yes">
-        <location filename="../src/ui/qml/Views/MainView.qml" line="+723"/>
+        <location filename="../src/ui/qml/Views/MainView.qml" line="+717"/>
         <source>%n skipped hold %1</source>
         <translation>
             <numerusform>%n skipped holds %1</numerusform>
@@ -269,7 +333,7 @@
         </translation>
     </message>
     <message numerus="yes">
-        <location line="+804"/>
+        <location line="+814"/>
         <source>renamed %n files</source>
         <translation>
             <numerusform>renamed %n file</numerusform>
@@ -377,17 +441,6 @@
         <translation>
             <numerusform>%n torrent</numerusform>
             <numerusform>%n torrents</numerusform>
-        </translation>
-    </message>
-</context>
-<context>
-    <name>ServerPalette</name>
-    <message numerus="yes">
-        <location filename="../src/ui/qml/Views/ServerPalette.qml" line="+46"/>
-        <source>%n servers</source>
-        <translation>
-            <numerusform>%n server</numerusform>
-            <numerusform>%n servers</numerusform>
         </translation>
     </message>
 </context>

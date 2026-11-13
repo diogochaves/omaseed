@@ -78,7 +78,7 @@ Palette {
 
     readonly property var _rows: {
         // `App.categories.count` is a real NOTIFY-backed dependency, unlike the invokable
-        // `names()` call itself (see JumpPalette's `items` for why that matters here).
+        // `names()` call itself (see EverythingPalette's `_build` for why that matters here).
         void App.categories.count;
         const q = root.query;
         const rows = [];

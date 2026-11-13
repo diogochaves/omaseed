@@ -689,7 +689,7 @@ QtObject {
             "rank": 0.5,
             "helpKeys": ": ctrl+shift+p",
             "help": qsTr("commands"),
-            "about": qsTr("Find any command by name and run it; each row teaches its key")
+            "about": qsTr("Find any command, torrent or server by name; a command runs as its key would, and its row teaches that key")
         },
         {
             "area": "global",

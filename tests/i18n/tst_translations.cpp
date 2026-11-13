@@ -150,7 +150,7 @@ private slots:
                           "    property string one: qsTr(\"%n commands\", \"\", 1)\n"
                           "    property string two: qsTr(\"%n commands\", \"\", 2)\n"
                           "}\n",
-                          QUrl(QStringLiteral("qrc:/tst_translations/CommandPalette.qml")));
+                          QUrl(QStringLiteral("qrc:/tst_translations/EverythingPalette.qml")));
         const std::unique_ptr<QObject> object(component.create());
         QVERIFY2(object, qPrintable(component.errorString()));
         QCOMPARE(object->property("one").toString(), QStringLiteral("1 command"));

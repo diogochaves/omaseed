@@ -74,7 +74,7 @@ Palette {
     readonly property var _rows: {
         void root._rev; // dependency: re-run whenever a toggle bumps it
         // `App.tags.count` is a real NOTIFY-backed dependency, unlike the invokable
-        // `tags()` call itself (see JumpPalette's `items` for why that matters here).
+        // `tags()` call itself (see EverythingPalette's `_build` for why that matters here).
         void App.tags.count;
         const q = root.query;
         // qBittorrent trims a new tag's name; the create row names what it will get.

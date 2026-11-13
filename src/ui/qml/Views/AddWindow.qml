@@ -231,7 +231,7 @@ Window {
         // says so, as the main window's footer does.
         onServerPaletteRequested: {
             if (App.serverCount > 1)
-                serverPalette.openOnNext();
+                serverPalette.openOnly("servers");
             else
                 flow.addSheet.flashNote(qsTr("one server · add another in Settings › Servers"));
         }
@@ -253,8 +253,8 @@ Window {
         z: 1
     }
 
-    // Over the sheet, which opens it.
-    ServerPalette {
+    // Over the sheet, which opens it: the palette held to its servers (DECISIONS C42).
+    EverythingPalette {
         id: serverPalette
 
         anchors.fill: parent

@@ -82,13 +82,11 @@ Item {
     readonly property alias addSheet: addFlow.addSheet
     readonly property alias duplicateSheet: addFlow.duplicateSheet
     readonly property alias settingsModal: settingsModal
-    readonly property alias jumpPalette: jumpPalette
+    readonly property alias everythingPalette: everythingPalette
     readonly property alias categoryPalette: categoryPalette
     readonly property alias tagPalette: tagPalette
     readonly property alias sortPalette: sortPalette
     readonly property alias columnsPalette: columnsPalette
-    readonly property alias commandPalette: commandPalette
-    readonly property alias serverPalette: serverPalette
     readonly property alias serverNotice: banner
     readonly property alias logView: logView
 
@@ -102,16 +100,12 @@ Item {
     // the user is actually looking at is the one that answers.
     /// The overlay on top, or null.
     readonly property var activeOverlay: {
-        if (serverPalette.opened)
-            return serverPalette;
-        if (commandPalette.opened)
-            return commandPalette;
+        if (everythingPalette.opened)
+            return everythingPalette;
         if (categoryPalette.opened)
             return categoryPalette;
         if (tagPalette.opened)
             return tagPalette;
-        if (jumpPalette.opened)
-            return jumpPalette;
         if (sortPalette.opened)
             return sortPalette;
         if (columnsPalette.opened)
@@ -1395,7 +1389,7 @@ Item {
                 // library first.
                 if (root.logShown || root.searchShown)
                     root.setView("library");
-                jumpPalette.open();
+                root._openPalette("torrents", false);
                 break;
             case Qt.Key_P: // docs/30 D1: ctrl+shift+p, the editors' command palette key
                 if (!shift)
@@ -1670,7 +1664,7 @@ Item {
         "create": () => root.openCreate(""),
         "createFromFolder": () => root.openCreate(App.filtered.folder),
         "filter": () => root.focusSearch(),
-        "jump": () => jumpPalette.open(),
+        "jump": () => root._openPalette("torrents", false),
         "sort": () => sortPalette.openOnCurrent(),
         // view
         "columns": () => columnsPalette.open(),
@@ -1758,13 +1752,23 @@ Item {
         "logCritical": () => logView.toggleLevel(ServerLog.Critical)
     })
 
-    /// `:` and `ctrl+shift+p` (docs/30, DECISIONS C1): the command palette, on what the
-    /// window shows as it opens.
+    /// `:` and `ctrl+shift+p` (docs/30, DECISIONS C1; C42 Z5): the palette on every kind, its
+    /// commands on what the window shows as it opens.
     function openCommandPalette(): void {
         if (root.firstRun)
             return;
-        commandPalette.context = root.commandContext();
-        commandPalette.open();
+        root._openPalette("", false);
+    }
+
+    /// The everything palette (DECISIONS C42 Z5) on `kind`, "" for every kind. Its commands
+    /// take their context here, whatever it opens on: the filter can be stepped once it is
+    /// up, and by then the palette holds the keyboard. `held` keeps it to that kind.
+    function _openPalette(kind: string, held: bool): void {
+        everythingPalette.context = root.commandContext();
+        if (held)
+            everythingPalette.openOnly(kind);
+        else
+            everythingPalette.openFor(kind);
     }
 
     /// `Keymap.commandRows()`'s context: where the keyboard is, what the torrent commands act
@@ -4007,15 +4011,6 @@ Item {
     // the add sheet and the duplicate over it), because the category and tag ones can be
     // opened from inside the add sheet. `Kit/Palette.open()` remembers `Window.activeFocusItem`, so closing one hands the
     // keyboard back to the chip row it came from.
-    JumpPalette {
-        id: jumpPalette
-
-        anchors.fill: parent
-        scrollHint: App.railScrollHint
-        table: table
-        z: 14
-    }
-
     CategoryPalette {
         id: categoryPalette
 
@@ -4060,16 +4055,27 @@ Item {
         z: 14
     }
 
-    // docs/30: `:` and `ctrl+shift+p`.
-    // docs/33 S1 (D2–D4, D14): the server palette. Above the add sheet, which opens it too.
-    ServerPalette {
-        id: serverPalette
+    // DECISIONS C42 (board 63): the one palette behind `:` and `ctrl+shift+p` (docs/30),
+    // `ctrl+k` (Fig. 12) and `ctrl+s` (docs/33 S1, D2–D4, D14). Above the add sheet, which
+    // opens it for its server chip.
+    EverythingPalette {
+        id: everythingPalette
 
         anchors.fill: parent
         scrollHint: App.railScrollHint
+        table: table
         z: 15
 
         onManageRequested: id => settingsModal.showServer(id)
+        onRunRequested: action => root.runCommand(action)
+        // C26 SR14: the no-match row.
+        onSearchRequested: text => root.openSearch(text)
+        // C42 Z8: a server's `tab` is its menu, the one the rail opens, at the palette's corner.
+        onServerMenuRequested: (id, x, y) => {
+            serverMenuPanel.serverId = id;
+            serverMenuPanel.revision++;
+            serverMenuPanel.openAt(Math.round(x), Math.round(y));
+        }
     }
 
     /// The status line's server lane (DECISIONS C24 H15, C12's words; C25 K11): "NAME · ENGINE
@@ -4107,30 +4113,20 @@ Item {
 
     /// `ctrl+s`, the status line's server lane, "switch server…", the rail's "… N more", the
     /// add sheet's chip. With one server there is nothing to switch to: the note says so (D19).
+    /// It is the palette on its "servers" filter (C42 Z5); `held` (the add sheet's chip) keeps
+    /// it to the servers, with no chip: nothing else has a place over the sheet.
     function openServerPalette(): void {
+        root._openServers(false);
+    }
+
+    function _openServers(held: bool): void {
         if (root.firstRun)
             return;
         if (!root.multiServer) {
             root.flashFooterNote(qsTr("one server · add another in Settings › Servers"));
             return;
         }
-        serverPalette.openOnNext();
-    }
-
-    CommandPalette {
-        id: commandPalette
-
-        anchors.fill: parent
-        scrollHint: App.railScrollHint
-        z: 14
-
-        onJumpRequested: text => {
-            jumpPalette.open();
-            jumpPalette.query = text;
-        }
-        onRunRequested: action => root.runCommand(action)
-        // C26 SR14: the second no-match row.
-        onSearchRequested: text => root.openSearch(text)
+        root._openPalette("servers", held);
     }
 
     Connections {
@@ -4258,7 +4254,7 @@ Item {
     function _openDemoPalette(): void {
         switch (DemoEnv.value("OMASEED_DEMO_PALETTE")) {
         case "jump":
-            jumpPalette.open();
+            root._openPalette("torrents", false);
             break;
         case "category":
             categoryPalette.openFor(root.actionHashes());
@@ -4306,7 +4302,7 @@ Item {
 
         onSearchRequested: text => root.openSearch(text)
         // docs/33 D14: the head's chip or ctrl+s in the sheet.
-        onServerPaletteRequested: root.openServerPalette()
+        onServerPaletteRequested: root._openServers(true)
         // Fig. 10's `show it`, from search's add… too (C26 SR9): the library's torrent.
         onShowRequested: hash => {
             if (root.searchShown)
