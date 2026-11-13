@@ -2746,3 +2746,13 @@ widget's D-Bus methods.
   print both, and the help's last line sends agents to it.
 - **V20 a.** Reads first, released alone (a minor release, C33); the gate and `do` after, as
   patch releases. The shared words come first, whichever board builds first.
+
+## C46 — No station display (board 60, ruled 2026-11-13)
+
+Board [60](60-the-station-or-not.html), #199, G1 a: **out**. Board 46's station (a numbered plate
+per category, its torrents as cards, a specials column) is not built, neither as Console's
+overview (a skin paints and never picks a layout, C31) nor as a fourth display for every skin.
+Console keeps painting rows, table and space. What the station showed is already in the window:
+the specials are the rows display's questions (C24 H3), a category's torrents are the rail's
+filter, and its bands by category are board 46's shelves, which C32 D12 dropped. G2–G8 (a
+cards display) are not ruled; a later board may pick them up if the question comes back.
