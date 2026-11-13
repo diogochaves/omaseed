@@ -1262,6 +1262,7 @@ QVariantList App::torrentStory(const QString &hash) const
     input.now = QDateTime::currentDateTime();
     input.categories = m_features.categories;
     input.categoriesAreLabels = m_features.categoriesAreLabels;
+    input.tagsAreLabels = m_features.tagsAreLabels; // DECISIONS C43 Y3: Transmission's words
     // C18 D8: the moves the history keeps for it, whatever moved with it.
     for (const MoveRecord &record : m_move->history().records()) {
         if (!record.from.contains(hash) || !record.finishedAt.isValid())

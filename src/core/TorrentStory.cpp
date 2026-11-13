@@ -38,6 +38,81 @@ bool isName(StoryEntry::What what)
            what == What::Files;
 }
 
+// DECISIONS C43 Y3: the names in the tag list's order (the record keeps them so), the first
+// three and "and N more".
+QString listWords(const QStringList &names)
+{
+    constexpr int kShown = 3;
+    const QString shown = names.mid(0, kShown).join(QStringLiteral(", "));
+    if (names.size() <= kShown)
+        return shown;
+    return tr("%1 and %2 more").arg(shown, QString::number(names.size() - kShown));
+}
+
+// DECISIONS C43 Y2, Y8: a category's (Deluge: a label's) line, in the outcome strip's words.
+std::pair<QString, QString> categoryWords(const StoryEntry &edit, bool labels)
+{
+    QString title;
+    QStringList parts;
+    if (edit.now.isEmpty()) {
+        title = labels ? tr("Taken out of its label") : tr("Taken out of its category");
+        if (!edit.was.isEmpty())
+            parts << (labels ? tr("was %1") : tr("was in %1")).arg(edit.was);
+    } else {
+        title = (labels ? tr("Labelled %1") : tr("Put in %1")).arg(edit.now);
+        parts << (edit.was.isEmpty() ? (labels ? tr("had no label") : tr("had no category"))
+                                     : (labels ? tr("was %1") : tr("was in %1")).arg(edit.was));
+    }
+    // Y8: the name left the server, whoever removed it; else who changed it, when not omaseed.
+    if (edit.removed)
+        parts << (labels ? tr("the label was removed") : tr("the category was removed"));
+    else if (edit.by == StoryEntry::By::Elsewhere)
+        parts << tr("changed outside omaseed");
+    return {title, parts.join(QStringLiteral(" · "))};
+}
+
+// DECISIONS C43 Y3, Y8: a tag edit's (Transmission: a label edit's) line. omaseed's own edit
+// of one kind has no dim line.
+std::pair<QString, QString> tagWords(const StoryEntry &edit, bool labels)
+{
+    QString title;
+    QStringList parts;
+    if (edit.untagged.isEmpty()) {
+        title = (labels ? tr("Labelled %1") : tr("Tagged %1")).arg(listWords(edit.tagged));
+    } else if (edit.tagged.isEmpty()) {
+        title = (labels ? tr("Unlabelled %1") : tr("Untagged %1")).arg(listWords(edit.untagged));
+    } else {
+        title = labels ? tr("Labels changed") : tr("Tags changed");
+        parts << (labels ? tr("labelled %1") : tr("tagged %1")).arg(listWords(edit.tagged))
+              << (labels ? tr("unlabelled %1") : tr("untagged %1")).arg(listWords(edit.untagged));
+    }
+    if (edit.removed)
+        parts << (labels ? tr("the label was removed") : tr("the tag was removed"));
+    else if (edit.by == StoryEntry::By::Elsewhere)
+        parts << tr("changed outside omaseed");
+    return {title, parts.join(QStringLiteral(" · "))};
+}
+
+// DECISIONS C43 Y6, Y7: a save path seen changed in a poll, a move omaseed didn't make; "Will
+// land in" while it waits in the incomplete folder.
+std::pair<QString, QString> placeWords(const StoryEntry &place)
+{
+    const QString title = (place.landed ? tr("Moved to %1") : tr("Will land in %1")).arg(place.now);
+    QString detail;
+    if (place.by == StoryEntry::By::Server) {
+        if (place.cause == QLatin1String("category"))
+            detail = place.causeName.isEmpty()
+                         ? tr("automatic management")
+                         : tr("by its category %1 · automatic management").arg(place.causeName);
+        else if (place.cause == QLatin1String("label"))
+            detail = tr("by its label %1").arg(place.causeName);
+    } else {
+        // C18 D7's words.
+        detail = tr("moved outside omaseed");
+    }
+    return {title, detail};
+}
+
 // DECISIONS C38: a rename's line, its title and its dim line.
 std::pair<QString, QString> renameWords(const StoryEntry &rename)
 {
@@ -97,6 +172,8 @@ QString TorrentStory::kindName(StoryEvent::Kind kind)
         return QStringLiteral("error");
     case StoryEvent::Kind::Rename:
         return QStringLiteral("rename");
+    case StoryEvent::Kind::Edit:
+        return QStringLiteral("edit");
     case StoryEvent::Kind::Plain:
         break;
     }
@@ -105,21 +182,35 @@ QString TorrentStory::kindName(StoryEvent::Kind kind)
 
 QList<StoryEvent> TorrentStory::events(const StoryInput &input)
 {
+    using What = StoryEntry::What;
     const Torrent &t = input.torrent;
     QList<StoryEvent> out;
-    auto add = [&](const QDateTime &at, StoryEvent::Kind kind, QString title, QString detail) {
+    auto add = [&](const QDateTime &at,
+                   StoryEvent::Kind kind,
+                   QString title,
+                   QString detail,
+                   int rank = 0) {
         if (!at.isValid())
             return;
-        out.append({at, timeWords(at, input.now), kind, std::move(title), std::move(detail)});
+        out.append({at, timeWords(at, input.now), kind, std::move(title), std::move(detail), rank});
     };
 
+    // DECISIONS C43 Y5: the category it came with, the oldest category line's `was` (the
+    // entries are newest first); with none, the category now, the best omaseed knows.
+    QString addedInto = t.category;
+    for (auto entry = input.entries.crbegin(); entry != input.entries.crend(); ++entry) {
+        if (entry->what == What::Category) {
+            addedInto = entry->was;
+            break;
+        }
+    }
     add(t.addedOn,
         StoryEvent::Kind::Plain,
         tr("Added"),
         !input.categories ? QString()
-        : t.category.isEmpty()
+        : addedInto.isEmpty()
             ? (input.categoriesAreLabels ? tr("with no label") : tr("with no category"))
-            : tr("into %1").arg(t.category));
+            : tr("into %1").arg(addedInto));
 
     for (const StoryMove &move : input.moves) {
         QString detail;
@@ -167,26 +258,34 @@ QList<StoryEvent> TorrentStory::events(const StoryInput &input)
             : input.problemPaused         ? tr("%1 paused it").arg(input.problemEngine)
                                           : tr("%1 stopped it").arg(input.problemEngine));
 
-    // DECISIONS C38: each rename the record keeps, at the server's OK or the poll that saw it
-    // (R1, R4). Oldest first here, as the moves' history is read, so two at the same time
-    // read the later one first once reversed below. The record's filing and place entries
-    // (C43) aren't worded yet.
+    // DECISIONS C38, C43: each entry the record keeps, at the server's OK or the poll that saw
+    // it (C38 R1, R4; C43 Y8). Oldest first here, as the moves' history is read, so two at the
+    // same time read the later one first once reversed below. Renames (C38 R2) and filing
+    // edits (C43 Y4) in the accent; a place is a move (Y4).
     for (auto entry = input.entries.crbegin(); entry != input.entries.crend(); ++entry) {
-        if (!isName(entry->what))
-            continue;
-        auto [title, detail] = renameWords(*entry);
-        add(entry->at, StoryEvent::Kind::Rename, std::move(title), std::move(detail));
+        if (isName(entry->what)) {
+            auto [title, detail] = renameWords(*entry);
+            add(entry->at, StoryEvent::Kind::Rename, std::move(title), std::move(detail), 3);
+        } else if (entry->what == What::Category) {
+            auto [title, detail] = categoryWords(*entry, input.categoriesAreLabels);
+            add(entry->at, StoryEvent::Kind::Edit, std::move(title), std::move(detail), 1);
+        } else if (entry->what == What::Tags) {
+            auto [title, detail] = tagWords(*entry, input.tagsAreLabels);
+            add(entry->at, StoryEvent::Kind::Edit, std::move(title), std::move(detail), 1);
+        } else if (entry->what == What::Place) {
+            auto [title, detail] = placeWords(*entry);
+            add(entry->at, StoryEvent::Kind::Move, std::move(title), std::move(detail), 2);
+        }
     }
 
     // Newest first (DECISIONS C32 D15, amending C24 H6's order): sorted by time with two at
     // the same second in the order above (added before finished), then read backwards, so
-    // the later of the two leads as the later time does. C38 amends H6: a rename at the same
-    // second as another line is the later act, so it goes above it whatever their
-    // milliseconds.
+    // the later of the two leads as the later time does. At the same second the rank goes
+    // first, whatever the milliseconds: a filing edit above the rest, the place a poll saw
+    // above the filing edit of that poll (C43 Y7, docs/58 §10), and a rename, the later act,
+    // above them all (C38's amendment of H6).
     const auto order = [](const StoryEvent &event) {
-        return std::tuple(event.at.toSecsSinceEpoch(),
-                          event.kind == StoryEvent::Kind::Rename,
-                          event.at.toMSecsSinceEpoch());
+        return std::tuple(event.at.toSecsSinceEpoch(), event.rank, event.at.toMSecsSinceEpoch());
     };
     std::stable_sort(out.begin(), out.end(), [&](const StoryEvent &a, const StoryEvent &b) {
         return order(a) < order(b);
