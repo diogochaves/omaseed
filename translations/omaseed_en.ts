@@ -154,7 +154,7 @@
 <context>
     <name>EverythingPalette</name>
     <message numerus="yes">
-        <location filename="../src/ui/qml/Views/EverythingPalette.qml" line="+313"/>
+        <location filename="../src/ui/qml/Views/EverythingPalette.qml" line="+404"/>
         <source>%n that make sense now</source>
         <translation>
             <numerusform>%n that makes sense now</numerusform>
@@ -186,7 +186,7 @@
         </translation>
     </message>
     <message numerus="yes">
-        <location line="+78"/>
+        <location line="+83"/>
         <source>%n more commands</source>
         <translation>
             <numerusform>%n more command</numerusform>
@@ -242,7 +242,15 @@
         </translation>
     </message>
     <message numerus="yes">
-        <location line="+10"/>
+        <location line="+15"/>
+        <source>%n options</source>
+        <translation>
+            <numerusform>%n option</numerusform>
+            <numerusform>%n options</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <location line="+4"/>
         <source>%n kinds</source>
         <translation>
             <numerusform>%n kind</numerusform>

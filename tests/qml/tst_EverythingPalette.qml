@@ -113,11 +113,19 @@ TestCase {
         id: fullServerComponent
 
         QtObject {
+            id: fullServer
+
             property var applied: []
             property bool loaded: true
+            /// The keys that are not plain on.
+            property var overrides: ({})
             property var values: new Proxy({}, {
-                                               "get": (target, key) => key === "enabled_plugins" ? ["Label", "Scheduler"] : true
+                                               "get": (target, key) => key === "enabled_plugins" ? ["Label", "Scheduler"]
+                                                                                                   : key in fullServer.overrides
+                                                                                                   ? fullServer.overrides[key] : true
                                            })
+
+            signal applyFailed(var keys, string error)
 
             function apply(changes) {
                 applied.push(changes);
@@ -149,8 +157,10 @@ TestCase {
     }
 
     /// A table on a server with everything, speaking `engine` ("" for qBittorrent).
-    function _serverTable(engine) {
-        const server = createTemporaryObject(fullServerComponent, testCase);
+    function _serverTable(engine, overrides) {
+        const server = createTemporaryObject(fullServerComponent, testCase, {
+                                                 "overrides": overrides ?? ({})
+                                             });
         return createTemporaryObject(tableComponent, testCase, {
                                          "connected": true,
                                          "prefs": server,
@@ -734,7 +744,9 @@ TestCase {
         compare(listed.length, 26);
         compare(palette.items.map(row => row.key), listed);
         compare(testCase._headings(palette), []);
-        compare(testCase._hints(palette), ["↑↓ move", "enter open in Settings", "shift+tab kind", "esc close"]);
+        // The first is a switch (Z7): `enter` says which way it goes.
+        compare(testCase._hints(palette), ["↑↓ move", palette.currentItem.toggle ? "enter turn off" : "enter turn on",
+                                           "tab show in Settings", "shift+tab kind", "esc close"]);
         testCase._type("zzzz");
         compare(palette.items.length, 0);
         compare(palette.emptyText, "No setting matches “zzzz”.");
@@ -805,9 +817,9 @@ TestCase {
         palette.close();
     }
 
-    // Z7, Z8 (board 63 S3): for now `enter` and `tab` on any setting both close the palette
-    // and ask for Settings on that row.
-    function test_enter_and_tab_ask_for_settings_on_the_row() {
+    // Z7, Z8 (board 63 S3): `enter` on a setting that is changed in its pane, and `tab` on
+    // any setting, close the palette and ask for Settings on that row.
+    function test_enter_on_a_go_row_and_tab_ask_for_settings_on_the_row() {
         const palette = testCase._openWith(testCase._ownTable(), "");
         const asked = createTemporaryObject(settingsSpy, testCase, {
                                                 "target": palette
@@ -815,15 +827,27 @@ TestCase {
         const run = createTemporaryObject(runSpy, testCase, {
                                               "target": palette
                                           });
-        testCase._type("pulse sending");
-        compare(palette.currentItem.key, "appearance.pulseRows");
-        compare(testCase._hints(palette), ["↑↓ move", "enter open in Settings", "shift+tab kind", "esc clear"]);
-        const was = App.pulseRows;
+        testCase._type("low disk");
+        palette.cursorToKey("notifications.lowDiskThreshold");
+        compare(palette.currentItem.key, "notifications.lowDiskThreshold");
+        compare(palette.currentItem.settingKind, "go");
+        verify(testCase._hints(palette).indexOf("enter open in Settings") >= 0);
+        verify(testCase._hints(palette).indexOf("tab show in Settings") >= 0);
         keyClick(Qt.Key_Return);
         compare(palette.opened, false);
         compare(asked.count, 1);
-        compare(asked.signalArguments[0][0], "appearance.pulseRows");
-        compare(App.pulseRows, was, "enter flipped the switch");
+        compare(asked.signalArguments[0][0], "notifications.lowDiskThreshold");
+        // `tab` on a switch and on a choice shows them in Settings, unchanged.
+        const was = App.pulseRows;
+        const skin = App.skinChoice;
+        palette.openFor("settings");
+        testCase._type("pulse sending");
+        compare(palette.currentItem.key, "appearance.pulseRows");
+        keyClick(Qt.Key_Tab);
+        compare(palette.opened, false);
+        compare(asked.count, 2);
+        compare(asked.signalArguments[1][0], "appearance.pulseRows");
+        compare(App.pulseRows, was, "tab flipped the switch");
         palette.openFor("");
         // Commands match "skin" too, and theirs is the first section.
         testCase._type("skin");
@@ -831,9 +855,268 @@ TestCase {
         compare(palette.currentItem.key, "appearance.skin");
         keyClick(Qt.Key_Tab);
         compare(palette.opened, false);
-        compare(asked.count, 2);
-        compare(asked.signalArguments[1][0], "appearance.skin");
+        compare(palette.choosing, "");
+        compare(asked.count, 3);
+        compare(asked.signalArguments[2][0], "appearance.skin");
+        compare(App.skinChoice, skin);
         compare(run.count, 0);
+    }
+
+    // Board 63 S1 (Z7): `enter` flips a switch in its row; the palette stays, the cursor on
+    // that row, so several can be set in one visit.
+    function test_enter_flips_a_switch_and_the_palette_stays() {
+        const palette = testCase._openWith(testCase._ownTable(), "");
+        const asked = createTemporaryObject(settingsSpy, testCase, {
+                                                "target": palette
+                                            });
+        const was = App.pulseRows;
+        App.pulseRows = true;
+        // The pane's name lists its rows; the cursor is taken off the first.
+        testCase._type("appearance");
+        palette.cursorToKey("appearance.pulseRows");
+        const at = palette.cursorIndex;
+        verify(at > 0);
+        compare(palette.currentItem.toggle, true);
+        compare(testCase._hints(palette), ["↑↓ move", "enter turn off", "tab show in Settings", "shift+tab kind",
+                                           "esc clear"]);
+        keyClick(Qt.Key_Return);
+        compare(App.pulseRows, false);
+        compare(palette.opened, true);
+        compare(palette.query, "appearance");
+        compare(palette.cursorIndex, at);
+        compare(palette.currentItem.key, "appearance.pulseRows");
+        compare(palette.currentItem.toggle, false);
+        compare(palette.currentItem.meta, "off");
+        compare(testCase._hints(palette)[1], "enter turn on");
+        waitForRendering(palette.listView);
+        const drawn = palette.listView.itemAtIndex(palette.cursorIndex);
+        compare(drawn.Accessible.description, "off · Settings › Appearance");
+        // And back, in the same visit.
+        keyClick(Qt.Key_Return);
+        compare(App.pulseRows, true);
+        compare(palette.currentItem.key, "appearance.pulseRows");
+        // The cursor is the hand's again once it moves: a later change leaves it alone.
+        keyClick(Qt.Key_Up);
+        const moved = palette.currentItem.key;
+        verify(moved !== "appearance.pulseRows");
+        App.pulseRows = false;
+        compare(palette.currentItem.key, moved);
+        compare(asked.count, 0);
+        App.pulseRows = was;
+        palette.close();
+    }
+
+    // A server's switch posts what its pane's switch posts (the row's `enable` extra
+    // included), and a refusal is said in the footer.
+    function test_enter_flips_a_servers_switch() {
+        const table = testCase._serverTable("", {
+                                                "max_ratio_enabled": false,
+                                                "max_ratio": -1
+                                            });
+        const palette = testCase._openWith(table, "settings");
+        testCase._type("share ratio");
+        compare(palette.currentItem.title, "Share ratio");
+        compare(palette.currentItem.toggle, false);
+        compare(testCase._hints(palette)[1], "enter turn on");
+        const key = palette.currentItem.key;
+        keyClick(Qt.Key_Return);
+        compare(palette.opened, true);
+        compare(palette.currentItem.key, key);
+        compare(table.prefs.applied.length, 1);
+        compare(table.prefs.applied[0], {
+                    "max_ratio_enabled": true,
+                    "max_ratio": 1
+                });
+        compare(palette.footerRight, "");
+        table.prefs.applyFailed(["max_ratio_enabled"], "the server said no");
+        compare(palette.footerRight, "not changed: the server said no");
+        compare(palette.currentItem.key, key);
+        // The next key takes the line away.
+        keyClick(Qt.Key_Down);
+        compare(palette.footerRight, "");
+        palette.close();
+    }
+
+    // A row its pane would ask about first never changes from the palette: `enter` goes
+    // to the pane (board 63 S3; the plan's calls 4 and 5).
+    function test_a_confirmed_row_never_changes_here() {
+        const table = testCase._serverTable("");
+        const palette = testCase._openWith(table, "settings");
+        const asked = createTemporaryObject(settingsSpy, testCase, {
+                                                "target": palette
+                                            });
+        const confirmed = ["server.connection.listen_port"].concat(
+                            palette.items.filter(row => row.key.startsWith("server.webui.")
+                                                 || row.key.endsWith(".anonymous_mode")).map(row => row.key));
+        verify(confirmed.length >= 3, confirmed.join(" "));
+        verify(confirmed.some(key => key.endsWith(".anonymous_mode")));
+        for (const key of confirmed) {
+            palette.openFor("settings");
+            palette.cursorToKey(key);
+            compare(palette.currentItem.key, key);
+            compare(palette.currentItem.settingKind, "go", key);
+            compare(palette.currentItem.toggle, undefined, key);
+            compare(testCase._hints(palette)[1], "enter open in Settings", key);
+            keyClick(Qt.Key_Return);
+            compare(palette.opened, false, key);
+            compare(asked.signalArguments[asked.count - 1][0], key);
+        }
+        compare(asked.count, confirmed.length);
+        compare(table.prefs.applied.length, 0);
+    }
+
+    // An own row its pane dims is the pane's too: no switch, and `enter` opens Settings.
+    function test_a_dimmed_row_goes_to_its_pane() {
+        const table = testCase._ownTable();
+        const palette = testCase._openWith(table, "settings");
+        const dimmed = table.rows().filter(row => !row.enabled && row.kind !== "go");
+        if (dimmed.length === 0)
+            skip("every own switch and choice can be set here");
+        const asked = createTemporaryObject(settingsSpy, testCase, {
+                                                "target": palette
+                                            });
+        const before = dimmed[0].value;
+        palette.cursorToKey(dimmed[0].id);
+        compare(palette.currentItem.key, dimmed[0].id);
+        compare(palette.currentItem.settingKind, "go");
+        compare(palette.currentItem.toggle, undefined);
+        keyClick(Qt.Key_Return);
+        compare(palette.opened, false);
+        compare(asked.count, 1);
+        compare(asked.signalArguments[0][0], dimmed[0].id);
+        compare(table.row(dimmed[0].id).value, before);
+    }
+
+    // Board 63 S2 (Z7): `enter` on a choice lists its options in place of the matches;
+    // `enter` sets one and the matches are back, `esc` goes back with nothing changed.
+    function test_enter_on_a_choice_lists_its_options() {
+        const table = testCase._ownTable();
+        const palette = testCase._openWith(table, "settings");
+        const asked = createTemporaryObject(settingsSpy, testCase, {
+                                                "target": palette
+                                            });
+        const was = App.skinChoice;
+        App.skinChoice = "omarchy";
+        testCase._type("skin");
+        compare(palette.currentItem.key, "appearance.skin");
+        compare(palette.chip, "settings");
+        compare(testCase._hints(palette), ["↑↓ move", "enter choose", "tab show in Settings", "shift+tab kind",
+                                           "esc clear"]);
+        keyClick(Qt.Key_Return);
+        compare(palette.opened, true);
+        compare(palette.choosing, "appearance.skin");
+        compare(palette.query, "");
+        compare(palette.title, "Skin");
+        compare(palette.chip, "");
+        const options = table.row("appearance.skin").options;
+        compare(palette.items.map(row => row.title), options.map(option => option[1]));
+        compare(palette.counter, options.length + " options");
+        compare(palette.footerRight, "Settings › Appearance");
+        compare(testCase._hints(palette), ["↑↓ move", "enter use", "esc back"]);
+        // The one in use is checked, and the cursor starts on it.
+        compare(palette.items.filter(row => row.meta === Glyphs.check).map(row => row.value), ["omarchy"]);
+        compare(palette.currentItem.value, "omarchy");
+        waitForRendering(palette.listView);
+        compare(palette.listView.itemAtIndex(palette.cursorIndex).Accessible.name, "Omarchy, in use");
+        // No kind, no filter step, no second action while choosing.
+        keyClick(Qt.Key_Tab);
+        keyClick(Qt.Key_Tab, Qt.ShiftModifier);
+        keyClick(Qt.Key_Backspace);
+        compare(palette.opened, true);
+        compare(palette.choosing, "appearance.skin");
+        compare(palette.filter, "settings");
+        compare(asked.count, 0);
+        testCase._type("/");
+        compare(palette.items.length, 0);
+        compare(palette.emptyText, "No option matches “/”.");
+        compare(testCase._hints(palette), ["esc clear"]);
+        keyClick(Qt.Key_Escape);
+        compare(palette.choosing, "appearance.skin");
+        // Typing narrows the options.
+        testCase._type("cons");
+        compare(palette.items.map(row => row.value), ["console"]);
+        compare(palette.counter, "1 of " + options.length);
+        keyClick(Qt.Key_Return);
+        compare(App.skinChoice, "console");
+        compare(palette.opened, true);
+        compare(palette.choosing, "");
+        compare(palette.query, "skin");
+        compare(palette.chip, "settings");
+        compare(palette.currentItem.key, "appearance.skin");
+        compare(palette.currentItem.meta, "Console");
+        // In again; `esc` goes back with nothing changed, the next clears, the third closes.
+        keyClick(Qt.Key_Return);
+        compare(palette.choosing, "appearance.skin");
+        compare(palette.currentItem.value, "console");
+        keyClick(Qt.Key_Up);
+        compare(palette.currentItem.value, "omarchy");
+        keyClick(Qt.Key_Escape);
+        compare(palette.opened, true);
+        compare(palette.choosing, "");
+        compare(App.skinChoice, "console");
+        compare(palette.query, "skin");
+        compare(palette.currentItem.key, "appearance.skin");
+        keyClick(Qt.Key_Escape);
+        compare(palette.opened, true);
+        compare(palette.query, "");
+        keyClick(Qt.Key_Escape);
+        compare(palette.opened, false);
+        // A new opening is on the matches.
+        palette.openFor("settings");
+        compare(palette.choosing, "");
+        palette.close();
+        App.skinChoice = was;
+    }
+
+    // In the bar lists only what can be had now, as its pane does.
+    function test_a_choice_lists_only_the_offered_options() {
+        const table = testCase._ownTable();
+        const palette = testCase._openWith(table, "settings");
+        palette.cursorToKey("appearance.inTheBar");
+        compare(palette.currentItem.key, "appearance.inTheBar");
+        keyClick(Qt.Key_Return);
+        compare(palette.choosing, "appearance.inTheBar");
+        const offered = table.options("appearance.inTheBar");
+        verify(offered.length > 0);
+        compare(palette.items.map(row => row.value), offered.map(option => option[0]));
+        verify(palette.items.every(row => table.offers("appearance.inTheBar", row.value)));
+        keyClick(Qt.Key_Escape);
+        compare(palette.choosing, "");
+        palette.close();
+    }
+
+    // A server's choice posts its key, and the cursor waits on the row for the answer.
+    function test_a_servers_choice() {
+        const table = testCase._serverTable("", {
+                                                "encryption": 0
+                                            });
+        const palette = testCase._openWith(table, "");
+        testCase._type("encryption");
+        palette.cursorToKey("server.discovery.encryption");
+        compare(palette.currentItem.key, "server.discovery.encryption");
+        compare(palette.currentItem.meta, "prefer");
+        keyClick(Qt.Key_Return);
+        compare(palette.choosing, "server.discovery.encryption");
+        compare(palette.items.map(row => row.title), ["prefer", "require", "off"]);
+        compare(palette.currentItem.title, "prefer");
+        compare(palette.footerRight, table.row("server.discovery.encryption").paneText);
+        verify(palette.footerRight.startsWith("Settings › qBittorrent › "));
+        // The one in use again posts nothing.
+        keyClick(Qt.Key_Return);
+        compare(table.prefs.applied.length, 0);
+        compare(palette.choosing, "");
+        keyClick(Qt.Key_Return);
+        keyClick(Qt.Key_Down);
+        keyClick(Qt.Key_Return);
+        compare(table.prefs.applied.length, 1);
+        compare(table.prefs.applied[0], {
+                    "encryption": 1
+                });
+        compare(palette.opened, true);
+        compare(palette.choosing, "");
+        compare(palette.query, "encryption");
+        compare(palette.currentItem.key, "server.discovery.encryption");
+        palette.close();
     }
 
     // The server's settings are rows only once it has answered, and only its engine's.

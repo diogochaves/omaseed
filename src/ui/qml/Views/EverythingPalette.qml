@@ -19,11 +19,14 @@ import Omaseed.Kit
 //    typed lists them in that order; typing finds a row by the words in its title and in
 //    its pane's name (so `notif` lists the Notifications pane), a title's hit first. A row's meta is its
 //    value, after a switch where `enter` will flip it (the kit's `toggle`); its second line
-//    is where it lives ("Settings › Appearance"). For now `enter` and `tab` both close the
-//    palette and ask for Settings on that row (`settingsRequested`, board 63 S3, Z8);
-//    changing a switch or a choice in its row is #266's next step. Rows the pane only
-//    shows (Deluge's plugins) and the panes' actions that are no setting (back up,
-//    restore, the widget's install line) are left out.
+//    is where it lives ("Settings › Appearance"). `enter` changes it where it can (Z7):
+//    a switch flips and the palette stays open, the cursor on that row (board 63 S1); a
+//    choice lists its options in place of the matches (`choosing`), where `enter` sets one
+//    and `esc` goes back (S2); any other row, and one its pane would ask about, refuse or
+//    dim, closes the palette and asks for Settings on it (`settingsRequested`, S3). `tab`
+//    on any of them shows it in Settings (Z8). A change the server refuses is said in the
+//    footer (`note`). Rows the pane only shows (Deluge's plugins) and the panes' actions
+//    that are no setting (back up, restore, the widget's install line) are left out.
 //  - servers (docs/33 S1, C12): `App.serverRows` in Settings' order, filtered by name or
 //    address. `enter` switches (App.switchServer); `tab` asks for the server's menu, the one
 //    the rail opens (Z8); `,` opens Settings › Servers on the cursor's row while the filter
@@ -75,8 +78,24 @@ Palette {
     /// palette's own coordinates, which are its host's).
     signal serverMenuRequested(string id, real x, real y)
 
-    /// `enter` or `tab` on a setting (C42 Z7, Z8): Settings, on the row `id` of the table.
+    /// `tab` on a setting, and `enter` on one that is changed in its pane (C42 Z7, Z8, board
+    /// 63 S3): Settings, on the row `id` of the table.
     signal settingsRequested(string id)
+
+    /// Board 63 S2: the id of the choice whose options are listed in place of the matches,
+    /// "" while the matches are.
+    property string choosing: ""
+    /// That choice as the table has it now; null when it is gone (the server went).
+    readonly property var choice: root.opened && root.choosing.length > 0 && root.settings !== null
+                                  ? root.settings.row(root.choosing) : null
+    /// A change the server refused, said in the footer until the next key or change.
+    property string note: ""
+    /// What was typed before the options took the query row; back with the matches.
+    property string _asideQuery: ""
+    /// The setting just changed here: the cursor stays on its row while the list is built
+    /// again from the table (S1), until the cursor or the query is moved by hand.
+    property string _holdKey: ""
+    property bool _restoring: false
 
     /// C42 Z2: the sections' order.
     readonly property var kinds: ["commands", "settings", "servers", "torrents"]
@@ -85,7 +104,7 @@ Palette {
     readonly property string scope: root.only.length > 0 ? root.only : root.filter
     readonly property string typed: root.query.trim()
     /// C42 Z4: the query is naming a kind.
-    readonly property bool slash: root.only.length === 0 && root.query.startsWith("/")
+    readonly property bool slash: root.only.length === 0 && root.choosing.length === 0 && root.query.startsWith("/")
     readonly property var allCommands: Keymap.commandRows(root.context)
     /// The table's rows that are not settings to find here: the Backup pane's actions are
     /// commands (C42 Z7) and the About line is a thing to copy.
@@ -200,6 +219,8 @@ Palette {
         for (const setting of table.rows()) {
             if (setting.readOnly || root.unlisted.indexOf(setting.id) >= 0)
                 continue;
+            // A row its pane dims is the pane's to explain (the plan's call 5).
+            const kind = setting.enabled ? setting.kind : "go";
             const row = {
                 "key": setting.id,
                 "title": setting.title,
@@ -207,11 +228,11 @@ Palette {
                 "detail": setting.paneText,
                 "metaSpoken": true,
                 "word": paneWords[setting.pane] ?? "",
-                "settingKind": setting.kind,
+                "settingKind": kind,
                 "server": setting.server,
                 "disabled": false
             };
-            if (setting.kind === "switch")
+            if (kind === "switch")
                 row.toggle = setting.value === true;
             rows.push(row);
         }
@@ -262,6 +283,76 @@ Palette {
     function _showInSettings(id: string): void {
         root.close();
         root.settingsRequested(id);
+    }
+
+    /// The cursor back on the setting that was just changed, where it is still listed.
+    function _restoreCursor(): void {
+        if (root._holdKey.length === 0)
+            return;
+        root._restoring = true;
+        root.cursorToKey(root._holdKey);
+        root._restoring = false;
+    }
+
+    /// `enter` on a setting (C42 Z7). The table's row is read now, not as it was listed: a
+    /// row that has since become the pane's (dimmed, a confirm) goes there and is not set.
+    function _enterSetting(id: string): void {
+        const row = root.settings !== null ? root.settings.row(id) : null;
+        const kind = row !== null && row.enabled ? row.kind : "go";
+        root.note = "";
+        if (kind === "switch") {
+            // Board 63 S1: flipped in the row, the palette open for the next one. An own
+            // switch is redrawn at once, a server's when it answers.
+            root._holdKey = id;
+            row.set(!row.value);
+            root._restoreCursor();
+        } else if (kind === "choice") {
+            // Board 63 S2: its options take the list; what was typed waits aside.
+            const held = row.options.findIndex(option => option[0] === row.value);
+            root._asideQuery = root.query;
+            root._holdKey = "";
+            root.choosing = id;
+            root.query = "";
+            root.cursorToKey("option:" + held);
+        } else {
+            root._showInSettings(id);
+        }
+    }
+
+    /// Board 63 S2: the options of the choice being made that `text` finds, the one in use
+    /// checked.
+    function _options(text: string): var {
+        const row = root.choice;
+        const rows = [];
+        if (row === null)
+            return rows;
+        row.options.forEach((option, index) => {
+                                if (text.length > 0 && !Fuzzy.match(option[1], text))
+                                    return;
+                                const held = option[0] === row.value;
+                                rows.push({
+                                              "key": "option:" + index,
+                                              "kind": "option",
+                                              "title": option[1],
+                                              "meta": held ? Glyphs.check : "",
+                                              "spokenTitle": held ? qsTr("%1, in use").arg(option[1]) : option[1],
+                                              "value": option[0]
+                                          });
+                            });
+        return rows;
+    }
+
+    /// From the options back to the matches: what was typed is back and the cursor is on
+    /// the setting (the plan's call 7: the palette stays, as after a switch).
+    function _leaveChoice(): void {
+        const id = root.choosing;
+        if (id.length === 0)
+            return;
+        root.choosing = "";
+        root.query = root._asideQuery;
+        root._asideQuery = "";
+        root._holdKey = id;
+        root._restoreCursor();
     }
 
     function _servers(text: string): var {
@@ -348,6 +439,11 @@ Palette {
                                                 "total": total,
                                                 "none": total === 0
                                             });
+        // Board 63 S2: a choice being made has the list to itself.
+        if (root.choosing.length > 0) {
+            const rows = root._options(text);
+            return one("options", rows, rows.length);
+        }
         if (root.slash) {
             const rows = root._kindRows();
             return one("kinds", rows, rows.length);
@@ -437,9 +533,18 @@ Palette {
         return qsTr("commands");
     }
 
-    chip: root.only.length === 0 && root.filter.length > 0 ? root.kindName(root.filter) : ""
+    // While a choice is made the filter is out of reach: no chip, so no `backspace` out of
+    // it, and no `shift+tab` (board 63 S2).
+    chip: root.only.length === 0 && root.choosing.length === 0 && root.filter.length > 0 ? root.kindName(root.filter)
+                                                                                         : ""
     counter: {
         switch (root.view.mode) {
+        case "options": {
+            // The plan's call 8: one word for every choice, not a noun each.
+            const all = root.choice !== null ? root.choice.options.length : 0;
+            return root.typed.length === 0 ? qsTr("%n options", "", all) : qsTr("%1 of %2").arg(root.view.total).arg(
+                                                 all);
+        }
         case "kinds":
             return qsTr("%n kinds", "", root.view.total);
         case "commands":
@@ -460,6 +565,8 @@ Palette {
         if (!root.view.none)
             return "";
         switch (root.view.mode) {
+        case "options":
+            return root.typed.length > 0 ? qsTr("No option matches “%1”.").arg(root.typed) : "";
         case "kinds":
             return qsTr("No kind matches “%1”.").arg(root.typed);
         case "commands":
@@ -474,8 +581,14 @@ Palette {
             return qsTr("Nothing here matches “%1”.").arg(root.typed);
         }
     }
-    filterable: root.only.length === 0
+    filterable: root.only.length === 0 && root.choosing.length === 0
     footerRight: {
+        // A refused change is said where the eye is, not left silent (C42 Z7).
+        if (root.note.length > 0)
+            return root.note;
+        // Board 63 S2: where the choice lives.
+        if (root.choosing.length > 0)
+            return root.choice !== null ? root.choice.paneText : "";
         if (root.slash || root.scope === "servers" || root.scope === "settings")
             return "";
         if (root.scope === "torrents")
@@ -488,13 +601,30 @@ Palette {
     }
     glyph: root.scope === "torrents" ? Glyphs.jump : root.scope === "servers" ? Glyphs.server
                                                    : root.scope === "settings" ? Glyphs.settings : Glyphs.commands
-    // A torrent's, a server's or a setting's `tab`, and a right-click on its row.
-    hasSecondary: root.only.length === 0
+    // A torrent's, a server's or a setting's `tab`, and a right-click on its row; none on
+    // an option.
+    hasSecondary: root.only.length === 0 && root.choosing.length === 0
     hints: {
         const esc = {
             "key": "esc",
             "label": root.query.length > 0 ? qsTr("clear") : qsTr("close")
         };
+        // Board 63 S2. `esc` first clears what narrows the options, as everywhere.
+        if (root.view.mode === "options")
+            return (root.view.items.length > 0 ? [
+                                                     {
+                                                         "key": "↑↓",
+                                                         "label": qsTr("move")
+                                                     },
+                                                     {
+                                                         "key": "enter",
+                                                         "label": qsTr("use")
+                                                     }] : []).concat([
+                                                                         {
+                                                                             "key": "esc",
+                                                                             "label": root.query.length > 0 ? qsTr("clear")
+                                                                                                            : qsTr("back")
+                                                                         }]);
         if (root.view.mode === "kinds")
             return [
                         {
@@ -526,8 +656,11 @@ Palette {
         // P3) there is nothing for `enter` to do.
         const words = {
             "commands": qsTr("run"),
-            // Board 63 S3. `tab` does the same for now, so it is not said twice (Z8).
-            "settings": qsTr("open in Settings"),
+            // C42 Z7: what `enter` does to this setting (board 63 S1, S2, S3).
+            "settings": root.currentItem === null ? "" : root.currentItem.settingKind === "switch"
+                                                    ? (root.currentItem.toggle === true ? qsTr("turn off") : qsTr("turn on"))
+                                                    : root.currentItem.settingKind === "choice" ? qsTr("choose")
+                                                                                                : qsTr("open in Settings"),
             "servers": qsTr("switch"),
             "torrents": qsTr("jump"),
             "more": qsTr("show")
@@ -548,6 +681,11 @@ Palette {
                            "key": "tab",
                            "label": qsTr("menu")
                        });
+        else if (root.cursorKind === "settings" && root.hasSecondary)
+            hints.push({
+                           "key": "tab",
+                           "label": qsTr("show in Settings")
+                       });
         if (root.scope === "servers")
             hints.push({
                            "key": ",",
@@ -564,8 +702,17 @@ Palette {
     }
     items: root.view.items
     keyHandler: event => {
+        // What a refused change left in the footer goes at the next key.
+        root.note = "";
         if ((event.modifiers & (Qt.ControlModifier | Qt.AltModifier)) !== 0)
             return;
+        // Board 63 S2: `esc` with nothing typed leaves the options for the matches. The
+        // kit would close the palette; what is typed it clears first, as everywhere.
+        if (event.key === Qt.Key_Escape && root.choosing.length > 0 && root.query.length === 0) {
+            root._leaveChoice();
+            event.accepted = true;
+            return;
+        }
         // docs/33 S1: `,` in the server list.
         if (event.key === Qt.Key_Comma && root.scope === "servers" && !root.slash) {
             root._manage();
@@ -583,14 +730,36 @@ Palette {
     objectName: "everythingPalette"
     // Board 63 Z3 draws it 560 wide; held to the servers it is docs/33's 520.
     paletteWidth: root.only.length > 0 ? Theme.space(520) : Theme.space(560)
-    title: root.scope === "torrents" ? qsTr("jump to a torrent") : root.scope === "servers" ? qsTr("switch server")
+    title: root.choosing.length > 0 ? (root.choice !== null ? root.choice.title : "") : root.scope === "torrents" ? qsTr("jump to a torrent") : root.scope === "servers" ? qsTr("switch server")
                                      : root.scope === "settings" ? qsTr("find a setting") : root._title()
 
     // Every opening starts from an empty query: the last one's text would otherwise stay in
     // the row and the next name be typed after it.
     onOpenedChanged: {
+        root.choosing = "";
+        root._asideQuery = "";
+        root._holdKey = "";
+        root.note = "";
         if (root.opened)
             root.query = "";
+    }
+    // The choice went from under its options (its server did): back to the matches.
+    onChoiceChanged: {
+        if (root.choosing.length > 0 && root.choice === null && root.opened)
+            root._leaveChoice();
+    }
+    // S1: the list was built again from the table; the cursor stays on what was changed.
+    onItemsChanged: root._restoreCursor()
+    // The kit's own moves (`_placing`) and the one above are not the hand's.
+    onCursorIndexChanged: {
+        if (!root._placing && !root._restoring) {
+            root._holdKey = "";
+            root.note = "";
+        }
+    }
+    onQueryChanged: {
+        if (root.choosing.length === 0 || root.query.length > 0)
+            root.note = "";
     }
     onActivated: (index, item) => {
         // C42 Z4: a kind's row sets the filter and clears the `/…` that named it.
@@ -604,6 +773,15 @@ Palette {
             root.setFilter(item.kind);
             return;
         }
+        // Board 63 S2: the option is set, and the matches are back.
+        if (item.kind === "option") {
+            const row = root.choice;
+            root.note = "";
+            if (row !== null && item.value !== row.value)
+                row.set(item.value);
+            root._leaveChoice();
+            return;
+        }
         const text = root.typed;
         switch (item.kind) {
         case "torrents":
@@ -611,7 +789,7 @@ Palette {
             root.close();
             break;
         case "settings":
-            root._showInSettings(item.key);
+            root._enterSetting(item.key);
             break;
         case "servers":
             root.close();
@@ -636,7 +814,7 @@ Palette {
     onRejected: root.close()
     // C42 Z8: nothing on a command.
     onSecondary: (index, item) => {
-        if (item.more === true || item.kindRow === true)
+        if (item.more === true || item.kindRow === true || item.kind === "option")
             return;
         if (item.kind === "torrents") {
             const hash = item.key;
@@ -651,5 +829,17 @@ Palette {
             root.close();
             root.serverMenuRequested(item.key, corner.x, corner.y);
         }
+    }
+
+    // A change the server on show refuses (its keys go back by themselves) is said, in the
+    // modal's words. Only while the palette is what made it.
+    Connections {
+        function onApplyFailed(keys: var, error: string): void {
+            if (root.opened)
+                root.note = qsTr("not changed: %1").arg(error);
+        }
+
+        ignoreUnknownSignals: true
+        target: root.settings !== null ? root.settings.prefs : null
     }
 }
