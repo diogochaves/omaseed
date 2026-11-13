@@ -62,6 +62,9 @@ import Omaseed.Kit
 //    instead of `secondary` (`tab` alone still asks for the secondary action). The caller
 //    owns the chip: it sets or clears `chip` in answer, the palette never does.
 //
+//  - An item's `spokenTitle` is what a screen reader calls the row instead of its `title`:
+//    where kinds are mixed, the caller adds the row's kind there ("delete, command").
+//
 // Do NOT run `qmlformat` on this file: with the project's 100-column wrap it re-indents the
 // typed functions further on every pass (the defect MainView.qml and TorrentTable.qml note).
 // It is hand-formatted to qmlformat's own style instead.
@@ -81,7 +84,7 @@ Item {
     /// The dim caption at the right of the query row (`.q .c`), e.g. "2 of 142".
     property string counter: ""
     property alias query: input.text
-    /// `[{title, meta, via, detail, checked, key, pinned, disabled, heading, more}]`.
+    /// `[{title, meta, via, detail, checked, key, pinned, disabled, heading, more, spokenTitle}]`.
     property var items: []
     /// #79: the rows' `meta` is words a screen reader should hear (a torrent's state, a
     /// count), not a key or a glyph as in the command palette: it leads the description.
@@ -875,7 +878,7 @@ Item {
                                row.modelData.detail ?? ""].filter(part => part.length > 0).join(" · ")
                     Accessible.name: row.heading ? [row.modelData.title ?? "", row.modelData.meta ?? ""].filter(
                                                        part => part.length > 0).join(", ")
-                                                 : (row.modelData.title ?? "")
+                                                 : (row.modelData.spokenTitle ?? row.modelData.title ?? "")
                     Accessible.role: row.heading ? Accessible.Heading : Accessible.ListItem
                     Accessible.selected: row.current
                     // A screen reader's press is the click (#75); disabled, it does nothing,
