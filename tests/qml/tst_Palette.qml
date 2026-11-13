@@ -281,10 +281,7 @@ TestCase {
     }
 
     function titleLabel(palette) {
-        const queryRow = palette.panel.children[0].children[0];
-        const row = queryRow.children[0];
-        const middle = row.children[1];
-        return middle.children[1];
+        return findChild(palette, "paletteTitle");
     }
 
     // ---- the cursor -------------------------------------------------------------------
@@ -1017,6 +1014,321 @@ TestCase {
         palette.listView.itemAtIndex(2).Accessible.pressAction();
         compare(activated.count, 0, "a disabled palette ran a row");
         compare(palette.cursorIndex, 0);
+        palette.close();
+    }
+
+    // ---- docs/DECISIONS.md C42: sections, "N more", the filter chip -----------------------
+    // Board 63's first figure, cut short: two sections, the second capped.
+    readonly property var sectionRows: [
+        {
+            "title": "commands",
+            "meta": "2",
+            "heading": true
+        },
+        {
+            "title": "delete",
+            "meta": "d",
+            "detail": "torrents · 2 selected"
+        },
+        {
+            "title": "hide details",
+            "meta": "i",
+            "detail": "view"
+        },
+        {
+            "title": "torrents",
+            "meta": "12",
+            "heading": true
+        },
+        {
+            "title": "debian-13.2.0-amd64-netinst.iso",
+            "meta": "seeding",
+            "detail": "790 MiB · linux"
+        },
+        {
+            "title": "11 more torrents",
+            "meta": "enter shows them",
+            "more": true,
+            "key": "more:torrents"
+        }
+    ]
+
+    Component {
+        id: filterRemoveSpy
+
+        SignalSpy {
+            signalName: "filterRemoveRequested"
+        }
+    }
+
+    Component {
+        id: filterStepSpy
+
+        SignalSpy {
+            signalName: "filterStepRequested"
+        }
+    }
+
+    function sectionPalette(properties) {
+        const palette = createTemporaryObject(paletteComponent, testCase, Object.assign({
+            "items": testCase.sectionRows
+        }, properties ?? {}));
+        palette.open();
+        waitForRendering(palette.listView);
+        return palette;
+    }
+
+    // C42 Z1: the cursor starts under the first heading and steps over the next one.
+    function test_the_cursor_never_rests_on_a_heading() {
+        const palette = sectionPalette();
+        compare(palette.cursorIndex, 1);
+        keyClick(Qt.Key_Up);
+        compare(palette.cursorIndex, 1, "up went onto the heading");
+        keyClick(Qt.Key_Down);
+        keyClick(Qt.Key_Down);
+        compare(palette.cursorIndex, 4, "down did not step over the heading");
+        keyClick(Qt.Key_Up);
+        compare(palette.cursorIndex, 2);
+        verify(!palette.canLand(0));
+        verify(!palette.canLand(3));
+        palette.cursorIndex = 3;
+        compare(palette.currentItem, null);
+        palette.close();
+    }
+
+    // C42 Z1: enter, tab, a click, the pointer and a screen reader's press do nothing on one.
+    function test_a_heading_is_never_activated() {
+        const palette = sectionPalette({
+            "hasSecondary": true
+        });
+        const activated = createTemporaryObject(activatedSpy, testCase, {
+                                                    "target": palette
+                                                });
+        const secondary = createTemporaryObject(secondarySpy, testCase, {
+                                                    "target": palette
+                                                });
+        const area = findChild(palette, "paletteRow_3");
+        mouseMove(area, 4, 2);
+        mouseMove(area, 8, 3);
+        compare(palette.cursorIndex, 1, "the pointer put the cursor on a heading");
+        mouseClick(area);
+        mouseClick(area, 8, 3, Qt.RightButton);
+        palette.listView.itemAtIndex(3).Accessible.pressAction();
+        compare(palette.cursorIndex, 1);
+        compare(area.cursorShape, Qt.ArrowCursor);
+        palette.cursorIndex = 3;
+        keyClick(Qt.Key_Return);
+        keyClick(Qt.Key_Tab);
+        compare(activated.count, 0);
+        compare(secondary.count, 0);
+        palette.close();
+    }
+
+    // C42 Z1: the kind's name dim on the left, its count faint on the right, small, and
+    // shorter than a row.
+    function test_a_heading_is_one_small_dim_line_with_its_count() {
+        const palette = sectionPalette();
+        const heading = palette.listView.itemAtIndex(0);
+        const row = palette.listView.itemAtIndex(1);
+        const title = findChild(heading, "paletteRowSlimTitle");
+        const count = findChild(heading, "paletteRowSlimMeta");
+        verify(title.visible);
+        compare(title.text, "commands");
+        compare(count.text, "2");
+        compare(title.font.pixelSize, Theme.font.small);
+        compare(count.font.pixelSize, Theme.font.small);
+        verify(Qt.colorEqual(title.color, Theme.dimForeground));
+        verify(Qt.colorEqual(count.color, Theme.fill(Theme.faintAlpha)));
+        compare(heading.height, title.implicitHeight + Theme.space(9) + Theme.space(4));
+        verify(heading.height < row.height, "a heading is as tall as a row");
+        verify(!findChild(heading, "paletteRowTitle").visible, "a heading draws a row's title too");
+        // A plain row draws no slim line, and is as tall as it was.
+        verify(!findChild(row, "paletteRowSlimTitle").visible);
+        const plain = createTemporaryObject(paletteComponent, testCase);
+        plain.open();
+        waitForRendering(plain.listView);
+        compare(row.height, plain.listView.itemAtIndex(0).height);
+        plain.close();
+        palette.close();
+    }
+
+    // C42 Z1: a screen reader hears a heading with its count, as a heading.
+    function test_a_heading_is_spoken_with_its_count() {
+        const palette = sectionPalette({
+            "metaSpoken": true
+        });
+        const heading = palette.listView.itemAtIndex(3);
+        compare(heading.Accessible.role, Accessible.Heading);
+        compare(heading.Accessible.name, "torrents, 12");
+        compare(heading.Accessible.description, "");
+        compare(palette.listView.itemAtIndex(4).Accessible.role, Accessible.ListItem);
+        palette.close();
+    }
+
+    // C42 Z3: the cursor stops on an "N more" row, and enter or a click runs it like any row.
+    function test_a_more_row_takes_the_cursor_and_is_activated() {
+        const palette = sectionPalette();
+        const activated = createTemporaryObject(activatedSpy, testCase, {
+                                                    "target": palette
+                                                });
+        for (let i = 0; i < 5; ++i)
+            keyClick(Qt.Key_Down);
+        compare(palette.cursorIndex, 5);
+        verify(palette.currentItem.more);
+        keyClick(Qt.Key_Return);
+        compare(activated.count, 1);
+        compare(activated.signalArguments[0][0], 5);
+        compare(activated.signalArguments[0][1].key, "more:torrents");
+        palette.cursorIndex = 1;
+        mouseClick(findChild(palette, "paletteRow_5"));
+        compare(activated.count, 2);
+        compare(palette.cursorIndex, 5);
+        palette.cursorToKey("more:torrents");
+        compare(palette.cursorIndex, 5);
+        palette.close();
+    }
+
+    // C42 Z3: one small line, dim with a faint hint; bright under the cursor.
+    function test_a_more_row_is_one_small_line() {
+        const palette = sectionPalette();
+        const more = palette.listView.itemAtIndex(5);
+        const title = findChild(more, "paletteRowSlimTitle");
+        const hintWords = findChild(more, "paletteRowSlimMeta");
+        compare(title.text, "11 more torrents");
+        compare(hintWords.text, "enter shows them");
+        compare(title.font.pixelSize, Theme.font.small);
+        verify(Qt.colorEqual(title.color, Theme.dimForeground));
+        verify(Qt.colorEqual(hintWords.color, Theme.fill(Theme.faintAlpha)));
+        compare(more.height, title.implicitHeight + Theme.space(5) + Theme.space(7));
+        verify(more.height < palette.listView.itemAtIndex(4).height);
+        palette.cursorIndex = 5;
+        verify(Qt.colorEqual(title.color, Theme.on.cursor.brightForeground));
+        verify(Qt.colorEqual(more.color, Theme.on.cursor.fill));
+        compare(more.Accessible.role, Accessible.ListItem);
+        compare(more.Accessible.name, "11 more torrents");
+        compare(more.Accessible.description, "enter shows them");
+        palette.close();
+    }
+
+    // C42: the scroll hint counts rows, and a heading is none.
+    function test_the_scroll_hint_does_not_count_headings() {
+        let rows = [];
+        for (let section = 0; section < 4; ++section) {
+            rows.push({
+                          "title": "kind " + section,
+                          "meta": "5",
+                          "heading": true
+                      });
+            for (let i = 0; i < 5; ++i)
+                rows.push({
+                              "title": "row " + section + "." + i,
+                              "detail": "second line"
+                          });
+        }
+        const palette = sectionPalette({
+            "items": rows
+        });
+        const hint = findChild(palette, "scrollHint");
+        verify(palette.listView.contentHeight > palette.listView.height);
+        tryVerify(() => hint.countBelow > 0);
+        let visibleLast = -1;
+        for (let i = 0; i < rows.length; ++i) {
+            const item = palette.listView.itemAtIndex(i);
+            // The last row the band does not wholly hide, as the palette counts it.
+            if (item !== null && item.y < palette.listView.contentY + palette.listView.height
+                    - hint.bandHeight - 1)
+                visibleLast = i;
+        }
+        let expected = 0;
+        for (let i = visibleLast + 1; i < rows.length; ++i)
+            expected += rows[i].heading === true ? 0 : 1;
+        compare(hint.countBelow, expected);
+        verify(expected < rows.length - 1 - visibleLast, "no heading was below to leave out");
+        // Down to the end, then back up: the first row brings its heading back into view.
+        for (let i = 0; i < rows.length; ++i)
+            keyClick(Qt.Key_Down);
+        compare(palette.cursorIndex, rows.length - 1);
+        verify(palette.listView.contentY > palette.listView.originY);
+        for (let i = 0; i < rows.length; ++i)
+            keyClick(Qt.Key_Up);
+        compare(palette.cursorIndex, 1);
+        compare(palette.listView.contentY, palette.listView.originY);
+        tryCompare(hint, "countAbove", 0);
+        palette.close();
+    }
+
+    // C42 Z4: the chip sits between the glyph and the text, small and bright on the selected
+    // fill; none is drawn until a caller sets one.
+    function test_the_chip_is_drawn_before_the_query() {
+        const palette = createTemporaryObject(paletteComponent, testCase);
+        palette.open();
+        waitForRendering(palette.listView);
+        const chip = findChild(palette, "paletteChip");
+        const label = findChild(palette, "paletteChipLabel");
+        const input = findChild(palette, "paletteInput");
+        verify(!chip.visible, "a palette with no filter draws a chip");
+        const before = input.mapToItem(palette, 0, 0).x;
+        palette.chip = "torrents";
+        tryVerify(() => chip.visible);
+        waitForRendering(palette.listView);
+        compare(label.text, "torrents");
+        compare(label.font.pixelSize, Theme.font.small);
+        verify(Qt.colorEqual(chip.color, Theme.on.selected.fill));
+        verify(Qt.colorEqual(label.color, Theme.on.selected.brightForeground));
+        compare(chip.width, Math.ceil(label.implicitWidth) + 2 * Theme.space(8));
+        compare(chip.Accessible.name, "torrents");
+        const chipX = chip.mapToItem(palette, 0, 0).x;
+        tryVerify(() => input.mapToItem(palette, 0, 0).x >= chipX + chip.width);
+        verify(chipX >= before, "the chip is not where the text began");
+        palette.chip = "";
+        tryVerify(() => !chip.visible);
+        tryVerify(() => input.mapToItem(palette, 0, 0).x === before, 1000, "the text did not go back");
+        palette.close();
+    }
+
+    // C42 Z4: backspace in an empty query asks to take the chip off; with text typed it
+    // erases text, and with no chip it asks nothing.
+    function test_backspace_in_an_empty_query_asks_to_remove_the_chip() {
+        const palette = createTemporaryObject(paletteComponent, testCase);
+        const remove = createTemporaryObject(filterRemoveSpy, testCase, {
+                                                 "target": palette
+                                             });
+        palette.open();
+        keyClick(Qt.Key_Backspace);
+        compare(remove.count, 0, "asked with no chip on");
+        palette.chip = "torrents";
+        keyClick(Qt.Key_D);
+        keyClick(Qt.Key_Backspace);
+        compare(palette.query, "");
+        compare(remove.count, 0, "asked while it erased text");
+        keyClick(Qt.Key_Backspace);
+        compare(remove.count, 1);
+        compare(palette.chip, "torrents", "the palette took the caller's chip off itself");
+        verify(palette.opened);
+        palette.close();
+    }
+
+    // C42 Z4: shift+tab asks to step the kind where the caller filters; elsewhere it is still
+    // the secondary action, and tab alone always is.
+    function test_shift_tab_asks_to_step_the_filter_only_when_filterable() {
+        const palette = createTemporaryObject(paletteComponent, testCase);
+        const step = createTemporaryObject(filterStepSpy, testCase, {
+                                               "target": palette
+                                           });
+        const secondary = createTemporaryObject(secondarySpy, testCase, {
+                                                    "target": palette
+                                                });
+        palette.open();
+        keyClick(Qt.Key_Backtab, Qt.ShiftModifier);
+        compare(step.count, 0);
+        compare(secondary.count, 1);
+        palette.filterable = true;
+        keyClick(Qt.Key_Backtab, Qt.ShiftModifier);
+        compare(step.count, 1);
+        compare(secondary.count, 1);
+        keyClick(Qt.Key_Tab);
+        compare(step.count, 1);
+        compare(secondary.count, 2);
         palette.close();
     }
 }

@@ -38,6 +38,30 @@ import Omaseed.Kit
 // the meta's place after a faint "via": the path to an action that has no key of its own.
 // `emptyText` is a dim line over the list, for "nothing matches" (docs/30 P4).
 //
+// A palette over several kinds of row (docs/DECISIONS.md C42, board 63) has three more pieces,
+// each opt-in, so a palette that uses none of them is drawn and driven as before. The palette
+// only draws them: which sections there are, how many rows each shows, their order and what
+// the chip says are the caller's, as `items` is.
+//  - An item with `heading: true` is a section's heading (C42 Z1): its `title` (the kind's
+//    name) dim on the left, its `meta` (the count) faint on the right, in the small size. It
+//    is no row to act on: the cursor never rests on it (`up`/`down` step over it, and when
+//    only headings are above the cursor the list scrolls back to its top to show them), and
+//    `enter`, `tab`, a click, the pointer and a screen reader's press do nothing on it. A
+//    screen reader hears it as a heading named "title, meta". It is left out of the scroll
+//    hint's "N above/below" counts, which count rows.
+//  - An item with `more: true` is a section's "N more" row (C42 Z3): one small line, its
+//    `title` ("10 more torrents") dim, bright under the cursor, and its `meta` ("enter shows
+//    them") faint on the right. It is a row like any other: the cursor stops on it, and
+//    `enter` or a click sends `activated` with it (tell it apart by `item.more`); `tab` sends
+//    `secondary` too, for the caller to ignore. A screen reader hears its `title`, then its
+//    `meta` as the description whatever `metaSpoken` says.
+//  - `chip` is the filter's name in the query row, between the glyph and the text (C42 Z4):
+//    "" draws none. With a chip on, `backspace` in an empty query sends
+//    `filterRemoveRequested` (not while the key auto-repeats, so holding it to erase the text
+//    stops at the chip). `filterable: true` makes `shift+tab` send `filterStepRequested`
+//    instead of `secondary` (`tab` alone still asks for the secondary action). The caller
+//    owns the chip: it sets or clears `chip` in answer, the palette never does.
+//
 // Do NOT run `qmlformat` on this file: with the project's 100-column wrap it re-indents the
 // typed functions further on every pass (the defect MainView.qml and TorrentTable.qml note).
 // It is hand-formatted to qmlformat's own style instead.
@@ -57,11 +81,17 @@ Item {
     /// The dim caption at the right of the query row (`.q .c`), e.g. "2 of 142".
     property string counter: ""
     property alias query: input.text
-    /// `[{title, meta, via, detail, checked, key, pinned, disabled}]`.
+    /// `[{title, meta, via, detail, checked, key, pinned, disabled, heading, more}]`.
     property var items: []
     /// #79: the rows' `meta` is words a screen reader should hear (a torrent's state, a
     /// count), not a key or a glyph as in the command palette: it leads the description.
     property bool metaSpoken: false
+    /// docs/DECISIONS.md C42 Z4: the filter that is on ("torrents"), drawn as a chip before
+    /// the query's text. "" draws none. The caller owns it; see the header.
+    property string chip: ""
+    /// C42 Z4: `shift+tab` asks to step the filter (`filterStepRequested`) instead of asking
+    /// for the secondary action.
+    property bool filterable: false
     /// A dim line between the query row and the list; empty draws nothing.
     property string emptyText: ""
     /// Show the check column and let `space` toggle rows (the tags picker).
@@ -117,6 +147,11 @@ Item {
     signal dropRequested(int index, var item, int slot)
     /// A click on a footer hint flagged `clickable` (`{key, label, clickable: true}`).
     signal hintClicked(int index, var hint)
+    /// `backspace` in an empty query while a `chip` is on (docs/DECISIONS.md C42 Z4): the
+    /// caller takes the filter off.
+    signal filterRemoveRequested
+    /// `shift+tab` while `filterable` is set (C42 Z4): the caller steps to the next kind.
+    signal filterStepRequested
 
     /// True while a row is being dragged.
     readonly property bool dragging: root._dragFrom >= 0
@@ -210,9 +245,43 @@ Item {
         root._showRow(root.cursorIndex);
     }
 
-    /// Whether the cursor may rest on row `index`: a row that exists and can run.
+    /// Whether the cursor may rest on row `index`: a row that exists and can run. A section's
+    /// heading is no row (docs/DECISIONS.md C42 Z1).
     function canLand(index: int): bool {
-        return index >= 0 && index < root.items.length && root.items[index].disabled !== true;
+        return index >= 0 && index < root.items.length && root.items[index].disabled !== true
+                && root.items[index].heading !== true;
+    }
+
+    /// Whether any item is a section's heading: the lists without one skip the walks below.
+    readonly property bool _hasHeadings: {
+        for (let i = 0; i < root.items.length; ++i) {
+            if (root.items[i].heading === true)
+                return true;
+        }
+        return false;
+    }
+
+    /// How many of the items `from` to `to - 1` are rows, which a heading is not.
+    function _rowsIn(from: int, to: int): int {
+        if (!root._hasHeadings)
+            return Math.max(0, to - from);
+        let rows = 0;
+        for (let i = Math.max(0, from); i < to && i < root.items.length; ++i) {
+            if (root.items[i].heading !== true)
+                ++rows;
+        }
+        return rows;
+    }
+
+    /// Whether every item above `index` is a heading (and there is one).
+    function _underHeadings(index: int): bool {
+        if (!root._hasHeadings || index <= 0 || index > root.items.length)
+            return false;
+        for (let i = 0; i < index; ++i) {
+            if (root.items[i].heading !== true)
+                return false;
+        }
+        return true;
     }
 
     /// The first row from `index` on, going by `step`, that the cursor may rest on; -1 if none.
@@ -245,6 +314,11 @@ Item {
 
     /// Scroll row `index` into view and clear of the hint's bands or fades.
     function _showRow(index: int): void {
+        // The first row of the first section brings its heading back with it.
+        if (root._underHeadings(index)) {
+            list.positionViewAtBeginning();
+            return;
+        }
         list.positionViewAtIndex(index, ListView.Contain);
         const row = list.itemAtIndex(index);
         if (row === null)
@@ -292,15 +366,15 @@ Item {
     readonly property int _rowsAbove: {
         if (root._rawAbove === 0)
             return 0;
-        return Math.max(root._rawAbove,
-                root._rowAt(list.contentY + hint.bandHeight + 1, root._layoutRevision));
+        return root._rowsIn(0, Math.max(root._rawAbove,
+                root._rowAt(list.contentY + hint.bandHeight + 1, root._layoutRevision)));
     }
     readonly property int _rowsBelow: {
         if (root._rawBelow === 0)
             return 0;
         const last = root._rowAt(list.contentY + list.height - hint.bandHeight - 1,
                 root._layoutRevision);
-        return last < 0 ? root._rawBelow : list.count - 1 - last;
+        return root._rowsIn(last < 0 ? list.count - root._rawBelow : last + 1, list.count);
     }
 
     /// How much of a row counted above or below still shows past a band's inner edge (#8):
@@ -487,6 +561,19 @@ Item {
         }
         if (ctrl)
             return;
+        // docs/DECISIONS.md C42 Z4: the filter's two keys, where the caller has one.
+        if (root.filterable && !alt && (event.key === Qt.Key_Backtab
+                || (event.key === Qt.Key_Tab && shift))) {
+            root.filterStepRequested();
+            event.accepted = true;
+            return;
+        }
+        if (event.key === Qt.Key_Backspace && root.chip.length > 0 && root.query.length === 0) {
+            if (!event.isAutoRepeat)
+                root.filterRemoveRequested();
+            event.accepted = true;
+            return;
+        }
         switch (event.key) {
         case Qt.Key_Escape:
             if (root.query.length > 0) {
@@ -628,6 +715,28 @@ Item {
                         visible: root.glyph.length > 0
                     }
 
+                    // docs/DECISIONS.md C42 Z4: the filter that is on (board 63 `.pal .chip`),
+                    // bright words on the selected fill.
+                    Rectangle {
+                        Accessible.name: root.chip
+                        Accessible.role: Accessible.StaticText
+                        color: Theme.on.selected.fill
+                        implicitHeight: chipLabel.implicitHeight + 2 * Theme.space(1)
+                        implicitWidth: Math.ceil(chipLabel.implicitWidth) + 2 * Theme.space(8)
+                        objectName: "paletteChip"
+                        visible: root.chip.length > 0
+
+                        Label {
+                            id: chipLabel
+
+                            anchors.centerIn: parent
+                            color: Theme.on.selected.brightForeground
+                            objectName: "paletteChipLabel"
+                            size: "small"
+                            text: root.chip
+                        }
+                    }
+
                     Item {
                         Layout.fillHeight: true
                         Layout.fillWidth: true
@@ -662,6 +771,7 @@ Item {
                             anchors.verticalCenter: parent.verticalCenter
                             dim: true
                             elide: Text.ElideRight
+                            objectName: "paletteTitle"
                             text: root.title
                             visible: root.title.length > 0 && input.text.length === 0
                         }
@@ -736,6 +846,12 @@ Item {
                     readonly property bool current: row.index === root.cursorIndex
                     /// docs/30 D4: this row can't run now.
                     readonly property bool disabled: row.modelData.disabled === true
+                    /// docs/DECISIONS.md C42 Z1: a section's heading, no row to act on.
+                    readonly property bool heading: row.modelData.heading === true
+                    /// C42 Z3: a section's "N more" row.
+                    readonly property bool more: !row.heading && row.modelData.more === true
+                    /// Either of the two: one small line in place of a row's two.
+                    readonly property bool slim: row.heading || row.more
                     /// The faint step (docs/30's 40 %), for a dim row's meta and second line and
                     /// the "via" before a path.
                     readonly property color faint: Theme.fill(Theme.faintAlpha)
@@ -752,17 +868,25 @@ Item {
 
                     // #79: the row's second line ("linux · 2.34 GB · 12.4 %") is its
                     // description, after its meta where that is words (`metaSpoken`).
-                    Accessible.description: [root.metaSpoken ? (row.modelData.meta ?? "") : "",
-                                             row.modelData.detail ?? ""].filter(part => part.length > 0).join(" · ")
-                    Accessible.name: row.modelData.title ?? ""
-                    Accessible.role: Accessible.ListItem
+                    // C42: a heading is spoken with its count, as its name; an "N more" row's
+                    // meta says what `enter` does, so it is always its description.
+                    Accessible.description: row.heading ? "" : row.more ? (row.modelData.meta ?? "")
+                            : [root.metaSpoken ? (row.modelData.meta ?? "") : "",
+                               row.modelData.detail ?? ""].filter(part => part.length > 0).join(" · ")
+                    Accessible.name: row.heading ? [row.modelData.title ?? "", row.modelData.meta ?? ""].filter(
+                                                       part => part.length > 0).join(", ")
+                                                 : (row.modelData.title ?? "")
+                    Accessible.role: row.heading ? Accessible.Heading : Accessible.ListItem
                     Accessible.selected: row.current
                     // A screen reader's press is the click (#75); disabled, it does nothing,
                     // as the pointer.
                     Accessible.onPressAction: if (row.enabled)
                                                   root._clickRow(row.index)
                     color: row.lifted || row.current ? row.ink.fill : "transparent"
-                    height: rowColumn.implicitHeight + 2 * Theme.space(6)
+                    // Board 63 `.pal .sh` (9 above, 4 below) and `.pal .mr` (5 above, 7 below).
+                    height: row.heading ? slimLine.implicitHeight + Theme.space(9) + Theme.space(4)
+                            : row.more ? slimLine.implicitHeight + Theme.space(5) + Theme.space(7)
+                            : rowColumn.implicitHeight + 2 * Theme.space(6)
                     width: ListView.view.width
 
                     // `indexAt` notifies nothing, so a row that comes, goes, moves or
@@ -788,6 +912,40 @@ Item {
                         height: 1
                     }
 
+                    // A heading's or an "N more" row's one line (C42 Z1, Z3): its words dim
+                    // (bright under the cursor), what is on its right faint.
+                    RowLayout {
+                        id: slimLine
+
+                        anchors.left: parent.left
+                        anchors.leftMargin: Theme.space(14)
+                        anchors.right: parent.right
+                        anchors.rightMargin: Theme.space(14)
+                        anchors.top: parent.top
+                        anchors.topMargin: row.heading ? Theme.space(9) : Theme.space(5)
+                        spacing: Theme.space(8)
+                        visible: row.slim
+
+                        Label {
+                            Layout.fillWidth: true
+                            bright: row.more && row.current
+                            dim: !(row.more && row.current)
+                            elide: Text.ElideRight
+                            ink: row.ink
+                            objectName: "paletteRowSlimTitle"
+                            size: "small"
+                            text: row.modelData.title ?? ""
+                        }
+
+                        Label {
+                            color: row.current ? row.ink.dimForeground : row.faint
+                            objectName: "paletteRowSlimMeta"
+                            size: "small"
+                            text: row.modelData.meta ?? ""
+                            visible: text.length > 0
+                        }
+                    }
+
                     RowLayout {
                         anchors.left: parent.left
                         anchors.leftMargin: Theme.space(14)
@@ -795,6 +953,7 @@ Item {
                         anchors.rightMargin: Theme.space(14)
                         anchors.verticalCenter: parent.verticalCenter
                         spacing: Theme.space(8)
+                        visible: !row.slim
 
                         Label {
                             Layout.alignment: Qt.AlignTop
@@ -863,7 +1022,7 @@ Item {
 
                         acceptedButtons: Qt.LeftButton | Qt.RightButton
                         anchors.fill: parent
-                        cursorShape: row.disabled ? Qt.ArrowCursor : Qt.PointingHandCursor
+                        cursorShape: row.disabled || row.heading ? Qt.ArrowCursor : Qt.PointingHandCursor
                         hoverEnabled: true
                         objectName: "paletteRow_" + row.index
 
