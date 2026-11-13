@@ -1887,8 +1887,9 @@ TestCase {
         view.details.activateTab(view.details.tabStory);
     }
 
-    // docs/63 §6 (DECISIONS C42 Z7, Z8): a setting found in the palette opens Settings on its
-    // row: the pane, the keyboard in it, the cursor on the row.
+    // docs/63 §6 (DECISIONS C42 Z7, Z8): `enter` flips a switch found in the palette, which
+    // stays (S1); `tab` opens Settings on its row: the pane, the keyboard in it, the cursor
+    // on the row.
     function test_a_setting_in_the_palette_opens_settings_on_its_row() {
         keyClick(":");
         verify(view.everythingPalette.opened);
@@ -1898,6 +1899,13 @@ TestCase {
         compare(view.everythingPalette.currentItem.detail, "Settings › Appearance");
         const was = App.pulseRows;
         keyClick(Qt.Key_Return);
+        compare(App.pulseRows, !was);
+        compare(view.everythingPalette.opened, true);
+        compare(view.activeOverlay, view.everythingPalette);
+        compare(view.everythingPalette.currentItem.title, "Pulse sending rows");
+        keyClick(Qt.Key_Return);
+        compare(App.pulseRows, was);
+        keyClick(Qt.Key_Tab);
         compare(view.everythingPalette.opened, false);
         compare(view.settingsModal.opened, true);
         compare(view.activeOverlay, view.settingsModal);

@@ -597,7 +597,9 @@ Palette {
         if (root.scope.length === 0 && root.typed.length === 0)
             return root.settings !== null ? qsTr("type to find settings, servers, torrents")
                                           : qsTr("type to find torrents, servers");
-        return qsTr("? lists every key");
+        // A setting's hints are the longest ("show in Settings"): they keep the whole
+        // footer, or `esc` would be pushed out of it.
+        return root.cursorKind === "settings" ? "" : qsTr("? lists every key");
     }
     glyph: root.scope === "torrents" ? Glyphs.jump : root.scope === "servers" ? Glyphs.server
                                                    : root.scope === "settings" ? Glyphs.settings : Glyphs.commands

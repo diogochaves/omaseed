@@ -879,6 +879,8 @@ TestCase {
         compare(palette.currentItem.toggle, true);
         compare(testCase._hints(palette), ["↑↓ move", "enter turn off", "tab show in Settings", "shift+tab kind",
                                            "esc clear"]);
+        // A setting's hints have the footer to themselves: `esc` must fit.
+        compare(palette.footerRight, "");
         keyClick(Qt.Key_Return);
         compare(App.pulseRows, false);
         compare(palette.opened, true);
