@@ -960,8 +960,9 @@ expect_at "the next enter moves it to the place filled in" "Short Film 020" "$se
 step "The names" "The : palette finds move… when set location is typed; the actions menu (enter) and the action bar (space) say move…; the actions menu has no move folder… (C19 T3: that is the rail folder row's)."
 keys colon
 keys -t "set location"
-expect_tree "the palette finds move… for \"set location\"" 'list item "move…"' 10
-shot "The command palette: set location typed, move… found." palette
+# C42: unfiltered, the palette mixes kinds, so a row says its own to a screen reader.
+expect_tree "the palette finds move… for \"set location\"" 'list item "move…, command"' 10
+shot "The palette: set location typed, move… found among the commands." palette
 # The esc ladder: the first clears what was typed, the second closes the palette.
 keys Escape
 keys Escape
