@@ -2634,3 +2634,56 @@ renames. **Amends** C38 R9 (`core/RenameHistory` becomes `core/StoryRecord`) and
 
 Still to check in the build (the board's open points): the folder Deluge's Label plugin moves a
 torrent to (Y7, on the Deluge playground), and when qBittorrent changes `save_path` during a move.
+
+## C44 — A quiet drive for a move: measure first (board 61, ruled 2026-11-13)
+
+Board [61](61-a-quiet-drive-for-a-move.html), #175, P1–P12 all as recommended. A move off a
+hard disk may stop that drive's running torrents and start exactly those again. **Nothing is
+built until P1's runs say so**: the first piece is the measurement (stage A's stop-and-start
+plumbing in a box, stage B's timed runs on a real hard disk Diogo mounts; a loop image on NVMe
+can't stand in), in `scripts/dev/research/175-stop-during-move/`.
+
+- **P1 a.** Build only if stage B's stopped runs are at least 10 % shorter at the light load and
+  by more than the spread between runs of the same kind. Under 5 % at both loads closes #175
+  with the numbers in the research folder; in between, the numbers come back to Diogo.
+- **P2 a.** Offered for a move across drives (never a rename on one device, C15 M5), off a drive
+  omaseed sees and reads as a hard disk (`queue/rotational`, followed through partitions,
+  dm-crypt, LVM and md; any hard disk below makes the whole one), with other running torrents
+  on it, long enough to take at least 10 minutes at stage B's rate (a size floor). Folder and
+  selection moves alike (C16 L1). Never on a server whose disks omaseed can't see (C16 L13).
+- **P3 a.** Offered in the Move sheet, off by default, remembered per server (`state.json`, as
+  C16 L4's recent destinations).
+- **P4 a.** It stops every torrent running (queued included) when the move starts with data on
+  the source drive (save path, or incomplete folder while downloading, through the path map),
+  the move's own included: each of those starts again as it lands, the rest when the job ends.
+  Stopped, errored, missing-files and checking torrents are left as they are and counted. The
+  set is fixed at the start.
+- **P5 a.** A block in the sheet with one tick: **stop the N torrents on MOUNT while it moves**;
+  `MOUNT is a hard disk · B % busy now · uploading R from these torrents` (busy from
+  `/proc/diskstats` over 5 s); the split (in this move / start when it ends) and the cost; what
+  stays as it is. The gain line appears only once P1's runs give a number that clears the bar.
+  The verb is **stop**, never pause.
+- **P6 a.** The band's second line ends **N stopped for the move**, counting down. Rows keep
+  `stopped`; tooltip and facts say why and when it starts again. The move's record lists the
+  set with **show them** and **start them now**; the palette has **start what the move
+  stopped**. No new status word.
+- **P7 a.** Whatever the person does wins: a torrent started anywhere is let go and not stopped
+  again; one stopped by hand is let go and stays stopped; deleted, it leaves the set; moved off
+  the drive, it still starts at the end.
+- **P8 a.** The set is held only while the job sends. Every pause (by hand, pause and quit,
+  stuck M14, no space, the first failure, a refusal) and every end starts it; resume stops again
+  those still held. The paused band and J5's quit line say so. Keep running in the tray changes
+  nothing.
+- **P9 a.** The set goes into the job file before the stop is sent, each torrent with how it ran
+  (forced, queued). After a crash the job resumes (M13) still holding it. A torrent leaves the
+  set only once a poll shows it running. A job that can't go on starts the set before it is
+  dropped; removing a server that holds a set asks first. The README says what the file is.
+- **P10 a.** The summary's line ends **N started again**, or with the rest (`· you'd started
+  yourself · removed · didn't start`, the reason in details). Each starts as it ran. A failed
+  torrent of the move is not started; C20's recheck starts it if complete. A move back gets
+  the tick again.
+- **P11 a.** All three engines on the same rules, through `EngineClient`. On Transmission the
+  stop goes before the first `set_location`, and the offer shows only if stage B shows its
+  torrents uploading during a copy.
+- **P12 a.** The source drive only; stage B's optional pair decides whether an amendment adds
+  the destination's torrents.
