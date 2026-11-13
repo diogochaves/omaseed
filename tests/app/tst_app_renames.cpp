@@ -6,7 +6,7 @@
 // (its echo), and a file rename logged failed takes its line back (R3, C2 D2).
 
 #include "core/ProblemLog.hpp"
-#include "core/RenameHistory.hpp"
+#include "core/StoryRecord.hpp"
 #include "core/SyncEngine.hpp"
 #include "ui/app/App.hpp"
 

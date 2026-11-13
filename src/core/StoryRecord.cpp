@@ -1,4 +1,4 @@
-#include "core/RenameHistory.hpp"
+#include "core/StoryRecord.hpp"
 
 #include <QStringList>
 

@@ -709,8 +709,8 @@ omaseed_add_test(tst_movehistory
     LIBRARIES omaseed::core
 )
 
-omaseed_add_test(tst_renamehistory
-    SOURCES tst_renamehistory.cpp
+omaseed_add_test(tst_storyrecord
+    SOURCES tst_storyrecord.cpp
     LIBRARIES omaseed::core
 )
 

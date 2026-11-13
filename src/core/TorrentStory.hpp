@@ -12,7 +12,7 @@
 // seen changed in a poll while it ran; never a file renamed elsewhere, which it can't see).
 // The now is the details' head sentence, not a line here. Pure Qt Core; `tst_torrentstory`.
 
-#include "core/RenameHistory.hpp"
+#include "core/StoryRecord.hpp"
 #include "core/Torrent.hpp"
 
 #include <QDateTime>
