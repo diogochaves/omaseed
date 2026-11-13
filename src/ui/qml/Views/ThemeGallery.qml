@@ -1469,6 +1469,63 @@ Window {
                         }
                     }
 
+                    // docs/DECISIONS.md C42 Z1, Z3, Z4: sections, an "N more" row, the chip.
+                    Captioned {
+                        caption: qsTr("Palette \u00b7 sections and a filter")
+
+                        Palette {
+                            accessibleName: qsTr("commands, servers and torrents")
+                            chip: qsTr("torrents")
+                            counter: qsTr("9 matches")
+                            cursorIndex: 4
+                            filterable: true
+                            glyph: Glyphs.search
+                            hints: [
+                                {
+                                    "key": "\u2191\u2193",
+                                    "label": qsTr("move")
+                                },
+                                {
+                                    "key": "enter",
+                                    "label": qsTr("run")
+                                },
+                                {
+                                    "key": "shift+tab",
+                                    "label": qsTr("kind")
+                                }
+                            ]
+                            inline: true
+                            items: [
+                                {
+                                    "title": qsTr("commands"),
+                                    "meta": "1",
+                                    "heading": true
+                                },
+                                {
+                                    "title": qsTr("delete"),
+                                    "meta": "d",
+                                    "detail": qsTr("torrents \u00b7 2 selected")
+                                },
+                                {
+                                    "title": qsTr("torrents"),
+                                    "meta": "8",
+                                    "heading": true
+                                },
+                                {
+                                    "title": "debian-13.2.0-amd64-netinst.iso",
+                                    "meta": qsTr("seeding"),
+                                    "detail": "790 MiB \u00b7 linux"
+                                },
+                                {
+                                    "title": qsTr("7 more torrents"),
+                                    "meta": qsTr("enter shows them"),
+                                    "more": true
+                                }
+                            ]
+                            query: "de"
+                        }
+                    }
+
                     Captioned {
                         caption: qsTr("Menu \u00b7 Fig. 11")
 
