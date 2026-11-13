@@ -20,6 +20,7 @@ issue, with a README saying what it reproduces, how to run it and what it printe
 | [87-deluge-prefetch](87-deluge-prefetch/) | What Deluge's prefetch gives before an add (files, timing, failure, asked again), and is its diff safe through deluge-web? | #87 |
 | [87-deluge-moves](87-deluge-moves/) | What does Deluge show while it moves a torrent, and how does a move fail, in words and without? | #87 |
 | [88-engines-backup](88-engines-backup/) | What can Transmission's and Deluge's APIs give an engine-neutral export and take at an import? | #88 |
+| [248-story-edits](248-story-edits/) | What does a Deluge label with a folder do to a torrent, and when does qBittorrent's save_path change during a move? | #248 |
 
 They talk only to throwaway qBittorrents (the playground on `:8081`, or a profile made with
 `scripts/dev/test-server.sh`), the other engines' test servers (`--transmission` on `:8085`,
