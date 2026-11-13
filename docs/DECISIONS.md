@@ -2544,3 +2544,41 @@ gives one, and omaseed shipped none. **Ruled: the Qt way**, not a per-string hel
 - Guards such as `n > 1 ? qsTr("remove %n trackers", "", n) : qsTr("remove")` stay: each one's
   other branch says something else (no count, a name). The older `n === 1 ? qsTr("1 torrent") :
   qsTr("%1 torrents").arg(n)` pairs are left as they are; new code writes `%n`.
+
+## C42 — The everything palette (board 63, ruled 2026-11-13)
+
+Board [63](63-the-everything-palette.html) (#264), all twelve decisions as recommended, Z4 as
+its option c (added in review). The command, jump and server palettes become one palette over
+four kinds of row: a command, a setting, a server, a torrent. Amends C1 D8; spec v2 Fig. 12
+and board 33's server palette are drawn as before, now with a filter chip.
+
+- **Z1** When several kinds match, each kind is a section: a heading with its count. A kind
+  with no match has no section.
+- **Z2** The sections' order is fixed: commands, settings, servers, torrents.
+- **Z3** A section shows up to four rows, then an "N more" row that narrows the palette to
+  that kind. When only one kind matches there is no heading and no cap.
+- **Z4** The filter is a chip in the query row. `/` typed first lists the kinds, more letters
+  narrow them, and `enter` or `space` sets the chip and clears the typed text (`/t deb` ends
+  as "torrents" with `deb` typed). It replaces a chip that is on; with one on, `/all` clears
+  it. `backspace` in an empty query removes the chip and `shift+tab` steps through the kinds.
+  A query that starts with `/` is always read as a kind.
+- **Z5** Every key keeps its habit: `:` and `ctrl+shift+p` open every kind, `ctrl+k` opens on
+  torrents, `ctrl+s` on servers. `,` still opens the settings modal.
+- **Z6** With nothing typed and no filter the list is C1's: the commands for what is selected,
+  recent first (C1 D7).
+- **Z7** A setting's control lives in its row: a switch flips on `enter` and the palette stays
+  open, a choice opens its options in the palette, and a value the pane confirms (or a number,
+  a path) opens Settings on that row. Rows are omaseed's own settings and those of the server
+  on show, as its engine offers them (C14 E4); Backup's actions are commands.
+- **Z8** `tab` is the row's second action: a torrent's actions menu, a server's menu, a setting
+  shown in Settings. Nothing on a command.
+- **Z9** Category, tags, sort and columns stay pickers of their own.
+- **Z10** The first build has the four kinds. The rail's places and the move history may come
+  later as kinds, each once it is asked for.
+- **Z11** Nothing found: a dim line and, on a server with search, the "search the plugins for"
+  row (C26 SR14). C1 D8's row to the jump palette goes: torrents are in the list.
+- **Z12** Menus are not drawn from the same table for now: only if duplicated rows keep
+  causing bugs.
+
+Torrents are those of the server on show, as `App.jumpMatches()` gives them. Built in two
+steps: the merge of the three palettes (#265), then settings as rows (#266).

@@ -1,0 +1,590 @@
+<title>omaseed everything palette</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap">
+<style>
+/* ------------------------------------------------------------------
+   docs/63: the everything palette, a proposal (2026-11-13). Issue #264.
+   Board chrome and the palette mocks: board 30's (Kit/Palette.qml as
+   built, 560 px wide at base 14). New here: section headings, the
+   "N more" row, the filter chip, a row's control. Theme roles only,
+   fills at 4/8/18/22 %, hairlines at 12 %, switchable between themes.
+   Mocks only; torrent and server names are invented.
+   ------------------------------------------------------------------ */
+:root {
+  --accent:#5492f8; --bg:#11111b; --bg-dark:#0d0d14;
+  --fg:#b9c5ef; --fg-dark:#8b94b3; --fg-bright:#cbd4f3;
+  --green:#7dd676; --red:#ee5681; --yellow:#f6d58c;
+  --fill-normal: color-mix(in srgb, var(--fg) 4%, transparent);
+  --hairline: color-mix(in srgb, var(--fg) 12%, transparent);
+  --mono: "JetBrains Mono", "JetBrainsMono Nerd Font", ui-monospace, monospace;
+  color-scheme: dark;
+}
+* { box-sizing:border-box; }
+[hidden] { display:none !important; }
+body { margin:0; background:var(--bg-dark); color:var(--fg); font:400 13px/1.6 var(--mono); -webkit-font-smoothing:antialiased; }
+main { max-width:1320px; margin:0 auto; padding-block:32px 72px; padding-left:max(16px, env(safe-area-inset-left, 0px)); padding-right:max(16px, env(safe-area-inset-right, 0px)); display:grid; gap:32px; }
+h1,h2,h3 { margin:0; font-weight:600; color:var(--fg-bright); text-wrap:balance; }
+h1 { font-size:26px; } h2 { font-size:17px; } h3 { font-size:13px; }
+p, li { max-width:84ch; }
+p { margin:0; }
+ul, ol { margin:0; padding-left:20px; display:grid; gap:4px; }
+code { color:var(--fg-bright); background:var(--fill-normal); padding:0 4px; overflow-wrap:anywhere; }
+b { color:var(--fg-bright); font-weight:600; }
+a { color:var(--accent); }
+.eyebrow { font-size:10px; letter-spacing:.12em; text-transform:uppercase; color:var(--fg-dark); }
+.dim { color:var(--fg-dark); }
+.lead { font-size:14px; color:var(--fg); max-width:86ch; }
+section { display:grid; gap:14px; border-top:1px solid var(--hairline); padding-top:22px; min-width:0; }
+.sec-head { display:grid; gap:4px; }
+figure { margin:0; display:grid; gap:6px; align-content:start; min-width:0; }
+figcaption { font-size:11px; color:var(--fg-dark); max-width:90ch; }
+figcaption b { color:var(--fg); font-weight:500; }
+.scroll { overflow-x:auto; }
+.cols { display:grid; grid-template-columns:repeat(auto-fit, minmax(300px, 1fr)); gap:20px; }
+.cols > * { min-width:0; }
+table.t { border-collapse:collapse; width:100%; font-size:12px; }
+.t th, .t td { text-align:left; padding:6px 10px; border-bottom:1px solid var(--hairline); vertical-align:top; }
+.t th { font-weight:500; color:var(--fg-dark); font-size:10px; letter-spacing:.1em; text-transform:uppercase; white-space:nowrap; }
+.t td:first-child { color:var(--fg-bright); }
+.t td.nw { white-space:nowrap; }
+.t .y { color:var(--green); } .t .n { color:var(--red); } .t .m { color:var(--yellow); }
+.t tr.grp td { color:var(--fg-dark); font-size:10px; letter-spacing:.1em; text-transform:uppercase; padding-top:12px; }
+.themes { display:flex; flex-wrap:wrap; gap:6px; align-items:center; font-size:12px; color:var(--fg-dark); position:sticky; top:env(safe-area-inset-top, 0px); background:var(--bg-dark); padding-block:8px; z-index:20; border-bottom:1px solid var(--hairline); }
+.themes button { font:inherit; font-size:12px; color:var(--fg); background:transparent; border:1px solid var(--hairline); padding:2px 10px; cursor:pointer; }
+.themes button[aria-pressed="true"] { background:color-mix(in srgb, var(--fg) 18%, transparent); color:var(--fg-bright); border-color:transparent; }
+button:focus-visible, input:focus-visible, textarea:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+.shot { border:1px solid var(--hairline); display:block; max-width:100%; height:auto; }
+.shots { display:flex; flex-wrap:wrap; gap:20px; align-items:start; }
+.shots figure { flex:0 1 auto; }
+.note { border-left:2px solid var(--accent); padding:6px 12px; background:var(--fill-normal); font-size:12px; max-width:96ch; }
+.note.warn { border-color:var(--yellow); }
+pre.code { margin:0; font-size:11.5px; line-height:1.55; background:var(--bg); border:1px solid var(--hairline); padding:10px 12px; overflow-x:auto; color:var(--fg); }
+pre.code .k { color:var(--fg-dark); } pre.code .s { color:var(--green); } pre.code .h { color:var(--yellow); }
+
+/* ---------- the stage: Theme roles only, base 14 ---------- */
+.stage {
+  --t-fg:#c4c7cc; --t-bg:#121316; --t-accent:#efdf3c; --t-red:#ff4f5e; --t-yellow:#f2a33a;
+  --t-green:#7fd08a; --t-blue:#6f9cf0; --t-magenta:#c88df0; --t-cyan:#45c6dc;
+  --t-bright: color-mix(in srgb, var(--t-fg) 100%, white 12%);
+  --t-hair: color-mix(in srgb, var(--t-fg) 12%, transparent);
+  --t-rule: color-mix(in srgb, var(--t-fg) 5%, transparent);
+  --t-dim: color-mix(in srgb, var(--t-fg) 62%, transparent);
+  --t-faint: color-mix(in srgb, var(--t-fg) 40%, transparent);
+  --f4: color-mix(in srgb, var(--t-fg) 4%, transparent);
+  --f8: color-mix(in srgb, var(--t-fg) 8%, transparent);
+  --f18: color-mix(in srgb, var(--t-fg) 18%, transparent);
+  --f25: color-mix(in srgb, var(--t-fg) 25%, transparent);
+  --body:14px; --small:12.8px;
+  color:var(--t-fg); font-family:var(--mono); font-size:var(--body); line-height:1.4;
+  background:color-mix(in srgb, var(--t-bg) 70%, black); border:1px solid var(--hairline);
+  padding:22px; display:flex; flex-wrap:wrap; gap:26px; align-items:start; overflow-x:auto;
+}
+.stage.light { --t-bright: color-mix(in srgb, var(--t-fg) 100%, black 18%); background:color-mix(in srgb, var(--t-bg) 88%, black); }
+
+/* the palette as built (Kit/Palette.qml): 560 wide at base 14 */
+.pal { width:560px; flex:none; background:var(--t-bg); border:1px solid var(--t-accent); }
+.pal .q { display:flex; align-items:center; gap:10px; padding:11px 18px; border-bottom:1px solid var(--t-hair); min-height:44px; }
+.pal .q .g { color:var(--t-dim); font-size:12px; width:14px; text-align:center; }
+.pal .q .tx { flex:1; color:var(--t-bright); white-space:nowrap; overflow:hidden; }
+.pal .q .tx.ph { color:var(--t-dim); }
+.pal .q .tx .caret { display:inline-block; width:1.5px; height:17px; background:var(--t-accent); vertical-align:-3px; margin-right:2px; }
+.pal .q .tx .caret.after { margin:0 0 0 1px; }
+.pal .q .c { color:var(--t-dim); font-size:var(--small); white-space:nowrap; }
+.pal .it { position:relative; padding:7px 16px; border-bottom:1px solid var(--t-rule); display:grid; grid-template-columns:1fr auto; column-gap:10px; row-gap:1px; }
+.pal .it.cur { background:var(--f8); box-shadow:inset 0 0 0 1px var(--f25); }
+.pal .it .t { color:var(--t-bright); font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.pal .it .m { color:var(--t-dim); font-size:var(--small); align-self:center; white-space:nowrap; }
+.pal .it .m .via { color:var(--t-faint); }
+.pal .it .d { grid-column:1 / -1; color:var(--t-dim); font-size:var(--small); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.pal .it.off .t { color:var(--t-dim); font-weight:400; }
+.pal .it.off .m { color:var(--t-faint); }
+.pal .it.off .d { color:var(--t-faint); }
+.pal .empty { padding:14px 16px 10px; color:var(--t-dim); font-size:var(--small); }
+.pal .more { text-align:center; color:var(--t-dim); font-size:var(--small); padding:9px 0 4px; }
+.pal .ft { display:flex; flex-wrap:wrap; gap:6px 14px; padding:9px 16px 11px; font-size:var(--small); border-top:1px solid var(--t-hair); }
+.pal .ft span b { color:var(--t-bright); font-weight:500; margin-right:5px; }
+.pal .ft span { color:var(--t-dim); }
+.pal .ft .r { margin-left:auto; }
+.pal.narrow { width:520px; }
+
+/* the annotated row */
+.anat { display:grid; gap:10px; width:560px; flex:none; }
+.anat ol { font-size:12.4px; color:var(--t-fg); padding-left:22px; }
+.anat ol li::marker { color:var(--t-accent); }
+.anat ol b { color:var(--t-bright); font-weight:500; }
+
+/* ---------- the decision sheet ---------- */
+.dec { display:grid; gap:18px; }
+.q { display:grid; gap:8px; border:1px solid var(--hairline); padding:14px; }
+.q fieldset { border:0; margin:0; padding:0; display:grid; gap:6px; min-width:0; }
+.q legend { padding:0; color:var(--fg-bright); font-weight:500; margin-bottom:4px; }
+.q .id { color:var(--accent); font-weight:600; }
+.opt { display:grid; grid-template-columns:18px 1fr; gap:8px; align-items:start; font-size:12.4px; cursor:pointer; }
+.opt input { margin:3px 0 0; accent-color:var(--accent); }
+.opt .rec { color:var(--green); font-size:10px; letter-spacing:.1em; text-transform:uppercase; margin-left:6px; }
+.out { display:grid; gap:8px; }
+.out textarea { width:100%; min-height:220px; font:inherit; font-size:12.4px; color:var(--fg); background:var(--bg); border:1px solid var(--hairline); padding:10px; resize:vertical; }
+.out button { font:inherit; justify-self:start; color:var(--bg); background:var(--accent); border:0; padding:6px 14px; cursor:pointer; }
+.out .ok { color:var(--green); font-size:12px; }
+@media (max-width: 560px) { .stage { padding:12px; } }
+@media (prefers-reduced-motion: reduce) { * { transition:none !important; } }
+
+/* ---------- board 63's own: sections, kind tags, the filter chip, tabs, a row's control ---------- */
+.pal .sh { display:flex; justify-content:space-between; padding:9px 16px 4px; color:var(--t-dim); font-size:var(--small); border-bottom:1px solid var(--t-rule); }
+.pal .sh span:last-child { color:var(--t-faint); }
+.pal .mr { padding:5px 16px 7px; color:var(--t-dim); font-size:var(--small); border-bottom:1px solid var(--t-rule); display:flex; justify-content:space-between; }
+.pal .mr.cur { background:var(--f8); box-shadow:inset 0 0 0 1px var(--f25); color:var(--t-bright); }
+.pal .mr span:last-child { color:var(--t-faint); }
+.pal .kd { color:var(--t-faint); font-size:var(--small); margin-right:10px; }
+.pal .chip { background:var(--f18); color:var(--t-bright); font-size:var(--small); padding:1px 8px; white-space:nowrap; }
+.pal .tabs { display:flex; gap:0; border-bottom:1px solid var(--t-hair); font-size:var(--small); }
+.pal .tabs span { padding:6px 12px; color:var(--t-dim); white-space:nowrap; }
+.pal .tabs span.on { color:var(--t-bright); box-shadow:inset 0 -2px 0 var(--t-accent); }
+.pal .tabs span i { font-style:normal; color:var(--t-faint); margin-left:5px; }
+.pal .tg { display:inline-flex; align-items:center; gap:7px; }
+.pal .tg::before { content:""; width:22px; height:11px; border:1px solid var(--t-dim); background:linear-gradient(var(--t-dim), var(--t-dim)) no-repeat 1px 1px / 8px 7px; }
+.pal .tg.on { color:var(--t-bright); }
+.pal .tg.on::before { border-color:var(--t-accent); background:linear-gradient(var(--t-accent), var(--t-accent)) no-repeat 11px 1px / 8px 7px; }
+.pal .ck { color:var(--t-accent); }
+.arrow { align-self:center; color:var(--fg-dark); font-size:18px; }
+.pick { color:var(--green); font-size:10px; letter-spacing:.1em; text-transform:uppercase; margin-left:6px; }
+</style>
+<main>
+  <header style="display:grid;gap:10px">
+    <div class="eyebrow">docs/63 · proposal for Diogo · 2026-11-13 · issue #264 · v1 and v2 stay frozen</div>
+    <h1>The everything palette</h1>
+    <p class="lead">Today omaseed has one palette to run a command, another to jump to a torrent and a third to switch server, and none that finds a setting. This board proposes one palette over all of them. Each of today's keys opens that same palette with a filter already on: <code>ctrl+k</code> is the everything palette showing only torrents.</p>
+    <p class="dim" style="font-size:12px">The name is Ryan Fleury's, from the RAD Debugger: one palette drawn from the app's own list of what exists, so a thing added once shows up everywhere. omaseed already works that way for keys (the Keymap feeds the routing, the <code>?</code> sheet and the command palette). Every figure here is a mock at base 14 in Theme roles, built on the palette as it is today; board <a href="30-command-palette.html">30</a> has real screenshots of today's palettes. Torrent and server names are invented. Use the theme switch for the mocks.</p>
+  </header>
+
+  <nav class="themes" aria-label="Theme of the mocks">
+    <span>theme</span>
+    <button type="button" data-theme-name="baseline" aria-pressed="true">baseline</button>
+    <button type="button" data-theme-name="frieren" aria-pressed="false">frieren</button>
+    <button type="button" data-theme-name="tokyo-night" aria-pressed="false">tokyo-night</button>
+    <button type="button" data-theme-name="gruvbox" aria-pressed="false">gruvbox</button>
+    <button type="button" data-theme-name="everforest" aria-pressed="false">everforest</button>
+    <button type="button" data-theme-name="catppuccin-latte" aria-pressed="false">catppuccin-latte</button>
+  </nav>
+
+  <!-- 1 -->
+  <section id="today">
+    <div class="sec-head"><div class="eyebrow">1 · where we are</div><h2>Today: seven palettes, three of them find things</h2></div>
+    <p>All seven are the same kit component (<code>Kit/Palette.qml</code>) with a different list behind it. They split into two groups by what they are for.</p>
+    <div class="scroll">
+      <table class="t">
+        <tr><th>palette</th><th>key</th><th>what it lists</th><th>what <code>enter</code> does</th><th>on this board</th></tr>
+        <tr class="grp"><td colspan="5">find a thing in the app</td></tr>
+        <tr><td>commands</td><td class="nw"><code>:</code> <code>ctrl+shift+p</code></td><td>every command that makes sense now, from the Keymap</td><td>runs it</td><td class="y">folds in</td></tr>
+        <tr><td>jump</td><td class="nw"><code>ctrl+k</code></td><td>every torrent of the server on show, by name, hash or tracker</td><td>moves the cursor there; <code>tab</code> opens its actions</td><td class="y">folds in</td></tr>
+        <tr><td>servers</td><td class="nw"><code>ctrl+s</code></td><td>the saved servers and their state</td><td>switches to it</td><td class="y">folds in</td></tr>
+        <tr class="grp"><td colspan="5">answer a question an action asked</td></tr>
+        <tr><td>category</td><td class="nw"><code>C</code></td><td>the categories, for the selection</td><td>sets it</td><td>stays as it is</td></tr>
+        <tr><td>tags</td><td class="nw"><code>t</code></td><td>the tags, ticked for the selection</td><td>ticks and applies</td><td>stays as it is</td></tr>
+        <tr><td>sort</td><td class="nw"><code>s</code></td><td>the columns to sort by</td><td>sorts</td><td>stays as it is</td></tr>
+        <tr><td>columns</td><td class="nw"><code>|</code></td><td>the columns, ticked and ordered</td><td>shows, hides, reorders</td><td>stays as it is</td></tr>
+        <tr class="grp"><td colspan="5">and nowhere</td></tr>
+        <tr><td>settings</td><td class="nw"><code>,</code> opens the modal</td><td>about 60 rows over omaseed's own panes and the server's</td><td class="n">not searchable from any palette</td><td class="y">becomes a kind</td></tr>
+      </table>
+    </div>
+    <div class="note">Two seams show today. A command that matches nothing offers one row that hands the text to the jump palette (DECISIONS C1 D8), because torrents live in another list. And a setting is only reachable by knowing which pane holds it.</div>
+  </section>
+
+  <!-- 2 -->
+  <section id="idea">
+    <div class="sec-head"><div class="eyebrow">2 · the idea</div><h2>One palette, four kinds, and a filter</h2></div>
+    <div class="cols">
+      <div style="display:grid;gap:8px">
+        <h3>Kinds</h3>
+        <p>A row is one of four kinds: a <b>command</b> (run it), a <b>setting</b> (change it), a <b>server</b> (switch to it) or a <b>torrent</b> (go to it). Each kind keeps the row shape, the ranking and the <code>enter</code> it has today.</p>
+      </div>
+      <div style="display:grid;gap:8px">
+        <h3>The filter</h3>
+        <p>The palette opens on every kind, or narrowed to one. Narrowed to torrents it is today's jump palette, row for row. Narrowed to servers it is today's server palette. Clearing the filter widens it again without closing.</p>
+      </div>
+      <div style="display:grid;gap:8px">
+        <h3>What does not change</h3>
+        <p>Every key keeps its habit. <code>/</code> still filters the table and <code>ctrl+f</code> still searches the plugins, because those change what the window shows. The four pickers stay separate palettes.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3 -->
+  <section id="apart">
+    <div class="sec-head"><div class="eyebrow">3 · Z1 Z2 Z3 · keeping the kinds apart</div><h2><code>de</code> typed into the whole palette, three ways</h2></div>
+    <p>A library holds thousands of torrents and the app has about fifty commands. If they share one ranked list, torrent names push the commands out. The three mocks show the same matches for <code>de</code>, with two torrents selected in the table.</p>
+    <div class="stage">
+      <figure>
+        <div class="pal">
+          <div class="q"><span class="g">:</span><span class="tx">de<span class="caret after"></span></span><span class="c">22 matches</span></div>
+          <div class="sh"><span>commands</span><span>6</span></div>
+          <div class="it cur"><span class="t">delete</span><span class="m">d</span><span class="d">torrents · 2 selected</span></div>
+          <div class="it"><span class="t">delete with files</span><span class="m">D</span><span class="d">torrents · 2 selected</span></div>
+          <div class="it"><span class="t">hide details</span><span class="m">i</span><span class="d">view</span></div>
+          <div class="it"><span class="t">details larger</span><span class="m">&gt;</span><span class="d">view</span></div>
+          <div class="mr"><span>2 more commands</span><span>enter shows them</span></div>
+          <div class="sh"><span>settings</span><span>2</span></div>
+          <div class="it"><span class="t">Delete files by default</span><span class="m"><span class="tg">off</span></span><span class="d">Settings › General</span></div>
+          <div class="it"><span class="t">Details panel</span><span class="m">right</span><span class="d">Settings › Window</span></div>
+          <div class="sh"><span>torrents</span><span>14</span></div>
+          <div class="it"><span class="t">debian-13.2.0-amd64-netinst.iso</span><span class="m">seeding</span><span class="d">790 MiB · linux · tracker.example.org</span></div>
+          <div class="it"><span class="t">debian-13.2.0-amd64-DVD-1.iso</span><span class="m">downloading 41 %</span><span class="d">4.4 GiB · linux · tracker.example.org</span></div>
+          <div class="it"><span class="t">demo-reel-1080p.mkv</span><span class="m">stopped</span><span class="d">1.2 GiB · video · tracker.example.net</span></div>
+          <div class="it"><span class="t">field-recordings-december.flac</span><span class="m">seeding</span><span class="d">310 MiB · music · tracker.example.net</span></div>
+          <div class="mr"><span>10 more torrents</span><span>enter shows them</span></div>
+          <div class="ft"><span><b>↑↓</b>move</span><span><b>enter</b>run</span><span><b>shift+tab</b>kind</span><span><b>esc</b>clear</span><span class="r">? lists every key</span></div>
+        </div>
+        <figcaption><b>Z1 a · Sections.</b><span class="pick">recommended</span> One heading per kind, in a fixed order, each with its count. A section shows up to four rows, then a row that narrows the palette to that kind. A kind with no match has no section (no server matches <code>de</code>). The footer's <code>enter</code> word follows the cursor's kind: run, switch, jump, turn on.</figcaption>
+      </figure>
+      <figure>
+        <div class="pal">
+          <div class="q"><span class="g">:</span><span class="tx">de<span class="caret after"></span></span><span class="c">22 matches</span></div>
+          <div class="it cur"><span class="t">delete</span><span class="m"><span class="kd">command</span>d</span><span class="d">torrents · 2 selected</span></div>
+          <div class="it"><span class="t">debian-13.2.0-amd64-netinst.iso</span><span class="m"><span class="kd">torrent</span>seeding</span><span class="d">790 MiB · linux · tracker.example.org</span></div>
+          <div class="it"><span class="t">debian-13.2.0-amd64-DVD-1.iso</span><span class="m"><span class="kd">torrent</span>downloading 41 %</span><span class="d">4.4 GiB · linux · tracker.example.org</span></div>
+          <div class="it"><span class="t">delete with files</span><span class="m"><span class="kd">command</span>D</span><span class="d">torrents · 2 selected</span></div>
+          <div class="it"><span class="t">Delete files by default</span><span class="m"><span class="kd">setting</span>off</span><span class="d">Settings › General</span></div>
+          <div class="it"><span class="t">demo-reel-1080p.mkv</span><span class="m"><span class="kd">torrent</span>stopped</span><span class="d">1.2 GiB · video · tracker.example.net</span></div>
+          <div class="it"><span class="t">Details panel</span><span class="m"><span class="kd">setting</span>right</span><span class="d">Settings › Window</span></div>
+          <div class="it"><span class="t">hide details</span><span class="m"><span class="kd">command</span>i</span><span class="d">view</span></div>
+          <div class="more">▾ 14 below</div>
+          <div class="ft"><span><b>↑↓</b>move</span><span><b>enter</b>run</span><span><b>esc</b>clear</span><span class="r">? lists every key</span></div>
+        </div>
+        <figcaption><b>Z1 b · One ranked list, a kind word on each row.</b> Densest, and the best match is always first. But the order of kinds changes with every letter, and in a real library the twelve other torrents starting with <code>de</code> sit between "delete" and "hide details".</figcaption>
+      </figure>
+      <figure>
+        <div class="pal">
+          <div class="q"><span class="g">:</span><span class="tx">de<span class="caret after"></span></span><span class="c">6 of 22</span></div>
+          <div class="tabs"><span>all<i>22</i></span><span class="on">commands<i>6</i></span><span>settings<i>2</i></span><span>torrents<i>14</i></span><span>servers<i>0</i></span></div>
+          <div class="it cur"><span class="t">delete</span><span class="m">d</span><span class="d">torrents · 2 selected</span></div>
+          <div class="it"><span class="t">delete with files</span><span class="m">D</span><span class="d">torrents · 2 selected</span></div>
+          <div class="it"><span class="t">hide details</span><span class="m">i</span><span class="d">view</span></div>
+          <div class="it"><span class="t">details larger</span><span class="m">&gt;</span><span class="d">view</span></div>
+          <div class="it"><span class="t">details smaller</span><span class="m">&lt;</span><span class="d">view</span></div>
+          <div class="it"><span class="t">place details: right · bottom · auto</span><span class="m">I</span><span class="d">view · now right</span></div>
+          <div class="ft"><span><b>↑↓</b>move</span><span><b>enter</b>run</span><span><b>shift+tab</b>next tab</span><span><b>esc</b>clear</span><span class="r">? lists every key</span></div>
+        </div>
+        <figcaption><b>Z1 c · Tabs.</b> One kind at a time, with the counts across the top. It is clean, but it is today's separate palettes in one frame: the setting and the torrent that also match are a tab away, and "all" still needs a or b.</figcaption>
+      </figure>
+    </div>
+    <div class="cols">
+      <div style="display:grid;gap:8px">
+        <h3>Z2 · The order of the sections</h3>
+        <p><b>Fixed: commands, settings, servers, torrents.</b> The short kinds come first, because a word typed here is more often something to do than somewhere to go, and <code>ctrl+k</code> already goes straight to torrents. The alternative moves the section with the best match to the top, which is cleverer but makes the list jump as you type.</p>
+      </div>
+      <div style="display:grid;gap:8px">
+        <h3>Z3 · How many rows a section shows</h3>
+        <p><b>Up to four</b>, then "N more", when more than one kind matches. When only one kind matches there is nothing to keep apart, so the heading and the cap go and the list is that kind's whole list. At 560 px wide and about 52 px a row, four kinds of four rows fit in one scroll of the palette.</p>
+      </div>
+      <div style="display:grid;gap:8px">
+        <h3>Inside a section</h3>
+        <p>Each kind ranks as it does today. Commands: <code>Fuzzy.score</code>, then rows that can run, then recent ones (C1 D4, D7). Torrents: <code>App.jumpMatches()</code>, over name, hash and tracker. Servers: their list order. Settings match their title and their pane's name.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 4 -->
+  <section id="filter">
+    <div class="sec-head"><div class="eyebrow">4 · Z4 Z5 · the filter</div><h2>The same palette, aimed at one kind</h2></div>
+    <div class="stage">
+      <figure>
+        <div class="pal">
+          <div class="q"><span class="g">⌕</span><span class="chip">torrents</span><span class="tx ph"><span class="caret"></span>jump to a torrent</span><span class="c">1 312 of 1 312</span></div>
+          <div class="it cur"><span class="t">debian-13.2.0-amd64-netinst.iso</span><span class="m">seeding</span><span class="d">790 MiB · linux · tracker.example.org</span></div>
+          <div class="it"><span class="t">archlinux-2026.11.01-x86_64.iso</span><span class="m">seeding</span><span class="d">1.3 GiB · linux · tracker.example.org</span></div>
+          <div class="it"><span class="t">demo-reel-1080p.mkv</span><span class="m">stopped</span><span class="d">1.2 GiB · video · tracker.example.net</span></div>
+          <div class="it"><span class="t">field-recordings-december.flac</span><span class="m">seeding</span><span class="d">310 MiB · music · tracker.example.net</span></div>
+          <div class="more">▾ 46 below</div>
+          <div class="ft"><span><b>↑↓</b>move</span><span><b>enter</b>jump</span><span><b>tab</b>actions</span><span><b>shift+tab</b>kind</span><span><b>esc</b>close</span><span class="r">also matches hash and tracker</span></div>
+        </div>
+        <figcaption><b>Z4 a · A chip in the query row.</b> This is <code>ctrl+k</code>: the everything palette with "torrents" on. The rows, the counter and the footer are today's jump palette. <code>backspace</code> in an empty query removes the chip and widens to every kind; <code>shift+tab</code> steps through the kinds. <code>ctrl+s</code> opens it with "servers" on, in the same way.</figcaption>
+      </figure>
+      <figure>
+        <div class="pal">
+          <div class="q"><span class="g">:</span><span class="tx">/<span class="caret after"></span></span><span class="c">4 kinds</span></div>
+          <div class="it cur"><span class="t">commands</span><span class="m">/commands</span><span class="d">43 that make sense now</span></div>
+          <div class="it"><span class="t">settings</span><span class="m">/settings</span><span class="d">omaseed's and home's</span></div>
+          <div class="it"><span class="t">servers</span><span class="m">/servers</span><span class="d">3 saved</span></div>
+          <div class="it"><span class="t">torrents</span><span class="m">/torrents</span><span class="d">1 312 on home</span></div>
+          <div class="ft"><span><b>↑↓</b>move</span><span><b>enter</b>filter</span><span><b>space</b>filter and go on typing</span><span><b>esc</b>clear</span></div>
+        </div>
+        <figcaption><b>Z4 c · The chip, and <code>/kind</code> typed to set it.</b><span class="pick">recommended</span> <code>/</code> already means "filter" in omaseed. Typed first in the palette it lists the kinds; more letters narrow them, so <code>/t</code> is torrents. <code>enter</code> or <code>space</code> sets the chip and clears the typed text: <code>/t deb</code> ends as the "torrents" chip with <code>deb</code> typed. It replaces a chip that is on, and with one on the list also has <code>/all</code>, which clears it. So a chip removed by accident is one <code>/</code> away. <code>backspace</code> and <code>shift+tab</code> work as in a.</figcaption>
+      </figure>
+      <figure>
+        <div class="pal">
+          <div class="q"><span class="g">:</span><span class="tx">@deb<span class="caret after"></span></span><span class="c">2 of 1 312</span></div>
+          <div class="it cur"><span class="t">debian-13.2.0-amd64-netinst.iso</span><span class="m">seeding</span><span class="d">790 MiB · linux · tracker.example.org</span></div>
+          <div class="it"><span class="t">debian-13.2.0-amd64-DVD-1.iso</span><span class="m">downloading 41 %</span><span class="d">4.4 GiB · linux · tracker.example.org</span></div>
+          <div class="ft"><span><b>↑↓</b>move</span><span><b>enter</b>jump</span><span><b>tab</b>actions</span><span><b>esc</b>clear</span><span class="r">&gt; commands · , settings · @ torrents · ^ servers</span></div>
+        </div>
+        <figcaption><b>Z4 b · A typed prefix.</b> A first character picks the kind, as editors do: <code>&gt;</code> commands, <code>,</code> settings, <code>@</code> torrents, <code>^</code> servers. Nothing new is drawn, but four characters have to be learned, and a torrent name that starts with one of them needs an escape.</figcaption>
+      </figure>
+    </div>
+    <h3>Z5 · Which key opens what</h3>
+    <div class="scroll">
+      <table class="t">
+        <tr><th>key</th><th>today</th><th>a · every key keeps its habit <span class="pick">recommended</span></th><th>b · ctrl+k becomes the main one</th></tr>
+        <tr><td class="nw"><code>:</code> <code>ctrl+shift+p</code></td><td>commands</td><td>every kind</td><td>the palette on "commands"</td></tr>
+        <tr><td class="nw"><code>ctrl+k</code></td><td>jump to a torrent</td><td>the palette on "torrents"</td><td>every kind</td></tr>
+        <tr><td class="nw"><code>ctrl+s</code></td><td>switch server</td><td>the palette on "servers"</td><td>the palette on "servers"</td></tr>
+        <tr><td class="nw"><code>,</code></td><td>the settings modal</td><td>the settings modal</td><td>the settings modal</td></tr>
+      </table>
+    </div>
+    <p>With a, <code>:</code> still opens on the commands for what is selected (§5), so nobody relearns it; typing is what brings the other kinds in. With b, <code>ctrl+k</code> is the "find anything" key many apps use, but it changes what the most used palette key shows, and the jump palette loses its own key.</p>
+  </section>
+
+  <!-- 5 -->
+  <section id="empty">
+    <div class="sec-head"><div class="eyebrow">5 · Z6 Z11 · the two ends</div><h2>Nothing typed, and nothing found</h2></div>
+    <div class="stage">
+      <figure>
+        <div class="pal">
+          <div class="q"><span class="g">:</span><span class="tx ph"><span class="caret"></span>commands for 2 selected</span><span class="c">43 commands</span></div>
+          <div class="it cur"><span class="t">stop</span><span class="m">p</span><span class="d">torrents · 2 selected</span></div>
+          <div class="it"><span class="t">set location</span><span class="m">m</span><span class="d">torrents · 2 selected</span></div>
+          <div class="it"><span class="t">copy magnet</span><span class="m">y</span><span class="d">torrents · 2 selected</span></div>
+          <div class="it"><span class="t">force start</span><span class="m">P</span><span class="d">torrents · 2 selected</span></div>
+          <div class="it"><span class="t">recheck</span><span class="m">c</span><span class="d">torrents · 2 selected</span></div>
+          <div class="more">▾ 38 below</div>
+          <div class="ft"><span><b>↑↓</b>move</span><span><b>enter</b>run</span><span><b>shift+tab</b>kind</span><span><b>esc</b>close</span><span class="r">type to find settings, torrents, servers</span></div>
+        </div>
+        <figcaption><b>Z6 a · Nothing typed: today's list.</b><span class="pick">recommended</span> The commands for what is selected, recent ones first (board 30 P1). An empty palette that listed torrents would repeat the table behind it, and one that listed sixty settings would be the settings modal. The footer's right side says what typing adds.</figcaption>
+      </figure>
+      <figure>
+        <div class="pal">
+          <div class="q"><span class="g">:</span><span class="tx">fedora<span class="caret after"></span></span><span class="c">0 matches</span></div>
+          <div class="empty">Nothing here matches “fedora”.</div>
+          <div class="it cur"><span class="t">search the plugins for “fedora”</span><span class="m">ctrl+f</span><span class="d">search</span></div>
+          <div class="ft"><span><b>enter</b>search</span><span><b>esc</b>clear</span><span class="r">? lists every key</span></div>
+        </div>
+        <figcaption><b>Z11 a · Nothing found.</b><span class="pick">recommended</span> One dim line, and on a server with search, the row that searches its plugins (C26 SR14). The row that handed the text to the jump palette (C1 D8) goes: torrents are already in the list.</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <!-- 6 -->
+  <section id="enter">
+    <div class="sec-head"><div class="eyebrow">6 · Z7 Z8 · what a row does</div><h2><code>enter</code> on each kind, and a setting above all</h2></div>
+    <div class="scroll">
+      <table class="t">
+        <tr><th>kind</th><th><code>enter</code></th><th><code>tab</code> (Z8 a)</th><th>the palette then</th></tr>
+        <tr><td>command</td><td>runs it, as its key would</td><td>nothing</td><td>closes</td></tr>
+        <tr><td>torrent</td><td>moves the cursor to it, clearing a filter that hides it</td><td>its actions menu, as today</td><td>closes</td></tr>
+        <tr><td>server</td><td>switches to it</td><td>its menu, the one the rail opens</td><td>closes</td></tr>
+        <tr><td>setting</td><td>changes it (Z7)</td><td>opens Settings on that row</td><td>stays open after a switch</td></tr>
+      </table>
+    </div>
+    <p>Three kinds already have an <code>enter</code>. A setting is the new one, and it has three shapes.</p>
+    <div class="stage">
+      <figure>
+        <div class="pal">
+          <div class="q"><span class="g">:</span><span class="tx">notif<span class="caret after"></span></span><span class="c">5 matches</span></div>
+          <div class="it cur"><span class="t">Torrent completed</span><span class="m"><span class="tg on">on</span></span><span class="d">Settings › Notifications</span></div>
+          <div class="it"><span class="t">Torrent added</span><span class="m"><span class="tg">off</span></span><span class="d">Settings › Notifications</span></div>
+          <div class="it"><span class="t">Torrent errored</span><span class="m"><span class="tg on">on</span></span><span class="d">Settings › Notifications</span></div>
+          <div class="it"><span class="t">Disk almost full</span><span class="m"><span class="tg on">on</span></span><span class="d">Settings › Notifications</span></div>
+          <div class="it"><span class="t">Server lost and back</span><span class="m"><span class="tg">off</span></span><span class="d">Settings › Notifications</span></div>
+          <div class="ft"><span><b>↑↓</b>move</span><span><b>enter</b>turn off</span><span><b>tab</b>show in Settings</span><span><b>esc</b>clear</span></div>
+        </div>
+        <figcaption><b>S1 · A switch flips in the row.</b> The pane's name matches too, so <code>notif</code> lists the whole Notifications pane. <code>enter</code> flips the switch and the palette stays open, so several can be set in one visit. Only one kind matched, so there is no heading (Z3).</figcaption>
+      </figure>
+      <figure>
+        <div class="pal">
+          <div class="q"><span class="g">:</span><span class="tx ph"><span class="caret"></span>Skin</span><span class="c">2 skins</span></div>
+          <div class="it cur"><span class="t">Omarchy</span><span class="m"><span class="ck">✓</span></span><span class="d">the shell's look</span></div>
+          <div class="it"><span class="t">Console</span><span class="m"></span><span class="d">the console's look</span></div>
+          <div class="ft"><span><b>↑↓</b>move</span><span><b>enter</b>use</span><span><b>esc</b>back</span><span class="r">Settings › Appearance</span></div>
+        </div>
+        <figcaption><b>S2 · A choice opens its options.</b> <code>enter</code> on "Skin · omarchy" replaces the list with the choices, as the category palette does for a category. <code>enter</code> picks one; <code>esc</code> goes back to the matches.</figcaption>
+      </figure>
+      <figure>
+        <div class="pal">
+          <div class="q"><span class="g">:</span><span class="tx">port<span class="caret after"></span></span><span class="c">2 matches</span></div>
+          <div class="it cur"><span class="t">Listening port</span><span class="m">51413</span><span class="d">Settings › qBittorrent · home</span></div>
+          <div class="it"><span class="t">Web UI port</span><span class="m">8080</span><span class="d">Settings › qBittorrent · home</span></div>
+          <div class="ft"><span><b>↑↓</b>move</span><span><b>enter</b>open in Settings</span><span><b>esc</b>clear</span></div>
+        </div>
+        <figcaption><b>S3 · A value with a confirm goes to its pane.</b> A number, a path, or anything the pane asks to confirm ("Move the listening port to…?") is not edited here: <code>enter</code> opens Settings with that row focused. A server's own setting names its server on the second line.</figcaption>
+      </figure>
+    </div>
+    <div class="cols">
+      <div style="display:grid;gap:8px">
+        <h3>Z7 a · The control lives in the row <span class="pick">recommended</span></h3>
+        <p>S1, S2 and S3 as drawn. The palette becomes the fast way to flip a switch without learning the modal. It can be built in two steps: every setting as S3 first, then switches and choices.</p>
+      </div>
+      <div style="display:grid;gap:8px">
+        <h3>Z7 b · A setting row only goes to its pane</h3>
+        <p>Every setting behaves like S3: found here, changed there. It is far less to build and there is one place where a setting changes, but each change costs two more steps.</p>
+      </div>
+      <div style="display:grid;gap:8px">
+        <h3>Which settings are rows</h3>
+        <p>omaseed's own panes, and the settings of the server on show, as its engine offers them (C14 E4 hides the rest). Another server's settings are not listed; its pane already says "switch to … to change these". The Backup pane's actions (export, import, restore) are commands, not settings.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 7 -->
+  <section id="scope">
+    <div class="sec-head"><div class="eyebrow">7 · Z9 Z10 · scope</div><h2>Which palettes fold in, and which kinds come first</h2></div>
+    <div class="cols">
+      <div style="display:grid;gap:8px">
+        <h3>Z9 · The pickers stay</h3>
+        <p>Category, tags, sort and columns answer a question an action asked ("which category for these 4?"). They tick, reorder and create on a miss; none of that is "find a thing". Their commands ("set category…", "columns…") are already rows of the command kind, and that is how the everything palette reaches them.</p>
+      </div>
+      <div style="display:grid;gap:8px">
+        <h3>Z10 · Kinds in the first build</h3>
+        <p><b>Commands, settings, servers, torrents.</b> Two more could come later as their own kinds: the rail's places (a category, a tag, a tracker: <code>enter</code> filters the table to it) and the move history (C18: <code>enter</code> offers "move back"). Each adds a section, so each should prove it is asked for first.</p>
+      </div>
+      <div style="display:grid;gap:8px">
+        <h3>Torrents of which server</h3>
+        <p>The server on show, as the jump palette today. Finding a torrent across every saved server belongs with the multi-server view (parked in #7), not here.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 8 -->
+  <section id="build">
+    <div class="sec-head"><div class="eyebrow">8 · building it</div><h2>Three steps, each one shippable, and what it amends</h2></div>
+    <div class="scroll">
+      <table class="t">
+        <tr><th>step</th><th>what is built</th><th>what the user gets</th><th>size</th></tr>
+        <tr><td class="nw">1 · merge</td><td>One <code>Views/EverythingPalette</code> over three sources that exist: <code>Keymap.commandRows()</code>, <code>App.jumpMatches()</code>, the server list. Sections, the chip, the "N more" row in <code>Kit/Palette</code>. The command, jump and server palettes become this one with a filter.</td><td>Commands, torrents and servers in one box; <code>ctrl+k</code> and <code>ctrl+s</code> unchanged to the eye</td><td class="y">small</td></tr>
+        <tr><td class="nw">2 · settings</td><td>A settings table as plain data (title, pane, kind of control, how to read and set it), read by the palette. Each row goes to its pane first (S3), then switches and choices get their control (S1, S2).</td><td>Every setting found by name; then changed in place</td><td class="m">medium: depends on how regular the modal's rows are</td></tr>
+        <tr><td class="nw">3 · menus</td><td>The actions menu, the tray menu and the action bar drawn from the same table as the palette.</td><td>Nothing visible; a new action is written once</td><td class="n">large, and Z12 leaves it out</td></tr>
+      </table>
+    </div>
+    <div class="cols">
+      <div style="display:grid;gap:8px">
+        <h3>What it amends</h3>
+        <ul>
+          <li><b>DECISIONS C1 D8:</b> the "jump palette" row on no match goes (Z11).</li>
+          <li><b>C1 D1:</b> the keys stay; what <code>:</code> lists once you type grows (Z5).</li>
+          <li><b>Spec v2 Fig. 12</b> (jump) and <b>board 33</b>'s server palette: drawn the same, now with the chip. v2 itself is not edited.</li>
+        </ul>
+      </div>
+      <div style="display:grid;gap:8px">
+        <h3>What keeps working</h3>
+        <ul>
+          <li>The <code>?</code> sheet, the footer hints and key routing: they read the Keymap, which does not change.</li>
+          <li>Screen readers: a heading is announced with its count; a row's kind is part of its name.</li>
+          <li>Both skins: the palette takes only Theme roles, as now.</li>
+        </ul>
+      </div>
+      <div style="display:grid;gap:8px">
+        <h3>Z12 · Menus from the same table</h3>
+        <p>This is the deep half of Fleury's idea. Here the menus are drawn by hand to board 46's groups and order, and a generated menu would have to match them exactly for no visible gain. Left out unless duplicated rows keep causing bugs like #160.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 9 -->
+  <section id="decide">
+    <div class="sec-head"><div class="eyebrow">9 · your calls</div><h2>Decisions, and your answers in one paste</h2></div>
+    <p>Recommended options are marked and preselected. Change what you disagree with and paste the block back into a session.</p>
+    <div class="dec" id="dec"></div>
+    <div class="out">
+      <textarea id="answers" readonly aria-label="Your answers"></textarea>
+      <div style="display:flex;gap:12px;align-items:center"><button type="button" id="copy">Copy answers</button><span class="ok" id="copied" hidden>Copied</span></div>
+    </div>
+  </section>
+</main>
+
+<script>
+(() => {
+"use strict";
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const THEMES = {
+  "baseline":         { fg:"#c4c7cc", bg:"#121316", accent:"#efdf3c", red:"#ff4f5e", yellow:"#f2a33a", green:"#7fd08a", blue:"#6f9cf0", magenta:"#c88df0", cyan:"#45c6dc" },
+  "frieren":          { fg:"#b9c5ef", bg:"#11111b", accent:"#5492f8", red:"#ee5681", yellow:"#f6d58c", green:"#7dd676", blue:"#5492f8", magenta:"#b47ff3", cyan:"#63d5c2" },
+  "tokyo-night":      { fg:"#a9b1d6", bg:"#1a1b26", accent:"#7aa2f7", red:"#f7768e", yellow:"#e0af68", green:"#9ece6a", blue:"#7aa2f7", magenta:"#ad8ee6", cyan:"#449dab" },
+  "gruvbox":          { fg:"#d4be98", bg:"#282828", accent:"#7daea3", red:"#ea6962", yellow:"#d8a657", green:"#a9b665", blue:"#7daea3", magenta:"#d3869b", cyan:"#89b482" },
+  "everforest":       { fg:"#d3c6aa", bg:"#2d353b", accent:"#7fbbb3", red:"#e67e80", yellow:"#dbbc7f", green:"#a7c080", blue:"#7fbbb3", magenta:"#d699b6", cyan:"#83c092" },
+  "catppuccin-latte": { fg:"#4c4f69", bg:"#eff1f5", accent:"#1e66f5", red:"#d20f39", yellow:"#df8e1d", green:"#40a02b", blue:"#1e66f5", magenta:"#ea76cb", cyan:"#179299", light:true },
+};
+function applyTheme(name) {
+  const t = THEMES[name];
+  for (const st of $$(".stage")) {
+    for (const k of ["fg","bg","accent","red","yellow","green","blue","magenta","cyan"]) st.style.setProperty("--t-" + k, t[k]);
+    st.classList.toggle("light", !!t.light);
+  }
+  for (const b of $$("[data-theme-name]")) b.setAttribute("aria-pressed", String(b.dataset.themeName === name));
+}
+for (const b of $$("[data-theme-name]")) b.addEventListener("click", () => applyTheme(b.dataset.themeName));
+
+
+const DEC = [
+  { id:"Z1", q:"How the kinds are kept apart when several match", opts:[
+    ["a","Sections: a heading per kind with its count, a kind with no match has none", true],
+    ["b","One ranked list, a kind word on each row"],
+    ["c","Tabs across the top, one kind at a time"]]},
+  { id:"Z2", q:"The order of the sections", opts:[
+    ["a","Fixed: commands, settings, servers, torrents", true],
+    ["b","Fixed: torrents first, then commands, settings, servers"],
+    ["c","The section with the best match comes first"]]},
+  { id:"Z3", q:"How many rows a section shows", opts:[
+    ["a","Up to four, then an \"N more\" row that narrows to that kind; no heading or cap when only one kind matches", true],
+    ["b","Up to three, the same way"],
+    ["c","No cap: every match, the list scrolls"]]},
+  { id:"Z4", q:"How a filter is shown and changed", opts:[
+    ["a","A chip in the query row; backspace in an empty query removes it, shift+tab steps through the kinds; nothing typed sets it"],
+    ["b","A typed prefix: > commands, , settings, @ torrents, ^ servers"],
+    ["c","The chip, and /kind typed to set it: / lists the kinds, /t then space or enter picks torrents, /all clears; backspace and shift+tab as in a", true]]},
+  { id:"Z5", q:"Which key opens what", opts:[
+    ["a","Every key keeps its habit: : and ctrl+shift+p every kind, ctrl+k on torrents, ctrl+s on servers", true],
+    ["b","ctrl+k opens every kind; : and ctrl+shift+p open on commands; ctrl+s on servers"]]},
+  { id:"Z6", q:"Nothing typed, no filter", opts:[
+    ["a","Today's list: the commands for what is selected, recent first", true],
+    ["b","Sections with the recent rows of each kind"]]},
+  { id:"Z7", q:"enter on a setting", opts:[
+    ["a","The control lives in the row: a switch flips (the palette stays open), a choice opens its options, a value with a confirm opens its pane", true],
+    ["b","A setting row only opens Settings on that row"],
+    ["c","b now, a after it has been used for a while"]]},
+  { id:"Z8", q:"tab on a row", opts:[
+    ["a","The row's second action: a torrent's actions menu, a server's menu, a setting shown in Settings; nothing on a command", true],
+    ["b","Torrents only, as today"]]},
+  { id:"Z9", q:"Which palettes become the everything palette", opts:[
+    ["a","Commands, jump and servers; category, tags, sort and columns stay pickers", true],
+    ["b","Commands and jump only; the server palette stays its own"],
+    ["c","All seven"]]},
+  { id:"Z10", q:"Kinds in the first build", opts:[
+    ["a","Commands, settings, servers, torrents", true],
+    ["b","Those and the rail's places (a category, tag or tracker: enter filters the table)"],
+    ["c","Commands, servers, torrents; settings in a second release"]]},
+  { id:"Z11", q:"Nothing found", opts:[
+    ["a","A dim line and, on a server with search, the \"search the plugins for\" row; C1 D8's jump row goes", true],
+    ["b","The line only"]]},
+  { id:"Z12", q:"Menus drawn from the same table (the actions menu, the tray menu, the action bar)", opts:[
+    ["a","Not now: only if duplicated rows keep causing bugs", true],
+    ["b","Plan it as step 3, after settings"]]},
+];
+const dec = $("#dec");
+for (const d of DEC) {
+  const box = document.createElement("div"); box.className = "q";
+  const inputs = d.opts.map(([v, label, rec]) => {
+    const id = `${d.id}-${v}`;
+    return `<label class="opt" for="${id}"><input id="${id}" type="radio" name="${d.id}" value="${v}" ${rec ? "checked" : ""}><span><b>${v}</b> · ${label}${rec ? '<span class="rec">recommended</span>' : ""}</span></label>`;
+  }).join("");
+  box.innerHTML = `<fieldset><legend><span class="id">${d.id}</span> · ${d.q}</legend>${inputs}</fieldset>`;
+  dec.append(box);
+}
+const notes = document.createElement("div"); notes.className = "q";
+notes.innerHTML = `<label for="free" style="color:var(--fg-bright);font-weight:500">Anything else (a kind I missed, wording)</label><textarea id="free" style="min-height:70px;font:inherit;font-size:12.4px;color:var(--fg);background:var(--bg);border:1px solid var(--hairline);padding:8px"></textarea>`;
+dec.append(notes);
+function answers() {
+  const lines = ["docs/63 the everything palette:"];
+  for (const d of DEC) { const c = $(`input[name="${d.id}"]:checked`); lines.push(`${d.id} ${c ? c.value : "-"}`); }
+  const f = $("#free").value.trim(); if (f) lines.push("notes: " + f);
+  $("#answers").value = lines.join("\n");
+}
+dec.addEventListener("input", answers); answers();
+$("#copy").addEventListener("click", () => {
+  const ta = $("#answers");
+  const done = () => { $("#copied").hidden = false; setTimeout(() => $("#copied").hidden = true, 1600); };
+  if (navigator.clipboard?.writeText) navigator.clipboard.writeText(ta.value).then(done, () => { ta.select(); });
+  else ta.select();
+});
+})();
+</script>
