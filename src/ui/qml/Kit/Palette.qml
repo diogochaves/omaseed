@@ -988,11 +988,24 @@ Item {
                             spacing: Theme.space(1)
 
                             RowLayout {
+                                id: titleLine
+
+                                // The line's width from the row's, not its own: a bound
+                                // on a child from the layout's own width rearranges it
+                                // again.
+                                readonly property real room: row.width - 2 * Theme.space(14)
+                                                             - (root.multi ? Theme.space(14) + Theme.space(8) : 0)
+
                                 Layout.fillWidth: true
                                 spacing: Theme.space(8)
 
                                 Label {
+                                    id: titleLabel
+
                                     Layout.fillWidth: true
+                                    // Its own width first, up to half the line: a long
+                                    // meta is what gets cut (below).
+                                    Layout.minimumWidth: Math.min(Math.ceil(implicitWidth), titleLine.room / 2)
                                     bright: !row.disabled
                                     dim: row.disabled
                                     elide: Text.ElideRight
@@ -1038,8 +1051,14 @@ Item {
                                 }
 
                                 Label {
+                                    // A long value (a setting's list of hosts, C42 Z7) is
+                                    // cut before it takes the title's place: the title keeps
+                                    // its own width, up to half the line.
+                                    Layout.maximumWidth: Math.max(0, titleLine.room - titleLine.spacing
+                                                                  - titleLabel.Layout.minimumWidth)
                                     color: row.disabled ? row.faint : row.hasToggle && row.toggleOn
                                                                       ? row.ink.brightForeground : row.ink.dimForeground
+                                    elide: Text.ElideRight
                                     objectName: "paletteRowMeta"
                                     size: "small"
                                     text: (row.modelData.via ?? "").length > 0 ? row.modelData.via

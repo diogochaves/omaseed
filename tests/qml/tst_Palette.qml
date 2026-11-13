@@ -1387,6 +1387,40 @@ TestCase {
         palette.close();
     }
 
+    // C42 Z7: a setting's value can be longer than the row (a list of hosts). It is cut, and
+    // the title stays whole; a short one is drawn whole, as before.
+    function test_a_long_meta_leaves_the_title_whole() {
+        const palette = createTemporaryObject(paletteComponent, testCase, {
+                                                  "items": [
+                                                      {
+                                                          "title": "Bootstrap nodes",
+                                                          "meta": "dht.example.org:25401, dht.example.net:6881, router.example.com:6881, "
+                                                                  + "dht.example.io:6881, another.example.org:6881",
+                                                          "detail": "Settings › Discovery"
+                                                      },
+                                                      {
+                                                          "title": "Listening port",
+                                                          "meta": "51413"
+                                                      }
+                                                  ]
+                                              });
+        palette.open();
+        waitForRendering(palette.listView);
+        const part = (index, name) => findChild(palette.listView.itemAtIndex(index), name);
+        const title = part(0, "paletteRowTitle");
+        const meta = part(0, "paletteRowMeta");
+        verify(meta.implicitWidth > palette.listView.width, "the value is not longer than the row");
+        tryVerify(() => title.width >= title.implicitWidth);
+        verify(!title.truncated);
+        verify(meta.truncated);
+        verify(meta.mapToItem(palette, 0, 0).x + meta.width
+               <= palette.listView.mapToItem(palette, 0, 0).x + palette.listView.width);
+        const whole = part(1, "paletteRowMeta");
+        verify(!whole.truncated);
+        compare(whole.width, Math.ceil(whole.implicitWidth));
+        palette.close();
+    }
+
     // C42 Z7: a row's own `metaSpoken` makes its meta lead the description while the palette's
     // switch is off, as in a list that mixes commands (a key) and settings (words).
     function test_a_rows_own_meta_spoken() {
