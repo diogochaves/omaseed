@@ -1,4 +1,4 @@
-#include "core/RenameHistory.hpp"
+#include "core/StoryRecord.hpp"
 
 #include <QJsonDocument>
 #include <QTest>
@@ -346,4 +346,4 @@ private slots:
 
 QTEST_GUILESS_MAIN(TestRenameHistory)
 
-#include "tst_renamehistory.moc"
+#include "tst_storyrecord.moc"

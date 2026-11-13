@@ -173,8 +173,6 @@ qt_add_library(omaseed-core STATIC
     Reply.hpp
     RenameDisk.cpp
     RenameDisk.hpp
-    RenameHistory.cpp
-    RenameHistory.hpp
     RenamePlan.cpp
     RenamePlan.hpp
     RowWords.cpp
@@ -226,6 +224,8 @@ qt_add_library(omaseed-core STATIC
     StateFile.hpp
     StatusDigest.cpp
     StatusDigest.hpp
+    StoryRecord.cpp
+    StoryRecord.hpp
     SyncEngine.cpp
     SyncEngine.hpp
     TagModel.cpp

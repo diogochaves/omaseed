@@ -44,7 +44,7 @@
 #include "core/PauseHold.hpp"
 #include "core/PrivateTrackers.hpp"
 #include "core/RenameDisk.hpp"
-#include "core/RenameHistory.hpp"
+#include "core/StoryRecord.hpp"
 #include "core/SearchModel.hpp"
 #include "core/SecretStore.hpp"
 #include "core/SeedConsole.hpp"
