@@ -2687,3 +2687,62 @@ can't stand in), in `scripts/dev/research/175-stop-during-move/`.
   torrents uploading during a copy.
 - **P12 a.** The source drive only; stage B's optional pair decides whether an amendment adds
   the destination's torrents.
+
+## C45 — An agent's way in (board 62, ruled 2026-11-13)
+
+Board [62](62-an-agents-way-in.html), #163, V1–V20 all as recommended. The running omaseed
+answers an agent's questions about the library as words after `omaseed`, and later takes a few
+gated actions. The words join C37 U10's family (`check`, `skin`): one dispatcher, one help
+page, one guide, so board 55's build (#221–#227) **changes shape**: #223 and #224 plug into the
+shared dispatcher and #224's JSON takes the envelope (V4); #225's `--skill` and file writer
+print this board's library part too (V19); #227's trial gains a library question. A gate in
+omaseed binds only omaseed's own way in: anything running as the user can already call the bar
+widget's D-Bus methods.
+
+- **V1 a.** The reads are `omaseed status`, `errors`, `log`, `moves`, straight after `omaseed`
+  (C37 U10).
+- **V2 a.** One word table before Qt's parser (a piece of its own, which #223 builds on); a file
+  named like a word opens as `./word`. One help page lists the words above the options;
+  `omaseed help <word>` and `<word> --help`; its last line points at `--skill`.
+- **V3 a.** A new D-Bus interface, `io.github.diogochaves.omaseed.Agent`, on the same name and
+  object; JSON strings in and out. The bar widget's `Status` is untouched.
+- **V4 a.** One `v: 1` for the whole family (`check` and `skin list` too), a shared envelope,
+  additive within a `v`, ISO UTC times, ids beside the window's words, JSON on stdout even for a
+  failure.
+- **V5 a.** omaseed not running: say so, exit 3; never start it, never read its files. An
+  instance too old for the word says so, exit 3.
+- **V6 a.** The server on show unless `--server`. `status` lists all (the others as last seen);
+  `errors` and `log` only the current one (another exits 4); `moves` any server's. No word
+  switches servers.
+- **V7 a.** Reads are open while omaseed runs, with no setting. Names, folders and log lines go
+  out; a credential never. The guide says answers go to the model's provider.
+- **V8 a.** `status`: the window's head (server and engine, reachable in C12's words, speeds,
+  the alt pick, the five questions, moves running, a pause held, the other servers as last seen).
+- **V9 a.** `errors`: the rail's needs-you, in `RowWords`' words, with its fix and `fix.do`, up
+  to 3 log lines on qBittorrent, the server's own problem first; one log read before answering;
+  dismissed ones counted.
+- **V10 a.** `log`: qBittorrent only, warnings and worse, the last 50; `--level`, `--lines`,
+  `--since`, `--torrent`; the next id. No log on the other engines (exit 4).
+- **V11 a.** `moves`: the running move in the band's words, the last 5 landed (`--landed N`)
+  with what a move back would do.
+- **V12 a.** Without `--json`: short lines in the window's words; ANSI colour only on a terminal,
+  honouring `NO_COLOR`; failures to stderr.
+- **V13 a.** Exit codes for the family: 0 answered · 1 a skin doesn't read (C37) · 2 usage · 3
+  not running, unreachable or too old · 4 that server can't answer · 5 not done (not allowed,
+  refused, no answer) · 6 the server refused.
+- **V14 a.** Actions are fixes only: retry, start-here, recheck, reannounce, pause, resume,
+  dismiss; and moves (`move --to`, `move-back`), which always ask. Never delete, rename,
+  categories, tags, adds, settings, servers or quit.
+- **V15 a.** `omaseed do <action> <hash…> [--to FOLDER]`: a hash or a unique prefix of 8 or
+  more, never a name; `do --list`. It waits for the outcome; a move answers at its start.
+- **V16 a.** **Settings › General › Agents**: read only (the default) · ask me · let them fix
+  (moves still ask). Held in the app, with a last line saying what an agent last did.
+- **V17 a.** An ask is a small window where you are (C35's rules), titled `omaseed · agent`:
+  what, where, who started it (the caller's parent from `/proc`). No key allows; esc, close or
+  2 minutes refuse.
+- **V18 a.** Agent actions read **· by an agent** in the outcome strip, the story's move line
+  and the journal, and on the Agents row's last line.
+- **V19 a.** C37 U4's guide in two parts, your library and skins; `AGENTS.md` and `--skill`
+  print both, and the help's last line sends agents to it.
+- **V20 a.** Reads first, released alone (a minor release, C33); the gate and `do` after, as
+  patch releases. The shared words come first, whichever board builds first.
