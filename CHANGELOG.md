@@ -5,6 +5,20 @@ All notable changes to omaseed are logged here, newest first. Loosely follows
 versioning stability (pre-1.0). `scripts/release.sh` requires a `## v<version>` section here
 before it will tag a release.
 
+## v0.11.0 — 2026-11-13
+
+### Changed
+
+- **One palette for commands, servers and torrents.** `:` (or `ctrl+shift+p`) now finds all
+  three at once: type, and what matches is listed in sections (commands, servers, torrents),
+  each with its count and up to four rows, then an "N more" row that narrows the palette to
+  that kind. A chip in the query row says the kind in force: `/` lists the kinds, `shift+tab`
+  steps through them, `backspace` in an empty query takes the chip away. `ctrl+k` still opens
+  it on torrents and `ctrl+s` on servers, and with nothing typed `:` still lists the commands
+  for what is selected. `tab` on a torrent opens its actions and on a server its menu. The
+  palette is 560 px wide in every mode. Settings come as rows in a later release. (#265,
+  DECISIONS C42)
+
 ## v0.10.4 — 2026-11-12
 
 ### Fixed
