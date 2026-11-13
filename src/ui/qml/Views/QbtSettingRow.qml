@@ -23,6 +23,8 @@ SettingsRow {
     /// The server's preferences, or App.altPresets for the turtle and burst rows (DECISIONS
     /// C32 D8 a), which answer the same `values`, `loaded`, `pendingKeys`.
     property QtObject prefs: null
+    /// The table the row is from: what it writes and asks first (DECISIONS C42 Z7).
+    required property QbtSettingsSections schema
     /// What the section asks before any change ("webui"), on top of the row's own `confirm`.
     property string sectionConfirm: ""
 
@@ -44,7 +46,7 @@ SettingsRow {
     readonly property string altKind: App.altSpeed.kind
     readonly property bool loaded: row.prefs !== null && row.prefs.loaded
     readonly property string confirmKind: row.sectionConfirm.length > 0 ? row.sectionConfirm
-                                                                          : (row.spec.confirm ?? "")
+                                                                          : row.schema.confirmOf(row.spec, null)
     /// Every key this row writes.
     readonly property var keys: {
         const keys = [];
@@ -66,15 +68,7 @@ SettingsRow {
         return row.keys.some(key => pendingKeys.indexOf(key) >= 0);
     }
     /// `dep` holds: "key" is true, or "key!=value" is not that value; a list needs them all.
-    readonly property bool depOk: {
-        const deps = row.spec.dep === undefined ? [] : [].concat(row.spec.dep);
-        return deps.every(dep => {
-                              const at = dep.indexOf("!=");
-                              if (at >= 0)
-                                  return String(row.values[dep.slice(0, at)]) !== dep.slice(at + 2);
-                              return !!row.values[dep];
-                          });
-    }
+    readonly property bool depOk: row.schema.depOk(row.spec, row.values)
     /// The keys whose value is not qBittorrent's default (Advanced, docs/16 §4).
     readonly property var changedDefaults: {
         const defaults = row.spec.defaults ?? {};
@@ -185,34 +179,18 @@ SettingsRow {
     }
 
     function flip(): void {
-        const key = row.spec.toggle;
-        const on = !row.values[key];
-        if (on && row.spec.needs && row.spec.needs.keys.some(name => !row.values[name])) {
-            row.noteRequested(row.spec.needs.note);
+        const on = !row.values[row.spec.toggle];
+        const refusal = row.schema.flipRefusal(row.spec, row.values, on);
+        if (refusal.length > 0) {
+            row.noteRequested(refusal);
             return;
         }
-        // Anonymous mode asks only on the way in; the IP filter only when it starts blocking.
-        const kind = (row.confirmKind === "anon" || row.confirmKind === "ipfilter") && !on
-                ? "" : row.confirmKind;
-        row.changeRequested(row.flipChanges(on), kind, row.spec.title);
+        row.changeRequested(row.flipChanges(on), row.schema.flipConfirm(row.confirmKind, on), row.spec.title);
     }
 
-    /// What turning the switch `on` (or off) writes: the key, and what the row's `enable` /
-    /// `disable` say must go with it for qBittorrent to take it (QbtSettingsSections).
+    /// What turning the switch `on` (or off) writes (the schema's flipChanges).
     function flipChanges(on: bool): var {
-        const changes = {
-            [row.spec.toggle]: on
-        };
-        const extra = (on ? row.spec.enable : row.spec.disable) ?? {};
-        for (const name in extra) {
-            const field = (row.spec.fields ?? []).find(candidate => candidate.key === name);
-            if (on && field !== undefined && field.none !== undefined
-                    && row.values[name] !== field.none)
-                continue;
-            changes[name] = extra[name] === "randomPort"
-                    ? 1024 + Math.floor(Math.random() * (65535 - 1024)) : extra[name];
-        }
-        return changes;
+        return row.schema.flipChanges(row.spec, row.values, on);
     }
 
     function choose(value: var): void {
@@ -223,21 +201,7 @@ SettingsRow {
 
     /// The value a field shows: scaled to its unit, empty for "no limit".
     function display(field: var): string {
-        const value = row.values[field.key];
-        if (value === undefined || value === null || field.kind === "password")
-            return "";
-        if (field.kind === "time") {
-            const pad = number => (number < 10 ? "0" : "") + number;
-            return pad(value) + ":" + pad(row.values[field.minKey] ?? 0);
-        }
-        if (field.kind === "text")
-            return String(value);
-        if (field.none !== undefined && value === field.none)
-            return "";
-        const scaled = value / (field.scale ?? 1);
-        if (field.decimals !== undefined)
-            return scaled.toFixed(field.decimals);
-        return String(Math.round(scaled * 100) / 100);
+        return row.schema.fieldText(field, row.values);
     }
 
     /// What `text` asks the server to store for `field`, or `{error}`.

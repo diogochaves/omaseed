@@ -355,7 +355,7 @@
 <context>
     <name>QbtSettingRow</name>
     <message numerus="yes">
-        <location filename="../src/ui/qml/Views/QbtSettingRow.qml" line="+584"/>
+        <location filename="../src/ui/qml/Views/QbtSettingRow.qml" line="+548"/>
         <source>%n entries</source>
         <translation>
             <numerusform>%n entry</numerusform>

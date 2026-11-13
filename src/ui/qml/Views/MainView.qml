@@ -4341,10 +4341,17 @@ Item {
     // The settings modal of spec §5 Fig. 16, with Fig. 9's server sheet inside it. `,`, the
     // mark's menu, the tray's `settings…` and the disconnected banner all arrive through
     // App.openSettings().
+    /// Every setting as a row (docs/DECISIONS.md C42 Z7): one table, read by Settings and
+    /// by the everything palette.
+    SettingsTable {
+        id: settingsTable
+    }
+
     SettingsModal {
         id: settingsModal
 
         anchors.fill: parent
+        settings: settingsTable
         z: 11
 
         // The Keybindings pane's `?`, clicked: the help sheet sits under the modal, so the

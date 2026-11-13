@@ -18,6 +18,9 @@ ColumnLayout {
     id: root
 
     property var section: null
+    /// The table `section` is from: what a row offers, writes and asks first is worked out
+    /// there (DECISIONS C42 Z7).
+    required property QbtSettingsSections schema
     property ServerPreferences prefs: null
     /// The row cursor, -1 for none; drawn only while `keyboard` is true.
     property int cursor: -1
@@ -43,8 +46,7 @@ ColumnLayout {
     readonly property string _plugins: root.prefs ? String(root.prefs.values.enabled_plugins ?? "") : ""
     /// A plugin is on, by Deluge's enabled_plugins.
     function pluginOn(name: string): bool {
-        const plugins = root.prefs ? (root.prefs.values.enabled_plugins ?? []) : [];
-        return Array.from(plugins).indexOf(name) >= 0;
+        return root.schema.pluginOn(root.prefs, name);
     }
     /// The section's rows the server can take, in order.
     readonly property var rows: {
@@ -53,37 +55,7 @@ ColumnLayout {
         void App.altPresets.loaded; // the presets' rows (C32 D8 a) answer once their server is set
         if (!root.section)
             return [];
-        return root.section.rows.filter(spec => {
-                                            // K15: a row for a plugin on, or one off; before the
-                                            // server answers, the "on" ones (greyed).
-                                            if (spec.whenOff !== undefined)
-                                                return root.loaded && !root.pluginOn(spec.whenOff);
-                                            if (spec.whenOn !== undefined && root.loaded
-                                                && !root.pluginOn(spec.whenOn))
-                                                return false;
-                                            if (!root.loaded || spec.title === undefined)
-                                                return true;
-                                            // A plugin's row reads the plugins' list.
-                                            if (spec.plugin !== undefined || spec.others !== undefined)
-                                                return root.prefs.has("enabled_plugins");
-                                            const keys = [];
-                                            if (spec.toggle)
-                                                keys.push(spec.toggle);
-                                            for (const field of (spec.fields ?? [])) {
-                                                // Write-only (the Web UI password): never sent back.
-                                                if (field.kind === "password")
-                                                    return true;
-                                                keys.push(field.key);
-                                            }
-                                            for (const part of [spec.choice, spec.pick, spec.list]) {
-                                                if (part)
-                                                    keys.push(part.key);
-                                            }
-                                            // A row with nothing to read (a button) always shows. The
-                                            // presets' rows read App.altPresets (C32 D8 a).
-                                            const store = spec.presets ? App.altPresets : root.prefs;
-                                            return keys.length === 0 || keys.some(key => store.has(key));
-                                        });
+        return root.schema.offered(root.section, root.prefs, App.altPresets);
     }
     /// For each cursor position, the index of its row in `rows`.
     readonly property var cursorRows: {
@@ -95,6 +67,13 @@ ColumnLayout {
         return indexes;
     }
     readonly property int cursorCount: root.cursorRows.length
+
+    /// The cursor position of the row that goes by `key` (the schema's rowKey; "row" and its
+    /// place for a row with no key, as SettingsTable names it), -1 when the section on show
+    /// has none: where Settings opens on a row (DECISIONS C42 Z7).
+    function cursorOfKey(key: string): int {
+        return root.cursorRows.findIndex(index => (root.schema.rowKey(root.rows[index]) || "row" + index) === key);
+    }
 
     function rowItem(cursor: int): var {
         if (cursor < 0 || cursor >= root.cursorRows.length)
@@ -359,19 +338,10 @@ ColumnLayout {
 
                 QbtSettingRow {
                     hasCursor: root.keyboard && root.cursor === holder.cursorIndex
-                    objectName: "qbtRow-" + (holder.modelData.plugin !== undefined ? "plugin-" + holder.modelData.plugin
-                                             : holder.modelData.others !== undefined ? "plugins-others"
-                                             : holder.modelData.toggle ?? (holder.modelData.fields
-                                                                         ? holder.modelData.fields[0].key
-                                                                         : holder.modelData.choice
-                                                                           ? holder.modelData.choice.key
-                                                                           : holder.modelData.pick
-                                                                             ? holder.modelData.pick.key
-                                                                             : holder.modelData.list
-                                                                               ? holder.modelData.list.key
-                                                                               : holder.index))
+                    objectName: "qbtRow-" + (root.schema.rowKey(holder.modelData) || holder.index)
                     prefs: holder.modelData.presets ? App.altPresets : root.prefs
-                    sectionConfirm: root.section && root.section.webui ? "webui" : ""
+                    schema: root.schema
+                    sectionConfirm: root.schema.confirmOf({}, root.section)
                     spec: holder.modelData
 
                     onActionRequested: action => root.actionRequested(action)

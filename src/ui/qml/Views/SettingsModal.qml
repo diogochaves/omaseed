@@ -76,42 +76,15 @@ Item {
     property var features: App.features
     property string engineName: App.serverEngineName
 
-    readonly property var navRows: [
-        {
-            "glyph": Glyphs.settings,
-            "text": qsTr("General")
-        },
-        {
-            "glyph": Glyphs.server,
-            "text": qsTr("Servers")
-        },
-        {
-            "glyph": Glyphs.notifications,
-            "text": qsTr("Notifications")
-        },
-        {
-            "glyph": Glyphs.keyboard,
-            "text": qsTr("Keybindings"),
-            // The folded tabs' word (docs/15 Q3 A): six whole names are wider than the sheet
-            // at the 560 px floor, and this one is the longest.
-            "shortText": qsTr("Keys")
-        },
-        {
-            "glyph": Glyphs.appearance,
-            "text": qsTr("Appearance"),
-            // Its own kana word (board 46 `.shh h4 .kn`); every other pane's is settings'.
-            "labelId": "appearance"
-        },
-        {
-            // #31, docs/24 §3: omaseed's own backup, after Appearance.
-            "glyph": Glyphs.backup,
-            "text": qsTr("Backup")
-        },
-        {
-            "glyph": Glyphs.about,
-            "text": qsTr("About")
-        }
-    ]
+    /// Every setting as a row (docs/DECISIONS.md C42 Z7): the panes' names, omaseed's own
+    /// rows (their titles, cursor places, options and what enter does) and the server's
+    /// schema. MainView gives the one the palette reads too; alone, the modal has its own.
+    property SettingsTable settings: SettingsTable {
+        engineName: root.engineName
+        features: root.features
+    }
+
+    readonly property var navRows: root.settings.panes
 
     /// docs/16: the qBittorrent group's sections, closed by docs/24 §4's Backup (#32, D1 a),
     /// which is drawn by `qbtBackupPane` rather than from rows.
@@ -134,7 +107,7 @@ Item {
             "rows": []
         })
     /// qBittorrent's group whole: docs/16's sections, then Search plugins and Backup.
-    readonly property var qbtAllSections: qbtSchema.sections.concat([{
+    readonly property var qbtAllSections: root.settings.schema.sections.concat([{
                                                                       // #145 (DECISIONS C26 SR10): the server's
                                                                       // search plugins, drawn by searchPluginsPane.
                                                                       "id": "search",
@@ -166,11 +139,8 @@ Item {
     function sectionsOf(engine: string): var {
         if (engine === "qbittorrent")
             return root.qbtAllSections;
-        if (engine === "transmission")
-            return qbtSchema.transmissionSections.concat([root.engineBackupSection]);
-        if (engine === "deluge")
-            return qbtSchema.delugeSections.concat([root.engineBackupSection]);
-        return [];
+        const sections = root.settings.sectionsOf(engine);
+        return sections.length > 0 ? sections.concat([root.engineBackupSection]) : [];
     }
     /// The sections of the group omaseed is on: its engine's, without Backup while the
     /// server has none (features.torrentsBackup). The engine's own list as it is when
@@ -297,8 +267,7 @@ Item {
     /// C25 K31–K32: the group is the server's engine's, headed by its name ("qbittorrent",
     /// "transmission").
     readonly property bool engineGroupIsQbt: root.features.qbtSettings !== false
-    readonly property string engineGroupName: root.engineGroupIsQbt ? qsTr("qBittorrent")
-                                                                    : (root.engineName || qsTr("server"))
+    readonly property string engineGroupName: root.settings.engineGroupName
     /// The qBittorrent group's head: "playground 5.2.3".
     readonly property string qbtServerText: {
         const version = App.globalState.serverVersion.replace(/^v/, "");
@@ -370,27 +339,11 @@ Item {
         if (root.inOther)
             return 1; // "switch to NAME"
         switch (root.paneIndex) {
-        case 0:
-            return 5; // three switches, the handler button, then start at login
         case 1:
             return App.serverList.count + 1; // the servers, then "+ add a server"
-        case 2:
-            return 7; // five toggles (W5 added, docs/54), the low-disk threshold field, the weekly recap (#24 T8)
-        case 4:
-            // the skin (C24 H11), theme, base size, the window's ground (C24 H13) and, while
-            // translucent, its transparency, tray icon, the bar widget (#17), Omarchy's menu
-            // (C36 M12), then the rail's scroll hint,
-            // its tint (C32 D16 a) and tracker hosts (docs/08 §5), then where Details sits
-            // (docs/10), then the rows' pulse (#24 T5), then where the speeds are (C32 D2 a).
-            // The hero's speed alignment and trends left with the hero (#167 assumed 6): their
-            // saved values are kept, and ignored.
-            return 13 + root._groundShift;
-        case 5:
-            return 3; // back up, restore, automatic copies (#31)
-        case 6:
-            return 1; // the copyable `omaseed --install-bar-widget` line
         default:
-            return 0;
+            // omaseed's own rows are the table's (C42 Z7); Keybindings is a list, with none.
+            return root.settings.count(root.navRows[root.paneIndex].id);
         }
     }
 
@@ -435,6 +388,44 @@ Item {
             return;
         root.showServer(id);
         serverSheet.editLogin(map);
+    }
+
+    /// docs/63 §6 (DECISIONS C42 Z7): Settings on the pane of the table's row `rowId`, the
+    /// cursor on it and the pane scrolled to it; `enter` there is the row's own. False when
+    /// the row is not there now (Settings opens all the same, on its pane when it has one).
+    function openOn(rowId: string): bool {
+        const own = root.settings.own(rowId);
+        if (own !== null) {
+            const cursor = root.settings.cursorOf(rowId);
+            root.showPane(root.navRows.findIndex(pane => pane.id === own.pane));
+            root.area = "pane";
+            if (cursor >= 0)
+                root.paneCursor = cursor;
+            if (!root.opened)
+                root.open();
+            return cursor >= 0;
+        }
+        // A server's: "server.<section>.<row key>".
+        const parts = rowId.split(".");
+        const at = parts[0] === "server" && parts.length > 2
+                 && root.settings.serverSections.some(section => section.id === parts[1])
+                 ? root.qbtSections.findIndex(section => section.id === parts[1]) : -1;
+        if (at < 0) {
+            if (!root.opened)
+                root.open();
+            return false;
+        }
+        root.showPane(root.qbtStart + at);
+        root.area = "pane";
+        if (!root.opened)
+            root.open();
+        else
+            root._readQbt();
+        // The pane's rows follow its section, which showPane just moved.
+        const cursor = qbtPane.cursorOfKey(parts.slice(2).join("."));
+        if (cursor >= 0)
+            root.paneCursor = cursor;
+        return cursor >= 0;
     }
 
     /// #145 (C26 SR13): search's empty state's link: Settings › qBittorrent › Search plugins.
@@ -802,19 +793,6 @@ Item {
             root.switchToOther();
             return;
         }
-        if (root.paneIndex === 0) {
-            if (root.paneCursor === 0)
-                App.showServersGroup = !App.showServersGroup;
-            else if (root.paneCursor === 1)
-                App.pathMapEnabled = !App.pathMapEnabled;
-            else if (root.paneCursor === 2)
-                App.deleteFilesDefault = !App.deleteFilesDefault;
-            else if (root.paneCursor === 3)
-                Xdg.registerAsDefaultHandler();
-            else if (root.paneCursor === 4)
-                App.startAtLogin = root._next(root.loginStarts, App.startAtLogin);
-            return;
-        }
         if (root.paneIndex === 1) {
             if (root.paneCursor >= App.serverList.count) {
                 serverSheet.openNew();
@@ -825,67 +803,32 @@ Item {
                 serverSheet.openFor(map);
             return;
         }
-        if (root.paneIndex === 2) {
-            const keys = ["completed", "added", "errored", "serverLost", "diskFull"];
-            if (root.paneCursor === keys.length + 1) { // #24 T8: the weekly recap
-                App.setNotificationEnabled("weekly", !App.notificationsEnabled.weekly);
-                return;
-            }
-            if (root.paneCursor >= keys.length) {
-                thresholdField.focusInput();
-                return;
-            }
-            const key = keys[root.paneCursor];
-            App.setNotificationEnabled(key, !App.notificationsEnabled[key]);
-            return;
+        root.activateOwn(root.settings.rowAt(root.navRows[root.paneIndex].id, root.paneCursor));
+    }
+
+    /// `enter` on omaseed's own row `id` (the table's, C42 Z7): the table flips a switch
+    /// and moves a choice on; a number is its field here, an action its function.
+    function activateOwn(id: string): void {
+        const control = root.settings.activate(id);
+        if (control === "number") {
+            ({
+                    "notifications.lowDiskThreshold": thresholdField,
+                    "appearance.baseSize": baseSizeField,
+                    "appearance.windowAlpha": alphaField
+                })[id].focusInput();
+        } else if (control === "action") {
+            ({
+                    "general.handler": () => Xdg.registerAsDefaultHandler(),
+                    "appearance.widget": () => root.customizeBarWidget(),
+                    "backup.backUp": () => root.backUp(),
+                    "backup.restore": () => root.chooseRestore(),
+                    "about.widgetLine": () => root.copyPluginLine()
+                })[id]();
         }
-        if (root.paneIndex === 4) {
-            if (root.paneCursor === 0)
-                App.skinChoice = root._next(root.skinChoices, App.skinChoice);
-            else if (root.paneCursor === 1)
-                App.followOmarchyTheme = !App.followOmarchyTheme;
-            else if (root.paneCursor === 2)
-                baseSizeField.focusInput();
-            else if (root.paneCursor === 3)
-                root._toggleGround();
-            else if (root.paneCursor === 4 && root._groundShift > 0)
-                alphaField.focusInput();
-            else if (root.paneCursor === 4 + root._groundShift)
-                App.inTheBar = root._nextInTheBar();
-            else if (root.paneCursor === 5 + root._groundShift)
-                root.customizeBarWidget();
-            else if (root.paneCursor === 6 + root._groundShift)
-                root._toggleOmarchyMenu();
-            else if (root.paneCursor === 7 + root._groundShift)
-                App.railScrollHint = root._next(root.scrollHints, App.railScrollHint);
-            else if (root.paneCursor === 8 + root._groundShift)
-                App.surfaceTint = root._next(root.tints, App.surfaceTint);
-            else if (root.paneCursor === 9 + root._groundShift)
-                App.trackerHostStyle = root._next(root.hostStyles, App.trackerHostStyle);
-            else if (root.paneCursor === 10 + root._groundShift)
-                App.detailsPlacement = root._next(root.placements, App.detailsPlacement);
-            else if (root.paneCursor === 11 + root._groundShift)
-                App.pulseRows = !App.pulseRows;
-            else if (root.paneCursor === 12 + root._groundShift)
-                App.speedsPlace = root._next(root.speedsPlaces, App.speedsPlace);
-            return;
-        }
-        if (root.paneIndex === 5) {
-            if (root.paneCursor === 0)
-                root.backUp();
-            else if (root.paneCursor === 1)
-                root.chooseRestore();
-            else if (root.paneCursor === 2)
-                App.autoBackupMode = root._next(root.backupModes, App.autoBackupMode);
-            return;
-        }
-        if (root.paneIndex === 6)
-            root.copyPluginLine();
     }
 
     // #31: the automatic copies' three choices, as [value, chip text].
-    readonly property var backupModes: [["off", qsTr("off")], ["weekly", qsTr("weekly")], ["daily",
-                                                                                         qsTr("daily")]]
+    readonly property var backupModes: root.settings.allOptions("backup.auto")
     /// What the last backup or restore said, under the Backup pane's rows.
     property string backupNote: ""
     property bool backupNoteError: false
@@ -994,24 +937,19 @@ Item {
 
     // docs/08 §5: the three scroll-hint looks, as [value, chip text]. Rail's first, and since
     // N3 every palette's too; the stored key keeps its `railScrollHint` name.
-    readonly property var scrollHints: [["chevrons", qsTr("counted")], ["fade", qsTr("fade")],
-        ["scrollbar", qsTr("scrollbar")]]
+    readonly property var scrollHints: root.settings.allOptions("appearance.scrollHint")
     // Start at login (charter §2, opt-in): no entry, in the tray (`--hidden`), or the window.
-    readonly property var loginStarts: [["off", qsTr("off")], ["tray", qsTr("in the tray")], ["window",
-                                                                                          qsTr("window")]]
+    readonly property var loginStarts: root.settings.allOptions("general.startAtLogin")
     /// C32 D2 a: where ↓ and ↑ are drawn, as [place, chip text].
-    readonly property var speedsPlaces: [["title", qsTr("title bar")], ["status", qsTr("status line")]]
+    readonly property var speedsPlaces: root.settings.allOptions("appearance.speedsPlace")
     /// C32 D16 a: the rail's tint, as [percent, chip text].
-    readonly property var tints: [[0, qsTr("off")], [4, qsTr("4 %")], [8, qsTr("8 %")]]
-    readonly property var hostStyles: [["prefix", qsTr("drop prefix")], ["left", qsTr("cut start")],
-        ["right", qsTr("cut end")]]
+    readonly property var tints: root.settings.allOptions("appearance.surfaceTint")
+    readonly property var hostStyles: root.settings.allOptions("appearance.trackerHosts")
     // docs/10 §5: where Details sits.
-    readonly property var placements: [["auto", qsTr("auto")], ["right", qsTr("right")], ["bottom",
-                                                                                          qsTr("bottom")]]
+    readonly property var placements: root.settings.allOptions("appearance.detailsPlacement")
 
     // DECISIONS C24 H11 (#171): the skins, board 46's three choices in its order.
-    readonly property var skinChoices: [["omarchy", qsTr("Omarchy")], ["console", qsTr("Console")],
-        ["desktop", qsTr("follow the desktop")]]
+    readonly property var skinChoices: root.settings.allOptions("appearance.skin")
     /// Board 46's line under each choice; following the desktop also says what it draws now.
     readonly property string _skinDescription: {
         if (App.skinChoice === "console")
@@ -1033,12 +971,6 @@ Item {
         ? [] : Theme.skin.missingFontsOf("console")
     readonly property string _skinFontsLine: root._consoleFontsMissing.length === 0 ? ""
         : qsTr("Not installed: %1. Console uses stand-ins for them.").arg(root._consoleFontsMissing.join(", "))
-
-    /// The value after `current` in `options` (`[[value, text]]`), wrapping round.
-    function _next(options: var, current: var): var {
-        const at = options.findIndex(option => option[0] === current);
-        return options[(at + 1) % options.length][0];
-    }
 
     /// The id of the server the Servers pane's cursor is on, or "" on the add row.
     function cursorServerId(): string {
@@ -1143,10 +1075,6 @@ Item {
     /// after it move down one then.
     readonly property int _groundShift: App.windowGround === "translucent" ? 1 : 0
 
-    function _toggleGround(): void {
-        App.windowGround = App.windowGround === "translucent" ? "opaque" : "translucent";
-    }
-
     function _applyAlpha(): void {
         App.windowAlphaOverride = parseInt(alphaField.text, 10) || 0;
         root._syncAppearanceFields();
@@ -1165,42 +1093,13 @@ Item {
 
     /// docs/33 D25 (DECISIONS C13): the tray icon and the bar widget as one choice. The ones the
     /// widget needs are skipped while it cannot be had.
-    readonly property var inTheBarChoices: [
-        {
-            "key": "widget",
-            "text": qsTr("widget"),
-            "needsWidget": true
-        },
-        {
-            "key": "tray",
-            "text": qsTr("tray icon"),
-            "needsWidget": false
-        },
-        {
-            "key": "both",
-            "text": qsTr("both"),
-            "needsWidget": true
-        },
-        {
-            "key": "none",
-            "text": qsTr("none"),
-            "needsWidget": false
-        }
-    ]
+    readonly property var inTheBarChoices: root.settings.allOptions("appearance.inTheBar").map(option => ({
+                "key": option[0],
+                "text": option[1]
+            }))
 
     function _inTheBarOffered(choice: var): bool {
-        return !choice.needsWidget || App.barWidget.available || App.barWidget.inBar;
-    }
-
-    function _nextInTheBar(): string {
-        const keys = root.inTheBarChoices.map(c => c.key);
-        let at = keys.indexOf(App.inTheBar);
-        for (let step = 0; step < keys.length; ++step) {
-            at = (at + 1) % keys.length;
-            if (root._inTheBarOffered(root.inTheBarChoices[at]))
-                return keys[at];
-        }
-        return App.inTheBar;
+        return root.settings.offers("appearance.inTheBar", choice.key);
     }
 
     /// docs/21: the widget's own settings live in its popup; this opens it there.
@@ -1239,11 +1138,6 @@ Item {
         default:
             return qsTr("Trigger › Torrents: add, search, speeds, pause and resume, servers. Type torr in the menu, or bind omarchy menu summon torrents.");
         }
-    }
-
-    function _toggleOmarchyMenu(): void {
-        if (App.omarchyMenuOffered)
-            App.inOmarchyMenu = !App.inOmarchyMenu;
     }
 
     /// The tallest pane's own height. Keybindings is left out: it is a list with a scroller of
@@ -1352,13 +1246,14 @@ Item {
             const item = qbtPane.rowItem(cursor);
             return item && item.enabled && typeof item.fieldItems === "function" ? item.fieldItems() : [];
         }
-        if (root.paneIndex === 2 && cursor === 5)
-            return [thresholdField];
-        if (root.paneIndex === 4 && cursor === 2)
-            return [baseSizeField];
-        if (root.paneIndex === 4 && cursor === 4 && root._groundShift > 0)
-            return [alphaField];
-        return [];
+        if (root.paneIndex >= root.qbtStart)
+            return [];
+        const field = ({
+                           "notifications.lowDiskThreshold": thresholdField,
+                           "appearance.baseSize": baseSizeField,
+                           "appearance.windowAlpha": alphaField
+                       })[root.settings.rowAt(root.navRows[root.paneIndex].id, cursor)];
+        return field ? [field] : [];
     }
 
     /// The caret into `field`, its text selected, as tab into a form's field does.
@@ -1610,10 +1505,6 @@ Item {
         }
 
         target: App.serverPrefs
-    }
-
-    QbtSettingsSections {
-        id: qbtSchema
     }
 
     Timer {
@@ -2165,11 +2056,11 @@ Item {
                                 // the group only from two servers and never while this is off.
                                 description: qsTr("It appears once you add a second server. Off keeps it hidden even then.")
                                 glyph: Glyphs.mark
-                                hasCursor: root.area === "pane" && root.paneCursor === 0
-                                title: qsTr("Show the Servers group in the rail")
+                                hasCursor: root.area === "pane" && root.paneCursor === root.settings.cursorOf("general.serversGroup")
+                                title: root.settings.own("general.serversGroup").title
 
                                 onClicked: {
-                                    root.paneCursor = 0;
+                                    root.paneCursor = root.settings.cursorOf("general.serversGroup");
                                     root.area = "pane";
                                     App.showServersGroup = !App.showServersGroup;
                                 }
@@ -2190,11 +2081,11 @@ Item {
                                 Layout.fillWidth: true
                                 description: qsTr("Rewrites remote paths to local mounts before asking the file manager.")
                                 glyph: Glyphs.home
-                                hasCursor: root.area === "pane" && root.paneCursor === 1
-                                title: qsTr("Open folder through path mapping")
+                                hasCursor: root.area === "pane" && root.paneCursor === root.settings.cursorOf("general.pathMap")
+                                title: root.settings.own("general.pathMap").title
 
                                 onClicked: {
-                                    root.paneCursor = 1;
+                                    root.paneCursor = root.settings.cursorOf("general.pathMap");
                                     root.area = "pane";
                                     App.pathMapEnabled = !App.pathMapEnabled;
                                 }
@@ -2218,12 +2109,12 @@ Item {
                                 Layout.fillWidth: true
                                 description: qsTr("The delete confirm opens with \"also delete the files\" already on.")
                                 glyph: Glyphs.statusErrored
-                                hasCursor: root.area === "pane" && root.paneCursor === 2
+                                hasCursor: root.area === "pane" && root.paneCursor === root.settings.cursorOf("general.deleteFiles")
                                 objectName: "deleteFilesRow"
-                                title: qsTr("Delete files by default")
+                                title: root.settings.own("general.deleteFiles").title
 
                                 onClicked: {
-                                    root.paneCursor = 2;
+                                    root.paneCursor = root.settings.cursorOf("general.deleteFiles");
                                     root.area = "pane";
                                     App.deleteFilesDefault = !App.deleteFilesDefault;
                                 }
@@ -2249,11 +2140,11 @@ Item {
                                 description: handlerRow.isDefault ? qsTr("omaseed already opens magnet links and .torrent files.") : handlerRow.currentHandler.length
                                                                     > 0 ? qsTr("Currently %1.").arg(handlerRow.currentHandler) : qsTr("Makes omaseed open magnet links and .torrent files.")
                                 glyph: Glyphs.add
-                                hasCursor: root.area === "pane" && root.paneCursor === 3
-                                title: qsTr("Register as the magnet and .torrent handler")
+                                hasCursor: root.area === "pane" && root.paneCursor === root.settings.cursorOf("general.handler")
+                                title: root.settings.own("general.handler").title
 
                                 onClicked: {
-                                    root.paneCursor = 3;
+                                    root.paneCursor = root.settings.cursorOf("general.handler");
                                     root.area = "pane";
                                     Xdg.registerAsDefaultHandler();
                                 }
@@ -2293,14 +2184,14 @@ Item {
                                 description: App.startAtLogin === "tray" ? qsTr("omaseed starts in the tray, without its window, and keeps the seed history going. Launch it to open the window.") : App.startAtLogin
                                                                            === "window" ? qsTr("omaseed opens its window when you log in.") : qsTr("The seed history only grows while omaseed runs. Start it at login, in the tray or with its window.")
                                 glyph: Glyphs.start
-                                hasCursor: root.area === "pane" && root.paneCursor === 4
+                                hasCursor: root.area === "pane" && root.paneCursor === root.settings.cursorOf("general.startAtLogin")
                                 objectName: "startAtLoginRow"
-                                title: qsTr("Start at login")
+                                title: root.settings.own("general.startAtLogin").title
 
                                 onClicked: {
-                                    root.paneCursor = 4;
+                                    root.paneCursor = root.settings.cursorOf("general.startAtLogin");
                                     root.area = "pane";
-                                    App.startAtLogin = root._next(root.loginStarts, App.startAtLogin);
+                                    root.settings.activate("general.startAtLogin");
                                 }
 
                                 RowLayout {
@@ -2487,31 +2378,31 @@ Item {
                                     {
                                         "key": "completed",
                                         "glyph": Glyphs.check,
-                                        "title": qsTr("Torrent completed"),
+                                        "title": root.settings.own("notifications.completed").title,
                                         "description": qsTr("One notice per finished torrent, with open folder and show.")
                                     },
                                     {
                                         "key": "added",
                                         "glyph": Glyphs.add,
-                                        "title": qsTr("Torrent added"),
+                                        "title": root.settings.own("notifications.added").title,
                                         "description": qsTr("One notice when the server takes an add made in the add window, with show.")
                                     },
                                     {
                                         "key": "errored",
                                         "glyph": Glyphs.statusErrored,
-                                        "title": qsTr("Torrent errored"),
+                                        "title": root.settings.own("notifications.errored").title,
                                         "description": qsTr("One notice each time a torrent stops with an error, with the reason from the server's log.")
                                     },
                                     {
                                         "key": "serverLost",
                                         "glyph": Glyphs.trayDisconnected,
-                                        "title": qsTr("Server lost and back"),
+                                        "title": root.settings.own("notifications.serverLost").title,
                                         "description": qsTr("One notice when the server stops answering, one when it returns.")
                                     },
                                     {
                                         "key": "diskFull",
                                         "glyph": Glyphs.folder,
-                                        "title": qsTr("Disk almost full"),
+                                        "title": root.settings.own("notifications.diskFull").title,
                                         "description": qsTr("From the server's own free-space figure for its default save path. Other disks and per-category paths are not watched.")
                                     }
                                 ]
@@ -2526,12 +2417,12 @@ Item {
                                     description: notifyRow.modelData.description
                                     glyph: notifyRow.modelData.glyph
                                     hasCursor: root.area === "pane"
-                                               && root.paneCursor === notifyRow.index
+                                               && root.paneCursor === root.settings.cursorOf("notifications." + notifyRow.modelData.key)
                                     objectName: "notifyRow-" + notifyRow.modelData.key
                                     title: notifyRow.modelData.title
 
                                     onClicked: {
-                                        root.paneCursor = notifyRow.index;
+                                        root.paneCursor = root.settings.cursorOf("notifications." + notifyRow.modelData.key);
                                         root.area = "pane";
                                         App.setNotificationEnabled(notifyRow.modelData.key,
                                                                    !App.notificationsEnabled[notifyRow.modelData.key]);
@@ -2557,12 +2448,12 @@ Item {
                                 Layout.fillWidth: true
                                 description: qsTr("The notice fires once when the free space drops below this.")
                                 glyph: Glyphs.altSpeed
-                                hasCursor: root.area === "pane" && root.paneCursor === 5
+                                hasCursor: root.area === "pane" && root.paneCursor === root.settings.cursorOf("notifications.lowDiskThreshold")
                                 objectName: "lowDiskThresholdRow"
-                                title: qsTr("Low-disk threshold")
+                                title: root.settings.own("notifications.lowDiskThreshold").title
 
                                 onClicked: {
-                                    root.paneCursor = 5;
+                                    root.paneCursor = root.settings.cursorOf("notifications.lowDiskThreshold");
                                     root.area = "pane";
                                     thresholdField.focusInput();
                                 }
@@ -2602,12 +2493,12 @@ Item {
                                 Layout.fillWidth: true
                                 description: qsTr("On Sunday evening: what the week gave, its best day, the rare torrents you kept alive. It opens the seed console on the week.")
                                 glyph: Glyphs.statusSeeding
-                                hasCursor: root.area === "pane" && root.paneCursor === 6
+                                hasCursor: root.area === "pane" && root.paneCursor === root.settings.cursorOf("notifications.weekly")
                                 objectName: "notifyRow-weekly"
-                                title: qsTr("Weekly recap")
+                                title: root.settings.own("notifications.weekly").title
 
                                 onClicked: {
-                                    root.paneCursor = 6;
+                                    root.paneCursor = root.settings.cursorOf("notifications.weekly");
                                     root.area = "pane";
                                     App.setNotificationEnabled("weekly", !App.notificationsEnabled.weekly);
                                 }
@@ -2744,15 +2635,15 @@ Item {
                                 Layout.fillWidth: true
                                 description: root._skinDescription
                                 glyph: Glyphs.appearance
-                                hasCursor: root.area === "pane" && root.paneCursor === 0
+                                hasCursor: root.area === "pane" && root.paneCursor === root.settings.cursorOf("appearance.skin")
                                 objectName: "skinRow"
-                                title: qsTr("Skin")
+                                title: root.settings.own("appearance.skin").title
                                 warning: root._skinFontsLine
 
                                 onClicked: {
-                                    root.paneCursor = 0;
+                                    root.paneCursor = root.settings.cursorOf("appearance.skin");
                                     root.area = "pane";
-                                    App.skinChoice = root._next(root.skinChoices, App.skinChoice);
+                                    root.settings.activate("appearance.skin");
                                 }
 
                                 RowLayout {
@@ -2784,11 +2675,11 @@ Item {
                                 Layout.fillWidth: true
                                 description: qsTr("Off keeps the bundled Tokyo Night whatever the desktop does.")
                                 glyph: Glyphs.appearance
-                                hasCursor: root.area === "pane" && root.paneCursor === 1
-                                title: qsTr("Follow the Omarchy theme")
+                                hasCursor: root.area === "pane" && root.paneCursor === root.settings.cursorOf("appearance.followTheme")
+                                title: root.settings.own("appearance.followTheme").title
 
                                 onClicked: {
-                                    root.paneCursor = 1;
+                                    root.paneCursor = root.settings.cursorOf("appearance.followTheme");
                                     root.area = "pane";
                                     App.followOmarchyTheme = !App.followOmarchyTheme;
                                 }
@@ -2809,11 +2700,11 @@ Item {
                                 Layout.fillWidth: true
                                 description: qsTr("Everything scales from it. Empty follows shell.toml.")
                                 glyph: Glyphs.mark
-                                hasCursor: root.area === "pane" && root.paneCursor === 2
-                                title: qsTr("Base size")
+                                hasCursor: root.area === "pane" && root.paneCursor === root.settings.cursorOf("appearance.baseSize")
+                                title: root.settings.own("appearance.baseSize").title
 
                                 onClicked: {
-                                    root.paneCursor = 2;
+                                    root.paneCursor = root.settings.cursorOf("appearance.baseSize");
                                     root.area = "pane";
                                     baseSizeField.focusInput();
                                 }
@@ -2855,14 +2746,14 @@ Item {
                                 Layout.fillWidth: true
                                 description: qsTr("Opaque like the other apps, or translucent: the launcher's wallpaper alpha.")
                                 glyph: Glyphs.appearance
-                                hasCursor: root.area === "pane" && root.paneCursor === 3
+                                hasCursor: root.area === "pane" && root.paneCursor === root.settings.cursorOf("appearance.window")
                                 objectName: "windowGroundRow"
-                                title: qsTr("Window")
+                                title: root.settings.own("appearance.window").title
 
                                 onClicked: {
-                                    root.paneCursor = 3;
+                                    root.paneCursor = root.settings.cursorOf("appearance.window");
                                     root.area = "pane";
-                                    root._toggleGround();
+                                    root.settings.activate("appearance.window");
                                 }
 
                                 RowLayout {
@@ -2894,13 +2785,13 @@ Item {
                                 Layout.fillWidth: true
                                 description: qsTr("How much wallpaper shows through the window, 50–100. Empty follows shell.toml.")
                                 glyph: Glyphs.altSpeed
-                                hasCursor: root.area === "pane" && root.paneCursor === 4
+                                hasCursor: root.area === "pane" && root.paneCursor === root.settings.cursorOf("appearance.windowAlpha")
                                 objectName: "windowAlphaRow"
-                                title: qsTr("Window transparency")
+                                title: root.settings.own("appearance.windowAlpha").title
                                 visible: root._groundShift > 0
 
                                 onClicked: {
-                                    root.paneCursor = 4;
+                                    root.paneCursor = root.settings.cursorOf("appearance.windowAlpha");
                                     root.area = "pane";
                                     alphaField.focusInput();
                                 }
@@ -2941,14 +2832,14 @@ Item {
                                 Layout.fillWidth: true
                                 description: root._inTheBarText()
                                 glyph: Glyphs.mark
-                                hasCursor: root.area === "pane" && root.paneCursor === 4 + root._groundShift
+                                hasCursor: root.area === "pane" && root.paneCursor === root.settings.cursorOf("appearance.inTheBar")
                                 objectName: "inTheBarRow"
-                                title: qsTr("In the bar")
+                                title: root.settings.own("appearance.inTheBar").title
 
                                 onClicked: {
-                                    root.paneCursor = 4 + root._groundShift;
+                                    root.paneCursor = root.settings.cursorOf("appearance.inTheBar");
                                     root.area = "pane";
-                                    App.inTheBar = root._nextInTheBar();
+                                    root.settings.activate("appearance.inTheBar");
                                 }
 
                                 RowLayout {
@@ -2982,12 +2873,12 @@ Item {
                                 Layout.fillWidth: true
                                 description: App.barWidget.inBar ? qsTr("what it shows and what its clicks do: the gear in its popup.") : qsTr("in the bar with widget or both.")
                                 glyph: Glyphs.settings
-                                hasCursor: root.area === "pane" && root.paneCursor === 5 + root._groundShift
+                                hasCursor: root.area === "pane" && root.paneCursor === root.settings.cursorOf("appearance.widget")
                                 objectName: "barWidgetRow"
-                                title: qsTr("Widget")
+                                title: root.settings.own("appearance.widget").title
 
                                 onClicked: {
-                                    root.paneCursor = 5 + root._groundShift;
+                                    root.paneCursor = root.settings.cursorOf("appearance.widget");
                                     root.area = "pane";
                                     root.customizeBarWidget();
                                 }
@@ -3012,15 +2903,15 @@ Item {
                                 Layout.fillWidth: true
                                 description: root._omarchyMenuText()
                                 glyph: Glyphs.omarchyMenu
-                                hasCursor: root.area === "pane" && root.paneCursor === 6 + root._groundShift
+                                hasCursor: root.area === "pane" && root.paneCursor === root.settings.cursorOf("appearance.omarchyMenu")
                                 lead: App.omarchyMenuOffered && App.omarchyMenuReason.length > 0 ? App.omarchyMenuReason + ". " : ""
                                 objectName: "omarchyMenuRow"
-                                title: qsTr("In the Omarchy menu")
+                                title: root.settings.own("appearance.omarchyMenu").title
 
                                 onClicked: {
-                                    root.paneCursor = 6 + root._groundShift;
+                                    root.paneCursor = root.settings.cursorOf("appearance.omarchyMenu");
                                     root.area = "pane";
-                                    root._toggleOmarchyMenu();
+                                    root.settings.activate("appearance.omarchyMenu");
                                 }
 
                                 Toggle {
@@ -3046,13 +2937,13 @@ Item {
                                 Layout.fillWidth: true
                                 description: qsTr("how lists say there is more above or below: the rail and every palette.")
                                 glyph: Glyphs.scrollHint
-                                hasCursor: root.area === "pane" && root.paneCursor === 7 + root._groundShift
-                                title: qsTr("Scroll hint")
+                                hasCursor: root.area === "pane" && root.paneCursor === root.settings.cursorOf("appearance.scrollHint")
+                                title: root.settings.own("appearance.scrollHint").title
 
                                 onClicked: {
-                                    root.paneCursor = 7 + root._groundShift;
+                                    root.paneCursor = root.settings.cursorOf("appearance.scrollHint");
                                     root.area = "pane";
-                                    App.railScrollHint = root._next(root.scrollHints, App.railScrollHint);
+                                    root.settings.activate("appearance.scrollHint");
                                 }
 
                                 RowLayout {
@@ -3084,14 +2975,14 @@ Item {
                                 Layout.fillWidth: true
                                 description: qsTr("a light fill behind the rail.")
                                 glyph: Glyphs.sidebar
-                                hasCursor: root.area === "pane" && root.paneCursor === 8 + root._groundShift
+                                hasCursor: root.area === "pane" && root.paneCursor === root.settings.cursorOf("appearance.surfaceTint")
                                 objectName: "surfaceTintRow"
-                                title: qsTr("Surface tint")
+                                title: root.settings.own("appearance.surfaceTint").title
 
                                 onClicked: {
-                                    root.paneCursor = 8 + root._groundShift;
+                                    root.paneCursor = root.settings.cursorOf("appearance.surfaceTint");
                                     root.area = "pane";
-                                    App.surfaceTint = root._next(root.tints, App.surfaceTint);
+                                    root.settings.activate("appearance.surfaceTint");
                                 }
 
                                 RowLayout {
@@ -3123,13 +3014,13 @@ Item {
                                 Layout.fillWidth: true
                                 description: qsTr("how a long tracker host fits the rail.")
                                 glyph: Glyphs.host
-                                hasCursor: root.area === "pane" && root.paneCursor === 9 + root._groundShift
-                                title: qsTr("Tracker hosts")
+                                hasCursor: root.area === "pane" && root.paneCursor === root.settings.cursorOf("appearance.trackerHosts")
+                                title: root.settings.own("appearance.trackerHosts").title
 
                                 onClicked: {
-                                    root.paneCursor = 9 + root._groundShift;
+                                    root.paneCursor = root.settings.cursorOf("appearance.trackerHosts");
                                     root.area = "pane";
-                                    App.trackerHostStyle = root._next(root.hostStyles, App.trackerHostStyle);
+                                    root.settings.activate("appearance.trackerHosts");
                                 }
 
                                 RowLayout {
@@ -3160,13 +3051,13 @@ Item {
                                 Layout.fillWidth: true
                                 description: qsTr("auto puts it right when the window is 16:10 or wider, else at the bottom. I cycles it.")
                                 glyph: Glyphs.sidebar
-                                hasCursor: root.area === "pane" && root.paneCursor === 10 + root._groundShift
-                                title: qsTr("Details panel")
+                                hasCursor: root.area === "pane" && root.paneCursor === root.settings.cursorOf("appearance.detailsPlacement")
+                                title: root.settings.own("appearance.detailsPlacement").title
 
                                 onClicked: {
-                                    root.paneCursor = 10 + root._groundShift;
+                                    root.paneCursor = root.settings.cursorOf("appearance.detailsPlacement");
                                     root.area = "pane";
-                                    App.detailsPlacement = root._next(root.placements, App.detailsPlacement);
+                                    root.settings.activate("appearance.detailsPlacement");
                                 }
 
                                 RowLayout {
@@ -3198,12 +3089,12 @@ Item {
                                 Layout.fillWidth: true
                                 description: qsTr("a green tick at the left of each row that is uploading, breathing faster the more it sends. Still when the desktop asks for less motion.")
                                 glyph: Glyphs.statusSeeding
-                                hasCursor: root.area === "pane" && root.paneCursor === 11 + root._groundShift
+                                hasCursor: root.area === "pane" && root.paneCursor === root.settings.cursorOf("appearance.pulseRows")
                                 objectName: "pulseRowsRow"
-                                title: qsTr("Pulse sending rows")
+                                title: root.settings.own("appearance.pulseRows").title
 
                                 onClicked: {
-                                    root.paneCursor = 11 + root._groundShift;
+                                    root.paneCursor = root.settings.cursorOf("appearance.pulseRows");
                                     root.area = "pane";
                                     App.pulseRows = !App.pulseRows;
                                 }
@@ -3226,14 +3117,14 @@ Item {
                                 Layout.fillWidth: true
                                 description: qsTr("where ↓ and ↑ are shown. The title bar draws the last minute under each.")
                                 glyph: Glyphs.arrowDown
-                                hasCursor: root.area === "pane" && root.paneCursor === 12 + root._groundShift
+                                hasCursor: root.area === "pane" && root.paneCursor === root.settings.cursorOf("appearance.speedsPlace")
                                 objectName: "speedsPlaceRow"
-                                title: qsTr("Speeds")
+                                title: root.settings.own("appearance.speedsPlace").title
 
                                 onClicked: {
-                                    root.paneCursor = 12 + root._groundShift;
+                                    root.paneCursor = root.settings.cursorOf("appearance.speedsPlace");
                                     root.area = "pane";
-                                    App.speedsPlace = root._next(root.speedsPlaces, App.speedsPlace);
+                                    root.settings.activate("appearance.speedsPlace");
                                 }
 
                                 RowLayout {
@@ -3275,6 +3166,7 @@ Item {
                             keyboard: root.area === "pane"
                             objectName: "qbtPane"
                             prefs: App.serverPrefs
+                            schema: root.settings.schema
                             section: root.qbtSection
                             serverName: App.serverName
                             visible: root.inQbt && !root.inQbtBackup && !root.inQbtSearch && !root.inEngineBackup
@@ -3768,12 +3660,12 @@ Item {
                                 Layout.fillWidth: true
                                 description: App.backupSummary
                                 glyph: Glyphs.arrowDown
-                                hasCursor: root.area === "pane" && root.paneCursor === 0
+                                hasCursor: root.area === "pane" && root.paneCursor === root.settings.cursorOf("backup.backUp")
                                 objectName: "backupRow"
-                                title: qsTr("Back up omaseed")
+                                title: root.settings.own("backup.backUp").title
 
                                 onClicked: {
-                                    root.paneCursor = 0;
+                                    root.paneCursor = root.settings.cursorOf("backup.backUp");
                                     root.area = "pane";
                                     root.backUp();
                                 }
@@ -3785,7 +3677,7 @@ Item {
                                     text: qsTr("back up…")
 
                                     onClicked: {
-                                        root.paneCursor = 0;
+                                        root.paneCursor = root.settings.cursorOf("backup.backUp");
                                         root.backUp();
                                     }
                                 }
@@ -3797,12 +3689,12 @@ Item {
                                 Layout.fillWidth: true
                                 description: qsTr("From an omaseed backup. You pick the parts; what is here now is copied aside first.")
                                 glyph: Glyphs.arrowUp
-                                hasCursor: root.area === "pane" && root.paneCursor === 1
+                                hasCursor: root.area === "pane" && root.paneCursor === root.settings.cursorOf("backup.restore")
                                 objectName: "restoreRow"
-                                title: qsTr("Restore")
+                                title: root.settings.own("backup.restore").title
 
                                 onClicked: {
-                                    root.paneCursor = 1;
+                                    root.paneCursor = root.settings.cursorOf("backup.restore");
                                     root.area = "pane";
                                     root.chooseRestore();
                                 }
@@ -3813,7 +3705,7 @@ Item {
                                     text: qsTr("restore…")
 
                                     onClicked: {
-                                        root.paneCursor = 1;
+                                        root.paneCursor = root.settings.cursorOf("backup.restore");
                                         root.chooseRestore();
                                     }
                                 }
@@ -3833,14 +3725,14 @@ Item {
                                                                          : where + " " + qsTr("The first one is made within the hour.");
                                 }
                                 glyph: Glyphs.recheck
-                                hasCursor: root.area === "pane" && root.paneCursor === 2
+                                hasCursor: root.area === "pane" && root.paneCursor === root.settings.cursorOf("backup.auto")
                                 objectName: "autoBackupRow"
-                                title: qsTr("Automatic copies")
+                                title: root.settings.own("backup.auto").title
 
                                 onClicked: {
-                                    root.paneCursor = 2;
+                                    root.paneCursor = root.settings.cursorOf("backup.auto");
                                     root.area = "pane";
-                                    App.autoBackupMode = root._next(root.backupModes, App.autoBackupMode);
+                                    root.settings.activate("backup.auto");
                                 }
 
                                 RowLayout {
@@ -3926,7 +3818,7 @@ Item {
 
                             FormRow {
                                 Layout.fillWidth: true
-                                label: qsTr("Companion bar widget")
+                                label: root.settings.own("about.widgetLine").title
 
                                 RowLayout {
                                     spacing: Theme.space(8)
@@ -3936,7 +3828,7 @@ Item {
 
                                         Layout.fillWidth: true
                                         accessibleName: qsTr("command that adds the bar widget")
-                                        hasCursor: root.area === "pane" && root.paneCursor === 0
+                                        hasCursor: root.area === "pane" && root.paneCursor === root.settings.cursorOf("about.widgetLine")
                                         text: App.barWidgetCommand
                                     }
 
@@ -3982,7 +3874,7 @@ Item {
 
         anchors.fill: parent
         objectName: "qbtImportSheet"
-        schema: qbtSchema
+        schema: root.settings.schema
         z: 1
 
         onApplied: {

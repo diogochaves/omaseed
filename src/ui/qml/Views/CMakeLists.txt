@@ -122,6 +122,7 @@ qt_add_qml_module(omaseed-views
         ServerSelect.qml
         ServerSheet.qml
         SettingsModal.qml
+        SettingsTable.qml
         SettingsRow.qml
         SettingsServerRow.qml
         SharedChoice.qml

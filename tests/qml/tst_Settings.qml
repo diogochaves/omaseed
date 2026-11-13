@@ -2157,6 +2157,104 @@ TestCase {
         tip.hide();
     }
 
+    /// The row holding the cursor under `item`, or null.
+    function cursorRow(item) {
+        if (item.hasCursor === true && item.visible)
+            return item;
+        for (let i = 0; i < item.children.length; ++i) {
+            const found = testCase.cursorRow(item.children[i]);
+            if (found)
+                return found;
+        }
+        return null;
+    }
+
+    // docs/63 §6 (DECISIONS C42 Z7): Settings opens on a row of the table: its pane, the
+    // keyboard in it, the cursor on the row. One of omaseed's own per pane.
+    function test_open_on_puts_the_cursor_on_an_own_row() {
+        const modal = createTemporaryObject(modalComponent, testCase);
+        const scroller = testCase.childNamed(modal, "paneScroller");
+        const rows = [["general.startAtLogin", 0, 4, "startAtLoginRow"], ["notifications.weekly", 2, 6, "notifyRow-weekly"],
+                      ["appearance.speedsPlace", 4, 12, "speedsPlaceRow"], ["backup.auto", 5, 2, ""],
+                      ["about.widgetLine", 6, 0, ""]];
+        for (const [id, pane, cursor, name] of rows) {
+            verify(modal.openOn(id), id);
+            verify(modal.opened);
+            compare(modal.paneIndex, pane, id);
+            compare(modal.area, "pane");
+            compare(modal.paneCursor, cursor, id);
+            if (name.length > 0) {
+                const row = testCase.childNamed(modal, name);
+                verify(row.hasCursor, id);
+                // The pane scrolled to it.
+                tryVerify(() => {
+                              const top = row.mapToItem(scroller, 0, 0).y;
+                              return top >= -1 && top + row.height <= scroller.height + 1;
+                          }, 1000, id + " is out of the pane's sight");
+            }
+        }
+        // enter there is the row's own.
+        const before = App.autoBackupMode;
+        modal.openOn("backup.auto");
+        keyClick(Qt.Key_Return);
+        verify(App.autoBackupMode !== before);
+        App.autoBackupMode = before;
+
+        // A row its pane does not have now: the pane all the same, and false.
+        compare(App.windowGround, "opaque");
+        verify(!modal.openOn("appearance.windowAlpha"));
+        compare(modal.paneIndex, 4);
+        compare(modal.paneCursor, 0);
+        App.windowGround = "translucent";
+        verify(modal.openOn("appearance.windowAlpha"));
+        compare(modal.paneCursor, 4);
+        verify(testCase.childNamed(modal, "windowAlphaRow").hasCursor);
+    }
+
+    // A server's row, low in Advanced: its section's pane, the cursor on it, in sight.
+    function test_open_on_puts_the_cursor_on_a_server_row() {
+        const modal = createTemporaryObject(modalComponent, testCase);
+        const scroller = testCase.childNamed(modal, "paneScroller");
+        const advanced = modal.settings.serverRows().filter(row => row.pane === "server.advanced");
+        compare(advanced.length, 59);
+        const target = advanced[advanced.length - 3];
+        verify(modal.openOn(target.id), target.id);
+        verify(modal.opened);
+        compare(modal.qbtSection.id, "advanced");
+        compare(modal.area, "pane");
+        compare(modal.paneCursor, advanced.length - 3);
+        const row = testCase.childNamed(modal, "qbtRow-" + target.key);
+        verify(row !== null, target.key);
+        tryVerify(() => row.hasCursor);
+        tryVerify(() => {
+                      const top = row.mapToItem(scroller, 0, 0).y;
+                      return top >= -1 && top + row.height <= scroller.height + 1;
+                  }, 1000, target.id + " is out of the pane's sight");
+        compare(testCase.cursorRow(testCase.childNamed(modal, "qbtPane")), row);
+
+        // From there to a row of another section, the modal open.
+        verify(modal.openOn("server.speed.up_limit"));
+        compare(modal.qbtSection.id, "speed");
+        verify(testCase.childNamed(modal, "qbtRow-up_limit").hasCursor);
+
+        // A row the server does not have: its section's pane, and false.
+        App.patchDemoPrefs({}, ["up_limit"]);
+        verify(!modal.openOn("server.speed.up_limit"));
+        compare(modal.qbtSection.id, "speed");
+        compare(modal.paneCursor, 0);
+    }
+
+    function test_open_on_an_unknown_row_opens_settings_and_says_no() {
+        const modal = createTemporaryObject(modalComponent, testCase);
+        verify(!modal.openOn("no.such.row"));
+        verify(modal.opened);
+        compare(modal.paneIndex, 0);
+        // Not a row: the server's Backup pane, a section it has not.
+        verify(!modal.openOn("server.backup.export"));
+        verify(!modal.openOn("server.nowhere.dl_limit"));
+        compare(modal.paneIndex, 0);
+    }
+
     // docs/15 Q3 A: a row under about 380 px (base 14) moves its control under the text,
     // lined up with the text's left edge; wider, the control stays at the row's end.
     function test_a_narrow_row_stacks_its_control_under_the_text() {

@@ -2479,4 +2479,137 @@ QtObject {
             ]
         }
     ]
+
+    // What a row means, for whoever reads the schema (DECISIONS C42 Z7): the pane and its rows
+    // draw from these, and SettingsTable lists the same rows for the palette. Pure: each
+    // takes what it reads.
+
+    /// A plugin is on, by Deluge's enabled_plugins (K15).
+    function pluginOn(prefs: var, name: string): bool {
+        const plugins = prefs ? (prefs.values.enabled_plugins ?? []) : [];
+        return Array.from(plugins).indexOf(name) >= 0;
+    }
+
+    /// `section`'s entries the server can take, in order (C14 E4): a row whose keys the
+    /// server's version lacks is left out; headings, notes and lines stay. Before the server
+    /// answers, every one. `presets` answers the turtle's and burst's rows (C32 D8 a).
+    function offered(section: var, prefs: var, presets: var): var {
+        if (!section)
+            return [];
+        const loaded = !!prefs && prefs.loaded;
+        return section.rows.filter(spec => {
+                                       // K15: a row for a plugin on, or one off; before the
+                                       // server answers, the "on" ones (greyed).
+                                       if (spec.whenOff !== undefined)
+                                           return loaded && !root.pluginOn(prefs, spec.whenOff);
+                                       if (spec.whenOn !== undefined && loaded
+                                           && !root.pluginOn(prefs, spec.whenOn))
+                                           return false;
+                                       if (!loaded || spec.title === undefined)
+                                           return true;
+                                       // A plugin's row reads the plugins' list.
+                                       if (spec.plugin !== undefined || spec.others !== undefined)
+                                           return prefs.has("enabled_plugins");
+                                       const keys = [];
+                                       if (spec.toggle)
+                                           keys.push(spec.toggle);
+                                       for (const field of (spec.fields ?? [])) {
+                                           // Write-only (the Web UI password): never sent back.
+                                           if (field.kind === "password")
+                                               return true;
+                                           keys.push(field.key);
+                                       }
+                                       for (const part of [spec.choice, spec.pick, spec.list]) {
+                                           if (part)
+                                               keys.push(part.key);
+                                       }
+                                       // A row with nothing to read (a button) always shows. The
+                                       // presets' rows read the presets (C32 D8 a).
+                                       const store = spec.presets ? presets : prefs;
+                                       return keys.length === 0 || keys.some(key => store.has(key));
+                                   });
+    }
+
+    /// The name a row goes by: the first key it reads, or its plugin's; "" for a row with
+    /// none (a button alone).
+    function rowKey(spec: var): string {
+        if (spec.plugin !== undefined)
+            return "plugin-" + spec.plugin;
+        if (spec.others !== undefined)
+            return "plugins-others";
+        if (spec.toggle)
+            return spec.toggle;
+        if (spec.fields)
+            return spec.fields[0].key;
+        for (const part of [spec.choice, spec.pick, spec.list]) {
+            if (part)
+                return part.key;
+        }
+        return "";
+    }
+
+    /// What a change to the row asks first: its section's ("webui": every row of the Web UI
+    /// section), else the row's own `confirm`; "" for none.
+    function confirmOf(spec: var, section: var): string {
+        return section && section.webui ? "webui" : (spec.confirm ?? "");
+    }
+
+    /// `dep` holds: "key" is true, or "key!=value" is not that value; a list needs them all.
+    function depOk(spec: var, values: var): bool {
+        const deps = spec.dep === undefined ? [] : [].concat(spec.dep);
+        return deps.every(dep => {
+                              const at = dep.indexOf("!=");
+                              if (at >= 0)
+                                  return String(values[dep.slice(0, at)]) !== dep.slice(at + 2);
+                              return !!values[dep];
+                          });
+    }
+
+    /// Why the switch can't go `on` yet (its `needs` note), or "" when it can.
+    function flipRefusal(spec: var, values: var, on: bool): string {
+        return on && spec.needs && spec.needs.keys.some(name => !values[name]) ? spec.needs.note : "";
+    }
+
+    /// The confirm a flip to `on` asks, given the row's (`confirmOf`): anonymous mode asks
+    /// only on the way in, the IP filter only when it starts blocking.
+    function flipConfirm(confirmKind: string, on: bool): string {
+        return (confirmKind === "anon" || confirmKind === "ipfilter") && !on ? "" : confirmKind;
+    }
+
+    /// What turning the switch `on` (or off) writes: the key, and what the row's `enable` /
+    /// `disable` say must go with it for qBittorrent to take it (the header above).
+    function flipChanges(spec: var, values: var, on: bool): var {
+        const changes = {
+            [spec.toggle]: on
+        };
+        const extra = (on ? spec.enable : spec.disable) ?? {};
+        for (const name in extra) {
+            const field = (spec.fields ?? []).find(candidate => candidate.key === name);
+            if (on && field !== undefined && field.none !== undefined
+                    && values[name] !== field.none)
+                continue;
+            changes[name] = extra[name] === "randomPort"
+                    ? 1024 + Math.floor(Math.random() * (65535 - 1024)) : extra[name];
+        }
+        return changes;
+    }
+
+    /// The value a field shows: scaled to its unit, empty for "no limit".
+    function fieldText(field: var, values: var): string {
+        const value = values[field.key];
+        if (value === undefined || value === null || field.kind === "password")
+            return "";
+        if (field.kind === "time") {
+            const pad = number => (number < 10 ? "0" : "") + number;
+            return pad(value) + ":" + pad(values[field.minKey] ?? 0);
+        }
+        if (field.kind === "text")
+            return String(value);
+        if (field.none !== undefined && value === field.none)
+            return "";
+        const scaled = value / (field.scale ?? 1);
+        if (field.decimals !== undefined)
+            return scaled.toFixed(field.decimals);
+        return String(Math.round(scaled * 100) / 100);
+    }
 }
