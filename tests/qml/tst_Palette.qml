@@ -1331,4 +1331,86 @@ TestCase {
         compare(secondary.count, 2);
         palette.close();
     }
+
+    // C42 Z7 (board 63 `.tg`): a row's `toggle` draws a switch before its meta word: accent,
+    // the knob right and the word bright when on; dim and left when off; none when absent.
+    function test_a_toggle_is_drawn_before_the_meta() {
+        const palette = createTemporaryObject(paletteComponent, testCase, {
+                                                  "items": [
+                                                      {
+                                                          "title": "Torrent completed",
+                                                          "meta": "on",
+                                                          "toggle": true,
+                                                          "detail": "Settings › Notifications"
+                                                      },
+                                                      {
+                                                          "title": "Torrent added",
+                                                          "meta": "off",
+                                                          "toggle": false,
+                                                          "detail": "Settings › Notifications"
+                                                      },
+                                                      {
+                                                          "title": "Listening port",
+                                                          "meta": "51413"
+                                                      }
+                                                  ]
+                                              });
+        palette.open();
+        palette.cursorIndex = 2;
+        waitForRendering(palette.listView);
+        const part = (index, name) => findChild(palette.listView.itemAtIndex(index), name);
+        const on = part(0, "paletteRowToggle");
+        const off = part(1, "paletteRowToggle");
+        verify(on.visible);
+        verify(off.visible);
+        verify(!part(2, "paletteRowToggle").visible);
+        compare(on.width, Theme.space(22));
+        compare(on.height, Theme.space(11));
+        const inkOf = index => palette.listView.itemAtIndex(index).ink;
+        verify(Qt.colorEqual(on.border.color, inkOf(0).accent));
+        verify(Qt.colorEqual(off.border.color, inkOf(1).dimForeground));
+        const onKnob = part(0, "paletteRowToggleKnob");
+        const offKnob = part(1, "paletteRowToggleKnob");
+        verify(Qt.colorEqual(onKnob.color, inkOf(0).accent));
+        verify(Qt.colorEqual(offKnob.color, inkOf(1).dimForeground));
+        compare(offKnob.x, Theme.hairWidth + Theme.space(1));
+        compare(onKnob.x + onKnob.width, on.width - Theme.hairWidth - Theme.space(1));
+        verify(onKnob.x > offKnob.x);
+        // The switch sits left of its word; the word is bright only when on.
+        const onMeta = part(0, "paletteRowMeta");
+        verify(on.mapToItem(palette, 0, 0).x + on.width <= onMeta.mapToItem(palette, 0, 0).x);
+        verify(Qt.colorEqual(onMeta.color, inkOf(0).brightForeground));
+        verify(Qt.colorEqual(part(1, "paletteRowMeta").color, inkOf(1).dimForeground));
+        verify(Qt.colorEqual(part(2, "paletteRowMeta").color, inkOf(2).dimForeground));
+        // A row with a toggle is as tall as one without.
+        compare(palette.listView.itemAtIndex(0).height, palette.listView.itemAtIndex(1).height);
+        palette.close();
+    }
+
+    // C42 Z7: a row's own `metaSpoken` makes its meta lead the description while the palette's
+    // switch is off, as in a list that mixes commands (a key) and settings (words).
+    function test_a_rows_own_meta_spoken() {
+        const palette = createTemporaryObject(paletteComponent, testCase, {
+                                                  "items": [
+                                                      {
+                                                          "title": "delete",
+                                                          "meta": "d",
+                                                          "detail": "torrents"
+                                                      },
+                                                      {
+                                                          "title": "Torrent completed",
+                                                          "meta": "on",
+                                                          "toggle": true,
+                                                          "metaSpoken": true,
+                                                          "detail": "Settings › Notifications"
+                                                      }
+                                                  ]
+                                              });
+        palette.open();
+        waitForRendering(palette.listView);
+        verify(!palette.metaSpoken);
+        compare(palette.listView.itemAtIndex(0).Accessible.description, "torrents");
+        compare(palette.listView.itemAtIndex(1).Accessible.description, "on · Settings › Notifications");
+        palette.close();
+    }
 }

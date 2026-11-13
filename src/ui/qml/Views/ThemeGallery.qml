@@ -1526,6 +1526,52 @@ Window {
                         }
                     }
 
+                    // docs/DECISIONS.md C42 Z7 (board 63 S1): a row's switch before its meta.
+                    Captioned {
+                        caption: qsTr("Palette \u00b7 rows with a switch")
+
+                        Palette {
+                            accessibleName: qsTr("settings")
+                            counter: qsTr("3 matches")
+                            cursorIndex: 0
+                            glyph: Glyphs.commands
+                            hints: [
+                                {
+                                    "key": "\u2191\u2193",
+                                    "label": qsTr("move")
+                                },
+                                {
+                                    "key": "enter",
+                                    "label": qsTr("open in Settings")
+                                }
+                            ]
+                            inline: true
+                            items: [
+                                {
+                                    "title": qsTr("Torrent completed"),
+                                    "meta": qsTr("on"),
+                                    "toggle": true,
+                                    "metaSpoken": true,
+                                    "detail": qsTr("Settings \u203a Notifications")
+                                },
+                                {
+                                    "title": qsTr("Torrent added"),
+                                    "meta": qsTr("off"),
+                                    "toggle": false,
+                                    "metaSpoken": true,
+                                    "detail": qsTr("Settings \u203a Notifications")
+                                },
+                                {
+                                    "title": qsTr("Low-disk threshold"),
+                                    "meta": "10",
+                                    "metaSpoken": true,
+                                    "detail": qsTr("Settings \u203a Notifications")
+                                }
+                            ]
+                            query: "notif"
+                        }
+                    }
+
                     Captioned {
                         caption: qsTr("Menu \u00b7 Fig. 11")
 

@@ -64,6 +64,13 @@ import Omaseed.Kit
 //
 //  - An item's `spokenTitle` is what a screen reader calls the row instead of its `title`:
 //    where kinds are mixed, the caller adds the row's kind there ("delete, command").
+//  - An item's `toggle` (`true` or `false`; absent draws none) draws a small switch before
+//    its meta word (C42 Z7, board 63 `.tg`: "on" bright after an accent box with its knob
+//    on the right, "off" dim after a dim one with it on the left). It is a picture of the
+//    value, not a control: the row's `enter` is still `activated`, and the caller does what
+//    it means. An item's own `metaSpoken: true` makes its meta lead what a screen reader
+//    hears as the description, whatever the palette's `metaSpoken` says: for a list that
+//    mixes rows whose meta is a key with rows whose meta is words.
 //
 // Do NOT run `qmlformat` on this file: with the project's 100-column wrap it re-indents the
 // typed functions further on every pass (the defect MainView.qml and TorrentTable.qml note).
@@ -84,7 +91,8 @@ Item {
     /// The dim caption at the right of the query row (`.q .c`), e.g. "2 of 142".
     property string counter: ""
     property alias query: input.text
-    /// `[{title, meta, via, detail, checked, key, pinned, disabled, heading, more, spokenTitle}]`.
+    /// `[{title, meta, via, detail, checked, key, pinned, disabled, heading, more, spokenTitle,
+    /// toggle, metaSpoken}]`.
     property var items: []
     /// #79: the rows' `meta` is words a screen reader should hear (a torrent's state, a
     /// count), not a key or a glyph as in the command palette: it leads the description.
@@ -861,6 +869,9 @@ Item {
                     /// This row is the one being dragged: it keeps the selected fill until
                     /// it lands.
                     readonly property bool lifted: row.index === root._dragFrom
+                    /// C42 Z7: the row shows a switch before its meta, and whether it is on.
+                    readonly property bool hasToggle: typeof row.modelData.toggle === "boolean"
+                    readonly property bool toggleOn: row.modelData.toggle === true
                     /// docs/DECISIONS.md C30 F1: the row's words on its ground, the selected
                     /// fill while it is dragged, the cursor's on the current row.
                     readonly property Ink ink: Ink {
@@ -874,7 +885,8 @@ Item {
                     // C42: a heading is spoken with its count, as its name; an "N more" row's
                     // meta says what `enter` does, so it is always its description.
                     Accessible.description: row.heading ? "" : row.more ? (row.modelData.meta ?? "")
-                            : [root.metaSpoken ? (row.modelData.meta ?? "") : "",
+                            : [root.metaSpoken || row.modelData.metaSpoken === true
+                               ? (row.modelData.meta ?? "") : "",
                                row.modelData.detail ?? ""].filter(part => part.length > 0).join(" · ")
                     Accessible.name: row.heading ? [row.modelData.title ?? "", row.modelData.meta ?? ""].filter(
                                                        part => part.length > 0).join(", ")
@@ -998,8 +1010,36 @@ Item {
                                     visible: (row.modelData.via ?? "").length > 0
                                 }
 
+                                // Board 63 `.tg` (C42 Z7): 22 × 11 outlined, the knob 8 × 7
+                                // a step inside it, left and dim when off, right and accent
+                                // when on.
+                                Rectangle {
+                                    Layout.alignment: Qt.AlignVCenter
+                                    // `.tg`'s gap is 7; the row's spacing gives 8.
+                                    Layout.rightMargin: -Theme.space(1)
+                                    border.color: row.disabled ? row.faint : row.toggleOn ? row.ink.accent
+                                                                                          : row.ink.dimForeground
+                                    border.width: Theme.hairWidth
+                                    color: "transparent"
+                                    implicitHeight: Theme.space(11)
+                                    implicitWidth: Theme.space(22)
+                                    objectName: "paletteRowToggle"
+                                    visible: row.hasToggle
+
+                                    Rectangle {
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        color: parent.border.color
+                                        height: parent.height - 2 * (Theme.hairWidth + Theme.space(1))
+                                        objectName: "paletteRowToggleKnob"
+                                        width: Theme.space(8)
+                                        x: row.toggleOn ? parent.width - width - Theme.hairWidth - Theme.space(1)
+                                                        : Theme.hairWidth + Theme.space(1)
+                                    }
+                                }
+
                                 Label {
-                                    color: row.disabled ? row.faint : row.ink.dimForeground
+                                    color: row.disabled ? row.faint : row.hasToggle && row.toggleOn
+                                                                      ? row.ink.brightForeground : row.ink.dimForeground
                                     objectName: "paletteRowMeta"
                                     size: "small"
                                     text: (row.modelData.via ?? "").length > 0 ? row.modelData.via
