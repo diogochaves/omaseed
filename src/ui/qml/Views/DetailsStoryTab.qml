@@ -30,6 +30,9 @@ Flickable {
     property string partialText: ""
     /// Board 45 B1 (C18 D7): App.move.lastMoveOf() for this torrent, {} for none.
     property var lastMove: ({})
+    /// DECISIONS C43 Y6: a place line since that move (App.placeMovedSinceLastMove), for the
+    /// block's sentence.
+    property bool movedOutside: false
     /// The engine has a log to narrow to this torrent (App.features.engineLog, C25 K30).
     property bool logOffered: App.features.engineLog !== false
 
@@ -128,6 +131,7 @@ Flickable {
         // Board 45 B1 (C18 D7): the torrent's last move, while the history keeps it.
         DetailsMoveBlock {
             move: root.lastMove
+            movedOutside: root.movedOutside
             objectName: "moveBlock"
             visible: root.hasMove
             width: parent.width

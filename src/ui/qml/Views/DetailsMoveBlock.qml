@@ -10,6 +10,9 @@ Rectangle {
     id: root
 
     property var move: ({})
+    /// DECISIONS C43 Y6: the story has a place line since this move, outside omaseed or the
+    /// server's own (App.placeMovedSinceLastMove), so the sentence can say who moved it.
+    property bool movedOutside: false
 
     /// "back" (the whole move), "backThis" (this torrent only) or "show" (the move's torrents in
     /// the table).
@@ -51,9 +54,12 @@ Rectangle {
                            root.move.title ?? ""));
         if ((root.move.carried ?? "").length > 0)
             parts.push(root.move.carried);
-        // Nothing of it can go back: everything was moved since.
+        // Nothing of it can go back: everything was moved since (C18 D7), and when the story
+        // saw that move, it wasn't omaseed's (C43 Y6).
+        const outside = qsTr("moved since outside omaseed: nothing to move back");
         if (root.move.canBack !== true)
-            parts.push(qsTr("moved again since: nothing to move back"));
+            parts.push(root.movedOutside ? outside : qsTr(
+                                               "moved again since: nothing to move back"));
         return parts.join(", ");
     }
 

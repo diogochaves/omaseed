@@ -2,15 +2,15 @@ import QtQuick
 import Omaseed.Kit
 
 // One line of the story's "what happened" (board 46 `details()`'s `.tl div`, DECISIONS C24
-// H6): the time in its column, a small square in the event's colour (the accent for a move
-// and a rename, C38 R2: what was done to it; yellow for a failure, red for the error; #201
-// F19: a plain one, an add or a finish, is neutral, the dim foreground, so on a torrent in
-// error "Added" doesn't read as the error), then the event over its dim line. `event` is one
-// of `App.torrentStory()`'s maps.
+// H6): the time in its column, a small square in the event's colour (the accent for a move,
+// a rename and a filing edit, C38 R2, C43 Y4: what was done to it; yellow for a failure, red
+// for the error; #201 F19: a plain one, an add or a finish, is neutral, the dim foreground, so
+// on a torrent in error "Added" doesn't read as the error), then the event over its dim line.
+// `event` is one of `App.torrentStory()`'s maps.
 Item {
     id: root
 
-    /// `{time, kind ("plain", "move", "rename", "warn", "error"), title, detail}`.
+    /// `{time, kind ("plain", "move", "rename", "edit", "warn", "error"), title, detail}`.
     property var event: ({})
     /// The time's column, one width for the whole story (`DetailsStoryTab.timeWidth`, #246).
     property int timeWidth: Theme.detailsEventTimeWidth
@@ -22,6 +22,7 @@ Item {
             return Theme.yellow;
         case "move":
         case "rename":
+        case "edit":
             return Theme.accent;
         default:
             return Theme.dimForeground;
