@@ -1,9 +1,9 @@
-// App's #236 block (board 56, DECISIONS C38): the renames the details pane's story tells.
-// omaseed's own renames are written here as the server answers them OK (R1, R3), into one
-// core::RenameHistory per server that lives, loads and saves as the move history does (R9,
-// C18 D8). A torrent's name seen changed in a poll is a line too (R4), unless it is the echo of
-// omaseed's own rename; a file rename the log says failed takes its line back (R3, C2 D2). The
-// declarations sit at the end of App.hpp.
+// App's #236/#248 block (boards 56 and 58, DECISIONS C38, C43): the record the details pane's
+// story tells from. omaseed's own renames are written here as the server answers them OK (R1,
+// R3), into one core::StoryRecord per server that lives, loads and saves as the move history
+// does (R9, C18 D8). A torrent's name seen changed in a poll is a line too (R4), unless it is
+// the echo of omaseed's own rename; a file rename the log says failed takes its line back (R3,
+// C2 D2). The declarations sit at the end of App.hpp.
 #include "ui/app/App.hpp"
 
 #include "core/ProblemLog.hpp"
@@ -17,8 +17,8 @@
 
 namespace omaseed::app {
 
-using core::RenameHistory;
-using core::RenameRecord;
+using core::StoryEntry;
+using core::StoryRecord;
 
 namespace {
 
@@ -41,89 +41,88 @@ QString parentOf(const QString &path)
 
 } // namespace
 
-void App::setUpRenames()
+void App::setUpStory()
 {
-    connect(this, &App::serverChanged, this, &App::loadRenames);
+    connect(this, &App::serverChanged, this, &App::loadStory);
     // R9: dropped when it leaves the server; a full update is the whole library.
     connect(m_engine, &core::SyncEngine::synced, this, [this](bool fullUpdate) {
         if (fullUpdate)
-            pruneRenames();
+            pruneStory();
     });
     connect(m_engine, &core::SyncEngine::torrentRenamed, this, &App::recordSeenRename);
     connect(m_engine->problems(),
             &core::ProblemLog::renameWatchFailed,
             this,
             &App::onRenameWatchFailed);
-    loadRenames();
+    loadStory();
 }
 
-QString App::renamesServerId() const
+QString App::storyServerId() const
 {
     // As the move history's (updateMoveServer()): demo and first run keep no record.
     return m_hasServer && !m_demoMode ? m_server.id : QString();
 }
 
-void App::loadRenames()
+void App::loadStory()
 {
-    const QString serverId = renamesServerId();
-    if (serverId == m_renamesServerId && !serverId.isEmpty())
+    const QString serverId = storyServerId();
+    if (serverId == m_storyServerId && !serverId.isEmpty())
         return;
-    m_renamesServerId = serverId;
-    m_renames = serverId.isEmpty()
-                    ? RenameHistory()
-                    : RenameHistory::fromJson(
-                          stateSection(kSection).value(serverId).toObject().value(kKey).toArray());
+    m_storyServerId = serverId;
+    m_story = serverId.isEmpty()
+                  ? StoryRecord()
+                  : StoryRecord::fromJson(
+                        stateSection(kSection).value(serverId).toObject().value(kKey).toArray());
     m_renameLineOf.clear();
     m_sentRenames.clear();
     m_renameWatchRuns.clear();
-    ++m_renamesRevision;
-    Q_EMIT renamesChanged();
+    ++m_storyRevision;
+    Q_EMIT storyChanged();
 }
 
-void App::saveRenames()
+void App::saveStory()
 {
-    if (!m_renamesServerId.isEmpty()) {
+    if (!m_storyServerId.isEmpty()) {
         QJsonObject section = stateSection(kSection);
-        QJsonObject server = section.value(m_renamesServerId).toObject();
-        server.insert(kKey, m_renames.toJson());
-        section.insert(m_renamesServerId, server);
+        QJsonObject server = section.value(m_storyServerId).toObject();
+        server.insert(kKey, m_story.toJson());
+        section.insert(m_storyServerId, server);
         writeStateSection(kSection, section);
     }
-    ++m_renamesRevision;
-    Q_EMIT renamesChanged();
+    ++m_storyRevision;
+    Q_EMIT storyChanged();
 }
 
-void App::pruneRenames()
+void App::pruneStory()
 {
-    if (m_renamesServerId.isEmpty() || m_renamesServerId != renamesServerId() ||
-        m_renames.isEmpty())
+    if (m_storyServerId.isEmpty() || m_storyServerId != storyServerId() || m_story.isEmpty())
         return;
     const QStringList hashes = m_engine->torrents()->hashes();
-    if (!m_renames.prune(QSet<QString>(hashes.cbegin(), hashes.cend())))
+    if (!m_story.prune(QSet<QString>(hashes.cbegin(), hashes.cend())))
         return;
     m_renameLineOf.removeIf([&hashes](const std::pair<const QString &, int &> &entry) {
         return !hashes.contains(entry.first);
     });
-    saveRenames();
+    saveStory();
 }
 
-int App::writeRename(const QString &serverId, const RenameRecord &rename)
+int App::writeEntry(const QString &serverId, const StoryEntry &entry)
 {
-    if (serverId.isEmpty() || serverId != m_renamesServerId)
+    if (serverId.isEmpty() || serverId != m_storyServerId)
         return -1;
-    RenameRecord line = rename;
+    StoryEntry line = entry;
     if (!line.at.isValid())
         line.at = QDateTime::currentDateTimeUtc();
-    const int id = m_renames.record(line);
+    const int id = m_story.record(line);
     // A fold back to the name it began with took a line away: saved all the same.
-    saveRenames();
+    saveStory();
     return id;
 }
 
-int App::recordRename(const QString &serverId, RenameRecord rename)
+int App::recordRename(const QString &serverId, StoryEntry rename)
 {
-    rename.by = RenameRecord::By::Omaseed;
-    const int id = writeRename(serverId, rename);
+    rename.by = StoryEntry::By::Omaseed;
+    const int id = writeEntry(serverId, rename);
     if (id < 0)
         return 0;
     if (id > 0)
@@ -135,19 +134,19 @@ int App::recordRename(const QString &serverId, RenameRecord rename)
 
 void App::recordSeenRename(const QString &hash, const QString &was, const QString &now)
 {
-    if (m_renamesServerId.isEmpty() || m_renamesServerId != renamesServerId())
+    if (m_storyServerId.isEmpty() || m_storyServerId != storyServerId())
         return;
     if (isEchoOfSentRename(hash, now))
         return;
-    RenameRecord rename;
+    StoryEntry rename;
     rename.hash = hash;
-    rename.what = RenameRecord::What::Torrent;
-    rename.by = RenameRecord::By::Elsewhere;
+    rename.what = StoryEntry::What::Torrent;
+    rename.by = StoryEntry::By::Elsewhere;
     rename.at = QDateTime::currentDateTimeUtc(); // R4: the poll that saw it
     rename.was = was;
     rename.now = now;
     rename.disk = m_features.renameOnDisk; // R7: Transmission renamed its folder too (K28)
-    writeRename(m_renamesServerId, rename);
+    writeEntry(m_storyServerId, rename);
 }
 
 // --- R4's echo ---------------------------------------------------------------------------------
@@ -270,11 +269,11 @@ void App::onRenameWatchFailed(int watchId, const QString &hash, const QStringLis
 
 bool App::takeBackRename(const QString &hash, int id)
 {
-    if (id <= 0 || !m_renames.remove(hash, id))
+    if (id <= 0 || !m_story.remove(hash, id))
         return false;
     if (m_renameLineOf.value(hash) == id)
         m_renameLineOf.remove(hash);
-    saveRenames();
+    saveStory();
     return true;
 }
 
@@ -292,9 +291,9 @@ int App::recordFileRun(const QString &serverId,
         if (!folders.contains(folder))
             folders.append(folder);
     }
-    RenameRecord rename;
+    StoryEntry rename;
     rename.hash = hash;
-    rename.what = done == 1 ? RenameRecord::What::File : RenameRecord::What::Files;
+    rename.what = done == 1 ? StoryEntry::What::File : StoryEntry::What::Files;
     // R3: the first file renamed stands for the run.
     rename.was = ownName(moves.constFirst().first);
     rename.now = ownName(moves.constFirst().second);

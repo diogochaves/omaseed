@@ -785,12 +785,10 @@ void TestAppTransmission::theEverydayActionsAreTransmissionsMethods()
              QStringLiteral("Renamed Pack"));
     // DECISIONS C38 R1, R7: the story's record says the old name, and that Transmission renamed
     // the folder on disk too (K28).
-    QTRY_COMPARE_WITH_TIMEOUT(app.renameHistory().recordsFor(kPack).size(), 1, 3000);
-    QCOMPARE(app.renameHistory().recordsFor(kPack).constFirst().was,
-             QStringLiteral("Fixture Pack"));
-    QCOMPARE(app.renameHistory().recordsFor(kPack).constFirst().now,
-             QStringLiteral("Renamed Pack"));
-    QCOMPARE(app.renameHistory().recordsFor(kPack).constFirst().disk, true);
+    QTRY_COMPARE_WITH_TIMEOUT(app.storyRecord().recordsFor(kPack).size(), 1, 3000);
+    QCOMPARE(app.storyRecord().recordsFor(kPack).constFirst().was, QStringLiteral("Fixture Pack"));
+    QCOMPARE(app.storyRecord().recordsFor(kPack).constFirst().now, QStringLiteral("Renamed Pack"));
+    QCOMPARE(app.storyRecord().recordsFor(kPack).constFirst().disk, true);
 
     // Delete, with and without the data.
     app.remove({kMagnet}, false);
@@ -816,11 +814,11 @@ void TestAppTransmission::aRenameSeenOnTransmissionSaysItsFolderToo()
     Daemon daemon;
     App app;
     QVERIFY(startOn(app, daemon));
-    QVERIFY(app.renameHistory().recordsFor(kPack).isEmpty());
+    QVERIFY(app.storyRecord().recordsFor(kPack).isEmpty());
     daemon.library.byHash(kPack).insert(QStringLiteral("name"), QStringLiteral("Outside Pack"));
-    QTRY_COMPARE_WITH_TIMEOUT(app.renameHistory().recordsFor(kPack).size(), 1, 3000);
-    const omaseed::core::RenameRecord line = app.renameHistory().recordsFor(kPack).constFirst();
-    QCOMPARE(line.by, omaseed::core::RenameRecord::By::Elsewhere);
+    QTRY_COMPARE_WITH_TIMEOUT(app.storyRecord().recordsFor(kPack).size(), 1, 3000);
+    const omaseed::core::StoryEntry line = app.storyRecord().recordsFor(kPack).constFirst();
+    QCOMPARE(line.by, omaseed::core::StoryEntry::By::Elsewhere);
     QCOMPARE(line.was, QStringLiteral("Fixture Pack"));
     QCOMPARE(line.now, QStringLiteral("Outside Pack"));
     QVERIFY(line.disk);
@@ -860,9 +858,9 @@ void TestAppTransmission::aRenameReadsInTheRowAtItsOk()
     QVERIFY(poll != daemon.wire.calls.crend());
     QCOMPARE(poll->params.value(QStringLiteral("ids")).toString(),
              QStringLiteral("recently_active"));
-    QCOMPARE(app.renameHistory().recordsFor(kPack).size(), 1);
-    QCOMPARE(app.renameHistory().recordsFor(kPack).constFirst().by,
-             omaseed::core::RenameRecord::By::Omaseed);
+    QCOMPARE(app.storyRecord().recordsFor(kPack).size(), 1);
+    QCOMPARE(app.storyRecord().recordsFor(kPack).constFirst().by,
+             omaseed::core::StoryEntry::By::Omaseed);
     app.engine()->stop();
 }
 
