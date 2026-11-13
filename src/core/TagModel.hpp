@@ -34,6 +34,10 @@ public:
     void applyPartial(const QStringList &added, const QStringList &removed = {});
     void clear();
 
+    /// The list's order: the way a person reads names, case-insensitive, numbers in order.
+    /// The story's tag lines list their names in it too (StoryRecord, DECISIONS C43 Y9).
+    static bool lessThan(const QString &a, const QString &b);
+
 Q_SIGNALS:
     void countChanged();
 

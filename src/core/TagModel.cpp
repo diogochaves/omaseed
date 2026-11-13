@@ -6,10 +6,8 @@
 
 namespace omaseed::core {
 
-namespace {
-
 /// The rail lists names the way a person reads them: case-insensitive, numbers in order.
-bool nameLessThan(const QString &a, const QString &b)
+bool TagModel::lessThan(const QString &a, const QString &b)
 {
     static QCollator collator = [] {
         QCollator c;
@@ -20,8 +18,6 @@ bool nameLessThan(const QString &a, const QString &b)
     const int compared = collator.compare(a, b);
     return compared != 0 ? compared < 0 : a < b;
 }
-
-} // namespace
 
 TagModel::TagModel(QObject *parent)
     : QAbstractListModel(parent)
@@ -79,7 +75,7 @@ void TagModel::clear()
 
 void TagModel::setTags(QStringList next)
 {
-    std::sort(next.begin(), next.end(), nameLessThan);
+    std::sort(next.begin(), next.end(), lessThan);
     if (next == m_tags)
         return;
 
