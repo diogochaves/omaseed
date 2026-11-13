@@ -30,16 +30,24 @@ QString folderWords(const QString &folder)
     return folder.endsWith(QLatin1Char('/')) ? folder : folder + QLatin1Char('/');
 }
 
-// DECISIONS C38: a rename's line, its title and its dim line.
-std::pair<QString, QString> renameWords(const RenameRecord &rename)
+/// A name's entry (C38), not a filing or place one (C43).
+bool isName(StoryEntry::What what)
 {
-    using What = RenameRecord::What;
+    using What = StoryEntry::What;
+    return what == What::Torrent || what == What::File || what == What::Folder ||
+           what == What::Files;
+}
+
+// DECISIONS C38: a rename's line, its title and its dim line.
+std::pair<QString, QString> renameWords(const StoryEntry &rename)
+{
+    using What = StoryEntry::What;
     const QString change = tr("%1 → %2").arg(rename.was, rename.now);
     if (rename.what == What::Torrent) {
         // R1 a: what was lost, the old name. R4 a: C18 D7's words when it wasn't omaseed.
         // R7 a: Transmission renamed its folder on disk too (K28), in board 56's order.
         QStringList parts{tr("was %1").arg(rename.was)};
-        if (rename.by == RenameRecord::By::Elsewhere)
+        if (rename.by == StoryEntry::By::Elsewhere)
             parts << tr("renamed outside omaseed");
         if (rename.disk)
             parts << tr("its folder on disk too");
@@ -161,10 +169,13 @@ QList<StoryEvent> TorrentStory::events(const StoryInput &input)
 
     // DECISIONS C38: each rename the record keeps, at the server's OK or the poll that saw it
     // (R1, R4). Oldest first here, as the moves' history is read, so two at the same time
-    // read the later one first once reversed below.
-    for (auto rename = input.renames.crbegin(); rename != input.renames.crend(); ++rename) {
-        auto [title, detail] = renameWords(*rename);
-        add(rename->at, StoryEvent::Kind::Rename, std::move(title), std::move(detail));
+    // read the later one first once reversed below. The record's filing and place entries
+    // (C43) aren't worded yet.
+    for (auto entry = input.entries.crbegin(); entry != input.entries.crend(); ++entry) {
+        if (!isName(entry->what))
+            continue;
+        auto [title, detail] = renameWords(*entry);
+        add(entry->at, StoryEvent::Kind::Rename, std::move(title), std::move(detail));
     }
 
     // Newest first (DECISIONS C32 D15, amending C24 H6's order): sorted by time with two at

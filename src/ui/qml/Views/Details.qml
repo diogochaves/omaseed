@@ -1324,7 +1324,7 @@ Item {
             // core/TorrentStory: again on every sync (the torrent row is a new map each time)
             // and when the history of moves or the record of renames changes (DECISIONS C38).
             story: {
-                const revision = App.move.historyRevision + App.renamesRevision;
+                const revision = App.move.historyRevision + App.storyRevision;
                 return root.torrent && revision >= 0 ? App.torrentStory(root.torrent.hash ?? "") : [];
             }
 

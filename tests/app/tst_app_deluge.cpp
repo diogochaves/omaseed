@@ -391,12 +391,10 @@ void TestAppDeluge::theEverydayActionsAreDelugesMethods()
              QStringLiteral("Renamed Pack"));
     // DECISIONS C38 R1, R7: the story's record says the old name; Deluge's is the name shown
     // only (K28), so not its folder on disk.
-    QTRY_COMPARE_WITH_TIMEOUT(app.renameHistory().recordsFor(kPack).size(), 1, 3000);
-    QCOMPARE(app.renameHistory().recordsFor(kPack).constFirst().was,
-             QStringLiteral("Fixture Pack"));
-    QCOMPARE(app.renameHistory().recordsFor(kPack).constFirst().now,
-             QStringLiteral("Renamed Pack"));
-    QCOMPARE(app.renameHistory().recordsFor(kPack).constFirst().disk, false);
+    QTRY_COMPARE_WITH_TIMEOUT(app.storyRecord().recordsFor(kPack).size(), 1, 3000);
+    QCOMPARE(app.storyRecord().recordsFor(kPack).constFirst().was, QStringLiteral("Fixture Pack"));
+    QCOMPARE(app.storyRecord().recordsFor(kPack).constFirst().now, QStringLiteral("Renamed Pack"));
+    QCOMPARE(app.storyRecord().recordsFor(kPack).constFirst().disk, false);
     // Force start: out of the queue's hands, then running.
     const qsizetype resumesBefore = daemon.idsOf(QStringLiteral("core.resume_torrents")).size();
     app.forceStart({kError});

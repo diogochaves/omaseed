@@ -50,8 +50,9 @@ struct StoryInput
     QString notMovedTo;
     QDateTime notMovedAt;
     QString notMovedEngine;
-    /// DECISIONS C38: the torrent's rename lines (RenameHistory::recordsFor), newest first.
-    QList<RenameRecord> renames;
+    /// DECISIONS C38, C43: the torrent's entries in the story's record (StoryRecord::recordsFor),
+    /// newest first: its renames, filing edits and places.
+    QList<StoryEntry> entries;
     QDateTime now;
     /// The engine groups torrents in categories (EngineFeatures::categories): without them
     /// "Added" says nothing about one (C14 E4, Transmission).
