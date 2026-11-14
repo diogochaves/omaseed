@@ -200,8 +200,9 @@ void App::setAutoManagementWithCategories(const QStringList &hashes, const QVari
     auto refused = std::make_shared<bool>(false);
     for (auto it = byCategory.cbegin(); it != byCategory.cend(); ++it) {
         const QString name = it.key();
-        m_client->setCategory(it.value(), name)
-            ->then(this, [this, hashes, name, remaining, refused](const Result<Done> &result) {
+        // DECISIONS C43 Y2: a line per torrent at the OK (sendCategory).
+        sendCategory(
+            it.value(), name, [this, hashes, name, remaining, refused](const Result<Done> &result) {
                 if (result.isError()) {
                     *refused = true;
                     qWarning().noquote()

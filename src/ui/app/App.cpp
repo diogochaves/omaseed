@@ -1887,11 +1887,12 @@ void App::createAndApplyCategory(const QStringList &hashes, const QString &name)
         }
         if (hashes.isEmpty() || !m_hasServer)
             return;
-        m_client->setCategory(hashes, name)
-            ->then(this,
-                   m_features.categoriesAreLabels
-                       ? tableAnswer(QStringLiteral("label"), hashes, name.trimmed().toLower())
-                       : tableAnswer(QStringLiteral("category"), hashes, name));
+        // DECISIONS C43 Y2: a line per torrent at the OK (sendCategory).
+        sendCategory(hashes,
+                     name,
+                     m_features.categoriesAreLabels
+                         ? tableAnswer(QStringLiteral("label"), hashes, name.trimmed().toLower())
+                         : tableAnswer(QStringLiteral("category"), hashes, name));
     });
 }
 
@@ -1904,7 +1905,8 @@ void App::applyCategory(const QStringList &hashes, const QString &name)
             << QStringLiteral("demo: set category %1 on %2 torrents").arg(name).arg(hashes.size());
         return;
     }
-    m_client->setCategory(hashes, name)->then(this, [name](const Result<Done> &result) {
+    // DECISIONS C43 Y2: a line per torrent at the OK (sendCategory).
+    sendCategory(hashes, name, [name](const Result<Done> &result) {
         if (result.isError())
             qWarning().noquote() << QStringLiteral("set category %1 failed: %2")
                                         .arg(name, result.error().toString());
@@ -1937,14 +1939,17 @@ void App::applyTags(const QStringList &hashes, const QStringList &added, const Q
                                  .arg(hashes.size());
         return;
     }
-    if (!added.isEmpty())
-        m_client->addTags(hashes, added)->then(this, [](const Result<Done> &result) {
+    // DECISIONS C43 Y3: both at once are one line per torrent (sendTags).
+    sendTags(
+        hashes,
+        added,
+        removed,
+        [](const Result<Done> &result) {
             if (result.isError())
                 qWarning().noquote()
                     << QStringLiteral("add tags failed: %1").arg(result.error().toString());
-        });
-    if (!removed.isEmpty())
-        m_client->removeTags(hashes, removed)->then(this, [](const Result<Done> &result) {
+        },
+        [](const Result<Done> &result) {
             if (result.isError())
                 qWarning().noquote()
                     << QStringLiteral("remove tags failed: %1").arg(result.error().toString());
@@ -3939,12 +3944,13 @@ void App::setCategory(const QStringList &hashes, const QString &name)
 {
     if (hashes.isEmpty() || demoGuard(QStringLiteral("category"), hashes.size()) || !m_hasServer)
         return;
-    // C25 K15: Deluge keeps its labels lower case; the strip says the name it kept.
-    m_client->setCategory(hashes, name)
-        ->then(this,
-               m_features.categoriesAreLabels
-                   ? tableAnswer(QStringLiteral("label"), hashes, name.trimmed().toLower())
-                   : tableAnswer(QStringLiteral("category"), hashes, name));
+    // C25 K15: Deluge keeps its labels lower case; the strip says the name it kept. C43 Y2:
+    // a line per torrent at the OK (sendCategory).
+    sendCategory(hashes,
+                 name,
+                 m_features.categoriesAreLabels
+                     ? tableAnswer(QStringLiteral("label"), hashes, name.trimmed().toLower())
+                     : tableAnswer(QStringLiteral("category"), hashes, name));
 }
 
 void App::addTags(const QStringList &hashes, const QStringList &tags)
@@ -3952,13 +3958,16 @@ void App::addTags(const QStringList &hashes, const QStringList &tags)
     if (hashes.isEmpty() || tags.isEmpty() || demoGuard(QStringLiteral("addTags"), hashes.size()) ||
         !m_hasServer)
         return;
-    // C25 K14: the outcome strip says "labelled" where the engine calls them labels.
-    m_client->addTags(hashes, tags)
-        ->then(this,
-               tableAnswer(m_features.tagsAreLabels ? QStringLiteral("addLabels")
-                                                    : QStringLiteral("addTags"),
-                           hashes,
-                           tags.join(QStringLiteral(", "))));
+    // C25 K14: the outcome strip says "labelled" where the engine calls them labels. C43 Y3:
+    // a line per torrent at the OK (sendTags).
+    sendTags(hashes,
+             tags,
+             {},
+             tableAnswer(m_features.tagsAreLabels ? QStringLiteral("addLabels")
+                                                  : QStringLiteral("addTags"),
+                         hashes,
+                         tags.join(QStringLiteral(", "))),
+             {});
 }
 
 void App::removeTags(const QStringList &hashes, const QStringList &tags)
@@ -3966,12 +3975,15 @@ void App::removeTags(const QStringList &hashes, const QStringList &tags)
     if (hashes.isEmpty() || tags.isEmpty() ||
         demoGuard(QStringLiteral("removeTags"), hashes.size()) || !m_hasServer)
         return;
-    m_client->removeTags(hashes, tags)
-        ->then(this,
-               tableAnswer(m_features.tagsAreLabels ? QStringLiteral("removeLabels")
-                                                    : QStringLiteral("removeTags"),
-                           hashes,
-                           tags.join(QStringLiteral(", "))));
+    // C43 Y3: a line per torrent at the OK (sendTags).
+    sendTags(hashes,
+             {},
+             tags,
+             {},
+             tableAnswer(m_features.tagsAreLabels ? QStringLiteral("removeLabels")
+                                                  : QStringLiteral("removeTags"),
+                         hashes,
+                         tags.join(QStringLiteral(", "))));
 }
 
 void App::setLocation(const QStringList &hashes, const QString &path)
