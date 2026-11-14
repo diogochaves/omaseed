@@ -4,12 +4,16 @@
 // does (R9, C18 D8). A torrent's name seen changed in a poll is a line too (R4), unless it is
 // the echo of omaseed's own rename; a file rename the log says failed takes its line back (R3,
 // C2 D2). omaseed's own category and tag edits are lines at their OK too (C43 Y2, Y3), noted for
-// their echo the way renames are (Y8). The declarations sit at the end of App.hpp.
+// their echo the way renames are (Y8). A filing or place edit a poll sees is a line unless it is
+// such an echo or omaseed's own move (Y4–Y8). The declarations sit at the end of App.hpp.
 #include "ui/app/App.hpp"
 
+#include "core/CategoryModel.hpp"
+#include "core/MoveHistory.hpp"
 #include "core/ProblemLog.hpp"
 #include "core/SyncEngine.hpp"
 #include "core/TorrentModel.hpp"
+#include "ui/app/MoveController.hpp"
 
 #include <QJsonArray>
 #include <QJsonObject>
@@ -53,6 +57,7 @@ void App::setUpStory()
             pruneStory();
     });
     connect(m_engine, &core::SyncEngine::torrentRenamed, this, &App::recordSeenRename);
+    connect(m_engine, &core::SyncEngine::torrentsEdited, this, &App::recordSeenEdits);
     connect(m_engine->problems(),
             &core::ProblemLog::renameWatchFailed,
             this,
@@ -440,6 +445,137 @@ bool App::takeEchoOfSentTags(const QString &hash, QStringList *tagged, QStringLi
     if (sent.isEmpty())
         m_sentTags.erase(found);
     return taken;
+}
+
+// --- C43 Y2–Y8: what a poll sees ---------------------------------------------------------------
+
+void App::recordSeenEdits(const QList<core::SeenEdit> &edits)
+{
+    using core::SeenEdit;
+    if (m_storyServerId.isEmpty() || m_storyServerId != storyServerId())
+        return;
+    const QDateTime at = QDateTime::currentDateTimeUtc(); // R4: the poll that saw them, one time
+    const qint64 nowMs = at.toMSecsSinceEpoch();
+    const bool labels = m_features.categoriesAreLabels;
+
+    // The main session's call (#248 D): a Deluge label off an unfinished torrent puts its save
+    // path back to where it downloads; no place line. The label-off is this poll's, a recent
+    // one's, or omaseed's own still noted.
+    m_labelOffSeenAt.removeIf([nowMs](const std::pair<const QString &, qint64 &> &entry) {
+        return nowMs - entry.second > qint64(kEchoSeconds) * 1000;
+    });
+    QSet<QString> labelOff;
+    if (labels) {
+        for (const SeenEdit &edit : edits) {
+            if (edit.what == SeenEdit::What::Category && edit.now.isEmpty()) {
+                labelOff.insert(edit.hash);
+                m_labelOffSeenAt.insert(edit.hash, nowMs);
+            }
+        }
+        for (const SeenEdit &edit : edits) {
+            if (edit.what != SeenEdit::What::Place || labelOff.contains(edit.hash))
+                continue;
+            dropStaleSent(m_sentCategories, edit.hash);
+            const QList<SentEdit> sent = m_sentCategories.value(edit.hash);
+            if (m_labelOffSeenAt.contains(edit.hash) ||
+                std::any_of(sent.cbegin(), sent.cend(), [](const SentEdit &note) {
+                    return note.name.isEmpty();
+                }))
+                labelOff.insert(edit.hash);
+        }
+    }
+
+    QList<StoryEntry> entries;
+    QHash<QString, qsizetype> tagsEntryOf; // hash → its ordinary Tags entry in `entries`
+    for (const SeenEdit &edit : edits) {
+        StoryEntry entry;
+        entry.hash = edit.hash;
+        entry.at = at;
+        entry.by = StoryEntry::By::Elsewhere;
+        switch (edit.what) {
+        case SeenEdit::What::Category:
+            // Y8: omaseed's own, pending or answered within the minute, is its OK's line.
+            if (isEchoOfSentCategory(edit.hash, edit.now))
+                continue;
+            entry.what = StoryEntry::What::Category;
+            entry.was = edit.was;
+            entry.now = edit.now;
+            entry.removed = edit.removed;
+            break;
+        case SeenEdit::What::Tags: {
+            QStringList tagged = edit.tagged;
+            QStringList untagged = edit.untagged;
+            takeEchoOfSentTags(edit.hash, &tagged, &untagged);
+            if (tagged.isEmpty() && untagged.isEmpty())
+                continue;
+            // Transmission's labels leave its list whenever the last torrent drops one: that
+            // says nothing was removed (C43 Y8), so it is an ordinary untag.
+            const bool removed = edit.removed && !m_features.tagsAreLabels;
+            if (!removed) {
+                const auto found = tagsEntryOf.constFind(edit.hash);
+                if (found != tagsEntryOf.constEnd()) {
+                    StoryEntry &same = entries[*found];
+                    same.tagged += tagged;
+                    same.untagged += untagged;
+                    continue;
+                }
+                tagsEntryOf.insert(edit.hash, entries.size());
+            }
+            entry.what = StoryEntry::What::Tags;
+            entry.tagged = tagged;
+            entry.untagged = untagged;
+            entry.removed = removed;
+            break;
+        }
+        case SeenEdit::What::Place: {
+            // Y6: omaseed's own move, running or ended within the minute, is the move's story.
+            if (m_move != nullptr && m_move->ownsMoveOf(edit.hash))
+                continue;
+            const core::Torrent &t = m_engine->torrents()->torrent(edit.hash);
+            // With the label's move_completed gone the torrent has no waiting folder any more:
+            // the path reads landed, though nothing moved (it is still unfinished).
+            if (labelOff.contains(edit.hash) && !t.isComplete())
+                continue;
+            entry.what = StoryEntry::What::Place;
+            entry.was = edit.was;
+            entry.now = edit.now;
+            entry.landed = edit.landed;
+            // Y7: the server's own move. qBittorrent's automatic management (a set location
+            // turns it off first: scripts/dev/research/248-story-edits); Deluge's label folder.
+            if (m_features.autoManagement && t.autoTmm) {
+                entry.by = StoryEntry::By::Server;
+                entry.cause = QStringLiteral("category");
+                entry.causeName = t.category;
+            } else if (labels && m_features.categories && !t.category.isEmpty()) {
+                QString folder = m_engine->categories()->savePathOf(t.category);
+                while (folder.size() > 1 && folder.endsWith(QLatin1Char('/')))
+                    folder.chop(1);
+                if (!folder.isEmpty() && folder == edit.now) {
+                    entry.by = StoryEntry::By::Server;
+                    entry.cause = QStringLiteral("label");
+                    entry.causeName = t.category;
+                }
+            }
+            break;
+        }
+        }
+        entries.append(entry);
+    }
+    writeEntries(m_storyServerId, entries);
+}
+
+bool App::placeMovedSinceLastMove(const QString &hash) const
+{
+    if (m_move == nullptr)
+        return false;
+    const core::MoveRecord *last = m_move->history().lastFor(hash);
+    if (last == nullptr || !last->finishedAt.isValid())
+        return false;
+    const QList<StoryEntry> lines = m_story.recordsFor(hash);
+    return std::any_of(lines.cbegin(), lines.cend(), [last](const StoryEntry &line) {
+        return line.what == StoryEntry::What::Place && line.by != StoryEntry::By::Omaseed &&
+               line.at > last->finishedAt;
+    });
 }
 
 // --- R3's take-back ----------------------------------------------------------------------------
