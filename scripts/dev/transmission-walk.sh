@@ -504,6 +504,17 @@ if [ "$FROM" = podman ]; then
     keys o
     # Open folder (o in its actions menu) maps the container's path to this machine's.
     expect_logged "open folder opens this machine's folder, through the path map" "open folder: $MOVED/$RENAMED" 10
+    # Close the file manager it opened: tiled beside omaseed, it squeezes the details' story
+    # out of view, and the story checks below read the tree. Hyprland 0.56's close takes the
+    # window in a table (a bare string closes the active window).
+    omabox wait -b "$BOX" --timeout 10s window "$RENAMED" >/dev/null 2>&1 || true
+    for address in $(omabox windows -b "$BOX" --json | python3 -c '
+import json, sys
+for w in json.load(sys.stdin):
+    if "omaseed" not in (w.get("class") or "").lower():
+        print(w["address"])'); do
+        omabox hyprctl -b "$BOX" dispatch "hl.dsp.window.close({ window = \"address:$address\" })" >/dev/null
+    done
 fi
 
 step "Add a label" "Jump to it, its actions menu, t: the label palette for 1 torrent; \"walk-two\", enter on new label."
