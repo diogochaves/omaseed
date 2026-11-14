@@ -139,6 +139,13 @@ omaseed_add_test(tst_app_renames
     LIBRARIES omaseed::app omaseed::core omaseed::integration Qt6::Network
 )
 
+# DECISIONS C43 (#248): omaseed's own category and tag edits are the story's record too, against
+# a small fake server.
+omaseed_add_test(tst_app_edits
+    SOURCES tst_app_edits.cpp
+    LIBRARIES omaseed::app omaseed::core omaseed::integration Qt6::Network
+)
+
 # docs/DECISIONS.md M12: a torrent option shows at once, against a small fake server.
 omaseed_add_test(tst_app_options
     SOURCES tst_app_options.cpp
