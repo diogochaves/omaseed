@@ -2635,6 +2635,32 @@ renames. **Amends** C38 R9 (`core/RenameHistory` becomes `core/StoryRecord`) and
 Still to check in the build (the board's open points): the folder Deluge's Label plugin moves a
 torrent to (Y7, on the Deluge playground), and when qBittorrent changes `save_path` during a move.
 
+**Built for v0.13.0 (#248).** The record is `core/StoryRecord` (`StoryEntry`; C38 R9's
+`core/RenameHistory` under its new name), still a flat array at `moves.<server id>.renames` in
+`state.json`: every entry `id, at, hash, what, by`; names keep C38's fields; `category` has
+`was, now`; `tags` has `tagged, untagged`; `place` has `was, now`, with `landed: false` only for
+Will land in and `cause, causeName` when `by` is `server`; `removed: true` only when set. An
+older omaseed skips the new kinds. A new entry folds only into the torrent's newest entry, of
+the same kind and `by`, within 600 s, neither removed nor a place nor the server's. What a poll
+sees comes from `SyncEngine::torrentsEdited`, diffed before the merge for torrents already held
+after the first full update: no edit in a torrent's first 60 s (Deluge sets the add's label just
+after the add), none in the two polls after Deluge's Label plugin flips (`SyncDelta.filingReset`:
+the flip rewrites every label), and a finish out of Deluge's waiting folder is no place. App
+sorts each edit: omaseed's own category or tags seen within a minute of their answer are taken
+as echoes; a place is omaseed's while its move job runs or for 60 s after it ended (so an
+outside move of the same torrent in that minute reads as the move's); on qBittorrent a place
+under automatic management is the server's by its category (a WebUI set location turns it off
+at once); on Deluge a place to the torrent's label's folder is the server's by its label, and a
+place of an unfinished torrent whose label just went is no line (nothing moved on disk); on
+Transmission a label leaving the list is no "removed" (it leaves whenever its last torrent
+drops it), and nothing is the server's. The last-move block reads Y6's sentence when a place
+entry is newer than the last move's landing (`App::placeMovedSinceLastMove`). The two open
+points, measured in `scripts/dev/research/248-story-edits/`: Deluge's label copies its exact
+folder into the torrent's `move_completed_path` at once, finished or not, and only a finishing
+download moves (no reading shows a finished torrent still in the old folder); qBittorrent keeps
+the old `save_path` through a WebUI set location and changes it when the move lands, while
+automatic management's move changes it at the start.
+
 ## C44 — A quiet drive for a move: measure first (board 61, ruled 2026-11-13)
 
 Board [61](61-a-quiet-drive-for-a-move.html), #175, P1–P12 all as recommended. A move off a
