@@ -3,17 +3,20 @@
 // R3), into one core::StoryRecord per server that lives, loads and saves as the move history
 // does (R9, C18 D8). A torrent's name seen changed in a poll is a line too (R4), unless it is
 // the echo of omaseed's own rename; a file rename the log says failed takes its line back (R3,
-// C2 D2). The declarations sit at the end of App.hpp.
+// C2 D2). omaseed's own category and tag edits are lines at their OK too (C43 Y2, Y3), noted for
+// their echo the way renames are (Y8). The declarations sit at the end of App.hpp.
 #include "ui/app/App.hpp"
 
 #include "core/ProblemLog.hpp"
 #include "core/SyncEngine.hpp"
+#include "core/TorrentModel.hpp"
 
 #include <QJsonArray>
 #include <QJsonObject>
 #include <QSet>
 
 #include <algorithm>
+#include <memory>
 
 namespace omaseed::app {
 
@@ -75,6 +78,8 @@ void App::loadStory()
                         stateSection(kSection).value(serverId).toObject().value(kKey).toArray());
     m_renameLineOf.clear();
     m_sentRenames.clear();
+    m_sentCategories.clear();
+    m_sentTags.clear();
     m_renameWatchRuns.clear();
     ++m_storyRevision;
     Q_EMIT storyChanged();
@@ -151,21 +156,21 @@ void App::recordSeenRename(const QString &hash, const QString &was, const QStrin
 
 // --- R4's echo ---------------------------------------------------------------------------------
 
-int App::noteSentRename(const QString &hash, const QString &name)
+int App::noteSent(SentEdits &notes, const QString &hash, SentEdit edit)
 {
-    SentRename sent;
-    sent.token = m_nextSentRename++;
-    sent.name = name;
-    m_sentRenames[hash].append(sent);
-    return sent.token;
+    edit.token = m_nextSentEdit++;
+    edit.answered.invalidate();
+    const int token = edit.token;
+    notes[hash].append(std::move(edit));
+    return token;
 }
 
-void App::settleSentRename(const QString &hash, int token, bool ok)
+void App::settleSent(SentEdits &notes, const QString &hash, int token, bool ok)
 {
-    const auto found = m_sentRenames.find(hash);
-    if (found == m_sentRenames.end())
+    const auto found = notes.find(hash);
+    if (found == notes.end())
         return; // its echo was seen already, or another server's
-    QList<SentRename> &sent = found.value();
+    QList<SentEdit> &sent = found.value();
     for (qsizetype index = 0; index < sent.size(); ++index) {
         if (sent.at(index).token != token)
             continue;
@@ -176,18 +181,40 @@ void App::settleSentRename(const QString &hash, int token, bool ok)
         break;
     }
     if (sent.isEmpty())
-        m_sentRenames.erase(found);
+        notes.erase(found);
+}
+
+void App::dropStaleSent(SentEdits &notes, const QString &hash)
+{
+    const auto found = notes.find(hash);
+    if (found == notes.end())
+        return;
+    found.value().removeIf([](const SentEdit &one) {
+        return one.answered.isValid() && one.answered.elapsed() > qint64(kEchoSeconds) * 1000;
+    });
+    if (found.value().isEmpty())
+        notes.erase(found);
+}
+
+int App::noteSentRename(const QString &hash, const QString &name)
+{
+    SentEdit sent;
+    sent.name = name;
+    return noteSent(m_sentRenames, hash, std::move(sent));
+}
+
+void App::settleSentRename(const QString &hash, int token, bool ok)
+{
+    settleSent(m_sentRenames, hash, token, ok);
 }
 
 bool App::isEchoOfSentRename(const QString &hash, const QString &name)
 {
+    dropStaleSent(m_sentRenames, hash);
     const auto found = m_sentRenames.find(hash);
     if (found == m_sentRenames.end())
         return false;
-    QList<SentRename> &sent = found.value();
-    sent.removeIf([](const SentRename &one) {
-        return one.answered.isValid() && one.answered.elapsed() > qint64(kEchoSeconds) * 1000;
-    });
+    QList<SentEdit> &sent = found.value();
     bool echo = false;
     for (qsizetype index = 0; index < sent.size(); ++index) {
         if (sent.at(index).name == name) {
@@ -199,6 +226,220 @@ bool App::isEchoOfSentRename(const QString &hash, const QString &name)
     if (sent.isEmpty())
         m_sentRenames.erase(found);
     return echo;
+}
+
+// --- C43 Y2, Y3: omaseed's own filing edits ----------------------------------------------------
+
+void App::writeEntries(const QString &serverId, const QList<StoryEntry> &entries)
+{
+    if (entries.isEmpty() || serverId.isEmpty() || serverId != m_storyServerId)
+        return;
+    for (const StoryEntry &entry : entries)
+        m_story.record(entry);
+    saveStory();
+}
+
+void App::sendCategory(const QStringList &hashes, const QString &name, EditAnswer answer)
+{
+    // C25 K15: Deluge keeps its labels lower case; the line says the name it kept.
+    const QString target = m_features.categoriesAreLabels ? name.trimmed().toLower() : name;
+    const core::TorrentModel *model = m_engine->torrents();
+    QList<std::pair<QString, QString>> had; // hash → its category when sent
+    QHash<QString, int> tokens;
+    for (const QString &hash : hashes) {
+        if (model->indexOfHash(hash) >= 0)
+            had.append({hash, model->torrent(hash).category});
+        // Y8's echo: the next poll shows this edit, maybe before its OK lands.
+        SentEdit sent;
+        sent.name = target;
+        tokens.insert(hash, noteSent(m_sentCategories, hash, std::move(sent)));
+    }
+    m_client->setCategory(hashes, name)
+        ->then(this,
+               [this, answer, had, tokens, target, serverId = storyServerId()](
+                   const core::Result<core::Done> &result) {
+                   if (answer)
+                       answer(result);
+                   const bool ok = !result.isError();
+                   if (serverId == storyServerId())
+                       for (auto it = tokens.cbegin(); it != tokens.cend(); ++it)
+                           settleSent(m_sentCategories, it.key(), it.value(), ok);
+                   if (!ok)
+                       return;
+                   // Y2: what it was in when sent; a torrent already in it is no line.
+                   const QDateTime at = QDateTime::currentDateTimeUtc();
+                   QList<StoryEntry> lines;
+                   for (const auto &[hash, was] : had) {
+                       if (was == target)
+                           continue;
+                       StoryEntry line;
+                       line.hash = hash;
+                       line.what = StoryEntry::What::Category;
+                       line.by = StoryEntry::By::Omaseed;
+                       line.at = at;
+                       line.was = was;
+                       line.now = target;
+                       lines.append(line);
+                   }
+                   writeEntries(serverId, lines);
+               });
+}
+
+void App::sendTags(const QStringList &hashes,
+                   const QStringList &added,
+                   const QStringList &removed,
+                   EditAnswer addAnswer,
+                   EditAnswer removeAnswer)
+{
+    if (hashes.isEmpty() || (added.isEmpty() && removed.isEmpty()))
+        return;
+    // Y3: per torrent, the tags it didn't have and those it had; a tag already in place is no
+    // part of its line.
+    struct Edit
+    {
+        QString hash;
+        QStringList tagged;
+        QStringList untagged;
+        int addToken = 0;
+        int removeToken = 0;
+    };
+    struct Pending
+    {
+        QList<Edit> edits;
+        int calls = 0;
+        bool addOk = false;
+        bool removeOk = false;
+    };
+    auto pending = std::make_shared<Pending>();
+    const core::TorrentModel *model = m_engine->torrents();
+    for (const QString &hash : hashes) {
+        Edit edit;
+        edit.hash = hash;
+        if (model->indexOfHash(hash) >= 0) {
+            const QStringList had = model->torrent(hash).tags;
+            for (const QString &tag : added)
+                if (!had.contains(tag) && !edit.tagged.contains(tag))
+                    edit.tagged.append(tag);
+            for (const QString &tag : removed)
+                if (had.contains(tag) && !edit.untagged.contains(tag))
+                    edit.untagged.append(tag);
+        }
+        // Y8's echo, as sendCategory's: one note per request that changes this torrent.
+        if (!edit.tagged.isEmpty()) {
+            SentEdit sent;
+            sent.tagged = edit.tagged;
+            edit.addToken = noteSent(m_sentTags, hash, std::move(sent));
+        }
+        if (!edit.untagged.isEmpty()) {
+            SentEdit sent;
+            sent.untagged = edit.untagged;
+            edit.removeToken = noteSent(m_sentTags, hash, std::move(sent));
+        }
+        pending->edits.append(edit);
+    }
+    pending->calls = (added.isEmpty() ? 0 : 1) + (removed.isEmpty() ? 0 : 1);
+    const QString serverId = storyServerId();
+    // When the last answer is in: one line per torrent, with the parts that went (Y3).
+    const auto done = [this, pending, serverId]() {
+        if (--pending->calls > 0)
+            return;
+        const QDateTime at = QDateTime::currentDateTimeUtc();
+        QList<StoryEntry> lines;
+        for (const Edit &edit : std::as_const(pending->edits)) {
+            StoryEntry line;
+            line.hash = edit.hash;
+            line.what = StoryEntry::What::Tags;
+            line.by = StoryEntry::By::Omaseed;
+            line.at = at;
+            if (pending->addOk)
+                line.tagged = edit.tagged;
+            if (pending->removeOk)
+                line.untagged = edit.untagged;
+            if (!line.isNoChange())
+                lines.append(line);
+        }
+        writeEntries(serverId, lines);
+    };
+    if (!added.isEmpty())
+        m_client->addTags(hashes, added)
+            ->then(
+                this,
+                [this, pending, serverId, addAnswer, done](const core::Result<core::Done> &result) {
+                    if (addAnswer)
+                        addAnswer(result);
+                    pending->addOk = !result.isError();
+                    if (serverId == storyServerId())
+                        for (const Edit &edit : std::as_const(pending->edits))
+                            if (edit.addToken > 0)
+                                settleSent(m_sentTags, edit.hash, edit.addToken, pending->addOk);
+                    done();
+                });
+    if (!removed.isEmpty())
+        m_client->removeTags(hashes, removed)
+            ->then(this,
+                   [this, pending, serverId, removeAnswer, done](
+                       const core::Result<core::Done> &result) {
+                       if (removeAnswer)
+                           removeAnswer(result);
+                       pending->removeOk = !result.isError();
+                       if (serverId == storyServerId())
+                           for (const Edit &edit : std::as_const(pending->edits))
+                               if (edit.removeToken > 0)
+                                   settleSent(
+                                       m_sentTags, edit.hash, edit.removeToken, pending->removeOk);
+                       done();
+                   });
+}
+
+bool App::isEchoOfSentCategory(const QString &hash, const QString &now)
+{
+    dropStaleSent(m_sentCategories, hash);
+    const auto found = m_sentCategories.find(hash);
+    if (found == m_sentCategories.end())
+        return false;
+    QList<SentEdit> &sent = found.value();
+    bool echo = false;
+    for (qsizetype index = 0; index < sent.size(); ++index) {
+        if (sent.at(index).name == now) {
+            sent.removeAt(index);
+            echo = true;
+            break;
+        }
+    }
+    if (sent.isEmpty())
+        m_sentCategories.erase(found);
+    return echo;
+}
+
+bool App::takeEchoOfSentTags(const QString &hash, QStringList *tagged, QStringList *untagged)
+{
+    dropStaleSent(m_sentTags, hash);
+    const auto found = m_sentTags.find(hash);
+    if (found == m_sentTags.end())
+        return false;
+    bool taken = false;
+    // A name both seen and noted leaves both: the rest is someone else's (C43 Y8).
+    const auto take = [&taken](QStringList *seen, QStringList &noted) {
+        if (seen == nullptr)
+            return;
+        seen->removeIf([&noted, &taken](const QString &name) {
+            if (!noted.contains(name))
+                return false;
+            noted.removeAll(name);
+            taken = true;
+            return true;
+        });
+    };
+    QList<SentEdit> &sent = found.value();
+    for (SentEdit &note : sent) {
+        take(tagged, note.tagged);
+        take(untagged, note.untagged);
+    }
+    sent.removeIf(
+        [](const SentEdit &note) { return note.tagged.isEmpty() && note.untagged.isEmpty(); });
+    if (sent.isEmpty())
+        m_sentTags.erase(found);
+    return taken;
 }
 
 // --- R3's take-back ----------------------------------------------------------------------------

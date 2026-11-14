@@ -2832,7 +2832,8 @@ private:
 
     // --- #236/#248: the story's record (C38, C43) ----------------------------------------------
     // What the story tells that no engine keeps (boards 56 and 58): omaseed's own renames (C38
-    // R1, R3) and the torrent names seen changed in a poll (R4), one StoryRecord per server,
+    // R1, R3) and filing edits (C43 Y2, Y3), the torrent names seen changed in a poll (R4), one
+    // StoryRecord per server,
     // saved beside the move history in state.json's "moves" (R9, C18 D8): moves.<server
     // id>.renames, the key C38 gave it (C43 Y10). Names given in the add sheet never come here
     // (R8). A file rename the log says failed takes its line back (R3, C2 D2). AppStory.cpp.
@@ -2875,18 +2876,53 @@ private:
     /// (noteSentRename(), a token back); refused, it is dropped; answered OK, it stays for
     /// kEchoSeconds. A name seen changed to a noted one, pending or answered within that, is
     /// that rename (isEchoOfSentRename() takes the note), not a second line.
+    /// C43 Y2, Y3, Y8: omaseed's own category and tag edits are noted the same way.
     static constexpr int kEchoSeconds = 60;
-    struct SentRename
+    struct SentEdit
     {
         int token = 0;
-        QString name;
-        QElapsedTimer answered; ///< invalid while the rename is pending
+        QString name;           ///< a rename's new name; a category edit's category ("" none)
+        QStringList tagged;     ///< a tag edit's names put on (only those it hadn't)
+        QStringList untagged;   ///< and taken off (only those it had)
+        QElapsedTimer answered; ///< invalid while the request is pending
     };
+    using SentEdits = QHash<QString, QList<SentEdit>>; ///< hash → its notes
+    int noteSent(SentEdits &notes, const QString &hash, SentEdit edit);
+    /// Refused: the note goes; OK: it starts its kEchoSeconds.
+    static void settleSent(SentEdits &notes, const QString &hash, int token, bool ok);
+    /// Drops `hash`'s notes answered more than kEchoSeconds ago.
+    static void dropStaleSent(SentEdits &notes, const QString &hash);
     int noteSentRename(const QString &hash, const QString &name);
     void settleSentRename(const QString &hash, int token, bool ok);
     bool isEchoOfSentRename(const QString &hash, const QString &name);
-    QHash<QString, QList<SentRename>> m_sentRenames;
-    int m_nextSentRename = 1;
+    SentEdits m_sentRenames;
+    SentEdits m_sentCategories;
+    SentEdits m_sentTags;
+    int m_nextSentEdit = 1;
+
+    /// C43 Y2, Y3: every filing edit omaseed sends goes through these two (the add sheet's
+    /// never: C38 R8). Each caller keeps its own `answer` (the strip, or a log line), called
+    /// first. On the server's OK, one line per torrent, by Omaseed, timed at the OK.
+    using EditAnswer = std::function<void(const omaseed::core::Result<omaseed::core::Done> &)>;
+    /// The category (Deluge's label, kept lower case: C25 K15) `name` on `hashes`. A torrent
+    /// already in it is no line.
+    void sendCategory(const QStringList &hashes, const QString &name, EditAnswer answer);
+    /// `added` put on and `removed` taken off `hashes`, one request each (only the non-empty).
+    /// Per torrent only the tags it didn't have are tagged and only those it had untagged; once
+    /// both answers are in, one line with the parts whose request went OK.
+    void sendTags(const QStringList &hashes,
+                  const QStringList &added,
+                  const QStringList &removed,
+                  EditAnswer addAnswer,
+                  EditAnswer removeAnswer);
+    /// The echo checks a poll's edits ask (step D of #248). True when `now` is the category of
+    /// a note on `hash`, pending or answered within kEchoSeconds: the note is taken.
+    bool isEchoOfSentCategory(const QString &hash, const QString &now);
+    /// Takes from `tagged` and `untagged` the names `hash`'s pending or recent tag notes put
+    /// on or took off (from the notes too). True when any was taken.
+    bool takeEchoOfSentTags(const QString &hash, QStringList *tagged, QStringList *untagged);
+    /// Writes `entries` (each its `by` kept) to `serverId`'s record, saved once.
+    void writeEntries(const QString &serverId, const QList<core::StoryEntry> &entries);
 
     /// R3's take-back: a file or folder rename's log watch (ProblemLog::watchRename's id) →
     /// the run it watches and the line that run landed in. A failure is the run's when the
