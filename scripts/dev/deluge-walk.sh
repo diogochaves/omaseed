@@ -4,8 +4,11 @@
 # that connects it; a .torrent added through the add sheet with a label and a save path; a
 # magnet's files read from Deluge's prefetch before the add; a rename (K28: only the shown
 # name, the folder keeps its own); a new label (lower case, K15) and the label taken off; the
-# Label plugin turned off on the daemon (the labels go, C says why) and on again; a ratio limit
-# that removes; a move, and a big one copied while Deluge reports its % (K21); the move Deluge
+# Label plugin turned off on the daemon (the labels go, C says why) and on again, each told in
+# the story (board 58, DECISIONS C43: no line for the add's own label, the relabel and the label
+# taken off folding into one line, none for the plugin's flip); a ratio limit that removes; a
+# label set through deluge-web (changed outside omaseed), and a label with a folder on a waiting
+# torrent (Will land in, by its label); a move, and a big one copied while Deluge reports its % (K21); the move Deluge
 # drops without a word (only its own log says why: read as failed and never sent again); a move Deluge fails
 # with an error, which pauses the torrent until a recheck, and the recheck that clears it (K24);
 # one Settings › Deluge switch written and read back on the daemon, then put back; and a delete
@@ -158,6 +161,34 @@ dq() {
 # The outcome strip's line runs down for 6 s at the table's bottom (DECISIONS C18 D3): the
 # waits leave its band of the screen out, as the actions walk does.
 STRIP_IGNORE="0,920 1920,110"
+
+# expect_story "WHAT" LINE [COUNT] [SECONDS]: wait until the details' story shows COUNT lines
+# (default 1) that read LINE, then check it still does 2 s later. A story line is one node,
+# "TIME, TITLE, DETAIL" (#79); LINE is it without its time (DECISIONS C38, C43), whole: --json
+# carries names uncut. LINE ending in * counts the lines starting with the rest. As the actions
+# walk's.
+story_count() {
+    omabox tree -b "$BOX" --window omaseed --json 2>/dev/null | python3 -c '
+import json, sys
+want = sys.argv[1]
+names = [n.get("name") or "" for n in json.load(sys.stdin)]
+lines = [n.split(", ", 1)[1] for n in names if ", " in n]
+print(sum(1 for l in lines if (l.startswith(want[:-1]) if want.endswith("*") else l == want)))' "$1"
+}
+expect_story() {
+    local what="$1" line="$2" count="${3:-1}" limit="${4:-20}" got=""
+    for _ in $(seq 1 "$limit"); do
+        got="$(story_count "$line")"
+        if [ "$got" = "$count" ]; then
+            sleep 2
+            got="$(story_count "$line")"
+            [ "$got" = "$count" ] && { pass "$what"; return 0; }
+            fail "$what (then $got lines read \"$(short "$line")\", not $count)"
+        fi
+        sleep 1
+    done
+    fail "$what (after ${limit}s ${got:-no} lines read \"$(short "$line")\", not $count)"
+}
 keys() { omabox keys -b "$BOX" --window omaseed --wait --ignore "$STRIP_IGNORE" "$@" >/dev/null 2>&1 || true; }
 
 # menu_on QUERY: the jump palette's tab: the cursor on the torrent QUERY finds, its actions
@@ -307,6 +338,7 @@ for h, t in json.load(sys.stdin).items():
     done
     dcall label.remove '["walk-label"]' >/dev/null 2>&1 || true
     dcall label.remove '["walk-two"]' >/dev/null 2>&1 || true
+    dcall label.remove '["walk-far"]' >/dev/null 2>&1 || true
     [ ! -d "$LOCKED" ] || chmod u+w "$LOCKED"
     [ ! -d "$READONLY" ] || chmod u+w "$READONLY"
     # FAR may be a btrfs subvolume: rm empties it and removes it as a folder (Linux 4.18+).
@@ -486,6 +518,10 @@ expect_same "sample.bin on disk is the torrent's" "$NAME/sample.bin" "$IN/$NAME/
 expect_disk "Docs/README.txt on disk" -f "$IN/$NAME/Docs/README.txt"
 expect_text "the row is in the table" "$NAME" 10
 expect_text "the details say it is in walk-label" "walk-label · added" 10
+# The add's own label is set just after the add: a torrent's first minute is its add, no line
+# (DECISIONS C43 Y5, C38 R8), and Added says the label it came with.
+expect_story "its story: Added, into walk-label" "Added, into walk-label"
+expect_story "…and no Labelled line for the add's own label" "Labelled*" 0
 shot "The table: $NAME seeding; the rail's LABELS: walk-label; the details: walk-label · added today."
 
 step "A magnet's files before the add" "The walk's peer ($PEER_PORT, metadata only) has $MAGNET_NAME; a: its magnet typed into the first field, x.pe naming the peer. omaseed asks Deluge (core.prefetch_magnet_metadata) and the sheet lists the files before anything is added (K26). esc (clears the field), esc (to cancel), esc: closed, nothing added."
@@ -546,6 +582,7 @@ expect "the daemon's label is walk-two" "$HASH" "t.get('label') == 'walk-two'"
 expect_call "Deluge's Label plugin knows walk-two" '"walk-two" in r' label.get_labels
 expect "no other torrent got it" "$HASH" "all(x.get('label') != 'walk-two' for x in every if x['hash'] != '$HASH')"
 expect_text "the details say walk-two" "walk-two · added" 10
+expect_story "its story: Labelled walk-two, was walk-label (C43 Y2)" "Labelled walk-two, was walk-label"
 shot "walk-two: the details' line, the rail's LABELS lists it."
 
 step "Take the label off" "C again: no label, walk-label and walk-two, the cursor on walk-two; up up to no label, enter."
@@ -558,6 +595,11 @@ shot "The label palette: no label picked." palette
 keys Return
 expect "the daemon's label is none" "$HASH" "t.get('label') == ''"
 expect_no_text "the details no longer name a label" "walk-two · added" 20
+# Within ten minutes of the relabel, omaseed's two label edits fold into one (C43 Y9).
+expect_story "its story: Taken out of its label, was walk-label (the relabel folded in)" \
+    "Taken out of its label, was walk-label"
+expect_story "…no Labelled line left" "Labelled*" 0
+expect_story "…Added still says walk-label (C43 Y5)" "Added, into walk-label"
 shot "No label: the details' line reads only added today; the rail's no label counts it."
 
 step "Label plugin off" "core.disable_plugin Label on the daemon (as Deluge's own preferences would): omaseed drops the labels section, and C says why (K15, K30: Settings › Deluge › Plugins). Then core.enable_plugin Label: the labels come back."
@@ -571,6 +613,9 @@ shot "Label off: no LABELS in the rail; the status line: C · deluge (Deluge) ha
 dcall core.enable_plugin '["Label"]' >/dev/null
 expect_call "the daemon's Label plugin is on again" '"Label" in r' core.get_enabled_plugins
 expect_text "the rail's labels are back" "walk-two" 30
+# The plugin's off and on rewrite every torrent's label: no edit (filingReset).
+expect_story "the plugin's flip wrote no label line" "Labelled*" 0
+expect_story "…the one Taken out line is still alone" "Taken out*" 1
 
 step "A ratio limit that removes" "Jump to it, esc, L: the limits sheet has no time limits on Deluge, only the ratio; tab tab, 1.5; tab tab to the action, right, space: remove (keeps the files); enter."
 table_on "$NAME"
@@ -588,6 +633,44 @@ expect_no_text "the sheet closed" "remove (keeps the files)" 10
 expect "the daemon stops it at a ratio of 1.5" "$HASH" "t['stop_at_ratio'] is True and abs(t['stop_ratio'] - 1.5) < 1e-6"
 expect "…and removes it then" "$HASH" "t['remove_at_ratio'] is True"
 expect "still seeding (its ratio is 0)" "$HASH" "t['state'] == 'Seeding'"
+
+step "Labelled outside" "deluge-web's label.set_torrent, not the app, gives $RENAMED walk-two again: its story reads Labelled walk-two, had no label · changed outside omaseed (C43 Y8), over omaseed's own Taken out line."
+table_on "$RENAMED"
+dcall label.set_torrent "[\"$HASH\", \"walk-two\"]" >/dev/null
+expect "the daemon's label is walk-two" "$HASH" "t.get('label') == 'walk-two'"
+expect_story "its story: Labelled walk-two, had no label · changed outside omaseed" \
+    "Labelled walk-two, had no label · changed outside omaseed"
+expect_story "…over omaseed's own Taken out of its label" "Taken out of its label, was walk-label"
+shot "The story, newest first: Labelled walk-two, had no label · changed outside omaseed; Taken out of its label, was walk-label; accent squares." story
+
+step "A label with a folder" "A label walk-far whose folder is PROFILE/walk/far (apply_move_completed, set through deluge-web); $MAGNET_NAME's .torrent added paused, with no data (a first appearance: no line), then, past its first minute, C on it, walk-far, enter. Deluge copies the label's folder into the torrent at once and moves it only once it finishes (C43 Y7): its story reads Will land in PROFILE/walk/far, by its label walk-far, over Labelled walk-far, had no label. Then it and the label are removed."
+dcall label.add '["walk-far"]' >/dev/null
+dcall label.set_options "[\"walk-far\", {\"apply_move_completed\": true, \"move_completed\": true, \"move_completed_path\": \"$FAR\"}]" >/dev/null
+M="$(base64 -w0 "$WALK/$MAGNET_NAME.torrent")"
+dcall core.add_torrent_file "[\"$MAGNET_NAME.torrent\", \"$M\", {\"download_location\": \"$WALK/waiting\", \"add_paused\": true}]" >/dev/null
+expect "$MAGNET_NAME is added, paused, with nothing downloaded" "$MAGNET_HASH" "t is not None and t['paused'] and t['progress'] < 100" 30
+MAGNET_ADDED_AT=$SECONDS
+expect_text "its row is in the table" "$MAGNET_NAME" 20
+table_on "$MAGNET_NAME"
+expect_story "its story: no label line for its appearance" "Labelled*" 0
+left=$((MAGNET_ADDED_AT + 70 - SECONDS))
+[ "$left" -le 0 ] || sleep "$left"
+table_on "$MAGNET_NAME"
+keys shift+c
+expect_text "the label palette is open" "label for 1 torrent" 10
+keys -t walk-far
+keys Return
+expect "the daemon's label is walk-far" "$MAGNET_HASH" "t.get('label') == 'walk-far'"
+expect_call "…and its move_completed_path is the label's folder" \
+    "r['move_completed'] is True and r['move_completed_path'].rstrip('/') == '$FAR'" \
+    core.get_torrent_status "[\"$MAGNET_HASH\", [\"move_completed\", \"move_completed_path\"]]"
+expect_story "its story: Labelled walk-far, had no label" "Labelled walk-far, had no label"
+expect_story "…under Will land in PROFILE/walk/far, by its label walk-far" "Will land in $FAR, by its label walk-far"
+shot "The story, newest first: Will land in PROFILE/walk/far, by its label walk-far; Labelled walk-far, had no label." story
+dcall core.remove_torrent "[\"$MAGNET_HASH\", true]" >/dev/null
+expect "$MAGNET_NAME is gone" "$MAGNET_HASH" "t is None" 20
+dcall label.remove '["walk-far"]' >/dev/null
+expect_call "the label walk-far is gone" '"walk-far" not in r' label.get_labels
 
 step "Move" "Jump to it, its actions menu, m: the Move… sheet (Deluge's checks: room by its count, names listed there); ctrl+a, $MOVED (not made yet), enter."
 menu_on "$NAME"
