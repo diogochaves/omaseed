@@ -18,7 +18,11 @@
 # 44's steps alone.
 # The renames are told in the details' story too (board 56, DECISIONS C38, #236): a torrent's
 # (a typo fix folds into the same line), one made through qBittorrent's API (renamed outside
-# omaseed, folding away when put back), a file, a folder and a sheet run.
+# omaseed, folding away when put back), a file, a folder and a sheet run. So are the filing and
+# place edits (board 58, DECISIONS C43, #248): omaseed's own category and tags (a tag put on and
+# taken off folds to nothing), automatic management's moves by the category, a category and tags
+# set through qBittorrent's API (changed outside omaseed, the tag removed) and a set location
+# through it (moved outside omaseed, and the last-move block says so).
 # Run it again after any change to an action, a sheet, a palette, the action bar or the story.
 #
 #   scripts/dev/actions-walk.sh [OUT_DIR]        # agents: a headless box, a shot per step,
@@ -849,6 +853,8 @@ pass "torrents/categories lists walk"
 expect "Field Recordings is in walk" "$FIELD" 't["category"] == "walk"'
 expect "…and still in ~/Torrents (automatic management off)" "$FIELD" "t['save_path'] == '$TORRENTS_DIR' and not t['auto_tmm']"
 expect_disk "its folder has not moved" -d "$TORRENTS_DIR/Field Recordings Vol. 3 [FLAC]"
+expect_story "its story: Put in walk, had no category (C43 Y2)" "Put in walk, had no category"
+expect_story "…and Added says the category it came with (Y5)" "Added, with no category"
 shot "Field Recordings carries \"walk\"; the rail lists walk with 1."
 
 step "Automatic management on" "Field Recordings, the menu's automatic management (a). qBittorrent moves the files to the category's folder, ~/Torrents/walk."
@@ -859,6 +865,8 @@ expect "the save path is ~/Torrents/walk" "$FIELD" "t['save_path'] == '$TORRENTS
 expect_disk "the folder is in ~/Torrents/walk" -f "$TORRENTS_DIR/walk/Field Recordings Vol. 3 [FLAC]/album.cue" 30
 expect_disk "…and gone from ~/Torrents" ! "$TORRENTS_DIR/Field Recordings Vol. 3 [FLAC]"
 expect "it still seeds, complete" "$FIELD" "t['state'] in $SEEDING and t['progress'] == 1" 30
+expect_story "its story: Moved to ~/Torrents/walk by the category (C43 Y7)" \
+    "Moved to $TORRENTS_DIR/walk, by its category walk · automatic management"
 shot "Field Recordings' details: save path ~/Torrents/walk, auto manage on."
 
 step "Category none, still managed" "Field Recordings, C (the cursor opens on walk), up to none, enter. Managed torrents follow their category, so the files go back to ~/Torrents."
@@ -871,7 +879,10 @@ expect "Field Recordings has no category" "$FIELD" 't["category"] == ""'
 expect "the save path is ~/Torrents again" "$FIELD" "t['save_path'] == '$TORRENTS_DIR' and t['auto_tmm']" 30
 expect_disk "the folder is back in ~/Torrents" -f "$TORRENTS_DIR/Field Recordings Vol. 3 [FLAC]/album.cue" 30
 expect_disk "…and gone from ~/Torrents/walk" ! "$TORRENTS_DIR/walk/Field Recordings Vol. 3 [FLAC]"
-shot "Field Recordings without a category."
+expect_story "its story: Taken out of its category, was in walk" "Taken out of its category, was in walk"
+expect_story "…and Moved to ~/Torrents by automatic management" "Moved to $TORRENTS_DIR, automatic management"
+expect_story "…its first category line stays (a line between stops the fold, C43 Y9)" "Put in walk, had no category"
+shot "Field Recordings without a category; its story, newest first: Moved to ~/Torrents, automatic management; Taken out of its category, was in walk; Moved to ~/Torrents/walk, by its category walk · automatic management; Put in walk, had no category." story
 
 step "Add a tag" "Sampler (renamed) is Public Domain Sampler: t, \"walk-tag\", enter on create \"walk-tag\"."
 menu_on "Public Domain"
@@ -881,6 +892,7 @@ shot "The tag palette: create \"walk-tag\"." palette
 keys Return
 expect "Public Domain Sampler is tagged walk-tag" "$PDS" 't["tags"] == "walk-tag"'
 expect "no other torrent is" "$PDS" 'all(x["tags"] == "" for x in every if x["hash"] != t["hash"])'
+expect_story "its story: Tagged walk-tag (C43 Y3)" "Tagged walk-tag"
 shot "Public Domain Sampler carries walk-tag; the rail lists it."
 
 step "Remove the tag" "The same torrent: t, space on walk-tag (checked), enter."
@@ -893,6 +905,30 @@ expect "Public Domain Sampler has no tags" "$PDS" 't["tags"] == ""'
 api torrents/tags | python3 -c 'import json, sys; sys.exit(0 if "walk-tag" in json.load(sys.stdin) else 1)' ||
     fail "the tag walk-tag itself was deleted (the app never deletes tags)"
 pass "the tag itself stays on the server"
+expect_story "on and off again folds to no tag line (C43 Y9)" "Tagged*" 0
+expect_story "…no Untagged line either" "Untagged*" 0
+
+step "Filed outside omaseed" "qBittorrent's API, not the app, puts Public Domain Sampler in b44, then tags it out-tag and deletes that tag: its story reads Put in b44, had no category · changed outside omaseed; Tagged out-tag, changed outside omaseed; Untagged out-tag, the tag was removed (C43 Y8). Then the API takes it out of b44 again, so the later steps find it with no category."
+table_on "Public Domain"
+keys l 1
+api torrents/createCategory -d category=b44 >/dev/null 2>&1 || true
+api torrents/setCategory -d "hashes=$PDS" -d category=b44 >/dev/null
+expect "Public Domain Sampler is in b44" "$PDS" 't["category"] == "b44"'
+expect_story "its story: Put in b44, had no category · changed outside omaseed" \
+    "Put in b44, had no category · changed outside omaseed"
+api torrents/createTags -d tags=out-tag >/dev/null
+api torrents/addTags -d "hashes=$PDS" -d tags=out-tag >/dev/null
+expect "Public Domain Sampler is tagged out-tag" "$PDS" 't["tags"] == "out-tag"'
+expect_story "…Tagged out-tag, changed outside omaseed" "Tagged out-tag, changed outside omaseed"
+api torrents/deleteTags -d tags=out-tag >/dev/null
+expect "Public Domain Sampler has no tags" "$PDS" 't["tags"] == ""'
+expect_story "…Untagged out-tag, the tag was removed" "Untagged out-tag, the tag was removed"
+shot "The story, newest first: Untagged out-tag, the tag was removed; Tagged out-tag, changed outside omaseed; Put in b44, had no category · changed outside omaseed; accent squares." story
+api torrents/setCategory -d "hashes=$PDS" -d category= >/dev/null
+api torrents/removeCategories -d categories=b44 >/dev/null
+expect "Public Domain Sampler has no category again" "$PDS" 't["category"] == ""'
+expect_story "…Taken out of its category, was in b44 · changed outside omaseed" \
+    "Taken out of its category, was in b44 · changed outside omaseed"
 
 step "Set location, same disk" "Nested Library Sampler, the menu's move… (m), ~/Moved, enter. 113 files in 26 folders move; it lands within 3 s, so no band, and the strip over the rows says so, its row's status \"✓ moved · Moved\" (C18 D1)."
 menu_on "Nested Library"
@@ -903,12 +939,15 @@ expect_text "one green line" "access are fine" 20
 shot "The Move… sheet: ~/Moved, one green line (L3)." sheet
 keys Return
 expect "the save path is ~/Moved" "$NESTED" "t['save_path'] == '$BOX_HOME/Moved'" 30
+NESTED_MOVED_AT=$SECONDS
 expect_text "the strip says it moved" "Nested Library Sampler (2026) moved to $BOX_HOME/Moved" 20
 shot "The green strip at the rows' bottom middle: ✓ Nested Library Sampler (2026) moved to ~/Moved and ×, no show: it is the cursor's row, in view (C30 F8); the row reads ✓ moved · Moved." strip
 expect_disk "the files are in ~/Moved" -f "$BOX_HOME/Moved/Nested Library Sampler (2026)/Docs/README.md" 30
 expect_disk "…and gone from ~/Torrents" ! "$TORRENTS_DIR/Nested Library Sampler (2026)"
 expect "it still seeds, complete" "$NESTED" "t['state'] in $SEEDING and t['progress'] == 1" 30
 shot "Nested Library Sampler's details: save path ~/Moved."
+expect_story "its story: Moved to ~/Moved, on its own" "Moved to $BOX_HOME/Moved, on its own"
+expect_story "…and no outside line for omaseed's own move (C43 Y6)" "Moved to $BOX_HOME/Moved, moved outside omaseed" 0
 
 step "Set location, another filesystem" "$BIG (2 GiB), m, /tmp/elsewhere (a tmpfs in the box): qBittorrent copies the bytes, then deletes the old file."
 menu_on "$BIG"
@@ -953,6 +992,21 @@ if [ "$(tail -n 1 "$seen")" = seen ]; then pass "qBittorrent checks it"; else fa
 rm -f "$seen"
 expect "…and finds it whole" "$BIGH" "t['state'] in $SEEDING and t['progress'] == 1" 120
 shot "$BIG seeding again after the check." after
+
+step "Moved outside omaseed" "qBittorrent's API, not the app, sets Nested Library Sampler's location to /tmp/outside, a minute after omaseed's own move (a path change within 60 s of it is the move's own, C43 Y6). Once it lands, its story reads Moved to /tmp/outside, moved outside omaseed over omaseed's own move, and the last-move block says moved since outside omaseed: nothing to move back. Then the API puts it back in ~/Moved for the later steps."
+table_on "Nested Library"
+keys l 1
+wait_for=$((NESTED_MOVED_AT + 70 - SECONDS))
+[ "$wait_for" -le 0 ] || sleep "$wait_for"
+api torrents/setLocation -d "hashes=$NESTED" --data-urlencode "location=/tmp/outside" >/dev/null
+expect "the save path is /tmp/outside" "$NESTED" "t['save_path'] == '/tmp/outside' and t['state'] != 'moving'" 30
+expect_story "its story: Moved to /tmp/outside, moved outside omaseed" "Moved to /tmp/outside, moved outside omaseed"
+expect_story "…over omaseed's own, still the only one on its own" "Moved to $BOX_HOME/Moved, on its own"
+expect_text "the last-move block: moved since outside omaseed" "moved since outside omaseed: nothing to move back"
+shot "The story, newest first: Moved to /tmp/outside, moved outside omaseed; the last-move block above reads moved since outside omaseed: nothing to move back." story
+api torrents/setLocation -d "hashes=$NESTED" --data-urlencode "location=$BOX_HOME/Moved" >/dev/null
+expect "the save path is ~/Moved again" "$NESTED" "t['save_path'] == '$BOX_HOME/Moved' and t['state'] != 'moving'" 30
+expect_disk "…on disk too" -f "$BOX_HOME/Moved/Nested Library Sampler (2026)/Docs/README.md" 30
 
 step "Select two, stop them from the bar" "space on Field Recordings and Nested Library Sampler; the action bar floats over the list, the status line under it still the server's; a jump + tab onto a third shows the menu says \"2 selected\" (esc); then the action bar's stop button."
 table_on "Field Recordings"
