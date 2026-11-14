@@ -306,6 +306,11 @@ omaseed_add_test(tst_syncengine_pending
     LIBRARIES omaseed::core
 )
 
+omaseed_add_test(tst_syncengine_edits
+    SOURCES tst_syncengine_edits.cpp
+    LIBRARIES omaseed::core
+)
+
 omaseed_add_test(tst_syncengine_live LIVE
     SOURCES tst_syncengine_live.cpp
     LIBRARIES omaseed::core

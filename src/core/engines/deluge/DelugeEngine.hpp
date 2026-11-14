@@ -261,6 +261,8 @@ private:
     bool m_daemonConnected = true;
     qint64 m_lastReconnectAt = 0;
     bool m_labelPlugin = false;
+    bool m_labelPluginKnown = false; ///< m_labelPlugin has been read once
+    int m_filingResetDeltas = 0;     ///< deltas still to mark SyncDelta::filingReset (C43)
     QString m_libtorrentVersion;
     bool m_trackersDirty = true;
     bool m_labelsDirty = true;
