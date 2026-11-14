@@ -873,6 +873,35 @@ QStringList MoveController::jobHashes() const
     return out;
 }
 
+bool MoveController::ownsMoveOf(const QString &hash) const
+{
+    // The job underneath a held summary is the one that runs (holdSummary()).
+    if (m_job != nullptr) {
+        switch (m_job->state()) {
+        case MoveJob::State::Running:
+        case MoveJob::State::Pausing:
+        case MoveJob::State::Paused:
+        case MoveJob::State::Ending:
+        case MoveJob::State::Carrying:
+            for (const MoveJob::Entry &entry : m_job->entries())
+                if (entry.hash == hash)
+                    return true;
+            break;
+        case MoveJob::State::Idle:
+        case MoveJob::State::Done:
+        case MoveJob::State::Ended:
+            break;
+        }
+    }
+    const QDateTime at = now();
+    const auto ended = m_ownMoveEndedAt.constFind(m_serverId + QLatin1Char('\n') + hash);
+    if (ended != m_ownMoveEndedAt.constEnd() && ended->secsTo(at) <= kOwnMoveSeconds)
+        return true;
+    const core::MoveRecord *record = m_history.lastFor(hash);
+    return record != nullptr && record->finishedAt.isValid() &&
+           record->finishedAt.secsTo(at) <= kOwnMoveSeconds;
+}
+
 void MoveController::pause()
 {
     if (m_job == nullptr)
@@ -1734,6 +1763,13 @@ void MoveController::onFinished()
     bump();
     if (m_job == nullptr)
         return;
+    // C43 Y6: its torrents' save paths stay this move's for a minute (ownsMoveOf()).
+    const QDateTime ended = now();
+    m_ownMoveEndedAt.removeIf([&ended](const std::pair<const QString &, QDateTime &> &entry) {
+        return entry.second.secsTo(ended) > kOwnMoveSeconds;
+    });
+    for (const MoveJob::Entry &entry : m_job->entries())
+        m_ownMoveEndedAt.insert(m_serverId + QLatin1Char('\n') + entry.hash, ended);
     removeEmptied();
     recordFinished();
     const MoveJob::Summary summary = m_job->summary();

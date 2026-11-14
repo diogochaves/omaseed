@@ -151,6 +151,12 @@ public:
     QStringList queued() const;
     QVariantMap band() const;
     QStringList jobHashes() const;
+    /// DECISIONS C43 Y6 (#248): `hash`'s save path is omaseed's own move's to change: it is in
+    /// the job that runs now (not a held summary, not a queued move), or a job with it ended
+    /// within kOwnMoveSeconds. Either holds in the poll that shows the move land, whichever
+    /// is told of that poll first (qBittorrent's set location changes save_path only then).
+    bool ownsMoveOf(const QString &hash) const;
+    static constexpr int kOwnMoveSeconds = 60;
     int revision() const { return m_revision; }
     QString trayLine() const;
     QString quitLine() const;
@@ -415,6 +421,8 @@ private:
     QStringList m_recents;       ///< L4, the server's, newest first
     core::MoveHistory m_history; ///< C18 D7–D8, the server's
     int m_historyRevision = 0;
+    /// ownsMoveOf(): by server id, a line break, then the hash → when its job ended.
+    QHash<QString, QDateTime> m_ownMoveEndedAt;
     QJsonObject m_pending;  ///< a start waiting for file lists or listings
     QStringList m_replace;  ///< C28 (#176): replaceNext()'s, for the next start
     QDateTime m_restoredAt; ///< J4's line shows for a while after a restore
