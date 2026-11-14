@@ -357,8 +357,8 @@ App::App(QObject *parent)
     // Board 53 §6 (#216): the switch for Trigger › Torrents in Omarchy's menu.
     setUpOmarchyMenu();
     setUpMove();
-    // #236 (C38 R9): the renames the story tells, per server, beside the move history.
-    setUpRenames();
+    // #236/#248 (C38 R9, C43): the story's record, per server, beside the move history.
+    setUpStory();
     setUpSkipped();
     setUpScope();
     setUpLibraryDisplays();
@@ -1262,6 +1262,7 @@ QVariantList App::torrentStory(const QString &hash) const
     input.now = QDateTime::currentDateTime();
     input.categories = m_features.categories;
     input.categoriesAreLabels = m_features.categoriesAreLabels;
+    input.tagsAreLabels = m_features.tagsAreLabels; // DECISIONS C43 Y3: Transmission's words
     // C18 D8: the moves the history keeps for it, whatever moved with it.
     for (const MoveRecord &record : m_move->history().records()) {
         if (!record.from.contains(hash) || !record.finishedAt.isValid())
@@ -1284,8 +1285,8 @@ QVariantList App::torrentStory(const QString &hash) const
     input.notMovedTo = notMoved.to;
     input.notMovedAt = notMoved.at;
     input.notMovedEngine = engineDisplayName(m_server.engine);
-    // DECISIONS C38: the renames the server's record keeps for it, newest first.
-    input.renames = m_renames.recordsFor(hash);
+    // DECISIONS C38, C43: what the server's story record keeps for it, newest first.
+    input.entries = m_story.recordsFor(hash);
     QVariantList out;
     for (const StoryEvent &event : TorrentStory::events(input))
         out.append(QVariantMap{{QStringLiteral("time"), event.time},
@@ -1886,11 +1887,12 @@ void App::createAndApplyCategory(const QStringList &hashes, const QString &name)
         }
         if (hashes.isEmpty() || !m_hasServer)
             return;
-        m_client->setCategory(hashes, name)
-            ->then(this,
-                   m_features.categoriesAreLabels
-                       ? tableAnswer(QStringLiteral("label"), hashes, name.trimmed().toLower())
-                       : tableAnswer(QStringLiteral("category"), hashes, name));
+        // DECISIONS C43 Y2: a line per torrent at the OK (sendCategory).
+        sendCategory(hashes,
+                     name,
+                     m_features.categoriesAreLabels
+                         ? tableAnswer(QStringLiteral("label"), hashes, name.trimmed().toLower())
+                         : tableAnswer(QStringLiteral("category"), hashes, name));
     });
 }
 
@@ -1903,7 +1905,8 @@ void App::applyCategory(const QStringList &hashes, const QString &name)
             << QStringLiteral("demo: set category %1 on %2 torrents").arg(name).arg(hashes.size());
         return;
     }
-    m_client->setCategory(hashes, name)->then(this, [name](const Result<Done> &result) {
+    // DECISIONS C43 Y2: a line per torrent at the OK (sendCategory).
+    sendCategory(hashes, name, [name](const Result<Done> &result) {
         if (result.isError())
             qWarning().noquote() << QStringLiteral("set category %1 failed: %2")
                                         .arg(name, result.error().toString());
@@ -1936,14 +1939,17 @@ void App::applyTags(const QStringList &hashes, const QStringList &added, const Q
                                  .arg(hashes.size());
         return;
     }
-    if (!added.isEmpty())
-        m_client->addTags(hashes, added)->then(this, [](const Result<Done> &result) {
+    // DECISIONS C43 Y3: both at once are one line per torrent (sendTags).
+    sendTags(
+        hashes,
+        added,
+        removed,
+        [](const Result<Done> &result) {
             if (result.isError())
                 qWarning().noquote()
                     << QStringLiteral("add tags failed: %1").arg(result.error().toString());
-        });
-    if (!removed.isEmpty())
-        m_client->removeTags(hashes, removed)->then(this, [](const Result<Done> &result) {
+        },
+        [](const Result<Done> &result) {
             if (result.isError())
                 qWarning().noquote()
                     << QStringLiteral("remove tags failed: %1").arg(result.error().toString());
@@ -3938,12 +3944,13 @@ void App::setCategory(const QStringList &hashes, const QString &name)
 {
     if (hashes.isEmpty() || demoGuard(QStringLiteral("category"), hashes.size()) || !m_hasServer)
         return;
-    // C25 K15: Deluge keeps its labels lower case; the strip says the name it kept.
-    m_client->setCategory(hashes, name)
-        ->then(this,
-               m_features.categoriesAreLabels
-                   ? tableAnswer(QStringLiteral("label"), hashes, name.trimmed().toLower())
-                   : tableAnswer(QStringLiteral("category"), hashes, name));
+    // C25 K15: Deluge keeps its labels lower case; the strip says the name it kept. C43 Y2:
+    // a line per torrent at the OK (sendCategory).
+    sendCategory(hashes,
+                 name,
+                 m_features.categoriesAreLabels
+                     ? tableAnswer(QStringLiteral("label"), hashes, name.trimmed().toLower())
+                     : tableAnswer(QStringLiteral("category"), hashes, name));
 }
 
 void App::addTags(const QStringList &hashes, const QStringList &tags)
@@ -3951,13 +3958,16 @@ void App::addTags(const QStringList &hashes, const QStringList &tags)
     if (hashes.isEmpty() || tags.isEmpty() || demoGuard(QStringLiteral("addTags"), hashes.size()) ||
         !m_hasServer)
         return;
-    // C25 K14: the outcome strip says "labelled" where the engine calls them labels.
-    m_client->addTags(hashes, tags)
-        ->then(this,
-               tableAnswer(m_features.tagsAreLabels ? QStringLiteral("addLabels")
-                                                    : QStringLiteral("addTags"),
-                           hashes,
-                           tags.join(QStringLiteral(", "))));
+    // C25 K14: the outcome strip says "labelled" where the engine calls them labels. C43 Y3:
+    // a line per torrent at the OK (sendTags).
+    sendTags(hashes,
+             tags,
+             {},
+             tableAnswer(m_features.tagsAreLabels ? QStringLiteral("addLabels")
+                                                  : QStringLiteral("addTags"),
+                         hashes,
+                         tags.join(QStringLiteral(", "))),
+             {});
 }
 
 void App::removeTags(const QStringList &hashes, const QStringList &tags)
@@ -3965,12 +3975,15 @@ void App::removeTags(const QStringList &hashes, const QStringList &tags)
     if (hashes.isEmpty() || tags.isEmpty() ||
         demoGuard(QStringLiteral("removeTags"), hashes.size()) || !m_hasServer)
         return;
-    m_client->removeTags(hashes, tags)
-        ->then(this,
-               tableAnswer(m_features.tagsAreLabels ? QStringLiteral("removeLabels")
-                                                    : QStringLiteral("removeTags"),
-                           hashes,
-                           tags.join(QStringLiteral(", "))));
+    // C43 Y3: a line per torrent at the OK (sendTags).
+    sendTags(hashes,
+             {},
+             tags,
+             {},
+             tableAnswer(m_features.tagsAreLabels ? QStringLiteral("removeLabels")
+                                                  : QStringLiteral("removeTags"),
+                         hashes,
+                         tags.join(QStringLiteral(", "))));
 }
 
 void App::setLocation(const QStringList &hashes, const QString &path)
@@ -4236,9 +4249,9 @@ void App::rename(const QString &hash, const QString &name)
     auto answer = tableAnswer(QStringLiteral("rename"), {hash}, name);
     // DECISIONS C38 R1: the story's line says the name it had when the rename was sent, once
     // the server answers OK; R7: on an engine that renames the folder on disk too (K28).
-    RenameRecord rename;
+    StoryEntry rename;
     rename.hash = hash;
-    rename.what = RenameRecord::What::Torrent;
+    rename.what = StoryEntry::What::Torrent;
     rename.was = m_engine->torrents()->torrent(hash).name;
     rename.now = name;
     rename.disk = m_features.renameOnDisk;
@@ -4248,13 +4261,13 @@ void App::rename(const QString &hash, const QString &name)
     m_client->rename(hash, name)
         ->then(
             this,
-            [this, answer, rename, sent, serverId = renamesServerId()](const Result<Done> &result) {
+            [this, answer, rename, sent, serverId = storyServerId()](const Result<Done> &result) {
                 answer(result);
-                if (serverId == renamesServerId())
+                if (serverId == storyServerId())
                     settleSentRename(rename.hash, sent, !result.isError());
                 if (result.isError())
                     return;
-                RenameRecord done = rename;
+                StoryEntry done = rename;
                 done.at = QDateTime::currentDateTimeUtc();
                 recordRename(serverId, done);
                 // #249: the strip and the story say it now; the row and the details' header
@@ -5871,7 +5884,7 @@ void App::renameTorrentFile(const QString &hash,
     auto *reply = folder ? m_client->renameFolder(hash, oldPath, newPath)
                          : m_client->renameFile(hash, oldPath, newPath);
     reply->then(this,
-                [this, hash, oldPath, newPath, folder, watchId, serverId = renamesServerId()](
+                [this, hash, oldPath, newPath, folder, watchId, serverId = storyServerId()](
                     const Result<Done> &result) {
                     if (result.isError()) {
                         settleRenameWatch(watchId, 0);
@@ -5881,9 +5894,9 @@ void App::renameTorrentFile(const QString &hash,
                     m_details->refreshNow();
                     // DECISIONS C38 R3: one file or one folder is a line of the story.
                     if (folder) {
-                        RenameRecord rename;
+                        StoryEntry rename;
                         rename.hash = hash;
-                        rename.what = RenameRecord::What::Folder;
+                        rename.what = StoryEntry::What::Folder;
                         rename.was = oldPath.mid(oldPath.lastIndexOf(QLatin1Char('/')) + 1);
                         rename.now = newPath.mid(newPath.lastIndexOf(QLatin1Char('/')) + 1);
                         const qsizetype slash = oldPath.lastIndexOf(QLatin1Char('/'));
@@ -6096,7 +6109,7 @@ void App::renameTorrentFiles(const QString &hash,
     // docs/32 D2: each file's rename happens after its answer; failures are in the log.
     const int watchId = m_engine->problems()->watchRename(hash, int(moves.size()));
     noteRenameWatch(watchId, hash, moves, false);
-    sendFileRename(renamesServerId(), hash, moves, 0, watchId);
+    sendFileRename(storyServerId(), hash, moves, 0, watchId);
 }
 
 void App::sendFileRename(const QString &serverId,

@@ -335,10 +335,17 @@ void DelugeEngine::setDaemonConnected(bool connected)
 
 void DelugeEngine::setLabelPlugin(bool on)
 {
+    // DECISIONS C43: the plugin off or on rewrites every torrent's label, which nobody filed.
+    // The poll that saw the flip and the next one say so (the labels' folders follow a poll
+    // later). Its first reading is no flip.
+    const bool flip = m_labelPluginKnown && m_labelPlugin != on;
+    m_labelPluginKnown = true;
     if (m_labelPlugin == on)
         return;
     m_labelPlugin = on;
     m_labelsDirty = true;
+    if (flip)
+        m_filingResetDeltas = 2;
     Q_EMIT labelPluginChanged();
 }
 
@@ -657,6 +664,10 @@ Reply<SyncDelta> *DelugeEngine::sync(int cursor)
         keepListed(engine->m_rootAskedAt);
         engine->putCategories(delta, full);
         delta.serverState = DT::serverState(poll.stats, session);
+        if (engine->m_filingResetDeltas > 0) {
+            delta.filingReset = true;
+            --engine->m_filingResetDeltas;
+        }
 
         ++engine->m_polls;
         engine->m_cursor =

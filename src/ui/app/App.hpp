@@ -44,7 +44,6 @@
 #include "core/PauseHold.hpp"
 #include "core/PrivateTrackers.hpp"
 #include "core/RenameDisk.hpp"
-#include "core/RenameHistory.hpp"
 #include "core/SearchModel.hpp"
 #include "core/SecretStore.hpp"
 #include "core/SeedConsole.hpp"
@@ -56,6 +55,7 @@
 #include "core/ServerStore.hpp"
 #include "core/SkippedJobs.hpp"
 #include "core/SkippedOnDisk.hpp"
+#include "core/StoryRecord.hpp"
 #include "core/SyncEngine.hpp"
 #include "core/TagModel.hpp"
 #include "core/TorrentDetails.hpp"
@@ -2830,62 +2830,110 @@ private:
     int m_createBandMs = 3000;
     // --- end #146 -----------------------------------------------------------------------------
 
-    // --- #236: the renames the story tells (board 56, DECISIONS C38) --------------------------
-    // omaseed's own renames (R1, R3) and the torrent names seen changed in a poll (R4), one
-    // RenameHistory per server, saved beside the move history in state.json's "moves" (R9, C18
-    // D8): moves.<server id>.renames. Names given in the add sheet never come here (R8). A file
-    // rename the log says failed takes its line back (R3, C2 D2). AppRenames.cpp.
+    // --- #236/#248: the story's record (C38, C43) ----------------------------------------------
+    // What the story tells that no engine keeps (boards 56 and 58): omaseed's own renames (C38
+    // R1, R3) and filing edits (C43 Y2, Y3), the torrent names seen changed in a poll (R4), one
+    // StoryRecord per server,
+    // saved beside the move history in state.json's "moves" (R9, C18 D8): moves.<server
+    // id>.renames, the key C38 gave it (C43 Y10). Names given in the add sheet never come here
+    // (R8). A file rename the log says failed takes its line back (R3, C2 D2). AppStory.cpp.
 public:
-    /// Moves when the rename record changes (a rename written, another server's loaded): the
+    /// Moves when the story's record changes (a rename written, another server's loaded): the
     /// details' story reads torrentStory() again.
-    Q_PROPERTY(int renamesRevision READ renamesRevision NOTIFY renamesChanged)
-    int renamesRevision() const { return m_renamesRevision; }
+    Q_PROPERTY(int storyRevision READ storyRevision NOTIFY storyChanged)
+    int storyRevision() const { return m_storyRevision; }
     /// The current server's record (tests read it; the story reads it through torrentStory()).
-    const core::RenameHistory &renameHistory() const { return m_renames; }
+    const core::StoryRecord &storyRecord() const { return m_story; }
     /// The line omaseed's last rename of `hash` landed in this session, 0 for none: the seam
-    /// for C38 R3's take-back (`renameHistory().remove(hash, id)`, through takeBackRename()).
+    /// for C38 R3's take-back (`storyRecord().remove(hash, id)`, through takeBackRename()).
     int lastRenameLineOf(const QString &hash) const { return m_renameLineOf.value(hash); }
+    /// C43 Y6: the last-move block's "moved since outside omaseed": `hash`'s story has a place
+    /// line (moved outside, or by the server; landed or not) newer than its last move's end.
+    Q_INVOKABLE bool placeMovedSinceLastMove(const QString &hash) const;
 
 Q_SIGNALS:
-    void renamesChanged();
+    void storyChanged();
 
 private:
-    void setUpRenames();
+    void setUpStory();
     /// The server the record belongs to: the engine's, none in demo mode or first run.
-    QString renamesServerId() const;
+    QString storyServerId() const;
     /// Loads the record of the server the window is on now (C18's "server's state").
-    void loadRenames();
-    void saveRenames();
+    void loadStory();
+    void saveStory();
     /// R9: after a full sync, the torrents that left the server leave the record.
-    void pruneRenames();
+    void pruneStory();
     /// One rename of omaseed's, answered OK by `serverId` (captured when it was sent, so an
     /// answer that lands after a server switch writes nothing). Returns the id of the line it is
-    /// in now (RenameHistory::record), 0 when it left none.
-    int recordRename(const QString &serverId, core::RenameRecord rename);
+    /// in now (StoryRecord::record), 0 when it left none.
+    int recordRename(const QString &serverId, core::StoryEntry rename);
     /// C38 R3: a rename the log says failed takes its line back. True when it was there.
     bool takeBackRename(const QString &hash, int id);
-    /// Writes `rename` as it is (its `by` kept): recordRename()'s and recordSeenRename()'s.
-    int writeRename(const QString &serverId, const core::RenameRecord &rename);
+    /// Writes `entry` as it is (its `by` kept): recordRename()'s and recordSeenRename()'s.
+    int writeEntry(const QString &serverId, const core::StoryEntry &entry);
     /// C38 R4: SyncEngine::torrentRenamed. Not omaseed's own (its echo, below), it is an
     /// Elsewhere line timed now, with R7's disk on an engine that renames the folder too.
     void recordSeenRename(const QString &hash, const QString &was, const QString &now);
+    /// C43 Y2–Y8: SyncEngine::torrentsEdited. omaseed's own edits (their notes, its move job)
+    /// are no line; the rest is an Elsewhere line, or a Server place line (automatic
+    /// management, a Deluge label's folder), all timed by the one poll that saw them.
+    void recordSeenEdits(const QList<omaseed::core::SeenEdit> &edits);
+    /// The main session's call for #248 step D: on Deluge, a label taken off an unfinished
+    /// torrent sends its save path back to where it downloads; nothing moved, and the
+    /// category line already tells it. hash → when (ms since the epoch) a label-off was seen.
+    QHash<QString, qint64> m_labelOffSeenAt;
 
     /// R4's echo: omaseed's own torrent rename shows up in a poll too. Each rename sent is noted
     /// (noteSentRename(), a token back); refused, it is dropped; answered OK, it stays for
     /// kEchoSeconds. A name seen changed to a noted one, pending or answered within that, is
     /// that rename (isEchoOfSentRename() takes the note), not a second line.
+    /// C43 Y2, Y3, Y8: omaseed's own category and tag edits are noted the same way.
     static constexpr int kEchoSeconds = 60;
-    struct SentRename
+    struct SentEdit
     {
         int token = 0;
-        QString name;
-        QElapsedTimer answered; ///< invalid while the rename is pending
+        QString name;           ///< a rename's new name; a category edit's category ("" none)
+        QStringList tagged;     ///< a tag edit's names put on (only those it hadn't)
+        QStringList untagged;   ///< and taken off (only those it had)
+        QElapsedTimer answered; ///< invalid while the request is pending
     };
+    using SentEdits = QHash<QString, QList<SentEdit>>; ///< hash → its notes
+    int noteSent(SentEdits &notes, const QString &hash, SentEdit edit);
+    /// Refused: the note goes; OK: it starts its kEchoSeconds.
+    static void settleSent(SentEdits &notes, const QString &hash, int token, bool ok);
+    /// Drops `hash`'s notes answered more than kEchoSeconds ago.
+    static void dropStaleSent(SentEdits &notes, const QString &hash);
     int noteSentRename(const QString &hash, const QString &name);
     void settleSentRename(const QString &hash, int token, bool ok);
     bool isEchoOfSentRename(const QString &hash, const QString &name);
-    QHash<QString, QList<SentRename>> m_sentRenames;
-    int m_nextSentRename = 1;
+    SentEdits m_sentRenames;
+    SentEdits m_sentCategories;
+    SentEdits m_sentTags;
+    int m_nextSentEdit = 1;
+
+    /// C43 Y2, Y3: every filing edit omaseed sends goes through these two (the add sheet's
+    /// never: C38 R8). Each caller keeps its own `answer` (the strip, or a log line), called
+    /// first. On the server's OK, one line per torrent, by Omaseed, timed at the OK.
+    using EditAnswer = std::function<void(const omaseed::core::Result<omaseed::core::Done> &)>;
+    /// The category (Deluge's label, kept lower case: C25 K15) `name` on `hashes`. A torrent
+    /// already in it is no line.
+    void sendCategory(const QStringList &hashes, const QString &name, EditAnswer answer);
+    /// `added` put on and `removed` taken off `hashes`, one request each (only the non-empty).
+    /// Per torrent only the tags it didn't have are tagged and only those it had untagged; once
+    /// both answers are in, one line with the parts whose request went OK.
+    void sendTags(const QStringList &hashes,
+                  const QStringList &added,
+                  const QStringList &removed,
+                  EditAnswer addAnswer,
+                  EditAnswer removeAnswer);
+    /// The echo checks a poll's edits ask (step D of #248). True when `now` is the category of
+    /// a note on `hash`, pending or answered within kEchoSeconds: the note is taken.
+    bool isEchoOfSentCategory(const QString &hash, const QString &now);
+    /// Takes from `tagged` and `untagged` the names `hash`'s pending or recent tag notes put
+    /// on or took off (from the notes too). True when any was taken.
+    bool takeEchoOfSentTags(const QString &hash, QStringList *tagged, QStringList *untagged);
+    /// Writes `entries` (each its `by` kept) to `serverId`'s record, saved once.
+    void writeEntries(const QString &serverId, const QList<core::StoryEntry> &entries);
 
     /// R3's take-back: a file or folder rename's log watch (ProblemLog::watchRename's id) →
     /// the run it watches and the line that run landed in. A failure is the run's when the
@@ -2916,12 +2964,12 @@ private:
                       const QString &hash,
                       const QList<std::pair<QString, QString>> &moves,
                       int done);
-    core::RenameHistory m_renames;
-    QString m_renamesServerId;
-    int m_renamesRevision = 0;
+    core::StoryRecord m_story;
+    QString m_storyServerId;
+    int m_storyRevision = 0;
     /// hash → the id of the line its last recorded rename landed in (the take-back's seam).
     QHash<QString, int> m_renameLineOf;
-    // --- end #236 -----------------------------------------------------------------------------
+    // --- end #236/#248 -------------------------------------------------------------------------
 };
 
 } // namespace omaseed::app

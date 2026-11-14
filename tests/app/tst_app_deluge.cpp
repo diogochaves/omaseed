@@ -19,6 +19,7 @@
 #include "core/SecretStore.hpp"
 #include "core/SeedConsole.hpp"
 #include "core/SeedLedger.hpp"
+#include "core/StoryRecord.hpp"
 #include "core/SyncEngine.hpp"
 #include "core/TorrentDetails.hpp"
 #include "core/TorrentFilterModel.hpp"
@@ -43,6 +44,7 @@
 
 using omaseed::app::App;
 using omaseed::core::SecretStore;
+using omaseed::core::StoryEntry;
 using namespace fakedeluge;
 
 namespace {
@@ -228,6 +230,10 @@ private Q_SLOTS:
     void theStoredDaemonIsConnectedWhenDelugeWebHasNone();
     void aMoveIsSentAfterARestartWhileLost();
     void labelsAreTheCategoriesInDelugesWords();
+    void aLabelIsLowerCaseAndALine();
+    void aLabelsFolderIsTheServersWillLandIn();
+    void aLabelOffWhileWaitingIsNoPlace();
+    void theLabelPluginOffAndOnIsNoLine();
     void aTorrentKeepsARatioOfItsOwn();
     void anAddTakesDelugesOptions();
     void aMagnetsFilesComeFromThePrefetch();
@@ -391,12 +397,10 @@ void TestAppDeluge::theEverydayActionsAreDelugesMethods()
              QStringLiteral("Renamed Pack"));
     // DECISIONS C38 R1, R7: the story's record says the old name; Deluge's is the name shown
     // only (K28), so not its folder on disk.
-    QTRY_COMPARE_WITH_TIMEOUT(app.renameHistory().recordsFor(kPack).size(), 1, 3000);
-    QCOMPARE(app.renameHistory().recordsFor(kPack).constFirst().was,
-             QStringLiteral("Fixture Pack"));
-    QCOMPARE(app.renameHistory().recordsFor(kPack).constFirst().now,
-             QStringLiteral("Renamed Pack"));
-    QCOMPARE(app.renameHistory().recordsFor(kPack).constFirst().disk, false);
+    QTRY_COMPARE_WITH_TIMEOUT(app.storyRecord().recordsFor(kPack).size(), 1, 3000);
+    QCOMPARE(app.storyRecord().recordsFor(kPack).constFirst().was, QStringLiteral("Fixture Pack"));
+    QCOMPARE(app.storyRecord().recordsFor(kPack).constFirst().now, QStringLiteral("Renamed Pack"));
+    QCOMPARE(app.storyRecord().recordsFor(kPack).constFirst().disk, false);
     // Force start: out of the queue's hands, then running.
     const qsizetype resumesBefore = daemon.idsOf(QStringLiteral("core.resume_torrents")).size();
     app.forceStart({kError});
@@ -603,6 +607,125 @@ void TestAppDeluge::labelsAreTheCategoriesInDelugesWords()
     QTRY_VERIFY_WITH_TIMEOUT(app.featuresMap().value(QStringLiteral("labelPluginOff")).toBool(),
                              3000);
     QVERIFY(!app.featuresMap().value(QStringLiteral("categories")).toBool());
+    app.engine()->stop();
+}
+
+// DECISIONS C43 Y2 (C25 K15): a label set from the app is a line with the name Deluge kept,
+// lower case, and what it was before; the story says it in Deluge's words.
+void TestAppDeluge::aLabelIsLowerCaseAndALine()
+{
+    Daemon daemon;
+    App app;
+    QVERIFY(startOn(app, daemon));
+    const QString was = app.torrents()->torrent(kPack).category;
+    app.setCategory({kPack}, QStringLiteral("Walked"));
+    QTRY_COMPARE_WITH_TIMEOUT(app.storyRecord().recordsFor(kPack).size(), 1, 3000);
+    const StoryEntry line = app.storyRecord().recordsFor(kPack).constFirst();
+    QCOMPARE(line.what, StoryEntry::What::Category);
+    QCOMPARE(line.by, StoryEntry::By::Omaseed);
+    QCOMPARE(line.was, was);
+    QCOMPARE(line.now, QStringLiteral("walked"));
+    QString title;
+    for (const QVariant &event : app.torrentStory(kPack))
+        if (event.toMap().value(QStringLiteral("kind")).toString() == QLatin1String("edit"))
+            title = event.toMap().value(QStringLiteral("title")).toString();
+    QCOMPARE(title, QStringLiteral("Labelled walked"));
+    app.engine()->stop();
+}
+
+namespace {
+
+QString streamOf(const Daemon &daemon)
+{
+    for (auto it = daemon.recorded.torrents.constBegin(); it != daemon.recorded.torrents.constEnd();
+         ++it) {
+        if (it.value().toObject().value(QStringLiteral("name")).toString() ==
+            QLatin1String("fixture-stream.bin"))
+            return it.key();
+    }
+    return {};
+}
+
+const QString kLabelFolder = QStringLiteral("/srv/deluge/fixtures-recording/done"); // its options'
+
+} // namespace
+
+// DECISIONS C43 Y7: a label with a folder put on an unfinished torrent outside omaseed: Deluge
+// copies the folder into its options at once (#248 step A), so the save path is where it will
+// land, the label's doing: "Will land in FOLDER / by its label fixtures" over the label's line.
+void TestAppDeluge::aLabelsFolderIsTheServersWillLandIn()
+{
+    Daemon daemon;
+    const QString stream = streamOf(daemon);
+    QVERIFY(!stream.isEmpty());
+    App app;
+    QVERIFY(startOn(app, daemon));
+    QTRY_COMPARE_WITH_TIMEOUT(
+        app.categories()->savePathOf(QStringLiteral("fixtures")), kLabelFolder, 3000);
+    daemon.set(stream, "label", QStringLiteral("fixtures"));
+    daemon.set(stream, "move_completed", true);
+    daemon.set(stream, "move_completed_path", kLabelFolder);
+    QTRY_COMPARE_WITH_TIMEOUT(app.storyRecord().recordsFor(stream).size(), 2, 3000);
+    QStringList lines;
+    for (const QVariant &event : app.torrentStory(stream)) {
+        const QVariantMap map = event.toMap();
+        const QString kind = map.value(QStringLiteral("kind")).toString();
+        if (kind == QLatin1String("edit") || kind == QLatin1String("move"))
+            lines << map.value(QStringLiteral("title")).toString() + QStringLiteral(" / ") +
+                         map.value(QStringLiteral("detail")).toString();
+    }
+    // Newest first; at one second the place reads above the filing of its poll (docs/58 §10).
+    QCOMPARE(
+        lines,
+        QStringList({QStringLiteral("Will land in %1 / by its label fixtures").arg(kLabelFolder),
+                     QStringLiteral("Labelled fixtures / had no label · changed outside "
+                                    "omaseed")}));
+    app.engine()->stop();
+}
+
+// The main session's call (#248 step D): the label taken off an unfinished torrent sends its
+// save path back to the waiting folder. Nothing moved; the label's line tells it.
+void TestAppDeluge::aLabelOffWhileWaitingIsNoPlace()
+{
+    Daemon daemon;
+    const QString stream = streamOf(daemon);
+    QVERIFY(!stream.isEmpty());
+    daemon.set(stream, "label", QStringLiteral("fixtures"));
+    daemon.set(stream, "move_completed", true);
+    daemon.set(stream, "move_completed_path", kLabelFolder);
+    App app;
+    QVERIFY(startOn(app, daemon));
+    QTRY_COMPARE_WITH_TIMEOUT(app.torrents()->torrent(stream).savePath, kLabelFolder, 3000);
+    daemon.set(stream, "label", QString());
+    daemon.set(stream, "move_completed", false);
+    QTRY_COMPARE_WITH_TIMEOUT(app.storyRecord().recordsFor(stream).size(), 1, 3000);
+    QTRY_VERIFY_WITH_TIMEOUT(app.torrents()->torrent(stream).savePath != kLabelFolder, 3000);
+    QTest::qWait(400);
+    const QList<StoryEntry> lines = app.storyRecord().recordsFor(stream);
+    QCOMPARE(lines.size(), 1);
+    QCOMPARE(lines.constFirst().what, StoryEntry::What::Category);
+    QCOMPARE(lines.constFirst().now, QString());
+    app.engine()->stop();
+}
+
+// The Label plugin off and on rewrites every label: nobody filed one (SyncDelta::filingReset).
+void TestAppDeluge::theLabelPluginOffAndOnIsNoLine()
+{
+    Daemon daemon;
+    App app;
+    QVERIFY(startOn(app, daemon));
+    QCOMPARE(app.torrents()->torrent(kPack).category, QStringLiteral("fixtures"));
+    daemon.recorded.labelPlugin = false;
+    QTRY_VERIFY_WITH_TIMEOUT(app.featuresMap().value(QStringLiteral("labelPluginOff")).toBool(),
+                             3000);
+    QTRY_COMPARE_WITH_TIMEOUT(app.torrents()->torrent(kPack).category, QString(), 3000);
+    QTest::qWait(400);
+    daemon.recorded.labelPlugin = true;
+    QTRY_COMPARE_WITH_TIMEOUT(
+        app.torrents()->torrent(kPack).category, QStringLiteral("fixtures"), 3000);
+    QTest::qWait(400);
+    for (const QString &hash : app.torrents()->hashes())
+        QVERIFY2(app.storyRecord().recordsFor(hash).isEmpty(), qPrintable(hash));
     app.engine()->stop();
 }
 

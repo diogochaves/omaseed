@@ -2,7 +2,9 @@
 # omaseed — a Transmission server driven through the app (#85's "done when", DECISIONS C14 E4):
 # a .torrent added through the add sheet with a label and a save path, renamed in place (K28:
 # its folder on disk follows, and the story says so, C38 R7), moved through the Move… sheet, a label added and another taken
-# off, then deleted with its files. Settings › Transmission › Backup (#88, DECISIONS C40 X3)
+# off (the story's lines, board 58, DECISIONS C43: Labelled, and one Labels changed when the
+# second edit folds into the first), a label and a location set through the daemon's RPC
+# (changed and moved outside omaseed, the last-move block saying so), then deleted with its files. Settings › Transmission › Backup (#88, DECISIONS C40 X3)
 # then says it can't see the daemon's .torrent files, and offers their folder or links. Then,
 # where omaseed sees the daemon's disks (#233), Backup reads them where the daemon says and
 # exports the library to a file (its manifest, a record and a .torrent per torrent), and a
@@ -133,6 +135,42 @@ print(eval(sys.argv[2]))' "$1" "$2"
 # The outcome strip's line runs down for 6 s at the table's bottom (DECISIONS C18 D3): the
 # waits leave its band of the screen out, as the actions walk does.
 STRIP_IGNORE="0,920 1920,110"
+
+# expect_story "WHAT" LINE [COUNT] [SECONDS]: wait until the details' story shows COUNT lines
+# (default 1) that read LINE, then check it still does 2 s later. A story line is one node,
+# "TIME, TITLE, DETAIL" (#79); LINE is it without its time (DECISIONS C38, C43), whole: --json
+# carries names uncut. LINE ending in * counts the lines starting with the rest. As the actions
+# walk's.
+story_count() {
+    omabox tree -b "$BOX" --window omaseed --json 2>/dev/null | python3 -c '
+import json, sys
+want = sys.argv[1]
+names = [n.get("name") or "" for n in json.load(sys.stdin)]
+lines = [n.split(", ", 1)[1] for n in names if ", " in n]
+print(sum(1 for l in lines if (l.startswith(want[:-1]) if want.endswith("*") else l == want)))' "$1"
+}
+expect_story() {
+    local what="$1" line="$2" count="${3:-1}" limit="${4:-20}" got=""
+    for _ in $(seq 1 "$limit"); do
+        got="$(story_count "$line")"
+        if [ "$got" = "$count" ]; then
+            sleep 2
+            got="$(story_count "$line")"
+            [ "$got" = "$count" ] && { pass "$what"; return 0; }
+            fail "$what (then $got lines read \"$(short "$line")\", not $count)"
+        fi
+        sleep 1
+    done
+    fail "$what (after ${limit}s ${got:-no} lines read \"$(short "$line")\", not $count)"
+}
+
+# wait_since START SECONDS: sleep until SECONDS have passed since START (a $SECONDS reading).
+# A torrent's first minute is its add, and a path change within a minute of omaseed's own move
+# is the move's (DECISIONS C43 Y5, Y6): an outside edit waits them out.
+wait_since() {
+    local left=$(($1 + $2 - SECONDS))
+    [ "$left" -le 0 ] || sleep "$left"
+}
 keys() { omabox keys -b "$BOX" --window omaseed --wait --ignore "$STRIP_IGNORE" "$@" >/dev/null 2>&1 || true; }
 
 # menu_on QUERY: the jump palette's tab: the cursor on the torrent QUERY finds, its actions
@@ -397,6 +435,7 @@ expect "the daemon has it" "$HASH" 't is not None' 20
 expect "named $NAME" "$HASH" "t['name'] == '$NAME'"
 expect "labelled walk-label only" "$HASH" "t['labels'] == ['walk-label']"
 expect "saving to $R_IN" "$HASH" "t['download_dir'].rstrip('/') == '$R_IN'"
+ADDED_AT=$SECONDS
 expect "verified complete from the data there, no error" "$HASH" "t['percent_done'] == 1 and t['have_valid'] == t['total_size'] and t['error'] == 0" 30
 expect "seeding" "$HASH" "t['status'] == 6" 30
 expect_same "sample.bin on disk is the torrent's" "$NAME/sample.bin" "$IN/$NAME/sample.bin"
@@ -457,12 +496,25 @@ if [ -z "$(ls -A "$IN")" ]; then pass "PROFILE/walk/in is empty"; else fail "PRO
 expect "still complete and seeding" "$HASH" "t['percent_done'] == 1 and t['status'] == 6 and t['error'] == 0" 30
 # The tree cuts a name at 80 characters: the path's start is enough.
 expect_text "the story says it moved" "Moved to ${R_MOVED:0:40}" 20
+MOVED_AT=$SECONDS
+expect_story "…once: omaseed's own move is no outside line (C43 Y6)" "Moved to $R_MOVED*" 1
 shot "Moved: the details' story, Moved to $R_MOVED; the rail's folder reads moved."
 if [ "$FROM" = podman ]; then
     menu_on "$NAME"
     keys o
     # Open folder (o in its actions menu) maps the container's path to this machine's.
     expect_logged "open folder opens this machine's folder, through the path map" "open folder: $MOVED/$RENAMED" 10
+    # Close the file manager it opened: tiled beside omaseed, it squeezes the details' story
+    # out of view, and the story checks below read the tree. Hyprland 0.56's close takes the
+    # window in a table (a bare string closes the active window).
+    omabox wait -b "$BOX" --timeout 10s window "$RENAMED" >/dev/null 2>&1 || true
+    for address in $(omabox windows -b "$BOX" --json | python3 -c '
+import json, sys
+for w in json.load(sys.stdin):
+    if "omaseed" not in (w.get("class") or "").lower():
+        print(w["address"])'); do
+        omabox hyprctl -b "$BOX" dispatch "hl.dsp.window.close({ window = \"address:$address\" })" >/dev/null
+    done
 fi
 
 step "Add a label" "Jump to it, its actions menu, t: the label palette for 1 torrent; \"walk-two\", enter on new label."
@@ -475,6 +527,7 @@ keys Return
 expect "the daemon's labels are walk-label and walk-two" "$HASH" "sorted(t['labels']) == ['walk-label', 'walk-two']"
 expect "no other torrent has it" "$HASH" "all('walk-two' not in x['labels'] for x in every if x['hash_string'] != t['hash_string'])"
 expect_text "the rail lists walk-two" "walk-two" 10
+expect_story "its story: Labelled walk-two (C43 Y3, Transmission's words)" "Labelled walk-two"
 shot "Both labels: the details' line walk-label · walk-two; the rail's LABELS lists both."
 
 step "Take a label off" "Jump to it, t: both labels ticked, the cursor on walk-label; space unticks it, enter."
@@ -485,8 +538,35 @@ keys space
 shot "The label palette: walk-label unticked, walk-two ticked." palette
 keys Return
 expect "the daemon's labels are walk-two only" "$HASH" "t['labels'] == ['walk-two']"
-expect_no_text "walk-label is gone from the rail (a label exists only while a torrent has it)" "walk-label" 20
-shot "walk-two only: the rail no longer lists walk-label."
+# The story still names walk-label: the rail's row is the list item.
+expect_no_text "walk-label is gone from the rail (a label exists only while a torrent has it)" "list item \"walk-label\"" 20
+# omaseed's two label edits within ten minutes fold into one line (C43 Y9); the label leaving
+# the list is no "the label was removed" on Transmission (C43 Y8).
+expect_story "its story: Labels changed, labelled walk-two · unlabelled walk-label" \
+    "Labels changed, labelled walk-two · unlabelled walk-label"
+expect_story "…no Labelled walk-two line left beside it" "Labelled walk-two" 0
+expect_story "…and no label was removed" "Labels changed, labelled walk-two · unlabelled walk-label · the label was removed" 0
+shot "walk-two only: the rail no longer lists walk-label; the story reads Labels changed, labelled walk-two · unlabelled walk-label."
+
+step "Edited outside" "The daemon's RPC, not the app, adds the label out, then sets the location to $R_MOVED/out (moving the data), once the torrent's first minute and a minute after omaseed's own move are past (C43 Y5, Y6). Its story reads Labelled out, changed outside omaseed and Moved to $R_MOVED/out, moved outside omaseed, and the last-move block says moved since outside omaseed: nothing to move back. Then the RPC puts it back in $R_MOVED."
+table_on "$NAME"
+wait_since "$ADDED_AT" 70
+wait_since "$MOVED_AT" 70
+ID="$(trpc torrent_get '{"fields":["id","hash_string"]}' | python3 -c '
+import json, sys
+print(next(t["id"] for t in json.load(sys.stdin)["result"]["torrents"] if t["hash_string"] == sys.argv[1]))' "$HASH")"
+trpc torrent_set "{\"ids\":[$ID],\"labels\":[\"walk-two\",\"out\"]}" >/dev/null
+expect "the daemon's labels are walk-two and out" "$HASH" "sorted(t['labels']) == ['out', 'walk-two']"
+expect_story "its story: Labelled out, changed outside omaseed" "Labelled out, changed outside omaseed"
+trpc torrent_set_location "{\"ids\":[$ID],\"location\":\"$R_MOVED/out\",\"move\":true}" >/dev/null
+expect "the daemon's download_dir is $R_MOVED/out" "$HASH" "t['download_dir'].rstrip('/') == '$R_MOVED/out'" 60
+expect_disk "the folder is in PROFILE/walk/moved/out" -d "$MOVED/out/$RENAMED" 30
+expect_story "its story: Moved to $R_MOVED/out, moved outside omaseed" "Moved to $R_MOVED/out, moved outside omaseed"
+expect_text "the last-move block: moved since outside omaseed" "moved since outside omaseed: nothing to move back"
+shot "The story, newest first: Moved to PROFILE/walk/moved/out, moved outside omaseed; Labelled out, changed outside omaseed; the last-move block reads moved since outside omaseed: nothing to move back." story
+trpc torrent_set_location "{\"ids\":[$ID],\"location\":\"$R_MOVED\",\"move\":true}" >/dev/null
+expect "the daemon's download_dir is $R_MOVED again" "$HASH" "t['download_dir'].rstrip('/') == '$R_MOVED'" 60
+expect_disk "…the folder back in PROFILE/walk/moved" -d "$MOVED/$RENAMED" 30
 
 step "Delete with its files" "Jump to it, esc to the table, d: the confirm opens on cancel; tab tab to \"also delete files from disk\", space (on), l, enter."
 table_on "$NAME"

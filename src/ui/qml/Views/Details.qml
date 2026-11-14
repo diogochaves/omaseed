@@ -1321,10 +1321,15 @@ Item {
                 return root.torrent && revision >= 0 && savePath !== undefined
                        ? App.move.lastMoveOf(root.torrent.hash) : ({});
             }
+            // DECISIONS C43 Y6: a place line newer than the last move says why it can't go back.
+            movedOutside: {
+                const revision = App.move.historyRevision + App.storyRevision;
+                return root.torrent && revision >= 0 ? App.placeMovedSinceLastMove(root.torrent.hash ?? "") === true : false;
+            }
             // core/TorrentStory: again on every sync (the torrent row is a new map each time)
             // and when the history of moves or the record of renames changes (DECISIONS C38).
             story: {
-                const revision = App.move.historyRevision + App.renamesRevision;
+                const revision = App.move.historyRevision + App.storyRevision;
                 return root.torrent && revision >= 0 ? App.torrentStory(root.torrent.hash ?? "") : [];
             }
 

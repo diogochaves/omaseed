@@ -6,7 +6,7 @@
 // (its echo), and a file rename logged failed takes its line back (R3, C2 D2).
 
 #include "core/ProblemLog.hpp"
-#include "core/RenameHistory.hpp"
+#include "core/StoryRecord.hpp"
 #include "core/SyncEngine.hpp"
 #include "ui/app/App.hpp"
 
@@ -26,7 +26,7 @@
 #include <memory>
 
 using omaseed::app::App;
-using omaseed::core::RenameRecord;
+using omaseed::core::StoryEntry;
 
 namespace {
 
@@ -212,9 +212,9 @@ private:
     }
 };
 
-QList<RenameRecord> recordsOf(const App &app, const QString &hash)
+QList<StoryEntry> recordsOf(const App &app, const QString &hash)
 {
-    return app.renameHistory().recordsFor(hash);
+    return app.storyRecord().recordsFor(hash);
 }
 
 } // namespace
@@ -299,15 +299,15 @@ void TestAppRenames::aTorrentRenameIsALineWithItsOldName()
     RenameServer server;
     App app;
     QVERIFY(startOn(app, server));
-    QSignalSpy changed(&app, &App::renamesChanged);
+    QSignalSpy changed(&app, &App::storyChanged);
     app.rename(server.single, QStringLiteral("Single (2026)"));
     QTRY_COMPARE_WITH_TIMEOUT(recordsOf(app, server.single).size(), 1, 3000);
     QVERIFY(changed.count() >= 1);
-    const RenameRecord record = recordsOf(app, server.single).constFirst();
-    QCOMPARE(record.what, RenameRecord::What::Torrent);
+    const StoryEntry record = recordsOf(app, server.single).constFirst();
+    QCOMPARE(record.what, StoryEntry::What::Torrent);
     QCOMPARE(record.was, QStringLiteral("Single"));
     QCOMPARE(record.now, QStringLiteral("Single (2026)"));
-    QCOMPARE(record.by, RenameRecord::By::Omaseed);
+    QCOMPARE(record.by, StoryEntry::By::Omaseed);
     QVERIFY(!record.disk);
     QVERIFY(record.at.isValid());
     QCOMPARE(app.lastRenameLineOf(server.single), record.id);
@@ -351,8 +351,8 @@ void TestAppRenames::aFileAndAFolderAreALineEach()
     app.renameTorrentFile(
         server.pack, QStringLiteral("Pack/Disc 2/c.mkv"), QStringLiteral("d.mkv"), false);
     QTRY_COMPARE_WITH_TIMEOUT(recordsOf(app, server.pack).size(), 1, 3000);
-    RenameRecord file = recordsOf(app, server.pack).constFirst();
-    QCOMPARE(file.what, RenameRecord::What::File);
+    StoryEntry file = recordsOf(app, server.pack).constFirst();
+    QCOMPARE(file.what, StoryEntry::What::File);
     QCOMPARE(file.was, QStringLiteral("c.mkv"));
     QCOMPARE(file.now, QStringLiteral("d.mkv"));
     QCOMPARE(file.in, QStringLiteral("Pack/Disc 2"));
@@ -360,8 +360,8 @@ void TestAppRenames::aFileAndAFolderAreALineEach()
 
     app.renameTorrentFile(server.pack, QStringLiteral("Pack/Disc 1"), QStringLiteral("CD 1"), true);
     QTRY_COMPARE_WITH_TIMEOUT(recordsOf(app, server.pack).size(), 2, 3000);
-    const RenameRecord folder = recordsOf(app, server.pack).constFirst();
-    QCOMPARE(folder.what, RenameRecord::What::Folder);
+    const StoryEntry folder = recordsOf(app, server.pack).constFirst();
+    QCOMPARE(folder.what, StoryEntry::What::Folder);
     QCOMPARE(folder.was, QStringLiteral("Disc 1"));
     QCOMPARE(folder.now, QStringLiteral("CD 1"));
     QCOMPARE(folder.in, QStringLiteral("Pack"));
@@ -388,8 +388,8 @@ void TestAppRenames::aSheetRunIsOneLine()
     QTRY_COMPARE_WITH_TIMEOUT(done.count(), 1, 5000);
     QCOMPARE(done.at(0).at(1).toInt(), 4);
     QCOMPARE(recordsOf(app, server.pack).size(), 1);
-    const RenameRecord run = recordsOf(app, server.pack).constFirst();
-    QCOMPARE(run.what, RenameRecord::What::Files);
+    const StoryEntry run = recordsOf(app, server.pack).constFirst();
+    QCOMPARE(run.what, StoryEntry::What::Files);
     QCOMPARE(run.count, 4);
     QCOMPARE(run.was, QStringLiteral("a.mkv"));
     QCOMPARE(run.now, QStringLiteral("x-a.mkv"));
@@ -403,7 +403,7 @@ void TestAppRenames::aSheetRunIsOneLine()
         prefix);
     QTRY_COMPARE_WITH_TIMEOUT(done.count(), 2, 5000);
     QCOMPARE(recordsOf(app, server.pack).size(), 2);
-    const RenameRecord two = recordsOf(app, server.pack).constFirst();
+    const StoryEntry two = recordsOf(app, server.pack).constFirst();
     QCOMPARE(two.count, 2);
     QCOMPARE(two.in, QStringLiteral("Pack/Disc 1"));
     QCOMPARE(two.folders, 1);
@@ -425,7 +425,7 @@ void TestAppRenames::theRecordOutlivesARestartAndLeavesWithTheTorrent()
         app.engine()->stop();
     }
     App app;
-    QSignalSpy changed(&app, &App::renamesChanged);
+    QSignalSpy changed(&app, &App::storyChanged);
     QVERIFY(startOn(app, server));
     QCOMPARE(recordsOf(app, server.pack).size(), 1);
     QCOMPARE(recordsOf(app, server.pack).constFirst().was, QStringLiteral("Pack"));
@@ -458,9 +458,9 @@ void TestAppRenames::aNameChangedOutsideIsAnElsewhereLine()
     const QDateTime before = QDateTime::currentDateTimeUtc().addSecs(-1);
     server.names.insert(server.single, QStringLiteral("Single (outside)"));
     QTRY_COMPARE_WITH_TIMEOUT(recordsOf(app, server.single).size(), 1, 3000);
-    const RenameRecord record = recordsOf(app, server.single).constFirst();
-    QCOMPARE(record.what, RenameRecord::What::Torrent);
-    QCOMPARE(record.by, RenameRecord::By::Elsewhere);
+    const StoryEntry record = recordsOf(app, server.single).constFirst();
+    QCOMPARE(record.what, StoryEntry::What::Torrent);
+    QCOMPARE(record.by, StoryEntry::By::Elsewhere);
     QCOMPARE(record.was, QStringLiteral("Single"));
     QCOMPARE(record.now, QStringLiteral("Single (outside)"));
     QVERIFY(!record.disk);
@@ -506,11 +506,11 @@ void TestAppRenames::outsideRenamesFoldAndNeverIntoOmaseedsOwn()
         app.torrents()->torrent(server.pack).name, QStringLiteral("Pack Mine"), 3000);
     server.names.insert(server.pack, QStringLiteral("Pack Theirs"));
     QTRY_COMPARE_WITH_TIMEOUT(recordsOf(app, server.pack).size(), 2, 3000);
-    const QList<RenameRecord> lines = recordsOf(app, server.pack);
-    QCOMPARE(lines.at(0).by, RenameRecord::By::Elsewhere);
+    const QList<StoryEntry> lines = recordsOf(app, server.pack);
+    QCOMPARE(lines.at(0).by, StoryEntry::By::Elsewhere);
     QCOMPARE(lines.at(0).was, QStringLiteral("Pack Mine"));
     QCOMPARE(lines.at(0).now, QStringLiteral("Pack Theirs"));
-    QCOMPARE(lines.at(1).by, RenameRecord::By::Omaseed);
+    QCOMPARE(lines.at(1).by, StoryEntry::By::Omaseed);
     QCOMPARE(lines.at(1).was, QStringLiteral("Pack"));
     app.engine()->stop();
 }
@@ -575,7 +575,7 @@ void TestAppRenames::omaseedsOwnRenameSeenBeforeItsOkIsOneLine()
     QTRY_COMPARE_WITH_TIMEOUT(recordsOf(app, server.single).size(), 1, 3000);
     QVERIFY(waitPolls(server, 3));
     QCOMPARE(recordsOf(app, server.single).size(), 1);
-    QCOMPARE(recordsOf(app, server.single).constFirst().by, RenameRecord::By::Omaseed);
+    QCOMPARE(recordsOf(app, server.single).constFirst().by, StoryEntry::By::Omaseed);
     QCOMPARE(recordsOf(app, server.single).constFirst().was, QStringLiteral("Single"));
     app.engine()->stop();
 }
@@ -595,7 +595,7 @@ void TestAppRenames::omaseedsOwnRenameSeenAfterItsOkIsOneLine()
         app.torrents()->torrent(server.single).name, QStringLiteral("Single Mine"), 3000);
     QVERIFY(waitPolls(server, 3));
     QCOMPARE(recordsOf(app, server.single).size(), 1);
-    QCOMPARE(recordsOf(app, server.single).constFirst().by, RenameRecord::By::Omaseed);
+    QCOMPARE(recordsOf(app, server.single).constFirst().by, StoryEntry::By::Omaseed);
     app.engine()->stop();
 }
 
@@ -615,13 +615,13 @@ void TestAppRenames::aFileRenameLoggedFailedTakesItsLineBack()
     QTRY_COMPARE_WITH_TIMEOUT(recordsOf(app, server.pack).size(), 2, 3000);
     const int fileLine = recordsOf(app, server.pack).constFirst().id;
 
-    QSignalSpy changed(&app, &App::renamesChanged);
+    QSignalSpy changed(&app, &App::storyChanged);
     // qBittorrent names the file by the path it kept. The folder's watch hears it too (same
     // torrent, within 30 s) but the file isn't the folder's: the folder's line stays.
     server.logRenameFailure(QStringLiteral("Pack"), QStringLiteral("Pack/Disc 2/c.mkv"));
     QTRY_COMPARE_WITH_TIMEOUT(recordsOf(app, server.pack).size(), 1, 5000);
     QVERIFY(changed.count() >= 1);
-    QCOMPARE(recordsOf(app, server.pack).constFirst().what, RenameRecord::What::Folder);
+    QCOMPARE(recordsOf(app, server.pack).constFirst().what, StoryEntry::What::Folder);
     QVERIFY(recordsOf(app, server.pack).constFirst().id != fileLine);
     app.engine()->stop();
 }

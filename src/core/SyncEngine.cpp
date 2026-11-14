@@ -27,6 +27,30 @@ namespace {
 /// server answers neither): after that, what the server last said wins.
 constexpr std::chrono::seconds kPendingLifetime{30};
 
+/// C43 Y5, C38 R8: a torrent's first minute is its add (Deluge files the add's label just after
+/// the add itself): no edit is seen in it.
+constexpr qint64 kAddMs = 60 * 1000;
+
+/// A save path as compared: no trailing "/" (the root stays "/").
+QString placeOf(const QString &path)
+{
+    QString out = path;
+    while (out.size() > 1 && out.endsWith(QLatin1Char('/')))
+        out.chop(1);
+    return out;
+}
+
+QStringList trimmedTags(const QStringList &tags)
+{
+    QStringList out;
+    for (const QString &tag : tags) {
+        const QString name = tag.trimmed();
+        if (!name.isEmpty() && !out.contains(name))
+            out.append(name);
+    }
+    return out;
+}
+
 } // namespace
 
 SyncEngine::SyncEngine(QObject *parent)
@@ -43,6 +67,7 @@ SyncEngine::SyncEngine(QObject *parent)
     , m_pollTimer(new QTimer(this))
     , m_countdownTimer(new QTimer(this))
     , m_silenceTimer(new QTimer(this))
+    , m_nowMs([]() { return QDateTime::currentMSecsSinceEpoch(); })
 {
     m_counts->setModel(m_torrents);
     m_counts->setDay(m_day);
@@ -77,6 +102,8 @@ void SyncEngine::setClient(EngineClient *client)
     m_rid = 0;
     m_probed = false;
     m_hadFullUpdate = false;
+    m_appearedAt.clear();
+    m_transit.clear();
     m_lowDiskReported = false;
     m_pending.clear();
     m_torrents->clear();
@@ -498,6 +525,7 @@ void SyncEngine::applyData(const SyncDelta &data)
                 renamed.append({diff.hash, before.name, diff.values.name});
         }
     }
+    const QList<SeenEdit> edited = seenEdits(torrents, data);
 
     if (fullUpdate) {
         m_torrents->applyFullUpdate(torrents);
@@ -533,6 +561,8 @@ void SyncEngine::applyData(const SyncDelta &data)
 
     for (const Renamed &rename : std::as_const(renamed))
         Q_EMIT torrentRenamed(rename.hash, rename.oldName, rename.newName);
+    if (!edited.isEmpty())
+        Q_EMIT torrentsEdited(edited);
 
     for (const QString &hash : completed) {
         const Torrent &t = m_torrents->torrent(hash);
@@ -553,6 +583,106 @@ void SyncEngine::applyData(const SyncDelta &data)
     m_serverLog->onSynced(fullUpdate, m_running);
     readErrorStops();
     Q_EMIT synced(fullUpdate);
+}
+
+QList<SeenEdit> SyncEngine::seenEdits(const QList<TorrentPatch> &torrents, const SyncDelta &data)
+{
+    QList<SeenEdit> out;
+    for (const QString &hash : data.removedTorrents) {
+        m_appearedAt.remove(hash);
+        m_transit.remove(hash);
+    }
+    // As C38 R5's renames: the first full update has no "before".
+    if (!m_hadFullUpdate)
+        return out;
+    const qint64 nowMs = m_nowMs();
+    m_appearedAt.removeIf([nowMs](const std::pair<const QString &, qint64 &> &entry) {
+        return nowMs - entry.second >= kAddMs;
+    });
+    const QSet<QString> removedTags(data.removedTags.cbegin(), data.removedTags.cend());
+    for (const TorrentPatch &diff : torrents) {
+        const int row = m_torrents->indexOfHash(diff.hash);
+        if (row < 0) {
+            // A first appearance (or a re-add): its filing is the add's (C43 Y5, C38 R8).
+            m_appearedAt.insert(diff.hash, nowMs);
+            continue;
+        }
+        if (!diff.has(TorrentField::Category) && !diff.has(TorrentField::Tags) &&
+            !diff.has(TorrentField::SavePath))
+            continue;
+        if (m_appearedAt.contains(diff.hash))
+            continue;
+        const Torrent &before = m_torrents->torrentAt(row);
+        Torrent after = before;
+        after.apply(diff);
+
+        // Category (Y2). Deluge's Label plugin off or on refiles everything: no edit.
+        if (diff.has(TorrentField::Category) && !data.filingReset &&
+            after.category != before.category) {
+            SeenEdit edit;
+            edit.hash = diff.hash;
+            edit.what = SeenEdit::What::Category;
+            edit.was = before.category;
+            edit.now = after.category;
+            edit.removed =
+                !before.category.isEmpty() && data.removedCategories.contains(before.category);
+            out.append(edit);
+        }
+
+        // Tags (Y3); those that left the server's list are their own, removed edit (Y8).
+        if (diff.has(TorrentField::Tags)) {
+            const QStringList had = trimmedTags(before.tags);
+            const QStringList has = trimmedTags(after.tags);
+            SeenEdit edit;
+            edit.hash = diff.hash;
+            edit.what = SeenEdit::What::Tags;
+            SeenEdit gone = edit;
+            gone.removed = true;
+            for (const QString &name : has)
+                if (!had.contains(name))
+                    edit.tagged.append(name);
+            for (const QString &name : had) {
+                if (has.contains(name))
+                    continue;
+                (removedTags.contains(name) ? gone : edit).untagged.append(name);
+            }
+            if (!edit.tagged.isEmpty() || !edit.untagged.isEmpty())
+                out.append(edit);
+            if (!gone.untagged.isEmpty())
+                out.append(gone);
+        }
+
+        // Place (Y4, Y6, Y7). A magnet's first path, before it has a size, is no move.
+        if (diff.has(TorrentField::SavePath)) {
+            const QString was = placeOf(before.savePath);
+            const QString now = placeOf(after.savePath);
+            if (was.isEmpty() || now.isEmpty() || was == now || before.totalSize <= 0)
+                continue;
+            // Y6: a finish out of the incomplete folder is no move. Should an engine show the
+            // finished torrent at its incomplete folder for a reading (Deluge's transit, not
+            // seen on 2.2: scripts/dev/research/248-story-edits), that reading and the step
+            // back to the save path it had are skipped.
+            const auto transit = m_transit.constFind(diff.hash);
+            if (transit != m_transit.constEnd()) {
+                const bool back = *transit == now;
+                m_transit.erase(transit);
+                if (back)
+                    continue;
+            }
+            if (after.isComplete() && !before.isComplete() && now == placeOf(before.downloadPath)) {
+                m_transit.insert(diff.hash, was);
+                continue;
+            }
+            SeenEdit edit;
+            edit.hash = diff.hash;
+            edit.what = SeenEdit::What::Place;
+            edit.was = was;
+            edit.now = now;
+            edit.landed = after.isComplete() || after.downloadPath.isEmpty();
+            out.append(edit);
+        }
+    }
+    return out;
 }
 
 void SyncEngine::readErrorStops()

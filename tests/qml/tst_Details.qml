@@ -441,6 +441,33 @@ TestCase {
         compare(rename.Accessible.name, "14:03, Renamed, was night.market.rec.2026");
     }
 
+    // DECISIONS C43 Y4: a filing edit takes the accent too, and reads as the other lines (#79).
+    function test_an_edit_is_marked_as_a_move() {
+        const lines = [{"time": "16:12", "kind": "edit", "title": "Put in music",
+                        "detail": "was in inbox"},
+                       {"time": "13:40", "kind": "move", "title": "Moved to /data/b"}];
+        const tab = createTemporaryObject(storyTabComponent, testCase, {"story": lines});
+        wait(0);
+        const edit = findChild(tab, "storyEvent_0");
+        compare(findChild(edit, "storyMark").color, Theme.accent);
+        compare(edit.Accessible.name, "16:12, Put in music, was in inbox");
+    }
+
+    // C43 Y6: with nothing to move back, the block says who moved it when the story saw it.
+    function test_the_move_block_says_moved_since_outside() {
+        const move = {"id": "m1", "title": "films", "when": "16:24", "today": true,
+                      "from": "/data/a", "to": "/data/b", "others": 0, "canBack": false};
+        const tab = createTemporaryObject(storyTabComponent, testCase,
+                                          {"story": [], "lastMove": move});
+        wait(0);
+        const meta = findChild(findChild(tab, "moveBlock"), "moveMeta");
+        compare(meta.text, "moved again since: nothing to move back");
+        tab.movedOutside = true;
+        compare(meta.text, "moved since outside omaseed: nothing to move back");
+        tab.lastMove = Object.assign({}, move, {"canBack": true});
+        compare(meta.text, "");
+    }
+
     // docs/32 F1 (#55): the demo's move of Spring to /mnt/archive/movies didn't happen. The
     // story opens with #54's block in yellow: what didn't happen, why, where the files still are,
     // and set location, open folder, copy the line, dismiss. No red block: it isn't an error.

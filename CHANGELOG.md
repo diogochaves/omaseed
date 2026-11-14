@@ -5,6 +5,25 @@ All notable changes to omaseed are logged here, newest first. Loosely follows
 versioning stability (pre-1.0). `scripts/release.sh` requires a `## v<version>` section here
 before it will tag a release.
 
+## Unreleased
+
+### Added
+
+- **The story tells filing and places.** The details pane's what happened now has a line,
+  in the accent, when a torrent's category, tags or place change: "Put in music, was in
+  inbox" or "Taken out of its category" (on Deluge "Labelled", "Taken out of its label"),
+  "Tagged A, B", "Untagged C" or "Tags changed" (on Transmission "Labelled", "Unlabelled",
+  "Labels changed"), and "Moved to PATH" for a location set in another client, "moved outside
+  omaseed", or a move the server made itself, "by its category music · automatic
+  management" or "by its label music"; "Will land in PATH" while it waits to finish. Edits
+  made outside omaseed say "changed outside omaseed", and a category, label or tag deleted on
+  the server says so on every torrent that had it. Edits within ten minutes fold into one
+  line (a tag put on and taken off leaves none), omaseed's own seen in the next poll are no
+  second line, and a torrent's first minute is its add. Added now names the category it came
+  with, not the one it has now. The last-move block says "moved since outside omaseed" when
+  a place line came after omaseed's move. omaseed keeps the last ten of each kind per
+  torrent, per server, beside the renames. Board 58, DECISIONS C43. (#248)
+
 ## v0.12.0 — 2026-11-13
 
 ### Added

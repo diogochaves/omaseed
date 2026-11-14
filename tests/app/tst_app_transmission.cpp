@@ -13,6 +13,7 @@
 #include "core/OmaseedBackup.hpp"
 #include "core/PauseHold.hpp"
 #include "core/ProblemLog.hpp"
+#include "core/StoryRecord.hpp"
 #include "core/SyncEngine.hpp"
 #include "core/TorrentDetails.hpp"
 #include "core/TorrentFilesModel.hpp"
@@ -182,6 +183,8 @@ private Q_SLOTS:
     void aRenameSeenOnTransmissionSaysItsFolderToo();
     void aRenameReadsInTheRowAtItsOk();
     void anAddCarriesItsFolderAndLabels();
+    void labelsAreLabelledLines();
+    void aLabelLeavingTheListIsNoRemoved();
     void detailsAreAskedOfTransmission();
     void resumeRightAfterPauseWaitsForTheStopToLand();
     void anOldTransmissionIsRefusedInK8sWords();
@@ -785,12 +788,10 @@ void TestAppTransmission::theEverydayActionsAreTransmissionsMethods()
              QStringLiteral("Renamed Pack"));
     // DECISIONS C38 R1, R7: the story's record says the old name, and that Transmission renamed
     // the folder on disk too (K28).
-    QTRY_COMPARE_WITH_TIMEOUT(app.renameHistory().recordsFor(kPack).size(), 1, 3000);
-    QCOMPARE(app.renameHistory().recordsFor(kPack).constFirst().was,
-             QStringLiteral("Fixture Pack"));
-    QCOMPARE(app.renameHistory().recordsFor(kPack).constFirst().now,
-             QStringLiteral("Renamed Pack"));
-    QCOMPARE(app.renameHistory().recordsFor(kPack).constFirst().disk, true);
+    QTRY_COMPARE_WITH_TIMEOUT(app.storyRecord().recordsFor(kPack).size(), 1, 3000);
+    QCOMPARE(app.storyRecord().recordsFor(kPack).constFirst().was, QStringLiteral("Fixture Pack"));
+    QCOMPARE(app.storyRecord().recordsFor(kPack).constFirst().now, QStringLiteral("Renamed Pack"));
+    QCOMPARE(app.storyRecord().recordsFor(kPack).constFirst().disk, true);
 
     // Delete, with and without the data.
     app.remove({kMagnet}, false);
@@ -816,11 +817,11 @@ void TestAppTransmission::aRenameSeenOnTransmissionSaysItsFolderToo()
     Daemon daemon;
     App app;
     QVERIFY(startOn(app, daemon));
-    QVERIFY(app.renameHistory().recordsFor(kPack).isEmpty());
+    QVERIFY(app.storyRecord().recordsFor(kPack).isEmpty());
     daemon.library.byHash(kPack).insert(QStringLiteral("name"), QStringLiteral("Outside Pack"));
-    QTRY_COMPARE_WITH_TIMEOUT(app.renameHistory().recordsFor(kPack).size(), 1, 3000);
-    const omaseed::core::RenameRecord line = app.renameHistory().recordsFor(kPack).constFirst();
-    QCOMPARE(line.by, omaseed::core::RenameRecord::By::Elsewhere);
+    QTRY_COMPARE_WITH_TIMEOUT(app.storyRecord().recordsFor(kPack).size(), 1, 3000);
+    const omaseed::core::StoryEntry line = app.storyRecord().recordsFor(kPack).constFirst();
+    QCOMPARE(line.by, omaseed::core::StoryEntry::By::Elsewhere);
     QCOMPARE(line.was, QStringLiteral("Fixture Pack"));
     QCOMPARE(line.now, QStringLiteral("Outside Pack"));
     QVERIFY(line.disk);
@@ -860,9 +861,9 @@ void TestAppTransmission::aRenameReadsInTheRowAtItsOk()
     QVERIFY(poll != daemon.wire.calls.crend());
     QCOMPARE(poll->params.value(QStringLiteral("ids")).toString(),
              QStringLiteral("recently_active"));
-    QCOMPARE(app.renameHistory().recordsFor(kPack).size(), 1);
-    QCOMPARE(app.renameHistory().recordsFor(kPack).constFirst().by,
-             omaseed::core::RenameRecord::By::Omaseed);
+    QCOMPARE(app.storyRecord().recordsFor(kPack).size(), 1);
+    QCOMPARE(app.storyRecord().recordsFor(kPack).constFirst().by,
+             omaseed::core::StoryEntry::By::Omaseed);
     app.engine()->stop();
 }
 
@@ -885,6 +886,74 @@ void TestAppTransmission::anAddCarriesItsFolderAndLabels()
     QCOMPARE(add->params.value(QStringLiteral("download_dir")).toString(),
              QStringLiteral("/srv/transmission/new"));
     QCOMPARE(add->params.value(QStringLiteral("labels")).toArray(), QJsonArray{"fresh"});
+    app.engine()->stop();
+}
+
+// DECISIONS C43 Y3 (C25 K14): Transmission's labels are its tags; omaseed's own edits of them
+// are lines in labels' words, a label the torrent had already no part of one.
+void TestAppTransmission::labelsAreLabelledLines()
+{
+    using omaseed::core::StoryEntry;
+    Daemon daemon;
+    App app;
+    QVERIFY(startOn(app, daemon));
+    const QStringList had = app.torrents()->torrent(kPack).tags;
+    QVERIFY(!had.isEmpty());
+    const auto editsOf = [&app](const QString &hash) {
+        QStringList out;
+        for (const QVariant &event : app.torrentStory(hash)) {
+            const QVariantMap map = event.toMap();
+            if (map.value(QStringLiteral("kind")).toString() == QLatin1String("edit"))
+                out << map.value(QStringLiteral("title")).toString() + QStringLiteral(" / ") +
+                           map.value(QStringLiteral("detail")).toString();
+        }
+        return out;
+    };
+
+    // Both at once are one line; then a label put on another torrent.
+    app.applyTags({kPack}, {QStringLiteral("walk")}, {had.constFirst()});
+    QTRY_COMPARE_WITH_TIMEOUT(app.storyRecord().recordsFor(kPack).size(), 1, 3000);
+    const StoryEntry pack = app.storyRecord().recordsFor(kPack).constFirst();
+    QCOMPARE(pack.what, StoryEntry::What::Tags);
+    QCOMPARE(pack.by, StoryEntry::By::Omaseed);
+    QCOMPARE(pack.tagged, QStringList{QStringLiteral("walk")});
+    QCOMPARE(pack.untagged, QStringList{had.constFirst()});
+    QCOMPARE(editsOf(kPack),
+             QStringList{QStringLiteral("Labels changed / labelled walk · unlabelled %1")
+                             .arg(had.constFirst())});
+
+    app.addTags({kSingle}, {QStringLiteral("walk")});
+    QTRY_COMPARE_WITH_TIMEOUT(
+        editsOf(kSingle), QStringList{QStringLiteral("Labelled walk / ")}, 3000);
+    app.engine()->stop();
+}
+
+// DECISIONS C43 Y8: a Transmission label leaves the list whenever its last torrent drops it;
+// that is an ordinary unlabel, "changed outside omaseed", never "the label was removed".
+void TestAppTransmission::aLabelLeavingTheListIsNoRemoved()
+{
+    using omaseed::core::StoryEntry;
+    Daemon daemon;
+    daemon.library.byHash(kPack).insert(QStringLiteral("labels"),
+                                        QJsonArray{QStringLiteral("solo")});
+    App app;
+    QVERIFY(startOn(app, daemon));
+    QTRY_VERIFY_WITH_TIMEOUT(app.tags()->contains(QStringLiteral("solo")), 3000);
+    daemon.library.byHash(kPack).insert(QStringLiteral("labels"), QJsonArray());
+    QTRY_COMPARE_WITH_TIMEOUT(app.storyRecord().recordsFor(kPack).size(), 1, 3000);
+    QVERIFY(!app.tags()->contains(QStringLiteral("solo")));
+    const StoryEntry line = app.storyRecord().recordsFor(kPack).constFirst();
+    QCOMPARE(line.what, StoryEntry::What::Tags);
+    QCOMPARE(line.by, StoryEntry::By::Elsewhere);
+    QCOMPARE(line.untagged, QStringList{QStringLiteral("solo")});
+    QVERIFY(!line.removed);
+    QString detail;
+    for (const QVariant &event : app.torrentStory(kPack))
+        if (event.toMap().value(QStringLiteral("kind")).toString() == QLatin1String("edit"))
+            detail = event.toMap().value(QStringLiteral("title")).toString() +
+                     QStringLiteral(" / ") +
+                     event.toMap().value(QStringLiteral("detail")).toString();
+    QCOMPARE(detail, QStringLiteral("Unlabelled solo / changed outside omaseed"));
     app.engine()->stop();
 }
 
