@@ -512,6 +512,7 @@ expect "the daemon has it" "$HASH" 't is not None' 20
 expect "named $NAME" "$HASH" "t['name'] == '$NAME'"
 expect "labelled walk-label" "$HASH" "t.get('label') == 'walk-label'"
 expect "saving to $IN" "$HASH" "t['save_path'].rstrip('/') == '$IN'"
+ADDED_AT=$SECONDS
 expect "complete from the data there, no error" "$HASH" "t['progress'] == 100 and t['total_done'] == t['total_size'] and t['message'] == 'OK'" 30
 expect "seeding" "$HASH" "t['state'] == 'Seeding'" 30
 expect_same "sample.bin on disk is the torrent's" "$NAME/sample.bin" "$IN/$NAME/sample.bin"
@@ -634,8 +635,10 @@ expect "the daemon stops it at a ratio of 1.5" "$HASH" "t['stop_at_ratio'] is Tr
 expect "…and removes it then" "$HASH" "t['remove_at_ratio'] is True"
 expect "still seeding (its ratio is 0)" "$HASH" "t['state'] == 'Seeding'"
 
-step "Labelled outside" "deluge-web's label.set_torrent, not the app, gives $RENAMED walk-label again: its story reads Labelled walk-label, had no label · changed outside omaseed (C43 Y8), over omaseed's own Taken out line. Not walk-two: the relabel came in the torrent's first minute, so its echo was never seen and its note still stands for a minute; the same label from outside in that minute would read as omaseed's own (C43 Y8)."
+step "Labelled outside" "deluge-web's label.set_torrent, not the app, gives $RENAMED walk-label again: its story reads Labelled walk-label, had no label · changed outside omaseed (C43 Y8), over omaseed's own Taken out line. It waits until the torrent's first minute is over (an edit in it is the add's, C43 Y5). Not walk-two: the relabel came in that minute, so its echo was never seen and its note stands a minute after its answer; walk-two from outside then would read as omaseed's own (the echo is by name, C43 Y8)."
 table_on "$RENAMED"
+left=$((ADDED_AT + 70 - SECONDS))
+[ "$left" -le 0 ] || sleep "$left"
 dcall label.set_torrent "[\"$HASH\", \"walk-label\"]" >/dev/null
 expect "the daemon's label is walk-label" "$HASH" "t.get('label') == 'walk-label'"
 expect_story "its story: Labelled walk-label, had no label · changed outside omaseed" \
