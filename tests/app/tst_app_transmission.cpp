@@ -13,6 +13,7 @@
 #include "core/OmaseedBackup.hpp"
 #include "core/PauseHold.hpp"
 #include "core/ProblemLog.hpp"
+#include "core/StoryRecord.hpp"
 #include "core/SyncEngine.hpp"
 #include "core/TorrentDetails.hpp"
 #include "core/TorrentFilesModel.hpp"
@@ -182,6 +183,7 @@ private Q_SLOTS:
     void aRenameSeenOnTransmissionSaysItsFolderToo();
     void aRenameReadsInTheRowAtItsOk();
     void anAddCarriesItsFolderAndLabels();
+    void labelsAreLabelledLines();
     void detailsAreAskedOfTransmission();
     void resumeRightAfterPauseWaitsForTheStopToLand();
     void anOldTransmissionIsRefusedInK8sWords();
@@ -883,6 +885,45 @@ void TestAppTransmission::anAddCarriesItsFolderAndLabels()
     QCOMPARE(add->params.value(QStringLiteral("download_dir")).toString(),
              QStringLiteral("/srv/transmission/new"));
     QCOMPARE(add->params.value(QStringLiteral("labels")).toArray(), QJsonArray{"fresh"});
+    app.engine()->stop();
+}
+
+// DECISIONS C43 Y3 (C25 K14): Transmission's labels are its tags; omaseed's own edits of them
+// are lines in labels' words, a label the torrent had already no part of one.
+void TestAppTransmission::labelsAreLabelledLines()
+{
+    using omaseed::core::StoryEntry;
+    Daemon daemon;
+    App app;
+    QVERIFY(startOn(app, daemon));
+    const QStringList had = app.torrents()->torrent(kPack).tags;
+    QVERIFY(!had.isEmpty());
+    const auto editsOf = [&app](const QString &hash) {
+        QStringList out;
+        for (const QVariant &event : app.torrentStory(hash)) {
+            const QVariantMap map = event.toMap();
+            if (map.value(QStringLiteral("kind")).toString() == QLatin1String("edit"))
+                out << map.value(QStringLiteral("title")).toString() + QStringLiteral(" / ") +
+                           map.value(QStringLiteral("detail")).toString();
+        }
+        return out;
+    };
+
+    // Both at once are one line; then a label put on another torrent.
+    app.applyTags({kPack}, {QStringLiteral("walk")}, {had.constFirst()});
+    QTRY_COMPARE_WITH_TIMEOUT(app.storyRecord().recordsFor(kPack).size(), 1, 3000);
+    const StoryEntry pack = app.storyRecord().recordsFor(kPack).constFirst();
+    QCOMPARE(pack.what, StoryEntry::What::Tags);
+    QCOMPARE(pack.by, StoryEntry::By::Omaseed);
+    QCOMPARE(pack.tagged, QStringList{QStringLiteral("walk")});
+    QCOMPARE(pack.untagged, QStringList{had.constFirst()});
+    QCOMPARE(editsOf(kPack),
+             QStringList{QStringLiteral("Labels changed / labelled walk · unlabelled %1")
+                             .arg(had.constFirst())});
+
+    app.addTags({kSingle}, {QStringLiteral("walk")});
+    QTRY_COMPARE_WITH_TIMEOUT(
+        editsOf(kSingle), QStringList{QStringLiteral("Labelled walk / ")}, 3000);
     app.engine()->stop();
 }
 
