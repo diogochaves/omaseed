@@ -2847,6 +2847,9 @@ public:
     /// The line omaseed's last rename of `hash` landed in this session, 0 for none: the seam
     /// for C38 R3's take-back (`storyRecord().remove(hash, id)`, through takeBackRename()).
     int lastRenameLineOf(const QString &hash) const { return m_renameLineOf.value(hash); }
+    /// C43 Y6: the last-move block's "moved since outside omaseed": `hash`'s story has a place
+    /// line (moved outside, or by the server; landed or not) newer than its last move's end.
+    Q_INVOKABLE bool placeMovedSinceLastMove(const QString &hash) const;
 
 Q_SIGNALS:
     void storyChanged();
@@ -2871,6 +2874,14 @@ private:
     /// C38 R4: SyncEngine::torrentRenamed. Not omaseed's own (its echo, below), it is an
     /// Elsewhere line timed now, with R7's disk on an engine that renames the folder too.
     void recordSeenRename(const QString &hash, const QString &was, const QString &now);
+    /// C43 Y2–Y8: SyncEngine::torrentsEdited. omaseed's own edits (their notes, its move job)
+    /// are no line; the rest is an Elsewhere line, or a Server place line (automatic
+    /// management, a Deluge label's folder), all timed by the one poll that saw them.
+    void recordSeenEdits(const QList<omaseed::core::SeenEdit> &edits);
+    /// The main session's call for #248 step D: on Deluge, a label taken off an unfinished
+    /// torrent sends its save path back to where it downloads; nothing moved, and the
+    /// category line already tells it. hash → when (ms since the epoch) a label-off was seen.
+    QHash<QString, qint64> m_labelOffSeenAt;
 
     /// R4's echo: omaseed's own torrent rename shows up in a poll too. Each rename sent is noted
     /// (noteSentRename(), a token back); refused, it is dropped; answered OK, it stays for
