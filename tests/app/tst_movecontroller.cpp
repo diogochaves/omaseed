@@ -196,8 +196,11 @@ private:
             m_history.insert(server, moves);
         };
         hooks.probe = m_probe;
+        if (m_at.isValid())
+            hooks.clock = [this]() { return m_at; };
         m_move->setHooks(std::move(hooks));
     }
+    QDateTime m_at; ///< the controller's clock when set (make() reads it), the real one if not
 
     /// The `checks` line that names a later move to undo first, or {}.
     static QVariantMap backFirstLine(const QVariantMap &plan)
@@ -268,6 +271,7 @@ private slots:
         m_recents.clear();
         m_history.clear();
         m_probe = nullptr;
+        m_at = QDateTime();
         delete m_engine;
         m_engine = new SyncEngine(this);
         qbtfeed::full(*m_engine->torrents(), library());
@@ -801,6 +805,28 @@ private slots:
         // L4: the destination is remembered for this server.
         QCOMPARE(m_recents.value(QStringLiteral("home")),
                  QStringList({QStringLiteral("/mnt/fast/shooters")}));
+    }
+
+    void ownsAMoveWhileRunningAndAMinuteAfter()
+    {
+        // DECISIONS C43 Y6: the save path a move changes is the move's story, not an outside
+        // move, while it runs and for a minute after it ends.
+        m_at = QDateTime::currentDateTime();
+        make();
+        m_move->setServer(QStringLiteral("home"));
+        QVERIFY(!m_move->ownsMoveOf(QStringLiteral("a1")));
+        QVERIFY(m_move->startSelection({QStringLiteral("a1")},
+                                       QStringLiteral("/mnt/fast/shooters"),
+                                       QStringLiteral("oneFolder")));
+        QVERIFY(m_move->ownsMoveOf(QStringLiteral("a1")));
+        QVERIFY(!m_move->ownsMoveOf(QStringLiteral("b2")));
+        landSent();
+        QTRY_COMPARE(m_move->stateName(), QStringLiteral("idle"));
+        QVERIFY(m_move->ownsMoveOf(QStringLiteral("a1")));
+        m_at = m_at.addSecs(MoveController::kOwnMoveSeconds);
+        QVERIFY(m_move->ownsMoveOf(QStringLiteral("a1")));
+        m_at = m_at.addSecs(1);
+        QVERIFY(!m_move->ownsMoveOf(QStringLiteral("a1")));
     }
 
     void aQuickFailureIsAFailedNote()
