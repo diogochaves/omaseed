@@ -3,11 +3,17 @@
 // the server answers OK (Y2, Y3), one line per torrent saying what it was in or which tags it
 // gained and lost, from every place omaseed sends them; a torrent already in place is no line,
 // a refused edit none, and a tag edit half refused keeps the half that went. Kept across a
-// restart beside the renames (C38 R9, Y10).
+// restart beside the renames (C38 R9, Y10). What a poll sees (step D, Y4–Y8): an edit made
+// outside omaseed is a line, the echo of omaseed's own none, a save path omaseed's move changed
+// none, automatic management's move the server's, and only on the server the window is on.
 
+#include "core/MoveHistory.hpp"
+#include "core/StateFile.hpp"
 #include "core/StoryRecord.hpp"
 #include "core/SyncEngine.hpp"
+#include "core/TorrentModel.hpp"
 #include "ui/app/App.hpp"
+#include "ui/app/MoveController.hpp"
 
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -17,6 +23,7 @@
 #include <QTcpSocket>
 #include <QTemporaryDir>
 #include <QTest>
+#include <QTimer>
 #include <QUrl>
 #include <QUrlQuery>
 
@@ -65,6 +72,14 @@ public:
     QStringList refuse;
     QStringList posts;
     int polls = 0;
+    /// The edits' answers wait this long (the change is listed at once): a poll sees an edit
+    /// before its OK.
+    int answerDelayMs = 0;
+    /// torrents/setLocation: the save path changes after this many polls (0: at once), the
+    /// torrent `moving` meanwhile. qBittorrent's own set location changes it as the move lands
+    /// (#248 step A).
+    int landAfterPolls = 0;
+    QHash<QString, std::pair<QString, int>> landing; ///< hash → its new path, polls left
 
 protected:
     void incomingConnection(qintptr descriptor) override
@@ -112,12 +127,22 @@ private:
     QByteArray maindata()
     {
         ++polls;
+        for (auto it = landing.begin(); it != landing.end();) {
+            if (--it->second > 0) {
+                ++it;
+                continue;
+            }
+            torrents[it.key()].savePath = it->first;
+            it = landing.erase(it);
+        }
         QJsonObject list;
         for (const QString &hash : std::as_const(hashes)) {
             const Torrent t = torrents.value(hash);
             list.insert(hash,
                         QJsonObject{{QStringLiteral("name"), t.name},
-                                    {QStringLiteral("state"), QStringLiteral("uploading")},
+                                    {QStringLiteral("state"),
+                                     landing.contains(hash) ? QStringLiteral("moving")
+                                                            : QStringLiteral("uploading")},
                                     {QStringLiteral("progress"), t.progress},
                                     {QStringLiteral("size"), 4096},
                                     {QStringLiteral("total_size"), 4096},
@@ -178,6 +203,14 @@ private:
                     t.tags.removeAll(tag);
             } else if (path == QLatin1String("torrents/setAutoManagement")) {
                 t.autoTmm = form.queryItemValue(QStringLiteral("enable")) == QLatin1String("true");
+            } else if (path == QLatin1String("torrents/setLocation")) {
+                const QString to =
+                    form.queryItemValue(QStringLiteral("location"), QUrl::FullyDecoded);
+                t.autoTmm = false;
+                if (landAfterPolls <= 0)
+                    t.savePath = to;
+                else
+                    landing.insert(hash, {to, landAfterPolls});
             }
         }
     }
@@ -196,7 +229,8 @@ private:
                    path == QLatin1String("torrents/addTags") ||
                    path == QLatin1String("torrents/removeTags") ||
                    path == QLatin1String("torrents/createCategory") ||
-                   path == QLatin1String("torrents/setAutoManagement")) {
+                   path == QLatin1String("torrents/setAutoManagement") ||
+                   path == QLatin1String("torrents/setLocation")) {
             posts << path;
             if (refuse.contains(path)) {
                 status = "409 Conflict";
@@ -217,10 +251,16 @@ private:
                                  "\r\nContent-Length: " + QByteArray::number(body.size()) +
                                  "\r\nConnection: close\r\n\r\n" + body;
         const QPointer<QTcpSocket> to(socket);
-        if (to.isNull())
-            return;
-        to->write(reply);
-        to->disconnectFromHost();
+        const auto send = [to, reply]() {
+            if (to.isNull())
+                return;
+            to->write(reply);
+            to->disconnectFromHost();
+        };
+        if (answerDelayMs > 0 && posts.contains(path) && !path.endsWith(QLatin1String("Location")))
+            QTimer::singleShot(answerDelayMs, socket, send);
+        else
+            send();
     }
 };
 
@@ -262,6 +302,22 @@ private slots:
     void theCategoryPaletteAndTheBarBothWrite();
     void autoManagementWithCategoriesWrites();
     void theRecordOutlivesARestart();
+
+    // Step D: what a poll sees (Y2–Y8).
+    void ownCategorySeenBeforeItsOkIsOneLine();
+    void ownCategorySeenAfterItsOkIsOneLine();
+    void aCategoryChangedOutsideIsALine();
+    void theCategoryWasRemovedOnEveryTorrent();
+    void tagEchoesLeaveOnlyTheRest();
+    void theTagWasRemoved();
+    void aLocationSetOutsideIsAPlace();
+    void omaseedsOwnMoveIsNoPlace();
+    void omaseedsMoveLandingInThePollIsNoPlace();
+    void aMoveLandedAMinuteAgoIsNoPlace();
+    void autoManagementsMoveIsTheServersByCategory();
+    void willLandInWhileWaiting();
+    void theBlockSaysMovedSinceOutside();
+    void noLineWhileOnAnotherServer();
 
 private:
     bool startOn(App &app, EditServer &server);
@@ -492,6 +548,363 @@ void TestAppEdits::theRecordOutlivesARestart()
     QCOMPARE(recordsOf(app, server.pack).size(), 1);
     QCOMPARE(recordsOf(app, server.pack).constFirst().what, StoryEntry::What::Tags);
     QCOMPARE(recordsOf(app, server.pack).constFirst().tagged, QStringList{QStringLiteral("new")});
+    app.engine()->stop();
+}
+
+// --- Step D: what a poll sees (Y2–Y8) ------------------------------------------------------------
+
+namespace {
+
+/// `hash`'s record entries of `what`.
+QList<StoryEntry> entriesOf(const App &app, const QString &hash, StoryEntry::What what)
+{
+    QList<StoryEntry> out;
+    for (const StoryEntry &entry : app.storyRecord().recordsFor(hash))
+        if (entry.what == what)
+            out << entry;
+    return out;
+}
+
+} // namespace
+
+// Y8: omaseed's own category, listed before its OK lands: the poll's sight of it is the echo,
+// the OK its one line.
+void TestAppEdits::ownCategorySeenBeforeItsOkIsOneLine()
+{
+    EditServer server;
+    server.answerDelayMs = 800;
+    App app;
+    QVERIFY(startOn(app, server));
+    QVERIFY(waitPolls(server, 1));
+    app.setCategory({server.single}, QStringLiteral("music"));
+    QTRY_COMPARE_WITH_TIMEOUT(
+        app.torrents()->torrent(server.single).category, QStringLiteral("music"), 3000);
+    QVERIFY(waitPolls(server, 2));
+    QVERIFY(recordsOf(app, server.single).isEmpty()); // the OK hasn't landed
+    QTRY_COMPARE_WITH_TIMEOUT(recordsOf(app, server.single).size(), 1, 3000);
+    QVERIFY(waitPolls(server, 3));
+    QCOMPARE(recordsOf(app, server.single).size(), 1);
+    QCOMPARE(recordsOf(app, server.single).constFirst().by, StoryEntry::By::Omaseed);
+    app.engine()->stop();
+}
+
+// The other order: the OK first, the poll that lists it after.
+void TestAppEdits::ownCategorySeenAfterItsOkIsOneLine()
+{
+    EditServer server;
+    App app;
+    QVERIFY(startOn(app, server));
+    QVERIFY(waitPolls(server, 1));
+    app.addTags({server.single}, {QStringLiteral("new")});
+    app.setCategory({server.single}, QStringLiteral("music"));
+    QTRY_COMPARE_WITH_TIMEOUT(recordsOf(app, server.single).size(), 2, 3000);
+    QTRY_COMPARE_WITH_TIMEOUT(
+        app.torrents()->torrent(server.single).category, QStringLiteral("music"), 3000);
+    QVERIFY(waitPolls(server, 3));
+    QCOMPARE(recordsOf(app, server.single).size(), 2);
+    for (const StoryEntry &entry : recordsOf(app, server.single))
+        QCOMPARE(entry.by, StoryEntry::By::Omaseed);
+    app.engine()->stop();
+}
+
+// Y2, Y8: a category changed outside omaseed is a line, "changed outside omaseed".
+void TestAppEdits::aCategoryChangedOutsideIsALine()
+{
+    EditServer server;
+    server.torrents[server.single].category = QStringLiteral("inbox");
+    App app;
+    QVERIFY(startOn(app, server));
+    QVERIFY(waitPolls(server, 1));
+    server.torrents[server.single].category = QStringLiteral("music");
+    QTRY_COMPARE_WITH_TIMEOUT(recordsOf(app, server.single).size(), 1, 3000);
+    const StoryEntry line = recordsOf(app, server.single).constFirst();
+    QCOMPARE(line.what, StoryEntry::What::Category);
+    QCOMPARE(line.by, StoryEntry::By::Elsewhere);
+    QCOMPARE(line.was, QStringLiteral("inbox"));
+    QCOMPARE(line.now, QStringLiteral("music"));
+    QVERIFY(!line.removed);
+    QCOMPARE(storyLines(app, server.single, QStringLiteral("edit")),
+             QStringList{QStringLiteral("Put in music / was in inbox · changed outside omaseed")});
+    QVERIFY(recordsOf(app, server.pack).isEmpty());
+    app.engine()->stop();
+}
+
+// Y8: the category removed from the server takes every torrent in it out: a line each, saying so.
+void TestAppEdits::theCategoryWasRemovedOnEveryTorrent()
+{
+    EditServer server;
+    server.torrents[server.single].category = QStringLiteral("inbox");
+    server.torrents[server.pack].category = QStringLiteral("inbox");
+    App app;
+    QVERIFY(startOn(app, server));
+    QVERIFY(waitPolls(server, 1));
+    server.torrents[server.single].category.clear();
+    server.torrents[server.pack].category.clear();
+    server.categories.removeAll(QStringLiteral("inbox"));
+    server.categoriesRemoved = {QStringLiteral("inbox")};
+    QTRY_COMPARE_WITH_TIMEOUT(recordsOf(app, server.single).size(), 1, 3000);
+    QTRY_COMPARE_WITH_TIMEOUT(recordsOf(app, server.pack).size(), 1, 3000);
+    for (const QString &hash : {server.single, server.pack}) {
+        const StoryEntry line = recordsOf(app, hash).constFirst();
+        QCOMPARE(line.by, StoryEntry::By::Elsewhere);
+        QCOMPARE(line.was, QStringLiteral("inbox"));
+        QCOMPARE(line.now, QString());
+        QVERIFY(line.removed);
+    }
+    QCOMPARE(storyLines(app, server.pack, QStringLiteral("edit")),
+             QStringList{
+                 QStringLiteral("Taken out of its category / was in inbox · the category was removed")});
+    app.engine()->stop();
+}
+
+// Y8: a poll shows omaseed's tag and someone else's together: only the other one is seen.
+void TestAppEdits::tagEchoesLeaveOnlyTheRest()
+{
+    EditServer server;
+    server.answerDelayMs = 600;
+    App app;
+    QVERIFY(startOn(app, server));
+    QVERIFY(waitPolls(server, 1));
+    app.addTags({server.single}, {QStringLiteral("new")});
+    server.torrents[server.single].tags << QStringLiteral("other");
+    QTRY_COMPARE_WITH_TIMEOUT(entriesOf(app, server.single, StoryEntry::What::Tags).size(), 2, 3000);
+    QVERIFY(waitPolls(server, 2));
+    const QList<StoryEntry> lines = entriesOf(app, server.single, StoryEntry::What::Tags);
+    QCOMPARE(lines.size(), 2);
+    QStringList seen;
+    for (const StoryEntry &line : lines)
+        seen << (line.by == StoryEntry::By::Omaseed ? QStringLiteral("omaseed ")
+                                                    : QStringLiteral("elsewhere ")) +
+                    line.tagged.join(QLatin1Char(','));
+    seen.sort();
+    QCOMPARE(seen, QStringList({QStringLiteral("elsewhere other"), QStringLiteral("omaseed new")}));
+    app.engine()->stop();
+}
+
+// Y8: a tag deleted on the server is "Untagged NAME / the tag was removed".
+void TestAppEdits::theTagWasRemoved()
+{
+    EditServer server;
+    server.torrents[server.single].tags = {QStringLiteral("old")};
+    App app;
+    QVERIFY(startOn(app, server));
+    QVERIFY(waitPolls(server, 1));
+    server.torrents[server.single].tags.clear();
+    server.tags.removeAll(QStringLiteral("old"));
+    server.tagsRemoved = {QStringLiteral("old")};
+    QTRY_COMPARE_WITH_TIMEOUT(recordsOf(app, server.single).size(), 1, 3000);
+    const StoryEntry line = recordsOf(app, server.single).constFirst();
+    QCOMPARE(line.what, StoryEntry::What::Tags);
+    QCOMPARE(line.untagged, QStringList{QStringLiteral("old")});
+    QVERIFY(line.removed);
+    QCOMPARE(storyLines(app, server.single, QStringLiteral("edit")),
+             QStringList{QStringLiteral("Untagged old / the tag was removed")});
+    app.engine()->stop();
+}
+
+// Y4: a location set outside omaseed is "Moved to PATH / moved outside omaseed".
+void TestAppEdits::aLocationSetOutsideIsAPlace()
+{
+    EditServer server;
+    App app;
+    QVERIFY(startOn(app, server));
+    QVERIFY(waitPolls(server, 1));
+    server.torrents[server.single].savePath = QStringLiteral("/srv/outside");
+    QTRY_COMPARE_WITH_TIMEOUT(recordsOf(app, server.single).size(), 1, 3000);
+    const StoryEntry line = recordsOf(app, server.single).constFirst();
+    QCOMPARE(line.what, StoryEntry::What::Place);
+    QCOMPARE(line.by, StoryEntry::By::Elsewhere);
+    QCOMPARE(line.was, QStringLiteral("/srv/nowhere"));
+    QCOMPARE(line.now, QStringLiteral("/srv/outside"));
+    QVERIFY(line.landed);
+    QCOMPARE(storyLines(app, server.single, QStringLiteral("move")),
+             QStringList{QStringLiteral("Moved to /srv/outside / moved outside omaseed")});
+    app.engine()->stop();
+}
+
+// Y6: omaseed's own move changes the save path at its start (a server that moves at once):
+// the move's story tells it, no place line.
+void TestAppEdits::omaseedsOwnMoveIsNoPlace()
+{
+    EditServer server;
+    const QString to = QStringLiteral("/srv/moved");
+    App app;
+    QVERIFY(startOn(app, server));
+    QVERIFY(waitPolls(server, 1));
+    QVERIFY(app.move()->startSelection({server.single}, to, QString()));
+    QTRY_COMPARE_WITH_TIMEOUT(app.torrents()->torrent(server.single).savePath, to, 3000);
+    // Landed: its record is in the history (a quick move leaves no summary, C16 L7).
+    QTRY_VERIFY_WITH_TIMEOUT(app.move()->history().lastFor(server.single) != nullptr, 3000);
+    QVERIFY(waitPolls(server, 2));
+    QVERIFY(entriesOf(app, server.single, StoryEntry::What::Place).isEmpty());
+    app.engine()->stop();
+}
+
+// The main session's call (#248 step A): qBittorrent's own set location changes save_path as
+// the move lands, in the poll the job learns it landed: still the move's, whichever is told of
+// that poll first.
+void TestAppEdits::omaseedsMoveLandingInThePollIsNoPlace()
+{
+    EditServer server;
+    server.landAfterPolls = 3;
+    const QString to = QStringLiteral("/srv/moved");
+    App app;
+    QVERIFY(startOn(app, server));
+    QVERIFY(waitPolls(server, 1));
+    QVERIFY(app.move()->startSelection({server.single}, to, QString()));
+    QTRY_VERIFY_WITH_TIMEOUT(server.posts.contains(QStringLiteral("torrents/setLocation")), 3000);
+    QTRY_COMPARE_WITH_TIMEOUT(app.torrents()->torrent(server.single).savePath, to, 3000);
+    // Landed: its record is in the history (a quick move leaves no summary, C16 L7).
+    QTRY_VERIFY_WITH_TIMEOUT(app.move()->history().lastFor(server.single) != nullptr, 3000);
+    QVERIFY(waitPolls(server, 2));
+    QVERIFY(entriesOf(app, server.single, StoryEntry::What::Place).isEmpty());
+    app.engine()->stop();
+}
+
+// Y6: a reading straggling in after the move landed (the old path for a poll, then the new one
+// again) is still the move's, for a minute (MoveController::kOwnMoveSeconds).
+void TestAppEdits::aMoveLandedAMinuteAgoIsNoPlace()
+{
+    EditServer server;
+    const QString to = QStringLiteral("/srv/moved");
+    App app;
+    QVERIFY(startOn(app, server));
+    QVERIFY(waitPolls(server, 1));
+    QVERIFY(app.move()->startSelection({server.single}, to, QString()));
+    // Landed: its record is in the history (a quick move leaves no summary, C16 L7).
+    QTRY_VERIFY_WITH_TIMEOUT(app.move()->history().lastFor(server.single) != nullptr, 3000);
+    server.torrents[server.single].savePath = QStringLiteral("/srv/nowhere");
+    QTRY_COMPARE_WITH_TIMEOUT(
+        app.torrents()->torrent(server.single).savePath, QStringLiteral("/srv/nowhere"), 3000);
+    server.torrents[server.single].savePath = to;
+    QTRY_COMPARE_WITH_TIMEOUT(app.torrents()->torrent(server.single).savePath, to, 3000);
+    QVERIFY(waitPolls(server, 2));
+    QVERIFY(entriesOf(app, server.single, StoryEntry::What::Place).isEmpty());
+    app.engine()->stop();
+}
+
+// Y7: automatic management moved it (its category's folder changed, or the category did): the
+// server's, "by its category NAME · automatic management".
+void TestAppEdits::autoManagementsMoveIsTheServersByCategory()
+{
+    EditServer server;
+    server.torrents[server.single].category = QStringLiteral("music");
+    server.torrents[server.single].autoTmm = true;
+    App app;
+    QVERIFY(startOn(app, server));
+    QVERIFY(waitPolls(server, 1));
+    server.torrents[server.single].savePath = QStringLiteral("/srv/music");
+    QTRY_COMPARE_WITH_TIMEOUT(recordsOf(app, server.single).size(), 1, 3000);
+    const StoryEntry line = recordsOf(app, server.single).constFirst();
+    QCOMPARE(line.what, StoryEntry::What::Place);
+    QCOMPARE(line.by, StoryEntry::By::Server);
+    QCOMPARE(line.cause, QStringLiteral("category"));
+    QCOMPARE(line.causeName, QStringLiteral("music"));
+    QCOMPARE(storyLines(app, server.single, QStringLiteral("move")),
+             QStringList{QStringLiteral(
+                 "Moved to /srv/music / by its category music · automatic management")});
+    app.engine()->stop();
+}
+
+// Y4: unfinished with an incomplete folder, a new save path is where it will land.
+void TestAppEdits::willLandInWhileWaiting()
+{
+    EditServer server;
+    server.torrents[server.single].progress = 0.5;
+    server.torrents[server.single].downloadPath = QStringLiteral("/srv/waiting");
+    App app;
+    QVERIFY(startOn(app, server));
+    QVERIFY(waitPolls(server, 1));
+    server.torrents[server.single].savePath = QStringLiteral("/srv/far");
+    QTRY_COMPARE_WITH_TIMEOUT(recordsOf(app, server.single).size(), 1, 3000);
+    const StoryEntry line = recordsOf(app, server.single).constFirst();
+    QVERIFY(!line.landed);
+    QCOMPARE(storyLines(app, server.single, QStringLiteral("move")),
+             QStringList{QStringLiteral("Will land in /srv/far / moved outside omaseed")});
+    app.engine()->stop();
+}
+
+// Y6: a place line newer than the last move: the block's "moved since outside omaseed".
+void TestAppEdits::theBlockSaysMovedSinceOutside()
+{
+    EditServer server;
+    const QString to = QStringLiteral("/srv/moved");
+    {
+        App app;
+        QVERIFY(startOn(app, server));
+        QVERIFY(waitPolls(server, 1));
+        QVERIFY(app.move()->startSelection({server.single}, to, QString()));
+        QTRY_VERIFY_WITH_TIMEOUT(app.move()->history().lastFor(server.single) != nullptr, 3000);
+        QVERIFY(!app.placeMovedSinceLastMove(server.single));
+        app.engine()->stop();
+    }
+    // The move ended two minutes ago: past its own minute.
+    QJsonObject moves = omaseed::core::StateFile::readSection(QStringLiteral("moves"));
+    for (const QString &id : moves.keys()) {
+        QJsonObject serverState = moves.value(id).toObject();
+        QJsonArray history = serverState.value(QStringLiteral("history")).toArray();
+        for (qsizetype i = 0; i < history.size(); ++i) {
+            QJsonObject record = history.at(i).toObject();
+            for (const QString &key : {QStringLiteral("startedAt"), QStringLiteral("finishedAt")})
+                record.insert(key,
+                              QDateTime::fromString(record.value(key).toString(), Qt::ISODate)
+                                  .addSecs(-120)
+                                  .toString(Qt::ISODate));
+            history.replace(i, record);
+        }
+        serverState.insert(QStringLiteral("history"), history);
+        moves.insert(id, serverState);
+    }
+    omaseed::core::StateFile::writeSection(QStringLiteral("moves"), moves);
+
+    App app;
+    QVERIFY(startOn(app, server));
+    QVERIFY(waitPolls(server, 1));
+    QVERIFY(!app.placeMovedSinceLastMove(server.single));
+    server.torrents[server.single].savePath = QStringLiteral("/srv/outside");
+    QTRY_COMPARE_WITH_TIMEOUT(entriesOf(app, server.single, StoryEntry::What::Place).size(), 1, 3000);
+    QVERIFY(app.placeMovedSinceLastMove(server.single));
+    QVERIFY(!app.placeMovedSinceLastMove(server.pack));
+    app.engine()->stop();
+}
+
+// Only the server the window is on writes to its record; the first full update after a switch
+// has no "before" (C38 R5).
+void TestAppEdits::noLineWhileOnAnotherServer()
+{
+    qunsetenv("OMASEED_SERVER_URL");
+    EditServer first;
+    EditServer second;
+    QVERIFY(first.listen(QHostAddress::LocalHost));
+    QVERIFY(second.listen(QHostAddress::LocalHost));
+    App app;
+    using namespace std::chrono_literals;
+    app.engine()->setIntervals(100ms, 100ms, 100ms, 100ms);
+    app.start();
+    const auto add = [&app](const QString &name, const EditServer &server) {
+        return app.addServer({{QStringLiteral("name"), name},
+                              {QStringLiteral("url"),
+                               QStringLiteral("http://127.0.0.1:%1").arg(server.serverPort())},
+                              {QStringLiteral("authMode"), QStringLiteral("none")}});
+    };
+    const QString firstId = add(QStringLiteral("one"), first);
+    QVERIFY(!firstId.isEmpty());
+    QTRY_COMPARE_WITH_TIMEOUT(app.torrents()->count(), 2, 5000);
+    const QString secondId = add(QStringLiteral("two"), second);
+    QVERIFY(!secondId.isEmpty());
+    QVERIFY(app.switchServer(secondId));
+    QTRY_COMPARE_WITH_TIMEOUT(app.serverName(), QStringLiteral("two"), 3000);
+    QVERIFY(waitPolls(second, 2));
+
+    // Filed on the first while the window is on the second: no line on either.
+    first.torrents[first.single].category = QStringLiteral("music");
+    first.torrents[first.single].savePath = QStringLiteral("/srv/outside");
+    QVERIFY(waitPolls(second, 2));
+    QVERIFY(recordsOf(app, second.single).isEmpty());
+    QVERIFY(app.switchServer(firstId));
+    QVERIFY(waitPolls(first, 3));
+    QCOMPARE(app.torrents()->torrent(first.single).category, QStringLiteral("music"));
+    QVERIFY(recordsOf(app, first.single).isEmpty());
     app.engine()->stop();
 }
 

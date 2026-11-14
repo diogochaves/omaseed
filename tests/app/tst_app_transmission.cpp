@@ -184,6 +184,7 @@ private Q_SLOTS:
     void aRenameReadsInTheRowAtItsOk();
     void anAddCarriesItsFolderAndLabels();
     void labelsAreLabelledLines();
+    void aLabelLeavingTheListIsNoRemoved();
     void detailsAreAskedOfTransmission();
     void resumeRightAfterPauseWaitsForTheStopToLand();
     void anOldTransmissionIsRefusedInK8sWords();
@@ -924,6 +925,34 @@ void TestAppTransmission::labelsAreLabelledLines()
     app.addTags({kSingle}, {QStringLiteral("walk")});
     QTRY_COMPARE_WITH_TIMEOUT(
         editsOf(kSingle), QStringList{QStringLiteral("Labelled walk / ")}, 3000);
+    app.engine()->stop();
+}
+
+// DECISIONS C43 Y8: a Transmission label leaves the list whenever its last torrent drops it;
+// that is an ordinary unlabel, "changed outside omaseed", never "the label was removed".
+void TestAppTransmission::aLabelLeavingTheListIsNoRemoved()
+{
+    using omaseed::core::StoryEntry;
+    Daemon daemon;
+    daemon.library.byHash(kPack).insert(QStringLiteral("labels"),
+                                        QJsonArray{QStringLiteral("solo")});
+    App app;
+    QVERIFY(startOn(app, daemon));
+    QTRY_VERIFY_WITH_TIMEOUT(app.tags()->contains(QStringLiteral("solo")), 3000);
+    daemon.library.byHash(kPack).insert(QStringLiteral("labels"), QJsonArray());
+    QTRY_COMPARE_WITH_TIMEOUT(app.storyRecord().recordsFor(kPack).size(), 1, 3000);
+    QVERIFY(!app.tags()->contains(QStringLiteral("solo")));
+    const StoryEntry line = app.storyRecord().recordsFor(kPack).constFirst();
+    QCOMPARE(line.what, StoryEntry::What::Tags);
+    QCOMPARE(line.by, StoryEntry::By::Elsewhere);
+    QCOMPARE(line.untagged, QStringList{QStringLiteral("solo")});
+    QVERIFY(!line.removed);
+    QString detail;
+    for (const QVariant &event : app.torrentStory(kPack))
+        if (event.toMap().value(QStringLiteral("kind")).toString() == QLatin1String("edit"))
+            detail = event.toMap().value(QStringLiteral("title")).toString() +
+                     QStringLiteral(" / ") + event.toMap().value(QStringLiteral("detail")).toString();
+    QCOMPARE(detail, QStringLiteral("Unlabelled solo / changed outside omaseed"));
     app.engine()->stop();
 }
 
