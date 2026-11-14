@@ -634,14 +634,14 @@ expect "the daemon stops it at a ratio of 1.5" "$HASH" "t['stop_at_ratio'] is Tr
 expect "…and removes it then" "$HASH" "t['remove_at_ratio'] is True"
 expect "still seeding (its ratio is 0)" "$HASH" "t['state'] == 'Seeding'"
 
-step "Labelled outside" "deluge-web's label.set_torrent, not the app, gives $RENAMED walk-two again: its story reads Labelled walk-two, had no label · changed outside omaseed (C43 Y8), over omaseed's own Taken out line."
+step "Labelled outside" "deluge-web's label.set_torrent, not the app, gives $RENAMED walk-label again: its story reads Labelled walk-label, had no label · changed outside omaseed (C43 Y8), over omaseed's own Taken out line. Not walk-two: the relabel came in the torrent's first minute, so its echo was never seen and its note still stands for a minute; the same label from outside in that minute would read as omaseed's own (C43 Y8)."
 table_on "$RENAMED"
-dcall label.set_torrent "[\"$HASH\", \"walk-two\"]" >/dev/null
-expect "the daemon's label is walk-two" "$HASH" "t.get('label') == 'walk-two'"
-expect_story "its story: Labelled walk-two, had no label · changed outside omaseed" \
-    "Labelled walk-two, had no label · changed outside omaseed"
+dcall label.set_torrent "[\"$HASH\", \"walk-label\"]" >/dev/null
+expect "the daemon's label is walk-label" "$HASH" "t.get('label') == 'walk-label'"
+expect_story "its story: Labelled walk-label, had no label · changed outside omaseed" \
+    "Labelled walk-label, had no label · changed outside omaseed"
 expect_story "…over omaseed's own Taken out of its label" "Taken out of its label, was walk-label"
-shot "The story, newest first: Labelled walk-two, had no label · changed outside omaseed; Taken out of its label, was walk-label; accent squares." story
+shot "The story, newest first: Labelled walk-label, had no label · changed outside omaseed; Taken out of its label, was walk-label; accent squares." story
 
 step "A label with a folder" "A label walk-far whose folder is PROFILE/walk/far (apply_move_completed, set through deluge-web); $MAGNET_NAME's .torrent added paused, with no data (a first appearance: no line), then, past its first minute, C on it, walk-far, enter. Deluge copies the label's folder into the torrent at once and moves it only once it finishes (C43 Y7): its story reads Will land in PROFILE/walk/far, by its label walk-far, over Labelled walk-far, had no label. Then it and the label are removed."
 dcall label.add '["walk-far"]' >/dev/null
