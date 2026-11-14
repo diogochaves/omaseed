@@ -951,7 +951,8 @@ void TestAppTransmission::aLabelLeavingTheListIsNoRemoved()
     for (const QVariant &event : app.torrentStory(kPack))
         if (event.toMap().value(QStringLiteral("kind")).toString() == QLatin1String("edit"))
             detail = event.toMap().value(QStringLiteral("title")).toString() +
-                     QStringLiteral(" / ") + event.toMap().value(QStringLiteral("detail")).toString();
+                     QStringLiteral(" / ") +
+                     event.toMap().value(QStringLiteral("detail")).toString();
     QCOMPARE(detail, QStringLiteral("Unlabelled solo / changed outside omaseed"));
     app.engine()->stop();
 }

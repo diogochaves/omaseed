@@ -660,9 +660,8 @@ void TestAppDeluge::aLabelsFolderIsTheServersWillLandIn()
     QVERIFY(!stream.isEmpty());
     App app;
     QVERIFY(startOn(app, daemon));
-    QTRY_COMPARE_WITH_TIMEOUT(app.categories()->savePathOf(QStringLiteral("fixtures")),
-                              kLabelFolder,
-                              3000);
+    QTRY_COMPARE_WITH_TIMEOUT(
+        app.categories()->savePathOf(QStringLiteral("fixtures")), kLabelFolder, 3000);
     daemon.set(stream, "label", QStringLiteral("fixtures"));
     daemon.set(stream, "move_completed", true);
     daemon.set(stream, "move_completed_path", kLabelFolder);
@@ -676,10 +675,11 @@ void TestAppDeluge::aLabelsFolderIsTheServersWillLandIn()
                          map.value(QStringLiteral("detail")).toString();
     }
     // Newest first; at one second the place reads above the filing of its poll (docs/58 §10).
-    QCOMPARE(lines,
-             QStringList({QStringLiteral("Will land in %1 / by its label fixtures").arg(kLabelFolder),
-                          QStringLiteral("Labelled fixtures / had no label · changed outside "
-                                         "omaseed")}));
+    QCOMPARE(
+        lines,
+        QStringList({QStringLiteral("Will land in %1 / by its label fixtures").arg(kLabelFolder),
+                     QStringLiteral("Labelled fixtures / had no label · changed outside "
+                                    "omaseed")}));
     app.engine()->stop();
 }
 

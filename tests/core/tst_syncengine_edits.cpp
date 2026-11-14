@@ -65,10 +65,10 @@ class TestSyncEngineEdits : public QObject
     void start(SyncEngine &engine, const QJsonObject &a = {}, const QJsonObject &b = {})
     {
         engine.setNowForTest([this]() { return m_now; });
-        qbtfeed::demo(engine,
-                      poll(true,
-                           {{kA, row(QStringLiteral("Alpha"), a)},
-                            {kB, row(QStringLiteral("Beta"), b)}}));
+        qbtfeed::demo(
+            engine,
+            poll(true,
+                 {{kA, row(QStringLiteral("Alpha"), a)}, {kB, row(QStringLiteral("Beta"), b)}}));
     }
 
 private Q_SLOTS:
@@ -79,8 +79,9 @@ private Q_SLOTS:
         SyncEngine engine;
         QSignalSpy edited(&engine, &SyncEngine::torrentsEdited);
         start(engine, {{QStringLiteral("category"), QStringLiteral("inbox")}});
-        qbtfeed::demo(engine,
-                      poll(false, change(kA, {{QStringLiteral("category"), QStringLiteral("music")}})));
+        qbtfeed::demo(
+            engine,
+            poll(false, change(kA, {{QStringLiteral("category"), QStringLiteral("music")}})));
         QCOMPARE(edited.count(), 1);
         const QList<SeenEdit> edits = editsOf(edited, 0);
         QCOMPARE(edits.size(), 1);
@@ -90,8 +91,9 @@ private Q_SLOTS:
         QCOMPARE(edits.at(0).now, QStringLiteral("music"));
         QVERIFY(!edits.at(0).removed);
         // The same category again is no change.
-        qbtfeed::demo(engine,
-                      poll(false, change(kA, {{QStringLiteral("category"), QStringLiteral("music")}})));
+        qbtfeed::demo(
+            engine,
+            poll(false, change(kA, {{QStringLiteral("category"), QStringLiteral("music")}})));
         QCOMPARE(edited.count(), 1);
     }
 
@@ -104,8 +106,9 @@ private Q_SLOTS:
         // A later full update compares against the rows held.
         qbtfeed::demo(engine,
                       poll(true,
-                           {{kA, row(QStringLiteral("Alpha"),
-                                     {{QStringLiteral("category"), QStringLiteral("music")}})},
+                           {{kA,
+                             row(QStringLiteral("Alpha"),
+                                 {{QStringLiteral("category"), QStringLiteral("music")}})},
                             {kB, row(QStringLiteral("Beta"))}}));
         QCOMPARE(edited.count(), 1);
     }
@@ -118,9 +121,10 @@ private Q_SLOTS:
         const QString added = QStringLiteral("cccccccccccccccccccccccccccccccccccccccc");
         qbtfeed::demo(engine,
                       poll(false,
-                           {{added, row(QStringLiteral("Gamma"),
-                                        {{QStringLiteral("category"), QStringLiteral("music")},
-                                         {QStringLiteral("tags"), QStringLiteral("x")}})}}));
+                           {{added,
+                             row(QStringLiteral("Gamma"),
+                                 {{QStringLiteral("category"), QStringLiteral("music")},
+                                  {QStringLiteral("tags"), QStringLiteral("x")}})}}));
         QCOMPARE(edited.count(), 0);
     }
 
@@ -133,15 +137,15 @@ private Q_SLOTS:
         qbtfeed::demo(engine, poll(false, {{added, row(QStringLiteral("Gamma"))}}));
         // Deluge labels the add right after it: still the add.
         m_now += 5'000;
-        qbtfeed::demo(engine,
-                      poll(false,
-                           change(added, {{QStringLiteral("category"), QStringLiteral("music")}})));
+        qbtfeed::demo(
+            engine,
+            poll(false, change(added, {{QStringLiteral("category"), QStringLiteral("music")}})));
         QCOMPARE(edited.count(), 0);
         // A minute on, an edit is an edit.
         m_now += 60'000;
-        qbtfeed::demo(engine,
-                      poll(false,
-                           change(added, {{QStringLiteral("category"), QStringLiteral("books")}})));
+        qbtfeed::demo(
+            engine,
+            poll(false, change(added, {{QStringLiteral("category"), QStringLiteral("books")}})));
         QCOMPARE(edited.count(), 1);
         QCOMPARE(editsOf(edited, 0).at(0).was, QStringLiteral("music"));
     }
@@ -151,8 +155,9 @@ private Q_SLOTS:
         SyncEngine engine;
         QSignalSpy edited(&engine, &SyncEngine::torrentsEdited);
         start(engine, {{QStringLiteral("tags"), QStringLiteral("one, two")}});
-        qbtfeed::demo(engine,
-                      poll(false, change(kA, {{QStringLiteral("tags"), QStringLiteral("two, three")}})));
+        qbtfeed::demo(
+            engine,
+            poll(false, change(kA, {{QStringLiteral("tags"), QStringLiteral("two, three")}})));
         QCOMPARE(edited.count(), 1);
         const QList<SeenEdit> edits = editsOf(edited, 0);
         QCOMPARE(edits.size(), 1);
@@ -167,11 +172,11 @@ private Q_SLOTS:
         SyncEngine engine;
         QSignalSpy edited(&engine, &SyncEngine::torrentsEdited);
         start(engine, {{QStringLiteral("category"), QStringLiteral("inbox")}});
-        qbtfeed::demo(engine,
-                      poll(false,
-                           change(kA, {{QStringLiteral("category"), QString()}}),
-                           {{QStringLiteral("categories_removed"),
-                             QJsonArray{QStringLiteral("inbox")}}}));
+        qbtfeed::demo(
+            engine,
+            poll(false,
+                 change(kA, {{QStringLiteral("category"), QString()}}),
+                 {{QStringLiteral("categories_removed"), QJsonArray{QStringLiteral("inbox")}}}));
         QCOMPARE(edited.count(), 1);
         const SeenEdit edit = editsOf(edited, 0).at(0);
         QCOMPARE(edit.was, QStringLiteral("inbox"));
@@ -204,9 +209,9 @@ private Q_SLOTS:
         SyncEngine engine;
         QSignalSpy edited(&engine, &SyncEngine::torrentsEdited);
         start(engine);
-        qbtfeed::demo(engine,
-                      poll(false,
-                           change(kA, {{QStringLiteral("save_path"), QStringLiteral("/srv/far/")}})));
+        qbtfeed::demo(
+            engine,
+            poll(false, change(kA, {{QStringLiteral("save_path"), QStringLiteral("/srv/far/")}})));
         QCOMPARE(edited.count(), 1);
         const SeenEdit edit = editsOf(edited, 0).at(0);
         QCOMPARE(edit.what, SeenEdit::What::Place);
@@ -223,9 +228,9 @@ private Q_SLOTS:
               {{QStringLiteral("progress"), 0.5},
                {QStringLiteral("state"), QStringLiteral("downloading")},
                {QStringLiteral("download_path"), QStringLiteral("/srv/waiting")}});
-        qbtfeed::demo(engine,
-                      poll(false,
-                           change(kA, {{QStringLiteral("save_path"), QStringLiteral("/srv/far")}})));
+        qbtfeed::demo(
+            engine,
+            poll(false, change(kA, {{QStringLiteral("save_path"), QStringLiteral("/srv/far")}})));
         QCOMPARE(edited.count(), 1);
         QVERIFY(!editsOf(edited, 0).at(0).landed);
     }
@@ -242,8 +247,7 @@ private Q_SLOTS:
                                    {QStringLiteral("total_size"), 8192}})));
         QCOMPARE(edited.count(), 0);
         // An empty path either side is no place either.
-        qbtfeed::demo(engine,
-                      poll(false, change(kB, {{QStringLiteral("save_path"), QString()}})));
+        qbtfeed::demo(engine, poll(false, change(kB, {{QStringLiteral("save_path"), QString()}})));
         QCOMPARE(edited.count(), 0);
     }
 
@@ -265,14 +269,14 @@ private Q_SLOTS:
                                   {{QStringLiteral("progress"), 1.0},
                                    {QStringLiteral("save_path"), QStringLiteral("/srv/waiting")},
                                    {QStringLiteral("download_path"), QString()}})));
-        qbtfeed::demo(engine,
-                      poll(false,
-                           change(kA, {{QStringLiteral("save_path"), QStringLiteral("/srv/far")}})));
+        qbtfeed::demo(
+            engine,
+            poll(false, change(kA, {{QStringLiteral("save_path"), QStringLiteral("/srv/far")}})));
         QCOMPARE(edited.count(), 0);
         // Remembered once only: a later move is a move.
-        qbtfeed::demo(engine,
-                      poll(false,
-                           change(kA, {{QStringLiteral("save_path"), QStringLiteral("/srv/else")}})));
+        qbtfeed::demo(
+            engine,
+            poll(false, change(kA, {{QStringLiteral("save_path"), QStringLiteral("/srv/else")}})));
         QCOMPARE(edited.count(), 1);
     }
 
@@ -293,9 +297,10 @@ private Q_SLOTS:
         SyncEngine engine;
         QSignalSpy edited(&engine, &SyncEngine::torrentsEdited);
         start(engine);
-        qbtfeed::demo(engine,
-                      poll(false,
-                           change(kA, {{QStringLiteral("save_path"), QStringLiteral("/srv/inbox/")}})));
+        qbtfeed::demo(
+            engine,
+            poll(false,
+                 change(kA, {{QStringLiteral("save_path"), QStringLiteral("/srv/inbox/")}})));
         QCOMPARE(edited.count(), 0);
     }
 };
