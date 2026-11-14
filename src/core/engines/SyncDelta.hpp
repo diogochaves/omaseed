@@ -75,6 +75,11 @@ struct SyncDelta
 
     /// The engine's own sync cursor (qBittorrent's rid), when it has one.
     std::optional<int> cursor;
+
+    /// Every torrent's category may have changed without anyone filing it: Deluge's Label
+    /// plugin turned off or on rewrites every label (DelugeEngine marks the two deltas after
+    /// the flip). SyncEngine sees no category edit in it (DECISIONS C43, #248).
+    bool filingReset = false;
 };
 
 } // namespace omaseed::core

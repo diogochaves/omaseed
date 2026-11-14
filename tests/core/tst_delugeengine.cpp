@@ -81,6 +81,7 @@ private Q_SLOTS:
     void aNewTorrentsTrackersAreAskedAtOnce();
     void aTorrentGoneIsRemovedWithWhatWasKept();
     void labelsComeAndGoWithThePlugin();
+    void aLabelPluginFlipMarksTwoDeltas();
     void aPollWithoutADaemonSaysSo();
     void lastActivityDoesNotWobble();
     void anotherServerStartsOver();
@@ -587,6 +588,32 @@ void TestDelugeEngine::labelsComeAndGoWithThePlugin()
                             patch.values.category.isEmpty();
     QVERIFY(packLostItsLabel);
     QVERIFY(!m_engine->features(ServerInfo{QStringLiteral("2.2.0"), {}}).categories);
+}
+
+void TestDelugeEngine::aLabelPluginFlipMarksTwoDeltas()
+{
+    // DECISIONS C43: the plugin off or on refiles every torrent; no one filed it.
+    signIn();
+    SyncDelta delta = poll(0);
+    QVERIFY(!delta.filingReset); // the first reading of the plugin is no flip
+    delta = poll(*delta.cursor);
+    QVERIFY(!delta.filingReset);
+
+    m_daemon->labelPlugin = false;
+    delta = poll(*delta.cursor);
+    QVERIFY(delta.filingReset);
+    delta = poll(*delta.cursor);
+    QVERIFY(delta.filingReset);
+    delta = poll(*delta.cursor);
+    QVERIFY(!delta.filingReset);
+
+    m_daemon->labelPlugin = true;
+    delta = poll(*delta.cursor);
+    QVERIFY(delta.filingReset);
+    delta = poll(*delta.cursor);
+    QVERIFY(delta.filingReset);
+    delta = poll(*delta.cursor);
+    QVERIFY(!delta.filingReset);
 }
 
 void TestDelugeEngine::aPollWithoutADaemonSaysSo()

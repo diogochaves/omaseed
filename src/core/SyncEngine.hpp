@@ -26,6 +26,11 @@
 //                     setClient() (R5: renames while omaseed wasn't looking are left out), nor
 //                     for a torrent's first appearance. Whose rename it was is the caller's to
 //                     work out (C38's echo); the engine only sees the change.
+//   torrentsEdited    known torrents' category, tags or save path changed between two applied
+//                     polls (DECISIONS C43 Y2–Y4, Y8): SeenEdit below, once per poll, after
+//                     torrentRenamed. The same silences as a rename, and none in a torrent's
+//                     first minute (its add: Deluge files the add's label just after it, Y5).
+//                     Who made the edit is the caller's to work out, as for a rename.
 //   diskAlmostFull    server_state.free_space_on_disk crossed the threshold downwards.
 //   serverLost        the first network or timeout failure, once, not once per poll; also
 //                     deluge-web with no daemon (C25 K10, ErrorWords::isNoDaemon).
@@ -56,6 +61,7 @@
 #include <QStringList>
 
 #include <chrono>
+#include <functional>
 #include <optional>
 
 class QTimer;
@@ -72,6 +78,26 @@ class ServerLog;
 class TagModel;
 class TorrentModel;
 class TrackerModel;
+
+/// One filing or place edit a poll saw on a known torrent (DECISIONS C43, board 58 §8).
+struct SeenEdit
+{
+    enum class What { Category, Tags, Place };
+    QString hash;
+    What what = What::Category;
+    /// Category: the old and new category ("" none). Place: the old and new save path, with
+    /// no trailing "/".
+    QString was;
+    QString now;
+    /// Tags: the names put on and taken off (trimmed).
+    QStringList tagged;
+    QStringList untagged;
+    /// Category: the old category left the server's list in that poll. Tags: these names did
+    /// (their own SeenEdit, untagged only; Y8).
+    bool removed = false;
+    /// Place: false while the torrent waits in its incomplete folder for that path (Y4).
+    bool landed = true;
+};
 
 class SyncEngine : public QObject
 {
@@ -152,6 +178,8 @@ public:
                       std::chrono::milliseconds hidden,
                       std::chrono::milliseconds error,
                       std::chrono::milliseconds retry);
+    /// The clock torrentsEdited's first minute is timed by (ms); the tests set their own.
+    void setNowForTest(std::function<qint64()> nowMs) { m_nowMs = std::move(nowMs); }
 
 public Q_SLOTS:
     /// Probes the server (version, API) and starts polling. Calling it again while running
@@ -185,6 +213,8 @@ Q_SIGNALS:
                           const QString &contentPath);
     /// C38 R4: `hash`'s name went from `oldName` to `newName` between two polls (above).
     void torrentRenamed(const QString &hash, const QString &oldName, const QString &newName);
+    /// C43: the filing and place edits one poll saw (above), the models already applied.
+    void torrentsEdited(const QList<omaseed::core::SeenEdit> &edits);
     void diskAlmostFull(qint64 freeBytes);
     void serverLost(const omaseed::core::ApiError &error);
     void serverBack();
@@ -217,6 +247,8 @@ private:
     void settleAnsweredValues();
     /// Puts `values` into the rows that still exist.
     void patchTorrents(const QList<TorrentPatch> &values);
+    /// C43: torrentsEdited's edits in `torrents` against the rows held (before the merge).
+    QList<SeenEdit> seenEdits(const QList<TorrentPatch> &torrents, const SyncDelta &data);
 
     /// setPendingTorrentValue()'s bookkeeping for one field of one torrent.
     struct PendingValue
@@ -275,6 +307,14 @@ private:
     int m_rid = 0;
     int m_savedMaxRetries = -1;
 
+    std::function<qint64()> m_nowMs;
+    /// C43 Y5, C38 R8: when a hash appeared after the first full update (ms, m_nowMs); no
+    /// edit is seen for a minute after (the add's own filing).
+    QHash<QString, qint64> m_appearedAt;
+    /// C43 Y6: a finish out of the incomplete folder seen as a save path change (Deluge's
+    /// transit reading) → the save path it is heading back to, skipped once too.
+    QHash<QString, QString> m_transit;
+
     qint64 m_lowDiskThreshold = 2LL * 1024 * 1024 * 1024; ///< 2 GiB (spec §6 "disk almost full")
 
     std::chrono::milliseconds m_visibleInterval{1500};
@@ -284,3 +324,5 @@ private:
 };
 
 } // namespace omaseed::core
+
+Q_DECLARE_METATYPE(omaseed::core::SeenEdit)
