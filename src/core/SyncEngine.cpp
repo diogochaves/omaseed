@@ -624,8 +624,8 @@ QList<SeenEdit> SyncEngine::seenEdits(const QList<TorrentPatch> &torrents, const
             edit.what = SeenEdit::What::Category;
             edit.was = before.category;
             edit.now = after.category;
-            edit.removed = !before.category.isEmpty() &&
-                           data.removedCategories.contains(before.category);
+            edit.removed =
+                !before.category.isEmpty() && data.removedCategories.contains(before.category);
             out.append(edit);
         }
 
@@ -669,8 +669,7 @@ QList<SeenEdit> SyncEngine::seenEdits(const QList<TorrentPatch> &torrents, const
                 if (back)
                     continue;
             }
-            if (after.isComplete() && !before.isComplete() &&
-                now == placeOf(before.downloadPath)) {
+            if (after.isComplete() && !before.isComplete() && now == placeOf(before.downloadPath)) {
                 m_transit.insert(diff.hash, was);
                 continue;
             }

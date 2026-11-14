@@ -652,8 +652,8 @@ void TestAppEdits::theCategoryWasRemovedOnEveryTorrent()
         QVERIFY(line.removed);
     }
     QCOMPARE(storyLines(app, server.pack, QStringLiteral("edit")),
-             QStringList{
-                 QStringLiteral("Taken out of its category / was in inbox · the category was removed")});
+             QStringList{QStringLiteral(
+                 "Taken out of its category / was in inbox · the category was removed")});
     app.engine()->stop();
 }
 
@@ -667,7 +667,8 @@ void TestAppEdits::tagEchoesLeaveOnlyTheRest()
     QVERIFY(waitPolls(server, 1));
     app.addTags({server.single}, {QStringLiteral("new")});
     server.torrents[server.single].tags << QStringLiteral("other");
-    QTRY_COMPARE_WITH_TIMEOUT(entriesOf(app, server.single, StoryEntry::What::Tags).size(), 2, 3000);
+    QTRY_COMPARE_WITH_TIMEOUT(
+        entriesOf(app, server.single, StoryEntry::What::Tags).size(), 2, 3000);
     QVERIFY(waitPolls(server, 2));
     const QList<StoryEntry> lines = entriesOf(app, server.single, StoryEntry::What::Tags);
     QCOMPARE(lines.size(), 2);
@@ -862,7 +863,8 @@ void TestAppEdits::theBlockSaysMovedSinceOutside()
     QVERIFY(waitPolls(server, 1));
     QVERIFY(!app.placeMovedSinceLastMove(server.single));
     server.torrents[server.single].savePath = QStringLiteral("/srv/outside");
-    QTRY_COMPARE_WITH_TIMEOUT(entriesOf(app, server.single, StoryEntry::What::Place).size(), 1, 3000);
+    QTRY_COMPARE_WITH_TIMEOUT(
+        entriesOf(app, server.single, StoryEntry::What::Place).size(), 1, 3000);
     QVERIFY(app.placeMovedSinceLastMove(server.single));
     QVERIFY(!app.placeMovedSinceLastMove(server.pack));
     app.engine()->stop();
