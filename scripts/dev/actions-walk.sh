@@ -925,10 +925,11 @@ expect "Public Domain Sampler has no tags" "$PDS" 't["tags"] == ""'
 expect_story "…Untagged out-tag, the tag was removed" "Untagged out-tag, the tag was removed"
 shot "The story, newest first: Untagged out-tag, the tag was removed; Tagged out-tag, changed outside omaseed; Put in b44, had no category · changed outside omaseed; accent squares." story
 api torrents/setCategory -d "hashes=$PDS" -d category= >/dev/null
-api torrents/removeCategories -d categories=b44 >/dev/null
 expect "Public Domain Sampler has no category again" "$PDS" 't["category"] == ""'
 expect_story "…Taken out of its category, was in b44 · changed outside omaseed" \
     "Taken out of its category, was in b44 · changed outside omaseed"
+# Only once that poll is in: removed in the same poll, it would read "the category was removed".
+api torrents/removeCategories -d categories=b44 >/dev/null
 
 step "Set location, same disk" "Nested Library Sampler, the menu's move… (m), ~/Moved, enter. 113 files in 26 folders move; it lands within 3 s, so no band, and the strip over the rows says so, its row's status \"✓ moved · Moved\" (C18 D1)."
 menu_on "Nested Library"
