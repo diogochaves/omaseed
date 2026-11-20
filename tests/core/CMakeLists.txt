@@ -812,3 +812,9 @@ omaseed_add_test(tst_omarchymenublock
     LIBRARIES omaseed::core
     DEFINES OMASEED_DATA_DIR="${PROJECT_SOURCE_DIR}/data"
 )
+
+# DECISIONS C45 V1, V2, V4, V13 (#163): the words' table, arguments, pages, exits, failures.
+omaseed_add_test(tst_agentwords
+    SOURCES tst_agentwords.cpp
+    LIBRARIES omaseed::core
+)

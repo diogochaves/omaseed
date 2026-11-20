@@ -4,6 +4,8 @@ configure_file(BuildConfig.hpp.in "${CMAKE_CURRENT_BINARY_DIR}/omaseed/core/Buil
 qt_add_library(omaseed-core STATIC
     ActionOutcome.cpp
     ActionOutcome.hpp
+    AgentWords.cpp
+    AgentWords.hpp
     AddFilesModel.cpp
     AddFilesModel.hpp
     AltSchedule.cpp
