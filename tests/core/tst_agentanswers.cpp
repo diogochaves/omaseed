@@ -804,15 +804,21 @@ void TestAgentAnswers::logNextAfterNewest()
 
 void TestAgentAnswers::logFromStartAndOldest()
 {
+    // DECISIONS C45: the default read is problems-only, which never sees line 0: unknown.
     QJsonObject answer = parse(Answers::log(logBoard()));
-    QVERIFY(answer.value(QStringLiteral("fromStart")).toBool());
+    QVERIFY(answer.contains(QStringLiteral("fromStart")));
+    QVERIFY(answer.value(QStringLiteral("fromStart")).isNull());
     QCOMPARE(answer.value(QStringLiteral("oldest")).toString(),
              QStringLiteral("2026-11-11T09:02:13Z"));
-    // qBittorrent dropped its first lines: the memory starts at the oldest it keeps.
+    // Every level: the read sees line 0.
     Answers::LogInput input = logBoard();
+    input.options.level = QStringLiteral("normal");
+    answer = parse(Answers::log(input));
+    QCOMPARE(answer.value(QStringLiteral("fromStart")), QJsonValue(true));
+    // qBittorrent dropped its first lines: the memory starts at the oldest it keeps.
     input.log.remove(0, 10);
     answer = parse(Answers::log(input));
-    QVERIFY(!answer.value(QStringLiteral("fromStart")).toBool());
+    QCOMPARE(answer.value(QStringLiteral("fromStart")), QJsonValue(false));
     QCOMPARE(answer.value(QStringLiteral("oldest")).toString(),
              QStringLiteral("2026-11-11T09:12:13Z"));
 }

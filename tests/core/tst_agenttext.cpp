@@ -396,7 +396,7 @@ void TestAgentText::logAsTheBoard()
     QCOMPARE(lines(logBoard(), false, 72),
              QStringLiteral(
                  "attic · qBittorrent's log · warnings and worse · the last 3 of 61\n"
-                 "qBittorrent's memory of its log begins at its start, yesterday 09:02.\n"
+                 "The oldest of these qBittorrent still keeps is from yesterday 09:02.\n"
                  "13:58:40 warning  Failed to move torrent. Torrent: \"Arcade Set 01\".\n"
                  "                  Destination: \"/mnt/fast/games\". Reason: \"No space left\n"
                  "                  on device\"\n"
@@ -410,11 +410,15 @@ void TestAgentText::logAsTheBoard()
     QVERIFY(colour.contains(QStringLiteral("13:58:40 \x1b[33mwarning \x1b[0m Failed")));
     QVERIFY(colour.contains(QStringLiteral("14:03:11 \x1b[31mcritical\x1b[0m File")));
 
-    // Its memory not from the start, other levels, and nothing new.
+    // Every level from line 0: the memory begins at qBittorrent's start (DECISIONS C45).
     Answers::LogInput input = logBoard();
-    input.log.remove(0, 10);
     input.options.level = QStringLiteral("normal");
     QString text = lines(input, false, 72);
+    QVERIFY(text.contains(QStringLiteral(
+        "\nqBittorrent's memory of its log begins at its start, yesterday 09:02.\n")));
+    // Its memory not from the start, other levels, and nothing new.
+    input.log.remove(0, 10);
+    text = lines(input, false, 72);
     QVERIFY(text.startsWith(QStringLiteral("attic · qBittorrent's log · every level · the last 3 "
                                            "of 51\nqBittorrent keeps its last 20 000 lines in "
                                            "memory; these start yesterday 09:12.\n")));

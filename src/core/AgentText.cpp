@@ -361,8 +361,13 @@ QString log(const QJsonObject &answer, const TextStyle &style)
 
     // C3 D15: where qBittorrent's memory of its log begins.
     const QString oldest = when(answer.value(QLatin1String("oldest")), style);
-    if (!oldest.isEmpty())
-        out += answer.value(QLatin1String("fromStart")).toBool()
+    // DECISIONS C45: a problems-only read cannot see where the memory begins (fromStart null).
+    const QJsonValue fromStart = answer.value(QLatin1String("fromStart"));
+    if (!oldest.isEmpty() && fromStart.isNull())
+        out +=
+            QStringLiteral("The oldest of these qBittorrent still keeps is from %1.\n").arg(oldest);
+    else if (!oldest.isEmpty())
+        out += fromStart.toBool()
                    ? QStringLiteral("qBittorrent's memory of its log begins at its start, %1.\n")
                          .arg(oldest)
                    : QStringLiteral("qBittorrent keeps its last 20 000 lines in memory; these "

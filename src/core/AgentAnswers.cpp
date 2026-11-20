@@ -401,12 +401,18 @@ QByteArray log(const LogInput &input)
         });
     }
 
+    // DECISIONS C45: a problems-only read (warnings and worse) never sees qBittorrent's line 0,
+    // so it cannot tell where the memory begins: unknown, not false.
+    const QJsonValue fromStart =
+        least >= ServerLog::Warning
+            ? QJsonValue()
+            : QJsonValue(!input.log.isEmpty() && input.log.constFirst().id == 0);
     QList<std::pair<QString, QJsonValue>> fields =
         envelope(QStringLiteral("log"), input.at, input.omaseed);
     fields.append({
         {QStringLiteral("server"), serverJson(input.server)},
         {QStringLiteral("level"), ServerLog::levelName(least)},
-        {QStringLiteral("fromStart"), !input.log.isEmpty() && input.log.constFirst().id == 0},
+        {QStringLiteral("fromStart"), fromStart},
         {QStringLiteral("oldest"),
          input.log.isEmpty() ? QJsonValue() : isoUtc(input.log.constFirst().at)},
         {QStringLiteral("matched"), qint64(matched.size())},
