@@ -101,6 +101,12 @@ omaseed_add_test(tst_agentbus
     LIBRARIES omaseed::integration Qt6::DBus
 )
 
+# DECISIONS C45 V19 (#163): the guide's library part, and AGENTS.md and CLAUDE.md beside it.
+omaseed_add_test(tst_agentguide
+    SOURCES tst_agentguide.cpp
+    LIBRARIES omaseed::integration
+)
+
 omaseed_add_test(tst_statuswriter
     SOURCES tst_statuswriter.cpp
     LIBRARIES omaseed::integration

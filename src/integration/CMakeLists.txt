@@ -4,6 +4,8 @@ qt_add_library(omaseed-integration STATIC
     AgentBus.hpp
     AgentClient.cpp
     AgentClient.hpp
+    AgentGuide.cpp
+    AgentGuide.hpp
     AppIdentity.cpp
     AppIdentity.hpp
     Autostart.cpp
@@ -52,6 +54,13 @@ qt_add_resources(omaseed-integration "omaseed-theme-fallback"
     PREFIX "/omaseed"
     BASE resources
     FILES resources/theme/tokyo-night/colors.toml
+)
+
+# The guide for coding agents (DECISIONS C45 V19): its library part, for --skill and AGENTS.md.
+qt_add_resources(omaseed-integration "omaseed-agent-guide"
+    PREFIX "/omaseed"
+    BASE resources
+    FILES resources/agents/library.md
 )
 
 # The built-in skins (#171): Omarchy's, with no overrides, and Console's. They live with the
