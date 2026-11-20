@@ -396,6 +396,31 @@ it, as Settings › Backup says. Torrents are in no backup of omaseed's: each en
 Settings ends with its own Backup, which exports a server's torrents to a file and imports
 one from any engine.
 
+## Ask your agent
+
+A coding agent in a terminal (or you) can ask the running omaseed about your library, as a
+word after `omaseed`:
+
+```
+omaseed status    # the server, what it is doing, how many need you
+omaseed errors    # every torrent that needs you, why, and its fix
+omaseed log       # qBittorrent's log: warnings and worse, the last 50 lines
+omaseed moves     # moves running now, and the last ones that landed
+```
+
+Each prints a few lines in the window's words; `--json` prints one JSON object instead.
+`omaseed help <word>` lists a word's options (`errors --server NAME`, `log --level`,
+`--lines`, `--since`, `--torrent`, `moves --landed N`). The words only read: none changes a
+torrent or switches servers. omaseed has to be running (in the tray is enough); a word never
+starts it, and says so with exit 3 when it isn't. Exit 4 means that server can't answer now
+(not the one omaseed is on, unreachable, or no log to read).
+
+`omaseed --skill` prints the guide for agents: the words, their JSON and the exit codes. On
+every start omaseed also writes it to `~/.config/omaseed/AGENTS.md` (with a `CLAUDE.md` that
+points at it), so an agent started in that folder reads it. Torrent names, folders and log
+lines go to whatever model your agent uses; logins, API keys and tracker passkeys never leave
+omaseed.
+
 ## Troubleshooting
 
 - **Where is the tray icon?** With the bar widget running, `auto` hides it. Otherwise the

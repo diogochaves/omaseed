@@ -5,6 +5,23 @@ All notable changes to omaseed are logged here, newest first. Loosely follows
 versioning stability (pre-1.0). `scripts/release.sh` requires a `## v<version>` section here
 before it will tag a release.
 
+## Unreleased
+
+### Added
+
+- **Ask omaseed from a terminal, or let your coding agent ask.** `omaseed status`, `errors`,
+  `log` and `moves` ask the running omaseed about your library: the server and what it is
+  doing, every torrent that needs you with why and its fix, qBittorrent's log (warnings and
+  worse; `--level`, `--lines`, `--since`, `--torrent`), and the move running and the last ones
+  that landed, with what a move back would do. A few lines in the window's words, or one JSON
+  object with `--json`; `--server NAME` asks about another server where that can be answered.
+  They only read, never start omaseed, and keep logins, API keys and passkeys out. Exit codes:
+  0 answered, 2 usage, 3 omaseed isn't running, 4 that server can't answer now. `omaseed help`
+  and `omaseed help <word>` describe them. (#163)
+- **A guide for coding agents.** `omaseed --skill` prints it: the words, their JSON and the exit
+  codes. Every start writes it to `~/.config/omaseed/AGENTS.md`, with a `CLAUDE.md` pointing
+  at it; a hand-edited `AGENTS.md` (one without omaseed's first line) is left alone. (#163)
+
 ## v0.13.1 — 2026-11-20
 
 ### Fixed

@@ -2773,6 +2773,48 @@ widget's D-Bus methods.
 - **V20 a.** Reads first, released alone (a minor release, C33); the gate and `do` after, as
   patch releases. The shared words come first, whichever board builds first.
 
+**Built for v0.14.0 (#163, the reads).** V1–V13 and V19's library part; the gate, `do` and the
+ask follow as v0.14.x. What the code rests on, and what the board left to the build:
+
+- **Reserved words (V2).** Only the first argument is a word, and only `help`, `status`,
+  `errors`, `log`, `moves`; `./status`, a path, a magnet or `--hidden status` reach Qt's parser
+  as before. `do`, `check` and `skin` are reserved: usage (exit 2), "isn't in this omaseed yet",
+  until #223, #224 and the actions patch give each a handler in `AgentWords`.
+- **Who made a failure (V4).** One made by the app (not-current, unknown-server, no-log,
+  unreachable, unknown-torrent, ambiguous, first-sync) carries `omaseed`, its version; one made
+  by the CLI (usage, not-running, too-old, no-bus, no-reply) has no `omaseed` key: no omaseed
+  answered it. `no-reply` (exit 3) is the 30 s timeout. Piped, a failure on stderr is one line.
+- **Reaching the app (V5).** `DBUS_SESSION_BUS_ADDRESS`, else `$XDG_RUNTIME_DIR/bus` when that
+  socket exists, else `no-bus`; a private name `omaseed-word-<pid>`. An unknown interface,
+  method or object is `too-old`, whose sentence names the running version from the status
+  file's `app.version` alone (the widget's published contract, `plugin/STATUS.md`); nothing
+  else of omaseed's files is read.
+- **status (V8).** `server.connection` ("connected", "firewalled", "disconnected") is added
+  within v1. `moves.running` counts only an active job (MoveController keeps an idle one between
+  moves), and `queued` only while one runs. Speeds read as the window's (`4.21 MB/s`).
+- **log (V10).** One read of the whole log, problems-only for `--level warning|critical` (the
+  default): then `fromStart` is `null`, as whether qBittorrent still has its first line is
+  unknown, and the text says only when the oldest kept line is from. `fromStart` is true or
+  false for `--level info|normal`. `--since` returns lines from that id on; `next` is the newest
+  id + 1 (or `since` on an empty log); `restarted` is true when `since` is past the newest + 1,
+  and the lines then come from the first. Checks run in order: usage, `--server`, no-log,
+  first-sync or unreachable, `--torrent`, the read. A `--torrent` prefix under 8 characters, or
+  matching 2 or more, is ambiguous; none matching is unknown-torrent.
+- **moves (V11).** A running move's id is `j-` and its start's unix seconds in base 36 (a
+  journal has no id); it carries the band's `headline` and `line`. A landed move's `back` gives
+  `goBack`, `movedAgain`, `movedOutside`, `gone` and `movedAgainBy` (the later moves' ids and
+  finish times); `kept` is how many records the history holds. Another server's moves come from
+  what omaseed keeps for it, `back: null`, its running move without band words, nothing saved.
+- **Privacy (V7).** Every free text (sentences, headlines, problem lines, log messages, band
+  lines) goes through `AnnounceMask::maskText`; addresses are host:port; nothing reads a
+  username, a URL's credentials, the secret store or cookies.
+- **The guide (V19).** The library part (the board's mock without Acting), then each exit code,
+  the failure object, what each word's answer holds (`fromStart`'s three values, `restarted`,
+  which words reach another server) and "this omaseed runs no fix for you: tell the person
+  fix.words". `AGENTS.md` is written on a primary start only (not a demo, not a launch that
+  hands over), when it differs; one without omaseed's first line is left alone and logged.
+  `CLAUDE.md` (`@AGENTS.md`) is written only when missing.
+
 ## C46 — No station display (board 60, ruled 2026-11-13)
 
 Board [60](60-the-station-or-not.html), #199, G1 a: **out**. Board 46's station (a numbered plate

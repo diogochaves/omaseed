@@ -173,6 +173,16 @@ Three static libraries and the executable. Each layer only depends on the ones a
   and the widget's ⋯ both show, built once and answered by App
   ([DECISIONS.md](DECISIONS.md) C13). The file's format is in
   [`plugin/STATUS.md`](../plugin/STATUS.md).
+- An agent's way in ([DECISIONS.md](DECISIONS.md) C45, board 62): `omaseed status|errors|log|moves`
+  run before Qt's parser (`src/ui/Words`, on a QCoreApplication: no display). `core/AgentWords`
+  holds the word table (with `do`, `check` and `skin` reserved), the argument parser, the help
+  and word pages and the exit map; `AgentClient` calls the running omaseed on the session bus;
+  `AgentBus` exports `io.github.diogochaves.omaseed.Agent` (`Status`, `Errors`, `Log`, `Moves`:
+  a JSON string in, one out) beside `Status`, answered by `app/AgentService`, which builds plain
+  inputs from App's models for `core/AgentAnswers` (pure: the JSON). `core/AgentText` turns an
+  answer into the lines printed without `--json`. `AgentGuide` is the guide `--skill` prints
+  and every start writes to `~/.config/omaseed/AGENTS.md`; its text is the resource
+  `src/integration/resources/agents/library.md`.
 
 **`omaseed-app`** (`src/ui/app/`): `App`, the one object QML talks to. It owns the servers, the
 engine client, the sync engine and the models, and turns key presses and clicks into engine
