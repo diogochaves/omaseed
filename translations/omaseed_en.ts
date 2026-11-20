@@ -291,6 +291,81 @@
     </message>
 </context>
 <context>
+    <name>FilesPaneHead</name>
+    <message numerus="yes">
+        <location filename="../src/ui/qml/Views/FilesPaneHead.qml" line="+59"/>
+        <source>%n videos</source>
+        <translation>
+            <numerusform>%n video</numerusform>
+            <numerusform>%n videos</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <location line="+2"/>
+        <source>%n audio files</source>
+        <translation>
+            <numerusform>%n audio file</numerusform>
+            <numerusform>%n audio files</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <location line="+2"/>
+        <source>%n subtitles</source>
+        <translation>
+            <numerusform>%n subtitle</numerusform>
+            <numerusform>%n subtitles</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <location line="+2"/>
+        <source>%n images</source>
+        <translation>
+            <numerusform>%n image</numerusform>
+            <numerusform>%n images</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <location line="+2"/>
+        <source>%n books</source>
+        <translation>
+            <numerusform>%n book</numerusform>
+            <numerusform>%n books</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <location line="+2"/>
+        <source>%n archives</source>
+        <translation>
+            <numerusform>%n archive</numerusform>
+            <numerusform>%n archives</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <location line="+2"/>
+        <source>%n disc images</source>
+        <translation>
+            <numerusform>%n disc image</numerusform>
+            <numerusform>%n disc images</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <location line="+2"/>
+        <source>%n extras</source>
+        <translation>
+            <numerusform>%n extra</numerusform>
+            <numerusform>%n extras</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <location line="+2"/>
+        <source>%n other files</source>
+        <translation>
+            <numerusform>%n other file</numerusform>
+            <numerusform>%n other files</numerusform>
+        </translation>
+    </message>
+</context>
+<context>
     <name>FreeSpaceSheet</name>
     <message numerus="yes">
         <location filename="../src/ui/qml/Views/FreeSpaceSheet.qml" line="+258"/>
@@ -304,7 +379,7 @@
 <context>
     <name>Keymap</name>
     <message numerus="yes">
-        <location filename="../src/ui/qml/Keymap.qml" line="+2621"/>
+        <location filename="../src/ui/qml/Keymap.qml" line="+2693"/>
         <location line="+6"/>
         <source>%n selected</source>
         <translation>
@@ -487,7 +562,7 @@
 <context>
     <name>omaseed::app::App</name>
     <message numerus="yes">
-        <location filename="../src/ui/app/App.cpp" line="+3554"/>
+        <location filename="../src/ui/app/App.cpp" line="+3573"/>
         <location line="+32"/>
         <source>%n torrents</source>
         <translation>

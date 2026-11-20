@@ -73,6 +73,8 @@ qt_add_qml_module(omaseed-views
         EngineBackupPane.qml
         EmptyState.qml
         EverythingPalette.qml
+        FilesPaneHead.qml
+        FilesToolbar.qml
         FilteredEmpty.qml
         FirstRunPage.qml
         GlobalLimitsSheet.qml
