@@ -1,11 +1,14 @@
 #include "core/AgentText.hpp"
 
 #include "core/Format.hpp"
+#include "core/ServerLog.hpp"
 #include "core/TorrentStory.hpp"
 
 #include <QJsonArray>
 #include <QJsonValue>
 #include <QStringList>
+
+#include <algorithm>
 
 namespace omaseed::core::AgentText {
 
@@ -241,11 +244,94 @@ QString status(const QJsonObject &answer, const TextStyle &style)
     return out;
 }
 
+QString errors(const QJsonObject &answer, const TextStyle &style)
+{
+    const QJsonObject server = answer.value(QLatin1String("server")).toObject();
+    const QString name = server.value(QLatin1String("name")).toString();
+    const QJsonObject problem = server.value(QLatin1String("problem")).toObject();
+    const QJsonArray torrents = answer.value(QLatin1String("torrents")).toArray();
+
+    QStringList head{
+        paint(name.isEmpty() ? QStringLiteral("no server") : name, Colour::Bold, style)};
+    // The server's own problem comes first (C45 V9); what is held of its torrents follows.
+    if (!problem.isEmpty())
+        head << paint(QStringLiteral("unreachable"), Colour::Red, style);
+    if (!torrents.isEmpty())
+        head << paint(
+            count(torrents.size(), QStringLiteral("needs you"), QStringLiteral("need you")),
+            Colour::Red,
+            style);
+    else if (problem.isEmpty())
+        head << paint(QStringLiteral("nothing needs you."), Colour::Green, style);
+    QString out = head.join(QStringLiteral(" · ")) + QLatin1Char('\n');
+    if (!problem.isEmpty()) {
+        const QString line = problem.value(QLatin1String("line")).toString();
+        if (!line.isEmpty())
+            out += wrap(line, style.width, QStringLiteral("  "), QStringLiteral("  "));
+        const int retryIn = problem.value(QLatin1String("retryIn")).toInt();
+        if (retryIn > 0)
+            out += QStringLiteral("  omaseed tries again in %1 s.\n").arg(retryIn);
+    }
+
+    // The facts line up one column past the longest name, as the board's mock.
+    qsizetype column = 0;
+    for (const QJsonValue &value : torrents)
+        column = std::max(column, value.toObject().value(QLatin1String("name")).toString().size());
+    column += 2;
+
+    for (const QJsonValue &value : torrents) {
+        const QJsonObject torrent = value.toObject();
+        const QString torrentName = torrent.value(QLatin1String("name")).toString();
+        const QString kind = torrent.value(QLatin1String("kind")).toString();
+        // C2 D1: a failure is yellow, everything else that needs you red.
+        const Colour colour = kind == QLatin1String("failure") ? Colour::Yellow : Colour::Red;
+        out += QLatin1Char('\n') + paint(torrentName, Colour::Bold, style) +
+               QString(column - torrentName.size(), QLatin1Char(' ')) +
+               paint(torrent.value(QLatin1String("fact")).toString(), colour, style) +
+               QLatin1Char('\n');
+        const QString sentence = torrent.value(QLatin1String("sentence")).toString();
+        if (!sentence.isEmpty())
+            out += wrap(sentence, style.width, QStringLiteral("  "), QStringLiteral("  "));
+        QStringList meta;
+        const QString since = when(torrent.value(QLatin1String("since")), style);
+        if (!since.isEmpty())
+            meta << QStringLiteral("since ") + since;
+        const QString fix =
+            torrent.value(QLatin1String("fix")).toObject().value(QLatin1String("words")).toString();
+        if (!fix.isEmpty())
+            meta << QStringLiteral("fix: ") + fix;
+        if (!meta.isEmpty())
+            out += QStringLiteral("  ") + meta.join(QStringLiteral(" · ")) + QLatin1Char('\n');
+        for (const QJsonValue &logValue : torrent.value(QLatin1String("log")).toArray()) {
+            const QJsonObject line = logValue.toObject();
+            const QDateTime at =
+                QDateTime::fromString(line.value(QLatin1String("at")).toString(), Qt::ISODate);
+            const QString first =
+                QStringLiteral("  log %1  ")
+                    .arg(ServerLog::timeText(at.toSecsSinceEpoch(), nowOf(style)));
+            out += wrap(line.value(QLatin1String("message")).toString(),
+                        style.width,
+                        first,
+                        QString(first.size(), QLatin1Char(' ')));
+        }
+    }
+
+    const qint64 dismissed = answer.value(QLatin1String("dismissed")).toInteger();
+    if (dismissed > 0)
+        out += QLatin1Char('\n') +
+               (dismissed == 1
+                    ? QStringLiteral("1 dismissed in the window is left out.\n")
+                    : QStringLiteral("%1 dismissed in the window are left out.\n").arg(dismissed));
+    return out;
+}
+
 QString lines(const QJsonObject &answer, const TextStyle &style)
 {
     const QString command = answer.value(QLatin1String("command")).toString();
     if (command == QLatin1String("status"))
         return status(answer, style);
+    if (command == QLatin1String("errors"))
+        return errors(answer, style);
     return QString();
 }
 

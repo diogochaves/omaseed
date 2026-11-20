@@ -30,6 +30,9 @@ QString lines(const QJsonObject &answer, const TextStyle &style);
 /// status's lines (C45 V8, docs/62 §4's mock).
 QString status(const QJsonObject &answer, const TextStyle &style);
 
+/// errors' lines (C45 V9, docs/62 V9's mock): the head, each torrent's block, the dismissed.
+QString errors(const QJsonObject &answer, const TextStyle &style);
+
 /// A failure's words for stderr, wrapped at the width.
 QString failure(const QString &message, const TextStyle &style);
 
