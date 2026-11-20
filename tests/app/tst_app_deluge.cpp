@@ -28,6 +28,7 @@
 #include "core/engines/qbt/ServerPreferences.hpp"
 #include "ui/app/App.hpp"
 #include "ui/app/MoveController.hpp"
+#include "ui/app/StatusService.hpp"
 
 #include <QCryptographicHash>
 #include <QElapsedTimer>
@@ -237,6 +238,7 @@ private Q_SLOTS:
     void aTorrentKeepsARatioOfItsOwn();
     void anAddTakesDelugesOptions();
     void anAddEndsInSaveToWithMoveCompletedOn();
+    void theWidgetsAddEndsInItsLabelsFolderWithMoveCompletedOn();
     void aMagnetsFilesComeFromThePrefetch();
     void aMoveShowsDelugesOwnPercent();
     void aMoveDelugeNeverMadeHasFailed();
@@ -859,6 +861,39 @@ void TestAppDeluge::anAddEndsInSaveToWithMoveCompletedOn()
     QVERIFY(room.value(QStringLiteral("switchable")).toBool());
     QCOMPARE(room.value(QStringLiteral("tempPath")).toString(), downloads);
     QCOMPARE(room.value(QStringLiteral("savePath")).toString(), QStringLiteral("/srv/deluge/done"));
+    app.engine()->stop();
+}
+
+// #278, DECISIONS C47 I9: the bar widget's add meets move_completed as the sheet's does: with a
+// label that has a folder, it downloads to download_location and ends in the label's folder.
+void TestAppDeluge::theWidgetsAddEndsInItsLabelsFolderWithMoveCompletedOn()
+{
+    Daemon daemon;
+    daemon.config = daemon.recorded.answer(QStringLiteral("core.get_config"), {}).toObject();
+    daemon.config.insert(QStringLiteral("move_completed"), true);
+    daemon.config.insert(QStringLiteral("move_completed_path"), QStringLiteral("/srv/deluge/done"));
+    const QString downloads = daemon.config.value(QStringLiteral("download_location")).toString();
+    App app;
+    QVERIFY(startOn(app, daemon));
+    QTRY_VERIFY_WITH_TIMEOUT(app.serverPrefs()->value(QStringLiteral("move_completed")).toBool(),
+                             3000);
+    QTRY_COMPARE_WITH_TIMEOUT(
+        app.categories()->savePathOf(QStringLiteral("fixtures")), kLabelFolder, 3000);
+    omaseed::app::StatusService service(&app);
+    QString answer;
+    // A hash the daemon doesn't have: the widget says a duplicate without sending it.
+    service.addSources({QStringLiteral("magnet:?xt=urn:btih:%1&dn=new").arg(QString(40, u'b'))},
+                       QStringLiteral("fixtures"),
+                       false,
+                       [&answer](const QString &json) { answer = json; });
+    QTRY_VERIFY_WITH_TIMEOUT(!answer.isEmpty(), 3000);
+    QVERIFY2(daemon.lastOf(QStringLiteral("core.add_torrent_magnet")).has_value(),
+             qPrintable(answer));
+    const QJsonObject sent =
+        daemon.lastOf(QStringLiteral("core.add_torrent_magnet"))->params.at(1).toObject();
+    QCOMPARE(sent.value(QStringLiteral("download_location")).toString(), downloads);
+    QCOMPARE(sent.value(QStringLiteral("move_completed")), QJsonValue(true));
+    QCOMPARE(sent.value(QStringLiteral("move_completed_path")).toString(), kLabelFolder);
     app.engine()->stop();
 }
 

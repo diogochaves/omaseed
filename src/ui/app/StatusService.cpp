@@ -260,17 +260,15 @@ void StatusService::addSources(const QStringList &sources,
 
     parseInBackground(sources, [this, category, stopped, reply](const QList<Source> &parsed) {
         // What the add sheet sends by default: the category, its save path, and automatic
-        // management, so the category decides where the files go.
-        AddOptions options;
+        // management, so the category decides where the files go. Built as the sheet's are, so
+        // the server's temp folder is handled the same (DECISIONS C47 I9, #278).
+        QVariantMap request{{QStringLiteral("autoTMM"), true},
+                            {QStringLiteral("stopped"), stopped}};
         if (!category.isEmpty()) {
-            options.category = category;
-            const QString savePath = m_app->categories()->savePathOf(category);
-            if (!savePath.isEmpty())
-                options.savePath = savePath;
+            request.insert(QStringLiteral("category"), category);
+            request.insert(QStringLiteral("savePath"), m_app->categories()->savePathOf(category));
         }
-        options.autoManagement = true;
-        if (stopped)
-            options.stopped = true;
+        const AddOptions options = m_app->addOptionsFrom(request);
 
         struct Run
         {

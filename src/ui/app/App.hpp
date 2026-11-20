@@ -1377,6 +1377,10 @@ public:
                                     bool autoTMM,
                                     bool useTemp) const;
 
+    /// Builds the client's options from the sheet's payload; the bar widget's add builds its
+    /// own through it too, so both meet the server's temp folder the same way (#278).
+    omaseed::core::AddOptions addOptionsFrom(const QVariantMap &request) const;
+
     /// docs/DECISIONS.md C35: the one entry for an add from outside the window (a hand-off,
     /// this process's own URIs, the shared menu's add, the Status bus's OpenAddSheet). Asks
     /// AddRoute where it opens: `main` emits `addRequested` (no URIs) or, through `openUris`,
@@ -1548,8 +1552,6 @@ private:
     QString m_lookupToken;
     double m_lookupTestNow = -1;
 
-    /// Builds the client's options from the sheet's payload.
-    omaseed::core::AddOptions addOptionsFrom(const QVariantMap &request) const;
     /// Waits up to 10 s for `hash` to turn up in the model, then asks for the cursor.
     void watchForAddedHash(const QString &hash);
 
