@@ -32,21 +32,6 @@ const QStringList &reservedWords()
 
 /// The options each read takes besides --json and --help (C45 design 3). status takes no
 /// --server: it lists every server already.
-QStringList optionsOf(const QString &word)
-{
-    if (word == QLatin1String("errors"))
-        return {QStringLiteral("server")};
-    if (word == QLatin1String("log"))
-        return {QStringLiteral("level"),
-                QStringLiteral("lines"),
-                QStringLiteral("since"),
-                QStringLiteral("torrent"),
-                QStringLiteral("server")};
-    if (word == QLatin1String("moves"))
-        return {QStringLiteral("landed"), QStringLiteral("server")};
-    return {};
-}
-
 Request usage(const QString &word, bool json, const QString &message)
 {
     Request request;
@@ -128,6 +113,21 @@ QStringList levels()
             QStringLiteral("warning"),
             QStringLiteral("info"),
             QStringLiteral("normal")};
+}
+
+QStringList optionsOf(const QString &word)
+{
+    if (word == QLatin1String("errors"))
+        return {QStringLiteral("server")};
+    if (word == QLatin1String("log"))
+        return {QStringLiteral("level"),
+                QStringLiteral("lines"),
+                QStringLiteral("since"),
+                QStringLiteral("torrent"),
+                QStringLiteral("server")};
+    if (word == QLatin1String("moves"))
+        return {QStringLiteral("landed"), QStringLiteral("server")};
+    return {};
 }
 
 bool isWord(const QString &argument)

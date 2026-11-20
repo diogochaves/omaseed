@@ -61,6 +61,10 @@ struct Request
 /// `arguments` are the command line after the program, the word first.
 Request parse(const QStringList &arguments);
 
+/// The options a word takes, by name without "--" (C45 design 3): server, level, lines,
+/// since, torrent, landed, as each word has them; none for status and help.
+QStringList optionsOf(const QString &word);
+
 /// The Agent interface's method for a read: "Status", "Errors", "Log", "Moves"; "" else.
 QString method(const QString &word);
 

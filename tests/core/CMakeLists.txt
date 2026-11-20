@@ -818,3 +818,16 @@ omaseed_add_test(tst_agentwords
     SOURCES tst_agentwords.cpp
     LIBRARIES omaseed::core
 )
+
+# DECISIONS C45 V4, V6, V7, V8 (#163): the envelope, the options, --server's match, the reads'
+# JSON from plain inputs.
+omaseed_add_test(tst_agentanswers
+    SOURCES tst_agentanswers.cpp
+    LIBRARIES omaseed::core
+)
+
+# DECISIONS C45 V8, V12 (#163): the reads' JSON as a terminal shows it.
+omaseed_add_test(tst_agenttext
+    SOURCES tst_agenttext.cpp
+    LIBRARIES omaseed::core
+)
