@@ -21,6 +21,7 @@ issue, with a README saying what it reproduces, how to run it and what it printe
 | [87-deluge-moves](87-deluge-moves/) | What does Deluge show while it moves a torrent, and how does a move fail, in words and without? | #87 |
 | [88-engines-backup](88-engines-backup/) | What can Transmission's and Deluge's APIs give an engine-neutral export and take at an import? | #88 |
 | [248-story-edits](248-story-edits/) | What does a Deluge label with a folder do to a torrent, and when does qBittorrent's save_path change during a move? | #248 |
+| [271-temp-folder](271-temp-folder/) | Board 64: how does each engine take a per-torrent temp folder at an add, what does a qBittorrent category say about its own, and whose free space does `free_space_on_disk` report? | #271 |
 
 They talk only to throwaway qBittorrents (the playground on `:8081`, or a profile made with
 `scripts/dev/test-server.sh`), the other engines' test servers (`--transmission` on `:8085`,
