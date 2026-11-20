@@ -80,6 +80,9 @@ ColumnLayout {
                 id: keyLabel
 
                 required property int index
+                // The row this label was made for: a stale delegate, while the rows change,
+                // never reads past the new list's end.
+                required property var modelData
 
                 Layout.column: 0
                 Layout.row: keyLabel.index
@@ -87,7 +90,7 @@ ColumnLayout {
                 dim: true
                 objectName: "addAboutKey"
                 size: "caption"
-                text: root.rows[keyLabel.index][0]
+                text: keyLabel.modelData[0]
             }
         }
 
@@ -98,16 +101,17 @@ ColumnLayout {
                 id: valueLabel
 
                 required property int index
+                required property var modelData
 
-                Accessible.name: root.rows[valueLabel.index][0] + ": " + valueLabel.text
+                Accessible.name: valueLabel.modelData[0] + ": " + valueLabel.text
                 Accessible.role: Accessible.StaticText
                 Layout.column: 1
                 Layout.fillWidth: true
                 Layout.row: valueLabel.index
-                dim: root.rows[valueLabel.index][2]
+                dim: valueLabel.modelData[2]
                 objectName: "addAboutValue"
                 size: "caption"
-                text: root.rows[valueLabel.index][1]
+                text: valueLabel.modelData[1]
                 wrapMode: Text.WrapAnywhere
             }
         }
