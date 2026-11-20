@@ -165,8 +165,6 @@ QString checkLines(const QJsonObject &answer, const QString &home)
     head << (drawn ? QStringLiteral("drawn")
                    : QStringLiteral("drawn as Omarchy's: %1")
                          .arg(answer.value(QLatin1String("why")).toString()));
-    head << QStringLiteral("%1 (%2)").arg(answer.value(QLatin1String("theme")).toString(),
-                                          answer.value(QLatin1String("mode")).toString());
     head << QStringLiteral("base size %1").arg(answer.value(QLatin1String("baseSize")).toInt());
     QString out = head.join(QStringLiteral(" · ")) + QLatin1Char('\n');
     for (const QJsonValue &value : answer.value(QLatin1String("dropped")).toArray()) {
@@ -184,17 +182,35 @@ QString checkLines(const QJsonObject &answer, const QString &home)
         fonts << font.toString();
     if (!fonts.isEmpty())
         out += QStringLiteral("  not installed: %1\n").arg(fonts.join(QStringLiteral(", ")));
-    for (const QJsonValue &value : answer.value(QLatin1String("lifted")).toArray()) {
-        const QJsonObject lift = value.toObject();
-        out += QStringLiteral("  lifted %1 on %2 from %3 to %4: that ground is louder than "
-                              "Omarchy's\n")
-                   .arg(lift.value(QLatin1String("role")).toString(),
-                        lift.value(QLatin1String("ground")).toString(),
-                        QString::number(lift.value(QLatin1String("from")).toDouble(), 'f', 1),
-                        QString::number(lift.value(QLatin1String("to")).toDouble(), 'f', 1));
+    // C37 U5 amended: one line per picture, its lightness and theme, then what the floor
+    // lifted under that theme, named (a lift belongs to a theme: #285). Drops don't: the
+    // reader drops a token from the file alone, before any theme.
+    for (const QJsonValue &entry : answer.value(QLatin1String("pictures")).toArray()) {
+        const QJsonObject picture = entry.toObject();
+        out += QStringLiteral("  %1 · %2 · %3\n")
+                   .arg(picture.value(QLatin1String("mode")).toString(),
+                        picture.value(QLatin1String("theme")).toString(),
+                        shortPath(picture.value(QLatin1String("picture")).toString(), home));
+        for (const QJsonValue &value : picture.value(QLatin1String("lifted")).toArray()) {
+            const QJsonObject lift = value.toObject();
+            out += QStringLiteral("    lifted %1 on %2 from %3 to %4 under %5: that ground is "
+                                  "louder than Omarchy's\n")
+                       .arg(lift.value(QLatin1String("role")).toString(),
+                            lift.value(QLatin1String("ground")).toString(),
+                            QString::number(lift.value(QLatin1String("from")).toDouble(), 'f', 1),
+                            QString::number(lift.value(QLatin1String("to")).toDouble(), 'f', 1),
+                            picture.value(QLatin1String("theme")).toString());
+        }
     }
-    out += QStringLiteral("  picture %1\n")
-               .arg(shortPath(answer.value(QLatin1String("picture")).toString(), home));
+    const QJsonObject unchecked = answer.value(QLatin1String("unchecked")).toObject();
+    if (!unchecked.isEmpty()) {
+        QStringList themes;
+        for (const QJsonValue &theme : unchecked.value(QLatin1String("themes")).toArray())
+            themes << theme.toString();
+        out += QStringLiteral("  %1 · not drawn: no %1 theme installed (%2)\n")
+                   .arg(unchecked.value(QLatin1String("mode")).toString(),
+                        themes.join(QStringLiteral(", ")));
+    }
     // #226: omabox checks a skin in every theme; said only where it isn't installed.
     if (!answer.value(QLatin1String("omabox")).toBool())
         out += QStringLiteral("omabox would check this skin in every theme, in a desktop nobody "
@@ -211,12 +227,19 @@ QByteArray check(const CheckFacts &facts, const QDateTime &at, const QString &om
         dropped.append(QJsonObject{{QStringLiteral("token"), drop.token},
                                    {QStringLiteral("value"), drop.value},
                                    {QStringLiteral("why"), drop.why}});
-    QJsonArray lifted;
-    for (const CheckLift &lift : facts.lifted)
-        lifted.append(QJsonObject{{QStringLiteral("role"), lift.role},
-                                  {QStringLiteral("ground"), lift.ground},
-                                  {QStringLiteral("from"), lift.from},
-                                  {QStringLiteral("to"), lift.to}});
+    QJsonArray pictures;
+    for (const CheckPicture &picture : facts.pictures) {
+        QJsonArray lifted;
+        for (const CheckLift &lift : picture.lifted)
+            lifted.append(QJsonObject{{QStringLiteral("role"), lift.role},
+                                      {QStringLiteral("ground"), lift.ground},
+                                      {QStringLiteral("from"), lift.from},
+                                      {QStringLiteral("to"), lift.to}});
+        pictures.append(QJsonObject{{QStringLiteral("mode"), picture.mode},
+                                    {QStringLiteral("theme"), picture.theme},
+                                    {QStringLiteral("picture"), picture.path},
+                                    {QStringLiteral("lifted"), lifted}});
+    }
     Fields fields = core::AgentAnswers::envelope(QStringLiteral("check"), at, omaseed);
     fields << std::pair{QStringLiteral("skin"), QJsonValue(facts.name)}
            << std::pair{QStringLiteral("version"), QJsonValue(facts.skin.version)}
@@ -227,12 +250,15 @@ QByteArray check(const CheckFacts &facts, const QDateTime &at, const QString &om
     fields << std::pair{QStringLiteral("dropped"), QJsonValue(dropped)}
            << std::pair{QStringLiteral("missingFonts"),
                         QJsonValue(QJsonArray::fromStringList(facts.missingFonts))}
-           << std::pair{QStringLiteral("lifted"), QJsonValue(lifted)}
-           << std::pair{QStringLiteral("theme"), QJsonValue(facts.theme)}
-           << std::pair{QStringLiteral("mode"), QJsonValue(facts.mode)}
            << std::pair{QStringLiteral("baseSize"), QJsonValue(facts.baseSize)}
-           << std::pair{QStringLiteral("picture"), QJsonValue(facts.picture)}
-           << std::pair{QStringLiteral("omabox"), QJsonValue(facts.omabox)};
+           << std::pair{QStringLiteral("pictures"), QJsonValue(pictures)};
+    if (!facts.unchecked.isEmpty())
+        fields << std::pair{
+            QStringLiteral("unchecked"),
+            QJsonValue(QJsonObject{
+                {QStringLiteral("mode"), facts.unchecked},
+                {QStringLiteral("themes"), QJsonArray::fromStringList(facts.uncheckedThemes)}})};
+    fields << std::pair{QStringLiteral("omabox"), QJsonValue(facts.omabox)};
     return AgentWords::orderedJson(fields);
 }
 

@@ -306,8 +306,8 @@ QString helpPage(const QString &qtHelp)
          << QString() << QStringLiteral("Your skins, in ~/.config/omaseed/skins/:")
          << QStringLiteral("  skin list    every skin, where it lives, whether it reads")
          << QStringLiteral("  skin clone   start one from a copy: omaseed skin clone console warm")
-         << QStringLiteral("  check        what a skin reads and drops, and a picture, with no "
-                           "display")
+         << QStringLiteral("  check        what a skin reads and drops, light and dark pictures, "
+                           "no display")
          << QStringLiteral("  skin use     draw it in the open window, and keep it") << QString()
          << QStringLiteral("Every word takes --json. omaseed help <word> says more.")
          << QStringLiteral("Coding agents: omaseed --skill prints your guide.") << QString();
@@ -392,11 +392,13 @@ QString wordPage(const QString &word)
                    "Usage: omaseed check <skin> [--theme NAME] [--json]\n"
                    "What a skin reads and what it drops, and why; the fonts it lacks; where "
                    "text\n"
-                   "had to be lifted to stay readable; and a picture of it under the person's "
-                   "theme,\n"
+                   "had to be lifted to stay readable; and a light and a dark picture of it, "
+                   "the\n"
+                   "person's theme for its own lightness and a stock Omarchy theme for the "
+                   "other,\n"
                    "in ~/.cache/omaseed/check/. No display, no running omaseed: it draws "
                    "offscreen.\n"
-                   "  --theme NAME    an installed Omarchy theme instead of the current one\n") +
+                   "  --theme NAME    one picture, under that installed Omarchy theme\n") +
                json +
                QStringLiteral("Exit: 0 drawn · 1 drawn whole as Omarchy's (it doesn't read) · "
                               "2 usage\n");

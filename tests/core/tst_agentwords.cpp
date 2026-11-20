@@ -237,8 +237,8 @@ void TestAgentWords::helpPageHasTheSkinsBlock()
                  QStringLiteral("  skin list    every skin, where it lives, whether it reads"),
                  QStringLiteral("  skin clone   start one from a copy: omaseed skin clone console "
                                 "warm"),
-                 QStringLiteral("  check        what a skin reads and drops, and a picture, with "
-                                "no display"),
+                 QStringLiteral("  check        what a skin reads and drops, light and dark "
+                                "pictures, no display"),
                  QStringLiteral("  skin use     draw it in the open window, and keep it")}));
     QCOMPARE(lines.at(skins + 5), QString());
 }

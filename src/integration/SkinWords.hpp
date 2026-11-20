@@ -84,24 +84,34 @@ struct CheckLift
     double to = 0;
 };
 
+/// One picture `check` drew: the lightness it stands for, the theme it was drawn under, its
+/// file, and what C30's floor lifted there beyond Omarchy's skin.
+struct CheckPicture
+{
+    QString mode;
+    QString theme;
+    QString path;
+    QList<CheckLift> lifted;
+};
+
 /// What `check <skin>` found: the skin as read (Omarchy's, with its reason, when it doesn't
-/// read), under which theme, and where its picture is.
+/// read), and its pictures: a light and a dark one by default, the one theme's with --theme
+/// (C37 U5, amended 2026-11-20). `unchecked` is the lightness no installed theme stood for.
 struct CheckFacts
 {
     QString name;
     Skin skin;
     QStringList missingFonts;
-    QList<CheckLift> lifted;
-    QString theme;
-    QString mode;
     int baseSize = 0;
-    QString picture;
+    QList<CheckPicture> pictures;
+    QString unchecked;
+    QStringList uncheckedThemes;
     bool omabox = false;
 };
 
-/// `check <skin>`'s answer (docs/55 §6): skin, version, drawn, why (only when not drawn),
-/// dropped [{token, value, why}], missingFonts, lifted, theme, mode, baseSize, picture,
-/// omabox.
+/// `check <skin>`'s answer (docs/55 §6, C37 U5 amended): skin, version, drawn, why (only when
+/// not drawn), dropped [{token, value, why}], missingFonts, baseSize, pictures [{mode, theme,
+/// picture, lifted}], unchecked (only when a lightness had no theme), omabox.
 QByteArray check(const CheckFacts &facts, const QDateTime &at, const QString &omaseed);
 
 /// The lines of a skin answer (`command` "skin list", "skin clone", "skin use", "check"), "" for

@@ -1,9 +1,11 @@
 // DECISIONS C37 U5 and #226's line: `omaseed check <skin>`, the real binary. Its homes are
-// its own (a fixture current theme, a fixture light theme installed, the skins invented:
-// warm, warm.v2), with no display and no bus. The picture is the only file a check writes,
-// and it shows the skin as it was saved last (herdr's lessons: a check with side effects, a
-// shot of a stale frame).
+// its own (a fixture current theme, dark; Omarchy's stock light theme and a fixture light
+// theme installed; the skins invented: warm, warm.v2), with no display and no bus. By default
+// a light and a dark picture (C37 U5, amended 2026-11-20), --theme one. The pictures are the
+// only files a check writes, and they show the skin as it was saved last (herdr's lessons: a check
+// with side effects, a shot of a stale frame).
 
+#include <QColor>
 #include <QCoreApplication>
 #include <QDateTime>
 #include <QDir>
@@ -47,6 +49,8 @@ private Q_SLOTS:
     void aCloneOfOmarchyLiftsNothing();
     void omaboxLineOnlyWithoutOmabox();
     void oddNameWithDots();
+    void aLightPersonsThemeAndTokyoNight();
+    void noLightThemeInstalled();
 
 private:
     QString home(const QString &path = QString()) const;
@@ -58,6 +62,8 @@ private:
     /// `skin clone <from> <name>`, as a person starts one.
     void clone(const QString &from, const QString &name);
     QString picture(const QString &name) const;
+    /// The answer's pictures, by mode ("light", "dark") or theme for --theme.
+    QJsonArray pictures() const;
     /// Every file under the homes: its size and modification time.
     QHash<QString, QString> files() const;
 
@@ -81,7 +87,8 @@ void TestCheck::init()
     const QDir root(home());
     for (const char *dir : {"config", "data", "state", "cache", "runtime"})
         QVERIFY(root.mkpath(QString::fromLatin1(dir)));
-    // The person's current theme, dark, and one light theme installed beside it.
+    // The person's current theme, dark; Omarchy's stock light theme; and one light theme of
+    // the person's installed beside them.
     const QString fixtures = QStringLiteral(OMASEED_THEME_FIXTURES);
     QVERIFY(root.mkpath(QStringLiteral("state/omarchy/current/theme")));
     QVERIFY(QFile::copy(fixtures + QStringLiteral("/tokyo-night/colors.toml"),
@@ -93,6 +100,9 @@ void TestCheck::init()
     QVERIFY(root.mkpath(QStringLiteral("config/omarchy/themes/fixture-light")));
     QVERIFY(QFile::copy(fixtures + QStringLiteral("/catppuccin-latte/colors.toml"),
                         home(QStringLiteral("config/omarchy/themes/fixture-light/colors.toml"))));
+    QVERIFY(root.mkpath(QStringLiteral("omarchy/themes/catppuccin-latte")));
+    QVERIFY(QFile::copy(fixtures + QStringLiteral("/catppuccin-latte/colors.toml"),
+                        home(QStringLiteral("omarchy/themes/catppuccin-latte/colors.toml"))));
 }
 
 void TestCheck::cleanup()
@@ -109,7 +119,7 @@ QProcessEnvironment TestCheck::environment() const
     env.insert(QStringLiteral("XDG_STATE_HOME"), home(QStringLiteral("state")));
     env.insert(QStringLiteral("XDG_CACHE_HOME"), home(QStringLiteral("cache")));
     env.insert(QStringLiteral("XDG_RUNTIME_DIR"), home(QStringLiteral("runtime")));
-    env.insert(QStringLiteral("OMARCHY_PATH"), home(QStringLiteral("no-omarchy")));
+    env.insert(QStringLiteral("OMARCHY_PATH"), home(QStringLiteral("omarchy")));
     for (const char *name : {"QT_QPA_PLATFORM",
                              "WAYLAND_DISPLAY",
                              "WAYLAND_SOCKET",
@@ -180,6 +190,11 @@ QString TestCheck::picture(const QString &name) const
     return home(QStringLiteral("cache/omaseed/check/") + name + QStringLiteral(".png"));
 }
 
+QJsonArray TestCheck::pictures() const
+{
+    return json().value(QLatin1String("pictures")).toArray();
+}
+
 QHash<QString, QString> TestCheck::files() const
 {
     QHash<QString, QString> out;
@@ -207,23 +222,45 @@ void TestCheck::aGoodSkinIs0()
     QCOMPARE(answer.value(QLatin1String("drawn")).toBool(), true);
     QVERIFY(!answer.contains(QLatin1String("why")));
     QCOMPARE(answer.value(QLatin1String("dropped")).toArray().size(), 0);
-    QCOMPARE(answer.value(QLatin1String("theme")).toString(), QStringLiteral("tokyo-night"));
-    QCOMPARE(answer.value(QLatin1String("mode")).toString(), QStringLiteral("dark"));
     QCOMPARE(answer.value(QLatin1String("baseSize")).toInt(), 12);
-    QCOMPARE(answer.value(QLatin1String("picture")).toString(), picture(QStringLiteral("warm")));
     QVERIFY(answer.value(QLatin1String("missingFonts")).isArray());
-    QVERIFY(answer.value(QLatin1String("lifted")).isArray());
     QVERIFY(answer.value(QLatin1String("omabox")).isBool());
-    const QImage image(picture(QStringLiteral("warm")));
-    QVERIFY(!image.isNull());
-    QVERIFY(image.width() >= 1440 && image.height() >= 960);
+    QVERIFY(!answer.contains(QLatin1String("unchecked")));
+    for (const char *gone : {"picture", "theme", "mode", "lifted"})
+        QVERIFY2(!answer.contains(QLatin1String(gone)), gone);
 
-    // The lines: the head, the picture.
+    // A light and a dark picture: Omarchy's stock light theme, the person's dark one.
+    const QJsonArray drawn = answer.value(QLatin1String("pictures")).toArray();
+    QCOMPARE(drawn.size(), 2);
+    const QJsonObject light = drawn.at(0).toObject();
+    const QJsonObject dark = drawn.at(1).toObject();
+    QCOMPARE(light.value(QLatin1String("mode")).toString(), QStringLiteral("light"));
+    QCOMPARE(light.value(QLatin1String("theme")).toString(), QStringLiteral("catppuccin-latte"));
+    QCOMPARE(light.value(QLatin1String("picture")).toString(),
+             picture(QStringLiteral("warm.light")));
+    QCOMPARE(dark.value(QLatin1String("mode")).toString(), QStringLiteral("dark"));
+    QCOMPARE(dark.value(QLatin1String("theme")).toString(), QStringLiteral("tokyo-night"));
+    QCOMPARE(dark.value(QLatin1String("picture")).toString(), picture(QStringLiteral("warm.dark")));
+    QVERIFY(light.value(QLatin1String("lifted")).isArray());
+    QVERIFY(dark.value(QLatin1String("lifted")).isArray());
+    const QImage lightImage(picture(QStringLiteral("warm.light")));
+    const QImage darkImage(picture(QStringLiteral("warm.dark")));
+    QVERIFY(!lightImage.isNull() && !darkImage.isNull());
+    QVERIFY(darkImage.width() >= 1440 && darkImage.height() >= 960);
+    QCOMPARE(lightImage.size(), darkImage.size());
+    QVERIFY(lightImage != darkImage);
+    // The light picture is lighter: its top-left corner is the window's ground.
+    QVERIFY(QColor(lightImage.pixel(4, 4)).lightness() > QColor(darkImage.pixel(4, 4)).lightness());
+
+    // The lines: the head, one line per picture.
     QVERIFY(run({QStringLiteral("check"), QStringLiteral("warm")}));
     QCOMPARE(m_exitCode, 0);
-    QVERIFY2(m_out.startsWith(QStringLiteral("warm · drawn · tokyo-night (dark) · base size 12\n")),
+    QVERIFY2(m_out.startsWith(QStringLiteral("warm · drawn · base size 12\n")), qPrintable(m_out));
+    QVERIFY2(m_out.contains(QStringLiteral(
+                 "  light · catppuccin-latte · ~/cache/omaseed/check/warm.light.png\n")),
              qPrintable(m_out));
-    QVERIFY2(m_out.contains(QStringLiteral("  picture ~/cache/omaseed/check/warm.png\n")),
+    QVERIFY2(m_out.contains(
+                 QStringLiteral("  dark · tokyo-night · ~/cache/omaseed/check/warm.dark.png\n")),
              qPrintable(m_out));
 }
 
@@ -257,8 +294,9 @@ void TestCheck::aBrokenFileIs1WithWhy()
     QCOMPARE(answer.value(QLatin1String("drawn")).toBool(), false);
     QCOMPARE(answer.value(QLatin1String("why")).toString(),
              QStringLiteral("its skin.json doesn't parse"));
-    // Drawn whole as Omarchy's, and its picture says so.
-    QVERIFY(QFileInfo::exists(picture(QStringLiteral("warm"))));
+    // Drawn whole as Omarchy's, and its pictures say so.
+    QVERIFY(QFileInfo::exists(picture(QStringLiteral("warm.light"))));
+    QVERIFY(QFileInfo::exists(picture(QStringLiteral("warm.dark"))));
 
     QVERIFY(run({QStringLiteral("check"), QStringLiteral("warm")}));
     QCOMPARE(m_exitCode, 1);
@@ -306,13 +344,27 @@ void TestCheck::aLightTheme()
                  QStringLiteral("fixture-light"),
                  QStringLiteral("--json")}));
     QCOMPARE(m_exitCode, 0);
-    const QJsonObject answer = json();
-    QCOMPARE(answer.value(QLatin1String("theme")).toString(), QStringLiteral("fixture-light"));
-    QCOMPARE(answer.value(QLatin1String("mode")).toString(), QStringLiteral("light"));
-    QCOMPARE(answer.value(QLatin1String("picture")).toString(),
+    // --theme NAME: that theme's picture alone.
+    const QJsonArray drawn = pictures();
+    QCOMPARE(drawn.size(), 1);
+    const QJsonObject only = drawn.first().toObject();
+    QCOMPARE(only.value(QLatin1String("theme")).toString(), QStringLiteral("fixture-light"));
+    QCOMPARE(only.value(QLatin1String("mode")).toString(), QStringLiteral("light"));
+    QCOMPARE(only.value(QLatin1String("picture")).toString(),
              picture(QStringLiteral("console@fixture-light")));
     QVERIFY(QFileInfo::exists(picture(QStringLiteral("console@fixture-light"))));
-    QVERIFY(!QFileInfo::exists(picture(QStringLiteral("console"))));
+    QVERIFY(!QFileInfo::exists(picture(QStringLiteral("console.light"))));
+    QVERIFY(!QFileInfo::exists(picture(QStringLiteral("console.dark"))));
+
+    QVERIFY(run({QStringLiteral("check"),
+                 QStringLiteral("console"),
+                 QStringLiteral("--theme"),
+                 QStringLiteral("fixture-light")}));
+    QCOMPARE(m_exitCode, 0);
+    QVERIFY2(m_out.contains(QStringLiteral(
+                 "  light · fixture-light · ~/cache/omaseed/check/console@fixture-light.png\n")),
+             qPrintable(m_out));
+    QVERIFY2(!m_out.contains(QStringLiteral("  dark ·")), qPrintable(m_out));
 }
 
 void TestCheck::writesNothingButThePicture()
@@ -332,7 +384,8 @@ void TestCheck::writesNothingButThePicture()
     // The person's base size is read and applied.
     QCOMPARE(json().value(QLatin1String("baseSize")).toInt(), 14);
     QHash<QString, QString> after = files();
-    QVERIFY2(after.remove(picture(QStringLiteral("warm"))) == 1, "the picture is written");
+    QVERIFY2(after.remove(picture(QStringLiteral("warm.light"))) == 1, "the light one is written");
+    QVERIFY2(after.remove(picture(QStringLiteral("warm.dark"))) == 1, "the dark one is written");
     QCOMPARE(after, before);
 }
 
@@ -364,8 +417,8 @@ void TestCheck::twoSkinsTwoPictures()
     QCOMPARE(m_exitCode, 0);
     QVERIFY(run({QStringLiteral("check"), QStringLiteral("console")}));
     QCOMPARE(m_exitCode, 0);
-    const QImage omarchy(picture(QStringLiteral("omarchy")));
-    const QImage console(picture(QStringLiteral("console")));
+    const QImage omarchy(picture(QStringLiteral("omarchy.dark")));
+    const QImage console(picture(QStringLiteral("console.dark")));
     QVERIFY(!omarchy.isNull() && !console.isNull());
     QVERIFY(omarchy != console);
 }
@@ -374,14 +427,14 @@ void TestCheck::savedTwiceShowsTheSecond()
 {
     QVERIFY(run({QStringLiteral("check"), QStringLiteral("omarchy")}));
     QVERIFY(run({QStringLiteral("check"), QStringLiteral("console")}));
-    const QImage omarchy(picture(QStringLiteral("omarchy")));
-    const QImage console(picture(QStringLiteral("console")));
+    const QImage omarchy(picture(QStringLiteral("omarchy.dark")));
+    const QImage console(picture(QStringLiteral("console.dark")));
 
     // warm saved as a copy of Omarchy's, checked; then saved again as a copy of Console's.
     clone(QStringLiteral("omarchy"), QStringLiteral("warm"));
     QVERIFY(run({QStringLiteral("check"), QStringLiteral("warm")}));
     QCOMPARE(m_exitCode, 0);
-    QCOMPARE(QImage(picture(QStringLiteral("warm"))), omarchy);
+    QCOMPARE(QImage(picture(QStringLiteral("warm.dark"))), omarchy);
 
     clone(QStringLiteral("console"), QStringLiteral("console-copy"));
     QFile copy(home(QStringLiteral("config/omaseed/skins/console-copy/skin.json")));
@@ -389,7 +442,7 @@ void TestCheck::savedTwiceShowsTheSecond()
     writeSkin(QStringLiteral("warm"), copy.readAll());
     QVERIFY(run({QStringLiteral("check"), QStringLiteral("warm")}));
     QCOMPARE(m_exitCode, 0);
-    QCOMPARE(QImage(picture(QStringLiteral("warm"))), console);
+    QCOMPARE(QImage(picture(QStringLiteral("warm.dark"))), console);
 }
 
 void TestCheck::aCloneOfOmarchyDrawsAsOmarchy()
@@ -398,7 +451,9 @@ void TestCheck::aCloneOfOmarchyDrawsAsOmarchy()
     QVERIFY(run({QStringLiteral("check"), QStringLiteral("omarchy")}));
     QVERIFY(run({QStringLiteral("check"), QStringLiteral("warm")}));
     QCOMPARE(m_exitCode, 0);
-    QCOMPARE(QImage(picture(QStringLiteral("warm"))), QImage(picture(QStringLiteral("omarchy"))));
+    for (const QString &mode : {QStringLiteral(".light"), QStringLiteral(".dark")})
+        QCOMPARE(QImage(picture(QStringLiteral("warm") + mode)),
+                 QImage(picture(QStringLiteral("omarchy") + mode)));
 }
 
 void TestCheck::aCloneOfConsoleDrawsAsConsole()
@@ -407,7 +462,9 @@ void TestCheck::aCloneOfConsoleDrawsAsConsole()
     QVERIFY(run({QStringLiteral("check"), QStringLiteral("console")}));
     QVERIFY(run({QStringLiteral("check"), QStringLiteral("warm")}));
     QCOMPARE(m_exitCode, 0);
-    QCOMPARE(QImage(picture(QStringLiteral("warm"))), QImage(picture(QStringLiteral("console"))));
+    for (const QString &mode : {QStringLiteral(".light"), QStringLiteral(".dark")})
+        QCOMPARE(QImage(picture(QStringLiteral("warm") + mode)),
+                 QImage(picture(QStringLiteral("console") + mode)));
 }
 
 void TestCheck::aCloneOfOmarchyLiftsNothing()
@@ -420,7 +477,10 @@ void TestCheck::aCloneOfOmarchyLiftsNothing()
             arguments << QStringLiteral("--theme") << theme;
         QVERIFY(run(arguments));
         QCOMPARE(m_exitCode, 0);
-        QCOMPARE(json().value(QLatin1String("lifted")).toArray(), QJsonArray());
+        const QJsonArray drawn = pictures();
+        QCOMPARE(drawn.size(), theme.isEmpty() ? 2 : 1);
+        for (const QJsonValue &one : drawn)
+            QCOMPARE(one.toObject().value(QLatin1String("lifted")).toArray(), QJsonArray());
     }
 }
 
@@ -458,7 +518,63 @@ void TestCheck::oddNameWithDots()
     QVERIFY(run({QStringLiteral("check"), QStringLiteral("warm.v2"), QStringLiteral("--json")}));
     QCOMPARE(m_exitCode, 0);
     QCOMPARE(json().value(QLatin1String("skin")).toString(), QStringLiteral("warm.v2"));
-    QVERIFY(QFileInfo::exists(picture(QStringLiteral("warm.v2"))));
+    QVERIFY(QFileInfo::exists(picture(QStringLiteral("warm.v2.dark"))));
+}
+
+void TestCheck::aLightPersonsThemeAndTokyoNight()
+{
+    // The person's theme is light: it stands for light, and dark is Tokyo Night, omaseed's
+    // bundled one here, where Omarchy's themes have no tokyo-night.
+    const QString fixtures = QStringLiteral(OMASEED_THEME_FIXTURES);
+    const QString current = home(QStringLiteral("state/omarchy/current/theme/colors.toml"));
+    QVERIFY(QFile::remove(current));
+    QVERIFY(QFile::copy(fixtures + QStringLiteral("/flexoki-light/colors.toml"), current));
+    QFile name(home(QStringLiteral("state/omarchy/current/theme.name")));
+    QVERIFY(name.open(QIODevice::WriteOnly | QIODevice::Truncate));
+    name.write("flexoki-light\n");
+    name.close();
+
+    QVERIFY(run({QStringLiteral("check"), QStringLiteral("console"), QStringLiteral("--json")}));
+    QCOMPARE(m_exitCode, 0);
+    const QJsonArray drawn = pictures();
+    QCOMPARE(drawn.size(), 2);
+    QCOMPARE(drawn.at(0).toObject().value(QLatin1String("mode")).toString(),
+             QStringLiteral("light"));
+    QCOMPARE(drawn.at(0).toObject().value(QLatin1String("theme")).toString(),
+             QStringLiteral("flexoki-light"));
+    QCOMPARE(drawn.at(1).toObject().value(QLatin1String("mode")).toString(),
+             QStringLiteral("dark"));
+    QCOMPARE(drawn.at(1).toObject().value(QLatin1String("theme")).toString(),
+             QStringLiteral("tokyo-night"));
+    QVERIFY(QFileInfo::exists(picture(QStringLiteral("console.light"))));
+    QVERIFY(QFileInfo::exists(picture(QStringLiteral("console.dark"))));
+}
+
+void TestCheck::noLightThemeInstalled()
+{
+    // No stock light theme: the dark picture alone, and the answer says light wasn't drawn.
+    QVERIFY(QDir(home(QStringLiteral("omarchy/themes/catppuccin-latte"))).removeRecursively());
+    writeSkin(QStringLiteral("warm"),
+              R"({"version": 1, "grounds": {"hover": {"tint": "foreground", "alpha": 1.4}}})");
+    QVERIFY(run({QStringLiteral("check"), QStringLiteral("warm"), QStringLiteral("--json")}));
+    QCOMPARE(m_exitCode, 0);
+    const QJsonObject answer = json();
+    QCOMPARE(answer.value(QLatin1String("dropped")).toArray().size(), 1);
+    const QJsonArray drawn = answer.value(QLatin1String("pictures")).toArray();
+    QCOMPARE(drawn.size(), 1);
+    QCOMPARE(drawn.first().toObject().value(QLatin1String("mode")).toString(),
+             QStringLiteral("dark"));
+    const QJsonObject unchecked = answer.value(QLatin1String("unchecked")).toObject();
+    QCOMPARE(unchecked.value(QLatin1String("mode")).toString(), QStringLiteral("light"));
+    QCOMPARE(unchecked.value(QLatin1String("themes")).toArray(),
+             QJsonArray({QStringLiteral("catppuccin-latte"), QStringLiteral("flexoki-light")}));
+    QVERIFY(!QFileInfo::exists(picture(QStringLiteral("warm.light"))));
+
+    QVERIFY(run({QStringLiteral("check"), QStringLiteral("warm")}));
+    QCOMPARE(m_exitCode, 0);
+    QVERIFY2(m_out.contains(QStringLiteral("  light · not drawn: no light theme installed "
+                                           "(catppuccin-latte, flexoki-light)\n")),
+             qPrintable(m_out));
 }
 
 QTEST_GUILESS_MAIN(TestCheck)
