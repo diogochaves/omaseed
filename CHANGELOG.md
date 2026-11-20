@@ -23,6 +23,46 @@ before it will tag a release.
   with, not the one it has now. The last-move block says "moved since outside omaseed" when
   a place line came after omaseed's move. omaseed keeps the last ten of each kind per
   torrent, per server, beside the renames. Board 58, DECISIONS C43. (#248)
+- **The add window in two columns.** On a screen that holds them, the add window opens about
+  1120 px wide: the form on the left, as before, and the torrent on the right, its files at
+  full height and **About this torrent** under them (trackers, private, created by and on,
+  comment, pieces, the v1, v2 or hybrid hash; a magnet's link says its trackers and hash
+  while its wait for the list fills the right side). A torrent of one file gets a one-row list
+  with its name, kind and size, renamed there with F2. Where the screen can't hold two
+  columns (under 1200 px), for a batch, and with **Settings › Appearance › Add window: one
+  column**, it is today's sheet, the files under the form. Board 64, DECISIONS C47 I1, I2,
+  I14, I15. (#274)
+- **One file pane for the add and details › Files.** Both lists now have the same head and
+  toolbar: the torrent's kinds as chips (video, audio, subtitles, images, books, archives,
+  disc images, extras, other; "9 videos" with its size), whose word shows only that kind and
+  whose box ticks or skips every file of it; the count, or "showing N of M" with `× show
+  all` while anything narrows the list; then filter (`/`), sort ▾ (name, size, kind; folders
+  first), tree · flat (`T`; flat lists every file once, its folder dim), fold all and hide
+  skipped. A kind column says what each file is. Each window keeps its own tree or flat. In
+  the narrow docked details, fold all and then hide skipped give way (their keys stay).
+  Board 64, DECISIONS C47 I3–I7. (#272, #273)
+- **The add's room with a temp folder.** When the server downloads into a temp folder first
+  (qBittorrent's temp path or a category's own, Transmission's incomplete folder, Deluge's
+  move when done), the free line under Save to becomes two: where it downloads first and
+  where it then moves, each with its own meter, free space and colour, and what downloads in
+  progress still promise there ("1.2 GB of it still coming for 3 downloads"). On one drive
+  the second is a dim rename. On qBittorrent and Deluge a switch sends this torrent straight
+  to Save to instead, offered as a link when the temp drive can't hold it; Transmission's
+  folder is session-wide, so its line has no switch. The server's own setting never changes.
+  Board 64, DECISIONS C47 I8–I12. (#275)
+
+### Changed
+
+- **Folders first.** The add sheet's and details' file lists sort folders before files for
+  every sort key, as a file manager does (torrent order stays as it comes). DECISIONS C47
+  I4. (#272)
+
+### Fixed
+
+- **Deluge: an add lands in Save to.** With the daemon's move when done on, an add
+  downloaded to Save to and was then moved on to the daemon's own folder for finished
+  downloads. It now downloads in Deluge's download folder and moves to Save to when done, or,
+  with the add's switch off, straight to Save to. (#277)
 
 ## v0.12.0 — 2026-11-13
 
