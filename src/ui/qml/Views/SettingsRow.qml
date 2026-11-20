@@ -193,6 +193,9 @@ Rectangle {
             Label {
                 id: warningText
 
+                // A screen reader says the warning too (and omabox tree finds it).
+                Accessible.name: warningText.text
+                Accessible.role: Accessible.StaticText
                 anchors.left: parent.left
                 anchors.leftMargin: Theme.space(8)
                 anchors.right: parent.right
