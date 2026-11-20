@@ -269,7 +269,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline:2px 
   <section id="layout">
     <div class="sec-head"><div class="eyebrow">3 · I1 and I2 · the window</div><h2>Two columns when there is a list to read</h2></div>
     <div class="item"><h3><span class="id">I1</span>The layout <span class="rec-tag">recommended a</span></h3>
-      <p><b>a:</b> <b>two columns when the source has a list of more than one file</b>. The form keeps today's rows and order on the left (about 440 px at base 14). The right side is the file list at the window's full height, and the window grows to about 1120 px. A single file keeps today's one-column sheet: its name already says what it is. A magnet on its way opens in two columns, and the right side holds board 59's checklist (A10) until the list arrives. Then the tree takes its place and nothing on the left moves. <b>b:</b> one column as today, but wider (900 px) with a taller tree. Simpler, but the tree is still under the form and every row you fill pushes it down. <b>c:</b> files as a second step, "next: files". That's two screens for every add, including the ones where you don't care.</p>
+      <p><b>a:</b> <b>two columns when the source has a list of more than one file</b>. The form keeps today's rows and order on the left (about 440 px at base 14). The right side is the file list at the window's full height, and the window grows to about 1120 px. A single file keeps one column, but <b>gets a Files row</b> (new; today and board 59 show none): one line with the file's own name, kind and size, which often differ from the torrent's name, and a rename. It has no tick, because skipping the only file adds nothing, and no toolbar. A magnet on its way opens in two columns, and the right side holds board 59's checklist (A10) until the list arrives. Then the tree takes its place and nothing on the left moves. <b>b:</b> one column as today, but wider (900 px) with a taller tree. Simpler, but the tree is still under the form and every row you fill pushes it down. <b>c:</b> files as a second step, "next: files". That's two screens for every add, including the ones where you don't care.</p>
     </div>
     <div class="item"><h3><span class="id">I2</span>A screen too narrow for it <span class="rec-tag">recommended a</span></h3>
       <p><b>a:</b> when the monitor's work area can't hold the two columns (under about 1200 px of logical width, a portrait screen, or scale 2 on a 1080p screen), the window keeps one column and the file pane goes under the form, <b>with its toolbar</b>. Pick <i>narrow</i> in §2's switches to see it. <b>b:</b> always two columns, with the window scrolling sideways.</p>
@@ -601,6 +601,7 @@ function sheet() {
     ? `<div class="row">${lab(cat)}<div class="chips"><span class="chip on">tv</span><span class="chip">…</span></div></div>`
     : `<div class="two"><div class="row">${lab(cat)}<div class="chips"><span class="chip on">tv</span><span class="chip">…</span></div></div><div class="row">${lab("Tags")}<div class="chips"><span class="chip">…</span></div></div></div>`;
   L += `<div class="row">${lab("Save to")}<div class="fld"><span>/srv/media/tv</span><span class="u">browse</span></div>${room()}</div>`;
+  if (film) L += `<div class="row"><span class="lab">Files${NEW}</span><div class="fhd"><div class="kcs"><span class="kc"><span class="kw">1 video<small>2.31 GB</small></span></span></div><span class="cnt">1 file · 2.31 GB</span></div><div class="ftree"><div class="r"><span class="nm"><span class="t">Harbour.Lights.2024.1080p.mkv</span></span><span class="k">video</span><span class="sz">2.31 GB</span></div></div><span class="ln">The file's own name, kind and size; F2 or a double click renames it. No tick: skipping the only file adds nothing. No toolbar: there is nothing to sort.</span></div>`;
   L += `<div class="rest">layout · limits · options: unchanged</div>`;
   let R = "";
   if (pack) R = filePane(con);
@@ -679,7 +680,8 @@ render();
 /* ---------- the decisions ---------- */
 const DEC = [
   { id: "I1", s: "§3", q: "The layout", opts: [
-    ["a", "Two columns when the source has a list of more than one file: form left (~440 px), files right at full height, window ~1120 px; one file keeps one column; a magnet's wait fills the right side", true],
+    ["a", "Two columns when the source has a list of more than one file: form left (~440 px), files right at full height, window ~1120 px; one file keeps one column with a one-row Files list (its file name, kind, size, rename); a magnet's wait fills the right side", true],
+    ["a2", "As a, but one file keeps today's sheet with no Files row"],
     ["b", "One column, wider (900 px), a taller tree"],
     ["c", "Files as a second step"]] },
   { id: "I2", s: "§3", q: "A screen too narrow for two columns", opts: [
