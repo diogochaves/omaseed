@@ -710,6 +710,10 @@ void TestWords::skinUseOnARunningOmaseed()
     env.insert(QStringLiteral("QT_QPA_PLATFORM"), QStringLiteral("offscreen"));
     env.insert(QStringLiteral("OMASEED_SERVER_URL"),
                QStringLiteral("http://127.0.0.1:%1").arg(server.serverPort()));
+    // The log line this test reads, on stderr wherever it runs: CI's container got none of
+    // the app's output without these (#224's first CI run on the branch).
+    env.insert(QStringLiteral("QT_FORCE_STDERR_LOGGING"), QStringLiteral("1"));
+    env.insert(QStringLiteral("QT_LOGGING_RULES"), QStringLiteral("omaseed.theme.info=true"));
     app.setProcessEnvironment(env);
     app.setProcessChannelMode(QProcess::MergedChannels);
     app.start(QStringLiteral(OMASEED_BINARY), QStringList());
