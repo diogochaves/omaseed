@@ -3,6 +3,7 @@
 // no WAYLAND_DISPLAY and no DISPLAY, and a runtime directory of its own, so no Wayland socket
 // can be found by its default name either. Before #143 each of these ended in SIGABRT.
 
+#include <QFile>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QProcess>
@@ -19,6 +20,7 @@ private slots:
     void help_data();
     void help();
     void version();
+    void skillPrintsWithNoDisplay();
     void openRefusesWithNoDisplay_data();
     void openRefusesWithNoDisplay();
     void themeRoles();
@@ -104,6 +106,7 @@ void TestPrintOnly::help()
     }
     QVERIFY(m_out.contains(QLatin1String("--theme-roles")));
     QVERIFY(m_out.contains(QLatin1String("--quit")));
+    QVERIFY(m_out.contains(QLatin1String("--skill")));
     QVERIFY(m_out.contains(QLatin1String("--open <page>")));
 }
 
@@ -141,6 +144,19 @@ void TestPrintOnly::version()
     QVERIFY2(m_exitStatus == QProcess::NormalExit, qPrintable(m_err));
     QVERIFY2(m_exitCode == 0, qPrintable(m_err));
     QVERIFY2(m_out.startsWith(QLatin1String("omaseed ")), qPrintable(m_out + m_err));
+}
+
+// DECISIONS C45 V19: --skill prints the guide with no display and no bus, writing nothing.
+void TestPrintOnly::skillPrintsWithNoDisplay()
+{
+    QVERIFY(run({QStringLiteral("--skill")}));
+    QVERIFY2(m_exitStatus == QProcess::NormalExit, qPrintable(m_err));
+    QVERIFY2(m_exitCode == 0, qPrintable(m_err));
+    QVERIFY2(m_out.startsWith(QLatin1String("## Your library\n")), qPrintable(m_out + m_err));
+    QVERIFY(m_out.contains(QLatin1String("  omaseed errors --json ")));
+    QVERIFY(m_out.endsWith(QLatin1String("fields are only added within it.\n")));
+    // Printing is not a start: no AGENTS.md appears.
+    QVERIFY(!QFile::exists(m_dir.filePath(QStringLiteral("XDG_CONFIG_HOME/omaseed/AGENTS.md"))));
 }
 
 void TestPrintOnly::themeRoles()

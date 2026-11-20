@@ -3,12 +3,14 @@
 #include "core/FilterCounts.hpp"
 #include "core/GlobalState.hpp"
 #include "core/HomeGuard.hpp"
+#include "core/Paths.hpp"
 #include "core/SyncEngine.hpp"
 #include "core/TorrentModel.hpp"
 #include "core/TrackerModel.hpp"
 #include "core/Version.hpp"
 #include "core/engines/qbt/QbtEngine.hpp"
 #include "integration/AgentBus.hpp"
+#include "integration/AgentGuide.hpp"
 #include "integration/AppIdentity.hpp"
 #include "integration/BarWidget.hpp"
 #include "integration/BarWidgetInstaller.hpp"
@@ -441,6 +443,11 @@ struct CommandLine
         QStringLiteral("With --theme-roles: resolve the grounds in this skin (omarchy, "
                        "console) instead of OMASEED_SKIN's."),
         QStringLiteral("name")};
+    // DECISIONS C45 V19: printed before any GUI exists (runPrintOnly).
+    QCommandLineOption skill{
+        QStringList{QStringLiteral("skill")},
+        QStringLiteral("Print the guide for coding agents (the words, their JSON, your skins) "
+                       "and exit.")};
     // Handled before the application starts (runInstallBarWidget); listed for --help.
     QCommandLineOption installBarWidget{
         QStringList{QStringLiteral("install-bar-widget")},
@@ -467,7 +474,7 @@ struct CommandLine
         parser.addHelpOption();
         parser.addVersionOption();
         parser.addOptions(
-            {demo, rows, headless, hidden, open, themeRoles, skin, installBarWidget, quit});
+            {demo, rows, headless, hidden, open, themeRoles, skin, skill, installBarWidget, quit});
         parser.addPositionalArgument(QStringLiteral("uris"),
                                      QStringLiteral("magnet: links or .torrent files to add."),
                                      QStringLiteral("[magnet: links or .torrent files...]"));
@@ -522,6 +529,7 @@ int runPrintOnly(int argc, char *argv[])
         QStringLiteral("help-all"),
         QStringLiteral("v"),
         QStringLiteral("version"),
+        QStringLiteral("skill"),
     };
     const QStringList given = parser.optionNames();
     const bool prints = std::any_of(
@@ -540,6 +548,12 @@ int runPrintOnly(int argc, char *argv[])
         if (parser.isSet(QStringLiteral("help")) && !parser.isSet(QStringLiteral("version")) &&
             !parser.isSet(QStringLiteral("help-all"))) {
             QTextStream(stdout) << omaseed::core::AgentWords::helpPage(parser.helpText());
+            return 0;
+        }
+        // DECISIONS C45 V19: the guide, with no display; --help and --version win over it.
+        if (parser.isSet(options.skill) && !parser.isSet(QStringLiteral("help")) &&
+            !parser.isSet(QStringLiteral("help-all")) && !parser.isSet(QStringLiteral("version"))) {
+            QTextStream(stdout) << omaseed::integration::AgentGuide::text();
             return 0;
         }
         // --help-all and --version print and end the process here, as they always have.
@@ -706,6 +720,8 @@ int main(int argc, char *argv[])
         singleInstance->setLaunchAction(openPage);
         if (!singleInstance->start(uris))
             return 0;
+        // DECISIONS C45 V19: the guide in omaseed's config folder, for an agent started there.
+        omaseed::integration::AgentGuide::writeInto(omaseed::core::paths::configDir());
     } else {
         qInfo().noquote() << QStringLiteral("demo: single-instance skipped");
     }
