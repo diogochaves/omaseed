@@ -506,8 +506,9 @@ void TestAgentGuide::guideSaysCheckDrawsBothLightnesses()
 
 void TestAgentGuide::guideIsShort()
 {
-    // The schema carries the reference, so the prose stays short (C37 U4).
-    QVERIFY2(linesOf(Guide::skinsPart()) <= 90,
+    // The schema carries the reference, so the prose stays short (C37 U4). 100, not 90, since
+    // the trial (#227) added a map of where a wish lands, so agents grep the schema instead.
+    QVERIFY2(linesOf(Guide::skinsPart()) <= 100,
              qPrintable(QString::number(linesOf(Guide::skinsPart()))));
     QVERIFY2(linesOf(Guide::text()) <= 160, qPrintable(QString::number(linesOf(Guide::text()))));
 }

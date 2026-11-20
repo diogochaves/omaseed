@@ -8,14 +8,15 @@ console) whose face that seam draws, never a file.
 
 Look before you change anything. These two only read:
   omaseed skin list --json      every skin, where it lives, whether it reads
-  omaseed check NAME --json     what NAME reads and drops, and a picture
+  omaseed check NAME --json     what NAME reads and drops, and its pictures
 
 Check the drawn one first (skin list's choice, or pinned). check needs no
-display, bus or server, and writes only ~/.cache/omaseed/check/NAME.png.
+display, bus or server, and writes only its pictures in ~/.cache/omaseed/check/.
 
 ### The loop
 
-  omaseed skin clone console warm   a copy in ~/.config/omaseed/skins/warm/
+  omaseed skin clone omarchy warm   a copy of the drawn skin (here omarchy)
+                                    in skins/warm/; the first clone makes skins/
   then edit skins/warm/skin.json, and after each save:
   omaseed check warm --json         a light and a dark picture: look at both
   omaseed skin use warm             draw it in the open window, and keep it
@@ -26,27 +27,35 @@ a folder that is there (in any case). The open window follows each save of
 the drawn skin.json; one that doesn't read draws Omarchy's till a good one.
 
 check's JSON: drawn, why (when not drawn), dropped [{token, value, why}]
-(each left at Omarchy's), missingFonts, lifted [{role, ground, from, to}],
-theme, mode (light or dark), baseSize, picture. Exit 0 drawn, even with
-tokens dropped; 1 drawn whole as Omarchy's (read why); 2 no such skin, theme.
+(each left at Omarchy's), missingFonts, baseSize, and pictures [{mode, theme,
+picture, lifted [{role, ground, from, to}]}], light first; unchecked names a
+lightness with no theme installed. --theme NAME draws that one alone. Exit 0
+drawn, even with tokens dropped; 1 drawn whole as Omarchy's (read why); 2 no
+such skin, theme.
 
 ### The rules
 
 - Theme roles and alphas, never a hex: a skin is drawn under every theme.
-- Text is lifted to 4.5:1 over its ground; lifted names the roles a ground
-  of yours forced up where Omarchy's skin doesn't: that ground is too loud.
+- Text is lifted to 4.5:1 over its ground, so it stays readable: lifted is
+  not an error. A few tenths is fine; a big lift means that ground is too
+  loud, or its tint too near the text's hue: lower its alpha or change role.
 - Sizes are spec px, scaled by the person's base size. glow is always clean.
 - A font in missingFonts isn't installed (fc-list) and gets a stand-in.
 
 ### The tokens
 
 skin.schema.json beside this file has every token, its range and Omarchy's
-value; a clone names it in $schema, so an editor checks as you type.
+value; a clone names it in $schema. It is long: grep it for a token, don't
+read it whole. Where a wish lands:
+  warmer, cooler   grounds.*.tint, roles.accent, line.*Role
+  rounder, sharper radius (corners), cut (a panel's and a key's chamfer)
+  denser, airier   density;   a font   font.label, font.value
 
   roles     accent, signal, alert, warn: each a theme role
   grounds   idle, hover, cursor, panel, picked…: {tint, alpha, over}
   line      hairline, lit, edge and menu edge: widths, roles, alphas
-  cut       a panel's and a key's corner cut; radius: px, or hyprland
+  cut       a panel's and a key's corner chamfer, px
+  radius    corner rounding, px, or hyprland: the desktop's own rounding
   tint      a notice's and a block's own colour, as an alpha
   font      label, value, kana, icons ("" is the desktop's font)
   label     each voice's case, tracking, weight and size step

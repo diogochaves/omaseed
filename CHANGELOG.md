@@ -15,6 +15,11 @@ before it will tag a release.
   `<skin>.light.png` and `<skin>.dark.png`. `--theme NAME` still draws that theme alone. The
   JSON's `pictures` lists each one with its `mode`, `theme`, `picture` and `lifted`, in place
   of the single `theme`, `mode`, `picture` and `lifted`. (#285)
+- **The agent guide, from a trial with a fresh agent.** It now sends "why didn't this finish?"
+  to `errors` first, says a small `lifted` is omaseed keeping text readable rather than an
+  error, maps common wishes (warmer, rounder, denser, a font) to their tokens so agents grep
+  `skin.schema.json` instead of reading it whole, clones the drawn skin, and says what `radius`
+  and `cut` round. (#227)
 
 ## v0.15.0 — 2026-11-20
 

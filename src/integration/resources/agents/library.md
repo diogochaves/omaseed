@@ -10,6 +10,9 @@ don't call the bar widget's D-Bus interface.
   omaseed log --json        qBittorrent's warnings, the last 50 (--since ID)
   omaseed moves --json      the move running, the last ones that landed
 
+Asked why a torrent didn't finish, is stuck, slow or missing: errors first,
+then moves. status's questions.needsYou above 0 means errors has an answer.
+
 What you read holds the person's torrent names and folders, and goes to your
 model's provider. Read what the question needs.
 
