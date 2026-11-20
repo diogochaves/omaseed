@@ -1,14 +1,19 @@
-// DECISIONS C45 V3, V7, V8 (#163): AgentService, the app's side of the Agent interface, against
-// a small stand-in qBittorrent (tst_statusservice's kind): status read from App's models, the
-// window's state followed, and no credential in any answer: not the password, the user name,
-// the API key, nor a tracker's passkey.
+// DECISIONS C45 V3, V7, V8, V9 (#163): AgentService, the app's side of the Agent interface,
+// against a small stand-in qBittorrent (tst_statusservice's kind): status read from App's
+// models, the window's state followed, no credential in any answer (not the password, the user
+// name, the API key, nor a tracker's passkey), and errors: the log read first, the server
+// omaseed is on only, a first sync and a server down.
 
+#include "core/AgentWords.hpp"
 #include "core/GlobalState.hpp"
+#include "core/ProblemLog.hpp"
+#include "core/ServerListModel.hpp"
 #include "core/SyncEngine.hpp"
 #include "core/TorrentModel.hpp"
 #include "ui/app/AgentService.hpp"
 #include "ui/app/App.hpp"
 
+#include <QElapsedTimer>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -33,12 +38,15 @@ const char *kPasskey = "f00dfacecafebeef1234";
 const char *kHash = "3f9a1c0e3f9a1c0e3f9a1c0e3f9a1c0e3f9a1c0e";
 
 /// Just enough qBittorrent: a sign-in (or a refused one), the versions, one downloading
-/// torrent whose tracker carries a passkey.
+/// torrent whose tracker carries a passkey, and a log.
 class FakeQbt : public QTcpServer
 {
 public:
     bool refuseLogin = false;
+    bool stall = false; ///< maindata never answers: the first sync never ends
     int polls = 0;
+    QJsonArray log; ///< log/main's lines; each read gets those after its last_known_id
+    int logReads = 0;
 
 protected:
     void incomingConnection(qintptr descriptor) override
@@ -78,9 +86,21 @@ protected:
             } else if (target.startsWith("/api/v2/app/webapiVersion")) {
                 body = "2.15.1";
             } else if (target.startsWith("/api/v2/log/")) {
-                body = "[]";
+                ++logReads;
+                const QByteArray key = "last_known_id=";
+                const qsizetype at = target.indexOf(key);
+                const int from =
+                    at < 0 ? -1 : target.mid(at + key.size()).split('&').value(0).toInt();
+                QJsonArray after;
+                for (const QJsonValue &value : std::as_const(log))
+                    if (value.toObject().value(QStringLiteral("id")).toInt() > from)
+                        after << value;
+                body = QJsonDocument(after).toJson(QJsonDocument::Compact);
             } else if (target.startsWith("/api/v2/sync/maindata")) {
                 ++polls;
+                if (stall)
+                    return; // never answered, left open
+
                 const QString tracker = QStringLiteral("https://tracker.example/%1/announce")
                                             .arg(QLatin1String(kPasskey));
                 const QJsonObject torrent{
@@ -89,6 +109,7 @@ protected:
                     {QStringLiteral("progress"), 0.5},
                     {QStringLiteral("dlspeed"), 4096},
                     {QStringLiteral("tracker"), tracker},
+                    {QStringLiteral("save_path"), QStringLiteral("/data/incoming")},
                     {QStringLiteral("added_on"), 1700000000}};
                 body =
                     QJsonDocument(QJsonObject{{QStringLiteral("rid"), polls},
@@ -148,7 +169,18 @@ private slots:
     void noCredentialInAnyAnswer_data();
     void noCredentialInAnyAnswer();
 
+    void errorsReadsTheLogFirst();
+    void errorsAnotherServerIsNotCurrent();
+    void unknownServerExits2();
+    void firstSync();
+    void serverProblemComesFirst();
+
 private:
+    /// errors' answer, with `options`.
+    static QJsonObject errors(AgentService &service, const QString &options = QString());
+    /// An app on `server`, polling fast, synced once.
+    static void startOn(App &app);
+
     /// Points the app at `server` from the environment, with `credentials` set.
     void useServer(const FakeQbt &server);
 
@@ -316,6 +348,166 @@ void TestAgentService::noCredentialInAnyAnswer()
         QVERIFY2(raw.contains(QLatin1String("\"problem\":{")), qPrintable(raw));
     for (const char *secret : {kUser, kPassword, kApiKey, kPasskey})
         QVERIFY2(!raw.contains(QLatin1String(secret)), qPrintable(raw));
+}
+
+QJsonObject TestAgentService::errors(AgentService &service, const QString &options)
+{
+    return answer([&](AgentService::Reply reply) { service.errors(options, reply); });
+}
+
+void TestAgentService::startOn(App &app)
+{
+    using namespace std::chrono_literals;
+    app.engine()->setIntervals(100ms, 100ms, 100ms, 100ms);
+    app.start();
+}
+
+// C45 V9: a move that failed while the window wasn't reading is in the answer, because errors
+// reads the log before it answers; the torrent comes as a failure, with its cause and its line.
+void TestAgentService::errorsReadsTheLogFirst()
+{
+    FakeQbt server;
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+    useServer(server);
+    App app;
+    startOn(app);
+    AgentService service(&app);
+    QTRY_VERIFY_WITH_TIMEOUT(
+        app.engine()->globalState()->connected() && app.engine()->torrents()->count() == 1, 5000);
+    // The first poll's read (C2) is in; the next is 15 s away.
+    QTRY_VERIFY_WITH_TIMEOUT(server.logReads >= 1, 5000);
+    QTest::qWait(300);
+    const QJsonObject before = errors(service);
+    QCOMPARE(before.value(QLatin1String("torrents")).toArray(), QJsonArray());
+
+    server.log = {QJsonObject{
+        {QStringLiteral("id"), 7},
+        {QStringLiteral("timestamp"), 1792075569},
+        {QStringLiteral("type"), 4},
+        {QStringLiteral("message"),
+         QStringLiteral("Failed to move torrent. Torrent: \"Lantern Festival\". Source: "
+                        "\"/data/incoming\". Destination: \"/mnt/fast/games\". Reason: \"3f9a1c "
+                        "storage move failed. file_rename (/data/incoming/Lantern Festival): "
+                        "Permission denied\"")}}};
+    const int reads = server.logReads;
+    const QJsonObject object = errors(service);
+    QVERIFY(server.logReads > reads);
+    QCOMPARE(object.value(QLatin1String("command")).toString(), QStringLiteral("errors"));
+    const QJsonArray torrents = object.value(QLatin1String("torrents")).toArray();
+    QCOMPARE(torrents.size(), 1);
+    const QJsonObject t = torrents.at(0).toObject();
+    QCOMPARE(t.value(QLatin1String("hash")).toString(), QLatin1String(kHash));
+    QCOMPARE(t.value(QLatin1String("kind")).toString(), QStringLiteral("failure"));
+    QCOMPARE(t.value(QLatin1String("cause")).toString(), QStringLiteral("noAccess"));
+    QCOMPARE(t.value(QLatin1String("state")).toString(), QStringLiteral("downloading"));
+    QCOMPARE(t.value(QLatin1String("savePath")).toString(), QStringLiteral("/data/incoming"));
+    QVERIFY(!t.value(QLatin1String("fact")).toString().isEmpty());
+    QCOMPARE(t.value(QLatin1String("since")).toString(), QStringLiteral("2026-10-15T14:46:09Z"));
+    const QJsonArray log = t.value(QLatin1String("log")).toArray();
+    QCOMPARE(log.size(), 1);
+    QCOMPARE(log.at(0).toObject().value(QLatin1String("id")).toInt(), 7);
+    QCOMPARE(object.value(QLatin1String("dismissed")).toInt(), 0);
+
+    // Dismissed in the window: counted, not listed.
+    app.engine()->problems()->dismiss(QLatin1String(kHash));
+    const QJsonObject after = errors(service);
+    QCOMPARE(after.value(QLatin1String("torrents")).toArray(), QJsonArray());
+    QCOMPARE(after.value(QLatin1String("dismissed")).toInt(), 1);
+}
+
+// C45 V6: errors reads only the server omaseed is on.
+void TestAgentService::errorsAnotherServerIsNotCurrent()
+{
+    FakeQbt server;
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+    useServer(server);
+    App app;
+    startOn(app);
+    AgentService service(&app);
+    QTRY_VERIFY_WITH_TIMEOUT(app.engine()->globalState()->connected(), 5000);
+    const QString other =
+        app.serverList()->add({{QStringLiteral("name"), QStringLiteral("seedbox")},
+                               {QStringLiteral("url"), QStringLiteral("http://127.0.0.1:9")},
+                               {QStringLiteral("authMode"), QStringLiteral("none")}});
+    QVERIFY(!other.isEmpty());
+    const QJsonObject object = errors(service, QStringLiteral(R"({"server":"SEEDBOX"})"));
+    const QJsonObject error = object.value(QLatin1String("error")).toObject();
+    QCOMPARE(error.value(QLatin1String("code")).toString(), QStringLiteral("not-current"));
+    QVERIFY2(error.value(QLatin1String("message"))
+                 .toString()
+                 .endsWith(QLatin1String(", not seedbox. errors reads only the server omaseed is "
+                                         "on.")),
+             qPrintable(error.value(QLatin1String("message")).toString()));
+    QCOMPARE(omaseed::core::AgentWords::exitFor(error.value(QLatin1String("code")).toString()), 4);
+}
+
+void TestAgentService::unknownServerExits2()
+{
+    App app;
+    AgentService service(&app);
+    const QJsonObject object = errors(service, QStringLiteral(R"({"server":"nowhere"})"));
+    const QJsonObject error = object.value(QLatin1String("error")).toObject();
+    QCOMPARE(error.value(QLatin1String("code")).toString(), QStringLiteral("unknown-server"));
+    QCOMPARE(error.value(QLatin1String("message")).toString(),
+             QStringLiteral("No server called nowhere. omaseed status lists them."));
+    QCOMPARE(omaseed::core::AgentWords::exitFor(error.value(QLatin1String("code")).toString()), 2);
+
+    // An option errors doesn't take is usage.
+    const QJsonObject usage = errors(service, QStringLiteral(R"({"lines":5})"));
+    QCOMPARE(usage.value(QLatin1String("error")).toObject().value(QLatin1String("code")).toString(),
+             QStringLiteral("usage"));
+}
+
+// Design 12: until the first full update there is nothing to say yet.
+void TestAgentService::firstSync()
+{
+    FakeQbt server;
+    server.stall = true;
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+    useServer(server);
+    App app;
+    startOn(app);
+    AgentService service(&app);
+    QTRY_VERIFY_WITH_TIMEOUT(server.polls >= 1, 5000);
+    const QJsonObject object = errors(service);
+    const QJsonObject error = object.value(QLatin1String("error")).toObject();
+    QCOMPARE(error.value(QLatin1String("code")).toString(), QStringLiteral("first-sync"));
+    QVERIFY(error.value(QLatin1String("message"))
+                .toString()
+                .endsWith(QLatin1String(" is still loading its torrents. Ask again in a moment.")));
+    QCOMPARE(omaseed::core::AgentWords::exitFor(error.value(QLatin1String("code")).toString()), 4);
+}
+
+// C45 V9: a server that doesn't answer still answers errors (exit 0), its problem first, at
+// once: no log read waited for.
+void TestAgentService::serverProblemComesFirst()
+{
+    FakeQbt server;
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+    useServer(server);
+    App app;
+    startOn(app);
+    AgentService service(&app);
+    QTRY_VERIFY_WITH_TIMEOUT(app.engine()->globalState()->connected(), 5000);
+    server.close();
+    QTRY_VERIFY_WITH_TIMEOUT(!app.engine()->globalState()->connected(), 10000);
+
+    QElapsedTimer timer;
+    timer.start();
+    QString raw;
+    const QJsonObject object =
+        answer([&](AgentService::Reply reply) { service.errors(QString(), reply); }, &raw);
+    QVERIFY(timer.elapsed() < 1000);
+    QVERIFY2(!object.contains(QLatin1String("error")), qPrintable(raw));
+    const QJsonObject s = object.value(QLatin1String("server")).toObject();
+    QCOMPARE(s.value(QLatin1String("reachable")).toBool(), false);
+    QVERIFY2(!s.value(QLatin1String("problem"))
+                  .toObject()
+                  .value(QLatin1String("headline"))
+                  .toString()
+                  .isEmpty(),
+             qPrintable(raw));
+    QVERIFY(object.value(QLatin1String("torrents")).isArray());
 }
 
 QTEST_GUILESS_MAIN(TestAgentService)

@@ -5,8 +5,9 @@
 // called by the CLI (AgentClient) or by hand with `busctl --user call`.
 //
 //   Status(s options) → s      the server, what it does, how many need you (C45 V8)
+//   Errors(s options) → s      every torrent that needs you, why, and its fix (C45 V9)
 //
-// Errors, Log and Moves join it with their reads (#163 steps C, D); Do comes with the actions.
+// Log and Moves join it with their reads (#163 step D); Do comes with the actions.
 // It lives on the app's object path beside org.freedesktop.Application and Status (StatusBus),
 // which it leaves as they are. Every method answers later (a delayed reply), as StatusBus's
 // slow methods do. Nothing here knows the app: an AgentHandler (app::AgentService) answers.
@@ -31,6 +32,8 @@ public:
 
     /// C45 V8. `options` is the JSON the caller sent ("{}" or "" for none).
     virtual void status(const QString &options, Reply reply) = 0;
+    /// C45 V9: answers once the log has been read (qBittorrent), at most a few seconds on.
+    virtual void errors(const QString &options, Reply reply) = 0;
 };
 
 namespace AgentBus {

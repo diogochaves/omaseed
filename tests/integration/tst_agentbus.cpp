@@ -25,7 +25,7 @@ using omaseed::integration::StatusHandler;
 
 namespace {
 
-/// Answers Status a moment later with the options it was given.
+/// Answers Status a moment later with the options it was given, Errors at once.
 class FakeAgent : public AgentHandler
 {
 public:
@@ -37,6 +37,12 @@ public:
         QTimer::singleShot(150, [reply, options]() {
             reply(QStringLiteral(R"({"v":1,"command":"status","options":%1})").arg(options));
         });
+    }
+
+    void errors(const QString &options, Reply reply) override
+    {
+        calls << QStringLiteral("errors ") + options;
+        reply(QStringLiteral(R"({"v":1,"command":"errors"})"));
     }
 };
 
@@ -178,12 +184,13 @@ void TestAgentBus::agentBesideStatusAndApplication()
         xml.contains(QStringLiteral("interface name=\"io.github.diogochaves.omaseed.Status\"")));
     const QString agent = block(xml, AgentBus::interfaceName());
     QVERIFY2(!agent.isEmpty(), qPrintable(xml));
-    // Status(s) → s only, for now (C45 V3; Errors, Log and Moves come with their reads).
-    QCOMPARE(agent.count(QStringLiteral("<method ")), 1);
+    // Status(s) → s and Errors(s) → s, for now (C45 V3; Log and Moves come with their reads).
+    QCOMPARE(agent.count(QStringLiteral("<method ")), 2);
     QVERIFY(agent.contains(QStringLiteral("method name=\"Status\"")));
-    QCOMPARE(agent.count(QStringLiteral("direction=\"in\"")), 1);
-    QCOMPARE(agent.count(QStringLiteral("direction=\"out\"")), 1);
-    QCOMPARE(agent.count(QStringLiteral("type=\"s\"")), 2);
+    QVERIFY(agent.contains(QStringLiteral("method name=\"Errors\"")));
+    QCOMPARE(agent.count(QStringLiteral("direction=\"in\"")), 2);
+    QCOMPARE(agent.count(QStringLiteral("direction=\"out\"")), 2);
+    QCOMPARE(agent.count(QStringLiteral("type=\"s\"")), 4);
     QVERIFY(!agent.contains(QStringLiteral("<property")));
     QVERIFY(!agent.contains(QStringLiteral("<signal")));
 }
@@ -211,6 +218,12 @@ void TestAgentBus::delayedReplyArrives()
              QStringLiteral(R"({"v":1,"command":"status","options":{}})"));
     QVERIFY(timer.elapsed() >= 140); // the handler's answer, not an empty one at once
     QCOMPARE(m_agent.calls, QStringList{QStringLiteral("status {}")});
+
+    // Errors goes to its own handler method (C45 V9).
+    const QDBusMessage errors = call(QStringLiteral("Errors"), {QString()});
+    QCOMPARE(errors.arguments().value(0).toString(),
+             QStringLiteral(R"({"v":1,"command":"errors"})"));
+    QCOMPARE(m_agent.calls.last(), QStringLiteral("errors "));
 }
 
 void TestAgentBus::notExportedWithoutConnection()

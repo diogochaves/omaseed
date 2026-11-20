@@ -25,9 +25,17 @@ public:
     explicit AgentService(App *app, QObject *parent = nullptr);
 
     void status(const QString &options, Reply reply) override;
+    /// C45 V9: on qBittorrent, after one read of the log (at most kErrorsWait); a server
+    /// that isn't the current one, an unknown one, or one still loading is a failure.
+    void errors(const QString &options, Reply reply) override;
+
+    /// How long errors waits for the log before it answers with what is held (design 12).
+    static constexpr int kErrorsWaitMs = 5000;
 
     /// status's input as the app is now (C45 V8, design 11).
     core::AgentAnswers::StatusInput statusInput() const;
+    /// errors' input as the app is now (C45 V9, design 12): the rail's needs-you.
+    core::AgentAnswers::ErrorsInput errorsInput() const;
     /// The server the app is on, as every read says it.
     core::AgentAnswers::Server currentServer() const;
     /// `--server NAME` against the saved servers (C45 V6).
@@ -39,6 +47,9 @@ public Q_SLOTS:
     void setWindowShown(bool shown);
 
 private:
+    /// A failure the app makes for `command` (C45 V4).
+    static QString failure(const QString &command, const QString &code, const QString &message);
+
     App *m_app;
     bool m_windowShown = false;
 };

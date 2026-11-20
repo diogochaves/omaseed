@@ -34,6 +34,12 @@ public Q_SLOTS:
         return QString();
     }
 
+    QString Errors(const QString &options, const QDBusMessage &message)
+    {
+        m_handler->errors(options, delayedReply(message));
+        return QString();
+    }
+
 private:
     AgentHandler::Reply delayedReply(const QDBusMessage &message)
     {
