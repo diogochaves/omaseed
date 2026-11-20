@@ -440,7 +440,9 @@ expect_text "the add sheet is open" "Add torrent" 10
 keys -t "$BOX_HOME/Downloads/$NAME.torrent"
 expect_text "it reads the .torrent" "$NAME · 3.00 MB · from file" 10
 expect_text "two lines: downloads first to the incomplete folder (C47 I8)" "downloads first to $R_INCOMING" 10
-expect_text "…then moves to where it ends" "then moves to" 10
+# "then moves to" across drives, "then moved to … on the same drive" (I8) when the incomplete
+# folder shares it, as the podman one's do.
+expect_text "…then moves to where it ends" "then move" 10
 expect_text "…the first line says it is the daemon's, for every torrent (I9)" "Transmission's setting, for every torrent." 10
 expect_no_text "…and has no switch (I9: session-wide)" "download to the temp folder first" 3
 shot "The add sheet: under Save to, ↓ downloads first to $(short "$R_INCOMING") · needs 3.00 MB · free space unknown (the box can't see the daemon's disk), the dim line Transmission's setting, for every torrent.; then → then moves to … · needs 3.00 MB." sheet
