@@ -17,8 +17,7 @@ display, bus or server, and writes only ~/.cache/omaseed/check/NAME.png.
 
   omaseed skin clone console warm   a copy in ~/.config/omaseed/skins/warm/
   then edit skins/warm/skin.json, and after each save:
-  omaseed check warm --json                    under the person's theme
-  omaseed check warm --theme catppuccin-latte  and under a light one
+  omaseed check warm --json         a light and a dark picture: look at both
   omaseed skin use warm             draw it in the open window, and keep it
 
 A skin's name is its folder: letters, digits, . _ and -, up to 63, never

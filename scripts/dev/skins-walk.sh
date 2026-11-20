@@ -4,9 +4,10 @@
 # `omaseed check`), run in a box and checked with jq and their exit codes. skin list has the two
 # built-ins and none of yours; skin clone console warm writes a skin.json with $schema,
 # cloned_from and every seam's face, and a second clone of the same name is refused with the file
-# untouched; check warm draws it with nothing dropped and leaves a picture; a token out of range
-# is dropped with its why, a broken file is drawn as Omarchy's (exit 1). With the app open, skin
-# use warm draws it live (a log line), and a save while it is drawn repaints it (the line again).
+# untouched; check warm draws it with nothing dropped and leaves a light and a dark picture; a
+# token out of range is dropped with its why, a broken file is drawn as Omarchy's (exit 1). With
+# the app open, skin use warm draws it live (a log line), and a save while it is drawn repaints
+# it (the line again).
 # Settings › Appearance: the Skin row's second line (yours · warm · open folder), its yellow line
 # for a dropped token and for a broken file. skin use omarchy is the way back. With omaseed quit,
 # skin use warm saves the choice in state.json, every other key kept. Last, warm.v2 (a dotted
@@ -218,12 +219,16 @@ check "skin list without --json: warm's line, from its folder" grep -q "^  warm 
 # ---- 2. check --------------------------------------------------------------------------------
 echo "2. check warm"
 word check1 check warm --json
-check "check warm: exit 0, drawn, nothing dropped, a picture" answered 0 check1.json \
-    ".skin == \"warm\" and .drawn == true and .dropped == [] and .lifted != null
-     and (.mode == \"dark\" or .mode == \"light\") and (.baseSize | type) == \"number\"
-     and .picture == \"$BOX_HOME/.cache/omaseed/check/warm.png\""
-check "…the picture is there" test -s "$home/.cache/omaseed/check/warm.png"
-cp "$home/.cache/omaseed/check/warm.png" "$ANSWERS/check-warm.png" 2>/dev/null || true
+# A light and a dark picture by default (C37 U5, amended 2026-11-20).
+check "check warm: exit 0, drawn, nothing dropped, a light and a dark picture" answered 0 check1.json \
+    ".skin == \"warm\" and .drawn == true and .dropped == [] and (.baseSize | type) == \"number\"
+     and ([.pictures[].mode] == [\"light\", \"dark\"]) and all(.pictures[]; .lifted != null)
+     and .pictures[0].picture == \"$BOX_HOME/.cache/omaseed/check/warm.light.png\"
+     and .pictures[1].picture == \"$BOX_HOME/.cache/omaseed/check/warm.dark.png\""
+for mode in light dark; do
+    check "…the $mode picture is there" test -s "$home/.cache/omaseed/check/warm.$mode.png"
+    cp "$home/.cache/omaseed/check/warm.$mode.png" "$ANSWERS/check-warm.$mode.png" 2>/dev/null || true
+done
 edit_skin warm '.grounds.hover.alpha = 1.4'
 word check2 check warm --json
 check "grounds.hover.alpha 1.4: exit 0, dropped with its why" answered 0 check2.json \
@@ -303,8 +308,8 @@ echo "7. warm.v2"
 word clone-v2 skin clone warm warm.v2 --json
 check "skin clone warm warm.v2: exit 0" answered 0 clone-v2.json '.skin == "warm.v2" and .from == "warm"'
 word check-v2 check warm.v2 --json
-check "check warm.v2: exit 0, drawn, its picture" answered 0 check-v2.json \
-    ".drawn == true and .picture == \"$BOX_HOME/.cache/omaseed/check/warm.v2.png\""
+check "check warm.v2: exit 0, drawn, its pictures" answered 0 check-v2.json \
+    ".drawn == true and .pictures[1].picture == \"$BOX_HOME/.cache/omaseed/check/warm.v2.dark.png\""
 word use-v2 skin use warm.v2 --json
 check "skin use warm.v2 (none running): exit 0, saved" answered 0 use-v2.json '.live == false'
 [ -z "$OUT" ] || cp "$APP_LOG" "$OUT/app-before-restart.log" 2>/dev/null || true

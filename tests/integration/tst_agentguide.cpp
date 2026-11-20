@@ -108,7 +108,7 @@ private slots:
 
     void guideHasBothParts();
     void guideOpensReadOnlyFirst();
-    void guideSaysCheckUnderALightTheme();
+    void guideSaysCheckDrawsBothLightnesses();
     void guideIsShort();
     void guideNamesEveryWordAndCode();
 
@@ -493,13 +493,15 @@ void TestAgentGuide::guideOpensReadOnlyFirst()
     QVERIFY(use > clone);
 }
 
-void TestAgentGuide::guideSaysCheckUnderALightTheme()
+void TestAgentGuide::guideSaysCheckDrawsBothLightnesses()
 {
-    // A skin takes its colours from the theme, so a light one is checked too.
-    static const QRegularExpression light(
-        QStringLiteral("omaseed check \\S+ --theme "
-                       "(catppuccin-latte|flexoki-light|rose-pine|white|lupine)\\b"));
-    QVERIFY(light.match(Guide::skinsPart()).hasMatch());
+    // A skin takes its colours from the theme, and check draws a light and a dark picture
+    // itself (C37 U5, amended 2026-11-20): the guide says so, and no longer asks for a second
+    // check under a light theme by hand.
+    const QString skins = Guide::skinsPart();
+    QVERIFY(skins.contains(QStringLiteral("a light and a dark picture")));
+    static const QRegularExpression byHand(QStringLiteral("omaseed check \\S+ --theme \\S"));
+    QVERIFY(!byHand.match(skins).hasMatch());
 }
 
 void TestAgentGuide::guideIsShort()
