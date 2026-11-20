@@ -102,6 +102,11 @@ public:
     QString defaultSavePath() const { return m_defaultSavePath; }
 
     Answer answer(const QString &savePath) const;
+    /// Only what this machine reads for `serverPath` (Local), or Unknown: never the server's
+    /// `free_space_on_disk`, which speaks for the default save path's drive alone, whatever
+    /// folder is asked (#271 (3)). The add's first line, a temp folder, reads its room so
+    /// (DECISIONS C47 I8).
+    Answer answerLocal(const QString &serverPath) const;
 
     /// The folder on this machine for `serverPath`, when local readings are trusted
     /// (seesServerDisks()) and the path map, if it has mappings, covers it; "" otherwise.

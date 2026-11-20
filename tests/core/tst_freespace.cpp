@@ -80,6 +80,8 @@ private slots:
     void localPathsOnlyWhereTheDisksAreSeen();
     void answersCarryTheFileSystem();
     void sameDriveComparesTheDevice();
+    void answerLocalNeverUsesTheServersFigure();
+    void answerLocalUnknownWhenNotSeen();
     void whichFileSystemsAllocateInFull();
 };
 
@@ -341,6 +343,57 @@ void TestFreeSpace::whichFileSystemsAllocateInFull()
     QVERIFY(isFat32(QStringLiteral("vfat")));
     QVERIFY(!isFat32(QStringLiteral("exfat")));
     QCOMPARE(omaseed::core::FileSystems::kFat32TooBig, 4 * kGiB);
+}
+
+// #271 (3), DECISIONS C47 I8: free_space_on_disk is the default save path's drive whatever the
+// folder, so a temp folder's room is only ever read here.
+void TestFreeSpace::answerLocalNeverUsesTheServersFigure()
+{
+    FakeDisks disks;
+    disks.add(QStringLiteral("/home/d/Downloads"), QStringLiteral("/home"), 1500 * kGiB);
+    disks.add(QStringLiteral("/tmp"), QStringLiteral("/tmp"), 31 * kGiB);
+    disks.folders[QStringLiteral("/home/d/Downloads")].device = 7;
+    FreeSpaceProbe probe(disks.reader());
+    probe.setServer(QStringLiteral("/home/d/Downloads"), 1500 * kGiB, PathMap(), false);
+    QCOMPARE(probe.answer(QStringLiteral("/home/d/Downloads")).source,
+             FreeSpaceProbe::Source::Default);
+    // The default folder itself: read here, with its device, not the server's figure.
+    const auto home = probe.answerLocal(QStringLiteral("/home/d/Downloads/"));
+    QCOMPARE(home.source, FreeSpaceProbe::Source::Local);
+    QCOMPARE(home.device, quint64(7));
+    QCOMPARE(home.where, QStringLiteral("/home"));
+    const auto temp = probe.answerLocal(QStringLiteral("/tmp/omaseed"));
+    QCOMPARE(temp.source, FreeSpaceProbe::Source::Local);
+    QCOMPARE(temp.bytesFree, 31 * kGiB);
+    QVERIFY(!FreeSpaceProbe::sameDrive(home, temp));
+}
+
+void TestFreeSpace::answerLocalUnknownWhenNotSeen()
+{
+    // A remote server: answer() has the server's figure under the default folder, the local
+    // look nothing at all.
+    FakeDisks disks;
+    FreeSpaceProbe probe(disks.reader());
+    probe.setServer(QStringLiteral("/data/torrents"), 812 * kGiB, PathMap(), false);
+    QCOMPARE(probe.answer(QStringLiteral("/data/torrents/temp")).source,
+             FreeSpaceProbe::Source::Default);
+    QCOMPARE(probe.answerLocal(QStringLiteral("/data/torrents/temp")).source,
+             FreeSpaceProbe::Source::Unknown);
+    QCOMPARE(probe.answerLocal(QStringLiteral("/data/torrents")).source,
+             FreeSpaceProbe::Source::Unknown);
+
+    // Seen, but a path map that doesn't cover the folder: unknown too.
+    FakeDisks local;
+    local.add(QStringLiteral("/home/d/Downloads"), QStringLiteral("/home"), 1500 * kGiB);
+    FreeSpaceProbe mapped(local.reader());
+    PathMap map;
+    map.addMapping(QStringLiteral("/downloads"), QStringLiteral("/home/d/Downloads"));
+    mapped.setServer(QStringLiteral("/downloads"), 1500 * kGiB, map, true);
+    QVERIFY(mapped.seesServerDisks());
+    QCOMPARE(mapped.answerLocal(QStringLiteral("/downloads/temp")).source,
+             FreeSpaceProbe::Source::Local);
+    QCOMPARE(mapped.answerLocal(QStringLiteral("/incomplete")).source,
+             FreeSpaceProbe::Source::Unknown);
 }
 
 QTEST_APPLESS_MAIN(TestFreeSpace)

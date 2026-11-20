@@ -88,6 +88,17 @@ omaseed_add_test(tst_freespace
     LIBRARIES omaseed::core
 )
 
+# DECISIONS C47 I8–I10 (#275): the temp folder per engine, and the room downloads promise.
+omaseed_add_test(tst_tempfolder
+    SOURCES tst_tempfolder.cpp
+    LIBRARIES omaseed::core
+)
+
+omaseed_add_test(tst_promisedroom
+    SOURCES tst_promisedroom.cpp
+    LIBRARIES omaseed::core
+)
+
 omaseed_add_test(tst_pathmap
     SOURCES tst_pathmap.cpp
     LIBRARIES omaseed::core

@@ -133,6 +133,28 @@ QString FreeSpaceProbe::localPathFor(const QString &serverPath) const
     return localFor(path);
 }
 
+FreeSpaceProbe::Answer FreeSpaceProbe::answerLocal(const QString &serverPath) const
+{
+    // #271 (3): free_space_on_disk is always the default save path's drive, so a temp folder's
+    // room is read here or not at all (DECISIONS C47 I8, I10).
+    if (!m_seesServerDisks)
+        return Answer();
+    const QString local = localFor(normalize(serverPath));
+    if (local.isEmpty())
+        return Answer();
+    const StorageReading reading = m_reader(local);
+    if (!reading.valid)
+        return Answer();
+    Answer answer;
+    answer.source = Source::Local;
+    answer.bytesFree = reading.bytesFree;
+    answer.bytesTotal = reading.bytesTotal;
+    answer.where = reading.rootPath;
+    answer.device = reading.device;
+    answer.fileSystem = reading.fileSystem;
+    return answer;
+}
+
 FreeSpaceProbe::Answer FreeSpaceProbe::answer(const QString &savePath) const
 {
     const QString path = normalize(savePath);
@@ -154,23 +176,8 @@ FreeSpaceProbe::Answer FreeSpaceProbe::answer(const QString &savePath) const
         return server;
     }
 
-    if (m_seesServerDisks) {
-        const QString local = localFor(path);
-        if (!local.isEmpty()) {
-            const StorageReading reading = m_reader(local);
-            if (reading.valid) {
-                Answer answer;
-                answer.source = Source::Local;
-                answer.bytesFree = reading.bytesFree;
-                answer.bytesTotal = reading.bytesTotal;
-                answer.where = reading.rootPath;
-                answer.device = reading.device;
-                answer.fileSystem = reading.fileSystem;
-                return answer;
-            }
-        }
-        return Answer();
-    }
+    if (m_seesServerDisks)
+        return answerLocal(path);
     // Remote: what the server read for that folder (K23); else a folder under the default
     // one is on its drive (a mount below it is rare enough not to second-guess the server's
     // own figure).

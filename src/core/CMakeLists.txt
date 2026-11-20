@@ -169,6 +169,8 @@ qt_add_library(omaseed-core STATIC
     PieceStates.hpp
     PrivateTrackers.cpp
     PrivateTrackers.hpp
+    PromisedRoom.cpp
+    PromisedRoom.hpp
     ProblemLog.cpp
     ProblemLog.hpp
     Reply.cpp
@@ -234,6 +236,8 @@ qt_add_library(omaseed-core STATIC
     TagModel.hpp
     TarArchive.cpp
     TarArchive.hpp
+    TempFolder.cpp
+    TempFolder.hpp
     Torrent.cpp
     Torrent.hpp
     TorrentDetails.cpp
