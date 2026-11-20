@@ -1,5 +1,6 @@
 #include "core/ProblemLog.hpp"
 
+#include "core/ServerLog.hpp"
 #include "core/SharedData.hpp"
 #include "core/TorrentModel.hpp"
 #include "core/engines/EngineClient.hpp"
@@ -9,6 +10,7 @@
 
 #include <algorithm>
 #include <optional>
+#include <utility>
 
 namespace omaseed::core {
 
@@ -96,6 +98,7 @@ void ProblemLog::setClient(EngineClient *client)
     // this server's (empty) list under the next one's name.
     m_failures.clear();
     m_dismissed.clear();
+    m_dismissedTorrents.clear();
     m_settled.clear();
     m_candidates.clear();
     m_renameStanding.clear();
@@ -148,6 +151,8 @@ void ProblemLog::reset()
     // the next one starts from the top.
     ++m_generation;
     m_reading = false;
+    // C45 V9: a read readNow() waited for is dropped with it: its callers hear now.
+    callBackReadNow(true);
 }
 
 void ProblemLog::onSynced(bool fullUpdate, bool mayRead)
@@ -278,11 +283,53 @@ void ProblemLog::read()
                 return;
             m_reading = false;
             m_sinceRead.start();
-            if (result.isError())
-                return;
-            applyRead(result.value(), serial, fromStart);
-            checkFiles();
+            if (!result.isError()) {
+                applyRead(result.value(), serial, fromStart);
+                checkFiles();
+            }
+            callBackReadNow(false);
         });
+}
+
+void ProblemLog::readNow(QObject *context, std::function<void()> done)
+{
+    if (m_client.isNull() || !m_hasLog) {
+        if (context != nullptr && done)
+            done();
+        return;
+    }
+    m_readNow.append({context, std::move(done)});
+    read();
+}
+
+void ProblemLog::callBackReadNow(bool queued)
+{
+    if (m_readNow.isEmpty())
+        return;
+    const QList<ReadNow> waiting = std::exchange(m_readNow, {});
+    for (const ReadNow &call : waiting) {
+        if (call.context.isNull() || !call.done)
+            continue;
+        if (queued)
+            QMetaObject::invokeMethod(call.context.data(), call.done, Qt::QueuedConnection);
+        else
+            call.done();
+    }
+}
+
+QList<LogEntry> ProblemLog::linesNaming(const QString &name, const QString &prefix, int max) const
+{
+    QList<LogEntry> lines;
+    for (auto it = m_lines.crbegin(); it != m_lines.crend() && lines.size() < max; ++it) {
+        if (ServerLog::names(it->message, name, prefix))
+            lines.prepend({it->id, it->at.toSecsSinceEpoch(), it->level, it->message});
+    }
+    return lines;
+}
+
+QStringList ProblemLog::dismissedTorrents() const
+{
+    return m_dismissedTorrents;
 }
 
 void ProblemLog::applyEntries(const QList<LogEntry> &entries)
@@ -315,6 +362,7 @@ void ProblemLog::applyRead(const QList<LogEntry> &entries, quint64 serial, bool 
         line.at = QDateTime::fromSecsSinceEpoch(seconds);
         line.message = message;
         line.key = lineKey(id, seconds, message);
+        line.level = entry.type;
         line.read = serial;
         line.parsed = std::move(parsed);
         if (line.parsed.isFailure())
@@ -570,11 +618,11 @@ void ProblemLog::updateFailures()
     QHash<QString, Group> groups;
     QSet<QString> candidates;
     QSet<QString> renameStanding;
+    QSet<QString> dismissedHashes; ///< C45 V9: what a dismissal alone keeps from showing
 
     bool any = false;
     for (const Line &line : std::as_const(m_lines)) {
-        if (isStanding(line.parsed.kind) && !m_dismissed.contains(line.key) &&
-            !m_settled.contains(line.key)) {
+        if (isStanding(line.parsed.kind) && !m_settled.contains(line.key)) {
             any = true;
             break;
         }
@@ -583,9 +631,9 @@ void ProblemLog::updateFailures()
 
     for (const Line &line : std::as_const(m_lines)) {
         const ProblemLine::Kind kind = line.parsed.kind;
-        if (!any || !isStanding(kind) || m_dismissed.contains(line.key) ||
-            m_settled.contains(line.key))
+        if (!any || !isStanding(kind) || m_settled.contains(line.key))
             continue;
+        const bool dismissedLine = m_dismissed.contains(line.key);
         bool ambiguous = false;
         const QStringList hashes = failureMatch(line, index, &ambiguous);
         for (const QString &hash : hashes) {
@@ -612,8 +660,12 @@ void ProblemLog::updateFailures()
             }
             if (fixed) {
                 // Seen fixed: it stays so, even if the torrent goes back where it was.
-                if (hashes.size() == 1)
+                if (hashes.size() == 1 && !dismissedLine)
                     m_settled.insert(line.key);
+                continue;
+            }
+            if (dismissedLine) {
+                dismissedHashes.insert(hash);
                 continue;
             }
             Group &group = groups[hash];
@@ -691,6 +743,10 @@ void ProblemLog::updateFailures()
 
     m_candidates = candidates;
     m_renameStanding = renameStanding;
+    for (auto it = failures.cbegin(); it != failures.cend(); ++it)
+        dismissedHashes.remove(it.key());
+    m_dismissedTorrents = QStringList(dismissedHashes.cbegin(), dismissedHashes.cend());
+    m_dismissedTorrents.sort();
     const QSet<QString> before(m_failures.keyBegin(), m_failures.keyEnd());
     for (const QString &hash : before) {
         if (!failures.contains(hash)) {

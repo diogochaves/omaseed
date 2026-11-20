@@ -75,6 +75,7 @@ private slots:
     void aFullUpdateReadsTheLogAgain();
     void healthyTorrentsAreLeftAlone();
     void withoutALogTheTorrentsOwnWordsAreRead();
+    void linesNamingKeepsThree();
 
 private:
     TorrentModel *m_model = nullptr;
@@ -379,6 +380,36 @@ void TestProblemLog::healthyTorrentsAreLeftAlone()
                                       QStringLiteral("Permission denied")))});
     QVERIFY(problemOf(*m_model, kB).isEmpty());
     QVERIFY(causeOf(*m_model, kB).isEmpty());
+}
+
+// DECISIONS C45 V9: errors carries at most 3 of a torrent's lines, the newest last, with their
+// level; another torrent's lines aren't among them.
+void TestProblemLog::linesNamingKeepsThree()
+{
+    QJsonArray lines;
+    for (int id = 10; id < 15; ++id)
+        lines.append(entry(id,
+                           fileError(QStringLiteral("ad91d5"),
+                                     QStringLiteral("a.bin"),
+                                     QStringLiteral("Permission denied"))));
+    QJsonObject critical = entry(15,
+                                 fileError(QStringLiteral("81f2da"),
+                                           QStringLiteral("b.txt"),
+                                           QStringLiteral("Permission denied")));
+    critical.insert(QStringLiteral("type"), 8);
+    lines.append(critical);
+    qbtfeed::entries(*m_log, lines);
+
+    const auto a = m_log->linesNaming(QStringLiteral("a.bin"), QStringLiteral("ad91d5"), 3);
+    QCOMPARE(a.size(), 3);
+    QCOMPARE(a.at(0).id, 12);
+    QCOMPARE(a.at(2).id, 14);
+    QCOMPARE(a.at(2).type, 4);
+    QCOMPARE(a.at(2).timestamp, qint64(1791928475));
+    const auto b = m_log->linesNaming(QStringLiteral("b.txt"), QStringLiteral("81f2da"), 3);
+    QCOMPARE(b.size(), 1);
+    QCOMPARE(b.at(0).type, 8);
+    QVERIFY(m_log->linesNaming(QStringLiteral("c.bin"), QStringLiteral("000000"), 3).isEmpty());
 }
 
 QTEST_GUILESS_MAIN(TestProblemLog)

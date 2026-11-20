@@ -169,6 +169,10 @@ private slots:
     void aStuckMoveIsARedProblemNotTheYellowBlock();
     void anEngineWithoutTheLogHasNoStuckMove();
 
+    void readNowCallsBackAfterTheRead();
+    void readNowWithoutLogCallsAtOnce();
+    void dismissedTorrentsCounted();
+
 private:
     void sync(bool full = false) { m_log->onSynced(full); }
 
@@ -741,6 +745,77 @@ void TestProblemLogFailures::standingRenamesAskForTheFiles()
     // The read finds the rename failure, asks for the torrent's files, and finds b.txt gone.
     QTRY_COMPARE(server.filesRequests, 1);
     QTRY_VERIFY(failureOf(*m_model, kRenameHash).isEmpty());
+}
+
+// DECISIONS C45 V9 (#163): `omaseed errors` reads the log first. The callback comes once that
+// read is in, with what it brought; a second caller while it is on its way waits for it too.
+void TestProblemLogFailures::readNowCallsBackAfterTheRead()
+{
+    LogServer server;
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+    server.log = {entry(220, moveLine())};
+    QbtEngine client;
+    client.setBaseUrl(server.url());
+    m_log->setClient(&client);
+    m_log->setVisible(false);
+    m_log->onSynced(true, false);
+
+    int called = 0;
+    bool hadFailure = false;
+    m_log->readNow(this, [&] {
+        ++called;
+        hadFailure = !m_log->failure(kMoveHash).isEmpty();
+    });
+    m_log->readNow(this, [&] { ++called; });
+    QCOMPARE(called, 0);
+    QTRY_COMPARE(called, 2);
+    QVERIFY(hadFailure);
+    QCOMPARE(server.askedFrom.size(), 1);
+
+    // A read dropped by a reset (another server) still calls back.
+    m_log->readNow(this, [&] { ++called; });
+    m_log->setClient(nullptr);
+    QTRY_COMPARE(called, 3);
+}
+
+void TestProblemLogFailures::readNowWithoutLogCallsAtOnce()
+{
+    int called = 0;
+    m_log->readNow(this, [&] { ++called; }); // no client
+    QCOMPARE(called, 1);
+
+    QbtEngine client;
+    m_log->setClient(&client);
+    m_log->setEngine(QStringLiteral("Transmission"), false);
+    m_log->readNow(this, [&] { ++called; });
+    QCOMPARE(called, 2);
+    m_log->setClient(nullptr);
+}
+
+// C45 V9: a failure dismissed in the window is counted by errors, not listed; one fixed
+// since, or one the torrent shows another failure for, isn't.
+void TestProblemLogFailures::dismissedTorrentsCounted()
+{
+    const QString partfile = QStringLiteral(
+        "Failed to remove partfile. Torrent: \"log55-move.bin\". Reason: \"Directory not empty\".");
+    qbtfeed::entries(
+        *m_log,
+        {entry(220, moveLine()), entry(221, renameLine(QStringLiteral("log55-rename/b.txt")))});
+    QVERIFY(m_log->dismissedTorrents().isEmpty());
+    m_log->dismiss(kMoveHash);
+    m_log->dismiss(kRenameHash);
+    QStringList both{kMoveHash, kRenameHash};
+    both.sort();
+    QCOMPARE(m_log->dismissedTorrents(), both);
+
+    // A new failure on one shows: that one isn't left out any more.
+    qbtfeed::entries(*m_log, {entry(240, partfile)});
+    QVERIFY(!m_log->failure(kMoveHash).isEmpty());
+    QCOMPARE(m_log->dismissedTorrents(), QStringList{kRenameHash});
+
+    // The rename seen fixed: nothing of it is left out.
+    m_log->applyFiles(kRenameHash, {QStringLiteral("log55-rename/c.txt")});
+    QVERIFY(m_log->dismissedTorrents().isEmpty());
 }
 
 QTEST_GUILESS_MAIN(TestProblemLogFailures)

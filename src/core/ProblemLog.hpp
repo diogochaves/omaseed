@@ -13,6 +13,7 @@
 #include <QVariantMap>
 
 #include <chrono>
+#include <functional>
 
 namespace omaseed::core {
 
@@ -135,6 +136,22 @@ public:
     /// Called again with the job's torrents as they change; an empty list ends it.
     void watchJob(const QStringList &hashes, const QDateTime &since);
 
+    // ---- DECISIONS C45 V9 (#163): what `omaseed errors` reads ------------------------------
+
+    /// Reads the log now (qBittorrent) and calls `done` once that read ends, whether it
+    /// worked, failed or was dropped by a reset(); a read already on its way is the one
+    /// waited for. At once when there is nothing to read (no client, an engine without a
+    /// log). `done` is skipped if `context` is gone by then. The read is one more of C2's:
+    /// the cadence onSynced() keeps is left as it is.
+    void readNow(QObject *context, std::function<void()> done);
+    /// The lines held that name the torrent called `name`, whose hash starts `prefix`
+    /// (ServerLog::names), the newest last, at most `max`. Only lines about a torrent's files
+    /// are held, warnings and worse.
+    QList<LogEntry> linesNaming(const QString &name, const QString &prefix, int max) const;
+    /// The torrents a failure would show on but for a dismissal (D3), sorted: the window
+    /// leaves them out, and errors counts them.
+    QStringList dismissedTorrents() const;
+
     /// The paths of `hash`'s files, as torrents/files lists them: a rename failure whose file
     /// is no longer among them was fixed. The tests feed it; with a server, it asks itself.
     void applyFiles(const QString &hash, const QStringList &paths);
@@ -181,6 +198,7 @@ private:
         QDateTime at;
         QString message;
         QString key;
+        int level = 4;    ///< qBittorrent's: 4 warning, 8 critical
         quint64 read = 0; ///< which read brought it, for the watches
         ProblemLine parsed;
     };
@@ -229,6 +247,8 @@ private:
     void tellWatches(quint64 serial);
     void tellJob(quint64 serial);
     void endWatches();
+    /// readNow()'s callbacks, after a read ended; queued when `queued` (a reset()).
+    void callBackReadNow(bool queued);
     void checkFiles();
     bool failureTouched() const;
 
@@ -271,7 +291,14 @@ private:
     QHash<QString, StartedIn> m_startedIn;
 
     QHash<QString, TorrentFailure> m_failures;
-    QSet<QString> m_dismissed;      ///< lineKey()s
+    QSet<QString> m_dismissed;       ///< lineKey()s
+    QStringList m_dismissedTorrents; ///< dismissedTorrents(), sorted
+    struct ReadNow
+    {
+        QPointer<QObject> context;
+        std::function<void()> done;
+    };
+    QList<ReadNow> m_readNow;
     QSet<QString> m_settled;        ///< lineKey()s of failures seen fixed, this session
     QSet<QString> m_candidates;     ///< hashes some failure line is about: their changes matter
     QSet<QString> m_renameStanding; ///< hashes with a rename failure not yet seen fixed
