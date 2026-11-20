@@ -64,8 +64,19 @@ void App::applyTempFolder(AddOptions &options, const QVariantMap &request) const
     if (engine == EngineKind::Qbittorrent) {
         // #271 (1): useDownloadPath=false is straight to Save to; on sends nothing, so the
         // server (or the category, under autoTMM) picks the temp folder as it does today.
-        if (straight)
-            options.useDownloadPath = false;
+        if (!straight)
+            return;
+        options.useDownloadPath = false;
+        // C47 I9: under automatic management qBittorrent (5.3) ignores useDownloadPath and
+        // takes the category's or the session's temp folder anyway, so straight there is a
+        // manual add, saved where automatic management would have put it.
+        const bool autoTmm = options.autoManagement.value_or(
+            m_prefs->value(QStringLiteral("auto_tmm_enabled")).toBool());
+        if (autoTmm) {
+            options.autoManagement = false;
+            if (!options.savePath)
+                options.savePath = autoManagedFolder(options.category.value_or(QString()));
+        }
         return;
     }
     if (engine != EngineKind::Deluge)

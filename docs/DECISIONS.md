@@ -2900,7 +2900,10 @@ build:
   is on, and its Save to then ends in `move_completed_path` (the room's `savePath`). The add
   carries `useTemp: false` only while the switch is shown off on qBittorrent or Deluge; on
   sends nothing new. `App::applyTempFolder`, at the end of `addOptionsFrom`, turns it into
-  `useDownloadPath=false` on qBittorrent and, on Deluge, `download_location` = Save to with
+  `useDownloadPath=false` on qBittorrent (under automatic management also `autoTMM=false` and
+  the folder automatic management would pick as `savepath`: qBittorrent 5.3 ignores
+  `useDownloadPath` for an `autoTMM=true` add and takes the temp folder anyway, found by the
+  stuck walk's temp stage, 2026-11-20) and, on Deluge, `download_location` = Save to with
   `move_completed` false (off) or `download_location` = the temp folder, `move_completed` true,
   `move_completed_path` = Save to (on; #277, batches too). The first line's free space comes
   only from omaseed's own look at the drive (`FreeSpaceProbe::answerLocal`), never the

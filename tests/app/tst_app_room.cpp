@@ -154,6 +154,7 @@ private slots:
     void roomForUnknownTempDrive();
     void promisedLeftOutWhenPreallocating();
     void addSendsUseTempOnlyWhenOff();
+    void switchOffUnderAutoTmmIsAManualAdd();
     void aCategorysTempFolderMovingReadsTheRoomAgain();
 
 private:
@@ -358,6 +359,52 @@ void TestAppRoom::addSendsUseTempOnlyWhenOff()
     QTRY_COMPARE_WITH_TIMEOUT(server.adds.size(), 2, 3000);
     QVERIFY(!server.adds.at(1).hasQueryItem(QStringLiteral("useDownloadPath")));
     QVERIFY(!server.adds.at(1).hasQueryItem(QStringLiteral("downloadPath")));
+    app.engine()->stop();
+}
+
+void TestAppRoom::switchOffUnderAutoTmmIsAManualAdd()
+{
+    // C47 I9: qBittorrent 5.3 ignores useDownloadPath under autoTMM (the walk's
+    // room-walk-big.bin kept the temp folder), so off goes manual, where autoTMM would save.
+    RoomServer server;
+    App app;
+    QVERIFY(startOn(app, server));
+    const QVariantMap magnet{
+        {QStringLiteral("kind"), QStringLiteral("magnet")},
+        {QStringLiteral("value"),
+         QStringLiteral("magnet:?xt=urn:btih:dddddddddddddddddddddddddddddddddddddddd")},
+        {QStringLiteral("infoHashV1"), QStringLiteral("dddddddddddddddddddddddddddddddddddddddd")},
+        {QStringLiteral("name"), QStringLiteral("d")},
+        {QStringLiteral("autoTMM"), true},
+    };
+    QVariantMap off = magnet;
+    off.insert(QStringLiteral("useTemp"), false);
+    app.addTorrent(off);
+    QTRY_COMPARE_WITH_TIMEOUT(server.adds.size(), 1, 3000);
+    QCOMPARE(server.adds.at(0).queryItemValue(QStringLiteral("useDownloadPath")),
+             QStringLiteral("false"));
+    QCOMPARE(server.adds.at(0).queryItemValue(QStringLiteral("autoTMM")), QStringLiteral("false"));
+    QCOMPARE(server.adds.at(0).queryItemValue(QStringLiteral("savepath"), QUrl::FullyDecoded),
+             QStringLiteral("/home/d/Downloads"));
+
+    // A category: its own folder.
+    QVariantMap music = off;
+    music.insert(QStringLiteral("category"), QStringLiteral("music"));
+    app.addTorrent(music);
+    QTRY_COMPARE_WITH_TIMEOUT(server.adds.size(), 2, 3000);
+    QCOMPARE(server.adds.at(1).queryItemValue(QStringLiteral("autoTMM")), QStringLiteral("false"));
+    QCOMPARE(server.adds.at(1).queryItemValue(QStringLiteral("savepath"), QUrl::FullyDecoded),
+             QStringLiteral("/home/d/music"));
+    QCOMPARE(server.adds.at(1).queryItemValue(QStringLiteral("category")), QStringLiteral("music"));
+
+    // On: automatic management stays, nothing else is said.
+    QVariantMap on = magnet;
+    on.insert(QStringLiteral("useTemp"), true);
+    app.addTorrent(on);
+    QTRY_COMPARE_WITH_TIMEOUT(server.adds.size(), 3, 3000);
+    QCOMPARE(server.adds.at(2).queryItemValue(QStringLiteral("autoTMM")), QStringLiteral("true"));
+    QVERIFY(!server.adds.at(2).hasQueryItem(QStringLiteral("savepath")));
+    QVERIFY(!server.adds.at(2).hasQueryItem(QStringLiteral("useDownloadPath")));
     app.engine()->stop();
 }
 
