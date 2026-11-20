@@ -112,6 +112,11 @@ install(PROGRAMS hooks/theme-set.d/omaseed
 install(FILES omarchy-menu.jsonc
     DESTINATION "${CMAKE_INSTALL_DATADIR}/omaseed")
 
+# DECISIONS C37 U7 (#226): the scenario the guide's skins part names for omabox's visual check,
+# `omabox check run -- /usr/share/omaseed/agents/skin-check.sh SKIN`.
+install(PROGRAMS agents/skin-check.sh
+    DESTINATION "${CMAKE_INSTALL_DATADIR}/omaseed/agents")
+
 # The companion bar widget (#17, docs/07 §6): a read-only copy for `omaseed
 # --install-bar-widget` to put into ~/.config/omarchy/plugins/, since the shell scans no system
 # directory. plugin/ is also what the public omaseed-bar repo is split from.

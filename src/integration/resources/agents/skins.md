@@ -62,9 +62,9 @@ One sheet on invented torrents: rows, table, a menu, a sheet, a notice and
 the four faces. No other view: after skin use, ask the person to look.
 With omabox installed, check it under every theme, in a desktop of its own:
 
-  omabox check run --base DIR -- /usr/share/omaseed/agents/skin-check.sh warm
-
-The first run is the baseline; each later one says same, or what changed.
+  omabox check run --approve --base DIR -- \
+      /usr/share/omaseed/agents/skin-check.sh warm
+Once with --approve (the baseline), then without: same, or what changed.
 
 ### The way back
 
