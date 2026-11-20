@@ -16,7 +16,10 @@
 # through "fetching", "still looking" and "may never come" on a faster clock and is still
 # added. Last, three .torrent files added one after another, "add stopped" double-clicked each
 # time, the table sorted by date added and the pointer over its rows (#124): one add each, and
-# each row on top as soon as it shows.
+# each row on top as soon as it shows. Then board 64's add window (DECISIONS C47, #172): two
+# columns for a pack (kind chips, the toolbar, tree and flat, About this torrent), a one-file
+# torrent's one-row list (its file renamed there and read back from qBittorrent), a magnet's
+# wait on the right, and one column on a screen under 1200 px.
 #
 #   scripts/dev/magnet-walk.sh [OUT_DIR]        # agents: a headless box, a screenshot per step,
 #                                               # OUT_DIR/index.md says what to look for in each
@@ -754,6 +757,50 @@ box_appears() {
 no_mkv() { omabox run -b "$BOX" -- test ! -e "$SAMPLER_DIR/sampler.mkv"; }
 has_srt() { omabox run -b "$BOX" -- test -f "$SAMPLER_DIR/sampler.srt"; }
 
+# Board 64 (DECISIONS C47 I2): where the add sheet puts its files. files_place WIN TARGET: where
+# TARGET (the file list, `files`, or a node whose name starts with TARGET, as a magnet's
+# "Asking qBittorrent …" wait) sits against the form's Download limit field in window WIN:
+# "right" (two columns), "under" (one column), "" while either is missing.
+files_place() {
+    omabox tree -b "$BOX" --window "$1" --json 2>/dev/null | python3 -c '
+import json, sys
+want = sys.argv[1]
+nodes = [n for n in json.load(sys.stdin) if n.get("w", 0) > 0]
+form = next((n for n in nodes if n.get("name") == "Download limit"), None)
+def hit(n):
+    name = n.get("name") or ""
+    return name == want if want == "files" else name.startswith(want)
+target = next((n for n in nodes if hit(n)), None)
+if form and target:
+    if target["x"] >= form["x"] + form["w"]:
+        print("right")
+    elif target["y"] >= form["y"] + form["h"]:
+        print("under")' "$2"
+}
+# placed WIN TARGET WHERE: until files_place says WHERE (10 s at most).
+placed() {
+    for _ in $(seq 1 20); do
+        [ "$(files_place "$1" "$2")" = "$3" ] && return 0
+        sleep 0.5
+    done
+    echo "    $2 is \"$(files_place "$1" "$2")\", not $3" >&2
+    return 1
+}
+# add_click NAME [ROLE]: a click in the middle of the add window's node named NAME exactly (and
+# of ROLE, when given: "list item" for a file's row).
+add_click() {
+    local at
+    at="$(omabox tree -b "$BOX" --window "$ADD_WIN" --json 2>/dev/null | python3 -c '
+import json, sys
+for n in json.load(sys.stdin):
+    if n.get("name") == sys.argv[1] and n.get("w", 0) > 0 and (not sys.argv[2] or n.get("role") == sys.argv[2]):
+        print(n["x"] + n["w"] // 2, n["y"] + n["h"] // 2)
+        break' "$1" "${2:-}")"
+    [ -n "$at" ] || return 1
+    # shellcheck disable=SC2086 # "X Y"
+    omabox click -b "$BOX" --window "$ADD_WIN" $at >/dev/null
+}
+
 # 5b. #193: add pressed before the list is in. qBittorrent 5.3.0 crashes on the next sync once
 # the metadata arrives for a magnet added while its lookup still runs, so the app holds the add
 # until the list is in. The Sampler's list takes about a second to come from the seeder; enter
@@ -825,7 +872,9 @@ in_sheet() {
 }
 check "the line under the tree says README.txt is an extra, still ticked" \
     in_sheet "1 extra: a text file"
-step "A magnet's files, from the tray" "The add window alone (the main window stays in the tray), with the add sheet for Public Domain Sampler, \"24.0 MB · from magnet link\"; under the switches, Files \"3 files · 24.0 MB\": README.txt (a dim \"extra\" on its row), sampler.mkv, sampler.srt, all ticked; under the tree, dim: \"1 extra: a text file (…). Ticked, so the torrent seeds whole.\"; the free line needs 24.0 MB."
+# Board 64 (C47 I2): the list that replaced the wait is in the right column, beside the form.
+check "the list is in the right column, beside the form (C47 I2)" placed "$ADD_WIN" files right
+step "A magnet's files, from the tray" "The add window alone (the main window stays in the tray), two columns (board 64): on the left the form for Public Domain Sampler, \"24.0 MB · from magnet link\", its free line needing 24.0 MB; on the right Files with its kind chips and \"3 files · 24.0 MB\", the toolbar, then README.txt (\"extra\" in its kind column), sampler.mkv, sampler.srt, all ticked; under the tree, dim: \"1 extra: a text file (…). Ticked, so the torrent seeds whole.\"; About this torrent under it."
 
 # From the field, shift+tab goes back past add, add stopped and cancel to the tree.
 keys shift+Tab shift+Tab shift+Tab shift+Tab j space
@@ -948,6 +997,100 @@ for name in "distro-2026.09-x86_64.iso" "photo-archive-2019-2025" "tiny-notes.tx
 done
 check "the second presses sent nothing (no refused add in the log)" no_refused_add
 step "Three added in a row" "Sorted by added, newest first: tiny-notes.txt, photo-archive-2019-2025 and distro-2026.09-x86_64.iso on top, in that order, all stopped; the sheet is gone."
+
+# 9. Board 64 (DECISIONS C47 I1, I2, I4–I7, I15, #172): the add window's two columns. With the main
+# window in the tray, each add comes up in the add window on the box's 1920 px screen: the form
+# on the left, the files and About this torrent on the right. A pack (Open Movie Night: videos,
+# subtitles and extras) has the pane's kind chips and toolbar; a one-file torrent a one-row
+# list, its file renamed there before the add and read back from the box's qBittorrent (step
+# E's open question: the file's rename, not the Name field's); a private magnet's wait (no peer
+# sends its list) sits on the right; and a screen under 1200 px puts the files back under the
+# form (I2's fallback). Nothing here downloads: the pack and the magnet are cancelled, the one
+# file added stopped.
+MOVIE="Open Movie Night (2026)"
+SINGLE="unwritable-fixture.bin"
+SINGLE_RENAMED="fixture renamed.bin"
+MOVIE_MAGNET="$(seeder_field "$MOVIE" magnet_uri)"
+box_api() { omabox run -b "$BOX" -- curl -fs "http://127.0.0.1:8090/api/v2/$1"; }
+# single_file_is NAME: until the box's qBittorrent holds the one-file torrent with its file
+# called NAME (the torrent itself may keep its own name).
+single_file_is() {
+    local hash
+    for _ in $(seq 1 20); do
+        hash="$(box_api torrents/info 2>/dev/null | python3 -c '
+import json, sys
+print(next((t["hash"] for t in json.load(sys.stdin) if t["name"] in sys.argv[1:]), ""))' "$SINGLE" "$SINGLE_RENAMED")"
+        if [ -n "$hash" ] && [ "$(box_api "torrents/files?hash=$hash" 2>/dev/null |
+            python3 -c 'import json, sys; print(json.load(sys.stdin)[0]["name"])')" = "$1" ]; then
+            return 0
+        fi
+        sleep 0.5
+    done
+    return 1
+}
+
+close_window main
+sleep 1
+check "two columns: closing the window hides it to the tray" main_in_tray
+open_in_box "$HOME_IN_BOX/Downloads/$MOVIE.torrent"
+check "a pack: the add window read it" add_shows "$MOVIE"
+check "a pack: its files in the right column, beside the form (C47 I2)" placed "$ADD_WIN" files right
+check "a pack: the kind chips name 3 videos (C47 I5)" add_shows "3 videos"
+check "a pack: …and 3 subtitles" add_shows "3 subtitles"
+check "a pack: the toolbar shows the tree (C47 I4)" add_shows "tree [checked]"
+check "a pack: About this torrent under the files (C47 I15)" add_shows "About this torrent"
+step "Two columns, a pack" "The add window, 1120 px wide: on the left the form for $MOVIE (Name, Category, Tags, Save to with its free line, the switches, the limits); a hairline; on the right Files with its kind chips (\"3 videos\" with its size, 3 subtitles, extras, each with its box) and the count, the toolbar (filter, sort, tree · flat, fold all, hide skipped), the tree with its kind column, the extras line, then About this torrent (created by, on, comment, private, pieces, info hash)."
+add_click flat || true
+check "a pack: flat lists the files without folders (C47 I6)" add_shows "flat [checked]"
+step "A pack, flat" "The same window, the toolbar on flat: every file once, its folder dim before its name (extras/, subs/, sample/), no fold glyphs, folders gone from the list; fold all greyed out."
+add_click tree || true
+cancel_add || true
+
+open_in_box "$HOME_IN_BOX/Downloads/$SINGLE.torrent"
+check "one file: the add window read it" add_shows "$SINGLE"
+check "one file: its list in the right column (C47 I1)" placed "$ADD_WIN" files right
+step "Two columns, one file" "On the right, Files with one chip (its word, no box) and a one-row list: $SINGLE, its kind and size, no tick (C47 I1); About this torrent under it."
+# Its row, then F2: the file's own name in the editor, its stem selected (the extension
+# stays), not the Name field.
+if add_click "$SINGLE" "list item"; then
+    keys F2
+    sleep 0.5
+    keys -t "${SINGLE_RENAMED%.bin}"
+    keys Return
+    check "one file: the row reads the new name" add_shows "$SINGLE_RENAMED"
+    step "One file, renamed before the add" "The one-row list reads $SINGLE_RENAMED; the Name field above still says $SINGLE."
+    if add_click "add stopped" "button"; then
+        check "one file: added stopped, its file called $SINGLE_RENAMED on the box's qBittorrent" \
+            single_file_is "$SINGLE_RENAMED"
+    else
+        check "one file: the add window's add stopped button" false
+    fi
+    add_gone || cancel_add || true
+else
+    check "one file: its row in the add window" false
+    cancel_add || true
+fi
+
+open_in_box "$MOVIE_MAGNET"
+check "a magnet: the add window came up" add_focused
+check "a magnet: its wait for the list on the right (C47 I2, C5)" placed "$ADD_WIN" "Asking" right
+step "Two columns, a magnet's wait" "The add window for $MOVIE's magnet (private: no peer sends its list): the form on the left, unmoved; on the right Files with \"fetching\" and its seconds, the box \"Asking qBittorrent for the file list\", and About this torrent with the link's trackers and info hash."
+cancel_add || true
+
+# I2's fallback: a screen under 1200 logical px. `omabox mode` changes a headless box's screen
+# only; interactive, the narrow add is left to the person (Settings › Appearance › Add window,
+# one column, shows the same).
+if [ "$INTERACTIVE" = 0 ]; then
+    omabox mode -b "$BOX" 1100x900 >/dev/null
+    sleep 2
+    open_in_box "$HOME_IN_BOX/Downloads/$MOVIE.torrent"
+    check "narrow: the add window read the pack" add_shows "$MOVIE"
+    check "narrow: under 1200 px its files go under the form (C47 I2)" placed "$ADD_WIN" files under
+    step "Narrow, one column" "A 1100 px screen: the add window is today's 600 px sheet, the files (chips, toolbar, tree) under the form, About this torrent under them while it fits."
+    cancel_add || true
+else
+    echo "  narrow: in an interactive box, set Settings › Appearance › Add window to one column, open a .torrent, and look"
+fi
 
 if [ "$INTERACTIVE" = 0 ]; then
     printf '\n## Checks\n\n%s' "$CHECKS" >>"$OUT/index.md"
