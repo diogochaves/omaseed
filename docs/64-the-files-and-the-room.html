@@ -1,0 +1,757 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Board 64 · The files, and the room</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Chakra+Petch:wght@500;600;700&family=Share+Tech+Mono&display=swap">
+<style>
+/* ------------------------------------------------------------------
+ docs/64: The add sheet: the files, and the room (2026-11-19, #172).
+ A proposal on top of board 59. Board 59's page kit, every colour a
+ Theme role. The sheet is a mock, live: tick, fold, sort, filter.
+ ------------------------------------------------------------------ */
+:root {
+  --accent:#5492f8; --bg:#11111b; --bg-dark:#0d0d14; --bg-light:#1b1b2b;
+  --fg:#b9c5ef; --fg-dark:#8b94b3; --fg-bright:#cbd4f3;
+  --green:#7dd676; --red:#ee5681; --yellow:#f6d58c; --cyan:#7cd6e8;
+  --f4: color-mix(in srgb, var(--fg) 4%, transparent);
+  --f8: color-mix(in srgb, var(--fg) 8%, transparent);
+  --f18: color-mix(in srgb, var(--fg) 18%, transparent);
+  --f22: color-mix(in srgb, var(--fg) 22%, transparent);
+  --hairline: color-mix(in srgb, var(--fg) 12%, transparent);
+  --mono: "JetBrains Mono", "JetBrainsMono Nerd Font", ui-monospace, monospace;
+  color-scheme: dark;
+}
+* { box-sizing:border-box; }
+[hidden] { display:none !important; }
+html { background:var(--bg-dark); }
+body { margin:0; background:var(--bg-dark); color:var(--fg); font:400 13px/1.6 var(--mono); -webkit-font-smoothing:antialiased; }
+body::before { content:""; position:fixed; inset:0 0 auto; height:env(safe-area-inset-top, 0px); z-index:60; background:var(--bg-dark); }
+main { max-width:1180px; margin:0 auto; padding-block:32px 72px; padding-left:max(16px, env(safe-area-inset-left, 0px)); padding-right:max(16px, env(safe-area-inset-right, 0px)); display:grid; gap:32px; }
+h1,h2,h3 { margin:0; font-weight:600; color:var(--fg-bright); text-wrap:balance; }
+h1 { font-size:26px; } h2 { font-size:17px; } h3 { font-size:13px; }
+p, li { max-width:88ch; }
+p { margin:0; }
+ul, ol { margin:0; padding-left:20px; display:grid; gap:4px; }
+code, kbd { font:inherit; color:var(--fg-bright); background:var(--f4); padding:0 4px; overflow-wrap:anywhere; }
+b { color:var(--fg-bright); font-weight:600; }
+a { color:var(--accent); }
+q { color:var(--fg-bright); }
+.eyebrow { font-size:10px; letter-spacing:.12em; text-transform:uppercase; color:var(--fg-dark); }
+.dim { color:var(--fg-dark); }
+.lead { font-size:14px; color:var(--fg); max-width:90ch; }
+section { display:grid; gap:14px; border-top:1px solid var(--hairline); padding-top:22px; min-width:0; }
+.sec-head { display:grid; gap:4px; }
+figure { margin:0; display:grid; gap:6px; align-content:start; min-width:0; }
+figcaption { font-size:11.5px; color:var(--fg-dark); max-width:100ch; }
+figcaption b { color:var(--fg); font-weight:500; }
+.src { font-size:9.5px; letter-spacing:.12em; text-transform:uppercase; padding:0 5px; border:1px solid var(--hairline); color:var(--fg-dark); margin-right:6px; }
+.src.mock { color:var(--yellow); border-color:color-mix(in srgb, var(--yellow) 45%, transparent); }
+.cols { display:grid; grid-template-columns:repeat(auto-fit, minmax(min(100%, 340px), 1fr)); gap:22px; align-items:start; }
+.cols > * { min-width:0; }
+.shot { border:1px solid var(--hairline); display:block; max-width:100%; height:auto; }
+.note { border-left:2px solid var(--accent); padding:6px 12px; background:var(--f4); font-size:12px; max-width:100ch; }
+.note.warn { border-color:var(--yellow); }
+.facts li::marker { color:var(--accent); }
+.flags { display:flex; flex-wrap:wrap; gap:8px; }
+.flag { font-size:10.5px; letter-spacing:.1em; text-transform:uppercase; color:var(--fg-dark); border:1px solid var(--hairline); padding:2px 9px; }
+.flag.hot { color:var(--yellow); border-color:color-mix(in srgb, var(--yellow) 45%, transparent); }
+.flag.ok { color:var(--green); border-color:color-mix(in srgb, var(--green) 45%, transparent); }
+.item { display:grid; gap:10px; min-width:0; }
+.item h3 .id { color:var(--accent); margin-right:6px; }
+.recl { font-size:12.4px; border-left:2px solid var(--green); padding:6px 12px; background:var(--f4); max-width:100ch; }
+.recl b { color:var(--green); }
+.rec-tag { font-size:9.5px; letter-spacing:.12em; text-transform:uppercase; padding:0 5px; border:1px solid color-mix(in srgb, var(--green) 40%, transparent); color:var(--green); margin-left:8px; vertical-align:2px; }
+.scroll { overflow-x:auto; }
+table.t { border-collapse:collapse; width:100%; font-size:12px; min-width:760px; color:var(--fg); }
+.t th, .t td { text-align:left; padding:6px 10px; border-bottom:1px solid var(--hairline); vertical-align:top; }
+.t th { font-weight:500; color:var(--fg-dark); font-size:10px; letter-spacing:.1em; text-transform:uppercase; white-space:nowrap; background:var(--bg-dark); }
+.t td:first-child { color:var(--fg-bright); }
+.t .y { color:var(--green); } .t .n { color:var(--fg-dark); } .t .m { color:var(--yellow); }
+.steps { counter-reset:s; list-style:none; padding:0; gap:10px; }
+.steps li { counter-increment:s; display:grid; grid-template-columns:28px 1fr; gap:8px; max-width:100ch; }
+.steps li::before { content:counter(s); color:var(--accent); font-weight:600; }
+.block { margin:0; padding:10px 12px; background:var(--bg); border:1px solid var(--hairline); font:inherit; font-size:11.5px; line-height:1.55; color:var(--fg); white-space:pre; }
+
+/* ---------- the switches over the mocks ---------- */
+.ctl { display:flex; flex-wrap:wrap; gap:8px 18px; align-items:center; font-size:12px; }
+.ctl .lab { font-size:10px; letter-spacing:.12em; text-transform:uppercase; color:var(--fg-dark); margin-right:4px; }
+.ctl .grp { display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
+.ctl button { font:inherit; font-size:12px; padding:1px 9px; border:1px solid var(--hairline); color:var(--fg); background:transparent; cursor:pointer; }
+.ctl button[aria-pressed="true"] { background:var(--f18); border-color:transparent; color:var(--fg-bright); }
+
+/* ---------- the add sheet, in the two skins (board 46 `.sheet`, Kit/Sheet) ---------- */
+.pane2 { display:grid; grid-template-columns:repeat(auto-fit, minmax(min(100%, 470px), 1fr)); gap:22px; align-items:start; }
+.sh { background:var(--bg); border:1px solid var(--hairline); min-width:0; max-width:600px; font-size:12px; line-height:1.5; }
+.sh .hd { display:flex; gap:10px; align-items:baseline; padding:12px 16px 10px; border-bottom:1px solid var(--hairline); min-width:0; }
+.sh .hd b { font-size:13.5px; color:var(--fg-bright); white-space:nowrap; }
+.sh .hd .sub { flex:1; min-width:0; color:var(--fg-dark); font-size:11.5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.sh .hd .esc { color:var(--fg-dark); font-size:11px; }
+.sh .bd { padding:12px 16px 14px; display:grid; gap:11px; min-width:0; }
+.sh .lab { font-size:10px; letter-spacing:.12em; text-transform:uppercase; color:var(--fg-dark); }
+.sh .row { display:grid; gap:5px; min-width:0; }
+.sh .two { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:10px; }
+.sh .fld { border:1px solid var(--hairline); padding:3px 10px; display:flex; justify-content:space-between; gap:10px; background:var(--f4); min-width:0; }
+.sh .fld > span:first-child { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0; }
+.sh .fld .u { color:var(--fg-dark); font-size:11px; white-space:nowrap; }
+.sh .fld.ph > span:first-child { color:var(--fg-dark); }
+.sh .chips { display:flex; gap:6px; flex-wrap:wrap; }
+.sh .chip { padding:0 8px; border:1px solid var(--hairline); color:var(--fg); }
+.sh .chip.on { background:var(--f18); border-color:transparent; color:var(--fg-bright); }
+.sh .ln { font-size:11px; color:var(--fg-dark); overflow-wrap:anywhere; }
+.sh .lk { color:var(--accent); white-space:nowrap; }
+.sh .rest { font-size:11px; color:var(--fg-dark); border:1px dashed var(--hairline); padding:3px 10px; }
+.sh .chk { display:grid; grid-template-columns:16px minmax(0, 1fr) auto; gap:1px 8px; font-size:12px; align-items:baseline; }
+.sh .chk .g { text-align:center; font-weight:700; }
+.sh .chk .g.ok { color:var(--green); } .sh .chk .g.w { color:var(--yellow); } .sh .chk .g.i { color:var(--fg-dark); }
+.sh .chk b { color:var(--fg-bright); font-weight:500; overflow-wrap:anywhere; }
+.sh .chk small { grid-column:2 / -1; color:var(--fg-dark); font-size:11px; }
+.sh .chk .lk { font-size:11px; }
+.sh .wait { display:grid; gap:7px; padding:8px 10px; background:var(--f4); }
+.sh .fh { display:flex; gap:10px; align-items:baseline; min-width:0; }
+.sh .fh .kinds { flex:1; min-width:0; color:var(--fg); font-size:11.5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.sh .fh .cnt { color:var(--fg-dark); font-size:11px; white-space:nowrap; }
+.sh .tree { display:grid; border:1px solid var(--hairline); font-size:11.5px; }
+.sh .tree > div { display:grid; grid-template-columns:14px minmax(0,1fr) auto; gap:8px; padding:2px 10px; }
+.sh .tree > div + div { border-top:1px solid var(--hairline); }
+.sh .tree > div > span:nth-child(2) { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.sh .tree .bx { color:var(--accent); } .sh .tree .sz { color:var(--fg-dark); font-variant-numeric:tabular-nums; }
+.sh .tree .skip { color:var(--fg-dark); } .sh .tree .skip .bx { color:var(--fg-dark); }
+.sh .tree .in1 > span:nth-child(2) { padding-left:14px; }
+.sh .tree .meta { color:var(--fg-dark); font-size:10.5px; margin-left:8px; }
+.sh .tree .meta.w { color:var(--yellow); }
+.sh .ft { display:flex; gap:8px; justify-content:flex-end; align-items:center; flex-wrap:wrap; padding:10px 16px 12px; border-top:1px solid var(--hairline); }
+.sh .btn { border:1px solid var(--hairline); padding:2px 12px; color:var(--fg); white-space:nowrap; }
+.sh .btn.pri { background:var(--accent); border-color:transparent; color:var(--bg); }
+.sh .nw { font-size:9px; letter-spacing:.12em; text-transform:uppercase; color:var(--yellow); border:1px solid color-mix(in srgb, var(--yellow) 45%, transparent); padding:0 4px; margin-left:6px; vertical-align:1px; white-space:nowrap; font-family:var(--mono); font-weight:400; }
+/* the Console skin (board 46 `.sk-con`, C31): its name voice, its value voice, a cut plate */
+.sh.con { --fl:"Chakra Petch", "Rajdhani", system-ui, sans-serif; --fv:"Share Tech Mono", "JetBrains Mono", ui-monospace, monospace; font-family:var(--fv); border-color:color-mix(in srgb, var(--accent) 55%, var(--bg)); clip-path:polygon(0 0, calc(100% - 14px) 0, 100% 14px, 100% 100%, 14px 100%, 0 calc(100% - 14px)); }
+.sh.con .hd b { font:700 13px var(--fl); letter-spacing:.2em; text-transform:uppercase; }
+.sh.con .hd b .kn { font-family:var(--fv); letter-spacing:0; color:var(--cyan); margin-left:8px; font-weight:400; }
+.sh.con .lab { font:600 10.5px var(--fl); letter-spacing:.16em; }
+.sh.con .chk b { font:600 12px var(--fl); letter-spacing:.04em; }
+.sh.con .btn { font:600 11px var(--fl); letter-spacing:.14em; text-transform:uppercase; padding:3px 12px; }
+.sh.con .fh .kinds { font-family:var(--fv); }
+
+/* ---------- the decision sheet (board 52's) ---------- */
+.dec { display:grid; grid-template-columns:repeat(auto-fit, minmax(min(100%, 480px), 1fr)); gap:14px; }
+.q { display:grid; gap:8px; border:1px solid var(--hairline); padding:14px; min-width:0; align-content:start; }
+.q fieldset { border:0; margin:0; padding:0; display:grid; gap:6px; min-width:0; }
+.q legend { padding:0; color:var(--fg-bright); font-weight:500; margin-bottom:4px; }
+.q .id { color:var(--accent); font-weight:600; }
+.opt { display:grid; grid-template-columns:18px 1fr; gap:8px; align-items:start; font-size:12.4px; cursor:pointer; }
+.opt input { margin:3px 0 0; accent-color:var(--accent); }
+.opt .rec { color:var(--green); font-size:10px; letter-spacing:.1em; text-transform:uppercase; margin-left:6px; }
+.out { display:grid; gap:8px; }
+.out textarea { width:100%; min-height:150px; font:inherit; font-size:12.4px; color:var(--fg); background:var(--bg); border:1px solid var(--hairline); padding:10px; resize:vertical; }
+.out button { font:inherit; justify-self:start; color:var(--bg); background:var(--accent); border:0; padding:6px 14px; cursor:pointer; }
+.out .ok { color:var(--green); font-size:12px; }
+#free { width:100%; min-height:70px; font:inherit; font-size:12.4px; color:var(--fg); background:var(--bg); border:1px solid var(--hairline); padding:8px; }
+button:focus-visible, input:focus-visible, textarea:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+@media (prefers-reduced-motion: reduce) { * { transition:none !important; } }
+
+/* ---------- board 64: the two-column add window ---------- */
+.sh.aw { max-width:none; width:1120px; }
+.sh.aw.narrow { width:600px; }
+.aw .split { display:grid; grid-template-columns:440px minmax(0,1fr); min-width:0; }
+.aw.narrow .split, .aw.one .split { grid-template-columns:minmax(0,1fr); }
+.sh.aw.one { width:600px; }
+.aw .left { padding:12px 16px 14px; display:grid; gap:11px; align-content:start; min-width:0; border-right:1px solid var(--hairline); }
+.aw.narrow .left, .aw.one .left { border-right:0; }
+.aw.narrow .left { border-bottom:1px solid var(--hairline); }
+.aw .right { padding:12px 16px 14px; display:grid; gap:8px; align-content:start; min-width:0; }
+.aw .right .lab { display:block; }
+.tb { display:flex; gap:6px; align-items:center; flex-wrap:wrap; font-size:11.5px; }
+.tb .flt { flex:1 1 150px; display:flex; gap:6px; align-items:center; border:1px solid var(--hairline); background:var(--f4); padding:0 8px; min-width:0; }
+.tb .flt span { color:var(--fg-dark); }
+.tb .flt input { flex:1; min-width:0; font:inherit; color:var(--fg); background:transparent; border:0; padding:1px 0; outline:none; }
+.tb button, .kc button, .rl button, .ftree button { font:inherit; color:inherit; background:transparent; border:0; padding:0; cursor:pointer; }
+.tb .tbtn { border:1px solid var(--hairline); padding:0 8px; color:var(--fg); white-space:nowrap; }
+.tb .tbtn.on { background:var(--f18); border-color:transparent; color:var(--fg-bright); }
+.tb .seg { display:inline-flex; }
+.tb .seg .tbtn + .tbtn { border-left:0; }
+.tb .menu { position:relative; }
+.tb .dd { position:absolute; z-index:5; top:calc(100% + 3px); left:0; display:grid; min-width:150px; background:var(--bg-light); border:1px solid var(--hairline); padding:4px 0; }
+.tb .dd button { text-align:left; padding:1px 12px; color:var(--fg); white-space:nowrap; }
+.tb .dd button.on { color:var(--fg-bright); background:var(--f8); }
+.tb .dd hr { border:0; border-top:1px solid var(--hairline); margin:4px 0; }
+.fhd { display:flex; gap:10px; align-items:center; flex-wrap:wrap; min-width:0; }
+.kcs { display:flex; gap:6px; flex-wrap:wrap; flex:1; min-width:0; }
+.kc { display:inline-flex; align-items:stretch; border:1px solid var(--hairline); font-size:11.5px; white-space:nowrap; }
+.kc .kb { width:20px; text-align:center; border-right:1px solid var(--hairline); color:var(--accent); }
+.kc .kb.off { color:var(--fg-dark); }
+.kc .kw { padding:0 8px; color:var(--fg); }
+.kc .kw small { color:var(--fg-dark); font-size:10.5px; margin-left:4px; }
+.kc.on .kw { background:var(--f18); color:var(--fg-bright); }
+.fhd .cnt { color:var(--fg-dark); font-size:11px; white-space:nowrap; font-variant-numeric:tabular-nums; }
+.fhd .cnt .lk { margin-left:6px; cursor:pointer; }
+.ftree { border:1px solid var(--hairline); font-size:11.5px; max-height:430px; overflow:auto; }
+.ftree .r { display:grid; grid-template-columns:minmax(0,1fr) 82px 74px; gap:8px; padding:2px 10px; align-items:baseline; }
+.ftree .r + .r { border-top:1px solid var(--hairline); }
+.ftree .hdr { position:sticky; top:0; z-index:1; background:var(--bg); color:var(--fg-dark); font-size:10px; letter-spacing:.1em; text-transform:uppercase; }
+.ftree .hdr button { letter-spacing:inherit; text-transform:inherit; color:var(--fg-dark); }
+.ftree .hdr button.on { color:var(--fg-bright); }
+.ftree .nm { display:flex; gap:6px; align-items:baseline; min-width:0; }
+.ftree .chev { width:12px; flex:none; color:var(--fg-dark); }
+.ftree .bx { width:14px; flex:none; text-align:center; color:var(--accent); border:1px solid var(--hairline); line-height:13px; font-size:10px; }
+.ftree .t { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0; }
+.ftree .t .dp { color:var(--fg-dark); margin-left:8px; }
+.ftree .dir .t { color:var(--fg-bright); }
+.ftree .k { color:var(--fg-dark); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.ftree .sz { color:var(--fg-dark); text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
+.ftree .r.skip, .ftree .r.skip .t, .ftree .r.skip .bx { color:var(--fg-dark); }
+.ftree .r.skip .t { text-decoration:line-through; text-decoration-color:var(--hairline); }
+.ftree .empty { padding:8px 10px; color:var(--fg-dark); }
+.room { display:grid; gap:7px; }
+.rl { display:grid; grid-template-columns:auto minmax(0,1fr) 70px; gap:1px 8px; align-items:center; font-size:11px; color:var(--fg-dark); }
+.rl .what { color:var(--fg); overflow-wrap:anywhere; }
+.rl .what b { color:var(--fg-bright); font-weight:500; }
+.rl .mt { height:4px; background:var(--f8); position:relative; }
+.rl .mt i { position:absolute; left:0; top:0; bottom:0; background:currentColor; }
+.rl .mt i.co { opacity:.45; }
+.rl small { grid-column:2 / -1; font-size:11px; color:var(--fg-dark); overflow-wrap:anywhere; }
+.rl small .lk { cursor:pointer; }
+.rl .ic { width:24px; text-align:center; color:var(--fg-dark); }
+.rl.warn .what b, .rl.warn .mt { color:var(--yellow); }
+.rl.bad .what b, .rl.bad .mt { color:var(--red); }
+.rl.dim .what { color:var(--fg-dark); }
+.rl .mt { color:var(--fg-dark); }
+.tg { display:inline-block; width:24px; height:12px; border:1px solid var(--hairline); position:relative; background:transparent; vertical-align:-1px; }
+.tg::after { content:""; position:absolute; top:1px; left:1px; width:8px; height:8px; background:var(--fg-dark); }
+.tg.on { background:var(--accent); border-color:transparent; }
+.tg.on::after { left:auto; right:1px; background:var(--bg); }
+.sh .chk { margin-top:2px; }
+.wait { display:grid; gap:7px; padding:8px 10px; background:var(--f4); }
+</style>
+</head>
+<body>
+<main>
+  <header style="display:grid;gap:12px">
+    <div class="eyebrow">omaseed · board 64 · 2026-11-19 · a proposal · #172 · sits on board 59</div>
+    <h1>The add sheet: the files, and the room</h1>
+    <p class="lead">Board 59 gave the add sheet four new lines. Two things it doesn't give are what Diogo found missing. First, the <b>file list</b>: in the add sheet it sorts only by name, can't be filtered, can't fold or unfold everything, and lives in a 600 px column under a form. A pack of 28 files ends up as a long, narrow scroll. Second, <b>the room</b>: the free line checks only the folder a torrent ends in. When the server first downloads into a temporary folder on another drive, the sheet says "fits" while that other drive fills up. This board proposes a <b>two-column add window</b> whose right side is the whole file list, with the details tab's tools and one of its own. It also proposes a <b>free line in two stages</b>: where the torrent downloads first, and where it moves when done.</p>
+    <div class="flags"><span class="flag hot">a proposal · not ruled</span><span class="flag">the add window · two columns</span><span class="flag">one file list for add and details</span><span class="flag">the free line · two stages</span><span class="flag ok">no new setting</span><span class="flag ok">D10 holds: no folder suggested</span></div>
+  </header>
+
+  <!-- 1 -->
+  <section id="today">
+    <div class="sec-head"><div class="eyebrow">1 · today</div><h2>Two file lists that don't match, and a free line that sees one drive</h2></div>
+    <div class="scroll"><table class="t">
+      <thead><tr><th>In the file list</th><th>Add sheet (<code>AddFilesModel</code>)</th><th>Details › Files (<code>TorrentFilesModel</code>)</th></tr></thead>
+      <tbody>
+        <tr><td>Sort</td><td class="n">by name only</td><td class="y">name, size, progress, remaining, priority, availability, pieces (header click)</td></tr>
+        <tr><td>Filter</td><td class="n">none</td><td class="y">a filter field, "N of M files"</td></tr>
+        <tr><td>Fold / unfold all</td><td class="n">one folder at a time</td><td class="m">yes, from the keys only (<code>collapseAll</code>, <code>expandAll</code>)</td></tr>
+        <tr><td>Hide skipped</td><td class="n">no</td><td class="y">yes</td></tr>
+        <tr><td>Flat list (every file, no folders)</td><td class="n">no</td><td class="n">no</td></tr>
+        <tr><td>Tick, priority, rename, skip files of at least N</td><td class="y">yes</td><td class="y">yes</td></tr>
+        <tr><td>Room</td><td class="m">the window is a fixed width (<code>AddWindow.qml</code>), the tree a few rows under the form</td><td class="y">the details pane's height</td></tr>
+      </tbody>
+    </table></div>
+    <p><b>The free line</b> (<code>Views/AddFreeLine.qml</code>, boards 25 and 44): <q>needs X of Y</q>, a small meter, and <q>Z free on WHERE</q>. It is yellow below the low-disk threshold and red when the torrent won't fit (the add still works), plus C17's driver line for NTFS and FAT32. It asks <code>App.freeSpaceFor(savePath)</code> about <b>the save path only</b>. omaseed reads qBittorrent's <code>temp_path</code> only for a backup's manifest. The add sheet never looks at it, nor at Transmission's <code>incomplete_dir</code> or Deluge's download folder.</p>
+    <div class="note warn"><b>What a missed temp folder costs</b>, measured in #117 on qBittorrent 5.2.4: when the folder it moves to is full at the finish, qBittorrent logs a move failure that names the <i>source</i> file. It leaves the partial files in the destination, which is now 100 % full, and keeps the torrent <code>stalledUP</code> at progress 1, seeding from the temp folder. It shows no error, and a recheck changes nothing. Today D13's red <q>still in the incomplete folder</q> problem catches it, but only after the fact. The add sheet is the one place it can be seen before anything is written.</div>
+    <div class="note">D10 (board 44, ruled) still holds: <b>omaseed never suggests a temp folder</b>. It doubles the writes and adds a move. This board only <b>shows</b> one the server already has. A server with none gets today's single line, unchanged.</div>
+  </section>
+
+  <!-- 2 -->
+  <section id="whole">
+    <div class="sec-head"><div class="eyebrow">2 · the proposal, whole</div><h2>The form on the left, the files on the right</h2></div>
+    <div class="ctl" id="ctl"></div>
+    <div class="scroll" id="mockwrap"><div id="mock"></div></div>
+    <p class="dim" style="font-size:11.5px"><span class="src mock">mock</span>Live: tick, fold, sort, filter, switch the view, press a kind's chip or its box, flip the temp-folder switch. Parts tagged <span class="nw" style="margin:0">new</span> are this board's. Parts from board 59 (the kinds line, the program check, the guess) are drawn as recommended there, because this board builds on them. The dashed rows stand for layout, limits and options, unchanged.</p>
+  </section>
+
+  <!-- 3 -->
+  <section id="layout">
+    <div class="sec-head"><div class="eyebrow">3 · I1 and I2 · the window</div><h2>Two columns when there is a list to read</h2></div>
+    <div class="item"><h3><span class="id">I1</span>The layout <span class="rec-tag">recommended a</span></h3>
+      <p><b>a:</b> <b>two columns when the source has a list of more than one file</b>. The form keeps today's rows and order on the left (about 440 px at base 14). The right side is the file list at the window's full height, and the window grows to about 1120 px. A single file keeps today's one-column sheet: its name already says what it is. A magnet on its way opens in two columns, and the right side holds board 59's checklist (A10) until the list arrives. Then the tree takes its place and nothing on the left moves. <b>b:</b> one column as today, but wider (900 px) with a taller tree. Simpler, but the tree is still under the form and every row you fill pushes it down. <b>c:</b> files as a second step, "next: files". That's two screens for every add, including the ones where you don't care.</p>
+    </div>
+    <div class="item"><h3><span class="id">I2</span>A screen too narrow for it <span class="rec-tag">recommended a</span></h3>
+      <p><b>a:</b> when the monitor's work area can't hold the two columns (under about 1200 px of logical width, a portrait screen, or scale 2 on a 1080p screen), the window keeps one column and the file pane goes under the form, <b>with its toolbar</b>. Pick <i>narrow</i> in §2's switches to see it. <b>b:</b> always two columns, with the window scrolling sideways.</p>
+    </div>
+    <p class="dim">The add window is its own window since board 54 (C35), a Hyprland float, so a wider one is a size, not a new frame. Board 46's sheet frame (C24 H7) still holds: the head, the hairlines, the foot's three buttons. Only the body splits.</p>
+  </section>
+
+  <!-- 4 -->
+  <section id="pane">
+    <div class="sec-head"><div class="eyebrow">4 · I3 to I7 · the file pane</div><h2>One file list, everywhere a torrent's files are shown</h2></div>
+    <div class="item"><h3><span class="id">I3</span>One component, one model <span class="rec-tag">recommended a</span></h3>
+      <p><b>a:</b> the add sheet and the details Files tab show <b>the same file pane</b>: the same toolbar, sort, filter, fold and keys. The add sheet's abilities (tick before the add, priority, rename, skip files of at least N) move into the shared model, and the details tab's (sort, filter, hide skipped) come with it. A key learned in one works in the other. <b>b:</b> copy the details tab's tools into <code>AddFilesTree</code>. That's faster to build, and then there are two of everything to keep in step.</p>
+    </div>
+    <div class="item"><h3><span class="id">I4</span>The toolbar <span class="rec-tag">recommended a</span></h3>
+      <p><b>a:</b> one row above the list: <b>filter</b> (a field, <kbd>/</kbd> to focus), <b>sort ▾</b> (name, size, kind, with "folders first" ticked by default in the tree), <b>tree · flat</b>, <b>fold all</b> and <b>unfold all</b> (one button that reads by state), and <b>hide skipped</b>. The column headers sort too, as in details. <b>b:</b> only sort ▾ and fold all. <b>c:</b> every tool behind one ⋯ menu.</p>
+    </div>
+    <div class="item"><h3><span class="id">I5</span>The kinds line becomes chips <span class="rec-tag">recommended a</span></h3>
+      <p>Board 59's A1 says <q>9 videos, 12.6 GB · 16 subtitles · 3 extras</q> in words. Here each kind is a chip with <b>two parts</b>. The word <b>shows only that kind</b>, and a second press shows everything again. The box <b>ticks or skips the whole kind</b> in one press. So "skip every subtitle" or "only the videos" is one press, where qBittorrent needs a tick per file or a sort and a shift-click. <b>a:</b> both parts. <b>b:</b> the word filters, and there's no box. <b>c:</b> words only, as 59 drew them.</p>
+      <p class="dim">A chip's box follows C28: it never moves on its own. 59's program check (A4) is the chip in yellow, and its "skip it" is that chip's box.</p>
+    </div>
+    <div class="item"><h3><span class="id">I6</span>A flat view <span class="rec-tag">recommended a</span></h3>
+      <p><b>a:</b> <b>tree · flat</b>. Flat lists every file once with its folder dim after the name, and sorts across the whole torrent, so "size" puts the biggest files in the pack at the top wherever they live. That's how you find the one 4 GB extra or the 200 small images. Ticks, priorities and renames work the same in both views. The view you pick is kept per window (add and details each keep their own). <b>b:</b> tree only, with size sorting inside each folder.</p>
+    </div>
+    <div class="item"><h3><span class="id">I7</span>The head of the pane <span class="rec-tag">recommended a</span></h3>
+      <p><b>a:</b> the kinds chips on the left, today's count on the right (<q>26 of 28 files · 12.7 GB</q>), and while a filter is on, <q>showing 16 of 28</q> with <b>× show all</b>. C28's extras line stays under the list. <b>b:</b> the count moves to the foot beside add.</p>
+    </div>
+  </section>
+
+  <!-- 5 -->
+  <section id="room">
+    <div class="sec-head"><div class="eyebrow">5 · I8 to I13 · the room</div><h2>Where it downloads, then where it lands</h2></div>
+    <p>When the server has a temp folder (qBittorrent's <i>Keep incomplete torrents in</i>, Transmission's <i>incomplete folder</i>, Deluge's download folder with <i>move completed</i>), a torrent needs room <b>twice</b>. While it downloads, it needs room on the temp folder's drive, and that drive also holds every other download in progress. When it finishes, it needs room on the save path's drive. On the same drive the move is a rename and costs nothing. On another drive it is a copy, and if the copy finds the drive full, it leaves #117's half-move.</p>
+    <div class="item"><h3><span class="id">I8</span>The free line, in two stages <span class="rec-tag">recommended a</span></h3>
+      <p><b>a:</b> <b>two lines under Save to</b>, each with its own meter and colour: <q>downloads first to FOLDER · needs X · Y free on DRIVE</q> and <q>then moves to SAVE PATH · needs X · Z free on DRIVE</q>. Each line goes yellow or red on its own, so a small temp drive warns even when the save path has terabytes free. On one drive the second line is dim: <q>then moved on the same drive: a rename, no second room</q>. <b>b:</b> one line that names only the tighter of the two drives. <b>c:</b> today's line (the save path only).</p>
+    </div>
+    <div class="item"><h3><span class="id">I9</span>The temp folder, per torrent <span class="rec-tag">recommended a</span></h3>
+      <p><b>a:</b> the first line starts with a <b>switch</b>, on by default, reading the server's own setting. Turned off, <b>this torrent</b> downloads straight to Save to, and the two lines become today's one. When the temp drive is red, the line offers that as a link: <q>download straight to Save to</q>. The server's setting never changes. Where it can be done per torrent:</p>
+      <div class="scroll"><table class="t">
+        <thead><tr><th>Engine</th><th>The server's setting</th><th>Per torrent at the add</th><th>The first line</th></tr></thead>
+        <tbody>
+          <tr><td>qBittorrent</td><td><code>temp_path_enabled</code>, <code>temp_path</code>; a category may carry its own (I12)</td><td class="y"><code>torrents/add</code>: <code>useDownloadPath</code>, <code>downloadPath</code> (to confirm on the playground)</td><td>switch</td></tr>
+          <tr><td>Deluge</td><td><code>download_location</code> + <code>move_completed</code>, <code>move_completed_path</code> (or the label's, K27)</td><td class="y"><code>add_torrent</code> options: <code>download_location</code>, <code>move_completed</code></td><td>switch</td></tr>
+          <tr><td>Transmission</td><td><code>incomplete_dir_enabled</code>, <code>incomplete_dir</code></td><td class="n">session-wide only</td><td>no switch: <q>Transmission keeps every unfinished torrent there</q></td></tr>
+        </tbody>
+      </table></div>
+      <p><b>b:</b> the lines only, no switch: what's shown is what happens, and a change goes through Settings. <b>c:</b> a switch and a folder field (pick another temp folder for this torrent). That's another path to type, and it comes close to suggesting a folder (D10).</p>
+    </div>
+    <div class="item"><h3><span class="id">I10</span>Room promised to downloads in progress <span class="rec-tag">recommended a</span></h3>
+      <p>"Free" is what the drive has now. Torrents still downloading there will write more, and every download goes through a temp folder. omaseed knows each torrent's <code>amount_left</code> and where it is writing (its download path, else its save path). <b>a:</b> when other downloads write to the same drive, the line says so, and the colour uses free <b>minus</b> what's coming: <q>48 GB free · 21 GB of it still coming for 2 downloads</q>. It counts downloading and queued torrents, not stopped ones. When the server pre-allocates (<code>preallocate_all</code>), their room is already taken and nothing is added. "The same drive" is known only where omaseed sees the folders (its own disks, or a path map); otherwise it says nothing. <b>b:</b> said, but the colour uses free only. <b>c:</b> left out.</p>
+    </div>
+    <div class="item"><h3><span class="id">I11</span>When the save path's drive won't hold it <span class="rec-tag">recommended a</span></h3>
+      <p><b>a:</b> the second line goes red with #117's fact in one dim line: <q>When it finishes, the move to /srv/media won't fit: qBittorrent leaves part of it there and keeps it in the temp folder.</q> The add still works (board 25's D7). <b>b:</b> red, with no reason under it.</p>
+    </div>
+    <div class="item"><h3><span class="id">I12</span>A category with its own temp folder <span class="rec-tag">recommended a</span></h3>
+      <p>Since qBittorrent 4.4 a category can carry its own incomplete folder, or none. <b>a:</b> picking the category moves the first line to the category's folder, as a pick already moves Save to. A save path you typed keeps today's rule. To confirm on the playground how <code>torrents/categories</code> reports it (<code>download_path</code>: a path, <code>false</code>, or the default). <b>b:</b> the server's folder only.</p>
+    </div>
+    <div class="item"><h3><span class="id">I13</span>The same in the move sheet <span class="rec-tag">recommended b</span></h3>
+      <p><b>a:</b> board 43's Set location gets the two stages too, for a torrent still downloading (it moves only when done, #98). <b>b:</b> not here. A later issue, once the add sheet's lines are in use.</p>
+    </div>
+  </section>
+
+  <!-- 6 -->
+  <section id="build">
+    <div class="sec-head"><div class="eyebrow">6 · what it takes</div><h2>Where the work would land</h2></div>
+    <ol class="steps">
+      <li><span><b>Research, on the playground</b> (no build): <code>torrents/add</code>'s <code>useDownloadPath</code>/<code>downloadPath</code>, a category's <code>download_path</code> in <code>torrents/categories</code>, which path <code>free_space_on_disk</code> reports when a temp folder is on, and Deluge's per-torrent <code>download_location</code> with <code>move_completed</code>. Facts into DECISIONS before step 3.</span></li>
+      <li><span><b>core · the shared file model</b>: <code>AddFilesModel</code>'s tick, priority, rename and skip move under <code>TorrentFilesModel</code>'s sort, filter, fold and hide skipped. Add a flat view, a kind (board 59's A1 table) and "folders first". QtTests for each.</span></li>
+      <li><span><b>core · the room</b>: <code>FreeSpaceProbe</code> asked about two paths, each engine's temp setting read into one shape, and the promised bytes summed per drive (I10). QtTests.</span></li>
+      <li><span><b>ui · the file pane</b>: one QML pane with its toolbar, chips and head, used by details and the add sheet. <code>tst_</code> files.</span></li>
+      <li><span><b>ui · the add window</b>: two columns and the narrow fallback, <code>AddFreeLine</code> in two stages with the switch.</span></li>
+      <li><span><b>walks</b>: the magnet walk and the actions walk on a box qBittorrent with a temp folder on a small loop image (the stuck walk's way), and the transmission and deluge walks with theirs. A visual baseline in both skins.</span></li>
+    </ol>
+    <p class="dim">Board 59 is not a prerequisite, but if it is ruled as recommended, the kinds line and the program check land inside step 4's chips instead of as words.</p>
+  </section>
+
+  <!-- 7 -->
+  <section id="decisions">
+    <div class="sec-head"><div class="eyebrow">7 · your calls</div><h2>I1 to I13</h2></div>
+    <p>Recommended options are preselected. Change what you disagree with and paste the block back into a session, or answer "all as recommended".</p>
+    <div class="dec" id="dec"></div>
+    <div class="out">
+      <textarea id="answers" readonly aria-label="Your answers"></textarea>
+      <div style="display:flex;gap:12px;align-items:center"><button type="button" id="copy">Copy answers</button><span class="ok" id="copied" hidden>Copied</span></div>
+    </div>
+  </section>
+</main>
+<script>
+(() => {
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const NEW = `<span class="nw">new</span>`;
+const GB = 1e9;
+function sz(b) {
+  if (b >= 1e12) return (b / 1e12).toFixed(2) + " TB";
+  if (b >= 1e9) return (b / 1e9).toFixed(b >= 1e11 ? 0 : 1) + " GB";
+  if (b >= 1e6) return Math.round(b / 1e6) + " MB";
+  return Math.max(1, Math.round(b / 1e3)) + " KB";
+}
+
+/* ---------- the pack: invented names, sizes by hand ---------- */
+const ROOT = "Harbour Lights S01";
+const EP = [1.48, 1.41, 1.52, 1.39, 1.61, 1.44, 1.50, 1.67];
+const FILES = [];
+EP.forEach((g, i) => FILES.push({ p: `${ROOT}/Harbour.Lights.S01E0${i + 1}.1080p.mkv`, s: g * GB }));
+EP.forEach((_, i) => {
+  FILES.push({ p: `${ROOT}/Subs/S01E0${i + 1}.en.srt`, s: (46 + i) * 1e3 });
+  FILES.push({ p: `${ROOT}/Subs/S01E0${i + 1}.pt.srt`, s: (49 + i) * 1e3 });
+});
+FILES.push({ p: `${ROOT}/Extras/Behind.the.Harbour.1080p.mkv`, s: 612e6 });
+FILES.push({ p: `${ROOT}/Extras/Sample/sample.mkv`, s: 38e6, extra: true });
+FILES.push({ p: `${ROOT}/Harbour.Lights.S01.nfo`, s: 6e3, extra: true });
+FILES.push({ p: `${ROOT}/cover.jpg`, s: 412e3, extra: true });
+const KIND = { video: ["video", "videos"], subtitles: ["subtitle", "subtitles"], extras: ["extra", "extras"] };
+const KORDER = ["video", "subtitles", "extras"];
+const kindOf = f => f.extra ? "extras" : /\.srt$/.test(f.p) ? "subtitles" : "video";
+const base = p => p.slice(p.lastIndexOf("/") + 1);
+const dirOf = p => p.slice(0, p.lastIndexOf("/"));
+
+/* ---------- state ---------- */
+const S = { skin: "om", src: "pack", eng: "qbt", temp: "other", width: "wide",
+  view: "tree", sort: "name", ff: true, filter: "", kind: null, hide: false, menu: false,
+  tempOn: true, folded: new Set([`${ROOT}/Subs`, `${ROOT}/Extras/Sample`]), skip: new Set() };
+try { const u = new URLSearchParams(location.search); for (const k of ["skin", "src", "eng", "temp", "width", "view", "sort"]) if (u.get(k)) S[k] = u.get(k); } catch {}
+
+const want = f => !S.skip.has(f.p);
+const matches = f => (!S.kind || kindOf(f) === S.kind)
+  && (!S.filter || base(f.p).toLowerCase().includes(S.filter.toLowerCase()))
+  && (!S.hide || want(f));
+const filtering = () => !!(S.kind || S.filter || S.hide);
+
+/* ---------- the tree ---------- */
+function buildTree() {
+  const root = { dir: true, p: ROOT, name: ROOT, kids: [] };
+  const dirs = { [ROOT]: root };
+  for (const f of FILES) {
+    const parts = f.p.split("/");
+    let cur = root, path = ROOT;
+    for (let i = 1; i < parts.length - 1; i++) {
+      path += "/" + parts[i];
+      if (!dirs[path]) { dirs[path] = { dir: true, p: path, name: parts[i], kids: [] }; cur.kids.push(dirs[path]); }
+      cur = dirs[path];
+    }
+    cur.kids.push({ dir: false, p: f.p, name: base(f.p), f });
+  }
+  return root;
+}
+const TREE = buildTree();
+const filesUnder = n => n.dir ? n.kids.flatMap(filesUnder) : [n.f];
+const sizeOf = n => filesUnder(n).reduce((a, f) => a + f.s, 0);
+const kindText = n => {
+  if (!n.dir) return KIND[kindOf(n.f)][0];
+  const ks = new Set(filesUnder(n).map(kindOf));
+  return ks.size === 1 ? KIND[[...ks][0]][1] : "mixed";
+};
+function cmp(a, b) {
+  if (S.view === "tree" && S.ff && a.dir !== b.dir) return a.dir ? -1 : 1;
+  if (S.sort === "size") return sizeOf(b) - sizeOf(a);
+  if (S.sort === "kind") {
+    const ka = a.dir ? -1 : KORDER.indexOf(kindOf(a.f)), kb = b.dir ? -1 : KORDER.indexOf(kindOf(b.f));
+    if (ka !== kb) return ka - kb;
+  }
+  return a.name.localeCompare(b.name, undefined, { numeric: true });
+}
+function tickOf(n) {
+  const fs = filesUnder(n), w = fs.filter(want).length;
+  return w === fs.length ? "✓" : w === 0 ? "" : "–";
+}
+function row(n, depth) {
+  const fs = filesUnder(n);
+  const skip = fs.every(f => !want(f));
+  const pad = `style="padding-left:${depth * 14}px"`;
+  const chev = n.dir ? `<button class="chev" data-act="fold" data-p="${esc(n.p)}" aria-label="${S.folded.has(n.p) && !filtering() ? "unfold" : "fold"}">${S.folded.has(n.p) && !filtering() ? "▸" : "▾"}</button>` : `<span class="chev"></span>`;
+  const dp = S.view === "flat" ? `<span class="dp">${esc(dirOf(n.p).slice(ROOT.length + 1) || "")}</span>` : "";
+  return `<div class="r ${n.dir ? "dir" : ""} ${skip ? "skip" : ""}"><span class="nm" ${pad}>${S.view === "tree" ? chev : ""}<button class="bx" data-act="tick" data-p="${esc(n.p)}" aria-label="tick">${tickOf(n)}</button><span class="t">${esc(n.name)}${dp}</span></span><span class="k">${kindText(n)}</span><span class="sz">${sz(sizeOf(n))}</span></div>`;
+}
+function treeRows() {
+  const out = [];
+  if (S.view === "flat") {
+    const fs = FILES.filter(matches).map(f => ({ dir: false, p: f.p, name: base(f.p), f })).sort(cmp);
+    fs.forEach(n => out.push(row(n, 0)));
+  } else {
+    const walk = (n, d) => {
+      if (n.dir && !filesUnder(n).some(matches)) return;
+      if (!n.dir && !matches(n.f)) return;
+      out.push(row(n, d));
+      if (n.dir && (filtering() || !S.folded.has(n.p))) [...n.kids].sort(cmp).forEach(k => walk(k, d + 1));
+    };
+    walk(TREE, 0);
+  }
+  return out.length ? out.join("") : `<div class="empty">No file matches. <span class="lk" data-act="clear" style="cursor:pointer">show all</span></div>`;
+}
+const sortHead = (k, t) => `<button data-act="sort" data-k="${k}" class="${S.sort === k ? "on" : ""}">${t}${S.sort === k ? (k === "size" ? " ↓" : " ↑") : ""}</button>`;
+
+function filePane(con) {
+  const shown = FILES.filter(matches).length;
+  const wf = FILES.filter(want);
+  const chips = KORDER.map(k => {
+    const fs = FILES.filter(f => kindOf(f) === k), w = fs.filter(want).length;
+    const n = fs.length, words = KIND[k][n === 1 ? 0 : 1];
+    const big = k === "video" ? `<small>${sz(fs.reduce((a, f) => a + f.s, 0))}</small>` : "";
+    const box = w === n ? "✓" : w === 0 ? "" : "–";
+    return `<span class="kc ${S.kind === k ? "on" : ""}"><button class="kb ${w ? "" : "off"}" data-act="kindtick" data-k="${k}" aria-label="tick every ${words}">${box || "&nbsp;"}</button><button class="kw" data-act="kind" data-k="${k}">${n} ${words}${big}</button></span>`;
+  }).join("");
+  const cnt = filtering()
+    ? `showing ${shown} of ${FILES.length}<span class="lk" data-act="clear">× show all</span>`
+    : `${wf.length === FILES.length ? `${FILES.length} files` : `${wf.length} of ${FILES.length} files`} · ${sz(wf.reduce((a, f) => a + f.s, 0))}`;
+  const allFolded = ["Subs", "Extras", "Extras/Sample"].every(d => S.folded.has(`${ROOT}/${d}`));
+  const dd = S.menu ? `<div class="dd" role="menu">
+      <button data-act="sort" data-k="name" class="${S.sort === "name" ? "on" : ""}">${S.sort === "name" ? "✓ " : "  "}name</button>
+      <button data-act="sort" data-k="size" class="${S.sort === "size" ? "on" : ""}">${S.sort === "size" ? "✓ " : "  "}size, biggest first</button>
+      <button data-act="sort" data-k="kind" class="${S.sort === "kind" ? "on" : ""}">${S.sort === "kind" ? "✓ " : "  "}kind</button><hr>
+      <button data-act="ff" class="${S.ff ? "on" : ""}" ${S.view === "flat" ? 'disabled style="opacity:.45"' : ""}>${S.ff ? "✓ " : "  "}folders first</button></div>` : "";
+  const extras = FILES.filter(f => f.extra);
+  return `
+    <span class="lab">Files${NEW}</span>
+    <div class="fhd"><div class="kcs">${chips}</div><span class="cnt">${cnt}</span></div>
+    <div class="tb">
+      <label class="flt"><span>/</span><input id="flt" type="text" placeholder="filter files" value="${esc(S.filter)}" aria-label="filter files"></label>
+      <span class="menu"><button class="tbtn" data-act="menu" aria-expanded="${S.menu}">sort: ${S.sort} ▾</button>${dd}</span>
+      <span class="seg"><button class="tbtn ${S.view === "tree" ? "on" : ""}" data-act="view" data-k="tree">tree</button><button class="tbtn ${S.view === "flat" ? "on" : ""}" data-act="view" data-k="flat">flat</button></span>
+      <button class="tbtn" data-act="foldall" ${S.view === "flat" ? 'disabled style="opacity:.45"' : ""}>${allFolded ? "unfold all" : "fold all"}</button>
+      <button class="tbtn ${S.hide ? "on" : ""}" data-act="hide">hide skipped</button>
+    </div>
+    <div class="ftree" role="tree">
+      <div class="r hdr"><span class="nm">${sortHead("name", "name")}</span><span class="k">${sortHead("kind", "kind")}</span><span class="sz">${sortHead("size", "size")}</span></div>
+      ${treeRows()}
+    </div>
+    <span class="ln">${extras.length} extras: a sample, an NFO and an image (${sz(extras.reduce((a, f) => a + f.s, 0))}). ${extras.every(want) ? "Ticked, so the torrent seeds whole." : "Some skipped, so the torrent won't seed whole."}</span>`;
+}
+
+/* ---------- the room ---------- */
+const THRESH = 10 * GB;
+const DRV = { sys: { name: "/", free: 48 * GB, coming: 21.4 * GB, n: 2 }, media: { name: "/srv/media", free: 1.21e12, coming: 0, n: 0 } };
+function tempFolder() {
+  const same = S.temp === "same";
+  if (S.eng === "qbt") return same ? "/srv/media/incomplete" : "~/Downloads/temp";
+  if (S.eng === "tr") return same ? "/srv/media/incomplete" : "~/Downloads/incomplete";
+  return same ? "/srv/media/downloading" : "~/Downloads";
+}
+function needBytes() {
+  if (S.src === "mag") return -1;
+  if (S.src === "film") return 2.31 * GB;
+  return FILES.filter(want).reduce((a, f) => a + f.s, 0);
+}
+function drives() {
+  const sys = { ...DRV.sys }, media = { ...DRV.media };
+  if (S.temp === "tight") sys.free = 30 * GB;
+  if (S.temp === "land") media.free = 9 * GB;
+  return { sys, media };
+}
+function level(d, need) {
+  if (need < 0) return "";
+  const room = d.free - d.coming;
+  if (need > room) return "bad";
+  if (room - need < THRESH) return "warn";
+  return "";
+}
+function meter(d, need) {
+  const tot = d.name === "/" ? 256 * GB : 4e12;
+  const used = tot - d.free;
+  const w = x => Math.max(0, Math.min(100, x / tot * 100)).toFixed(1);
+  return `<span class="mt" aria-hidden="true"><i style="width:${w(used)}%;opacity:.35"></i><i class="co" style="left:${w(used)}%;width:${w(d.coming)}%"></i><i style="left:${w(used + d.coming)}%;width:${w(Math.max(need, 0))}%"></i></span>`;
+}
+function freeWords(d, need) {
+  let s = `${sz(d.free)} free on ${d.name}`;
+  if (d.coming > 0) s += ` · ${sz(d.coming)} of it still coming for ${d.n} downloads`;
+  return s;
+}
+function needWords(need) {
+  if (need < 0) return "size known once the list arrives";
+  const total = S.src === "pack" ? FILES.reduce((a, f) => a + f.s, 0) : need;
+  return total > need + 1 ? `needs ${sz(need)} of ${sz(total)}` : `needs ${sz(need)}`;
+}
+function room() {
+  const need = needBytes();
+  const { sys, media } = drives();
+  const save = "/srv/media/tv";
+  const hasTemp = S.temp !== "none";
+  const sw = S.eng !== "tr";
+  const on = hasTemp && (S.tempOn || !sw);
+  if (!on) {
+    // today's line: one stage
+    const lv = level(media, need);
+    const off = hasTemp ? `<small>This torrent skips ${esc(tempFolder())}: it downloads straight here. <span class="lk" data-act="tempon">use the temp folder</span>${NEW}</small>` : "";
+    const head = hasTemp ? `<button data-act="tempon" aria-label="download to the temp folder first"><span class="tg"></span></button>` : `<span class="ic"></span>`;
+    return `<div class="room"><div class="rl ${lv}">${head}<span class="what"><b>${needWords(need)}</b> · ${freeWords(media, need)}</span>${meter(media, need)}${off}</div></div>`;
+  }
+  const same = S.temp === "same";
+  const d1 = same ? media : sys;
+  const l1 = level(d1, need);
+  const engWord = { qbt: "qBittorrent's setting", tr: "Transmission's setting, for every torrent", de: "Deluge's download folder" }[S.eng];
+  let s1 = "";
+  if (l1 === "bad") s1 = `<small>Won't fit with what's still coming.${sw ? ` <span class="lk" data-act="tempoff">download straight to ${save}</span>` : ""}</small>`;
+  else if (l1 === "warn") s1 = `<small>Leaves less than your low-disk line (${sz(THRESH)}) while it downloads.</small>`;
+  else s1 = `<small>${engWord}.</small>`;
+  const head1 = sw ? `<button data-act="tempoff" aria-label="download to the temp folder first"><span class="tg on"></span></button>` : `<span class="ic">↓</span>`;
+  const line1 = `<div class="rl ${l1}">${head1}<span class="what">downloads first to <b>${esc(tempFolder())}</b> · ${needWords(need)} · ${freeWords(d1, need)}${NEW}</span>${meter(d1, need)}${s1}</div>`;
+  let line2;
+  if (same) {
+    line2 = `<div class="rl dim"><span class="ic">→</span><span class="what">then moved to ${save} on the same drive: a rename, no second room${NEW}</span><span></span></div>`;
+  } else {
+    const l2 = level(media, need);
+    const why = l2 === "bad"
+      ? `<small>When it finishes, the move to ${media.name} won't fit: ${S.eng === "qbt" ? "qBittorrent leaves part of it there and keeps it in the temp folder (#117)" : "it stays in the temp folder, part of it copied"}.</small>`
+      : `<small>A copy to another drive when it finishes; the temp drive's room comes back after.</small>`;
+    line2 = `<div class="rl ${l2}"><span class="ic">→</span><span class="what">then moves to <b>${save}</b> · ${needWords(need)} · ${freeWords(media, need)}${NEW}</span>${meter(media, need)}${why}</div>`;
+  }
+  return `<div class="room">${line1}${line2}</div>`;
+}
+
+/* ---------- the sheet ---------- */
+const lab = t => `<span class="lab">${esc(t)}</span>`;
+function chk(g, glyph, b, small) {
+  return `<div class="chk"><span class="g ${g}">${glyph}</span><b>${b}</b><span></span>${small ? `<small>${small}</small>` : ""}</div>`;
+}
+function sheet() {
+  const con = S.skin === "con";
+  const pack = S.src === "pack", mag = S.src === "mag", film = S.src === "film";
+  const two = (pack || mag);
+  const name = film ? "Harbour Lights (2024) 1080p" : ROOT;
+  const total = FILES.reduce((a, f) => a + f.s, 0);
+  const sub = mag ? `${name} · from magnet link` : `${name} · ${film ? "2.31 GB" : sz(total)} · from file`;
+  const kana = con ? `<span class="kn">追加</span>` : "";
+  const cat = S.eng === "de" ? "Label" : S.eng === "tr" ? "Labels" : "Category";
+  let L = "";
+  L += `<div class="row">${lab("Magnet, URL or file")}<div class="fld"><span>${mag ? "magnet:?xt=urn:btih:5c1e…&amp;dn=Harbour+Lights+S01&amp;tr=…" : `~/Downloads/${esc(name)}.torrent`}</span><span class="u">browse</span></div></div>`;
+  L += `<div class="row">${lab("Name")}<div class="fld ph"><span>${esc(name)}</span></div></div>`;
+  L += S.eng === "tr"
+    ? `<div class="row">${lab(cat)}<div class="chips"><span class="chip on">tv</span><span class="chip">…</span></div></div>`
+    : `<div class="two"><div class="row">${lab(cat)}<div class="chips"><span class="chip on">tv</span><span class="chip">…</span></div></div><div class="row">${lab("Tags")}<div class="chips"><span class="chip">…</span></div></div></div>`;
+  L += `<div class="row">${lab("Save to")}<div class="fld"><span>/srv/media/tv</span><span class="u">browse</span></div>${room()}</div>`;
+  L += `<div class="rest">layout · limits · options: unchanged</div>`;
+  let R = "";
+  if (pack) R = filePane(con);
+  else if (mag) {
+    const e = { qbt: "qBittorrent", tr: "Transmission", de: "Deluge" }[S.eng];
+    R = `<span class="lab">Files</span><div class="wait">
+      ${chk("ok", "✓", "From the link: Harbour Lights S01", "3 trackers · not in your library")}
+      ${S.eng === "tr" ? chk("i", "·", "Its files are picked in Files after the add", "Transmission can't fetch a magnet's list before it holds the torrent (K26).")
+        : chk("i", "⋯", `Asking ${e} for the file list`, "fetching · 8 s. Then its size, what's inside, the program check, and this pane's list.")}
+    </div><span class="ln">Board 59's A10 checklist, here in the pane the tree will fill. The room lines on the left already show both drives; only the size is missing.</span>`;
+  }
+  const cls = ["sh", "aw", con ? "con" : "", two ? "" : "one", two && S.width === "narrow" ? "narrow" : ""].join(" ");
+  return `<div class="${cls}">
+    <div class="hd"><b>Add torrent${kana}</b><span class="sub">${esc(sub)}</span><span class="esc">esc</span></div>
+    <div class="split"><div class="left">${L}</div>${two ? `<div class="right">${R}</div>` : ""}</div>
+    <div class="ft"><span class="btn">cancel</span><span class="btn">add stopped</span><span class="btn pri">add</span></div>
+  </div>`;
+}
+
+/* ---------- switches ---------- */
+const CTL = [
+  ["skin", "skin", [["om", "Omarchy"], ["con", "Console"]]],
+  ["src", "source", [["pack", "a season (28 files)"], ["film", "one file"], ["mag", "a magnet on its way"]]],
+  ["eng", "engine", [["qbt", "qBittorrent"], ["tr", "Transmission"], ["de", "Deluge"]]],
+  ["temp", "temp folder", [["none", "none"], ["other", "on another drive"], ["tight", "that drive is tight"], ["land", "save drive too small"], ["same", "same drive"]]],
+  ["width", "screen", [["wide", "wide"], ["narrow", "narrow (I2)"]]],
+];
+function renderCtl() {
+  $("#ctl").innerHTML = CTL.map(([k, l, opts]) => `<span class="grp"><span class="lab">${l}</span>${opts.map(([v, t]) => `<button type="button" data-k="${k}" data-v="${v}" aria-pressed="${S[k] === v}">${t}</button>`).join("")}</span>`).join("");
+}
+function render() {
+  const a = document.activeElement, refocus = a && a.id === "flt", pos = refocus ? a.selectionStart : 0;
+  renderCtl();
+  $("#mock").innerHTML = sheet();
+  if (refocus) { const f = $("#flt"); if (f) { f.focus(); f.setSelectionRange(pos, pos); } }
+}
+$("#ctl").addEventListener("click", e => {
+  const b = e.target.closest("button[data-k]"); if (!b) return;
+  S[b.dataset.k] = b.dataset.v; if (b.dataset.k === "temp") S.tempOn = true; render();
+});
+function toggleFiles(fs) {
+  const allOn = fs.every(want);
+  fs.forEach(f => allOn ? S.skip.add(f.p) : S.skip.delete(f.p));
+}
+const nodeAt = p => { let hit = null; const w = n => { if (n.p === p) hit = n; if (n.dir) n.kids.forEach(w); }; w(TREE); return hit; };
+$("#mock").addEventListener("click", e => {
+  const b = e.target.closest("[data-act]"); if (!b) { if (S.menu) { S.menu = false; render(); } return; }
+  const a = b.dataset.act, k = b.dataset.k;
+  if (a !== "menu" && a !== "sort" && a !== "ff") S.menu = false;
+  if (a === "fold") { const p = b.dataset.p; S.folded.has(p) ? S.folded.delete(p) : S.folded.add(p); }
+  else if (a === "tick") toggleFiles(filesUnder(nodeAt(b.dataset.p)));
+  else if (a === "kind") S.kind = S.kind === k ? null : k;
+  else if (a === "kindtick") toggleFiles(FILES.filter(f => kindOf(f) === k));
+  else if (a === "clear") { S.kind = null; S.filter = ""; S.hide = false; }
+  else if (a === "menu") S.menu = !S.menu;
+  else if (a === "sort") { S.sort = k; S.menu = false; }
+  else if (a === "ff") { S.ff = !S.ff; S.menu = false; }
+  else if (a === "view") S.view = k;
+  else if (a === "hide") S.hide = !S.hide;
+  else if (a === "foldall") {
+    const ds = ["Subs", "Extras", "Extras/Sample"].map(d => `${ROOT}/${d}`);
+    const all = ds.every(d => S.folded.has(d));
+    ds.forEach(d => all ? S.folded.delete(d) : S.folded.add(d));
+  }
+  else if (a === "tempoff") S.tempOn = false;
+  else if (a === "tempon") S.tempOn = true;
+  render();
+});
+$("#mock").addEventListener("input", e => { if (e.target.id === "flt") { S.filter = e.target.value; render(); } });
+document.addEventListener("keydown", e => {
+  if (e.key === "/" && document.activeElement?.tagName !== "INPUT" && document.activeElement?.tagName !== "TEXTAREA") { const f = $("#flt"); if (f) { e.preventDefault(); f.focus(); } }
+  if (e.key === "Escape" && S.menu) { S.menu = false; render(); }
+});
+render();
+
+/* ---------- the decisions ---------- */
+const DEC = [
+  { id: "I1", s: "§3", q: "The layout", opts: [
+    ["a", "Two columns when the source has a list of more than one file: form left (~440 px), files right at full height, window ~1120 px; one file keeps one column; a magnet's wait fills the right side", true],
+    ["b", "One column, wider (900 px), a taller tree"],
+    ["c", "Files as a second step"]] },
+  { id: "I2", s: "§3", q: "A screen too narrow for two columns", opts: [
+    ["a", "One column, the file pane under the form with its toolbar", true],
+    ["b", "Always two columns, scrolling sideways"]] },
+  { id: "I3", s: "§4", q: "One file list for add and details", opts: [
+    ["a", "One component and one model: the add sheet's ticks, priority, rename, skip-at-least move into the shared model with sort, filter, fold, hide skipped", true],
+    ["b", "Copy the details tab's tools into AddFilesTree"]] },
+  { id: "I4", s: "§4", q: "The toolbar", opts: [
+    ["a", "Filter (/), sort ▾ (name, size, kind, folders first), tree · flat, fold all / unfold all, hide skipped; headers sort too", true],
+    ["b", "Sort ▾ and fold all only"],
+    ["c", "Everything behind one ⋯ menu"]] },
+  { id: "I5", s: "§4", q: "The kinds line (board 59 A1) as chips", opts: [
+    ["a", "Each kind a chip: the word shows only that kind, the box ticks or skips the whole kind", true],
+    ["b", "The word filters; no box"],
+    ["c", "Words only, as board 59 drew them"]] },
+  { id: "I6", s: "§4", q: "A flat view", opts: [
+    ["a", "tree · flat: flat lists every file with its folder dim, sorts across the whole torrent; kept per window", true],
+    ["b", "Tree only"]] },
+  { id: "I7", s: "§4", q: "The pane's head", opts: [
+    ["a", "Chips left, count right; while filtered: showing N of M · × show all; C28's extras line under the list", true],
+    ["b", "The count moves to the foot"]] },
+  { id: "I8", s: "§5", q: "The free line with a temp folder", opts: [
+    ["a", "Two lines, each its own meter and colour: downloads first to … / then moves to …; on one drive the second is a dim rename line", true],
+    ["b", "One line naming the tighter drive"],
+    ["c", "Today's line (the save path only)"]] },
+  { id: "I9", s: "§5", q: "The temp folder per torrent", opts: [
+    ["a", "A switch on the first line, on by default from the server's setting; off sends this torrent straight to Save to; a red temp drive offers it as a link; qBittorrent and Deluge only", true],
+    ["b", "The lines only, no switch"],
+    ["c", "A switch and a folder field"]] },
+  { id: "I10", s: "§5", q: "Room promised to downloads in progress", opts: [
+    ["a", "Said (N of it still coming for K downloads), and the colour uses free minus it; downloading and queued only; nothing when pre-allocated or the drive can't be matched", true],
+    ["b", "Said, colour from free only"],
+    ["c", "Left out"]] },
+  { id: "I11", s: "§5", q: "The save path's drive won't hold it", opts: [
+    ["a", "The second line red, with #117's fact in one dim line; the add still works", true],
+    ["b", "Red, no reason"]] },
+  { id: "I12", s: "§5", q: "A category with its own temp folder", opts: [
+    ["a", "Picking it moves the first line to the category's folder, as Save to follows; confirm the API on the playground", true],
+    ["b", "The server's folder only"]] },
+  { id: "I13", s: "§5", q: "The same in Set location", opts: [
+    ["a", "Set location shows both stages for a torrent still downloading"],
+    ["b", "Not now; a later issue", true]] },
+];
+const dec = $("#dec");
+for (const d of DEC) {
+  const box = document.createElement("div"); box.className = "q";
+  const inputs = d.opts.map(([v, label, rec]) => {
+    const id = `${d.id}-${v}`;
+    return `<label class="opt" for="${id}"><input id="${id}" type="radio" name="${d.id}" value="${v}" ${rec ? "checked" : ""}><span><b>${v}</b> · ${esc(label)}${rec ? `<span class="rec">recommended</span>` : ""}</span></label>`;
+  }).join("");
+  box.innerHTML = `<fieldset><legend><span class="id">${d.id}</span> · ${esc(d.q)} <span class="dim">${d.s}</span></legend>${inputs}</fieldset>`;
+  dec.append(box);
+}
+const notes = document.createElement("div"); notes.className = "q";
+notes.innerHTML = `<label for="free" style="color:var(--fg-bright);font-weight:500">Anything else</label><textarea id="free"></textarea>`;
+dec.append(notes);
+function answers() {
+  const out = ["docs/64 The add sheet: the files, and the room (2026-11-19, #172):"];
+  for (const d of DEC) { const c = document.querySelector(`input[name="${d.id}"]:checked`); out.push(`${d.id} ${c ? c.value : "-"}`); }
+  const f = $("#free").value.trim(); if (f) out.push("notes: " + f);
+  $("#answers").value = out.join("\n");
+}
+dec.addEventListener("input", answers); notes.addEventListener("input", answers); answers();
+$("#copy").addEventListener("click", () => {
+  const ta = $("#answers");
+  const done = () => { $("#copied").hidden = false; setTimeout(() => $("#copied").hidden = true, 1600); };
+  try {
+    if (navigator.clipboard?.writeText) navigator.clipboard.writeText(ta.value).then(done, () => ta.select()); else ta.select();
+  } catch { ta.select(); }
+});
+})();
+</script>
+</body>
+</html>
