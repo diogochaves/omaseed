@@ -304,7 +304,7 @@
 <context>
     <name>FilesPaneHead</name>
     <message numerus="yes">
-        <location filename="../src/ui/qml/Views/FilesPaneHead.qml" line="+59"/>
+        <location filename="../src/ui/qml/Views/FilesPaneHead.qml" line="+60"/>
         <source>%n videos</source>
         <translation>
             <numerusform>%n video</numerusform>
@@ -571,9 +571,20 @@
     </message>
 </context>
 <context>
+    <name>SettingsModal</name>
+    <message numerus="yes">
+        <location filename="../src/ui/qml/Views/SettingsModal.qml" line="+1032"/>
+        <source>%1: %n token(s) left at Omarchy&apos;s: %2 and %3 more. omaseed check %1 names them.</source>
+        <translation>
+            <numerusform>%1: %n token left at Omarchy&apos;s: %2 and %3 more. omaseed check %1 names them.</numerusform>
+            <numerusform>%1: %n tokens left at Omarchy&apos;s: %2 and %3 more. omaseed check %1 names them.</numerusform>
+        </translation>
+    </message>
+</context>
+<context>
     <name>omaseed::app::App</name>
     <message numerus="yes">
-        <location filename="../src/ui/app/App.cpp" line="+3666"/>
+        <location filename="../src/ui/app/App.cpp" line="+3667"/>
         <location line="+32"/>
         <source>%n torrents</source>
         <translation>

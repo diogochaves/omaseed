@@ -100,6 +100,11 @@ QtObject {
         };
     }
 
+    /// The built-in skins as `[[choice, chip text], …]`, board 46's order (C24 H11): the
+    /// Skin row's first line; the person's skins follow them in `appearance.skin`.
+    readonly property var builtInSkins: [["omarchy", qsTr("Omarchy")], ["console", qsTr("Console")],
+        ["desktop", qsTr("follow the desktop")]]
+
     /// omaseed's own settings, pane by pane, each pane's in its rows' order.
     readonly property var ownRows: [
         {
@@ -159,13 +164,14 @@ QtObject {
         // #24 T8: the weekly recap.
         root._notification("weekly", qsTr("Weekly recap")),
         {
-            // DECISIONS C24 H11 (#171): the skins, board 46's three choices in its order.
+            // DECISIONS C24 H11 (#171): the skins, board 46's three choices in its order,
+            // then the person's own by folder name (C37 U1), so enter, the everything
+            // palette and space reach them too.
             "id": "appearance.skin",
             "pane": "appearance",
             "title": qsTr("Skin"),
             "control": "choice",
-            "options": [["omarchy", qsTr("Omarchy")], ["console", qsTr("Console")],
-                ["desktop", qsTr("follow the desktop")]],
+            "options": root.builtInSkins.concat(App.userSkins.map(own => [own.name, own.name])),
             "read": () => App.skinChoice,
             "write": value => App.skinChoice = value
         },

@@ -950,15 +950,28 @@ Item {
     // DECISIONS C47 I14: the add window's two choices, as [value, chip text].
     readonly property var addWindowLayouts: root.settings.allOptions("appearance.addWindow")
 
-    // DECISIONS C24 H11 (#171): the skins, board 46's three choices in its order.
+    // DECISIONS C24 H11 (#171): the skins, board 46's three choices in its order, then the
+    // person's own (C37 U1).
     readonly property var skinChoices: root.settings.allOptions("appearance.skin")
+    /// The person's skins as App lists them (`{name, description, reads, reason, dropped}`).
+    readonly property var _userSkins: App.userSkins
+    /// Board 55 §4: the second line names each skin while there are at most three; past
+    /// three, one chip, yours ▾, opens them in a menu.
+    readonly property bool _userSkinsFolded: root._userSkins.length > 3
+    /// The person's skin the choice names, null for a built-in choice or a folder not listed.
+    readonly property var _chosenUserSkin: root._userSkins.find(own => own.name === App.skinChoice) ?? null
+    readonly property bool _choiceIsUserSkin: !root.settings.builtInSkins.some(option => option[0] === App.skinChoice)
     /// Board 46's line under each choice; following the desktop also says what it draws now.
+    /// A skin of the person's says its own description, else its folder's name (C37 U1).
     readonly property string _skinDescription: {
         if (App.skinChoice === "console")
             return qsTr("BASELINE's plates, labels and lamps, in any theme.");
         if (App.skinChoice === "desktop")
             return qsTr("The console when omarchy-console's skin is on, Omarchy otherwise. Now: %1.")
                 .arg(root._skinTitle(Theme.skin.name));
+        if (root._choiceIsUserSkin)
+            return root._chosenUserSkin && root._chosenUserSkin.description.length > 0
+                ? root._chosenUserSkin.description : App.skinChoice;
         return qsTr("Quiet and monospace, in any theme. The default.");
     }
     /// A built-in skin's name as the chips print it.
@@ -968,11 +981,75 @@ Item {
     }
     /// The skin note's question 1, ruled: no font is bundled, so a choice that can draw
     /// Console names its fonts that aren't installed (none when the desktop asks for the
-    /// shell's font, fx.fonts = system).
+    /// shell's font, fx.fonts = system). A skin of the person's names its own.
     readonly property var _consoleFontsMissing: App.skinChoice === "omarchy" || Theme.skin.systemFonts
-        ? [] : Theme.skin.missingFontsOf("console")
+        ? [] : Theme.skin.missingFontsOf(root._choiceIsUserSkin ? App.skinChoice : "console")
     readonly property string _skinFontsLine: root._consoleFontsMissing.length === 0 ? ""
-        : qsTr("Not installed: %1. Console uses stand-ins for them.").arg(root._consoleFontsMissing.join(", "))
+        : root._choiceIsUserSkin
+          ? qsTr("Not installed: %1. %2 uses stand-ins for them.").arg(root._consoleFontsMissing.join(", ")).arg(App.skinChoice)
+          : qsTr("Not installed: %1. Console uses stand-ins for them.").arg(root._consoleFontsMissing.join(", "))
+    /// One drop as the yellow line says it: the token, its value, and why it was left
+    /// ("isn't between 0 and 1"; DECISIONS C37 U5).
+    /// A ground's recipe is dropped whole, its why naming the part ("its alpha is not …"):
+    /// that part is said as the token, `grounds.hover.alpha 1.4`.
+    function _dropText(drop: var): string {
+        const part = /^its (\w+) is not (.*)$/.exec(drop.why);
+        const inRecipe = part !== null && drop.value !== null && typeof drop.value === "object"
+            && drop.value[part[1]] !== undefined;
+        const token = inRecipe ? drop.token + "." + part[1] : drop.token;
+        const value = inRecipe ? drop.value[part[1]] : drop.value;
+        const why = inRecipe ? "isn't " + part[2]
+            : drop.why.startsWith("not ") ? "isn't " + drop.why.slice(4) : drop.why;
+        return token + (value === null || value === undefined ? "" : " " + JSON.stringify(value)) + " " + why;
+    }
+    /// A drop's token as the yellow line names it (see _dropText).
+    function _dropToken(drop: var): string {
+        return root._dropText(drop).split(" ")[0];
+    }
+    /// Why the asked-for skin is drawn as Omarchy's, as the yellow line ends it.
+    function _notDrawnWhy(reason: string): string {
+        if (reason === "newer")
+            return qsTr("version %1 is newer than this omaseed.").arg(Theme.skin.version);
+        if (reason === "unparseable")
+            return qsTr("its skin.json doesn't parse.");
+        if (reason === "no version")
+            return qsTr("it has no version.");
+        if (reason === "missing")
+            return qsTr("its folder is gone.");
+        return reason + ".";
+    }
+    /// Board 55 §4's yellow line, shown only while there is something to say: the drawn skin
+    /// left tokens at Omarchy's, or was left whole (C37 U1, U5); the fonts line after it.
+    readonly property string _skinDropsLine: {
+        const skin = Theme.skin;
+        const name = skin.requested;
+        if (skin.reason.length > 0)
+            return qsTr("%1 isn't drawn: %2").arg(name).arg(root._notDrawnWhy(skin.reason));
+        const drops = skin.drops;
+        if (drops.length === 1)
+            return qsTr("%1: 1 token left at Omarchy's: %2.").arg(name).arg(root._dropText(drops[0]));
+        if (drops.length > 1)
+            return qsTr("%1: %n token(s) left at Omarchy's: %2 and %3 more. omaseed check %1 names them.", "", drops.length)
+                .arg(name).arg(root._dropToken(drops[0])).arg(drops.length - 1);
+        return "";
+    }
+    readonly property string _skinWarning: [root._skinDropsLine, root._skinFontsLine]
+        .filter(line => line.length > 0).join(" ")
+
+    /// The Skin row's yours ▾: the person's skins in a menu under it, a check on the drawn one.
+    function openUserSkinPick(anchor: Item): void {
+        const names = root._userSkins.map(own => own.name);
+        if (names.length === 0)
+            return;
+        skinMenu.items = names.map(name => ({
+                                                "text": name,
+                                                "glyph": name === App.skinChoice ? Glyphs.check : "",
+                                                "action": name
+                                            }));
+        const at = anchor.mapToItem(root, 0, anchor.height + Theme.space(4));
+        skinMenu.openAt(Math.round(at.x), Math.round(at.y));
+        skinMenu.cursorIndex = Math.max(0, names.indexOf(App.skinChoice));
+    }
 
     /// The id of the server the Servers pane's cursor is on, or "" on the add row.
     function cursorServerId(): string {
@@ -1572,7 +1649,7 @@ Item {
         if (event.key !== Qt.Key_Escape
                 && (sheet.opened || serverSheet.opened || confirm.opened || qbtConfirm.opened
                     || qbtListSheet.opened || qbtMenu.opened || serverSelect.listOpen
-                    || copyMenu.opened))
+                    || copyMenu.opened || skinMenu.opened))
             event.accepted = true;
     }
 
@@ -2640,7 +2717,7 @@ Item {
                                 hasCursor: root.area === "pane" && root.paneCursor === root.settings.cursorOf("appearance.skin")
                                 objectName: "skinRow"
                                 title: root.settings.own("appearance.skin").title
-                                warning: root._skinFontsLine
+                                warning: root._skinWarning
 
                                 onClicked: {
                                     root.paneCursor = root.settings.cursorOf("appearance.skin");
@@ -2648,24 +2725,94 @@ Item {
                                     root.settings.activate("appearance.skin");
                                 }
 
-                                RowLayout {
+                                ColumnLayout {
                                     spacing: Theme.space(6)
 
-                                    Repeater {
-                                        model: root.skinChoices
+                                    RowLayout {
+                                        spacing: Theme.space(6)
+
+                                        Repeater {
+                                            model: root.settings.builtInSkins
+
+                                            Chip {
+                                                id: skinChip
+
+                                                required property var modelData
+
+                                                block: skinRow.ground
+                                                checkable: true
+                                                objectName: "skinChip-" + skinChip.modelData[0]
+                                                selected: App.skinChoice === skinChip.modelData[0]
+                                                text: skinChip.modelData[1]
+
+                                                onClicked: App.skinChoice = skinChip.modelData[0]
+                                            }
+                                        }
+                                    }
+
+                                    // Board 55 §4: the person's skins (C37 U1), at most three by
+                                    // name, else yours ▾; then open folder.
+                                    RowLayout {
+                                        objectName: "skinYoursLine"
+                                        spacing: Theme.space(6)
+
+                                        Label {
+                                            dim: true
+                                            ink: skinRow.ink
+                                            size: "small"
+                                            text: qsTr("yours")
+                                        }
+
+                                        Label {
+                                            dim: true
+                                            ink: skinRow.ink
+                                            objectName: "skinNoneYet"
+                                            size: "small"
+                                            text: qsTr("none yet")
+                                            visible: root._userSkins.length === 0
+                                        }
+
+                                        Repeater {
+                                            model: root._userSkinsFolded ? [] : root._userSkins
+
+                                            Chip {
+                                                id: userSkinChip
+
+                                                required property var modelData
+
+                                                block: skinRow.ground
+                                                checkable: true
+                                                objectName: "skinChip-" + userSkinChip.modelData.name
+                                                selected: App.skinChoice === userSkinChip.modelData.name
+                                                text: userSkinChip.modelData.name
+
+                                                onClicked: App.skinChoice = userSkinChip.modelData.name
+                                            }
+                                        }
 
                                         Chip {
-                                            id: skinChip
-
-                                            required property var modelData
+                                            id: skinYoursChip
 
                                             block: skinRow.ground
                                             checkable: true
-                                            objectName: "skinChip-" + skinChip.modelData[0]
-                                            selected: App.skinChoice === skinChip.modelData[0]
-                                            text: skinChip.modelData[1]
+                                            objectName: "skinYours"
+                                            selected: root._chosenUserSkin !== null
+                                            text: (root._chosenUserSkin !== null ? root._chosenUserSkin.name : qsTr("yours"))
+                                                  + "  " + Glyphs.chevronDown
+                                            visible: root._userSkinsFolded
 
-                                            onClicked: App.skinChoice = skinChip.modelData[0]
+                                            onClicked: {
+                                                root.paneCursor = root.settings.cursorOf("appearance.skin");
+                                                root.openUserSkinPick(skinYoursChip);
+                                            }
+                                        }
+
+                                        Button {
+                                            block: skinRow.ground
+                                            objectName: "skinOpenFolder"
+                                            text: qsTr("open folder")
+
+                                            onClicked: App.openSkinsFolder()
                                         }
                                     }
                                 }
@@ -4009,6 +4156,24 @@ Item {
             root.paneCursor = Math.max(0, App.serverList.indexOfId(id));
             root.area = "pane";
         }
+    }
+
+    // Board 55 §4: the Skin row's yours ▾, the person's skins (C37 U1).
+    Menu {
+        id: skinMenu
+
+        anchors.fill: parent
+        dimmed: false
+        heading: qsTr("your skins")
+        menuWidth: Theme.space(220)
+        objectName: "skinMenu"
+        z: 1
+
+        onActivated: action => {
+            App.skinChoice = action;
+            bodyItem.forceActiveFocus();
+        }
+        onRejected: bodyItem.forceActiveFocus()
     }
 
     // docs/34 D6 a: which server "copy settings from" reads.
