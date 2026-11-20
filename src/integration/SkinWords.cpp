@@ -143,7 +143,98 @@ QString useLines(const QJsonObject &answer)
     return out + QLatin1Char('\n');
 }
 
+/// The words a reason says, as the Skin row says them (docs/55 §4).
+QString reasonWords(const QString &reason, int version)
+{
+    if (reason == QLatin1String("unparseable"))
+        return QStringLiteral("its skin.json doesn't parse");
+    if (reason == QLatin1String("no version"))
+        return QStringLiteral("it has no version");
+    if (reason == QLatin1String("newer"))
+        return QStringLiteral("version %1 is newer than this omaseed").arg(version);
+    if (reason == QLatin1String("missing"))
+        return QStringLiteral("its folder has no skin.json");
+    return reason;
+}
+
+QString checkLines(const QJsonObject &answer, const QString &home)
+{
+    const QString name = answer.value(QLatin1String("skin")).toString();
+    const bool drawn = answer.value(QLatin1String("drawn")).toBool();
+    QStringList head{name};
+    head << (drawn ? QStringLiteral("drawn")
+                   : QStringLiteral("drawn as Omarchy's: %1")
+                         .arg(answer.value(QLatin1String("why")).toString()));
+    head << QStringLiteral("%1 (%2)").arg(answer.value(QLatin1String("theme")).toString(),
+                                          answer.value(QLatin1String("mode")).toString());
+    head << QStringLiteral("base size %1").arg(answer.value(QLatin1String("baseSize")).toInt());
+    QString out = head.join(QStringLiteral(" · ")) + QLatin1Char('\n');
+    for (const QJsonValue &value : answer.value(QLatin1String("dropped")).toArray()) {
+        const QJsonObject drop = value.toObject();
+        const QJsonValue dropped = drop.value(QLatin1String("value"));
+        out +=
+            QStringLiteral("  dropped %1%2: %3\n")
+                .arg(drop.value(QLatin1String("token")).toString(),
+                     dropped.isNull() || dropped.isUndefined() ? QString()
+                                                               : QLatin1Char(' ') + scalar(dropped),
+                     drop.value(QLatin1String("why")).toString());
+    }
+    QStringList fonts;
+    for (const QJsonValue &font : answer.value(QLatin1String("missingFonts")).toArray())
+        fonts << font.toString();
+    if (!fonts.isEmpty())
+        out += QStringLiteral("  not installed: %1\n").arg(fonts.join(QStringLiteral(", ")));
+    for (const QJsonValue &value : answer.value(QLatin1String("lifted")).toArray()) {
+        const QJsonObject lift = value.toObject();
+        out += QStringLiteral("  lifted %1 on %2 from %3 to %4: that ground is louder than "
+                              "Omarchy's\n")
+                   .arg(lift.value(QLatin1String("role")).toString(),
+                        lift.value(QLatin1String("ground")).toString(),
+                        QString::number(lift.value(QLatin1String("from")).toDouble(), 'f', 1),
+                        QString::number(lift.value(QLatin1String("to")).toDouble(), 'f', 1));
+    }
+    out += QStringLiteral("  picture %1\n")
+               .arg(shortPath(answer.value(QLatin1String("picture")).toString(), home));
+    // #226: omabox checks a skin in every theme; said only where it isn't installed.
+    if (!answer.value(QLatin1String("omabox")).toBool())
+        out += QStringLiteral("omabox would check this skin in every theme, in a desktop nobody "
+                              "sees: omabox.app\n");
+    return out;
+}
+
 } // namespace
+
+QByteArray check(const CheckFacts &facts, const QDateTime &at, const QString &omaseed)
+{
+    QJsonArray dropped;
+    for (const SkinDrop &drop : facts.skin.drops)
+        dropped.append(QJsonObject{{QStringLiteral("token"), drop.token},
+                                   {QStringLiteral("value"), drop.value},
+                                   {QStringLiteral("why"), drop.why}});
+    QJsonArray lifted;
+    for (const CheckLift &lift : facts.lifted)
+        lifted.append(QJsonObject{{QStringLiteral("role"), lift.role},
+                                  {QStringLiteral("ground"), lift.ground},
+                                  {QStringLiteral("from"), lift.from},
+                                  {QStringLiteral("to"), lift.to}});
+    Fields fields = core::AgentAnswers::envelope(QStringLiteral("check"), at, omaseed);
+    fields << std::pair{QStringLiteral("skin"), QJsonValue(facts.name)}
+           << std::pair{QStringLiteral("version"), QJsonValue(facts.skin.version)}
+           << std::pair{QStringLiteral("drawn"), QJsonValue(facts.skin.drawn())};
+    if (!facts.skin.drawn())
+        fields << std::pair{QStringLiteral("why"),
+                            QJsonValue(reasonWords(facts.skin.reason, facts.skin.version))};
+    fields << std::pair{QStringLiteral("dropped"), QJsonValue(dropped)}
+           << std::pair{QStringLiteral("missingFonts"),
+                        QJsonValue(QJsonArray::fromStringList(facts.missingFonts))}
+           << std::pair{QStringLiteral("lifted"), QJsonValue(lifted)}
+           << std::pair{QStringLiteral("theme"), QJsonValue(facts.theme)}
+           << std::pair{QStringLiteral("mode"), QJsonValue(facts.mode)}
+           << std::pair{QStringLiteral("baseSize"), QJsonValue(facts.baseSize)}
+           << std::pair{QStringLiteral("picture"), QJsonValue(facts.picture)}
+           << std::pair{QStringLiteral("omabox"), QJsonValue(facts.omabox)};
+    return AgentWords::orderedJson(fields);
+}
 
 Pick pick(const QString &skinsDir, const QString &name)
 {
@@ -374,6 +465,8 @@ QString lines(const QJsonObject &answer, const QString &home)
     }
     if (command == QLatin1String("skin use"))
         return useLines(answer);
+    if (command == QLatin1String("check"))
+        return checkLines(answer, home);
     return QString();
 }
 

@@ -52,6 +52,17 @@ omaseed_add_test(tst_words
 )
 add_dependencies(tst_words omaseed)
 
+# DECISIONS C37 U5, #224: `omaseed check <skin>`, the real binary, with no display and no bus,
+# in homes of its own: exits, drops, a light theme, the picture alone written, and the
+# picture showing the skin as saved last.
+omaseed_add_test(tst_check
+    SOURCES tst_check.cpp
+    LIBRARIES Qt6::Gui Qt6::Network
+    DEFINES OMASEED_BINARY="$<TARGET_FILE:omaseed>"
+            OMASEED_THEME_FIXTURES="${PROJECT_SOURCE_DIR}/tests/fixtures/themes"
+)
+add_dependencies(tst_check omaseed)
+
 # docs/DECISIONS.md C30 F7: every text role on every ground, in every theme of
 # tests/fixtures/themes and every built-in skin (#171), as the built omaseed resolves them
 # (`--theme-roles --skin`, offscreen, no window). A pair under 4.5:1 fails here, and so does

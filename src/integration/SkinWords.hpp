@@ -74,7 +74,37 @@ use(const QString &name, const Skin &skin, bool live, const QDateTime &at, const
 /// other key kept. A state.json that doesn't parse is never written (not-written).
 Outcome saveChoice(const QString &name);
 
-/// The lines of a skin answer (`command` "skin list", "skin clone", "skin use"), "" for
+/// A role the C30 floor lifted on a ground under the checked skin and not under Omarchy's
+/// (`check`'s `lifted`, DECISIONS C37 U5): its contrast there before and after.
+struct CheckLift
+{
+    QString role;
+    QString ground;
+    double from = 0;
+    double to = 0;
+};
+
+/// What `check <skin>` found: the skin as read (Omarchy's, with its reason, when it doesn't
+/// read), under which theme, and where its picture is.
+struct CheckFacts
+{
+    QString name;
+    Skin skin;
+    QStringList missingFonts;
+    QList<CheckLift> lifted;
+    QString theme;
+    QString mode;
+    int baseSize = 0;
+    QString picture;
+    bool omabox = false;
+};
+
+/// `check <skin>`'s answer (docs/55 §6): skin, version, drawn, why (only when not drawn),
+/// dropped [{token, value, why}], missingFonts, lifted, theme, mode, baseSize, picture,
+/// omabox.
+QByteArray check(const CheckFacts &facts, const QDateTime &at, const QString &omaseed);
+
+/// The lines of a skin answer (`command` "skin list", "skin clone", "skin use", "check"), "" for
 /// another; `home` is shortened to "~" in paths.
 QString lines(const QJsonObject &answer, const QString &home);
 

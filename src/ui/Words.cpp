@@ -7,6 +7,7 @@
 #include "integration/SkinReader.hpp"
 #include "integration/SkinWords.hpp"
 #include "integration/ThemeReader.hpp"
+#include "ui/Check.hpp"
 
 #include <QCoreApplication>
 #include <QDateTime>
@@ -108,14 +109,30 @@ int answer(const QString &command, bool json, const QByteArray &bytes)
     return 0;
 }
 
-/// The words the CLI answers itself (C37 U3): skin list and skin clone. check is step E's
-/// (#224): until it is built it says so.
+/// `check <skin>` (C37 U5): the skin named is checked first (bad-name, unknown-skin: exit 2);
+/// one that doesn't read is still checked, drawn as Omarchy's, and exits 1 with its why.
+/// runCheck makes its own application, so this runs before any other exists.
+int check(int argc, char *argv[], const AgentWords::Request &request)
+{
+    const QString command = request.command();
+    const QString name = request.positionals.first();
+    const SkinWords::Pick picked = SkinWords::pick(skinsDir(), name);
+    if (!picked.code.isEmpty() && picked.code != QLatin1String("unreadable"))
+        return fail(command, request.json, picked.code, picked.message);
+    const CheckResult result =
+        runCheck(argc, argv, name, request.options.value(QStringLiteral("theme")).toString());
+    if (!result.code.isEmpty())
+        return fail(command, request.json, result.code, result.message);
+    if (const int code = answer(command, request.json, result.json); code != 0)
+        return code;
+    return result.exit;
+}
+
+/// The words the CLI answers itself (C37 U3): skin list and skin clone.
 int local(const AgentWords::Request &request)
 {
     const QString command = request.command();
     const QDateTime at = QDateTime::currentDateTimeUtc();
-    if (request.word == QLatin1String("check"))
-        return fail(command, request.json, QStringLiteral("usage"), AgentWords::notYet(command));
     if (request.subword == QLatin1String("list"))
         return answer(command,
                       request.json,
@@ -150,13 +167,16 @@ int saved(const AgentWords::Request &request, const integration::Skin &skin)
 
 int runWord(int argc, char *argv[], const std::function<QString()> &qtHelp)
 {
-    // No display: a word works over SSH as long as the session bus is reachable (C45 V3).
-    QCoreApplication app(argc, argv);
     QStringList arguments;
     for (int i = 1; i < argc; ++i)
         arguments << QString::fromLocal8Bit(argv[i]);
-
     const AgentWords::Request request = AgentWords::parse(arguments);
+    // check draws offscreen on an application of its own (C37 U5).
+    if (request.kind == AgentWords::Request::Kind::Local && request.word == QLatin1String("check"))
+        return check(argc, argv, request);
+
+    // No display: a word works over SSH as long as the session bus is reachable (C45 V3).
+    QCoreApplication app(argc, argv);
     switch (request.kind) {
     case AgentWords::Request::Kind::Page:
         write(stdout,
