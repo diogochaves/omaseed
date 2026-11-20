@@ -1,5 +1,7 @@
 #include "integration/Theme.hpp"
 #include "integration/ThemeReader.hpp"
+#include "integration/UserSkins.hpp"
+#include "ui/app/App.hpp"
 #include "ui/i18n/Translations.hpp"
 
 #include <QCoreApplication>
@@ -71,7 +73,47 @@ public:
     /// puts it back to "omarchy".
     Q_INVOKABLE void setSkinChoice(const QString &choice) { m_reader->setSkinChoice(choice); }
 
+    /// Hands `app` (the QML `App`) the reader as main() does, so App.userSkins lists the
+    /// harness's skins folder and App.skinChoice repaints at once (C37 U1); null takes it
+    /// back. A test that attaches detaches before it ends.
+    Q_INVOKABLE void attach(QObject *app, bool on)
+    {
+        if (auto *target = qobject_cast<omaseed::app::App *>(app))
+            target->attachTheme(on ? m_reader : nullptr);
+    }
+
+    /// Writes `text` as the person's skin `name` (`<config home>/omaseed/skins/<name>/
+    /// skin.json`, the harness's own XDG), making its folder; whether it worked.
+    Q_INVOKABLE bool writeSkin(const QString &name, const QString &text)
+    {
+        const QString dir = skinsDir() + QLatin1Char('/') + name;
+        QFile file(dir + QStringLiteral("/skin.json"));
+        const QByteArray bytes = text.toUtf8();
+        return QDir().mkpath(dir) && file.open(QIODevice::WriteOnly | QIODevice::Truncate) &&
+               file.write(bytes) == bytes.size();
+    }
+
+    /// Removes the person's skin `name`, its folder and all; whether it is gone.
+    Q_INVOKABLE bool removeSkin(const QString &name)
+    {
+        QDir dir(skinsDir() + QLatin1Char('/') + name);
+        return !dir.exists() || dir.removeRecursively();
+    }
+
+    /// How many skins the reader lists now, for a test waiting out the watch's debounce.
+    Q_INVOKABLE int userSkinCount() const
+    {
+        return m_reader->userSkins() ? int(m_reader->userSkins()->skins().size()) : -1;
+    }
+
 private:
+    QString skinsDir() const
+    {
+        return m_reader->userSkins()
+                   ? m_reader->userSkins()->dir()
+                   : omaseed::integration::ThemeReader::Paths::fromEnvironment().skinsDir;
+    }
+
     omaseed::integration::ThemeReader *m_reader;
 };
 

@@ -53,7 +53,7 @@ foreach(skin omarchy console)
     # Switching the widget off keeps its link (BarWidget::remove), so a run would leave one
     # in its folder for the next: every run starts without the tests' plugins folder.
     add_test(NAME ${qml_test}_env_clean
-        COMMAND ${CMAKE_COMMAND} -E rm -rf "${qml_env}/omarchy/plugins")
+        COMMAND ${CMAKE_COMMAND} -E rm -rf "${qml_env}/omarchy/plugins" "${qml_env}/omaseed/skins")
     set_tests_properties(${qml_test}_env_clean PROPERTIES FIXTURES_SETUP ${qml_test}_env)
     set_property(TEST ${qml_test} APPEND PROPERTY FIXTURES_REQUIRED ${qml_test}_env)
 endforeach()

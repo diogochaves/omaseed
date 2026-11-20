@@ -1508,6 +1508,160 @@ TestCase {
         compare(row.warning, "");
     }
 
+    // Board 55 §4 (DECISIONS C37 U1): the person's skins. App reads them through the theme
+    // reader, as main() wires it; these tests attach the harness's reader and write skins into
+    // its config home (the harness's XDG), then take them all away again.
+    function _openAppearanceWithSkins(skins: var): var {
+        for (const name in skins)
+            verify(TestTheme.writeSkin(name, skins[name]), name);
+        TestTheme.attach(App, true);
+        tryVerify(() => App.userSkins.length === Object.keys(skins).length, 3000);
+        const modal = createTemporaryObject(modalComponent, testCase);
+        modal.open();
+        keyClick(Qt.Key_5);
+        compare(modal.paneIndex, 4);
+        return modal;
+    }
+
+    function _dropUserSkins(names: var): void {
+        App.skinChoice = "omarchy";
+        for (const name of names)
+            verify(TestTheme.removeSkin(name), name);
+        tryVerify(() => App.userSkins.length === 0, 3000);
+        TestTheme.attach(App, false);
+        TestTheme.setSkinChoice("omarchy");
+    }
+
+    // None: "none yet" and open folder; two: a chip each; four: one yours ▾ and its menu.
+    function test_the_skin_row_lists_your_skins() {
+        const modal = _openAppearanceWithSkins({});
+        const none = testCase.childNamed(modal, "skinNoneYet");
+        verify(none !== null && none.visible);
+        verify(testCase.childNamed(modal, "skinOpenFolder").visible);
+        verify(!testCase.childNamed(modal, "skinYours").visible);
+
+        verify(TestTheme.writeSkin("warm", '{"version": 1}'));
+        verify(TestTheme.writeSkin("paper", '{"version": 1}'));
+        tryVerify(() => App.userSkins.length === 2, 3000);
+        compare(App.userSkins.map(own => own.name), ["paper", "warm"]);
+        tryVerify(() => testCase.childNamed(modal, "skinChip-warm") !== null, 3000);
+        compare(testCase.childNamed(modal, "skinChip-warm").text, "warm");
+        verify(testCase.childNamed(modal, "skinChip-paper").visible);
+        verify(!none.visible);
+        verify(!testCase.childNamed(modal, "skinYours").visible);
+        // The choice reaches them in board order, the built-ins first.
+        compare(modal.skinChoices.map(option => option[0]),
+                ["omarchy", "console", "desktop", "paper", "warm"]);
+
+        verify(TestTheme.writeSkin("Amber", '{"version": 1}'));
+        verify(TestTheme.writeSkin("console-2", '{"version": 1}'));
+        tryVerify(() => App.userSkins.length === 4, 3000);
+        const yours = testCase.childNamed(modal, "skinYours");
+        verify(yours.visible);
+        compare(testCase.childNamed(modal, "skinChip-warm"), null);
+        mouseClick(yours);
+        const menu = testCase.childNamed(modal, "skinMenu");
+        verify(menu.opened);
+        compare(menu.items.map(item => item.text), ["Amber", "console-2", "paper", "warm"]);
+        menu.close();
+
+        _dropUserSkins(["warm", "paper", "Amber", "console-2"]);
+        tryVerify(() => none.visible, 3000);
+    }
+
+    function test_a_user_skin_is_picked_from_its_chip() {
+        const pinned = Theme.skin.requested !== App.skinChoice;
+        const modal = _openAppearanceWithSkins({"warm": '{"version": 1, "cut": {"panel": 6}}'});
+        tryVerify(() => testCase.childNamed(modal, "skinChip-warm") !== null, 3000);
+        const chip = testCase.childNamed(modal, "skinChip-warm");
+        mouseClick(chip);
+        compare(App.skinChoice, "warm");
+        verify(chip.selected);
+        verify(!testCase.childNamed(modal, "skinChip-omarchy").selected);
+        if (!pinned) {
+            compare(Theme.skin.requested, "warm");
+            compare(Theme.skin.name, "warm");
+            compare(Theme.skin.reason, "");
+        }
+
+        // enter steps past the built-ins onto it, and round again.
+        App.skinChoice = "desktop";
+        modal.area = "pane";
+        modal.paneCursor = 0;
+        modal.activateRow();
+        compare(App.skinChoice, "warm");
+        modal.activateRow();
+        compare(App.skinChoice, "omarchy");
+
+        _dropUserSkins(["warm"]);
+    }
+
+    function test_the_yellow_line_names_a_drop() {
+        const pinned = Theme.skin.requested !== App.skinChoice;
+        const modal = _openAppearanceWithSkins({
+            "warm": '{"version": 1, "grounds": {"hover": {"tint": "foreground", "alpha": 1.4}}}'
+        });
+        const row = testCase.childNamed(modal, "skinRow");
+        App.skinChoice = "warm";
+        if (pinned) {
+            compare(row.warning, ""); // the pinned Console is drawn: nothing was dropped
+        } else {
+            tryCompare(row, "warning",
+                       "warm: 1 token left at Omarchy's: grounds.hover.alpha 1.4 isn't between 0 and 1, nor shell.");
+            verify(TestTheme.writeSkin("warm",
+                '{"version": 1, "grounds": {"hover": {"tint": "foreground", "alpha": 1.4}}, '
+                + '"line": {"hair": 40}, "cut": {"panel": -4}}'));
+            tryCompare(row, "warning",
+                       "warm: 3 tokens left at Omarchy's: cut.panel and 2 more. omaseed check warm names them.",
+                       3000); // the first met, in the reader's order of groups
+            // A good save takes the line away.
+            verify(TestTheme.writeSkin("warm", '{"version": 1}'));
+            tryCompare(row, "warning", "", 3000);
+        }
+        _dropUserSkins(["warm"]);
+        compare(row.warning, "");
+    }
+
+    function test_the_yellow_line_says_why_not_drawn() {
+        const pinned = Theme.skin.requested !== App.skinChoice;
+        const modal = _openAppearanceWithSkins({"warm": '{"version": 2}'});
+        const row = testCase.childNamed(modal, "skinRow");
+        App.skinChoice = "warm";
+        if (!pinned) {
+            tryCompare(row, "warning", "warm isn't drawn: version 2 is newer than this omaseed.");
+            compare(Theme.skin.name, "omarchy");
+            verify(TestTheme.writeSkin("warm", '{"version": 1'));
+            tryCompare(row, "warning", "warm isn't drawn: its skin.json doesn't parse.", 3000);
+            verify(TestTheme.writeSkin("warm", '{"skin": "warm"}'));
+            tryCompare(row, "warning", "warm isn't drawn: it has no version.", 3000);
+            // The next good save draws it again (C37 U1).
+            verify(TestTheme.writeSkin("warm", '{"version": 1}'));
+            tryCompare(row, "warning", "", 3000);
+            compare(Theme.skin.name, "warm");
+            verify(TestTheme.removeSkin("warm"));
+            tryCompare(row, "warning", "warm isn't drawn: its folder is gone.", 3000);
+            compare(App.skinChoice, "warm"); // kept, so the folder coming back draws it
+        } else {
+            compare(row.warning, "");
+        }
+        _dropUserSkins(["warm"]);
+    }
+
+    function test_the_caption_is_the_description() {
+        const modal = _openAppearanceWithSkins({
+            "warm": '{"version": 1, "description": "Warmer and rounder."}',
+            "paper": '{"version": 1}'
+        });
+        const row = testCase.childNamed(modal, "skinRow");
+        App.skinChoice = "warm";
+        compare(row.description, "Warmer and rounder.");
+        App.skinChoice = "paper";
+        compare(row.description, "paper");
+        App.skinChoice = "console";
+        verify(row.description.indexOf("plates, labels and lamps") >= 0, row.description);
+        _dropUserSkins(["warm", "paper"]);
+    }
+
     // DECISIONS C32 D16 a: Appearance › Surface tint, the rail's: off · 4 % · 8 %, after the
     // scroll hint; enter steps it, a chip picks it.
     function test_the_appearance_pane_tints_the_rail() {
