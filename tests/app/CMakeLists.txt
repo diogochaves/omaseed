@@ -243,6 +243,13 @@ omaseed_add_test(tst_statusservice
     DEFINES OMASEED_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../fixtures"
 )
 
+# DECISIONS C45 V3, V7, V8 (#163): the Agent interface's reads from App's models, against a
+# small stand-in qBittorrent; no credential in any answer.
+omaseed_add_test(tst_agentservice
+    SOURCES tst_agentservice.cpp
+    LIBRARIES omaseed::app omaseed::core omaseed::integration Qt6::Network
+)
+
 # #218 (DECISIONS C35 W1, W2, W6): where an add from outside the window opens, and the raise.
 omaseed_add_test(tst_addroute
     SOURCES tst_addroute.cpp
