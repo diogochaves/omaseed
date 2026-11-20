@@ -2269,6 +2269,122 @@ TestCase {
 
     // ---- Free space under Save to (docs/25 §4, #29) --------------------------------------
 
+    /// A qBittorrent's `App.roomFor` with its temp folder on (C47 I12, #271 (2)): "movies" has
+    /// its own temp folder, other categories the session's rule, a typed Save to the session's.
+    function fakeRoomFor(savePath: string, category: string, autoTMM: bool, useTemp: bool): var {
+        let tempPath = "/fast/temp";
+        if (autoTMM && category === "movies")
+            tempPath = "/fast/movies";
+        else if (autoTMM && category.length > 0)
+            tempPath += "/" + category;
+        const drive = {
+            "source": "local",
+            "bytesFree": 900e9,
+            "bytesTotal": 1800e9,
+            "where": "/fast",
+            "promised": 0,
+            "promisedCount": 0
+        };
+        return {
+            "hasTemp": true,
+            "switchable": true,
+            "useTemp": useTemp,
+            "tempPath": tempPath,
+            "tempRule": "session",
+            "savePath": savePath.length > 0 ? savePath : "/data/torrents",
+            "engine": "qbittorrent",
+            "sameDrive": false,
+            "preallocates": false,
+            "temp": drive,
+            "save": Object.assign({}, drive, {
+                                      "where": "/data"
+                                  })
+        };
+    }
+
+    /// The sheet's room read through `fakeRoomFor` with the sheet's own arguments.
+    function fakeTheRoom(sheet: var): void {
+        const lines = sheet.roomLines;
+        lines.room = Qt.binding(() => testCase.fakeRoomFor(lines.savePath, lines.category,
+                                                           lines.autoTMM, lines.useTemp));
+    }
+
+    function test_switchOffSendsUseTempFalse() {
+        const sheet = createTemporaryObject(addSheetComponent, testCase);
+        const added = createTemporaryObject(addSpy, testCase, {
+                                                "target": sheet
+                                            });
+        sheet.openWith(testCase.freshMagnet, "clipboard");
+        testCase.fakeTheRoom(sheet);
+        verify(sheet.roomLines.twoStages);
+        findChild(sheet.roomLines.tempLine, "addRoomSwitch").toggle();
+        compare(sheet.useTemp, false);
+        verify(sheet.roomLines.skipping);
+
+        keyClick(Qt.Key_Return);
+        compare(added.count, 1);
+        compare(added.signalArguments[0][0].useTemp, false);
+    }
+
+    function test_switchOnSendsNothing() {
+        const sheet = createTemporaryObject(addSheetComponent, testCase);
+        const added = createTemporaryObject(addSpy, testCase, {
+                                                "target": sheet
+                                            });
+        sheet.openWith(testCase.freshMagnet, "clipboard");
+        testCase.fakeTheRoom(sheet);
+        // Off and back on again: the add carries nothing new.
+        findChild(sheet.roomLines.tempLine, "addRoomSwitch").toggle();
+        findChild(sheet.roomLines, "addRoomSkipSwitch").toggle();
+        compare(sheet.useTemp, true);
+        verify(sheet.roomLines.twoStages);
+
+        keyClick(Qt.Key_Return);
+        compare(added.count, 1);
+        compare(added.signalArguments[0][0].useTemp, undefined);
+    }
+
+    function test_theSwitchIsBackOnForTheNextTorrent() {
+        const sheet = createTemporaryObject(addSheetComponent, testCase);
+        sheet.openWith(testCase.freshMagnet, "clipboard");
+        sheet.useTemp = false;
+        // The same torrent again keeps it off; another torrent puts it back on.
+        sheet.sourceField.text = testCase.freshMagnet + "&tr=udp%3A%2F%2Ftracker.example%3A1337";
+        compare(sheet.useTemp, false);
+        sheet.sourceField.text = "magnet:?xt=urn:btih:0b1c2d3e4f5061728394a5b6c7d8e9f0a1b2c3d4&dn=y";
+        compare(sheet.useTemp, true);
+    }
+
+    function test_categoryMovesTheFirstLineUnderAutoTmm() {
+        const sheet = createTemporaryObject(addSheetComponent, testCase);
+        sheet.openWith(testCase.freshMagnet, "clipboard");
+        testCase.fakeTheRoom(sheet);
+        const what = () => findChild(sheet.roomLines.tempLine, "addRoomWhat").text;
+        verify(what().startsWith("downloads first to /fast/temp · "), what());
+
+        sheet.categoryChips.pick("movies");
+        compare(sheet.autoTMM, true);
+        verify(what().startsWith("downloads first to /fast/movies · "), what());
+        sheet.categoryChips.pick("tv");
+        verify(what().startsWith("downloads first to /fast/temp/tv · "), what());
+        // The second line follows Save to, which the pick filled.
+        verify(findChild(sheet.roomLines.saveLine, "addRoomWhat").text.startsWith(
+                   "then moves to /data/torrents/tv · "));
+    }
+
+    function test_typedSaveToKeepsTheSessionTemp() {
+        const sheet = createTemporaryObject(addSheetComponent, testCase);
+        sheet.openWith(testCase.freshMagnet, "clipboard");
+        testCase.fakeTheRoom(sheet);
+        sheet.categoryChips.pick("movies");
+        sheet.savePathField.text = "/data/other";
+        compare(sheet.autoTMM, false);
+        const what = findChild(sheet.roomLines.tempLine, "addRoomWhat").text;
+        verify(what.startsWith("downloads first to /fast/temp · "), what);
+        verify(findChild(sheet.roomLines.saveLine, "addRoomWhat").text.startsWith(
+                   "then moves to /data/other · "));
+    }
+
     function test_a_magnet_with_a_size_says_what_it_needs_and_the_room() {
         const sheet = createTemporaryObject(addSheetComponent, testCase);
         sheet.openWith(testCase.freshMagnet, "clipboard");

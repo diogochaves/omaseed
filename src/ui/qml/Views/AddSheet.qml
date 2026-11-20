@@ -174,6 +174,12 @@ Sheet {
     property string _parseError: ""
     /// False once the save path has been typed into: the add then carries `autoTMM: false`.
     property bool autoTMM: true
+    /// DECISIONS C47 I9: this torrent downloads to the server's temp folder first. On for each
+    /// new torrent; off is sent as `useTemp: false` (the server's setting never changes).
+    property bool useTemp: true
+    /// The torrent `useTemp` was last set for (its hash, else its parse): a new one puts the
+    /// switch back on.
+    property string _useTempToken: ""
     /// Names the category/tag palette answered with that the server does not list (yet):
     /// they join the chip rows so the choice is visible in the sheet.
     property var extraCategories: []
@@ -197,7 +203,9 @@ Sheet {
     readonly property alias layoutChips: layoutChips
     readonly property alias sequentialToggle: sequentialToggle
     readonly property alias skipCheckToggle: skipCheckToggle
-    readonly property alias freeLine: freeLine
+    /// Today's line (the room's one stage) and the room around it (C47 I8).
+    readonly property alias freeLine: roomLines.todayLine
+    readonly property alias roomLines: roomLines
     readonly property alias matchLine: matchLine
     readonly property alias fetchLine: fetchLine
 
@@ -812,6 +820,9 @@ Sheet {
     map["skipChecking"] = skipCheckToggle.checked;
     map["stopped"] = stopped;
     map["untilMetadata"] = stopped && sheet._untilMetadata;
+    // C47 I9: only the switch turned off travels; on sends nothing new.
+    if (!sheet.useTemp && roomLines.skipping && roomLines.room.switchable === true)
+        map["useTemp"] = false;
     // #146 (C27 CR7–CR9): the site's copy of a torrent made here forgets its record, and
     // replaces the made one in the library when asked.
     const made = sheet.madeHere.kind ?? "";
@@ -1089,6 +1100,8 @@ Sheet {
                 sheet._switchPending = false;
                 sheet._duplicateUnknown = false;
                 sheet.autoTMM = true;
+                sheet.useTemp = true;
+                sheet._useTempToken = "";
                 sheet._savePathEdited = false;
                 sheet._pendingToken = "";
                 sheet._awaitingPick = false;
@@ -1358,6 +1371,14 @@ Sheet {
 
                 onAddableChanged: {
                     sheet._syncFiles();
+                    // C47 I9: the switch is per torrent; a magnet's list arriving is the same one.
+                    const parsed = sheet.addable;
+                    const useTempToken = parsed ? (parsed.infoHashV1 || parsed.infoHashV2 || parsed.token
+                                                   || parsed.value || "") : "";
+                    if (useTempToken !== sheet._useTempToken) {
+                        sheet._useTempToken = useTempToken;
+                        sheet.useTemp = true;
+                    }
                     // Typed text is checked on `add` instead (`submit`).
                     if (sheet.opened && !sheet._typing && sheet._checkDuplicate())
                         return;
@@ -2111,10 +2132,14 @@ Sheet {
                             serverDown: sheet.serverDown
                         }
 
-                        AddFreeLine {
-                            id: freeLine
+                        // DECISIONS C47 I8–I12: with a temp folder, two stages and the switch.
+                        AddRoomLines {
+                            id: roomLines
 
                             Layout.fillWidth: true
+                            autoTMM: sheet.autoTMM
+                            batch: sheet.batchMode
+                            category: categoryChips.current
                             neededBytes: sheet.neededBytes
                             savePath: savePathField.text
                             totalBytes: sheet.batchMode ? sheet.neededBytes
@@ -2122,8 +2147,11 @@ Sheet {
                                                           ? sheet.addable.totalSize : -1
                             alreadyThere: sheet.savedThere
                             serverDown: sheet.serverDown
+                            useTemp: sheet.useTemp
                             visible: sheet.batchMode ? sheet.batchCount > 0
                                                      : sheet.addable !== null && sheet.addable.valid === true
+
+                            onUseTempRequested: on => sheet.useTemp = on
                         }
                     }
 
