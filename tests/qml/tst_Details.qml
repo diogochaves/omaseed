@@ -182,6 +182,10 @@ TestCase {
         files.hideSkipped = false;
         files.sortKey = "";
         files.sortDescending = false;
+        // C47 I4–I6: the tree, folders first, no kind picked.
+        files.clearFilters();
+        files.flat = false;
+        files.foldersFirst = true;
         files.clearSelection();
         files.expandAll();
         const view = createTemporaryObject(detailsComponent, testCase);
@@ -1252,8 +1256,8 @@ TestCase {
         compare(band.actions.map(action => action.label), ["Add it again…  F"]);
         verify(band.details.startsWith("This torrent is hybrid (v1 and v2)."), band.details);
         compare(band.detailsLabel, "Why?");
-        compare(findChild(view, "filesSkippedText").text, "2 skipped, 1.03 GB still on disk");
-        verify(!findChild(view, "filesSkippedKey").visible, "the key cap sits inside the words");
+        compare(findChild(view, "filesPaneCount").text,
+                "5 files · 2 folders · 3.91 GB · 2 skipped, 1.03 GB still on disk");
 
         // v2-only says v2 (C29).
         tab.skipped = testCase.heldReading("readd", "v2");
@@ -1281,45 +1285,33 @@ TestCase {
                     + "skipped file.");
             verify(band.details.startsWith("Wanting a file makes qBittorrent create it"), band.details);
         }
-        // Nothing held on a disk it sees: no tail, the key cap back.
+        // Nothing held on a disk it sees: no tail.
         tab.skipped = {};
-        compare(findChild(view, "filesSkippedText").text, "2 skipped");
+        compare(findChild(view, "filesPaneCount").text, "5 files · 2 folders · 3.91 GB · 2 skipped");
     }
 
-    // #189: in a narrow pane the files head's long tail gives way first, the count and the
-    // facts ahead of it stay whole, and nothing runs under the filter at its right.
+    // #189: in a narrow pane the files head's long tail gives way first: the count elides
+    // from its end, so the file count and the facts ahead of the tail stay, and nothing runs
+    // past the pane (DECISIONS C47 I7: the count sits right of the kinds' chips).
     function test_a_narrow_files_head_shortens_its_tail_first() {
         const view = testCase.filesView();
         const tab = findChild(view, "filesTab");
         tab.skipped = testCase.heldReading("free", "v1");
-        const summary = findChild(view, "filesSummary");
-        const count = findChild(view, "filesSummaryCount");
-        const facts = findChild(view, "filesSummaryFacts");
-        const tail = findChild(view, "filesSkippedText");
-        const go = findChild(view, "filesSummaryGo");
-        compare(tail.text, "2 skipped, 1.03 GB still on disk");
+        const head = findChild(view, "filesPaneHead");
+        const count = findChild(view, "filesPaneCount");
+        compare(count.text, "5 files · 2 folders · 3.91 GB · 2 skipped, 1.03 GB still on disk");
+        compare(count.elide, Text.ElideRight);
         const wide = view.width;
         view.width = 1000;
-        wait(0);
-        verify(!tail.truncated, "a wide pane shortens the tail");
+        waitForRendering(view);
+        verify(!count.truncated, "a wide pane shortens the tail");
 
-        // Narrow enough that the whole line no longer fits: the tail is cut, the facts not.
-        const margins = view.width - summary.width;
-        const whole = count.implicitWidth + facts.implicitWidth + tail.implicitWidth + go.width
-                + Theme.space(8) + Theme.space(20);
-        view.width = whole - Theme.space(60) + margins;
-        wait(0);
-        verify(tail.truncated, "the tail is whole at " + view.width);
-        verify(!facts.truncated, "the facts gave way before the tail at " + view.width);
-        compare(facts.width, facts.implicitWidth);
-
-        for (const width of [view.width, 540, 420, 360, 300]) {
+        for (const width of [540, 420, 360, 300]) {
             view.width = width;
-            wait(0);
-            const right = tail.mapToItem(summary, tail.width, 0).x;
-            verify(right <= go.x, "the tail ran under the filter at " + width + ": " + right + " > " + go.x);
-            const factsRight = facts.mapToItem(summary, facts.width, 0).x;
-            verify(factsRight <= go.x, "the facts ran under the filter at " + width);
+            waitForRendering(view);
+            const right = count.mapToItem(head, count.width, 0).x;
+            verify(right <= head.width + 0.5, "the count ran past the pane at " + width + ": " + right
+                   + " > " + head.width);
         }
         view.width = wide;
     }
@@ -1360,19 +1352,20 @@ TestCase {
         keyClick(Qt.Key_Escape);
         compare(files.filterText, "");
         compare(files.count, 7);
-        verify(!findChild(view, "filesFilter").visible, "an emptied filter stayed on screen");
+        compare(findChild(view, "filesToolbarFilter").text, "", "the emptied filter kept its text");
     }
 
     function test_esc_closes_an_empty_files_filter() {
         const view = testCase.filesView();
-        const field = findChild(view, "filesFilter");
+        const field = findChild(view, "filesToolbarFilter");
 
         keyClick("/");
         verify(field.visible);
         verify(view.filterEditing);
-        // Nothing typed: `esc` closes the field and gives the list the keyboard back.
+        // Nothing typed: `esc` gives the list the keyboard back (the toolbar's field stays,
+        // C47 I4).
         keyClick(Qt.Key_Escape);
-        verify(!field.visible, "`esc` left the empty filter open");
+        verify(!field.editing, "`esc` left the caret in the empty filter");
         verify(!view.filterEditing);
         verify(view.activeFocus);
     }
@@ -1380,7 +1373,7 @@ TestCase {
     function test_esc_while_typing_clears_and_closes_the_files_filter() {
         const view = testCase.filesView();
         const files = App.details.files;
-        const field = findChild(view, "filesFilter");
+        const field = findChild(view, "filesToolbarFilter");
 
         keyClick("/");
         keyClick("s");
@@ -1389,43 +1382,42 @@ TestCase {
         compare(files.matchCount, 2);
         keyClick(Qt.Key_Escape);
         compare(files.filterText, "");
-        verify(!field.visible);
+        compare(field.text, "");
         verify(!view.filterEditing);
         verify(view.activeFocus);
     }
 
-    // docs/12 F1: the summary line is always there, and `/` turns the same row into the field.
+    // docs/12 F1, DECISIONS C47 I4–I7: the head (the kinds, the summary as its count) and the
+    // toolbar are always there; `/` puts the caret in the toolbar's filter, the head says
+    // "showing N of M", and the list does not move.
     function test_the_summary_line_turns_into_the_filter_and_back() {
         const view = testCase.filesView();
-        const summary = findChild(view, "filesSummary");
-        const field = findChild(view, "filesFilter");
+        const count = findChild(view, "filesPaneCount");
+        const field = findChild(view, "filesToolbarFilter");
         const header = findChild(view, "fileHeader_name");
-        verify(summary !== null && field !== null && header !== null);
+        verify(count !== null && field !== null && header !== null);
         wait(0);
 
-        verify(summary.visible);
-        verify(!field.visible);
-        compare(findChild(view, "filesSummaryCount").text, "5 files");
-        compare(findChild(view, "filesSummaryFacts").text, " · 2 folders · 3.91 GB");
-        verify(findChild(view, "filesSkippedToggle").visible);
-        compare(findChild(view, "filesSkippedText").text, "2 skipped");
-        verify(findChild(view, "filesSummaryGo").visible);
+        verify(count.visible);
+        verify(field.visible);
+        compare(count.text, "5 files · 2 folders · 3.91 GB · 2 skipped");
         const headerY = header.mapToItem(view, 0, 0).y;
 
         keyClick("/");
-        verify(!summary.visible);
-        verify(field.visible);
-        compare(field.trailingKey, "esc");
+        verify(field.editing);
         keyClick("s");
         keyClick("r");
         keyClick("t");
         compare(field.trailing, "2 of 5 files");
-        // The same row: the headers and the list do not move.
+        compare(field.trailingKey, "esc");
+        compare(count.text, "showing 2 of 5");
+        // The same rows: the headers and the list do not move.
         compare(header.mapToItem(view, 0, 0).y, headerY);
 
         keyClick(Qt.Key_Escape);
-        verify(summary.visible);
-        verify(!field.visible);
+        compare(field.text, "");
+        verify(!field.editing);
+        compare(count.text, "5 files · 2 folders · 3.91 GB · 2 skipped");
         compare(header.mapToItem(view, 0, 0).y, headerY);
     }
 
@@ -1434,7 +1426,8 @@ TestCase {
     function test_X_hides_the_skipped_files_and_keeps_the_cursor() {
         const view = testCase.filesView();
         const files = App.details.files;
-        const text = findChild(view, "filesSkippedText");
+        const text = findChild(view, "filesPaneCount");
+        const hide = findChild(view, "filesToolbarHideSkipped");
         view.filesCursor = files.rowOfPath("Big Buck Bunny 4K/LICENSE.txt");
         compare(view.filesCursor, 6);
 
@@ -1442,21 +1435,22 @@ TestCase {
         verify(files.hideSkipped);
         compare(files.count, 4);
         compare(files.rowOfPath("Big Buck Bunny 4K/subs"), -1);
-        compare(text.text, "2 hidden");
-        compare(text.color, Theme.foreground);
+        // C47 I7: hidden, the head says what shows.
+        compare(text.text, "showing 3 of 5");
+        verify(hide.selected);
         compare(files.pathAt(view.filesCursor), "Big Buck Bunny 4K/LICENSE.txt");
 
         // `x` alone is still skip, and the file it skips goes at once while they are hidden.
         keyClick("x");
         verify(files.hideSkipped);
         compare(files.rowOfPath("Big Buck Bunny 4K/LICENSE.txt"), -1);
-        compare(text.text, "3 hidden");
+        compare(text.text, "showing 2 of 5");
 
         keyClick(Qt.Key_X, Qt.ShiftModifier);
         verify(!files.hideSkipped);
         compare(files.count, 7);
-        compare(text.text, "3 skipped");
-        compare(text.color, Theme.dimForeground);
+        compare(text.text, "5 files · 2 folders · 3.91 GB · 3 skipped");
+        verify(!hide.selected);
     }
 
     // #9: the file menu carries the switch too, worded for the way it will go.
@@ -1507,13 +1501,12 @@ TestCase {
 
         App.selectTorrent(arch);
         compare(files.filterText, "");
-        verify(!findChild(view, "filesFilter").visible);
+        compare(findChild(view, "filesToolbarFilter").text, "");
 
         App.selectTorrent(bbb);
         compare(files.filterText, "srt");
         compare(files.matchCount, 2);
-        verify(findChild(view, "filesFilter").visible, "the restored filter is not on screen");
-        compare(findChild(view, "filesFilter").text, "srt");
+        compare(findChild(view, "filesToolbarFilter").text, "srt");
 
         // Leave nothing behind for the next cases.
         files.filterText = "";
@@ -1528,16 +1521,16 @@ TestCase {
         compare(App.details.files.fileCount, 1);
         wait(0);
 
-        compare(findChild(view, "filesSummaryCount").text, "1 file");
-        compare(findChild(view, "filesSummaryFacts").text, " · 1.31 GB");
-        verify(!findChild(view, "filesSummaryGo").visible, "a single file still offers a filter");
+        compare(findChild(view, "filesPaneCount").text, "1 file · 1.31 GB");
+        // C47 I1: one file has no toolbar.
+        verify(!findChild(view, "filesToolbar").visible, "a single file still offers a filter");
 
         noteSpy.target = view;
         noteSpy.clear();
         keyClick("/");
-        verify(!findChild(view, "filesFilter").visible, "`/` opened a field on one file");
+        verify(!findChild(view, "filesToolbar").visible, "`/` opened a field on one file");
         verify(!view.filterEditing);
-        verify(findChild(view, "filesSummary").visible);
+        verify(findChild(view, "filesPaneHead").visible);
         compare(noteSpy.count, 1);
         compare(noteSpy.signalArguments[0][0], "one file, nothing to filter");
     }
@@ -1580,7 +1573,7 @@ TestCase {
     function test_the_filter_takes_wildcards_and_alternatives() {
         const view = testCase.filesView();
         const files = App.details.files;
-        const field = findChild(view, "filesFilter");
+        const field = findChild(view, "filesToolbarFilter");
 
         keyClick("/");
         compare(field.placeholder, "filter files · *.srt · mkv|mp4");
@@ -1937,7 +1930,9 @@ TestCase {
         compare(files.sortKey, "size");
         verify(files.sortDescending);
         compare(files.pathAt(view.cursorIndex), "Big Buck Bunny 4K/LICENSE.txt");
-        compare(files.pathAt(1), "Big Buck Bunny 4K/bbb_sunflower_2160p_60fps.mp4");
+        // DECISIONS C47 I4: folders first for every key, so `subs/` leads.
+        compare(files.pathAt(1), "Big Buck Bunny 4K/subs");
+        compare(files.pathAt(4), "Big Buck Bunny 4K/bbb_sunflower_2160p_60fps.mp4");
 
         // The same key again reverses.
         keyClick("s");
@@ -2346,12 +2341,12 @@ TestCase {
         keyClick("r");
         keyClick("t");
         compare(files.filterText, "srt");
-        const field = findChild(view, "filesFilter");
+        const field = findChild(view, "filesToolbarFilter");
         const button = findChild(field, "fieldTrailingButton");
         verify(button.enabled, "the esc cap is not clickable");
         mouseClick(button);
         compare(files.filterText, "");
-        verify(!field.visible, "the field stayed open");
+        verify(!field.editing, "the caret stayed in the field");
         verify(view.activeFocus);
     }
 
@@ -2894,29 +2889,30 @@ TestCase {
         verify(findChild(view, "fileFold_1").Accessible.ignored, "a file has a fold button");
     }
 
-    // #77: the summary line's "N skipped" is a check box that hides them, and the line is a
-    // button that opens the filter.
+    // #77: the toolbar's hide skipped is a check box that hides them (C47 I4), and its filter is
+    // named for what it does.
     function test_the_summary_line_publishes_its_switch_and_the_filter() {
         const view = testCase.filesView();
         const files = App.details.files;
-        wait(0);
-        const skipped = findChild(view, "filesSkippedArea");
-        compare(skipped.Accessible.role, Accessible.CheckBox);
-        compare(skipped.Accessible.name, "hide skipped files");
-        compare(skipped.Accessible.description, "2 skipped");
-        verify(!skipped.Accessible.checked);
-        skipped.Accessible.toggleAction();
+        // Room for the toolbar's hide skipped (it gives way in the docked pane).
+        view.width = 760;
+        waitForRendering(view);
+        const hide = findChild(view, "filesToolbarHideSkipped");
+        verify(hide.visible);
+        verify(hide.Accessible.checkable);
+        verify(!hide.Accessible.checked);
+        mouseClick(hide);
         verify(files.hideSkipped, "the toggle did not hide them");
-        verify(skipped.Accessible.checked);
-        skipped.Accessible.pressAction();
+        verify(hide.Accessible.checked);
+        mouseClick(hide);
         verify(!files.hideSkipped, "the press did not show them again");
 
-        const filter = findChild(view, "filesFilterArea");
-        compare(filter.Accessible.role, Accessible.Button);
-        compare(filter.Accessible.name, "filter files");
-        filter.Accessible.pressAction();
-        verify(view.filterEditing, "the press did not open the filter");
+        const filter = findChild(view, "filesToolbarFilter");
+        compare(filter.accessibleName, "filter files");
+        mouseClick(filter);
+        verify(view.filterEditing, "the press did not put the caret in the filter");
         keyClick(Qt.Key_Escape);
+        view.width = 340;
     }
 
     // #77: a row's tick is a "download" check box, mixed on a folder with some skipped; its
@@ -2936,5 +2932,133 @@ TestCase {
         verify(!findChild(view, "fileTick_" + at).Accessible.checked, "the toggle did not skip it");
         findChild(view, "fileTick_" + at).Accessible.pressAction();
         verify(findChild(view, "fileTick_" + at).Accessible.checked, "the press did not tick it");
+    }
+
+    // Board 64 (DECISIONS C47 I3–I7, #273): details › Files carries the add sheet's pane: the
+    // head with the kinds and the count, the toolbar for details, and a kind column when wide.
+    function test_filesToolbarIsThere() {
+        const view = testCase.filesView();
+        waitForRendering(view);
+        const toolbar = findChild(view, "filesToolbar");
+        verify(toolbar.visible);
+        compare(toolbar.scope, "details");
+        compare(toolbar.files, App.details.files);
+        verify(findChild(view, "filesPaneHead").visible);
+        verify(findChild(view, "filesKindChip_subtitles") !== null, "no subtitles chip");
+        compare(findChild(view, "filesKindText_subtitles").text, "2 subtitles");
+        // J1: the kind column only in a wide pane, the first to go.
+        verify(!findChild(view, "fileHeader_kind").visible);
+        view.width = 1000;
+        waitForRendering(view);
+        verify(findChild(view, "fileHeader_kind").visible);
+        const row = App.details.files.rowOfPath("Big Buck Bunny 4K/subs/bbb.en.srt");
+        compare(findChild(view, "fileKind_" + row).text, "subtitle");
+        mouseClick(findChild(view, "fileHeader_kind"));
+        compare(App.details.files.sortKey, "kind");
+        view.width = 340;
+    }
+
+    // C47 I6: shift+t flips tree · flat; the cursor stays on its file, and flat says each
+    // file's folder dim after its name.
+    function test_TFlipsFlatAndKeepsTheCursor() {
+        const view = testCase.filesView();
+        const files = App.details.files;
+        view.filesCursor = files.rowOfPath("Big Buck Bunny 4K/subs/bbb.pt.srt");
+        keyClick(Qt.Key_T, Qt.ShiftModifier);
+        verify(files.flat);
+        compare(files.count, 5);
+        compare(files.pathAt(view.filesCursor), "Big Buck Bunny 4K/subs/bbb.pt.srt");
+        verify(findChild(view, "filesToolbarFlat").selected);
+        waitForRendering(view);
+        const folder = findChild(view, "fileFolder_" + view.filesCursor);
+        verify(folder.visible, "flat shows no folder");
+        compare(folder.text, "subs");
+        keyClick(Qt.Key_T, Qt.ShiftModifier);
+        verify(!files.flat);
+        compare(files.count, 7);
+        compare(files.pathAt(view.filesCursor), "Big Buck Bunny 4K/subs/bbb.pt.srt");
+        verify(!findChild(view, "fileFolder_" + view.filesCursor).visible);
+    }
+
+    // C47 I5, I7: a kind's word shows only that kind, the head says how many, and × show all
+    // brings the rest back.
+    function test_kindChipFiltersDetails() {
+        const view = testCase.filesView();
+        const files = App.details.files;
+        waitForRendering(view);
+        mouseClick(findChild(view, "filesKindWord_subtitles"));
+        compare(files.kindFilter, "subtitles");
+        compare(files.matchCount, 2);
+        compare(findChild(view, "filesPaneCount").text, "showing 2 of 5");
+        const showAll = findChild(view, "filesShowAll");
+        verify(showAll.visible);
+        mouseClick(showAll);
+        compare(files.kindFilter, "");
+        compare(files.count, 7);
+    }
+
+    // C47 I5, C19 T1: a kind's box ticks back a kind all skipped and skips one all wanted,
+    // through the header tick's send; the box moves only when the model does (C28).
+    function test_kindBoxSendsSkip() {
+        const view = testCase.filesView();
+        const files = App.details.files;
+        waitForRendering(view);
+        const en = "Big Buck Bunny 4K/subs/bbb.en.srt";
+        compare(files.priority(files.rowOfPath(en)), 0);
+        compare(findChild(view, "filesKindBox_subtitles").wanted, 0);
+        mouseClick(findChild(view, "filesKindBox_subtitles"));
+        compare(files.priority(files.rowOfPath(en)), 1);
+        compare(files.priority(files.rowOfPath("Big Buck Bunny 4K/subs/bbb.pt.srt")), 1);
+        tryCompare(findChild(view, "filesKindBox_subtitles"), "wanted", 2);
+
+        mouseClick(findChild(view, "filesKindBox_subtitles"));
+        compare(files.priority(files.rowOfPath(en)), 0);
+        tryCompare(findChild(view, "filesKindBox_subtitles"), "wanted", 0);
+        App.loadDemo(16); // the priorities back as the demo has them
+    }
+
+    // C47 I4: the toolbar's hide skipped hides them, and the cursor keeps its file.
+    function test_hideSkippedFromTheToolbar() {
+        const view = testCase.filesView();
+        const files = App.details.files;
+        waitForRendering(view);
+        view.filesCursor = files.rowOfPath("Big Buck Bunny 4K/LICENSE.txt");
+        const hide = findChild(view, "filesToolbarHideSkipped");
+        // The docked pane's toolbar is short: fold all, then hide skipped give way.
+        verify(!hide.visible);
+        verify(!findChild(view, "filesToolbarFold").visible);
+        view.width = 760;
+        waitForRendering(view);
+        verify(hide.visible);
+        verify(findChild(view, "filesToolbarFold").visible);
+        mouseClick(hide);
+        verify(files.hideSkipped);
+        compare(files.count, 4);
+        compare(files.pathAt(view.filesCursor), "Big Buck Bunny 4K/LICENSE.txt");
+        compare(findChild(view, "filesPaneCount").text, "showing 3 of 5");
+        mouseClick(hide);
+        verify(!files.hideSkipped);
+        compare(files.pathAt(view.filesCursor), "Big Buck Bunny 4K/LICENSE.txt");
+        view.width = 340;
+    }
+
+    // docs/12 F1 kept: `/` still puts the caret in the filter, now the toolbar's (C47 I4), and
+    // `enter` hands the keyboard back with the filter kept.
+    function test_slashStillFocusesTheFilter() {
+        const view = testCase.filesView();
+        const files = App.details.files;
+        const field = findChild(view, "filesToolbarFilter");
+        keyClick("/");
+        verify(field.editing);
+        verify(view.filterEditing);
+        keyClick("t");
+        keyClick("x");
+        keyClick("t");
+        compare(files.filterText, "txt");
+        keyClick(Qt.Key_Return);
+        verify(!field.editing);
+        verify(view.activeFocus);
+        compare(files.filterText, "txt");
+        files.filterText = "";
     }
 }

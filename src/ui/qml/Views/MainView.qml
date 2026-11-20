@@ -1718,6 +1718,7 @@ Item {
         "collapseAll": () => root._runInFiles(() => details.fileAction("collapseAll")),
         "expandAll": () => root._runInFiles(() => details.fileAction("expandAll")),
         "hideSkipped": () => root._runInFiles(() => details.fileAction("hideSkipped")),
+        "treeFlat": () => root._runInFiles(() => details.fileAction("treeFlat")),
         "freeSpace": () => root._runInFiles(() => details.fileAction("freeSpace")),
         // Trackers, Peers, HTTP sources, and the pane's `y` everywhere (docs/12 G5)
         "addRow": () => root._runInTab("add"),
@@ -1862,6 +1863,7 @@ Item {
                 "altSpeed": App.globalState.useAltSpeedLimits === true,
                 "placement": App.detailsPlacement,
                 "hideSkipped": App.details.files.hideSkipped === true,
+                "filesFlat": App.details.files.flat === true,
                 "seqDl": cursor.seqDl === true,
                 "firstLast": cursor.firstLastPiecePrio === true,
                 "superSeeding": cursor.superSeeding === true,

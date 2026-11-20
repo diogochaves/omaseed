@@ -2028,11 +2028,15 @@ QtObject {
             "help": qsTr("hide skipped files"),
             "about": qsTr("In the Files tab: hide the files set to skip, or show them again")
         },
-        // Board 64 (DECISIONS C47 I6): the Files tab's tree · flat; Details binds it (#273).
+        // Board 64 (DECISIONS C47 I6): the Files tab's tree · flat (#273).
         {
             "area": "details",
             "key": "T",
             "action": "treeFlat",
+            "titles": {"files": qsTr("show the files flat")},
+            "titlesOn": {"files": qsTr("show the files as a tree")},
+            "state": "filesFlat",
+            "needs": "rows",
             "label": qsTr("tree · flat"),
             "column": "",
             "rank": 0,
@@ -2401,7 +2405,7 @@ QtObject {
             "word": qsTr("files"),
             "actions": ["priorityMenu", "raisePriority", "lowerPriority", "skipFile", "openFile",
                 "revealFile", "renameFile", "copyLocalPath", "copyFileName", "sortFiles", "filterFiles",
-                "selectAllFiles", "collapseAll", "expandAll", "hideSkipped", "freeSpace"]
+                "selectAllFiles", "collapseAll", "expandAll", "hideSkipped", "treeFlat", "freeSpace"]
         },
         {
             "group": "trackers",

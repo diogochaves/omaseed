@@ -587,8 +587,9 @@ Item {
         root._followPath(path);
     }
 
-    /// `X`, the file menu's row or a click on "N skipped" (#9): hide the skipped files, or
-    /// show them again. The cursor stays on its file; on a file that just went, at the top.
+    /// `X` or the file menu's row (#9; the toolbar's hide skipped keeps the cursor through the
+    /// model's reset): hide the skipped files, or show them again. The cursor stays on its
+    /// file; on a file that just went, at the top.
     function toggleHideSkipped() {
         const files = root.details.files;
         const path = files.pathAt(root.filesCursor);
@@ -768,6 +769,11 @@ Item {
         case "hideSkipped":
             root.toggleHideSkipped();
             break;
+        case "treeFlat":
+            // C47 I6: the toolbar's tree · flat, kept for details; the cursor keeps its file.
+            filesTab.toolbar.run("treeFlat");
+            root._followPath(path);
+            break;
         case "freeSpace":
             if (root.canFree)
                 root.freeSpaceRequested();
@@ -843,6 +849,12 @@ Item {
             if (!shift)
                 return false;
             root.toggleHideSkipped();
+            return true;
+        case Qt.Key_T:
+            // C47 I6: shift+t, tree · flat; plain `t` is the window's.
+            if (!shift)
+                return false;
+            root.fileAction("treeFlat");
             return true;
         case Qt.Key_F:
             // Board 44 F1: shift+f frees what skipped files hold (#160: whenever some do, as
@@ -1420,7 +1432,12 @@ Item {
                 // DECISIONS C19 T1: a half tick unticks; the next click brings it back.
                 App.toggleFilesWanted(root.details.hash, root.details.files.headFileIndexes());
             }
-            onHideSkippedRequested: root.toggleHideSkipped()
+            // DECISIONS C47 I5: a kind's box skips every file of it, or ticks them back, by
+            // C19 T1's rule, through the header tick's own send.
+            onKindTicked: kind => {
+                root.takeKeys();
+                App.toggleFilesWanted(root.details.hash, root.details.files.kindFileIndexes(kind));
+            }
             onRenameCancelled: root.cancelRename()
             onRenameCommitted: text => root.commitRename(text)
             onFoldClicked: row => root.foldFileRow(root._takeKeysAt(row))
@@ -1853,7 +1870,9 @@ Item {
             anchors.fill: parent
             items: [sortMenu.row(qsTr("torrent order"), "t", ""), sortMenu.row(qsTr("name"), "n",
                                                                                    "name"),
-                sortMenu.row(qsTr("size"), "s", "size"), sortMenu.row(qsTr("progress"), "p",
+                sortMenu.row(qsTr("size"), "s", "size"),
+                // C47 I4: the toolbar's kind; `k` moves in a Menu, so `d`.
+                sortMenu.row(qsTr("kind"), "d", "kind"), sortMenu.row(qsTr("progress"), "p",
                                                                       "progress"),
                 sortMenu.row(qsTr("remaining"), "r", "remaining"), sortMenu.row(qsTr("priority"), "i",
                                                                                 "priority"),

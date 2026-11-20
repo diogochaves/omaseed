@@ -233,7 +233,7 @@ TestCase {
     }
 
     // §5: 58 rows from the table (docs/32 added `~`, board 42 "move folder…", C24 H2 a "show
-    // STATE…" per `is:` word, C24 H3 three displays, C26 "search…", #146 "create torrent…"), plus the focused area's own: Files 15,
+    // STATE…" per `is:` word, C24 H3 three displays, C26 "search…", #146 "create torrent…"), plus the focused area's own: Files 16 (C47 I6's tree · flat),
     // Trackers 4, Peers 3, HTTP sources 3, the seed console 3, the log 14.
     function test_the_rows_from_each_area() {
         compare(Keymap.commandRows(testCase._context({})).length, 58);
@@ -242,7 +242,7 @@ TestCase {
                                                      })).length, 58);
         compare(Keymap.commandRows(testCase._context({
                                                          "area": "files"
-                                                     })).length, 73);
+                                                     })).length, 74);
         compare(Keymap.commandRows(testCase._context({
                                                          "area": "trackers"
                                                      })).length, 62);
@@ -405,7 +405,8 @@ TestCase {
         compare(testCase._row(rows, "openFile").detail, "files · 03 - Dawn Chorus.flac");
         compare(testCase._row(rows, "hideSkipped").title, "hide skipped files");
         compare(testCase._row(rows, "hideSkipped").detail, "files");
-        compare(rows[15].action, "stop", "the recent command did not follow the tab's own");
+        compare(testCase._row(rows, "treeFlat").title, "show the files flat");
+        compare(rows[16].action, "stop", "the recent command did not follow the tab's own");
         // A folder under the cursor can't be opened; an empty tab has nothing to act on.
         const folder = Keymap.commandRows(testCase._context({
                                                                 "area": "files",

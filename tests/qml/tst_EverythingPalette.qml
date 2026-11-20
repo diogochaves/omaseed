@@ -237,7 +237,7 @@ TestCase {
                                      "row": "03 - Dawn Chorus.flac"
                                  });
         compare(palette.title, "commands for 3 marked files");
-        compare(palette.counter, "73 commands");
+        compare(palette.counter, "74 commands"); // C47 I6 added tree · flat
         palette.close();
         palette = testCase._open({
                                      "serverLost": true

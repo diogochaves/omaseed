@@ -4,9 +4,10 @@ import QtQuick.Layouts
 import Omaseed
 import Omaseed.Kit
 
-// The details pane's Files tab (spec v2 §2 Fig. 2 `.list.files`, docs/DECISIONS.md N1): a summary
-// that turns into the filter field (docs/12 F1), a header row that sorts on a click, then the
-// visible rows of the torrent's file tree. Folders carry a `▾`/`›` fold glyph and their
+// The details pane's Files tab (spec v2 §2 Fig. 2 `.list.files`, docs/DECISIONS.md N1): the file
+// pane's head and toolbar, the add sheet's (board 64, DECISIONS C47 I3–I7), a header row that
+// sorts on a click, then the visible rows of the torrent's file tree, or in flat every file
+// once with its folder dim after the name (C47 I6). Folders carry a `▾`/`›` fold glyph and their
 // subtree's totals; every level indents by `Theme.space(14)`, matching the figure's
 // 8 / 22 / 38 px left padding.
 //
@@ -43,8 +44,6 @@ Item {
     /// because the rows moved under it puts the caret back at `renameCaret` instead.
     property bool renameFresh: false
     property int renameCaret: 0
-    /// `/` was pressed: show the filter field even while it is still empty.
-    property bool filterOpen: false
     /// App.skippedOnDisk for this torrent (C17 D1–D4), or `{}`.
     property var skipped: ({})
     /// The server's name, for D4's hint.
@@ -71,8 +70,9 @@ Item {
     signal renameCancelled
     /// The filter field let go of the keyboard (`enter`, `esc`, `↓`).
     signal filterDone
-    /// A click on the summary line's "N skipped" (#9): the pane turns hideSkipped over, as `X`.
-    signal hideSkippedRequested
+    /// The head's box for `kind` was pressed (C47 I5): the pane skips or ticks every file of
+    /// it, as the header's tick does (C19 T1).
+    signal kindTicked(string kind)
     /// A click on a row's tick (#42, docs/27): `wanted` is what the tick showed (2 ticked,
     /// 1 mixed, 0 skipped); the pane skips a full or a mixed one and ticks back an empty one
     /// (DECISIONS C19 T1).
@@ -93,17 +93,17 @@ Item {
     signal headerClicked(string key)
 
     readonly property int count: root.model ? root.model.count : 0
-    readonly property bool filterShown: root.filterOpen || (root.model !== null
-                                                           && root.model.filterText.length > 0)
-    /// The caret is in the filter field.
-    readonly property bool filterEditing: filterField.editing
+    /// The caret is in the toolbar's filter field.
+    readonly property bool filterEditing: toolbar.filterField.editing
+    /// The pane's toolbar (C47 I4), for the pane's keys: `toolbar.run(action)`.
+    readonly property alias toolbar: toolbar
 
     readonly property int fileCount: root.model ? root.model.fileCount : 0
     /// docs/12 F2: a single-file torrent has nothing to filter, so it offers no filter.
     readonly property bool canFilter: root.fileCount > 1
-    /// docs/12 F1's summary line, in three parts: the file count, in the foreground, the
-    /// rest, dim (" · 2 folders · 3.91 GB"; folders only when there are), then the skipped
-    /// files as their own toggle (#9, `skippedText`).
+    /// docs/12 F1's summary, the head's count (C47 I7): the file count, the rest
+    /// (" · 2 folders · 3.91 GB"; folders only when there are), then the skipped files (#9,
+    /// `skippedText`).
     readonly property string summaryCountText: root.fileCount === 0 ? qsTr("no files")
                                                                     : root.fileCount === 1
                                                                       ? qsTr("1 file")
@@ -119,7 +119,8 @@ Item {
         parts.push(root.model.totalSizeText);
         return parts.join(" · ");
     }
-    /// "2 skipped", or "2 hidden" while they are hidden; empty with none skipped.
+    /// "2 skipped", or "2 hidden" while they are hidden (the head then says "showing N of M"
+    /// instead); empty with none skipped.
     readonly property string skippedText: root.model === null || root.model.skippedCount === 0
                                           ? "" : root.model.hideSkipped
                                             ? qsTr("%1 hidden").arg(root.model.skippedCount)
@@ -145,6 +146,8 @@ Item {
     readonly property int piecesWidth: Math.max(Theme.space(78), root._measured(piecesMetrics),
                                                 piecesHead.fitWidth)
     readonly property int tickWidth: Theme.space(14)
+    readonly property int kindWidth: Math.max(Theme.space(64), root._measured(kindMetrics),
+                                              kindHead.fitWidth)
     /// C17 D1: only while some skipped file holds space.
     readonly property bool showOnDisk: root.model !== null && root.model.showOnDisk
     /// C17 D2: the yellow band, over the threshold.
@@ -193,6 +196,14 @@ Item {
     }
 
     TextMetrics {
+        id: kindMetrics
+
+        font.family: Theme.fontFamily
+        font.pixelSize: Theme.font.small
+        text: "subtitles"
+    }
+
+    TextMetrics {
         id: piecesMetrics
 
         font.family: Theme.valueFamily
@@ -205,6 +216,8 @@ Item {
     readonly property bool showRemaining: root.width >= Theme.space(480)
     readonly property bool showAvailability: root.width >= Theme.space(560)
     readonly property bool showPieces: root.width >= Theme.space(660)
+    /// C47 I4/J1: the kind, after Size, only in a wide pane; the first column to go.
+    readonly property bool showKind: root.width >= Theme.space(760)
 
     /// Keeps the cursor row on screen when `j`/`k` walk past the edge.
     function ensureVisible() {
@@ -219,12 +232,12 @@ Item {
         return item.mapToItem(target, Theme.space(24), item.height);
     }
 
-    /// `/` or a click on the summary line. False, and nothing opens, on a single file (F2).
+    /// `/`: the caret in the toolbar's filter. False, and nothing happens, on a single file
+    /// (F2), which has no toolbar.
     function focusFilter(): bool {
         if (!root.canFilter)
             return false;
-        root.filterOpen = true;
-        filterField.focusInput();
+        toolbar.focusFilter();
         return true;
     }
 
@@ -268,283 +281,101 @@ Item {
             root.renameCancelled();
     }
 
-    // docs/12 F1: one row above the headers that is always there. At rest it is the summary
-    // line, the facts about the files and the way into the filter; `/` or a click turns the
-    // same row into the filter field, and `esc` turns it back. Both fill the same height, so
-    // the list below never moves.
+    // Board 64 (DECISIONS C47 I3–I7): the add sheet's file pane over the list. First the head,
+    // the kinds as chips and the count (docs/12 F1's summary, with #9's skipped and C30 F17's
+    // tail after it); then the toolbar: filter, sort, tree · flat, fold all, hide skipped. A
+    // single file has nothing to filter or sort (docs/12 F2): no toolbar, and no boxes on its
+    // one chip (C47 I1).
     Item {
         id: filterBar
 
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.top: parent.top
-        height: Theme.controlHeight + Theme.space(8)
+        height: paneHead.y + paneHead.height + (toolbar.visible ? Theme.space(6)
+                                                                  + toolbar.height : 0)
+                + Theme.space(6)
 
-        Item {
-            id: summary
+        FilesPaneHead {
+            id: paneHead
 
-            anchors.fill: parent
+            anchors.left: parent.left
             anchors.leftMargin: Theme.space(8)
+            anchors.right: parent.right
             anchors.rightMargin: Theme.space(8)
-            objectName: "filesSummary"
-            visible: !root.filterShown
+            anchors.top: parent.top
+            anchors.topMargin: Theme.space(4)
+            boxes: root.canFilter
+            countText: root.summaryCountText + root.summaryFactsText
+                       + (root.skippedText.length > 0 ? " · " + root.skippedText
+                                                        + (root.stillText.length > 0 ? ", "
+                                                                                       + root.stillText : "") : "")
+            files: root.model
+            objectName: "filesPaneHead"
 
-            // #79: the Files tab's summary: the count, the facts after it the description.
-            Text {
-                id: summaryCount
+            onKindTicked: kind => root.kindTicked(kind)
+        }
 
-                Accessible.description: root.summaryFactsText
-                Accessible.name: text
-                Accessible.role: Accessible.StaticText
-                anchors.left: parent.left
-                anchors.verticalCenter: parent.verticalCenter
-                color: Theme.foreground
-                font.family: Theme.valueFamily
-                font.pixelSize: Theme.font.small
-                objectName: "filesSummaryCount"
-                text: root.summaryCountText
+        FilesToolbar {
+            id: toolbar
+
+            anchors.left: parent.left
+            anchors.leftMargin: Theme.space(8)
+            anchors.right: parent.right
+            anchors.rightMargin: Theme.space(8)
+            anchors.top: paneHead.bottom
+            anchors.topMargin: Theme.space(6)
+            files: root.model
+            objectName: "filesToolbar"
+            scope: "details"
+            visible: root.canFilter
+
+            onFilterDone: root.filterDone()
+        }
+
+        // docs/12 F4: the placeholder teaches the syntax; F1: an `esc` cap clears it, and one
+        // `esc` clears and hands the keyboard back, as the field did before the toolbar.
+        Binding {
+            property: "placeholder"
+            target: toolbar.filterField
+            value: qsTr("filter files · *.srt · mkv|mp4")
+        }
+
+        Binding {
+            property: "trailingKey"
+            target: toolbar.filterField
+            value: root.model !== null && root.model.filterText.length > 0 ? qsTr("esc") : ""
+        }
+
+        Binding {
+            property: "trailingClickable"
+            target: toolbar.filterField
+            value: true
+        }
+
+        Binding {
+            property: "trailingName"
+            target: toolbar.filterField
+            value: qsTr("clear the filter")
+        }
+
+        Connections {
+            function onCleared(): void {
+                root.filterDone();
             }
 
-            Text {
-                id: summaryFacts
-
-                anchors.left: summaryCount.right
-                anchors.verticalCenter: parent.verticalCenter
-                color: Theme.dimForeground
-                elide: Text.ElideRight
-                font.family: Theme.valueFamily
-                font.pixelSize: Theme.font.small
-                objectName: "filesSummaryFacts"
-                text: root.summaryFactsText
-                width: Math.max(0, Math.min(implicitWidth, summary.width - summaryCount.width
-                                            - (skippedToggle.visible ? skippedToggle.lineWidth : 0)
-                                            - (summaryGo.visible ? summaryGo.width
-                                                                   + Theme.space(8) : 0)))
+            function onTrailingClicked(): void {
+                toolbar.filterField.text = "";
+                root.filterDone();
             }
 
-            // #9: the skipped count is the switch that hides them. Dim while they show; in
-            // the foreground, as "2 hidden", while they do not. `X` does the same; its key
-            // cap is the first thing to go when the line is short (the docked pane), before
-            // the facts are cut (the file menu and the ? sheet still name the key).
-            Row {
-                id: skippedToggle
-
-                /// #189: the Row's own width as its children will make it, read by the facts
-                /// before the Row has laid them out again (its width follows only at polish).
-                readonly property real lineWidth: skippedDot.implicitWidth + skippedToggle.spacing
-                                                  + skippedText.width
-                                                  + (skippedKey.visible ? skippedToggle.spacing
-                                                                          + skippedKey.width : 0)
-                readonly property bool keyFits: summary.width - summaryCount.implicitWidth
-                                                - summaryFacts.implicitWidth - skippedDot.implicitWidth
-                                                - skippedText.implicitWidth - skippedKey.implicitWidth
-                                                - 2 * skippedToggle.spacing
-                                                - (summaryGo.visible ? summaryGo.width + Theme.space(8)
-                                                                     : 0) >= 0
-
-                anchors.left: summaryFacts.right
-                anchors.verticalCenter: parent.verticalCenter
-                objectName: "filesSkippedToggle"
-                spacing: Theme.space(6)
-                visible: root.skippedText.length > 0
-
-                Text {
-                    id: skippedDot
-
-                    anchors.verticalCenter: parent.verticalCenter
-                    color: Theme.dimForeground
-                    font.family: Theme.valueFamily
-                    font.pixelSize: Theme.font.small
-                    text: " ·"
-                }
-
-                Text {
-                    id: skippedText
-
-                    anchors.verticalCenter: parent.verticalCenter
-                    color: root.model !== null && root.model.hideSkipped ? Theme.foreground
-                                                                         : Theme.dimForeground
-                    font.family: Theme.valueFamily
-                    font.pixelSize: Theme.font.small
-                    elide: Text.ElideRight
-                    objectName: "filesSkippedText"
-                    // DECISIONS C30 F17: "2 skipped, 16.0 MB still on disk".
-                    text: root.skippedText + (root.stillText.length > 0 ? ", " + root.stillText : "")
-                    // #189: the long tail gives way first, before the facts ahead of it, and
-                    // stops short of the filter at the right: it takes what the count, the
-                    // whole facts, the dot and the filter leave.
-                    // Whole pixels down, so the facts never lose a fraction of one to it.
-                    width: Math.max(0, Math.min(implicitWidth, Math.floor(summary.width - summaryCount.width
-                                                - summaryFacts.implicitWidth - skippedDot.implicitWidth
-                                                - skippedToggle.spacing
-                                                - (skippedKey.visible ? skippedKey.width
-                                                                        + skippedToggle.spacing : 0)
-                                                - (summaryGo.visible ? summaryGo.width
-                                                                       + Theme.space(8) : 0))))
-                }
-
-                KeyCap {
-                    id: skippedKey
-
-                    anchors.verticalCenter: parent.verticalCenter
-                    objectName: "filesSkippedKey"
-                    text: "X"
-                    // Not between the count and what it holds: the line reads as one.
-                    visible: skippedToggle.keyFits && root.stillText.length === 0
-                }
-            }
-
-            Row {
-                id: summaryGo
-
-                anchors.right: parent.right
-                anchors.verticalCenter: parent.verticalCenter
-                objectName: "filesSummaryGo"
-                spacing: Theme.space(6)
-                visible: root.canFilter
-
-                Glyph {
-                    anchors.verticalCenter: parent.verticalCenter
-                    color: Theme.dimForeground
-                    pixelSize: Theme.font.small
-                    text: Glyphs.jump
-                }
-
-                Text {
-                    anchors.verticalCenter: parent.verticalCenter
-                    color: Theme.dimForeground
-                    font.family: Theme.valueFamily
-                    font.pixelSize: Theme.font.small
-                    text: qsTr("filter")
-                }
-
-                KeyCap {
-                    anchors.verticalCenter: parent.verticalCenter
-                    text: "/"
-                }
-            }
-
-            MouseArea {
-                // #77: the line is a button that opens the filter; its press is the click.
-                // A MouseArea's `enabled` is its own flag alone, so the line's says whether
-                // the tab is disabled.
-                Accessible.description: qsTr("shortcut %1").arg("/")
-                Accessible.ignored: !root.canFilter
-                Accessible.name: qsTr("filter files")
-                Accessible.role: Accessible.Button
-                Accessible.onPressAction: if (summary.enabled && root.canFilter)
-                                              root.focusFilter()
-                anchors.fill: parent
-                cursorShape: Qt.PointingHandCursor
-                enabled: root.canFilter
-                objectName: "filesFilterArea"
-
-                onClicked: root.focusFilter()
-            }
-
-            // Above the line's own area: a click on "N skipped" hides them, not the filter.
-            MouseArea {
-                id: skippedArea
-
-                // #77: a check box for hiding the skipped files, the count as its
-                // description. Its toggle and its press are both the click.
-                Accessible.checkable: true
-                Accessible.checked: root.model !== null && root.model.hideSkipped
-                Accessible.description: skippedText.text
-                Accessible.name: qsTr("hide skipped files")
-                Accessible.role: Accessible.CheckBox
-                Accessible.onPressAction: skippedArea.toggle()
-                Accessible.onToggleAction: skippedArea.toggle()
-
-                function toggle(): void {
-                    if (summary.enabled && skippedArea.visible)
-                        root.hideSkippedRequested();
-                }
-
-                cursorShape: Qt.PointingHandCursor
-                height: summary.height
-                objectName: "filesSkippedArea"
-                visible: skippedToggle.visible
-                width: skippedToggle.width
-                x: skippedToggle.x
-
-                onClicked: root.hideSkippedRequested()
-            }
+            target: toolbar.filterField
         }
 
         Hairline {
             anchors.bottom: parent.bottom
             anchors.left: parent.left
             anchors.right: parent.right
-            visible: !root.filterShown
-        }
-    }
-
-    Field {
-        id: filterField
-
-        anchors.left: parent.left
-        anchors.leftMargin: Theme.space(8)
-        anchors.right: parent.right
-        anchors.rightMargin: Theme.space(8)
-        anchors.verticalCenter: filterBar.verticalCenter
-        // #78: the lesson in syntax is the description, not the name; the cap, which clears
-        // the filter and closes the field, is named by that.
-        accessibleName: qsTr("filter files")
-        hint: Glyphs.search
-        objectName: "filesFilter"
-        // docs/12 F4: the placeholder teaches the syntax.
-        placeholder: qsTr("filter files · *.srt · mkv|mp4")
-        trailing: root.model && root.model.filterText.length > 0 ? qsTr("%1 of %2 files").arg(
-                                                                        root.model.matchCount).arg(
-                                                                        root.model.fileCount) : ""
-        trailingKey: qsTr("esc")
-        // The cap does what `esc` does: clears the filter and closes the field.
-        trailingClickable: true
-        trailingName: qsTr("clear the filter")
-        visible: root.filterShown
-
-        Keys.onPressed: event => {
-            if (event.key === Qt.Key_Down || event.key === Qt.Key_Up) {
-                root.filterDone();
-                event.accepted = true;
-            } else if (event.key === Qt.Key_Escape) {
-                // The Field passes on an `esc` it had nothing to clear: close the field.
-                root.filterOpen = false;
-                root.filterDone();
-                event.accepted = true;
-            }
-        }
-        onAccepted: root.filterDone()
-        onTrailingClicked: {
-            filterField.text = "";
-            root.filterOpen = false;
-            root.filterDone();
-        }
-        onCleared: {
-            root.filterOpen = false;
-            root.filterDone();
-        }
-        onEditingChanged: {
-            if (!filterField.editing && filterField.text.length === 0)
-                root.filterOpen = false;
-        }
-        onTextChanged: {
-            if (root.model && root.model.filterText !== filterField.text)
-                root.model.filterText = filterField.text;
-        }
-
-        // A new torrent clears the model's filter; the field follows.
-        Connections {
-            function onFilterTextChanged(): void {
-                if (filterField.text !== root.model.filterText)
-                    filterField.text = root.model.filterText;
-                // Cleared from the list (`esc` there): the emptied field goes too.
-                if (root.model.filterText.length === 0 && !filterField.editing)
-                    root.filterOpen = false;
-            }
-
-            target: root.model
         }
     }
 
@@ -761,6 +592,20 @@ Item {
             onClicked: root.headerClicked("size")
         }
 
+        // C47 I4: the kind; a click sorts by it (TorrentFilesModel's "kind").
+        DetailsHeader {
+            id: kindHead
+
+            Layout.preferredWidth: root.kindWidth
+            descending: root.model !== null && root.model.sortDescending
+            objectName: "fileHeader_kind"
+            sorted: root.model !== null && root.model.sortKey === "kind"
+            text: qsTr("Kind")
+            visible: root.showKind
+
+            onClicked: root.headerClicked("kind")
+        }
+
         // C17 D1: not a sort key; what skipped files hold, read when the tab opens.
         DetailsHeader {
             id: onDiskHead
@@ -873,6 +718,11 @@ Item {
             required property bool expanded
             required property bool rowSelected
             required property int wanted
+            required property string kindText
+            required property string folderPath
+            /// C47 I6: in flat, the file's folder, dim after its name.
+            readonly property bool showFolder: root.model !== null && root.model.flat
+                                               && row.folderPath.length > 0 && !row.editing
 
             // Every cell's words are the row's ground's (docs/DECISIONS.md C30 F1): `row.ink`.
             readonly property color priorityColor: row.priority === 6 || row.priority === 7
@@ -996,9 +846,10 @@ Item {
                     }
 
                     DetailsCell {
+                        id: nameCell
+
                         anchors.left: row.isFolder ? glyph.right : parent.left
                         anchors.leftMargin: row.isFolder ? Theme.space(6) : 0
-                        anchors.right: parent.right
                         anchors.verticalCenter: parent.verticalCenter
                         color: row.textColor
                         // J1: both ends survive, so two long names that share a start
@@ -1009,6 +860,33 @@ Item {
                         tip: nameTip
                         tipText: row.path
                         visible: !row.editing
+                        // In flat, room for the folder after it, never less than half.
+                        width: {
+                            const room = parent.width - nameCell.anchors.leftMargin
+                                    - (row.isFolder ? glyph.width : 0);
+                            if (!row.showFolder)
+                                return room;
+                            return Math.min(nameCell.implicitWidth, room
+                                            - Math.min(folderCell.implicitWidth, room / 2)
+                                            - Theme.space(8));
+                        }
+                    }
+
+                    // C47 I6: in flat, the file's folder, dim; it elides from its start.
+                    Text {
+                        id: folderCell
+
+                        anchors.left: nameCell.right
+                        anchors.leftMargin: Theme.space(8)
+                        anchors.right: parent.right
+                        anchors.verticalCenter: parent.verticalCenter
+                        color: row.ink.dimForeground
+                        elide: Text.ElideLeft
+                        font.family: Theme.fontFamily
+                        font.pixelSize: Theme.font.small
+                        objectName: "fileFolder_" + row.index
+                        text: row.folderPath
+                        visible: row.showFolder
                     }
 
                     // `r`: the inline editor, as the table's (`.tbl .rn .ren`).
@@ -1028,6 +906,14 @@ Item {
                     color: row.textColor
                     horizontalAlignment: Text.AlignRight
                     text: row.sizeText
+                }
+
+                DetailsCell {
+                    Layout.preferredWidth: root.kindWidth
+                    color: row.ink.dimForeground
+                    objectName: "fileKind_" + row.index
+                    text: row.kindText
+                    visible: root.showKind
                 }
 
                 DetailsCell {
