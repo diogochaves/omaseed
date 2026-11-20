@@ -5,6 +5,18 @@ All notable changes to omaseed are logged here, newest first. Loosely follows
 versioning stability (pre-1.0). `scripts/release.sh` requires a `## v<version>` section here
 before it will tag a release.
 
+## v0.13.1 — 2026-11-20
+
+### Fixed
+
+- **Deluge: an add from the bar widget lands in its label's folder.** With the daemon's move
+  when done on, the widget's add went on to the daemon's own folder for finished downloads, as
+  the add window's did before v0.13.0. It now goes through the same path as the add window.
+  (#278)
+- **The add's room names a category's own temp folder.** With a category that has its own
+  incomplete folder picked, the first line's note said "qBittorrent's setting"; it now says the
+  category's own temp folder. (#280)
+
 ## v0.13.0 — 2026-11-20
 
 ### Added
