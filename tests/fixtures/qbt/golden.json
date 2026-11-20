@@ -48,7 +48,10 @@
                     38,
                     39
                 ],
+                "folderPath": "",
                 "isFolder": true,
+                "kind": "images",
+                "kindText": "images",
                 "name": "photo-archive-2019-2025/",
                 "onDisk": -1,
                 "onDiskText": "—",
@@ -114,7 +117,10 @@
                     38,
                     39
                 ],
+                "folderPath": "",
                 "isFolder": true,
+                "kind": "images",
+                "kindText": "images",
                 "name": "2019/",
                 "onDisk": -1,
                 "onDiskText": "—",
@@ -151,7 +157,10 @@
                     9,
                     10
                 ],
+                "folderPath": "2019",
                 "isFolder": true,
+                "kind": "images",
+                "kindText": "images",
                 "name": "01/",
                 "onDisk": -1,
                 "onDiskText": "—",
@@ -178,7 +187,10 @@
                 "fileIndexes": [
                     0
                 ],
+                "folderPath": "2019/01",
                 "isFolder": false,
+                "kind": "images",
+                "kindText": "image",
                 "name": "IMG_201901000.jpg",
                 "onDisk": -1,
                 "onDiskText": "—",
@@ -205,7 +217,10 @@
                 "fileIndexes": [
                     1
                 ],
+                "folderPath": "2019/01",
                 "isFolder": false,
+                "kind": "images",
+                "kindText": "image",
                 "name": "IMG_201901001.jpg",
                 "onDisk": -1,
                 "onDiskText": "—",
@@ -232,7 +247,10 @@
                 "fileIndexes": [
                     2
                 ],
+                "folderPath": "2019/01",
                 "isFolder": false,
+                "kind": "images",
+                "kindText": "image",
                 "name": "IMG_201901002.jpg",
                 "onDisk": -1,
                 "onDiskText": "—",
@@ -259,7 +277,10 @@
                 "fileIndexes": [
                     3
                 ],
+                "folderPath": "2019/01",
                 "isFolder": false,
+                "kind": "images",
+                "kindText": "image",
                 "name": "IMG_201901003.jpg",
                 "onDisk": -1,
                 "onDiskText": "—",
@@ -286,7 +307,10 @@
                 "fileIndexes": [
                     4
                 ],
+                "folderPath": "2019/01",
                 "isFolder": false,
+                "kind": "images",
+                "kindText": "image",
                 "name": "IMG_201901004.jpg",
                 "onDisk": -1,
                 "onDiskText": "—",
@@ -313,7 +337,10 @@
                 "fileIndexes": [
                     5
                 ],
+                "folderPath": "2019/01",
                 "isFolder": false,
+                "kind": "images",
+                "kindText": "image",
                 "name": "IMG_201901005.jpg",
                 "onDisk": -1,
                 "onDiskText": "—",
@@ -340,7 +367,10 @@
                 "fileIndexes": [
                     6
                 ],
+                "folderPath": "2019/01",
                 "isFolder": false,
+                "kind": "images",
+                "kindText": "image",
                 "name": "IMG_201901006.jpg",
                 "onDisk": -1,
                 "onDiskText": "—",
@@ -367,7 +397,10 @@
                 "fileIndexes": [
                     7
                 ],
+                "folderPath": "2019/01",
                 "isFolder": false,
+                "kind": "images",
+                "kindText": "image",
                 "name": "IMG_201901007.jpg",
                 "onDisk": -1,
                 "onDiskText": "—",
@@ -394,7 +427,10 @@
                 "fileIndexes": [
                     8
                 ],
+                "folderPath": "2019/01",
                 "isFolder": false,
+                "kind": "images",
+                "kindText": "image",
                 "name": "IMG_201901008.jpg",
                 "onDisk": -1,
                 "onDiskText": "—",
@@ -421,7 +457,10 @@
                 "fileIndexes": [
                     9
                 ],
+                "folderPath": "2019/01",
                 "isFolder": false,
+                "kind": "images",
+                "kindText": "image",
                 "name": "IMG_201901009.jpg",
                 "onDisk": -1,
                 "onDiskText": "—",
@@ -448,7 +487,10 @@
                 "fileIndexes": [
                     10
                 ],
+                "folderPath": "2019/01",
                 "isFolder": false,
+                "kind": "images",
+                "kindText": "image",
                 "name": "IMG_201901010.jpg",
                 "onDisk": -1,
                 "onDiskText": "—",
@@ -489,7 +531,10 @@
                     24,
                     25
                 ],
+                "folderPath": "2019",
                 "isFolder": true,
+                "kind": "images",
+                "kindText": "images",
                 "name": "02/",
                 "onDisk": -1,
                 "onDiskText": "—",
@@ -516,7 +561,10 @@
                 "fileIndexes": [
                     11
                 ],
+                "folderPath": "2019/02",
                 "isFolder": false,
+                "kind": "images",
+                "kindText": "image",
                 "name": "IMG_201902000.jpg",
                 "onDisk": -1,
                 "onDiskText": "—",
@@ -543,7 +591,10 @@
                 "fileIndexes": [
                     12
                 ],
+                "folderPath": "2019/02",
                 "isFolder": false,
+                "kind": "images",
+                "kindText": "image",
                 "name": "IMG_201902001.jpg",
                 "onDisk": -1,
                 "onDiskText": "—",
@@ -570,7 +621,10 @@
                 "fileIndexes": [
                     13
                 ],
+                "folderPath": "2019/02",
                 "isFolder": false,
+                "kind": "images",
+                "kindText": "image",
                 "name": "IMG_201902002.jpg",
                 "onDisk": -1,
                 "onDiskText": "—",
@@ -597,7 +651,10 @@
                 "fileIndexes": [
                     14
                 ],
+                "folderPath": "2019/02",
                 "isFolder": false,
+                "kind": "images",
+                "kindText": "image",
                 "name": "IMG_201902003.jpg",
                 "onDisk": -1,
                 "onDiskText": "—",
@@ -624,7 +681,10 @@
                 "fileIndexes": [
                     15
                 ],
+                "folderPath": "2019/02",
                 "isFolder": false,
+                "kind": "images",
+                "kindText": "image",
                 "name": "IMG_201902004.jpg",
                 "onDisk": -1,
                 "onDiskText": "—",
@@ -651,7 +711,10 @@
                 "fileIndexes": [
                     16
                 ],
+                "folderPath": "2019/02",
                 "isFolder": false,
+                "kind": "images",
+                "kindText": "image",
                 "name": "IMG_201902005.jpg",
                 "onDisk": -1,
                 "onDiskText": "—",
@@ -678,7 +741,10 @@
                 "fileIndexes": [
                     17
                 ],
+                "folderPath": "2019/02",
                 "isFolder": false,
+                "kind": "images",
+                "kindText": "image",
                 "name": "IMG_201902006.jpg",
                 "onDisk": -1,
                 "onDiskText": "—",
@@ -705,7 +771,10 @@
                 "fileIndexes": [
                     18
                 ],
+                "folderPath": "2019/02",
                 "isFolder": false,
+                "kind": "images",
+                "kindText": "image",
                 "name": "IMG_201902007.jpg",
                 "onDisk": -1,
                 "onDiskText": "—",
@@ -732,7 +801,10 @@
                 "fileIndexes": [
                     19
                 ],
+                "folderPath": "2019/02",
                 "isFolder": false,
+                "kind": "images",
+                "kindText": "image",
                 "name": "IMG_201902008.jpg",
                 "onDisk": -1,
                 "onDiskText": "—",
@@ -759,7 +831,10 @@
                 "fileIndexes": [
                     20
                 ],
+                "folderPath": "2019/02",
                 "isFolder": false,
+                "kind": "images",
+                "kindText": "image",
                 "name": "IMG_201902009.jpg",
                 "onDisk": -1,
                 "onDiskText": "—",
@@ -786,7 +861,10 @@
                 "fileIndexes": [
                     21
                 ],
+                "folderPath": "2019/02",
                 "isFolder": false,
+                "kind": "images",
+                "kindText": "image",
                 "name": "IMG_201902010.jpg",
                 "onDisk": -1,
                 "onDiskText": "—",
@@ -813,7 +891,10 @@
                 "fileIndexes": [
                     22
                 ],
+                "folderPath": "2019/02",
                 "isFolder": false,
+                "kind": "images",
+                "kindText": "image",
                 "name": "IMG_201902011.jpg",
                 "onDisk": -1,
                 "onDiskText": "—",
@@ -840,7 +921,10 @@
                 "fileIndexes": [
                     23
                 ],
+                "folderPath": "2019/02",
                 "isFolder": false,
+                "kind": "images",
+                "kindText": "image",
                 "name": "IMG_201902012.jpg",
                 "onDisk": -1,
                 "onDiskText": "—",
@@ -867,7 +951,10 @@
                 "fileIndexes": [
                     24
                 ],
+                "folderPath": "2019/02",
                 "isFolder": false,
+                "kind": "images",
+                "kindText": "image",
                 "name": "IMG_201902013.jpg",
                 "onDisk": -1,
                 "onDiskText": "—",
@@ -894,7 +981,10 @@
                 "fileIndexes": [
                     25
                 ],
+                "folderPath": "2019/02",
                 "isFolder": false,
+                "kind": "images",
+                "kindText": "image",
                 "name": "IMG_201902014.jpg",
                 "onDisk": -1,
                 "onDiskText": "—",
@@ -932,7 +1022,10 @@
                     36,
                     37
                 ],
+                "folderPath": "2019",
                 "isFolder": true,
+                "kind": "images",
+                "kindText": "images",
                 "name": "03/",
                 "onDisk": -1,
                 "onDiskText": "—",
@@ -959,7 +1052,10 @@
                 "fileIndexes": [
                     26
                 ],
+                "folderPath": "2019/03",
                 "isFolder": false,
+                "kind": "images",
+                "kindText": "image",
                 "name": "IMG_201903000.jpg",
                 "onDisk": -1,
                 "onDiskText": "—",
@@ -986,7 +1082,10 @@
                 "fileIndexes": [
                     27
                 ],
+                "folderPath": "2019/03",
                 "isFolder": false,
+                "kind": "images",
+                "kindText": "image",
                 "name": "IMG_201903001.jpg",
                 "onDisk": -1,
                 "onDiskText": "—",
@@ -1013,7 +1112,10 @@
                 "fileIndexes": [
                     28
                 ],
+                "folderPath": "2019/03",
                 "isFolder": false,
+                "kind": "images",
+                "kindText": "image",
                 "name": "IMG_201903002.jpg",
                 "onDisk": -1,
                 "onDiskText": "—",
@@ -1040,7 +1142,10 @@
                 "fileIndexes": [
                     29
                 ],
+                "folderPath": "2019/03",
                 "isFolder": false,
+                "kind": "images",
+                "kindText": "image",
                 "name": "IMG_201903003.jpg",
                 "onDisk": -1,
                 "onDiskText": "—",
@@ -1067,7 +1172,10 @@
                 "fileIndexes": [
                     30
                 ],
+                "folderPath": "2019/03",
                 "isFolder": false,
+                "kind": "images",
+                "kindText": "image",
                 "name": "IMG_201903004.jpg",
                 "onDisk": -1,
                 "onDiskText": "—",
@@ -1094,7 +1202,10 @@
                 "fileIndexes": [
                     31
                 ],
+                "folderPath": "2019/03",
                 "isFolder": false,
+                "kind": "images",
+                "kindText": "image",
                 "name": "IMG_201903005.jpg",
                 "onDisk": -1,
                 "onDiskText": "—",
@@ -1121,7 +1232,10 @@
                 "fileIndexes": [
                     32
                 ],
+                "folderPath": "2019/03",
                 "isFolder": false,
+                "kind": "images",
+                "kindText": "image",
                 "name": "IMG_201903006.jpg",
                 "onDisk": -1,
                 "onDiskText": "—",
@@ -1148,7 +1262,10 @@
                 "fileIndexes": [
                     33
                 ],
+                "folderPath": "2019/03",
                 "isFolder": false,
+                "kind": "images",
+                "kindText": "image",
                 "name": "IMG_201903007.jpg",
                 "onDisk": -1,
                 "onDiskText": "—",
@@ -1175,7 +1292,10 @@
                 "fileIndexes": [
                     34
                 ],
+                "folderPath": "2019/03",
                 "isFolder": false,
+                "kind": "images",
+                "kindText": "image",
                 "name": "IMG_201903008.jpg",
                 "onDisk": -1,
                 "onDiskText": "—",
@@ -1202,7 +1322,10 @@
                 "fileIndexes": [
                     35
                 ],
+                "folderPath": "2019/03",
                 "isFolder": false,
+                "kind": "images",
+                "kindText": "image",
                 "name": "IMG_201903009.jpg",
                 "onDisk": -1,
                 "onDiskText": "—",
@@ -1229,7 +1352,10 @@
                 "fileIndexes": [
                     36
                 ],
+                "folderPath": "2019/03",
                 "isFolder": false,
+                "kind": "images",
+                "kindText": "image",
                 "name": "IMG_201903010.jpg",
                 "onDisk": -1,
                 "onDiskText": "—",
@@ -1256,7 +1382,10 @@
                 "fileIndexes": [
                     37
                 ],
+                "folderPath": "2019/03",
                 "isFolder": false,
+                "kind": "images",
+                "kindText": "image",
                 "name": "IMG_201903011.jpg",
                 "onDisk": -1,
                 "onDiskText": "—",
@@ -1284,7 +1413,10 @@
                     38,
                     39
                 ],
+                "folderPath": "2019",
                 "isFolder": true,
+                "kind": "images",
+                "kindText": "images",
                 "name": "04/",
                 "onDisk": -1,
                 "onDiskText": "—",
@@ -1311,7 +1443,10 @@
                 "fileIndexes": [
                     38
                 ],
+                "folderPath": "2019/04",
                 "isFolder": false,
+                "kind": "images",
+                "kindText": "image",
                 "name": "IMG_201904000.jpg",
                 "onDisk": -1,
                 "onDiskText": "—",
@@ -1338,7 +1473,10 @@
                 "fileIndexes": [
                     39
                 ],
+                "folderPath": "2019/04",
                 "isFolder": false,
+                "kind": "images",
+                "kindText": "image",
                 "name": "IMG_201904001.jpg",
                 "onDisk": -1,
                 "onDiskText": "—",
@@ -1605,7 +1743,10 @@
                     38,
                     39
                 ],
+                "folderPath": "",
                 "isFolder": true,
+                "kind": "images",
+                "kindText": "images",
                 "name": "photo-archive-2019-2025/",
                 "onDisk": -1,
                 "onDiskText": "—",
@@ -1671,7 +1812,10 @@
                     38,
                     39
                 ],
+                "folderPath": "",
                 "isFolder": true,
+                "kind": "images",
+                "kindText": "images",
                 "name": "2019/",
                 "onDisk": -1,
                 "onDiskText": "—",
@@ -1708,7 +1852,10 @@
                     9,
                     10
                 ],
+                "folderPath": "2019",
                 "isFolder": true,
+                "kind": "images",
+                "kindText": "images",
                 "name": "01/",
                 "onDisk": -1,
                 "onDiskText": "—",
@@ -1735,7 +1882,10 @@
                 "fileIndexes": [
                     0
                 ],
+                "folderPath": "2019/01",
                 "isFolder": false,
+                "kind": "images",
+                "kindText": "image",
                 "name": "IMG_201901000.jpg",
                 "onDisk": -1,
                 "onDiskText": "—",
@@ -1762,7 +1912,10 @@
                 "fileIndexes": [
                     1
                 ],
+                "folderPath": "2019/01",
                 "isFolder": false,
+                "kind": "images",
+                "kindText": "image",
                 "name": "IMG_201901001.jpg",
                 "onDisk": -1,
                 "onDiskText": "",
@@ -1789,7 +1942,10 @@
                 "fileIndexes": [
                     2
                 ],
+                "folderPath": "2019/01",
                 "isFolder": false,
+                "kind": "images",
+                "kindText": "image",
                 "name": "IMG_201901002.jpg",
                 "onDisk": -1,
                 "onDiskText": "—",
@@ -1816,7 +1972,10 @@
                 "fileIndexes": [
                     3
                 ],
+                "folderPath": "2019/01",
                 "isFolder": false,
+                "kind": "images",
+                "kindText": "image",
                 "name": "IMG_201901003.jpg",
                 "onDisk": -1,
                 "onDiskText": "—",
@@ -1843,7 +2002,10 @@
                 "fileIndexes": [
                     4
                 ],
+                "folderPath": "2019/01",
                 "isFolder": false,
+                "kind": "images",
+                "kindText": "image",
                 "name": "IMG_201901004.jpg",
                 "onDisk": -1,
                 "onDiskText": "—",
@@ -1870,7 +2032,10 @@
                 "fileIndexes": [
                     5
                 ],
+                "folderPath": "2019/01",
                 "isFolder": false,
+                "kind": "images",
+                "kindText": "image",
                 "name": "IMG_201901005.jpg",
                 "onDisk": -1,
                 "onDiskText": "—",
@@ -1897,7 +2062,10 @@
                 "fileIndexes": [
                     6
                 ],
+                "folderPath": "2019/01",
                 "isFolder": false,
+                "kind": "images",
+                "kindText": "image",
                 "name": "IMG_201901006.jpg",
                 "onDisk": -1,
                 "onDiskText": "—",
@@ -1924,7 +2092,10 @@
                 "fileIndexes": [
                     7
                 ],
+                "folderPath": "2019/01",
                 "isFolder": false,
+                "kind": "images",
+                "kindText": "image",
                 "name": "IMG_201901007.jpg",
                 "onDisk": -1,
                 "onDiskText": "—",
@@ -1951,7 +2122,10 @@
                 "fileIndexes": [
                     8
                 ],
+                "folderPath": "2019/01",
                 "isFolder": false,
+                "kind": "images",
+                "kindText": "image",
                 "name": "IMG_201901008.jpg",
                 "onDisk": -1,
                 "onDiskText": "—",
@@ -1978,7 +2152,10 @@
                 "fileIndexes": [
                     9
                 ],
+                "folderPath": "2019/01",
                 "isFolder": false,
+                "kind": "images",
+                "kindText": "image",
                 "name": "IMG_201901009.jpg",
                 "onDisk": -1,
                 "onDiskText": "—",
@@ -2005,7 +2182,10 @@
                 "fileIndexes": [
                     10
                 ],
+                "folderPath": "2019/01",
                 "isFolder": false,
+                "kind": "images",
+                "kindText": "image",
                 "name": "IMG_201901010.jpg",
                 "onDisk": -1,
                 "onDiskText": "—",
@@ -2046,7 +2226,10 @@
                     24,
                     25
                 ],
+                "folderPath": "2019",
                 "isFolder": true,
+                "kind": "images",
+                "kindText": "images",
                 "name": "02/",
                 "onDisk": -1,
                 "onDiskText": "—",
@@ -2073,7 +2256,10 @@
                 "fileIndexes": [
                     11
                 ],
+                "folderPath": "2019/02",
                 "isFolder": false,
+                "kind": "images",
+                "kindText": "image",
                 "name": "IMG_201902000.jpg",
                 "onDisk": -1,
                 "onDiskText": "—",
@@ -2100,7 +2286,10 @@
                 "fileIndexes": [
                     12
                 ],
+                "folderPath": "2019/02",
                 "isFolder": false,
+                "kind": "images",
+                "kindText": "image",
                 "name": "IMG_201902001.jpg",
                 "onDisk": -1,
                 "onDiskText": "—",
@@ -2127,7 +2316,10 @@
                 "fileIndexes": [
                     13
                 ],
+                "folderPath": "2019/02",
                 "isFolder": false,
+                "kind": "images",
+                "kindText": "image",
                 "name": "IMG_201902002.jpg",
                 "onDisk": -1,
                 "onDiskText": "—",
@@ -2154,7 +2346,10 @@
                 "fileIndexes": [
                     14
                 ],
+                "folderPath": "2019/02",
                 "isFolder": false,
+                "kind": "images",
+                "kindText": "image",
                 "name": "IMG_201902003.jpg",
                 "onDisk": -1,
                 "onDiskText": "—",
@@ -2181,7 +2376,10 @@
                 "fileIndexes": [
                     15
                 ],
+                "folderPath": "2019/02",
                 "isFolder": false,
+                "kind": "images",
+                "kindText": "image",
                 "name": "IMG_201902004.jpg",
                 "onDisk": -1,
                 "onDiskText": "—",
@@ -2208,7 +2406,10 @@
                 "fileIndexes": [
                     16
                 ],
+                "folderPath": "2019/02",
                 "isFolder": false,
+                "kind": "images",
+                "kindText": "image",
                 "name": "IMG_201902005.jpg",
                 "onDisk": -1,
                 "onDiskText": "—",
@@ -2235,7 +2436,10 @@
                 "fileIndexes": [
                     17
                 ],
+                "folderPath": "2019/02",
                 "isFolder": false,
+                "kind": "images",
+                "kindText": "image",
                 "name": "IMG_201902006.jpg",
                 "onDisk": -1,
                 "onDiskText": "—",
@@ -2262,7 +2466,10 @@
                 "fileIndexes": [
                     18
                 ],
+                "folderPath": "2019/02",
                 "isFolder": false,
+                "kind": "images",
+                "kindText": "image",
                 "name": "IMG_201902007.jpg",
                 "onDisk": -1,
                 "onDiskText": "—",
@@ -2289,7 +2496,10 @@
                 "fileIndexes": [
                     19
                 ],
+                "folderPath": "2019/02",
                 "isFolder": false,
+                "kind": "images",
+                "kindText": "image",
                 "name": "IMG_201902008.jpg",
                 "onDisk": -1,
                 "onDiskText": "—",
@@ -2316,7 +2526,10 @@
                 "fileIndexes": [
                     20
                 ],
+                "folderPath": "2019/02",
                 "isFolder": false,
+                "kind": "images",
+                "kindText": "image",
                 "name": "IMG_201902009.jpg",
                 "onDisk": -1,
                 "onDiskText": "—",
@@ -2343,7 +2556,10 @@
                 "fileIndexes": [
                     21
                 ],
+                "folderPath": "2019/02",
                 "isFolder": false,
+                "kind": "images",
+                "kindText": "image",
                 "name": "IMG_201902010.jpg",
                 "onDisk": -1,
                 "onDiskText": "—",
@@ -2370,7 +2586,10 @@
                 "fileIndexes": [
                     22
                 ],
+                "folderPath": "2019/02",
                 "isFolder": false,
+                "kind": "images",
+                "kindText": "image",
                 "name": "IMG_201902011.jpg",
                 "onDisk": -1,
                 "onDiskText": "—",
@@ -2397,7 +2616,10 @@
                 "fileIndexes": [
                     23
                 ],
+                "folderPath": "2019/02",
                 "isFolder": false,
+                "kind": "images",
+                "kindText": "image",
                 "name": "IMG_201902012.jpg",
                 "onDisk": -1,
                 "onDiskText": "—",
@@ -2424,7 +2646,10 @@
                 "fileIndexes": [
                     24
                 ],
+                "folderPath": "2019/02",
                 "isFolder": false,
+                "kind": "images",
+                "kindText": "image",
                 "name": "IMG_201902013.jpg",
                 "onDisk": -1,
                 "onDiskText": "—",
@@ -2451,7 +2676,10 @@
                 "fileIndexes": [
                     25
                 ],
+                "folderPath": "2019/02",
                 "isFolder": false,
+                "kind": "images",
+                "kindText": "image",
                 "name": "IMG_201902014.jpg",
                 "onDisk": -1,
                 "onDiskText": "—",
@@ -2489,7 +2717,10 @@
                     36,
                     37
                 ],
+                "folderPath": "2019",
                 "isFolder": true,
+                "kind": "images",
+                "kindText": "images",
                 "name": "03/",
                 "onDisk": -1,
                 "onDiskText": "—",
@@ -2516,7 +2747,10 @@
                 "fileIndexes": [
                     26
                 ],
+                "folderPath": "2019/03",
                 "isFolder": false,
+                "kind": "images",
+                "kindText": "image",
                 "name": "IMG_201903000.jpg",
                 "onDisk": -1,
                 "onDiskText": "—",
@@ -2543,7 +2777,10 @@
                 "fileIndexes": [
                     27
                 ],
+                "folderPath": "2019/03",
                 "isFolder": false,
+                "kind": "images",
+                "kindText": "image",
                 "name": "IMG_201903001.jpg",
                 "onDisk": -1,
                 "onDiskText": "—",
@@ -2570,7 +2807,10 @@
                 "fileIndexes": [
                     28
                 ],
+                "folderPath": "2019/03",
                 "isFolder": false,
+                "kind": "images",
+                "kindText": "image",
                 "name": "IMG_201903002.jpg",
                 "onDisk": -1,
                 "onDiskText": "—",
@@ -2597,7 +2837,10 @@
                 "fileIndexes": [
                     29
                 ],
+                "folderPath": "2019/03",
                 "isFolder": false,
+                "kind": "images",
+                "kindText": "image",
                 "name": "IMG_201903003.jpg",
                 "onDisk": -1,
                 "onDiskText": "—",
@@ -2624,7 +2867,10 @@
                 "fileIndexes": [
                     30
                 ],
+                "folderPath": "2019/03",
                 "isFolder": false,
+                "kind": "images",
+                "kindText": "image",
                 "name": "IMG_201903004.jpg",
                 "onDisk": -1,
                 "onDiskText": "—",
@@ -2651,7 +2897,10 @@
                 "fileIndexes": [
                     31
                 ],
+                "folderPath": "2019/03",
                 "isFolder": false,
+                "kind": "images",
+                "kindText": "image",
                 "name": "IMG_201903005.jpg",
                 "onDisk": -1,
                 "onDiskText": "—",
@@ -2678,7 +2927,10 @@
                 "fileIndexes": [
                     32
                 ],
+                "folderPath": "2019/03",
                 "isFolder": false,
+                "kind": "images",
+                "kindText": "image",
                 "name": "IMG_201903006.jpg",
                 "onDisk": -1,
                 "onDiskText": "—",
@@ -2705,7 +2957,10 @@
                 "fileIndexes": [
                     33
                 ],
+                "folderPath": "2019/03",
                 "isFolder": false,
+                "kind": "images",
+                "kindText": "image",
                 "name": "IMG_201903007.jpg",
                 "onDisk": -1,
                 "onDiskText": "—",
@@ -2732,7 +2987,10 @@
                 "fileIndexes": [
                     34
                 ],
+                "folderPath": "2019/03",
                 "isFolder": false,
+                "kind": "images",
+                "kindText": "image",
                 "name": "IMG_201903008.jpg",
                 "onDisk": -1,
                 "onDiskText": "—",
@@ -2759,7 +3017,10 @@
                 "fileIndexes": [
                     35
                 ],
+                "folderPath": "2019/03",
                 "isFolder": false,
+                "kind": "images",
+                "kindText": "image",
                 "name": "IMG_201903009.jpg",
                 "onDisk": -1,
                 "onDiskText": "—",
@@ -2786,7 +3047,10 @@
                 "fileIndexes": [
                     36
                 ],
+                "folderPath": "2019/03",
                 "isFolder": false,
+                "kind": "images",
+                "kindText": "image",
                 "name": "IMG_201903010.jpg",
                 "onDisk": -1,
                 "onDiskText": "—",
@@ -2813,7 +3077,10 @@
                 "fileIndexes": [
                     37
                 ],
+                "folderPath": "2019/03",
                 "isFolder": false,
+                "kind": "images",
+                "kindText": "image",
                 "name": "IMG_201903011.jpg",
                 "onDisk": -1,
                 "onDiskText": "—",
@@ -2841,7 +3108,10 @@
                     38,
                     39
                 ],
+                "folderPath": "2019",
                 "isFolder": true,
+                "kind": "images",
+                "kindText": "images",
                 "name": "04/",
                 "onDisk": -1,
                 "onDiskText": "—",
@@ -2868,7 +3138,10 @@
                 "fileIndexes": [
                     38
                 ],
+                "folderPath": "2019/04",
                 "isFolder": false,
+                "kind": "images",
+                "kindText": "image",
                 "name": "IMG_201904000.jpg",
                 "onDisk": -1,
                 "onDiskText": "—",
@@ -2895,7 +3168,10 @@
                 "fileIndexes": [
                     39
                 ],
+                "folderPath": "2019/04",
                 "isFolder": false,
+                "kind": "images",
+                "kindText": "image",
                 "name": "IMG_201904001.jpg",
                 "onDisk": -1,
                 "onDiskText": "—",
