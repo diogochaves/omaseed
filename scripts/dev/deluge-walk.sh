@@ -12,7 +12,10 @@
 # drops without a word (only its own log says why: read as failed and never sent again); a move Deluge fails
 # with an error, which pauses the torrent until a recheck, and the recheck that clears it (K24);
 # one Settings › Deluge switch written and read back on the daemon, then put back; and a delete
-# with its files. After each step it checks what the daemon says (deluge-web's /json) and
+# with its files. Before the rename, board 64's room (DECISIONS C47 I8, I9, #277): with the
+# daemon's move_completed on, the add sheet shows two lines with the switch; off, the torrent is
+# added with download_location = Save to and move_completed false; on, it downloads to Deluge's
+# download folder and moves to Save to (move_completed_path); the setting is put back after. After each step it checks what the daemon says (deluge-web's /json) and
 # what is on disk, and stops at the first mismatch.
 #
 #   scripts/dev/deluge-walk.sh [OUT_DIR]       # agents: a headless box, a shot per step,
@@ -60,6 +63,9 @@ DAEMON_ID=omaseed0test0daemon
 NAME="Walk Sampler"
 RENAMED="Walk Sampler (renamed)"
 MAGNET_NAME="Walk Magnet"
+# Board 64's room: two small torrents nobody seeds, added stopped with the switch off and on.
+ROOM_OFF="Walk Room Off"
+ROOM_ON="Walk Room On"
 IN="$WALK/in"
 MOVED="$WALK/moved"
 # A folder Deluge would have to make inside a read-only one (it can't, and says nothing), and
@@ -293,6 +299,20 @@ expect_node() {
     fi
 }
 
+# click_node NAME: a click in the middle of the window's first node whose name starts with NAME.
+click_node() {
+    local at
+    at="$(omabox tree -b "$BOX" --window omaseed --json 2>/dev/null | python3 -c '
+import json, sys
+for n in json.load(sys.stdin):
+    if (n.get("name") or "").startswith(sys.argv[1]) and n.get("w", 0) > 0:
+        print(n["x"] + n["w"] // 2, n["y"] + n["h"] // 2)
+        break' "$1")"
+    [ -n "$at" ] || fail "no \"$1\" to click in the window"
+    # shellcheck disable=SC2086 # "X Y"
+    omabox click -b "$BOX" --window omaseed --wait --ignore "$STRIP_IGNORE" $at >/dev/null 2>&1 || true
+}
+
 # step "TITLE" "WHAT IT DOES": interactive, say it and wait for enter; headless, a heading.
 step() {
     STEP=$((STEP + 1))
@@ -333,7 +353,7 @@ remove_walk_torrents() {
 import json, sys
 for h, t in json.load(sys.stdin).items():
     if t["name"].startswith(sys.argv[1]) or t["name"] in sys.argv[2:]:
-        print(h)' "$NAME" "$MAGNET_NAME" "$BIG" 2>/dev/null || true); do
+        print(h)' "$NAME" "$MAGNET_NAME" "$BIG" "$ROOM_OFF" "$ROOM_ON" 2>/dev/null || true); do
         dcall core.remove_torrent "[\"$hash\", true]" >/dev/null 2>&1 || true
     done
     dcall label.remove '["walk-label"]' >/dev/null 2>&1 || true
@@ -350,6 +370,8 @@ THROTTLE=""
 SAMPLER=""
 PEER_PID=""
 OVERHEAD=""
+# The daemon's move_completed settings before the room's step turned them on ("" once back).
+ROOM_WAS=""
 cleanup() {
     local status=$?
     [ -z "$OUT" ] || "$repo/scripts/dev/look.sh" "$OUT" || true  # copies to Read (#251)
@@ -376,6 +398,7 @@ cleanup() {
             dcall web.connect "[\"$DAEMON_ID\"]" >/dev/null 2>&1 || true
             dcall core.enable_plugin '["Label"]' >/dev/null 2>&1 || true
             [ -z "$OVERHEAD" ] || dcall core.set_config "[{\"rate_limit_ip_overhead\": $OVERHEAD}]" >/dev/null 2>&1 || true
+            [ -z "$ROOM_WAS" ] || dcall core.set_config "[$ROOM_WAS]" >/dev/null 2>&1 || true
             remove_walk_torrents
         fi
     fi
@@ -420,6 +443,15 @@ head -c 5000 /dev/urandom >"$WALK/magnet/$MAGNET_NAME/Extras/b.txt"
 head -c 70000 /dev/urandom >"$WALK/magnet/$MAGNET_NAME/c.bin"
 transmission-create -c "omaseed deluge walk" -o "$WALK/$MAGNET_NAME.torrent" "$WALK/magnet/$MAGNET_NAME" >/dev/null
 MAGNET_HASH="$(infohash "$WALK/$MAGNET_NAME.torrent")"
+# The room's two: one file each, no data anywhere (added stopped, never downloaded).
+for room in "$ROOM_OFF" "$ROOM_ON"; do
+    mkdir -p "$WALK/room-src/$room"
+    head -c 200000 /dev/urandom >"$WALK/room-src/$room/data.bin"
+    transmission-create -c "omaseed deluge walk" -o "$WALK/$room.torrent" "$WALK/room-src/$room" >/dev/null
+done
+ROOM_OFF_HASH="$(infohash "$WALK/$ROOM_OFF.torrent")"
+ROOM_ON_HASH="$(infohash "$WALK/$ROOM_ON.torrent")"
+ROOM_SAVE="$WALK/room"
 # The big one (zeros: only its size matters), no copy-on-write where the file system has it.
 mkdir -p "$BIG_DIR/$BIG"
 chattr +C "$BIG_DIR" "$BIG_DIR/$BIG" 2>/dev/null || true
@@ -450,7 +482,7 @@ if [ "$INTERACTIVE" = 0 ]; then
 fi
 "$APP_BOX" up "${up_args[@]}" >/dev/null
 home="$(omabox path -b "$BOX")/home"
-cp "$WALK/$NAME.torrent" "$home/Downloads/"
+cp "$WALK/$NAME.torrent" "$WALK/$ROOM_OFF.torrent" "$WALK/$ROOM_ON.torrent" "$home/Downloads/"
 
 # ---- the walk -----------------------------------------------------------------------------
 
@@ -549,6 +581,49 @@ expect_no_text "the sheet closed" "Add torrent" 10
 expect "still nothing added" "$MAGNET_HASH" 't is None' 5
 kill "$PEER_PID" 2>/dev/null || true
 PEER_PID=""
+
+step "The room with a move when done" "The daemon's move_completed on (core.set_config, to PROFILE/walk/finished), omaseed started again to read it. a: the add sheet, ~/Downloads/$ROOM_OFF.torrent, tab ×3 to Save to, $ROOM_SAVE: two lines (board 64 §5, C47 I8), the first downloads to Deluge's download folder, with its switch (I9). The switch off, add stopped: the daemon has it with download_location $ROOM_SAVE and move_completed false (#277). Then $ROOM_ON's the same way, the switch on: move_completed true to $ROOM_SAVE, downloading in Deluge's folder. Both removed, the setting put back, omaseed started again."
+ROOM_WAS="$(dq 'json.dumps(r)' core.get_config_values '[["move_completed", "move_completed_path"]]')"
+DL_LOC="$(dq 'r["download_location"].rstrip("/")' core.get_config_values '[["download_location"]]')"
+dcall core.set_config "[{\"move_completed\": true, \"move_completed_path\": \"$WALK/finished\"}]" >/dev/null
+expect_call "the daemon's move_completed is on" "r['move_completed'] is True" core.get_config_values '[["move_completed"]]'
+"$APP_BOX" restart -b "$BOX" >/dev/null
+expect_text "omaseed again, its rows back" "$NAME" 30
+# room_sheet NAME: a, NAME's .torrent, Save to $ROOM_SAVE; the two lines checked.
+room_sheet() {
+    keys a
+    expect_text "the add sheet is open" "Add torrent" 10
+    keys -t "$BOX_HOME/Downloads/$1.torrent"
+    expect_text "it reads $1" "$1 ·" 10
+    keys Tab Tab Tab -t "$ROOM_SAVE"
+    expect_text "Save to holds the path" "$ROOM_SAVE" 10
+    expect_text "two lines: downloads first to Deluge's download folder (C47 I8)" "downloads first to $DL_LOC" 10
+    expect_text "…its note: Deluge's download folder" "Deluge's download folder." 10
+    expect_text "…then moves to Save to" "then moves to $ROOM_SAVE" 10
+    expect_text "…the first line has its switch (I9)" "download to the temp folder first" 10
+}
+room_sheet "$ROOM_OFF"
+shot "The add sheet: under Save to, the switch on and \"downloads first to $(short "$DL_LOC") · needs … · free space unknown\", Deluge's download folder.; then \"then moves to $(short "$ROOM_SAVE") · needs …\"." sheet
+click_node "download to the temp folder first"
+expect_text "off: what this torrent skips" "This torrent skips $DL_LOC" 10
+shot "The switch off: today's one line with the switch in front of it, and \"This torrent skips $(short "$DL_LOC"): it downloads straight here.\" with use the temp folder." off
+click_node "add stopped"
+expect_no_text "the sheet closed" "Add torrent" 10
+expect_call "off: download_location is Save to and move_completed false (#277)" \
+    "r['move_completed'] is False and r['download_location'].rstrip('/') == '$ROOM_SAVE'" \
+    core.get_torrent_status "[\"$ROOM_OFF_HASH\", [\"move_completed\", \"download_location\"]]"
+room_sheet "$ROOM_ON"
+click_node "add stopped"
+expect_no_text "the sheet closed" "Add torrent" 10
+expect_call "on: it downloads in Deluge's folder and moves to Save to when done (#277)" \
+    "r['move_completed'] is True and r['move_completed_path'].rstrip('/') == '$ROOM_SAVE' and r['download_location'].rstrip('/') == '$DL_LOC'" \
+    core.get_torrent_status "[\"$ROOM_ON_HASH\", [\"move_completed\", \"move_completed_path\", \"download_location\"]]"
+dcall core.remove_torrent "[\"$ROOM_OFF_HASH\", true]" >/dev/null
+dcall core.remove_torrent "[\"$ROOM_ON_HASH\", true]" >/dev/null
+dcall core.set_config "[$ROOM_WAS]" >/dev/null
+ROOM_WAS=""
+"$APP_BOX" restart -b "$BOX" >/dev/null
+expect_text "omaseed again, on the daemon's own setting" "$NAME" 30
 
 step "Rename" "Jump to it, esc to the table, r: the rename sheet says only the name changes on Deluge, the folder on disk keeps its own (K28); ctrl+a, \"$RENAMED\", enter."
 table_on "$NAME"
