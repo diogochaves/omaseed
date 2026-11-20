@@ -16,6 +16,10 @@ import Omaseed.Kit
 //   fold all    unfold all once every folder is shut; off in flat
 //   hide skipped
 //
+// Where the row is short (details docked at its default width) the last two give way, as
+// details' columns do (docs/11 J1): fold all first, then hide skipped; their keys (`H` `L`,
+// `X`) and the file menu's rows keep them. The filter, sort and tree · flat always stay.
+//
 // The list keeps the keyboard: its keys (`/`, `s`, `H`, `L`, `X`, `T`) come here through
 // `run(action)`, with the Keymap's action names. `filterDone()` hands the keyboard back.
 //
@@ -51,6 +55,15 @@ RowLayout {
     }
 
     property var _menu: null
+
+    /// The narrowest the filter gets, and what the three that always stay need with it.
+    readonly property real _filterMinimum: Theme.space(100)
+    readonly property real _base: root._filterMinimum + sortMenuButton.implicitWidth
+                                  + viewSegment.implicitWidth + 2 * root.spacing
+    readonly property bool showHideSkipped: root.width >= root._base + root.spacing
+                                            + hideSkippedButton.implicitWidth
+    readonly property bool showFold: root.width >= root._base + 2 * root.spacing
+                                     + hideSkippedButton.implicitWidth + foldButton.implicitWidth
 
     /// The button's words: "sort: size", or "sort" alone in the torrent's own order (no key
     /// picked), which keeps the row narrow enough for the add sheet.
@@ -196,7 +209,7 @@ RowLayout {
         id: filterInput
 
         Layout.fillWidth: true
-        Layout.minimumWidth: Theme.space(100)
+        Layout.minimumWidth: root._filterMinimum
         accessibleName: qsTr("filter files")
         hint: "/"
         objectName: "filesToolbarFilter"
@@ -249,6 +262,8 @@ RowLayout {
 
     // tree · flat: one segment of two.
     Row {
+        id: viewSegment
+
         Button {
             Accessible.checkable: true
             Accessible.checked: !root.flat
@@ -277,17 +292,22 @@ RowLayout {
     }
 
     Button {
+        id: foldButton
+
         bordered: true
         enabled: !root.flat
         fontSize: Theme.font.small
         objectName: "filesToolbarFold"
         sidePadding: Theme.space(8)
         text: root.anyOpen ? qsTr("fold all") : qsTr("unfold all")
+        visible: root.showFold
 
         onClicked: root.foldAll(root.anyOpen)
     }
 
     Button {
+        id: hideSkippedButton
+
         Accessible.checkable: true
         Accessible.checked: root.files !== null && root.files.hideSkipped
         bordered: true
@@ -296,6 +316,7 @@ RowLayout {
         selected: root.files !== null && root.files.hideSkipped
         sidePadding: Theme.space(8)
         text: qsTr("hide skipped")
+        visible: root.showHideSkipped
 
         onClicked: root.toggleHideSkipped()
     }

@@ -215,8 +215,12 @@ RowLayout {
         Accessible.name: text
         Accessible.role: Accessible.StaticText
         Layout.alignment: Qt.AlignTop
+        // A long count (details' summary with its skipped tail, #189) takes at most half a
+        // narrow row and gives way from its end; the chips keep the rest.
+        Layout.maximumWidth: Math.max(Theme.space(120), root.width / 2)
         Layout.topMargin: Math.round((Theme.railRowHeight - height) / 2)
         dim: true
+        elide: Text.ElideRight
         objectName: "filesPaneCount"
         size: "caption"
         text: root.filtering ? qsTr("showing %1 of %2").arg(root.files.matchCount).arg(
