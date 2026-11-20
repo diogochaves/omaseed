@@ -68,6 +68,11 @@ omaseed_add_test(tst_torrentextras
     LIBRARIES omaseed::core
 )
 
+omaseed_add_test(tst_filekinds
+    SOURCES tst_filekinds.cpp
+    LIBRARIES omaseed::core
+)
+
 omaseed_add_test(tst_privatetrackers
     SOURCES tst_privatetrackers.cpp
     LIBRARIES omaseed::core

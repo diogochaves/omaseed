@@ -104,6 +104,8 @@ qt_add_library(omaseed-core STATIC
     engines/transmission/TransmissionTranslate.hpp
     ErrorWords.cpp
     ErrorWords.hpp
+    FileKinds.cpp
+    FileKinds.hpp
     FilesViewState.cpp
     FilesViewState.hpp
     FilterCounts.cpp
