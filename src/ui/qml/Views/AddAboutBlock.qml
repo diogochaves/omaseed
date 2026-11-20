@@ -61,6 +61,8 @@ ColumnLayout {
         objectName: "addAboutTitle"
         text: qsTr("About this torrent")
         tracked: true
+        Accessible.name: text
+        Accessible.role: Accessible.Heading
     }
 
     Hairline {

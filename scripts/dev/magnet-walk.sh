@@ -1073,8 +1073,9 @@ fi
 
 open_in_box "$MOVIE_MAGNET"
 check "a magnet: the add window came up" add_focused
-check "a magnet: its wait for the list on the right (C47 I2, C5)" placed "$ADD_WIN" "Asking" right
-step "Two columns, a magnet's wait" "The add window for $MOVIE's magnet (private: no peer sends its list): the form on the left, unmoved; on the right Files with \"fetching\" and its seconds, the box \"Asking qBittorrent for the file list\", and About this torrent with the link's trackers and info hash."
+check "a magnet: the private one's notice on the right, no asking (C47 I2, C5)" placed "$ADD_WIN" "A private tracker's magnet" right
+check "a magnet: About this torrent from the link alone (C47 I15)" add_shows "About this torrent"
+step "Two columns, a private magnet" "The add window for $MOVIE's magnet (private, so omaseed never asks for its list, C5): the form on the left; on the right Files with \"private tracker\" and the notice \"A private tracker's magnet: no file list before adding\", then About this torrent with the link's tracker and info hash. A public magnet's wait on the right is step 877's (the Sampler)."
 cancel_add || true
 
 # I2's fallback: a screen under 1200 logical px. `omabox mode` changes a headless box's screen
