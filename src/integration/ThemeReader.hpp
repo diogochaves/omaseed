@@ -11,6 +11,8 @@
 namespace omaseed::integration {
 
 class DesktopSkin;
+class UserSkins;
+struct Skin;
 
 /// A flat palette: every key `omarchy-theme-color --all` prints, with its resolved value.
 using ColorMap = QHash<QString, QString>;
@@ -41,6 +43,9 @@ public:
         QString stateCurrentDir;
         /// `~/.config/omarchy`: holds Omarchy 3's `current/theme/` and the shell overlay.
         QString configOmarchyDir;
+        /// `~/.config/omaseed/skins`: the person's skins (DECISIONS C37 U1). "" for none, so
+        /// a reader made for a test sees no user skin unless it names a folder.
+        QString skinsDir = {};
 
         static Paths fromEnvironment();
     };
@@ -119,16 +124,24 @@ public:
     // overrides above. The reader turns the choice into the skin Theme draws, so the choice
     // and the desktop's skin reach Theme through the one object it already follows.
 
-    /// The choice: "omarchy" (the default), "console", or "desktop" (Follow the desktop: the
-    /// built-in Console while omarchy-console's skin is on, Omarchy otherwise). Anything else
-    /// reads as "omarchy".
+    /// The choice: "omarchy" (the default), "console", "desktop" (Follow the desktop: the
+    /// built-in Console while omarchy-console's skin is on, Omarchy otherwise), or a user
+    /// skin's name (DECISIONS C37 U1), kept whether its folder is there or not, so the folder
+    /// coming back draws it again. Anything else, a name that fails UserSkins' rule, reads as
+    /// "omarchy".
     QString skinChoice() const { return m_skinChoice; }
     void setSkinChoice(const QString &choice);
     /// The choice in force: `OMASEED_SKIN` when it is set (tests and walks pin the skin with
     /// it, and it may name "desktop" too), else skinChoice().
     QString skinChoiceInForce() const;
-    /// The built-in skin to draw: the choice, with "desktop" resolved through DesktopSkin.
+    /// The skin to draw: the choice, with "desktop" resolved through DesktopSkin.
     QString skinName() const;
+    /// The skin called `name`, read: a built-in's, a user skin's from skinsDir (Omarchy's with
+    /// reason "missing" when its folder is gone or has no skin.json), and Omarchy's with
+    /// reason "unknown skin" for a name that can be neither.
+    Skin readSkin(const QString &name) const;
+    /// The person's skins folder and its watch; null when Paths::skinsDir is "".
+    UserSkins *userSkins() const { return m_userSkins; }
     /// Following the desktop, whose console.json says `fx.fonts = system`: the skin's fonts
     /// give way to the shell's (step 3 of #171 reads it through `Theme.skin.systemFonts`).
     bool skinSystemFonts() const;
@@ -139,12 +152,15 @@ Q_SIGNALS:
     /// The palette, the shell values or the theme name changed. Never emitted for a rewrite
     /// that resolves to the same thing.
     void changed();
-    /// skinName() or skinSystemFonts() moved: the choice, or the desktop's skin.
+    /// skinName() or skinSystemFonts() moved: the choice, or the desktop's skin; or the drawn
+    /// user skin's file reads differently (a save, C37 U1).
     void skinChanged();
 
 private:
     /// Make or drop the DesktopSkin watcher for the choice in force.
     void followDesktopSkin();
+    /// The log line a walk reads to know which skin is drawn, and counts repaints by.
+    void logSkin() const;
     void connectWatcher();
     void rewatch();
     QString findColorsFile(bool *lightModeFile) const;
@@ -162,6 +178,7 @@ private:
     QString m_skinChoice = QStringLiteral("omarchy");
     /// Only while the choice in force is "desktop": nothing is watched otherwise.
     DesktopSkin *m_desktopSkin = nullptr;
+    UserSkins *m_userSkins = nullptr;
 };
 
 } // namespace omaseed::integration

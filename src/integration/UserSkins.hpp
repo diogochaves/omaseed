@@ -2,9 +2,11 @@
 
 #include "integration/SkinReader.hpp"
 
+#include <QFileSystemWatcher>
 #include <QList>
 #include <QObject>
 #include <QString>
+#include <QTimer>
 
 namespace omaseed::integration {
 
@@ -19,12 +21,13 @@ struct UserSkin
     Skin skin;
     /// The skin's `description`, "" when it has none.
     QString description;
+    bool operator==(const UserSkin &) const = default;
 };
 
 /// The person's own skins (DECISIONS C37 U1): one folder each under `skins/` in omaseed's
 /// config folder, `skins/<name>/skin.json`. Pure file IO: it lists them, holds their names to
-/// a rule, and reads one. Built-in skins are not in the folder; they come first wherever
-/// skins are listed, and read() gives them by their name.
+/// a rule, reads one, and watches the folder. Built-in skins are not in the folder; they come first
+/// wherever skins are listed, and read() gives them by their name.
 class UserSkins : public QObject
 {
     Q_OBJECT
@@ -53,8 +56,35 @@ public:
     /// (C37 U2: nothing in it is loaded).
     static Skin readFolder(const QString &path, const QString &name);
 
+    // ---- the watch (C37 U1: a save repaints, live) ---------------------------------------
+
+    /// The listing as last read: what changed() compares against.
+    QList<UserSkin> skins() const { return m_skins; }
+    /// The skin drawn, so its file is watched and its changes reach drawnChanged(): a user
+    /// skin's name, or "" (a built-in, or a name that is none) for nothing to follow.
+    void setDrawn(const QString &name);
+    QString drawn() const { return m_drawn; }
+
+    /// How long a burst of file events settles before the folder is read again.
+    static constexpr int kDebounceMs = 250;
+
+Q_SIGNALS:
+    /// The listing moved: a skin added, removed, renamed, or one that reads differently.
+    void changed();
+    /// The drawn skin's file reads differently (a save, a break, a fix, its folder gone or
+    /// back). Never for a rewrite that reads the same.
+    void drawnChanged();
+
 private:
+    void rewatch();
+    void settle();
+
     QString m_dir;
+    QString m_drawn;
+    Skin m_drawnSkin;
+    QList<UserSkin> m_skins;
+    QFileSystemWatcher m_watcher;
+    QTimer m_debounce;
 };
 
 } // namespace omaseed::integration

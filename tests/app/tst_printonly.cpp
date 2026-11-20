@@ -3,6 +3,7 @@
 // no WAYLAND_DISPLAY and no DISPLAY, and a runtime directory of its own, so no Wayland socket
 // can be found by its default name either. Before #143 each of these ended in SIGABRT.
 
+#include <QDir>
 #include <QFile>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -178,7 +179,10 @@ void TestPrintOnly::themeRolesInASkin_data()
     QTest::addColumn<QString>("reason");
     QTest::newRow("omarchy") << "omarchy" << "omarchy" << "";
     QTest::newRow("console") << "console" << "console" << "";
-    QTest::newRow("no such skin") << "neon" << "omarchy" << "unknown skin";
+    // A name a user skin could have, with no folder: Omarchy's, missing (C37 U1).
+    QTest::newRow("no such skin") << "neon" << "omarchy" << "missing";
+    QTest::newRow("no skin's name") << "neon skin" << "omarchy" << "unknown skin";
+    QTest::newRow("a user skin") << "warm" << "warm" << "";
 }
 
 /// #171: `--theme-roles --skin NAME` resolves the grounds in that skin, for the contrast check
@@ -188,6 +192,13 @@ void TestPrintOnly::themeRolesInASkin()
     QFETCH(QString, skin);
     QFETCH(QString, drawn);
     QFETCH(QString, reason);
+    // The person's skins folder, under the run's own XDG_CONFIG_HOME.
+    const QString folder = m_dir.filePath(QStringLiteral("XDG_CONFIG_HOME/omaseed/skins/warm"));
+    QVERIFY(QDir().mkpath(folder));
+    QFile file(folder + QStringLiteral("/skin.json"));
+    QVERIFY(file.open(QIODevice::WriteOnly));
+    file.write(R"({"version": 1, "grounds": {"panel": {"tint": "accent", "alpha": 0.08}}})");
+    file.close();
     QVERIFY(run({QStringLiteral("--theme-roles"), QStringLiteral("--skin"), skin}));
     QVERIFY2(m_exitStatus == QProcess::NormalExit, qPrintable(m_err));
     QVERIFY2(m_exitCode == 0, qPrintable(m_err));

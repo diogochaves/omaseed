@@ -8,7 +8,10 @@
 #include <QString>
 #include <QStringList>
 #include <QVariant>
+#include <QVariantList>
 #include <QVariantMap>
+
+#include <functional>
 
 namespace omaseed::integration {
 
@@ -173,6 +176,11 @@ class ThemeSkin : public QObject
     /// The skin's font families that are not installed (SkinReader::missingFonts); empty
     /// while systemFonts holds, since then none is used. Read when the skin changes.
     Q_PROPERTY(QStringList missingFonts READ missingFonts NOTIFY changed FINAL)
+    /// What the reader left at Omarchy's (DECISIONS C37 U5), in the order met: each
+    /// `{token, value, why}`, `value` null when the file gave none. Appearance's yellow line.
+    Q_PROPERTY(QVariantList drops READ drops NOTIFY changed FINAL)
+    /// The skin's `description`, "" when it has none (C37 U1: the Skin row's caption).
+    Q_PROPERTY(QString description READ description NOTIFY changed FINAL)
 
 public:
     explicit ThemeSkin(QObject *parent = nullptr);
@@ -185,10 +193,13 @@ public:
     QVariantMap tokens() const { return m_skin.tokens; }
     bool systemFonts() const { return m_systemFonts; }
     QStringList missingFonts() const;
+    QVariantList drops() const;
+    QString description() const { return m_skin.description; }
     const Skin &skin() const { return m_skin; }
 
-    /// A built-in skin's font families that are not installed, whichever skin is drawn:
-    /// Appearance's skin row names Console's before it is picked.
+    /// A skin's font families that are not installed, whichever skin is drawn: Appearance's
+    /// skin row names Console's before it is picked. A user skin's too, once setReader() has
+    /// said where to read them.
     Q_INVOKABLE QStringList missingFontsOf(const QString &name) const;
 
     /// A density token in spec px (`"titleBarHeight": 54`), or `fallback`: Theme.qml's own
@@ -206,6 +217,9 @@ public:
     void set(const Skin &skin, const QString &requested);
     /// Record the desktop's `fx.fonts = system` (see systemFonts). Emits changed() when it moved.
     void setSystemFonts(bool system);
+    /// How missingFontsOf() reads a skin by name (Theme's reader, which knows the person's
+    /// folder); a built-in alone until it is set.
+    void setReader(std::function<Skin(const QString &)> read) { m_read = std::move(read); }
 
 Q_SIGNALS:
     void changed();
@@ -214,6 +228,7 @@ private:
     Skin m_skin;
     QString m_requested = QStringLiteral("omarchy");
     bool m_systemFonts = false;
+    std::function<Skin(const QString &)> m_read;
 };
 
 } // namespace omaseed::integration

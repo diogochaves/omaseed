@@ -15,7 +15,73 @@ namespace omaseed::integration {
 UserSkins::UserSkins(QString dir, QObject *parent)
     : QObject(parent)
     , m_dir(std::move(dir))
-{}
+{
+    if (m_dir.isEmpty())
+        return; // no folder: no user skins, nothing to watch
+    m_debounce.setSingleShot(true);
+    m_debounce.setInterval(kDebounceMs);
+    connect(&m_debounce, &QTimer::timeout, this, &UserSkins::settle);
+    // Editors save by writing a temporary file and renaming it over skin.json, which a file
+    // watch loses; the folder's watch sees it. So every event rebuilds the watches.
+    const auto touched = [this](const QString &) {
+        rewatch();
+        m_debounce.start();
+    };
+    connect(&m_watcher, &QFileSystemWatcher::directoryChanged, this, touched);
+    connect(&m_watcher, &QFileSystemWatcher::fileChanged, this, touched);
+    m_skins = list();
+    rewatch();
+}
+
+void UserSkins::setDrawn(const QString &name)
+{
+    const QString drawn = SkinReader::builtInNames().contains(name) || !nameProblem(name).isEmpty()
+                              ? QString()
+                              : name;
+    m_drawn = drawn;
+    m_drawnSkin = drawn.isEmpty() ? Skin{} : read(drawn);
+    rewatch();
+}
+
+void UserSkins::rewatch()
+{
+    if (m_dir.isEmpty())
+        return;
+    const QStringList watched = m_watcher.directories() + m_watcher.files();
+    if (!watched.isEmpty())
+        m_watcher.removePaths(watched);
+    // The parent too, so a skins/ made after the start is seen.
+    QStringList wanted{QFileInfo(m_dir).absolutePath(), m_dir};
+    for (const UserSkin &skin : std::as_const(m_skins))
+        wanted << skin.path << skin.path + QStringLiteral("/skin.json");
+    if (!m_drawn.isEmpty()) {
+        const QString folder = m_dir + QLatin1Char('/') + m_drawn;
+        wanted << folder << folder + QStringLiteral("/skin.json");
+    }
+    wanted.removeDuplicates();
+    wanted.removeIf([](const QString &path) { return !QFileInfo::exists(path); });
+    if (!wanted.isEmpty())
+        m_watcher.addPaths(wanted);
+}
+
+void UserSkins::settle()
+{
+    // Compared by what reads, not by the event: a rewrite that reads the same is silent.
+    const QList<UserSkin> skins = list();
+    const bool listed = skins != m_skins;
+    m_skins = skins;
+    bool drawn = false;
+    if (!m_drawn.isEmpty()) {
+        const Skin skin = read(m_drawn);
+        drawn = !(skin == m_drawnSkin);
+        m_drawnSkin = skin;
+    }
+    rewatch();
+    if (drawn)
+        Q_EMIT drawnChanged();
+    if (listed)
+        Q_EMIT changed();
+}
 
 QString UserSkins::nameProblem(const QString &name)
 {
@@ -65,6 +131,8 @@ Skin UserSkins::readFolder(const QString &path, const QString &name)
 QList<UserSkin> UserSkins::list() const
 {
     QList<UserSkin> skins;
+    if (m_dir.isEmpty())
+        return skins;
     const QDir dir(m_dir);
     const auto entries =
         dir.entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot | QDir::Hidden, QDir::NoSort);
@@ -88,7 +156,7 @@ Skin UserSkins::read(const QString &name) const
 {
     if (SkinReader::builtInNames().contains(name))
         return SkinReader::builtIn(name);
-    if (nameProblem(name).isEmpty()) {
+    if (!m_dir.isEmpty() && nameProblem(name).isEmpty()) {
         const QString path = m_dir + QLatin1Char('/') + name;
         if (QFileInfo(path).isDir())
             return readFolder(path, name);

@@ -1,14 +1,20 @@
+#include "integration/Theme.hpp"
+#include "integration/ThemeReader.hpp"
 #include "integration/UserSkins.hpp"
 
 #include <QDir>
 #include <QFile>
+#include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QTest>
 
+#include <cstdio>
 #include <memory>
 
 using omaseed::integration::Skin;
 using omaseed::integration::SkinReader;
+using omaseed::integration::Theme;
+using omaseed::integration::ThemeReader;
 using omaseed::integration::UserSkin;
 using omaseed::integration::UserSkins;
 
@@ -31,7 +37,20 @@ private slots:
     void noSkinJsonIsMissing();
     void aUserFileSkinKeyIsIgnored();
 
+    // The watch (C37 U1): a save repaints, live.
+    void aSaveRepaints();
+    void aRenameOverSaveRepaints();
+    void aBrokenSaveDrawsOmarchyThenBack();
+    void savedTwiceDrawsTheSecond();
+    void aRewriteThatReadsTheSameIsSilent();
+    void aNewFolderIsListed();
+
 private:
+    /// A reader on the temporary folder, its skins folder m_dir, drawing `choice`.
+    std::unique_ptr<ThemeReader> reader(const QString &choice) const;
+    /// Writes `json` to skins/<name>/skin.json.new, then renames it over skin.json, as an
+    /// editor saves.
+    void saveByRename(const QString &name, const QByteArray &json);
     /// Makes `skins/<name>/skin.json` with `json` (no file when `json` is null).
     void put(const QString &name, const QByteArray &json);
     QStringList names() const;
@@ -208,6 +227,124 @@ void TestUserSkins::aUserFileSkinKeyIsIgnored()
     QCOMPARE(skin.name, QStringLiteral("warm"));
     QVERIFY(skin.dropped.isEmpty());
     QCOMPARE(UserSkins(m_dir).list().first().skin.name, QStringLiteral("warm"));
+}
+
+std::unique_ptr<ThemeReader> TestUserSkins::reader(const QString &choice) const
+{
+    const ThemeReader::Paths paths{m_tmp->filePath(QStringLiteral("state/omarchy/current")),
+                                   m_tmp->filePath(QStringLiteral("config/omarchy")),
+                                   m_dir};
+    auto reader = std::make_unique<ThemeReader>(paths);
+    reader->setSkinChoice(choice);
+    return reader;
+}
+
+void TestUserSkins::saveByRename(const QString &name, const QByteArray &json)
+{
+    const QString file = m_dir + QLatin1Char('/') + name + QStringLiteral("/skin.json");
+    QFile temporary(file + QStringLiteral(".new"));
+    QVERIFY(temporary.open(QIODevice::WriteOnly));
+    temporary.write(json);
+    temporary.close();
+    // std::rename replaces the target, as an editor's save does; QFile::rename refuses to.
+    QCOMPARE(std::rename(qPrintable(temporary.fileName()), qPrintable(file)), 0);
+}
+
+// No Hyprland: an empty hyprctl starts nothing (main.cpp's runThemeRoles does the same).
+#define THEME(reader) Theme theme((reader).get(), Theme::Hyprland{QString(), QString()})
+
+/// A save written in place reaches Theme's skin, with no restart.
+void TestUserSkins::aSaveRepaints()
+{
+    put(QStringLiteral("warm"), R"({"version": 1, "description": "Warm."})");
+    const auto watching = reader(QStringLiteral("warm"));
+    THEME(watching);
+    QCOMPARE(theme.skin()->name(), QStringLiteral("warm"));
+    QCOMPARE(theme.skin()->description(), QStringLiteral("Warm."));
+    QSignalSpy changed(&theme, &Theme::changed);
+    put(QStringLiteral("warm"), R"({"version": 1, "description": "Warmer.", "radius": 6})");
+    QTRY_COMPARE(theme.skin()->description(), QStringLiteral("Warmer."));
+    QCOMPARE(theme.cornerRadius(), 6);
+    QVERIFY(changed.count() >= 1);
+}
+
+/// Editors save by rename, which a watch on the file alone would lose: still repaints, and
+/// keeps repainting after it.
+void TestUserSkins::aRenameOverSaveRepaints()
+{
+    put(QStringLiteral("warm"), R"({"version": 1, "description": "One."})");
+    const auto watching = reader(QStringLiteral("warm"));
+    THEME(watching);
+    saveByRename(QStringLiteral("warm"), R"({"version": 1, "description": "Two."})");
+    QTRY_COMPARE(theme.skin()->description(), QStringLiteral("Two."));
+    put(QStringLiteral("warm"), R"({"version": 1, "description": "Three."})");
+    QTRY_COMPARE(theme.skin()->description(), QStringLiteral("Three."));
+}
+
+/// C37 U1: a save that breaks the file draws Omarchy's, with why; the next good one draws the
+/// skin again (no "last good").
+void TestUserSkins::aBrokenSaveDrawsOmarchyThenBack()
+{
+    put(QStringLiteral("warm"), R"({"version": 1, "radius": 5})");
+    const auto watching = reader(QStringLiteral("warm"));
+    THEME(watching);
+    QCOMPARE(theme.skin()->name(), QStringLiteral("warm"));
+    saveByRename(QStringLiteral("warm"), "{ \"version\": 1, ");
+    QTRY_COMPARE(theme.skin()->reason(), QStringLiteral("unparseable"));
+    QCOMPARE(theme.skin()->name(), QStringLiteral("omarchy"));
+    QCOMPARE(theme.skin()->requested(), QStringLiteral("warm"));
+    saveByRename(QStringLiteral("warm"), R"({"version": 1, "radius": 5})");
+    QTRY_COMPARE(theme.skin()->name(), QStringLiteral("warm"));
+    QVERIFY(theme.skin()->reason().isEmpty());
+    QCOMPARE(theme.cornerRadius(), 5);
+}
+
+/// Two saves inside the debounce settle on the second.
+void TestUserSkins::savedTwiceDrawsTheSecond()
+{
+    put(QStringLiteral("warm"), R"({"version": 1, "description": "First."})");
+    const auto watching = reader(QStringLiteral("warm"));
+    THEME(watching);
+    QSignalSpy skinChanged(watching.get(), &ThemeReader::skinChanged);
+    put(QStringLiteral("warm"), R"({"version": 1, "description": "Second."})");
+    put(QStringLiteral("warm"), R"({"version": 1, "description": "Third."})");
+    QTRY_COMPARE(theme.skin()->description(), QStringLiteral("Third."));
+    QCOMPARE(skinChanged.count(), 1);
+}
+
+/// Compared by what reads: the same tokens written again, spaced otherwise, are silent.
+void TestUserSkins::aRewriteThatReadsTheSameIsSilent()
+{
+    put(QStringLiteral("warm"), R"({"version": 1, "radius": 5})");
+    const auto watching = reader(QStringLiteral("warm"));
+    THEME(watching);
+    QSignalSpy skinChanged(watching.get(), &ThemeReader::skinChanged);
+    QSignalSpy listed(watching->userSkins(), &UserSkins::changed);
+    QSignalSpy changed(&theme, &Theme::changed);
+    saveByRename(QStringLiteral("warm"), "{\n  \"radius\": 5,\n  \"version\": 1\n}\n");
+    QTest::qWait(3 * UserSkins::kDebounceMs);
+    QCOMPARE(skinChanged.count(), 0);
+    QCOMPARE(listed.count(), 0);
+    QCOMPARE(changed.count(), 0);
+}
+
+/// A folder made while omaseed runs joins the list; skins/ itself may come later too.
+void TestUserSkins::aNewFolderIsListed()
+{
+    QVERIFY(QDir(m_dir).removeRecursively());
+    const auto watching = reader(QStringLiteral("omarchy"));
+    UserSkins *folder = watching->userSkins();
+    QVERIFY(folder);
+    QVERIFY(folder->skins().isEmpty());
+    QSignalSpy listed(folder, &UserSkins::changed);
+    put(QStringLiteral("warm"), R"({"version": 1})");
+    QTRY_COMPARE(folder->skins().size(), 1);
+    QCOMPARE(folder->skins().first().name, QStringLiteral("warm"));
+    put(QStringLiteral("paper"), R"({"version": 1, "description": "Paper."})");
+    QTRY_COMPARE(folder->skins().size(), 2);
+    QCOMPARE(folder->skins().first().name, QStringLiteral("paper"));
+    QCOMPARE(folder->skins().first().description, QStringLiteral("Paper."));
+    QVERIFY(listed.count() >= 2);
 }
 
 QTEST_MAIN(TestUserSkins)

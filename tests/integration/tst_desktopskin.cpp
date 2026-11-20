@@ -201,7 +201,8 @@ void TestDesktopSkin::choiceReadsAsOmarchyUnlessKnown()
     reader.setSkinChoice(QStringLiteral("console"));
     QCOMPARE(reader.skinChoice(), QStringLiteral("console"));
     QCOMPARE(reader.skinName(), QStringLiteral("console"));
-    reader.setSkinChoice(QStringLiteral("neon"));
+    // A name a user skin could have is kept (DECISIONS C37 U1); one no skin can have isn't.
+    reader.setSkinChoice(QStringLiteral("neon skin"));
     QCOMPARE(reader.skinChoice(), QStringLiteral("omarchy"));
     QCOMPARE(reader.skinName(), QStringLiteral("omarchy"));
 }

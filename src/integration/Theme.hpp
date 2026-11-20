@@ -382,6 +382,8 @@ private:
     /// Draw the skin the reader resolves (Settings' choice, or the desktop's), with its
     /// `fx.fonts = system` (#171 step 2).
     void followSkin();
+    /// `name`'s skin, through the reader when there is one (user skins), else a built-in.
+    Skin readSkin(const QString &name) const;
     void readCornerRadius();
     void askHyprland(const QString &option, std::function<void(const QByteArray &)> done);
     void applyCorners(const WindowCorners &corners);

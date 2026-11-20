@@ -1013,9 +1013,20 @@ QStringList ThemeSkin::missingFonts() const
     return SkinReader::missingFonts(m_skin, QFontDatabase::families());
 }
 
+QVariantList ThemeSkin::drops() const
+{
+    QVariantList drops;
+    for (const SkinDrop &drop : m_skin.drops)
+        drops << QVariantMap{{QStringLiteral("token"), drop.token},
+                             {QStringLiteral("value"), drop.value.toVariant()},
+                             {QStringLiteral("why"), drop.why}};
+    return drops;
+}
+
 QStringList ThemeSkin::missingFontsOf(const QString &name) const
 {
-    return SkinReader::missingFonts(SkinReader::builtIn(name), QFontDatabase::families());
+    const Skin skin = m_read ? m_read(name) : SkinReader::builtIn(name);
+    return SkinReader::missingFonts(skin, QFontDatabase::families());
 }
 
 void ThemeSkin::setSystemFonts(bool system)

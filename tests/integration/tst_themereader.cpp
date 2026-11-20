@@ -125,7 +125,14 @@ private slots:
     void textColoursUnderTheFloorAreLifted();
     void textColoursAtTheFloorAreUntouched();
 
+    // DECISIONS C37 U1: a user skin is a choice like the built-ins.
+    void aUserChoiceIsKept();
+    void aGoneUserSkinDrawsOmarchyAndKeepsTheChoice();
+    void pinnedUserSkin();
+
 private:
+    QString skinsDir() const { return m_dir.path() + QStringLiteral("/config/omaseed/skins"); }
+    void putSkin(const QString &name, const QString &json) const;
     ThemeReader::Paths paths() const;
     QString stateDir() const { return m_dir.path() + QStringLiteral("/state/omarchy/current"); }
     QString configDir() const { return m_dir.path() + QStringLiteral("/config/omarchy"); }
@@ -140,7 +147,13 @@ ThemeReader::Paths TestThemeReader::paths() const
     ThemeReader::Paths p;
     p.stateCurrentDir = stateDir();
     p.configOmarchyDir = configDir();
+    p.skinsDir = skinsDir();
     return p;
+}
+
+void TestThemeReader::putSkin(const QString &name, const QString &json) const
+{
+    writeFile(skinsDir() + QLatin1Char('/') + name + QStringLiteral("/skin.json"), json);
 }
 
 void TestThemeReader::writeFile(const QString &path, const QString &text) const
@@ -170,6 +183,7 @@ void TestThemeReader::init()
     QVERIFY(m_dir.isValid());
     QDir(m_dir.path() + QStringLiteral("/state")).removeRecursively();
     QDir(m_dir.path() + QStringLiteral("/config")).removeRecursively();
+    qunsetenv("OMASEED_SKIN");
     QDir().mkpath(stateDir());
     QDir().mkpath(configDir());
 }
@@ -477,6 +491,73 @@ void TestThemeReader::textColoursAtTheFloorAreUntouched()
     }
     for (const auto &[state, base] : kStateRoles)
         QCOMPARE(role(theme, state).rgba(), role(theme, base).rgba());
+}
+
+/// Any name UserSkins' rule takes is kept as the choice and drawn from its folder; a name
+/// that fails the rule is the default.
+void TestThemeReader::aUserChoiceIsKept()
+{
+    putSkin(QStringLiteral("warm"), QStringLiteral(R"({"version": 1, "radius": 7})"));
+    ThemeReader reader(paths());
+    Theme theme(&reader, Theme::Hyprland{QString(), QString()});
+    QSignalSpy skinChanged(&reader, &ThemeReader::skinChanged);
+    reader.setSkinChoice(QStringLiteral("warm"));
+    QCOMPARE(reader.skinChoice(), QStringLiteral("warm"));
+    QCOMPARE(reader.skinName(), QStringLiteral("warm"));
+    QCOMPARE(skinChanged.count(), 1);
+    QCOMPARE(theme.skin()->name(), QStringLiteral("warm"));
+    QCOMPARE(theme.cornerRadius(), 7);
+    QVERIFY(reader.readSkin(QStringLiteral("warm")).drawn());
+
+    for (const char *refused : {"my skin", ".hidden", "Console", "x."}) {
+        reader.setSkinChoice(QLatin1String(refused));
+        QCOMPARE(reader.skinChoice(), QStringLiteral("omarchy"));
+    }
+    QCOMPARE(theme.skin()->name(), QStringLiteral("omarchy"));
+}
+
+/// A chosen skin whose folder goes draws Omarchy's, names why, and keeps the choice, so the
+/// folder coming back draws it again (live).
+void TestThemeReader::aGoneUserSkinDrawsOmarchyAndKeepsTheChoice()
+{
+    putSkin(QStringLiteral("warm"), QStringLiteral(R"({"version": 1, "radius": 7})"));
+    ThemeReader reader(paths());
+    Theme theme(&reader, Theme::Hyprland{QString(), QString()});
+    reader.setSkinChoice(QStringLiteral("warm"));
+    QCOMPARE(theme.skin()->name(), QStringLiteral("warm"));
+
+    QVERIFY(QDir(skinsDir() + QStringLiteral("/warm")).removeRecursively());
+    QTRY_COMPARE(theme.skin()->reason(), QStringLiteral("missing"));
+    QCOMPARE(theme.skin()->name(), QStringLiteral("omarchy"));
+    QCOMPARE(theme.skin()->requested(), QStringLiteral("warm"));
+    QCOMPARE(reader.skinChoice(), QStringLiteral("warm"));
+
+    putSkin(QStringLiteral("warm"), QStringLiteral(R"({"version": 1, "radius": 7})"));
+    QTRY_COMPARE(theme.skin()->name(), QStringLiteral("warm"));
+    QCOMPARE(theme.cornerRadius(), 7);
+
+    // A choice never made before, with no folder, starts as Omarchy's the same way.
+    ThemeReader later(paths());
+    later.setSkinChoice(QStringLiteral("paper"));
+    QCOMPARE(later.skinChoice(), QStringLiteral("paper"));
+    QCOMPARE(later.readSkin(QStringLiteral("paper")).reason, QStringLiteral("missing"));
+}
+
+/// OMASEED_SKIN takes a user skin's name as it takes a built-in's, over the choice.
+void TestThemeReader::pinnedUserSkin()
+{
+    putSkin(QStringLiteral("warm.v2"), QStringLiteral(R"({"version": 1, "radius": 3})"));
+    qputenv("OMASEED_SKIN", "warm.v2");
+    ThemeReader reader(paths());
+    Theme theme(&reader, Theme::Hyprland{QString(), QString()});
+    reader.setSkinChoice(QStringLiteral("console"));
+    QCOMPARE(reader.skinName(), QStringLiteral("warm.v2"));
+    QCOMPARE(theme.skin()->name(), QStringLiteral("warm.v2"));
+    QCOMPARE(theme.cornerRadius(), 3);
+    // Pinned, a save still repaints.
+    putSkin(QStringLiteral("warm.v2"), QStringLiteral(R"({"version": 1, "radius": 4})"));
+    QTRY_COMPARE(theme.cornerRadius(), 4);
+    qunsetenv("OMASEED_SKIN");
 }
 
 QTEST_MAIN(TestThemeReader)

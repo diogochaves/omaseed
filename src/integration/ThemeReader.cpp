@@ -2,6 +2,8 @@
 
 #include "integration/AppIdentity.hpp"
 #include "integration/DesktopSkin.hpp"
+#include "integration/SkinReader.hpp"
+#include "integration/UserSkins.hpp"
 
 #include <QCryptographicHash>
 #include <QDBusAbstractAdaptor>
@@ -122,6 +124,7 @@ ThemeReader::Paths ThemeReader::Paths::fromEnvironment()
     const QString config = QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation);
     paths.stateCurrentDir = state + QStringLiteral("/omarchy/current");
     paths.configOmarchyDir = config + QStringLiteral("/omarchy");
+    paths.skinsDir = config + QStringLiteral("/omaseed/skins");
     return paths;
 }
 
@@ -142,15 +145,43 @@ ThemeReader::ThemeReader(Paths paths, QObject *parent)
     connect(&m_debounce, &QTimer::timeout, this, &ThemeReader::reload);
     connectWatcher();
     reload();
+    if (!m_paths.skinsDir.isEmpty()) {
+        m_userSkins = new UserSkins(m_paths.skinsDir, this);
+        // C37 U1: a save to the drawn skin repaints as a theme change does.
+        connect(m_userSkins, &UserSkins::drawnChanged, this, &ThemeReader::skinChanged);
+    }
     // What a walk reads to know which skin is drawn (scripts/dev/settings-walk.sh).
-    connect(this, &ThemeReader::skinChanged, this, [this]() {
-        qCInfo(lcTheme).noquote() << QStringLiteral("skin: %1 (choice %2, fonts %3)")
-                                         .arg(skinName(),
-                                              skinChoiceInForce(),
-                                              skinSystemFonts() ? QStringLiteral("system")
-                                                                : QStringLiteral("the skin's"));
-    });
+    connect(this, &ThemeReader::skinChanged, this, &ThemeReader::logSkin);
     followDesktopSkin();
+    if (m_userSkins)
+        m_userSkins->setDrawn(skinName());
+    // A user skin chosen or pinned is named at the start too, so a walk sees it drawn (or
+    // why not); the built-ins log only when they move, as before.
+    if (m_userSkins && !m_userSkins->drawn().isEmpty())
+        logSkin();
+}
+
+void ThemeReader::logSkin() const
+{
+    const Skin skin = readSkin(skinName());
+    QString line =
+        QStringLiteral("skin: %1 (choice %2, fonts %3)")
+            .arg(skinName(),
+                 skinChoiceInForce(),
+                 skinSystemFonts() ? QStringLiteral("system") : QStringLiteral("the skin's"));
+    if (!skin.drawn())
+        line += QStringLiteral(" · not drawn: %1").arg(skin.reason);
+    else if (!skin.drops.isEmpty())
+        line += QStringLiteral(" · dropped %1").arg(skin.drops.size());
+    qCInfo(lcTheme).noquote() << line;
+}
+
+Skin ThemeReader::readSkin(const QString &name) const
+{
+    if (SkinReader::builtInNames().contains(name) || !m_userSkins ||
+        !UserSkins::nameProblem(name).isEmpty())
+        return SkinReader::builtIn(name);
+    return m_userSkins->read(name);
 }
 
 void ThemeReader::connectWatcher()
@@ -208,15 +239,19 @@ void ThemeReader::setBaseSizeOverride(int pixels)
 
 void ThemeReader::setSkinChoice(const QString &choice)
 {
-    const QString wanted = choice == QLatin1String("console") || choice == QLatin1String("desktop")
-                               ? choice
-                               : QStringLiteral("omarchy");
+    // C37 U1: a user skin's name is kept even while its folder is gone.
+    const bool kept = SkinReader::builtInNames().contains(choice) ||
+                      choice == QLatin1String("desktop") ||
+                      UserSkins::nameProblem(choice).isEmpty();
+    const QString wanted = kept ? choice : QStringLiteral("omarchy");
     if (m_skinChoice == wanted)
         return;
     const QString name = skinName();
     const bool systemFonts = skinSystemFonts();
     m_skinChoice = wanted;
     followDesktopSkin();
+    if (m_userSkins)
+        m_userSkins->setDrawn(skinName());
     if (skinName() != name || skinSystemFonts() != systemFonts)
         Q_EMIT skinChanged();
 }

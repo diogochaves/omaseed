@@ -9,6 +9,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QMetaProperty>
+#include <QPointer>
 #include <QProcess>
 
 #include <algorithm>
@@ -165,9 +166,14 @@ Theme::Theme(ThemeReader *reader, const Hyprland &hyprland, QObject *parent)
     , m_skin(new ThemeSkin(this))
 {
     const QString skin = m_reader ? m_reader->skinName() : SkinReader::requestedName();
-    m_skin->set(SkinReader::builtIn(skin), skin);
-    if (m_reader)
+    m_skin->set(readSkin(skin), skin);
+    if (m_reader) {
         m_skin->setSystemFonts(m_reader->skinSystemFonts());
+        // Appearance names a skin's missing fonts before it is picked, a user skin's too.
+        m_skin->setReader([reader = QPointer<ThemeReader>(m_reader)](const QString &name) {
+            return reader ? reader->readSkin(name) : SkinReader::builtIn(name);
+        });
+    }
     resolveGrounds(); // the bundled palette's, until a reader gives one
     if (m_reader) {
         connect(m_reader, &ThemeReader::changed, this, &Theme::adopt);
@@ -317,7 +323,7 @@ void Theme::setSkin(const QString &name)
 {
     const Skin before = m_skin->skin();
     const int radiusBefore = cornerRadius();
-    m_skin->set(SkinReader::builtIn(name), name);
+    m_skin->set(readSkin(name), name);
     if (m_skin->skin() == before)
         return;
     resolveGrounds();
@@ -333,6 +339,12 @@ int Theme::cornerRadius() const
     if (radius.typeId() == QMetaType::Int)
         return radius.toInt();
     return m_cornerRadius;
+}
+
+Skin Theme::readSkin(const QString &name) const
+{
+    // Through the reader, which knows the person's skins folder (DECISIONS C37 U1).
+    return m_reader ? m_reader->readSkin(name) : SkinReader::builtIn(name);
 }
 
 void Theme::followSkin()
