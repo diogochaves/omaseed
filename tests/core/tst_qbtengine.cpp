@@ -53,6 +53,8 @@ private slots:
     void shareLimitActionIsLeftOutWhenAbsent();
     void addOptionsBecomeTheForm();
     void addAnswers();
+    void addSendsUseDownloadPathFalse();
+    void addSendsNothingWhenOn();
     void startAndStopAll();
     void syncIsADelta();
     void filesTorrentsAndTagsComeBackTyped();
@@ -195,6 +197,48 @@ void TestQbtEngine::addOptionsBecomeTheForm()
         !await(this, engine.addUrls({QStringLiteral("magnet:?xt=urn:btih:def")}, {})).isError());
     const QUrlQuery bare = form(server.requests.at(1));
     QCOMPARE(bare.queryItems().size(), 1);
+}
+
+// #271 (1), DECISIONS C47 I9: the switch off is useDownloadPath=false, straight to Save to
+// whatever the session's temp folder says.
+void TestQbtEngine::addSendsUseDownloadPathFalse()
+{
+    FakeServer server;
+    server.setHandler([](const Recorded &, int) { return httpResponse(200, "OK", "{}"); });
+    QbtEngine engine;
+    engine.setBaseUrl(server.url());
+    AddOptions options;
+    options.savePath = QStringLiteral("/data/x");
+    options.useDownloadPath = false;
+    QVERIFY(!await(this, engine.addUrls({QStringLiteral("magnet:?xt=urn:btih:abc")}, options))
+                 .isError());
+    const QUrlQuery sent = form(server.requests.at(0));
+    QCOMPARE(sent.queryItemValue(QStringLiteral("useDownloadPath")), QStringLiteral("false"));
+    QVERIFY(!sent.hasQueryItem(QStringLiteral("downloadPath")));
+
+    // A folder of its own goes with the switch on.
+    options.useDownloadPath = true;
+    options.downloadPath = QStringLiteral("/fast/temp");
+    QVERIFY(!await(this, engine.addUrls({QStringLiteral("magnet:?xt=urn:btih:abc")}, options))
+                 .isError());
+    QCOMPARE(field(server.requests.at(1), "useDownloadPath"), QStringLiteral("true"));
+    QCOMPARE(field(server.requests.at(1), "downloadPath"), QStringLiteral("/fast/temp"));
+}
+
+// #271 (1): no field is the session's temp_path (or the category's, under autoTMM).
+void TestQbtEngine::addSendsNothingWhenOn()
+{
+    FakeServer server;
+    server.setHandler([](const Recorded &, int) { return httpResponse(200, "OK", "{}"); });
+    QbtEngine engine;
+    engine.setBaseUrl(server.url());
+    AddOptions options;
+    options.savePath = QStringLiteral("/data/x");
+    QVERIFY(!await(this, engine.addUrls({QStringLiteral("magnet:?xt=urn:btih:abc")}, options))
+                 .isError());
+    const QUrlQuery sent = form(server.requests.at(0));
+    QVERIFY(!sent.hasQueryItem(QStringLiteral("useDownloadPath")));
+    QVERIFY(!sent.hasQueryItem(QStringLiteral("downloadPath")));
 }
 
 void TestQbtEngine::addAnswers()

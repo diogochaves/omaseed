@@ -237,6 +237,8 @@ App::App(QObject *parent)
         m_engine->globalState(), &GlobalState::freeSpaceOnDiskChanged, this, &App::updateFreeSpace);
     connect(m_prefs, &ServerPreferences::valuesChanged, this, &App::updateFreeSpace);
     connect(this, &App::serverChanged, this, &App::updateFreeSpace);
+    // C47 I10: the add's lines take what downloads in progress still promise from free.
+    connect(m_engine->torrents(), &TorrentModel::updated, this, &App::followPromisedRoom);
     connect(this, &App::serverChanged, this, [this]() {
         // The demo's presets are its own, in its state (they write nothing to a server).
         m_altPresets->setServer(!m_hasServer ? QString()
@@ -2448,6 +2450,8 @@ AddOptions App::addOptionsFrom(const QVariantMap &request) const
         request.value(QStringLiteral("kind")).toString() == QLatin1String("url"))
         options.downloader = downloader;
 
+    // DECISIONS C47 I9: past the server's temp folder, or (Deluge) through it to Save to.
+    applyTempFolder(options, request);
     return options;
 }
 
@@ -5849,6 +5853,7 @@ QVariantMap App::featuresMap() const
         {QStringLiteral("addOptions"), f.addOptions},
         {QStringLiteral("v2Only"), f.v2Only},
         {QStringLiteral("addContentLayout"), f.addContentLayout},
+        {QStringLiteral("tempFolderPerAdd"), f.tempFolderPerAdd},
         {QStringLiteral("peerControl"), f.peerControl},
         {QStringLiteral("peerBan"), f.peerBan},
         {QStringLiteral("webSeeds"), f.webSeeds},

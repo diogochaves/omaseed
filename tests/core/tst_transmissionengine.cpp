@@ -93,6 +93,7 @@ private Q_SLOTS:
     void trackersAreEditedWhole();
     void sequentialIsReadThenSet();
     void addSendsTorrentAddThenLimits();
+    void addNeverSendsATempFolder();
     void whatTransmissionLacksIsNotSupported();
     void thePortIsTestedByTransmission();
 
@@ -881,6 +882,25 @@ void TestTransmissionEngine::sequentialIsReadThenSet()
         QJsonObject({{"ids", QJsonArray{kPack, kError, kMagnet}}, {"sequential_download", true}}));
     QCOMPARE(m_daemon->calls.at(2).params,
              QJsonObject({{"ids", QJsonArray{kSingle}}, {"sequential_download", false}}));
+}
+
+// #271 (5), DECISIONS C47 I9: torrent_add ignores an incomplete_dir, so the add never sends one,
+// whatever it is asked.
+void TestTransmissionEngine::addNeverSendsATempFolder()
+{
+    m_daemon->answer = [](const QString &m, const QJsonObject &) -> QJsonObject {
+        if (m != QLatin1String("torrent_add"))
+            return {};
+        return fixture("torrent_add.json").value(QStringLiteral("result")).toObject();
+    };
+    AddOptions options;
+    options.savePath = QStringLiteral("/srv/films");
+    options.useDownloadPath = false;
+    options.downloadPath = QStringLiteral("/srv/incomplete");
+    const QString magnet = QStringLiteral("magnet:?xt=urn:btih:") + kPack;
+    QVERIFY(wait(m_engine->addUrls({magnet}, options)).isValid());
+    QCOMPARE(m_daemon->calls.at(0).params,
+             QJsonObject({{"filename", magnet}, {"download_dir", "/srv/films"}}));
 }
 
 void TestTransmissionEngine::addSendsTorrentAddThenLimits()

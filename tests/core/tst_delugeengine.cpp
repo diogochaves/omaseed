@@ -106,6 +106,8 @@ private Q_SLOTS:
     void peersAreAddedNeverBanned();
     void addSendsOptionsThenTheLabel();
     void addSaysWhenEverythingWasThereAlready();
+    void addOffIsDownloadLocationAndNoMoveCompleted();
+    void addOnMovesCompletedToSaveTo();
     void removeTakesTorrentsAlreadyGone();
     void whatDelugeLacksIsNotSupported();
 
@@ -1138,6 +1140,55 @@ void TestDelugeEngine::addSendsOptionsThenTheLabel()
     QCOMPARE(wait(m_engine->addFile(QStringLiteral("x"), QByteArray("x"), options)).error().kind(),
              ApiError::Kind::Conflict);
     QVERIFY(m_web->calls.isEmpty());
+}
+
+// #271 (4), DECISIONS C47 I9: straight to Save to is download_location = Save to with
+// move_completed off for this torrent, whatever the session's says.
+void TestDelugeEngine::addOffIsDownloadLocationAndNoMoveCompleted()
+{
+    signIn();
+    m_web->answer = [this](const QString &method, const QJsonArray &params) -> QJsonValue {
+        if (method == QLatin1String("core.add_torrent_file"))
+            return result("core_add_torrent_file.json");
+        return m_daemon->answer(method, params);
+    };
+    AddOptions options;
+    options.savePath = QStringLiteral("/srv/films");
+    options.useDownloadPath = false;
+    options.downloadPath = QStringLiteral("/srv/ignored");
+    QVERIFY(
+        wait(m_engine->addFile(QStringLiteral("p.torrent"), QByteArray("x"), options)).isValid());
+    QCOMPARE(m_web->calls.at(0).params.at(2).toObject(),
+             QJsonObject({{"download_location", "/srv/films"}, {"move_completed", false}}));
+}
+
+// #271 (4), #277: through the temp folder is download_location = the temp folder, and Save to
+// is where it ends: move_completed_path. Save to alone stays download_location, as before.
+void TestDelugeEngine::addOnMovesCompletedToSaveTo()
+{
+    signIn();
+    m_web->answer = [this](const QString &method, const QJsonArray &params) -> QJsonValue {
+        if (method == QLatin1String("core.add_torrent_file"))
+            return result("core_add_torrent_file.json");
+        return m_daemon->answer(method, params);
+    };
+    AddOptions options;
+    options.savePath = QStringLiteral("/srv/films");
+    options.useDownloadPath = true;
+    options.downloadPath = QStringLiteral("/srv/deluge/downloads");
+    QVERIFY(
+        wait(m_engine->addFile(QStringLiteral("p.torrent"), QByteArray("x"), options)).isValid());
+    QCOMPARE(m_web->calls.at(0).params.at(2).toObject(),
+             QJsonObject({{"download_location", "/srv/deluge/downloads"},
+                          {"move_completed", true},
+                          {"move_completed_path", "/srv/films"}}));
+
+    m_web->calls.clear();
+    AddOptions plain;
+    plain.savePath = QStringLiteral("/srv/films");
+    QVERIFY(wait(m_engine->addFile(QStringLiteral("p.torrent"), QByteArray("x"), plain)).isValid());
+    QCOMPARE(m_web->calls.at(0).params.at(2).toObject(),
+             QJsonObject({{"download_location", "/srv/films"}}));
 }
 
 void TestDelugeEngine::addSaysWhenEverythingWasThereAlready()

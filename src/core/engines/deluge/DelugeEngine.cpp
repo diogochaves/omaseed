@@ -1425,8 +1425,25 @@ Reply<AddResult> *DelugeEngine::add(const QList<QPair<QString, QJsonArray>> &cal
     // Deluge's add options (core.add_torrent_*); no content layout (K27), no tags, and the
     // label is set right after (engine matrix §4.9).
     QJsonObject common;
-    if (options.savePath && !options.savePath->isEmpty())
+    const bool toSaveTo = options.savePath && !options.savePath->isEmpty();
+    // #271 (4), DECISIONS C47 I9: Deluge downloads to download_location and, with
+    // move_completed on, ends in move_completed_path, so its temp folder is the other way round
+    // from qBittorrent's. Through one: the temp folder first, Save to at the end (sending Save
+    // to as download_location alone would end in the session's move_completed_path, #277).
+    // Straight: Save to with move_completed off for this torrent.
+    const bool throughTemp = options.useDownloadPath.value_or(options.downloadPath.has_value());
+    if (options.useDownloadPath && !*options.useDownloadPath) {
+        if (toSaveTo)
+            common.insert(QStringLiteral("download_location"), *options.savePath);
+        common.insert(QStringLiteral("move_completed"), false);
+    } else if (throughTemp && options.downloadPath && !options.downloadPath->isEmpty()) {
+        common.insert(QStringLiteral("download_location"), *options.downloadPath);
+        common.insert(QStringLiteral("move_completed"), true);
+        if (toSaveTo)
+            common.insert(QStringLiteral("move_completed_path"), *options.savePath);
+    } else if (toSaveTo) {
         common.insert(QStringLiteral("download_location"), *options.savePath);
+    }
     if (options.stopped)
         common.insert(QStringLiteral("add_paused"), *options.stopped);
     if (options.skipChecking)

@@ -1043,6 +1043,7 @@ EngineFeatures features(const ServerInfo &, bool labelPlugin)
     f.fetchMetadata = true;      // G, K26 (checked, §3 and research/87): by repeated calls
     f.addOptions = true;         // G, K27: name and skip check at add
     f.addContentLayout = false;  // G, K27: no layout
+    f.tempFolderPerAdd = true;   // #271 (4), C47 I9: download_location, move_completed
     f.v2Only = false;            // G, K25: magnets need btih
     f.renameOnDisk = false;      // G, K28: the name shown only
     f.moveProgress = true;       // E, K21: its own % while Moving

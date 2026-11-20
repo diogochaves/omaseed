@@ -45,6 +45,11 @@ struct EngineFeatures
     /// The add's content layout (original, a subfolder, none); Deluge takes the add's other
     /// options but not this one (board 47 G, C25 K27).
     bool addContentLayout = false;
+    /// The add can send one torrent straight to Save to, past the server's temp folder, or
+    /// through one of its own: qBittorrent's `useDownloadPath`/`downloadPath`, Deluge's
+    /// `download_location`/`move_completed` (#271 (1), (4); DECISIONS C47 I9). Transmission's
+    /// incomplete folder is session-wide: its `torrent_add` ignores one (#271 (5)).
+    bool tempFolderPerAdd = false;
     bool peerControl = false; ///< add a peer to a torrent
     bool peerBan = false;     ///< ban a peer from every torrent (none on Deluge, board 47 H)
     /// The torrent's HTTP sources are reported (the web seeds' tab); Deluge has none (board 47

@@ -1356,6 +1356,27 @@ public:
     Q_INVOKABLE QVariantMap freeSpaceFor(const QString &savePath) const;
     int freeSpaceRevision() const { return m_freeSpaceRevision; }
 
+    /// DECISIONS C47 I8–I12 (on #271's facts): the room of one add through the server's temp
+    /// folder, for the add sheet's two lines. Read again on `freeSpaceRevision`, which also
+    /// moves when the downloads in progress change what they still take (I10).
+    ///   hasTemp        the add goes through a temp folder (the server's, or the category's
+    ///                  under autoTMM, I12)
+    ///   switchable     the add can skip it (EngineFeatures::tempFolderPerAdd, I9)
+    ///   useTemp        it does (`useTemp`, or always when not switchable)
+    ///   tempPath       the temp folder ("" without one); savePath where it ends (Save to, or
+    ///                  the server's default: Deluge's move_completed_path while that is on)
+    ///   tempRule       "session" | "own" | "none": where the first line's folder comes from
+    ///   temp, save     freeSpaceFor's keys for each folder plus `path`, `promised` (bytes the
+    ///                  downloads in progress on that drive still take) and `promisedCount`;
+    ///                  temp's free is only what this machine reads (#271 (3))
+    ///   sameDrive      both read here, on one drive: the move is a rename
+    ///   preallocates   the server takes a torrent's room at once: nothing promised (I10)
+    ///   engine         "qbittorrent" | "transmission" | "deluge"
+    Q_INVOKABLE QVariantMap roomFor(const QString &savePath,
+                                    const QString &category,
+                                    bool autoTMM,
+                                    bool useTemp) const;
+
     /// docs/DECISIONS.md C35: the one entry for an add from outside the window (a hand-off,
     /// this process's own URIs, the shared menu's add, the Status bus's OpenAddSheet). Asks
     /// AddRoute where it opens: `main` emits `addRequested` (no URIs) or, through `openUris`,
@@ -2980,6 +3001,22 @@ private:
     /// hash → the id of the line its last recorded rename landed in (the take-back's seam).
     QHash<QString, int> m_renameLineOf;
     // --- end #236/#248 -------------------------------------------------------------------------
+
+    // --- #275: the room (AppRoom.cpp; DECISIONS C47 I8–I12) ------------------------------------
+public:
+    /// Tests read the disks through `reader` instead of this machine's (FreeSpace's seam).
+    void setStorageReaderForTests(core::StorageReader reader);
+
+private:
+    /// The engine an add goes to: the server's, qBittorrent for the demo.
+    core::EngineKind addEngine() const;
+    /// The add's temp folder into `options` (C47 I9, #271 (1), (4), #277): the request's
+    /// `useTemp` false sends it straight to Save to; Deluge with move_completed on gets its
+    /// three fields so it ends in Save to.
+    void applyTempFolder(core::AddOptions &options, const QVariantMap &request) const;
+    /// Moves `freeSpaceRevision` when the downloads in progress change what they promise.
+    void followPromisedRoom();
+    quint64 m_promisedSignature = 0;
 };
 
 } // namespace omaseed::app

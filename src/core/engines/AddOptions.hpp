@@ -32,6 +32,12 @@ enum class StopCondition {
 struct AddOptions
 {
     std::optional<QString> savePath;
+    /// The server's temp folder for this torrent (DECISIONS C47 I9, #271 (1), (4)): false sends
+    /// it straight to `savePath`; true downloads it first to `downloadPath` (or the server's
+    /// temp folder when that is unset). Unset leaves the server's setting. Engines without
+    /// EngineFeatures::tempFolderPerAdd send neither.
+    std::optional<bool> useDownloadPath;
+    std::optional<QString> downloadPath;
     std::optional<QString> category;
     QStringList tags;
     std::optional<bool> stopped;

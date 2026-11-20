@@ -152,6 +152,13 @@ omaseed_add_test(tst_app_options
     LIBRARIES omaseed::app omaseed::core omaseed::integration Qt6::Network
 )
 
+# #275 (DECISIONS C47 I8–I12, on #271's facts): the room of one add through the temp folder,
+# against a small fake qBittorrent and pretend drives.
+omaseed_add_test(tst_app_room
+    SOURCES tst_app_room.cpp
+    LIBRARIES omaseed::app omaseed::core omaseed::integration Qt6::Network
+)
+
 omaseed_add_test(tst_app_notifications
     SOURCES tst_app_notifications.cpp ../integration/FakeNotificationServer.hpp
     LIBRARIES omaseed::app omaseed::core omaseed::integration Qt6::DBus

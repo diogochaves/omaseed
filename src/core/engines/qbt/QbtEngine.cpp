@@ -85,6 +85,10 @@ QbtClient::AddOptions wireAddOptions(const AddOptions &options, const QString &a
     QbtClient::AddOptions wire;
     wire.apiVersion = apiVersion; // spells skip-checking as seedMode or skip_checking
     wire.savepath = options.savePath;
+    // #271 (1): useDownloadPath=false is straight to Save to whatever the session says;
+    // downloadPath alone also turns the temp folder on (DECISIONS C47 I9).
+    wire.useDownloadPath = options.useDownloadPath;
+    wire.downloadPath = options.downloadPath;
     wire.category = options.category;
     wire.tags = options.tags;
     wire.stopped = options.stopped;

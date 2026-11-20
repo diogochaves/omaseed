@@ -236,6 +236,7 @@ private Q_SLOTS:
     void theLabelPluginOffAndOnIsNoLine();
     void aTorrentKeepsARatioOfItsOwn();
     void anAddTakesDelugesOptions();
+    void anAddEndsInSaveToWithMoveCompletedOn();
     void aMagnetsFilesComeFromThePrefetch();
     void aMoveShowsDelugesOwnPercent();
     void aMoveDelugeNeverMadeHasFailed();
@@ -791,6 +792,73 @@ void TestAppDeluge::anAddTakesDelugesOptions()
     QTRY_VERIFY_WITH_TIMEOUT(daemon.lastOf(QStringLiteral("label.set_torrent")).has_value(), 3000);
     QCOMPARE(daemon.lastOf(QStringLiteral("label.set_torrent"))->params,
              QJsonArray({kMagnet, QStringLiteral("fixtures")}));
+    app.engine()->stop();
+}
+
+// #277, #271 (4), DECISIONS C47 I9: with the server's move_completed on, an add with a Save to
+// downloads to download_location and ends in Save to, not in the session's move_completed_path;
+// the switch off is Save to with move_completed off; no Save to leaves the session's three.
+void TestAppDeluge::anAddEndsInSaveToWithMoveCompletedOn()
+{
+    Daemon daemon;
+    daemon.config = daemon.recorded.answer(QStringLiteral("core.get_config"), {}).toObject();
+    daemon.config.insert(QStringLiteral("move_completed"), true);
+    daemon.config.insert(QStringLiteral("move_completed_path"), QStringLiteral("/srv/deluge/done"));
+    const QString downloads =
+        daemon.config.value(QStringLiteral("download_location")).toString(); // the temp folder
+    App app;
+    QVERIFY(startOn(app, daemon));
+    QTRY_VERIFY_WITH_TIMEOUT(app.serverPrefs()->value(QStringLiteral("move_completed")).toBool(),
+                             3000);
+    QVERIFY(app.features().tempFolderPerAdd);
+    QSignalSpy finished(&app, &App::addFinished);
+    const QVariantMap magnet{
+        {QStringLiteral("kind"), QStringLiteral("magnet")},
+        {QStringLiteral("value"), QStringLiteral("magnet:?xt=urn:btih:%1&dn=new").arg(kMagnet)},
+        {QStringLiteral("infoHashV1"), kMagnet},
+        {QStringLiteral("name"), QStringLiteral("new")}};
+    const auto sent = [&daemon]() {
+        return daemon.lastOf(QStringLiteral("core.add_torrent_magnet"))->params.at(1).toObject();
+    };
+
+    QVariantMap toFilms = magnet;
+    toFilms.insert(QStringLiteral("savePath"), QStringLiteral("/srv/films"));
+    app.addTorrent(toFilms);
+    QTRY_COMPARE_WITH_TIMEOUT(finished.count(), 1, 3000);
+    QCOMPARE(sent().value(QStringLiteral("download_location")).toString(), downloads);
+    QCOMPARE(sent().value(QStringLiteral("move_completed")), QJsonValue(true));
+    QCOMPARE(sent().value(QStringLiteral("move_completed_path")).toString(),
+             QStringLiteral("/srv/films"));
+
+    QVariantMap straight = toFilms;
+    straight.insert(QStringLiteral("useTemp"), false);
+    app.addTorrent(straight);
+    QTRY_COMPARE_WITH_TIMEOUT(finished.count(), 2, 3000);
+    QCOMPARE(sent().value(QStringLiteral("download_location")).toString(),
+             QStringLiteral("/srv/films"));
+    QCOMPARE(sent().value(QStringLiteral("move_completed")), QJsonValue(false));
+    QVERIFY(!sent().contains(QStringLiteral("move_completed_path")));
+
+    // Straight with no Save to: where it would have ended, the session's move_completed_path.
+    QVariantMap straightDefault = magnet;
+    straightDefault.insert(QStringLiteral("useTemp"), false);
+    app.addTorrent(straightDefault);
+    QTRY_COMPARE_WITH_TIMEOUT(finished.count(), 3, 3000);
+    QCOMPARE(sent().value(QStringLiteral("download_location")).toString(),
+             QStringLiteral("/srv/deluge/done"));
+    QCOMPARE(sent().value(QStringLiteral("move_completed")), QJsonValue(false));
+
+    app.addTorrent(magnet);
+    QTRY_COMPARE_WITH_TIMEOUT(finished.count(), 4, 3000);
+    QVERIFY(!sent().contains(QStringLiteral("download_location")));
+    QVERIFY(!sent().contains(QStringLiteral("move_completed")));
+
+    // The room says so: the temp folder is download_location, the end move_completed_path.
+    const QVariantMap room = app.roomFor(QString(), QString(), false, true);
+    QCOMPARE(room.value(QStringLiteral("engine")).toString(), QStringLiteral("deluge"));
+    QVERIFY(room.value(QStringLiteral("switchable")).toBool());
+    QCOMPARE(room.value(QStringLiteral("tempPath")).toString(), downloads);
+    QCOMPARE(room.value(QStringLiteral("savePath")).toString(), QStringLiteral("/srv/deluge/done"));
     app.engine()->stop();
 }
 
