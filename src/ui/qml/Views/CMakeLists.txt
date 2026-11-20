@@ -20,6 +20,8 @@ qt_add_qml_module(omaseed-views
         AddFilesTree.qml
         FileTick.qml
         AddFreeLine.qml
+        AddRoomLine.qml
+        AddRoomLines.qml
         AddMadeLine.qml
         AddMatchLine.qml
         AddMenu.qml

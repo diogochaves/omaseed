@@ -21,9 +21,20 @@
     </message>
 </context>
 <context>
+    <name>AddRoomLine</name>
+    <message numerus="yes">
+        <location filename="../src/ui/qml/Views/AddRoomLine.qml" line="+78"/>
+        <source>%1 of it still coming for %n downloads</source>
+        <translation>
+            <numerusform>%1 of it still coming for %n download</numerusform>
+            <numerusform>%1 of it still coming for %n downloads</numerusform>
+        </translation>
+    </message>
+</context>
+<context>
     <name>AddSheet</name>
     <message numerus="yes">
-        <location filename="../src/ui/qml/Views/AddSheet.qml" line="+126"/>
+        <location filename="../src/ui/qml/Views/AddSheet.qml" line="+135"/>
         <source>%1 can&apos;t add %n of these: they are known only by their v2 hash</source>
         <translation>
             <numerusform>%1 can&apos;t add %n of these: it is known only by its v2 hash</numerusform>
@@ -45,7 +56,7 @@
 <context>
     <name>Details</name>
     <message numerus="yes">
-        <location filename="../src/ui/qml/Views/Details.qml" line="+1725"/>
+        <location filename="../src/ui/qml/Views/Details.qml" line="+1747"/>
         <source>priority of %n selected…</source>
         <translation>
             <numerusform>priority of %n selected…</numerusform>
@@ -61,7 +72,7 @@
         </translation>
     </message>
     <message numerus="yes">
-        <location line="+151"/>
+        <location line="+153"/>
         <source>remove %n trackers</source>
         <translation>
             <numerusform>remove %n tracker</numerusform>
@@ -116,7 +127,7 @@
 <context>
     <name>DetailsFilesTab</name>
     <message numerus="yes">
-        <location filename="../src/ui/qml/Views/DetailsFilesTab.qml" line="+568"/>
+        <location filename="../src/ui/qml/Views/DetailsFilesTab.qml" line="+399"/>
         <source>Sends in %n s.</source>
         <translation>
             <numerusform>Sends in %n s.</numerusform>
@@ -143,7 +154,7 @@
 <context>
     <name>DetailsMoveBlock</name>
     <message numerus="yes">
-        <location filename="../src/ui/qml/Views/DetailsMoveBlock.qml" line="+50"/>
+        <location filename="../src/ui/qml/Views/DetailsMoveBlock.qml" line="+53"/>
         <source>with %n other torrent(s)</source>
         <translation>
             <numerusform>with %n other torrent</numerusform>
@@ -379,7 +390,7 @@
 <context>
     <name>Keymap</name>
     <message numerus="yes">
-        <location filename="../src/ui/qml/Keymap.qml" line="+2693"/>
+        <location filename="../src/ui/qml/Keymap.qml" line="+2697"/>
         <location line="+6"/>
         <source>%n selected</source>
         <translation>
@@ -448,7 +459,7 @@
         </translation>
     </message>
     <message numerus="yes">
-        <location line="+814"/>
+        <location line="+816"/>
         <source>renamed %n files</source>
         <translation>
             <numerusform>renamed %n file</numerusform>
@@ -562,7 +573,7 @@
 <context>
     <name>omaseed::app::App</name>
     <message numerus="yes">
-        <location filename="../src/ui/app/App.cpp" line="+3573"/>
+        <location filename="../src/ui/app/App.cpp" line="+3666"/>
         <location line="+32"/>
         <source>%n torrents</source>
         <translation>
