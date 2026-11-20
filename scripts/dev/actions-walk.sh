@@ -135,12 +135,14 @@ table_on() { menu_on "$1"; keys Escape; }
 # A 2 GiB check in memory lasts about two seconds, too short for polls through omabox run;
 # start it before the key, then wait for it.
 watch_checking() {
+    # No sleep between polls: a recheck from the box's tmpfs is short, and a miss here should
+    # only ever mean qBittorrent never checked (see the Recheck step).
     # shellcheck disable=SC2016 # expanded by the box's sh
     omabox run -b "$BOX" -- sh -c '
 echo polling
-for _ in $(seq 1 300); do
+end=$(($(date +%s) + 10))
+while [ "$(date +%s)" -lt "$end" ]; do
     curl -s "$1/torrents/info?hashes=$2" | grep -q "\"state\":\"checking" && { echo seen; exit 0; }
-    sleep 0.05
 done
 echo missed' sh "$BOX_API" "$1" >"$2" 2>/dev/null &
 }
@@ -228,7 +230,7 @@ expect_read() {
     fi
     for _ in $(seq 1 "$limit"); do
         where="$(omabox tree -b "$BOX" --window omaseed --find "$prefix" 2>/dev/null |
-            sed -nE 's/.*@(-?[0-9]+),(-?[0-9]+) ([0-9]+)x([0-9]+).*/\1,\2 \3x\4/p' | tail -n1)"
+            sed -nE 's/.*@(-?[0-9]+),(-?[0-9]+) ([0-9]+)x([0-9]+).*/\1,\2 \3x\4/p' | tail -n1 || true)"
         if [ -n "$where" ]; then
             omabox shot -b "$BOX" --window omaseed -g "$where" --zoom 2 -o "$OUT_READ" >/dev/null 2>&1 || true
             read="$(tesseract "$OUT_READ" - 2>/dev/null | tr -s '[:space:]' ' ')"
@@ -536,16 +538,21 @@ disk_walk() {
     expect_text "its action is Add it again (F12)" "Add it again…"
     # #189: the tail gives way before the facts, so this pane cuts it after "2 skipped,";
     # the whole sentence is read in facts, the next step.
-    expect_read "the files head says how many are skipped (F17)" "hide skipped files" "2 skipped"
+    # Board 64 (C47 I7): the count is the pane head's, "4 files · 1 folder · 32.0 MB · 2 skipped,
+    # …", capped at half the row beside the chips, so docked it is cut after the size on screen
+    # (the band, the Priority column and the footer say the skipped ones); its accessible name
+    # keeps the whole sentence, which is what this reads.
+    expect_text "the files head says how many are skipped (F17)" "MB · 2 skipped"
     click_text "Why?"
     expect_text "Why? says hybrid" "This torrent is hybrid (v1 and v2)"
-    shot "The band: 2 skipped files hold 16.0 MB, only adding it again frees them, Add it again… F, Why? open on hybrid; the files head 2 skipped, its size cut short (#189)." band
+    shot "The band: 2 skipped files hold 16.0 MB, only adding it again frees them, Add it again… F, Why? open on hybrid; the files head cut after the size, its chip \"4 disc images\" beside it (C47 I7, #189)." band
     click_text "Why?"
 
     step "The size in facts" "5: facts, its Size row: 32.0 MB · 2 skipped, 16.0 MB still on disk (F17)."
     keys 5
-    # Up to "on": tesseract reads the line's last word as "dis k" at this size.
-    expect_read "facts' size says what is still on disk (F17)" "Size" "16.0 MB still on"
+    # Up to "on": tesseract reads the line's last word as "dis k" at this size, and from "MB": it
+    # can read 16.0 as 16.8.
+    expect_read "facts' size says what is still on disk (F17)" "Size" "MB still on"
     shot "Facts: Size 32.0 MB · 2 skipped, 16.0 MB still on disk; Done, Ratio, then Status." facts
     keys 2
 
@@ -1015,6 +1022,15 @@ for _ in $(seq 1 100); do grep -q polling "$seen" && break; sleep 0.1; done
 keys c
 shot "Straight after c. Hashing 2 GiB in memory takes about two seconds, so the row may already be back to seeding or queued; the checks below saw qBittorrent check it."
 wait
+# qBittorrent 5.3 sometimes ignores a recheck: the API answers 200, the torrent never checks and
+# its log says nothing (on the playground, 4 of 8 rechecks of one torrent). One more c, once.
+if [ "$(tail -n 1 "$seen")" != seen ]; then
+    echo "    qBittorrent ignored the recheck; c once more"
+    watch_checking "$BIGH" "$seen"
+    for _ in $(seq 1 100); do grep -q polling "$seen" && break; sleep 0.1; done
+    keys c
+    wait
+fi
 if [ "$(tail -n 1 "$seen")" = seen ]; then pass "qBittorrent checks it"; else fail "qBittorrent never read checking after c"; fi
 rm -f "$seen"
 expect "…and finds it whole" "$BIGH" "t['state'] in $SEEDING and t['progress'] == 1" 120
