@@ -167,6 +167,98 @@ TestCase {
         tryCompare(sheet.panel, "height", window.height);
     }
 
+    // ---- board 64 (C47 I1, I2, I14): two columns or one ------------------------------------
+
+    /// A window on a screen of `screenWidth` logical px, the demo .torrent in it, all rows shown.
+    function openWide(screenWidth) {
+        const window = testCase.makeWindow();
+        window.screenWidth = screenWidth;
+        window.heightCap = 10000;
+        window.openList([App.demoTorrentPath()], "file");
+        tryCompare(window.addSheet, "showFiles", true, 5000);
+        testCase.waitSettled(window);
+        return window;
+    }
+
+    function test_twoColumnsOnAWideScreen() {
+        const window = testCase.openWide(1920);
+        const sheet = window.addSheet;
+        compare(sheet.wide, true);
+        tryCompare(window, "width", Theme.space(1120));
+        testCase.verifyFixed(window);
+        const form = findChild(sheet, "addFormColumn");
+        const files = findChild(sheet, "addFilesColumn");
+        tryCompare(form, "width", Theme.space(440));
+        compare(files.visible, true);
+        compare(findChild(sheet, "addColumnsRule").visible, true);
+        // The tree and About are on the right of the form, not under it.
+        const tree = sheet.filesTree.mapToItem(form, 0, 0);
+        verify(tree.x >= form.width, "the tree at " + tree.x + ", the form " + form.width + " wide");
+        compare(Math.round(files.mapToItem(form, 0, 0).y), 0, "the files start at the top, beside the form");
+        const about = findChild(sheet, "addAboutBlock");
+        verify(about.visible);
+        verify(about.mapToItem(form, 0, 0).y > tree.y);
+    }
+
+    function test_oneColumnUnder1200() {
+        const window = testCase.openWide(1100);
+        const sheet = window.addSheet;
+        compare(sheet.wide, false);
+        compare(window.width, Theme.space(600));
+        compare(findChild(sheet, "addFilesColumn").visible, false);
+        // The files under the form, with their toolbar (I2).
+        const form = findChild(sheet, "addFormColumn");
+        verify(sheet.filesTree.mapToItem(form, 0, 0).y > sheet.savePathField.mapToItem(form, 0, 0).y);
+        verify(sheet.filesToolbar.visible);
+    }
+
+    function test_oneColumnWhenTheSettingSaysSo() {
+        const before = App.addWindowLayout;
+        App.addWindowLayout = "one";
+        const window = testCase.openWide(1920);
+        compare(window.addSheet.wide, false);
+        compare(window.width, Theme.space(600));
+        // Back to two columns: the open window follows.
+        App.addWindowLayout = "two";
+        compare(window.addSheet.wide, true);
+        tryCompare(window, "width", Theme.space(1120));
+        App.addWindowLayout = before;
+    }
+
+    function test_aBatchStaysOneColumn() {
+        const window = testCase.makeWindow();
+        window.screenWidth = 1920;
+        window.openList([testCase.freshMagnet, testCase.secondMagnet], "handoff");
+        compare(window.addSheet.batchMode, true);
+        compare(window.addSheet.wide, false);
+        testCase.waitSettled(window);
+        compare(window.width, Theme.space(600));
+        // The empty sheet is a list too.
+        const blank = testCase.makeWindow();
+        blank.screenWidth = 1920;
+        blank.openBlank();
+        compare(blank.addSheet.wide, false);
+        compare(blank.width, Theme.space(600));
+    }
+
+    function test_heightFollowsTheTallerColumn() {
+        const window = testCase.openWide(1920);
+        const sheet = window.addSheet;
+        const tree = sheet.filesTree;
+        const form = findChild(sheet, "addFormColumn");
+        tryCompare(tree, "height", tree.contentHeight);
+        const two = window.height;
+        verify(two >= Math.ceil(sheet.chromeHeight + form.implicitHeight),
+               "the form fits: " + two + " for " + form.implicitHeight);
+        verify(two >= Math.ceil(sheet.chromeHeight + tree.contentHeight));
+        verify(sheet.panel.implicitHeight <= two + 1, "nothing scrolls");
+
+        // One column stacks the files under the form: taller than the taller column.
+        window.screenWidth = 1100;
+        compare(sheet.wide, false);
+        verify(testCase.waitSettled(window) > two, "one column is not taller");
+    }
+
     function test_it_closes_with_the_sheet() {
         const window = testCase.makeWindow();
         window.openBlank();

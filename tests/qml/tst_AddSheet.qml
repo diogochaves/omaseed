@@ -42,6 +42,16 @@ TestCase {
         }
     }
 
+    // Room for two columns (C47 I1): more than about 1200 px of width.
+    Component {
+        id: wideSheetComponent
+
+        AddSheet {
+            height: 1000
+            width: Theme.space(1300)
+        }
+    }
+
     // A short window (docs/11 D1): the sheet must still fit, and only the tree scrolls.
     Component {
         id: shortSheetComponent
@@ -1857,6 +1867,135 @@ TestCase {
         const shortAbout = findChild(short, "addAboutBlock");
         verify(shortAbout.rows.length > 0);
         compare(shortAbout.visible, false);
+    }
+
+    // ---- board 64 (C47 I1, I2): the columns and the one-file list ------------------------
+
+    /// The form's column and the files' in `sheet`, and where `item` sits in the form's.
+    function formColumn(sheet) {
+        return findChild(sheet, "addFormColumn");
+    }
+
+    function at(sheet, item) {
+        return item.mapToItem(testCase.formColumn(sheet), 0, 0);
+    }
+
+    // I1: one file, one row: its own name, kind and size and a rename; no tick, no toolbar,
+    // and its kind's chip has no box.
+    function test_aSingleFileHasAOneRowList() {
+        const sheet = createTemporaryObject(addSheetComponent, testCase);
+        sheet.openWith(testCase.fixturesFolder() + "/single_file_v1.torrent", "file");
+        tryCompare(sheet, "showFiles", true, 5000);
+        compare(App.addFiles.fileCount, 1);
+        compare(sheet.singleFile, true);
+        const tree = sheet.filesTree;
+        compare(tree.single, true);
+        compare(tree.visible, true);
+        compare(tree.count, 1);
+        compare(sheet.filesToolbar.visible, false);
+        compare(findChild(tree, "addFilesHeadTick").visible, false);
+        const row = testCase.rowItem(sheet, "Single.bin");
+        compare(row.kindText.length > 0, true);
+        verify(row.sizeText.length > 0);
+        compare(findChild(row, "addFilesMark").visible, false);
+        const chips = sheet.filesPaneHead.kinds;
+        compare(chips.length, 1);
+        compare(findChild(sheet.filesPaneHead, "filesKindBox_" + chips[0].kind).visible, false);
+        // space ticks nothing: the only file stays wanted.
+        testCase.focusRow(sheet, "Single.bin");
+        keyClick(Qt.Key_Space);
+        compare(App.addFiles.wantedCount, 1);
+
+        keyClick(Qt.Key_F2);
+        verify(tree.editing);
+        const input = testCase.renameInput(sheet);
+        tryVerify(() => input.activeFocus, 1000);
+        input.selectAll();
+        keyClick("o");
+        keyClick("n");
+        keyClick("e");
+        keyClick(Qt.Key_Return);
+        verify(!tree.editing);
+        verify(testCase.rowNamed(sheet, "one") >= 0);
+        compare(App.addFiles.renameList().length, 1);
+    }
+
+    // I1: a magnet on its way fills the right side with its wait, then About with its link's hash.
+    function test_aMagnetsWaitIsOnTheRight() {
+        testCase.lookupAt(0);
+        const sheet = createTemporaryObject(wideSheetComponent, testCase);
+        sheet.openWith(testCase.freshMagnet, "clipboard");
+        compare(sheet.wide, true);
+        testCase.lookupAt(3200);
+        compare(sheet.fetchLine.visible, true);
+        const form = testCase.formColumn(sheet);
+        tryCompare(form, "width", Theme.space(440));
+        verify(testCase.at(sheet, sheet.fetchLine).x >= form.width);
+        const about = findChild(sheet, "addAboutBlock");
+        verify(about.visible);
+        verify(about.rows.some(row => row[0] === "hash"));
+        verify(testCase.at(sheet, about).x >= form.width);
+        compare(sheet.sheetWidth, Theme.space(1120));
+    }
+
+    // I1: the list takes the wait's place, and nothing on the left moves.
+    function test_theListReplacesTheWaitAndTheLeftDoesNotMove() {
+        const sheet = createTemporaryObject(wideSheetComponent, testCase);
+        sheet.openWith(App.demoMagnet(), "handoff");
+        compare(sheet.wide, true);
+        const form = testCase.formColumn(sheet);
+        tryCompare(form, "width", Theme.space(440));
+        const x = form.mapToItem(sheet, 0, 0).x;
+        const field = testCase.at(sheet, sheet.savePathField);
+        tryVerify(() => sheet.showFiles, 3000, "the demo lookup did not answer");
+        compare(sheet.wide, true);
+        compare(sheet.fetchLine.visible, false);
+        verify(sheet.filesTree.visible);
+        verify(testCase.at(sheet, sheet.filesTree).x >= form.width);
+        waitForRendering(sheet);
+        compare(form.width, Theme.space(440));
+        compare(form.mapToItem(sheet, 0, 0).x, x);
+        compare(testCase.at(sheet, sheet.savePathField).y, field.y);
+    }
+
+    // I2: no room for two columns: the files under the form, with their toolbar.
+    function test_narrowPutsTheFilesUnderTheForm() {
+        const sheet = testCase.openTorrent(addSheetComponent);
+        compare(sheet.wide, false);
+        compare(sheet.sheetWidth, Theme.space(600));
+        compare(findChild(sheet, "addFilesColumn").visible, false);
+        compare(findChild(sheet, "addFilesSection").parent, testCase.formColumn(sheet));
+        verify(sheet.filesToolbar.visible);
+        verify(testCase.at(sheet, sheet.filesTree).y > testCase.at(sheet, sheet.savePathField).y);
+    }
+
+    // I1: the form keeps today's rows and order in two columns; only the Files section leaves.
+    function test_theFormKeepsItsOrder() {
+        const before = App.addWindowLayout;
+        const sheet = testCase.openTorrent(wideSheetComponent);
+        const form = testCase.formColumn(sheet);
+        const shown = () => {
+            const out = [];
+            for (let i = 0; i < form.children.length; ++i) {
+                const row = form.children[i];
+                if (row.visible && row.objectName !== "addFilesSection")
+                    out.push(row);
+            }
+            return out;
+        };
+        compare(sheet.wide, true);
+        const section = findChild(sheet, "addFilesSection");
+        compare(section.parent, findChild(sheet, "addFilesColumn"));
+        const two = shown();
+        verify(two.length > 3);
+        const ys = [sheet.sourceField, sheet.savePathField, sheet.freeLine].map(item => testCase.at(sheet, item).y);
+        verify(ys[0] < ys[1] && ys[1] < ys[2], ys.join(" "));
+
+        App.addWindowLayout = "one";
+        compare(sheet.wide, false);
+        compare(section.parent, form);
+        compare(shown(), two);
+        App.addWindowLayout = before;
     }
 
     function test_the_tree_scrolls_in_a_short_window() {

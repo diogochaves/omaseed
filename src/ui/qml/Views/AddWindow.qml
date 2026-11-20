@@ -13,8 +13,10 @@ import Omaseed.Views
 //
 // The window is the sheet (W3): its size is the panel's, fixed (minimum = maximum, which
 // Hyprland floats and centres with no rule), up to 80 % of the screen's height, and set again
-// whenever the sheet grows or shrinks. The panel fills it, so the sheet's own margin falls
-// outside the window and its scrim is never seen. The sheet's edge gives way to the window's
+// whenever the sheet grows or shrinks. Its width is one of two since board 64 (C47 I1, I2):
+// about 1120 px for two columns, 600 for one, the sheet's choice from the screen's work area
+// (`screenWidth`), so a screen under about 1200 logical px keeps one column. The panel fills
+// it, so the sheet's own margin falls outside the window and its scrim is never seen. The sheet's edge gives way to the window's
 // (ARCHITECTURE rule 5): Hyprland's border, or the 1 px edge drawn here without it.
 //
 // The first title, `omaseed · add`, is fixed and never translated: the snippet's window rule
@@ -74,13 +76,16 @@ Window {
     /// W3: the most the window grows to, 80 % of the screen's height. `Screen` is the screen the
     /// window is on, read again when it moves to another. A test sets its own.
     property real heightCap: Math.floor(0.8 * (Screen.height > 0 ? Screen.height : 1e6))
+    /// C47 I2: the screen's work area in logical pixels (scale applied), the room the sheet
+    /// may grow into: two columns need about 1200. A test sets its own.
+    property real screenWidth: Screen.desktopAvailableWidth > 0 ? Screen.desktopAvailableWidth : 1e6
     /// The window's size: the panel's width, and its height with every row at its own height
     /// (`AddSheet.naturalHeight`, never from the window's own), Fig. 10's while it is taller;
     /// Fig. 10's own when it is alone.
     readonly property size sheetSize: Qt.size(
                                           Math.min(root._figureAlone ? flow.duplicateSheet.sheetWidth
                                                                      : flow.addSheet.sheetWidth,
-                                                   Screen.desktopAvailableWidth > 0 ? Screen.desktopAvailableWidth : 1e6),
+                                                   root.screenWidth),
                                           Math.max(1, Math.ceil(Math.min(root.heightCap, root._figureAlone
                                                                          ? flow.duplicateSheet.panel.implicitHeight
                                                                          : Math.max(flow.addSheet.naturalHeight,
@@ -212,6 +217,7 @@ Window {
         id: flow
 
         addSheet.framed: false
+        addSheet.roomWidth: root.screenWidth
         categoryPicker: categoryPalette
         // W5 (#219): an add from outside says it went in, from wherever the user is.
         notifiesAdds: true

@@ -19,9 +19,18 @@ import Omaseed.Kit
 // The sheet is `guarded` (manual box M5): a click outside it does nothing, and `esc` goes to
 // `cancel` before it closes anything.
 //
-// A `.torrent` of more than one file also gets the file picker (docs/11 D1): its tree, read
-// from the metainfo (`App.addFiles`), with a check mark and a priority per file and folder.
-// It is the last row, and it takes the height the window has left, scrolling past that.
+// A `.torrent` also gets the file picker (docs/11 D1): its tree, read from the metainfo
+// (`App.addFiles`), with a check mark and a priority per file and folder. It is the last row,
+// and it takes the height the window has left, scrolling past that. A single file gets a
+// one-row list instead (C47 I1): its name, kind and size and a rename, no tick, no toolbar.
+//
+// Board 64 (C47 I1, I2, I14): one torrent in the field and room for about 1200 px makes two
+// columns (`wide`): the form on the left at about 440 px, today's rows in today's order, and
+// the torrent on the right, its files at the window's full height, then About this torrent.
+// A magnet waits on the right, and its list takes the wait's place without moving the left.
+// Appearance › Add window (`App.addWindowLayout`) can say one column; a narrower room
+// (`roomWidth`: the screen's work area in the add window, the sheet's own in the main window)
+// falls back to one by itself, and the empty sheet and a batch always keep one.
 // A magnet, or a link to a `.torrent`, has no file list until qBittorrent fetches its
 // metadata: the sheet asks for it as soon as one is in the field (docs/29 D1, `App.addLookup`),
 // the Files row says how the wait goes (`AddFetchLine`, F1-F8), and the 200 brings the same
@@ -283,9 +292,27 @@ Sheet {
         return null;
     }
 
+    /// The torrent's files are known (a `.torrent`, or a magnet's list in): the Files list is
+    /// on show and its choices travel with the add. One file gets the one-row list (C47 I1).
     readonly property bool showFiles: sheet.addable !== null && sheet.addable.valid === true
                                       && (sheet.addable.kind === "file" || (sheet.addable.token || "").length > 0)
-                                      && App.addFiles.fileCount > 1
+                                      && App.addFiles.fileCount > 0
+    /// C47 I1: a torrent of one file: no tick, no priority, no toolbar, the chip without a box.
+    readonly property bool singleFile: sheet.showFiles && App.addFiles.fileCount === 1
+
+    /// C47 I2: the logical width the sheet can grow into. The main window's sheet has its own
+    /// room; the add window sets the screen's work area (`AddWindow.screenWidth`).
+    property real roomWidth: sheet.width - 2 * Theme.sheetMargin
+    /// One torrent is in the field (parsed, being read, or a link waiting for its list): the
+    /// empty sheet and a batch are lists of torrents and keep one column.
+    readonly property bool _oneTorrent: !sheet.batchMode && sheet.addable !== null
+                                        && (sheet.addable.valid === true || sheet.addable.pending === true)
+    /// C47 I1, I2, I14: the form on the left, the torrent on the right, when the setting says
+    /// two columns, the room holds them (about 1200 px of logical width) and one torrent is in.
+    readonly property bool wide: App.addWindowLayout === "two" && sheet.roomWidth >= Theme.space(1200)
+                                 && sheet._oneTorrent
+    /// C47 I1: the form's column keeps today's rows and order at about 440 px.
+    readonly property int formColumnWidth: Theme.space(440)
     /// docs/29: a magnet or a link whose file list is not in yet, which the lookup is for.
     readonly property bool _lookable: sheet.addable !== null && sheet.addable.valid === true
                                       && (sheet.addable.kind === "magnet" || sheet.addable.kind === "url")
@@ -316,11 +343,11 @@ Sheet {
     readonly property bool showDownloads: sourceField.text.trim().length === 0 && !sheet.batchMode
                                           && App.downloadsTorrents.length > 0
 
-    /// What the tree may take: the body's room less every other row, so the sheet fits the
-    /// window and only the tree scrolls. Siblings' heights never depend on the tree's, so
-    /// this binding cannot loop.
+    /// What the tree may take: the body's room less every other row of its column, so the
+    /// sheet fits the window and only the tree scrolls. Siblings' heights never depend on the
+    /// tree's, so this binding cannot loop.
     readonly property real _treeRoom: sheet.bodyRoom - sheet._besideTree
-    /// The body's rows but the tree, with the gaps between them.
+    /// The tree's column's rows but the tree, with the gaps between them.
     readonly property real _besideTree: sheet._besideTreeAndAbout
                                         + (aboutBlock.visible ? sheet._aboutHeight : 0)
     /// The tree's floor: its header and four rows; below that the whole body would scroll.
@@ -329,21 +356,27 @@ Sheet {
     readonly property real _aboutHeight: aboutBlock.rows.length > 0
                                          ? aboutBlock.implicitHeight + aboutBlock.Layout.topMargin + filesSection.spacing
                                          : 0
-    /// C47 I15 in one column: About goes under the files only while the tree keeps its floor,
-    /// so a short window still scrolls the tree alone (step E's right column has the room).
-    readonly property bool _aboutFits: !sheet.showFiles
+    /// C47 I15: About goes under the files. Two columns give it the right column's room; in
+    /// one it shows only while the tree keeps its floor, so a short window still scrolls the
+    /// tree alone.
+    readonly property bool _aboutFits: sheet.wide || !sheet.showFiles
                                        || sheet.bodyRoom - sheet._besideTreeAndAbout - sheet._treeFloor >= sheet._aboutHeight
-    /// The body's rows but the tree and About.
+    /// The Files section's rows but the tree and About, with their gaps.
+    readonly property real _filesBesideTree: filesHead.height + filesSection.spacing
+                                             + (filesToolbar.visible ? filesToolbar.height + filesSection.spacing : 0)
+                                             + (nothingTickedLine.visible ? nothingTickedLine.height + filesSection.spacing : 0)
+                                             + (extrasLine.visible ? extrasLine.height + filesSection.spacing : 0)
+    /// The tree's column's rows but the tree and About: the Files section's own, and in one
+    /// column every row of the form above it.
     readonly property real _besideTreeAndAbout: {
-        let used = filesHead.height + filesSection.spacing
-                + (filesToolbar.visible ? filesToolbar.height + filesSection.spacing : 0)
-                + (nothingTickedLine.visible ? nothingTickedLine.height + filesSection.spacing : 0)
-                + (extrasLine.visible ? extrasLine.height + filesSection.spacing : 0);
-        const rows = sheet.body.children;
+        let used = sheet._filesBesideTree;
+        if (sheet.wide)
+            return used;
+        const rows = formColumn.children;
         for (let i = 0; i < rows.length; ++i) {
             const row = rows[i];
             if (row !== filesSection && row.visible)
-                used += row.height + sheet.body.spacing;
+                used += row.height + formColumn.spacing;
         }
         return used;
     }
@@ -352,11 +385,16 @@ Sheet {
     /// what a window sized to the sheet takes (the add window, docs/54 W3, which caps it at
     /// 80 % of the screen). It never reads the window's height: the tree's room comes from
     /// that (`_treeRoom`), so it adds the tree's full height to the other rows instead of
-    /// the panel's own height, which holds the tree as the room left it.
-    readonly property real naturalHeight: sheet.showFiles
-                                          ? sheet.chromeHeight + sheet._besideTreeAndAbout + sheet._aboutHeight
-                                            + filesTree.contentHeight
-                                          : sheet.panel.implicitHeight
+    /// the panel's own height, which holds the tree as the room left it. In two columns it is
+    /// the taller of the form and the files (C47 I1).
+    readonly property real naturalHeight: {
+        if (!sheet.showFiles)
+            return sheet.panel.implicitHeight;
+        const files = sheet._besideTreeAndAbout + sheet._aboutHeight + filesTree.contentHeight;
+        if (!sheet.wide)
+            return sheet.chromeHeight + files;
+        return sheet.chromeHeight + Math.max(formColumn.implicitHeight, files);
+    }
 
     /// A few words in the foot's note for five seconds, as the main window's footer says them
     /// (the add window's one-server note, DECISIONS C35, settled 2026-11-05).
@@ -1200,11 +1238,11 @@ Sheet {
                 }
 
                 /// Keep the picker on the parse in the field: load a `.torrent`'s files once it
-                /// is read, empty it for anything else.
+                /// is read (one file too: C47 I1's one-row list), empty it for anything else.
                 function _syncFiles(): void {
                 const addable = sheet.addable;
                 const token = addable && addable.valid === true
-                && (addable.fileCount || 0) > 1 ? (addable.token || "") : "";
+                && (addable.fileCount || 0) > 0 ? (addable.token || "") : "";
                 if (token === sheet._filesToken)
                 return;
                 sheet._filesToken = token;
@@ -1286,7 +1324,8 @@ Sheet {
                 titleTrailer: sheet.multiServer ? serverChip : null
                 // Manual box M5: a stray click or `esc` must not lose a half-filled add.
                 guarded: true
-                sheetWidth: Theme.space(600)
+                // C47 I1: about 1120 px for two columns, spec v2's 600 for one.
+                sheetWidth: sheet.wide ? Theme.space(1120) : Theme.space(600)
                 subtitle: {
                     if (sheet.batchMode) {
                         const parts = [];
@@ -1454,6 +1493,28 @@ Sheet {
 
                         target: App
                     }
+
+                    // C47 I1, I2 (board 64 §3): the body in two columns. The form keeps today's
+                    // rows and order on the left; in two columns the Files section moves to the
+                    // right (`filesSection.parent`), the torrent's files at the window's full
+                    // height and About under them. In one column it stays the form's last row.
+                    // Head and foot are unchanged (C24 H7, amended by C47).
+                    RowLayout {
+                        id: columns
+
+                        Layout.fillWidth: true
+                        objectName: "addColumns"
+                        spacing: Theme.space(16)
+
+                    ColumnLayout {
+                        id: formColumn
+
+                        Layout.alignment: Qt.AlignTop
+                        Layout.fillWidth: !sheet.wide
+                        Layout.preferredWidth: sheet.wide ? sheet.formColumnWidth : -1
+                        Layout.maximumWidth: sheet.wide ? sheet.formColumnWidth : Number.POSITIVE_INFINITY
+                        objectName: "addFormColumn"
+                        spacing: Theme.sheetRowGap
 
                     // #147: a bare info hash names no tracker, so only DHT can find its peers.
                     Banner {
@@ -2217,9 +2278,14 @@ Sheet {
                     ColumnLayout {
                         id: filesSection
 
+                        objectName: "addFilesSection"
+                        Layout.alignment: Qt.AlignTop
                         Layout.fillWidth: true
+                        parent: sheet.wide ? filesColumn : formColumn
                         spacing: Theme.space(4)
+                        // In two columns a magnet's link has About to say while its wait is quiet.
                         visible: sheet.showFiles || sheet._showFetch || sheet._showNoFetch
+                                 || (sheet.wide && aboutBlock.rows.length > 0)
 
                         RowLayout {
                             id: filesHead
@@ -2240,6 +2306,8 @@ Sheet {
                                 id: filesPaneHead
 
                                 Layout.fillWidth: true
+                                // C47 I1: one file's chip has nothing to tick.
+                                boxes: !sheet.singleFile
                                 countText: App.addFiles.summaryText
                                 files: App.addFiles.tree
                                 objectName: "addFilesPaneHead"
@@ -2268,7 +2336,8 @@ Sheet {
                             files: App.addFiles.tree
                             objectName: "addFilesToolbar"
                             scope: "add"
-                            visible: sheet.showFiles
+                            // C47 I1: one file has nothing to filter, sort or fold.
+                            visible: sheet.showFiles && !sheet.singleFile
 
                             onFilterDone: filesTree.forceActiveFocus()
                         }
@@ -2315,6 +2384,7 @@ Sheet {
                             // The header and four rows at least: below that the whole body scrolls.
                             maximumHeight: Math.max(sheet._treeFloor, sheet._treeRoom)
                             model: App.addFiles
+                            single: sheet.singleFile
 
                             onToolbarKey: action => filesToolbar.run(action)
                         }
@@ -2350,9 +2420,9 @@ Sheet {
                             visible: sheet._nothingTicked
                         }
 
-                        // Board 64 (C47 I15): About this torrent, under the files; a magnet's
-                        // says its link's trackers and hash until the list arrives. Step E
-                        // moves it to the right column with the files.
+                        // Board 64 (C47 I15): About this torrent, under the files (in two
+                        // columns, the right one's); a magnet's says its link's trackers and
+                        // hash until the list arrives.
                         AddAboutBlock {
                             id: aboutBlock
 
@@ -2362,5 +2432,26 @@ Sheet {
                             objectName: "addAboutBlock"
                             visible: aboutBlock.rows.length > 0 && sheet._aboutFits
                         }
+                    }
+                    }
+
+                    // The 12 % rule between the columns (C47 I1).
+                    Hairline {
+                        Layout.fillHeight: true
+                        objectName: "addColumnsRule"
+                        vertical: true
+                        visible: sheet.wide
+                    }
+
+                    // The torrent's column: the Files section moves in here when wide.
+                    ColumnLayout {
+                        id: filesColumn
+
+                        Layout.alignment: Qt.AlignTop
+                        Layout.fillWidth: true
+                        objectName: "addFilesColumn"
+                        spacing: 0
+                        visible: sheet.wide
+                    }
                     }
                 }
