@@ -2864,3 +2864,63 @@ three. Transmission's `session_get` has `incomplete_dir` and `incomplete_dir_ena
 `torrent_add` ignores an `incomplete_dir` without an error and `torrent_get` has no such field
 (I9: session-wide). qBittorrent's pre-allocation is `preallocate_all` in `app/preferences`
 (Deluge's `pre_allocate_storage`) (I10).
+
+**Built (#172).** Steps #272–#276; what the code rests on, and what the board left to the
+build:
+
+- **One model, two owners (I3).** `AddFilesModel` stays the proxy that owns what an add
+  decides (ticks, priorities, renames, skip-at-least, extras) and exposes its
+  `TorrentFilesModel` as `tree`; details keeps its server-backed `TorrentFilesModel`. Sort,
+  filter, fold, hide skipped, flat, kinds, the kind filter and folders first live in
+  `TorrentFilesModel` alone, so both panes get them. A kind's box goes to the owner: the add's
+  `toggleKindWanted` (skip all, or give back the priorities from before the skip), details'
+  `App.toggleFilesWanted(hash, kindFileIndexes(kind))` by C19 T1's rule; `kindFileIndexes`
+  ignores the filter (the box acts on the whole kind), while the head's tick follows a kind
+  filter as it follows a typed one. The view is kept per window (`FilesViewState`,
+  `files.views` in `state.json`).
+- **Kinds (I5).** `core/FileKinds` holds 59 A1's table and nothing else of board 59, which is
+  not ruled. Whatever `TorrentExtras` counts is an extra, programs included; programs have no
+  kind of their own, so one deeper in the torrent is other. A split archive set (`.rNN`,
+  `.partN.rar`, `.NNN` with one stem) counts as one archive. Details' root folder is stripped
+  before classifying, so an advert is top level in both panes. The words are English in core;
+  the chips' `%n` words are QML's.
+- **Folders first (I4)** applies to every named key in the tree, details' size and progress
+  sorts included (they mixed before); torrent order stays as it comes. Off, folders and files
+  mix for every key, name included. Flat lists every matching file once, sorted across the
+  torrent, and keeps the tree's folds for the way back.
+- **Two columns (I1, I2, I14)** when the setting says two, the room is at least 1200 logical
+  px and the sheet holds one torrent (not a batch; one there or on its way). The add window's
+  room is its screen's available width; the main window's sheet takes its own width, so a
+  wide main window has two columns too. The empty sheet and a batch are lists of torrents and
+  keep one column. The window is 1120 px wide, the form column 440, the files section moved
+  between the columns by a `parent:` binding. The tree takes its rows up to the room and no
+  more, so a short torrent's right column ends early. In two columns the right side shows
+  before a magnet's wait starts: About already has the link's hash.
+- **The room (I8–I12).** Deluge's temp folder is its `download_location` while `move_completed`
+  is on, and its Save to then ends in `move_completed_path` (the room's `savePath`). The add
+  carries `useTemp: false` only while the switch is shown off on qBittorrent or Deluge; on
+  sends nothing new. `App::applyTempFolder`, at the end of `addOptionsFrom`, turns it into
+  `useDownloadPath=false` on qBittorrent and, on Deluge, `download_location` = Save to with
+  `move_completed` false (off) or `download_location` = the temp folder, `move_completed` true,
+  `move_completed_path` = Save to (on; #277, batches too). The first line's free space comes
+  only from omaseed's own look at the drive (`FreeSpaceProbe::answerLocal`), never the
+  server's figure; promised room is summed per drive and left out when the server
+  pre-allocates. `freeSpaceRevision` also moves on promised room (in 64 MiB steps) and on a
+  category's change, so the lines follow both. The switch resets for each new torrent (a
+  magnet's list arriving is the same one).
+
+The builders' calls, for Diogo to see in the Gate's look:
+
+- **About gives way in one column.** Under the form (the setting's one column or I2's
+  fallback), About shows only while the tree keeps five rows; in two columns it always shows.
+- **The docked details' toolbar fits by priority.** At details' docked width the row needs
+  more than it has, so fold all goes first, then hide skipped: the docked pane keeps filter,
+  sort and tree · flat. Their keys and the files menu keep both. The sort button reads `sort`
+  in torrent order, `sort: size` and so on otherwise.
+- **The chips sit on the Files line** (Files · chips · count), not a row of their own: a row
+  more cost the tree its room in a short window. The kind column says "extra" where the old
+  dim word on the row did.
+- **The meter is drawn by hand**, as today's free line's (Kit `Meter` takes one value): the
+  drive's used part at 22 %, promised room in yellow at 18 %, this torrent's need solid in the
+  accent or the line's colour. A stage's words wrap, two lines at most in the 440 px column,
+  rather than elide.
