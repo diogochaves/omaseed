@@ -2409,6 +2409,8 @@ the person's folder run.
   reader's verdict, `dropped`, `missingFonts`, `lifted` (what C30's floor had to lift) and a
   picture of one fixed sheet on the demo library, in the person's theme, base size and fonts,
   under `~/.cache/omaseed/check/`. Exit 0 drawn, 1 drawn whole as Omarchy's, 2 usage.
+  Amended 2026-11-20 (#283): `check` draws a light and a dark picture by default, one per
+  lightness; `--theme NAME` still draws one (to build: #285).
 - **U6 a.** `omaseed skin use <name>` (the running instance over its D-Bus name, else the
   saved choice) and `omaseed skin list [--json]`. No capture of the open window: it shows the
   person's library, and a picture sent to an agent goes to its model's provider.
@@ -2442,7 +2444,7 @@ board left to the build:
   (`SkinReader::omarchyTokens()`), held equal to the QML's fallbacks by a test that reads the
   QML. The six tokens whose Omarchy value depends on where they are drawn (`line.card`,
   `line.hairAlpha`, `line.faintAlpha`, `label.track`, `label.captionTrack`,
-  `label.captionWeight`) are left out of a clone (assumed, #283): written out, they would freeze
+  `label.captionWeight`) are left out of a clone (ruled 2026-11-20, #283): written out, they would freeze
   one place's value, and the clone of Omarchy would not draw as Omarchy.
 - **The name rule (U1).** `^[A-Za-z0-9][A-Za-z0-9._-]{0,62}$`, not ending in `.`; a name equal,
   in any case, to `omarchy`, `console` or `desktop` is refused (`desktop` is Follow the
@@ -2463,28 +2465,28 @@ board left to the build:
   Nothing in omaseed writes into a user skin after that.
 - **skin use (U6, U8).** With omaseed running, over the Agent interface (`UseSkin`): checked,
   read (`unreadable`: nothing changes), saved and drawn, `live: true`. With none running, or no
-  session bus (assumed, #283), the CLI saves `appearance.skin` itself, every other key kept,
+  session bus (ruled 2026-11-20, #283), the CLI saves `appearance.skin` itself, every other key kept,
   `live: false`; a state.json that exists and doesn't parse is never written (`not-written`).
   A running omaseed too old to know the word (`too-old`), or one that doesn't answer, gets
   nothing written: it would write over it. `desktop` is not a `skin use` name.
 - **check (U5, U7).** It pins the skin, runs offscreen on the software scene graph, and points
   both bus addresses at nothing, so nothing in the run can reach a session bus. It reads the
   person's theme (or `--theme NAME`, an installed theme's folder) and, read-only, state.json's
-  base size and window ground (assumed, #283; `skin list` reads `appearance.skin` the same way).
+  base size and window ground (ruled 2026-11-20, #283; `skin list` reads `appearance.skin` the same way).
   The picture is the only file it writes. `lifted` lists, per ground, what C30's floor lifted
-  for this skin that Omarchy's skin in the same theme doesn't also lift (assumed, #283), so it
+  for this skin that Omarchy's skin in the same theme doesn't also lift (ruled 2026-11-20, #283), so it
   speaks of the skin, not the theme. The JSON carries `mode` (light or dark) and `omabox`
   (whether it is installed); the lines end naming omabox only when it isn't.
 - **The guide and the schema (U4, U9).** Two parts in one `AGENTS.md`, the library's and the
   skins'. Without a keyring, passwords are in `~/.config/omaseed/secrets/`, so the guide says
   that, and that state.json, servers.json, moves/ and secrets/ are omaseed's, never to be opened
-  or edited (assumed, #283, against the board's "no credential is ever in this folder").
+  or edited (ruled 2026-11-20, #283, against the board's "no credential is ever in this folder").
   `skin.schema.json` is generated from the reader's table; it is omaseed's while its first key
   is the `$comment` header, and only then rewritten.
 - **skin-check.sh (U7).** Checkpoints are `SKIN.THEME`; only each skin's `skin.json` goes into
   the box; a skin that `check` says doesn't draw stops the scenario before a baseline of
   Omarchy's is kept. `omabox check run` needs `--approve` to keep the first baseline.
-- **yours ▾** (assumed, #283) opens a menu under the chip, as the copy row's "private ▾" does.
+- **yours ▾** (ruled 2026-11-20, #283) opens a menu under the chip, as the copy row's "private ▾" does.
 
 ## C38 — The story tells renames (board 56, ruled 2026-11-06)
 
