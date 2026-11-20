@@ -19,6 +19,7 @@
 #include "core/TorrentFilesModel.hpp"
 #include "core/TorrentFilterModel.hpp"
 #include "core/TorrentModel.hpp"
+#include "integration/SkinReader.hpp"
 #include "integration/ThemeReader.hpp"
 #include "integration/Tray.hpp"
 #include "ui/app/App.hpp"
@@ -117,6 +118,8 @@ private slots:
     void aTransparencySetBeforeTheGroundReadsAsTranslucent();
     void theSkinIsRememberedAndReachesTheReader();
     void theEnvironmentPinsTheSkin();
+    void aUserSkinChoiceIsSaved();
+    void aNameThatFailsTheRuleIsOmarchy();
     void addWindowLayoutPersists();
     void anUnknownValueReadsTwo();
     void aNewInstallShowsRows();
@@ -888,8 +891,8 @@ void TestApp::theSkinIsRememberedAndReachesTheReader()
         QCOMPARE(reader.skinName(), QStringLiteral("console"));
         app.setSkinChoice(QStringLiteral("console"));
         QCOMPARE(changed.count(), 1);
-        // Anything that is no choice is the default.
-        app.setSkinChoice(QStringLiteral("neon"));
+        // Anything that is no choice is the default (a user skin's name is one, C37 U1).
+        app.setSkinChoice(QStringLiteral("neon skin"));
         QCOMPARE(app.skinChoice(), QStringLiteral("omarchy"));
         app.setSkinChoice(QStringLiteral("desktop"));
         // No console-skin.json in the folder: following the desktop draws Omarchy.
@@ -929,6 +932,78 @@ void TestApp::theEnvironmentPinsTheSkin()
     qunsetenv("OMASEED_SKIN");
     App app;
     QCOMPARE(app.skinChoice(), QStringLiteral("desktop"));
+}
+
+// DECISIONS C37 U1: a user skin's name is saved like a built-in choice and drawn from the
+// reader's skins folder; the list follows the folder, and a choice whose folder is gone is kept.
+void TestApp::aUserSkinChoiceIsSaved()
+{
+    QFile::remove(omaseed::core::StateFile::path());
+    qunsetenv("OMASEED_SKIN");
+    QTemporaryDir desktop;
+    QVERIFY(desktop.isValid());
+    const QString skins = desktop.path() + QStringLiteral("/config/omaseed/skins");
+    QVERIFY(QDir().mkpath(skins + QStringLiteral("/warm")));
+    {
+        QFile file(skins + QStringLiteral("/warm/skin.json"));
+        QVERIFY(file.open(QIODevice::WriteOnly));
+        file.write(R"({"version": 1, "description": "Warmer.", "radius": 99})");
+    }
+    const ThemeReader::Paths paths{desktop.path() + QStringLiteral("/state/omarchy/current"),
+                                   desktop.path() + QStringLiteral("/config/omarchy"),
+                                   skins};
+    {
+        App app;
+        ThemeReader reader(paths);
+        app.attachTheme(&reader);
+        const QVariantList listed = app.userSkins();
+        QCOMPARE(listed.size(), 1);
+        const QVariantMap warm = listed.first().toMap();
+        QCOMPARE(warm.value(QStringLiteral("name")).toString(), QStringLiteral("warm"));
+        QCOMPARE(warm.value(QStringLiteral("description")).toString(), QStringLiteral("Warmer."));
+        QVERIFY(warm.value(QStringLiteral("reads")).toBool());
+        QCOMPARE(warm.value(QStringLiteral("dropped")).toInt(), 1); // radius 99 is past 64
+
+        app.setSkinChoice(QStringLiteral("warm"));
+        QCOMPARE(app.skinChoice(), QStringLiteral("warm"));
+        QCOMPARE(reader.skinName(), QStringLiteral("warm"));
+
+        QSignalSpy listChanged(&app, &App::userSkinsChanged);
+        QVERIFY(QDir().mkpath(skins + QStringLiteral("/paper")));
+        QTRY_COMPARE(app.userSkins().size(), 2);
+        QVERIFY(listChanged.count() >= 1);
+        const QVariantMap paper = app.userSkins().first().toMap();
+        QCOMPARE(paper.value(QStringLiteral("name")).toString(), QStringLiteral("paper"));
+        QVERIFY(!paper.value(QStringLiteral("reads")).toBool());
+        QCOMPARE(paper.value(QStringLiteral("reason")).toString(), QStringLiteral("missing"));
+    }
+    QCOMPARE(omaseed::core::StateFile::readSection(QStringLiteral("appearance"))
+                 .value(QStringLiteral("skin"))
+                 .toString(),
+             QStringLiteral("warm"));
+    // Its folder gone, the choice still loads and reaches the reader; Omarchy's is drawn.
+    QVERIFY(QDir(skins + QStringLiteral("/warm")).removeRecursively());
+    App app;
+    ThemeReader reader(paths);
+    app.attachTheme(&reader);
+    QCOMPARE(app.skinChoice(), QStringLiteral("warm"));
+    QCOMPARE(reader.skinName(), QStringLiteral("warm"));
+    QCOMPARE(reader.readSkin(QStringLiteral("warm")).reason, QStringLiteral("missing"));
+}
+
+// A saved choice that no rule takes (a hand-edited state.json) is the default, and saved so.
+void TestApp::aNameThatFailsTheRuleIsOmarchy()
+{
+    qunsetenv("OMASEED_SKIN");
+    for (const char *refused : {"my skin", ".hidden", "Console", "x.", "../warm"}) {
+        StateFile::writeSection(QStringLiteral("appearance"),
+                                QJsonObject{{QStringLiteral("skin"), QLatin1String(refused)}});
+        App app;
+        QCOMPARE(app.skinChoice(), QStringLiteral("omarchy"));
+        app.setSkinChoice(QStringLiteral("console"));
+        app.setSkinChoice(QLatin1String(refused));
+        QCOMPARE(app.skinChoice(), QStringLiteral("omarchy"));
+    }
 }
 
 // DECISIONS C47 I14: Appearance › Add window, two columns by default, saved in state.json's

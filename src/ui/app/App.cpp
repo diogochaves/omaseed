@@ -35,6 +35,7 @@
 #include "integration/Notifier.hpp"
 #include "integration/StatusWriter.hpp"
 #include "integration/ThemeReader.hpp"
+#include "integration/UserSkins.hpp"
 #include "integration/WidgetHeartbeat.hpp"
 #include "integration/Xdg.hpp"
 #include "ui/app/DemoData.hpp"
@@ -4633,6 +4634,13 @@ void App::attachTheme(omaseed::integration::ThemeReader *reader)
     m_themeReader = reader;
     loadSettings();
     applyAppearance();
+    if (reader && reader->userSkins())
+        connect(reader->userSkins(),
+                &omaseed::integration::UserSkins::changed,
+                this,
+                &App::userSkinsChanged,
+                Qt::UniqueConnection);
+    Q_EMIT userSkinsChanged();
 }
 
 QString App::addServer(const QVariantMap &fields, const QString &secret)
@@ -5376,6 +5384,16 @@ const QStringList kTrayIconModes{
 const QStringList kSkinChoices{
     QStringLiteral("omarchy"), QStringLiteral("console"), QStringLiteral("desktop")};
 
+/// A saved or set skin choice: a built-in choice, or any name UserSkins' rule takes, its
+/// folder there or not (DECISIONS C37 U1); anything else is the default.
+QString skinChoiceOf(const QString &choice)
+{
+    if (kSkinChoices.contains(choice) ||
+        omaseed::integration::UserSkins::nameProblem(choice).isEmpty())
+        return choice;
+    return kSkinChoices.first();
+}
+
 int tintStep(int percent)
 {
     return percent == 4 || percent == 8 ? percent : 0;
@@ -5392,13 +5410,36 @@ QString App::skinChoice() const
 void App::setSkinChoice(const QString &choice)
 {
     loadSettings();
-    const QString wanted = oneOf(choice, kSkinChoices);
+    const QString wanted = skinChoiceOf(choice);
     if (m_skinChoice == wanted)
         return;
     m_skinChoice = wanted;
     saveSettings();
     applyAppearance();
     Q_EMIT settingsChanged();
+}
+
+QVariantList App::userSkins() const
+{
+    QVariantList skins;
+    if (!m_themeReader || !m_themeReader->userSkins())
+        return skins;
+    for (const auto &skin : m_themeReader->userSkins()->skins())
+        skins << QVariantMap{{QStringLiteral("name"), skin.name},
+                             {QStringLiteral("description"), skin.description},
+                             {QStringLiteral("reads"), skin.skin.drawn()},
+                             {QStringLiteral("reason"), skin.skin.reason},
+                             {QStringLiteral("dropped"), skin.skin.drops.size()}};
+    return skins;
+}
+
+void App::openSkinsFolder() const
+{
+    const QString dir = m_themeReader && m_themeReader->userSkins()
+                            ? m_themeReader->userSkins()->dir()
+                            : omaseed::integration::ThemeReader::Paths::fromEnvironment().skinsDir;
+    QDir().mkpath(dir);
+    QDesktopServices::openUrl(QUrl::fromLocalFile(dir));
 }
 
 QString App::railScrollHint() const
@@ -5634,7 +5675,7 @@ void App::loadSettings()
     m_followOmarchyTheme = appearance.value(QStringLiteral("followOmarchyTheme")).toBool(true);
     m_baseSizeOverride = appearance.value(QStringLiteral("baseSizeOverride")).toInt(0);
     m_windowAlphaOverride = appearance.value(QStringLiteral("windowAlphaOverride")).toInt(0);
-    m_skinChoice = oneOf(appearance.value(QStringLiteral("skin")).toString(), kSkinChoices);
+    m_skinChoice = skinChoiceOf(appearance.value(QStringLiteral("skin")).toString());
     // DECISIONS C24 H13: opaque by default. Before the choice existed, a transparency set by
     // hand was the only way to ask for a ground of one's own, so it reads as translucent.
     const QJsonValue ground = appearance.value(QStringLiteral("windowGround"));

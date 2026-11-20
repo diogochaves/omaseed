@@ -626,9 +626,18 @@ public:
     /// "desktop", Follow the desktop: the built-in Console while omarchy-console's skin is on.
     /// The theme reader resolves it (ThemeReader::skinName), and `OMASEED_SKIN`, when set,
     /// wins over it for the run without changing what is saved.
+    /// A user skin's name is a choice too (C37 U1), kept while its folder is gone: Omarchy's
+    /// skin is drawn then, and the folder coming back draws it again.
     Q_PROPERTY(QString skinChoice READ skinChoice WRITE setSkinChoice NOTIFY settingsChanged)
     QString skinChoice() const;
     void setSkinChoice(const QString &choice);
+    /// The person's skins (`~/.config/omaseed/skins`, C37 U1), sorted, the built-ins not among
+    /// them: each `{name, description, reads, reason, dropped}`, `dropped` a count. Follows the
+    /// folder live. Empty with no theme reader attached.
+    Q_PROPERTY(QVariantList userSkins READ userSkins NOTIFY userSkinsChanged)
+    QVariantList userSkins() const;
+    /// Makes the skins folder and opens it in the file manager (the Skin row's open folder).
+    Q_INVOKABLE void openSkinsFolder() const;
 
     /// Off pins the bundled Tokyo Night instead of following `omarchy-theme-set`.
     Q_PROPERTY(bool followOmarchyTheme READ followOmarchyTheme WRITE setFollowOmarchyTheme NOTIFY
@@ -780,6 +789,7 @@ public:
 Q_SIGNALS:
     /// Any of the persisted settings above moved.
     void settingsChanged();
+    void userSkinsChanged();
     void reducedMotionChanged();
     /// One `testServer()` finished. `id` is the id the caller passed in `fields` (empty for a
     /// server that is not saved yet), so a sheet can tell its own answer from another's.
