@@ -30,12 +30,22 @@
 //     leaves the folds alone, and it is a preference, not the torrent's: clear() keeps it.
 //     A change of priority under it (a key, the 2 s poll) hides or shows the file at once.
 //   * a sort (`sortKey`, `sortDescending`): siblings are sorted inside their folder, so the
-//     tree survives. By name, folders come first in both directions (qBittorrent's content
-//     view does the same); by any number, folders and files mix. "" is the torrent's own
-//     order.
+//     tree survives. With `foldersFirst` (on by default, DECISIONS C47 I4) folders come
+//     before files for every key and in both directions; off, they mix for every key, name
+//     included. "" is the torrent's own order.
 //   * a selection of rows (`space`/`v` in the pane), kept by path so it survives a refresh.
 //     The priority keys and the priority menu act on it, or on the cursor row alone.
 //   * remaining bytes, availability and the piece range, per file and summed per folder.
+//
+// C47 (board 64) adds what the add sheet and details share (I3: one model; AddFilesModel is
+// a proxy over its own copy of this one):
+//   * each file's kind (FileKinds, I5): the `kind` role and sort, a kind filter
+//     (`kindFilter`, opening every folder as a typed filter does), and `kinds`, one entry per
+//     kind present for the pane's chips. A details list carries the torrent's root folder in
+//     every path; when every path shares one first segment it is left out before classifying,
+//     so an advert is top-level in both models.
+//   * a flat view (`flat`, I6): every file the filters pass, once, no folders, sorted across
+//     the torrent; the folds are kept for the tree.
 //
 // applyFiles() keeps the tree when the shape (the same paths in the same order) has not
 // changed and emits dataChanged() for the rows whose numbers moved; only a different shape
@@ -101,6 +111,23 @@ class TorrentFilesModel : public QAbstractListModel
     /// and the menu step through these. qBittorrent's until set.
     Q_PROPERTY(QVariantList prioritySet READ prioritySetList WRITE setPrioritySetList NOTIFY
                    prioritySetChanged)
+    /// DECISIONS C47 I6: every file the filters pass, once, no folders, sorted across the
+    /// torrent (the torrent's order with no sort key). The folds are kept for the tree.
+    Q_PROPERTY(bool flat READ flat WRITE setFlat NOTIFY flatChanged)
+    /// C47 I4: in the tree, folders before files for every sort key; off, they mix for every
+    /// key, name included. On by default, kept nowhere.
+    Q_PROPERTY(bool foldersFirst READ foldersFirst WRITE setFoldersFirst NOTIFY foldersFirstChanged)
+    /// C47 I5: "" every kind, else a FileKinds name ("video", "subtitles"…): only files of
+    /// that kind pass, with the typed filter and hideSkipped. Opens every folder; clear()
+    /// drops it.
+    Q_PROPERTY(QString kindFilter READ kindFilter WRITE setKindFilter NOTIFY kindFilterChanged)
+    /// C47 I7: a kind filter, a typed filter or hideSkipped is on ("showing N of M").
+    Q_PROPERTY(bool filtering READ filtering NOTIFY countChanged)
+    /// C47 I5: one map per kind the torrent has, `{kind, count, files, bytes, wanted, word}`:
+    /// `count` its units (a split archive set is one), `files` its files, `bytes` their size,
+    /// `wanted` 2 none skipped / 1 some / 0 all, `word` FileKinds::word for `count`. Biggest
+    /// first by bytes, extras and then other always last.
+    Q_PROPERTY(QVariantList kinds READ kinds NOTIFY kindsChanged)
 
 public:
     enum Role {
@@ -131,6 +158,15 @@ public:
         /// "1.02 GB" for a skipped file, "—" for a wanted one (its space is expected), "" not
         /// read; a folder its skipped files' total, or "—".
         OnDiskTextRole,
+        /// C47 I5: a file's FileKinds name; a folder's, when every file under it has that
+        /// one kind, else "mixed".
+        KindRole,
+        /// The word: a file's one ("video", "subtitle"), a folder's many ("videos") or
+        /// "mixed".
+        KindTextRole,
+        /// C47 I6: the folder a row sits in inside the torrent, without the root folder
+        /// details' paths carry; "" at the top. Flat's dim text after the name.
+        FolderPathRole,
     };
     Q_ENUM(Role)
 
@@ -196,13 +232,29 @@ public:
     /// click flips it, and a third goes back to the torrent's own order (the `s` menu's
     /// "torrent order"), so the header alone reaches every order.
     Q_INVOKABLE void cycleSort(const QString &key);
-    /// The direction a key starts in: false for text and pieces (and the torrent order),
-    /// true for the numbers, largest first.
+    /// The direction a key starts in: false for text, kind and pieces (and the torrent
+    /// order), true for the numbers, largest first.
     static bool startsDescending(const QString &key);
+
+    // --- C47: flat, folders first, kinds ---------------------------------------------
+    bool flat() const { return m_flat; }
+    void setFlat(bool flat);
+    bool foldersFirst() const { return m_foldersFirst; }
+    void setFoldersFirst(bool first);
+    QString kindFilter() const { return m_kindFilter; }
+    void setKindFilter(const QString &kind);
+    bool filtering() const;
+    QVariantList kinds() const { return m_kinds; }
+    /// C47 I5: every file of `kind` (a FileKinds name), whatever the filters show: a chip's
+    /// box acts on the whole kind. Sorted API ids.
+    Q_INVOKABLE QVariantList kindFileIndexes(const QString &kind) const;
+    /// C47 I7's `× show all`: the kind filter, the typed filter and hideSkipped all off.
+    Q_INVOKABLE void clearFilters();
 
     // --- folding ---------------------------------------------------------------------
     Q_INVOKABLE bool isFolder(int row) const;
-    /// True on an open folder. Every folder reads open while a filter is typed.
+    /// True on an open folder. Every folder reads open while a filter is typed or a kind is
+    /// filtered. In flat, set/expand/collapse do nothing.
     Q_INVOKABLE bool isExpanded(int row) const;
     /// No-op on a file row, while a filter is typed, or when the folder is already in that
     /// state.
@@ -306,6 +358,10 @@ Q_SIGNALS:
     void summaryChanged();
     void headWantedChanged();
     void onDiskChanged();
+    void flatChanged();
+    void foldersFirstChanged();
+    void kindFilterChanged();
+    void kindsChanged();
     /// applyFiles() took a torrents/files array, changed or not: files() is that array now.
     void filesApplied();
     /// The same rows changed places (a sort, or a poll moving the number sorted by). The
@@ -336,6 +392,7 @@ private:
         int skippedFiles = 0;   ///< of those, at priority skip
         qint64 onDisk = -1;     ///< C17 D1: a skipped file's allocated bytes; a folder's sum
         int parent = -1;
+        int kind = -1; ///< FileKinds::Kind; a folder: its files' one kind, -1 mixed
     };
 
     /// One word of the filter: a plain lower-case substring, or a `*` pattern.
@@ -381,6 +438,14 @@ private:
     void updateSummary();
     /// Recounts the head tick (headWanted, headFileCount); emits headWantedChanged().
     void updateHeadWanted();
+    /// Recounts `kinds` from the files' kinds and priorities; emits kindsChanged().
+    void updateKinds();
+    /// Every folder open: a typed filter or a kind filter.
+    bool opensEveryFolder() const;
+    /// Whether a leaf passes the kind filter.
+    bool passesKind(const Node &leaf) const;
+    /// The leaves the filters pass, in flat's order (the sort across the torrent).
+    QList<int> flatLeaves() const;
 
     QList<Node> m_nodes; ///< the tree, parents before children
     QList<int> m_roots;
@@ -406,6 +471,12 @@ private:
     QList<int> m_prioritySet = qbittorrentPrioritySet();
     QString m_sortKey;
     bool m_sortDescending = false;
+    bool m_flat = false;
+    bool m_foldersFirst = true;
+    QString m_kindFilter;
+    int m_kindFilterKind = -1; ///< m_kindFilter as a FileKinds::Kind, -1 none
+    QString m_kindRoot;        ///< the first segment left out for kinds and FolderPathRole
+    QVariantList m_kinds;
 };
 
 } // namespace omaseed::core

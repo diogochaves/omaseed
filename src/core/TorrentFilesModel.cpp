@@ -1,5 +1,6 @@
 #include "core/TorrentFilesModel.hpp"
 
+#include "core/FileKinds.hpp"
 #include "core/Format.hpp"
 #include "core/SearchWords.hpp"
 
@@ -112,6 +113,9 @@ QHash<int, QByteArray> TorrentFilesModel::roleNames() const
         {WantedRole, "wanted"},
         {OnDiskRole, "onDisk"},
         {OnDiskTextRole, "onDiskText"},
+        {KindRole, "kind"},
+        {KindTextRole, "kindText"},
+        {FolderPathRole, "folderPath"},
     };
 }
 
@@ -141,9 +145,9 @@ QVariant TorrentFilesModel::data(const QModelIndex &index, int role) const
     case IsFolderRole:
         return node.isFolder;
     case DepthRole:
-        return node.depth;
+        return m_flat ? 0 : node.depth; // C47 I6: flat rows sit at the left
     case ExpandedRole:
-        return node.isFolder && (!m_filterText.isEmpty() || !m_folded.contains(node.path));
+        return node.isFolder && (opensEveryFolder() || !m_folded.contains(node.path));
     case FileIndexesRole:
         return toVariantList(node.shownIds);
     case AvailabilityRole:
@@ -178,6 +182,21 @@ QVariant TorrentFilesModel::data(const QModelIndex &index, int role) const
         if (!node.isFolder)
             return node.priority == int(FilePriority::Skip) ? 0 : 2;
         return node.skippedFiles == 0 ? 2 : node.skippedFiles == node.files ? 0 : 1;
+    case KindRole:
+        return node.kind < 0 ? QStringLiteral("mixed")
+                             : FileKinds::name(FileKinds::Kind(node.kind));
+    case KindTextRole:
+        return node.kind < 0 ? QStringLiteral("mixed")
+                             : FileKinds::word(FileKinds::Kind(node.kind), node.isFolder);
+    case FolderPathRole: {
+        const QString folder = node.path.section(QLatin1Char('/'), 0, -2);
+        if (m_kindRoot.isEmpty() || folder.isEmpty())
+            return folder;
+        if (folder == m_kindRoot)
+            return QString();
+        return folder.startsWith(m_kindRoot + QLatin1Char('/')) ? folder.mid(m_kindRoot.size() + 1)
+                                                                : folder;
+    }
     default:
         return {};
     }
@@ -244,14 +263,21 @@ void TorrentFilesModel::clear()
     m_matchCount = 0;
     m_onDisk.clear();
     m_held.clear();
-    // A filter belongs to the torrent it was typed for; the sort is a preference and stays.
+    m_kindRoot.clear();
+    // A filter belongs to the torrent it was typed for, and so does a kind filter (C47 I5);
+    // the sort, flat, folders first and hideSkipped are preferences and stay.
     const bool hadFilter = !m_filterText.isEmpty();
+    const bool hadKind = !m_kindFilter.isEmpty();
     m_filterText.clear();
+    m_kindFilter.clear();
+    m_kindFilterKind = -1;
     endResetModel();
     Q_EMIT countChanged();
     Q_EMIT selectionChanged();
     if (hadFilter)
         Q_EMIT filterTextChanged();
+    if (hadKind)
+        Q_EMIT kindFilterChanged();
     updateSummary();
 }
 
@@ -349,6 +375,36 @@ void TorrentFilesModel::rebuild(const QList<ContentFile> &files)
         else
             m_nodes[parent].children.append(at);
     }
+
+    // C47 I5: each file's kind. Details' paths carry the torrent's root folder ("Big Buck
+    // Bunny/subs/a.srt") and the add's don't; when every path shares one first segment it is
+    // left out, so TorrentExtras sees the same top level in both.
+    m_kindRoot.clear();
+    QList<int> leaves;
+    for (int at = 0; at < int(m_nodes.size()); ++at) {
+        if (!m_nodes.at(at).isFolder)
+            leaves.append(at);
+    }
+    if (!leaves.isEmpty()) {
+        const QString &first = m_nodes.at(leaves.constFirst()).path;
+        const QString root = first.section(QLatin1Char('/'), 0, 0);
+        const bool shared = first.contains(QLatin1Char('/')) &&
+                            std::all_of(leaves.cbegin(), leaves.cend(), [&](int leaf) {
+                                return m_nodes.at(leaf).path.startsWith(root + QLatin1Char('/'));
+                            });
+        if (shared)
+            m_kindRoot = root;
+    }
+    QList<TorrentFileEntry> entries;
+    entries.reserve(leaves.size());
+    for (int leaf : std::as_const(leaves)) {
+        const Node &node = m_nodes.at(leaf);
+        entries.append(
+            {m_kindRoot.isEmpty() ? node.path : node.path.mid(m_kindRoot.size() + 1), node.size});
+    }
+    const QList<FileKinds::Kind> kinds = FileKinds::classify(entries);
+    for (int at = 0; at < int(leaves.size()); ++at)
+        m_nodes[leaves.at(at)].kind = int(kinds.at(at));
 
     for (int root : std::as_const(m_roots))
         aggregate(root);
@@ -453,6 +509,7 @@ void TorrentFilesModel::aggregate(int at)
     int files = 0;
     int skippedFiles = 0;
     qint64 onDisk = -1;
+    int kind = -2; // -2 none yet, -1 mixed
 
     const QList<int> children = m_nodes.at(at).children;
     for (int child : children) {
@@ -488,6 +545,7 @@ void TorrentFilesModel::aggregate(int at)
             pieceFirst = pieceFirst < 0 ? kid.pieceFirst : std::min(pieceFirst, kid.pieceFirst);
         pieceLast = std::max(pieceLast, kid.pieceLast);
         order = order < 0 ? kid.order : std::min(order, kid.order);
+        kind = kind == -2 ? kid.kind : (kind == kid.kind ? kind : -1);
         if (first) {
             priority = kid.priority;
             first = false;
@@ -513,6 +571,7 @@ void TorrentFilesModel::aggregate(int at)
     node.files = files;
     node.skippedFiles = skippedFiles;
     node.onDisk = onDisk;
+    node.kind = std::max(kind, -1);
 }
 
 // --- filter and sort ---------------------------------------------------------------------
@@ -589,7 +648,7 @@ bool TorrentFilesModel::matchFilter(int at, const Filter &filter)
 {
     Node &node = m_nodes[at];
     if (!node.isFolder) {
-        const bool matches = TorrentFilesModel::matches(filter, node.path) &&
+        const bool matches = TorrentFilesModel::matches(filter, node.path) && passesKind(node) &&
                              !(m_hideSkipped && node.priority == int(FilePriority::Skip));
         node.matches = matches;
         node.shownIds = matches ? node.fileIndexes : QList<int>();
@@ -681,7 +740,8 @@ void TorrentFilesModel::cycleSort(const QString &key)
 
 bool TorrentFilesModel::startsDescending(const QString &key)
 {
-    return !(key.isEmpty() || key == QLatin1String("name") || key == QLatin1String("pieces"));
+    return !(key.isEmpty() || key == QLatin1String("name") || key == QLatin1String("kind") ||
+             key == QLatin1String("pieces"));
 }
 
 bool TorrentFilesModel::lessThan(int left, int right) const
@@ -689,12 +749,19 @@ bool TorrentFilesModel::lessThan(int left, int right) const
     const Node &a = m_nodes.at(left);
     const Node &b = m_nodes.at(right);
 
+    // DECISIONS C47 I4: folders first for every key, whichever way it runs (by name, as in
+    // qBittorrent's content view); off, folders and files mix for every key.
+    if (m_foldersFirst && a.isFolder != b.isFolder)
+        return a.isFolder;
+
     int order = 0;
     if (m_sortKey == QLatin1String("name")) {
-        // Folders first whichever way the names run, as in qBittorrent's content view.
-        if (a.isFolder != b.isFolder)
-            return a.isFolder;
         order = compareNames(a.name, b.name);
+    } else if (m_sortKey == QLatin1String("kind")) {
+        // C47 I5: the kind table's order, a mixed folder first; then the name.
+        order = compareValues(a.kind, b.kind);
+        if (order == 0)
+            order = compareNames(a.name, b.name);
     } else if (m_sortKey == QLatin1String("size")) {
         order = compareValues(a.size, b.size);
     } else if (m_sortKey == QLatin1String("progress")) {
@@ -733,8 +800,10 @@ QList<int> TorrentFilesModel::sortedChildren(const QList<int> &children) const
 
 QList<int> TorrentFilesModel::computeVisible() const
 {
+    if (m_flat)
+        return flatLeaves();
     QList<int> visible;
-    const bool filtering = !m_filterText.isEmpty();
+    const bool filtering = opensEveryFolder();
     const std::function<void(int)> walk = [&](int at) {
         const Node &node = m_nodes.at(at);
         if (!node.matches)
@@ -823,7 +892,8 @@ void TorrentFilesModel::updateHeadWanted()
     int files = 0;
     int skipped = 0;
     for (const Node &node : std::as_const(m_nodes)) {
-        if (node.isFolder || (!m_filterText.isEmpty() && !filterMatches(m_filterText, node.path)))
+        if (node.isFolder || !passesKind(node) ||
+            (!m_filterText.isEmpty() && !filterMatches(m_filterText, node.path)))
             continue;
         ++files;
         if (node.priority == int(FilePriority::Skip))
@@ -841,7 +911,8 @@ QVariantList TorrentFilesModel::headFileIndexes() const
 {
     QList<int> ids;
     for (const Node &node : m_nodes) {
-        if (!node.isFolder && (m_filterText.isEmpty() || filterMatches(m_filterText, node.path)))
+        if (!node.isFolder && passesKind(node) &&
+            (m_filterText.isEmpty() || filterMatches(m_filterText, node.path)))
             ids.append(node.fileIndex);
     }
     std::sort(ids.begin(), ids.end());
@@ -870,6 +941,7 @@ QHash<int, int> TorrentFilesModel::priorityByFileIndex() const
 void TorrentFilesModel::updateSummary()
 {
     updateHeadWanted();
+    updateKinds();
     int folders = 0;
     int skipped = 0;
     qint64 size = 0;
@@ -930,12 +1002,12 @@ bool TorrentFilesModel::isExpanded(int row) const
 {
     if (!isFolder(row))
         return false;
-    return !m_filterText.isEmpty() || !m_folded.contains(m_nodes.at(m_visible.at(row)).path);
+    return opensEveryFolder() || !m_folded.contains(m_nodes.at(m_visible.at(row)).path);
 }
 
 void TorrentFilesModel::setExpanded(int row, bool expanded)
 {
-    if (!m_filterText.isEmpty() || !isFolder(row) || isExpanded(row) == expanded)
+    if (m_flat || opensEveryFolder() || !isFolder(row) || isExpanded(row) == expanded)
         return;
 
     const QString path = m_nodes.at(m_visible.at(row)).path;
@@ -953,7 +1025,7 @@ void TorrentFilesModel::toggle(int row)
 
 void TorrentFilesModel::expandAll()
 {
-    if (m_folded.isEmpty())
+    if (m_flat || m_folded.isEmpty())
         return;
     m_folded.clear();
     relayout();
@@ -961,6 +1033,8 @@ void TorrentFilesModel::expandAll()
 
 void TorrentFilesModel::collapseAll()
 {
+    if (m_flat)
+        return;
     QSet<QString> folded;
     for (const Node &node : std::as_const(m_nodes)) {
         if (node.isFolder)
@@ -1091,6 +1165,17 @@ QList<int> TorrentFilesModel::targetLeaves(int cursorRow) const
     // Walk the tree in the order it is drawn, so "by shown file order" means what it says,
     // and take every file that is a target or sits under one.
     QList<int> leaves;
+    if (m_flat) {
+        for (int leaf : flatLeaves()) {
+            for (int at = leaf; at >= 0; at = m_nodes.at(at).parent) {
+                if (targets.contains(at)) {
+                    leaves.append(leaf);
+                    break;
+                }
+            }
+        }
+        return leaves;
+    }
     const std::function<void(int)> walk = [&](int at) {
         if (!m_nodes.at(at).matches)
             return;
@@ -1248,6 +1333,15 @@ QStringList TorrentFilesModel::renameTargets() const
     // In the tab's order (its sort), folded folders included: a fold only hides rows.
     QStringList selected;
     QStringList shown;
+    if (m_flat) {
+        for (int leaf : flatLeaves()) {
+            const QString &path = m_nodes.at(leaf).path;
+            shown.append(path);
+            if (m_selected.contains(path))
+                selected.append(path);
+        }
+        return selected.isEmpty() ? shown : selected;
+    }
     const std::function<void(int)> walk = [&](int at) {
         const Node &node = m_nodes.at(at);
         if (!node.matches)
@@ -1438,6 +1532,175 @@ QString TorrentFilesModel::serverPathOf(const QString &contentPath,
     if (separator == QLatin1Char('\\'))
         relative.replace(QLatin1Char('/'), QLatin1Char('\\'));
     return base.endsWith(separator) ? base + relative : base + separator + relative;
+}
+
+// --- C47: flat, folders first, kinds -------------------------------------------------------
+
+bool TorrentFilesModel::opensEveryFolder() const
+{
+    return !m_filterText.isEmpty() || !m_kindFilter.isEmpty();
+}
+
+bool TorrentFilesModel::passesKind(const Node &leaf) const
+{
+    return m_kindFilterKind < 0 || leaf.kind == m_kindFilterKind;
+}
+
+bool TorrentFilesModel::filtering() const
+{
+    return !m_kindFilter.isEmpty() || !m_filterText.isEmpty() || m_hideSkipped;
+}
+
+QList<int> TorrentFilesModel::flatLeaves() const
+{
+    QList<int> leaves;
+    for (int at = 0; at < int(m_nodes.size()); ++at) {
+        const Node &node = m_nodes.at(at);
+        if (!node.isFolder && node.matches)
+            leaves.append(at);
+    }
+    // C47 I6: sorted across the torrent; with no key, the torrent's own order (node order).
+    if (!m_sortKey.isEmpty()) {
+        std::stable_sort(leaves.begin(), leaves.end(), [this](int left, int right) {
+            return lessThan(left, right);
+        });
+    }
+    return leaves;
+}
+
+void TorrentFilesModel::setFlat(bool flat)
+{
+    if (flat == m_flat)
+        return;
+    m_flat = flat;
+    relayout();
+    Q_EMIT flatChanged();
+}
+
+void TorrentFilesModel::setFoldersFirst(bool first)
+{
+    if (first == m_foldersFirst)
+        return;
+    m_foldersFirst = first;
+    relayout();
+    Q_EMIT foldersFirstChanged();
+}
+
+void TorrentFilesModel::setKindFilter(const QString &kind)
+{
+    const std::optional<FileKinds::Kind> known = FileKinds::fromName(kind);
+    if (!kind.isEmpty() && !known)
+        return; // not a kind: nothing would pass, so keep what is shown
+    if (kind == m_kindFilter)
+        return;
+    m_kindFilter = kind;
+    m_kindFilterKind = known ? int(*known) : -1;
+    applyFilter();
+    beginResetModel();
+    rebuildVisible();
+    endResetModel();
+    updateHeadWanted();
+    Q_EMIT kindFilterChanged();
+    Q_EMIT countChanged();
+}
+
+void TorrentFilesModel::clearFilters()
+{
+    const bool text = !m_filterText.isEmpty();
+    const bool kind = !m_kindFilter.isEmpty();
+    const bool hide = m_hideSkipped;
+    if (!text && !kind && !hide)
+        return;
+    m_filterText.clear();
+    m_kindFilter.clear();
+    m_kindFilterKind = -1;
+    m_hideSkipped = false;
+    applyFilter();
+    beginResetModel();
+    rebuildVisible();
+    endResetModel();
+    updateHeadWanted();
+    if (text)
+        Q_EMIT filterTextChanged();
+    if (kind)
+        Q_EMIT kindFilterChanged();
+    if (hide)
+        Q_EMIT hideSkippedChanged();
+    Q_EMIT countChanged();
+}
+
+QVariantList TorrentFilesModel::kindFileIndexes(const QString &kind) const
+{
+    const std::optional<FileKinds::Kind> known = FileKinds::fromName(kind);
+    if (!known)
+        return {};
+    QList<int> ids;
+    for (const Node &node : m_nodes) {
+        if (!node.isFolder && node.kind == int(*known))
+            ids.append(node.fileIndex);
+    }
+    std::sort(ids.begin(), ids.end());
+    return toVariantList(ids);
+}
+
+void TorrentFilesModel::updateKinds()
+{
+    struct Tally
+    {
+        int files = 0;
+        int skipped = 0;
+        qint64 bytes = 0;
+    };
+    QHash<int, Tally> tallies;
+    QList<TorrentFileEntry> entries;
+    QList<FileKinds::Kind> kinds;
+    for (const Node &node : std::as_const(m_nodes)) {
+        if (node.isFolder || node.kind < 0)
+            continue;
+        Tally &tally = tallies[node.kind];
+        ++tally.files;
+        tally.bytes += node.size;
+        if (node.priority == int(FilePriority::Skip))
+            ++tally.skipped;
+        entries.append({node.path, node.size});
+        kinds.append(FileKinds::Kind(node.kind));
+    }
+
+    QList<int> present = tallies.keys();
+    // C47 I5: by bytes, biggest first; extras and then other always last.
+    const auto rank = [](int kind) {
+        return kind == int(FileKinds::Kind::Extras)  ? 1
+               : kind == int(FileKinds::Kind::Other) ? 2
+                                                     : 0;
+    };
+    std::sort(present.begin(), present.end(), [&](int left, int right) {
+        if (rank(left) != rank(right))
+            return rank(left) < rank(right);
+        const qint64 a = tallies.value(left).bytes;
+        const qint64 b = tallies.value(right).bytes;
+        return a != b ? a > b : left < right;
+    });
+
+    QVariantList next;
+    for (int kind : std::as_const(present)) {
+        const Tally &tally = tallies[kind];
+        const int count = FileKinds::units(FileKinds::Kind(kind), entries, kinds);
+        next.append(QVariantMap{
+            {QStringLiteral("kind"), FileKinds::name(FileKinds::Kind(kind))},
+            {QStringLiteral("count"), count},
+            {QStringLiteral("files"), tally.files},
+            {QStringLiteral("bytes"), tally.bytes},
+            {QStringLiteral("wanted"),
+             tally.skipped == 0             ? 2
+             : tally.skipped == tally.files ? 0
+                                            : 1},
+            {QStringLiteral("word"), FileKinds::word(FileKinds::Kind(kind), count != 1)},
+        });
+    }
+    if (next == m_kinds)
+        return;
+    m_kinds = next;
+    Q_EMIT kindsChanged();
 }
 
 } // namespace omaseed::core

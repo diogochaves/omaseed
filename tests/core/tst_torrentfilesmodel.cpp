@@ -11,6 +11,7 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QSet>
 #include <QSignalSpy>
 #include <QTest>
 
@@ -49,7 +50,8 @@ private Q_SLOTS:
     void transmissions_set_has_low_and_no_maximal();
     void empty_input_clears();
     void sorting_by_name_keeps_the_tree_and_puts_folders_first();
-    void sorting_by_a_number_mixes_folders_and_files();
+    void foldersFirstForEveryKey();
+    void foldersFirstOffMixesEvenByName();
     void a_poll_that_reorders_moves_rows_instead_of_resetting();
     void a_long_list_reorders_in_one_layout_change();
     void a_priority_on_every_file_of_a_huge_torrent_is_linear();
@@ -76,6 +78,26 @@ private Q_SLOTS:
     void the_tick_reads_wanted_over_each_subtree();
     void the_head_tick_covers_what_the_filter_shows();
     void on_disk_shows_what_skipped_files_hold();
+
+    // DECISIONS C47 I3–I7 (board 64): kinds, flat, folders first, the kind filter.
+    void kindRoleOfAFileAndAFolder();
+    void aMixedFolderSaysMixed();
+    void detailsRootFolderIsStrippedForKinds();
+    void flatListsEveryFileOnce();
+    void flatSortsBySizeAcrossFolders();
+    void flatShowsTheFolderPath();
+    void flatKeepsTheFoldsForTree();
+    void foldAllIsANoOpInFlat();
+    void flatTargetsFollowTheFlatOrder();
+    void sortByKindFollowsTheTable();
+    void kindFilterShowsOnlyThatKindAndOpensFolders();
+    void kindFilterWithTypedFilterAndHideSkipped();
+    void filteringFollowsAllThree();
+    void clearFiltersDropsAllThree();
+    void kindsOrderedByBytesExtrasAndOtherLast();
+    void kindsWantedFollowsPriorities();
+    void kindFileIndexesIgnoreTheFilter();
+    void aPollKeepsKindsAndFlat();
 };
 
 void TestTorrentFilesModel::builds_the_tree_from_slash_separated_names()
@@ -354,13 +376,44 @@ void TestTorrentFilesModel::sorting_by_name_keeps_the_tree_and_puts_folders_firs
              QStringLiteral("bbb_sunflower_2160p_60fps.mp4"));
 }
 
-void TestTorrentFilesModel::sorting_by_a_number_mixes_folders_and_files()
+// DECISIONS C47 I4: folders first is one rule for every key (until board 64 a number mixed
+// them); on by default.
+void TestTorrentFilesModel::foldersFirstForEveryKey()
 {
     TorrentFilesModel model;
+    QVERIFY(model.foldersFirst());
     qbtfeed::files(model, fixture(QStringLiteral("files-fig2.json")));
     model.setSortKey(QStringLiteral("size"));
     model.setSortDescending(false);
-    // Smallest first: the 1 KB licence, then the 18 KB subs folder, then the two videos.
+    // Smallest first, the subs folder ahead of the 1 KB licence all the same.
+    QCOMPARE(names(model),
+             (QStringList{QStringLiteral("Big Buck Bunny 4K/"),
+                          QStringLiteral("subs/"),
+                          QStringLiteral("bbb.en.srt"),
+                          QStringLiteral("bbb.pt.srt"),
+                          QStringLiteral("LICENSE.txt"),
+                          QStringLiteral("bbb_sunflower_1080p_30fps.mp4"),
+                          QStringLiteral("bbb_sunflower_2160p_60fps.mp4")}));
+    // Largest first, still ahead.
+    model.setSortDescending(true);
+    QCOMPARE(at(model, 1, TorrentFilesModel::NameRole).toString(), QStringLiteral("subs/"));
+
+    // A poll that changes nothing keeps the order; equal sizes keep the torrent's order.
+    model.setSortDescending(false);
+    qbtfeed::files(model, fixture(QStringLiteral("files-fig2.json")));
+    QCOMPARE(at(model, 2, TorrentFilesModel::NameRole).toString(), QStringLiteral("bbb.en.srt"));
+}
+
+void TestTorrentFilesModel::foldersFirstOffMixesEvenByName()
+{
+    TorrentFilesModel model;
+    qbtfeed::files(model, fixture(QStringLiteral("files-fig2.json")));
+    QSignalSpy changed(&model, &TorrentFilesModel::foldersFirstChanged);
+    model.setFoldersFirst(false);
+    QCOMPARE(changed.count(), 1);
+
+    model.setSortKey(QStringLiteral("size"));
+    model.setSortDescending(false);
     QCOMPARE(names(model),
              (QStringList{QStringLiteral("Big Buck Bunny 4K/"),
                           QStringLiteral("LICENSE.txt"),
@@ -370,9 +423,15 @@ void TestTorrentFilesModel::sorting_by_a_number_mixes_folders_and_files()
                           QStringLiteral("bbb_sunflower_1080p_30fps.mp4"),
                           QStringLiteral("bbb_sunflower_2160p_60fps.mp4")}));
 
-    // A poll that changes nothing keeps the order; equal sizes keep the torrent's order.
-    qbtfeed::files(model, fixture(QStringLiteral("files-fig2.json")));
-    QCOMPARE(at(model, 3, TorrentFilesModel::NameRole).toString(), QStringLiteral("bbb.en.srt"));
+    model.setSortKey(QStringLiteral("name"));
+    QCOMPARE(names(model),
+             (QStringList{QStringLiteral("Big Buck Bunny 4K/"),
+                          QStringLiteral("bbb_sunflower_1080p_30fps.mp4"),
+                          QStringLiteral("bbb_sunflower_2160p_60fps.mp4"),
+                          QStringLiteral("LICENSE.txt"),
+                          QStringLiteral("subs/"),
+                          QStringLiteral("bbb.en.srt"),
+                          QStringLiteral("bbb.pt.srt")}));
 }
 
 void TestTorrentFilesModel::a_poll_that_reorders_moves_rows_instead_of_resetting()
@@ -698,11 +757,15 @@ void TestTorrentFilesModel::shown_order_splits_the_files_in_thirds()
     QCOMPARE(groups.at(2).toMap().value(QStringLiteral("fileIndexes")).toList(),
              (QVariantList{2, 3, 4}));
 
-    // "Shown" means the order on screen: smallest first puts the licence at the top.
+    // "Shown" means the order on screen: smallest first puts the subs folder (folders first,
+    // DECISIONS C47 I4) and so its first subtitle at the top; folders first off, the licence.
     model.setSortKey(QStringLiteral("size"));
     model.setSortDescending(false);
     const QVariantList bySize = model.shownOrderGroups(0);
-    QCOMPARE(bySize.at(0).toMap().value(QStringLiteral("fileIndexes")).toList(), (QVariantList{4}));
+    QCOMPARE(bySize.at(0).toMap().value(QStringLiteral("fileIndexes")).toList(), (QVariantList{2}));
+    model.setFoldersFirst(false);
+    const QVariantList mixed = model.shownOrderGroups(0);
+    QCOMPARE(mixed.at(0).toMap().value(QStringLiteral("fileIndexes")).toList(), (QVariantList{4}));
 
     // One file is one group.
     QCOMPARE(model.shownOrderGroups(1).size(), 1);
@@ -1158,6 +1221,412 @@ void TestTorrentFilesModel::on_disk_shows_what_skipped_files_hold()
     model.clear();
     qbtfeed::files(model, files);
     QVERIFY(!model.showOnDisk());
+}
+
+// --- C47 ---------------------------------------------------------------------------------
+
+namespace {
+
+struct Spec
+{
+    QString path;
+    qint64 size = 1000;
+    int priority = 1;
+};
+
+/// A `torrents/files` array, ids in order.
+QJsonArray filesOf(const QList<Spec> &specs)
+{
+    QJsonArray files;
+    for (int i = 0; i < int(specs.size()); ++i) {
+        files.append(QJsonObject{
+            {QStringLiteral("index"), i},
+            {QStringLiteral("name"), specs.at(i).path},
+            {QStringLiteral("size"), specs.at(i).size},
+            {QStringLiteral("progress"), 0.0},
+            {QStringLiteral("priority"), specs.at(i).priority},
+        });
+    }
+    return files;
+}
+
+QString kindAt(const TorrentFilesModel &model, const QString &path)
+{
+    return at(model, model.rowOfPath(path), TorrentFilesModel::KindRole).toString();
+}
+
+QList<int> intsOf(const QVariantList &values)
+{
+    QList<int> ints;
+    for (const QVariant &value : values)
+        ints.append(value.toInt());
+    return ints;
+}
+
+QVariantMap kindEntry(const TorrentFilesModel &model, const QString &kind)
+{
+    for (const QVariant &entry : model.kinds()) {
+        if (entry.toMap().value(QStringLiteral("kind")).toString() == kind)
+            return entry.toMap();
+    }
+    return {};
+}
+
+const QString kRoot = QStringLiteral("Big Buck Bunny 4K");
+const QString kEn = QStringLiteral("Big Buck Bunny 4K/subs/bbb.en.srt");
+const QString k1080 = QStringLiteral("Big Buck Bunny 4K/bbb_sunflower_1080p_30fps.mp4");
+
+} // namespace
+
+void TestTorrentFilesModel::kindRoleOfAFileAndAFolder()
+{
+    TorrentFilesModel model;
+    qbtfeed::files(model, fixture(QStringLiteral("files-fig2.json")));
+    QCOMPARE(kindAt(model, k1080), QStringLiteral("video"));
+    QCOMPARE(at(model, model.rowOfPath(k1080), TorrentFilesModel::KindTextRole).toString(),
+             QStringLiteral("video"));
+    QCOMPARE(kindAt(model, kEn), QStringLiteral("subtitles"));
+    QCOMPARE(at(model, model.rowOfPath(kEn), TorrentFilesModel::KindTextRole).toString(),
+             QStringLiteral("subtitle"));
+    // A folder of one kind takes it, in its many form.
+    const QString subs = kRoot + QStringLiteral("/subs");
+    QCOMPARE(kindAt(model, subs), QStringLiteral("subtitles"));
+    QCOMPARE(at(model, model.rowOfPath(subs), TorrentFilesModel::KindTextRole).toString(),
+             QStringLiteral("subtitles"));
+    // The licence is an NFO-like text file beside the content: an extra (TorrentExtras).
+    QCOMPARE(kindAt(model, kRoot + QStringLiteral("/LICENSE.txt")), QStringLiteral("extras"));
+}
+
+void TestTorrentFilesModel::aMixedFolderSaysMixed()
+{
+    TorrentFilesModel model;
+    qbtfeed::files(model, fixture(QStringLiteral("files-fig2.json")));
+    QCOMPARE(kindAt(model, kRoot), QStringLiteral("mixed"));
+    QCOMPARE(at(model, 0, TorrentFilesModel::KindTextRole).toString(), QStringLiteral("mixed"));
+}
+
+void TestTorrentFilesModel::detailsRootFolderIsStrippedForKinds()
+{
+    // Details' paths carry the root folder: the .exe beside the content is top-level inside
+    // the torrent, so an advert (an extra), as the add's list (no root) has it.
+    TorrentFilesModel model;
+    qbtfeed::files(model,
+                   filesOf({{QStringLiteral("Night Train/codec_pack.exe")},
+                            {QStringLiteral("Night Train/Night.Train.mkv"), 900000},
+                            {QStringLiteral("Night Train/Subs/en.srt")}}));
+    QCOMPARE(kindAt(model, QStringLiteral("Night Train/codec_pack.exe")), QStringLiteral("extras"));
+    // The same file one folder deeper is not top-level: other (no program kind, 59 unruled).
+    qbtfeed::files(model,
+                   filesOf({{QStringLiteral("Night Train/bin/codec_pack.exe")},
+                            {QStringLiteral("Night Train/Night.Train.mkv"), 900000}}));
+    QCOMPARE(kindAt(model, QStringLiteral("Night Train/bin/codec_pack.exe")),
+             QStringLiteral("other"));
+}
+
+void TestTorrentFilesModel::flatListsEveryFileOnce()
+{
+    TorrentFilesModel model;
+    QAbstractItemModelTester tester(&model, QAbstractItemModelTester::FailureReportingMode::QtTest);
+    qbtfeed::files(model, fixture(QStringLiteral("files-fig2.json")));
+    QSignalSpy changed(&model, &TorrentFilesModel::flatChanged);
+    model.setFlat(true);
+    QCOMPARE(changed.count(), 1);
+    QCOMPARE(model.count(), 5);
+    QStringList paths;
+    for (int row = 0; row < model.count(); ++row) {
+        QVERIFY(!at(model, row, TorrentFilesModel::IsFolderRole).toBool());
+        QCOMPARE(at(model, row, TorrentFilesModel::DepthRole).toInt(), 0);
+        paths.append(model.pathAt(row));
+    }
+    // No sort key: the torrent's own order.
+    QCOMPARE(paths.at(0), kRoot + QStringLiteral("/bbb_sunflower_2160p_60fps.mp4"));
+    QCOMPARE(paths.at(2), kEn);
+    QCOMPARE(QSet<QString>(paths.cbegin(), paths.cend()).size(), 5);
+}
+
+void TestTorrentFilesModel::flatSortsBySizeAcrossFolders()
+{
+    TorrentFilesModel model;
+    qbtfeed::files(model, fixture(QStringLiteral("files-fig2.json")));
+    model.setFlat(true);
+    model.sortBy(QStringLiteral("size")); // largest first
+    QCOMPARE(names(model),
+             (QStringList{QStringLiteral("bbb_sunflower_2160p_60fps.mp4"),
+                          QStringLiteral("bbb_sunflower_1080p_30fps.mp4"),
+                          QStringLiteral("bbb.en.srt"),
+                          QStringLiteral("bbb.pt.srt"),
+                          QStringLiteral("LICENSE.txt")}));
+    model.setSortDescending(false);
+    QCOMPARE(at(model, 0, TorrentFilesModel::NameRole).toString(), QStringLiteral("LICENSE.txt"));
+}
+
+void TestTorrentFilesModel::flatShowsTheFolderPath()
+{
+    TorrentFilesModel model;
+    qbtfeed::files(model, fixture(QStringLiteral("files-fig2.json")));
+    model.setFlat(true);
+    // The root folder details' paths carry is left out; the top says nothing.
+    QCOMPARE(at(model, model.rowOfPath(kEn), TorrentFilesModel::FolderPathRole).toString(),
+             QStringLiteral("subs"));
+    QCOMPARE(at(model, model.rowOfPath(k1080), TorrentFilesModel::FolderPathRole).toString(),
+             QString());
+
+    // The add's paths have no root: the folder is the path's own.
+    qbtfeed::files(model,
+                   filesOf({{QStringLiteral("a.mkv")}, {QStringLiteral("Extras/Deep/b.srt")}}));
+    QCOMPARE(at(model,
+                model.rowOfPath(QStringLiteral("Extras/Deep/b.srt")),
+                TorrentFilesModel::FolderPathRole)
+                 .toString(),
+             QStringLiteral("Extras/Deep"));
+}
+
+void TestTorrentFilesModel::flatKeepsTheFoldsForTree()
+{
+    TorrentFilesModel model;
+    qbtfeed::files(model, fixture(QStringLiteral("files-fig2.json")));
+    model.setExpanded(model.rowOfPath(kRoot + QStringLiteral("/subs")), false);
+    QCOMPARE(model.count(), 5);
+    model.setFlat(true);
+    QCOMPARE(model.count(), 5); // every file, the folded ones too
+    QVERIFY(model.rowOfPath(kEn) >= 0);
+    model.setFlat(false);
+    QCOMPARE(model.count(), 5);
+    QCOMPARE(model.rowOfPath(kEn), -1); // still folded
+}
+
+void TestTorrentFilesModel::foldAllIsANoOpInFlat()
+{
+    TorrentFilesModel model;
+    qbtfeed::files(model, fixture(QStringLiteral("files-fig2.json")));
+    model.setFlat(true);
+    model.collapseAll();
+    model.setExpanded(0, false);
+    model.setFlat(false);
+    QCOMPARE(model.count(), 7); // nothing was folded
+    model.collapseAll();
+    model.setFlat(true);
+    model.expandAll();
+    model.setFlat(false);
+    QCOMPARE(model.count(), 1); // nothing was unfolded
+}
+
+void TestTorrentFilesModel::flatTargetsFollowTheFlatOrder()
+{
+    TorrentFilesModel model;
+    qbtfeed::files(model, fixture(QStringLiteral("files-fig2.json")));
+    model.setFlat(true);
+    model.sortBy(QStringLiteral("size"));
+    // The cursor row is a file; renames and "by shown file order" walk the flat list.
+    QCOMPARE(intsOf(model.targetFileIndexes(1)), (QList<int>{1}));
+    const QStringList targets = model.renameTargets();
+    QCOMPARE(targets.first(), kRoot + QStringLiteral("/bbb_sunflower_2160p_60fps.mp4"));
+    QCOMPARE(targets.last(), kRoot + QStringLiteral("/LICENSE.txt"));
+}
+
+void TestTorrentFilesModel::sortByKindFollowsTheTable()
+{
+    TorrentFilesModel model;
+    qbtfeed::files(model,
+                   filesOf({{QStringLiteral("z.srt")},
+                            {QStringLiteral("b.flac")},
+                            {QStringLiteral("a.mkv")},
+                            {QStringLiteral("Mixed/c.mkv")},
+                            {QStringLiteral("Mixed/d.flac")},
+                            {QStringLiteral("Video/e.mkv")}}));
+    QVERIFY(!TorrentFilesModel::startsDescending(QStringLiteral("kind")));
+    model.sortBy(QStringLiteral("kind"));
+    QVERIFY(!model.sortDescending());
+    // Folders first: the mixed one ahead of the video one; then video, audio, subtitles.
+    QCOMPARE(names(model),
+             (QStringList{QStringLiteral("Mixed/"),
+                          QStringLiteral("c.mkv"),
+                          QStringLiteral("d.flac"),
+                          QStringLiteral("Video/"),
+                          QStringLiteral("e.mkv"),
+                          QStringLiteral("a.mkv"),
+                          QStringLiteral("b.flac"),
+                          QStringLiteral("z.srt")}));
+}
+
+void TestTorrentFilesModel::kindFilterShowsOnlyThatKindAndOpensFolders()
+{
+    TorrentFilesModel model;
+    QAbstractItemModelTester tester(&model, QAbstractItemModelTester::FailureReportingMode::QtTest);
+    qbtfeed::files(model, fixture(QStringLiteral("files-fig2.json")));
+    model.setExpanded(model.rowOfPath(kRoot + QStringLiteral("/subs")), false);
+    QSignalSpy changed(&model, &TorrentFilesModel::kindFilterChanged);
+
+    model.setKindFilter(QStringLiteral("subtitles"));
+    QCOMPARE(changed.count(), 1);
+    QCOMPARE(model.matchCount(), 2);
+    QCOMPARE(names(model),
+             (QStringList{QStringLiteral("Big Buck Bunny 4K/"),
+                          QStringLiteral("subs/"),
+                          QStringLiteral("bbb.en.srt"),
+                          QStringLiteral("bbb.pt.srt")}));
+    QVERIFY(model.isExpanded(1));
+    // A folder acts on what it shows.
+    QCOMPARE(intsOf(model.fileIndexes(0)), (QList<int>{2, 3}));
+
+    // Not a kind: ignored.
+    model.setKindFilter(QStringLiteral("programs"));
+    QCOMPARE(model.kindFilter(), QStringLiteral("subtitles"));
+
+    // Back to all: the fold comes back.
+    model.setKindFilter(QString());
+    QCOMPARE(model.count(), 5);
+}
+
+void TestTorrentFilesModel::kindFilterWithTypedFilterAndHideSkipped()
+{
+    TorrentFilesModel model;
+    qbtfeed::files(model, fixture(QStringLiteral("files-fig2.json")));
+    model.setKindFilter(QStringLiteral("video"));
+    model.setFilterText(QStringLiteral("1080"));
+    QCOMPARE(model.matchCount(), 1);
+    QCOMPARE(model.rowOfPath(k1080) >= 0, true);
+    QCOMPARE(model.headFileCount(), 1);
+
+    // Both subtitles are skipped: hidden, nothing of that kind is left.
+    model.setFilterText(QString());
+    model.setKindFilter(QStringLiteral("subtitles"));
+    model.setHideSkipped(true);
+    QCOMPARE(model.matchCount(), 0);
+    QCOMPARE(model.count(), 0);
+}
+
+void TestTorrentFilesModel::filteringFollowsAllThree()
+{
+    TorrentFilesModel model;
+    qbtfeed::files(model, fixture(QStringLiteral("files-fig2.json")));
+    QSignalSpy count(&model, &TorrentFilesModel::countChanged);
+    QVERIFY(!model.filtering());
+    model.setKindFilter(QStringLiteral("video"));
+    QVERIFY(model.filtering());
+    QVERIFY(count.count() > 0);
+    model.setKindFilter(QString());
+    QVERIFY(!model.filtering());
+    model.setFilterText(QStringLiteral("srt"));
+    QVERIFY(model.filtering());
+    model.setFilterText(QString());
+    model.setHideSkipped(true);
+    QVERIFY(model.filtering());
+    model.setHideSkipped(false);
+    QVERIFY(!model.filtering());
+}
+
+void TestTorrentFilesModel::clearFiltersDropsAllThree()
+{
+    TorrentFilesModel model;
+    QAbstractItemModelTester tester(&model, QAbstractItemModelTester::FailureReportingMode::QtTest);
+    qbtfeed::files(model, fixture(QStringLiteral("files-fig2.json")));
+    model.setKindFilter(QStringLiteral("video"));
+    model.setFilterText(QStringLiteral("bbb"));
+    model.setHideSkipped(true);
+    QSignalSpy text(&model, &TorrentFilesModel::filterTextChanged);
+    QSignalSpy kind(&model, &TorrentFilesModel::kindFilterChanged);
+    QSignalSpy hide(&model, &TorrentFilesModel::hideSkippedChanged);
+
+    model.clearFilters();
+    QVERIFY(!model.filtering());
+    QCOMPARE(model.filterText(), QString());
+    QCOMPARE(model.kindFilter(), QString());
+    QVERIFY(!model.hideSkipped());
+    QCOMPARE(model.count(), 7);
+    QCOMPARE(text.count(), 1);
+    QCOMPARE(kind.count(), 1);
+    QCOMPARE(hide.count(), 1);
+
+    // clear() (another torrent) drops the kind filter too, and keeps flat.
+    model.setKindFilter(QStringLiteral("video"));
+    model.setFlat(true);
+    model.clear();
+    QCOMPARE(model.kindFilter(), QString());
+    QVERIFY(model.flat());
+}
+
+void TestTorrentFilesModel::kindsOrderedByBytesExtrasAndOtherLast()
+{
+    TorrentFilesModel model;
+    QSignalSpy changed(&model, &TorrentFilesModel::kindsChanged);
+    qbtfeed::files(model,
+                   filesOf({{QStringLiteral("Show/readme.nfo"), 5000000},
+                            {QStringLiteral("Show/LICENSE"), 9000000},
+                            {QStringLiteral("Show/ep1.srt"), 10},
+                            {QStringLiteral("Show/ep2.srt"), 10},
+                            {QStringLiteral("Show/ep1.mkv"), 1000},
+                            {QStringLiteral("Show/cover.png"), 4000},
+                            {QStringLiteral("Show/cover2.png"), 4000},
+                            {QStringLiteral("Show/cover3.png"), 4000},
+                            {QStringLiteral("Show/cover4.png"), 4000},
+                            {QStringLiteral("Show/cover5.png"), 4000},
+                            {QStringLiteral("Show/pack.r00"), 300},
+                            {QStringLiteral("Show/pack.rar"), 300}}));
+    QCOMPARE(changed.count(), 1);
+    QStringList order;
+    for (const QVariant &entry : model.kinds())
+        order.append(entry.toMap().value(QStringLiteral("kind")).toString());
+    // Five images (an image set, 20 KB) before the video (1 KB), before archives and
+    // subtitles; the 5 MB NFO (an extra) and the 9 MB licence (other) last all the same.
+    QCOMPARE(order,
+             (QStringList{QStringLiteral("images"),
+                          QStringLiteral("video"),
+                          QStringLiteral("archives"),
+                          QStringLiteral("subtitles"),
+                          QStringLiteral("extras"),
+                          QStringLiteral("other")}));
+    const QVariantMap archives = kindEntry(model, QStringLiteral("archives"));
+    QCOMPARE(archives.value(QStringLiteral("count")).toInt(), 1); // one split set
+    QCOMPARE(archives.value(QStringLiteral("files")).toInt(), 2);
+    QCOMPARE(archives.value(QStringLiteral("bytes")).toLongLong(), 600);
+    QCOMPARE(archives.value(QStringLiteral("word")).toString(), QStringLiteral("archive"));
+    QCOMPARE(kindEntry(model, QStringLiteral("subtitles")).value(QStringLiteral("word")).toString(),
+             QStringLiteral("subtitles"));
+}
+
+void TestTorrentFilesModel::kindsWantedFollowsPriorities()
+{
+    TorrentFilesModel model;
+    qbtfeed::files(model, fixture(QStringLiteral("files-fig2.json")));
+    // 2160p at high, 1080p normal: none skipped. Both subtitles skipped.
+    QCOMPARE(kindEntry(model, QStringLiteral("video")).value(QStringLiteral("wanted")).toInt(), 2);
+    QCOMPARE(kindEntry(model, QStringLiteral("subtitles")).value(QStringLiteral("wanted")).toInt(),
+             0);
+    QSignalSpy changed(&model, &TorrentFilesModel::kindsChanged);
+    model.setLocalPriority({2}, int(FilePriority::Normal));
+    QCOMPARE(changed.count(), 1);
+    QCOMPARE(kindEntry(model, QStringLiteral("subtitles")).value(QStringLiteral("wanted")).toInt(),
+             1);
+}
+
+void TestTorrentFilesModel::kindFileIndexesIgnoreTheFilter()
+{
+    TorrentFilesModel model;
+    qbtfeed::files(model, fixture(QStringLiteral("files-fig2.json")));
+    model.setFilterText(QStringLiteral("2160"));
+    model.setHideSkipped(true);
+    QCOMPARE(intsOf(model.kindFileIndexes(QStringLiteral("video"))), (QList<int>{0, 1}));
+    QCOMPARE(intsOf(model.kindFileIndexes(QStringLiteral("subtitles"))), (QList<int>{2, 3}));
+    QVERIFY(model.kindFileIndexes(QStringLiteral("books")).isEmpty());
+    QVERIFY(model.kindFileIndexes(QStringLiteral("nonsense")).isEmpty());
+}
+
+void TestTorrentFilesModel::aPollKeepsKindsAndFlat()
+{
+    TorrentFilesModel model;
+    qbtfeed::files(model, fixture(QStringLiteral("files-fig2.json")));
+    model.setFlat(true);
+    model.setKindFilter(QStringLiteral("video"));
+    const QVariantList kinds = model.kinds();
+    QSignalSpy reset(&model, &QAbstractItemModel::modelReset);
+    qbtfeed::files(model, fixture(QStringLiteral("files-fig2.json"))); // same shape: in place
+    QCOMPARE(reset.count(), 0);
+    QVERIFY(model.flat());
+    QCOMPARE(model.kindFilter(), QStringLiteral("video"));
+    QCOMPARE(model.kinds(), kinds);
+    QCOMPARE(model.count(), 2);
+    QCOMPARE(kindAt(model, k1080), QStringLiteral("video"));
 }
 
 QTEST_MAIN(TestTorrentFilesModel)
