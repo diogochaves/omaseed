@@ -38,6 +38,8 @@ public:
                       {QStringLiteral("temp_path"), QStringLiteral("/fast/temp")},
                       {QStringLiteral("preallocate_all"), false}};
     QList<QUrlQuery> adds;
+    /// The films category's `download_path`, changed by a test between polls.
+    QJsonValue filmsTemp = QStringLiteral("/fast/films");
 
 protected:
     void incomingConnection(qintptr descriptor) override
@@ -79,7 +81,7 @@ protected:
     }
 
 private:
-    static QJsonObject maindata()
+    QJsonObject maindata() const
     {
         const auto category = [](const QString &name, const QJsonValue &downloadPath) {
             return QJsonObject{{QStringLiteral("name"), name},
@@ -100,8 +102,7 @@ private:
              QJsonObject{{QStringLiteral("free_space_on_disk"), 1500 * kGiB},
                          {QStringLiteral("connection_status"), QStringLiteral("connected")}}},
             {QStringLiteral("categories"),
-             QJsonObject{{QStringLiteral("films"),
-                          category(QStringLiteral("films"), QStringLiteral("/fast/films"))},
+             QJsonObject{{QStringLiteral("films"), category(QStringLiteral("films"), filmsTemp)},
                          {QStringLiteral("music"), category(QStringLiteral("music"), false)},
                          {QStringLiteral("tv"), category(QStringLiteral("tv"), QJsonValue())}}},
             {QStringLiteral("torrents"),
@@ -153,6 +154,7 @@ private slots:
     void roomForUnknownTempDrive();
     void promisedLeftOutWhenPreallocating();
     void addSendsUseTempOnlyWhenOff();
+    void aCategorysTempFolderMovingReadsTheRoomAgain();
 
 private:
     /// Starts `app` on `server` and waits for its preferences, poll and features.
@@ -356,6 +358,30 @@ void TestAppRoom::addSendsUseTempOnlyWhenOff()
     QTRY_COMPARE_WITH_TIMEOUT(server.adds.size(), 2, 3000);
     QVERIFY(!server.adds.at(1).hasQueryItem(QStringLiteral("useDownloadPath")));
     QVERIFY(!server.adds.at(1).hasQueryItem(QStringLiteral("downloadPath")));
+    app.engine()->stop();
+}
+
+void TestAppRoom::aCategorysTempFolderMovingReadsTheRoomAgain()
+{
+    // Step F's leftover: the sheet reads the room on freeSpaceRevision, so a category's
+    // download_path changing on the server (C47 I12) has to move it.
+    RoomServer server;
+    App app;
+    QVERIFY(startOn(app, server));
+    const auto filmsTemp = [&app]() {
+        return app.roomFor(QString(), QStringLiteral("films"), true, true)
+            .value(QStringLiteral("tempPath"))
+            .toString();
+    };
+    QCOMPARE(filmsTemp(), QStringLiteral("/fast/films"));
+    // Polls that change nothing leave the revision alone.
+    QTest::qWait(400);
+    const int before = app.freeSpaceRevision();
+    QTest::qWait(400);
+    QCOMPARE(app.freeSpaceRevision(), before);
+    server.filmsTemp = QStringLiteral("/fast/films2");
+    QTRY_COMPARE_WITH_TIMEOUT(filmsTemp(), QStringLiteral("/fast/films2"), 5000);
+    QVERIFY(app.freeSpaceRevision() > before);
     app.engine()->stop();
 }
 

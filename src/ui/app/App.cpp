@@ -239,6 +239,13 @@ App::App(QObject *parent)
     connect(this, &App::serverChanged, this, &App::updateFreeSpace);
     // C47 I10: the add's lines take what downloads in progress still promise from free.
     connect(m_engine->torrents(), &TorrentModel::updated, this, &App::followPromisedRoom);
+    // C47 I12: a category's temp folder or save path moved while the sheet is open.
+    const auto categoriesMoved = [this]() {
+        ++m_freeSpaceRevision;
+        Q_EMIT freeSpaceChanged();
+    };
+    connect(m_engine->categories(), &QAbstractItemModel::dataChanged, this, categoriesMoved);
+    connect(m_engine->categories(), &QAbstractItemModel::modelReset, this, categoriesMoved);
     connect(this, &App::serverChanged, this, [this]() {
         // The demo's presets are its own, in its state (they write nothing to a server).
         m_altPresets->setServer(!m_hasServer ? QString()

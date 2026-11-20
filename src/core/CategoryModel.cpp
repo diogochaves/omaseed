@@ -147,8 +147,10 @@ void CategoryModel::setCategories(QList<Category> next)
     const bool sameSize = next.size() == m_categories.size();
     if (sameSize) {
         // Only save paths moved: keep the rows and tell the views which ones changed.
-        // Or only temp folders (no role: tempFolderOf() reads them when asked).
+        // Or only temp folders: no role of their own (tempFolderOf() reads them when asked),
+        // but the row is said changed so the add's room reads it again (DECISIONS C47 I12).
         QList<int> rows;
+        QList<int> tempRows;
         bool sameNames = true;
         for (int row = 0; row < next.size(); ++row) {
             if (next.at(row).name != m_categories.at(row).name) {
@@ -157,11 +159,15 @@ void CategoryModel::setCategories(QList<Category> next)
             }
             if (next.at(row).savePath != m_categories.at(row).savePath)
                 rows.append(row);
+            else if (next.at(row).downloadPath != m_categories.at(row).downloadPath)
+                tempRows.append(row);
         }
         if (sameNames) {
             m_categories = std::move(next);
             for (const int touched : rows)
                 Q_EMIT dataChanged(index(touched), index(touched), {SavePathRole});
+            for (const int touched : tempRows)
+                Q_EMIT dataChanged(index(touched), index(touched));
             return;
         }
     }

@@ -137,7 +137,12 @@ void TestCategoryModel::partialWithoutSavePathKeepsIt()
 
     QCOMPARE(model.names(), QStringList({QStringLiteral("movies")}));
     QCOMPARE(model.savePathOf(QStringLiteral("movies")), QStringLiteral("/data/m"));
-    QCOMPARE(changed.count(), 0);
+    // The row is said changed, with no role, so the add's room reads its temp folder again
+    // (DECISIONS C47 I12); the save path is not among what moved.
+    QCOMPARE(changed.count(), 1);
+    QVERIFY(changed.at(0).at(2).value<QList<int>>().isEmpty());
+    QCOMPARE(model.tempFolderOf(QStringLiteral("movies")).value(QStringLiteral("path")).toString(),
+             QStringLiteral("/x"));
     QCOMPARE(reset.count(), 0);
 }
 
