@@ -989,8 +989,10 @@ keys m
 keys ctrl+a -t /tmp/elsewhere
 expect_text "the sheet reads the room on /tmp" "Room and access are fine on /tmp" 20
 keys Return
-shot "Straight after enter. A tmpfs takes 2 GiB in about a second, so the row seldom still reads moving, and the band (after 3 s) seldom shows."
+# Checked before the shot, as step 13 does: a tmpfs takes 2 GiB in about a second, and the
+# strip's 6 s (OutcomeStrip's doneSeconds) can run out while a shot is taken (#279).
 expect_text "the strip says it moved, or the band does" "$BIG moved to /tmp/elsewhere" 120
+shot "Just after enter. A tmpfs takes 2 GiB in about a second, so the row seldom still reads moving, and the band (after 3 s) seldom shows: the strip says it moved."
 expect "the save path is /tmp/elsewhere" "$BIGH" "t['save_path'] == '/tmp/elsewhere' and t['state'] != 'moving'" 120
 expect_size "the 2 GiB file is in /tmp/elsewhere, whole" "/tmp/elsewhere/$BIG" "$BIG_SIZE"
 expect_disk "…and gone from ~/Torrents" ! "$TORRENTS_DIR/$BIG"
