@@ -288,6 +288,46 @@ The choice is Settings › Appearance › Skin (state.json's `appearance.skin`);
 once per skin, ctest labels `skin-omarchy` (`tst_qml`) and `skin-console` (`tst_qml_console`);
 `scripts/dev/visual-check.sh` has a pass per skin, each with its own baseline.
 
+**User skins (C37).** A person's skin is `skins/<name>/skin.json` under
+`$XDG_CONFIG_HOME/omaseed/`, data only, and `OMASEED_SKIN` takes its name too. The reader
+(`SkinReader`) is the built-ins' own: every token it can't use is a `SkinDrop {token, value,
+why}` in `Skin.drops`, in the order met, and the skin is drawn without it; `description` and
+`cloned_from` are read, `$schema` ignored. Faces name a built-in skin in every skin
+(`{"Plate": "console"}`), so `Theme.face(seam)` loads `skins/<that skin>/faces/<Seam>.qml`; a
+user skin's `faces/` folder never loads. Omarchy's values are written out once in
+`SkinReader::omarchyTokens()` (`contextualTokens()` lists those whose value depends on where
+they are drawn, left out of a clone), and `tst_skintokens` reads the QML to keep that table
+equal to the fallbacks.
+
+- `integration/UserSkins`: the folder, its name rule (`^[A-Za-z0-9][A-Za-z0-9._-]{0,62}$`, not
+  ending in `.`, never `omarchy`, `console` or `desktop` in any case), the list, the read and
+  the watch (`skins/` and its parent, each folder, each `skin.json`; 250 ms debounce, compared
+  by content). `ThemeReader::Paths::skinsDir` points it; empty means no user skins (tests).
+  A change to the drawn skin repaints as a theme change does; a choice whose skin doesn't read
+  draws Omarchy's and is kept. The log line `skin: NAME (choice C, fonts F)` ends
+  ` · dropped N` or ` · not drawn: WHY`.
+- `App.userSkins` and `Theme.skin.drops`/`description` feed the Skin row's second line (yours,
+  a chip per skin, past three one **yours ▾**, open folder) and its yellow line.
+- `integration/SkinWords`: the JSON and lines of `skin list|clone|use` and `check`, and
+  `pick(skinsDir, name)`, the one check every word makes of a name. `list` and `clone` answer in
+  the CLI on a `QCoreApplication`; `skin use` calls `UseSkin` on the Agent interface, and with
+  no omaseed running saves `appearance.skin` itself (`StateFile::readStrict`: never over a
+  state.json that doesn't parse).
+- `src/ui/Check.cpp` (`runCheck`) answers `check`: offscreen, the software scene graph, both bus
+  addresses pointed nowhere, the skin pinned, `App` in demo mode on the person's theme (or
+  `--theme`, `ThemeReader::Paths::themeDir`), `Views/CheckSheet.qml` (the fixed sheet: rows,
+  table, a menu, a sheet, a notice, each seam in each state) grabbed after two frames into
+  `~/.cache/omaseed/check/NAME[@THEME].png`. `ThemeInk::lifts` gives what C30's floor lifted;
+  check reports only the lifts Omarchy's skin in the same theme doesn't need.
+- The guide is two parts, `AgentGuide::libraryPart()` and `skinsPart()`
+  (`integration/resources/agents/library.md`, `skins.md`), written as one `AGENTS.md`.
+  `SkinReader::schema()` is `skin.schema.json` beside it (JSON Schema 2020-12, one `$defs`
+  entry per kind, each token a `$ref` with Omarchy's value as `default`), rewritten only while
+  its first key is omaseed's `$comment`; `tests/SchemaCheck.hpp` validates against it in tests.
+- `data/agents/skin-check.sh`, installed to `share/omaseed/agents/`, is a scenario for
+  `omabox check run`: `omaseed --demo table` with each skin under each theme, checkpoints
+  `SKIN.THEME`.
+
 ## Design
 
 [`05-ui-spec-v2.html`](05-ui-spec-v2.html) is the approved design; the numbered boards after it

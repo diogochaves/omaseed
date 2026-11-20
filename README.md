@@ -368,6 +368,41 @@ widget, the scroll hint, the rail's surface tint (off, 4 % or 8 %), tracker host
 details panel sits, where the speeds are shown (the title bar or the status line), and the
 sending rows' pulse.
 
+## Make it yours
+
+Ask your coding agent for a look ("make omaseed warmer, and rounder") and it makes you a skin of
+your own. A skin is data, never code: a `skin.json` in `~/.config/omaseed/skins/<name>/` saying
+which roles and alphas paint which grounds, the line widths, cuts, rounding, fonts, the voices
+of labels, densities, glyphs and labels. The colours stay your Omarchy theme's, and text stays
+readable on every theme.
+
+Start your agent in `~/.config/omaseed/`: omaseed writes its guide there on every start
+(`AGENTS.md`, with `skin.schema.json` beside it listing every token, its range and Omarchy's
+value). The agent works with four words, which you can type too:
+
+```
+omaseed skin list               # every skin, where it lives, whether it reads
+omaseed skin clone console warm # start one from a copy (of omarchy, console or one of yours)
+omaseed check warm              # what it reads and drops, and a picture, with no display
+omaseed skin use warm           # draw it in the open window, and keep it
+```
+
+`check` draws one fixed sheet on invented torrents in your theme and base size (`--theme NAME`
+for another), saves it to `~/.cache/omaseed/check/`, and exits 1 when the skin doesn't read.
+With [omabox](https://omabox.app) installed, `skin-check.sh` (in `/usr/share/omaseed/agents/`)
+draws the skin under every theme in a desktop nobody sees. Nothing captures your open window:
+your library never goes to the agent's model.
+
+Your skins are in Settings › Appearance › Skin, on a second line after the built-ins, with
+**open folder**. Saving the drawn skin repaints the window. A token omaseed can't use is left at
+Omarchy's, and a file that doesn't read is drawn as Omarchy's until the next good save: the
+yellow line under the row says which and why. The way back: `omaseed skin use omarchy`, the
+Skin row, or `OMASEED_SKIN=omarchy omaseed` for one run. A clone never touches its source.
+
+To share one, publish its folder (`skin.json`, a `RECIPE.md`, the `preview.png` check made)
+with the topic `omaseed-skin`. To add someone's, read every file, copy the folder into
+`~/.config/omaseed/skins/` under a name you don't have yet, and `omaseed check` it first.
+
 ## Servers
 
 Settings › Servers lists every server, with **add**, **test**, **edit**, **remove** and

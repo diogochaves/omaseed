@@ -5,6 +5,36 @@ All notable changes to omaseed are logged here, newest first. Loosely follows
 versioning stability (pre-1.0). `scripts/release.sh` requires a `## v<version>` section here
 before it will tag a release.
 
+## Unreleased
+
+### Added
+
+- **Skins of your own, made by your coding agent.** Ask it for a look ("make omaseed warmer, and
+  rounder"): a skin is a `skin.json` in `~/.config/omaseed/skins/<name>/`, data only (grounds,
+  lines, cuts, rounding, fonts, label voices, densities, glyphs), drawn in your Omarchy theme's
+  colours with text kept readable. Settings › Appearance › Skin lists yours on a second line,
+  with **open folder**; saving the drawn skin repaints the window, and a yellow line says what
+  was left at Omarchy's or why the skin isn't drawn. (#221, #222)
+- **`omaseed skin list`, `skin clone <from> <name>` and `skin use <name>`.** List every skin and
+  whether it reads; start one from a copy of a built-in or of yours (an existing name is never
+  touched); draw one in the open window and keep it, or save the choice when omaseed isn't
+  running. `omaseed skin use omarchy` is the way back. (#223)
+- **`omaseed check <skin>`**: what a skin reads and drops, what it needed lifted to stay
+  readable, and a picture of a fixed sheet on invented torrents in your theme
+  (`--theme NAME` for another), saved under `~/.cache/omaseed/check/`. No window, no D-Bus, no
+  server. Exit 1 when the skin doesn't read, 5 when a file can't be written. (#224)
+- **The agents' guide has a skins part**, and `~/.config/omaseed/skin.schema.json` beside it
+  lists every token, its range and Omarchy's value, for an editor and for agents. (#225)
+- **omabox checks a skin under every theme** in a desktop nobody sees:
+  `/usr/share/omaseed/agents/skin-check.sh`, a scenario for `omabox check run`; omabox is an
+  optional dependency, and `check` names it when it isn't installed. (#226)
+
+### Changed
+
+- Console's `skin.json` names its faces by skin (`"Plate": "console"`), as user skins do; the
+  same faces are drawn.
+- A Settings row's yellow warning line is read out by screen readers.
+
 ## v0.14.0 — 2026-11-20
 
 ### Added

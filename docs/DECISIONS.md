@@ -2425,6 +2425,67 @@ the person's folder run.
 Not ruled here, each for a board of its own: panels that add features, faces as code, other
 arrangements of a view (#199).
 
+**Built for v0.15.0 (#221: #222–#227).** U1–U10 as ruled. What the code rests on, and what the
+board left to the build:
+
+- **Drops say what and why (U5).** Every token the reader can't use is a drop
+  `{token, value, why}`, in the order met, and the skin is drawn without it. One `why` per kind,
+  short English ("not between 0 and 1", "not a theme role, a skin role, hair or faint", "not a
+  token omaseed knows", "a ground painted over itself"); a ground's recipe is dropped whole, its
+  why naming the part ("its alpha is not between 0 and 1, nor shell"). `glow` other than clean
+  is held at clean (C24 H12). `description` (1–120 characters) and `cloned_from` are read,
+  `$schema` ignored; in a user skin the file's `"skin"` key is ignored, the name is the folder.
+- **Faces name a built-in skin, in every skin (U2).** `faces` takes only `omarchy` or
+  `console` per seam; a path is dropped, and a user skin's `faces/` folder is a drop of its own
+  and never read. Console's own file names its faces the same way, so the same files load.
+- **Omarchy's table (U3).** Omarchy's values are written out once in C++
+  (`SkinReader::omarchyTokens()`), held equal to the QML's fallbacks by a test that reads the
+  QML. The six tokens whose Omarchy value depends on where they are drawn (`line.card`,
+  `line.hairAlpha`, `line.faintAlpha`, `label.track`, `label.captionTrack`,
+  `label.captionWeight`) are left out of a clone (assumed, #283): written out, they would freeze
+  one place's value, and the clone of Omarchy would not draw as Omarchy.
+- **The name rule (U1).** `^[A-Za-z0-9][A-Za-z0-9._-]{0,62}$`, not ending in `.`; a name equal,
+  in any case, to `omarchy`, `console` or `desktop` is refused (`desktop` is Follow the
+  desktop). A folder that fails is left out of the list, its reason logged; clone refuses a
+  name taken in another case.
+- **A broken save (U1).** A drawn skin whose file stops reading is drawn as Omarchy's, with the
+  reason in the Skin row's yellow line, and the choice is kept: the next good save draws it
+  again (not "the last good one"). A chosen folder that is gone does the same and never stops a
+  start. The watch is debounced 250 ms and compares content.
+- **Codes and exits (U3, U6, C45 V13).** `unreadable` exits 1; `unknown-skin`, `bad-name`,
+  `skin-exists`, `no-theme` exit 2; `not-written` exits 5 (a file omaseed would write can't be,
+  or would land on a file that doesn't parse). check's own exit: 0 drawn, 1 drawn whole as
+  Omarchy's, 2 usage.
+- **clone's file (U3).** Written atomically, in this order: `$schema`
+  (`"../../skin.schema.json"`), `version`, `cloned_from`, the source's `description`, then every
+  token: the source's as read, Omarchy's for the rest, every ground's recipe, a face for every
+  seam (`omarchy` where the source has none), glyphs and labels only as the source has them.
+  Nothing in omaseed writes into a user skin after that.
+- **skin use (U6, U8).** With omaseed running, over the Agent interface (`UseSkin`): checked,
+  read (`unreadable`: nothing changes), saved and drawn, `live: true`. With none running, or no
+  session bus (assumed, #283), the CLI saves `appearance.skin` itself, every other key kept,
+  `live: false`; a state.json that exists and doesn't parse is never written (`not-written`).
+  A running omaseed too old to know the word (`too-old`), or one that doesn't answer, gets
+  nothing written: it would write over it. `desktop` is not a `skin use` name.
+- **check (U5, U7).** It pins the skin, runs offscreen on the software scene graph, and points
+  both bus addresses at nothing, so nothing in the run can reach a session bus. It reads the
+  person's theme (or `--theme NAME`, an installed theme's folder) and, read-only, state.json's
+  base size and window ground (assumed, #283; `skin list` reads `appearance.skin` the same way).
+  The picture is the only file it writes. `lifted` lists, per ground, what C30's floor lifted
+  for this skin that Omarchy's skin in the same theme doesn't also lift (assumed, #283), so it
+  speaks of the skin, not the theme. The JSON carries `mode` (light or dark) and `omabox`
+  (whether it is installed); the lines end naming omabox only when it isn't.
+- **The guide and the schema (U4, U9).** Two parts in one `AGENTS.md`, the library's and the
+  skins'. Without a keyring, passwords are in `~/.config/omaseed/secrets/`, so the guide says
+  that, and that state.json, servers.json, moves/ and secrets/ are omaseed's, never to be opened
+  or edited (assumed, #283, against the board's "no credential is ever in this folder").
+  `skin.schema.json` is generated from the reader's table; it is omaseed's while its first key
+  is the `$comment` header, and only then rewritten.
+- **skin-check.sh (U7).** Checkpoints are `SKIN.THEME`; only each skin's `skin.json` goes into
+  the box; a skin that `check` says doesn't draw stops the scenario before a baseline of
+  Omarchy's is kept. `omabox check run` needs `--approve` to keep the first baseline.
+- **yours ▾** (assumed, #283) opens a menu under the chip, as the copy row's "private ▾" does.
+
 ## C38 — The story tells renames (board 56, ruled 2026-11-06)
 
 Board [56](56-the-story-tells-renames.html), #236, R1–R10 all as recommended. A rename is a line

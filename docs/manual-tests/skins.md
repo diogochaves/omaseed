@@ -162,6 +162,25 @@ Each: what to do, then what you should see. Note OK, or what you saw instead.
       Symbols ligatures in Console (C32 "Menus").
     - [ ] The cursor's brackets show only while its list has the keys; the details' tab line is
       lit only while the pane has them; Settings' tabs keep the skin's line (#201 F16).
+11. **Your own skins (v0.15.0, board 55, C37).** In the box's terminal:
+    `omaseed skin clone console warm`, then `omaseed skin clone omarchy paper`.
+    - [ ] Settings › Appearance › Skin: a second line, `yours` · paper · warm · **open folder**;
+      **open folder** opens `~/.config/omaseed/skins/` in the file manager.
+    - [ ] Pick warm: it draws as Console. Edit `skins/warm/skin.json` in an editor
+      (`"grounds": {"hover": {"tint": "accent", "alpha": 0.18, "over": "window"}}` and a
+      `"description"`): each save repaints at once, the description is the row's caption.
+    - [ ] Save a value out of range (`"alpha": 1.4`): the yellow line names the token and why;
+      the rest of warm is still drawn. Save a broken file (delete a brace): "warm isn't drawn:
+      its skin.json doesn't parse.", Omarchy's look; fix it: warm again, no restart.
+    - [ ] `omaseed check warm`: its lines, and the picture it names
+      (`~/.cache/omaseed/check/warm.png`) looks like warm under the box's theme;
+      `omaseed check warm --theme catppuccin-latte` draws it light.
+    - [ ] Clone two more (`a`, `b`): past three, one **yours ▾** chip whose menu lists them, a
+      check on the drawn one; enter on the row and the everything palette reach each.
+    - [ ] `omaseed skin use omarchy` from the terminal: the window goes back at once, the row
+      follows. Quit omaseed, `omaseed skin use warm`: it says it's saved; start omaseed: warm.
+    - [ ] Start an agent in `~/.config/omaseed/` (or read `AGENTS.md` there): the skins part reads
+      as a way in for someone who has never seen omaseed.
 
 When you're done: `scripts/dev/manual-box.sh down`.
 
@@ -179,3 +198,7 @@ These were checked by tests and walks on the same commit.
 - **The look, screen by screen:** the visual check's Console pass (`OMASEED_SKIN=console`, its
   own baseline), the walk's screens plus a torrent that needs you, the pieces, the trackers
   tab, picked rows apart from the cursor, a refused action's strip and two servers.
+- **Your own skins:** skins-walk, in a box: the words (`skin list|clone|use`, `check`) with
+  their JSON and exits, a save while drawn, the Skin row's second line and yellow line, `skin
+  use` with omaseed quit; `tst_skinreader`, `tst_userskins`, `tst_skintokens`, `tst_skinwords`,
+  `tst_check`, `tst_agentguide` and the QML suite's Skin row cases.
