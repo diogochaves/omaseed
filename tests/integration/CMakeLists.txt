@@ -34,6 +34,13 @@ omaseed_add_test(tst_skinreader
     LIBRARIES omaseed::integration
 )
 
+# #222 (DECISIONS C37 U3): Omarchy's token values in C++ held to the QML's fallbacks.
+omaseed_add_test(tst_skintokens
+    SOURCES tst_skintokens.cpp
+    LIBRARIES omaseed::integration
+    DEFINES OMASEED_SOURCE_QML_DIR="${PROJECT_SOURCE_DIR}/src/ui/qml"
+)
+
 # #171 step 2: Follow the desktop's rule and watcher, and the reader's skin choice.
 omaseed_add_test(tst_desktopskin
     SOURCES tst_desktopskin.cpp
